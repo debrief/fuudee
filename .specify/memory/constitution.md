@@ -61,9 +61,12 @@ earlier attempt; generation turns them into build failures.
   rebuildable, and never authoritative (SUB-10, SUB-11).
 - Storage access MUST sit behind an interface so a database backend can be added without changing
   the data model (SUB-08).
-- From v4.0.0, files MUST remain readable by older installed versions (SUB-09, NFR-08).
+- Readability by older installed versions is NOT required: IT keeps all users on one version, and
+  legacy v3 content enters v4 by one-way import only (SRD §2.4, §12.1; EXT-14). Newer versions MUST
+  still read files written by earlier v4 releases from v4.0.0 onward.
 
-Rationale: data outlives tools; organisations run mixed versions and archive to third parties.
+Rationale: data outlives tools and is archived to third parties; open formats keep it usable
+without Debrief.
 
 ### V. Offline First, Filesystem-Controlled Access
 
@@ -74,8 +77,9 @@ Rationale: data outlives tools; organisations run mixed versions and archive to 
   (PRN-05, SEC-01, SEC-07).
 - No telemetry. Logs MUST contain no plot data (NFR-15). No secrets or classified paths in the
   repository.
-- A feature needing a network or model (e.g. CAP-23) MUST degrade to a working offline path and
-  MUST NOT be on the critical path of any outcome.
+- Any language model (e.g. for CAP-23) MUST run locally so the feature works offline. Until a
+  suitable local model is available and accredited, model-driven features MUST NOT be on the
+  critical path of any outcome; OUT-05 is met by CAP-24 and CAP-25 alone.
 
 Rationale: Debrief runs on accredited, often disconnected networks; the accreditation path depends
 on not adding new security surface.
@@ -83,7 +87,12 @@ on not adding new security surface.
 ### VI. Python Domain Logic, Replaceable Presentation
 
 - Domain logic MUST live in Python tool libraries served over MCP (PRN-03, TL-01). Performance MUST
-  be met by budgets, batching and client-side interpolation, not by moving logic out of Python.
+  be met by budgets and batching, not by moving logic out of Python.
+- Where a budget needs it, Python MAY return values sampled densely enough that the client only
+  interpolates between them. That interpolation is presentation, not domain logic, and MUST handle
+  bearing wrap-around at 360° (NFR-04).
+- Units, position notation and date-time MUST be formatted for display through a single configurable
+  layer, never within individual views or tools. Stored values are unaffected (NFR-16).
 - Frontends (VS Code native views, webviews, standalone web) orchestrate and display only; they
   MUST NOT hold domain logic or own a divergent persistence path.
 - Component logic MUST sit behind the host so UI libraries (vscrui) and native-vs-webview choices
@@ -170,8 +179,8 @@ Rationale: analysts accept visible lag, not stalls; budgets keep implementation 
   schema adherence tests).
 - Atomic commits with clear messages. Significant technical decisions recorded as ADRs.
 - **Pre-release freedom**: until v4.0.0, breaking changes to the data model and APIs are permitted
-  without deprecation. At v4.0.0, backward readability (Principle IV), schema versioning with
-  migration paths, and a maintained CHANGELOG become mandatory.
+  without deprecation. At v4.0.0, schema versioning with migration paths for existing v4 files and a
+  maintained CHANGELOG become mandatory.
 
 ## Governance
 
