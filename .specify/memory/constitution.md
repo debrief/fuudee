@@ -61,9 +61,13 @@ earlier attempt; generation turns them into build failures.
   rebuildable, and never authoritative (SUB-10, SUB-11).
 - Storage access MUST sit behind an interface so a database backend can be added without changing
   the data model (SUB-08).
+- Every plot and catalogue file MUST record the schema version it was written with (SUB-31).
+- Debrief MUST refuse to open a file written by a newer release, naming the version required, and
+  MUST NEVER partially load it (SUB-33).
+- From v4.0.0, Debrief MUST open files written by any earlier v4 release, migrating them to the
+  current schema and recording the migration in provenance (SUB-32).
 - Readability by older installed versions is NOT required: IT keeps all users on one version, and
-  legacy v3 content enters v4 by one-way import only (SRD §2.4, §12.1; EXT-14). Newer versions MUST
-  still read files written by earlier v4 releases from v4.0.0 onward.
+  legacy v3 content enters v4 by one-way import only (SRD §2.4, §12.1; EXT-14).
 
 Rationale: data outlives tools and is archived to third parties; open formats keep it usable
 without Debrief.
@@ -92,7 +96,7 @@ on not adding new security surface.
   interpolates between them. That interpolation is presentation, not domain logic, and MUST handle
   bearing wrap-around at 360° (NFR-04).
 - Units, position notation and date-time MUST be formatted for display through a single configurable
-  layer, never within individual views or tools. Stored values are unaffected (NFR-16).
+  substrate service, never within individual views or tools. Stored values are unaffected (SUB-34).
 - Frontends (VS Code native views, webviews, standalone web) orchestrate and display only; they
   MUST NOT hold domain logic or own a divergent persistence path.
 - Component logic MUST sit behind the host so UI libraries (vscrui) and native-vs-webview choices
@@ -179,8 +183,9 @@ Rationale: analysts accept visible lag, not stalls; budgets keep implementation 
   schema adherence tests).
 - Atomic commits with clear messages. Significant technical decisions recorded as ADRs.
 - **Pre-release freedom**: until v4.0.0, breaking changes to the data model and APIs are permitted
-  without deprecation. At v4.0.0, schema versioning with migration paths for existing v4 files and a
-  maintained CHANGELOG become mandatory.
+  without deprecation, but files MUST still carry their schema version and newer files MUST still be
+  refused (SUB-31, SUB-33). At v4.0.0, migration of earlier v4 files (SUB-32) and a maintained
+  CHANGELOG become mandatory.
 
 ## Governance
 
