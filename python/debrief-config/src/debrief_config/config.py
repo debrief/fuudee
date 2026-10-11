@@ -1,13 +1,25 @@
-"""Finding, reading and writing the per-user configuration file."""
+"""Finding, reading and changing the per-user configuration file.
+
+The extension and the Python services both change this file, so every
+change goes through update_config: take a lock beside the file, re-read it,
+apply the change, write a temporary file and rename it over the original.
+The TypeScript side (ts/config) follows the same protocol and the same
+location and normalisation rules (schemas/vectors/config-paths.json and
+store-locations.json).
+"""
 
 from __future__ import annotations
 
 import json
+import ntpath
 import os
+import posixpath
 import re
 import sys
 import tempfile
-from collections.abc import Mapping
+import time
+from collections.abc import Callable, Iterator, Mapping
+from contextlib import contextmanager
 from pathlib import Path, PurePath, PurePosixPath, PureWindowsPath
 
 from debrief_schemas import (
@@ -20,10 +32,13 @@ from debrief_schemas import (
 )
 
 FILE_NAME = "config.json"
+LOCK_WAIT_S = 5.0
+LOCK_STALE_S = 30.0
+REPLACE_WAIT_S = 2.0
 
 
 class ConfigError(ValueError):
-    """The configuration file cannot be read or must not be written."""
+    """The configuration cannot be read, or must not be written."""
 
 
 def config_path(
@@ -31,14 +46,19 @@ def config_path(
     platform: str | None = None,
     home: str | None = None,
 ) -> PurePath:
-    """Where this user's configuration lives. DEBRIEF_CONFIG overrides the default."""
+    """Where this user's configuration lives. DEBRIEF_CONFIG overrides the default.
+
+    On Windows this is the roaming profile, so the list follows the analyst
+    between machines; locations on shares (UNC paths) roam usefully, local
+    drive paths do not.
+    """
     env = os.environ if env is None else env
     platform = sys.platform if platform is None else platform
     home = str(Path.home()) if home is None else home
     pure = PureWindowsPath if platform == "win32" else PurePosixPath
 
     if env.get("DEBRIEF_CONFIG"):
-        return pure(env["DEBRIEF_CONFIG"])
+        return pure(_normalise(env["DEBRIEF_CONFIG"], platform))
     if platform == "win32":
         base = env.get("APPDATA") or str(pure(home, "AppData", "Roaming"))
         return pure(base, "Debrief", FILE_NAME)
@@ -49,55 +69,157 @@ def config_path(
     return pure(base, "debrief", FILE_NAME)
 
 
+def _normalise(location: str, platform: str) -> str:
+    """Lexical normalisation only: never touches the filesystem, so an
+    unreachable share cannot stall it and a mapped drive stays as written."""
+    flavour = ntpath if platform == "win32" else posixpath
+    normal = flavour.normpath(location)
+    root = flavour.splitdrive(normal)[0] + flavour.sep
+    while len(normal) > len(root) and normal.endswith(flavour.sep):
+        normal = normal[:-1]
+    return normal
+
+
+def normalise_location(location: str, platform: str | None = None) -> str:
+    """The form a store location is stored in. It must already be absolute."""
+    platform = sys.platform if platform is None else platform
+    pure = PureWindowsPath if platform == "win32" else PurePosixPath
+    if not pure(location).is_absolute():
+        raise ConfigError(f"A store location must be a full path; {location!r} is not")
+    return _normalise(location, platform)
+
+
+def same_location(a: str, b: str, platform: str | None = None) -> bool:
+    """Whether two stored locations name the same folder. Windows paths ignore case."""
+    platform = sys.platform if platform is None else platform
+    if platform == "win32":
+        return a.casefold() == b.casefold()
+    return a == b
+
+
 def _empty() -> models.UserConfig:
     return models.UserConfig(config_version=CONFIG_VERSION, stores=[])
 
 
-def _check_version(text: str, path: Path) -> None:
-    """Refuse a file from a newer Debrief before validating it, with a message that says so."""
+def _read(path: Path) -> str | None:
+    try:
+        return path.read_text(encoding="utf-8-sig")  # tolerate the BOM Notepad writes
+    except FileNotFoundError:
+        return None
+    except (OSError, UnicodeDecodeError) as error:
+        raise ConfigError(f"Cannot read {path}: {error}") from error
+
+
+def _parse(text: str, path: Path) -> models.UserConfig:
     try:
         version = json.loads(text).get("config_version")
-    except (json.JSONDecodeError, AttributeError):
-        return  # validation reports it
-    if isinstance(version, int) and version > CONFIG_VERSION:
+    except (json.JSONDecodeError, AttributeError) as error:
+        raise ConfigError(f"{path} is not a valid Debrief configuration: {error}") from error
+    if type(version) is int and version > CONFIG_VERSION:
         raise ConfigError(
             f"{path} was written by a newer version of Debrief (configuration version "
             f"{version}; this version understands {CONFIG_VERSION}). Update Debrief, or "
             "point DEBRIEF_CONFIG at another file."
         )
-
-
-def load_config(path: Path | None = None) -> models.UserConfig:
-    """The user's configuration. A missing file is an empty configuration."""
-    path = Path(path if path is not None else config_path())
-    try:
-        text = path.read_text(encoding="utf-8")
-    except FileNotFoundError:
-        return _empty()
-    _check_version(text, path)
     try:
         return load_document(DocumentKind.USER_CONFIG, text)
     except DocumentValidationError as error:
         raise ConfigError(f"{path} is not a valid Debrief configuration: {error}") from error
 
 
-def save_config(config: models.UserConfig, path: Path | None = None) -> None:
-    """Write the configuration atomically. Never overwrites a newer Debrief's file."""
+def load_config(path: Path | None = None) -> models.UserConfig:
+    """The user's configuration. A missing file is an empty configuration."""
     path = Path(path if path is not None else config_path())
-    if path.exists():
-        _check_version(path.read_text(encoding="utf-8"), path)
-    text = dump_document(DocumentKind.USER_CONFIG, config)  # validates
+    text = _read(path)
+    return _empty() if text is None else _parse(text, path)
+
+
+@contextmanager
+def _locked(path: Path) -> Iterator[None]:
+    """An advisory lock shared with ts/config: a file created exclusively beside the config."""
+    lock = path.with_name(path.name + ".lock")
     path.parent.mkdir(parents=True, exist_ok=True)
+    deadline = time.monotonic() + LOCK_WAIT_S
+    while True:
+        try:
+            handle = os.open(lock, os.O_CREAT | os.O_EXCL | os.O_WRONLY, 0o600)
+            break
+        except FileExistsError:
+            try:
+                if time.time() - lock.stat().st_mtime > LOCK_STALE_S:
+                    lock.unlink(missing_ok=True)  # left by a process that died
+                    continue
+            except FileNotFoundError:
+                continue
+            if time.monotonic() > deadline:
+                raise ConfigError(
+                    f"Another Debrief process is changing {path}. Try again in a moment."
+                ) from None
+            time.sleep(0.05)
+        except OSError as error:
+            raise ConfigError(f"Cannot lock {path}: {error}") from error
+    try:
+        os.write(handle, f"{os.getpid()}\n".encode())
+        os.close(handle)
+        yield
+    finally:
+        lock.unlink(missing_ok=True)
+
+
+def _replace(temporary: str, path: Path) -> None:
+    """Rename over the original, retrying while Windows reports it in use
+    (an antivirus scan, an indexer, another process reading it)."""
+    deadline = time.monotonic() + REPLACE_WAIT_S
+    while True:
+        try:
+            os.replace(temporary, path)
+            return
+        except PermissionError:
+            if time.monotonic() > deadline:
+                raise
+            time.sleep(0.05)
+
+
+def _write(config: models.UserConfig, path: Path) -> None:
+    text = dump_document(DocumentKind.USER_CONFIG, config)  # validates
     handle, temporary = tempfile.mkstemp(dir=path.parent, prefix=f".{path.name}.", suffix=".tmp")
     try:
         with os.fdopen(handle, "w", encoding="utf-8", newline="\n") as stream:
             stream.write(text)
             stream.flush()
             os.fsync(stream.fileno())
-        os.replace(temporary, path)
+        _replace(temporary, path)
+    except OSError as error:
+        Path(temporary).unlink(missing_ok=True)
+        raise ConfigError(f"Cannot write {path}: {error}") from error
     except BaseException:
         Path(temporary).unlink(missing_ok=True)
         raise
+    if hasattr(os, "O_DIRECTORY"):  # make the rename itself durable (POSIX)
+        directory = os.open(path.parent, os.O_RDONLY | os.O_DIRECTORY)
+        try:
+            os.fsync(directory)
+        finally:
+            os.close(directory)
+
+
+def update_config(
+    change: Callable[[models.UserConfig], models.UserConfig], path: Path | None = None
+) -> models.UserConfig:
+    """Apply a change to the configuration on disk and return the result.
+
+    The file is re-read under the lock, so a change made meanwhile by another
+    process (the extension, another service) is kept, not overwritten. A file
+    from a newer Debrief is never overwritten.
+    """
+    path = Path(path if path is not None else config_path())
+    with _locked(path):
+        text = _read(path)
+        current = _empty() if text is None else _parse(text, path)
+        changed = change(current)
+        if changed != current:
+            _write(changed, path)
+        return changed
 
 
 def _store_id(title: str, taken: set[str]) -> str:
@@ -112,25 +234,24 @@ def add_store(
     config: models.UserConfig,
     *,
     title: str,
-    location: Path | str,
-    protection_level: str | None = None,
+    location: str | PurePath,
     read_only: bool | None = None,
+    platform: str | None = None,
 ) -> tuple[models.UserConfig, models.KnownStore]:
     """A copy of the configuration with one more file store, and that store.
 
     The id comes from the title. A store already listed at the same location
     is not added twice: the existing one is returned unchanged.
     """
-    location = str(Path(location).resolve())
+    location = normalise_location(str(location), platform)
     for store in config.stores:
-        if store.location == location:
+        if same_location(store.location, location, platform):
             return config, store
     store = models.KnownStore(
         id=_store_id(title, {s.id for s in config.stores}),
         title=title,
         kind="file",
         location=location,
-        protection_level=protection_level,
         read_only=read_only,
     )
     return config.model_copy(update={"stores": [*config.stores, store]}), store

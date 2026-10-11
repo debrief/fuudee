@@ -13,8 +13,8 @@ imports:
 description: >-
   The analyst's own configuration, one JSON file per user account, read and
   written by both the Python services and the VS Code extension. It lists
-  the stores Debrief knows about. A store's protection level is fixed by
-  where it lives (SEC-02); the configuration only names it.
+  the stores Debrief knows about. It holds no protection marking: that
+  belongs to the catalogue itself (SEC-02), so every analyst sees the same.
 
   The file carries its own config_version rather than the data-file schema
   version: it is not data, so it must survive a schema change. A Debrief
@@ -57,10 +57,9 @@ classes:
           Windows drive path or a UNC share.
         required: true
         pattern: "^(/|[A-Za-z]:[\\\\/]|\\\\\\\\[^\\\\])"
-      protection_level:
-        description: >-
-          The protection marking of everything in the store, as the analyst's
-          organisation writes it (SEC-02). Shown, never interpreted.
       read_only:
-        description: When true, Debrief offers no action that would write to the store.
+        description: >-
+          When true, Debrief offers no action that would write to the store.
+          A courtesy, not access control: filesystem permissions decide that
+          (SEC-01).
         range: boolean

@@ -561,11 +561,7 @@ export interface KnownStore {
    */
   location: string;
   /**
-   * The protection marking of everything in the store, as the analyst's organisation writes it (SEC-02). Shown, never interpreted.
-   */
-  protection_level?: string | null;
-  /**
-   * When true, Debrief offers no action that would write to the store.
+   * When true, Debrief offers no action that would write to the store. A courtesy, not access control: filesystem permissions decide that (SEC-01).
    */
   read_only?: boolean | null;
   /**

@@ -1984,8 +1984,7 @@ class KnownStore(ConfiguredBaseModel):
                        'ParameterDeclaration',
                        'KnownStore']} })
     location: str = Field(default=..., description="""Absolute path to the folder holding catalog.json: a POSIX path, a Windows drive path or a UNC share.""", json_schema_extra = { "linkml_meta": {'domain_of': ['KnownStore']} })
-    protection_level: Optional[str] = Field(default=None, description="""The protection marking of everything in the store, as the analyst's organisation writes it (SEC-02). Shown, never interpreted.""", json_schema_extra = { "linkml_meta": {'domain_of': ['KnownStore']} })
-    read_only: Optional[bool] = Field(default=None, description="""When true, Debrief offers no action that would write to the store.""", json_schema_extra = { "linkml_meta": {'domain_of': ['KnownStore']} })
+    read_only: Optional[bool] = Field(default=None, description="""When true, Debrief offers no action that would write to the store. A courtesy, not access control: filesystem permissions decide that (SEC-01).""", json_schema_extra = { "linkml_meta": {'domain_of': ['KnownStore']} })
 
     @field_validator('id')
     def pattern_id(cls, v):

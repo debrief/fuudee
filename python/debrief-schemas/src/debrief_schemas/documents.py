@@ -486,7 +486,7 @@ def dump_document(kind: DocumentKind | str, model: BaseModel) -> str:
     kind = DocumentKind(kind)
     document = _to_json_shape(kind, model.model_dump(mode="json", by_alias=True, exclude_none=True))
     load_document(kind, document)
-    return json.dumps(document, indent=2) + "\n"
+    return json.dumps(document, indent=2, ensure_ascii=False) + "\n"
 
 
 def load_plot(source: str | bytes | dict[str, Any]) -> g.DebriefFeatureCollection:

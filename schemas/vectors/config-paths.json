@@ -12,14 +12,18 @@
       "name": "Linux with XDG_CONFIG_HOME",
       "platform": "linux",
       "home": "/home/analyst",
-      "env": {"XDG_CONFIG_HOME": "/srv/config"},
+      "env": {
+        "XDG_CONFIG_HOME": "/srv/config"
+      },
       "expected": "/srv/config/debrief/config.json"
     },
     {
       "name": "Linux ignores a relative XDG_CONFIG_HOME, as the XDG specification requires",
       "platform": "linux",
       "home": "/home/analyst",
-      "env": {"XDG_CONFIG_HOME": "config"},
+      "env": {
+        "XDG_CONFIG_HOME": "config"
+      },
       "expected": "/home/analyst/.config/debrief/config.json"
     },
     {
@@ -33,7 +37,9 @@
       "name": "Windows with APPDATA",
       "platform": "win32",
       "home": "C:\\Users\\analyst",
-      "env": {"APPDATA": "C:\\Users\\analyst\\AppData\\Roaming"},
+      "env": {
+        "APPDATA": "C:\\Users\\analyst\\AppData\\Roaming"
+      },
       "expected": "C:\\Users\\analyst\\AppData\\Roaming\\Debrief\\config.json"
     },
     {
@@ -47,15 +53,38 @@
       "name": "DEBRIEF_CONFIG overrides the platform default",
       "platform": "win32",
       "home": "C:\\Users\\analyst",
-      "env": {"APPDATA": "C:\\Users\\analyst\\AppData\\Roaming", "DEBRIEF_CONFIG": "D:\\debrief\\config.json"},
+      "env": {
+        "APPDATA": "C:\\Users\\analyst\\AppData\\Roaming",
+        "DEBRIEF_CONFIG": "D:\\debrief\\config.json"
+      },
       "expected": "D:\\debrief\\config.json"
     },
     {
       "name": "DEBRIEF_CONFIG on Linux",
       "platform": "linux",
       "home": "/home/analyst",
-      "env": {"DEBRIEF_CONFIG": "/tmp/test/config.json"},
+      "env": {
+        "DEBRIEF_CONFIG": "/tmp/test/config.json"
+      },
       "expected": "/tmp/test/config.json"
+    },
+    {
+      "name": "Windows with APPDATA redirected to a share",
+      "platform": "win32",
+      "home": "C:\\Users\\analyst",
+      "env": {
+        "APPDATA": "\\\\homeserver\\home$\\analyst\\AppData\\Roaming"
+      },
+      "expected": "\\\\homeserver\\home$\\analyst\\AppData\\Roaming\\Debrief\\config.json"
+    },
+    {
+      "name": "DEBRIEF_CONFIG is normalised",
+      "platform": "win32",
+      "home": "C:\\Users\\analyst",
+      "env": {
+        "DEBRIEF_CONFIG": "D:\\debrief\\..\\setups\\config.json"
+      },
+      "expected": "D:\\setups\\config.json"
     }
   ]
 }
