@@ -38,6 +38,8 @@ class ImportReport:
     item_id: str
     tracks: list[str] = field(default_factory=list)
     fixes: int = 0
+    annotations: int = 0
+    narrative_entries: int = 0
     # Everything not imported, in words an analyst can act on.
     omitted: list[str] = field(default_factory=list)
 
