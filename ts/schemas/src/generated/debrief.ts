@@ -140,6 +140,13 @@ export type TimeStyleEnum = "time" | "date_time" | "dtg";
  */
 export type ItemTypeEnum = "Feature";
 /**
+ * How a store is reached. Only static file catalogues so far (SUB-15).
+ *
+ * This interface was referenced by `DebriefSchemaDefinitions`'s JSON-Schema
+ * via the `definition` "StoreKindEnum".
+ */
+export type StoreKindEnum = "file";
+/**
  * This interface was referenced by `DebriefSchemaDefinitions`'s JSON-Schema
  * via the `definition` "ResultPresentationEnum".
  */
@@ -275,6 +282,10 @@ export interface ProvRecord {
    * Random seed, for operations that use randomness (SUB-20).
    */
   seed?: number | null;
+  /**
+   * Ids of the features the operation was applied to, in selection order, so replay can repeat it (SUB-19).
+   */
+  selected?: string[] | null;
   started_at: string;
   tool?: ToolRef | null;
   used?: SourceRef[] | null;
@@ -538,6 +549,29 @@ export interface FormatSettings {
    * IANA time zone for display, or UTC for Zulu time (SUB-01).
    */
   time_zone: string;
+}
+/**
+ * This interface was referenced by `DebriefSchemaDefinitions`'s JSON-Schema
+ * via the `definition` "KnownStore".
+ */
+export interface KnownStore {
+  /**
+   * Unique within this file; stable when the store is renamed.
+   */
+  id: string;
+  kind: StoreKindEnum;
+  /**
+   * Absolute path to the folder holding catalog.json: a POSIX path, a Windows drive path or a UNC share.
+   */
+  location: string;
+  /**
+   * When true, Debrief offers no action that would write to the store. A courtesy, not access control: filesystem permissions decide that (SEC-01).
+   */
+  read_only?: boolean | null;
+  /**
+   * The name the analyst sees.
+   */
+  title: string;
 }
 /**
  * A number, table or graph (TL-13), held column by column. A number is one column with one value; a graph plots its first column against the rest.
@@ -817,4 +851,18 @@ export interface ToolResult {
   new_features?: (TrackFeature | AnnotationFeature | SensorObservationsFeature)[] | null;
   non_spatial?: NonSpatialResult[] | null;
   state_change?: SharedStateChange | null;
+}
+/**
+ * This interface was referenced by `DebriefSchemaDefinitions`'s JSON-Schema
+ * via the `definition` "UserConfig".
+ */
+export interface UserConfig {
+  /**
+   * Version of this file's layout. Currently 1.
+   */
+  config_version: number;
+  /**
+   * Known stores, in the order the analyst sees them (SUB-17).
+   */
+  stores: KnownStore[];
 }

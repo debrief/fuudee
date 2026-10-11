@@ -32,7 +32,7 @@ from pydantic import (
 
 
 metamodel_version = "1.12.0"
-version = "0.0.4"
+version = "0.0.5"
 
 
 class ConfiguredBaseModel(BaseModel):
@@ -631,6 +631,16 @@ class TimeStyleEnum(str, Enum):
     """
 
 
+class StoreKindEnum(str, Enum):
+    """
+    How a store is reached. Only static file catalogues so far (SUB-15).
+    """
+    file = "file"
+    """
+    A static STAC catalogue in a local or shared folder.
+    """
+
+
 
 class Length(ConfiguredBaseModel):
     linkml_meta: ClassVar[LinkMLMeta] = LinkMLMeta({'from_schema': 'https://debrief.info/schemas/debrief'})
@@ -889,18 +899,21 @@ class ProvRecord(ConfiguredBaseModel):
                        'SensorObservationsFeature',
                        'NamedSet',
                        'StacItem',
-                       'StacCatalog']} })
+                       'StacCatalog',
+                       'KnownStore']} })
     kind: ProvActivityKindEnum = Field(default=..., json_schema_extra = { "linkml_meta": {'domain_of': ['ProvRecord',
                        'AgentRef',
                        'TrackProperties',
                        'AnnotationProperties',
                        'SensorObservationsProperties',
-                       'ParameterDeclaration']} })
+                       'ParameterDeclaration',
+                       'KnownStore']} })
     started_at: str = Field(default=..., json_schema_extra = { "linkml_meta": {'domain_of': ['ProvRecord']} })
     ended_at: Optional[str] = Field(default=None, json_schema_extra = { "linkml_meta": {'domain_of': ['ProvRecord']} })
     tool: Optional[ToolRef] = Field(default=None, json_schema_extra = { "linkml_meta": {'domain_of': ['ProvRecord']} })
     agent: AgentRef = Field(default=..., json_schema_extra = { "linkml_meta": {'domain_of': ['ProvRecord']} })
     parameters: Optional[list[ParameterValue]] = Field(default=None, description="""Parameter values the operation ran with, so replay can repeat it (SUB-19).""", json_schema_extra = { "linkml_meta": {'domain_of': ['ProvRecord', 'ToolDeclaration']} })
+    selected: Optional[list[str]] = Field(default=None, description="""Ids of the features the operation was applied to, in selection order, so replay can repeat it (SUB-19).""", json_schema_extra = { "linkml_meta": {'domain_of': ['ProvRecord']} })
     used: Optional[list[SourceRef]] = Field(default=None, json_schema_extra = { "linkml_meta": {'domain_of': ['ProvRecord']} })
     seed: Optional[int] = Field(default=None, description="""Random seed, for operations that use randomness (SUB-20).""", json_schema_extra = { "linkml_meta": {'domain_of': ['ProvRecord']} })
     notes: Optional[list[str]] = Field(default=None, description="""Free-text notes such as truncations or omitted content (EXT-14, EXT-15).""", json_schema_extra = { "linkml_meta": {'domain_of': ['ProvRecord']} })
@@ -965,7 +978,8 @@ class AgentRef(ConfiguredBaseModel):
                        'TrackProperties',
                        'AnnotationProperties',
                        'SensorObservationsProperties',
-                       'ParameterDeclaration']} })
+                       'ParameterDeclaration',
+                       'KnownStore']} })
     name: str = Field(default=..., json_schema_extra = { "linkml_meta": {'domain_of': ['ParameterValue',
                        'ToolRef',
                        'AgentRef',
@@ -1028,7 +1042,8 @@ class TrackFeature(ConfiguredBaseModel):
                        'SensorObservationsFeature',
                        'NamedSet',
                        'StacItem',
-                       'StacCatalog']} })
+                       'StacCatalog',
+                       'KnownStore']} })
     geometry: LineStringGeometry = Field(default=..., json_schema_extra = { "linkml_meta": {'domain_of': ['TrackFeature',
                        'AnnotationFeature',
                        'SensorObservationsFeature',
@@ -1047,7 +1062,8 @@ class TrackProperties(ConfiguredBaseModel):
                        'TrackProperties',
                        'AnnotationProperties',
                        'SensorObservationsProperties',
-                       'ParameterDeclaration']} })
+                       'ParameterDeclaration',
+                       'KnownStore']} })
     name: str = Field(default=..., json_schema_extra = { "linkml_meta": {'domain_of': ['ParameterValue',
                        'ToolRef',
                        'AgentRef',
@@ -1131,7 +1147,8 @@ class AnnotationFeature(ConfiguredBaseModel):
                        'SensorObservationsFeature',
                        'NamedSet',
                        'StacItem',
-                       'StacCatalog']} })
+                       'StacCatalog',
+                       'KnownStore']} })
     geometry: Optional[Union[LineStringGeometry, PointGeometry, PolygonGeometry]] = Field(default=None, json_schema_extra = { "linkml_meta": {'any_of': [{'range': 'PointGeometry'},
                     {'range': 'LineStringGeometry'},
                     {'range': 'PolygonGeometry'}],
@@ -1153,7 +1170,8 @@ class AnnotationProperties(ConfiguredBaseModel):
                        'TrackProperties',
                        'AnnotationProperties',
                        'SensorObservationsProperties',
-                       'ParameterDeclaration']} })
+                       'ParameterDeclaration',
+                       'KnownStore']} })
     style: AnnotationStyleEnum = Field(default=..., json_schema_extra = { "linkml_meta": {'domain_of': ['TrackProperties', 'AnnotationProperties']} })
     name: str = Field(default=..., json_schema_extra = { "linkml_meta": {'domain_of': ['ParameterValue',
                        'ToolRef',
@@ -1212,7 +1230,8 @@ class SensorObservationsFeature(ConfiguredBaseModel):
                        'SensorObservationsFeature',
                        'NamedSet',
                        'StacItem',
-                       'StacCatalog']} })
+                       'StacCatalog',
+                       'KnownStore']} })
     geometry: Optional[PointGeometry] = Field(default=None, description="""Always null.""", json_schema_extra = { "linkml_meta": {'domain_of': ['TrackFeature',
                        'AnnotationFeature',
                        'SensorObservationsFeature',
@@ -1231,7 +1250,8 @@ class SensorObservationsProperties(ConfiguredBaseModel):
                        'TrackProperties',
                        'AnnotationProperties',
                        'SensorObservationsProperties',
-                       'ParameterDeclaration']} })
+                       'ParameterDeclaration',
+                       'KnownStore']} })
     name: str = Field(default=..., json_schema_extra = { "linkml_meta": {'domain_of': ['ParameterValue',
                        'ToolRef',
                        'AgentRef',
@@ -1354,7 +1374,8 @@ class NamedSet(ConfiguredBaseModel):
                        'SensorObservationsFeature',
                        'NamedSet',
                        'StacItem',
-                       'StacCatalog']} })
+                       'StacCatalog',
+                       'KnownStore']} })
     name: str = Field(default=..., json_schema_extra = { "linkml_meta": {'domain_of': ['ParameterValue',
                        'ToolRef',
                        'AgentRef',
@@ -1437,7 +1458,8 @@ class StacLink(ConfiguredBaseModel):
                        'StacCatalog',
                        'ToolDeclaration',
                        'ParameterDeclaration',
-                       'NonSpatialResult']} })
+                       'NonSpatialResult',
+                       'KnownStore']} })
 
 
 class StacAsset(ConfiguredBaseModel):
@@ -1463,7 +1485,8 @@ class StacAsset(ConfiguredBaseModel):
                        'StacCatalog',
                        'ToolDeclaration',
                        'ParameterDeclaration',
-                       'NonSpatialResult']} })
+                       'NonSpatialResult',
+                       'KnownStore']} })
     roles: Optional[list[str]] = Field(default=None, json_schema_extra = { "linkml_meta": {'domain_of': ['StacAsset']} })
     debrief_asset_kind: AssetKindEnum = Field(default=..., alias="debrief:asset_kind", json_schema_extra = { "linkml_meta": {'domain_of': ['StacAsset']} })
     debrief_content_hash: Optional[str] = Field(default=None, alias="debrief:content_hash", description="""Required for sources (SUB-11).""", json_schema_extra = { "linkml_meta": {'domain_of': ['StacAsset']} })
@@ -1495,7 +1518,8 @@ class StacItemProperties(ConfiguredBaseModel):
                        'StacCatalog',
                        'ToolDeclaration',
                        'ParameterDeclaration',
-                       'NonSpatialResult']} })
+                       'NonSpatialResult',
+                       'KnownStore']} })
     description: Optional[str] = Field(default=None, json_schema_extra = { "linkml_meta": {'domain_of': ['StacItemProperties', 'StacCatalog']} })
     debrief_schema_version: str = Field(default=..., alias="debrief:schema_version", json_schema_extra = { "linkml_meta": {'domain_of': ['StacItemProperties', 'StacCatalog']} })
     debrief_participants: Optional[list[str]] = Field(default=None, alias="debrief:participants", description="""Platform names, for catalogue search (SUB-16).""", json_schema_extra = { "linkml_meta": {'domain_of': ['StacItemProperties']} })
@@ -1578,7 +1602,8 @@ class StacItem(ConfiguredBaseModel):
                        'SensorObservationsFeature',
                        'NamedSet',
                        'StacItem',
-                       'StacCatalog']} })
+                       'StacCatalog',
+                       'KnownStore']} })
     geometry: Optional[Union[LineStringGeometry, PointGeometry, PolygonGeometry]] = Field(default=None, json_schema_extra = { "linkml_meta": {'any_of': [{'range': 'PointGeometry'},
                     {'range': 'LineStringGeometry'},
                     {'range': 'PolygonGeometry'}],
@@ -1622,14 +1647,16 @@ class StacCatalog(ConfiguredBaseModel):
                        'SensorObservationsFeature',
                        'NamedSet',
                        'StacItem',
-                       'StacCatalog']} })
+                       'StacCatalog',
+                       'KnownStore']} })
     title: Optional[str] = Field(default=None, json_schema_extra = { "linkml_meta": {'domain_of': ['StacLink',
                        'StacAsset',
                        'StacItemProperties',
                        'StacCatalog',
                        'ToolDeclaration',
                        'ParameterDeclaration',
-                       'NonSpatialResult']} })
+                       'NonSpatialResult',
+                       'KnownStore']} })
     description: str = Field(default=..., json_schema_extra = { "linkml_meta": {'domain_of': ['StacItemProperties', 'StacCatalog']} })
     links: list[StacLink] = Field(default=..., json_schema_extra = { "linkml_meta": {'domain_of': ['StacItem', 'StacCatalog']} })
     debrief_schema_version: str = Field(default=..., alias="debrief:schema_version", description="""The newest data-file schema this catalogue holds (SUB-35).""", json_schema_extra = { "linkml_meta": {'domain_of': ['StacItemProperties', 'StacCatalog']} })
@@ -1727,7 +1754,8 @@ class ToolDeclaration(ConfiguredBaseModel):
                        'StacCatalog',
                        'ToolDeclaration',
                        'ParameterDeclaration',
-                       'NonSpatialResult']} })
+                       'NonSpatialResult',
+                       'KnownStore']} })
     explanation: str = Field(default=..., description="""Short user-facing explanation of what the tool does (CAP-24).""", json_schema_extra = { "linkml_meta": {'domain_of': ['ToolDeclaration', 'ParameterDeclaration']} })
     judgement: Optional[str] = Field(default=None, description="""Any judgement the tool involves, shown on its form (CAP-24).""", json_schema_extra = { "linkml_meta": {'domain_of': ['ToolDeclaration']} })
     applies_to: list[str] = Field(default=..., description="""Feature kinds from the taxonomy, or \"*\" for any (TL-06). Debrief offers a tool only if every selected item matches (TL-08).""", json_schema_extra = { "linkml_meta": {'domain_of': ['ToolDeclaration']} })
@@ -1785,14 +1813,16 @@ class ParameterDeclaration(ConfiguredBaseModel):
                        'StacCatalog',
                        'ToolDeclaration',
                        'ParameterDeclaration',
-                       'NonSpatialResult']} })
+                       'NonSpatialResult',
+                       'KnownStore']} })
     explanation: Optional[str] = Field(default=None, description="""Shown beside the field on the form (CAP-24).""", json_schema_extra = { "linkml_meta": {'domain_of': ['ToolDeclaration', 'ParameterDeclaration']} })
     kind: ParameterKindEnum = Field(default=..., json_schema_extra = { "linkml_meta": {'domain_of': ['ProvRecord',
                        'AgentRef',
                        'TrackProperties',
                        'AnnotationProperties',
                        'SensorObservationsProperties',
-                       'ParameterDeclaration']} })
+                       'ParameterDeclaration',
+                       'KnownStore']} })
     quantity_kind: Optional[QuantityKindEnum] = Field(default=None, description="""Required when kind is quantity.""", json_schema_extra = { "linkml_meta": {'domain_of': ['PayloadColumn', 'ParameterDeclaration', 'ResultColumn']} })
     required: Optional[bool] = Field(default=True, json_schema_extra = { "linkml_meta": {'domain_of': ['ParameterDeclaration'], 'ifabsent': 'True'} })
     default: Optional[Union[Angle, Duration, Length, Speed, bool, float, str]] = Field(default=None, json_schema_extra = { "linkml_meta": {'any_of': [{'range': 'float'},
@@ -1853,7 +1883,8 @@ class NonSpatialResult(ConfiguredBaseModel):
                        'StacCatalog',
                        'ToolDeclaration',
                        'ParameterDeclaration',
-                       'NonSpatialResult']} })
+                       'NonSpatialResult',
+                       'KnownStore']} })
     presentation: ResultPresentationEnum = Field(default=..., json_schema_extra = { "linkml_meta": {'domain_of': ['NonSpatialResult']} })
     columns: list[ResultColumn] = Field(default=..., json_schema_extra = { "linkml_meta": {'domain_of': ['PayloadRef', 'NonSpatialResult']} })
 
@@ -1920,6 +1951,69 @@ class FormatSettings(ConfiguredBaseModel):
         return v
 
 
+class UserConfig(ConfiguredBaseModel):
+    linkml_meta: ClassVar[LinkMLMeta] = LinkMLMeta({'from_schema': 'https://debrief.info/schemas/debrief'})
+
+    config_version: int = Field(default=..., description="""Version of this file's layout. Currently 1.""", ge=1, json_schema_extra = { "linkml_meta": {'domain_of': ['UserConfig']} })
+    stores: list[KnownStore] = Field(default=..., description="""Known stores, in the order the analyst sees them (SUB-17).""", json_schema_extra = { "linkml_meta": {'domain_of': ['UserConfig']} })
+
+
+class KnownStore(ConfiguredBaseModel):
+    linkml_meta: ClassVar[LinkMLMeta] = LinkMLMeta({'from_schema': 'https://debrief.info/schemas/debrief'})
+
+    id: str = Field(default=..., description="""Unique within this file; stable when the store is renamed.""", json_schema_extra = { "linkml_meta": {'domain_of': ['ProvRecord',
+                       'TrackFeature',
+                       'AnnotationFeature',
+                       'SensorObservationsFeature',
+                       'NamedSet',
+                       'StacItem',
+                       'StacCatalog',
+                       'KnownStore']} })
+    title: str = Field(default=..., description="""The name the analyst sees.""", json_schema_extra = { "linkml_meta": {'domain_of': ['StacLink',
+                       'StacAsset',
+                       'StacItemProperties',
+                       'StacCatalog',
+                       'ToolDeclaration',
+                       'ParameterDeclaration',
+                       'NonSpatialResult',
+                       'KnownStore']} })
+    kind: StoreKindEnum = Field(default=..., json_schema_extra = { "linkml_meta": {'domain_of': ['ProvRecord',
+                       'AgentRef',
+                       'TrackProperties',
+                       'AnnotationProperties',
+                       'SensorObservationsProperties',
+                       'ParameterDeclaration',
+                       'KnownStore']} })
+    location: str = Field(default=..., description="""Absolute path to the folder holding catalog.json: a POSIX path, a Windows drive path or a UNC share.""", json_schema_extra = { "linkml_meta": {'domain_of': ['KnownStore']} })
+    read_only: Optional[bool] = Field(default=None, description="""When true, Debrief offers no action that would write to the store. A courtesy, not access control: filesystem permissions decide that (SEC-01).""", json_schema_extra = { "linkml_meta": {'domain_of': ['KnownStore']} })
+
+    @field_validator('id')
+    def pattern_id(cls, v):
+        pattern=re.compile(r"^[a-z0-9][a-z0-9-]{0,63}$")
+        if isinstance(v, list):
+            for element in v:
+                if isinstance(element, str) and not pattern.search(element):
+                    err_msg = f"Invalid id format: {element}"
+                    raise ValueError(err_msg)
+        elif isinstance(v, str) and not pattern.search(v):
+            err_msg = f"Invalid id format: {v}"
+            raise ValueError(err_msg)
+        return v
+
+    @field_validator('location')
+    def pattern_location(cls, v):
+        pattern=re.compile(r"^(/|[A-Za-z]:[\\/]|\\\\[^\\])")
+        if isinstance(v, list):
+            for element in v:
+                if isinstance(element, str) and not pattern.search(element):
+                    err_msg = f"Invalid location format: {element}"
+                    raise ValueError(err_msg)
+        elif isinstance(v, str) and not pattern.search(v):
+            err_msg = f"Invalid location format: {v}"
+            raise ValueError(err_msg)
+        return v
+
+
 # Model rebuild
 # see https://pydantic-docs.helpmanual.io/usage/models/#rebuilding-a-model
 Length.model_rebuild()
@@ -1966,6 +2060,8 @@ ToolResult.model_rebuild()
 NonSpatialResult.model_rebuild()
 ResultColumn.model_rebuild()
 FormatSettings.model_rebuild()
+UserConfig.model_rebuild()
+KnownStore.model_rebuild()
 
 # Classes that accept undeclared properties (extra_slots), added by the generator.
 StacAsset.model_config["extra"] = "allow"

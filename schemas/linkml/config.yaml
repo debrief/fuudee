@@ -1,0 +1,65 @@
+id: https://debrief.info/schemas/debrief/config
+name: debrief_config
+title: "Per-user configuration: known stores (SEC-06)"
+license: EPL-2.0
+prefixes:
+  linkml: https://w3id.org/linkml/
+  debrief: https://debrief.info/schemas/debrief/
+default_prefix: debrief
+default_range: string
+imports:
+  - linkml:types
+
+description: >-
+  The analyst's own configuration, one JSON file per user account, read and
+  written by both the Python services and the VS Code extension. It lists
+  the stores Debrief knows about. It holds no protection marking: that
+  belongs to the catalogue itself (SEC-02), so every analyst sees the same.
+
+  The file carries its own config_version rather than the data-file schema
+  version: it is not data, so it must survive a schema change. A Debrief
+  that finds a newer config_version refuses to overwrite it.
+
+enums:
+  StoreKindEnum:
+    description: How a store is reached. Only static file catalogues so far (SUB-15).
+    permissible_values:
+      file: {description: "A static STAC catalogue in a local or shared folder."}
+
+classes:
+  UserConfig:
+    attributes:
+      config_version:
+        description: Version of this file's layout. Currently 1.
+        range: integer
+        required: true
+        minimum_value: 1
+      stores:
+        description: Known stores, in the order the analyst sees them (SUB-17).
+        range: KnownStore
+        multivalued: true
+        inlined_as_list: true
+        required: true
+
+  KnownStore:
+    attributes:
+      id:
+        description: Unique within this file; stable when the store is renamed.
+        required: true
+        pattern: "^[a-z0-9][a-z0-9-]{0,63}$"
+      title:
+        description: The name the analyst sees.
+        required: true
+      kind: {range: StoreKindEnum, required: true}
+      location:
+        description: >-
+          Absolute path to the folder holding catalog.json: a POSIX path, a
+          Windows drive path or a UNC share.
+        required: true
+        pattern: "^(/|[A-Za-z]:[\\\\/]|\\\\\\\\[^\\\\])"
+      read_only:
+        description: >-
+          When true, Debrief offers no action that would write to the store.
+          A courtesy, not access control: filesystem permissions decide that
+          (SEC-01).
+        range: boolean

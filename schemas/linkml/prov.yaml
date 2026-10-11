@@ -43,6 +43,11 @@ classes:
         range: ParameterValue
         multivalued: true
         inlined_as_list: true
+      selected:
+        description: >-
+          Ids of the features the operation was applied to, in selection
+          order, so replay can repeat it (SUB-19).
+        multivalued: true
       used:
         range: SourceRef
         multivalued: true

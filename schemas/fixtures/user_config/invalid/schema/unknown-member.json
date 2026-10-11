@@ -1,0 +1,19 @@
+{
+  "config_version": 1,
+  "stores": [
+    {
+      "id": "my-analysis",
+      "title": "My analysis",
+      "kind": "file",
+      "location": "/home/analyst/debrief/my-analysis",
+      "colour": "red"
+    },
+    {
+      "id": "team-exercises",
+      "title": "Team exercises",
+      "kind": "file",
+      "location": "\\\\fileserver\\debrief\\exercises",
+      "read_only": true
+    }
+  ]
+}
