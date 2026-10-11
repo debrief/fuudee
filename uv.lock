@@ -4,6 +4,7 @@ requires-python = ">=3.12"
 
 [manifest]
 members = [
+    "debrief-config",
     "debrief-io",
     "debrief-kernel",
     "debrief-schemas",
@@ -356,6 +357,17 @@ wheels = [
 ]
 
 [[package]]
+name = "debrief-config"
+version = "0.0.1"
+source = { editable = "python/debrief-config" }
+dependencies = [
+    { name = "debrief-schemas" },
+]
+
+[package.metadata]
+requires-dist = [{ name = "debrief-schemas", editable = "python/debrief-schemas" }]
+
+[[package]]
 name = "debrief-io"
 version = "0.0.1"
 source = { editable = "python/debrief-io" }
@@ -432,6 +444,7 @@ source = { virtual = "." }
 
 [package.dev-dependencies]
 dev = [
+    { name = "debrief-config" },
     { name = "debrief-io" },
     { name = "debrief-kernel" },
     { name = "debrief-schemas" },
@@ -449,6 +462,7 @@ docs = [
 
 [package.metadata.requires-dev]
 dev = [
+    { name = "debrief-config", editable = "python/debrief-config" },
     { name = "debrief-io", editable = "python/debrief-io" },
     { name = "debrief-kernel", editable = "python/debrief-kernel" },
     { name = "debrief-schemas", editable = "python/debrief-schemas" },

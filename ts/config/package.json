@@ -1,0 +1,22 @@
+{
+  "name": "@debrief/config",
+  "version": "0.0.1",
+  "private": true,
+  "description": "Debrief per-user configuration for TypeScript: the stores an analyst knows about, held to the location rules shared with Python",
+  "type": "module",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "test": "vitest run"
+  },
+  "dependencies": {
+    "@debrief/schemas": "file:../schemas"
+  },
+  "devDependencies": {
+    "@types/node": "^22.10.2",
+    "typescript": "^5.6.3",
+    "vitest": "^2.1.9"
+  }
+}

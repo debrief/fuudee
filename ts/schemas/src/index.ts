@@ -16,6 +16,7 @@ import type {
   StacItem,
   ToolDeclaration,
   ToolResult,
+  UserConfig,
 } from "./generated/debrief.js";
 import { SCHEMA_VERSION } from "./generated/schemaVersion.js";
 
@@ -31,6 +32,7 @@ export interface DocumentTypes {
   tool_result: ToolResult;
   shared_state: SharedState;
   format_settings: FormatSettings;
+  user_config: UserConfig;
 }
 export type DocumentKind = keyof DocumentTypes;
 
@@ -42,6 +44,7 @@ const ROOT_CLASS: Record<DocumentKind, string> = {
   tool_result: "ToolResult",
   shared_state: "SharedState",
   format_settings: "FormatSettings",
+  user_config: "UserConfig",
 };
 
 export const DOCUMENT_KINDS = Object.keys(ROOT_CLASS) as DocumentKind[];

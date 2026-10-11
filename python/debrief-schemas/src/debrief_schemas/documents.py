@@ -36,6 +36,7 @@ class DocumentKind(StrEnum):
     TOOL_RESULT = "tool_result"
     SHARED_STATE = "shared_state"
     FORMAT_SETTINGS = "format_settings"
+    USER_CONFIG = "user_config"
 
 
 _MODELS: dict[DocumentKind, type[BaseModel]] = {
@@ -46,6 +47,7 @@ _MODELS: dict[DocumentKind, type[BaseModel]] = {
     DocumentKind.TOOL_RESULT: g.ToolResult,
     DocumentKind.SHARED_STATE: g.SharedState,
     DocumentKind.FORMAT_SETTINGS: g.FormatSettings,
+    DocumentKind.USER_CONFIG: g.UserConfig,
 }
 
 # Members that GeoJSON and STAC require to be present even when null.
@@ -395,6 +397,25 @@ def _format_settings_problems(settings: g.FormatSettings, raw: dict[str, Any]) -
     return problems
 
 
+# The newest per-user configuration layout this build understands.
+CONFIG_VERSION = 1
+
+
+def _user_config_problems(config: g.UserConfig, raw: dict[str, Any]) -> list[str]:
+    problems = []
+    if config.config_version > CONFIG_VERSION:
+        problems.append(
+            f"config_version: {config.config_version} is newer than this version of "
+            f"Debrief understands ({CONFIG_VERSION})"
+        )
+    seen: set[str] = set()
+    for index, store in enumerate(config.stores):
+        if store.id in seen:
+            problems.append(f"stores[{index}]: id {store.id!r} is used by another store")
+        seen.add(store.id)
+    return problems
+
+
 _RULES: dict[DocumentKind, Callable[[Any, dict[str, Any]], list[str]]] = {
     DocumentKind.PLOT: _plot_problems,
     DocumentKind.STAC_ITEM: _stac_item_problems,
@@ -403,6 +424,7 @@ _RULES: dict[DocumentKind, Callable[[Any, dict[str, Any]], list[str]]] = {
     DocumentKind.TOOL_RESULT: _tool_result_problems,
     DocumentKind.SHARED_STATE: lambda state, raw: _state_problems(state),
     DocumentKind.FORMAT_SETTINGS: _format_settings_problems,
+    DocumentKind.USER_CONFIG: _user_config_problems,
 }
 
 

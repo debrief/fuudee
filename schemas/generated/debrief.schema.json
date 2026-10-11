@@ -418,6 +418,51 @@
       "title": "ItemTypeEnum",
       "type": "string"
     },
+    "KnownStore": {
+      "additionalProperties": false,
+      "description": "",
+      "properties": {
+        "id": {
+          "description": "Unique within this file; stable when the store is renamed.",
+          "pattern": "^[a-z0-9][a-z0-9-]{0,63}$",
+          "type": "string"
+        },
+        "kind": {
+          "$ref": "#/$defs/StoreKindEnum"
+        },
+        "location": {
+          "description": "Absolute path to the folder holding catalog.json: a POSIX path, a Windows drive path or a UNC share.",
+          "pattern": "^(/|[A-Za-z]:[\\\\/]|\\\\\\\\[^\\\\])",
+          "type": "string"
+        },
+        "protection_level": {
+          "description": "The protection marking of everything in the store, as the analyst's organisation writes it (SEC-02). Shown, never interpreted.",
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "read_only": {
+          "description": "When true, Debrief offers no action that would write to the store.",
+          "type": [
+            "boolean",
+            "null"
+          ]
+        },
+        "title": {
+          "description": "The name the analyst sees.",
+          "type": "string"
+        }
+      },
+      "required": [
+        "id",
+        "title",
+        "kind",
+        "location"
+      ],
+      "title": "KnownStore",
+      "type": "object"
+    },
     "Length": {
       "additionalProperties": false,
       "description": "",
@@ -1612,6 +1657,14 @@
       "title": "StacLink",
       "type": "object"
     },
+    "StoreKindEnum": {
+      "description": "How a store is reached. Only static file catalogues so far (SUB-15).",
+      "enum": [
+        "file"
+      ],
+      "title": "StoreKindEnum",
+      "type": "string"
+    },
     "TimeRange": {
       "additionalProperties": false,
       "description": "A closed interval of time. Start shall not be after end.",
@@ -2000,6 +2053,30 @@
       "title": "TrackStyle",
       "type": "object"
     },
+    "UserConfig": {
+      "additionalProperties": false,
+      "description": "",
+      "properties": {
+        "config_version": {
+          "description": "Version of this file's layout. Currently 1.",
+          "minimum": 1,
+          "type": "integer"
+        },
+        "stores": {
+          "description": "Known stores, in the order the analyst sees them (SUB-17).",
+          "items": {
+            "$ref": "#/$defs/KnownStore"
+          },
+          "type": "array"
+        }
+      },
+      "required": [
+        "config_version",
+        "stores"
+      ],
+      "title": "UserConfig",
+      "type": "object"
+    },
     "Viewport": {
       "additionalProperties": false,
       "description": "",
@@ -2074,5 +2151,5 @@
   ],
   "title": "debrief",
   "type": "object",
-  "version": "0.0.4"
+  "version": "0.0.5"
 }
