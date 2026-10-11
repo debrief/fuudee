@@ -436,6 +436,27 @@
       "title": "Length",
       "type": "object"
     },
+    "LengthSeries": {
+      "additionalProperties": false,
+      "description": "",
+      "properties": {
+        "unit": {
+          "$ref": "#/$defs/LengthUnitEnum"
+        },
+        "values": {
+          "items": {
+            "type": "number"
+          },
+          "type": "array"
+        }
+      },
+      "required": [
+        "unit",
+        "values"
+      ],
+      "title": "LengthSeries",
+      "type": "object"
+    },
     "LengthUnitEnum": {
       "description": "Units a length may be stored in (UCUM codes).",
       "enum": [
@@ -1884,6 +1905,17 @@
             }
           ],
           "description": "Course over ground at each position, true north, clockwise."
+        },
+        "depths": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/LengthSeries"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": "Depth below the sea surface at each position, positive down. Absent where depth is not known."
         },
         "kind": {
           "$ref": "#/$defs/TrackKindEnum"

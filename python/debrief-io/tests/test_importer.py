@@ -11,7 +11,7 @@ from debrief_stac import Catalogue
 REP = """\
 ;; A small synthetic serial
 951212 050000.000 NELSON @C 50 20 00.00 N 004 07 00.00 W 090.0 12.0 0
-951212 050100.000 NELSON @C 50 20 00.00 N 004 06 00.00 W 090.0 12.0 0
+951212 050100.000 NELSON @C 50 20 00.00 N 004 06 00.00 W 090.0 12.0 NaN
 951212 050200.000 NELSON @C 50 20 00.00 N 004 05 00.00 W 090.0 12.0 0 Turned // after contact
 951212 050000.000 "HMS BLUE" @A 50 22 00.00 N 004 07 00.00 W 180.0 8.0 0
 951212 050200.000 "HMS BLUE" @A 50 21 00.00 N 004 07 00.00 W 180.0 8.0 15.5
@@ -49,6 +49,10 @@ def test_import_creates_valid_plot(setup) -> None:
         "1995-12-12T05:01:00.000Z",
         "1995-12-12T05:02:00.000Z",
     ]
+    # Depths follow the sorted fixes; a track with a gap in its depths has none.
+    assert blue.properties.depths.unit == "m"
+    assert blue.properties.depths.values == [0.0, 0.0, 15.5]
+    assert nelson.properties.depths is None
     assert nelson.geometry.coordinates[0] == pytest.approx([-(4 + 7 / 60), 50 + 20 / 60])
 
 
@@ -69,7 +73,7 @@ def test_provenance_names_source_and_omissions(setup) -> None:
     for expected in [
         "'LONER' has only one fix",
         "1 fix times",
-        "1 fixes had a depth",
+        "'NELSON' gives a depth for only 2 of 3 fixes",
         "1 fixes had a label",
         "1 ;SENSOR: line",
         "Line 10 could not be read",

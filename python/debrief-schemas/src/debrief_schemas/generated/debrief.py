@@ -642,6 +642,7 @@ class Length(ConfiguredBaseModel):
                        'Duration',
                        'SpeedSeries',
                        'AngleSeries',
+                       'LengthSeries',
                        'PayloadColumn',
                        'ResultColumn']} })
 
@@ -656,6 +657,7 @@ class Speed(ConfiguredBaseModel):
                        'Duration',
                        'SpeedSeries',
                        'AngleSeries',
+                       'LengthSeries',
                        'PayloadColumn',
                        'ResultColumn']} })
 
@@ -670,6 +672,7 @@ class Angle(ConfiguredBaseModel):
                        'Duration',
                        'SpeedSeries',
                        'AngleSeries',
+                       'LengthSeries',
                        'PayloadColumn',
                        'ResultColumn']} })
 
@@ -684,6 +687,7 @@ class Duration(ConfiguredBaseModel):
                        'Duration',
                        'SpeedSeries',
                        'AngleSeries',
+                       'LengthSeries',
                        'PayloadColumn',
                        'ResultColumn']} })
 
@@ -697,9 +701,10 @@ class SpeedSeries(ConfiguredBaseModel):
                        'Duration',
                        'SpeedSeries',
                        'AngleSeries',
+                       'LengthSeries',
                        'PayloadColumn',
                        'ResultColumn']} })
-    values: list[float] = Field(default=..., json_schema_extra = { "linkml_meta": {'domain_of': ['SpeedSeries', 'AngleSeries']} })
+    values: list[float] = Field(default=..., json_schema_extra = { "linkml_meta": {'domain_of': ['SpeedSeries', 'AngleSeries', 'LengthSeries']} })
 
 
 class AngleSeries(ConfiguredBaseModel):
@@ -711,9 +716,25 @@ class AngleSeries(ConfiguredBaseModel):
                        'Duration',
                        'SpeedSeries',
                        'AngleSeries',
+                       'LengthSeries',
                        'PayloadColumn',
                        'ResultColumn']} })
-    values: list[float] = Field(default=..., json_schema_extra = { "linkml_meta": {'domain_of': ['SpeedSeries', 'AngleSeries']} })
+    values: list[float] = Field(default=..., json_schema_extra = { "linkml_meta": {'domain_of': ['SpeedSeries', 'AngleSeries', 'LengthSeries']} })
+
+
+class LengthSeries(ConfiguredBaseModel):
+    linkml_meta: ClassVar[LinkMLMeta] = LinkMLMeta({'from_schema': 'https://debrief.info/schemas/debrief'})
+
+    unit: LengthUnitEnum = Field(default=..., json_schema_extra = { "linkml_meta": {'domain_of': ['Length',
+                       'Speed',
+                       'Angle',
+                       'Duration',
+                       'SpeedSeries',
+                       'AngleSeries',
+                       'LengthSeries',
+                       'PayloadColumn',
+                       'ResultColumn']} })
+    values: list[float] = Field(default=..., json_schema_extra = { "linkml_meta": {'domain_of': ['SpeedSeries', 'AngleSeries', 'LengthSeries']} })
 
 
 class TimeRange(ConfiguredBaseModel):
@@ -1043,6 +1064,7 @@ class TrackProperties(ConfiguredBaseModel):
     times: list[str] = Field(default=..., description="""One per position, non-decreasing.""", json_schema_extra = { "linkml_meta": {'domain_of': ['TrackProperties']} })
     speeds: Optional[SpeedSeries] = Field(default=None, description="""Speed over ground at each position.""", json_schema_extra = { "linkml_meta": {'domain_of': ['TrackProperties']} })
     courses: Optional[AngleSeries] = Field(default=None, description="""Course over ground at each position, true north, clockwise.""", json_schema_extra = { "linkml_meta": {'domain_of': ['TrackProperties']} })
+    depths: Optional[LengthSeries] = Field(default=None, description="""Depth below the sea surface at each position, positive down. Absent where depth is not known.""", json_schema_extra = { "linkml_meta": {'domain_of': ['TrackProperties']} })
     style: Optional[TrackStyle] = Field(default=None, json_schema_extra = { "linkml_meta": {'domain_of': ['TrackProperties', 'AnnotationProperties']} })
     provenance: Optional[list[ProvRecord]] = Field(default=None, description="""Feature-level provenance where needed (SUB-18).""", json_schema_extra = { "linkml_meta": {'domain_of': ['TrackProperties',
                        'AnnotationProperties',
@@ -1315,6 +1337,7 @@ class PayloadColumn(ConfiguredBaseModel):
                        'Duration',
                        'SpeedSeries',
                        'AngleSeries',
+                       'LengthSeries',
                        'PayloadColumn',
                        'ResultColumn']} })
 
@@ -1860,6 +1883,7 @@ class ResultColumn(ConfiguredBaseModel):
                        'Duration',
                        'SpeedSeries',
                        'AngleSeries',
+                       'LengthSeries',
                        'PayloadColumn',
                        'ResultColumn']} })
     numbers: Optional[list[float]] = Field(default=None, json_schema_extra = { "linkml_meta": {'domain_of': ['ResultColumn']} })
@@ -1904,6 +1928,7 @@ Angle.model_rebuild()
 Duration.model_rebuild()
 SpeedSeries.model_rebuild()
 AngleSeries.model_rebuild()
+LengthSeries.model_rebuild()
 TimeRange.model_rebuild()
 ParameterValue.model_rebuild()
 PointGeometry.model_rebuild()

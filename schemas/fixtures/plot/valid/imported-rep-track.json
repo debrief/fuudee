@@ -47,6 +47,14 @@
             136.0
           ]
         },
+        "depths": {
+          "unit": "m",
+          "values": [
+            0.0,
+            12.5,
+            30.0
+          ]
+        },
         "style": {
           "colour": "#e01c3e",
           "legacy_symbology": "@C"

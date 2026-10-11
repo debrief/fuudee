@@ -377,6 +377,10 @@ export interface TrackProperties {
    * Course over ground at each position, true north, clockwise.
    */
   courses?: AngleSeries | null;
+  /**
+   * Depth below the sea surface at each position, positive down. Absent where depth is not known.
+   */
+  depths?: LengthSeries | null;
   kind: TrackKindEnum;
   name: string;
   platform_class?: string | null;
@@ -393,6 +397,14 @@ export interface TrackProperties {
    * One per position, non-decreasing.
    */
   times: string[];
+}
+/**
+ * This interface was referenced by `DebriefSchemaDefinitions`'s JSON-Schema
+ * via the `definition` "LengthSeries".
+ */
+export interface LengthSeries {
+  unit: LengthUnitEnum;
+  values: number[];
 }
 /**
  * This interface was referenced by `DebriefSchemaDefinitions`'s JSON-Schema

@@ -16,7 +16,7 @@ Adapted from `DOMAIN_GLOSSARY.md` in debrief/debrief-future, itself adapted from
 
 **History** (in guides, **provenance**). The record of every operation that produced a plot: imports, tool runs, edits and deletions, with who or what made them (SUB-18 to SUB-24).
 
-**Fix.** A single timestamped position of a platform, with course and speed where known.
+**Fix.** A single timestamped position of a platform, with course, speed and depth where known. Depth is positive down.
 
 **Track.** The movement of one platform over time: its fixes in order.
 
@@ -87,6 +87,6 @@ Adapted from `DOMAIN_GLOSSARY.md` in debrief/debrief-future, itself adapted from
 | Contacts carry frequency | Frequency is not imported; acoustic analysis stays in the acoustic replay application | CAP-22, EXT-03 |
 | Speeds include feet per second | Knots, metres per second, kilometres per hour | Schema unit enums |
 | Track segments: core, TMA, planning, infill | Not yet in the v4 data model; TMA solutions are rooted in a bearing period | CAP-21 |
-| Depth in every location | Positions are latitude and longitude; depth is not yet modelled | Schema 0.0.2 |
+| Depth in every location | Positions are latitude and longitude; a track may carry a depth series, positive down | Schema 0.0.4 |
 | World Location, World Speed, World Distance, World Vector | Position, quantities with units | Implementation names, not domain terms |
 | Plot is a collection of tracks | Plot is the unit of analysis, a GeoJSON FeatureCollection in a STAC catalogue | SUB-05 |

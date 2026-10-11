@@ -4,7 +4,7 @@ The source is copied into the plot's item, read-only, and hashed; the plot
 records one provenance entry naming that source, the importer and its
 version, and everything the import did not take. Nothing in the file is
 dropped silently: other record types, unreadable lines, single-fix tracks,
-depths, labels and truncated times are all listed, both in the returned
+incomplete depths, labels and truncated times are all listed, both in the returned
 report (for the message the analyst sees) and in the plot's provenance.
 """
 
@@ -43,6 +43,14 @@ def _track_id(name: str, taken: set[str]) -> str:
     return candidate
 
 
+def _depths(fixes: list[RepFix]) -> models.LengthSeries | None:
+    """A track's depths, only when every fix gives one: a series cannot hold gaps."""
+    depths = [f.depth_m for f in fixes]
+    if any(d is None for d in depths):
+        return None
+    return models.LengthSeries(unit="m", values=depths)
+
+
 def _track(feature_id: str, name: str, fixes: list[RepFix]) -> models.TrackFeature:
     return models.TrackFeature(
         type="Feature",
@@ -56,6 +64,7 @@ def _track(feature_id: str, name: str, fixes: list[RepFix]) -> models.TrackFeatu
             times=[format_utc(f.time_ms) for f in fixes],
             speeds=models.SpeedSeries(unit="[kn_i]", values=[f.speed_kn for f in fixes]),
             courses=models.AngleSeries(unit="deg", values=[f.course_deg for f in fixes]),
+            depths=_depths(fixes),
             style=models.TrackStyle(
                 colour=colour_for(fixes[0].symbology), legacy_symbology=fixes[0].symbology
             ),
@@ -95,9 +104,13 @@ def build_plot(
             f"{truncated} fix times had more than millisecond precision "
             "and were truncated to milliseconds."
         )
-    depths = sum(1 for f in imported if f.depth_m not in (None, 0.0))
-    if depths:
-        report.omitted.append(f"{depths} fixes had a depth; depths are not yet imported.")
+    for name in report.tracks:
+        known = sum(f.depth_m is not None for f in by_track[name])
+        if 0 < known < len(by_track[name]):
+            report.omitted.append(
+                f"Track {name!r} gives a depth for only {known} of {len(by_track[name])} "
+                "fixes, so its depths were not imported."
+            )
     labels = sum(1 for f in imported if f.label or f.comment)
     if labels:
         report.omitted.append(f"{labels} fixes had a label or comment; these are not yet imported.")

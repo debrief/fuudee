@@ -19,7 +19,8 @@ The import runs in four steps:
    - other record types (`;SENSOR:`, `;NARRATIVE:` and so on);
    - lines that could not be read;
    - tracks with a single fix;
-   - depths and labels, which the data model does not yet hold;
+   - depths of a track where some fixes give none, since a depth series has no gaps;
+   - labels, which the data model does not yet hold;
    - times truncated to milliseconds.
 
 ## The REP reader
@@ -39,4 +40,4 @@ Legacy files that are not UTF-8 are read as Latin-1.
 
 Checked against every REP file in legacy Debrief's sample data: 85 files and 173,548 fixes. The only line that failed is in `BAD_boat2.rep`, a file broken on purpose. A 28,000-fix file imports in about 1.5 s.
 
-Not yet: sensor and narrative lines (Phases 3 and 4), depth, per-fix labels, and the legacy OTG and DR modes (CAP-01).
+Not yet: sensor and narrative lines (Phases 3 and 4), per-fix labels, and the legacy OTG and DR modes (CAP-01).
