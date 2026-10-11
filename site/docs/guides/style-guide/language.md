@@ -33,7 +33,7 @@ Abbreviations analysts already use (TMA, CPA, SATC, DR, OTG, DTG, AIS) need no e
 
 ## Numbers, units and times
 
-Display always goes through the formatting service (SUB-04); never format a value in a view or tool. Its defaults are this guide's defaults:
+Display always goes through the formatting service (SUB-04), in Python or its TypeScript twin; never format a value any other way. Rounding is half away from zero. Its defaults are this guide's defaults:
 
 | Quantity | Default | Example |
 | --- | --- | --- |
@@ -44,9 +44,10 @@ Display always goes through the formatting service (SUB-04); never format a valu
 | Time | Zulu | `09:30:05Z` |
 | Date and time | day month year, Zulu | `11 Oct 2026 09:30:05Z` |
 | Date-time group | military DTG | `110930Z OCT 26` |
+| Local time, if chosen | offset from UTC | `10:30:05 UTC+1` |
 
 - Put a space between a number and its unit (`12.3 kn`), but none before `°`.
-- Times are Zulu unless the analyst chose a display zone. Never write a time without its zone letter or name.
+- Times are Zulu unless the analyst chose a display zone, which is shown as an offset from UTC (`10:30:05 UTC+1`), never an abbreviation such as BST. Never write a time without its zone.
 - Use the analyst's chosen units everywhere, including in tool explanations: write "the window, in the units you have chosen", not "the window in metres".
 
 ## Messages
