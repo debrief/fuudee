@@ -442,3 +442,12 @@ def test_a_lock_left_by_a_killed_process_is_taken_over_at_once(catalogue: Catalo
             catalogue.commit("p", [record(3)], Changes(added=[note("c")]))
     finally:
         store.LOCK_WAIT_S = wait
+
+
+def test_saving_works_where_there_are_no_hard_links(catalogue: Catalogue, monkeypatch) -> None:
+    """Pyodide's os has no link at all (CON-09): the exclusive create is used instead."""
+    monkeypatch.delattr(os, "link")
+    catalogue.commit("p", [record(2)], Changes(added=[note("b")]))
+    assert names(catalogue) == ["a", "b"]
+    with pytest.raises(FileExistsError):
+        catalogue.store.write_text_exclusive("p/history/000002.json", "{}")
