@@ -1263,6 +1263,17 @@
 </li>
       
         <li class="md-nav__item">
+  <a href="#current-time-selection-and-viewport" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Current time, selection and viewport
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
   <a href="#when-something-is-wrong" class="md-nav__link">
     <span class="md-ellipsis">
       
@@ -1481,6 +1492,17 @@
     <span class="md-ellipsis">
       
         Results
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#current-time-selection-and-viewport" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Current time, selection and viewport
       
     </span>
   </a>
@@ -1805,6 +1827,7 @@
 <li><strong>Deleted feature ids.</strong></li>
 <li><strong>Non-spatial results.</strong> A number, a table or a graph, held column by column. Give a column with a quantity its <code>quantity_kind</code> and <code>unit</code>, so Debrief can show it in the analyst's chosen units (SUB-04).</li>
 <li><strong>Named sets.</strong></li>
+<li><strong>A change to shared state</strong> (<code>state_change</code>): current time, selection or viewport. Declare <code>state_change</code> in <code>outputs</code>.</li>
 </ul>
 <p>What happens next:</p>
 <ol>
@@ -1827,6 +1850,15 @@
 <span class="k">return</span> <span class="n">models</span><span class="o">.</span><span class="n">ToolResult</span><span class="p">(</span><span class="n">new_features</span><span class="o">=</span><span class="p">[</span><span class="n">line</span><span class="p">])</span>
 </code></pre></div>
 <p>Use <code>style="label"</code> for a labelled point, <code>"shape"</code> for lines and areas, and <code>"note"</code> with <code>geometry=None</code> for a note at a time.</p>
+<h2 id="current-time-selection-and-viewport">Current time, selection and viewport<a class="headerlink" href="#current-time-selection-and-viewport" title="Permanent link">&para;</a></h2>
+<p><code>context.state</code> holds the shared state when the analyst ran your tool: <code>state.time.current</code> and <code>state.time.range</code>, <code>state.selection.feature_ids</code>, and <code>state.viewport.bbox</code> as <code>[west, south, east, north]</code> in degrees (TL-10). It is <code>None</code> when the caller didn't pass it, for example an agent calling the tool service directly, so check before using it.</p>
+<p>To move current time, select features or show an area, return a <code>SharedStateChange</code>. Closest approach moves current time to the moment it finds:</p>
+<div class="highlight"><pre><span></span><code><span class="n">change</span> <span class="o">=</span> <span class="n">models</span><span class="o">.</span><span class="n">SharedStateChange</span><span class="p">(</span>
+    <span class="n">time</span><span class="o">=</span><span class="n">models</span><span class="o">.</span><span class="n">TimeState</span><span class="p">(</span><span class="n">current</span><span class="o">=</span><span class="n">when</span><span class="p">,</span> <span class="nb">range</span><span class="o">=</span><span class="n">context</span><span class="o">.</span><span class="n">state</span><span class="o">.</span><span class="n">time</span><span class="o">.</span><span class="n">range</span><span class="p">)</span>
+<span class="p">)</span>
+<span class="k">return</span> <span class="n">models</span><span class="o">.</span><span class="n">ToolResult</span><span class="p">(</span><span class="n">non_spatial</span><span class="o">=</span><span class="p">[</span><span class="n">table</span><span class="p">],</span> <span class="n">new_features</span><span class="o">=</span><span class="p">[</span><span class="n">line</span><span class="p">],</span> <span class="n">state_change</span><span class="o">=</span><span class="n">change</span><span class="p">)</span>
+</code></pre></div>
+<p>Current time must be inside its range, and a selection may name only features the plot will have once your result is applied, including those you add. Shared state is never recorded in provenance and can't be undone (SUB-22). A tool that only changes shared state can run on a read-only catalogue.</p>
 <p><strong>Don't change <code>context.plot</code> or the selected features.</strong> They're copies, so changing them has no effect. Return your changes instead. A result that includes something your declaration's <code>outputs</code> doesn't list is refused.</p>
 <h2 id="when-something-is-wrong">When something is wrong<a class="headerlink" href="#when-something-is-wrong" title="Permanent link">&para;</a></h2>
 <p>Raise an exception with a message the analyst can act on:</p>
