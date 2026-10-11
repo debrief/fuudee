@@ -30,7 +30,7 @@ It prints `{"port": N, "tools": M}` once it is listening. The VS Code extension:
 **Protocol.** MCP's Streamable HTTP transport: JSON-RPC 2.0 over `POST /mcp`, with JSON responses. It supports `initialize`, `ping`, `tools/list` and `tools/call`, plus Debrief methods:
 
 - `debrief/tools_for_selection` (`{"kinds": ["track", "track"]}`), which returns the names of the tools on offer;
-- `debrief/stores`, `debrief/create_catalogue` and `debrief/import_rep`;
+- `debrief/stores`, `debrief/create_catalogue` and `debrief/import` (`{"store", "path"}`: a REP file, or a legacy `.dpf` plot; returns the new item and what was not imported, `omitted`). `debrief/import_rep` is the same method under its old name;
 - a plot's history (SUB-21), each taking `{"store", "item"}`:
   - `debrief/open` finishes any change interrupted by a crash and says what it did (`recovered`);
   - `debrief/history` lists the steps: `seq`, `status` (applied, undone or abandoned), `kind`, `tool`, `agent`, `at`;

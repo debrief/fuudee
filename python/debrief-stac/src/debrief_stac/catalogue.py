@@ -394,13 +394,22 @@ class Catalogue:
             new.commit(records, changes)
         except BaseException:
             # Never leave half a copy that looks like a plot.
-            self.store.delete_folder(new_id)
-            self.model.links = [
-                link for link in self.model.links if link.href != f"./{self._item_path(new_id)}"
-            ]
-            self._save_catalogue()
+            self.discard_plot(new_id)
             raise
         return new_id
+
+    def discard_plot(self, item_id: str) -> None:
+        """Remove a plot this process has just created and could not finish.
+
+        For cleaning up after a failed import or copy, so nothing half-made
+        is left that looks like a plot: the item's folder and its child link.
+        """
+        _check_item_id(item_id)
+        self.store.delete_folder(item_id)
+        self.model.links = [
+            link for link in self.model.links if link.href != f"./{self._item_path(item_id)}"
+        ]
+        self._save_catalogue()
 
     def write_plot(
         self, item_id: str, plot: DebriefFeatureCollection, *, allow_newer_schema: bool = False
