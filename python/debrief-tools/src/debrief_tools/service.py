@@ -4,7 +4,7 @@ The protocol is MCP's Streamable HTTP transport (JSON-RPC 2.0, one POST per
 request, JSON responses), so the VS Code extension and any MCP-capable agent
 use the same tools (TL-01, TL-17). Debrief adds methods of its own, named
 debrief/...: debrief/tools_for_selection, so the offering rule lives in
-Python (TL-08); stores, catalogues and import; and a plot's history
+Python (TL-08); stores, catalogues and import (REP and legacy .dpf); and a plot's history
 (debrief/open, debrief/history, debrief/undo, debrief/redo, debrief/goto),
 so undo is the same for the extension and an agent (SUB-21).
 
@@ -41,7 +41,7 @@ from starlette.responses import JSONResponse, Response
 from starlette.routing import Route
 
 from debrief_config import ConfigError, add_store, load_config, update_config
-from debrief_io import import_rep
+from debrief_io import import_dpf, import_rep
 from debrief_schemas import DocumentKind, load_document, models
 from debrief_stac import Base, Catalogue, CatalogueError, Conflict, HistoryError
 from debrief_tools.registry import applies
@@ -201,8 +201,8 @@ class ToolService:
             }
         if method == "debrief/create_catalogue":
             return self._create_catalogue(params)
-        if method == "debrief/import_rep":
-            return self._import_rep(params)
+        if method in ("debrief/import", "debrief/import_rep"):
+            return self._import(params)
         if method in HISTORY_METHODS:
             return self._history(method, params)
         raise RpcError(METHOD_NOT_FOUND, f"Unknown method {method}")
@@ -291,8 +291,9 @@ class ToolService:
         except (CatalogueError, HistoryError, OSError, ValueError) as error:
             raise RpcError(INVALID_PARAMS, str(error)) from None
 
-    def _import_rep(self, params: dict[str, Any]) -> dict[str, Any]:
-        """Import a REP file as a new plot (EXT-01). Nothing in the file is dropped silently."""
+    def _import(self, params: dict[str, Any]) -> dict[str, Any]:
+        """Import a REP file (EXT-01) or a legacy plot file, .dpf (EXT-14, EXT-15), as a
+        new plot. Nothing in the file is dropped silently: what is not imported is listed."""
         path = params.get("path")
         store = self._store(params.get("store"), writing=True)
         if not isinstance(path, str) or not Path(path).is_file():
@@ -304,7 +305,8 @@ class ToolService:
             while item_id in taken:
                 item_id, n = f"{stem}-{n}", n + 1
             agent = params.get("agent") or {"kind": "person", "name": "analyst"}
-            report = import_rep(
+            importer = import_dpf if Path(path).suffix.lower() in (".dpf", ".xml") else import_rep
+            report = importer(
                 catalogue, Path(path), item_id=item_id, agent=models.AgentRef(**agent)
             )
         except (CatalogueError, OSError, ValueError) as error:
@@ -315,6 +317,8 @@ class ToolService:
             "item": report.item_id,
             "tracks": report.tracks,
             "fixes": report.fixes,
+            "annotations": report.annotations,
+            "narrative_entries": report.narrative_entries,
             "omitted": report.omitted,
         }
 

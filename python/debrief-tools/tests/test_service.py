@@ -327,3 +327,12 @@ def test_a_conflict_tells_the_caller_whether_it_can_merge(config_file: Path) -> 
         {"name": "core.x", "arguments": {"selection": [], "agent": AGENT, "on_conflict": "x"}},
     )
     assert "on_conflict must be" in refused["content"][0]["text"]
+
+
+def test_a_legacy_plot_file_imports_with_its_omissions_listed(client) -> None:
+    shapes = Path(__file__).parents[2] / "debrief-io" / "tests" / "data" / "shapes.dpf"
+    params = {"store": "exercise", "path": str(shapes), "agent": AGENT}
+    report = rpc(client, "debrief/import", params).json()["result"]
+    assert report["item"] == "shapes" and report["omitted"]
+    steps = rpc(client, "debrief/history", {"store": "exercise", "item": "shapes"}).json()
+    assert [s["kind"] for s in steps["result"]["steps"]] == ["import"]
