@@ -147,8 +147,11 @@ class FileStore:
                 stream.write(text)
                 stream.flush()
                 os.fsync(stream.fileno())
+            link = getattr(os, "link", None)  # absent under Pyodide (CON-09)
             try:
-                os.link(temporary, target)
+                if link is None:
+                    raise OSError("no hard links on this platform")
+                link(temporary, target)
             except FileExistsError:
                 raise
             except OSError:  # no hard links here: fall back to an exclusive create

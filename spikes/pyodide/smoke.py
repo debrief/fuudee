@@ -137,7 +137,48 @@ def main(fixtures: Path) -> dict:
         range_bearing(wellington, salamanca)
     timings["range_bearing_us"] = (time.perf_counter() - started) / 200 * 1e6
 
+    # History: a plot is saved, changed, undone and redone, as the browser playground does.
+    report["history"] = _history()
+
     return {"report": report, "timings": timings}
+
+
+def _history() -> dict:
+    import tempfile
+
+    from debrief_stac import Catalogue, Changes
+
+    note = models.AnnotationFeature(
+        type="Feature",
+        id="note-1",
+        geometry=None,
+        properties=models.AnnotationProperties(
+            kind="annotation", style="note", name="Note", time="2026-10-11T09:30:00.000Z"
+        ),
+    )
+    record = models.ProvRecord(
+        id="op-1",
+        kind="edit",
+        started_at="2026-10-11T10:00:00.000Z",
+        agent=models.AgentRef(kind="person", name="smoke"),
+    )
+    with tempfile.TemporaryDirectory() as folder:
+        catalogue = Catalogue.create(Path(folder) / "cat", "smoke", "Smoke", "")
+        catalogue.create_plot("p", "Plot")
+        catalogue.commit("p", [record], Changes(added=[note]))
+        catalogue.commit(
+            "p", [record.model_copy(update={"id": "op-2"})], Changes(deleted_ids=["note-1"])
+        )
+        history = catalogue.history("p")
+        undone = history.undo()
+        after_undo = [f.id for f in catalogue.read_plot("p").features]
+        history.redo()
+        return {
+            "steps": [s.status for s in history.steps()],
+            "undone_to": undone,
+            "after_undo": after_undo,
+            "after_redo": [f.id for f in catalogue.read_plot("p").features],
+        }
 
 
 if __name__ == "__main__":
