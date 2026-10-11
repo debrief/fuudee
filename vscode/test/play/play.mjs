@@ -82,8 +82,8 @@ try {
   // Select BLUE ONE and RED ONE in the outline; Closest approach is offered.
   await page.locator(`#outline li[data-id="track-blue-one"]`).click();
   await page.locator(`#outline li[data-id="track-red-one"]`).click({ modifiers: ["Control"] });
-  await page.locator("#tools button", { hasText: "Closest approach" }).waitFor({ state: "visible" });
-  assert.equal(await page.locator("#tools button", { hasText: "Closest approach" }).isEnabled(), true);
+  // Offered once Python has checked the selection, which takes a moment.
+  await page.waitForFunction(() => [...document.querySelectorAll("#tools button")].some((b) => b.textContent === "Closest approach" && !b.disabled));
   await page.locator("#tools button", { hasText: "Closest approach" }).click();
   const form = page.frameLocator(".frame-form");
   const started = Date.now();
