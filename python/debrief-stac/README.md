@@ -8,6 +8,7 @@ catalog.json               the catalogue, declaring the data-file schema version
 <item>/plot.geojson        the plot
 <item>/sources/<file>      imported sources: copied in, read-only, hashed once
 <item>/media/<file>        supporting files: video, imagery, acoustic files
+<item>/payloads/<file>     observation payloads, such as Parquet bearings (CON-02)
 ```
 
 ```python
@@ -16,6 +17,9 @@ from debrief_stac import Catalogue
 catalogue = Catalogue.create(path, "exercise-2026", "Exercise 2026", "Serials from Exercise 2026")
 catalogue.create_plot("serial-01", "Serial 1")
 source = catalogue.add_source("serial-01", Path("serial-01.rep"))  # SourceRef for provenance
+bearings = catalogue.add_payload(
+    "serial-01", Path("bearings.parquet"), media_type="application/vnd.apache.parquet"
+)
 plot = catalogue.read_plot("serial-01")
 catalogue.write_plot("serial-01", plot)  # atomic
 catalogue.verify_sources("serial-01")  # [] when unchanged

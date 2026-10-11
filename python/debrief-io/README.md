@@ -38,6 +38,8 @@ Ported from legacy Debrief's `ImportFix` and `DebriefFormatDateTime`, with their
 
 Legacy files that are not UTF-8 are read as Latin-1.
 
+The provenance record is timed by a `clock` (epoch milliseconds), the wall clock by default. A builder that must give the same plot every run, such as the sample data, passes a fixed one.
+
 Checked against every REP file in legacy Debrief's sample data: 85 files and 173,548 fixes. The only line that failed is in `BAD_boat2.rep`, a file broken on purpose. A 28,000-fix file imports in about 1.5 s.
 
 Not yet: sensor and narrative lines (Phases 3 and 4), per-fix labels, and the legacy OTG and DR modes (CAP-01).

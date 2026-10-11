@@ -7,6 +7,7 @@ Layout on disk:
     <item>/plot.geojson             the plot (SUB-05)
     <item>/sources/<file>           immutable imported sources (SUB-10)
     <item>/media/<file>             supporting files (SUB-06)
+    <item>/payloads/<file>          opaque observation payloads (CON-02)
 
 Items are found by walking the folders and checking each item's parent link;
 the catalogue's child links are written as a hint but never trusted (SUB-23).
@@ -340,6 +341,17 @@ class Catalogue:
         """Video, imagery, acoustic files and the like (SUB-06)."""
         return self._add_file(item_id, Path(path), "media", "supporting_file", key, media_type)
 
+    def add_payload(
+        self, item_id: str, path: Path, *, key: str | None = None, media_type: str
+    ) -> models.SourceRef:
+        """An opaque observation payload, such as a Parquet file of bearings (CON-02).
+
+        Copied in read-only and hashed like a source. The returned href and
+        hash go into the feature's payload envelope; the href is relative to
+        the item, as the plot file is.
+        """
+        return self._add_file(item_id, Path(path), "payloads", "payload", key, media_type)
+
     def _add_file(
         self, item_id: str, path: Path, folder: str, kind: str, key: str | None, media_type: str
     ) -> models.SourceRef:
@@ -357,7 +369,7 @@ class Catalogue:
             key=key,
             href=f"./{relative}",
             type=media_type,
-            roles=["source"] if kind == "source" else ["metadata"],
+            roles={"source": ["source"], "payload": ["data"]}.get(kind, ["metadata"]),
             debrief_asset_kind=kind,
             debrief_content_hash=digest,
         )

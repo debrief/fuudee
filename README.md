@@ -13,6 +13,7 @@ Debrief v4. Requirements and plans are in [docs/](docs/README.md); identifiers s
 | `python/debrief-schemas/` | Generated Pydantic models and document validation |
 | `python/debrief-io/` | Importers: REP files into catalogued plots with provenance; see [its README](python/debrief-io/README.md) |
 | `python/debrief-stac/` | File-based STAC catalogues of plots and sources; see [its README](python/debrief-stac/README.md) |
+| `python/debrief-sample/` | Sample data: open AIS with a synthesised exercise on top, built into a catalogue (DEP-08); see [its README](python/debrief-sample/README.md) |
 | `python/debrief-kernel/` | Time, units, geodesy and display formatting (SUB-01 to SUB-04); see [its README](python/debrief-kernel/README.md) |
 | `ts/schemas/` | Generated TypeScript types and document validation |
 | `ts/kernel/` | Unit conversion and display formatting for TypeScript views, held to the vectors shared with the Python kernel |
