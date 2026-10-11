@@ -10,6 +10,7 @@ import { openPlot, readCatalogue } from "../../src/catalogue.js";
 import { densify } from "../../webview/geodesic.js";
 import { count, describeTimes } from "../../src/format.js";
 import { Session } from "../../src/session.js";
+import { redact, toolRunLine } from "../../src/diagnostics.js";
 import type { OpenedPlot } from "../../src/catalogue.js";
 
 const repo = path.resolve(__dirname, "../../..");
@@ -212,4 +213,27 @@ describe("history steps, in the analyst's words (SUB-21)", () => {
     [{ kind: "tool", tool: "debrief-sample", status: "abandoned" }, "Made by debrief-sample", "Undone, then replaced by a later change; kept on record"],
     [{ kind: "edit", tool: null, status: "applied" }, "Edited", "In the plot"],
   ])("%#", (step, label, status) => expect(describeStep(step, title)).toEqual({ label, status }));
+});
+
+describe("logs hold no plot data (NFR-14)", () => {
+  const vectors = JSON.parse(readFileSync(path.join(repo, "schemas", "vectors", "redaction.json"), "utf8")).cases as {
+    name: string;
+    line: string;
+    expected: string;
+  }[];
+  it.each(vectors.map((c) => [c.name, c] as const))("%s, as Python redacts it", (_, c) => expect(redact(c.line)).toBe(c.expected));
+  it("logs a tool run as parameter names and kinds, never values", () => {
+    const note = {
+      ...tool(["*"], 0),
+      name: "core.add_note",
+      version: "0.0.2",
+      parameters: [
+        { name: "text", title: "Note", kind: "string" },
+        { name: "at", title: "Time", kind: "time" },
+      ],
+    } as ToolDeclaration;
+    expect(toolRunLine(note, { text: "Contact lost near NELSON", at: "05:00Z", x: 1 }, 2, "done", 41.2)).toBe(
+      "tool_run tool=core.add_note version=0.0.2 parameters=at:time,text:string undeclared_parameters=1 selected=2 outcome=done ms=41",
+    );
+  });
 });

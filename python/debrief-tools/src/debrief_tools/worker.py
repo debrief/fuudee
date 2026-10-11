@@ -29,6 +29,7 @@ from debrief_schemas import (
     models,
 )
 from debrief_stac import Base, Catalogue
+from debrief_tools import diagnostics
 from debrief_tools.registry import Registry
 from debrief_tools.run import ToolRunConflict, ToolRunError, run_tool
 
@@ -38,6 +39,7 @@ _registry: Registry | None = None
 
 def _initialise(libraries: list[str]) -> None:
     global _registry
+    diagnostics.configure("tools-worker")  # its own file: two processes never share one
     _registry = Registry.discover(libraries)
 
 
@@ -98,10 +100,10 @@ def _call(name: str, arguments: dict[str, Any], config_path: str | None) -> dict
     except ToolRunError as error:
         if error.detail:
             log.warning("%s\n%s", error, error.detail)
-        return {"error": str(error)}
+        return {"error": str(error), "failure": "failed" if error.detail else "refused"}
     except Exception as error:  # noqa: BLE001 - reported as this call's failure
         log.exception("tools/call %s", name)
-        return {"error": f"The tool could not run: {error}"}
+        return {"error": f"The tool could not run: {error}", "failure": "failed"}
     return {
         "result": json.loads(dump_document(DocumentKind.TOOL_RESULT, outcome.result)),
         "changed": outcome.changed,
@@ -151,11 +153,15 @@ class ToolWorker:
             self._restart()
             return {
                 "error": f"The tool took longer than {self.timeout_s:g} seconds and was stopped. "
-                "Nothing was saved."
+                "Nothing was saved.",
+                "failure": "timed_out",
             }
         except (BrokenProcessPool, SystemExit, Exception):  # noqa: BLE001 - incl. sys.exit in a tool
             self._restart()
-            return {"error": "The tool stopped unexpectedly. Nothing was saved."}
+            return {
+                "error": "The tool stopped unexpectedly. Nothing was saved.",
+                "failure": "crashed",
+            }
 
     def close(self) -> None:
         self._restart()

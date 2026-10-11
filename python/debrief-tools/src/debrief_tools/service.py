@@ -30,6 +30,7 @@ import os
 import re
 import socket
 import sys
+import time
 from importlib.metadata import version
 from pathlib import Path
 from typing import Any
@@ -44,6 +45,7 @@ from debrief_config import ConfigError, add_store, load_config, update_config
 from debrief_io import import_rep
 from debrief_schemas import DocumentKind, load_document, models
 from debrief_stac import Base, Catalogue, CatalogueError, Conflict, HistoryError
+from debrief_tools import diagnostics
 from debrief_tools.registry import applies
 from debrief_tools.worker import ToolWorker
 
@@ -318,6 +320,25 @@ class ToolService:
             "omitted": report.omitted,
         }
 
+    def _log_run(
+        self, name: str, arguments: dict[str, Any], outcome: dict[str, Any], seconds: float
+    ) -> None:
+        """One line per run, with no plot data in it (NFR-14)."""
+        declaration = self.declarations[name]
+        supplied = arguments.get("parameters")
+        log.info(
+            "%s",
+            diagnostics.tool_run(
+                tool=name,
+                version=declaration.version,
+                parameter_kinds={p.name: str(p.kind) for p in declaration.parameters or []},
+                supplied=supplied if isinstance(supplied, dict) else None,
+                selected=len(arguments.get("selection") or []),
+                outcome=_outcome(outcome),
+                seconds=seconds,
+            ),
+        )
+
     def _call(self, params: dict[str, Any]) -> dict[str, Any]:
         name, arguments = params.get("name"), params.get("arguments")
         if not isinstance(name, str) or not isinstance(arguments, dict):
@@ -327,7 +348,9 @@ class ToolService:
         problem = _argument_problem(arguments)
         if problem:
             return _tool_error(problem)
+        started = time.monotonic()
         outcome = self.worker.call(name, arguments)
+        self._log_run(name, arguments, outcome, time.monotonic() - started)
         if "error" in outcome:
             error = _tool_error(outcome["error"])
             if "conflict" in outcome:
@@ -350,6 +373,16 @@ class ToolService:
             "structuredContent": structured,
             "isError": False,
         }
+
+
+def _outcome(outcome: dict[str, Any]) -> str:
+    if "conflict" in outcome:
+        return "conflict"
+    if "error" in outcome:
+        return str(outcome.get("failure", "failed"))
+    if outcome.get("new_item"):
+        return "saved_as_new_plot"
+    return "changed" if outcome["changed"] else "unchanged"
 
 
 def _argument_problem(arguments: dict[str, Any]) -> str | None:

@@ -7,6 +7,7 @@ import json
 import logging
 
 from debrief_schemas import DocumentKind, dump_document
+from debrief_tools import diagnostics
 from debrief_tools.registry import Registry
 from debrief_tools.service import serve
 
@@ -22,10 +23,11 @@ def main() -> None:
         "--timeout", type=float, default=120.0, help="seconds before a tool call is stopped"
     )
     args = parser.parse_args()
-    logging.basicConfig(level=logging.INFO, format="%(levelname)s %(message)s")
     if args.command == "serve":
+        diagnostics.configure("tools")  # redacted, to a local file and stderr (NFR-14)
         serve(args.port, args.library, args.timeout)
         return
+    logging.basicConfig(level=logging.INFO, format="%(levelname)s %(message)s")
     registry = Registry.discover(args.library)
     for tool in registry.tools.values():
         print(dump_document(DocumentKind.TOOL_DECLARATION, tool.declaration))

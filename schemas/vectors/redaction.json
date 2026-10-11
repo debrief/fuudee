@@ -1,0 +1,75 @@
+{
+  "description": "Log redaction (NFR-14): quoted text and file paths become short hashes (the first 8 hex digits of SHA-256 of the UTF-8 text). Python's debrief_tools.diagnostics and the extension's diagnostics are both held to these cases.",
+  "cases": [
+    {
+      "name": "feature names in quotes",
+      "line": "The plot has no feature 'track-nelson'; refresh and select again.",
+      "expected": "The plot has no feature '<text:f8ec635f>'; refresh and select again."
+    },
+    {
+      "name": "apostrophes kept",
+      "line": "Debrief's tool service can't read the plot 'serial-1'",
+      "expected": "Debrief's tool service can't read the plot '<text:baf151a6>'"
+    },
+    {
+      "name": "double quotes",
+      "line": "Range rings failed: no track called \"BLUE ONE\"",
+      "expected": "Range rings failed: no track called \"<text:97a4a8c3>\""
+    },
+    {
+      "name": "POSIX path",
+      "line": "Cannot read /home/analyst/exercise/serial-1/plot.geojson: permission denied",
+      "expected": "Cannot read <path:eb27ee35>: permission denied"
+    },
+    {
+      "name": "Windows path",
+      "line": "C:\\Users\\analyst\\Exercise\\serial.rep is not a file.",
+      "expected": "<path:869265da> is not a file."
+    },
+    {
+      "name": "UNC path",
+      "line": "Cannot open \\\\fileserver\\debrief\\exercise: share unavailable",
+      "expected": "Cannot open <path:a252aeee>: share unavailable"
+    },
+    {
+      "name": "forward-slash Windows path",
+      "line": "Opening D:/data/cat failed",
+      "expected": "Opening <path:fd5bbfb3> failed"
+    },
+    {
+      "name": "method names and URLs kept",
+      "line": "tools/call core.range_rings via http://127.0.0.1:43210/mcp",
+      "expected": "tools/call core.range_rings via http://127.0.0.1:43210/mcp"
+    },
+    {
+      "name": "ratios and units kept",
+      "line": "speed 12 kn, 1/2 of the run, deg/min",
+      "expected": "speed 12 kn, 1/2 of the run, deg/min"
+    },
+    {
+      "name": "one-segment path kept",
+      "line": "POST /mcp refused",
+      "expected": "POST /mcp refused"
+    },
+    {
+      "name": "tool run line kept",
+      "line": "tool_run tool=core.range_rings version=0.0.2 parameters=rings:integer,spacing:quantity selected=1 outcome=changed ms=41",
+      "expected": "tool_run tool=core.range_rings version=0.0.2 parameters=rings:integer,spacing:quantity selected=1 outcome=changed ms=41"
+    },
+    {
+      "name": "traceback frame",
+      "line": "  File \"/home/analyst/tools/mytool.py\", line 12, in run",
+      "expected": "  File \"<text:13f70ffe>\", line 12, in run"
+    },
+    {
+      "name": "already redacted, unchanged",
+      "line": "no feature '<text:f8ec635f>' in <path:eb27ee35>: \"<text:97a4a8c3>\"",
+      "expected": "no feature '<text:f8ec635f>' in <path:eb27ee35>: \"<text:97a4a8c3>\""
+    },
+    {
+      "name": "several in one line",
+      "line": "copy /srv/a/b.rep to 'NELSON' and \"RED\"",
+      "expected": "copy <path:5f72b02a> to '<text:13a17b46>' and \"<text:65cbe1e1>\""
+    }
+  ]
+}

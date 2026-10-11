@@ -16,6 +16,7 @@ import { MapPanel } from "./panels/map.js";
 import { ResultsPanel } from "./panels/results.js";
 import { CONFLICT, ServiceError, ToolService, type Agent, type CallOutcome, type ToolListing } from "./service.js";
 import { HistoryProvider } from "./views/history.js";
+import { DiagnosticLog, toolRunLine } from "./diagnostics.js";
 import { Session } from "./session.js";
 import { CataloguesProvider } from "./views/catalogues.js";
 import { featureIdsOf, OutlineProvider } from "./views/outline.js";
@@ -48,7 +49,9 @@ export interface DebriefApi {
 
 export function activate(context: vscode.ExtensionContext): DebriefApi {
   const output = vscode.window.createOutputChannel("Debrief");
-  const log = (line: string) => output.appendLine(line);
+  // Everything logged is redacted, on screen and in the file (NFR-14).
+  const diagnostics = new DiagnosticLog(context.logUri.fsPath, (line) => output.appendLine(line));
+  const log = (line: string) => diagnostics.write("info", line);
   const configFile = process.env.DEBRIEF_CONFIG || undefined;
   const session = new Session();
   const agent: Agent = { kind: "person", name: userInfo().username };
@@ -180,7 +183,17 @@ export function activate(context: vscode.ExtensionContext): DebriefApi {
 
   // --- Running a tool ---------------------------------------------------------------
   const runTool = (tool: ToolDeclaration, parameters: ParameterValue[]): Promise<string | undefined> =>
-    serially(() => ourChange(() => runToolNow(tool, parameters)));
+    serially(() =>
+      ourChange(async () => {
+        const started = Date.now();
+        const selected = session.selection.length;
+        const problem = await runToolNow(tool, parameters);
+        const supplied = Object.fromEntries(parameters.map((p) => [p.name, true]));
+        diagnostics.write(problem ? "warning" : "info", toolRunLine(tool, supplied, selected, problem ? "refused" : "done", Date.now() - started));
+        if (problem) diagnostics.write("warning", `${tool.name}: ${problem}`);
+        return problem;
+      }),
+    );
   const runToolNow = async (tool: ToolDeclaration, parameters: ParameterValue[]): Promise<string | undefined> => {
     const opened = session.current;
     if (!opened) return "Open a plot first.";

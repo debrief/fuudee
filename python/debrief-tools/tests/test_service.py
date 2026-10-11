@@ -2,6 +2,7 @@
 
 import asyncio
 import json
+import logging
 import os
 import subprocess
 import sys
@@ -10,6 +11,7 @@ from pathlib import Path
 import pytest
 from starlette.testclient import TestClient
 
+from debrief_schemas import models
 from debrief_tools.service import ToolService, build_app
 from debrief_tools.worker import ToolWorker
 
@@ -316,7 +318,16 @@ def test_a_conflict_tells_the_caller_whether_it_can_merge(config_file: Path) -> 
             return {"error": "The plot was changed meanwhile.", "conflict": {"mergeable": True}}
 
     service = ToolService(Meanwhile(), str(config_file))  # type: ignore[arg-type]
-    service.declarations = {"core.x": None}  # type: ignore[dict-item]
+    service.declarations = {
+        "core.x": models.ToolDeclaration(
+            name="core.x",
+            version="1",
+            title="X",
+            explanation="E",
+            applies_to=["*"],
+            outputs=["non_spatial"],
+        )
+    }
     result = service.handle(
         "tools/call",
         {"name": "core.x", "arguments": {"selection": [], "agent": AGENT}},
@@ -347,3 +358,18 @@ def test_shared_state_goes_to_the_tool_and_its_change_comes_back(client) -> None
     assert (
         refused["isError"] and "shared state passed is not valid" in refused["content"][0]["text"]
     )
+
+
+def test_tool_runs_are_logged_without_plot_data(client, catalogue, caplog) -> None:
+    caplog.set_level(logging.INFO, logger="debrief_tools")
+    logging.getLogger("debrief_tools").addHandler(caplog.handler)
+    secret = {"text": "Contact lost near NELSON", "at": "1995-12-12T05:05:00.000Z"}
+    call(client, "core.add_note", ["track-nelson"], parameters=secret)
+    call(client, "core.closest_approach", ["track-nelson"])  # refused: does not apply
+    lines = [r.getMessage() for r in caplog.records if r.getMessage().startswith("tool_run")]
+    assert lines[0].startswith(
+        "tool_run tool=core.add_note version=0.0.2 parameters=at:time,text:string selected=1 "
+        "outcome=changed"
+    )
+    assert "outcome=refused" in lines[1]
+    assert not any("NELSON" in line or "Contact" in line for line in lines)
