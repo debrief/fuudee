@@ -22,7 +22,7 @@ from typing import Any
 
 from debrief_config import load_config
 from debrief_schemas import DocumentKind, dump_document, models
-from debrief_stac import Catalogue
+from debrief_stac import Base, Catalogue
 from debrief_tools.registry import Registry
 from debrief_tools.run import ToolRunConflict, ToolRunError, run_tool
 
@@ -59,6 +59,15 @@ def _call(name: str, arguments: dict[str, Any], config_path: str | None) -> dict
             raise ToolRunError(
                 f"There is no store {arguments.get('store')!r} in your Debrief configuration."
             )
+        base = arguments.get("base")
+        if base is not None:
+            if not (
+                isinstance(base, dict)
+                and type(base.get("current")) is int
+                and isinstance(base.get("plot_hash"), str)
+            ):
+                raise ToolRunError("base must be {current, plot_hash}, as debrief/open returns.")
+            base = Base(base["current"], base["plot_hash"])
         outcome = run_tool(
             _registry,
             Catalogue.open(store.location),
@@ -69,6 +78,7 @@ def _call(name: str, arguments: dict[str, Any], config_path: str | None) -> dict
             models.AgentRef(**arguments["agent"]),
             read_only=bool(store.read_only),
             on_conflict=str(arguments.get("on_conflict") or "refuse"),
+            base=base,
         )
     except ToolRunConflict as conflict:
         return {"error": str(conflict), "conflict": {"mergeable": conflict.mergeable}}

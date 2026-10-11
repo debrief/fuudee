@@ -24,7 +24,7 @@ from debrief_schemas import (
     load_document,
     models,
 )
-from debrief_stac import Catalogue, Changes, Conflict, HistoryError
+from debrief_stac import Base, Catalogue, Changes, Conflict, HistoryError
 from debrief_tools.declare import Tool, ToolContext
 from debrief_tools.parameters import ParameterError, bind
 from debrief_tools.registry import Registry, applies
@@ -124,7 +124,14 @@ def run_tool(
     *,
     read_only: bool = False,
     on_conflict: str = "refuse",
+    base: Base | None = None,
 ) -> RunOutcome:
+    """Run a tool on a plot and record what it changes.
+
+    base is the plot the analyst was looking at when they ran the tool, so a
+    change made elsewhere since then is detected (SUB-28). Without one, the
+    run starts from the plot as it is now.
+    """
     tool = registry.tools.get(tool_name)
     if tool is None:
         raise ToolRunError(f"There is no tool called {tool_name}.")
@@ -132,8 +139,18 @@ def run_tool(
     if read_only and set(map(str, declaration.outputs)) - {"non_spatial", "state_change"}:
         raise ToolRunError(f"This store is read-only, and {declaration.title} changes the plot.")
     history = catalogue.history(item_id)
-    base = history.base()  # the head this run starts from (SUB-28)
-    plot = catalogue.read_plot(item_id)
+    try:
+        if base is None:
+            # The base is read before the plot: if the plot moves on in between,
+            # the commit sees a stale base and reports a conflict rather than
+            # overwriting. Keep this order.
+            base = history.base()
+            plot = history.plot()
+        else:
+            history.check_base(base)
+            plot = history.replay(base.current)
+    except HistoryError as error:
+        raise ToolRunError(str(error)) from None
     started = _now()
     result, recorded = execute(tool, plot, selection_ids, supplied)
 

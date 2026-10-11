@@ -370,11 +370,22 @@
             "null"
           ]
         },
+        "order": {
+          "description": "Feature ids in the order the plot holds them after this change, when that is not the natural order (features kept in place, added ones last).",
+          "items": {
+            "type": "string"
+          },
+          "type": [
+            "array",
+            "null"
+          ]
+        },
         "records": {
           "description": "The operation that made the change. Usually one; a baseline delta, taken when a plot made before history existed is first changed, carries all the plot's earlier records.",
           "items": {
             "$ref": "#/$defs/ProvRecord"
           },
+          "minItems": 1,
           "type": "array"
         },
         "result_hash": {
@@ -532,7 +543,7 @@
       "description": "Where a plot's history stands. Written after each delta, before the plot.",
       "properties": {
         "abandoned": {
-          "description": "Deltas undone and then superseded by a new change (SUB-19).",
+          "description": "Deltas undone and then superseded by a new change (SUB-19): those off the chain to the latest delta, so a lost head can be rebuilt.",
           "items": {
             "type": "integer"
           },

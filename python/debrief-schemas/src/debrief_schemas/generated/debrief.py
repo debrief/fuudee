@@ -2187,7 +2187,7 @@ class Delta(ConfiguredBaseModel):
     schema_version: str = Field(default=..., json_schema_extra = { "linkml_meta": {'domain_of': ['DebriefFeatureCollection', 'Delta', 'HistoryHead']} })
     seq: int = Field(default=..., description="""Position in the plot's history, from 1, with no gaps.""", ge=1, json_schema_extra = { "linkml_meta": {'domain_of': ['Delta']} })
     after: int = Field(default=..., description="""The delta this one was applied on top of (0 for the first). Replay follows these links, and recovery uses them to finish a change that was written but not completed.""", ge=0, json_schema_extra = { "linkml_meta": {'domain_of': ['Delta']} })
-    records: list[ProvRecord] = Field(default=..., description="""The operation that made the change. Usually one; a baseline delta, taken when a plot made before history existed is first changed, carries all the plot's earlier records.""", json_schema_extra = { "linkml_meta": {'domain_of': ['Delta']} })
+    records: list[ProvRecord] = Field(default=..., description="""The operation that made the change. Usually one; a baseline delta, taken when a plot made before history existed is first changed, carries all the plot's earlier records.""", min_length=1, json_schema_extra = { "linkml_meta": {'domain_of': ['Delta']} })
     added: Optional[list[Union[AnnotationFeature, SensorObservationsFeature, TrackFeature]]] = Field(default=None, json_schema_extra = { "linkml_meta": {'any_of': [{'range': 'TrackFeature'},
                     {'range': 'AnnotationFeature'},
                     {'range': 'SensorObservationsFeature'}],
@@ -2199,6 +2199,7 @@ class Delta(ConfiguredBaseModel):
     deleted_ids: Optional[list[str]] = Field(default=None, json_schema_extra = { "linkml_meta": {'domain_of': ['Delta']} })
     named_sets: Optional[list[NamedSet]] = Field(default=None, description="""Named sets added or replaced, by id.""", json_schema_extra = { "linkml_meta": {'domain_of': ['DebriefFeatureCollection', 'ToolResult', 'Delta']} })
     deleted_named_set_ids: Optional[list[str]] = Field(default=None, json_schema_extra = { "linkml_meta": {'domain_of': ['Delta']} })
+    order: Optional[list[str]] = Field(default=None, description="""Feature ids in the order the plot holds them after this change, when that is not the natural order (features kept in place, added ones last).""", json_schema_extra = { "linkml_meta": {'domain_of': ['Delta']} })
     result_hash: str = Field(default=..., description="""Content hash of the plot file after this delta, to check replay.""", json_schema_extra = { "linkml_meta": {'domain_of': ['Delta']} })
 
     @field_validator('schema_version')
@@ -2237,7 +2238,7 @@ class HistoryHead(ConfiguredBaseModel):
     schema_version: str = Field(default=..., json_schema_extra = { "linkml_meta": {'domain_of': ['DebriefFeatureCollection', 'Delta', 'HistoryHead']} })
     current: int = Field(default=..., description="""Sequence number of the last delta the plot reflects; 0 for none.""", ge=0, json_schema_extra = { "linkml_meta": {'domain_of': ['TimeState', 'HistoryHead']} })
     latest: int = Field(default=..., description="""Highest sequence number written.""", ge=0, json_schema_extra = { "linkml_meta": {'domain_of': ['HistoryHead']} })
-    abandoned: Optional[list[int]] = Field(default=None, description="""Deltas undone and then superseded by a new change (SUB-19).""", json_schema_extra = { "linkml_meta": {'domain_of': ['HistoryHead']} })
+    abandoned: Optional[list[int]] = Field(default=None, description="""Deltas undone and then superseded by a new change (SUB-19): those off the chain to the latest delta, so a lost head can be rebuilt.""", json_schema_extra = { "linkml_meta": {'domain_of': ['HistoryHead']} })
     plot_hash: str = Field(default=..., description="""Content hash the plot file has when it reflects current.""", json_schema_extra = { "linkml_meta": {'domain_of': ['HistoryHead']} })
 
     @field_validator('schema_version')

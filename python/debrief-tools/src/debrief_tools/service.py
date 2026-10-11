@@ -267,7 +267,7 @@ class ToolService:
             if item not in catalogue.item_ids():
                 raise RpcError(INVALID_PARAMS, f"There is no plot {item!r} in {store.title}.")
             history = catalogue.history(item)
-            recovered = history.recover()
+            recovered = history.open()
             expected = Base(base["current"], base["plot_hash"]) if base else None
             if method == "debrief/undo":
                 history.undo(expected)
@@ -382,7 +382,7 @@ def _step(step: Any) -> dict[str, Any]:
         "status": step.status,
         "kind": str(first.kind),
         "tool": first.tool.name if first.tool else None,
-        "agent": first.agent.name,
+        "agent": ", ".join(dict.fromkeys(r.agent.name for r in step.records)),
         "at": first.ended_at or first.started_at,
         "records": len(step.records),
     }

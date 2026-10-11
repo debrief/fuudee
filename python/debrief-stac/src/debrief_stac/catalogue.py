@@ -33,7 +33,7 @@ from debrief_schemas import (
     models,
 )
 from debrief_stac.hashing import content_hash
-from debrief_stac.history import Base, Changes, History, empty_plot
+from debrief_stac.history import Base, Changes, History, baseline_record, empty_plot
 from debrief_stac.store import FileStore, Store
 
 STAC_VERSION = "1.1.0"
@@ -284,10 +284,17 @@ class Catalogue:
             },
         )
         self._apply_extent(item, plot_extent(empty_plot()))
-        self._write_item(item)
+        try:  # exclusive, so two processes creating the same plot cannot both succeed
+            self.store.write_text_exclusive(
+                self._item_path(item_id), dump_document(DocumentKind.STAC_ITEM, item)
+            )
+        except FileExistsError:
+            raise CatalogueError(f"{item_id!r} already exists in catalogue {self.id!r}") from None
         # The history starts empty; a plot given here becomes its first change.
         self.history(item_id).recover()
         if plot.features or plot.named_sets or plot.provenance:
+            if not plot.provenance:  # content with no record of how it was made
+                plot = plot.model_copy(update={"provenance": [baseline_record()]})
             self.write_plot(item_id, plot, allow_newer_schema=allow_newer_schema)
         # The child link is a convenience hint only (SUB-23).
         self.model.links.append(
@@ -309,17 +316,22 @@ class Catalogue:
         return History(self, item_id)
 
     def read_plot(self, item_id: str) -> DebriefFeatureCollection:
-        """The plot as of its history's head, recovering an interrupted change first (NFR-10)."""
-        self.history(item_id).recover()
-        return load_document(DocumentKind.PLOT, self.store.read_text(self.plot_path(item_id)))
+        """The plot as of its history's head, recovering an interrupted change first (NFR-10).
+
+        In a folder that cannot be written, the plot is rebuilt in memory instead.
+        """
+        return self.history(item_id).plot()
 
     def store_plot_text(self, item_id: str, plot: DebriefFeatureCollection, text: str) -> None:
         """Write the materialised plot atomically and refresh the item's extent (NFR-11).
 
         Only the history calls this: every change goes through a delta first.
         """
+        self.store.write_text_atomic(self.plot_path(item_id), text)
+        # Read the item as late as possible, so a source added meanwhile by
+        # another process is kept. A narrow window remains; the extent is only
+        # a search hint, and the next save writes it again.
         item = self.read_item(item_id)
-        self.store.write_text_atomic(self._asset_path(item, PLOT_ASSET), text)
         self._apply_extent(item, plot_extent(plot))
         self._write_item(item)
 
@@ -350,25 +362,44 @@ class Catalogue:
         sources and files, and then the change. The original is untouched.
         """
         item = self.read_item(item_id)
-        taken = set(self.item_ids())
-        new_id, n = f"{item_id}-copy", 2
-        while new_id in taken or self.store.exists(new_id):
-            new_id, n = f"{item_id}-copy-{n}", n + 1
+        old = self.history(item_id)
+        old.check_base(base)
         title = f"{item.properties.title or item_id} (your changes)"
-        self.create_plot(new_id, title)
-        new_item = self.read_item(new_id)
-        for key, asset in item.assets.items():
-            if key == PLOT_ASSET:
+        n = 1
+        while True:
+            new_id = f"{item_id}-copy" if n == 1 else f"{item_id}-copy-{n}"
+            n += 1
+            if self.store.exists(new_id):
                 continue
-            relative = self._asset_path(item, key).split("/", 1)[1]
-            self.store.copy(f"{item_id}/{relative}", f"{new_id}/{relative}")
-            new_item.assets[key] = asset.model_copy()
-        self._write_item(new_item)
-        old, new = self.history(item_id), self.history(new_id)
-        for seq in old.chain(base.current):
-            delta = old.delta(seq)
-            new.commit(list(delta.records), Changes.of(delta))
-        new.commit(records, changes)
+            try:
+                self.create_plot(new_id, title)
+            except CatalogueError:  # taken meanwhile by another process
+                if self.store.exists(self._item_path(new_id)):
+                    continue
+                raise
+            break
+        try:
+            new_item = self.read_item(new_id)
+            for key, asset in item.assets.items():
+                if key == PLOT_ASSET:
+                    continue
+                relative = self._asset_path(item, key).split("/", 1)[1]
+                self.store.copy(f"{item_id}/{relative}", f"{new_id}/{relative}")
+                new_item.assets[key] = asset.model_copy()
+            self._write_item(new_item)
+            new = self.history(new_id)
+            for seq in old.chain(base.current):
+                delta = old.delta(seq)
+                new.commit(list(delta.records), Changes.of(delta))
+            new.commit(records, changes)
+        except BaseException:
+            # Never leave half a copy that looks like a plot.
+            self.store.delete_folder(new_id)
+            self.model.links = [
+                link for link in self.model.links if link.href != f"./{self._item_path(new_id)}"
+            ]
+            self._save_catalogue()
+            raise
         return new_id
 
     def write_plot(
@@ -502,10 +533,14 @@ def diff(before: DebriefFeatureCollection, after: DebriefFeatureCollection) -> C
     new = {f.id: f for f in after.features}
     old_sets = {s.id: s for s in before.named_sets or []}
     new_sets = {s.id: s for s in after.named_sets or []}
-    return Changes(
+    changes = Changes(
         added=[f for i, f in new.items() if i not in old],
         modified=[f for i, f in new.items() if i in old and old[i] != f],
         deleted_ids=[i for i in old if i not in new],
         named_sets=[s for i, s in new_sets.items() if old_sets.get(i) != s],
         deleted_named_set_ids=[i for i in old_sets if i not in new_sets],
     )
+    natural = [i for i in old if i in new] + [f.id for f in changes.added]
+    if list(new) != natural:
+        changes.order = list(new)
+    return changes

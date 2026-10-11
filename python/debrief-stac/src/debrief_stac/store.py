@@ -12,7 +12,9 @@ import os
 import shutil
 import stat
 import tempfile
+import time
 from collections.abc import Iterator
+from contextlib import AbstractContextManager, contextmanager
 from pathlib import Path, PurePosixPath
 from typing import BinaryIO, Protocol
 
@@ -36,6 +38,12 @@ class Store(Protocol):
 
     def rename(self, path: str, new_path: str) -> None: ...
 
+    def delete(self, path: str) -> None: ...
+
+    def delete_folder(self, path: str) -> None: ...
+
+    def locked(self, path: str) -> AbstractContextManager[None]: ...
+
     def copy(self, path: str, new_path: str) -> None: ...
 
     def open_binary(self, path: str) -> BinaryIO: ...
@@ -45,6 +53,45 @@ class Store(Protocol):
     def subfolders(self, path: str) -> Iterator[str]: ...
 
     def size_and_mtime(self, path: str) -> tuple[int, int]: ...
+
+
+LOCK_WAIT_S = 10.0
+LOCK_STALE_S = 30.0
+REPLACE_WAIT_S = 2.0
+
+
+class StoreBusy(StoreError):
+    """Another process holds the lock for longer than we wait. Try again."""
+
+
+def _sync_folder(folder: Path) -> None:
+    """Make a rename or link in a folder durable (POSIX; a no-op where unsupported)."""
+    if not hasattr(os, "O_DIRECTORY"):
+        return
+    try:
+        handle = os.open(folder, os.O_RDONLY | os.O_DIRECTORY)
+    except OSError:
+        return
+    try:
+        os.fsync(handle)
+    except OSError:  # some network filesystems refuse; the write itself still stands
+        pass
+    finally:
+        os.close(handle)
+
+
+def _replace(temporary: str | Path, target: Path) -> None:
+    """Rename over a file, retrying while Windows reports it open elsewhere
+    (the extension reading it, a virus scanner, an indexer)."""
+    deadline = time.monotonic() + REPLACE_WAIT_S
+    while True:
+        try:
+            os.replace(temporary, target)
+            return
+        except PermissionError:
+            if time.monotonic() > deadline:
+                raise
+            time.sleep(0.05)
 
 
 class FileStore:
@@ -76,10 +123,11 @@ class FileStore:
                 stream.write(text)
                 stream.flush()
                 os.fsync(stream.fileno())
-            os.replace(temporary, target)
+            _replace(temporary, target)
         except BaseException:
             Path(temporary).unlink(missing_ok=True)
             raise
+        _sync_folder(target.parent)
 
     def write_text_exclusive(self, path: str, text: str) -> None:
         """Write a new file atomically, failing with FileExistsError if it exists.
@@ -110,6 +158,7 @@ class FileStore:
                     os.fsync(stream.fileno())
         finally:
             Path(temporary).unlink(missing_ok=True)
+        _sync_folder(target.parent)
 
     def files(self, path: str) -> list[str]:
         """Names of the files in a folder, sorted; none if it does not exist."""
@@ -121,7 +170,57 @@ class FileStore:
         )
 
     def rename(self, path: str, new_path: str) -> None:
-        os.replace(self._resolve(path), self._resolve(new_path))
+        target = self._resolve(new_path)
+        _replace(self._resolve(path), target)
+        _sync_folder(target.parent)
+
+    def delete(self, path: str) -> None:
+        self._resolve(path).unlink(missing_ok=True)
+
+    def delete_folder(self, path: str) -> None:
+        """Remove a folder and everything in it, including read-only files."""
+
+        def writable_then_retry(function, failed, _):  # sources are read-only
+            os.chmod(failed, stat.S_IWRITE | stat.S_IREAD)
+            function(failed)
+
+        folder = self._resolve(path)
+        if folder.exists():
+            shutil.rmtree(folder, onerror=writable_then_retry)
+
+    @contextmanager
+    def locked(self, path: str) -> Iterator[None]:
+        """Hold a short advisory lock: a file created exclusively, removed after.
+
+        For writes that take milliseconds, never for an analyst's session: plots
+        are not locked while open (SUB-29). A lock left by a process that died
+        is taken over once it is LOCK_STALE_S old.
+        """
+        lock = self._resolve(path)
+        lock.parent.mkdir(parents=True, exist_ok=True)
+        deadline = time.monotonic() + LOCK_WAIT_S
+        while True:
+            try:
+                handle = os.open(lock, os.O_CREAT | os.O_EXCL | os.O_WRONLY, 0o644)
+                break
+            except FileExistsError:
+                try:
+                    if time.time() - lock.stat().st_mtime > LOCK_STALE_S:
+                        lock.unlink(missing_ok=True)
+                        continue
+                except FileNotFoundError:
+                    continue
+                if time.monotonic() > deadline:
+                    raise StoreBusy(
+                        "Another Debrief process is saving this plot. Try again in a moment."
+                    ) from None
+                time.sleep(0.02)
+        try:
+            os.write(handle, f"{os.getpid()}\n".encode())
+            os.close(handle)
+            yield
+        finally:
+            lock.unlink(missing_ok=True)
 
     def copy(self, path: str, new_path: str) -> None:
         """Copy a file, keeping it read-only if it was (sources stay immutable, SUB-10)."""

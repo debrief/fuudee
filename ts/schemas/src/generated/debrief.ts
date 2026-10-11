@@ -583,9 +583,15 @@ export interface Delta {
    */
   named_sets?: NamedSet[] | null;
   /**
-   * The operation that made the change. Usually one; a baseline delta, taken when a plot made before history existed is first changed, carries all the plot's earlier records.
+   * Feature ids in the order the plot holds them after this change, when that is not the natural order (features kept in place, added ones last).
    */
-  records: ProvRecord[];
+  order?: string[] | null;
+  /**
+   * The operation that made the change. Usually one; a baseline delta, taken when a plot made before history existed is first changed, carries all the plot's earlier records.
+   *
+   * @minItems 1
+   */
+  records: [ProvRecord, ...ProvRecord[]];
   /**
    * Content hash of the plot file after this delta, to check replay.
    */
@@ -625,7 +631,7 @@ export interface FormatSettings {
  */
 export interface HistoryHead {
   /**
-   * Deltas undone and then superseded by a new change (SUB-19).
+   * Deltas undone and then superseded by a new change (SUB-19): those off the chain to the latest delta, so a lost head can be rebuilt.
    */
   abandoned?: number[] | null;
   /**

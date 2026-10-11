@@ -49,6 +49,8 @@ A test drives the service with the official MCP Python client, so any MCP-capabl
  "parameters": {"rings": 2}, "agent": {"kind": "software_agent", "name": "Claude", "model": "..."}}
 ```
 
+`base` (optional) is the `base` from `debrief/open` or `debrief/history` for the plot the analyst is looking at; the tool then runs on that plot, and a change made elsewhere since is a conflict (SUB-28). Without it the tool runs on the plot as it is now.
+
 `on_conflict` (optional) says what to do if the plot changes while the tool runs: `refuse` (the default) fails the call with `_meta["debrief/conflict"] = {"mergeable": bool}`; `merge` applies the result on top when the two changes touch different features; `new_plot` saves the result as a copy of the plot and names it in `structuredContent.new_item` (SUB-28, SUB-29).
 
 `agent` is required, so provenance always says who ran a tool (SUB-24). Each tool's `inputSchema` describes its parameters, so an agent can discover them.

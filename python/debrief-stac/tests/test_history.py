@@ -1,10 +1,12 @@
 """History: deltas, replay, undo and redo, recovery after a crash, and conflicts."""
 
 import json
+import shutil
 from pathlib import Path
 
 import pytest
 
+import debrief_stac.store as store
 from debrief_schemas import models
 from debrief_stac import Base, Catalogue, Changes, Conflict, HistoryError
 from debrief_stac.history import text_hash
@@ -191,3 +193,225 @@ def test_a_change_that_does_not_fit_writes_nothing(catalogue: Catalogue) -> None
         catalogue.commit("p", [record(2)], Changes(deleted_ids=["nope"]))
     assert [s.seq for s in catalogue.history("p").steps()] == [1]
     assert Base(1, catalogue.history("p").head().plot_hash) == catalogue.history("p").base()
+
+
+# --- Found by the review panel ------------------------------------------------
+
+
+def head_file(catalogue: Catalogue) -> Path:
+    return catalogue.store.root / "p" / "history" / "head.json"
+
+
+def test_a_stale_head_never_hides_a_later_change(catalogue: Catalogue) -> None:
+    """An undo that wrote its head from a stale read must not wedge the plot."""
+    catalogue.commit("p", [record(2)], Changes(added=[note("b")]))
+    stale = head_file(catalogue).read_text()  # current 2, latest 2
+    catalogue.commit("p", [record(3)], Changes(added=[note("c")]))
+    undone = json.loads(stale) | {"current": 1}
+    head_file(catalogue).write_text(json.dumps(undone))  # the undo's late, stale write
+    assert names(catalogue) == ["a", "b", "c"]  # step 3 rolled forward: the undo is lost
+    catalogue.commit(
+        "p", [record(4)], Changes(added=[note("d")])
+    )  # and the plot still takes changes
+    assert names(catalogue) == ["a", "b", "c", "d"]
+
+
+@pytest.mark.parametrize("damage", ["delete", "corrupt"])
+def test_a_lost_head_is_rebuilt_from_the_deltas(catalogue: Catalogue, damage: str) -> None:
+    catalogue.commit("p", [record(2)], Changes(added=[note("b")]))
+    catalogue.commit("p", [record(3)], Changes(added=[note("c")]))
+    history = catalogue.history("p")
+    history.undo()
+    history.undo()
+    catalogue.commit("p", [record(4)], Changes(added=[note("d")]))  # 2 and 3 abandoned
+    if damage == "delete":
+        head_file(catalogue).unlink()
+    else:
+        head_file(catalogue).write_text("{not json")
+    notes = catalogue.history("p").recover()
+    assert "rebuilt from the recorded changes" in notes[0]
+    assert [s.status for s in catalogue.history("p").steps()] == [
+        "applied",
+        "abandoned",
+        "abandoned",
+        "applied",
+    ]
+    assert names(catalogue) == ["a", "d"]
+
+
+def test_a_crash_during_the_first_baseline_is_finished(catalogue: Catalogue) -> None:
+    root = catalogue.store.root / "p"
+    shutil.rmtree(root / "history")  # a plot from before history
+    (root / "history").mkdir()
+    real = catalogue.store.write_text_atomic
+
+    def crash(path: str, text: str) -> None:
+        if path.endswith("head.json"):
+            raise KeyboardInterrupt  # the process dies after the baseline delta
+        real(path, text)
+
+    catalogue.store.write_text_atomic = crash  # type: ignore[method-assign]
+    with pytest.raises(KeyboardInterrupt):
+        catalogue.read_plot("p")
+    catalogue.store.write_text_atomic = real  # type: ignore[method-assign]
+    assert names(catalogue) == ["a"]
+    assert len(catalogue.history("p").steps()) == 1
+
+
+def test_a_half_written_delta_is_set_aside(catalogue: Catalogue) -> None:
+    folder = catalogue.store.root / "p" / "history"
+    (folder / "000002.json").write_text('{"schema_version": "0.0.7", "seq": 2, "aft')
+    notes = catalogue.history("p").recover()
+    assert "interrupted before it was saved (step 2)" in notes[0]
+    assert (folder / ".000002.partial").exists() and not (folder / "000002.json").exists()
+    catalogue.commit("p", [record(2)], Changes(added=[note("b")]))
+    assert names(catalogue) == ["a", "b"]
+
+
+def test_a_plot_file_left_by_a_crash_is_rebuilt_not_kept(catalogue: Catalogue) -> None:
+    plot_file = catalogue.store.root / "p" / "plot.geojson"
+    earlier = plot_file.read_text()
+    catalogue.commit("p", [record(2)], Changes(added=[note("b")]))
+    plot_file.write_text(earlier)  # a crash between head and plot: the old plot remains
+    assert catalogue.history("p").recover() == []
+    assert names(catalogue) == ["a", "b"]
+    assert not list(plot_file.parent.glob("plot.geojson.kept-*"))
+
+
+def test_a_read_only_folder_is_read_without_writing(catalogue: Catalogue) -> None:
+    catalogue.commit("p", [record(2)], Changes(added=[note("b")]))
+    plot_file = catalogue.store.root / "p" / "plot.geojson"
+    plot_file.unlink()  # needs a rebuild
+
+    def refuse(*args, **kwargs):
+        raise PermissionError("read-only")
+
+    for name in ("write_text_atomic", "write_text_exclusive", "rename", "locked"):
+        setattr(catalogue.store, name, refuse)
+    assert names(catalogue) == ["a", "b"]
+    assert catalogue.history("p").base().current == 2
+    assert "cannot be changed" in catalogue.history("p").open()[0]
+    assert not plot_file.exists()
+
+
+def test_a_reader_while_a_writer_holds_the_lock_still_reads(catalogue: Catalogue) -> None:
+    catalogue.commit("p", [record(2)], Changes(added=[note("b")]))
+    (catalogue.store.root / "p" / "plot.geojson").unlink()
+    store.LOCK_WAIT_S, wait = 0.1, store.LOCK_WAIT_S
+    try:
+        with catalogue.store.locked("p/history/.lock"):
+            assert names(catalogue) == ["a", "b"]
+    finally:
+        store.LOCK_WAIT_S = wait
+
+
+def test_named_set_references_make_changes_overlap(catalogue: Catalogue) -> None:
+    catalogue.commit("p", [record(2)], Changes(added=[note("b")]))
+    base = catalogue.history("p").base()
+    catalogue.commit("p", [record(3)], Changes(deleted_ids=["b"]))  # theirs
+    mine = Changes(named_sets=[models.NamedSet(id="s", name="S", feature_ids=["b"])])
+    with pytest.raises(Conflict) as raised:
+        catalogue.commit("p", [record(4)], mine, base, merge=True)
+    assert raised.value.mergeable is False
+
+
+def test_a_base_with_a_wrong_hash_never_merges(catalogue: Catalogue) -> None:
+    catalogue.commit("p", [record(2)], Changes(added=[note("b")]))
+    real = catalogue.history("p").base()
+    catalogue.commit("p", [record(3)], Changes(added=[note("c")]))
+    bogus = Base(real.current, text_hash("something else"))
+    with pytest.raises(Conflict) as raised:
+        catalogue.commit("p", [record(4)], Changes(added=[note("d")]), bogus, merge=True)
+    assert raised.value.mergeable is False
+
+
+def test_a_change_needs_a_record(catalogue: Catalogue) -> None:
+    with pytest.raises(HistoryError, match="who"):
+        catalogue.commit("p", [], Changes(added=[note("b")]))
+
+
+def test_feature_order_survives_saving_and_replay(catalogue: Catalogue) -> None:
+    plot = catalogue.read_plot("p")
+    reordered = plot.model_copy(
+        update={
+            "features": [note("z"), *plot.features],
+            "provenance": [*plot.provenance, record(2)],
+        }
+    )
+    catalogue.write_plot("p", reordered)
+    assert names(catalogue) == ["z", "a"]
+    assert [f.id for f in catalogue.history("p").replay(2).features] == ["z", "a"]
+
+
+def test_save_as_new_with_a_bad_base_leaves_nothing_behind(catalogue: Catalogue) -> None:
+    with pytest.raises(HistoryError):
+        catalogue.save_as_new("p", Base(7, text_hash("x")), [record(2)], Changes())
+    assert catalogue.item_ids() == ["p"]
+    real = catalogue.history("p").base()
+
+    with pytest.raises(HistoryError):
+        catalogue.save_as_new("p", real, [record(2)], Changes(deleted_ids=["nothing"]))
+    assert catalogue.item_ids() == ["p"]
+    assert not (catalogue.store.root / "p-copy").exists()
+
+
+def test_the_first_step_cannot_be_undone_by_any_route(catalogue: Catalogue) -> None:
+    with pytest.raises(HistoryError):
+        catalogue.history("p").goto(0)
+    with pytest.raises(HistoryError):
+        catalogue.history("p").undo()
+
+
+def test_a_plot_created_with_content_but_no_record_gets_a_baseline(tmp_path: Path) -> None:
+    catalogue = Catalogue.create(tmp_path / "c", "c", "C", "")
+    plot = models.DebriefFeatureCollection(
+        type="FeatureCollection", schema_version="0.0.7", features=[note("a")], provenance=[]
+    )
+    catalogue.create_plot("p", "Plot", plot)
+    assert catalogue.read_plot("p").provenance[0].agent.name == "debrief-stac"
+
+
+WRITER = """
+import sys
+from pathlib import Path
+from debrief_schemas import models
+from debrief_stac import Catalogue, Changes, HistoryError
+root, prefix = sys.argv[1], sys.argv[2]
+agent = models.AgentRef(kind="person", name=prefix)
+catalogue = Catalogue.open(Path(root))
+for n in range(12):
+    record = models.ProvRecord(
+        id=f"{prefix}-{n}", kind="edit", started_at="2026-10-11T10:00:00.000Z", agent=agent
+    )
+    note = models.AnnotationFeature(
+        type="Feature", id=f"{prefix}{n}", geometry=None,
+        properties=models.AnnotationProperties(
+            kind="annotation", style="note", name="N", time="2026-10-11T09:30:00.000Z"
+        ),
+    )
+    catalogue.commit("p", [record], Changes(added=[note]))
+    if prefix == "u" and n % 3 == 2:
+        try:
+            catalogue.history("p").undo()
+        except HistoryError:
+            pass
+"""
+
+
+def test_two_processes_changing_and_undoing_at_once_keep_the_history_whole(
+    catalogue: Catalogue,
+) -> None:
+    import subprocess
+    import sys
+
+    root = str(catalogue.store.root)
+    workers = [
+        subprocess.Popen([sys.executable, "-c", WRITER, root, prefix]) for prefix in ("w", "u")
+    ]
+    assert [worker.wait(60) for worker in workers] == [0, 0]
+    history = catalogue.history("p")
+    head = history.head()
+    assert head.latest == 25  # every change recorded, none lost to the other process
+    assert history.replay(head.current) == catalogue.read_plot("p")
+    applied = {s.seq for s in history.steps() if s.status == "applied"}
+    assert applied == set(history.chain(head.current))

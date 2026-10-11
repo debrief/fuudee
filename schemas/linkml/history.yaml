@@ -52,6 +52,7 @@ classes:
         multivalued: true
         inlined_as_list: true
         required: true
+        minimum_cardinality: 1
       added:
         multivalued: true
         inlined_as_list: true
@@ -74,6 +75,11 @@ classes:
         multivalued: true
         inlined_as_list: true
       deleted_named_set_ids: {multivalued: true}
+      order:
+        description: >-
+          Feature ids in the order the plot holds them after this change, when
+          that is not the natural order (features kept in place, added ones last).
+        multivalued: true
       result_hash:
         description: Content hash of the plot file after this delta, to check replay.
         range: ContentHash
@@ -94,7 +100,9 @@ classes:
         required: true
         minimum_value: 0
       abandoned:
-        description: Deltas undone and then superseded by a new change (SUB-19).
+        description: >-
+          Deltas undone and then superseded by a new change (SUB-19): those off
+          the chain to the latest delta, so a lost head can be rebuilt.
         range: integer
         multivalued: true
       plot_hash:

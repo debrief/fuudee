@@ -3,7 +3,7 @@
 import pytest
 
 from debrief_schemas import models
-from debrief_stac import Catalogue, Changes
+from debrief_stac import Base, Catalogue, Changes
 from debrief_tools import Registry, ToolRunError, run_tool, tool
 from debrief_tools.declare import Tool
 from debrief_tools.run import ToolRunConflict
@@ -185,3 +185,21 @@ def test_provenance_ids_are_unique(catalogue: Catalogue) -> None:
     params = {"text": "x", "at": "1995-12-12T05:05:00.000Z"}
     ids = {run(catalogue, "core.add_note", [], params).record.id for _ in range(3)}
     assert len(ids) == 3
+
+
+def test_a_run_from_an_older_view_of_the_plot_is_a_conflict(catalogue: Catalogue) -> None:
+    seen = catalogue.history(ITEM).base()  # what the analyst was looking at
+    run(catalogue, "core.add_note", [], {"text": "Elsewhere", "at": "1995-12-12T05:05:00.000Z"})
+    with pytest.raises(ToolRunConflict) as raised:
+        run(catalogue, "core.closest_approach", ["track-nelson", "track-blue"], base=seen)
+    assert raised.value.mergeable is True
+    merged = run(
+        catalogue,
+        "core.closest_approach",
+        ["track-nelson", "track-blue"],
+        base=seen,
+        on_conflict="merge",
+    )
+    assert merged.changed and len(catalogue.history(ITEM).steps()) == 3
+    with pytest.raises(ToolRunError, match="not one this plot's history holds"):
+        run(catalogue, "core.track_summary", ["track-nelson"], base=Base(9, seen.plot_hash))
