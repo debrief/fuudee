@@ -5,6 +5,13 @@
  */
 export type AgentKindEnum = "person" | "software_agent";
 /**
+ * Units an angle may be stored in (UCUM codes, SUB-02).
+ *
+ * This interface was referenced by `DebriefSchemaDefinitions`'s JSON-Schema
+ * via the `definition` "AngleUnitEnum".
+ */
+export type AngleUnitEnum = "deg" | "rad";
+/**
  * This interface was referenced by `DebriefSchemaDefinitions`'s JSON-Schema
  * via the `definition` "LineStringTypeEnum".
  */
@@ -21,6 +28,13 @@ export type FeatureKindEnum = "track";
  * via the `definition` "ProvActivityKindEnum".
  */
 export type ProvActivityKindEnum = "import" | "tool" | "edit" | "delete";
+/**
+ * Units a speed may be stored in (UCUM codes, SUB-02).
+ *
+ * This interface was referenced by `DebriefSchemaDefinitions`'s JSON-Schema
+ * via the `definition` "SpeedUnitEnum".
+ */
+export type SpeedUnitEnum = "m/s" | "[kn_i]" | "km/h";
 /**
  * This interface was referenced by `DebriefSchemaDefinitions`'s JSON-Schema
  * via the `definition` "FeatureTypeEnum".
@@ -43,6 +57,14 @@ export interface AgentRef {
   kind: AgentKindEnum;
   model?: string | null;
   name: string;
+}
+/**
+ * This interface was referenced by `DebriefSchemaDefinitions`'s JSON-Schema
+ * via the `definition` "AngleSeries".
+ */
+export interface AngleSeries {
+  unit: AngleUnitEnum;
+  values: number[];
 }
 /**
  * The unit of analysis (SUB-05), stored as an asset of a STAC item.
@@ -91,7 +113,7 @@ export interface TrackProperties {
   /**
    * Course over ground at each position, true north, clockwise.
    */
-  courses?: number[] | null;
+  courses?: AngleSeries | null;
   kind: FeatureKindEnum;
   name: string;
   platform_class?: string | null;
@@ -102,7 +124,7 @@ export interface TrackProperties {
   /**
    * Speed over ground at each position.
    */
-  speeds?: number[] | null;
+  speeds?: SpeedSeries | null;
   times: string[];
 }
 /**
@@ -147,4 +169,12 @@ export interface ToolRef {
 export interface SourceRef {
   content_hash: string;
   href: string;
+}
+/**
+ * This interface was referenced by `DebriefSchemaDefinitions`'s JSON-Schema
+ * via the `definition` "SpeedSeries".
+ */
+export interface SpeedSeries {
+  unit: SpeedUnitEnum;
+  values: number[];
 }

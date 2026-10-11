@@ -33,6 +33,36 @@
       "title": "AgentRef",
       "type": "object"
     },
+    "AngleSeries": {
+      "additionalProperties": false,
+      "description": "",
+      "properties": {
+        "unit": {
+          "$ref": "#/$defs/AngleUnitEnum"
+        },
+        "values": {
+          "items": {
+            "type": "number"
+          },
+          "type": "array"
+        }
+      },
+      "required": [
+        "unit",
+        "values"
+      ],
+      "title": "AngleSeries",
+      "type": "object"
+    },
+    "AngleUnitEnum": {
+      "description": "Units an angle may be stored in (UCUM codes, SUB-02).",
+      "enum": [
+        "deg",
+        "rad"
+      ],
+      "title": "AngleUnitEnum",
+      "type": "string"
+    },
     "DebriefFeatureCollection": {
       "additionalProperties": false,
       "description": "The unit of analysis (SUB-05), stored as an asset of a STAC item.",
@@ -225,6 +255,37 @@
       "title": "SourceRef",
       "type": "object"
     },
+    "SpeedSeries": {
+      "additionalProperties": false,
+      "description": "",
+      "properties": {
+        "unit": {
+          "$ref": "#/$defs/SpeedUnitEnum"
+        },
+        "values": {
+          "items": {
+            "type": "number"
+          },
+          "type": "array"
+        }
+      },
+      "required": [
+        "unit",
+        "values"
+      ],
+      "title": "SpeedSeries",
+      "type": "object"
+    },
+    "SpeedUnitEnum": {
+      "description": "Units a speed may be stored in (UCUM codes, SUB-02).",
+      "enum": [
+        "m/s",
+        "[kn_i]",
+        "km/h"
+      ],
+      "title": "SpeedUnitEnum",
+      "type": "string"
+    },
     "ToolRef": {
       "additionalProperties": false,
       "description": "The tool and version that performed an operation (SUB-24).",
@@ -274,14 +335,15 @@
       "description": "Per-position values are parallel arrays, one entry per geometry position, in the same order.",
       "properties": {
         "courses": {
-          "description": "Course over ground at each position, true north, clockwise.",
-          "items": {
-            "type": "number"
-          },
-          "type": [
-            "array",
-            "null"
-          ]
+          "anyOf": [
+            {
+              "$ref": "#/$defs/AngleSeries"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": "Course over ground at each position, true north, clockwise."
         },
         "kind": {
           "$ref": "#/$defs/FeatureKindEnum"
@@ -306,14 +368,15 @@
           ]
         },
         "speeds": {
-          "description": "Speed over ground at each position.",
-          "items": {
-            "type": "number"
-          },
-          "type": [
-            "array",
-            "null"
-          ]
+          "anyOf": [
+            {
+              "$ref": "#/$defs/SpeedSeries"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": "Speed over ground at each position."
         },
         "times": {
           "items": {

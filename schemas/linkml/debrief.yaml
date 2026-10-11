@@ -52,6 +52,17 @@ enums:
       tool: {}
       edit: {}
       delete: {}
+  SpeedUnitEnum:
+    description: Units a speed may be stored in (UCUM codes, SUB-02).
+    permissible_values:
+      m/s: {description: metres per second}
+      "[kn_i]": {description: international knots}
+      km/h: {description: kilometres per hour}
+  AngleUnitEnum:
+    description: Units an angle may be stored in (UCUM codes, SUB-02).
+    permissible_values:
+      deg: {description: degrees}
+      rad: {description: radians}
   AgentKindEnum:
     permissible_values:
       person: {}
@@ -113,19 +124,41 @@ classes:
         required: true
       speeds:
         description: Speed over ground at each position.
-        range: float
-        multivalued: true
-        unit: {ucum_code: m/s}
+        range: SpeedSeries
+        inlined: true
       courses:
         description: Course over ground at each position, true north, clockwise.
-        range: float
-        multivalued: true
-        unit: {ucum_code: deg}
+        range: AngleSeries
+        inlined: true
       provenance:
         description: Feature-level provenance where needed (SUB-18).
         range: ProvRecord
         multivalued: true
         inlined_as_list: true
+
+  # --- Quantities (SUB-02) ---------------------------------------------
+  # A quantity series carries its unit in the data, once per series. Each
+  # quantity kind has its own unit enum, so a unit of the wrong dimension
+  # is a schema error in every language.
+  SpeedSeries:
+    attributes:
+      unit:
+        range: SpeedUnitEnum
+        required: true
+      values:
+        range: float
+        multivalued: true
+        required: true
+
+  AngleSeries:
+    attributes:
+      unit:
+        range: AngleUnitEnum
+        required: true
+      values:
+        range: float
+        multivalued: true
+        required: true
 
   DebriefFeatureCollection:
     tree_root: true

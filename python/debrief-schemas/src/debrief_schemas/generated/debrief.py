@@ -134,6 +134,38 @@ class ProvActivityKindEnum(str, Enum):
     delete = "delete"
 
 
+class SpeedUnitEnum(str, Enum):
+    """
+    Units a speed may be stored in (UCUM codes, SUB-02).
+    """
+    mSOLIDUSs = "m/s"
+    """
+    metres per second
+    """
+    LEFT_SQUARE_BRACKETkn_iRIGHT_SQUARE_BRACKET = "[kn_i]"
+    """
+    international knots
+    """
+    kmSOLIDUSh = "km/h"
+    """
+    kilometres per hour
+    """
+
+
+class AngleUnitEnum(str, Enum):
+    """
+    Units an angle may be stored in (UCUM codes, SUB-02).
+    """
+    deg = "deg"
+    """
+    degrees
+    """
+    rad = "rad"
+    """
+    radians
+    """
+
+
 class AgentKindEnum(str, Enum):
     person = "person"
     software_agent = "software_agent"
@@ -179,8 +211,8 @@ class TrackProperties(ConfiguredBaseModel):
     name: str = Field(default=..., json_schema_extra = { "linkml_meta": {'domain_of': ['TrackProperties', 'ToolRef', 'AgentRef']} })
     platform_class: Optional[str] = Field(default=None, json_schema_extra = { "linkml_meta": {'domain_of': ['TrackProperties']} })
     times: list[str] = Field(default=..., json_schema_extra = { "linkml_meta": {'domain_of': ['TrackProperties']} })
-    speeds: Optional[list[float]] = Field(default=None, description="""Speed over ground at each position.""", json_schema_extra = { "linkml_meta": {'domain_of': ['TrackProperties'], 'unit': {'ucum_code': 'm/s'}} })
-    courses: Optional[list[float]] = Field(default=None, description="""Course over ground at each position, true north, clockwise.""", json_schema_extra = { "linkml_meta": {'domain_of': ['TrackProperties'], 'unit': {'ucum_code': 'deg'}} })
+    speeds: Optional[SpeedSeries] = Field(default=None, description="""Speed over ground at each position.""", json_schema_extra = { "linkml_meta": {'domain_of': ['TrackProperties']} })
+    courses: Optional[AngleSeries] = Field(default=None, description="""Course over ground at each position, true north, clockwise.""", json_schema_extra = { "linkml_meta": {'domain_of': ['TrackProperties']} })
     provenance: Optional[list[ProvRecord]] = Field(default=None, description="""Feature-level provenance where needed (SUB-18).""", json_schema_extra = { "linkml_meta": {'domain_of': ['TrackProperties', 'DebriefFeatureCollection']} })
 
     @field_validator('times')
@@ -195,6 +227,20 @@ class TrackProperties(ConfiguredBaseModel):
             err_msg = f"Invalid times format: {v}"
             raise ValueError(err_msg)
         return v
+
+
+class SpeedSeries(ConfiguredBaseModel):
+    linkml_meta: ClassVar[LinkMLMeta] = LinkMLMeta({'from_schema': 'https://debrief.info/schemas/debrief'})
+
+    unit: SpeedUnitEnum = Field(default=..., json_schema_extra = { "linkml_meta": {'domain_of': ['SpeedSeries', 'AngleSeries']} })
+    values: list[float] = Field(default=..., json_schema_extra = { "linkml_meta": {'domain_of': ['SpeedSeries', 'AngleSeries']} })
+
+
+class AngleSeries(ConfiguredBaseModel):
+    linkml_meta: ClassVar[LinkMLMeta] = LinkMLMeta({'from_schema': 'https://debrief.info/schemas/debrief'})
+
+    unit: AngleUnitEnum = Field(default=..., json_schema_extra = { "linkml_meta": {'domain_of': ['SpeedSeries', 'AngleSeries']} })
+    values: list[float] = Field(default=..., json_schema_extra = { "linkml_meta": {'domain_of': ['SpeedSeries', 'AngleSeries']} })
 
 
 class DebriefFeatureCollection(ConfiguredBaseModel):
@@ -319,6 +365,8 @@ class SourceRef(ConfiguredBaseModel):
 LineStringGeometry.model_rebuild()
 TrackFeature.model_rebuild()
 TrackProperties.model_rebuild()
+SpeedSeries.model_rebuild()
+AngleSeries.model_rebuild()
 DebriefFeatureCollection.model_rebuild()
 ProvRecord.model_rebuild()
 ToolRef.model_rebuild()

@@ -84,8 +84,12 @@ def _semantic_problems(plot: DebriefFeatureCollection) -> list[str]:
             if not -90 <= latitude <= 90:
                 problems.append(f"{feature.id}: latitude {latitude} at position {index}")
         props = feature.properties
-        for name in ("times", "speeds", "courses"):
-            values = getattr(props, name)
+        series = {
+            "times": props.times,
+            "speeds": props.speeds.values if props.speeds else None,
+            "courses": props.courses.values if props.courses else None,
+        }
+        for name, values in series.items():
             if values is not None and len(values) != len(positions):
                 problems.append(
                     f"{feature.id}: {name} has {len(values)} entries for {len(positions)} positions"
