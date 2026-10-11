@@ -21,7 +21,7 @@ from debrief_kernel.units import Quantity, angle
 from debrief_schemas import models
 from debrief_tools.declare import ToolContext, tool
 
-VERSION = "0.0.1"
+VERSION = "0.0.2"  # 0.0.2: closest approach moves current time to the moment found
 RING_POINTS = 72
 
 
@@ -95,8 +95,8 @@ def track_summary(context: ToolContext) -> models.ToolResult:
     version=VERSION,
     title="Closest approach",
     explanation=(
-        "Finds when the two selected tracks were closest, and how close, and draws "
-        "the line between them at that moment."
+        "Finds when the two selected tracks were closest, and how close, draws "
+        "the line between them at that moment, and moves current time there."
     ),
     judgement=(
         "Only the time both tracks cover is searched, and positions between fixes are "
@@ -105,7 +105,7 @@ def track_summary(context: ToolContext) -> models.ToolResult:
     applies_to=["track"],
     min_selected=2,
     max_selected=2,
-    outputs=["non_spatial", "new_features"],
+    outputs=["non_spatial", "new_features", "state_change"],
 )
 def closest(context: ToolContext) -> models.ToolResult:
     a, b = context.selection
@@ -151,7 +151,23 @@ def closest(context: ToolContext) -> models.ToolResult:
             ),
         ],
     )
-    return models.ToolResult(non_spatial=[table], new_features=[line])
+    return models.ToolResult(
+        non_spatial=[table], new_features=[line], state_change=_time_at(context, when)
+    )
+
+
+def _time_at(context: ToolContext, when: str) -> models.SharedStateChange | None:
+    """Move current time to an instant, widening the range only if it falls outside (TL-10)."""
+    if context.state is None:
+        return None
+    span = context.state.time.range
+    start, end = (
+        min(span.start, when),
+        max(span.end, when),
+    )  # same format, so text order is time order
+    return models.SharedStateChange(
+        time=models.TimeState(current=when, range=models.TimeRange(start=start, end=end))
+    )
 
 
 @tool(

@@ -31,11 +31,16 @@ class ToolContext:
     parameters holds the values from the form, checked against the
     declaration: numbers, strings and booleans as Python values, quantities
     as debrief_kernel Quantity objects, times as epoch milliseconds.
+
+    state is the shared state when the tool was run: current time, selection
+    and viewport (TL-10), or None when the caller did not pass it. A tool
+    sets state by returning state_change in its result.
     """
 
     plot: DebriefFeatureCollection
     selection: Sequence[Feature]
     parameters: dict[str, Any]
+    state: models.SharedState | None = None
     _taken: set[str] = field(default_factory=set)
 
     def new_id(self, prefix: str) -> str:

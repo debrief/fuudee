@@ -91,10 +91,14 @@ def try_tool(
     plot: DebriefFeatureCollection,
     selection: list[str],
     parameters: dict[str, Any] | None = None,
+    state: models.SharedState | None = None,
 ) -> models.ToolResult:
-    """Run a tool as Debrief would, without saving: values checked, result checked."""
+    """Run a tool as Debrief would, without saving: values checked, result checked.
+
+    state is the shared state the tool sees in context.state (TL-10).
+    """
     declared = tool if isinstance(tool, Tool) else getattr(tool, "debrief_tool", None)
     if declared is None:
         raise TypeError("try_tool needs a function decorated with @tool")
-    result, _ = execute(declared, plot, selection, parameters)
+    result, _ = execute(declared, plot, selection, parameters, state)
     return result

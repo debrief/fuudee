@@ -21,7 +21,13 @@ from concurrent.futures.process import BrokenProcessPool
 from typing import Any
 
 from debrief_config import load_config
-from debrief_schemas import DocumentKind, dump_document, models
+from debrief_schemas import (
+    DocumentKind,
+    DocumentValidationError,
+    dump_document,
+    load_document,
+    models,
+)
 from debrief_stac import Base, Catalogue
 from debrief_tools.registry import Registry
 from debrief_tools.run import ToolRunConflict, ToolRunError, run_tool
@@ -68,6 +74,12 @@ def _call(name: str, arguments: dict[str, Any], config_path: str | None) -> dict
             ):
                 raise ToolRunError("base must be {current, plot_hash}, as debrief/open returns.")
             base = Base(base["current"], base["plot_hash"])
+        state = arguments.get("state")
+        if state is not None:
+            try:
+                state = load_document(DocumentKind.SHARED_STATE, json.dumps(state))
+            except DocumentValidationError as error:
+                raise ToolRunError(f"The shared state passed is not valid: {error}") from None
         outcome = run_tool(
             _registry,
             Catalogue.open(store.location),
@@ -79,6 +91,7 @@ def _call(name: str, arguments: dict[str, Any], config_path: str | None) -> dict
             read_only=bool(store.read_only),
             on_conflict=str(arguments.get("on_conflict") or "refuse"),
             base=base,
+            state=state,
         )
     except ToolRunConflict as conflict:
         return {"error": str(conflict), "conflict": {"mergeable": conflict.mergeable}}
