@@ -1,6 +1,7 @@
 """History: deltas, replay, undo and redo, recovery after a crash, and conflicts."""
 
 import json
+import os
 import shutil
 from pathlib import Path
 
@@ -415,3 +416,12 @@ def test_two_processes_changing_and_undoing_at_once_keep_the_history_whole(
     assert history.replay(head.current) == catalogue.read_plot("p")
     applied = {s.seq for s in history.steps() if s.status == "applied"}
     assert applied == set(history.chain(head.current))
+
+
+def test_saving_works_where_there_are_no_hard_links(catalogue: Catalogue, monkeypatch) -> None:
+    """Pyodide's os has no link at all (CON-09): the exclusive create is used instead."""
+    monkeypatch.delattr(os, "link")
+    catalogue.commit("p", [record(2)], Changes(added=[note("b")]))
+    assert names(catalogue) == ["a", "b"]
+    with pytest.raises(FileExistsError):
+        catalogue.store.write_text_exclusive("p/history/000002.json", "{}")
