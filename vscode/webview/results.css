@@ -1,0 +1,16 @@
+/* Interface colours only from the VS Code theme (CON-06, DEV-07). */
+body { background: var(--vscode-editor-background); color: var(--vscode-foreground); font-family: var(--vscode-font-family); font-size: var(--vscode-font-size); margin: 0; }
+main { padding: 16px 20px; overflow-x: auto; }
+h1 { font-size: 1.2em; font-weight: 600; margin: 0 0 10px; }
+section { margin-bottom: 24px; }
+table { border-collapse: collapse; }
+th, td { padding: 4px 16px 4px 0; vertical-align: top; text-align: left; border-bottom: 1px solid var(--vscode-widget-border, var(--vscode-panel-border)); }
+th { color: var(--vscode-descriptionForeground); font-weight: 600; }
+.numeric { text-align: right; font-variant-numeric: tabular-nums; }
+.number { font-size: 1.6em; margin: 0; }
+.note { color: var(--vscode-descriptionForeground); }
+td.numeric { white-space: nowrap; }
+th { white-space: normal; }
+.heading { display: flex; align-items: center; gap: 12px; margin-bottom: 8px; }
+.heading h1 { margin: 0; }
+.judgement { margin: 0 0 16px; padding: 6px 10px; border-left: 3px solid var(--vscode-textBlockQuote-border); background: var(--vscode-textBlockQuote-background); line-height: 1.5; max-width: 40rem; }

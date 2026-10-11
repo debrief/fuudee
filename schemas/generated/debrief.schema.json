@@ -2099,6 +2099,141 @@
       ],
       "title": "Viewport",
       "type": "object"
+    },
+    "WebviewMessage": {
+      "additionalProperties": false,
+      "description": "",
+      "properties": {
+        "kind": {
+          "$ref": "#/$defs/WebviewMessageKindEnum"
+        },
+        "message": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "parameters": {
+          "items": {
+            "$ref": "#/$defs/ParameterValue"
+          },
+          "type": [
+            "array",
+            "null"
+          ]
+        },
+        "plot": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/DebriefFeatureCollection"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "plot_title": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "result": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/ToolResult"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "result_title": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "selected_names": {
+          "items": {
+            "type": "string"
+          },
+          "type": [
+            "array",
+            "null"
+          ]
+        },
+        "selection": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/Selection"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "time_range": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/TimeRange"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": "The plot's period, so times can be entered as the analyst reads them."
+        },
+        "tool": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/ToolDeclaration"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "tool_name": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "viewport": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/Viewport"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        }
+      },
+      "required": [
+        "kind"
+      ],
+      "title": "WebviewMessage",
+      "type": "object"
+    },
+    "WebviewMessageKindEnum": {
+      "description": "",
+      "enum": [
+        "ready",
+        "show_plot",
+        "set_selection",
+        "selection_changed",
+        "viewport_changed",
+        "show_form",
+        "run_tool",
+        "cancel",
+        "form_busy",
+        "form_error",
+        "show_results"
+      ],
+      "title": "WebviewMessageKindEnum",
+      "type": "string"
     }
   },
   "$id": "https://debrief.info/schemas/debrief",

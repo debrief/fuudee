@@ -116,3 +116,11 @@ def test_pydantic_and_json_schema_declare_same_fields() -> None:
         assert set(fields) == set(definition["properties"]), name
         required = {n for n, f in fields.items() if f.is_required()}
         assert required == set(definition.get("required", [])), name
+
+
+def test_webview_message_members_match_shared_table() -> None:
+    from debrief_schemas.documents import MESSAGE_MEMBERS
+
+    table = json.loads((ROOT / "schemas" / "vectors" / "webview-messages.json").read_text())
+    assert table["members"] == {k: list(v) for k, v in MESSAGE_MEMBERS.items()}
+    assert set(table["members"]) == {k.value for k in generated.WebviewMessageKindEnum}

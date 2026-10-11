@@ -6,6 +6,7 @@ The data-file schema is versioned independently of Debrief (SUB-12). Before 1.0.
 
 - Per-user configuration (`UserConfig`): the stores Debrief knows about, read and changed by Python and TypeScript (SEC-06). It carries its own `config_version`, not the data-file schema version.
 - Provenance records name the features an operation was applied to (`selected`), so a tool run can be replayed (SUB-19).
+- Messages between the VS Code extension host and its webviews (`WebviewMessage`), as boundary types (CON-08).
 
 ## 0.0.4 (11 Oct 2026)
 

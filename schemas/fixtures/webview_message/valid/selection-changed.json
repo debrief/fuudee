@@ -1,0 +1,10 @@
+{
+  "kind": "selection_changed",
+  "selection": {
+    "plot": "serial-01",
+    "feature_ids": [
+      "track-nelson",
+      "track-blue"
+    ]
+  }
+}

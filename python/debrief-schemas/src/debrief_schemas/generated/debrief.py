@@ -641,6 +641,53 @@ class StoreKindEnum(str, Enum):
     """
 
 
+class WebviewMessageKindEnum(str, Enum):
+    ready = "ready"
+    """
+    Webview to host: loaded and listening.
+    """
+    show_plot = "show_plot"
+    """
+    Host to map: draw this plot (plot, plot_title, selection).
+    """
+    set_selection = "set_selection"
+    """
+    Host to map: the selection changed elsewhere (selection).
+    """
+    selection_changed = "selection_changed"
+    """
+    Map to host: the analyst changed the selection (selection).
+    """
+    viewport_changed = "viewport_changed"
+    """
+    Map to host: the analyst panned or zoomed (viewport).
+    """
+    show_form = "show_form"
+    """
+    Host to form: show this tool's form (tool, selected_names, time_range of the plot).
+    """
+    run_tool = "run_tool"
+    """
+    Form to host: run the tool with these values (tool_name, parameters).
+    """
+    cancel = "cancel"
+    """
+    Form to host: close without running.
+    """
+    form_busy = "form_busy"
+    """
+    Host to form: the tool is running (message).
+    """
+    form_error = "form_error"
+    """
+    Host to form: the run failed or a value was refused (message).
+    """
+    show_results = "show_results"
+    """
+    Host to results: show a tool's result (tool, result_title, result).
+    """
+
+
 
 class Length(ConfiguredBaseModel):
     linkml_meta: ClassVar[LinkMLMeta] = LinkMLMeta({'from_schema': 'https://debrief.info/schemas/debrief'})
@@ -907,12 +954,13 @@ class ProvRecord(ConfiguredBaseModel):
                        'AnnotationProperties',
                        'SensorObservationsProperties',
                        'ParameterDeclaration',
-                       'KnownStore']} })
+                       'KnownStore',
+                       'WebviewMessage']} })
     started_at: str = Field(default=..., json_schema_extra = { "linkml_meta": {'domain_of': ['ProvRecord']} })
     ended_at: Optional[str] = Field(default=None, json_schema_extra = { "linkml_meta": {'domain_of': ['ProvRecord']} })
-    tool: Optional[ToolRef] = Field(default=None, json_schema_extra = { "linkml_meta": {'domain_of': ['ProvRecord']} })
+    tool: Optional[ToolRef] = Field(default=None, json_schema_extra = { "linkml_meta": {'domain_of': ['ProvRecord', 'WebviewMessage']} })
     agent: AgentRef = Field(default=..., json_schema_extra = { "linkml_meta": {'domain_of': ['ProvRecord']} })
-    parameters: Optional[list[ParameterValue]] = Field(default=None, description="""Parameter values the operation ran with, so replay can repeat it (SUB-19).""", json_schema_extra = { "linkml_meta": {'domain_of': ['ProvRecord', 'ToolDeclaration']} })
+    parameters: Optional[list[ParameterValue]] = Field(default=None, description="""Parameter values the operation ran with, so replay can repeat it (SUB-19).""", json_schema_extra = { "linkml_meta": {'domain_of': ['ProvRecord', 'ToolDeclaration', 'WebviewMessage']} })
     selected: Optional[list[str]] = Field(default=None, description="""Ids of the features the operation was applied to, in selection order, so replay can repeat it (SUB-19).""", json_schema_extra = { "linkml_meta": {'domain_of': ['ProvRecord']} })
     used: Optional[list[SourceRef]] = Field(default=None, json_schema_extra = { "linkml_meta": {'domain_of': ['ProvRecord']} })
     seed: Optional[int] = Field(default=None, description="""Random seed, for operations that use randomness (SUB-20).""", json_schema_extra = { "linkml_meta": {'domain_of': ['ProvRecord']} })
@@ -979,7 +1027,8 @@ class AgentRef(ConfiguredBaseModel):
                        'AnnotationProperties',
                        'SensorObservationsProperties',
                        'ParameterDeclaration',
-                       'KnownStore']} })
+                       'KnownStore',
+                       'WebviewMessage']} })
     name: str = Field(default=..., json_schema_extra = { "linkml_meta": {'domain_of': ['ParameterValue',
                        'ToolRef',
                        'AgentRef',
@@ -1063,7 +1112,8 @@ class TrackProperties(ConfiguredBaseModel):
                        'AnnotationProperties',
                        'SensorObservationsProperties',
                        'ParameterDeclaration',
-                       'KnownStore']} })
+                       'KnownStore',
+                       'WebviewMessage']} })
     name: str = Field(default=..., json_schema_extra = { "linkml_meta": {'domain_of': ['ParameterValue',
                        'ToolRef',
                        'AgentRef',
@@ -1171,7 +1221,8 @@ class AnnotationProperties(ConfiguredBaseModel):
                        'AnnotationProperties',
                        'SensorObservationsProperties',
                        'ParameterDeclaration',
-                       'KnownStore']} })
+                       'KnownStore',
+                       'WebviewMessage']} })
     style: AnnotationStyleEnum = Field(default=..., json_schema_extra = { "linkml_meta": {'domain_of': ['TrackProperties', 'AnnotationProperties']} })
     name: str = Field(default=..., json_schema_extra = { "linkml_meta": {'domain_of': ['ParameterValue',
                        'ToolRef',
@@ -1187,7 +1238,9 @@ class AnnotationProperties(ConfiguredBaseModel):
                        'ResultColumn']} })
     text: Optional[str] = Field(default=None, json_schema_extra = { "linkml_meta": {'domain_of': ['AnnotationProperties']} })
     time: Optional[str] = Field(default=None, json_schema_extra = { "linkml_meta": {'domain_of': ['AnnotationProperties', 'SharedState', 'SharedStateChange']} })
-    time_range: Optional[TimeRange] = Field(default=None, json_schema_extra = { "linkml_meta": {'domain_of': ['AnnotationProperties', 'SensorObservationsProperties']} })
+    time_range: Optional[TimeRange] = Field(default=None, json_schema_extra = { "linkml_meta": {'domain_of': ['AnnotationProperties',
+                       'SensorObservationsProperties',
+                       'WebviewMessage']} })
     provenance: Optional[list[ProvRecord]] = Field(default=None, json_schema_extra = { "linkml_meta": {'domain_of': ['TrackProperties',
                        'AnnotationProperties',
                        'SensorObservationsProperties',
@@ -1251,7 +1304,8 @@ class SensorObservationsProperties(ConfiguredBaseModel):
                        'AnnotationProperties',
                        'SensorObservationsProperties',
                        'ParameterDeclaration',
-                       'KnownStore']} })
+                       'KnownStore',
+                       'WebviewMessage']} })
     name: str = Field(default=..., json_schema_extra = { "linkml_meta": {'domain_of': ['ParameterValue',
                        'ToolRef',
                        'AgentRef',
@@ -1267,7 +1321,9 @@ class SensorObservationsProperties(ConfiguredBaseModel):
     sensor_name: str = Field(default=..., json_schema_extra = { "linkml_meta": {'domain_of': ['SensorObservationsProperties']} })
     host_track_id: str = Field(default=..., description="""The track carrying the sensor.""", json_schema_extra = { "linkml_meta": {'domain_of': ['SensorObservationsProperties']} })
     observation_type: ObservationTypeEnum = Field(default=..., json_schema_extra = { "linkml_meta": {'domain_of': ['SensorObservationsProperties']} })
-    time_range: TimeRange = Field(default=..., json_schema_extra = { "linkml_meta": {'domain_of': ['AnnotationProperties', 'SensorObservationsProperties']} })
+    time_range: TimeRange = Field(default=..., json_schema_extra = { "linkml_meta": {'domain_of': ['AnnotationProperties',
+                       'SensorObservationsProperties',
+                       'WebviewMessage']} })
     observation_count: int = Field(default=..., ge=0, json_schema_extra = { "linkml_meta": {'domain_of': ['SensorObservationsProperties']} })
     payload: PayloadRef = Field(default=..., json_schema_extra = { "linkml_meta": {'domain_of': ['SensorObservationsProperties']} })
     provenance: Optional[list[ProvRecord]] = Field(default=None, json_schema_extra = { "linkml_meta": {'domain_of': ['TrackProperties',
@@ -1698,7 +1754,7 @@ class TimeState(ConfiguredBaseModel):
 class Selection(ConfiguredBaseModel):
     linkml_meta: ClassVar[LinkMLMeta] = LinkMLMeta({'from_schema': 'https://debrief.info/schemas/debrief'})
 
-    plot: str = Field(default=..., description="""Href of the plot the selection belongs to.""", json_schema_extra = { "linkml_meta": {'domain_of': ['Selection']} })
+    plot: str = Field(default=..., description="""Href of the plot the selection belongs to.""", json_schema_extra = { "linkml_meta": {'domain_of': ['Selection', 'WebviewMessage']} })
     feature_ids: list[str] = Field(default=..., json_schema_extra = { "linkml_meta": {'domain_of': ['NamedSet', 'Selection']} })
 
 
@@ -1714,8 +1770,8 @@ class SharedState(ConfiguredBaseModel):
     linkml_meta: ClassVar[LinkMLMeta] = LinkMLMeta({'from_schema': 'https://debrief.info/schemas/debrief'})
 
     time: TimeState = Field(default=..., json_schema_extra = { "linkml_meta": {'domain_of': ['AnnotationProperties', 'SharedState', 'SharedStateChange']} })
-    selection: Selection = Field(default=..., json_schema_extra = { "linkml_meta": {'domain_of': ['SharedState', 'SharedStateChange']} })
-    viewport: Viewport = Field(default=..., json_schema_extra = { "linkml_meta": {'domain_of': ['SharedState', 'SharedStateChange']} })
+    selection: Selection = Field(default=..., json_schema_extra = { "linkml_meta": {'domain_of': ['SharedState', 'SharedStateChange', 'WebviewMessage']} })
+    viewport: Viewport = Field(default=..., json_schema_extra = { "linkml_meta": {'domain_of': ['SharedState', 'SharedStateChange', 'WebviewMessage']} })
 
 
 class SharedStateChange(ConfiguredBaseModel):
@@ -1725,8 +1781,8 @@ class SharedStateChange(ConfiguredBaseModel):
     linkml_meta: ClassVar[LinkMLMeta] = LinkMLMeta({'from_schema': 'https://debrief.info/schemas/debrief'})
 
     time: Optional[TimeState] = Field(default=None, json_schema_extra = { "linkml_meta": {'domain_of': ['AnnotationProperties', 'SharedState', 'SharedStateChange']} })
-    selection: Optional[Selection] = Field(default=None, json_schema_extra = { "linkml_meta": {'domain_of': ['SharedState', 'SharedStateChange']} })
-    viewport: Optional[Viewport] = Field(default=None, json_schema_extra = { "linkml_meta": {'domain_of': ['SharedState', 'SharedStateChange']} })
+    selection: Optional[Selection] = Field(default=None, json_schema_extra = { "linkml_meta": {'domain_of': ['SharedState', 'SharedStateChange', 'WebviewMessage']} })
+    viewport: Optional[Viewport] = Field(default=None, json_schema_extra = { "linkml_meta": {'domain_of': ['SharedState', 'SharedStateChange', 'WebviewMessage']} })
 
 
 class ToolDeclaration(ConfiguredBaseModel):
@@ -1761,7 +1817,7 @@ class ToolDeclaration(ConfiguredBaseModel):
     applies_to: list[str] = Field(default=..., description="""Feature kinds from the taxonomy, or \"*\" for any (TL-06). Debrief offers a tool only if every selected item matches (TL-08).""", json_schema_extra = { "linkml_meta": {'domain_of': ['ToolDeclaration']} })
     min_selected: Optional[int] = Field(default=1, ge=0, json_schema_extra = { "linkml_meta": {'domain_of': ['ToolDeclaration'], 'ifabsent': 'int(1)'} })
     max_selected: Optional[int] = Field(default=None, ge=1, json_schema_extra = { "linkml_meta": {'domain_of': ['ToolDeclaration']} })
-    parameters: Optional[list[ParameterDeclaration]] = Field(default=None, json_schema_extra = { "linkml_meta": {'domain_of': ['ProvRecord', 'ToolDeclaration']} })
+    parameters: Optional[list[ParameterDeclaration]] = Field(default=None, json_schema_extra = { "linkml_meta": {'domain_of': ['ProvRecord', 'ToolDeclaration', 'WebviewMessage']} })
     outputs: list[ToolOutputKindEnum] = Field(default=..., json_schema_extra = { "linkml_meta": {'domain_of': ['ToolDeclaration']} })
     uses_randomness: Optional[bool] = Field(default=None, description="""When true, Debrief records the seed (SUB-20).""", json_schema_extra = { "linkml_meta": {'domain_of': ['ToolDeclaration']} })
 
@@ -1822,7 +1878,8 @@ class ParameterDeclaration(ConfiguredBaseModel):
                        'AnnotationProperties',
                        'SensorObservationsProperties',
                        'ParameterDeclaration',
-                       'KnownStore']} })
+                       'KnownStore',
+                       'WebviewMessage']} })
     quantity_kind: Optional[QuantityKindEnum] = Field(default=None, description="""Required when kind is quantity.""", json_schema_extra = { "linkml_meta": {'domain_of': ['PayloadColumn', 'ParameterDeclaration', 'ResultColumn']} })
     required: Optional[bool] = Field(default=True, json_schema_extra = { "linkml_meta": {'domain_of': ['ParameterDeclaration'], 'ifabsent': 'True'} })
     default: Optional[Union[Angle, Duration, Length, Speed, bool, float, str]] = Field(default=None, json_schema_extra = { "linkml_meta": {'any_of': [{'range': 'float'},
@@ -1983,7 +2040,8 @@ class KnownStore(ConfiguredBaseModel):
                        'AnnotationProperties',
                        'SensorObservationsProperties',
                        'ParameterDeclaration',
-                       'KnownStore']} })
+                       'KnownStore',
+                       'WebviewMessage']} })
     location: str = Field(default=..., description="""Absolute path to the folder holding catalog.json: a POSIX path, a Windows drive path or a UNC share.""", json_schema_extra = { "linkml_meta": {'domain_of': ['KnownStore']} })
     read_only: Optional[bool] = Field(default=None, description="""When true, Debrief offers no action that would write to the store. A courtesy, not access control: filesystem permissions decide that (SEC-01).""", json_schema_extra = { "linkml_meta": {'domain_of': ['KnownStore']} })
 
@@ -2012,6 +2070,33 @@ class KnownStore(ConfiguredBaseModel):
             err_msg = f"Invalid location format: {v}"
             raise ValueError(err_msg)
         return v
+
+
+class WebviewMessage(ConfiguredBaseModel):
+    linkml_meta: ClassVar[LinkMLMeta] = LinkMLMeta({'from_schema': 'https://debrief.info/schemas/debrief'})
+
+    kind: WebviewMessageKindEnum = Field(default=..., json_schema_extra = { "linkml_meta": {'domain_of': ['ProvRecord',
+                       'AgentRef',
+                       'TrackProperties',
+                       'AnnotationProperties',
+                       'SensorObservationsProperties',
+                       'ParameterDeclaration',
+                       'KnownStore',
+                       'WebviewMessage']} })
+    plot: Optional[DebriefFeatureCollection] = Field(default=None, json_schema_extra = { "linkml_meta": {'domain_of': ['Selection', 'WebviewMessage']} })
+    plot_title: Optional[str] = Field(default=None, json_schema_extra = { "linkml_meta": {'domain_of': ['WebviewMessage']} })
+    selection: Optional[Selection] = Field(default=None, json_schema_extra = { "linkml_meta": {'domain_of': ['SharedState', 'SharedStateChange', 'WebviewMessage']} })
+    viewport: Optional[Viewport] = Field(default=None, json_schema_extra = { "linkml_meta": {'domain_of': ['SharedState', 'SharedStateChange', 'WebviewMessage']} })
+    time_range: Optional[TimeRange] = Field(default=None, description="""The plot's period, so times can be entered as the analyst reads them.""", json_schema_extra = { "linkml_meta": {'domain_of': ['AnnotationProperties',
+                       'SensorObservationsProperties',
+                       'WebviewMessage']} })
+    tool: Optional[ToolDeclaration] = Field(default=None, json_schema_extra = { "linkml_meta": {'domain_of': ['ProvRecord', 'WebviewMessage']} })
+    selected_names: Optional[list[str]] = Field(default=None, json_schema_extra = { "linkml_meta": {'domain_of': ['WebviewMessage']} })
+    tool_name: Optional[str] = Field(default=None, json_schema_extra = { "linkml_meta": {'domain_of': ['WebviewMessage']} })
+    parameters: Optional[list[ParameterValue]] = Field(default=None, json_schema_extra = { "linkml_meta": {'domain_of': ['ProvRecord', 'ToolDeclaration', 'WebviewMessage']} })
+    message: Optional[str] = Field(default=None, json_schema_extra = { "linkml_meta": {'domain_of': ['WebviewMessage']} })
+    result_title: Optional[str] = Field(default=None, json_schema_extra = { "linkml_meta": {'domain_of': ['WebviewMessage']} })
+    result: Optional[ToolResult] = Field(default=None, json_schema_extra = { "linkml_meta": {'domain_of': ['WebviewMessage']} })
 
 
 # Model rebuild
@@ -2062,6 +2147,7 @@ ResultColumn.model_rebuild()
 FormatSettings.model_rebuild()
 UserConfig.model_rebuild()
 KnownStore.model_rebuild()
+WebviewMessage.model_rebuild()
 
 # Classes that accept undeclared properties (extra_slots), added by the generator.
 StacAsset.model_config["extra"] = "allow"

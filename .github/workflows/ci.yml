@@ -53,6 +53,62 @@ jobs:
       - name: Cross-language round trip
         run: scripts/cross_language_roundtrip.sh
 
+  vscode:
+    # The extension: typecheck, unit tests, theme-token and terminology checks
+    # (DEV-10), then the Phase 1 tracer in real VS Code with the real Python
+    # tool service. Screenshots of each step are kept as a build artifact.
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v6
+        with:
+          python-version: "3.12"
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: npm
+          cache-dependency-path: |
+            ts/schemas/package-lock.json
+            ts/kernel/package-lock.json
+            ts/config/package-lock.json
+            vscode/package-lock.json
+      - name: Install
+        run: |
+          uv sync --locked
+          for package in schemas kernel config; do
+            npm ci --prefix ts/$package
+            npm run --prefix ts/$package build
+          done
+          npm ci --prefix vscode
+          sudo apt-get install -y --no-install-recommends imagemagick
+      - name: Typecheck, unit tests and guide checks
+        working-directory: vscode
+        run: |
+          npm run typecheck
+          npm test
+          npm run check:theme
+          npm run check:language
+      - uses: actions/cache@v4
+        with:
+          path: vscode/.vscode-test
+          key: vscode-test-1.141.0-1.95.0
+      - name: Tracer in VS Code
+        working-directory: vscode
+        env:
+          DEBRIEF_SCREENSHOTS: ${{ github.workspace }}/screenshots
+        run: xvfb-run -a -s "-screen 0 1600x1000x24" npm run test:integration
+      - name: Tracer in the oldest supported VS Code
+        working-directory: vscode
+        env:
+          VSCODE_VERSION: "1.95.0"
+        run: xvfb-run -a -s "-screen 0 1600x1000x24" node dist-test/run.js
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: vscode-screenshots
+          path: screenshots
+          if-no-files-found: ignore
+
   site:
     # The blog and guides must build without warnings (DEV-01, DEV-07, DEV-08).
     runs-on: ubuntu-latest

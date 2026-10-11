@@ -5,6 +5,7 @@ description = "Debrief tool service: tools discovered at runtime, offered by sel
 requires-python = ">=3.12"
 dependencies = [
     "debrief-config",
+    "debrief-io",
     "debrief-kernel",
     "debrief-schemas",
     "debrief-stac",
@@ -18,6 +19,7 @@ core = "debrief_tools.core"
 
 [tool.uv.sources]
 debrief-config = { workspace = true }
+debrief-io = { workspace = true }
 debrief-kernel = { workspace = true }
 debrief-schemas = { workspace = true }
 debrief-stac = { workspace = true }

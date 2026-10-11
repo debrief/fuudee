@@ -631,6 +631,7 @@ version = "0.0.1"
 source = { editable = "python/debrief-tools" }
 dependencies = [
     { name = "debrief-config" },
+    { name = "debrief-io" },
     { name = "debrief-kernel" },
     { name = "debrief-schemas" },
     { name = "debrief-stac" },
@@ -641,6 +642,7 @@ dependencies = [
 [package.metadata]
 requires-dist = [
     { name = "debrief-config", editable = "python/debrief-config" },
+    { name = "debrief-io", editable = "python/debrief-io" },
     { name = "debrief-kernel", editable = "python/debrief-kernel" },
     { name = "debrief-schemas", editable = "python/debrief-schemas" },
     { name = "debrief-stac", editable = "python/debrief-stac" },
