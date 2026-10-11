@@ -4,13 +4,15 @@ from __future__ import annotations
 
 import csv
 import re
+from dataclasses import replace
 from pathlib import Path
 
 import pytest
 
 from debrief_sample import DEFAULT_SEED, build
+from debrief_sample import builder as sample_builder
 from debrief_sample.builder import TOOL, extract_path
-from debrief_sample.exercise import SERIALS
+from debrief_sample.exercise import SERIALS, script_digest
 from debrief_sample.payload import read_bearings
 from debrief_schemas import DocumentKind, load_document
 from debrief_stac import Catalogue
@@ -108,7 +110,14 @@ def test_provenance_is_a_worked_example(built: Path) -> None:
         imports = [r for r in plot.provenance if r.tool.name == "debrief-io.rep"]
         assert len(imports) == 2
         for record in imports:
-            assert not any("could not be read" in note for note in record.notes or [])
+            assert record.notes is None  # nothing in the REP file was left out
+        params = {p.name: p.value for p in builder.parameters}
+        assert params["script_digest"] == script_digest(serial)
+        assert params["rng"].startswith("random.Random(")
+        sonar = {p.name for p in tools[f"{TOOL}.bearings"].parameters}
+        assert {"detection_range", "baffle_half_angle", "sonar_off", "p_gain", "p_lose"} <= sonar
+        assert f"{TOOL}.area" in tools and f"{TOOL}.named-sets" in tools
+        assert not any("area" in note for note in builder.notes or [])
         ids = [record.id for record in plot.provenance]
         assert len(ids) == len(set(ids))
 
@@ -139,3 +148,24 @@ def test_ais_extract_is_small_and_anonymised() -> None:
     text = path.read_text(encoding="utf-8")
     assert re.search(r"\b\d{9}\b", text) is None
     assert "IMO" not in text
+
+
+def test_a_serial_without_bearings_still_builds(tmp_path: Path, monkeypatch) -> None:
+    monkeypatch.setattr(sample_builder, "SONAR", replace(sample_builder.SONAR, p_gain=0.0))
+    build(tmp_path / "quiet")
+    catalogue = Catalogue.open(tmp_path / "quiet")
+    for serial in SERIALS:
+        plot = catalogue.read_plot(serial.item_id)
+        assert not any(f.properties.kind == "sensor_observations" for f in plot.features)
+        record = next(r for r in plot.provenance if r.tool.name == f"{TOOL}.bearings")
+        assert any("no bearings" in note for note in record.notes)
+        texts = [f.properties.text for f in plot.features if f.id.startswith("narrative-")]
+        assert not any("RED ONE bearing" in text or "simulate an attack" in text for text in texts)
+
+
+def test_exercise_set_holds_the_exercise(built: Path) -> None:
+    plot = Catalogue.open(built).read_plot("serial-1")
+    exercise = next(s for s in plot.named_sets if s.id == "set-exercise")
+    assert "annotation-exercise-area" in exercise.feature_ids
+    assert "narrative-001" in exercise.feature_ids
+    assert not any(i.startswith("track-ais-") for i in exercise.feature_ids)

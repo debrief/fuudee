@@ -2,16 +2,24 @@
 
 from __future__ import annotations
 
+import re
+from dataclasses import replace
+
 import pytest
 
 from debrief_io import parse_fix
-from debrief_kernel.geodesy import Position, TrackPath
+from debrief_kernel.geodesy import Position, TrackPath, range_bearing
+from debrief_kernel.units import bearing_difference
 from debrief_sample import narrative
 from debrief_sample.ais import vessel_type
+from debrief_sample.builder import SONAR
 from debrief_sample.exercise import SERIALS
 from debrief_sample.synth import (
+    Bearing,
+    Contact,
     Fix,
     _turn,
+    course_lookup,
     generator,
     rep_line,
     simulate,
@@ -45,23 +53,94 @@ def test_simulation_is_repeatable_and_one_fix_a_minute() -> None:
     assert a[-1].time_ms == serial.end_ms
 
 
-def test_no_bearings_while_deaf_or_out_of_range() -> None:
-    serial = SERIALS[2]
+def _serial_paths(serial):
     blue = simulate(serial.blue, serial.start_ms, generator(1, "blue"))
     red = simulate(serial.red, serial.start_ms, generator(1, "red"))
     paths = [TrackPath([f.time_ms for f in t], [f.position for f in t]) for t in (blue, red)]
+    course = course_lookup([f.time_ms for f in blue], [f.course_deg for f in blue])
+    return paths, course
+
+
+def test_no_bearings_while_deaf_out_of_range_or_in_the_baffles() -> None:
+    serial = SERIALS[2]
+    (blue, red), course = _serial_paths(serial)
     deaf = [(serial.start_ms + a * 60_000, serial.start_ms + b * 60_000) for a, b in serial.deaf]
     bearings, contacts = sonar_bearings(
-        *paths,
-        interval_ms=30_000,
-        detection_range_m=8 * 1852.0,
-        bearing_sd_deg=1.5,
-        deaf_ms=deaf,
-        rng=generator(1, "bearings"),
+        blue, red, own_course=course, model=SONAR, deaf_ms=deaf, rng=generator(1, "bearings")
     )
-    assert bearings and contacts
+    assert bearings and len(contacts) >= 2
     assert not any(a <= b.time_ms < z for b in bearings for a, z in deaf)
-    assert sum(1 for _ in contacts) >= 2
+    for b in bearings:
+        distance, truth = range_bearing(blue.position_at(b.time_ms), red.position_at(b.time_ms))
+        assert distance.value <= SONAR.detection_range_m
+        astern = (course(b.time_ms) + 180.0) % 360.0
+        assert abs(bearing_difference(truth.value, astern)) > SONAR.baffle_half_angle_deg
+
+
+def test_a_sonar_that_never_detects_gives_no_bearings() -> None:
+    serial = SERIALS[0]
+    (blue, red), course = _serial_paths(serial)
+    deaf_sonar = replace(SONAR, p_gain=0.0)
+    bearings, contacts = sonar_bearings(
+        blue, red, own_course=course, model=deaf_sonar, deaf_ms=[], rng=generator(1, "b")
+    )
+    assert (bearings, contacts) == ([], [])
+
+
+def _bearings(start_ms: int, minutes: int, rate: float, rng_seed: int) -> list[Bearing]:
+    rng = generator(rng_seed, "noise")
+    return [
+        Bearing(start_ms + i * 30_000, (100.0 + rate * i / 2 + rng.gauss(0.0, 1.5)) % 360.0)
+        for i in range(minutes * 2 + 1)
+    ]
+
+
+def test_drift_is_steady_when_only_noise() -> None:
+    serial = SERIALS[0]
+    start = serial.start_ms + 15 * 60_000
+    for seed in range(20):
+        bearings = _bearings(start, 15, 0.0, seed)
+        seen = narrative.picture(bearings, [Contact(bearings[0], bearings[-1])], 30_000)
+        (report,) = narrative._bearing_reports(serial, seen)
+        assert report.text.endswith("steady."), report.text
+
+
+def test_drift_reports_a_real_bearing_rate() -> None:
+    serial = SERIALS[0]
+    bearings = _bearings(serial.start_ms + 15 * 60_000, 15, 1.0, 3)
+    seen = narrative.picture(bearings, [Contact(bearings[0], bearings[-1])], 30_000)
+    (report,) = narrative._bearing_reports(serial, seen)
+    rate = re.search(r"drawing right (\d+\.\d)°/min", report.text)
+    assert rate is not None and 0.7 <= float(rate.group(1)) <= 1.3, report.text
+
+
+def test_classification_waits_and_scripted_lines_need_contact() -> None:
+    serial = SERIALS[0]
+    start = serial.start_ms + 10 * 60_000
+    bearings = _bearings(start, 5, 0.0, 1)  # five minutes: not long enough to classify
+    seen = narrative.picture(bearings, [Contact(bearings[0], bearings[-1])], 30_000)
+    assert seen.classified_ms is None
+    assert seen.label(serial.end_ms) == "the contact"
+    assert not seen.holding(start + 5 * 60_000)
+    (blue, red), _ = _serial_paths(serial)
+    texts = [e.text for e in narrative.entries(serial, blue, red, seen, {})]
+    assert not any("simulate an attack" in text for text in texts)
+    assert any(text.endswith("Classifying.") for text in texts)
+
+
+def test_a_target_lost_to_a_sprint_and_not_found_is_logged() -> None:
+    serial = SERIALS[2]
+    first_sprint = serial.start_ms + serial.deaf[0][0] * 60_000
+    bearings = _bearings(first_sprint - 20 * 60_000, 20, 0.0, 2)
+    seen = narrative.picture(bearings, [Contact(bearings[0], bearings[-1])], 30_000)
+    entries = narrative._contact_entries(serial, seen)
+    drift = serial.start_ms + serial.deaf[0][1] * 60_000
+    assert (
+        narrative.Entry(
+            drift + narrative.NOT_REGAINED_MS, "BLUE ONE", "Not regained RED ONE after sprint."
+        )
+        in entries
+    )
 
 
 def test_narrative_round_trips() -> None:

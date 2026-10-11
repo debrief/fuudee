@@ -2,12 +2,16 @@
 
 Everything here is fiction except the background traffic, which is real AIS
 (see ``ais.py``). The exercise lies in open water east of the entrance to
-Chesapeake Bay, on the day of the AIS extract.
+Chesapeake Bay, on the day of the AIS extract. The area was chosen because
+open AIS covers it, not for any naval use. It is on the continental shelf,
+mostly 10 to 35 m deep, so RED ONE's depths (15 to 25 m) are notional.
 """
 
 from __future__ import annotations
 
-from dataclasses import dataclass, field
+import hashlib
+import json
+from dataclasses import asdict, dataclass, field
 from datetime import UTC, datetime
 
 from debrief_kernel.time import to_epoch_ms
@@ -68,6 +72,9 @@ class ScriptLine:
     minute: int
     platform: str
     text: str
+    # Written only if BLUE ONE holds the classified target at this minute,
+    # so a line such as "Holding RED ONE" never contradicts the bearings.
+    if_holding_at: int | None = None
 
 
 @dataclass(frozen=True)
@@ -118,19 +125,20 @@ SERIALS: tuple[Serial, ...] = (
         1,
         *WINDOWS[0],
         blue=_blue(
-            (-75.40, 36.96),
-            Leg(40, 30, 10),
-            Leg(40, 270, 6),
-            Leg(40, 180, 6),
-            Leg(40, 270, 6),
-            Leg(40, 180, 6),
-            Leg(40, 240, 5),
+            (-75.22, 37.10),
+            Leg(30, 295, 10),
+            Leg(35, 215, 10),
+            Leg(35, 345, 7),
+            Leg(35, 190, 10),
+            Leg(35, 335, 10),
+            Leg(35, 165, 10),
+            Leg(35, 280, 10),
         ),
         red=_red(
-            (-75.25, 37.17),
-            Leg(80, 225, 5, 90),
-            Leg(70, 250, 4, 120),
-            Leg(90, 200, 6, 60),
+            (-75.35, 37.17),
+            Leg(80, 225, 5, 20),
+            Leg(70, 250, 4, 25),
+            Leg(90, 200, 5, 15),
         ),
         script=(
             ScriptLine(
@@ -141,10 +149,15 @@ SERIALS: tuple[Serial, ...] = (
             ),
             ScriptLine(0, BLUE, "On task. Searching the north-east of the area with bow sonar."),
             ScriptLine(120, CONTROL, "Weather: wind backing south, 18 kn."),
+            ScriptLine(
+                55,
+                BLUE,
+                "Holding RED ONE. Request permission to simulate an attack.",
+                if_holding_at=55,
+            ),
+            ScriptLine(58, CONTROL, "Permission granted.", if_holding_at=55),
+            ScriptLine(67, BLUE, "Simulated attack on RED ONE complete.", if_holding_at=55),
             ScriptLine(150, RED, "Communications window missed. Continuing to the south-west."),
-            ScriptLine(200, BLUE, "Holding RED ONE. Request permission to simulate an attack."),
-            ScriptLine(203, CONTROL, "Permission granted."),
-            ScriptLine(212, BLUE, "Simulated attack on RED ONE complete."),
             ScriptLine(240, CONTROL, "Serial 1 ended. Units reposition for Serial 2."),
         ),
     ),
@@ -153,30 +166,33 @@ SERIALS: tuple[Serial, ...] = (
         2,
         *WINDOWS[1],
         blue=_blue(
-            (-75.45, 37.05),
-            Leg(40, 90, 8),
-            Leg(45, 240, 7),
-            Leg(45, 330, 7),
-            Leg(45, 240, 7),
-            Leg(45, 330, 7),
-            Leg(40, 240, 7),
-            Leg(40, 330, 7),
+            (-75.24, 37.04),
+            Leg(30, 230, 10),
+            Leg(30, 255, 7),
+            Leg(30, 5, 7),
+            Leg(30, 235, 10),
+            Leg(30, 330, 7),
+            Leg(30, 200, 10),
+            Leg(30, 325, 10),
+            Leg(30, 215, 7),
+            Leg(30, 350, 7),
+            Leg(30, 240, 7),
         ),
         red=_red(
-            (-75.25, 36.98),
-            Leg(100, 290, 5, 100),
-            Leg(80, 250, 6, 150),
-            Leg(120, 300, 4, 80),
+            (-75.30, 36.98),
+            Leg(100, 290, 5, 20),
+            Leg(80, 250, 6, 25),
+            Leg(120, 300, 4, 15),
         ),
         script=(
             ScriptLine(0, CONTROL, "Serial 2 started. RED ONE free to close the shipping lane."),
-            ScriptLine(0, RED, "Intention: transit west at slow speed, deep, towards the lane."),
+            ScriptLine(0, RED, "Intention: transit west at slow speed towards the lane."),
             ScriptLine(
                 0, BLUE, "Intention: close RED ONE's last known position, then screen the lane."
             ),
-            ScriptLine(100, CONTROL, "RED ONE reports a simulated defect; may go deep."),
-            ScriptLine(185, BLUE, "Bearing drift slow. Changing legs to resolve range."),
-            ScriptLine(175, RED, "Assessed held by BLUE ONE. Coming shallower to clear the layer."),
+            ScriptLine(75, BLUE, "Changing legs to resolve range on RED ONE.", if_holding_at=75),
+            ScriptLine(100, CONTROL, "RED ONE reports its simulated defect cleared."),
+            ScriptLine(175, RED, "Assessed held by BLUE ONE. Altering to the west-north-west."),
             ScriptLine(300, CONTROL, "Serial 2 ended."),
         ),
     ),
@@ -185,20 +201,20 @@ SERIALS: tuple[Serial, ...] = (
         3,
         *WINDOWS[2],
         blue=_blue(
-            (-75.40, 36.98),
-            Leg(60, 350, 5),
-            Leg(20, 20, 14),
-            Leg(60, 300, 5),
-            Leg(20, 270, 14),
-            Leg(80, 250, 5),
-            Leg(20, 200, 14),
-            Leg(100, 180, 5),
+            (-75.44, 36.95),
+            Leg(60, 50, 5),
+            Leg(20, 140, 14),
+            Leg(60, 345, 5),
+            Leg(20, 290, 14),
+            Leg(80, 220, 5),
+            Leg(20, 345, 14),
+            Leg(100, 255, 5),
         ),
         red=_red(
             (-75.30, 36.92),
-            Leg(120, 340, 5, 80),
-            Leg(120, 280, 4, 150),
-            Leg(120, 200, 6, 100),
+            Leg(120, 340, 5, 15),
+            Leg(120, 280, 4, 25),
+            Leg(120, 200, 6, 20),
         ),
         deaf=((60, 80), (140, 160), (240, 260)),
         script=(
@@ -210,8 +226,18 @@ SERIALS: tuple[Serial, ...] = (
             ScriptLine(0, RED, "Intention: evade to the north, then double back to the west."),
             ScriptLine(0, BLUE, "Intention: sprint and drift to hold RED ONE as it evades."),
             ScriptLine(200, CONTROL, "Communications check with all units: good."),
-            ScriptLine(300, BLUE, "Closing RED ONE's estimated position from the west."),
+            ScriptLine(300, BLUE, "Searching for RED ONE."),
             ScriptLine(360, CONTROL, "Serial 3 ended. End of exercise."),
         ),
     ),
 )
+
+
+def script_digest(serial: Serial) -> str:
+    """A hash of everything scripted for a serial: legs, sonar-off periods and narrative.
+
+    Recorded in provenance so that a replay can tell whether the script it
+    runs is the one that built the plot.
+    """
+    text = json.dumps(asdict(serial), sort_keys=True, separators=(",", ":"))
+    return "sha256:" + hashlib.sha256(text.encode("utf-8")).hexdigest()

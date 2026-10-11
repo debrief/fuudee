@@ -27,7 +27,7 @@ catalogue.verify_sources("serial-01")  # [] when unchanged
 
 - **Items are found by walking the folders.** An item counts when its parent link points at the catalogue. The catalogue's child links are written but never trusted (SUB-23).
 - **Saves are atomic.** Each is written to a temporary file and renamed, so a failure leaves the original intact (NFR-11).
-- **Sources never change.** They are copied in read-only and never overwritten. Each content hash is computed once on import. `verify_sources` checks only the sources asked about, and re-hashes a file only when its size or modification time has changed since it was last verified (SUB-10, SUB-11).
+- **Sources never change.** They are copied in read-only and never overwritten. Each content hash is computed once on import. Payloads are copied and hashed the same way. `verify_sources` checks only the sources and payloads asked about, and re-hashes a file only when its size or modification time has changed since it was last verified (SUB-10, SUB-11).
 - **Newer schemas are flagged.** Writing a newer-schema file into a catalogue raises `NewerSchemaError` unless the caller passes `allow_newer_schema=True`; the interface asks the analyst first (SUB-35).
 - **Storage sits behind `Store`.** `FileStore` is the only implementation, so a database backend could replace it (SUB-09).
 - **`CompositeCatalogue` shows several catalogues as one**, with each item's source catalogue (SUB-17).

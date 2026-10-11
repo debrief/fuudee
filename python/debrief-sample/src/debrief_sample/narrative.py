@@ -20,13 +20,14 @@ from datetime import UTC, datetime
 
 from debrief_kernel.formatting import (
     DEFAULT_SETTINGS,
+    fixed,
     format_bearing,
     format_quantity,
     format_time,
 )
 from debrief_kernel.geodesy import ClosestApproach, TrackPath, closest_approach, range_between
 from debrief_kernel.time import to_epoch_ms
-from debrief_kernel.units import Quantity, bearing_difference, normalise_bearing
+from debrief_kernel.units import Quantity, bearing_difference
 from debrief_sample.exercise import BLUE, CONTROL, RED, Platform, Serial
 from debrief_sample.synth import Bearing, Contact
 
@@ -34,7 +35,12 @@ DATE_TIME = DEFAULT_SETTINGS.model_copy(update={"time_style": "date_time"})
 METRES = DEFAULT_SETTINGS.model_copy(update={"length_unit": "m", "length_decimals": 0})
 AIS_CPA_REPORT_NMI = 3.0
 REPORT_MS = 30 * 60_000
-STEADY_DEG_MIN = 0.2
+RATE_WINDOW_MS = 10 * 60_000
+STEADY_DEG_MIN = 0.1
+CLASSIFY_MS = 8 * 60_000
+HOLDING_MS = 2 * 60_000
+NOT_REGAINED_MS = 10 * 60_000
+FLICKER_MS = 3 * 60_000
 _MONTHS = ("Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec")
 _LINE = re.compile(r"(\d{1,2}) (\w{3}) (\d{4}) (\d{2}):(\d{2}):(\d{2})Z  (\S.*?)  (\S.*)")
 
@@ -60,48 +66,115 @@ def _leg_entries(serial: Serial, platform: Platform, with_depth: bool) -> list[E
     return entries
 
 
-def _contact_entries(serial: Serial, contacts: list[Contact]) -> list[Entry]:
-    deaf_starts = {serial.start_ms + a * 60_000 for a, _ in serial.deaf}
+@dataclass(frozen=True)
+class Picture:
+    """What BLUE ONE's sonar held, and when the contact was classified as RED ONE."""
+
+    bearings: list[Bearing]
+    contacts: list[Contact]
+    classified_ms: int | None
+
+    def label(self, time_ms: int) -> str:
+        classified = self.classified_ms is not None and self.classified_ms <= time_ms
+        return RED if classified else "the contact"
+
+    def holding(self, time_ms: int) -> bool:
+        """Holding the classified target: classified, with a bearing in the last two minutes."""
+        if self.classified_ms is None or self.classified_ms > time_ms:
+            return False
+        return any(time_ms - HOLDING_MS <= b.time_ms <= time_ms for b in self.bearings)
+
+
+def picture(bearings: list[Bearing], contacts: list[Contact], interval_ms: int) -> Picture:
+    """What the operator would log: classification, and contacts with flickers smoothed.
+
+    Classification comes once the contact has been held for CLASSIFY_MS in
+    all. Contacts separated by less than FLICKER_MS are one contact to the
+    log keeper, and contacts shorter than a minute go unlogged, though every
+    bearing stays in the payload.
+    """
+    needed = math.ceil(CLASSIFY_MS / interval_ms)
+    classified = bearings[needed - 1].time_ms if len(bearings) >= needed else None
+    merged: list[Contact] = []
+    for contact in contacts:
+        if merged and contact.start.time_ms - merged[-1].end.time_ms < FLICKER_MS:
+            merged[-1] = Contact(merged[-1].start, contact.end)
+        else:
+            merged.append(contact)
+    logged = [c for c in merged if c.end.time_ms - c.start.time_ms >= 60_000]
+    return Picture(bearings, logged, classified)
+
+
+def _contact_entries(serial: Serial, seen: Picture) -> list[Entry]:
+    deaf = [(serial.start_ms + a * 60_000, serial.start_ms + b * 60_000) for a, b in serial.deaf]
     entries = []
-    for index, contact in enumerate(contacts):
+    if seen.classified_ms is not None:
+        bearing = next(b for b in seen.bearings if b.time_ms == seen.classified_ms)
+        text = (
+            f"Contact classified submarine, designated {RED}, bearing "
+            f"{format_bearing(Quantity(bearing.bearing_deg, 'deg'))}."
+        )
+        entries.append(Entry(seen.classified_ms, BLUE, text))
+    for index, contact in enumerate(seen.contacts):
         bearing = format_bearing(Quantity(contact.start.bearing_deg, "deg"))
         if index == 0:
-            text = f"Bow sonar contact, bearing {bearing}. Classified submarine: {RED}."
+            text = f"Bow sonar contact, bearing {bearing}. Classifying."
         else:
-            text = f"Regained contact on {RED}, bearing {bearing}."
+            text = f"Regained {seen.label(contact.start.time_ms)}, bearing {bearing}."
         entries.append(Entry(contact.start.time_ms, BLUE, text))
-        lost_to_sprint = any(0 < start - contact.end.time_ms <= 60_000 for start in deaf_starts)
+        lost_to_sprint = any(0 < a - contact.end.time_ms <= 60_000 for a, _ in deaf)
         if contact.end.time_ms < serial.end_ms and not lost_to_sprint:
             last = format_bearing(Quantity(contact.end.bearing_deg, "deg"))
-            entries.append(
-                Entry(contact.end.time_ms, BLUE, f"Lost contact on {RED}, last bearing {last}.")
-            )
+            label = seen.label(contact.end.time_ms)
+            entries.append(Entry(contact.end.time_ms, BLUE, f"Lost {label}, last bearing {last}."))
+    # After a sprint, a target held before it and not found again soon after.
+    for a, b in deaf:
+        held_before = any(c.start.time_ms < a for c in seen.contacts)
+        found = any(
+            c.start.time_ms <= b + NOT_REGAINED_MS and c.end.time_ms >= b for c in seen.contacts
+        )
+        if held_before and not found and b + NOT_REGAINED_MS < serial.end_ms:
+            label = seen.label(a)
+            entries.append(Entry(b + NOT_REGAINED_MS, BLUE, f"Not regained {label} after sprint."))
     return entries
 
 
-def _mean_bearing(bearings: list[Bearing]) -> float:
-    """Circular mean, so bearings either side of north average correctly."""
-    east = sum(math.sin(math.radians(b.bearing_deg)) for b in bearings)
-    north = sum(math.cos(math.radians(b.bearing_deg)) for b in bearings)
-    return normalise_bearing(math.degrees(math.atan2(east, north)))
+def _bearing_rate(bearings: list[Bearing]) -> tuple[float, float]:
+    """Least-squares bearing rate in degrees a minute, and its standard error."""
+    t0, b0 = bearings[0].time_ms, bearings[0].bearing_deg
+    xs = [(b.time_ms - t0) / 60_000 for b in bearings]
+    ys = [bearing_difference(b.bearing_deg, b0) for b in bearings]  # unwrapped about the first
+    n = len(xs)
+    mx, my = sum(xs) / n, sum(ys) / n
+    sxx = sum((x - mx) ** 2 for x in xs)
+    slope = sum((x - mx) * (y - my) for x, y in zip(xs, ys, strict=True)) / sxx
+    residual = sum((y - my - slope * (x - mx)) ** 2 for x, y in zip(xs, ys, strict=True))
+    return slope, math.sqrt(residual / (n - 2) / sxx)
 
 
-def _bearing_reports(serial: Serial, bearings: list[Bearing]) -> list[Entry]:
-    """Every half hour in contact, the target's bearing and which way it is drawing."""
+def _bearing_reports(serial: Serial, seen: Picture) -> list[Entry]:
+    """Every half hour in contact, the bearing and its drift over the last ten minutes.
+
+    The drift is a regression over the window. It is called steady unless the
+    rate is more than twice its standard error, so noise is not reported as drift.
+    """
     entries = []
     for time_ms in range(serial.start_ms + REPORT_MS, serial.end_ms, REPORT_MS):
-        recent = [b for b in bearings if time_ms - 2 * 60_000 <= b.time_ms <= time_ms]
-        earlier = [b for b in bearings if time_ms - 7 * 60_000 <= b.time_ms <= time_ms - 5 * 60_000]
-        if len(recent) < 3 or len(earlier) < 3:
+        window = [b for b in seen.bearings if time_ms - RATE_WINDOW_MS <= b.time_ms <= time_ms]
+        if len(window) < 10 or time_ms - window[-1].time_ms > 60_000:
             continue
-        now = _mean_bearing(recent)
-        rate = bearing_difference(now, _mean_bearing(earlier)) / 5.0
-        if abs(rate) < STEADY_DEG_MIN:
+        if window[-1].time_ms - window[0].time_ms < RATE_WINDOW_MS // 2:
+            continue
+        rate, error = _bearing_rate(window)
+        if abs(rate) <= max(2 * error, STEADY_DEG_MIN):
             drift = "steady"
         else:
-            drift = "drawing right" if rate > 0 else "drawing left"
-        bearing = format_bearing(Quantity(now, "deg"))
-        entries.append(Entry(time_ms, BLUE, f"{RED} bearing {bearing}, {drift}."))
+            side = "right" if rate > 0 else "left"
+            drift = f"drawing {side} {fixed(abs(rate), 1)}°/min"
+        bearing = format_bearing(Quantity(window[-1].bearing_deg, "deg"))
+        label = seen.label(time_ms)
+        label = label[0].upper() + label[1:]
+        entries.append(Entry(time_ms, BLUE, f"{label} bearing {bearing}, {drift}."))
     return entries
 
 
@@ -149,21 +222,25 @@ def entries(
     serial: Serial,
     blue: TrackPath,
     red: TrackPath,
-    bearings: list[Bearing],
-    contacts: list[Contact],
+    seen: Picture,
     ais: dict[str, TrackPath],
 ) -> list[Entry]:
-    """Every narrative entry for a serial, in time order (script first at equal times)."""
+    """Every narrative entry for a serial, in time order (script first at equal times).
+
+    A scripted line that depends on holding RED ONE is left out when the
+    sonar did not hold it then.
+    """
     scripted = [
         Entry(serial.start_ms + line.minute * 60_000, line.platform, line.text)
         for line in serial.script
+        if line.if_holding_at is None or seen.holding(serial.start_ms + line.if_holding_at * 60_000)
     ]
     found = (
         _leg_entries(serial, serial.blue, with_depth=False)
         + _leg_entries(serial, serial.red, with_depth=True)
         + _sprint_entries(serial)
-        + _contact_entries(serial, contacts)
-        + _bearing_reports(serial, bearings)
+        + _contact_entries(serial, seen)
+        + _bearing_reports(serial, seen)
         + _cpa_entries(blue, red, ais)
     )
     # Truncate to whole seconds, as a log keeper would write them.

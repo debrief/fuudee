@@ -13,8 +13,11 @@ records how (SUB-18):
 5. The scripted narrative is written, kept as a supporting file and read
    into time-only note annotations.
 
+6. The exercise area and the named sets are added, each with its own record.
+
 Provenance times come from a fixed clock, so two builds with the same seed
-are byte-for-byte identical.
+and the same lockfile are byte-for-byte identical. (pyarrow writes its
+version into each Parquet file, so another pyarrow changes the payload bytes.)
 """
 
 from __future__ import annotations
@@ -28,8 +31,15 @@ from debrief_io import build_plot
 from debrief_kernel.geodesy import TrackPath
 from debrief_kernel.time import format_utc, parse_utc
 from debrief_sample import ais, narrative, payload
-from debrief_sample.exercise import AREA, BLUE, SERIALS, Serial
-from debrief_sample.synth import generator, rep_text, simulate, sonar_bearings
+from debrief_sample.exercise import AREA, BLUE, SERIALS, Serial, script_digest
+from debrief_sample.synth import (
+    SonarModel,
+    course_lookup,
+    generator,
+    rep_text,
+    simulate,
+    sonar_bearings,
+)
 from debrief_schemas import SCHEMA_VERSION, DebriefFeatureCollection, models
 from debrief_stac import Catalogue
 
@@ -48,10 +58,17 @@ CATALOGUE_DESCRIPTION = (
 
 AIS_FILE = "ais-2023-06-15-chesapeake-approaches.csv"
 AIS_COLOUR = "#808080"
-BEARING_INTERVAL_S = 30.0
-BEARING_SD_DEG = 1.5
-DETECTION_RANGE_NMI = 8.0
 SENSOR = "Bow sonar"
+SONAR = SonarModel(
+    interval_ms=30_000,
+    detection_range_m=4.5 * 1852.0,
+    baffle_half_angle_deg=40.0,
+    p_gain=0.05,
+    p_lose=0.015,
+    bearing_sd_deg=1.5,
+)
+# How each random generator is seeded (SUB-20): Python's random.Random, Mersenne Twister.
+RNG_SCHEME = "random.Random('{seed}:{serial}:{purpose}')"
 
 
 def extract_path() -> Path:
@@ -100,6 +117,16 @@ def _param(name: str, value: object) -> models.ParameterValue:
 
 def _area_text() -> str:
     return f"{AREA.south:.2f}N to {AREA.north:.2f}N, {abs(AREA.west):.2f}W to {abs(AREA.east):.2f}W"
+
+
+def _windows_text(serial: Serial) -> str:
+    """When the ownship's sonar was off, as Zulu time ranges."""
+    if not serial.deaf:
+        return "none"
+    return ", ".join(
+        f"{format_utc(serial.start_ms + a * 60_000)}/{format_utc(serial.start_ms + b * 60_000)}"
+        for a, b in serial.deaf
+    )
 
 
 def _ais_track(vessel: ais.AisVessel, fixes: tuple[ais.AisFix, ...]) -> tuple:
@@ -172,14 +199,16 @@ def _build_serial(
                 _param("start", format_utc(serial.start_ms)),
                 _param("end", format_utc(serial.end_ms)),
                 _param("area", _area_text()),
+                _param("sonar_off", _windows_text(serial)),
+                _param("script_digest", script_digest(serial)),
+                _param("rng", RNG_SCHEME.format(seed=seed, serial=item, purpose="<platform>")),
             ],
             seed=seed,
             notes=[
                 f"Synthesised {ref.href} ({ref.content_hash}) for {name}: fiction, one fix a "
                 "minute, following the serial's scripted legs."
                 for name, ref in rep_refs.items()
-            ]
-            + ["Drew the exercise area as a shape annotation."],
+            ],
         )
     )
 
@@ -228,42 +257,52 @@ def _build_serial(
 
     # 4. Sonar bearings from blue to red, from the imported tracks.
     started = clock.text()
-    blue_path = TrackPath.from_feature(tracks[serial.blue.name])
+    blue_track = tracks[serial.blue.name]
+    blue_path = TrackPath.from_feature(blue_track)
     red_path = TrackPath.from_feature(tracks[serial.red.name])
+    deaf_ms = [(serial.start_ms + a * 60_000, serial.start_ms + b * 60_000) for a, b in serial.deaf]
     bearings, contacts = sonar_bearings(
         blue_path,
         red_path,
-        interval_ms=int(BEARING_INTERVAL_S * 1000),
-        detection_range_m=DETECTION_RANGE_NMI * 1852.0,
-        bearing_sd_deg=BEARING_SD_DEG,
-        deaf_ms=[
-            (serial.start_ms + a * 60_000, serial.start_ms + b * 60_000) for a, b in serial.deaf
-        ],
+        own_course=course_lookup(blue_path.times_ms, blue_track.properties.courses.values),
+        model=SONAR,
+        deaf_ms=deaf_ms,
         rng=generator(seed, item, "bearings"),
     )
-    bearings_file = work / item / "bow-sonar-bearings.parquet"
-    payload.write_bearings(bearings, BEARING_SD_DEG, bearings_file)
-    bearings_ref = catalogue.add_payload(item, bearings_file, media_type=payload.MEDIA_TYPE)
-    blue_id = tracks[serial.blue.name].id
-    features.append(
-        models.SensorObservationsFeature(
-            type="Feature",
-            id=f"sensor-{blue_id.removeprefix('track-')}-bow-sonar",
-            geometry=None,
-            properties=models.SensorObservationsProperties(
-                kind="sensor_observations",
-                name=f"{BLUE} bow sonar",
-                sensor_name=SENSOR,
-                host_track_id=blue_id,
-                observation_type="bearing",
-                time_range=models.TimeRange(
-                    start=format_utc(bearings[0].time_ms), end=format_utc(bearings[-1].time_ms)
+    blue_id = blue_track.id
+    sensor_id = f"sensor-{blue_id.removeprefix('track-')}-bow-sonar"
+    bearing_notes = [
+        f"True bearings from {BLUE} to the target, with normally distributed error. "
+        "Contact is possible only within detection range, outside the baffles and while "
+        "the sonar is listening; within those limits it is gained and lost at random.",
+    ]
+    if bearings:
+        bearings_file = work / item / "bow-sonar-bearings.parquet"
+        payload.write_bearings(bearings, SONAR.bearing_sd_deg, bearings_file)
+        bearings_ref = catalogue.add_payload(item, bearings_file, media_type=payload.MEDIA_TYPE)
+        features.append(
+            models.SensorObservationsFeature(
+                type="Feature",
+                id=sensor_id,
+                geometry=None,
+                properties=models.SensorObservationsProperties(
+                    kind="sensor_observations",
+                    name=f"{BLUE} bow sonar",
+                    sensor_name=SENSOR,
+                    host_track_id=blue_id,
+                    observation_type="bearing",
+                    time_range=models.TimeRange(
+                        start=format_utc(bearings[0].time_ms),
+                        end=format_utc(bearings[-1].time_ms),
+                    ),
+                    observation_count=len(bearings),
+                    payload=payload.envelope(bearings_ref.href, bearings_ref.content_hash),
                 ),
-                observation_count=len(bearings),
-                payload=payload.envelope(bearings_ref.href, bearings_ref.content_hash),
-            ),
+            )
         )
-    )
+        bearing_notes.append(f"Wrote {bearings_ref.href} ({bearings_ref.content_hash}).")
+    else:
+        bearing_notes.append("The sonar never held the target, so there are no bearings.")
     provenance.append(
         models.ProvRecord(
             id=f"{item}-sonar-bearings",
@@ -273,23 +312,31 @@ def _build_serial(
             tool=_tool("bearings"),
             agent=agent,
             parameters=[
-                _param("interval", models.Duration(value=BEARING_INTERVAL_S, unit="s")),
-                _param("bearing_error", models.Angle(value=BEARING_SD_DEG, unit="deg")),
-                _param("detection_range", models.Length(value=DETECTION_RANGE_NMI, unit="[nmi_i]")),
+                _param("interval", models.Duration(value=SONAR.interval_ms / 1000, unit="s")),
+                _param("bearing_error", models.Angle(value=SONAR.bearing_sd_deg, unit="deg")),
+                _param(
+                    "detection_range",
+                    models.Length(value=SONAR.detection_range_m / 1852.0, unit="[nmi_i]"),
+                ),
+                _param(
+                    "baffle_half_angle",
+                    models.Angle(value=SONAR.baffle_half_angle_deg, unit="deg"),
+                ),
+                _param("p_gain", SONAR.p_gain),
+                _param("p_lose", SONAR.p_lose),
+                _param("sonar_off", _windows_text(serial)),
+                _param("rng", RNG_SCHEME.format(seed=seed, serial=item, purpose="bearings")),
             ],
             used=list(rep_refs.values()),
             seed=seed,
-            notes=[
-                f"True bearings from {BLUE} to the target, with normally distributed error, "
-                "while within detection range and not sprinting.",
-                f"Wrote {bearings_ref.href} ({bearings_ref.content_hash}).",
-            ],
+            notes=bearing_notes,
         )
     )
 
     # 5. The scripted narrative, kept as a supporting file and read into notes.
     started = clock.text()
-    items = narrative.entries(serial, blue_path, red_path, bearings, contacts, ais_paths)
+    seen = narrative.picture(bearings, contacts, SONAR.interval_ms)
+    items = narrative.entries(serial, blue_path, red_path, seen, ais_paths)
     narrative_file = work / item / "narrative.txt"
     narrative_file.write_text(narrative.write(serial, items), encoding="utf-8")
     narrative_ref = catalogue.add_supporting_file(item, narrative_file, media_type="text/plain")
@@ -317,6 +364,7 @@ def _build_serial(
             ended_at=clock.text(),
             tool=_tool("narrative"),
             agent=agent,
+            parameters=[_param("script_digest", script_digest(serial))],
             used=[narrative_ref],
             notes=[
                 "Scripted narrative: each line read into a time-only note annotation.",
@@ -325,6 +373,8 @@ def _build_serial(
         )
     )
 
+    # 6. The exercise area.
+    started = clock.text()
     area = models.AnnotationFeature(
         type="Feature",
         id="annotation-exercise-area",
@@ -336,19 +386,51 @@ def _build_serial(
             text=_area_text(),
         ),
     )
+    provenance.append(
+        models.ProvRecord(
+            id=f"{item}-exercise-area",
+            kind="tool",
+            started_at=started,
+            ended_at=clock.text(),
+            tool=_tool("area"),
+            agent=agent,
+            parameters=[_param("area", _area_text())],
+            notes=[f"Drew the exercise area as a shape annotation, {area.id}."],
+        )
+    )
+
+    # 7. Named sets.
+    started = clock.text()
+    background = [f"track-ais-{n.lower().replace(' ', '-')}" for n in ais_paths]
     exercise_ids = [f.id for f in features if not f.id.startswith("track-ais-")]
+    exercise_ids += [area.id] + [n.id for n in notes]
+    named_sets = [
+        models.NamedSet(id="set-exercise", name="Exercise", feature_ids=exercise_ids),
+        models.NamedSet(
+            id="set-background-traffic", name="Background traffic", feature_ids=background
+        ),
+    ]
+    provenance.append(
+        models.ProvRecord(
+            id=f"{item}-named-sets",
+            kind="tool",
+            started_at=started,
+            ended_at=clock.text(),
+            tool=_tool("named-sets"),
+            agent=agent,
+            notes=[
+                "Exercise: the blue and red tracks, the sonar bearings, the exercise area and "
+                "the narrative notes.",
+                "Background traffic: the AIS tracks.",
+            ],
+        )
+    )
+
     plot = DebriefFeatureCollection(
         type="FeatureCollection",
         schema_version=SCHEMA_VERSION,
         features=features + [area] + notes,
-        named_sets=[
-            models.NamedSet(id="set-exercise", name="Exercise", feature_ids=exercise_ids),
-            models.NamedSet(
-                id="set-background-traffic",
-                name="Background traffic",
-                feature_ids=[f"track-ais-{n.lower().replace(' ', '-')}" for n in ais_paths],
-            ),
-        ],
+        named_sets=named_sets,
         provenance=provenance,
     )
     catalogue.write_plot(item, plot)

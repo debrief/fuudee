@@ -16,7 +16,7 @@ The import runs in four steps:
 2. The fix lines are parsed into tracks, with speeds in knots, courses in degrees and a colour taken from the REP symbology.
 3. One provenance record is written, naming the importer and its version, the source and its hash, and every omission (SUB-18).
 4. Nothing is dropped silently. Each of these is listed, both in the report and in provenance:
-   - other record types (`;SENSOR:`, `;NARRATIVE:` and so on);
+   - other record types (`;SENSOR:`, `;NARRATIVE:` and so on), but not `;;` comment lines, which hold no data;
    - lines that could not be read;
    - tracks with a single fix;
    - depths of a track where some fixes give none, since a depth series has no gaps;

@@ -227,3 +227,12 @@ def test_file_counts_other_records_and_reports_bad_lines() -> None:
     assert len(parsed.fixes) == 2
     assert parsed.other_records == {";SENSOR:": 2, ";NARRATIVE:": 1}
     assert [number for number, _ in parsed.errors] == [6]
+
+
+def test_comment_lines_are_not_records() -> None:
+    parsed = parse_rep(
+        ";; a comment\n;;\n;SENSOR: 951212 050000 X @A NULL 1 NULL NULL NULL NULL s\n"
+    )
+    assert parsed.comments == 2
+    assert parsed.other_records == {";SENSOR:": 1}
+    assert parsed.errors == []

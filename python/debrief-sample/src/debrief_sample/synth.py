@@ -8,6 +8,8 @@ from __future__ import annotations
 
 import math
 import random
+from bisect import bisect_right
+from collections.abc import Callable
 from dataclasses import dataclass
 from datetime import UTC
 
@@ -128,17 +130,44 @@ class Contact:
     end: Bearing
 
 
+def course_lookup(times_ms: list[int], courses_deg: list[float]) -> Callable[[int], float]:
+    """Own course at a time: the course of the latest fix at or before it."""
+
+    def course_at(time_ms: int) -> float:
+        return courses_deg[max(0, bisect_right(times_ms, time_ms) - 1)]
+
+    return course_at
+
+
+@dataclass(frozen=True)
+class SonarModel:
+    """A simple passive bow sonar.
+
+    The target can be held only within the detection range, outside the
+    baffles (the arc either side of dead astern) and while the sonar is
+    listening. Within those limits contact comes and goes at random: each
+    sample, a target not held is gained with p_gain, and one held is lost
+    with p_lose.
+    """
+
+    interval_ms: int
+    detection_range_m: float
+    baffle_half_angle_deg: float
+    p_gain: float
+    p_lose: float
+    bearing_sd_deg: float
+
+
 def sonar_bearings(
     ownship: TrackPath,
     target: TrackPath,
     *,
-    interval_ms: int,
-    detection_range_m: float,
-    bearing_sd_deg: float,
+    own_course: Callable[[int], float],
+    model: SonarModel,
     deaf_ms: list[tuple[int, int]],
     rng: random.Random,
 ) -> tuple[list[Bearing], list[Contact]]:
-    """Noisy true bearings from ownship to target while in range and listening.
+    """Noisy true bearings from ownship to target while the sonar holds it.
 
     The truth is the geodesic bearing between the imported tracks, so the
     bearings agree with what an analyst sees in the plot (SUB-03).
@@ -148,14 +177,21 @@ def sonar_bearings(
     bearings: list[Bearing] = []
     contacts: list[Contact] = []
     run: list[Bearing] = []
-    for time_ms in range(start, end + 1, interval_ms):
+    for time_ms in range(start, end + 1, model.interval_ms):
         distance, true_bearing = range_bearing(
             ownship.position_at(time_ms), target.position_at(time_ms)
         )
+        astern = normalise_bearing(own_course(time_ms) + 180.0)
+        in_baffles = abs(bearing_difference(true_bearing.value, astern)) <= (
+            model.baffle_half_angle_deg
+        )
         listening = not any(a <= time_ms < b for a, b in deaf_ms)
-        if listening and distance.value <= detection_range_m:
-            measured = normalise_bearing(true_bearing.value + rng.gauss(0.0, bearing_sd_deg))
-            run.append(Bearing(time_ms, round(measured, 2)))
+        possible = listening and not in_baffles and distance.value <= model.detection_range_m
+        draw = rng.random()  # drawn every sample, so one change does not shift the rest
+        holding = possible and (draw >= model.p_lose if run else draw < model.p_gain)
+        if holding:
+            noise = rng.gauss(0.0, model.bearing_sd_deg)
+            run.append(Bearing(time_ms, round(normalise_bearing(true_bearing.value + noise), 2)))
             continue
         if run:
             contacts.append(Contact(run[0], run[-1]))
