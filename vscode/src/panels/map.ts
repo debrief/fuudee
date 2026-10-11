@@ -7,6 +7,8 @@ import { webviewHtml } from "./html.js";
 export class MapPanel {
   private panel?: vscode.WebviewPanel;
   private ready = false;
+  /** The plot the map last drew, once it is ready. */
+  showing?: string;
 
   constructor(
     private readonly extension: vscode.Uri,
@@ -39,7 +41,10 @@ export class MapPanel {
     });
     this.ready = false;
     this.panel.webview.html = webviewHtml(this.panel.webview, this.extension, "map", title);
-    this.panel.onDidDispose(() => (this.panel = undefined));
+    this.panel.onDidDispose(() => {
+      this.panel = undefined;
+      this.showing = undefined;
+    });
     this.panel.webview.onDidReceiveMessage((raw) => {
       let message;
       try {
@@ -67,6 +72,7 @@ export class MapPanel {
       plot_title: this.panel.title,
       selection: this.selectionMessage(this.session.selection),
     });
+    if (this.ready) this.showing = opened.item.id;
   }
 
   private post(message: unknown): void {

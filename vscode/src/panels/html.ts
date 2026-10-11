@@ -12,6 +12,8 @@ export function webviewHtml(webview: vscode.Webview, extension: vscode.Uri, bund
     `font-src ${webview.cspSource}`,
     `connect-src ${webview.cspSource}`,
     `script-src 'nonce-${nonce}'`, // not user-facing
+    "form-action 'none'", // not user-facing
+    "base-uri 'none'", // not user-facing
   ].join("; ");
   return `<!doctype html>
 <html lang="en-GB">
@@ -19,7 +21,7 @@ export function webviewHtml(webview: vscode.Webview, extension: vscode.Uri, bund
 <meta charset="utf-8">
 <meta http-equiv="Content-Security-Policy" content="${csp}">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>${title}</title>
+<title>${escapeHtml(title)}</title>
 <link rel="stylesheet" href="${asset(`${bundle}.css`)}">
 </head>
 <body data-land="${asset("land.geojson")}">
@@ -27,4 +29,8 @@ export function webviewHtml(webview: vscode.Webview, extension: vscode.Uri, bund
 <script nonce="${nonce}" src="${asset(`${bundle}.js`)}"></script>
 </body>
 </html>`;
+}
+
+export function escapeHtml(text: string): string {
+  return text.replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[c]!);
 }

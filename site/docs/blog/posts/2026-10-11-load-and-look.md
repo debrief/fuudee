@@ -55,7 +55,7 @@ The same declaration tells an AI agent what the tool needs, because the tool ser
 
 ![Range rings and the closest approach on the map, with the result beside it](images/phase-1/closest-approach.png)
 
-**Range rings** draws geodesic circles around BLUE ONE at 09:30Z. **Closest approach** finds when BLUE ONE and RED ONE were nearest: 2.29 nmi at 09:21:17Z. It draws the line between them, and puts the figures in a results panel beside the map.
+**Range rings** draws geodesic circles around BLUE ONE at 09:30Z. **Closest approach** finds when BLUE ONE and RED ONE were nearest: 2.29 nmi at 09:21:17Z, bearing 280.5° from BLUE ONE. It draws the line between them, and puts the figures in a results panel beside the map. The panel repeats the tool's caveat, and says what was saved to the plot and what was not.
 
 Every run that changes the plot is saved with its history: the tool, its version, who ran it, what was selected, and every value on the form. That's the start of being able to replay an analysis from its sources.
 

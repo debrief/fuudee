@@ -39,7 +39,7 @@ def test_closest_approach_adds_a_line_and_records_provenance(catalogue: Catalogu
     assert record.kind == "tool" and record.tool.name == "core.closest_approach"
     assert record.selected == ["track-nelson", "track-blue"]
     assert record.agent == ANALYST
-    rng = outcome.result.non_spatial[0].columns[1]
+    rng = outcome.result.non_spatial[0].columns[2]
     assert rng.unit == "[nmi_i]" and rng.numbers[0] < 0.5
 
 
@@ -52,7 +52,13 @@ def test_range_rings_use_parameters_and_record_them(catalogue: Catalogue) -> Non
     )
     plot = catalogue.read_plot(ITEM)
     rings = [f for f in plot.features if f.id.startswith("rings-")]
-    assert [r.properties.name for r in rings] == ["NELSON 1 nmi", "NELSON 2 nmi"]
+    assert [r.properties.name for r in rings] == [
+        "NELSON at 05:00:00Z",
+        "NELSON 1 nmi",
+        "NELSON 2 nmi",
+    ]
+    assert rings[0].geometry.type == "Point"
+    rings = rings[1:]
     assert rings[0].geometry.coordinates[0][0] == rings[0].geometry.coordinates[0][-1]
     recorded = {p.name: p.value for p in plot.provenance[-1].parameters}
     assert recorded["rings"] == 2

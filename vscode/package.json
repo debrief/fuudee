@@ -83,6 +83,7 @@
   },
   "scripts": {
     "build": "node scripts/build.mjs",
+    "vscode:prepublish": "node scripts/build.mjs --production",
     "typecheck": "tsc -p tsconfig.json --noEmit",
     "test": "vitest run",
     "test:integration": "node scripts/build.mjs && node dist-test/run.js",

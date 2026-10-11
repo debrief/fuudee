@@ -1,5 +1,5 @@
 {
-  "description": "Members each webview message kind carries (CON-08). Python's validation and the TypeScript receivers both hold to this table.",
+  "description": "Members each webview message kind carries (CON-08); a trailing ? marks one it may leave out. Python's validation and the TypeScript receivers both hold to this table.",
   "members": {
     "ready": [],
     "show_plot": [
@@ -18,7 +18,8 @@
     ],
     "show_form": [
       "tool",
-      "selected_names"
+      "selected_names",
+      "time_range?"
     ],
     "run_tool": [
       "tool_name",
@@ -32,6 +33,7 @@
       "message"
     ],
     "show_results": [
+      "tool",
       "result_title",
       "result"
     ]

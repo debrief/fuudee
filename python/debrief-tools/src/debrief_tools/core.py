@@ -9,7 +9,13 @@ Pyodide too (CON-09).
 
 from __future__ import annotations
 
-from debrief_kernel.geodesy import TrackPath, closest_approach, destination, range_between
+from debrief_kernel.geodesy import (
+    TrackPath,
+    closest_approach,
+    destination,
+    range_bearing,
+    range_between,
+)
 from debrief_kernel.time import format_utc
 from debrief_kernel.units import Quantity, angle
 from debrief_schemas import models
@@ -126,10 +132,17 @@ def closest(context: ToolContext) -> models.ToolResult:
             time=when,
         ),
     )
+    _, bearing = range_bearing(cpa.position_a, cpa.position_b)
     table = _table(
         name,
         [
             models.ResultColumn(name="Time", strings=[when]),
+            models.ResultColumn(
+                name=f"Bearing from {a.properties.name}",
+                quantity_kind="angle",
+                unit="deg",
+                numbers=[round(bearing.value, 1)],
+            ),
             models.ResultColumn(
                 name="Range",
                 quantity_kind="length",
@@ -190,7 +203,22 @@ def range_rings(context: ToolContext) -> models.ToolResult:
             f"{format_utc(path.start_ms)} to {format_utc(path.end_ms)}"
         )
     spacing: Quantity = context.parameters["spacing"]
-    features = []
+    # Mark the centre, so the analyst can see where and when the rings are drawn.
+    features = [
+        models.AnnotationFeature(
+            type="Feature",
+            id=context.new_id(f"rings-{track.id}-centre"),
+            geometry=models.PointGeometry(
+                type="Point", coordinates=[centre.longitude, centre.latitude]
+            ),
+            properties=models.AnnotationProperties(
+                kind="annotation",
+                style="label",
+                name=f"{track.properties.name} at {format_utc(at)[11:19]}Z",
+                time=format_utc(at),
+            ),
+        )
+    ]
     for n in range(1, context.parameters["rings"] + 1):
         radius = spacing * n
         ring = [

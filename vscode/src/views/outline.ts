@@ -1,18 +1,20 @@
 /**
  * Outline: one sectioned tree of plot features, supporting files and
- * reference data (SUB-31). Selecting features here selects them everywhere.
+ * reference data (SUB-31). Selecting features here selects them everywhere,
+ * and a selection made elsewhere is shown here (SUB-26).
  */
 import * as vscode from "vscode";
+import type { OpenedPlot } from "../catalogue.js";
 import type { Session } from "../session.js";
 import { describeTimes } from "../format.js";
 
-type Feature = NonNullable<Session["current"]>["plot"]["features"][number];
-type Node =
-  | { kind: "section"; id: "features" | "files" | "reference"; label: string }
-  | { kind: "group"; id: string; label: string; features: Feature[] }
-  | { kind: "feature"; feature: Feature }
-  | { kind: "file"; title: string; fileKind: string; href: string }
-  | { kind: "empty"; text: string };
+type Feature = OpenedPlot["plot"]["features"][number];
+export type Node =
+  | { kind: "section"; id: "features" | "files" | "reference"; label: string; children: Node[] }
+  | { kind: "group"; id: string; label: string; parent: Node; children: Node[] }
+  | { kind: "feature"; feature: Feature; parent: Node }
+  | { kind: "file"; title: string; fileKind: string; href: string; parent: Node }
+  | { kind: "empty"; text: string; parent: Node };
 
 const GROUPS: { id: string; label: string; kind: string }[] = [
   { id: "tracks", label: "Tracks", kind: "track" },
@@ -20,55 +22,68 @@ const GROUPS: { id: string; label: string; kind: string }[] = [
   { id: "sensors", label: "Sensor observations", kind: "sensor_observations" },
 ];
 
+/** The tree for one plot, built once when the plot opens or reloads. */
+function build(opened: OpenedPlot): { roots: Node[]; features: Map<string, Node> } {
+  const features = new Map<string, Node>();
+  const section = (id: "features" | "files" | "reference", label: string): Node & { kind: "section" } => ({
+    kind: "section",
+    id,
+    label,
+    children: [],
+  });
+  const plotSection = section("features", "Plot features");
+  for (const g of GROUPS) {
+    const members = opened.plot.features.filter((f) => f.properties.kind === g.kind);
+    if (!members.length) continue;
+    const group: Node & { kind: "group" } = { kind: "group", id: g.id, label: g.label, parent: plotSection, children: [] };
+    for (const feature of members) {
+      const node: Node = { kind: "feature", feature, parent: group };
+      features.set(feature.id, node);
+      group.children.push(node);
+    }
+    plotSection.children.push(group);
+  }
+  const files = section("files", "Supporting files");
+  files.children = opened.files.length
+    ? opened.files.map((f) => ({ kind: "file", title: f.title, fileKind: f.kind, href: f.href, parent: files }))
+    : [{ kind: "empty", text: "None", parent: files }];
+  const reference = section("reference", "Reference data");
+  reference.children = [{ kind: "empty", text: "None yet", parent: reference }];
+  return { roots: [plotSection, files, reference], features };
+}
+
 export class OutlineProvider implements vscode.TreeDataProvider<Node> {
-  private readonly changed = new vscode.EventEmitter<void>();
+  private readonly changed = new vscode.EventEmitter<Node[] | undefined>();
   readonly onDidChangeTreeData = this.changed.event;
-  private readonly nodes = new Map<string, Node>();
+  private tree: { roots: Node[]; features: Map<string, Node> } = { roots: [], features: new Map() };
+  private shown: string[] = [];
 
   constructor(private readonly session: Session) {
-    session.onPlot(() => this.changed.fire());
-    session.onSelection(() => this.changed.fire());
+    session.onPlot((opened) => {
+      this.tree = opened ? build(opened) : { roots: [], features: new Map() };
+      this.shown = [...session.selection];
+      this.changed.fire(undefined);
+    });
+    session.onSelection((ids) => {
+      // Redraw only the features whose marking changed.
+      const touched = new Set([...this.shown, ...ids]);
+      this.shown = [...ids];
+      const nodes = [...touched].map((id) => this.tree.features.get(id)).filter((n): n is Node => !!n);
+      if (nodes.length) this.changed.fire(nodes);
+    });
   }
 
   featureNode(id: string): Node | undefined {
-    return this.nodes.get(id);
+    return this.tree.features.get(id);
   }
 
-  getParent(): undefined {
-    return undefined;
+  getParent(node: Node): Node | undefined {
+    return node.kind === "section" ? undefined : node.parent;
   }
 
   getChildren(node?: Node): Node[] {
-    const opened = this.session.current;
-    if (!opened) return [];
-    if (!node) {
-      return [
-        { kind: "section", id: "features", label: "Plot features" },
-        { kind: "section", id: "files", label: "Supporting files" },
-        { kind: "section", id: "reference", label: "Reference data" },
-      ];
-    }
-    if (node.kind === "section" && node.id === "features") {
-      return GROUPS.map((g) => ({
-        kind: "group" as const,
-        id: g.id,
-        label: g.label,
-        features: opened.plot.features.filter((f) => f.properties.kind === g.kind),
-      })).filter((g) => g.features.length);
-    }
-    if (node.kind === "section" && node.id === "files") {
-      const files = opened.files.map((f) => ({ kind: "file" as const, title: f.title, fileKind: f.kind, href: f.href }));
-      return files.length ? files : [{ kind: "empty", text: "None" }];
-    }
-    if (node.kind === "section") return [{ kind: "empty", text: "None yet" }];
-    if (node.kind === "group") {
-      return node.features.map((feature) => {
-        const child: Node = { kind: "feature", feature };
-        this.nodes.set(feature.id, child);
-        return child;
-      });
-    }
-    return [];
+    if (!node) return this.tree.roots;
+    return node.kind === "section" || node.kind === "group" ? node.children : [];
   }
 
   getTreeItem(node: Node): vscode.TreeItem {
@@ -79,7 +94,7 @@ export class OutlineProvider implements vscode.TreeDataProvider<Node> {
       case "group":
         return Object.assign(new vscode.TreeItem(node.label, expanded), {
           id: `group:${node.id}`,
-          description: String(node.features.length),
+          description: String(node.children.length),
         });
       case "empty":
         return Object.assign(new vscode.TreeItem(node.text), { description: "" });
@@ -102,13 +117,13 @@ export class OutlineProvider implements vscode.TreeDataProvider<Node> {
             "circle",
           selected ? new vscode.ThemeColor("list.highlightForeground") : undefined,
         );
-        const props = feature.properties as { times?: string[]; time?: string };
-        item.description = [
-          selected ? "selected" : "",
-          props.times ? describeTimes(props.times[0], props.times.at(-1)) : describeTimes(props.time),
-        ]
-          .filter(Boolean)
-          .join(" · ");
+        const props = feature.properties as { times?: string[]; time?: string; time_range?: { start: string; end: string } };
+        const when = props.times
+          ? describeTimes(props.times[0], props.times.at(-1))
+          : props.time_range
+            ? describeTimes(props.time_range.start, props.time_range.end)
+            : describeTimes(props.time);
+        item.description = [selected ? "selected" : "", when].filter(Boolean).join(" · ");
         item.contextValue = "feature";
         return item;
       }

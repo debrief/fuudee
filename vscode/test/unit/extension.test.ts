@@ -48,6 +48,12 @@ describe("geodesic lines (SUB-03)", () => {
     expect(middle[1]).toBeGreaterThan(51); // the geodesic bows north of both ends; the rhumb line would not
   });
   it("leaves short segments alone", () => expect(densify([[0, 0], [0.001, 0]])).toHaveLength(2));
+  it("crosses the antimeridian without wrapping round the world", () => {
+    const line = densify([[179.9, 0], [-179.95, 0], [-179.9, 0]]);
+    const steps = line.slice(1).map((p, i) => Math.abs(p[0] - line[i][0]));
+    expect(Math.max(...steps)).toBeLessThan(0.1);
+    expect(line.at(-1)![0]).toBeCloseTo(180.1, 6);
+  });
 });
 
 describe("display", () => {
@@ -83,4 +89,39 @@ describe("reading a catalogue Python wrote", () => {
   });
   it("reports a missing catalogue instead of failing", () =>
     expect(readCatalogue({ ...store, location: path.join(work, "nowhere") }).problem).toMatch(/No catalogue found/));
+});
+
+import { parseTime } from "../../src/timeinput.js";
+import { describeChanges } from "../../src/format.js";
+
+describe("times as an analyst types them (SUB-04)", () => {
+  const range = { start: "2023-06-15T08:00:00.000Z", end: "2023-06-15T12:00:00.000Z" };
+  const at = (text: string) => {
+    const ms = parseTime(text, range);
+    return ms === undefined ? undefined : new Date(ms).toISOString();
+  };
+  it.each([
+    ["2023-06-15T09:30:00Z", "2023-06-15T09:30:00.000Z"],
+    ["2023-06-15T09:30:00.250Z", "2023-06-15T09:30:00.250Z"],
+    ["15 Jun 2023 09:30:05Z", "2023-06-15T09:30:05.000Z"],
+    ["150930Z JUN 23", "2023-06-15T09:30:00.000Z"],
+    ["09:30Z", "2023-06-15T09:30:00.000Z"],
+    ["0930Z", "2023-06-15T09:30:00.000Z"],
+    ["09:30:05z", "2023-06-15T09:30:05.000Z"],
+  ])("%s", (text, expected) => expect(at(text)).toBe(expected));
+  it.each(["09:30", "31 Jun 2023 09:30Z", "25:00Z", "yesterday", "2023-06-15T09:30:00+01:00"])("refuses %s", (text) =>
+    expect(at(text)).toBeUndefined(),
+  );
+  it("puts a time of day on the plot's second day when the plot spans midnight", () =>
+    expect(new Date(parseTime("01:00Z", { start: "2023-06-15T22:00:00.000Z", end: "2023-06-16T03:00:00.000Z" })!).toISOString()).toBe(
+      "2023-06-16T01:00:00.000Z",
+    ));
+});
+
+describe("what a tool changed, in glossary terms", () => {
+  const annotation = { properties: { kind: "annotation" } };
+  it("counts by kind", () =>
+    expect(describeChanges({ new_features: [annotation, annotation], deleted_feature_ids: ["a"] } as never)).toBe(
+      "added 2 annotations, deleted 1 feature",
+    ));
 });

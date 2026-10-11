@@ -361,6 +361,7 @@ def serve(
         )
     listener = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
     listener.bind(("127.0.0.1", port))  # loopback only (SEC-07)
+    listener.listen(128)  # listening before the port is announced, so the first request connects
     port = listener.getsockname()[1]
     worker = ToolWorker(libraries or [], os.environ.get("DEBRIEF_CONFIG"), timeout_s)
     service = ToolService(worker)

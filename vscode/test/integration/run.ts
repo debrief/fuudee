@@ -55,7 +55,8 @@ const screenshots = process.env.DEBRIEF_SCREENSHOTS ? path.resolve(process.env.D
 if (screenshots) mkdirSync(screenshots, { recursive: true });
 
 async function main(): Promise<void> {
-  const vscodeExecutablePath = await downloadAndUnzipVSCode(process.env.VSCODE_VERSION || "stable");
+  // A fixed version, so a VS Code release can't change the result; CI also runs the oldest supported.
+  const vscodeExecutablePath = await downloadAndUnzipVSCode(process.env.VSCODE_VERSION || "1.141.0");
   await runTests({
     vscodeExecutablePath,
     extensionDevelopmentPath: extension,

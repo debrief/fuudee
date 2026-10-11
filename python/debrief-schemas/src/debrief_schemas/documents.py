@@ -418,7 +418,8 @@ def _user_config_problems(config: g.UserConfig, raw: dict[str, Any]) -> list[str
     return problems
 
 
-# Members each webview message kind must carry (CON-08). Shared with TypeScript
+# Members each webview message kind carries (CON-08); a trailing "?" marks one it
+# may leave out. Shared with TypeScript
 # through schemas/vectors/webview-messages.json, which a test checks matches.
 MESSAGE_MEMBERS: dict[str, tuple[str, ...]] = {
     "ready": (),
@@ -426,12 +427,12 @@ MESSAGE_MEMBERS: dict[str, tuple[str, ...]] = {
     "set_selection": ("selection",),
     "selection_changed": ("selection",),
     "viewport_changed": ("viewport",),
-    "show_form": ("tool", "selected_names"),
+    "show_form": ("tool", "selected_names", "time_range?"),
     "run_tool": ("tool_name", "parameters"),
     "cancel": (),
     "form_busy": ("message",),
     "form_error": ("message",),
-    "show_results": ("result_title", "result"),
+    "show_results": ("tool", "result_title", "result"),
 }
 
 

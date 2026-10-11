@@ -2173,6 +2173,17 @@
             }
           ]
         },
+        "time_range": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/TimeRange"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": "The plot's period, so times can be entered as the analyst reads them."
+        },
         "tool": {
           "anyOf": [
             {

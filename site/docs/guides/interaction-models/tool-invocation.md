@@ -22,11 +22,16 @@ How an analyst runs a tool: the generated parameter form, its explanation, runni
    - the title and explanation, then any judgement, set apart so it is read (CAP-24);
    - what the tool will act on ("Applies to: NELSON, BLUE");
    - one field per parameter, with its explanation and default. A quantity has a unit picker, starting at the default's unit (SUB-04).
+   - **Times** are typed as the language guide writes them: `09:30Z` (on the plot's day), `15 Jun 2023 09:30:00Z`, a date-time group such as `150930Z JUN 23`, or ISO. Under the field the form says what it understood ("Means 15 Jun 2023 09:30:00Z"), so a mistaken day is caught before the run.
 3. **Run.** **Run** sends the values; **Cancel** closes the form and changes nothing. While the tool runs, the form shows *Running…* and can't be sent twice.
 4. **Refused.** If a value is wrong, or the tool fails, the form stays open with the reason above the buttons, in the analyst's words. The plot is untouched (TL-03).
 5. **Done.** The form closes.
    - **Features.** New or changed features appear on the map and in the outline at once. A notification says what changed ("Range rings added 3 features").
-   - **Numbers and tables.** These open in a **Results** panel beside the map (TL-13). Results are not saved with the plot; the panel says so.
+   - **Numbers and tables.** These open in a **Results** panel beside the map (TL-13). The panel:
+     - repeats the tool's judgement, so a figure is never read without its caveat (CAP-24);
+     - says what was added to the plot;
+     - says that the figures themselves are not saved;
+     - offers **Copy** for each table, as tab-separated text for a report or spreadsheet.
 6. **History.** Every run that changes the plot is recorded with the tool, its version, who ran it, the selection and every value (SUB-19, SUB-24). A run that only returns a number or table changes nothing and records nothing.
 
 Agents and keyboard users run the same tools through the **Run tool** command, without the form. The checks and the records are the same (TL-14).
@@ -58,4 +63,4 @@ sequenceDiagram
 - **Results panel:** `vscode/webview/results.tsx`.
 - **The service side:** `debrief_tools.service` and `debrief_tools.run`.
 
-*Not yet:* progress and cancelling a run that's under way (long-running operations, Phase 2), undo (Phase 2), graphs (shown as tables until then), and saving a result.
+*Not yet:* echoing values other than times back to the analyst, progress and cancelling a run that's under way (long-running operations, Phase 2), undo (Phase 2), graphs (shown as tables until then), and saving a result.

@@ -48,8 +48,29 @@ export function knownStores(configFile?: string): { stores: KnownStore[]; proble
   }
 }
 
-function readJson(file: string): unknown {
-  return JSON.parse(readFileSync(file, "utf8"));
+/** Item summaries by file, kept until the file changes, so refreshing is cheap. */
+const summaries = new Map<string, { mtimeMs: number; size: number; summary?: PlotSummary }>();
+
+function summarise(itemFile: string): PlotSummary | undefined {
+  const { mtimeMs, size } = statSync(itemFile);
+  const cached = summaries.get(itemFile);
+  if (cached && cached.mtimeMs === mtimeMs && cached.size === size) return cached.summary;
+  const text = readFileSync(itemFile, "utf8");
+  const raw = JSON.parse(text) as { links?: { rel?: string; href?: string }[] };
+  const parented = (raw.links ?? []).some((l) => l.rel === "parent" && l.href === `../${CATALOGUE_FILE}`);
+  let summary: PlotSummary | undefined;
+  if (parented) {
+    const item = parseDocument("stac_item", text);
+    const p = item.properties;
+    summary = {
+      id: item.id,
+      title: p.title ?? item.id,
+      start: p.start_datetime ?? p.datetime ?? undefined,
+      end: p.end_datetime ?? p.datetime ?? undefined,
+    };
+  }
+  summaries.set(itemFile, { mtimeMs, size, summary });
+  return summary;
 }
 
 export function readCatalogue(store: KnownStore): CatalogueView {
@@ -63,17 +84,8 @@ export function readCatalogue(store: KnownStore): CatalogueView {
     for (const name of readdirSync(root).sort()) {
       const itemFile = path.join(root, name, `${name}.json`);
       if (!statSync(path.join(root, name)).isDirectory() || !existsSync(itemFile)) continue;
-      const raw = readJson(itemFile) as { links?: { rel?: string; href?: string }[] };
-      const parented = (raw.links ?? []).some((l) => l.rel === "parent" && l.href === `../${CATALOGUE_FILE}`);
-      if (!parented) continue;
-      const item = parseDocument("stac_item", readFileSync(itemFile, "utf8"));
-      const p = item.properties;
-      plots.push({
-        id: item.id,
-        title: p.title ?? item.id,
-        start: p.start_datetime ?? p.datetime ?? undefined,
-        end: p.end_datetime ?? p.datetime ?? undefined,
-      });
+      const summary = summarise(itemFile);
+      if (summary) plots.push(summary);
     }
     return { store, title: catalogue.title ?? store.title, plots };
   } catch (error) {
@@ -81,8 +93,12 @@ export function readCatalogue(store: KnownStore): CatalogueView {
   }
 }
 
+/** An asset's file, which must lie inside its item's folder. */
 function assetPath(store: KnownStore, item: StacItem, asset: { href: string }): string {
-  return path.join(store.location, item.id, asset.href.replace(/^\.\//, ""));
+  const folder = path.resolve(store.location, item.id);
+  const file = path.resolve(folder, asset.href);
+  if (!file.startsWith(folder + path.sep)) throw new Error(`${item.id} refers to a file outside its folder: ${asset.href}`);
+  return file;
 }
 
 export function openPlot(store: KnownStore, itemId: string): OpenedPlot {

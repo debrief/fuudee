@@ -6,8 +6,9 @@
  */
 import { createRoot } from "react-dom/client";
 import { useEffect, useState } from "react";
-import { FACTORS, UNIT_LABELS } from "@debrief/kernel";
-import type { ParameterDeclaration, ParameterValue, ToolDeclaration } from "@debrief/schemas";
+import { DEFAULT_SETTINGS, FACTORS, formatTime, UNIT_LABELS } from "@debrief/kernel";
+import type { ParameterDeclaration, ParameterValue, TimeRange, ToolDeclaration } from "@debrief/schemas";
+import { parseTime, TIME_EXAMPLES } from "../src/timeinput.js";
 import { Action, Choice, Field, TextInput, YesNo } from "./ui.js";
 import { host, onMessage } from "./vscode.js";
 import "./form.css";
@@ -25,7 +26,7 @@ function initial(param: ParameterDeclaration): Draft[string] {
   return { text: d === undefined || d === null ? "" : String(d) };
 }
 
-function toValue(param: ParameterDeclaration, draft: Draft[string]): ParameterValue["value"] | undefined | Error {
+function toValue(param: ParameterDeclaration, draft: Draft[string], range?: TimeRange): ParameterValue["value"] | undefined | Error {
   if (param.kind === "boolean") return draft.checked ?? false;
   const text = draft.text.trim();
   if (!text) return undefined;
@@ -35,9 +36,8 @@ function toValue(param: ParameterDeclaration, draft: Draft[string]): ParameterVa
     return param.kind === "quantity" ? ({ value: n, unit: draft.unit! } as ParameterValue["value"]) : n;
   }
   if (param.kind === "time") {
-    // Accept any full UTC time and send it in the stored form, to the millisecond (SUB-01).
-    const ms = Date.parse(/[zZ]|[+-]\d\d:?\d\d$/.test(text) ? text : `${text}Z`);
-    return Number.isNaN(ms) ? new Error(`${param.title} must be a UTC time such as 1995-12-12T05:40:00Z`) : new Date(ms).toISOString();
+    // Checked here so the analyst sees the problem at once; the host converts it.
+    return parseTime(text, range) === undefined ? new Error(`${param.title} must be a UTC time, such as ${TIME_EXAMPLES}`) : text;
   }
   return text;
 }
@@ -45,6 +45,7 @@ function toValue(param: ParameterDeclaration, draft: Draft[string]): ParameterVa
 function Form() {
   const [tool, setTool] = useState<ToolDeclaration>();
   const [names, setNames] = useState<string[]>([]);
+  const [range, setRange] = useState<TimeRange>();
   const [draft, setDraft] = useState<Draft>({});
   const [busy, setBusy] = useState(false);
   const [problem, setProblem] = useState<string>();
@@ -53,11 +54,17 @@ function Form() {
     onMessage((message) => {
       if (message.kind === "show_form") {
         const declaration = message.tool as ToolDeclaration;
-        setTool(declaration);
         setNames(message.selected_names as string[]);
-        setDraft(Object.fromEntries((declaration.parameters ?? []).map((p) => [p.name, initial(p)])));
-        setBusy(false);
-        setProblem(undefined);
+        setRange(message.time_range as TimeRange | undefined);
+        // Re-sent when only the selection changed: keep what the analyst typed.
+        setTool((previous) => {
+          if (previous?.name !== declaration.name) {
+            setDraft(Object.fromEntries((declaration.parameters ?? []).map((p) => [p.name, initial(p)])));
+            setBusy(false);
+            setProblem(undefined);
+          }
+          return declaration;
+        });
       } else if (message.kind === "form_busy") {
         setBusy(true);
       } else if (message.kind === "form_error") {
@@ -75,7 +82,7 @@ function Form() {
   const run = () => {
     const values: ParameterValue[] = [];
     for (const param of params) {
-      const value = toValue(param, draft[param.name]);
+      const value = toValue(param, draft[param.name], range);
       if (value instanceof Error) return setProblem(value.message);
       if (value !== undefined) values.push({ name: param.name, value });
     }
@@ -132,10 +139,19 @@ function Form() {
             </Field>
           );
         }
-        const placeholder = param.kind === "time" ? "UTC, such as 2023-06-15T09:30:00Z" : undefined;
+        if (param.kind === "time") {
+          const ms = d.text.trim() ? parseTime(d.text, range) : undefined;
+          const echo = d.text.trim() ? (ms === undefined ? "Not a time Debrief understands" : `Means ${formatTime(ms, { ...DEFAULT_SETTINGS, time_style: "date_time" })}`) : undefined;
+          return (
+            <Field key={param.name} label={param.title + optional} explanation={param.explanation ?? undefined} htmlFor={id}>
+              <TextInput id={id} value={d.text} placeholder="Such as 09:30Z" onChange={(text) => update(param.name, { text })} />
+              {echo && <div className="field-echo">{echo}</div>}
+            </Field>
+          );
+        }
         return (
           <Field key={param.name} label={param.title + optional} explanation={param.explanation ?? undefined} htmlFor={id}>
-            <TextInput id={id} value={d.text} placeholder={placeholder} onChange={(text) => update(param.name, { text })} />
+            <TextInput id={id} value={d.text} onChange={(text) => update(param.name, { text })} />
           </Field>
         );
       })}

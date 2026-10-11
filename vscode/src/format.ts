@@ -1,5 +1,6 @@
 /** Display through the TypeScript formatting service only (SUB-04). */
 import { DEFAULT_SETTINGS, formatTime, type FormatSettings } from "@debrief/kernel";
+import type { ToolResult } from "@debrief/schemas";
 
 export const settings: FormatSettings = DEFAULT_SETTINGS;
 
@@ -23,4 +24,32 @@ export function describeTimes(start?: string, end?: string): string {
 
 export function count(n: number, one: string, many = `${one}s`): string {
   return `${n} ${n === 1 ? one : many}`;
+}
+
+const KIND_WORDS: Record<string, [string, string]> = {
+  track: ["track", "tracks"],
+  annotation: ["annotation", "annotations"],
+  sensor_observations: ["set of sensor observations", "sets of sensor observations"],
+};
+
+function byKind(features: { properties: { kind: string } }[]): string {
+  const counts = new Map<string, number>();
+  for (const f of features) counts.set(f.properties.kind, (counts.get(f.properties.kind) ?? 0) + 1);
+  return [...counts]
+    .map(([kind, n]) => {
+      const [one, many] = KIND_WORDS[kind] ?? [kind, `${kind}s`];
+      return count(n, one, many);
+    })
+    .join(" and ");
+}
+
+/** What a tool's result did to the plot, in glossary terms: "added 4 annotations". */
+export function describeChanges(result?: ToolResult): string {
+  if (!result) return "";
+  const parts = [
+    result.new_features?.length ? `added ${byKind(result.new_features)}` : "",
+    result.modified_features?.length ? `changed ${byKind(result.modified_features)}` : "",
+    result.deleted_feature_ids?.length ? `deleted ${count(result.deleted_feature_ids.length, "feature")}` : "",
+  ];
+  return parts.filter(Boolean).join(", ");
 }

@@ -88,11 +88,20 @@ jobs:
           npm test
           npm run check:theme
           npm run check:language
+      - uses: actions/cache@v4
+        with:
+          path: vscode/.vscode-test
+          key: vscode-test-1.141.0-1.95.0
       - name: Tracer in VS Code
         working-directory: vscode
         env:
           DEBRIEF_SCREENSHOTS: ${{ github.workspace }}/screenshots
         run: xvfb-run -a -s "-screen 0 1600x1000x24" npm run test:integration
+      - name: Tracer in the oldest supported VS Code
+        working-directory: vscode
+        env:
+          VSCODE_VERSION: "1.95.0"
+        run: xvfb-run -a -s "-screen 0 1600x1000x24" node dist-test/run.js
       - uses: actions/upload-artifact@v4
         if: always()
         with:

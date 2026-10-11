@@ -16,6 +16,8 @@ Adapted from `DOMAIN_GLOSSARY.md` in debrief/debrief-future, itself adapted from
 
 **History** (in guides, **provenance**). The record of every operation that produced a plot: imports, tool runs, edits and deletions, with who or what made them (SUB-18 to SUB-24).
 
+**Feature.** Anything in a plot: a track, an annotation, or a set of sensor observations. Used where a statement covers all three, as in "Plot features" in the outline; otherwise name the kind.
+
 **Fix.** A single timestamped position of a platform, with course, speed and depth where known. Depth is positive down.
 
 **Track.** The movement of one platform over time: its fixes in order.

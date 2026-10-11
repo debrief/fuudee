@@ -5,8 +5,9 @@
  * service's environment (never on the command line), and talks to the
  * service over MCP's HTTP transport on 127.0.0.1 only.
  */
-import { spawn, type ChildProcess } from "node:child_process";
+import { spawn, spawnSync, type ChildProcess } from "node:child_process";
 import { randomBytes } from "node:crypto";
+import { request as httpRequest } from "node:http";
 import { tmpdir } from "node:os";
 import { createInterface } from "node:readline";
 import type { ToolDeclaration, ToolResult } from "@debrief/schemas";
@@ -48,6 +49,23 @@ export interface ServiceOptions {
   timeoutSeconds: number;
   log: (line: string) => void;
   env?: Record<string, string>;
+  startTimeoutMs?: number;
+}
+
+/** Check the interpreter before starting it, so a wrong one gets a useful message. */
+export function checkPython(python: string): string | undefined {
+  const probe = spawnSync(
+    python,
+    ["-c", "import sys, importlib.util as u; print(sys.version_info[0], sys.version_info[1], u.find_spec('debrief_tools') is not None)"],
+    { encoding: "utf8", timeout: 20000, windowsHide: true },
+  );
+  if (probe.error) return `Debrief could not run Python with "${python}": ${probe.error.message}. Set Debrief: Python in Settings.`;
+  const [major, minor, found] = probe.stdout.trim().split(" ");
+  if (Number(major) < 3 || (Number(major) === 3 && Number(minor) < 12)) {
+    return `Debrief needs Python 3.12 or later; "${python}" is Python ${major}.${minor}. Set Debrief: Python in Settings.`;
+  }
+  if (found !== "True") return `"${python}" does not have Debrief's Python packages installed. Set Debrief: Python in Settings.`;
+  return undefined;
 }
 
 export class ToolService {
@@ -55,12 +73,14 @@ export class ToolService {
 
   private constructor(
     private readonly process: ChildProcess,
-    private readonly url: string,
+    private readonly port: number,
     private readonly token: string,
   ) {}
 
   /** Start the service and wait until it is listening. */
   static start(options: ServiceOptions): Promise<ToolService> {
+    const problem = checkPython(options.python);
+    if (problem) return Promise.reject(new ServiceError(problem));
     const token = randomBytes(32).toString("base64url");
     // -P: never import from the working directory; cwd is a neutral folder.
     const child = spawn(
@@ -75,21 +95,34 @@ export class ToolService {
     );
     createInterface({ input: child.stderr! }).on("line", options.log);
     return new Promise((resolve, reject) => {
-      const lines = createInterface({ input: child.stdout! });
-      const fail = (message: string) => reject(new ServiceError(message));
-      child.once("error", (error) =>
-        fail(`Debrief could not start its tool service with "${options.python}": ${error.message}`),
+      let settled = false;
+      const fail = (message: string) => {
+        if (settled) return;
+        settled = true;
+        clearTimeout(timer);
+        child.kill();
+        reject(new ServiceError(message));
+      };
+      const timer = setTimeout(
+        () => fail("Debrief's tool service did not start within 60 seconds. See the Debrief output for details."),
+        options.startTimeoutMs ?? 60000,
       );
-      child.once("exit", (code) => fail(`Debrief's tool service stopped as it started (exit code ${code}).`));
-      lines.once("line", (line) => {
+      child.once("error", (error) => fail(`Debrief could not start its tool service: ${error.message}`));
+      child.once("exit", (code) => fail(`Debrief's tool service stopped as it started (exit code ${code}). See the Debrief output.`));
+      createInterface({ input: child.stdout! }).on("line", (line) => {
+        if (settled) return options.log(line);
+        let port: number | undefined;
         try {
-          const { port } = JSON.parse(line) as { port: number };
-          // 127.0.0.1, not localhost: the service listens on IPv4 loopback only.
-          resolve(new ToolService(child, `http://127.0.0.1:${port}/mcp`, token));
+          port = (JSON.parse(line) as { port?: number }).port;
         } catch {
-          fail(`Debrief's tool service did not start: ${line}`);
+          // Not the start-up line; something printed a warning first.
         }
-        lines.on("line", options.log);
+        if (typeof port !== "number") return options.log(line);
+        settled = true;
+        clearTimeout(timer);
+        child.removeAllListeners("exit");
+        // 127.0.0.1, not localhost: the service listens on IPv4 loopback only.
+        resolve(new ToolService(child, port, token));
       });
     });
   }
@@ -98,30 +131,56 @@ export class ToolService {
     return this.process.exitCode === null && !this.process.killed;
   }
 
+  private stopping = false;
+
+  /** Called if the service stops other than by stop(). */
   onExit(listener: (code: number | null) => void): void {
-    this.process.once("exit", listener);
+    this.process.once("exit", (code) => {
+      if (!this.stopping) listener(code);
+    });
   }
 
   stop(): void {
+    this.stopping = true;
     this.process.kill();
   }
 
-  private async request<T>(method: string, params: Record<string, unknown> = {}): Promise<T> {
-    const id = this.nextId++;
-    let response: Response;
-    try {
-      response = await fetch(this.url, {
-        method: "POST",
-        headers: { "content-type": "application/json", authorization: `Bearer ${this.token}` },
-        body: JSON.stringify({ jsonrpc: "2.0", id, method, params }),
-      });
-    } catch (error) {
-      throw new ServiceError(`Debrief's tool service is not responding: ${(error as Error).message}`);
-    }
-    if (!response.ok) throw new ServiceError(`Debrief's tool service refused the request (${response.status}).`);
-    const body = (await response.json()) as { result?: T; error?: { message: string } };
-    if (body.error) throw new ServiceError(body.error.message);
-    return body.result as T;
+  /** One JSON-RPC request. No time limit here: the service stops tools that overrun. */
+  private request<T>(method: string, params: Record<string, unknown> = {}): Promise<T> {
+    const body = JSON.stringify({ jsonrpc: "2.0", id: this.nextId++, method, params });
+    return new Promise((resolve, reject) => {
+      const req = httpRequest(
+        {
+          host: "127.0.0.1",
+          port: this.port,
+          path: "/mcp",
+          method: "POST",
+          headers: {
+            "content-type": "application/json",
+            "content-length": Buffer.byteLength(body),
+            authorization: `Bearer ${this.token}`,
+          },
+        },
+        (response) => {
+          const chunks: Buffer[] = [];
+          response.on("data", (chunk: Buffer) => chunks.push(chunk));
+          response.on("end", () => {
+            if (response.statusCode !== 200) {
+              return reject(new ServiceError(`Debrief's tool service refused the request (${response.statusCode}).`));
+            }
+            try {
+              const parsed = JSON.parse(Buffer.concat(chunks).toString("utf8")) as { result?: T; error?: { message: string } };
+              if (parsed.error) reject(new ServiceError(parsed.error.message));
+              else resolve(parsed.result as T);
+            } catch (error) {
+              reject(new ServiceError(`Debrief's tool service sent a reply Debrief could not read: ${(error as Error).message}`));
+            }
+          });
+        },
+      );
+      req.on("error", (error) => reject(new ServiceError(`Debrief's tool service is not responding: ${error.message}`)));
+      req.end(body);
+    });
   }
 
   async initialise(): Promise<void> {

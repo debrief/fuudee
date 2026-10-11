@@ -22,11 +22,17 @@ How an analyst selects features, in the map, outline or catalogue, and how Debri
 | Gesture | Map | Outline |
 | --- | --- | --- |
 | Select one feature | Click it | Click it |
-| Add or remove one | Ctrl or Shift click (Cmd on macOS) | Ctrl click |
+| Add or remove one | Ctrl click (Cmd on macOS) | Ctrl click (Cmd on macOS) |
 | Select a range | — | Shift click |
-| Clear | Click empty sea, or **Clear selection** in the outline's title bar | **Clear selection** |
+| Clear | Escape, or click empty sea | **Clear selection** (the button in the outline's title bar) |
+| Zoom to the selection | **Selected** button, top left | — |
 
-- **Showing selection.** The map draws selected features thicker, with a halo in the theme's focus colour, and dims the rest. The outline marks them *selected*. The tools view counts them.
+Ctrl or Cmd adds in both places, as everywhere in VS Code. Shift selects a range in the outline, and does nothing on the map, which has no order to make a range of.
+
+- **Showing selection.**
+  - **On the map.** Each selected feature gets a dotted outline in the theme's text colour. That colour is never a force colour, so selecting tracks never makes them look blue or red. Everything else is dimmed.
+  - **In the outline.** Selected features are marked *selected*. The last one selected elsewhere is revealed and highlighted.
+  - **In the tools view.** The selection is counted.
 - **Offering tools.** Whenever the selection changes, the tools view asks the tool service which tools apply to every selected item, within each tool's count limits (TL-08). The rule lives in Python, so agents get the same answer (TL-14).
 - **Explaining tools not on offer.** Tools that don't apply are listed under **Other tools**, each saying what it needs ("select 2 tracks"), rather than being hidden (CON-10).
 - **Unknown data types.** Tools that name a data type Debrief doesn't know appear under **Not available**, with the reason (TL-09).

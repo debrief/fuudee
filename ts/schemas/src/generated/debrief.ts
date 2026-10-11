@@ -896,6 +896,10 @@ export interface WebviewMessage {
   result_title?: string | null;
   selected_names?: string[] | null;
   selection?: Selection | null;
+  /**
+   * The plot's period, so times can be entered as the analyst reads them.
+   */
+  time_range?: TimeRange | null;
   tool?: ToolDeclaration | null;
   tool_name?: string | null;
   viewport?: Viewport | null;

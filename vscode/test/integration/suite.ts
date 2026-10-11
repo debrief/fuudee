@@ -34,7 +34,10 @@ export async function run(): Promise<void> {
   const extension = vscode.extensions.getExtension<DebriefApi>("debrief.debrief")!;
   const api = await extension.activate();
   await api.ready;
-  const listing = await waitFor("tools", () => api.tools());
+  const listing = await waitFor("tools", () => {
+    if (api.toolsProblem()) throw new Error(`Tools did not start: ${api.toolsProblem()}`);
+    return api.tools();
+  }, 120000);
   assert.deepEqual(
     listing.tools.map((t) => t.name).sort(),
     ["core.add_note", "core.closest_approach", "core.range_rings", "core.track_summary"],
@@ -50,12 +53,14 @@ export async function run(): Promise<void> {
   const opened = await waitFor("plot", () => api.session.current);
   const names = opened.plot.features.map((f) => f.properties.name);
   assert.ok(names.includes("BLUE ONE") && names.includes("RED ONE"));
-  await sleep(4000);
+  await waitFor("the map to draw the plot", () => api.mapShowing() === "serial-1" || undefined);
+  await sleep(1500); // let the map settle before the picture
   await screenshot("01-sample-serial-open");
 
   // Select BLUE ONE: the tools for one track are offered; open range rings.
   await vscode.commands.executeCommand("debrief.select", ["track-blue-one"]);
-  await sleep(1500);
+  await waitFor("tools for one track", () => api.offered().includes("core.range_rings") || undefined);
+  assert.ok(!api.offered().includes("core.closest_approach"));
   await vscode.commands.executeCommand("debrief.showToolForm", "core.range_rings");
   await sleep(3000);
   await screenshot("02-range-rings-form");
@@ -68,12 +73,12 @@ export async function run(): Promise<void> {
     at: "2023-06-15T09:30:00.000Z",
   });
   assert.equal(problem, undefined);
-  await waitFor("rings", () => (api.session.current?.plot.features.length === before + 4) || undefined);
+  await waitFor("rings", () => (api.session.current?.plot.features.length === before + 5) || undefined);
   assert.equal(api.session.current!.plot.provenance.at(-1)?.tool?.name, "core.range_rings");
 
   // BLUE ONE and RED ONE: closest approach is offered; run it and see the result.
   await vscode.commands.executeCommand("debrief.select", ["track-blue-one", "track-red-one"]);
-  await sleep(1500);
+  await waitFor("tools for two tracks", () => api.offered().includes("core.closest_approach") || undefined);
   assert.equal(await vscode.commands.executeCommand("debrief.runTool", "core.closest_approach", {}), undefined);
   await waitFor("closest approach line", () =>
     api.session.current?.plot.features.some((f) => f.id.startsWith("cpa-")) || undefined,

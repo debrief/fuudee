@@ -1,0 +1,9 @@
+# Only the bundles and media go into the VSIX: esbuild has already inlined every dependency.
+**
+!dist/extension.js
+!dist/webview/**
+!media/**
+!package.json
+!README.md
+!LICENSE
+dist/**/*.map

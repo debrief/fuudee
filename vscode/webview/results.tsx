@@ -6,7 +6,9 @@
 import { createRoot } from "react-dom/client";
 import { useEffect, useState } from "react";
 import { DEFAULT_SETTINGS, formatQuantity, formatTime, kindOf } from "@debrief/kernel";
-import type { ResultColumn, ToolResult } from "@debrief/schemas";
+import type { NonSpatialResult, ResultColumn, ToolDeclaration, ToolResult } from "@debrief/schemas";
+import { describeChanges } from "../src/format.js";
+import { Action } from "./ui.js";
 import { host, onMessage } from "./vscode.js";
 import "./results.css";
 
@@ -29,19 +31,31 @@ function cell(column: ResultColumn, row: number): string {
   return String(value);
 }
 
+/** A table as tab-separated text, as shown, for pasting into a report or spreadsheet. */
+function asText(table: NonSpatialResult): string {
+  const rows = Math.max(...table.columns.map((c) => (c.numbers ?? c.strings ?? []).length));
+  const lines = [table.columns.map((c) => c.name).join("\t")];
+  for (let r = 0; r < rows; r++) lines.push(table.columns.map((c) => cell(c, r)).join("\t"));
+  return lines.join("\n");
+}
+
 function Results() {
-  const [state, setState] = useState<{ title: string; result: ToolResult }>();
+  const [state, setState] = useState<{ tool: ToolDeclaration; result: ToolResult }>();
+  const [copied, setCopied] = useState<number>();
   useEffect(() => {
     onMessage((message) => {
       if (message.kind === "show_results") {
-        setState({ title: message.result_title as string, result: message.result as ToolResult });
+        setState({ tool: message.tool as ToolDeclaration, result: message.result as ToolResult });
+        setCopied(undefined);
       }
     });
     host.postMessage({ kind: "ready" });
   }, []);
   if (!state) return null;
+  const saved = describeChanges(state.result);
   return (
     <main>
+      {state.tool.judgement && <p className="judgement">{state.tool.judgement}</p>}
       {(state.result.non_spatial ?? []).map((table, index) => {
         const rows = Math.max(...table.columns.map((c) => (c.numbers ?? c.strings ?? []).length));
         if (table.presentation === "number") {
@@ -54,7 +68,16 @@ function Results() {
         }
         return (
           <section key={index}>
-            <h1>{table.title}</h1>
+            <div className="heading">
+              <h1>{table.title}</h1>
+              <Action
+                onClick={() =>
+                  void navigator.clipboard.writeText(asText(table)).then(() => setCopied(index), () => setCopied(undefined))
+                }
+              >
+                {copied === index ? "Copied" : "Copy"}
+              </Action>
+            </div>
             <table>
               <thead>
                 <tr>
@@ -80,7 +103,10 @@ function Results() {
           </section>
         );
       })}
-      <p className="note">Results are not saved with the plot. Copy them if you need them later.</p>
+      <p className="note">
+        {saved ? `${state.tool.title} ${saved} to the plot. ` : ""}
+        These figures are not saved with the plot; copy them if you need them later.
+      </p>
     </main>
   );
 }

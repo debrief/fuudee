@@ -3,7 +3,7 @@
  * reused for whichever tool the analyst opens.
  */
 import * as vscode from "vscode";
-import type { ParameterValue, ToolDeclaration } from "@debrief/schemas";
+import type { ParameterValue, TimeRange, ToolDeclaration } from "@debrief/schemas";
 import { checkMessage } from "../messages.js";
 import { webviewHtml } from "./html.js";
 
@@ -12,7 +12,7 @@ export type RunRequest = (tool: ToolDeclaration, parameters: ParameterValue[]) =
 export class FormPanel {
   private panel?: vscode.WebviewPanel;
   private ready = false;
-  private pending?: { tool: ToolDeclaration; names: string[] };
+  private pending?: { tool: ToolDeclaration; names: string[]; timeRange?: TimeRange };
 
   constructor(
     private readonly extension: vscode.Uri,
@@ -25,8 +25,8 @@ export class FormPanel {
     return this.panel ? this.pending?.tool.name : undefined;
   }
 
-  show(tool: ToolDeclaration, selectedNames: string[]): void {
-    this.pending = { tool, names: selectedNames };
+  show(tool: ToolDeclaration, selectedNames: string[], timeRange?: TimeRange): void {
+    this.pending = { tool, names: selectedNames, timeRange };
     if (!this.panel) {
       this.panel = vscode.window.createWebviewPanel("debrief.form", tool.title, vscode.ViewColumn.Beside, {
         enableScripts: true,
@@ -47,10 +47,18 @@ export class FormPanel {
     this.panel?.dispose();
   }
 
+  /** The selection changed while the form is open: say what the tool will now act on. */
+  updateSelection(names: string[]): void {
+    if (!this.pending || !this.panel) return;
+    this.pending = { ...this.pending, names };
+    this.send();
+  }
+
   private send(): void {
     if (!this.panel || !this.ready || !this.pending) return;
+    const { tool, names, timeRange } = this.pending;
     void this.panel.webview.postMessage(
-      checkMessage({ kind: "show_form", tool: this.pending.tool, selected_names: this.pending.names }),
+      checkMessage({ kind: "show_form", tool, selected_names: names, ...(timeRange && { time_range: timeRange }) }),
     );
   }
 
@@ -68,6 +76,8 @@ export class FormPanel {
     } else if (message.kind === "cancel") {
       this.close();
     } else if (message.kind === "run_tool" && this.pending) {
+      // The form may have been showing another tool when the message was sent.
+      if (message.tool_name !== this.pending.tool.name) return;
       void this.panel?.webview.postMessage(checkMessage({ kind: "form_busy", message: "Running…" }));
       const problem = await this.run(this.pending.tool, message.parameters ?? []);
       if (problem) void this.panel?.webview.postMessage(checkMessage({ kind: "form_error", message: problem }));

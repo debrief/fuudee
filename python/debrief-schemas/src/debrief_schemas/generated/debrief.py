@@ -664,7 +664,7 @@ class WebviewMessageKindEnum(str, Enum):
     """
     show_form = "show_form"
     """
-    Host to form: show this tool's form (tool, selected_names).
+    Host to form: show this tool's form (tool, selected_names, time_range of the plot).
     """
     run_tool = "run_tool"
     """
@@ -684,7 +684,7 @@ class WebviewMessageKindEnum(str, Enum):
     """
     show_results = "show_results"
     """
-    Host to results: show a non-spatial result (result_title, result).
+    Host to results: show a tool's result (tool, result_title, result).
     """
 
 
@@ -1238,7 +1238,9 @@ class AnnotationProperties(ConfiguredBaseModel):
                        'ResultColumn']} })
     text: Optional[str] = Field(default=None, json_schema_extra = { "linkml_meta": {'domain_of': ['AnnotationProperties']} })
     time: Optional[str] = Field(default=None, json_schema_extra = { "linkml_meta": {'domain_of': ['AnnotationProperties', 'SharedState', 'SharedStateChange']} })
-    time_range: Optional[TimeRange] = Field(default=None, json_schema_extra = { "linkml_meta": {'domain_of': ['AnnotationProperties', 'SensorObservationsProperties']} })
+    time_range: Optional[TimeRange] = Field(default=None, json_schema_extra = { "linkml_meta": {'domain_of': ['AnnotationProperties',
+                       'SensorObservationsProperties',
+                       'WebviewMessage']} })
     provenance: Optional[list[ProvRecord]] = Field(default=None, json_schema_extra = { "linkml_meta": {'domain_of': ['TrackProperties',
                        'AnnotationProperties',
                        'SensorObservationsProperties',
@@ -1319,7 +1321,9 @@ class SensorObservationsProperties(ConfiguredBaseModel):
     sensor_name: str = Field(default=..., json_schema_extra = { "linkml_meta": {'domain_of': ['SensorObservationsProperties']} })
     host_track_id: str = Field(default=..., description="""The track carrying the sensor.""", json_schema_extra = { "linkml_meta": {'domain_of': ['SensorObservationsProperties']} })
     observation_type: ObservationTypeEnum = Field(default=..., json_schema_extra = { "linkml_meta": {'domain_of': ['SensorObservationsProperties']} })
-    time_range: TimeRange = Field(default=..., json_schema_extra = { "linkml_meta": {'domain_of': ['AnnotationProperties', 'SensorObservationsProperties']} })
+    time_range: TimeRange = Field(default=..., json_schema_extra = { "linkml_meta": {'domain_of': ['AnnotationProperties',
+                       'SensorObservationsProperties',
+                       'WebviewMessage']} })
     observation_count: int = Field(default=..., ge=0, json_schema_extra = { "linkml_meta": {'domain_of': ['SensorObservationsProperties']} })
     payload: PayloadRef = Field(default=..., json_schema_extra = { "linkml_meta": {'domain_of': ['SensorObservationsProperties']} })
     provenance: Optional[list[ProvRecord]] = Field(default=None, json_schema_extra = { "linkml_meta": {'domain_of': ['TrackProperties',
@@ -2083,6 +2087,9 @@ class WebviewMessage(ConfiguredBaseModel):
     plot_title: Optional[str] = Field(default=None, json_schema_extra = { "linkml_meta": {'domain_of': ['WebviewMessage']} })
     selection: Optional[Selection] = Field(default=None, json_schema_extra = { "linkml_meta": {'domain_of': ['SharedState', 'SharedStateChange', 'WebviewMessage']} })
     viewport: Optional[Viewport] = Field(default=None, json_schema_extra = { "linkml_meta": {'domain_of': ['SharedState', 'SharedStateChange', 'WebviewMessage']} })
+    time_range: Optional[TimeRange] = Field(default=None, description="""The plot's period, so times can be entered as the analyst reads them.""", json_schema_extra = { "linkml_meta": {'domain_of': ['AnnotationProperties',
+                       'SensorObservationsProperties',
+                       'WebviewMessage']} })
     tool: Optional[ToolDeclaration] = Field(default=None, json_schema_extra = { "linkml_meta": {'domain_of': ['ProvRecord', 'WebviewMessage']} })
     selected_names: Optional[list[str]] = Field(default=None, json_schema_extra = { "linkml_meta": {'domain_of': ['WebviewMessage']} })
     tool_name: Optional[str] = Field(default=None, json_schema_extra = { "linkml_meta": {'domain_of': ['WebviewMessage']} })
