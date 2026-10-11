@@ -116,6 +116,25 @@ def test_sources_are_immutable_and_hashed(catalogue: Catalogue, tmp_path: Path) 
         catalogue.add_source("serial-01", source, key="second")
 
 
+def test_payloads_are_hashed_data_assets(catalogue: Catalogue, tmp_path: Path) -> None:
+    catalogue.create_plot("serial-01", "Serial 1")
+    payload = tmp_path / "bearings.parquet"
+    payload.write_bytes(b"PAR1 not really")
+    ref = catalogue.add_payload("serial-01", payload, media_type="application/vnd.apache.parquet")
+    assert ref.href == "payloads/bearings.parquet"
+    asset = catalogue.assets("serial-01")["payload-bearings.parquet"]
+    assert asset.debrief_asset_kind == "payload"
+    assert asset.roles == ["data"]
+    assert asset.debrief_content_hash == ref.content_hash
+    stored = tmp_path / "cat" / "serial-01" / "payloads" / "bearings.parquet"
+    assert not stat.S_IMODE(stored.stat().st_mode) & stat.S_IWUSR
+    assert catalogue.verify_sources("serial-01") == []
+    stored.chmod(stat.S_IWUSR | stat.S_IRUSR)
+    stored.write_bytes(b"PAR1 changed after import")
+    (problem,) = catalogue.verify_sources("serial-01")
+    assert problem.startswith("payload ") and "changed" in problem
+
+
 def test_changed_and_missing_sources_reported(catalogue: Catalogue, tmp_path: Path) -> None:
     catalogue.create_plot("serial-01", "Serial 1")
     source = tmp_path / "a.rep"

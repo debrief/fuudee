@@ -14,6 +14,7 @@ Debrief v4. Requirements and plans are in [docs/](docs/README.md); identifiers s
 | `python/debrief-config/` | Per-user configuration: the stores an analyst knows about (SEC-06); see [its README](python/debrief-config/README.md) |
 | `python/debrief-io/` | Importers: REP files into catalogued plots with provenance; see [its README](python/debrief-io/README.md) |
 | `python/debrief-stac/` | File-based STAC catalogues of plots and sources; see [its README](python/debrief-stac/README.md) |
+| `python/debrief-sample/` | Sample data: open AIS with a synthesised exercise on top, built into a catalogue (DEP-08); see [its README](python/debrief-sample/README.md) |
 | `python/debrief-tools/` | Tool framework, the MCP tool service and the core tools; see [its README](python/debrief-tools/README.md) |
 | `python/debrief-kernel/` | Time, units, geodesy and display formatting (SUB-01 to SUB-04); see [its README](python/debrief-kernel/README.md) |
 | `ts/schemas/` | Generated TypeScript types and document validation |

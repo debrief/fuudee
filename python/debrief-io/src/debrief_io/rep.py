@@ -17,9 +17,10 @@ tested against their cases. A fix line is:
   hemisphere may be run together with the longitude degrees ("N021").
 - Course is true degrees, speed knots, depth metres or NaN.
 
-Lines starting with ';' are other record types (sensor, narrative,
-annotation and so on). This reader counts them so an import can report what
-it did not take, rather than dropping them silently.
+Lines starting with ';;' are comments and carry no data. Other lines
+starting with ';' are other record types (sensor, narrative, annotation and
+so on). This reader counts them so an import can report what it did not
+take, rather than dropping them silently.
 """
 
 from __future__ import annotations
@@ -86,6 +87,8 @@ class RepFile:
     other_records: Counter[str] = field(default_factory=Counter)
     # (line number, problem) for lines that could not be read.
     errors: list[tuple[int, str]] = field(default_factory=list)
+    # Comment lines (';;'), which hold no data.
+    comments: int = 0
 
 
 def colour_for(symbology: str) -> str:
@@ -237,6 +240,9 @@ def parse_rep(text: str) -> RepFile:
     for number, raw in enumerate(text.splitlines(), start=1):
         line = raw.strip()
         if not line:
+            continue
+        if line.startswith(";;"):
+            result.comments += 1
             continue
         if line.startswith(";"):
             result.other_records[_RECORD_TYPE.match(line).group(0)] += 1

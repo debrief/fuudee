@@ -7,6 +7,7 @@ Layout on disk:
     <item>/plot.geojson             the plot (SUB-05)
     <item>/sources/<file>           immutable imported sources (SUB-10)
     <item>/media/<file>             supporting files (SUB-06)
+    <item>/payloads/<file>          opaque observation payloads (CON-02)
 
 Items are found by walking the folders and checking each item's parent link;
 the catalogue's child links are written as a hint but never trusted (SUB-23).
@@ -37,6 +38,8 @@ STAC_VERSION = "1.1.0"
 CATALOGUE_FILE = "catalog.json"
 PLOT_ASSET = "plot"
 PLOT_FILE = "plot.geojson"
+# Asset kinds whose content hashes replay checks (SUB-11).
+VERIFIED_KINDS = ("source", "payload")
 
 _ITEM_ID = re.compile(r"[A-Za-z0-9][A-Za-z0-9._-]{0,127}")
 
@@ -340,6 +343,17 @@ class Catalogue:
         """Video, imagery, acoustic files and the like (SUB-06)."""
         return self._add_file(item_id, Path(path), "media", "supporting_file", key, media_type)
 
+    def add_payload(
+        self, item_id: str, path: Path, *, key: str | None = None, media_type: str
+    ) -> models.SourceRef:
+        """An opaque observation payload, such as a Parquet file of bearings (CON-02).
+
+        Copied in read-only and hashed like a source. The returned href and
+        hash go into the feature's payload envelope; the href is relative to
+        the item, as the plot file is.
+        """
+        return self._add_file(item_id, Path(path), "payloads", "payload", key, media_type)
+
     def _add_file(
         self, item_id: str, path: Path, folder: str, kind: str, key: str | None, media_type: str
     ) -> models.SourceRef:
@@ -357,7 +371,7 @@ class Catalogue:
             key=key,
             href=f"./{relative}",
             type=media_type,
-            roles=["source"] if kind == "source" else ["metadata"],
+            roles={"source": ["source"], "payload": ["data"]}.get(kind, ["metadata"]),
             debrief_asset_kind=kind,
             debrief_content_hash=digest,
         )
@@ -365,17 +379,19 @@ class Catalogue:
         return models.SourceRef(href=relative, content_hash=digest)
 
     def verify_sources(self, item_id: str, hrefs: list[str] | None = None) -> list[str]:
-        """Check that sources still match their recorded hashes (SUB-11).
+        """Check that sources and payloads still match their recorded hashes (SUB-11).
 
-        Only the given hrefs (relative to the item) are checked, or every
-        source when none are given: replay verifies only what it reads. A
+        Payloads are checked too: a plot's sensor observations are read from
+        them, so replay depends on them as it does on sources. Only the
+        given hrefs (relative to the item) are checked, or every source and
+        payload when none are given: replay verifies only what it reads. A
         source whose size and modification time match its last verification
         this session is not re-hashed. Returns problems; empty means all well.
         """
         item = self.read_item(item_id)
         problems = []
         for key, asset in item.assets.items():
-            if asset.debrief_asset_kind != "source":
+            if asset.debrief_asset_kind not in VERIFIED_KINDS:
                 continue
             relative = PurePosixPath(
                 *[p for p in PurePosixPath(asset.href).parts if p != "."]
@@ -384,7 +400,7 @@ class Catalogue:
                 continue
             stored = f"{item_id}/{relative}"
             if not self.store.exists(stored):
-                problems.append(f"source {key} ({relative}) is missing")
+                problems.append(f"{asset.debrief_asset_kind} {key} ({relative}) is missing")
                 continue
             size, mtime = self.store.size_and_mtime(stored)
             cached = self._verified.get(stored)
@@ -395,5 +411,6 @@ class Catalogue:
                     digest = content_hash(stream)
                 self._verified[stored] = (size, mtime, digest)
             if digest != asset.debrief_content_hash:
-                problems.append(f"source {key} ({relative}) has changed since it was imported")
+                kind = asset.debrief_asset_kind
+                problems.append(f"{kind} {key} ({relative}) has changed since it was imported")
         return problems
