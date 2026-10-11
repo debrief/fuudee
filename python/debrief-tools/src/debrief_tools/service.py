@@ -4,7 +4,7 @@ The protocol is MCP's Streamable HTTP transport (JSON-RPC 2.0, one POST per
 request, JSON responses), so the VS Code extension and any MCP-capable agent
 use the same tools (TL-01, TL-17). Debrief adds methods of its own, named
 debrief/...: debrief/tools_for_selection, so the offering rule lives in
-Python (TL-08); stores, catalogues and import; and a plot's history
+Python (TL-08); stores, catalogues and import (REP and legacy .dpf); and a plot's history
 (debrief/open, debrief/history, debrief/undo, debrief/redo, debrief/goto),
 so undo is the same for the extension and an agent (SUB-21).
 
@@ -42,7 +42,7 @@ from starlette.responses import JSONResponse, Response
 from starlette.routing import Route
 
 from debrief_config import ConfigError, add_store, load_config, update_config
-from debrief_io import import_rep
+from debrief_io import import_dpf, import_rep
 from debrief_schemas import DocumentKind, dump_document, load_document, models
 from debrief_stac import (
     Base,
@@ -62,6 +62,22 @@ MAX_BODY_BYTES = 10 * 1024 * 1024
 DEFAULT_TIMEOUT_S = 120.0
 MIN_TOKEN_LENGTH = 32
 log = logging.getLogger("debrief_tools")
+
+
+def _is_plot_file(path: Path) -> bool:
+    """A legacy plot file: a .dpf, or an .xml file whose root element is a plot.
+
+    Legacy Debrief also saves plots as .xml. Other XML is not sent to the plot
+    importer; the first kilobyte is enough to see the root element.
+    """
+    suffix = path.suffix.lower()
+    if suffix == ".dpf":
+        return True
+    if suffix != ".xml":
+        return False
+    with path.open("rb") as stream:
+        head = stream.read(1024)
+    return re.search(rb"<(?:[A-Za-z_][\w.-]*:)?plot[\s>/]", head) is not None
 
 
 class RpcError(Exception):
@@ -211,8 +227,8 @@ class ToolService:
             }
         if method == "debrief/create_catalogue":
             return self._create_catalogue(params)
-        if method == "debrief/import_rep":
-            return self._import_rep(params)
+        if method in ("debrief/import", "debrief/import_rep"):
+            return self._import(params)
         if method in HISTORY_METHODS:
             return self._history(method, params)
         if method in ("debrief/presentation", "debrief/set_presentation"):
@@ -347,8 +363,9 @@ class ToolService:
         except (CatalogueError, OSError, ValueError) as error:
             raise RpcError(INVALID_PARAMS, str(error)) from None
 
-    def _import_rep(self, params: dict[str, Any]) -> dict[str, Any]:
-        """Import a REP file as a new plot (EXT-01). Nothing in the file is dropped silently."""
+    def _import(self, params: dict[str, Any]) -> dict[str, Any]:
+        """Import a REP file (EXT-01) or a legacy plot file, .dpf (EXT-14, EXT-15), as a
+        new plot. Nothing in the file is dropped silently: what is not imported is listed."""
         path = params.get("path")
         store = self._store(params.get("store"), writing=True)
         if not isinstance(path, str) or not Path(path).is_file():
@@ -360,9 +377,16 @@ class ToolService:
             while item_id in taken:
                 item_id, n = f"{stem}-{n}", n + 1
             agent = params.get("agent") or {"kind": "person", "name": "analyst"}
-            report = import_rep(
-                catalogue, Path(path), item_id=item_id, agent=models.AgentRef(**agent)
+            importer = import_dpf if _is_plot_file(Path(path)) else import_rep
+            report = importer(
+                catalogue,
+                Path(path),
+                item_id=item_id,
+                agent=models.AgentRef(**agent),
+                allow_newer_schema=params.get("allow_newer_schema") is True,
             )
+        except NewerSchemaError as error:
+            raise RpcError(NEWER_SCHEMA, str(error)) from None
         except (CatalogueError, OSError, ValueError) as error:
             raise RpcError(
                 INVALID_PARAMS, f"{Path(path).name} could not be imported: {error}"
@@ -371,6 +395,8 @@ class ToolService:
             "item": report.item_id,
             "tracks": report.tracks,
             "fixes": report.fixes,
+            "annotations": report.annotations,
+            "narrative_entries": report.narrative_entries,
             "omitted": report.omitted,
         }
 

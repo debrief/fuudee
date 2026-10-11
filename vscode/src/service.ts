@@ -62,6 +62,8 @@ export interface ImportReport {
   item: string;
   tracks: string[];
   fixes: number;
+  annotations?: number;
+  narrative_entries?: number;
   omitted: string[];
 }
 
@@ -306,7 +308,8 @@ export class ToolService {
     return this.request("debrief/set_presentation", { store, item, presentation, hash });
   }
 
-  importRep(store: string, path: string, agent: Agent, allowNewerSchema = false): Promise<ImportReport> {
-    return this.request("debrief/import_rep", { store, path, agent, ...(allowNewerSchema && { allow_newer_schema: true }) });
+  /** Import a REP file or a legacy plot file (.dpf) as a new plot. */
+  importFile(store: string, path: string, agent: Agent, allowNewerSchema = false): Promise<ImportReport> {
+    return this.request("debrief/import", { store, path, agent, ...(allowNewerSchema && { allow_newer_schema: true }) });
   }
 }

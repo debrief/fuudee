@@ -10,6 +10,7 @@ report (for the message the analyst sees) and in the plot's provenance.
 
 from __future__ import annotations
 
+import io
 import re
 import time
 from collections import defaultdict
@@ -20,8 +21,9 @@ from pathlib import Path
 
 from debrief_io.rep import RepFix, colour_for, parse_rep
 from debrief_kernel.time import format_utc
-from debrief_schemas import SCHEMA_VERSION, DebriefFeatureCollection, models
+from debrief_schemas import SCHEMA_VERSION, DebriefFeatureCollection, dump_plot, models
 from debrief_stac import Catalogue
+from debrief_stac.hashing import content_hash
 
 IMPORTER = "debrief-io.rep"
 
@@ -38,6 +40,8 @@ class ImportReport:
     item_id: str
     tracks: list[str] = field(default_factory=list)
     fixes: int = 0
+    annotations: int = 0
+    narrative_entries: int = 0
     # Everything not imported, in words an analyst can act on.
     omitted: list[str] = field(default_factory=list)
 
@@ -152,6 +156,51 @@ def build_plot(
     return plot, report
 
 
+class SourceChangedError(ValueError):
+    """The source file changed while it was being imported."""
+
+
+def store_import(
+    catalogue: Catalogue,
+    path: Path,
+    data: bytes,
+    item_id: str,
+    title: str,
+    media_type: str,
+    build: Callable[[models.SourceRef], tuple[DebriefFeatureCollection, ImportReport]],
+    *,
+    allow_newer_schema: bool = False,
+) -> ImportReport:
+    """Build and validate a plot from a source's bytes, then write it as a new item.
+
+    Nothing is written until the plot is built and valid. If writing then
+    fails, the new item is removed, so a failed import never leaves half a
+    plot behind. The source is hashed from the bytes read; the copy the
+    catalogue keeps must hash the same, or the import is refused.
+    """
+    expected = models.SourceRef(
+        href=f"sources/{path.name}", content_hash=content_hash(io.BytesIO(data))
+    )
+    plot, report = build(expected)
+    dump_plot(plot)  # validates, raising DocumentValidationError before anything is written
+    catalogue.create_plot(item_id, title, allow_newer_schema=allow_newer_schema)
+    try:
+        stored = catalogue.add_source(item_id, path, media_type=media_type)
+        if stored.content_hash != expected.content_hash:
+            raise SourceChangedError(f"{path.name} changed while it was being imported")
+        if stored != expected:  # the catalogue chose another place for it
+            (record,) = plot.provenance
+            plot = plot.model_copy(
+                update={"provenance": [record.model_copy(update={"used": [stored]})]}
+            )
+        catalogue.write_plot(item_id, plot, allow_newer_schema=allow_newer_schema)
+    except BaseException:
+        catalogue.discard_plot(item_id)
+        raise
+    report.item_id = item_id
+    return report
+
+
 def import_rep(
     catalogue: Catalogue,
     path: Path,
@@ -162,18 +211,26 @@ def import_rep(
     allow_newer_schema: bool = False,
     clock: Clock = wall_clock,
 ) -> ImportReport:
-    """Import a REP file as a new plot in the catalogue."""
+    """Import a REP file as a new plot in the catalogue.
+
+    The plot is built and validated before anything is written; a failed
+    import leaves the catalogue unchanged.
+    """
     path = Path(path)
     item_id = item_id or re.sub(r"[^A-Za-z0-9._-]+", "-", path.stem).strip("-.") or "plot"
     agent = agent or models.AgentRef(kind="person", name="analyst")
-    catalogue.create_plot(item_id, title or path.stem, allow_newer_schema=allow_newer_schema)
-    source = catalogue.add_source(item_id, path, media_type="text/plain")
     raw = path.read_bytes()
     try:
         text = raw.decode("utf-8")
     except UnicodeDecodeError:
         text = raw.decode("latin-1")  # legacy files are often Latin-1; every byte decodes
-    plot, report = build_plot(text, source, agent, clock=clock)
-    catalogue.write_plot(item_id, plot, allow_newer_schema=allow_newer_schema)
-    report.item_id = item_id
-    return report
+    return store_import(
+        catalogue,
+        path,
+        raw,
+        item_id,
+        title or path.stem,
+        "text/plain",
+        lambda source: build_plot(text, source, agent, clock=clock),
+        allow_newer_schema=allow_newer_schema,
+    )
