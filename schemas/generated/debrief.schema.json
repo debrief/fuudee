@@ -321,6 +321,76 @@
       "title": "FeatureTypeEnum",
       "type": "string"
     },
+    "FormatSettings": {
+      "additionalProperties": false,
+      "description": "",
+      "properties": {
+        "angle_decimals": {
+          "maximum": 6,
+          "minimum": 0,
+          "type": "integer"
+        },
+        "duration_decimals": {
+          "maximum": 6,
+          "minimum": 0,
+          "type": "integer"
+        },
+        "duration_unit": {
+          "$ref": "#/$defs/DurationUnitEnum"
+        },
+        "length_decimals": {
+          "maximum": 6,
+          "minimum": 0,
+          "type": "integer"
+        },
+        "length_unit": {
+          "$ref": "#/$defs/LengthUnitEnum"
+        },
+        "position_decimals": {
+          "maximum": 6,
+          "minimum": 0,
+          "type": "integer"
+        },
+        "position_notation": {
+          "$ref": "#/$defs/PositionNotationEnum"
+        },
+        "show_milliseconds": {
+          "type": "boolean"
+        },
+        "speed_decimals": {
+          "maximum": 6,
+          "minimum": 0,
+          "type": "integer"
+        },
+        "speed_unit": {
+          "$ref": "#/$defs/SpeedUnitEnum"
+        },
+        "time_style": {
+          "$ref": "#/$defs/TimeStyleEnum"
+        },
+        "time_zone": {
+          "description": "IANA time zone for display, or UTC for Zulu time (SUB-01).",
+          "pattern": "^(UTC|[A-Za-z_]+(/[A-Za-z0-9_+-]+)+)$",
+          "type": "string"
+        }
+      },
+      "required": [
+        "length_unit",
+        "length_decimals",
+        "speed_unit",
+        "speed_decimals",
+        "angle_decimals",
+        "duration_unit",
+        "duration_decimals",
+        "position_notation",
+        "position_decimals",
+        "time_style",
+        "show_milliseconds",
+        "time_zone"
+      ],
+      "title": "FormatSettings",
+      "type": "object"
+    },
     "InnerSchemaRef": {
       "additionalProperties": false,
       "description": "",
@@ -780,6 +850,16 @@
         "Polygon"
       ],
       "title": "PolygonTypeEnum",
+      "type": "string"
+    },
+    "PositionNotationEnum": {
+      "description": "",
+      "enum": [
+        "dd",
+        "dm",
+        "dms"
+      ],
+      "title": "PositionNotationEnum",
       "type": "string"
     },
     "ProvActivityKindEnum": {
@@ -1550,6 +1630,16 @@
       "title": "TimeState",
       "type": "object"
     },
+    "TimeStyleEnum": {
+      "description": "",
+      "enum": [
+        "time",
+        "date_time",
+        "dtg"
+      ],
+      "title": "TimeStyleEnum",
+      "type": "string"
+    },
     "ToolDeclaration": {
       "additionalProperties": false,
       "description": "How a tool describes itself to Debrief, agents and hooks (TL-04, TL-06).",
@@ -1919,5 +2009,5 @@
   ],
   "title": "debrief",
   "type": "object",
-  "version": "0.0.2"
+  "version": "0.0.3"
 }

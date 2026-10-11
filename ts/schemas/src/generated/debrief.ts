@@ -126,6 +126,16 @@ export type FeatureCollectionTypeEnum = "FeatureCollection";
 export type FeatureKindEnum = "track" | "annotation" | "sensor_observations";
 /**
  * This interface was referenced by `DebriefSchemaDefinitions`'s JSON-Schema
+ * via the `definition` "PositionNotationEnum".
+ */
+export type PositionNotationEnum = "dd" | "dm" | "dms";
+/**
+ * This interface was referenced by `DebriefSchemaDefinitions`'s JSON-Schema
+ * via the `definition` "TimeStyleEnum".
+ */
+export type TimeStyleEnum = "time" | "date_time" | "dtg";
+/**
+ * This interface was referenced by `DebriefSchemaDefinitions`'s JSON-Schema
  * via the `definition` "ItemTypeEnum".
  */
 export type ItemTypeEnum = "Feature";
@@ -478,6 +488,27 @@ export interface NamedSet {
   feature_ids: string[];
   id: string;
   name: string;
+}
+/**
+ * This interface was referenced by `DebriefSchemaDefinitions`'s JSON-Schema
+ * via the `definition` "FormatSettings".
+ */
+export interface FormatSettings {
+  angle_decimals: number;
+  duration_decimals: number;
+  duration_unit: DurationUnitEnum;
+  length_decimals: number;
+  length_unit: LengthUnitEnum;
+  position_decimals: number;
+  position_notation: PositionNotationEnum;
+  show_milliseconds: boolean;
+  speed_decimals: number;
+  speed_unit: SpeedUnitEnum;
+  time_style: TimeStyleEnum;
+  /**
+   * IANA time zone for display, or UTC for Zulu time (SUB-01).
+   */
+  time_zone: string;
 }
 /**
  * A number, table or graph (TL-13), held column by column. A number is one column with one value; a graph plots its first column against the rest.

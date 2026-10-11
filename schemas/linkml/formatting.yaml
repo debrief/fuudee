@@ -1,0 +1,50 @@
+id: https://debrief.info/schemas/debrief/formatting
+name: debrief_formatting
+title: "Display formatting settings (SUB-04)"
+license: EPL-2.0
+prefixes:
+  linkml: https://w3id.org/linkml/
+  debrief: https://debrief.info/schemas/debrief/
+default_prefix: debrief
+default_range: string
+imports:
+  - linkml:types
+  - core
+
+description: >-
+  The analyst's display settings, read by the Python formatting service and
+  the TypeScript one alike. Both implementations are held to the shared test
+  vectors in schemas/vectors/formatting.json. Every field is required so a
+  settings document is never ambiguous; the defaults live in
+  schemas/vectors/format-defaults.json.
+
+enums:
+  PositionNotationEnum:
+    permissible_values:
+      dd: {description: "Decimal degrees: 50.335°N 004.120°W"}
+      dm: {description: "Degrees and decimal minutes: 50°20.120'N 004°07.210'W"}
+      dms: {description: "Degrees, minutes and seconds: 50°20'07.2\"N 004°07'12.6\"W"}
+  TimeStyleEnum:
+    permissible_values:
+      time: {description: "Time of day: 09:30:05Z"}
+      date_time: {description: "Date and time: 11 Oct 2026 09:30:05Z"}
+      dtg: {description: "Military date-time group, always Zulu: 110930Z OCT 26"}
+
+classes:
+  FormatSettings:
+    attributes:
+      length_unit: {range: LengthUnitEnum, required: true}
+      length_decimals: {range: integer, required: true, minimum_value: 0, maximum_value: 6}
+      speed_unit: {range: SpeedUnitEnum, required: true}
+      speed_decimals: {range: integer, required: true, minimum_value: 0, maximum_value: 6}
+      angle_decimals: {range: integer, required: true, minimum_value: 0, maximum_value: 6}
+      duration_unit: {range: DurationUnitEnum, required: true}
+      duration_decimals: {range: integer, required: true, minimum_value: 0, maximum_value: 6}
+      position_notation: {range: PositionNotationEnum, required: true}
+      position_decimals: {range: integer, required: true, minimum_value: 0, maximum_value: 6}
+      time_style: {range: TimeStyleEnum, required: true}
+      show_milliseconds: {range: boolean, required: true}
+      time_zone:
+        description: IANA time zone for display, or UTC for Zulu time (SUB-01).
+        required: true
+        pattern: "^(UTC|[A-Za-z_]+(/[A-Za-z0-9_+-]+)+)$"

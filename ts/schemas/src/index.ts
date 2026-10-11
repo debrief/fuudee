@@ -10,6 +10,7 @@ import type { ValidateFunction } from "ajv";
 import schema from "./generated/debrief.schema.json" with { type: "json" };
 import type {
   DebriefFeatureCollection,
+  FormatSettings,
   SharedState,
   StacCatalog,
   StacItem,
@@ -29,6 +30,7 @@ export interface DocumentTypes {
   tool_declaration: ToolDeclaration;
   tool_result: ToolResult;
   shared_state: SharedState;
+  format_settings: FormatSettings;
 }
 export type DocumentKind = keyof DocumentTypes;
 
@@ -39,6 +41,7 @@ const ROOT_CLASS: Record<DocumentKind, string> = {
   tool_declaration: "ToolDeclaration",
   tool_result: "ToolResult",
   shared_state: "SharedState",
+  format_settings: "FormatSettings",
 };
 
 export const DOCUMENT_KINDS = Object.keys(ROOT_CLASS) as DocumentKind[];
