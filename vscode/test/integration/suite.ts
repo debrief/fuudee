@@ -45,50 +45,50 @@ export async function run(): Promise<void> {
   await vscode.commands.executeCommand("workbench.action.closeAuxiliaryBar");
   await vscode.commands.executeCommand("workbench.view.extension.debrief");
 
-  // Open the plot from the catalogue.
-  await vscode.commands.executeCommand("debrief.openPlot", "exercise-clear-water", "serial-1");
+  // Open serial 1 of the sample exercise from the catalogue.
+  await vscode.commands.executeCommand("debrief.openPlot", "sample-exercise", "serial-1");
   const opened = await waitFor("plot", () => api.session.current);
-  assert.equal(opened.plot.features.length, 3);
+  const names = opened.plot.features.map((f) => f.properties.name);
+  assert.ok(names.includes("BLUE ONE") && names.includes("RED ONE"));
   await sleep(4000);
-  await screenshot("01-plot-open");
+  await screenshot("01-sample-serial-open");
 
-  // Select one track: the tools for one track are offered.
-  await vscode.commands.executeCommand("debrief.select", ["track-nelson"]);
+  // Select BLUE ONE: the tools for one track are offered; open range rings.
+  await vscode.commands.executeCommand("debrief.select", ["track-blue-one"]);
   await sleep(1500);
   await vscode.commands.executeCommand("debrief.showToolForm", "core.range_rings");
   await sleep(3000);
   await screenshot("02-range-rings-form");
 
   // Run it: rings appear on the map, and history records the run.
+  const before = opened.plot.features.length;
   const problem = await vscode.commands.executeCommand("debrief.runTool", "core.range_rings", {
-    spacing: { value: 1.5, unit: "[nmi_i]" },
-    rings: 3,
-    at: "1995-12-12T05:40:00.000Z",
+    spacing: { value: 1, unit: "[nmi_i]" },
+    rings: 4,
+    at: "2023-06-15T09:30:00.000Z",
   });
   assert.equal(problem, undefined);
-  const withRings = await waitFor("rings", () => api.session.current?.plot.features.length === 6 || undefined);
-  assert.ok(withRings);
+  await waitFor("rings", () => (api.session.current?.plot.features.length === before + 4) || undefined);
   assert.equal(api.session.current!.plot.provenance.at(-1)?.tool?.name, "core.range_rings");
 
-  // Two tracks: closest approach is offered; run it and see the result.
-  await vscode.commands.executeCommand("debrief.select", ["track-nelson", "track-blue"]);
+  // BLUE ONE and RED ONE: closest approach is offered; run it and see the result.
+  await vscode.commands.executeCommand("debrief.select", ["track-blue-one", "track-red-one"]);
   await sleep(1500);
-  await sleep(1500);
-  await screenshot("03-rings-and-two-tracks-selected");
   assert.equal(await vscode.commands.executeCommand("debrief.runTool", "core.closest_approach", {}), undefined);
   await waitFor("closest approach line", () =>
     api.session.current?.plot.features.some((f) => f.id.startsWith("cpa-")) || undefined,
   );
   await sleep(3000);
-  await screenshot("04-closest-approach", true);
+  await screenshot("03-closest-approach", true);
 
-  await vscode.commands.executeCommand("debrief.select", ["track-nelson", "track-blue", "track-trawler-7"]);
+  const tracks = api.session.current!.plot.features.filter((f) => f.properties.kind === "track").map((f) => f.id);
+  await vscode.commands.executeCommand("debrief.select", tracks);
   assert.equal(await vscode.commands.executeCommand("debrief.runTool", "core.track_summary", {}), undefined);
   await sleep(3000);
-  await screenshot("05-track-summary");
+  await screenshot("04-track-summary");
 
   // A tool that does not apply is refused, with the reason.
-  await vscode.commands.executeCommand("debrief.select", ["track-nelson"]);
+  await vscode.commands.executeCommand("debrief.select", ["track-blue-one"]);
   const refused = await vscode.commands.executeCommand<string>("debrief.runTool", "core.closest_approach", {});
   assert.match(refused ?? "", /does not apply to this selection/);
 }

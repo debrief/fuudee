@@ -18,23 +18,16 @@ const work = mkdtempSync(path.join(tmpdir(), "debrief-it-"));
 const configFile = path.join(work, "config.json");
 const catalogue = path.join(work, "exercise");
 
-// The demonstration catalogue, made by the same Python code an analyst's import uses.
+// The sample catalogue (DEP-08), built by the same code as everyone else's, and
+// added to a configuration of its own.
+execFileSync(python, ["-m", "debrief_sample", "build", catalogue], { stdio: "inherit" });
 execFileSync(
   python,
   [
     "-c",
-    `
-import sys
-from pathlib import Path
-from debrief_config import add_store, update_config
-from debrief_io import import_rep
-from debrief_stac import Catalogue
-catalogue = Catalogue.create(Path(sys.argv[1]), "exercise", "Exercise Clear Water", "Demonstration")
-import_rep(catalogue, Path(sys.argv[2]), item_id="serial-1", title="Serial 1")
-update_config(lambda c: add_store(c, title="Exercise Clear Water", location=sys.argv[1])[0], Path(sys.argv[3]))
-`,
+    "import sys; from pathlib import Path; from debrief_config import add_store, update_config; " +
+      "update_config(lambda c: add_store(c, title='Sample exercise', location=sys.argv[1])[0], Path(sys.argv[2]))",
     catalogue,
-    path.join(extension, "test", "integration", "demo.rep"),
     configFile,
   ],
   { stdio: "inherit" },

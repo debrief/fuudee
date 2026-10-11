@@ -132,7 +132,7 @@ function Form() {
             </Field>
           );
         }
-        const placeholder = param.kind === "time" ? "UTC: 1995-12-12T05:40:00Z" : undefined;
+        const placeholder = param.kind === "time" ? "UTC, such as 2023-06-15T09:30:00Z" : undefined;
         return (
           <Field key={param.name} label={param.title + optional} explanation={param.explanation ?? undefined} htmlFor={id}>
             <TextInput id={id} value={d.text} placeholder={placeholder} onChange={(text) => update(param.name, { text })} />
