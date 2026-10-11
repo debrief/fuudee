@@ -3,7 +3,7 @@ html, body, #root { height: 100%; margin: 0; padding: 0; }
 body { background: var(--vscode-editor-background); color: var(--vscode-foreground); font-family: var(--vscode-font-family); font-size: var(--vscode-font-size); }
 #map { position: absolute; inset: 0; background: var(--vscode-editor-background); }
 .leaflet-container { font: inherit; background: var(--vscode-editor-background); }
-.status { position: absolute; left: 50%; transform: translateX(-50%); bottom: 8px; z-index: 1000; padding: 2px 6px; background: var(--vscode-editorWidget-background); color: var(--vscode-editorWidget-foreground); border: 1px solid var(--vscode-editorWidget-border, transparent); font-family: var(--vscode-editor-font-family); font-size: 12px; }
+.status { position: absolute; left: 50%; transform: translateX(-50%); bottom: 52px; z-index: 1000; padding: 2px 6px; background: var(--vscode-editorWidget-background); color: var(--vscode-editorWidget-foreground); border: 1px solid var(--vscode-editorWidget-border, transparent); font-family: var(--vscode-editor-font-family); font-size: 12px; }
 .status:empty { display: none; }
 .empty { position: absolute; top: 40%; left: 0; right: 0; text-align: center; z-index: 1000; color: var(--vscode-descriptionForeground); }
 .track-label { background: transparent; border: none; box-shadow: none; color: var(--vscode-editor-foreground); font-weight: 600; padding: 0; text-shadow: 0 0 3px var(--vscode-editor-background), 0 0 3px var(--vscode-editor-background); }
@@ -18,7 +18,7 @@ body { background: var(--vscode-editor-background); color: var(--vscode-foregrou
 .tick::after { content: ""; position: absolute; left: 4px; top: 4px; width: 4px; height: 4px; opacity: 0.8; border-top: 2px solid var(--tick-colour); border-right: 2px solid var(--tick-colour); transform: rotate(calc(var(--tick-rotation) - 45deg)); }
 .scale-bar { border: 2px solid var(--vscode-editor-foreground); border-top: none; padding: 0 4px; font-size: 11px; color: var(--vscode-editor-foreground); background: var(--vscode-editorWidget-background); text-align: center; white-space: nowrap; }
 .zoom-to a { width: auto !important; padding: 0 6px; font-size: 11px; line-height: 26px; }
-.legend { background: var(--vscode-editorWidget-background); color: var(--vscode-editorWidget-foreground); border: 1px solid var(--vscode-editorWidget-border, transparent); padding: 4px 8px; font-size: 11px; margin-bottom: 36px !important; }
+.legend { background: var(--vscode-editorWidget-background); color: var(--vscode-editorWidget-foreground); border: 1px solid var(--vscode-editorWidget-border, transparent); padding: 4px 8px; font-size: 11px; }
 .legend-row { display: flex; align-items: center; gap: 6px; line-height: 18px; }
 .swatch { display: inline-block; width: 18px; height: 0; }
 .swatch-track { border-top: 3px solid var(--debrief-track); }
@@ -27,3 +27,16 @@ body { background: var(--vscode-editor-background); color: var(--vscode-foregrou
 .swatch-latest { width: 9px; height: 9px; border-radius: 50%; background: var(--vscode-editor-foreground); margin: 0 5px; }
 .swatch-selected { border-top: 4px dotted var(--vscode-editor-foreground); }
 .legend summary { cursor: pointer; }
+/* Current time: the control, and each track's position then, a square in its colour. */
+/* The bottom edge belongs to the time control; the key and scale sit above it. */
+.leaflet-bottom { bottom: 40px; }
+.timebar { position: absolute; bottom: 8px; left: 8px; right: 8px; z-index: 1000; display: flex; align-items: center; gap: 6px; padding: 4px 8px; background: var(--vscode-editorWidget-background); color: var(--vscode-editorWidget-foreground); border: 1px solid var(--vscode-editorWidget-border, transparent); }
+.timebar[hidden] { display: none; }
+.timebar input { flex: 1; accent-color: var(--vscode-focusBorder); }
+.time-label { font-family: var(--vscode-editor-font-family); font-size: 12px; white-space: nowrap; }
+.now { width: 10px; height: 10px; }
+.now::after { content: ""; position: absolute; inset: 0; background: var(--now-colour); border: 1.5px solid var(--vscode-editor-foreground); box-sizing: border-box; }
+.swatch-now { width: 9px; height: 9px; background: var(--vscode-editor-foreground); margin: 0 5px; }
+.step { background: var(--vscode-button-secondaryBackground); color: var(--vscode-button-secondaryForeground); border: none; width: 22px; height: 22px; cursor: pointer; font: inherit; }
+.step:hover { background: var(--vscode-button-secondaryHoverBackground); }
+.step:focus-visible, .timebar input:focus-visible { outline: 1px solid var(--vscode-focusBorder); }

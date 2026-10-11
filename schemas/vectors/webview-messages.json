@@ -5,13 +5,24 @@
     "show_plot": [
       "plot",
       "plot_title",
-      "selection"
+      "selection",
+      "time?",
+      "viewport?"
     ],
     "set_selection": [
       "selection"
     ],
     "selection_changed": [
       "selection"
+    ],
+    "set_time": [
+      "time"
+    ],
+    "time_changed": [
+      "time"
+    ],
+    "set_viewport": [
+      "viewport"
     ],
     "viewport_changed": [
       "viewport"

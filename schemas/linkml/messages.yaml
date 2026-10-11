@@ -25,9 +25,12 @@ enums:
   WebviewMessageKindEnum:
     permissible_values:
       ready: {description: "Webview to host: loaded and listening."}
-      show_plot: {description: "Host to map: draw this plot (plot, plot_title, selection)."}
+      show_plot: {description: "Host to map: draw this plot (plot, plot_title, selection, and current time and viewport if known)."}
       set_selection: {description: "Host to map: the selection changed elsewhere (selection)."}
       selection_changed: {description: "Map to host: the analyst changed the selection (selection)."}
+      set_time: {description: "Host to map: current time changed elsewhere (time)."}
+      time_changed: {description: "Map to host: the analyst moved current time (time)."}
+      set_viewport: {description: "Host to map: show this area (viewport)."}
       viewport_changed: {description: "Map to host: the analyst panned or zoomed (viewport)."}
       show_form: {description: "Host to form: show this tool's form (tool, selected_names, time_range of the plot)."}
       run_tool: {description: "Form to host: run the tool with these values (tool_name, parameters)."}
@@ -44,6 +47,7 @@ classes:
       plot_title: {}
       selection: {range: Selection, inlined: true}
       viewport: {range: Viewport, inlined: true}
+      time: {range: TimeState, inlined: true}
       time_range:
         description: The plot's period, so times can be entered as the analyst reads them.
         range: TimeRange

@@ -66,6 +66,7 @@ def execute(
     plot: models.DebriefFeatureCollection,
     selection_ids: list[str],
     supplied: dict[str, Any] | None,
+    state: models.SharedState | None = None,
 ) -> tuple[models.ToolResult, list[models.ParameterValue]]:
     """Run a tool on a copy of the plot exactly as Debrief does, without saving anything.
 
@@ -91,7 +92,12 @@ def execute(
         values, recorded = bind(declaration, supplied)
     except ParameterError as error:
         raise ToolRunError(str(error)) from None
-    context = ToolContext(plot=copy, selection=selection, parameters=values)
+    context = ToolContext(
+        plot=copy,
+        selection=selection,
+        parameters=values,
+        state=state.model_copy(deep=True) if state else None,
+    )
     try:
         result = tool.run(context)
     except Exception as error:  # a failing tool fails its own run, nothing more (TL-03)
@@ -110,7 +116,23 @@ def execute(
             f"{declaration.title} returned {', '.join(undeclared)}, which it does not declare, "
             "so nothing was saved."
         )
+    _check_state_change(result, plot, declaration.title)
     return result, recorded
+
+
+def _check_state_change(
+    result: models.ToolResult, plot: models.DebriefFeatureCollection, title: str
+) -> None:
+    """A selection a tool sets must name features the plot will have (TL-10)."""
+    selection = result.state_change.selection if result.state_change else None
+    if selection is None:
+        return
+    deleted = set(result.deleted_feature_ids or [])
+    known = {f.id for f in plot.features if f.id not in deleted}
+    known |= {f.id for f in result.new_features or []}
+    unknown = [i for i in selection.feature_ids if i not in known]
+    if unknown:
+        raise ToolRunError(f"{title} selected a feature the plot does not have: {unknown[0]}")
 
 
 def run_tool(
@@ -125,6 +147,7 @@ def run_tool(
     read_only: bool = False,
     on_conflict: str = "refuse",
     base: Base | None = None,
+    state: models.SharedState | None = None,
 ) -> RunOutcome:
     """Run a tool on a plot and record what it changes.
 
@@ -152,7 +175,7 @@ def run_tool(
     except HistoryError as error:
         raise ToolRunError(str(error)) from None
     started = _now()
-    result, recorded = execute(tool, plot, selection_ids, supplied)
+    result, recorded = execute(tool, plot, selection_ids, supplied, state)
 
     changes = _changes(plot, result, declaration.title)
     if changes is None:

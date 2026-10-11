@@ -329,6 +329,26 @@ def test_a_conflict_tells_the_caller_whether_it_can_merge(config_file: Path) -> 
     assert "on_conflict must be" in refused["content"][0]["text"]
 
 
+def test_shared_state_goes_to_the_tool_and_its_change_comes_back(client) -> None:
+    state = {
+        "time": {
+            "current": "1995-12-12T05:00:00.000Z",
+            "range": {"start": "1995-12-12T05:00:00.000Z", "end": "1995-12-12T07:10:00.000Z"},
+        },
+        "selection": {"plot": "serial", "feature_ids": ["track-nelson", "track-blue"]},
+        "viewport": {"bbox": [-4.2, 50.0, -4.0, 50.4]},
+    }
+    pair = ["track-nelson", "track-blue"]
+    result = call(client, "core.closest_approach", pair, state=state)["result"]
+    change = result["structuredContent"]["result"]["state_change"]
+    assert change["time"]["current"] > state["time"]["current"]
+    bad = {**state, "viewport": {"bbox": [1, 2, 3]}}
+    refused = call(client, "core.closest_approach", pair, state=bad)["result"]
+    assert (
+        refused["isError"] and "shared state passed is not valid" in refused["content"][0]["text"]
+    )
+
+
 def test_a_legacy_plot_file_imports_with_its_omissions_listed(client) -> None:
     shapes = Path(__file__).parents[2] / "debrief-io" / "tests" / "data" / "shapes.dpf"
     params = {"store": "exercise", "path": str(shapes), "agent": AGENT}

@@ -9,6 +9,9 @@
  * - Annotations, including everything tools draw, are dashed and labelled.
  * - Selected features get an outline in the theme's text colour, which can
  *   never be mistaken for a force colour; everything else is dimmed.
+ * - The time control sets current time; each track shows where it was then
+ *   with a square marker. Panning and zooming set the viewport. Both are
+ *   shared state, so other views, extensions and tools follow (SUB-26, SUB-27).
  *
  * Interface colours come from the VS Code theme; data colours from palette.ts
  * (DEV-07). Plot content is always set as text, never as HTML.
@@ -18,7 +21,7 @@ import "leaflet/dist/leaflet.css";
 import "./map.css";
 import geodesic from "geographiclib-geodesic";
 import { convert, DEFAULT_SETTINGS, formatBearing, formatPosition, formatQuantity, formatTime, UNIT_LABELS } from "@debrief/kernel";
-import type { DebriefFeatureCollection } from "@debrief/schemas";
+import type { DebriefFeatureCollection, TimeState } from "@debrief/schemas";
 import { densify, type LonLat } from "./geodesic.js";
 import { DATA_COLOURS } from "./palette.js";
 import { host, onMessage } from "./vscode.js";
@@ -29,7 +32,13 @@ const settings = DEFAULT_SETTINGS;
 const WGS84 = geodesic.Geodesic.WGS84;
 
 const root = document.getElementById("root")!;
-root.innerHTML = `<div id="map" tabindex="0" aria-label="Plot map"></div><div id="status" class="status"></div><div id="empty" class="empty" hidden></div>`;
+root.innerHTML =
+  `<div id="map" tabindex="0" aria-label="Plot map"></div><div id="status" class="status"></div><div id="empty" class="empty" hidden></div>` +
+  `<div id="timebar" class="timebar" hidden>` +
+  `<button id="back" class="step" title="Step back" aria-label="Step back">‹</button>` +
+  `<input id="time" type="range" aria-label="Current time">` +
+  `<button id="forward" class="step" title="Step forward" aria-label="Step forward">›</button>` +
+  `<span id="time-label" class="time-label" aria-live="polite"></span></div>`;
 const status = document.getElementById("status")!;
 const mapElement = document.getElementById("map")!;
 
@@ -106,6 +115,7 @@ const Legend = L.Control.extend({
       ["track", "Track, in its force colour; ticks show direction"],
       ["first", "First fix"],
       ["latest", "Latest fix, labelled"],
+      ["now", "Position at current time"],
       ["annotation", "Annotation, including what tools draw"],
       ["selected", "Selected"],
     ];
@@ -318,9 +328,11 @@ function draw(plot: DebriefFeatureCollection): void {
   const empty = document.getElementById("empty")!;
   empty.hidden = plot.features.some((f) => f.geometry);
   empty.textContent = plot.features.length ? "This plot has nothing with a position." : "This plot is empty. Import a REP file to add tracks.";
+  setTracks(plot.features.filter((f): f is Track => f.properties.kind === "track" && !!f.geometry));
   restyle();
   drawGraticule();
   placeLabels();
+  drawNow();
 }
 
 // Annotation labels only where the shape is big enough on screen to carry one.
@@ -334,13 +346,156 @@ function placeLabels(): void {
 }
 map.on("zoomend", placeLabels);
 
+// --- Current time (shared state) ------------------------------------------------
+const timebar = document.getElementById("timebar")!;
+const slider = document.getElementById("time") as HTMLInputElement;
+const timeLabel = document.getElementById("time-label")!;
+const now = L.layerGroup().addTo(map);
+/** Each track with its fix times parsed once, and its marker at current time. */
+let tracks: { track: Track; times: number[]; marker?: L.Marker }[] = [];
+let time: TimeState | undefined;
+const dated = { ...settings, time_style: "date_time" as const };
+// Steps the buttons and arrow keys move by: about a hundredth of the plot's period.
+const STEPS = [1, 5, 10, 30, 60, 120, 300, 600, 900, 1800, 3600, 7200, 21600, 43200, 86400].map((s) => s * 1000);
+
+function setTracks(plotTracks: Track[]): void {
+  now.clearLayers();
+  tracks = plotTracks.map((track) => ({ track, times: track.properties.times.map(Date.parse) }));
+}
+
+/** Where a track was at an instant, between the fixes either side; none outside its span. */
+function positionAt(track: Track, times: number[], at: number): LonLat | undefined {
+  const coordinates = track.geometry.coordinates as LonLat[];
+  if (!times.length || at < times[0] || at > times[times.length - 1]) return undefined;
+  let low = 0;
+  let high = times.length - 1;
+  while (high - low > 1) {
+    const middle = (low + high) >> 1;
+    if (times[middle] <= at) low = middle;
+    else high = middle;
+  }
+  const span = times[high] - times[low];
+  const f = span > 0 ? (at - times[low]) / span : 0;
+  const [lon1, lat1] = coordinates[low];
+  const [lon2, lat2] = coordinates[high];
+  // Along the geodesic between the two fixes, as the line is drawn (SUB-03).
+  const line = WGS84.InverseLine(lat1, lon1, lat2, lon2);
+  const point = line.Position(f * line.s13);
+  return [point.lon2 ?? lon2, point.lat2 ?? lat2];
+}
+
+function drawNow(): void {
+  const at = time ? Date.parse(time.current) : NaN;
+  for (const entry of tracks) {
+    const position = time ? positionAt(entry.track, entry.times, at) : undefined;
+    if (!position) {
+      if (entry.marker) now.removeLayer(entry.marker);
+      entry.marker = undefined;
+      continue;
+    }
+    if (entry.marker) {
+      entry.marker.setLatLng(toLatLng(position));
+      if (!now.hasLayer(entry.marker)) entry.marker.addTo(now);
+      continue;
+    }
+    const { track } = entry;
+    const colour = colourOf(track);
+    const icon = L.divIcon({ className: "now", html: "", iconSize: [10, 10] });
+    const marker = L.marker(toLatLng(position), { icon, keyboard: false, title: track.properties.name });
+    marker.on("add", () => marker.getElement()?.style.setProperty("--now-colour", colour));
+    marker.on("click", (event: L.LeafletMouseEvent) => {
+      L.DomEvent.stopPropagation(event);
+      select(track.id, event.originalEvent.ctrlKey || event.originalEvent.metaKey);
+    });
+    marker.addTo(now);
+    entry.marker = marker;
+  }
+}
+
+function showTime(next: TimeState | undefined): void {
+  time = next;
+  timebar.hidden = !time;
+  if (time) {
+    const [start, end] = [Date.parse(time.range.start), Date.parse(time.range.end)];
+    const step = STEPS.find((s) => s >= (end - start) / 100) ?? STEPS.at(-1)!;
+    slider.min = String(start);
+    slider.max = String(end);
+    slider.step = "1000"; // dragging reaches any second; buttons and arrow keys move by step
+    slider.dataset.step = String(step);
+    slider.value = String(Date.parse(time.current));
+    slider.title = `${formatTime(start, dated)} to ${formatTime(end, dated)}`;
+    timeLabel.textContent = formatTime(Date.parse(time.current), dated);
+  }
+  drawNow();
+}
+
+// Tell the host at most once a frame, however fast the slider moves.
+let pending = false;
+function moveTo(ms: number): void {
+  if (!time) return;
+  const [start, end] = [Date.parse(time.range.start), Date.parse(time.range.end)];
+  ms = Math.max(start, Math.min(end, ms));
+  slider.value = String(ms);
+  time = { current: new Date(ms).toISOString(), range: time.range };
+  timeLabel.textContent = formatTime(ms, dated);
+  if (pending) return;
+  pending = true;
+  requestAnimationFrame(() => {
+    pending = false;
+    drawNow();
+    host.postMessage({ kind: "time_changed", time });
+  });
+}
+slider.addEventListener("input", () => moveTo(Number(slider.value)));
+slider.addEventListener("keydown", (event) => {
+  const step = Number(slider.dataset.step);
+  const by = { ArrowRight: step, ArrowUp: step, ArrowLeft: -step, ArrowDown: -step, PageUp: 10 * step, PageDown: -10 * step }[event.key];
+  if (by === undefined) return;
+  event.preventDefault();
+  moveTo(Number(slider.value) + by);
+});
+document.getElementById("back")!.addEventListener("click", () => moveTo(Number(slider.value) - Number(slider.dataset.step)));
+document.getElementById("forward")!.addEventListener("click", () => moveTo(Number(slider.value) + Number(slider.dataset.step)));
+L.DomEvent.disableClickPropagation(timebar);
+L.DomEvent.disableScrollPropagation(timebar);
+
+// --- Viewport (shared state) -----------------------------------------------------
+let reporting: ReturnType<typeof setTimeout> | undefined;
+let settingViewport = false; // a move made to show a viewport set elsewhere is not reported back
+map.on("moveend", () => {
+  clearTimeout(reporting);
+  if (settingViewport) return;
+  reporting = setTimeout(() => {
+    const bounds = map.getBounds();
+    const whole = bounds.getEast() - bounds.getWest() >= 360;
+    const wrap = (lon: number) => L.Util.wrapNum(lon, [-180, 180], true);
+    const clamp = (lat: number) => Math.max(-90, Math.min(90, lat));
+    const round = (x: number) => Math.round(x * 1e6) / 1e6;
+    const bbox = [
+      whole ? -180 : wrap(bounds.getWest()),
+      clamp(bounds.getSouth()),
+      whole ? 180 : wrap(bounds.getEast()),
+      clamp(bounds.getNorth()),
+    ].map(round);
+    host.postMessage({ kind: "viewport_changed", viewport: { bbox } });
+  }, 150);
+});
+
+function showViewport(bbox: number[]): void {
+  const [west, south, east, north] = bbox;
+  settingViewport = true;
+  fit(L.latLngBounds([south, west], [north, east > west ? east : east + 360]), 0);
+  settingViewport = false;
+  moved = true; // set from elsewhere: keep it, even if a panel opens beside the map
+}
+
 // --- Fitting the view ---------------------------------------------------------
 let moved = false; // whether the analyst has panned or zoomed since the last fit
 let fitting = false;
-function fit(bounds: L.LatLngBounds): void {
+function fit(bounds: L.LatLngBounds, padding = 40): void {
   if (!bounds.isValid()) return;
   fitting = true;
-  map.fitBounds(bounds, { padding: [40, 40], animate: false });
+  map.fitBounds(bounds, { padding: [padding, padding], animate: false });
   fitting = false;
   moved = false;
   placeLabels();
@@ -372,11 +527,16 @@ onMessage((message) => {
     const firstShow = sel.plot !== shownPlot;
     shownPlot = plotId = sel.plot;
     selection = new Set(sel.feature_ids);
+    showTime(message.time as TimeState | undefined);
     draw(message.plot as DebriefFeatureCollection);
     if (firstShow) fit(plotBounds);
   } else if (message.kind === "set_selection") {
     selection = new Set((message.selection as { feature_ids: string[] }).feature_ids);
     restyle();
+  } else if (message.kind === "set_time") {
+    showTime(message.time as TimeState);
+  } else if (message.kind === "set_viewport") {
+    showViewport((message.viewport as { bbox: number[] }).bbox);
   }
 });
 host.postMessage({ kind: "ready" });

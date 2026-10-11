@@ -9,6 +9,8 @@ import { checkMessage } from "../../src/messages.js";
 import { openPlot, readCatalogue } from "../../src/catalogue.js";
 import { densify } from "../../webview/geodesic.js";
 import { count, describeTimes } from "../../src/format.js";
+import { Session } from "../../src/session.js";
+import type { OpenedPlot } from "../../src/catalogue.js";
 
 const repo = path.resolve(__dirname, "../../..");
 const fixtures = path.join(repo, "schemas", "fixtures", "webview_message");
@@ -28,11 +30,11 @@ describe("what a tool needs, in the analyst's words", () => {
 });
 
 describe("webview messages are boundary types (CON-08)", () => {
-  it.each(["show-plot", "selection-changed", "run-tool", "ready"])("accepts %s", (name) => {
+  it.each(["show-plot", "selection-changed", "run-tool", "ready", "time-changed", "set-viewport-across-antimeridian"])("accepts %s", (name) => {
     const raw = JSON.parse(readFileSync(path.join(fixtures, "valid", `${name}.json`), "utf8"));
     expect(checkMessage(raw)).toEqual(raw);
   });
-  it.each(["run-tool-without-name", "ready-with-plot"])("refuses %s, which Python refuses too", (name) => {
+  it.each(["run-tool-without-name", "ready-with-plot", "time-outside-range", "set-time-without-time"])("refuses %s, which Python refuses too", (name) => {
     const raw = JSON.parse(readFileSync(path.join(fixtures, "invalid", "semantic", `${name}.json`), "utf8"));
     expect(() => checkMessage(raw)).toThrow();
   });
@@ -124,4 +126,80 @@ describe("what a tool changed, in glossary terms", () => {
     expect(describeChanges({ new_features: [annotation, annotation], deleted_feature_ids: ["a"] } as never)).toBe(
       "added 2 annotations, deleted 1 feature",
     ));
+});
+
+describe("shared state (SUB-26, SUB-27)", () => {
+  const opened = (id = "serial") =>
+    ({
+      store: { id: "s" },
+      item: {
+        id,
+        bbox: [-4.2, 50.3, -4.0, 50.4],
+        properties: { start_datetime: "1995-12-12T05:00:00.000Z", end_datetime: "1995-12-12T06:00:00.000Z" },
+      },
+      plot: { features: [{ id: "a", properties: { kind: "track" } }, { id: "b", properties: { kind: "track" } }] },
+    }) as unknown as OpenedPlot;
+  const range = { start: "1995-12-12T05:00:00.000Z", end: "1995-12-12T06:00:00.000Z" };
+
+  it("starts current time at the plot's start, and the viewport at its extent", () => {
+    const session = new Session();
+    expect(session.state()).toBeUndefined();
+    session.setPlot(opened());
+    expect(session.state()).toEqual({
+      time: { current: range.start, range },
+      selection: { plot: "serial", feature_ids: [] },
+      viewport: { bbox: [-4.2, 50.3, -4.0, 50.4] },
+    });
+  });
+
+  it("tells every listener who changed what, and refuses what cannot be shown", () => {
+    const session = new Session();
+    session.setPlot(opened());
+    const heard: [string, string][] = [];
+    session.onState((change, origin) => heard.push([Object.keys(change).join(), origin]));
+    expect(session.apply({ selection: { plot: "serial", feature_ids: ["b", "ghost"] } }, "x")).toMatch(/no feature ghost/);
+    expect(session.apply({ selection: { plot: "other", feature_ids: ["b"] } }, "x")).toMatch(/not the open plot/);
+    expect(session.setTime({ current: "1995-12-12T05:30:00+01:00", range }, "x")).toMatch(/must be UTC/);
+    expect(session.apply({ time: { current: "1995-12-12T05:30:00.000Z", range }, selection: { plot: "serial", feature_ids: ["b"] } }, "tool:x")).toBeUndefined();
+    expect(session.selection).toEqual(["b"]);
+    expect(session.setViewport({ bbox: [170, -20, -170, -10] }, "map")).toBeUndefined(); // across 180°
+    expect(session.setTime({ current: "1995-12-12T07:00:00.000Z", range }, "extension")).toMatch(/within the time range/);
+    expect(session.apply({ time: { current: range.start, range }, viewport: { bbox: [0, 10, 1, 5] } }, "x")).toMatch(/latitudes/);
+    expect(session.time?.current).toBe("1995-12-12T05:30:00.000Z"); // all or nothing
+    expect(heard).toEqual([
+      ["selection", "tool:x"],
+      ["time", "tool:x"],
+      ["viewport", "map"],
+    ]);
+  });
+
+  it("keeps current time, a widened range and the selection when the same plot is opened again", () => {
+    const session = new Session();
+    session.setPlot(opened());
+    session.select(["a"], "map");
+    const wide = { start: "1995-12-12T04:00:00.000Z", end: range.end };
+    session.setTime({ current: "1995-12-12T04:30:00.000Z", range: wide }, "tool:x");
+    session.setPlot(opened()); // reopened, or reloaded after a change
+    expect(session.time).toEqual({ current: "1995-12-12T04:30:00.000Z", range: wide });
+    expect(session.selection).toEqual(["a"]);
+    session.setPlot(opened("copy"), true); // saved as a new plot: carried across
+    expect(session.time?.current).toBe("1995-12-12T04:30:00.000Z");
+    session.setPlot(opened("other"));
+    expect(session.time?.current).toBe(range.start);
+    expect(session.selection).toEqual([]);
+  });
+
+  it("hands out copies, and one failing listener never stops the rest", () => {
+    const session = new Session();
+    session.setPlot(opened());
+    session.state()!.time.current = "tampered";
+    expect(session.time?.current).toBe(range.start);
+    const heard: string[] = [];
+    session.onState(() => {
+      throw new Error("another extension's bug");
+    });
+    session.onState((_, origin) => heard.push(origin));
+    expect(session.setViewport({ bbox: [0, 0, 1, 1] }, "extension:x")).toBeUndefined();
+    expect(heard).toEqual(["extension:x"]);
+  });
 });

@@ -1,4 +1,8 @@
-/** The plot's map, in a webview beside the editor (SUB-30, SUB-03). */
+/**
+ * The plot's map, in a webview beside the editor (SUB-30, SUB-03). It shows and
+ * sets all three pieces of shared state: selection, current time (its time
+ * control) and viewport (SUB-26, SUB-27).
+ */
 import * as vscode from "vscode";
 import type { Session } from "../session.js";
 import { checkMessage } from "../messages.js";
@@ -18,6 +22,11 @@ export class MapPanel {
     session.onPlot(() => this.showPlot());
     session.onSelection((ids, origin) => {
       if (origin !== "map") this.post({ kind: "set_selection", selection: this.selectionMessage(ids) });
+    });
+    session.onState((change, origin) => {
+      if (origin === "map" || origin === "plot") return; // the map set it, or show_plot carries it
+      if (change.time) this.post({ kind: "set_time", time: change.time });
+      if (change.viewport) this.post({ kind: "set_viewport", viewport: change.viewport });
     });
   }
 
@@ -58,6 +67,10 @@ export class MapPanel {
         this.showPlot();
       } else if (message.kind === "selection_changed") {
         this.session.select(message.selection!.feature_ids, "map");
+      } else if (message.kind === "time_changed") {
+        this.session.setTime(message.time!, "map");
+      } else if (message.kind === "viewport_changed") {
+        this.session.setViewport(message.viewport!, "map");
       }
     });
   }
@@ -71,6 +84,7 @@ export class MapPanel {
       plot: opened.plot,
       plot_title: this.panel.title,
       selection: this.selectionMessage(this.session.selection),
+      ...(this.session.time && { time: this.session.time }),
     });
     if (this.ready) this.showing = opened.item.id;
   }
