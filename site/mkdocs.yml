@@ -44,6 +44,12 @@ markdown_extensions:
           class: mermaid
           format: !!python/name:pymdownx.superfences.fence_code_format
 
+# The Phase 1 post's screenshots show the open AIS data. They stay out of the
+# published site, with the post itself (draft), until the AIS licence is
+# confirmed (see PR #17).
+exclude_docs: |
+  blog/posts/images/phase-1/
+
 nav:
   - Home: index.md
   - Blog:

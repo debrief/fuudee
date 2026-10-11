@@ -20,6 +20,7 @@ Debrief v4. Requirements and plans are in [docs/](docs/README.md); identifiers s
 | `ts/schemas/` | Generated TypeScript types and document validation |
 | `ts/kernel/` | Unit conversion and display formatting for TypeScript views, held to the vectors shared with the Python kernel |
 | `ts/config/` | The same per-user configuration for the VS Code extension, held to the location rules shared with Python |
+| `vscode/` | The VS Code extension: catalogues, map, outline, tools; see [its README](vscode/README.md) |
 | `schemas/vectors/` | Test vectors both languages must agree on |
 | `scripts/` | Generators and the cross-language round trip |
 | `site/` | Development blog and guides (style guide, interaction models, tool-author guide, glossary), published to GitHub Pages from the `gh-pages` branch |
