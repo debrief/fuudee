@@ -1,0 +1,45 @@
+{
+  "kind": "show_plot",
+  "plot": {
+    "type": "FeatureCollection",
+    "schema_version": "0.0.5",
+    "features": [
+      {
+        "type": "Feature",
+        "id": "track-nelson",
+        "geometry": {
+          "type": "LineString",
+          "coordinates": [
+            [
+              -4.1201,
+              50.3502
+            ],
+            [
+              -4.1155,
+              50.3471
+            ],
+            [
+              -4.1098,
+              50.344
+            ]
+          ]
+        },
+        "properties": {
+          "kind": "track",
+          "name": "NELSON",
+          "times": [
+            "2026-10-11T09:30:00.000Z",
+            "2026-10-11T09:31:00.000Z",
+            "2026-10-11T09:32:00.000Z"
+          ]
+        }
+      }
+    ],
+    "provenance": []
+  },
+  "plot_title": "Serial 1",
+  "selection": {
+    "plot": "serial-01",
+    "feature_ids": []
+  }
+}

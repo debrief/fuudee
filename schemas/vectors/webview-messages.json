@@ -1,0 +1,39 @@
+{
+  "description": "Members each webview message kind carries (CON-08). Python's validation and the TypeScript receivers both hold to this table.",
+  "members": {
+    "ready": [],
+    "show_plot": [
+      "plot",
+      "plot_title",
+      "selection"
+    ],
+    "set_selection": [
+      "selection"
+    ],
+    "selection_changed": [
+      "selection"
+    ],
+    "viewport_changed": [
+      "viewport"
+    ],
+    "show_form": [
+      "tool",
+      "selected_names"
+    ],
+    "run_tool": [
+      "tool_name",
+      "parameters"
+    ],
+    "cancel": [],
+    "form_busy": [
+      "message"
+    ],
+    "form_error": [
+      "message"
+    ],
+    "show_results": [
+      "result_title",
+      "result"
+    ]
+  }
+}

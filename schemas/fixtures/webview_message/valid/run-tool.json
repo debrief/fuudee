@@ -1,0 +1,17 @@
+{
+  "kind": "run_tool",
+  "tool_name": "core.range_rings",
+  "parameters": [
+    {
+      "name": "spacing",
+      "value": {
+        "value": 2.0,
+        "unit": "[nmi_i]"
+      }
+    },
+    {
+      "name": "rings",
+      "value": 3.0
+    }
+  ]
+}

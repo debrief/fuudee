@@ -166,6 +166,22 @@ export type ParameterKindEnum = "number" | "integer" | "string" | "boolean" | "c
  */
 export type ToolOutputKindEnum =
   "new_features" | "modified_features" | "deleted_features" | "non_spatial" | "named_sets" | "state_change";
+/**
+ * This interface was referenced by `DebriefSchemaDefinitions`'s JSON-Schema
+ * via the `definition` "WebviewMessageKindEnum".
+ */
+export type WebviewMessageKindEnum =
+  | "ready"
+  | "show_plot"
+  | "set_selection"
+  | "selection_changed"
+  | "viewport_changed"
+  | "show_form"
+  | "run_tool"
+  | "cancel"
+  | "form_busy"
+  | "form_error"
+  | "show_results";
 
 export interface DebriefSchemaDefinitions {}
 /**
@@ -865,4 +881,22 @@ export interface UserConfig {
    * Known stores, in the order the analyst sees them (SUB-17).
    */
   stores: KnownStore[];
+}
+/**
+ * This interface was referenced by `DebriefSchemaDefinitions`'s JSON-Schema
+ * via the `definition` "WebviewMessage".
+ */
+export interface WebviewMessage {
+  kind: WebviewMessageKindEnum;
+  message?: string | null;
+  parameters?: ParameterValue[] | null;
+  plot?: DebriefFeatureCollection | null;
+  plot_title?: string | null;
+  result?: ToolResult | null;
+  result_title?: string | null;
+  selected_names?: string[] | null;
+  selection?: Selection | null;
+  tool?: ToolDeclaration | null;
+  tool_name?: string | null;
+  viewport?: Viewport | null;
 }

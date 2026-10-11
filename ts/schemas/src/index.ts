@@ -17,6 +17,7 @@ import type {
   ToolDeclaration,
   ToolResult,
   UserConfig,
+  WebviewMessage,
 } from "./generated/debrief.js";
 import { SCHEMA_VERSION } from "./generated/schemaVersion.js";
 
@@ -33,6 +34,7 @@ export interface DocumentTypes {
   shared_state: SharedState;
   format_settings: FormatSettings;
   user_config: UserConfig;
+  webview_message: WebviewMessage;
 }
 export type DocumentKind = keyof DocumentTypes;
 
@@ -45,6 +47,7 @@ const ROOT_CLASS: Record<DocumentKind, string> = {
   shared_state: "SharedState",
   format_settings: "FormatSettings",
   user_config: "UserConfig",
+  webview_message: "WebviewMessage",
 };
 
 export const DOCUMENT_KINDS = Object.keys(ROOT_CLASS) as DocumentKind[];

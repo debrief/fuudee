@@ -37,6 +37,7 @@ class DocumentKind(StrEnum):
     SHARED_STATE = "shared_state"
     FORMAT_SETTINGS = "format_settings"
     USER_CONFIG = "user_config"
+    WEBVIEW_MESSAGE = "webview_message"
 
 
 _MODELS: dict[DocumentKind, type[BaseModel]] = {
@@ -48,6 +49,7 @@ _MODELS: dict[DocumentKind, type[BaseModel]] = {
     DocumentKind.SHARED_STATE: g.SharedState,
     DocumentKind.FORMAT_SETTINGS: g.FormatSettings,
     DocumentKind.USER_CONFIG: g.UserConfig,
+    DocumentKind.WEBVIEW_MESSAGE: g.WebviewMessage,
 }
 
 # Members that GeoJSON and STAC require to be present even when null.
@@ -416,6 +418,38 @@ def _user_config_problems(config: g.UserConfig, raw: dict[str, Any]) -> list[str
     return problems
 
 
+# Members each webview message kind must carry (CON-08). Shared with TypeScript
+# through schemas/vectors/webview-messages.json, which a test checks matches.
+MESSAGE_MEMBERS: dict[str, tuple[str, ...]] = {
+    "ready": (),
+    "show_plot": ("plot", "plot_title", "selection"),
+    "set_selection": ("selection",),
+    "selection_changed": ("selection",),
+    "viewport_changed": ("viewport",),
+    "show_form": ("tool", "selected_names"),
+    "run_tool": ("tool_name", "parameters"),
+    "cancel": (),
+    "form_busy": ("message",),
+    "form_error": ("message",),
+    "show_results": ("result_title", "result"),
+}
+
+
+def _webview_message_problems(message: g.WebviewMessage, raw: dict[str, Any]) -> list[str]:
+    kind = str(message.kind)
+    needed = MESSAGE_MEMBERS[kind]
+    problems = [f"{kind} needs {member}" for member in needed if member not in raw]
+    problems += [
+        f"{kind} does not carry {member}"
+        for member in sorted(set(raw) - {"kind", *needed})
+    ]
+    if message.plot is not None:
+        problems += _plot_problems(message.plot, raw["plot"])
+    if message.result is not None:
+        problems += _tool_result_problems(message.result, raw["result"])
+    return problems
+
+
 _RULES: dict[DocumentKind, Callable[[Any, dict[str, Any]], list[str]]] = {
     DocumentKind.PLOT: _plot_problems,
     DocumentKind.STAC_ITEM: _stac_item_problems,
@@ -425,6 +459,7 @@ _RULES: dict[DocumentKind, Callable[[Any, dict[str, Any]], list[str]]] = {
     DocumentKind.SHARED_STATE: lambda state, raw: _state_problems(state),
     DocumentKind.FORMAT_SETTINGS: _format_settings_problems,
     DocumentKind.USER_CONFIG: _user_config_problems,
+    DocumentKind.WEBVIEW_MESSAGE: _webview_message_problems,
 }
 
 

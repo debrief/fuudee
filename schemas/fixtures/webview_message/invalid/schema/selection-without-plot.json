@@ -1,0 +1,8 @@
+{
+  "kind": "selection_changed",
+  "selection": {
+    "feature_ids": [
+      "a"
+    ]
+  }
+}
