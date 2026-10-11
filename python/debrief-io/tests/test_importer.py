@@ -110,3 +110,38 @@ def test_clock_makes_provenance_repeatable(setup) -> None:
     (record,) = catalogue.read_plot("serial-01").provenance
     assert record.started_at == "1970-01-01T00:00:01.000Z"
     assert record.ended_at == "1970-01-01T00:00:02.000Z"
+
+
+def test_an_invalid_plot_leaves_nothing_behind(setup, monkeypatch) -> None:
+    """The plot is built and validated before anything is written."""
+    from debrief_io import importer
+    from debrief_schemas import DocumentValidationError
+
+    catalogue, source = setup
+    build = importer.build_plot
+
+    def out_of_range(*args, **kwargs):
+        plot, report = build(*args, **kwargs)
+        plot.features[0].geometry.coordinates[0] = [200.0, 50.0]
+        return plot, report
+
+    monkeypatch.setattr(importer, "build_plot", out_of_range)
+    with pytest.raises(DocumentValidationError):
+        import_rep(catalogue, source)
+    assert catalogue.item_ids() == []
+    assert not (catalogue.store.root / "serial-01").exists()
+
+
+def test_a_failed_write_removes_the_new_item(setup, monkeypatch) -> None:
+    catalogue, source = setup
+
+    def fail(*_args, **_kwargs):
+        raise OSError("disk full")
+
+    monkeypatch.setattr(catalogue, "write_plot", fail)
+    with pytest.raises(OSError, match="disk full"):
+        import_rep(catalogue, source)
+    assert catalogue.item_ids() == []
+    assert not (catalogue.store.root / "serial-01").exists()
+    reopened = Catalogue.open(catalogue.store.root)
+    assert not [link for link in reopened.model.links if link.rel == "child"]

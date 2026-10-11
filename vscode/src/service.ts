@@ -34,6 +34,8 @@ export interface ImportReport {
   item: string;
   tracks: string[];
   fixes: number;
+  annotations?: number;
+  narrative_entries?: number;
   omitted: string[];
 }
 
@@ -225,7 +227,8 @@ export class ToolService {
     return this.request("debrief/create_catalogue", { location, title });
   }
 
-  importRep(store: string, path: string, agent: Agent): Promise<ImportReport> {
-    return this.request("debrief/import_rep", { store, path, agent });
+  /** Import a REP file or a legacy plot file (.dpf) as a new plot. */
+  importFile(store: string, path: string, agent: Agent): Promise<ImportReport> {
+    return this.request("debrief/import", { store, path, agent });
   }
 }

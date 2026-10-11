@@ -38,7 +38,7 @@
     "commands": [
       {"command": "debrief.addCatalogue", "title": "Add catalogue folder…", "category": "Debrief", "icon": "$(folder-opened)"},
       {"command": "debrief.createCatalogue", "title": "Create catalogue…", "category": "Debrief", "icon": "$(new-folder)"},
-      {"command": "debrief.importRep", "title": "Import REP file…", "category": "Debrief", "icon": "$(cloud-download)"},
+      {"command": "debrief.importRep", "title": "Import plot file (REP or .dpf)…", "category": "Debrief", "icon": "$(cloud-download)"},
       {"command": "debrief.refresh", "title": "Refresh", "category": "Debrief", "icon": "$(refresh)"},
       {"command": "debrief.openPlot", "title": "Open plot", "category": "Debrief"},
       {"command": "debrief.select", "title": "Select features", "category": "Debrief"},
