@@ -653,19 +653,25 @@ export function activate(context: vscode.ExtensionContext): DebriefApi {
       storeId = picked?.id;
     }
     if (!storeId) return;
-    const files = await vscode.window.showOpenDialog({ canSelectMany: false, filters: { "REP files": ["rep", "REP"] } });
+    const files = await vscode.window.showOpenDialog({
+      canSelectMany: false,
+      filters: { "Plot files": ["rep", "REP", "dpf", "DPF"], "REP files": ["rep", "REP"], "Legacy plot files": ["dpf", "DPF"] },
+    });
     if (!files?.length) return;
     try {
       let report;
       try {
-        report = await service!.importRep(storeId, files[0].fsPath, agent);
+        report = await service!.importFile(storeId, files[0].fsPath, agent);
       } catch (error) {
         if ((error as ServiceError).code !== NEWER_SCHEMA) throw error;
         if (!(await confirmNewerSchema((error as Error).message))) return;
-        report = await service!.importRep(storeId, files[0].fsPath, agent, true);
+        report = await service!.importFile(storeId, files[0].fsPath, agent, true);
       }
       catalogues.refresh();
-      const summary = `Imported ${count(report.tracks.length, "track")}, ${count(report.fixes, "fix", "fixes")}.`;
+      const parts = [count(report.tracks.length, "track"), count(report.fixes, "fix", "fixes")];
+      if (report.annotations) parts.push(count(report.annotations, "annotation"));
+      if (report.narrative_entries) parts.push(count(report.narrative_entries, "narrative note"));
+      const summary = `Imported ${parts.join(", ")}.`;
       // Nothing is dropped silently (EXT-14): say what was not imported.
       if (report.omitted.length) {
         const choice = await vscode.window.showWarningMessage(
