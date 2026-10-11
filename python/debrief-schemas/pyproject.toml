@@ -4,7 +4,7 @@ version = "0.0.1"
 description = "Debrief data-file schema: Pydantic models generated from LinkML"
 requires-python = ">=3.12"
 dependencies = [
-    "pydantic>=2.7",
+    "pydantic>=2.11",
     "jsonschema>=4.23",
 ]
 
