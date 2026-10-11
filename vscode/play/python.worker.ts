@@ -28,15 +28,32 @@ type Pyodide = {
 type Call = (name: string, args: unknown[]) => unknown;
 let ready: Promise<Call> | undefined;
 
+/** A file from this site, or a clear failure naming it: never a 404 page read as data. */
+async function get(base: string, file: string): Promise<Response> {
+  const response = await fetch(new URL(file, base));
+  if (!response.ok) throw new Error(`${file} is missing from this site (${response.status})`);
+  return response;
+}
+
+/** Pyodide and its packages, from the CDN; a network that blocks it is named plainly. */
+async function loadPython(say: (text: string) => void): Promise<Pyodide> {
+  try {
+    say("Loading Python…");
+    const { loadPyodide } = (await import(/* @vite-ignore */ `${PYODIDE}pyodide.mjs`)) as {
+      loadPyodide(options: { indexURL: string }): Promise<Pyodide>;
+    };
+    const pyodide = await loadPyodide({ indexURL: PYODIDE });
+    say("Loading Python packages…");
+    await pyodide.loadPackage(PACKAGES);
+    return pyodide;
+  } catch {
+    throw new Error("Python couldn't be downloaded from cdn.jsdelivr.net; your network may block it.");
+  }
+}
+
 async function start(base: string, say: (text: string) => void) {
-  say("Loading Python…");
-  const { loadPyodide } = (await import(/* @vite-ignore */ `${PYODIDE}pyodide.mjs`)) as {
-    loadPyodide(options: { indexURL: string }): Promise<Pyodide>;
-  };
-  const pyodide = await loadPyodide({ indexURL: PYODIDE });
-  say("Loading Python packages…");
-  await pyodide.loadPackage(PACKAGES);
-  const manifest = (await (await fetch(new URL("manifest.json", base))).json()) as Manifest;
+  const pyodide = await loadPython(say);
+  const manifest = (await (await get(base, "manifest.json")).json()) as Manifest;
   say("Installing Debrief…");
   // Without their dependencies: those are Pyodide's builds above (the desktop service's web
   // server, which the browser never needs, is left out).
@@ -45,14 +62,14 @@ async function start(base: string, say: (text: string) => void) {
   say("Opening the sample exercise…");
   await Promise.all(
     manifest.sample.map(async (file) => {
-      const data = new Uint8Array(await (await fetch(new URL(`sample/${file}`, base))).arrayBuffer());
+      const data = new Uint8Array(await (await get(base, `sample/${file}`)).arrayBuffer());
       const target = `/play/catalogue/${file}`;
       pyodide.FS.mkdirTree(target.slice(0, target.lastIndexOf("/")));
       pyodide.FS.writeFile(target, data);
     }),
   );
   pyodide.FS.mkdirTree("/play/code");
-  pyodide.FS.writeFile("/play/code/play.py", await (await fetch(new URL("play.py", base))).text());
+  pyodide.FS.writeFile("/play/code/play.py", await (await get(base, "play.py")).text());
   await pyodide.runPythonAsync("import sys; sys.path.insert(0, '/play/code'); import play");
   const play = pyodide.pyimport("play") as unknown as Record<string, (...args: unknown[]) => unknown>;
   // A plain function, not an object: anything with a "then" would be taken for a promise.

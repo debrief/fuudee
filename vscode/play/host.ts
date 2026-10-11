@@ -10,7 +10,7 @@
  *
  * Query parameters choose what an embedded demo shows:
  *   plot=serial-1         the sample serial to open
- *   panels=tools,history,try,import   the side panels (all by default)
+ *   panels=tools,history,try,import   the side panels, in this order (all by default)
  */
 import type { DebriefFeatureCollection, ParameterValue, StacItem, TimeState, ToolDeclaration, ToolResult } from "@debrief/schemas";
 import { count, describeChanges, describePeriod, describeTimes } from "../src/format.js";
@@ -25,6 +25,7 @@ interface Step {
   tool: string | null;
   agent: string;
   at: string;
+  notes?: string[];
 }
 interface Opened {
   item: StacItem;
@@ -35,7 +36,8 @@ interface Opened {
 }
 
 const params = new URLSearchParams(location.search);
-const panels = new Set((params.get("panels") ?? "tools,history,try,import").split(","));
+const panelOrder = (params.get("panels") ?? "tools,history,try,import").split(",");
+const panels = new Set(panelOrder);
 const startPlot = params.get("plot") ?? "serial-1";
 const theme = matchMedia("(prefers-color-scheme: light)").matches || params.get("theme") === "light" ? "light" : "dark";
 if (theme === "light") document.documentElement.classList.add("light");
@@ -58,6 +60,8 @@ function python(call: string, ...args: unknown[]): Promise<string> {
   return new Promise((resolve, reject) => waiting.set(id, { resolve, reject }));
 }
 const pythonJson = async <T>(call: string, ...args: unknown[]) => JSON.parse(await python(call, ...args)) as T;
+/** Whether Python has started: until then, only the map and outline work. */
+let pythonReady = false;
 
 // --- The webviews, in frames -------------------------------------------------------
 function frame(name: "map" | "form" | "results"): HTMLIFrameElement {
@@ -113,18 +117,20 @@ function showPlot(): void {
 
 async function openPlot(item: string, keep = false): Promise<void> {
   const previousTime = keep ? time : undefined;
-  if (opened && opened.item.id !== item) {
-    closeForm();
-    closeResults();
-    $("side-frame").hidden = true;
-  }
+  if (opened && opened.item.id !== item) closeSide();
+  // The plot as the map last drew it: if Python's is the same, it isn't sent again.
+  const shown = opened?.item.id === item && opened.base.plot_hash ? opened.base.plot_hash : undefined;
   opened = await pythonJson<Opened>("open_plot", item);
   $<HTMLSelectElement>("plots").value = item;
   const ids = new Set(features().map((f) => f.id));
   selection = keep ? selection.filter((id) => ids.has(id)) : [];
   time = timeOf(opened.item, previousTime);
   $("plot-title").textContent = opened.item.properties.title ?? item;
-  showPlot();
+  if (opened.base.plot_hash !== shown) showPlot();
+  else {
+    post(map, { kind: "set_selection", selection: { plot: item, feature_ids: selection } });
+    if (time) post(map, { kind: "set_time", time });
+  }
   renderOutline();
   renderHistory();
   await refreshOffered();
@@ -140,7 +146,9 @@ async function select(ids: string[], fromMap = false): Promise<void> {
 }
 
 window.addEventListener("message", (event) => {
-  if (event.origin !== location.origin || !event.data?.debriefFrame) return;
+  if (event.origin !== location.origin) return;
+  if (event.data?.debriefKey) return void historyKey(event.data.debriefKey as KeyChord);
+  if (!event.data?.debriefFrame) return;
   const { debriefFrame: name, message } = event.data as { debriefFrame: string; message: { kind: string } & Record<string, unknown> };
   if (message.kind === "ready") {
     ready.add(name);
@@ -174,14 +182,38 @@ async function refreshOffered(): Promise<void> {
   renderTools();
 }
 
+/** The panel beside the map (below it on a narrow screen), with a Close button of its own. */
+function showSide(title: string, content: HTMLElement): void {
+  closeSide();
+  const bar = document.createElement("div");
+  bar.className = "side-bar";
+  const heading = document.createElement("span");
+  heading.textContent = title;
+  const close = document.createElement("button");
+  close.textContent = "Close";
+  close.setAttribute("aria-label", `Close ${title.toLowerCase()}`);
+  close.onclick = closeSide;
+  bar.append(heading, close);
+  $("side-frame").replaceChildren(bar, content);
+  $("side-frame").hidden = false;
+}
+function closeSide(): void {
+  formTool = undefined;
+  form = undefined;
+  results = undefined;
+  ready.delete("form");
+  ready.delete("results");
+  $("side-frame").replaceChildren();
+  $("side-frame").hidden = true;
+}
+
 function openForm(tool: ToolDeclaration): void {
-  formTool = tool;
   if (!form) {
-    closeResults();
-    form = frame("form");
-    $("side-frame").replaceChildren(form);
-    $("side-frame").hidden = false;
+    const shown = frame("form");
+    showSide("Tool", shown);
+    form = shown;
   }
+  formTool = tool;
   sendForm();
 }
 function sendForm(): void {
@@ -190,27 +222,18 @@ function sendForm(): void {
   post(form, { kind: "show_form", tool: formTool, selected_names: selectedNames(), ...(range && { time_range: range }) });
 }
 function closeForm(): void {
-  formTool = undefined;
-  form?.remove();
-  form = undefined;
-  ready.delete("form");
-  if (!results) $("side-frame").hidden = true;
+  if (form) closeSide();
 }
 
 let pendingResults: (() => void) | undefined;
 function showResults(tool: ToolDeclaration, result: ToolResult): void {
-  closeForm();
-  results?.remove();
-  ready.delete("results");
-  results = frame("results");
-  $("side-frame").replaceChildren(results);
-  $("side-frame").hidden = false;
+  const shown = frame("results");
+  showSide("Results", shown);
+  results = shown;
   pendingResults = () => post(results, { kind: "show_results", tool, result_title: tool.title, result });
 }
 function closeResults(): void {
-  results?.remove();
-  results = undefined;
-  ready.delete("results");
+  if (results) closeSide();
 }
 
 async function runTool(tool: ToolDeclaration, parameters: ParameterValue[], onConflict?: string): Promise<string | undefined> {
@@ -270,22 +293,46 @@ async function runTool(tool: ToolDeclaration, parameters: ParameterValue[], onCo
 
 // --- History ----------------------------------------------------------------------
 async function move(how: "undo" | "redo" | "goto", step?: number): Promise<void> {
-  if (!opened) return;
+  if (!opened || !pythonReady) return;
   const outcome = await pythonJson<{ error?: string }>("move", opened.item.id, how, step ?? null);
   if (outcome.error) return toast(outcome.error, "warning");
+  closeResults(); // they describe a plot that is no longer current
   await openPlot(opened.item.id, true);
 }
+
+// Ctrl+Z undoes, Ctrl+Shift+Z or Ctrl+Y redoes, as in VS Code: here in the page, and
+// forwarded from the map, form and results frames (see shim.ts). Never while typing.
+type KeyChord = { key: string; ctrlKey: boolean; metaKey: boolean; shiftKey: boolean };
+function historyKey(e: KeyChord): boolean {
+  if (!(e.ctrlKey || e.metaKey) || !panels.has("history") || !pythonReady) return false;
+  const key = e.key.toLowerCase();
+  if (key === "z" && !e.shiftKey) void move("undo");
+  else if ((key === "z" && e.shiftKey) || (key === "y" && !e.shiftKey)) void move("redo");
+  else return false;
+  return true;
+}
+const typing = (target: EventTarget | null) =>
+  target instanceof HTMLElement && (target.isContentEditable || ["INPUT", "TEXTAREA", "SELECT"].includes(target.tagName));
+document.addEventListener("keydown", (event) => {
+  if (!typing(event.target) && historyKey(event)) event.preventDefault();
+});
 
 // --- Rendering --------------------------------------------------------------------
 function renderOutline(): void {
   const list = $("outline");
+  // Re-rendering replaces the rows: keep keyboard focus on the row that had it.
+  const focused = list.contains(document.activeElement) ? (document.activeElement as HTMLElement).dataset.id : undefined;
   list.replaceChildren(
     ...features()
       .filter((f) => f.properties.kind === "track" || f.geometry)
       .map((f) => {
         const row = document.createElement("li");
-        row.className = selection.includes(f.id) ? "selected" : "";
+        const selected = selection.includes(f.id);
+        row.className = selected ? "selected" : "";
         row.tabIndex = 0;
+        row.dataset.id = f.id;
+        row.setAttribute("role", "option");
+        row.setAttribute("aria-selected", String(selected));
         const props = f.properties as { times?: string[]; time?: string };
         row.innerHTML = `<span class="name"></span> <span class="detail"></span>`;
         row.querySelector(".name")!.textContent = f.properties.name;
@@ -293,10 +340,16 @@ function renderOutline(): void {
         const choose = (add: boolean) =>
           void select(add ? (selection.includes(f.id) ? selection.filter((i) => i !== f.id) : [...selection, f.id]) : [f.id]);
         row.onclick = (e) => choose(e.ctrlKey || e.metaKey || e.shiftKey);
-        row.onkeydown = (e) => e.key === "Enter" && choose(e.ctrlKey || e.metaKey);
+        row.onkeydown = (e) => {
+          // Only Enter and Space select; every other key (Tab above all) does what it always does.
+          if (e.key !== "Enter" && e.key !== " ") return;
+          e.preventDefault();
+          choose(e.ctrlKey || e.metaKey || e.shiftKey);
+        };
         return row;
       }),
   );
+  if (focused) list.querySelector<HTMLElement>(`[data-id="${CSS.escape(focused)}"]`)?.focus();
   $("selected-count").textContent = selection.length ? `${count(selection.length, "feature")} selected · Ctrl-click to add` : "Click to select · Ctrl-click to add";
 }
 
@@ -355,6 +408,7 @@ async function refreshPlots(): Promise<void> {
   const plots = await pythonJson<{ id: string; title: string }[]>("plots");
   const picker = $<HTMLSelectElement>("plots");
   picker.replaceChildren(...plots.map((p) => new Option(p.title, p.id)));
+  picker.disabled = false;
   if (opened) picker.value = opened.item.id;
 }
 
@@ -375,23 +429,34 @@ function ask(question: string, choices: string[]): Promise<string | undefined> {
   return new Promise((resolve) => {
     const dialog = $<HTMLDialogElement>("ask");
     $("ask-text").textContent = question;
+    let chosen: string | undefined;
     const buttons = [...choices, "Cancel"].map((choice, i) => {
       const button = document.createElement("button");
       button.textContent = choice;
       button.className = i === 0 ? "primary" : "";
       button.onclick = () => {
+        chosen = choice === "Cancel" ? undefined : choice;
         dialog.close();
-        resolve(choice === "Cancel" ? undefined : choice);
       };
       return button;
     });
     $("ask-buttons").replaceChildren(...buttons);
+    // However the dialog closes, Escape included, the question is answered: Escape is Cancel.
+    dialog.onclose = () => resolve(chosen);
     dialog.showModal();
   });
 }
 
 // --- Wiring -----------------------------------------------------------------------
 for (const panel of ["tools", "history", "try", "import"]) $(`panel-${panel}`).hidden = !panels.has(panel);
+// The panels in the order the demo lists them, after the plot and its outline.
+for (const panel of panelOrder) if (["tools", "history", "try", "import"].includes(panel)) $("side").append($(`panel-${panel}`));
+/** History, Try and Import need Python: off until it is ready. */
+const NEEDS_PYTHON = ["undo", "redo", "crash", "colleague", "colleague-during", "file"];
+function needsPython(on: boolean): void {
+  for (const id of NEEDS_PYTHON) $<HTMLButtonElement | HTMLInputElement>(id).disabled = !on;
+}
+needsPython(false);
 $("undo").onclick = () => void move("undo");
 $("redo").onclick = () => void move("redo");
 $<HTMLSelectElement>("plots").onchange = (e) => void openPlot((e.target as HTMLSelectElement).value);
@@ -425,7 +490,7 @@ $<HTMLInputElement>("file").onchange = async (e) => {
     file.name,
     new Uint8Array(await file.arrayBuffer()),
   );
-  status("");
+  status("Ready. Everything runs in your browser; nothing is sent anywhere.");
   if (report.error || !report.item) return toast(report.error ?? "The file could not be imported.", "warning");
   await refreshPlots();
   await openPlot(report.item);
@@ -442,12 +507,8 @@ $<HTMLInputElement>("file").onchange = async (e) => {
     : "Everything in the file was imported.";
   const list = document.createElement("ul");
   list.replaceChildren(...report.omitted.map((line) => Object.assign(document.createElement("li"), { textContent: line })));
-  const close = document.createElement("button");
-  close.textContent = "Close";
-  close.onclick = () => ($("side-frame").hidden = true);
-  panel.append(heading, lead, list, close);
-  $("side-frame").replaceChildren(panel);
-  $("side-frame").hidden = false;
+  panel.append(heading, lead, list);
+  showSide("Import", panel);
 };
 
 /** Show the sample plot straight from the site while Python starts, so the map is never empty. */
@@ -468,6 +529,17 @@ async function preview(item: string): Promise<void> {
   }
 }
 
+/** Python could not start: say so plainly, and mark what needs it as unavailable. */
+function withoutPython(why: string): void {
+  status(`${why} The map still works; tools, history and import need Python.`);
+  $("status").classList.add("problem");
+  for (const panel of ["tools", "history", "try", "import"]) $(`panel-${panel}`).classList.add("unavailable");
+  const unavailable = () => Object.assign(document.createElement("li"), { className: "detail", textContent: "Needs Python, which could not start." });
+  $("tools").replaceChildren(unavailable());
+  $("history").replaceChildren(unavailable());
+  if (opened) $("plots").replaceChildren(new Option(opened.item.properties.title ?? opened.item.id, opened.item.id));
+}
+
 (async () => {
   void preview(startPlot);
   status("Starting Python in your browser: the first time takes a little while…", true);
@@ -476,9 +548,13 @@ async function preview(item: string): Promise<void> {
     tools = await pythonJson<ToolDeclaration[]>("tools");
     await pythonJson("setup");
     await refreshPlots();
-    await openPlot(startPlot);
+    // keep: anything the reader selected on the preview stays selected.
+    await openPlot(startPlot, true);
+    pythonReady = true;
+    needsPython(true);
     status("Ready. Everything runs in your browser; nothing is sent anywhere.");
   } catch (error) {
-    status(`Python could not start here: ${(error as Error).message}`);
+    const message = (error as Error).message;
+    withoutPython(message.startsWith("Python couldn't") ? message : `Python could not start here: ${message}.`);
   }
 })();

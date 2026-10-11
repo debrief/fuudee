@@ -3,22 +3,23 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="color-scheme" content="dark light">
 <title>Debrief in your browser</title>
 <link rel="stylesheet" href="theme.css">
 <link rel="stylesheet" href="host.css">
 </head>
 <body>
 <div class="app">
-  <aside class="side">
+  <aside id="side" class="side">
     <section>
       <h2>Plot</h2>
-      <select id="plots" aria-label="Plot"></select>
+      <select id="plots" aria-label="Plot" disabled><option>Loading…</option></select>
       <div id="plot-title" class="detail"></div>
     </section>
     <section>
       <h2>Outline</h2>
       <div id="selected-count" class="detail"></div>
-      <ul id="outline" class="list"></ul>
+      <ul id="outline" class="list" role="listbox" aria-multiselectable="true" aria-label="Features in the plot"></ul>
     </section>
     <section id="panel-tools">
       <h2>Tools</h2>

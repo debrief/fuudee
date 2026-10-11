@@ -22,7 +22,9 @@ flowchart LR
     cmp -- yes --> ok["Pass"]
 ```
 
-The answers were identical. Calculations run about half as fast in the browser, which is still far quicker than an analyst can notice, and the demonstration needs a few seconds to start.
+The answers were identical. Calculations run about half as fast in the browser, and the demonstration needs a few seconds to start.
+
+Half as fast is quick, but not always instant. In the demo below, *Closest approach* between two four-hour tracks of 241 fixes each takes about 1.5 seconds of Python in Chrome, against 0.8 seconds under ordinary Python on the same machine. From pressing **Run** to seeing the result takes about 2.5 seconds, because the plot is saved, with its history, and shown again. Building the demo halved that tool's time on every platform: it now works out the geodesic between each pair of fixes once, rather than at every step of its search.
 
 This check now runs on every change. It also sets a rule for the future: any library a Debrief tool relies on must be able to run in the browser too, or the tool must say plainly that it is only available on the desktop.
 

@@ -9,6 +9,7 @@ Pyodide too (CON-09).
 
 from __future__ import annotations
 
+from debrief_kernel.formatting import DEFAULT_SETTINGS, UNIT_LABELS, format_time
 from debrief_kernel.geodesy import (
     TrackPath,
     closest_approach,
@@ -213,8 +214,8 @@ def range_rings(context: ToolContext) -> models.ToolResult:
     centre = path.position_at(at)
     if centre is None:
         raise ValueError(
-            f"{format_utc(at)} is outside {track.properties.name}, which runs from "
-            f"{format_utc(path.start_ms)} to {format_utc(path.end_ms)}"
+            f"{_shown(at)} is outside {track.properties.name}, which runs from "
+            f"{_shown(path.start_ms)} to {_shown(path.end_ms)}"
         )
     spacing: Quantity = context.parameters["spacing"]
     # Mark the centre, so the analyst can see where and when the rings are drawn.
@@ -258,7 +259,15 @@ def range_rings(context: ToolContext) -> models.ToolResult:
 
 
 def _unit_label(unit: str) -> str:
-    return {"[nmi_i]": "nmi", "[yd_i]": "yd", "[ft_i]": "ft"}.get(unit, unit)
+    return UNIT_LABELS.get(unit, unit)
+
+
+_DATED = DEFAULT_SETTINGS.model_copy(update={"time_style": "date_time"})
+
+
+def _shown(epoch_ms: int) -> str:
+    """A time in a message, as the formatting service writes it for people (SUB-04)."""
+    return format_time(epoch_ms, _DATED)
 
 
 @tool(

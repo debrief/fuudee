@@ -156,6 +156,10 @@ def build_plot(
     return plot, report
 
 
+class NoTracksError(ValueError):
+    """A REP file in which no track could be read: there would be nothing to show."""
+
+
 class SourceChangedError(ValueError):
     """The source file changed while it was being imported."""
 
@@ -231,6 +235,21 @@ def import_rep(
         item_id,
         title or path.stem,
         "text/plain",
-        lambda source: build_plot(text, source, agent, clock=clock),
+        lambda source: _with_tracks(build_plot(text, source, agent, clock=clock)),
         allow_newer_schema=allow_newer_schema,
     )
+
+
+def _with_tracks(
+    built: tuple[DebriefFeatureCollection, ImportReport],
+) -> tuple[DebriefFeatureCollection, ImportReport]:
+    """Refuse a file with no readable track, saying why, rather than make an empty plot."""
+    plot, report = built
+    if not report.tracks:
+        why = " ".join(report.omitted[:3]) or "The file is empty."
+        more = len(report.omitted) - 3
+        raise NoTracksError(
+            f"no tracks could be read from it. {why}"
+            + (f" ({more} more problem{'s' if more != 1 else ''}.)" if more > 0 else "")
+        )
+    return plot, report

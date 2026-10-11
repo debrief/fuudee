@@ -11,6 +11,9 @@ Phase 1's job is to prove the architecture by walking one path all the way throu
 
 <!-- more -->
 
+!!! note "Update, 11 October 2026"
+    The demo below is today's Debrief, so it includes features added since this post was written, such as the time control along the bottom of the map and undo.
+
 *Every picture here comes from CI. A test drives the real VS Code, with the real extension and the real Python tool service, on Debrief's sample exercise. It takes these screenshots as it goes, so they can't drift from what the software does.*
 
 ## Catalogues, plots and the map
@@ -34,7 +37,7 @@ The **Outline** shows the plot's features, its supporting files and its referenc
 Select a track on the map or in the outline, and every view follows. The tools view asks the Python tool service which tools apply to everything selected.
 
 - **On offer.** With one track selected you're offered *Track summary*, *Range rings* and *Add note*.
-- **Not on offer.** *Closest approach*, which needs two tracks, waits under **Other tools**, saying so. Nothing is hidden without a reason.
+- **Not on offer.** *Closest approach*, which needs two tracks, waits under **Other tools** in VS Code, saying so; in the demo below it is greyed out, with the reason beside it. Nothing is hidden without a reason.
 
 Try it here. Select BLUE ONE in the outline, Ctrl-click RED ONE, and see what's on offer:
 

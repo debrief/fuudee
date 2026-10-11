@@ -105,7 +105,7 @@ def parse_time(date_token: str, time_token: str) -> tuple[int, bool]:
     """Epoch milliseconds, and whether finer digits were truncated."""
     whole, _, fraction = time_token.partition(".")
     if not (date_token.isdigit() and whole.isdigit() and (fraction == "" or fraction.isdigit())):
-        raise RepError(f"{date_token} {time_token} is not a date and time")
+        raise RepError(f"'{date_token} {time_token}' is not a date and time")
     if len(fraction) > 6:
         raise RepError(f"{time_token}: finer than a microsecond")
     date = date_token if len(date_token) == 8 else _pad(date_token)

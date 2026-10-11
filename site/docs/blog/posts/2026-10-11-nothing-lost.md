@@ -52,7 +52,7 @@ A crash at any point loses at most the change in progress, and here not even tha
 
 Run a tool, undo it, then **Crash part-way through a save** and **Reopen the plot**:
 
-<div class="debrief-demo" data-demo="?panels=tools,history,try"></div>
+<div class="debrief-demo" data-demo="?panels=tools,try,history" data-height="780px"></div>
 
 ## Someone else changed it
 

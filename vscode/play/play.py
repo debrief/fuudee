@@ -75,6 +75,7 @@ def _steps(item: str) -> list[dict[str, Any]]:
                 "agent": ", ".join(dict.fromkeys(r.agent.name for r in step.records)),
                 "at": first.ended_at or first.started_at,
                 "records": len(step.records),
+                "notes": list(first.notes or []),
             }
         )
     return out
@@ -162,9 +163,10 @@ def _note(item: str, prefix: str, name: str, at: str) -> models.AnnotationFeatur
     )
 
 
-def _record(agent: models.AgentRef, at: str, what: str) -> models.ProvRecord:
+def _record(agent: models.AgentRef, at: str, what: str, note: str) -> models.ProvRecord:
+    """An edit's record; its note is what the History panel calls the step."""
     return models.ProvRecord(
-        id=f"edit-{what}-{at}", kind="edit", started_at=at, agent=agent, notes=[what]
+        id=f"edit-{what}-{at}", kind="edit", started_at=at, agent=agent, notes=[note]
     )
 
 
@@ -189,7 +191,7 @@ def crash(item: str, at: str) -> str:
     try:
         _cat().commit(
             item,
-            [_record(YOU, at, "saved-before-the-crash")],
+            [_record(YOU, at, "saved-before-the-crash", "Note added just before a crash")],
             Changes(added=[_note(item, "note-crash", "Saved just before the crash", at)]),
         )
     except Killed:
@@ -203,7 +205,7 @@ def colleague(item: str, at: str) -> str:
     """A colleague adds a note to the same plot, as if from another computer (SUB-28)."""
     _cat().commit(
         item,
-        [_record(COLLEAGUE, at, "colleague")],
+        [_record(COLLEAGUE, at, "colleague", "Note added by a colleague")],
         Changes(added=[_note(item, "note-colleague", "A colleague's note", at)]),
     )
     return json.dumps({"ok": True})

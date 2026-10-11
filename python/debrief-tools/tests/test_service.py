@@ -452,12 +452,14 @@ def test_only_plot_xml_goes_to_the_plot_importer(client, tmp_path: Path) -> None
     params = {"store": "exercise", "path": str(saved_as_xml), "agent": AGENT}
     report = rpc(client, "debrief/import", params).json()["result"]
     assert report["tracks"] and report["annotations"]
-    # Other XML is not a plot file: it goes to the REP importer, which lists its lines.
+    # Other XML is not a plot file: it goes to the REP importer, which finds no tracks
+    # in it and refuses it, quoting the lines it could not read.
     other = tmp_path / "route.xml"
     other.write_text('<?xml version="1.0"?>\n<gpx version="1.1"><rte/></gpx>\n')
     params = {"store": "exercise", "path": str(other), "agent": AGENT}
-    report = rpc(client, "debrief/import", params).json()["result"]
-    assert report["tracks"] == [] and report["omitted"]
+    error = rpc(client, "debrief/import", params).json()["error"]
+    assert "route.xml could not be imported: no tracks could be read" in error["message"]
+    assert "Line 1 could not be read" in error["message"]
 
 
 def test_a_failing_tool_logs_no_names_from_its_message(client, catalogue) -> None:

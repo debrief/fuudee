@@ -4,6 +4,7 @@
  * editor supplies these; here the playground does, so the webviews run unchanged.
  */
 :root {
+  color-scheme: dark; /* scrollbars, form controls and the page behind them match */
   --vscode-font-family: system-ui, -apple-system, "Segoe UI", Ubuntu, sans-serif;
   --vscode-font-size: 13px;
   --vscode-editor-font-family: ui-monospace, Menlo, Consolas, "DejaVu Sans Mono", monospace;
@@ -63,6 +64,7 @@
   --vscode-disabledForeground: #cccccc80;
 }
 :root.light {
+  color-scheme: light;
   --vscode-foreground: #3b3b3b;
   --vscode-descriptionForeground: #6b6b6b;
   --vscode-errorForeground: #f85149;

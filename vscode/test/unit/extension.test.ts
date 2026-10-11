@@ -224,6 +224,8 @@ describe("history steps, in the analyst's words (SUB-21)", () => {
     [{ kind: "tool", tool: "core.range_rings", status: "undone" }, "Range rings", "Undone; can be redone"],
     [{ kind: "tool", tool: "debrief-sample", status: "abandoned" }, "Made by debrief-sample", "Undone, then replaced by a later change; kept on record"],
     [{ kind: "edit", tool: null, status: "applied" }, "Edited", "In the plot"],
+    [{ kind: "edit", tool: null, status: "applied", notes: ["Note added by a colleague"] }, "Note added by a colleague", "In the plot"],
+    [{ kind: "edit", tool: null, status: "applied", notes: ["The plot had content but no record of how it was made, so this is long."] }, "Edited", "In the plot"],
   ])("%#", (step, label, status) => expect(describeStep(step, title)).toEqual({ label, status }));
 });
 

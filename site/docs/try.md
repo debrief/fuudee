@@ -17,7 +17,7 @@ This is Debrief v4 running in your browser: the same map, tool forms and results
 
 Drag two positions and compare the range and bearing Debrief v4 measures with what legacy Debrief gave:
 
-<div class="debrief-demo" data-page="geodesic.html" data-height="560px" data-caption="Runs in your browser; no Python needed."></div>
+<div class="debrief-demo" data-page="geodesic.html" data-height="560px" data-caption="Legacy figures use its FlatEarth model: mid-latitude sailing, 1° = 60 nmi. Runs in your browser; no Python needed."></div>
 
 ## How it works
 
@@ -25,4 +25,4 @@ The page plays the part of VS Code. Debrief's webviews run unchanged in frames, 
 
 The sample exercise is copied into the browser's memory. Every change, undo and crash happens there, and is gone when you close the page.
 
-The first start downloads Pyodide and its packages, about 30 MB, from the jsDelivr CDN. Later visits use your browser's cache.
+The first start downloads Pyodide and its packages, about 16 MB, from the jsDelivr CDN (`cdn.jsdelivr.net`). Later visits use your browser's cache. If your network blocks the CDN, the map still works, and the page says that tools, history and import need Python.
