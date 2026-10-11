@@ -1682,7 +1682,7 @@
 </tr>
 <tr>
 <td><code>quantity</code></td>
-<td>Number with a unit picker, for a <code>quantity_kind</code> of <code>length</code>, <code>speed</code>, <code>angle</code> or <code>duration</code></td>
+<td>Number with a unit picker, for a <code>quantity_kind</code> of <code>length</code>, <code>speed</code>, <code>angle</code>, <code>duration</code> or <code>angular_rate</code></td>
 <td>A kernel <code>Quantity</code>. <code>.to("m")</code> gives another <code>Quantity</code>; <code>.to("m").value</code> gives the number.</td>
 </tr>
 <tr>
@@ -1717,9 +1717,13 @@
 <td><code>duration</code></td>
 <td><code>ms</code>, <code>s</code>, <code>min</code>, <code>h</code></td>
 </tr>
+<tr>
+<td><code>angular_rate</code></td>
+<td><code>deg/min</code> (the analysts' standard for bearing rate), <code>deg/s</code>, <code>rad/s</code></td>
+</tr>
 </tbody>
 </table>
-<p>A range rate is a speed. There's no kind for a bearing rate yet, so a column of bearing rates can't carry its unit; one is being added.</p>
+<p>A range rate is a speed. A bearing rate is an <code>angular_rate</code>, shown in degrees per minute: <code>1.2°/min</code>. In the kernel, an angle divided by a duration gives one: <code>angle(3) / duration(2, "min")</code> is 1.5°/min.</p>
 <ul>
 <li><strong>Defaults.</strong> Give one wherever there's a sensible value; it fills the form.</li>
 <li><strong>Optional parameters.</strong> Mark one optional with <code>required: false</code>. It reaches your tool as <code>None</code> when left empty.</li>
@@ -1787,7 +1791,7 @@
 <td>UTC strings to epoch milliseconds and back</td>
 </tr>
 <tr>
-<td><code>length(5, "[nmi_i]")</code>, <code>speed(...)</code>, <code>angle(...)</code>, <code>duration(...)</code></td>
+<td><code>length(5, "[nmi_i]")</code>, <code>speed(...)</code>, <code>angle(...)</code>, <code>duration(...)</code>, <code>angular_rate(...)</code></td>
 <td>A <code>Quantity</code></td>
 </tr>
 </tbody>
