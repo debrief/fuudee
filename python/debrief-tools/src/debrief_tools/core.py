@@ -161,10 +161,8 @@ def _time_at(context: ToolContext, when: str) -> models.SharedStateChange | None
     if context.state is None:
         return None
     span = context.state.time.range
-    start, end = (
-        min(span.start, when),
-        max(span.end, when),
-    )  # same format, so text order is time order
+    start = span.start if parse_utc(span.start) <= parse_utc(when) else when
+    end = span.end if parse_utc(span.end) >= parse_utc(when) else when
     return models.SharedStateChange(
         time=models.TimeState(current=when, range=models.TimeRange(start=start, end=end))
     )
