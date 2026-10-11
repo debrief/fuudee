@@ -1,0 +1,193 @@
+"""Geodesic geometry on WGS84 (SUB-03).
+
+All measurement is geodesic on the WGS84 ellipsoid, independent of the
+display projection, using Karney's algorithms (geographiclib). Positions are
+(longitude, latitude) in decimal degrees, matching GeoJSON order. Bearings are
+true, clockwise from north, in [0, 360).
+"""
+
+from __future__ import annotations
+
+import math
+from bisect import bisect_right
+from collections.abc import Sequence
+from dataclasses import dataclass
+
+from geographiclib.geodesic import Geodesic
+
+from debrief_kernel.time import parse_utc
+from debrief_kernel.units import Quantity, normalise_bearing
+from debrief_schemas.generated import debrief as schema
+
+WGS84 = Geodesic.WGS84
+_INVERSE = Geodesic.DISTANCE | Geodesic.AZIMUTH
+
+
+@dataclass(frozen=True, slots=True)
+class Position:
+    longitude: float
+    latitude: float
+
+
+def range_bearing(origin: Position, target: Position) -> tuple[Quantity, Quantity]:
+    """Geodesic range in metres and initial true bearing in degrees from origin to target."""
+    line = WGS84.Inverse(
+        origin.latitude, origin.longitude, target.latitude, target.longitude, _INVERSE
+    )
+    return Quantity(line["s12"], "m"), Quantity(normalise_bearing(line["azi1"]), "deg")
+
+
+def range_between(a: Position, b: Position) -> Quantity:
+    return Quantity(_range_m(a, b), "m")
+
+
+def _range_m(a: Position, b: Position) -> float:
+    return WGS84.Inverse(a.latitude, a.longitude, b.latitude, b.longitude, Geodesic.DISTANCE)["s12"]
+
+
+def destination(origin: Position, bearing: Quantity, distance: Quantity) -> Position:
+    """The position reached by following a geodesic from origin."""
+    result = WGS84.Direct(
+        origin.latitude,
+        origin.longitude,
+        bearing.to("deg").value,
+        distance.to("m").value,
+        Geodesic.LATITUDE | Geodesic.LONGITUDE | Geodesic.LONG_UNROLL,
+    )
+    return Position(_wrap_longitude(result["lon2"]), result["lat2"])
+
+
+def interpolate(a: Position, b: Position, fraction: float) -> Position:
+    """The point a given fraction of the way along the geodesic from a to b."""
+    if fraction <= 0.0:
+        return a
+    if fraction >= 1.0:
+        return b
+    line = WGS84.InverseLine(a.latitude, a.longitude, b.latitude, b.longitude)
+    point = line.Position(fraction * line.s13, Geodesic.LATITUDE | Geodesic.LONGITUDE)
+    return Position(_wrap_longitude(point["lon2"]), point["lat2"])
+
+
+def geodesic_points(a: Position, b: Position, segments: int) -> list[Position]:
+    """Points along the geodesic from a to b, for drawing it on a projected map (SUB-03)."""
+    if segments < 1:
+        raise ValueError("segments must be at least 1")
+    line = WGS84.InverseLine(a.latitude, a.longitude, b.latitude, b.longitude)
+    points = []
+    for i in range(segments + 1):
+        point = line.Position(
+            line.s13 * i / segments, Geodesic.LATITUDE | Geodesic.LONGITUDE | Geodesic.LONG_UNROLL
+        )
+        points.append(Position(point["lon2"], point["lat2"]))
+    return points
+
+
+def _wrap_longitude(longitude: float) -> float:
+    wrapped = math.fmod(longitude + 180.0, 360.0)
+    if wrapped < 0:
+        wrapped += 360.0
+    return wrapped - 180.0
+
+
+class TrackPath:
+    """A track's positions over time, interpolated along geodesics between fixes."""
+
+    def __init__(self, times_ms: Sequence[int], positions: Sequence[Position]):
+        if len(times_ms) != len(positions):
+            raise ValueError("times and positions differ in length")
+        if not times_ms:
+            raise ValueError("a track needs at least one position")
+        if any(a > b for a, b in zip(times_ms, times_ms[1:], strict=False)):
+            raise ValueError("times are not in order")
+        self.times_ms = list(times_ms)
+        self.positions = list(positions)
+
+    @classmethod
+    def from_feature(cls, feature: schema.TrackFeature) -> TrackPath:
+        times = [parse_utc(t) for t in feature.properties.times]
+        positions = [Position(lon, lat) for lon, lat in feature.geometry.coordinates]
+        return cls(times, positions)
+
+    @property
+    def start_ms(self) -> int:
+        return self.times_ms[0]
+
+    @property
+    def end_ms(self) -> int:
+        return self.times_ms[-1]
+
+    def position_at(self, time_ms: int) -> Position | None:
+        """Position at a time, or None outside the track's time span."""
+        if time_ms < self.start_ms or time_ms > self.end_ms:
+            return None
+        index = bisect_right(self.times_ms, time_ms) - 1
+        if index >= len(self.times_ms) - 1:
+            return self.positions[-1]
+        t0, t1 = self.times_ms[index], self.times_ms[index + 1]
+        if t1 == t0:
+            return self.positions[index + 1]
+        return interpolate(
+            self.positions[index], self.positions[index + 1], (time_ms - t0) / (t1 - t0)
+        )
+
+
+@dataclass(frozen=True, slots=True)
+class ClosestApproach:
+    time_ms: int
+    range: Quantity
+    position_a: Position
+    position_b: Position
+
+
+_GOLDEN = (math.sqrt(5.0) - 1.0) / 2.0
+
+
+def closest_approach(
+    a: TrackPath, b: TrackPath, start_ms: int | None = None, end_ms: int | None = None
+) -> ClosestApproach | None:
+    """Closest point of approach between two tracks over their common time span.
+
+    Between consecutive fixes of either track both platforms move along
+    geodesics at constant rate, so range varies smoothly. Each such interval
+    is searched by golden-section minimisation to millisecond resolution.
+    Returns None if the tracks never overlap in time.
+    """
+    lo = max(a.start_ms, b.start_ms, start_ms if start_ms is not None else -math.inf)
+    hi = min(a.end_ms, b.end_ms, end_ms if end_ms is not None else math.inf)
+    if lo > hi:
+        return None
+    lo, hi = int(lo), int(hi)
+    breaks = sorted({lo, hi, *(t for t in a.times_ms + b.times_ms if lo < t < hi)})
+
+    def range_at(t: int) -> float:
+        return _range_m(a.position_at(t), b.position_at(t))
+
+    best_t, best_r = lo, range_at(lo)
+    for t0, t1 in zip(breaks, breaks[1:], strict=False):
+        t, r = _minimise(range_at, t0, t1)
+        if r < best_r:
+            best_t, best_r = t, r
+    if range_at(hi) < best_r:
+        best_t, best_r = hi, range_at(hi)
+    return ClosestApproach(
+        best_t, Quantity(best_r, "m"), a.position_at(best_t), b.position_at(best_t)
+    )
+
+
+def _minimise(f, lo: int, hi: int) -> tuple[int, float]:
+    """Golden-section search for a minimum on integer milliseconds in [lo, hi]."""
+    a, b = float(lo), float(hi)
+    c, d = b - _GOLDEN * (b - a), a + _GOLDEN * (b - a)
+    fc, fd = f(round(c)), f(round(d))
+    while b - a > 2.0:
+        if fc <= fd:
+            b, d, fd = d, c, fc
+            c = b - _GOLDEN * (b - a)
+            fc = f(round(c))
+        else:
+            a, c, fc = c, d, fd
+            d = a + _GOLDEN * (b - a)
+            fd = f(round(d))
+    candidates = {lo, hi, *range(int(math.floor(a)), int(math.ceil(b)) + 1)}
+    best = min((t for t in candidates if lo <= t <= hi), key=f)
+    return best, f(best)
