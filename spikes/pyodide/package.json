@@ -1,0 +1,12 @@
+{
+  "name": "debrief-pyodide-spike",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "spike": "node run.mjs"
+  },
+  "dependencies": {
+    "pyodide": "^314.0.7"
+  }
+}

@@ -57,3 +57,24 @@ jobs:
           python-version: "3.12"
       - run: uv sync --locked --only-group docs
       - run: uv run --only-group docs mkdocs build --strict --config-file site/mkdocs.yml
+
+  pyodide:
+    # Python tools must run in the browser for the web build (CON-09). Runs the
+    # same smoke test under CPython and Pyodide and requires identical results.
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v6
+        with:
+          python-version: "3.12"
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: npm
+          cache-dependency-path: spikes/pyodide/package-lock.json
+      - uses: actions/cache@v4
+        with:
+          path: spikes/pyodide/.pyodide-cache
+          key: pyodide-${{ hashFiles('spikes/pyodide/package-lock.json') }}
+      - run: uv sync --locked
+      - run: spikes/pyodide/run.sh
