@@ -1379,11 +1379,67 @@
 <h1 id="theme">Theme<a class="headerlink" href="#theme" title="Permanent link">&para;</a></h1>
 <p><strong>North Star:</strong> look native to VS Code; keep colour for what the data means.</p>
 <h2 id="interface-colours">Interface colours<a class="headerlink" href="#interface-colours" title="Permanent link">&para;</a></h2>
-<p><em>To be filled in Phase 1.</em> Interface colours come only from VS Code theme tokens (<code>--vscode-*</code> variables), so Debrief follows the analyst's theme, including high contrast (CON-06, NFR-13). The web build supplies the same variables. An automated check for hard-coded interface colours arrives in Phase 1 (DEV-10).</p>
+<p>Interface colours come only from VS Code theme tokens (<code>--vscode-*</code> variables), so Debrief follows the analyst's theme, including high contrast (CON-06, NFR-13). The web build supplies the same variables.</p>
+<table>
+<thead>
+<tr>
+<th>Need</th>
+<th>Token</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Background of a webview, and of the map's sea</td>
+<td><code>--vscode-editor-background</code></td>
+</tr>
+<tr>
+<td>Text</td>
+<td><code>--vscode-foreground</code>; secondary text <code>--vscode-descriptionForeground</code></td>
+</tr>
+<tr>
+<td>Selection outline on the map: dotted, never a force colour</td>
+<td><code>--vscode-editor-foreground</code></td>
+</tr>
+<tr>
+<td>Floating readouts (cursor position, scale)</td>
+<td><code>--vscode-editorWidget-*</code></td>
+</tr>
+<tr>
+<td>Hover tooltips</td>
+<td><code>--vscode-editorHoverWidget-*</code></td>
+</tr>
+<tr>
+<td>A tool's judgement</td>
+<td><code>--vscode-textBlockQuote-*</code></td>
+</tr>
+<tr>
+<td>Errors on a form</td>
+<td><code>--vscode-errorForeground</code>, <code>--vscode-inputValidation-error*</code></td>
+</tr>
+</tbody>
+</table>
+<p>Native views (the catalogues, outline and tools views) use <code>ThemeIcon</code> and <code>ThemeColor</code>, never colours of their own.</p>
+<p><strong>The check (DEV-10).</strong> <code>npm run check:theme</code>, run in CI, fails on any hard-coded colour in the extension or its webviews, except in <code>vscode/webview/palette.ts</code>, which holds the data colours.</p>
 <h2 id="data-colours">Data colours<a class="headerlink" href="#data-colours" title="Permanent link">&para;</a></h2>
-<p><em>To be filled in Phase 1, reviewed by analysts.</em> Data colours (track conventions such as red and blue forces, sensor and annotation colours) are separate from the theme and do not change with it (DEV-07). Version 1 starts from legacy Debrief's conventions.</p>
+<p>Data colours are separate from the theme and do not change with it (DEV-07). That covers track conventions such as red and blue forces, and sensor and annotation colours.</p>
+<ul>
+<li><strong>Tracks.</strong> A track's colour is stored with it (<code>style.colour</code>). On import it comes from the legacy REP symbology, so a red track stays red. Legacy's palette is kept: red <code>#e01c3e</code>, blue <code>#0064bd</code>, green <code>#00800b</code>, and so on (<code>debrief_io.rep.SYMBOLOGY_COLOURS</code>).</li>
+<li><strong>Tracks.</strong> Tracks are drawn solid, with:</li>
+<li>chevrons showing the direction of travel;</li>
+<li>a hollow dot at the first fix;</li>
+<li>a filled, labelled dot at the latest fix, where analysts look for a track's name.</li>
+</ul>
+<p>Hovering a track shows the nearest fix: time, position, course, speed, and depth where known.
+- <strong>Annotations.</strong> One amber, <code>#c7820a</code>, until annotations carry their own colours. Every annotation is dashed and labelled, so nothing a tool draws can be mistaken for a track. That includes lines, areas and points, and everything tools draw. <em>Known clash:</em> the amber is close to legacy orange (<code>F</code>, <code>#ff9600</code>), so an orange track and an annotation line differ by dash alone.
+- <strong>Legend.</strong> The map carries a legend for these conventions.
+- <strong>Reference data.</strong> Land is a neutral grey-green at 35% opacity. The graticule is neutral grey. Both are chosen to sit behind the data on any theme.</p>
+<p>All of these live in <code>vscode/webview/palette.ts</code>. <em>Analysts review the palette before Phase 1 exits.</em></p>
 <h2 id="contrast-and-accessibility">Contrast and accessibility<a class="headerlink" href="#contrast-and-accessibility" title="Permanent link">&para;</a></h2>
-<p><em>To be filled in Phase 1.</em> Data colours shall remain distinguishable on light, dark and high-contrast themes (NFR-13).</p>
+<p>Data colours shall remain distinguishable on light, dark and high-contrast themes (NFR-13).</p>
+<ul>
+<li><strong>Track labels.</strong> These take the theme's text colour, with a halo in the background colour, so they read on any theme.</li>
+<li><strong>Not yet checked.</strong> The legacy red and blue have not been measured for contrast on light themes, or for colour-blind analysts. That check comes with the analysts' review.</li>
+</ul>
 
 
 

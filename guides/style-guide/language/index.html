@@ -1558,9 +1558,46 @@
 <li>Use the analyst's chosen units everywhere, including in tool explanations: write "the window, in the units you have chosen", not "the window in metres".</li>
 </ul>
 <h2 id="messages">Messages<a class="headerlink" href="#messages" title="Permanent link">&para;</a></h2>
-<p><em>To be filled in Phase 1, with the first interaction models.</em> Will cover: what happened, why, and what the analyst can do next; never blame the analyst; never show a stack trace or an internal identifier.</p>
+<p>Say what happened, why, and what the analyst can do next. Never blame the analyst. Never show a stack trace or an internal identifier.</p>
+<table>
+<thead>
+<tr>
+<th>Write</th>
+<th>Not</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Closest approach failed: NELSON and LATE do not overlap in time.</td>
+<td>Error: ValueError in closest()</td>
+</tr>
+<tr>
+<td>Spacing must be at most 100 nmi.</td>
+<td>Validation failed: maximum exceeded</td>
+</tr>
+<tr>
+<td>The plot changed while the tool was running, so its result was not saved. Run it again.</td>
+<td>Conflict (409)</td>
+</tr>
+<tr>
+<td>Imported 3 tracks, 135 fixes. Some content was not imported.</td>
+<td>Import completed with warnings</td>
+</tr>
+</tbody>
+</table>
+<ul>
+<li><strong>Counts read naturally.</strong> Write "1 plot" and "3 plots", never "1 plots".</li>
+<li><strong>Nothing is dropped silently (EXT-14).</strong> Say what wasn't done, and where to see the detail.</li>
+</ul>
 <h2 id="tool-explanations-cap-24">Tool explanations (CAP-24)<a class="headerlink" href="#tool-explanations-cap-24" title="Permanent link">&para;</a></h2>
-<p><em>To be filled in Phase 1, from the team's first tools.</em> Will cover: one sentence on what the tool does; one on any judgement it involves; how to name parameters.</p>
+<p>Written from the first four core tools.</p>
+<ul>
+<li><strong>Explanation.</strong> One sentence on what the tool does, starting with a verb: "Draws rings at equal ranges around a track's position at a chosen time."</li>
+<li><strong>Judgement.</strong> Only where the result involves one. Say what to check: "Distance runs straight between fixes, so a gap in the track shortens it. Check for gaps before relying on distance run or mean speed."</li>
+<li><strong>Parameter titles.</strong> Short, sentence case, and a noun: "Spacing", "Number of rings", "Time". Each parameter's explanation says what it changes, in the analyst's units.</li>
+<li><strong>New feature names.</strong> Name them so an analyst can find them in the outline: "NELSON 1.5 nmi", "Closest approach NELSON – BLUE".</li>
+</ul>
+<p><strong>The check (DEV-10).</strong> <code>npm run check:language</code>, run in CI, reads the <strong>Not</strong> column of the terms table above and fails on any of those words in the extension's interface text.</p>
 
 
 

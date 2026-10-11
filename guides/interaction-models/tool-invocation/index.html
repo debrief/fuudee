@@ -1415,9 +1415,52 @@
 </tbody>
 </table>
 <h2 id="model">Model<a class="headerlink" href="#model" title="Permanent link">&para;</a></h2>
-<p><em>Phase 1.</em></p>
+<ol>
+<li><strong>Choose.</strong> The analyst picks a tool under <strong>For this selection</strong>.</li>
+<li><strong>Form.</strong> The tool's form opens beside the map. Debrief builds it from the declaration (TL-07):</li>
+<li>the title and explanation, then any judgement, set apart so it is read (CAP-24);</li>
+<li>what the tool will act on ("Applies to: NELSON, BLUE");</li>
+<li>one field per parameter, with its explanation and default. A quantity has a unit picker, starting at the default's unit (SUB-04).</li>
+<li><strong>Times</strong> are typed as the language guide writes them: <code>09:30Z</code> (on the plot's day), <code>15 Jun 2023 09:30:00Z</code>, a date-time group such as <code>150930Z JUN 23</code>, or ISO. Under the field the form says what it understood ("Means 15 Jun 2023 09:30:00Z"), so a mistaken day is caught before the run.</li>
+<li><strong>Run.</strong> <strong>Run</strong> sends the values; <strong>Cancel</strong> closes the form and changes nothing. While the tool runs, the form shows <em>Running…</em> and can't be sent twice.</li>
+<li><strong>Refused.</strong> If a value is wrong, or the tool fails, the form stays open with the reason above the buttons, in the analyst's words. The plot is untouched (TL-03).</li>
+<li><strong>Done.</strong> The form closes.</li>
+<li><strong>Features.</strong> New or changed features appear on the map and in the outline at once. A notification says what changed ("Range rings added 3 features").</li>
+<li><strong>Numbers and tables.</strong> These open in a <strong>Results</strong> panel beside the map (TL-13). The panel:<ul>
+<li>repeats the tool's judgement, so a figure is never read without its caveat (CAP-24);</li>
+<li>says what was added to the plot;</li>
+<li>says that the figures themselves are not saved;</li>
+<li>offers <strong>Copy</strong> for each table, as tab-separated text for a report or spreadsheet.</li>
+</ul>
+</li>
+<li><strong>History.</strong> Every run that changes the plot is recorded with the tool, its version, who ran it, the selection and every value (SUB-19, SUB-24). A run that only returns a number or table changes nothing and records nothing.</li>
+</ol>
+<p>Agents and keyboard users run the same tools through the <strong>Run tool</strong> command, without the form. The checks and the records are the same (TL-14).</p>
+<pre class="mermaid"><code>sequenceDiagram
+    actor Analyst
+    participant Form as Tool form (webview)
+    participant Host as Extension host
+    participant Service as Tool service
+    participant Worker as Tool worker
+    participant Cat as Catalogue
+    Analyst-&gt;&gt;Form: Run (spacing 1.5 nmi, 3 rings)
+    Form-&gt;&gt;Host: run_tool
+    Host-&gt;&gt;Form: form_busy
+    Host-&gt;&gt;Service: tools/call (store, plot, selection, values, agent)
+    Service-&gt;&gt;Worker: run on a copy of the plot
+    Worker-&gt;&gt;Cat: check result, record history, save atomically
+    Worker--&gt;&gt;Service: result, changed
+    Service--&gt;&gt;Host: result
+    Host-&gt;&gt;Host: reload plot; show results if any
+    Host-&gt;&gt;Form: close</code></pre>
 <h2 id="reference-implementation">Reference implementation<a class="headerlink" href="#reference-implementation" title="Permanent link">&para;</a></h2>
-<p><em>Phase 1.</em></p>
+<ul>
+<li><strong>The form:</strong> <code>vscode/webview/form.tsx</code>, built from vscrui components behind <code>vscode/webview/ui.tsx</code>.</li>
+<li><strong>Running from the host:</strong> <code>vscode/src/extension.ts</code> (<code>runTool</code>).</li>
+<li><strong>Results panel:</strong> <code>vscode/webview/results.tsx</code>.</li>
+<li><strong>The service side:</strong> <code>debrief_tools.service</code> and <code>debrief_tools.run</code>.</li>
+</ul>
+<p><em>Not yet:</em> echoing values other than times back to the analyst, progress and cancelling a run that's under way (long-running operations, Phase 2), undo (Phase 2), graphs (shown as tables until then), and saving a result.</p>
 
 
 

@@ -1415,9 +1415,76 @@
 </tbody>
 </table>
 <h2 id="model">Model<a class="headerlink" href="#model" title="Permanent link">&para;</a></h2>
-<p><em>Phase 1.</em></p>
+<p><strong>One selection, everywhere.</strong> The analyst selects features in the map or the outline, and every view shows the same selection (SUB-26).</p>
+<table>
+<thead>
+<tr>
+<th>Gesture</th>
+<th>Map</th>
+<th>Outline</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Select one feature</td>
+<td>Click it</td>
+<td>Click it</td>
+</tr>
+<tr>
+<td>Add or remove one</td>
+<td>Ctrl click (Cmd on macOS)</td>
+<td>Ctrl click (Cmd on macOS)</td>
+</tr>
+<tr>
+<td>Select a range</td>
+<td>—</td>
+<td>Shift click</td>
+</tr>
+<tr>
+<td>Clear</td>
+<td>Escape, or click empty sea</td>
+<td><strong>Clear selection</strong> (the button in the outline's title bar)</td>
+</tr>
+<tr>
+<td>Zoom to the selection</td>
+<td><strong>Selected</strong> button, top left</td>
+<td>—</td>
+</tr>
+</tbody>
+</table>
+<p>Ctrl or Cmd adds in both places, as everywhere in VS Code. Shift selects a range in the outline, and does nothing on the map, which has no order to make a range of.</p>
+<ul>
+<li><strong>Showing selection.</strong></li>
+<li><strong>On the map.</strong> Each selected feature gets a dotted outline in the theme's text colour. That colour is never a force colour, so selecting tracks never makes them look blue or red. Everything else is dimmed.</li>
+<li><strong>In the outline.</strong> Selected features are marked <em>selected</em>. The last one selected elsewhere is revealed and highlighted.</li>
+<li><strong>In the tools view.</strong> The selection is counted.</li>
+<li><strong>Offering tools.</strong> Whenever the selection changes, the tools view asks the tool service which tools apply to every selected item, within each tool's count limits (TL-08). The rule lives in Python, so agents get the same answer (TL-14).</li>
+<li><strong>Explaining tools not on offer.</strong> Tools that don't apply are listed under <strong>Other tools</strong>, each saying what it needs ("select 2 tracks"), rather than being hidden (CON-10).</li>
+<li><strong>Unknown data types.</strong> Tools that name a data type Debrief doesn't know appear under <strong>Not available</strong>, with the reason (TL-09).</li>
+<li><strong>Time-only annotations.</strong> These have no position, so they appear only in the outline (CAP-04).</li>
+</ul>
+<pre class="mermaid"><code>sequenceDiagram
+    actor Analyst
+    participant Map as Map (webview)
+    participant Host as Extension host
+    participant Outline
+    participant Tools as Tools view
+    participant Service as Tool service (Python)
+    Analyst-&gt;&gt;Map: Ctrl click BLUE
+    Map-&gt;&gt;Host: selection_changed [NELSON, BLUE]
+    Host-&gt;&gt;Outline: refresh (marks selected)
+    Host-&gt;&gt;Service: debrief/tools_for_selection [track, track]
+    Service--&gt;&gt;Host: closest_approach, track_summary, add_note
+    Host-&gt;&gt;Tools: For this selection / Other tools</code></pre>
 <h2 id="reference-implementation">Reference implementation<a class="headerlink" href="#reference-implementation" title="Permanent link">&para;</a></h2>
-<p><em>Phase 1.</em></p>
+<ul>
+<li><strong>Selection state:</strong> <code>vscode/src/session.ts</code>.</li>
+<li><strong>Map gestures:</strong> <code>vscode/webview/map.ts</code>.</li>
+<li><strong>Outline:</strong> <code>vscode/src/views/outline.ts</code>.</li>
+<li><strong>Tools view:</strong> <code>vscode/src/views/tools.ts</code>.</li>
+<li><strong>The offering rule:</strong> <code>debrief_tools.registry.applies</code>.</li>
+</ul>
+<p><em>Not yet:</em> keyboard selection in the map (NFR-13, Phase 3), named sets as selections (TL-11), and selection shared with other extensions and tools (SUB-27, Phase 2).</p>
 
 
 

@@ -1403,9 +1403,62 @@
 </tbody>
 </table>
 <h2 id="model">Model<a class="headerlink" href="#model" title="Permanent link">&para;</a></h2>
-<p><em>Phase 1.</em></p>
+<p>A capability that exists but can't be used here is shown, greyed, with the reason. It is never hidden, and never left to fail at the point of use (CON-10).</p>
+<table>
+<thead>
+<tr>
+<th>Case</th>
+<th>Where it appears</th>
+<th>What it says</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>The tool doesn't apply to this selection</td>
+<td>Tools view, <strong>Other tools</strong></td>
+<td>What to select: "select 2 tracks"</td>
+</tr>
+<tr>
+<td>The tool names an unknown data type</td>
+<td>Tools view, <strong>Not available</strong></td>
+<td>"It applies to contact_report, which is not a Debrief data type. Debrief knows: annotation, sensor_observations, track."</td>
+</tr>
+<tr>
+<td>A tool library failed to load</td>
+<td>Tools view, <strong>Not available</strong></td>
+<td>The library's error. The other libraries still load (TL-03).</td>
+</tr>
+<tr>
+<td>The tool service isn't running</td>
+<td>Tools view</td>
+<td>"The tool service stopped. Run 'Debrief: Restart tool service'."</td>
+</tr>
+<tr>
+<td>The catalogue is read-only</td>
+<td>Catalogues view: lock icon, <em>read-only</em></td>
+<td>Tools that would change the plot are refused, with the reason.</td>
+</tr>
+<tr>
+<td>A tool can't run in the browser</td>
+<td><em>Phase 3, with the web build (CON-09)</em></td>
+<td>Where it can run</td>
+</tr>
+</tbody>
+</table>
+<pre class="mermaid"><code>sequenceDiagram
+    participant Host as Extension host
+    participant Service as Tool service
+    participant Worker as Tool worker
+    Host-&gt;&gt;Service: tools/list
+    Service-&gt;&gt;Worker: describe libraries
+    Worker--&gt;&gt;Service: tools, and unavailable with reasons
+    Service--&gt;&gt;Host: tools; _meta debrief/unavailable
+    Host-&gt;&gt;Host: Tools view: Not available (reason)</code></pre>
 <h2 id="reference-implementation">Reference implementation<a class="headerlink" href="#reference-implementation" title="Permanent link">&para;</a></h2>
-<p><em>Phase 1.</em></p>
+<ul>
+<li><strong>Tools view:</strong> <code>vscode/src/views/tools.ts</code>. The wording of what a tool needs is in <code>vscode/src/wording.ts</code>.</li>
+<li><strong>Reasons from discovery:</strong> <code>debrief_tools.registry</code> (<code>Unavailable</code>).</li>
+</ul>
 
 
 
