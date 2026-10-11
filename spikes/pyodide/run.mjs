@@ -26,7 +26,7 @@ const pyodide = await loadPyodide({ packageCacheDir: join(here, ".pyodide-cache"
 const bootMs = performance.now() - started;
 
 // Pyodide's own builds of compiled dependencies; everything else from local wheels.
-await pyodide.loadPackage(["micropip", "pydantic", "jsonschema", "tzdata"]);
+await pyodide.loadPackage(["micropip", "pydantic", "jsonschema", "tzdata", "numpy", "pyproj"]);
 copyTree(pyodide, join(here, "wheels"), "/wheels");
 copyTree(pyodide, join(root, "schemas/fixtures"), "/fixtures");
 pyodide.FS.writeFile("/smoke.py", readFileSync(join(here, "smoke.py")));
@@ -65,12 +65,18 @@ writeFileSync(outPath, JSON.stringify(result, null, 2) + "\n");
 const cpython = JSON.parse(readFileSync(cpythonReportPath, "utf8")).report;
 const same = JSON.stringify(cpython) === JSON.stringify(result.report);
 const failures = Object.entries(result.report.documents).filter(([, ok]) => !ok);
+if (!result.report.kernel_arrays.matches_per_point) failures.push(["kernel_arrays.matches_per_point", false]);
 console.log(`Pyodide: Python ${result.environment.python}, pydantic ${result.environment.pydantic}`);
 console.log(`Boot ${bootMs.toFixed(0)} ms, ready ${readyMs.toFixed(0)} ms, fixtures ${result.timings.all_fixtures_ms.toFixed(0)} ms, range_bearing ${result.timings.range_bearing_us.toFixed(0)} µs`);
 console.log(`Document checks: ${Object.keys(result.report.documents).length - failures.length}/${Object.keys(result.report.documents).length} passed`);
 console.log(`Report identical to CPython: ${same}`);
 for (const [name] of failures) console.log(`  FAILED ${name}`);
 if (!same) {
+  for (const key of Object.keys(cpython.kernel_arrays)) {
+    if (JSON.stringify(cpython.kernel_arrays[key]) !== JSON.stringify(result.report.kernel_arrays[key])) {
+      console.log(`  kernel_arrays.${key}: CPython ${JSON.stringify(cpython.kernel_arrays[key])}, Pyodide ${JSON.stringify(result.report.kernel_arrays[key])}`);
+    }
+  }
   for (const key of Object.keys(cpython.kernel)) {
     if (JSON.stringify(cpython.kernel[key]) !== JSON.stringify(result.report.kernel[key])) {
       console.log(`  kernel.${key}: CPython ${JSON.stringify(cpython.kernel[key])}, Pyodide ${JSON.stringify(result.report.kernel[key])}`);

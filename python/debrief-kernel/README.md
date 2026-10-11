@@ -7,6 +7,7 @@ The substrate kernel (SUB-01 to SUB-04), shared by every capability and tool.
 | `time` | UTC instants as integer epoch milliseconds; strict parsing and writing of `2026-10-11T09:30:00.000Z`; truncation of finer legacy times with a flag for provenance | SUB-01, EXT-14 |
 | `units` | `Quantity` with kind-checked arithmetic (adding metres to knots raises); conversions between the schema's UCUM units; speed × duration and length ÷ duration; bearing wrap-around | SUB-02, NFR-04 |
 | `geodesy` | Range and bearing, destination, interpolation and drawing points along geodesics; tracks interpolated over time; closest point of approach | SUB-03 |
+| `geodesy_arrays` | The same geodesics over numpy arrays (pyproj): range and bearing, destination, track positions at many times, bearing residuals. For anything over hundreds of points, such as TMA residuals during a drag | SUB-03, NFR-04 |
 | `formatting` | With its TypeScript twin in `ts/kernel`, the one place values are written for people: quantities, three-figure bearings, positions (decimal degrees, degrees and minutes, degrees, minutes and seconds) and times (Zulu, date-time, DTG, optional display zone) | SUB-04 |
 
 ## Geodesy
@@ -14,6 +15,8 @@ The substrate kernel (SUB-01 to SUB-04), shared by every capability and tool.
 All measurement uses Karney's geodesic algorithms on WGS84 (`geographiclib`, pure Python, so it also runs under Pyodide). It is independent of the display projection. The acceptance tests are published reference values: one degree along the equator and the meridian, and Karney's Wellington–Salamanca example, each to 1 mm and 10⁻⁶ degrees. Closest approach is checked against brute-force sampling.
 
 A range-and-bearing call takes about 50 µs and an interpolation about 75 µs, so a Tote update with five secondaries needs well under 1 ms of computation.
+
+Calculations over many points use `geodesy_arrays` instead: PROJ's C implementation of the same algorithm, about fifty times faster per point. Residuals for a 2,160-bearing TMA drag take about 2 ms rather than 200 ms (decision 11 Oct; `docs/spikes/tote-latency.md`). Tests hold it to the per-point functions to a micrometre and 10⁻⁹ degrees, and pin pyproj's azimuth order: it returns forward azimuth, back azimuth, distance, and the back azimuth looks plausible but is about 180° out. Both numpy and pyproj are in Pyodide, and the Pyodide CI job runs this module. They add about 1.6 s to the web build's start-up.
 
 ### Difference from legacy Debrief
 
