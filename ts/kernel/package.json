@@ -1,0 +1,22 @@
+{
+  "name": "@debrief/kernel",
+  "version": "0.0.1",
+  "private": true,
+  "description": "Debrief kernel for TypeScript: unit conversion and display formatting, held to the vectors shared with the Python kernel",
+  "type": "module",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "test": "vitest run"
+  },
+  "dependencies": {
+    "@debrief/schemas": "file:../schemas"
+  },
+  "devDependencies": {
+    "@types/node": "^22.10.2",
+    "typescript": "^5.6.3",
+    "vitest": "^2.1.9"
+  }
+}

@@ -19,6 +19,7 @@ from enum import StrEnum
 from functools import cache
 from importlib.resources import files
 from typing import Any
+from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
 from jsonschema import Draft201909Validator
 from pydantic import BaseModel
@@ -34,6 +35,7 @@ class DocumentKind(StrEnum):
     TOOL_DECLARATION = "tool_declaration"
     TOOL_RESULT = "tool_result"
     SHARED_STATE = "shared_state"
+    FORMAT_SETTINGS = "format_settings"
 
 
 _MODELS: dict[DocumentKind, type[BaseModel]] = {
@@ -43,6 +45,7 @@ _MODELS: dict[DocumentKind, type[BaseModel]] = {
     DocumentKind.TOOL_DECLARATION: g.ToolDeclaration,
     DocumentKind.TOOL_RESULT: g.ToolResult,
     DocumentKind.SHARED_STATE: g.SharedState,
+    DocumentKind.FORMAT_SETTINGS: g.FormatSettings,
 }
 
 # Members that GeoJSON and STAC require to be present even when null.
@@ -377,6 +380,20 @@ def _state_problems(state: g.SharedState | g.SharedStateChange) -> list[str]:
     return problems
 
 
+def _format_settings_problems(settings: g.FormatSettings, raw: dict[str, Any]) -> list[str]:
+    problems = []
+    if settings.time_zone != "UTC":
+        try:
+            ZoneInfo(settings.time_zone)
+        except (ZoneInfoNotFoundError, ValueError):
+            problems.append(f"time_zone: {settings.time_zone!r} is not a known time zone")
+        if settings.time_style == "dtg":
+            problems.append(
+                "time_style: a date-time group is always in Zulu time; set time_zone to UTC"
+            )
+    return problems
+
+
 _RULES: dict[DocumentKind, Callable[[Any, dict[str, Any]], list[str]]] = {
     DocumentKind.PLOT: _plot_problems,
     DocumentKind.STAC_ITEM: _stac_item_problems,
@@ -384,6 +401,7 @@ _RULES: dict[DocumentKind, Callable[[Any, dict[str, Any]], list[str]]] = {
     DocumentKind.TOOL_DECLARATION: _tool_declaration_problems,
     DocumentKind.TOOL_RESULT: _tool_result_problems,
     DocumentKind.SHARED_STATE: lambda state, raw: _state_problems(state),
+    DocumentKind.FORMAT_SETTINGS: _format_settings_problems,
 }
 
 

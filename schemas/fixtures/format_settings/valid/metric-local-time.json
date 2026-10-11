@@ -1,0 +1,14 @@
+{
+  "length_unit": "km",
+  "length_decimals": 2,
+  "speed_unit": "km/h",
+  "speed_decimals": 1,
+  "angle_decimals": 1,
+  "duration_unit": "min",
+  "duration_decimals": 1,
+  "position_notation": "dd",
+  "position_decimals": 4,
+  "time_style": "date_time",
+  "show_milliseconds": true,
+  "time_zone": "Europe/London"
+}

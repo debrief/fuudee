@@ -1,11 +1,14 @@
-from dataclasses import replace
+"""Formatting is tested through the vectors shared with the TypeScript formatter."""
+
+import json
+from pathlib import Path
 
 import pytest
 
 from debrief_kernel.formatting import (
     DEFAULT_SETTINGS,
-    PositionNotation,
-    TimeStyle,
+    FormatSettings,
+    fixed,
     format_bearing,
     format_position,
     format_quantity,
@@ -13,81 +16,53 @@ from debrief_kernel.formatting import (
 )
 from debrief_kernel.geodesy import Position
 from debrief_kernel.time import parse_utc
-from debrief_kernel.units import angle, duration, length, speed
+from debrief_kernel.units import Quantity
 
-PLYMOUTH = Position(-4.120167, 50.335333)
-
-
-@pytest.mark.parametrize(
-    ("quantity", "expected"),
-    [
-        (length(1852), "1.00 nmi"),
-        (speed(5.144444, "m/s"), "10.0 kn"),
-        (angle(45), "45.0°"),
-        (duration(90), "1.5 min"),
-    ],
-)
-def test_quantities_in_default_units(quantity, expected) -> None:
-    assert format_quantity(quantity) == expected
+VECTORS = Path(__file__).resolve().parents[3] / "schemas" / "vectors"
+CASES = json.loads((VECTORS / "formatting.json").read_text())["cases"]
 
 
-def test_quantity_units_follow_settings() -> None:
-    settings = replace(DEFAULT_SETTINGS, length_unit="[yd_i]", length_decimals=0)
-    assert format_quantity(length(1, "[nmi_i]"), settings) == "2025 yd"
+def test_defaults_match_shared_defaults() -> None:
+    shared = json.loads((VECTORS / "format-defaults.json").read_text())
+    assert DEFAULT_SETTINGS.model_dump(mode="json") == shared
 
 
-@pytest.mark.parametrize(
-    ("degrees", "decimals", "expected"),
-    [
-        (5, 1, "005.0°T"),
-        (45, 0, "045°T"),
-        (359.96, 1, "000.0°T"),
-        (-90, 1, "270.0°T"),
-        (180, 2, "180.00°T"),
-    ],
-)
-def test_bearings_are_three_figures(degrees, decimals, expected) -> None:
-    settings = replace(DEFAULT_SETTINGS, angle_decimals=decimals)
-    assert format_bearing(angle(degrees), settings) == expected
+@pytest.mark.parametrize("case", CASES, ids=lambda c: c["name"])
+def test_shared_vector(case: dict) -> None:
+    settings = FormatSettings.model_validate({**DEFAULT_SETTINGS.model_dump(), **case["settings"]})
+    given = case["input"]
+    if case["op"] == "quantity":
+        result = format_quantity(Quantity(given["value"], given["unit"]), settings)
+    elif case["op"] == "bearing":
+        result = format_bearing(Quantity(given["value"], given["unit"]), settings)
+    elif case["op"] == "position":
+        result = format_position(Position(given["longitude"], given["latitude"]), settings)
+    else:
+        result = format_time(parse_utc(given["utc"]), settings)
+    assert result == case["expected"]
+
+
+def test_vectors_cover_every_operation_and_notation() -> None:
+    assert {c["op"] for c in CASES} == {"quantity", "bearing", "position", "time"}
+    notations = {
+        c["settings"].get("position_notation", "dm") for c in CASES if c["op"] == "position"
+    }
+    styles = {c["settings"].get("time_style", "time") for c in CASES if c["op"] == "time"}
+    assert notations == {"dd", "dm", "dms"}
+    assert styles == {"time", "date_time", "dtg"}
 
 
 @pytest.mark.parametrize(
-    ("notation", "places", "expected"),
-    [
-        (PositionNotation.DEGREES_MINUTES, 3, "50°20.120'N 004°07.210'W"),
-        (PositionNotation.DECIMAL_DEGREES, 3, "50.335°N 004.120°W"),
-        (PositionNotation.DEGREES_MINUTES_SECONDS, 1, "50°20'07.2\"N 004°07'12.6\"W"),
-    ],
+    ("value", "decimals", "expected"),
+    [(2.5, 0, "3"), (-2.5, 0, "-3"), (0.125, 2, "0.13"), (1.005, 2, "1.00"), (-0.04, 1, "0.0")],
 )
-def test_position_notations(notation, places, expected) -> None:
-    settings = replace(DEFAULT_SETTINGS, position_notation=notation, position_decimals=places)
-    assert format_position(PLYMOUTH, settings) == expected
-
-
-def test_position_rounding_carries_into_degrees() -> None:
-    assert format_position(Position(0.0, 50.9999999)) == "51°00.000'N 000°00.000'E"
-
-
-def test_southern_and_eastern_hemispheres() -> None:
-    assert format_position(Position(151.2, -33.85)) == "33°51.000'S 151°12.000'E"
-
-
-@pytest.mark.parametrize(
-    ("changes", "expected"),
-    [
-        ({}, "09:30:05Z"),
-        ({"show_milliseconds": True}, "09:30:05.250Z"),
-        ({"time_style": TimeStyle.DATE_TIME}, "11 Oct 2026 09:30:05Z"),
-        ({"time_style": TimeStyle.DTG}, "110930Z OCT 26"),
-        ({"time_zone": "Europe/London"}, "10:30:05 BST"),
-    ],
-)
-def test_time_styles(changes, expected) -> None:
-    epoch_ms = parse_utc("2026-10-11T09:30:05.250Z")
-    assert format_time(epoch_ms, replace(DEFAULT_SETTINGS, **changes)) == expected
+def test_fixed_rounds_half_away_from_zero(value: float, decimals: int, expected: str) -> None:
+    assert fixed(value, decimals) == expected
 
 
 def test_dtg_is_always_zulu() -> None:
-    settings = replace(DEFAULT_SETTINGS, time_style=TimeStyle.DTG, time_zone="Europe/London")
+    settings = DEFAULT_SETTINGS.model_copy(
+        update={"time_style": "dtg", "time_zone": "Europe/London"}
+    )
     with pytest.raises(ValueError):
         format_time(0, settings)
