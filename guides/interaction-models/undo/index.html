@@ -1409,10 +1409,12 @@
 <ol>
 <li><strong>Every change is a step.</strong> An import, a tool run or an edit becomes one step in the plot's history, recording what made it, who, when, and what it changed (SUB-19, SUB-24). The <strong>History</strong> view lists the steps, newest first, and marks the current one.</li>
 <li><strong>Undo</strong> (<code>Ctrl+Z</code> on the map, the outline or the History view, or the button on the History view) returns the plot to the step before. Nothing is deleted: the step undone stays in the list, marked <em>Undone</em>.</li>
-<li><strong>Redo</strong> (<code>Ctrl+Shift+Z</code> or <code>Ctrl+Y</code>) brings back an undone step.</li>
+<li><strong>Redo</strong> (<code>Ctrl+Shift+Z</code> or <code>Ctrl+Y</code>) brings back what was last undone in this window. Once anything new is done, a change to the plot or to its presentation, there is nothing to redo: Debrief says so rather than bringing back an older undone step. Undone steps of the plot stay in the History view, where <strong>Redo up to this step</strong> still reaches them.</li>
 <li><strong>Go back to a step.</strong> On any step still in the plot, <strong>Go back to this step</strong> returns the plot to just after it; on an undone step, <strong>Redo up to this step</strong> brings everything back up to it. Each step shows its number, and whether it is current, undone or replaced.</li>
 <li><strong>A new change after undoing</strong> replaces the undone steps. They stay on record, marked <em>replaced by a later change</em>, and can't be redone (decision, 11 Oct 2026). Nothing is ever silently lost.</li>
 <li><strong>The import can't be undone.</strong> A plot's first step is where its history starts; to start again, import the source again.</li>
+<li><strong>Presentation changes</strong> (a track's colour, hiding a feature on the map, from the outline's context menu) are undoable too, through a local history: they are listed in a <strong>Presentation (this window)</strong> group at the top of the History view, and are kept beside the plot but never in its history or provenance (SUB-22). One undo takes back whatever the analyst did last, a presentation change or a change to the plot; the History view marks that entry <em>next to undo</em>. An undo or redo that can't be saved leaves the timeline as it was, so trying again takes back the same thing.</li>
+<li><strong>Presentation is shared.</strong> Colours and hidden features belong to the plot, so everyone who opens it sees them, and Debrief shows a change someone else makes. Undoing a presentation change puts back only the values that change set, on the presentation as it is now, so someone else's colours or hiding are never wiped (SUB-28). Hidden features never go unseen: the map shows how many are hidden, with <strong>Show all</strong>, and opening a plot with hidden features says how many.</li>
 <li><strong>What isn't undone.</strong> Current time, selection and viewport are view state: undo leaves them where they are, and they aren't recorded (SUB-22). Results panels stay open.</li>
 <li><strong>After a crash.</strong> Opening a plot finishes a change that was interrupted part-way, and says so; at most the change in progress is lost (NFR-10).</li>
 </ol>
@@ -1440,8 +1442,9 @@
 <li><strong>The service:</strong> <code>debrief/open</code>, <code>debrief/history</code>, <code>debrief/undo</code>, <code>debrief/redo</code>, <code>debrief/goto</code> in <code>debrief_tools.service</code>.</li>
 <li><strong>The extension:</strong> the History view, <code>vscode/src/views/history.ts</code>; commands and keys in <code>vscode/src/extension.ts</code> (<code>move</code>) and <code>vscode/package.json</code>.</li>
 <li><strong>The test:</strong> the integration test's Phase 2 exit: edit, undo, a Debrief process killed mid-save, recover.</li>
+<li><strong>Presentation:</strong> <code>debrief_stac.Catalogue.read_presentation</code> and <code>write_presentation</code>; <code>debrief/presentation</code> and <code>debrief/set_presentation</code>; <code>vscode/src/presentation.ts</code> (per-feature steps and the undo timeline, <code>UndoTimeline</code>), <code>vscode/src/views/historyrows.ts</code> (what the History view lists) and the undo and redo commands in <code>vscode/src/extension.ts</code>.</li>
 </ul>
-<p><em>Not yet:</em> the local history for presentation changes (SUB-22), which arrives with presentation editing.</p>
+<p><em>Not yet:</em> other presentation (line styles, labels, layer settings) and display windows (CAP-28), which arrive with their features. The local history of presentation changes is kept in memory for the VS Code window, one per plot: opening another plot and coming back keeps it, but closing or reloading the window clears it. The presentation itself is saved with the plot and stays.</p>
 
 
 
