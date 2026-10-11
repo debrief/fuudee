@@ -6,6 +6,7 @@ requires-python = ">=3.12"
 dependencies = [
     "pydantic>=2.7",
     "jsonschema>=4.23",
+    "tzdata>=2024.1",
 ]
 
 [build-system]

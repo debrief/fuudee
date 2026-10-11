@@ -11,6 +11,7 @@ members = ["python/*"]
 
 [dependency-groups]
 dev = [
+    "debrief-kernel",
     "debrief-schemas",
     "linkml==1.12.0",
     "pytest>=8",
@@ -30,10 +31,12 @@ extend-exclude = ["python/*/src/*/generated"]
 select = ["E", "F", "I", "UP", "B"]
 
 [tool.ruff.lint.isort]
-known-first-party = ["debrief_schemas"]
+known-first-party = ["debrief_kernel", "debrief_schemas"]
 
 [tool.pytest.ini_options]
 testpaths = ["python"]
+addopts = ["--import-mode=importlib"]
 
 [tool.uv.sources]
+debrief-kernel = { workspace = true }
 debrief-schemas = { workspace = true }

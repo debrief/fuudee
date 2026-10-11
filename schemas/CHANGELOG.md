@@ -2,6 +2,10 @@
 
 The data-file schema is versioned independently of Debrief (SUB-12). Before 1.0.0 there is no migration guarantee (SUB-13).
 
+## 0.0.3 (11 Oct 2026)
+
+- Display formatting settings (`FormatSettings`), shared by the Python and TypeScript formatting services (SUB-04).
+
 ## 0.0.2 (11 Oct 2026)
 
 - Split into modules: core, geojson, prov, features, stac, state, tools.

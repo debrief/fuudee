@@ -17,11 +17,14 @@ jobs:
         with:
           node-version: "22"
           cache: npm
-          cache-dependency-path: ts/schemas/package-lock.json
+          cache-dependency-path: |
+            ts/schemas/package-lock.json
+            ts/kernel/package-lock.json
       - name: Install
         run: |
           uv sync --locked
           npm ci --prefix ts/schemas
+          npm ci --prefix ts/kernel
       - name: Lint
         run: |
           uv run ruff check .
@@ -36,6 +39,11 @@ jobs:
         run: |
           npm run --prefix ts/schemas typecheck
           npm test --prefix ts/schemas
+      - name: TypeScript kernel (formatting held to the shared vectors)
+        run: |
+          npm run --prefix ts/schemas build
+          npm run --prefix ts/kernel typecheck
+          npm test --prefix ts/kernel
       - name: Cross-language round trip
         run: scripts/cross_language_roundtrip.sh
 
