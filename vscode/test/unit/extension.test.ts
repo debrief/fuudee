@@ -4,7 +4,7 @@ import path from "node:path";
 import { execFileSync } from "node:child_process";
 import { describe, expect, it } from "vitest";
 import type { ToolDeclaration } from "@debrief/schemas";
-import { needs } from "../../src/wording.js";
+import { describeStep, needs } from "../../src/wording.js";
 import { checkMessage } from "../../src/messages.js";
 import { openPlot, readCatalogue } from "../../src/catalogue.js";
 import { densify } from "../../webview/geodesic.js";
@@ -202,4 +202,14 @@ describe("shared state (SUB-26, SUB-27)", () => {
     expect(session.setViewport({ bbox: [0, 0, 1, 1] }, "extension:x")).toBeUndefined();
     expect(heard).toEqual(["extension:x"]);
   });
+});
+
+describe("history steps, in the analyst's words (SUB-21)", () => {
+  const title = (name: string) => ({ "core.range_rings": "Range rings" })[name];
+  it.each([
+    [{ kind: "import", tool: "debrief-io.rep", status: "applied" }, "Imported", "In the plot"],
+    [{ kind: "tool", tool: "core.range_rings", status: "undone" }, "Range rings", "Undone; can be redone"],
+    [{ kind: "tool", tool: "debrief-sample", status: "abandoned" }, "Made by debrief-sample", "Undone, then replaced by a later change; kept on record"],
+    [{ kind: "edit", tool: null, status: "applied" }, "Edited", "In the plot"],
+  ])("%#", (step, label, status) => expect(describeStep(step, title)).toEqual({ label, status }));
 });

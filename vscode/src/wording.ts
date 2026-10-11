@@ -22,3 +22,25 @@ export function needs(tool: ToolDeclaration): string {
   return `select ${count} ${max === 1 || (max === min && min === 1) ? kinds[0] : kinds[1]}`;
 }
 
+
+/** A step in a plot's history, as the History view names it. */
+export function describeStep(
+  step: { kind: string; tool: string | null; status: string },
+  toolTitle: (name: string) => string | undefined,
+): { label: string; status: string } {
+  const label =
+    step.kind === "import"
+      ? "Imported"
+      : step.tool
+        ? (toolTitle(step.tool) ?? `Made by ${step.tool}`) // not a tool installed here
+        : step.kind === "edit"
+          ? "Edited"
+          : step.kind.charAt(0).toUpperCase() + step.kind.slice(1);
+  const status =
+    step.status === "undone"
+      ? "Undone; can be redone"
+      : step.status === "abandoned"
+        ? "Undone, then replaced by a later change; kept on record"
+        : "In the plot";
+  return { label, status };
+}

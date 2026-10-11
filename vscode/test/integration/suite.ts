@@ -21,10 +21,10 @@ async function screenshot(name: string, keepNotifications = false): Promise<void
   execFileSync("import", ["-window", "root", "-trim", "+repage", path.join(folder, `${name}.png`)]);
 }
 
-async function waitFor<T>(what: string, probe: () => T | undefined, timeoutMs = 30000): Promise<T> {
+async function waitFor<T>(what: string, probe: () => T | undefined | Promise<T | undefined>, timeoutMs = 30000): Promise<T> {
   const deadline = Date.now() + timeoutMs;
   for (;;) {
-    const value = probe();
+    const value = await probe();
     if (value) return value;
     if (Date.now() > deadline) throw new Error(`Timed out waiting for ${what}`);
     await sleep(200);
@@ -116,4 +116,40 @@ export async function run(): Promise<void> {
   await vscode.commands.executeCommand("debrief.select", ["track-blue-one"]);
   const refused = await vscode.commands.executeCommand<string>("debrief.runTool", "core.closest_approach", {});
   assert.match(refused ?? "", /does not apply to this selection/);
+
+  // --- Phase 2 exit: edit, undo, a Debrief process killed mid-save, recover ---------
+  type Step = { seq: number; status: string; tool: string | null };
+  const steps = () => vscode.commands.executeCommand<Step[]>("debrief.historySteps");
+  await vscode.commands.executeCommand("debrief.history.focus");
+  await waitFor("history to list the runs", async () => (await steps()).length === 3 || undefined);
+  assert.deepEqual((await steps()).map((s) => s.tool), ["debrief-sample", "core.range_rings", "core.closest_approach"]);
+  await sleep(1000);
+  await screenshot("05-history");
+
+  // Undo closest approach: the line goes, the step stays, marked undone.
+  assert.equal(await vscode.commands.executeCommand("debrief.undo"), undefined);
+  await waitFor("the line to go", () => !api.session.current?.plot.features.some((f) => f.id.startsWith("cpa-")) || undefined);
+  assert.deepEqual((await steps()).map((s) => s.status), ["applied", "applied", "undone"]);
+  await sleep(1500);
+  await screenshot("06-undone");
+
+  // Another Debrief process saves a change and is killed part-way through.
+  const current = api.session.current!;
+  const python = process.env.DEBRIEF_PYTHON || "python3";
+  const crashed = (() => {
+    try {
+      execFileSync(python, [path.join(__dirname, "..", "test", "integration", "crash.py"), current.store.location, current.item.id]);
+      return 0;
+    } catch (error) {
+      return (error as { status: number }).status;
+    }
+  })();
+  assert.equal(crashed, 9);
+  // Reopening finishes the interrupted change: nothing is lost (NFR-10). The
+  // undone closest approach is now replaced by it, kept on record.
+  await vscode.commands.executeCommand("debrief.openPlot", current.store.id, current.item.id);
+  await waitFor("the recovered note", () => api.session.current?.plot.features.some((f) => f.id === "note-before-the-crash") || undefined);
+  assert.deepEqual((await steps()).map((s) => s.status), ["applied", "applied", "abandoned", "applied"]);
+  await sleep(1500);
+  await screenshot("07-recovered", true);
 }
