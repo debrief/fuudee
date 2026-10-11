@@ -32,7 +32,7 @@ from pydantic import (
 
 
 metamodel_version = "1.12.0"
-version = "0.0.2"
+version = "0.0.3"
 
 
 class ConfiguredBaseModel(BaseModel):
@@ -599,6 +599,36 @@ class ResultPresentationEnum(str, Enum):
     number = "number"
     table = "table"
     graph = "graph"
+
+
+class PositionNotationEnum(str, Enum):
+    dd = "dd"
+    """
+    Decimal degrees: 50.335°N 004.120°W
+    """
+    dm = "dm"
+    """
+    Degrees and decimal minutes: 50°20.120'N 004°07.210'W
+    """
+    dms = "dms"
+    """
+    Degrees, minutes and seconds: 50°20'07.2"N 004°07'12.6"W
+    """
+
+
+class TimeStyleEnum(str, Enum):
+    time = "time"
+    """
+    Time of day: 09:30:05Z
+    """
+    date_time = "date_time"
+    """
+    Date and time: 11 Oct 2026 09:30:05Z
+    """
+    dtg = "dtg"
+    """
+    Military date-time group, always Zulu: 110930Z OCT 26
+    """
 
 
 
@@ -1812,6 +1842,36 @@ class ResultColumn(ConfiguredBaseModel):
     strings: Optional[list[str]] = Field(default=None, json_schema_extra = { "linkml_meta": {'domain_of': ['ResultColumn']} })
 
 
+class FormatSettings(ConfiguredBaseModel):
+    linkml_meta: ClassVar[LinkMLMeta] = LinkMLMeta({'from_schema': 'https://debrief.info/schemas/debrief'})
+
+    length_unit: LengthUnitEnum = Field(default=..., json_schema_extra = { "linkml_meta": {'domain_of': ['FormatSettings']} })
+    length_decimals: int = Field(default=..., ge=0, le=6, json_schema_extra = { "linkml_meta": {'domain_of': ['FormatSettings']} })
+    speed_unit: SpeedUnitEnum = Field(default=..., json_schema_extra = { "linkml_meta": {'domain_of': ['FormatSettings']} })
+    speed_decimals: int = Field(default=..., ge=0, le=6, json_schema_extra = { "linkml_meta": {'domain_of': ['FormatSettings']} })
+    angle_decimals: int = Field(default=..., ge=0, le=6, json_schema_extra = { "linkml_meta": {'domain_of': ['FormatSettings']} })
+    duration_unit: DurationUnitEnum = Field(default=..., json_schema_extra = { "linkml_meta": {'domain_of': ['FormatSettings']} })
+    duration_decimals: int = Field(default=..., ge=0, le=6, json_schema_extra = { "linkml_meta": {'domain_of': ['FormatSettings']} })
+    position_notation: PositionNotationEnum = Field(default=..., json_schema_extra = { "linkml_meta": {'domain_of': ['FormatSettings']} })
+    position_decimals: int = Field(default=..., ge=0, le=6, json_schema_extra = { "linkml_meta": {'domain_of': ['FormatSettings']} })
+    time_style: TimeStyleEnum = Field(default=..., json_schema_extra = { "linkml_meta": {'domain_of': ['FormatSettings']} })
+    show_milliseconds: bool = Field(default=..., json_schema_extra = { "linkml_meta": {'domain_of': ['FormatSettings']} })
+    time_zone: str = Field(default=..., description="""IANA time zone for display, or UTC for Zulu time (SUB-01).""", json_schema_extra = { "linkml_meta": {'domain_of': ['FormatSettings']} })
+
+    @field_validator('time_zone')
+    def pattern_time_zone(cls, v):
+        pattern=re.compile(r"^(UTC|[A-Za-z_]+(/[A-Za-z0-9_+-]+)+)$")
+        if isinstance(v, list):
+            for element in v:
+                if isinstance(element, str) and not pattern.search(element):
+                    err_msg = f"Invalid time_zone format: {element}"
+                    raise ValueError(err_msg)
+        elif isinstance(v, str) and not pattern.search(v):
+            err_msg = f"Invalid time_zone format: {v}"
+            raise ValueError(err_msg)
+        return v
+
+
 # Model rebuild
 # see https://pydantic-docs.helpmanual.io/usage/models/#rebuilding-a-model
 Length.model_rebuild()
@@ -1855,6 +1915,7 @@ ParameterDeclaration.model_rebuild()
 ToolResult.model_rebuild()
 NonSpatialResult.model_rebuild()
 ResultColumn.model_rebuild()
+FormatSettings.model_rebuild()
 
 # Classes that accept undeclared properties (extra_slots), added by the generator.
 StacAsset.model_config["extra"] = "allow"

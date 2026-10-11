@@ -1,0 +1,14 @@
+{
+  "length_unit": "[nmi_i]",
+  "length_decimals": 2,
+  "speed_unit": "[kn_i]",
+  "speed_decimals": 1,
+  "angle_decimals": 1,
+  "duration_unit": "min",
+  "duration_decimals": 1,
+  "position_notation": "dm",
+  "position_decimals": 3,
+  "time_style": "dtg",
+  "show_milliseconds": false,
+  "time_zone": "Europe/London"
+}
