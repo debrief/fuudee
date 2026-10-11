@@ -15,9 +15,58 @@ from pathlib import Path
 from debrief_kernel import geodesy_arrays
 from debrief_kernel.formatting import format_bearing, format_position, format_quantity, format_time
 from debrief_kernel.geodesy import Position, TrackPath, closest_approach, destination, range_bearing
-from debrief_kernel.time import parse_utc
+from debrief_kernel.time import format_utc, parse_utc
 from debrief_kernel.units import angle, duration, length, speed
-from debrief_schemas import SCHEMA_VERSION, DocumentKind, dump_document, load_document
+from debrief_schemas import SCHEMA_VERSION, DocumentKind, dump_document, load_document, models
+from debrief_tools import ToolContext, bind
+from debrief_tools import core as core_tools
+from debrief_tools.declare import tools_in
+
+
+def _track(feature_id: str, path: TrackPath) -> models.TrackFeature:
+    return models.TrackFeature(
+        type="Feature",
+        id=feature_id,
+        geometry=models.LineStringGeometry(
+            type="LineString", coordinates=[[p.longitude, p.latitude] for p in path.positions]
+        ),
+        properties=models.TrackProperties(
+            kind="track", name=feature_id.upper(), times=[format_utc(t) for t in path.times_ms]
+        ),
+    )
+
+
+def _rounded(value):
+    """Floats to 1e-9 (about 0.1 mm in degrees): CPython and Pyodide link different maths
+    libraries, which can differ in the last bit of a geodesic result."""
+    if isinstance(value, float):
+        return round(value, 9)
+    if isinstance(value, list):
+        return [_rounded(v) for v in value]
+    if isinstance(value, dict):
+        return {k: _rounded(v) for k, v in value.items()}
+    return value
+
+
+def run_core_tools(a: TrackPath, b: TrackPath) -> dict:
+    """Every core tool, run as the service runs it, on a two-track plot (CON-09)."""
+    tracks = [_track("alpha", a), _track("bravo", b)]
+    plot = models.DebriefFeatureCollection(
+        type="FeatureCollection", schema_version=SCHEMA_VERSION, features=tracks, provenance=[]
+    )
+    cases = {
+        "core.track_summary": (tracks, {}),
+        "core.closest_approach": (tracks, {}),
+        "core.range_rings": (tracks[:1], {"rings": 2}),
+        "core.add_note": ([], {"text": "Contact gained", "at": "1970-01-01T00:30:00.000Z"}),
+    }
+    results = {}
+    for tool in tools_in(core_tools):
+        selection, supplied = cases[tool.name]
+        values, _ = bind(tool.declaration, supplied)
+        result = tool.run(ToolContext(plot=plot, selection=selection, parameters=values))
+        results[tool.name] = _rounded(json.loads(dump_document(DocumentKind.TOOL_RESULT, result)))
+    return results
 
 
 def main(fixtures: Path) -> dict:
@@ -80,6 +129,8 @@ def main(fixtures: Path) -> dict:
         "time": format_time(parse_utc("2026-10-11T09:30:05.250Z")),
         "derived": format_quantity(speed(12, "[kn_i]") * duration(30, "min")),
     }
+
+    report["core_tools"] = run_core_tools(a, b)
 
     started = time.perf_counter()
     for _ in range(200):

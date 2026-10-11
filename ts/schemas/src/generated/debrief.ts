@@ -282,6 +282,10 @@ export interface ProvRecord {
    * Random seed, for operations that use randomness (SUB-20).
    */
   seed?: number | null;
+  /**
+   * Ids of the features the operation was applied to, in selection order, so replay can repeat it (SUB-19).
+   */
+  selected?: string[] | null;
   started_at: string;
   tool?: ToolRef | null;
   used?: SourceRef[] | null;

@@ -980,6 +980,16 @@
             "null"
           ]
         },
+        "selected": {
+          "description": "Ids of the features the operation was applied to, in selection order, so replay can repeat it (SUB-19).",
+          "items": {
+            "type": "string"
+          },
+          "type": [
+            "array",
+            "null"
+          ]
+        },
         "started_at": {
           "pattern": "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}\\.\\d{3}Z$",
           "type": "string"

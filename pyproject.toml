@@ -16,7 +16,10 @@ dev = [
     "debrief-kernel",
     "debrief-schemas",
     "debrief-stac",
+    "debrief-tools",
+    "httpx>=0.28",
     "linkml==1.12.0",
+    "mcp>=1.20",
     "pytest>=8",
     "ruff>=0.6",
 ]
@@ -34,7 +37,7 @@ extend-exclude = ["python/*/src/*/generated"]
 select = ["E", "F", "I", "UP", "B"]
 
 [tool.ruff.lint.isort]
-known-first-party = ["debrief_config", "debrief_io", "debrief_kernel", "debrief_schemas", "debrief_stac"]
+known-first-party = ["debrief_config", "debrief_io", "debrief_kernel", "debrief_schemas", "debrief_stac", "debrief_tools"]
 
 [tool.pytest.ini_options]
 testpaths = ["python"]
@@ -46,3 +49,4 @@ debrief-io = { workspace = true }
 debrief-kernel = { workspace = true }
 debrief-schemas = { workspace = true }
 debrief-stac = { workspace = true }
+debrief-tools = { workspace = true }

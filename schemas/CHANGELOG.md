@@ -5,6 +5,7 @@ The data-file schema is versioned independently of Debrief (SUB-12). Before 1.0.
 ## 0.0.5 (11 Oct 2026)
 
 - Per-user configuration (`UserConfig`): the stores Debrief knows about, read and changed by Python and TypeScript (SEC-06). It carries its own `config_version`, not the data-file schema version.
+- Provenance records name the features an operation was applied to (`selected`), so a tool run can be replayed (SUB-19).
 
 ## 0.0.4 (11 Oct 2026)
 
