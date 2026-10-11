@@ -11,6 +11,7 @@ members = ["python/*"]
 
 [dependency-groups]
 dev = [
+    "debrief-io",
     "debrief-kernel",
     "debrief-schemas",
     "debrief-stac",
@@ -32,13 +33,14 @@ extend-exclude = ["python/*/src/*/generated"]
 select = ["E", "F", "I", "UP", "B"]
 
 [tool.ruff.lint.isort]
-known-first-party = ["debrief_kernel", "debrief_schemas", "debrief_stac"]
+known-first-party = ["debrief_io", "debrief_kernel", "debrief_schemas", "debrief_stac"]
 
 [tool.pytest.ini_options]
 testpaths = ["python"]
 addopts = ["--import-mode=importlib"]
 
 [tool.uv.sources]
+debrief-io = { workspace = true }
 debrief-kernel = { workspace = true }
 debrief-schemas = { workspace = true }
 debrief-stac = { workspace = true }

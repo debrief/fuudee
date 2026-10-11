@@ -2,6 +2,11 @@
 
 The data-file schema is versioned independently of Debrief (SUB-12). Before 1.0.0 there is no migration guarantee (SUB-13).
 
+## 0.0.4 (11 Oct 2026)
+
+- Track style: an optional colour (and the legacy REP symbology it came from) on each track, for display (DEV-07, SUB-22).
+- Track depths: an optional depth series, positive down, with its unit (EXT-01).
+
 ## 0.0.3 (11 Oct 2026)
 
 - Display formatting settings (`FormatSettings`), shared by the Python and TypeScript formatting services (SUB-04).

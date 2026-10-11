@@ -377,6 +377,10 @@ export interface TrackProperties {
    * Course over ground at each position, true north, clockwise.
    */
   courses?: AngleSeries | null;
+  /**
+   * Depth below the sea surface at each position, positive down. Absent where depth is not known.
+   */
+  depths?: LengthSeries | null;
   kind: TrackKindEnum;
   name: string;
   platform_class?: string | null;
@@ -388,10 +392,19 @@ export interface TrackProperties {
    * Speed over ground at each position.
    */
   speeds?: SpeedSeries | null;
+  style?: TrackStyle | null;
   /**
    * One per position, non-decreasing.
    */
   times: string[];
+}
+/**
+ * This interface was referenced by `DebriefSchemaDefinitions`'s JSON-Schema
+ * via the `definition` "LengthSeries".
+ */
+export interface LengthSeries {
+  unit: LengthUnitEnum;
+  values: number[];
 }
 /**
  * This interface was referenced by `DebriefSchemaDefinitions`'s JSON-Schema
@@ -400,6 +413,22 @@ export interface TrackProperties {
 export interface SpeedSeries {
   unit: SpeedUnitEnum;
   values: number[];
+}
+/**
+ * How a track is drawn. Data colours do not change with the theme (DEV-07). Presentation only: changes are undoable but not recorded in provenance (SUB-22).
+ *
+ * This interface was referenced by `DebriefSchemaDefinitions`'s JSON-Schema
+ * via the `definition` "TrackStyle".
+ */
+export interface TrackStyle {
+  /**
+   * Lower-case hex RGB, for example "#e01c3e".
+   */
+  colour: string;
+  /**
+   * The REP symbology code the colour came from, such as "@C", kept for export.
+   */
+  legacy_symbology?: string | null;
 }
 /**
  * A set of sensor observations, such as weeks of bearings, held as an opaque payload (CON-02, NFR-06). Geometry is null; positions come from the host track at each observation time.

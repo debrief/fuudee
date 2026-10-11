@@ -93,6 +93,10 @@ classes:
     attributes:
       unit: {range: AngleUnitEnum, required: true}
       values: {range: float, multivalued: true, required: true}
+  LengthSeries:
+    attributes:
+      unit: {range: LengthUnitEnum, required: true}
+      values: {range: float, multivalued: true, required: true}
 
   TimeRange:
     description: A closed interval of time. Start shall not be after end.

@@ -436,6 +436,27 @@
       "title": "Length",
       "type": "object"
     },
+    "LengthSeries": {
+      "additionalProperties": false,
+      "description": "",
+      "properties": {
+        "unit": {
+          "$ref": "#/$defs/LengthUnitEnum"
+        },
+        "values": {
+          "items": {
+            "type": "number"
+          },
+          "type": "array"
+        }
+      },
+      "required": [
+        "unit",
+        "values"
+      ],
+      "title": "LengthSeries",
+      "type": "object"
+    },
     "LengthUnitEnum": {
       "description": "Units a length may be stored in (UCUM codes).",
       "enum": [
@@ -1885,6 +1906,17 @@
           ],
           "description": "Course over ground at each position, true north, clockwise."
         },
+        "depths": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/LengthSeries"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": "Depth below the sea surface at each position, positive down. Absent where depth is not known."
+        },
         "kind": {
           "$ref": "#/$defs/TrackKindEnum"
         },
@@ -1918,6 +1950,16 @@
           ],
           "description": "Speed over ground at each position."
         },
+        "style": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/TrackStyle"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
         "times": {
           "description": "One per position, non-decreasing.",
           "items": {
@@ -1933,6 +1975,29 @@
         "times"
       ],
       "title": "TrackProperties",
+      "type": "object"
+    },
+    "TrackStyle": {
+      "additionalProperties": false,
+      "description": "How a track is drawn. Data colours do not change with the theme (DEV-07). Presentation only: changes are undoable but not recorded in provenance (SUB-22).",
+      "properties": {
+        "colour": {
+          "description": "Lower-case hex RGB, for example \"#e01c3e\".",
+          "pattern": "^#[0-9a-f]{6}$",
+          "type": "string"
+        },
+        "legacy_symbology": {
+          "description": "The REP symbology code the colour came from, such as \"@C\", kept for export.",
+          "type": [
+            "string",
+            "null"
+          ]
+        }
+      },
+      "required": [
+        "colour"
+      ],
+      "title": "TrackStyle",
       "type": "object"
     },
     "Viewport": {
@@ -2009,5 +2074,5 @@
   ],
   "title": "debrief",
   "type": "object",
-  "version": "0.0.3"
+  "version": "0.0.4"
 }

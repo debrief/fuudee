@@ -211,6 +211,7 @@ def _feature_problems(feature: Any, track_ids: set[str] | None) -> list[str]:
             "times": props.times,
             "speeds": props.speeds.values if props.speeds else None,
             "courses": props.courses.values if props.courses else None,
+            "depths": props.depths.values if props.depths else None,
         }
         for name, values in series.items():
             if values is not None and len(values) != count:

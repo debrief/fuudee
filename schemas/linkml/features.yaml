@@ -81,11 +81,30 @@ classes:
         description: Course over ground at each position, true north, clockwise.
         range: AngleSeries
         inlined: true
+      depths:
+        description: >-
+          Depth below the sea surface at each position, positive down. Absent
+          where depth is not known.
+        range: LengthSeries
+        inlined: true
+      style: {range: TrackStyle, inlined: true}
       provenance:
         description: Feature-level provenance where needed (SUB-18).
         range: ProvRecord
         multivalued: true
         inlined_as_list: true
+  TrackStyle:
+    description: >-
+      How a track is drawn. Data colours do not change with the theme
+      (DEV-07). Presentation only: changes are undoable but not recorded in
+      provenance (SUB-22).
+    attributes:
+      colour:
+        description: Lower-case hex RGB, for example "#e01c3e".
+        required: true
+        pattern: "^#[0-9a-f]{6}$"
+      legacy_symbology:
+        description: The REP symbology code the colour came from, such as "@C", kept for export.
 
   # --- Annotations ----------------------------------------------------------
   AnnotationFeature:
