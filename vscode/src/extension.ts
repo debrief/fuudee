@@ -27,8 +27,11 @@ export interface DebriefApi {
    * viewport of the open plot, or undefined with none open.
    */
   getState: () => SharedState | undefined;
-  /** Set some or all of shared state. Returns why it was refused, if it was. */
-  setState: (change: SharedStateChange) => string | undefined;
+  /**
+   * Set some or all of shared state. Returns why it was refused, if it was.
+   * who names the caller (an extension id, say), which listeners are told.
+   */
+  setState: (change: SharedStateChange, who?: string) => string | undefined;
   /** Called with each change to shared state and the view, extension or tool that made it. */
   onDidChangeState: (listener: (change: SharedStateChange, origin: string) => void) => vscode.Disposable;
   ready: Promise<void>;
@@ -318,7 +321,7 @@ export function activate(context: vscode.ExtensionContext): DebriefApi {
   return {
     session,
     getState: () => session.state(),
-    setState: (change) => session.apply(change, "extension"),
+    setState: (change, who) => session.apply(change, who ? `extension:${who}` : "extension"),
     onDidChangeState: (listener) => new vscode.Disposable(session.onState(listener)),
     ready,
     tools: () => listing,

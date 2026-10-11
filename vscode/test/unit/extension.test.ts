@@ -157,7 +157,10 @@ describe("shared state (SUB-26, SUB-27)", () => {
     session.setPlot(opened());
     const heard: [string, string][] = [];
     session.onState((change, origin) => heard.push([Object.keys(change).join(), origin]));
-    expect(session.apply({ time: { current: "1995-12-12T05:30:00.000Z", range }, selection: { plot: "serial", feature_ids: ["b", "ghost"] } }, "tool:x")).toBeUndefined();
+    expect(session.apply({ selection: { plot: "serial", feature_ids: ["b", "ghost"] } }, "x")).toMatch(/no feature ghost/);
+    expect(session.apply({ selection: { plot: "other", feature_ids: ["b"] } }, "x")).toMatch(/not the open plot/);
+    expect(session.setTime({ current: "1995-12-12T05:30:00+01:00", range }, "x")).toMatch(/must be UTC/);
+    expect(session.apply({ time: { current: "1995-12-12T05:30:00.000Z", range }, selection: { plot: "serial", feature_ids: ["b"] } }, "tool:x")).toBeUndefined();
     expect(session.selection).toEqual(["b"]);
     expect(session.setViewport({ bbox: [170, -20, -170, -10] }, "map")).toBeUndefined(); // across 180°
     expect(session.setTime({ current: "1995-12-12T07:00:00.000Z", range }, "extension")).toMatch(/within the time range/);
@@ -170,13 +173,33 @@ describe("shared state (SUB-26, SUB-27)", () => {
     ]);
   });
 
-  it("keeps current time across a reload when it still falls in the plot", () => {
+  it("keeps current time, a widened range and the selection when the same plot is opened again", () => {
     const session = new Session();
     session.setPlot(opened());
-    session.setTime({ current: "1995-12-12T05:30:00.000Z", range }, "map");
-    session.setPlot(opened(), true);
-    expect(session.time?.current).toBe("1995-12-12T05:30:00.000Z");
+    session.select(["a"], "map");
+    const wide = { start: "1995-12-12T04:00:00.000Z", end: range.end };
+    session.setTime({ current: "1995-12-12T04:30:00.000Z", range: wide }, "tool:x");
+    session.setPlot(opened()); // reopened, or reloaded after a change
+    expect(session.time).toEqual({ current: "1995-12-12T04:30:00.000Z", range: wide });
+    expect(session.selection).toEqual(["a"]);
+    session.setPlot(opened("copy"), true); // saved as a new plot: carried across
+    expect(session.time?.current).toBe("1995-12-12T04:30:00.000Z");
     session.setPlot(opened("other"));
     expect(session.time?.current).toBe(range.start);
+    expect(session.selection).toEqual([]);
+  });
+
+  it("hands out copies, and one failing listener never stops the rest", () => {
+    const session = new Session();
+    session.setPlot(opened());
+    session.state()!.time.current = "tampered";
+    expect(session.time?.current).toBe(range.start);
+    const heard: string[] = [];
+    session.onState(() => {
+      throw new Error("another extension's bug");
+    });
+    session.onState((_, origin) => heard.push(origin));
+    expect(session.setViewport({ bbox: [0, 0, 1, 1] }, "extension:x")).toBeUndefined();
+    expect(heard).toEqual(["extension:x"]);
   });
 });

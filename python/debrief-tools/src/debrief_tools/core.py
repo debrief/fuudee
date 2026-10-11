@@ -16,7 +16,7 @@ from debrief_kernel.geodesy import (
     range_bearing,
     range_between,
 )
-from debrief_kernel.time import format_utc
+from debrief_kernel.time import format_utc, parse_utc
 from debrief_kernel.units import Quantity, angle
 from debrief_schemas import models
 from debrief_tools.declare import ToolContext, tool

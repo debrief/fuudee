@@ -34,7 +34,11 @@ const WGS84 = geodesic.Geodesic.WGS84;
 const root = document.getElementById("root")!;
 root.innerHTML =
   `<div id="map" tabindex="0" aria-label="Plot map"></div><div id="status" class="status"></div><div id="empty" class="empty" hidden></div>` +
-  `<div id="timebar" class="timebar" hidden><input id="time" type="range" aria-label="Current time"><span id="time-label" class="time-label"></span></div>`;
+  `<div id="timebar" class="timebar" hidden>` +
+  `<button id="back" class="step" title="Step back" aria-label="Step back">‹</button>` +
+  `<input id="time" type="range" aria-label="Current time">` +
+  `<button id="forward" class="step" title="Step forward" aria-label="Step forward">›</button>` +
+  `<span id="time-label" class="time-label" aria-live="polite"></span></div>`;
 const status = document.getElementById("status")!;
 const mapElement = document.getElementById("map")!;
 
@@ -324,7 +328,7 @@ function draw(plot: DebriefFeatureCollection): void {
   const empty = document.getElementById("empty")!;
   empty.hidden = plot.features.some((f) => f.geometry);
   empty.textContent = plot.features.length ? "This plot has nothing with a position." : "This plot is empty. Import a REP file to add tracks.";
-  tracks = plot.features.filter((f): f is Track => f.properties.kind === "track" && !!f.geometry);
+  setTracks(plot.features.filter((f): f is Track => f.properties.kind === "track" && !!f.geometry));
   restyle();
   drawGraticule();
   placeLabels();
@@ -347,20 +351,33 @@ const timebar = document.getElementById("timebar")!;
 const slider = document.getElementById("time") as HTMLInputElement;
 const timeLabel = document.getElementById("time-label")!;
 const now = L.layerGroup().addTo(map);
-let tracks: Track[] = [];
+/** Each track with its fix times parsed once, and its marker at current time. */
+let tracks: { track: Track; times: number[]; marker?: L.Marker }[] = [];
 let time: TimeState | undefined;
+const dated = { ...settings, time_style: "date_time" as const };
+// Steps the buttons and arrow keys move by: about a hundredth of the plot's period.
+const STEPS = [1, 5, 10, 30, 60, 120, 300, 600, 900, 1800, 3600, 7200, 21600, 43200, 86400].map((s) => s * 1000);
+
+function setTracks(plotTracks: Track[]): void {
+  now.clearLayers();
+  tracks = plotTracks.map((track) => ({ track, times: track.properties.times.map(Date.parse) }));
+}
 
 /** Where a track was at an instant, between the fixes either side; none outside its span. */
-function positionAt(track: Track, at: number): LonLat | undefined {
-  const times = track.properties.times.map(Date.parse);
+function positionAt(track: Track, times: number[], at: number): LonLat | undefined {
   const coordinates = track.geometry.coordinates as LonLat[];
-  if (at < times[0] || at > times.at(-1)!) return undefined;
-  let i = 0;
-  while (i < times.length - 2 && times[i + 1] < at) i++;
-  const span = times[i + 1] - times[i];
-  const f = span > 0 ? (at - times[i]) / span : 0;
-  const [lon1, lat1] = coordinates[i];
-  const [lon2, lat2] = coordinates[Math.min(i + 1, coordinates.length - 1)];
+  if (!times.length || at < times[0] || at > times[times.length - 1]) return undefined;
+  let low = 0;
+  let high = times.length - 1;
+  while (high - low > 1) {
+    const middle = (low + high) >> 1;
+    if (times[middle] <= at) low = middle;
+    else high = middle;
+  }
+  const span = times[high] - times[low];
+  const f = span > 0 ? (at - times[low]) / span : 0;
+  const [lon1, lat1] = coordinates[low];
+  const [lon2, lat2] = coordinates[high];
   // Along the geodesic between the two fixes, as the line is drawn (SUB-03).
   const line = WGS84.InverseLine(lat1, lon1, lat2, lon2);
   const point = line.Position(f * line.s13);
@@ -368,12 +385,20 @@ function positionAt(track: Track, at: number): LonLat | undefined {
 }
 
 function drawNow(): void {
-  now.clearLayers();
-  if (!time) return;
-  const at = Date.parse(time.current);
-  for (const track of tracks) {
-    const position = positionAt(track, at);
-    if (!position) continue;
+  const at = time ? Date.parse(time.current) : NaN;
+  for (const entry of tracks) {
+    const position = time ? positionAt(entry.track, entry.times, at) : undefined;
+    if (!position) {
+      if (entry.marker) now.removeLayer(entry.marker);
+      entry.marker = undefined;
+      continue;
+    }
+    if (entry.marker) {
+      entry.marker.setLatLng(toLatLng(position));
+      if (!now.hasLayer(entry.marker)) entry.marker.addTo(now);
+      continue;
+    }
+    const { track } = entry;
     const colour = colourOf(track);
     const icon = L.divIcon({ className: "now", html: "", iconSize: [10, 10] });
     const marker = L.marker(toLatLng(position), { icon, keyboard: false, title: track.properties.name });
@@ -383,6 +408,7 @@ function drawNow(): void {
       select(track.id, event.originalEvent.ctrlKey || event.originalEvent.metaKey);
     });
     marker.addTo(now);
+    entry.marker = marker;
   }
 }
 
@@ -391,28 +417,54 @@ function showTime(next: TimeState | undefined): void {
   timebar.hidden = !time;
   if (time) {
     const [start, end] = [Date.parse(time.range.start), Date.parse(time.range.end)];
+    const step = STEPS.find((s) => s >= (end - start) / 100) ?? STEPS.at(-1)!;
     slider.min = String(start);
     slider.max = String(end);
-    slider.step = String(Math.max(1000, Math.round((end - start) / 1000 / 1000) * 1000));
+    slider.step = "1000"; // dragging reaches any second; buttons and arrow keys move by step
+    slider.dataset.step = String(step);
     slider.value = String(Date.parse(time.current));
-    timeLabel.textContent = formatTime(Date.parse(time.current), settings);
+    slider.title = `${formatTime(start, dated)} to ${formatTime(end, dated)}`;
+    timeLabel.textContent = formatTime(Date.parse(time.current), dated);
   }
   drawNow();
 }
 
-slider.addEventListener("input", () => {
+// Tell the host at most once a frame, however fast the slider moves.
+let pending = false;
+function moveTo(ms: number): void {
   if (!time) return;
-  const current = new Date(Number(slider.value)).toISOString();
-  time = { current, range: time.range };
-  timeLabel.textContent = formatTime(Number(slider.value), settings);
-  drawNow();
-  host.postMessage({ kind: "time_changed", time });
+  const [start, end] = [Date.parse(time.range.start), Date.parse(time.range.end)];
+  ms = Math.max(start, Math.min(end, ms));
+  slider.value = String(ms);
+  time = { current: new Date(ms).toISOString(), range: time.range };
+  timeLabel.textContent = formatTime(ms, dated);
+  if (pending) return;
+  pending = true;
+  requestAnimationFrame(() => {
+    pending = false;
+    drawNow();
+    host.postMessage({ kind: "time_changed", time });
+  });
+}
+slider.addEventListener("input", () => moveTo(Number(slider.value)));
+slider.addEventListener("keydown", (event) => {
+  const step = Number(slider.dataset.step);
+  const by = { ArrowRight: step, ArrowUp: step, ArrowLeft: -step, ArrowDown: -step, PageUp: 10 * step, PageDown: -10 * step }[event.key];
+  if (by === undefined) return;
+  event.preventDefault();
+  moveTo(Number(slider.value) + by);
 });
+document.getElementById("back")!.addEventListener("click", () => moveTo(Number(slider.value) - Number(slider.dataset.step)));
+document.getElementById("forward")!.addEventListener("click", () => moveTo(Number(slider.value) + Number(slider.dataset.step)));
+L.DomEvent.disableClickPropagation(timebar);
+L.DomEvent.disableScrollPropagation(timebar);
 
 // --- Viewport (shared state) -----------------------------------------------------
 let reporting: ReturnType<typeof setTimeout> | undefined;
+let settingViewport = false; // a move made to show a viewport set elsewhere is not reported back
 map.on("moveend", () => {
   clearTimeout(reporting);
+  if (settingViewport) return;
   reporting = setTimeout(() => {
     const bounds = map.getBounds();
     const whole = bounds.getEast() - bounds.getWest() >= 360;
@@ -431,7 +483,9 @@ map.on("moveend", () => {
 
 function showViewport(bbox: number[]): void {
   const [west, south, east, north] = bbox;
+  settingViewport = true;
   fit(L.latLngBounds([south, west], [north, east > west ? east : east + 360]), 0);
+  settingViewport = false;
   moved = true; // set from elsewhere: keep it, even if a panel opens beside the map
 }
 

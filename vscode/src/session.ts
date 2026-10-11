@@ -15,10 +15,13 @@ type Feature = OpenedPlot["plot"]["features"][number];
 
 const WORLD: Viewport = { bbox: [-180, -90, 180, 90] };
 
+const UTC = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(\.\d{1,3})?Z$/;
+
 /** Why a time cannot be current time, or undefined if it can. */
 export function timeProblem(time: TimeState): string | undefined {
-  const [start, end, current] = [time.range.start, time.range.end, time.current].map(Date.parse);
-  if ([start, end, current].some(Number.isNaN)) return "Times must be UTC timestamps.";
+  const texts = [time.range.start, time.range.end, time.current];
+  if (!texts.every((t) => UTC.test(t))) return "Times must be UTC, written like 1995-12-12T05:00:00.000Z.";
+  const [start, end, current] = texts.map(Date.parse);
   if (start > end) return "The time range ends before it starts.";
   if (current < start || current > end) return "Current time must be within the time range.";
   return undefined;
@@ -34,6 +37,17 @@ export function viewportProblem(viewport: Viewport): string | undefined {
 
 export class Session {
   private readonly events = new EventEmitter();
+
+  /** Tell listeners; one that fails (another extension's, say) never stops the rest. */
+  private emit(name: string, ...args: unknown[]): void {
+    for (const listener of this.events.listeners(name)) {
+      try {
+        (listener as (...a: unknown[]) => void)(...args);
+      } catch (error) {
+        console.error(`Debrief: a ${name} listener failed`, error);
+      }
+    }
+  }
   current?: OpenedPlot;
   selection: string[] = [];
   time?: TimeState;
@@ -55,26 +69,37 @@ export class Session {
     return () => this.events.off("state", listener);
   }
 
-  setPlot(opened: OpenedPlot | undefined, keepSelection = false): void {
+  /**
+   * Show a plot. Opening the plot already shown (a reload, a reopen, a recovery)
+   * keeps selection, current time and viewport; keep carries them to another
+   * plot, such as one saved as new from this one.
+   */
+  setPlot(opened: OpenedPlot | undefined, keep = false): void {
+    const same = keep || (!!opened && opened.item.id === this.current?.item.id);
     this.current = opened;
     const ids = new Set(opened?.plot.features.map((f) => f.id) ?? []);
-    const selection = keepSelection ? this.selection.filter((id) => ids.has(id)) : [];
-    this.selection = selection;
-    this.time = opened ? this.timeFor(opened, keepSelection ? this.time : undefined) : undefined;
-    if (!keepSelection) this.viewport = undefined; // the map fits the new plot and reports it
-    this.events.emit("plot", opened);
-    this.events.emit("selection", this.selection, "plot");
-    this.events.emit("state", { selection: this.selectionState(), ...(this.time && { time: this.time }) }, "plot");
+    this.selection = same ? this.selection.filter((id) => ids.has(id)) : [];
+    this.time = opened ? this.timeFor(opened, same ? this.time : undefined) : undefined;
+    if (!same) this.viewport = undefined; // the map fits the new plot and reports it
+    this.emit("plot", opened);
+    this.emit("selection", this.selection, "plot");
+    this.emit("state", { selection: this.selectionState(), ...(this.time && { time: this.time }) }, "plot");
   }
 
-  /** The plot's period, keeping current time where it was if it still falls inside. */
+  /**
+   * The plot's period, keeping current time where it was. A range widened
+   * earlier (by a tool, say) is kept, so current time never jumps back.
+   */
   private timeFor(opened: OpenedPlot, previous?: TimeState): TimeState | undefined {
     const props = opened.item.properties;
-    const start = props.start_datetime ?? props.datetime ?? undefined;
-    const end = props.end_datetime ?? props.datetime ?? undefined;
-    if (!start || !end) return undefined;
-    const keep = previous && previous.current >= start && previous.current <= end;
-    return { current: keep ? previous.current : start, range: { start, end } };
+    let start = props.start_datetime ?? props.datetime ?? undefined;
+    let end = props.end_datetime ?? props.datetime ?? undefined;
+    if (!start || !end) return previous;
+    if (!previous) return { current: start, range: { start, end } };
+    const ms = Date.parse;
+    if (ms(previous.range.start) < ms(start)) start = previous.range.start;
+    if (ms(previous.range.end) > ms(end)) end = previous.range.end;
+    return { current: previous.current, range: { start, end } };
   }
 
   /** Set the selection. origin names the view that changed it, so it need not redraw. */
@@ -83,8 +108,8 @@ export class Session {
     const next = [...new Set(ids)].filter((id) => known.has(id));
     if (next.length === this.selection.length && next.every((id, i) => id === this.selection[i])) return;
     this.selection = next;
-    this.events.emit("selection", next, origin);
-    this.events.emit("state", { selection: this.selectionState() }, origin);
+    this.emit("selection", next, origin);
+    this.emit("state", { selection: this.selectionState() }, origin);
   }
 
   /** Set current time. Returns why it was refused, if it was. */
@@ -95,7 +120,7 @@ export class Session {
       return undefined;
     }
     this.time = time;
-    this.events.emit("state", { time }, origin);
+    this.emit("state", { time }, origin);
     return undefined;
   }
 
@@ -105,14 +130,17 @@ export class Session {
     if (problem) return problem;
     if (this.viewport && this.viewport.bbox.every((x, i) => x === viewport.bbox[i])) return undefined;
     this.viewport = viewport;
-    this.events.emit("state", { viewport }, origin);
+    this.emit("state", { viewport }, origin);
     return undefined;
   }
 
   /** Apply a change to some or all of shared state, all or nothing. Returns why it was refused. */
   apply(change: SharedStateChange, origin: string): string | undefined {
     if (!this.current) return "Open a plot first.";
-    const problem = (change.time && timeProblem(change.time)) || (change.viewport && viewportProblem(change.viewport));
+    const problem =
+      (change.time && timeProblem(change.time)) ||
+      (change.viewport && viewportProblem(change.viewport)) ||
+      (change.selection && this.selectionProblem(change.selection));
     if (problem) return problem;
     if (change.selection) this.select(change.selection.feature_ids, origin);
     if (change.time) this.setTime(change.time, origin);
@@ -120,15 +148,23 @@ export class Session {
     return undefined;
   }
 
-  /** The whole shared state, as tools and extensions read it; none without a plot. */
+  /** The whole shared state, as tools and extensions read it; none without a plot. A copy. */
   state(): SharedState | undefined {
     if (!this.current || !this.time) return undefined;
     const bbox = this.current.item.bbox;
-    return {
+    return structuredClone({
       time: this.time,
       selection: this.selectionState(),
       viewport: this.viewport ?? (bbox?.length === 4 ? { bbox: bbox as Viewport["bbox"] } : WORLD),
-    };
+    });
+  }
+
+  private selectionProblem(selection: { plot: string; feature_ids: string[] }): string | undefined {
+    const plot = this.current!.item.id;
+    if (selection.plot && selection.plot !== plot) return `That selection is for ${selection.plot}, not the open plot, ${plot}.`;
+    const known = new Set(this.current!.plot.features.map((f) => f.id));
+    const unknown = selection.feature_ids.find((id) => !known.has(id));
+    return unknown ? `The open plot has no feature ${unknown}.` : undefined;
   }
 
   private selectionState() {
