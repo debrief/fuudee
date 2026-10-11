@@ -100,6 +100,7 @@ classes:
           - range: Speed
           - range: Angle
           - range: Duration
+          - range: AngularRate
       minimum:
         description: Lower bound for number, integer and quantity kinds; for a quantity, in the default's unit.
         range: float

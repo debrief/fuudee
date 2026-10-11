@@ -40,3 +40,46 @@ def test_try_tool_rejects_what_debrief_would_reject() -> None:
         try_tool(unitless, sample_plot(), ["track-nelson"])
     with pytest.raises(ToolRunError, match="does not apply"):
         try_tool(unitless, sample_plot(), [])
+
+
+def test_bearing_rate_column_carries_its_unit() -> None:
+    @tool(
+        name="lab.rate",
+        version="0.1.0",
+        title="Bearing rate",
+        explanation="Gives a bearing rate.",
+        applies_to=["track"],
+        outputs=["non_spatial"],
+        parameters=[
+            {
+                "name": "limit",
+                "title": "Limit",
+                "kind": "quantity",
+                "quantity_kind": "angular_rate",
+                "default": {"value": 2.0, "unit": "deg/min"},
+            }
+        ],
+    )
+    def rate(context):
+        limit = context.parameters["limit"].to("deg/min").value
+        return models.ToolResult(
+            non_spatial=[
+                models.NonSpatialResult(
+                    title="Rate",
+                    presentation="number",
+                    columns=[
+                        models.ResultColumn(
+                            name="Rate",
+                            quantity_kind="angular_rate",
+                            unit="deg/min",
+                            numbers=[min(1.5, limit)],
+                        )
+                    ],
+                )
+            ]
+        )
+
+    result = try_tool(
+        rate, sample_plot(), ["track-nelson"], {"limit": {"value": 0.02, "unit": "deg/s"}}
+    )
+    assert result.non_spatial[0].columns[0].numbers == [1.2]

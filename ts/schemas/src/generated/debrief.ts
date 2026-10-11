@@ -12,6 +12,13 @@ export type AgentKindEnum = "person" | "software_agent";
  */
 export type AngleUnitEnum = "deg" | "rad";
 /**
+ * Units an angular rate may be stored in (UCUM codes). Degrees per minute is the analysts' standard for bearing rate.
+ *
+ * This interface was referenced by `DebriefSchemaDefinitions`'s JSON-Schema
+ * via the `definition` "AngularRateUnitEnum".
+ */
+export type AngularRateUnitEnum = "deg/min" | "deg/s" | "rad/s";
+/**
  * This interface was referenced by `DebriefSchemaDefinitions`'s JSON-Schema
  * via the `definition` "PointTypeEnum".
  */
@@ -104,7 +111,7 @@ export type ObservationTypeEnum = "bearing" | "ambiguous_bearing";
  * This interface was referenced by `DebriefSchemaDefinitions`'s JSON-Schema
  * via the `definition` "QuantityKindEnum".
  */
-export type QuantityKindEnum = "length" | "speed" | "angle" | "duration";
+export type QuantityKindEnum = "length" | "speed" | "angle" | "duration" | "angular_rate";
 /**
  * Standard formats for opaque payloads (CON-02).
  *
@@ -212,6 +219,14 @@ export interface AngleSeries {
   values: number[];
 }
 /**
+ * This interface was referenced by `DebriefSchemaDefinitions`'s JSON-Schema
+ * via the `definition` "AngularRate".
+ */
+export interface AngularRate {
+  unit: AngularRateUnitEnum;
+  value: number;
+}
+/**
  * Shapes, labels and chart furniture as ordinary GeoJSON (CAP-03). An annotation with only a time has null geometry and shall give a time or a time range (CAP-04).
  *
  * This interface was referenced by `DebriefSchemaDefinitions`'s JSON-Schema
@@ -314,7 +329,7 @@ export interface ProvRecord {
  */
 export interface ParameterValue {
   name: string;
-  value: number | string | boolean | Length | Speed | Angle | Duration;
+  value: number | string | boolean | Length | Speed | Angle | Duration | AngularRate;
 }
 /**
  * This interface was referenced by `DebriefSchemaDefinitions`'s JSON-Schema
@@ -625,7 +640,7 @@ export interface ParameterDeclaration {
    * Required when kind is choice.
    */
   choices?: string[] | null;
-  default?: number | string | boolean | Length | Speed | Angle | Duration | null;
+  default?: number | string | boolean | Length | Speed | Angle | Duration | AngularRate | null;
   /**
    * Shown beside the field on the form (CAP-24).
    */

@@ -3,12 +3,13 @@
  * operation so conversions give bit-identical results in both languages.
  */
 
-/** Factor to the kind's base unit: metres, metres per second, degrees, seconds. */
+/** Factor to the kind's base unit: metres, metres per second, degrees, seconds, degrees per minute. */
 export const FACTORS = {
   length: { m: 1.0, km: 1000.0, "[nmi_i]": 1852.0, "[yd_i]": 0.9144, "[ft_i]": 0.3048 },
   speed: { "m/s": 1.0, "[kn_i]": 1852.0 / 3600.0, "km/h": 1000.0 / 3600.0 },
   angle: { deg: 1.0, rad: 180.0 / Math.PI },
   duration: { ms: 0.001, s: 1.0, min: 60.0, h: 3600.0 },
+  angular_rate: { "deg/min": 1.0, "deg/s": 60.0, "rad/s": (60.0 * 180.0) / Math.PI },
 } as const;
 
 export type QuantityKind = keyof typeof FACTORS;

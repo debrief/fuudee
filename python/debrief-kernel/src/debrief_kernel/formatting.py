@@ -35,6 +35,9 @@ UNIT_LABELS = {
     "s": "s",
     "min": "min",
     "h": "h",
+    "deg/min": "°/min",
+    "deg/s": "°/s",
+    "rad/s": "rad/s",
 }
 
 # Must equal schemas/vectors/format-defaults.json; a test checks.
@@ -80,6 +83,9 @@ def format_quantity(quantity: Quantity, settings: FormatSettings = DEFAULT_SETTI
     kind = quantity.kind
     if kind == "angle":
         return f"{fixed(quantity.to('deg').value, settings.angle_decimals)}°"
+    if kind == "angular_rate":
+        # Always degrees per minute, the analysts' standard for bearing rate.
+        return f"{fixed(quantity.to('deg/min').value, settings.angle_decimals)}°/min"
     unit, decimals = {
         "length": (settings.length_unit, settings.length_decimals),
         "speed": (settings.speed_unit, settings.speed_decimals),
