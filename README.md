@@ -16,7 +16,7 @@ Debrief v4. Requirements and plans are in [docs/](docs/README.md); identifiers s
 | `ts/kernel/` | Unit conversion and display formatting for TypeScript views, held to the vectors shared with the Python kernel |
 | `schemas/vectors/` | Test vectors both languages must agree on |
 | `scripts/` | Generators and the cross-language round trip |
-| `site/` | Development blog and guides (style guide, interaction models, tool-author guide, glossary), published to GitHub Pages |
+| `site/` | Development blog and guides (style guide, interaction models, tool-author guide, glossary), published to GitHub Pages from the `gh-pages` branch |
 
 ## Development
 
