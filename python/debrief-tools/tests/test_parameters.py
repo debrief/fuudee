@@ -32,6 +32,10 @@ def test_values_are_converted_for_the_tool() -> None:
         ({"spacing": {"value": 5, "unit": "[kn_i]"}}, "Spacing must be a length, not [kn_i]"),
         ({"spacing": {"value": 300, "unit": "km"}}, "Spacing must be at most 100 [nmi_i]"),
         ({"spacing": 5}, "Spacing must be a number with a unit"),
+        (
+            {"spacing": {"value": 5, "unit": "nm"}},
+            "Spacing: unknown unit 'nm'; use one of m, km, [nmi_i]",
+        ),
         ({"rings": 2.5}, "Number of rings must be a whole number"),
         ({"rings": 0}, "Number of rings must be at least 1"),
         ({"rings": True}, "Number of rings must be a number"),

@@ -12,7 +12,7 @@ from __future__ import annotations
 from typing import Any
 
 from debrief_kernel.time import TimeError, parse_utc
-from debrief_kernel.units import Quantity
+from debrief_kernel.units import FACTORS, Quantity
 from debrief_schemas import models
 
 
@@ -51,6 +51,9 @@ def _check(param: models.ParameterDeclaration, value: Any) -> tuple[Any, str | N
         if not (isinstance(value, dict) and set(value) == {"value", "unit"}):
             return None, f"{title} must be a number with a unit"
         number, unit = value["value"], value["unit"]
+        units = FACTORS[str(param.quantity_kind)]
+        if unit not in units and not any(unit in known for known in FACTORS.values()):
+            return None, f"{title}: unknown unit {unit!r}; use one of {', '.join(units)}"
         try:
             quantity = Quantity(float(number), str(unit))
         except (TypeError, ValueError):

@@ -13,7 +13,13 @@ from collections.abc import Callable, Sequence
 from dataclasses import dataclass, field
 from typing import Any
 
-from debrief_schemas import DebriefFeatureCollection, DocumentKind, load_document, models
+from debrief_schemas import (
+    DebriefFeatureCollection,
+    DocumentKind,
+    DocumentValidationError,
+    load_document,
+    models,
+)
 
 Feature = models.TrackFeature | models.AnnotationFeature | models.SensorObservationsFeature
 
@@ -65,10 +71,42 @@ def tool(**declaration: Any) -> Callable[[Run], Run]:
     """
 
     def decorate(run: Run) -> Run:
-        run.debrief_tool = Tool(load_document(DocumentKind.TOOL_DECLARATION, declaration), run)  # type: ignore[attr-defined]
+        try:
+            checked = load_document(DocumentKind.TOOL_DECLARATION, declaration)
+        except DocumentValidationError as error:
+            name = declaration.get("name", run.__name__)
+            problems = "\n".join(f"  - {_plain(p, declaration)}" for p in error.problems)
+            raise DeclarationError(f"The declaration of {name} is not valid:\n{problems}") from None
+        run.debrief_tool = Tool(checked, run)  # type: ignore[attr-defined]
         return run
 
     return decorate
+
+
+class DeclarationError(ValueError):
+    """A tool's declaration does not follow the schema; the message lists every problem."""
+
+
+def _plain(problem: str, declaration: dict[str, Any]) -> str:
+    """Name the parameter a JSON path points at, so the author can find it."""
+    path, _, message = problem.partition(": ")
+    parts = path.strip("/").split("/")
+    if len(parts) >= 2 and parts[0] == "parameters" and parts[1].isdigit():
+        params = declaration.get("parameters") or []
+        index = int(parts[1])
+        if index < len(params) and isinstance(params[index], dict):
+            field = "/".join(parts[2:]) or "it"
+            allowed = _ALLOWED.get(field)
+            if allowed and "is not valid under any" in message:
+                message = f"{message.split(' is not')[0]} is not one of {', '.join(allowed)}"
+            return f"parameter {params[index].get('name', index)!r}, {field}: {message}"
+    return problem
+
+
+_ALLOWED = {
+    "kind": [k.value for k in models.ParameterKindEnum],
+    "quantity_kind": [k.value for k in models.QuantityKindEnum],
+}
 
 
 def tools_in(module: object) -> list[Tool]:

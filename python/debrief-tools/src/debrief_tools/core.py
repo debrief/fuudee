@@ -31,8 +31,13 @@ def _table(title: str, columns: list[models.ResultColumn]) -> models.NonSpatialR
     name="core.track_summary",
     version=VERSION,
     title="Track summary",
-    explanation="Start, end, duration, distance run and mean speed of each selected track.",
-    judgement="Distance follows the fixes along geodesics, so gaps in the track shorten it.",
+    explanation=(
+        "Gives the start, end, duration, distance run and mean speed of each selected track."
+    ),
+    judgement=(
+        "Distance runs straight between fixes, so a gap in the track shortens it. "
+        "Check for gaps before relying on distance run or mean speed."
+    ),
     applies_to=["track"],
     min_selected=1,
     max_selected=50,
@@ -88,7 +93,8 @@ def track_summary(context: ToolContext) -> models.ToolResult:
         "the line between them at that moment."
     ),
     judgement=(
-        "Only the time both tracks cover is searched; positions between fixes are interpolated."
+        "Only the time both tracks cover is searched, and positions between fixes are "
+        "interpolated. Check that neither track has a gap around the time found."
     ),
     applies_to=["track"],
     min_selected=2,

@@ -150,3 +150,26 @@ def test_scientist_tool_with_decorator_runs(catalogue: Catalogue) -> None:
         registry, catalogue, ITEM, "lab.count", ["track-nelson", "track-blue"], None, ANALYST
     )
     assert outcome.result.non_spatial[0].columns[0].numbers == [2]
+
+
+def test_change_saved_while_a_tool_runs_is_not_overwritten(catalogue: Catalogue) -> None:
+    registry = Registry()
+    declaration = REGISTRY.tools["core.add_note"].declaration
+
+    def meanwhile(context):
+        # Another process saves the plot while this tool is still running.
+        plot = catalogue.read_plot(ITEM)
+        catalogue.write_plot(ITEM, plot.model_copy(update={"features": plot.features[:1]}))
+        return REGISTRY.tools["core.add_note"].run(context)
+
+    registry.tools["core.add_note"] = Tool(declaration, meanwhile)
+    params = {"text": "x", "at": "1995-12-12T05:05:00.000Z"}
+    with pytest.raises(ToolRunError, match="changed while the tool was running"):
+        run_tool(registry, catalogue, ITEM, "core.add_note", [], params, ANALYST)
+    assert len(catalogue.read_plot(ITEM).features) == 1
+
+
+def test_provenance_ids_are_unique(catalogue: Catalogue) -> None:
+    params = {"text": "x", "at": "1995-12-12T05:05:00.000Z"}
+    ids = {run(catalogue, "core.add_note", [], params).record.id for _ in range(3)}
+    assert len(ids) == 3

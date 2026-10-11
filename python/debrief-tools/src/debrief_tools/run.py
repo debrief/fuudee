@@ -10,8 +10,10 @@ returns a number, table or graph changes nothing and records nothing.
 
 from __future__ import annotations
 
+import hashlib
 import time
 import traceback
+import uuid
 from dataclasses import dataclass
 from typing import Any
 
@@ -24,7 +26,7 @@ from debrief_schemas import (
     models,
 )
 from debrief_stac import Catalogue
-from debrief_tools.declare import ToolContext
+from debrief_tools.declare import Tool, ToolContext
 from debrief_tools.parameters import ParameterError, bind
 from debrief_tools.registry import Registry, applies
 
@@ -48,6 +50,58 @@ def _now() -> str:
     return format_utc(int(time.time() * 1000))
 
 
+def execute(
+    tool: Tool,
+    plot: models.DebriefFeatureCollection,
+    selection_ids: list[str],
+    supplied: dict[str, Any] | None,
+) -> tuple[models.ToolResult, list[models.ParameterValue]]:
+    """Run a tool on a copy of the plot exactly as Debrief does, without saving anything.
+
+    Returns the checked result and the parameter values as provenance records
+    them. Raises ToolRunError, with a message for the analyst, if the selection
+    or values are wrong, the tool fails, or its result is not one Debrief can use.
+    debrief_tools.testing uses this, so a tool's own tests see what Debrief sees.
+    """
+    declaration = tool.declaration
+    if len(set(selection_ids)) != len(selection_ids):
+        raise ToolRunError("The selection names a feature more than once.")
+    # The tool sees a copy: whatever it does to it, only its result can change the plot.
+    copy = plot.model_copy(deep=True)
+    by_id = {feature.id: feature for feature in copy.features}
+    missing = [i for i in selection_ids if i not in by_id]
+    if missing:
+        raise ToolRunError(f"The plot has no feature {missing[0]!r}; refresh and select again.")
+    selection = [by_id[i] for i in selection_ids]
+    kinds = [str(f.properties.kind) for f in selection]
+    if not applies(declaration, kinds):
+        raise ToolRunError(f"{declaration.title} does not apply to this selection.")
+    try:
+        values, recorded = bind(declaration, supplied)
+    except ParameterError as error:
+        raise ToolRunError(str(error)) from None
+    context = ToolContext(plot=copy, selection=selection, parameters=values)
+    try:
+        result = tool.run(context)
+    except Exception as error:  # a failing tool fails its own run, nothing more (TL-03)
+        raise ToolRunError(f"{declaration.title} failed: {error}", traceback.format_exc()) from None
+    try:
+        result = load_document(
+            DocumentKind.TOOL_RESULT, dump_document(DocumentKind.TOOL_RESULT, result)
+        )
+    except Exception as error:  # noqa: BLE001 - anything a tool returns that is not a result
+        raise ToolRunError(
+            f"{declaration.title} returned a result Debrief cannot use: {error}"
+        ) from None
+    undeclared = sorted(_returned(result) - set(map(str, declaration.outputs)))
+    if undeclared:
+        raise ToolRunError(
+            f"{declaration.title} returned {', '.join(undeclared)}, which it does not declare, "
+            "so nothing was saved."
+        )
+    return result, recorded
+
+
 def run_tool(
     registry: Registry,
     catalogue: Catalogue,
@@ -63,43 +117,20 @@ def run_tool(
     if tool is None:
         raise ToolRunError(f"There is no tool called {tool_name}.")
     declaration = tool.declaration
-    plot = catalogue.read_plot(item_id)
-    by_id = {feature.id: feature for feature in plot.features}
-    missing = [i for i in selection_ids if i not in by_id]
-    if missing:
-        raise ToolRunError(f"The plot has no feature {missing[0]!r}; refresh and select again.")
-    selection = [by_id[i] for i in selection_ids]
-    kinds = [str(f.properties.kind) for f in selection]
-    if not applies(declaration, kinds):
-        raise ToolRunError(f"{declaration.title} does not apply to this selection.")
-    writes = set(map(str, declaration.outputs)) - {"non_spatial", "state_change"}
-    if read_only and writes:
+    if read_only and set(map(str, declaration.outputs)) - {"non_spatial", "state_change"}:
         raise ToolRunError(f"This store is read-only, and {declaration.title} changes the plot.")
-    try:
-        values, recorded = bind(declaration, supplied)
-    except ParameterError as error:
-        raise ToolRunError(str(error)) from None
-
+    plot = catalogue.read_plot(item_id)
+    read_hash = _plot_hash(catalogue, item_id)
     started = _now()
-    context = ToolContext(plot=plot.model_copy(deep=True), selection=selection, parameters=values)
-    try:
-        result = tool.run(context)
-    except Exception as error:  # a failing tool fails its own run, nothing more (TL-03)
-        raise ToolRunError(f"{declaration.title} failed: {error}", traceback.format_exc()) from None
-    try:
-        result = load_document(
-            DocumentKind.TOOL_RESULT, dump_document(DocumentKind.TOOL_RESULT, result)
-        )
-    except Exception as error:  # noqa: BLE001 - anything a tool returns that is not a result
-        raise ToolRunError(
-            f"{declaration.title} returned a result Debrief cannot use: {error}"
-        ) from None
+    result, recorded = execute(tool, plot, selection_ids, supplied)
 
     changed_plot = _apply(plot, result, declaration.title)
     if changed_plot is None:
         return RunOutcome(result, changed=False, record=None)
+    if read_only:
+        raise ToolRunError(f"This store is read-only, and {declaration.title} changes the plot.")
     record = models.ProvRecord(
-        id=f"tool-{started}-{tool_name}",
+        id=f"tool-{uuid.uuid4()}",
         kind="tool",
         started_at=started,
         ended_at=_now(),
@@ -109,6 +140,12 @@ def run_tool(
         parameters=recorded or None,
     )
     changed_plot.provenance = [*(changed_plot.provenance or []), record]
+    # Refuse to overwrite a change saved while the tool ran (SUB-28 completes this in Phase 2).
+    if _plot_hash(catalogue, item_id) != read_hash:
+        raise ToolRunError(
+            "The plot changed while the tool was running, so its result was not saved. "
+            "Run it again."
+        )
     try:
         catalogue.write_plot(item_id, changed_plot)
     except DocumentValidationError as error:
@@ -116,6 +153,27 @@ def run_tool(
             f"{declaration.title} produced a plot that is not valid, so nothing was saved: {error}"
         ) from None
     return RunOutcome(result, changed=True, record=record)
+
+
+def _plot_hash(catalogue: Catalogue, item_id: str) -> str:
+    item = catalogue.read_item(item_id)
+    href = item.assets["plot"].href.removeprefix("./")
+    text = catalogue.store.read_text(f"{item_id}/{href}")
+    return hashlib.sha256(text.encode()).hexdigest()
+
+
+_OUTPUT_FIELDS = {
+    "new_features": "new_features",
+    "modified_features": "modified_features",
+    "deleted_feature_ids": "deleted_features",
+    "non_spatial": "non_spatial",
+    "named_sets": "named_sets",
+    "state_change": "state_change",
+}
+
+
+def _returned(result: models.ToolResult) -> set[str]:
+    return {output for field, output in _OUTPUT_FIELDS.items() if getattr(result, field)}
 
 
 def _apply(

@@ -75,11 +75,23 @@ Each parameter becomes a field on the form (TL-07). Debrief checks the value bef
 | `string` | Text box | `str` |
 | `boolean` | Checkbox | `bool` |
 | `choice` | Drop-down of `choices` | `str` |
-| `quantity` | Number with a unit picker, for a `quantity_kind` of `length`, `speed`, `angle` or `duration` | A kernel `Quantity`; convert it with `.to("m")` |
+| `quantity` | Number with a unit picker, for a `quantity_kind` of `length`, `speed`, `angle` or `duration` | A kernel `Quantity`. `.to("m")` gives another `Quantity`; `.to("m").value` gives the number. |
 | `time` | UTC time | Epoch milliseconds (`int`) |
+
+Units are written as UCUM codes, the same everywhere in Debrief:
+
+| Kind | Units |
+| --- | --- |
+| `length` | `m`, `km`, `[nmi_i]` (nautical miles), `[yd_i]`, `[ft_i]` |
+| `speed` | `m/s`, `[kn_i]` (knots), `km/h` |
+| `angle` | `deg`, `rad` |
+| `duration` | `ms`, `s`, `min`, `h` |
+
+A range rate is a speed. There's no kind for a bearing rate yet, so a column of bearing rates can't carry its unit; one is being added.
 
 - **Defaults.** Give one wherever there's a sensible value; it fills the form.
 - **Optional parameters.** Mark one optional with `required: false`. It reaches your tool as `None` when left empty.
+- **Times.** A `time` has no sensible fixed default. Make it optional and choose a time in the tool when it's `None`, as `core.range_rings` does with the start of the track.
 - **Limits.** `minimum` and `maximum` are in the default's unit for a quantity.
 
 Every value is recorded in provenance, so a replay can repeat the run (SUB-19).
@@ -103,9 +115,23 @@ Your tool receives Debrief's own types (TL-09), generated from the schema. Each 
 
 - **Track**: `properties.times` (UTC strings), `geometry.coordinates` (longitude, latitude), and optionally `speeds`, `courses` and `depths`. Each of these carries its unit, so convert it rather than assume it. `debrief_kernel.geodesy.TrackPath.from_feature(track)` gives positions at any time.
 - **Annotation**: a point, line or polygon, or no geometry for a note or a period.
-- **Sensor observations**: bearings and their payload.
+- **Sensor observations**: `sensor_name`, `host_track_id`, `observation_type` (such as `bearing`), `time_range`, `observation_count`, and a `payload` describing the file that holds the observations. *Tools can't yet read the observations themselves; that arrives with the sensor work in Phase 4.*
 
-**Use the kernel for geometry.** `debrief_kernel.geodesy` gives range, bearing, destination and closest approach along geodesics on WGS84 (SUB-03). Don't write your own flat-earth arithmetic: Debrief's figures must agree everywhere.
+**Use the kernel for geometry.** It gives range, bearing, destination and closest approach along geodesics on WGS84 (SUB-03). Don't write your own flat-earth arithmetic: Debrief's figures must agree everywhere.
+
+| Call | Gives |
+| --- | --- |
+| `TrackPath.from_feature(track)` | A path with `.times_ms`, `.positions`, `.start_ms`, `.end_ms` |
+| `path.position_at(time_ms)` | A `Position(longitude, latitude)`, or `None` outside the track |
+| `range_bearing(a, b)` | `(range, bearing)` as two `Quantity`s, metres and degrees true |
+| `range_between(a, b)` | Range as a `Quantity` |
+| `destination(position, bearing, distance)` | The `Position` reached; bearing and distance are `Quantity`s |
+| `closest_approach(path_a, path_b)` | `.time_ms`, `.range`, `.position_a`, `.position_b`, or `None` if the tracks never overlap |
+| `series_values(track.properties.speeds, "[kn_i]")` | A speed or course series as plain numbers in the unit you ask for |
+| `parse_utc(text)`, `format_utc(ms)` | UTC strings to epoch milliseconds and back |
+| `length(5, "[nmi_i]")`, `speed(...)`, `angle(...)`, `duration(...)` | A `Quantity` |
+
+The geometry calls are in `debrief_kernel.geodesy`, the time calls in `debrief_kernel.time`, and the quantity calls in `debrief_kernel.units`. For thousands of points, `debrief_kernel.geodesy_arrays` does the same over numpy arrays, about fifty times faster.
 
 ## Results
 
@@ -123,7 +149,27 @@ What happens next:
 2. A result that changes features is saved with one provenance record, naming your tool, its version, the selection and the parameter values (SUB-18).
 3. A result that is only a number, table or graph changes nothing, so nothing is recorded.
 
-**Don't change `context.plot`.** It's a copy, so changing it has no effect. Return your changes instead.
+A **graph** plots its first column against the others. A **number** is one column holding one value.
+
+A new annotation, here a line between two positions at a time:
+
+```python
+line = models.AnnotationFeature(
+    type="Feature",
+    id=context.new_id("cpa"),
+    geometry=models.LineStringGeometry(
+        type="LineString", coordinates=[[lon_a, lat_a], [lon_b, lat_b]]
+    ),
+    properties=models.AnnotationProperties(
+        kind="annotation", style="shape", name="Closest approach", time=format_utc(time_ms)
+    ),
+)
+return models.ToolResult(new_features=[line])
+```
+
+Use `style="label"` for a labelled point, `"shape"` for lines and areas, and `"note"` with `geometry=None` for a note at a time.
+
+**Don't change `context.plot` or the selected features.** They're copies, so changing them has no effect. Return your changes instead. A result that includes something your declaration's `outputs` doesn't list is refused.
 
 ## When something is wrong
 
@@ -133,7 +179,9 @@ Raise an exception with a message the analyst can act on:
 raise ValueError(f"{a.properties.name} and {b.properties.name} do not overlap in time")
 ```
 
-The analyst sees "Closest approach failed: NELSON and LATE do not overlap in time". The plot is unchanged, and Debrief and every other tool carry on (TL-03).
+The analyst sees "Closest approach failed: NELSON and LATE do not overlap in time". Any exception works the same way, so write its message for the analyst. The traceback goes to the tool service's log, not to the analyst.
+
+The plot is unchanged, and Debrief and every other tool carry on (TL-03). The same holds for a tool that never returns: after two minutes it is stopped. And it holds for one that crashes the Python interpreter, because tools run in a separate worker process.
 
 ## Randomness
 
@@ -154,22 +202,35 @@ Register your module under the `debrief.tools` entry point in your package's `py
 lab = "lab_tools"
 ```
 
-Install the package into Debrief's Python environment and restart the tool service. While you're developing, you can skip packaging and name the module directly:
+Install the package into Debrief's Python environment and restart the tool service.
+
+While you're developing, you can skip packaging. Put your module's folder on `PYTHONPATH` and name the module directly. From a clone of the Debrief repository:
 
 ```bash
-python -m debrief_tools list --library lab_tools    # check your declarations load
-python -m debrief_tools serve --library lab_tools   # serve them alongside the core tools
+PYTHONPATH=~/my-tools uv run python -m debrief_tools list --library lab_tools   # check your declarations load
+PYTHONPATH=~/my-tools uv run python -m debrief_tools serve --library lab_tools  # serve them alongside the core tools
 ```
+
+If a declaration is wrong, `list` names the tool and the parameter, and says what is allowed.
 
 ## Testing your tool
 
-A tool is a plain function, so test it directly. Build a `ToolContext` from a plot, and use `debrief_tools.bind` to check parameters the way Debrief does:
+Test with `debrief_tools.testing`. `try_tool` runs your tool exactly as Debrief does: it checks the values, runs the tool on a copy and checks the result. A test passes only if Debrief would accept the result. `sample_plot()` gives a small plot to run on: NELSON and BLUE, which cross, and LATE, an hour later.
 
 ```python
-from debrief_tools import ToolContext, bind
+import pytest
+from debrief_tools.testing import ToolRunError, sample_plot, try_tool
+from lab_tools import fix_count
 
-values, _ = bind(fix_count.debrief_tool.declaration, {})
-result = fix_count(ToolContext(plot=plot, selection=plot.features[:2], parameters=values))
+
+def test_fix_count():
+    result = try_tool(fix_count, sample_plot(), ["track-nelson", "track-blue"])
+    assert result.non_spatial[0].columns[1].numbers == [13, 13]
+
+
+def test_fix_count_needs_a_track():
+    with pytest.raises(ToolRunError, match="does not apply"):
+        try_tool(fix_count, sample_plot(), [])
 ```
 
-`python/debrief-tools/tests/test_run.py` shows tools run end to end against a catalogue.
+`testing.track(...)` builds a straight track of your own. `python/debrief-tools/tests/test_run.py` shows tools run end to end against a catalogue.

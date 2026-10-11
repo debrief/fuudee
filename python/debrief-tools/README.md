@@ -9,8 +9,10 @@ Debrief's tool framework and service (section 6 of the SRD), and the core tools.
 | `declare` | The `@tool` decorator, `ToolContext` and `Tool` (TL-04, TL-06) |
 | `registry` | Finds libraries at runtime through the `debrief.tools` entry point. A broken library is reported and the rest still load (TL-03, TL-05). Tools naming unknown data types are not offered, with the reason (TL-09). It also offers tools for a selection (TL-08). |
 | `parameters` | Checks form values against the declaration, fills defaults, and converts quantities and times (TL-07) |
-| `run` | Reads the plot and runs the tool on a copy. It validates the result, applies it, records provenance and saves atomically (SUB-18, SUB-19, NFR-11). |
+| `run` | Reads the plot and runs the tool on a copy. It validates the result and refuses any output the tool didn't declare. It applies the result, records provenance and saves atomically, refusing to overwrite a change saved while the tool ran (SUB-18, SUB-19, NFR-11). |
+| `worker` | Runs tool code in a separate process. A hung tool is stopped (after 120 s by default), and one that exits or crashes takes only the worker with it (TL-02, TL-03). |
 | `service` | MCP over HTTP: per user, loopback only, with a per-session token (TL-01, SEC-06 to SEC-08) |
+| `testing` | `sample_plot()` and `try_tool()`, so a tool's tests see exactly what Debrief would |
 | `core` | Track summary, closest approach, range rings, add note |
 
 ## The service
@@ -38,10 +40,14 @@ A test drives the service with the official MCP Python client, so any MCP-capabl
 
 ```json
 {"store": "exercise", "item": "serial-01", "selection": ["track-nelson", "track-blue"],
- "parameters": {"rings": 2}, "agent": {"kind": "person", "name": "J Smith"}}
+ "parameters": {"rings": 2}, "agent": {"kind": "software_agent", "name": "Claude", "model": "..."}}
 ```
 
-A failed run comes back as an MCP tool result with `isError: true` and a message for the analyst; the plot is untouched. A successful run returns `structuredContent: {"result": <ToolResult>, "changed": bool}`.
+`agent` is required, so provenance always says who ran a tool (SUB-24). Each tool's `inputSchema` describes its parameters, so an agent can discover them.
+
+A failed run comes back as an MCP tool result with `isError: true` and a message for the analyst; the plot is untouched. A successful run returns `structuredContent: {"result": <ToolResult>, "changed": bool}`, with the same JSON in a text block for agents that read only text.
+
+The service negotiates the protocol version (2025-06-18 or 2025-03-26), refuses bodies over 10 MB, and answers malformed requests with JSON-RPC errors.
 
 ## Security
 
@@ -49,11 +55,14 @@ A failed run comes back as an MCP tool result with `isError: true` and a message
 - **Loopback only (SEC-07).** It listens on `127.0.0.1`.
 - **Per-session token (SEC-08).** Every request needs the token, compared in constant time. The token travels in the environment, never on the command line, where other users could read it from the process list.
 - **No browsers.** Requests with an `Origin` header, or whose `Host` isn't the loopback address and port, are refused. This defeats DNS rebinding from a web page.
+- **Tool code never runs in the service.** Libraries are imported only in the worker process, and the token is removed from the environment before the worker starts.
 - **Known stores only.** Tools act only on stores listed in the user's configuration, by id. A client can't point a tool at an arbitrary path. Stores marked read-only refuse tools that would change a plot.
 
 ## Not yet
 
 - Long-running tools, with progress and cancellation (Phase 2).
 - Replay from provenance (Phase 2).
-- Isolating each library in its own process. The framework already allows it, since nothing assumes tools share a process (TL-02).
+- Isolating each library in its own process. All tools currently share one worker; nothing assumes they do (TL-02).
+- Tools reading sensor observation payloads (Phase 4).
+- Locking a plot across processes. Writes are checked for a change saved meanwhile, but two writers can still race in the instant between that check and the save (SUB-28, Phase 2).
 - Tools that read shared state, such as current time (Phase 2).
