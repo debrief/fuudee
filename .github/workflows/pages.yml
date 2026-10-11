@@ -6,7 +6,8 @@ name: Publish site
 on:
   push:
     branches: [main]
-    paths: ["site/**", "pyproject.toml", "uv.lock", ".github/workflows/pages.yml"]
+    # The playground (site/docs/play) is built from the extension and the Python packages.
+    paths: ["site/**", "python/**", "ts/**", "vscode/**", "scripts/build_playground.sh", "pyproject.toml", "uv.lock", ".github/workflows/pages.yml"]
   workflow_dispatch:
 
 permissions:
@@ -26,7 +27,18 @@ jobs:
       - uses: astral-sh/setup-uv@v6
         with:
           python-version: "3.12"
-      - run: uv sync --locked --only-group docs
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+      - name: Build the playground (site/docs/play)
+        run: |
+          uv sync --locked
+          for package in schemas kernel config; do
+            npm ci --prefix ts/$package
+            npm run --prefix ts/$package build
+          done
+          npm ci --prefix vscode
+          scripts/build_playground.sh
       - name: Build and push to gh-pages
         run: |
           git config user.name "github-actions[bot]"

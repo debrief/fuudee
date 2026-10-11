@@ -11,7 +11,13 @@ const common = { bundle: true, minify: true, sourcemap: false, logLevel: "warnin
 
 await build({
   ...common,
-  entryPoints: { map: "webview/map.ts", form: "webview/form.tsx", results: "webview/results.tsx", shim: "play/shim.ts" },
+  entryPoints: {
+    map: "webview/map.ts",
+    form: "webview/form.tsx",
+    results: "webview/results.tsx",
+    shim: "play/shim.ts",
+    geodesic: "play/geodesic.ts",
+  },
   outdir: out,
   platform: "browser",
   format: "iife",
@@ -27,7 +33,7 @@ await build({
   format: "esm",
   external: ["https://*"],
 });
-for (const file of ["index.html", "frame-map.html", "frame-form.html", "frame-results.html", "theme.css", "host.css", "play.py"]) {
+for (const file of ["index.html", "geodesic.html", "frame-map.html", "frame-form.html", "frame-results.html", "theme.css", "host.css", "play.py"]) {
   cpSync(path.join("play", file), path.join(out, file));
 }
 cpSync("media/land.geojson", path.join(out, "land.geojson"));

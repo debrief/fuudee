@@ -2,7 +2,7 @@
 html, body { height: 100%; margin: 0; }
 [hidden] { display: none !important; }
 body { background: var(--vscode-editor-background); color: var(--vscode-foreground); font-family: var(--vscode-font-family); font-size: var(--vscode-font-size); }
-.app { display: grid; grid-template-columns: 290px 1fr; grid-template-rows: 1fr auto; height: 100%; }
+.app { display: grid; grid-template-columns: clamp(210px, 28vw, 290px) 1fr; grid-template-rows: 1fr auto; height: 100%; }
 .side { grid-row: 1; overflow-y: auto; background: var(--vscode-sideBar-background); border-right: 1px solid var(--vscode-panel-border); }
 .side section { padding: 6px 10px 10px; border-bottom: 1px solid var(--vscode-sideBarSectionHeader-border); }
 .side h2 { font-size: 11px; text-transform: uppercase; letter-spacing: .04em; margin: 4px 0 6px; display: flex; justify-content: space-between; align-items: center; color: var(--vscode-sideBarSectionHeader-foreground); }
@@ -24,11 +24,14 @@ button:focus-visible, li:focus-visible { outline: 1px solid var(--vscode-focusBo
 #panel-try button { display: block; width: 100%; text-align: left; }
 .tools li { display: flex; align-items: baseline; gap: 6px; flex-wrap: wrap; }
 .file input { display: block; margin: 4px 0; color: var(--vscode-foreground); font: inherit; }
-.omitted { font-size: 12px; padding-left: 16px; max-height: 160px; overflow-y: auto; }
+.omitted-panel { padding: 10px 14px; overflow-y: auto; font-size: 13px; }
+.omitted-panel h2 { font-size: 15px; margin: 4px 0 8px; }
+.omitted-panel ul { padding-left: 18px; }
+.omitted-panel li { margin: 2px 0; }
 main { grid-row: 1; display: flex; min-width: 0; position: relative; }
 .frame { border: 0; display: block; }
 .frame-map { flex: 1; min-width: 0; height: 100%; }
-.side-frame { width: 380px; border-left: 1px solid var(--vscode-panel-border); display: flex; }
+.side-frame { width: clamp(260px, 34vw, 380px); border-left: 1px solid var(--vscode-panel-border); display: flex; }
 .side-frame[hidden] { display: none; }
 .side-frame .frame { flex: 1; height: 100%; }
 footer { grid-column: 1 / span 2; padding: 3px 10px; background: var(--vscode-editorWidget-background); border-top: 1px solid var(--vscode-panel-border); font-size: 12px; }
@@ -40,4 +43,4 @@ footer { grid-column: 1 / span 2; padding: 3px 10px; background: var(--vscode-ed
 dialog { background: var(--vscode-editorWidget-background); color: var(--vscode-editorWidget-foreground); border: 1px solid var(--vscode-editorWidget-border); max-width: 460px; }
 dialog::backdrop { background: #0006; }
 .buttons { display: flex; gap: 6px; justify-content: flex-end; flex-wrap: wrap; }
-@media (max-width: 760px) { .app { grid-template-columns: 1fr; grid-template-rows: 55vh auto auto; } .side { grid-row: 2; max-height: none; } main { grid-row: 1; } footer { grid-column: 1; } .side-frame { width: 50%; } }
+@media (max-width: 600px) { .app { grid-template-columns: 1fr; grid-template-rows: 55vh auto auto; } .side { grid-row: 2; max-height: none; } main { grid-row: 1; } footer { grid-column: 1; } .side-frame { width: 50%; } }

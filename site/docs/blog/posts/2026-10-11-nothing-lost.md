@@ -48,6 +48,12 @@ This works because of the order things are written in:
 
 A crash at any point loses at most the change in progress, and here not even that.
 
+### Try it
+
+Run a tool, undo it, then **Crash part-way through a save** and **Reopen the plot**:
+
+<div class="debrief-demo" data-demo="?panels=tools,history,try"></div>
+
 ## Someone else changed it
 
 Plots are never locked. Two analysts can open the same plot on a shared folder, and the tool service and an agent can work on it too. Instead of locking, every change says which version of the plot it was made against.
@@ -58,6 +64,8 @@ Plots are never locked. Two analysts can open the same plot on a shared folder, 
   - otherwise it offers to **save mine as a new plot**, which gets the history the analyst was working from, then their change.
 
   Overlapping changes are never combined automatically.
+
+To try this, use **A colleague changes it while your next tool runs** in the demo above, then run Closest approach.
 
 ## Current time, shared
 
@@ -82,6 +90,10 @@ Changing a track's colour or hiding a feature on the map is *presentation*. It t
 ## Also in Phase 2
 
 - **Legacy plots.** Debrief v3 `.dpf` files import, with every element that has no v4 equivalent named at the end of the import and recorded in the plot's provenance. Across the 46 legacy sample files, 45 import; the 46th is broken on purpose.
+  Try it with a legacy plot of your own. The file is read in your browser and never uploaded:
+
+  <div class="debrief-demo" data-demo="?panels=import" data-caption="Choose a REP or legacy .dpf file. It's imported in your browser, never uploaded, and everything that couldn't be imported is listed."></div>
+
 - **Logs you can share.** Logs record errors and tool runs, but never plot data. Feature names and file paths become short hashes, and tool parameters are logged by name and type, never by value.
 - **A newer Debrief, an older catalogue.** If saving would write a newer data format into a catalogue colleagues share, Debrief asks first.
 

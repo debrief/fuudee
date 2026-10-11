@@ -113,7 +113,13 @@ function showPlot(): void {
 
 async function openPlot(item: string, keep = false): Promise<void> {
   const previousTime = keep ? time : undefined;
+  if (opened && opened.item.id !== item) {
+    closeForm();
+    closeResults();
+    $("side-frame").hidden = true;
+  }
   opened = await pythonJson<Opened>("open_plot", item);
+  $<HTMLSelectElement>("plots").value = item;
   const ids = new Set(features().map((f) => f.id));
   selection = keep ? selection.filter((id) => ids.has(id)) : [];
   time = timeOf(opened.item, previousTime);
@@ -425,12 +431,45 @@ $<HTMLInputElement>("file").onchange = async (e) => {
   await openPlot(report.item);
   const parts = [count(report.tracks.length, "track"), count(report.fixes, "fix", "fixes")];
   if (report.annotations) parts.push(count(report.annotations, "annotation"));
-  $("omitted").hidden = !report.omitted.length;
-  $("omitted-summary").textContent = `Imported ${parts.join(", ")}. Not imported (${report.omitted.length}):`;
-  $("omitted-list").replaceChildren(...report.omitted.map((line) => Object.assign(document.createElement("li"), { textContent: line })));
+  // Nothing is dropped silently (EXT-15): what wasn't imported is listed beside the map.
+  const panel = document.createElement("div");
+  panel.className = "omitted-panel";
+  const heading = document.createElement("h2");
+  heading.textContent = `${file.name}: imported ${parts.join(", ")}`;
+  const lead = document.createElement("p");
+  lead.textContent = report.omitted.length
+    ? `Not imported (${report.omitted.length}), and recorded in the plot's provenance:`
+    : "Everything in the file was imported.";
+  const list = document.createElement("ul");
+  list.replaceChildren(...report.omitted.map((line) => Object.assign(document.createElement("li"), { textContent: line })));
+  const close = document.createElement("button");
+  close.textContent = "Close";
+  close.onclick = () => ($("side-frame").hidden = true);
+  panel.append(heading, lead, list, close);
+  $("side-frame").replaceChildren(panel);
+  $("side-frame").hidden = false;
 };
 
+/** Show the sample plot straight from the site while Python starts, so the map is never empty. */
+async function preview(item: string): Promise<void> {
+  try {
+    const [plot, stac] = await Promise.all([
+      fetch(`sample/${item}/plot.geojson`).then((r) => r.json()),
+      fetch(`sample/${item}/${item}.json`).then((r) => r.json()),
+    ]);
+    if (opened) return; // Python was quicker
+    opened = { item: stac, plot, base: { current: 0, plot_hash: "" }, steps: [], recovered: [] };
+    time = timeOf(stac);
+    $("plot-title").textContent = stac.properties.title ?? item;
+    showPlot();
+    renderOutline();
+  } catch {
+    // the map fills in when Python is ready
+  }
+}
+
 (async () => {
+  void preview(startPlot);
   status("Starting Python in your browser: the first time takes a little while…", true);
   try {
     await python("start");

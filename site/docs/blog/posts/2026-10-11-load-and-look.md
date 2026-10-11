@@ -36,6 +36,10 @@ Select a track on the map or in the outline, and every view follows. The tools v
 - **On offer.** With one track selected you're offered *Track summary*, *Range rings* and *Add note*.
 - **Not on offer.** *Closest approach*, which needs two tracks, waits under **Other tools**, saying so. Nothing is hidden without a reason.
 
+Try it here. Select BLUE ONE in the outline, Ctrl-click RED ONE, and see what's on offer:
+
+<div class="debrief-demo" data-demo="?panels=tools"></div>
+
 ## A form from a declaration
 
 ![The Range rings form beside the map](images/phase-1/tool-form.png)

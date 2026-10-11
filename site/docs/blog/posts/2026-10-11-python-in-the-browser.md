@@ -27,3 +27,9 @@ The answers were identical. Calculations run about half as fast in the browser, 
 This check now runs on every change. It also sets a rule for the future: any library a Debrief tool relies on must be able to run in the browser too, or the tool must say plainly that it is only available on the desktop.
 
 Nothing in the demonstration leaves your browser, and it only ever holds unclassified sample data.
+
+## Update: try it
+
+The spike's promise is now a demo. The panel below runs Debrief's real Python tools, history and importers in your browser, under Pyodide, with the same map and forms as VS Code:
+
+<div class="debrief-demo" data-demo=""></div>
