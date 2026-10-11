@@ -6,6 +6,7 @@ requires-python = ">=3.12"
 members = [
     "debrief-kernel",
     "debrief-schemas",
+    "debrief-stac",
     "debrief-workspace",
 ]
 
@@ -392,6 +393,21 @@ requires-dist = [
 ]
 
 [[package]]
+name = "debrief-stac"
+version = "0.0.1"
+source = { editable = "python/debrief-stac" }
+dependencies = [
+    { name = "debrief-kernel" },
+    { name = "debrief-schemas" },
+]
+
+[package.metadata]
+requires-dist = [
+    { name = "debrief-kernel", editable = "python/debrief-kernel" },
+    { name = "debrief-schemas", editable = "python/debrief-schemas" },
+]
+
+[[package]]
 name = "debrief-workspace"
 version = "0.0.0"
 source = { virtual = "." }
@@ -400,6 +416,7 @@ source = { virtual = "." }
 dev = [
     { name = "debrief-kernel" },
     { name = "debrief-schemas" },
+    { name = "debrief-stac" },
     { name = "linkml" },
     { name = "pytest" },
     { name = "ruff" },
@@ -415,6 +432,7 @@ docs = [
 dev = [
     { name = "debrief-kernel", editable = "python/debrief-kernel" },
     { name = "debrief-schemas", editable = "python/debrief-schemas" },
+    { name = "debrief-stac", editable = "python/debrief-stac" },
     { name = "linkml", specifier = "==1.12.0" },
     { name = "pytest", specifier = ">=8" },
     { name = "ruff", specifier = ">=0.6" },
