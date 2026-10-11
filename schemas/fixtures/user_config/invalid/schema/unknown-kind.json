@@ -1,0 +1,18 @@
+{
+  "config_version": 1,
+  "stores": [
+    {
+      "id": "my-analysis",
+      "title": "My analysis",
+      "kind": "pgstac",
+      "location": "/home/analyst/debrief/my-analysis"
+    },
+    {
+      "id": "team-exercises",
+      "title": "Team exercises",
+      "kind": "file",
+      "location": "\\\\fileserver\\debrief\\exercises",
+      "read_only": true
+    }
+  ]
+}

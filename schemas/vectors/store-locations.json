@@ -1,0 +1,117 @@
+{
+  "description": "How store locations are normalised and compared. Lexical only: the filesystem is never consulted, so a mapped drive stays as written and an unreachable share cannot stall Debrief. Python and TypeScript are both held to these cases.",
+  "normalise": [
+    {
+      "platform": "linux",
+      "input": "/data/exercises",
+      "expected": "/data/exercises"
+    },
+    {
+      "platform": "linux",
+      "input": "/data/exercises/",
+      "expected": "/data/exercises"
+    },
+    {
+      "platform": "linux",
+      "input": "/data//serials/../exercises/./",
+      "expected": "/data/exercises"
+    },
+    {
+      "platform": "linux",
+      "input": "/",
+      "expected": "/"
+    },
+    {
+      "platform": "linux",
+      "input": "data/exercises",
+      "error": true
+    },
+    {
+      "platform": "win32",
+      "input": "C:\\Data\\Exercises\\",
+      "expected": "C:\\Data\\Exercises"
+    },
+    {
+      "platform": "win32",
+      "input": "C:/Data/Exercises",
+      "expected": "C:\\Data\\Exercises"
+    },
+    {
+      "platform": "win32",
+      "input": "C:\\Data\\..\\Exercises",
+      "expected": "C:\\Exercises"
+    },
+    {
+      "platform": "win32",
+      "input": "C:\\",
+      "expected": "C:\\"
+    },
+    {
+      "platform": "win32",
+      "input": "Z:\\Exercises",
+      "expected": "Z:\\Exercises"
+    },
+    {
+      "platform": "win32",
+      "input": "\\\\fileserver\\debrief\\exercises\\",
+      "expected": "\\\\fileserver\\debrief\\exercises"
+    },
+    {
+      "platform": "win32",
+      "input": "//fileserver/debrief/exercises",
+      "expected": "\\\\fileserver\\debrief\\exercises"
+    },
+    {
+      "platform": "win32",
+      "input": "\\\\fileserver\\debrief\\",
+      "expected": "\\\\fileserver\\debrief\\"
+    },
+    {
+      "platform": "win32",
+      "input": "Data\\Exercises",
+      "error": true
+    },
+    {
+      "platform": "win32",
+      "input": "\\Data\\Exercises",
+      "error": true
+    },
+    {
+      "platform": "win32",
+      "input": "C:Data",
+      "error": true
+    }
+  ],
+  "same": [
+    {
+      "platform": "win32",
+      "a": "\\\\FILESERVER\\Debrief\\Exercises",
+      "b": "\\\\fileserver\\debrief\\exercises",
+      "expected": true
+    },
+    {
+      "platform": "win32",
+      "a": "C:\\Data",
+      "b": "c:\\data",
+      "expected": true
+    },
+    {
+      "platform": "win32",
+      "a": "Z:\\Exercises",
+      "b": "\\\\fileserver\\debrief\\exercises",
+      "expected": false
+    },
+    {
+      "platform": "linux",
+      "a": "/data/Exercises",
+      "b": "/data/exercises",
+      "expected": false
+    },
+    {
+      "platform": "darwin",
+      "a": "/Users/a/Data",
+      "b": "/Users/a/Data",
+      "expected": true
+    }
+  ]
+}

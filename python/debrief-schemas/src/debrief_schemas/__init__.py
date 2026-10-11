@@ -1,6 +1,7 @@
 """Debrief data-file schema: generated Pydantic models and document validation."""
 
 from debrief_schemas.documents import (
+    CONFIG_VERSION,
     DocumentKind,
     DocumentValidationError,
     SchemaVersionError,
@@ -14,6 +15,7 @@ from debrief_schemas.generated.debrief import DebriefFeatureCollection
 from debrief_schemas.generated.schema_version import SCHEMA_VERSION
 
 __all__ = [
+    "CONFIG_VERSION",
     "SCHEMA_VERSION",
     "DebriefFeatureCollection",
     "DocumentKind",

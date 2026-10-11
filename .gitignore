@@ -153,3 +153,6 @@ __pycache__/
 
 # MkDocs build output
 site/site/
+
+# Agent worktrees
+.claude/worktrees/

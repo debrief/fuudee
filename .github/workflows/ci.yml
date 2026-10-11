@@ -20,11 +20,13 @@ jobs:
           cache-dependency-path: |
             ts/schemas/package-lock.json
             ts/kernel/package-lock.json
+            ts/config/package-lock.json
       - name: Install
         run: |
           uv sync --locked
           npm ci --prefix ts/schemas
           npm ci --prefix ts/kernel
+          npm ci --prefix ts/config
       - name: Lint
         run: |
           uv run ruff check .
@@ -44,6 +46,10 @@ jobs:
           npm run --prefix ts/schemas build
           npm run --prefix ts/kernel typecheck
           npm test --prefix ts/kernel
+      - name: TypeScript configuration (location rules held to the shared vectors)
+        run: |
+          npm run --prefix ts/config typecheck
+          npm test --prefix ts/config
       - name: Cross-language round trip
         run: scripts/cross_language_roundtrip.sh
 
