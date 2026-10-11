@@ -3,7 +3,6 @@ date: 2026-10-11
 authors: [ian]
 categories: [Capability]
 slug: load-and-look
-draft: true
 ---
 
 # Load and look: the whole path, end to end
