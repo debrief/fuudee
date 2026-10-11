@@ -6,6 +6,8 @@ requires-python = ">=3.12"
 dependencies = [
     "debrief-schemas",
     "geographiclib>=2.0",
+    "numpy>=2.0",
+    "pyproj>=3.7",
     "tzdata>=2024.1",
 ]
 

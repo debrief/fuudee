@@ -12,6 +12,7 @@ import sys
 import time
 from pathlib import Path
 
+from debrief_kernel import geodesy_arrays
 from debrief_kernel.formatting import format_bearing, format_position, format_quantity, format_time
 from debrief_kernel.geodesy import Position, TrackPath, closest_approach, destination, range_bearing
 from debrief_kernel.time import parse_utc
@@ -52,6 +53,22 @@ def main(fixtures: Path) -> dict:
         [0, 3_600_000], [b_start, destination(b_start, angle(330), length(10, "[nmi_i]"))]
     )
     cpa = closest_approach(a, b)
+    lons = [174.81, 0.0, -4.12, 179.9]
+    lats = [-41.32, 0.0, 50.35, 0.0]
+    vec = geodesy_arrays.range_bearing(
+        lons, lats, [-5.50, 1.0, -3.5, -179.9], [40.96, 0.0, 50.9, 0.0]
+    )
+    track_positions = geodesy_arrays.positions_at(a, [0, 1_800_000, 3_600_000])
+    report["kernel_arrays"] = {
+        "range_m": [round(float(v), 3) for v in vec.range_m],
+        "bearing_deg": [round(float(v), 9) for v in vec.bearing_deg],
+        "track_lat": [round(float(v), 9) for v in track_positions.latitude],
+        "residuals": [
+            round(float(v), 9)
+            for v in geodesy_arrays.bearing_residuals([10, 350, 180], [350, 10, 0])
+        ],
+        "matches_per_point": abs(float(vec.range_m[0]) - rng.value) < 1e-6,
+    }
     report["kernel"] = {
         "wellington_salamanca_m": round(rng.value, 3),
         "wellington_salamanca_deg": round(brg.value, 9),
