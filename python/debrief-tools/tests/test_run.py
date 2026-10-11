@@ -3,9 +3,10 @@
 import pytest
 
 from debrief_schemas import models
-from debrief_stac import Catalogue
+from debrief_stac import Catalogue, Changes
 from debrief_tools import Registry, ToolRunError, run_tool, tool
 from debrief_tools.declare import Tool
+from debrief_tools.run import ToolRunConflict
 
 REGISTRY = Registry.discover()
 ANALYST = models.AgentRef(kind="person", name="analyst")
@@ -165,14 +166,19 @@ def test_change_saved_while_a_tool_runs_is_not_overwritten(catalogue: Catalogue)
     def meanwhile(context):
         # Another process saves the plot while this tool is still running.
         plot = catalogue.read_plot(ITEM)
-        catalogue.write_plot(ITEM, plot.model_copy(update={"features": plot.features[:1]}))
+        record = plot.provenance[0].model_copy(update={"id": "elsewhere"})
+        catalogue.commit(ITEM, [record], Changes(deleted_ids=[f.id for f in plot.features[1:]]))
         return REGISTRY.tools["core.add_note"].run(context)
 
     registry.tools["core.add_note"] = Tool(declaration, meanwhile)
     params = {"text": "x", "at": "1995-12-12T05:05:00.000Z"}
-    with pytest.raises(ToolRunError, match="changed while the tool was running"):
+    with pytest.raises(ToolRunConflict, match="changed elsewhere") as conflict:
         run_tool(registry, catalogue, ITEM, "core.add_note", [], params, ANALYST)
+    assert conflict.value.mergeable  # the note touches nothing the other change touched
     assert len(catalogue.read_plot(ITEM).features) == 1
+    # Combined: the other change stays, and the note is added on top (SUB-29).
+    run_tool(registry, catalogue, ITEM, "core.add_note", [], params, ANALYST, on_conflict="merge")
+    assert [f.id for f in catalogue.read_plot(ITEM).features] == ["track-nelson", "note"]
 
 
 def test_provenance_ids_are_unique(catalogue: Catalogue) -> None:

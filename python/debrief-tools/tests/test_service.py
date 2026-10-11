@@ -278,3 +278,52 @@ def test_create_catalogue_refuses_a_folder_with_other_files(client, tmp_path) ->
         client, "debrief/create_catalogue", {"location": str(folder), "title": "X"}
     ).json()
     assert "not empty" in response["error"]["message"]
+
+
+def test_history_open_list_undo_redo_and_goto(client, catalogue) -> None:
+    def history(method, **params):
+        return rpc(client, method, {"store": "exercise", "item": "serial", **params}).json()
+
+    opened = history("debrief/open")["result"]
+    assert opened["recovered"] == [] and opened["base"]["current"] == 1
+    call(client, "core.closest_approach", ["track-nelson", "track-blue"])
+    steps = history("debrief/history")["result"]["steps"]
+    assert [(s["seq"], s["status"], s["kind"]) for s in steps] == [
+        (1, "applied", "import"),
+        (2, "applied", "tool"),
+    ]
+    assert steps[1]["tool"] == "core.closest_approach" and steps[1]["agent"] == "analyst"
+
+    base = history("debrief/history")["result"]["base"]
+    undone = history("debrief/undo", base=base)["result"]["base"]
+    assert undone["current"] == 1
+    assert not any(f.id.startswith("cpa-") for f in catalogue.read_plot("serial").features)
+    stale = history("debrief/redo", base=base)["error"]
+    assert stale["code"] == -32001 and "changed elsewhere" in stale["message"]
+    assert history("debrief/redo", base=undone)["result"]["base"]["current"] == 2
+    assert history("debrief/goto", step=1)["result"]["base"]["current"] == 1
+    origin = history("debrief/undo")["error"]
+    assert origin["code"] == -32602 and "as it was imported" in origin["message"]
+    assert history("debrief/history", item="nothing")["error"]["code"] == -32602
+
+
+def test_a_conflict_tells_the_caller_whether_it_can_merge(config_file: Path) -> None:
+    class Meanwhile:
+        def describe(self):
+            return {"tools": [], "unavailable": []}
+
+        def call(self, name, arguments):
+            return {"error": "The plot was changed meanwhile.", "conflict": {"mergeable": True}}
+
+    service = ToolService(Meanwhile(), str(config_file))  # type: ignore[arg-type]
+    service.declarations = {"core.x": None}  # type: ignore[dict-item]
+    result = service.handle(
+        "tools/call",
+        {"name": "core.x", "arguments": {"selection": [], "agent": AGENT}},
+    )
+    assert result["isError"] and result["_meta"] == {"debrief/conflict": {"mergeable": True}}
+    refused = service.handle(
+        "tools/call",
+        {"name": "core.x", "arguments": {"selection": [], "agent": AGENT, "on_conflict": "x"}},
+    )
+    assert "on_conflict must be" in refused["content"][0]["text"]

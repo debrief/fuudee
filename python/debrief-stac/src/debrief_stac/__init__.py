@@ -7,12 +7,20 @@ from debrief_stac.catalogue import (
     Extent,
     ItemSummary,
     NewerSchemaError,
+    diff,
     plot_extent,
 )
 from debrief_stac.composite import CompositeCatalogue
+from debrief_stac.history import Base, Changes, Conflict, History, HistoryError, Step
 from debrief_stac.store import FileStore, Store, StoreError
 
 __all__ = [
+    "Base",
+    "Changes",
+    "Conflict",
+    "History",
+    "HistoryError",
+    "Step",
     "STAC_VERSION",
     "Catalogue",
     "CatalogueError",
@@ -23,5 +31,6 @@ __all__ = [
     "NewerSchemaError",
     "Store",
     "StoreError",
+    "diff",
     "plot_extent",
 ]

@@ -4,7 +4,8 @@ Layout on disk:
 
     catalog.json                    the catalogue (StacCatalog)
     <item>/<item>.json              one STAC item per plot
-    <item>/plot.geojson             the plot (SUB-05)
+    <item>/plot.geojson             the plot (SUB-05), as of its history's head
+    <item>/history/                 every change to the plot as a delta (SUB-19)
     <item>/sources/<file>           immutable imported sources (SUB-10)
     <item>/media/<file>             supporting files (SUB-06)
     <item>/payloads/<file>          opaque observation payloads (CON-02)
@@ -32,6 +33,7 @@ from debrief_schemas import (
     models,
 )
 from debrief_stac.hashing import content_hash
+from debrief_stac.history import Base, Changes, History, empty_plot
 from debrief_stac.store import FileStore, Store
 
 STAC_VERSION = "1.1.0"
@@ -281,11 +283,12 @@ class Catalogue:
                 )
             },
         )
-        self._apply_extent(item, plot_extent(plot))
-        self.store.write_text_atomic(
-            f"{item_id}/{PLOT_FILE}", dump_document(DocumentKind.PLOT, plot)
-        )
+        self._apply_extent(item, plot_extent(empty_plot()))
         self._write_item(item)
+        # The history starts empty; a plot given here becomes its first change.
+        self.history(item_id).recover()
+        if plot.features or plot.named_sets or plot.provenance:
+            self.write_plot(item_id, plot, allow_newer_schema=allow_newer_schema)
         # The child link is a convenience hint only (SUB-23).
         self.model.links.append(
             models.StacLink(
@@ -296,25 +299,102 @@ class Catalogue:
             )
         )
         self._save_catalogue()
-        return item
+        return self.read_item(item_id)
+
+    def plot_path(self, item_id: str) -> str:
+        return self._asset_path(self.read_item(item_id), PLOT_ASSET)
+
+    def history(self, item_id: str) -> History:
+        """The plot's history: deltas, undo and replay (SUB-19 to SUB-21)."""
+        return History(self, item_id)
 
     def read_plot(self, item_id: str) -> DebriefFeatureCollection:
+        """The plot as of its history's head, recovering an interrupted change first (NFR-10)."""
+        self.history(item_id).recover()
+        return load_document(DocumentKind.PLOT, self.store.read_text(self.plot_path(item_id)))
+
+    def store_plot_text(self, item_id: str, plot: DebriefFeatureCollection, text: str) -> None:
+        """Write the materialised plot atomically and refresh the item's extent (NFR-11).
+
+        Only the history calls this: every change goes through a delta first.
+        """
         item = self.read_item(item_id)
-        return load_document(
-            DocumentKind.PLOT, self.store.read_text(self._asset_path(item, PLOT_ASSET))
-        )
+        self.store.write_text_atomic(self._asset_path(item, PLOT_ASSET), text)
+        self._apply_extent(item, plot_extent(plot))
+        self._write_item(item)
+
+    def commit(
+        self,
+        item_id: str,
+        records: list[models.ProvRecord],
+        changes: Changes,
+        base: Base | None = None,
+        *,
+        merge: bool = False,
+        allow_newer_schema: bool = False,
+    ) -> int:
+        """Record a change to a plot and apply it (SUB-19). See History.commit."""
+        self._check_schema(allow_newer_schema)
+        return self.history(item_id).commit(records, changes, base, merge=merge)
+
+    def save_as_new(
+        self,
+        item_id: str,
+        base: Base,
+        records: list[models.ProvRecord],
+        changes: Changes,
+    ) -> str:
+        """Save a change that conflicts as a new plot (SUB-29). Returns the new item's id.
+
+        The new plot has the history the change was made against, the same
+        sources and files, and then the change. The original is untouched.
+        """
+        item = self.read_item(item_id)
+        taken = set(self.item_ids())
+        new_id, n = f"{item_id}-copy", 2
+        while new_id in taken or self.store.exists(new_id):
+            new_id, n = f"{item_id}-copy-{n}", n + 1
+        title = f"{item.properties.title or item_id} (your changes)"
+        self.create_plot(new_id, title)
+        new_item = self.read_item(new_id)
+        for key, asset in item.assets.items():
+            if key == PLOT_ASSET:
+                continue
+            relative = self._asset_path(item, key).split("/", 1)[1]
+            self.store.copy(f"{item_id}/{relative}", f"{new_id}/{relative}")
+            new_item.assets[key] = asset.model_copy()
+        self._write_item(new_item)
+        old, new = self.history(item_id), self.history(new_id)
+        for seq in old.chain(base.current):
+            delta = old.delta(seq)
+            new.commit(list(delta.records), Changes.of(delta))
+        new.commit(records, changes)
+        return new_id
 
     def write_plot(
         self, item_id: str, plot: DebriefFeatureCollection, *, allow_newer_schema: bool = False
     ) -> None:
-        """Save a plot atomically and refresh the item's extent (NFR-11)."""
-        item = self.read_item(item_id)
-        self._check_schema(allow_newer_schema)
-        self.store.write_text_atomic(
-            self._asset_path(item, PLOT_ASSET), dump_document(DocumentKind.PLOT, plot)
-        )
-        self._apply_extent(item, plot_extent(plot))
-        self._write_item(item)
+        """Save a whole plot, recorded as one change: the difference from the saved plot.
+
+        The new plot's provenance must extend the saved plot's; the records it
+        adds describe the change. For callers that build a plot whole, such as
+        importers and the sample builder; tools commit their changes directly.
+        """
+        before = self.read_plot(item_id)
+        old, new = list(before.provenance or []), list(plot.provenance or [])
+        if new[: len(old)] != old:
+            raise CatalogueError(
+                "The plot's history cannot be rewritten; add records, don't replace them."
+            )
+        records = new[len(old) :]
+        changes = diff(before, plot)
+        if not records:
+            if changes.touched():
+                raise CatalogueError(
+                    "A change to a plot needs a provenance record saying what made it (SUB-18)."
+                )
+            return
+        self.commit(item_id, records, changes, allow_newer_schema=allow_newer_schema)
 
     # --- Assets --------------------------------------------------------------
 
@@ -414,3 +494,18 @@ class Catalogue:
                 kind = asset.debrief_asset_kind
                 problems.append(f"{kind} {key} ({relative}) has changed since it was imported")
         return problems
+
+
+def diff(before: DebriefFeatureCollection, after: DebriefFeatureCollection) -> Changes:
+    """The change that turns one plot into another, feature by feature."""
+    old = {f.id: f for f in before.features}
+    new = {f.id: f for f in after.features}
+    old_sets = {s.id: s for s in before.named_sets or []}
+    new_sets = {s.id: s for s in after.named_sets or []}
+    return Changes(
+        added=[f for i, f in new.items() if i not in old],
+        modified=[f for i, f in new.items() if i in old and old[i] != f],
+        deleted_ids=[i for i in old if i not in new],
+        named_sets=[s for i, s in new_sets.items() if old_sets.get(i) != s],
+        deleted_named_set_ids=[i for i in old_sets if i not in new_sets],
+    )

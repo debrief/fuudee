@@ -1,0 +1,103 @@
+id: https://debrief.info/schemas/debrief/history
+name: debrief_history
+title: "Plot history: deltas, replay and undo (SUB-19 to SUB-21, NFR-10)"
+license: EPL-2.0
+prefixes:
+  linkml: https://w3id.org/linkml/
+  debrief: https://debrief.info/schemas/debrief/
+default_prefix: debrief
+default_range: string
+imports:
+  - linkml:types
+  - core
+  - prov
+  - features
+
+description: >-
+  Every change to a plot is recorded as a delta in the plot's history folder,
+  before the plot file is rewritten (write-ahead), so the plot can always be
+  rebuilt by replaying deltas from the start (SUB-19, NFR-10). A delta holds
+  both the operation that made the change (its provenance record: tool,
+  version, agent, selection, parameters, seed) and the change itself, so
+  replay applies recorded outputs and survives tool upgrades; re-running the
+  operations is a separate check of determinism (SUB-20, decision 11 Oct).
+  Undo moves the head back to an earlier delta; a change made after undoing
+  marks the undone deltas abandoned, kept on record but no longer replayed
+  (SUB-21, decision 11 Oct).
+
+classes:
+  Delta:
+    description: One recorded change to a plot.
+    attributes:
+      schema_version: {range: SchemaVersion, required: true}
+      seq:
+        description: Position in the plot's history, from 1, with no gaps.
+        range: integer
+        required: true
+        minimum_value: 1
+      after:
+        description: >-
+          The delta this one was applied on top of (0 for the first). Replay
+          follows these links, and recovery uses them to finish a change that
+          was written but not completed.
+        range: integer
+        required: true
+        minimum_value: 0
+      records:
+        description: >-
+          The operation that made the change. Usually one; a baseline delta,
+          taken when a plot made before history existed is first changed,
+          carries all the plot's earlier records.
+        range: ProvRecord
+        multivalued: true
+        inlined_as_list: true
+        required: true
+      added:
+        multivalued: true
+        inlined_as_list: true
+        any_of:
+          - range: TrackFeature
+          - range: AnnotationFeature
+          - range: SensorObservationsFeature
+      modified:
+        description: Features changed, in full, replacing those with the same id.
+        multivalued: true
+        inlined_as_list: true
+        any_of:
+          - range: TrackFeature
+          - range: AnnotationFeature
+          - range: SensorObservationsFeature
+      deleted_ids: {multivalued: true}
+      named_sets:
+        description: Named sets added or replaced, by id.
+        range: NamedSet
+        multivalued: true
+        inlined_as_list: true
+      deleted_named_set_ids: {multivalued: true}
+      result_hash:
+        description: Content hash of the plot file after this delta, to check replay.
+        range: ContentHash
+        required: true
+
+  HistoryHead:
+    description: Where a plot's history stands. Written after each delta, before the plot.
+    attributes:
+      schema_version: {range: SchemaVersion, required: true}
+      current:
+        description: Sequence number of the last delta the plot reflects; 0 for none.
+        range: integer
+        required: true
+        minimum_value: 0
+      latest:
+        description: Highest sequence number written.
+        range: integer
+        required: true
+        minimum_value: 0
+      abandoned:
+        description: Deltas undone and then superseded by a new change (SUB-19).
+        range: integer
+        multivalued: true
+      plot_hash:
+        description: Content hash the plot file has when it reflects current.
+        range: ContentHash
+        required: true

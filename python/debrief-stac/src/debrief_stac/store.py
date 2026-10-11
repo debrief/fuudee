@@ -30,6 +30,14 @@ class Store(Protocol):
 
     def write_text_atomic(self, path: str, text: str) -> None: ...
 
+    def write_text_exclusive(self, path: str, text: str) -> None: ...
+
+    def files(self, path: str) -> list[str]: ...
+
+    def rename(self, path: str, new_path: str) -> None: ...
+
+    def copy(self, path: str, new_path: str) -> None: ...
+
     def open_binary(self, path: str) -> BinaryIO: ...
 
     def import_file(self, source: Path, path: str) -> None: ...
@@ -72,6 +80,54 @@ class FileStore:
         except BaseException:
             Path(temporary).unlink(missing_ok=True)
             raise
+
+    def write_text_exclusive(self, path: str, text: str) -> None:
+        """Write a new file atomically, failing with FileExistsError if it exists.
+
+        Two processes writing the same path at once: exactly one succeeds. The
+        content is written to a temporary file first and then hard-linked into
+        place, so the file never appears part-written. Where the filesystem has
+        no hard links, an exclusive create is used instead.
+        """
+        target = self._resolve(path)
+        target.parent.mkdir(parents=True, exist_ok=True)
+        handle, temporary = tempfile.mkstemp(
+            dir=target.parent, prefix=f".{target.name}.", suffix=".tmp"
+        )
+        try:
+            with os.fdopen(handle, "w", encoding="utf-8", newline="\n") as stream:
+                stream.write(text)
+                stream.flush()
+                os.fsync(stream.fileno())
+            try:
+                os.link(temporary, target)
+            except FileExistsError:
+                raise
+            except OSError:  # no hard links here: fall back to an exclusive create
+                with open(target, "x", encoding="utf-8", newline="\n") as stream:
+                    stream.write(text)
+                    stream.flush()
+                    os.fsync(stream.fileno())
+        finally:
+            Path(temporary).unlink(missing_ok=True)
+
+    def files(self, path: str) -> list[str]:
+        """Names of the files in a folder, sorted; none if it does not exist."""
+        folder = self._resolve(path)
+        if not folder.is_dir():
+            return []
+        return sorted(
+            p.name for p in folder.iterdir() if p.is_file() and not p.name.startswith(".")
+        )
+
+    def rename(self, path: str, new_path: str) -> None:
+        os.replace(self._resolve(path), self._resolve(new_path))
+
+    def copy(self, path: str, new_path: str) -> None:
+        """Copy a file, keeping it read-only if it was (sources stay immutable, SUB-10)."""
+        target = self._resolve(new_path)
+        target.parent.mkdir(parents=True, exist_ok=True)
+        shutil.copy2(self._resolve(path), target)
 
     def open_binary(self, path: str) -> BinaryIO:
         return self._resolve(path).open("rb")

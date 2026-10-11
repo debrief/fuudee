@@ -1,0 +1,9 @@
+{
+  "schema_version": "0.0.7",
+  "current": 2,
+  "latest": 5,
+  "abandoned": [
+    3
+  ],
+  "plot_hash": "sha256:abababababababababababababababababababababababababababababababab"
+}

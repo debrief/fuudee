@@ -32,7 +32,7 @@ from pydantic import (
 
 
 metamodel_version = "1.12.0"
-version = "0.0.6"
+version = "0.0.7"
 
 
 class ConfiguredBaseModel(BaseModel):
@@ -1541,12 +1541,12 @@ class DebriefFeatureCollection(ConfiguredBaseModel):
                        'StacAsset',
                        'StacItem',
                        'StacCatalog']} })
-    schema_version: str = Field(default=..., json_schema_extra = { "linkml_meta": {'domain_of': ['DebriefFeatureCollection']} })
+    schema_version: str = Field(default=..., json_schema_extra = { "linkml_meta": {'domain_of': ['DebriefFeatureCollection', 'Delta', 'HistoryHead']} })
     features: list[Union[AnnotationFeature, SensorObservationsFeature, TrackFeature]] = Field(default=..., json_schema_extra = { "linkml_meta": {'any_of': [{'range': 'TrackFeature'},
                     {'range': 'AnnotationFeature'},
                     {'range': 'SensorObservationsFeature'}],
          'domain_of': ['DebriefFeatureCollection']} })
-    named_sets: Optional[list[NamedSet]] = Field(default=None, json_schema_extra = { "linkml_meta": {'domain_of': ['DebriefFeatureCollection', 'ToolResult']} })
+    named_sets: Optional[list[NamedSet]] = Field(default=None, json_schema_extra = { "linkml_meta": {'domain_of': ['DebriefFeatureCollection', 'ToolResult', 'Delta']} })
     provenance: list[ProvRecord] = Field(default=..., json_schema_extra = { "linkml_meta": {'domain_of': ['TrackProperties',
                        'AnnotationProperties',
                        'SensorObservationsProperties',
@@ -1811,7 +1811,7 @@ class StacCatalog(ConfiguredBaseModel):
 class TimeState(ConfiguredBaseModel):
     linkml_meta: ClassVar[LinkMLMeta] = LinkMLMeta({'from_schema': 'https://debrief.info/schemas/debrief'})
 
-    current: str = Field(default=..., json_schema_extra = { "linkml_meta": {'domain_of': ['TimeState']} })
+    current: str = Field(default=..., json_schema_extra = { "linkml_meta": {'domain_of': ['TimeState', 'HistoryHead']} })
     range: TimeRange = Field(default=..., json_schema_extra = { "linkml_meta": {'domain_of': ['TimeState']} })
 
     @field_validator('current')
@@ -2002,7 +2002,7 @@ class ToolResult(ConfiguredBaseModel):
          'domain_of': ['ToolResult']} })
     deleted_feature_ids: Optional[list[str]] = Field(default=None, json_schema_extra = { "linkml_meta": {'domain_of': ['ToolResult']} })
     non_spatial: Optional[list[NonSpatialResult]] = Field(default=None, json_schema_extra = { "linkml_meta": {'domain_of': ['ToolResult']} })
-    named_sets: Optional[list[NamedSet]] = Field(default=None, json_schema_extra = { "linkml_meta": {'domain_of': ['DebriefFeatureCollection', 'ToolResult']} })
+    named_sets: Optional[list[NamedSet]] = Field(default=None, json_schema_extra = { "linkml_meta": {'domain_of': ['DebriefFeatureCollection', 'ToolResult', 'Delta']} })
     state_change: Optional[SharedStateChange] = Field(default=None, json_schema_extra = { "linkml_meta": {'domain_of': ['ToolResult']} })
 
 
@@ -2178,6 +2178,95 @@ class WebviewMessage(ConfiguredBaseModel):
     result: Optional[ToolResult] = Field(default=None, json_schema_extra = { "linkml_meta": {'domain_of': ['WebviewMessage']} })
 
 
+class Delta(ConfiguredBaseModel):
+    """
+    One recorded change to a plot.
+    """
+    linkml_meta: ClassVar[LinkMLMeta] = LinkMLMeta({'from_schema': 'https://debrief.info/schemas/debrief'})
+
+    schema_version: str = Field(default=..., json_schema_extra = { "linkml_meta": {'domain_of': ['DebriefFeatureCollection', 'Delta', 'HistoryHead']} })
+    seq: int = Field(default=..., description="""Position in the plot's history, from 1, with no gaps.""", ge=1, json_schema_extra = { "linkml_meta": {'domain_of': ['Delta']} })
+    after: int = Field(default=..., description="""The delta this one was applied on top of (0 for the first). Replay follows these links, and recovery uses them to finish a change that was written but not completed.""", ge=0, json_schema_extra = { "linkml_meta": {'domain_of': ['Delta']} })
+    records: list[ProvRecord] = Field(default=..., description="""The operation that made the change. Usually one; a baseline delta, taken when a plot made before history existed is first changed, carries all the plot's earlier records.""", json_schema_extra = { "linkml_meta": {'domain_of': ['Delta']} })
+    added: Optional[list[Union[AnnotationFeature, SensorObservationsFeature, TrackFeature]]] = Field(default=None, json_schema_extra = { "linkml_meta": {'any_of': [{'range': 'TrackFeature'},
+                    {'range': 'AnnotationFeature'},
+                    {'range': 'SensorObservationsFeature'}],
+         'domain_of': ['Delta']} })
+    modified: Optional[list[Union[AnnotationFeature, SensorObservationsFeature, TrackFeature]]] = Field(default=None, description="""Features changed, in full, replacing those with the same id.""", json_schema_extra = { "linkml_meta": {'any_of': [{'range': 'TrackFeature'},
+                    {'range': 'AnnotationFeature'},
+                    {'range': 'SensorObservationsFeature'}],
+         'domain_of': ['Delta']} })
+    deleted_ids: Optional[list[str]] = Field(default=None, json_schema_extra = { "linkml_meta": {'domain_of': ['Delta']} })
+    named_sets: Optional[list[NamedSet]] = Field(default=None, description="""Named sets added or replaced, by id.""", json_schema_extra = { "linkml_meta": {'domain_of': ['DebriefFeatureCollection', 'ToolResult', 'Delta']} })
+    deleted_named_set_ids: Optional[list[str]] = Field(default=None, json_schema_extra = { "linkml_meta": {'domain_of': ['Delta']} })
+    result_hash: str = Field(default=..., description="""Content hash of the plot file after this delta, to check replay.""", json_schema_extra = { "linkml_meta": {'domain_of': ['Delta']} })
+
+    @field_validator('schema_version')
+    def pattern_schema_version(cls, v):
+        pattern=re.compile(r"^\d+\.\d+\.\d+$")
+        if isinstance(v, list):
+            for element in v:
+                if isinstance(element, str) and not pattern.search(element):
+                    err_msg = f"Invalid schema_version format: {element}"
+                    raise ValueError(err_msg)
+        elif isinstance(v, str) and not pattern.search(v):
+            err_msg = f"Invalid schema_version format: {v}"
+            raise ValueError(err_msg)
+        return v
+
+    @field_validator('result_hash')
+    def pattern_result_hash(cls, v):
+        pattern=re.compile(r"^sha256:[0-9a-f]{64}$")
+        if isinstance(v, list):
+            for element in v:
+                if isinstance(element, str) and not pattern.search(element):
+                    err_msg = f"Invalid result_hash format: {element}"
+                    raise ValueError(err_msg)
+        elif isinstance(v, str) and not pattern.search(v):
+            err_msg = f"Invalid result_hash format: {v}"
+            raise ValueError(err_msg)
+        return v
+
+
+class HistoryHead(ConfiguredBaseModel):
+    """
+    Where a plot's history stands. Written after each delta, before the plot.
+    """
+    linkml_meta: ClassVar[LinkMLMeta] = LinkMLMeta({'from_schema': 'https://debrief.info/schemas/debrief'})
+
+    schema_version: str = Field(default=..., json_schema_extra = { "linkml_meta": {'domain_of': ['DebriefFeatureCollection', 'Delta', 'HistoryHead']} })
+    current: int = Field(default=..., description="""Sequence number of the last delta the plot reflects; 0 for none.""", ge=0, json_schema_extra = { "linkml_meta": {'domain_of': ['TimeState', 'HistoryHead']} })
+    latest: int = Field(default=..., description="""Highest sequence number written.""", ge=0, json_schema_extra = { "linkml_meta": {'domain_of': ['HistoryHead']} })
+    abandoned: Optional[list[int]] = Field(default=None, description="""Deltas undone and then superseded by a new change (SUB-19).""", json_schema_extra = { "linkml_meta": {'domain_of': ['HistoryHead']} })
+    plot_hash: str = Field(default=..., description="""Content hash the plot file has when it reflects current.""", json_schema_extra = { "linkml_meta": {'domain_of': ['HistoryHead']} })
+
+    @field_validator('schema_version')
+    def pattern_schema_version(cls, v):
+        pattern=re.compile(r"^\d+\.\d+\.\d+$")
+        if isinstance(v, list):
+            for element in v:
+                if isinstance(element, str) and not pattern.search(element):
+                    err_msg = f"Invalid schema_version format: {element}"
+                    raise ValueError(err_msg)
+        elif isinstance(v, str) and not pattern.search(v):
+            err_msg = f"Invalid schema_version format: {v}"
+            raise ValueError(err_msg)
+        return v
+
+    @field_validator('plot_hash')
+    def pattern_plot_hash(cls, v):
+        pattern=re.compile(r"^sha256:[0-9a-f]{64}$")
+        if isinstance(v, list):
+            for element in v:
+                if isinstance(element, str) and not pattern.search(element):
+                    err_msg = f"Invalid plot_hash format: {element}"
+                    raise ValueError(err_msg)
+        elif isinstance(v, str) and not pattern.search(v):
+            err_msg = f"Invalid plot_hash format: {v}"
+            raise ValueError(err_msg)
+        return v
+
+
 # Model rebuild
 # see https://pydantic-docs.helpmanual.io/usage/models/#rebuilding-a-model
 Length.model_rebuild()
@@ -2228,6 +2317,8 @@ FormatSettings.model_rebuild()
 UserConfig.model_rebuild()
 KnownStore.model_rebuild()
 WebviewMessage.model_rebuild()
+Delta.model_rebuild()
+HistoryHead.model_rebuild()
 
 # Classes that accept undeclared properties (extra_slots), added by the generator.
 StacAsset.model_config["extra"] = "allow"

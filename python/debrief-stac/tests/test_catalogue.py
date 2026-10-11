@@ -154,7 +154,21 @@ def test_changed_and_missing_sources_reported(catalogue: Catalogue, tmp_path: Pa
 
 def test_atomic_write_leaves_no_temporary_files(catalogue: Catalogue, tmp_path: Path) -> None:
     catalogue.create_plot("serial-01", "Serial 1", _plot())
-    catalogue.write_plot("serial-01", _plot("minimal-track.json"))
+    plot = catalogue.read_plot("serial-01")
+    edited = plot.model_copy(
+        update={
+            "features": [
+                plot.features[0].model_copy(
+                    update={
+                        "properties": plot.features[0].properties.model_copy(update={"name": "X"})
+                    }
+                ),
+                *plot.features[1:],
+            ],
+            "provenance": [*plot.provenance, plot.provenance[0].model_copy(update={"id": "p2"})],
+        }
+    )
+    catalogue.write_plot("serial-01", edited)
     leftovers = [p for p in (tmp_path / "cat").rglob("*") if p.name.endswith(".tmp")]
     assert leftovers == []
 
