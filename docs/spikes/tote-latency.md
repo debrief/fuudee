@@ -49,7 +49,7 @@ The full matrix, including 1-hour ranges at 1 s, comes from `run.sh`.
 4. **Payload size grows with bearing count** (166 KB per drag event at 21,600 bearings). This is harmless on loopback. Restricting residuals to the display window (CAP-28), which TMA already uses (CAP-21), keeps it small.
 5. **A bug the self-check caught:** pyproj's inverse returns forward azimuth, back azimuth and distance, in that order. Taking the wrong one gives plausible-looking bearings that are about 180° out. The kernel's vectorised API should hide this.
 
-## Decisions proposed
+## Decisions (accepted 11 Oct)
 
 - **Tote:** per-call REST, one request per time change. Drop the dense-sampling fallback from the design (it stays in NFR-04 as a contingency).
 - **TMA residuals:** per-call REST on each drag event, computed with vectorised geodesics. Add a vectorised geodesy API to the kernel (pyproj and numpy, both in Pyodide 314.0.7), keeping `geographiclib` for single-point calls. pyproj becomes a kernel dependency.
