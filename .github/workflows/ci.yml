@@ -38,3 +38,14 @@ jobs:
           npm test --prefix ts/schemas
       - name: Cross-language round trip
         run: scripts/cross_language_roundtrip.sh
+
+  site:
+    # The blog and guides must build without warnings (DEV-01, DEV-07, DEV-08).
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v6
+        with:
+          python-version: "3.12"
+      - run: uv sync --locked --only-group docs
+      - run: uv run --only-group docs mkdocs build --strict --config-file site/mkdocs.yml
