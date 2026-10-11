@@ -1,0 +1,18 @@
+# Interaction models
+
+**North Star:** predictable and forgiving: the same gesture does the same thing everywhere, and nothing is silent or irreversible (SUB-21, SUB-28).
+
+Worked patterns applied the same way across hosts, tools and agents (DEV-08). Each model is one short page: the requirements it cites, a Mermaid sequence diagram, and a pointer to its reference implementation. Where an interaction is already a requirement, the model cites it rather than restating it.
+
+| Model | Written in | Status |
+| --- | --- | --- |
+| [Selection and tool offering](selection.md) | Phase 1 | Requirements gathered |
+| [Tool invocation and forms](tool-invocation.md) | Phase 1 | Requirements gathered |
+| [Unavailable capabilities](unavailable-capabilities.md) | Phase 1 | Requirements gathered |
+| [Undo](undo.md) | Phase 2 | Requirements gathered |
+| [Conflicts](conflicts.md) | Phase 2 | Requirements gathered |
+| [Long-running operations](long-running-operations.md) | Phase 2 | Requirements gathered |
+| [Check overrides](check-overrides.md) | Phase 2 | Requirements gathered |
+| [Keyboard equivalents](keyboard-equivalents.md) | Phase 3 | Requirements gathered |
+
+Analysts review the Phase 1 models before they are built.

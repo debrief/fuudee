@@ -16,6 +16,7 @@ Debrief v4. Requirements and plans are in [docs/](docs/README.md); identifiers s
 | `ts/kernel/` | Unit conversion and display formatting for TypeScript views, held to the vectors shared with the Python kernel |
 | `schemas/vectors/` | Test vectors both languages must agree on |
 | `scripts/` | Generators and the cross-language round trip |
+| `site/` | Development blog and guides (style guide, interaction models, tool-author guide, glossary), published to GitHub Pages |
 
 ## Development
 
@@ -38,3 +39,11 @@ scripts/cross_language_roundtrip.sh
 ```
 
 Never edit generated files; CI fails if they differ from a fresh generation.
+
+### Blog and guides
+
+```bash
+uv run --group docs mkdocs serve --config-file site/mkdocs.yml
+```
+
+Every pull request says whether it needs a blog post and confirms nothing sensitive is included (see the pull-request template). Extend the guides in the same pull request as the feature that needs them.

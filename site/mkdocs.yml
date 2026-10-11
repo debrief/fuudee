@@ -1,0 +1,69 @@
+site_name: Debrief v4
+site_description: Development blog and guides for Debrief v4
+site_url: https://debrief.github.io/fuudee/
+repo_url: https://github.com/debrief/fuudee
+repo_name: debrief/fuudee
+edit_uri: edit/main/site/docs/
+copyright: Debrief is open source under the Eclipse Public License 2.0.
+
+theme:
+  name: material
+  language: en
+  palette:
+    - media: "(prefers-color-scheme: light)"
+      scheme: default
+      toggle: {icon: material/weather-night, name: Dark}
+    - media: "(prefers-color-scheme: dark)"
+      scheme: slate
+      toggle: {icon: material/weather-sunny, name: Light}
+  features:
+    - navigation.tabs
+    - navigation.sections
+    - navigation.indexes
+    - content.code.copy
+
+plugins:
+  - search
+  - blog:
+      blog_dir: blog
+      post_date_format: d MMMM yyyy
+      post_url_format: "{date}/{slug}"
+      archive: false
+      categories_allowed: [Architecture, Practice, Capability]
+
+markdown_extensions:
+  - admonition
+  - attr_list
+  - tables
+  - toc:
+      permalink: true
+  - pymdownx.details
+  - pymdownx.superfences:
+      custom_fences:
+        - name: mermaid
+          class: mermaid
+          format: !!python/name:pymdownx.superfences.fence_code_format
+
+nav:
+  - Home: index.md
+  - Blog:
+      - blog/index.md
+  - Guides:
+      - guides/index.md
+      - Style guide:
+          - guides/style-guide/index.md
+          - Language: guides/style-guide/language.md
+          - Theme: guides/style-guide/theme.md
+          - User interface: guides/style-guide/ui.md
+      - Interaction models:
+          - guides/interaction-models/index.md
+          - Selection and tool offering: guides/interaction-models/selection.md
+          - Tool invocation and forms: guides/interaction-models/tool-invocation.md
+          - Unavailable capabilities: guides/interaction-models/unavailable-capabilities.md
+          - Undo: guides/interaction-models/undo.md
+          - Conflicts: guides/interaction-models/conflicts.md
+          - Long-running operations: guides/interaction-models/long-running-operations.md
+          - Check overrides: guides/interaction-models/check-overrides.md
+          - Keyboard equivalents: guides/interaction-models/keyboard-equivalents.md
+      - Tool-author guide: guides/tool-author/index.md
+      - Glossary: guides/glossary.md
