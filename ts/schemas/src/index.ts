@@ -6,12 +6,42 @@
  * parallel arrays matching the geometry, are checked in Python (PRN-03).
  */
 import Ajv2019 from "ajv/dist/2019.js";
+import type { ValidateFunction } from "ajv";
 import schema from "./generated/debrief.schema.json" with { type: "json" };
-import type { DebriefFeatureCollection } from "./generated/debrief.js";
+import type {
+  DebriefFeatureCollection,
+  SharedState,
+  StacCatalog,
+  StacItem,
+  ToolDeclaration,
+  ToolResult,
+} from "./generated/debrief.js";
 import { SCHEMA_VERSION } from "./generated/schemaVersion.js";
 
 export * from "./generated/debrief.js";
 export { SCHEMA_VERSION };
+
+/** The documents Debrief reads and writes, and the type each one validates to. */
+export interface DocumentTypes {
+  plot: DebriefFeatureCollection;
+  stac_item: StacItem;
+  stac_catalog: StacCatalog;
+  tool_declaration: ToolDeclaration;
+  tool_result: ToolResult;
+  shared_state: SharedState;
+}
+export type DocumentKind = keyof DocumentTypes;
+
+const ROOT_CLASS: Record<DocumentKind, string> = {
+  plot: "DebriefFeatureCollection",
+  stac_item: "StacItem",
+  stac_catalog: "StacCatalog",
+  tool_declaration: "ToolDeclaration",
+  tool_result: "ToolResult",
+  shared_state: "SharedState",
+};
+
+export const DOCUMENT_KINDS = Object.keys(ROOT_CLASS) as DocumentKind[];
 
 export class SchemaVersionError extends Error {
   constructor(
@@ -22,17 +52,17 @@ export class SchemaVersionError extends Error {
       found === undefined
         ? "The file does not record a data-file schema version."
         : compareVersions(found, supported) > 0
-          ? `This plot needs data-file schema ${found}; this version of Debrief supports up to ${supported}. Update Debrief to open it.`
-          : `This plot uses data-file schema ${found}, which this version of Debrief cannot migrate. It supports ${supported}.`,
+          ? `This file needs data-file schema ${found}; this version of Debrief supports up to ${supported}. Update Debrief to open it.`
+          : `This file uses data-file schema ${found}, which this version of Debrief cannot migrate. It supports ${supported}.`,
     );
     this.name = "SchemaVersionError";
   }
 }
 
-export class PlotValidationError extends Error {
+export class DocumentValidationError extends Error {
   constructor(readonly problems: string[]) {
     super(problems.join("; "));
-    this.name = "PlotValidationError";
+    this.name = "DocumentValidationError";
   }
 }
 
@@ -48,34 +78,84 @@ function compareVersions(a: string, b: string): number {
   return 0;
 }
 
-const validate = new Ajv2019.default({ allErrors: true, strict: false }).compile(schema);
+function recordedVersion(kind: DocumentKind, document: unknown): unknown {
+  if (typeof document !== "object" || document === null) return undefined;
+  const record = document as Record<string, unknown>;
+  switch (kind) {
+    case "plot":
+      return record.schema_version;
+    case "stac_item": {
+      const properties = record.properties;
+      return typeof properties === "object" && properties !== null
+        ? (properties as Record<string, unknown>)["debrief:schema_version"]
+        : undefined;
+    }
+    case "stac_catalog":
+      return record["debrief:schema_version"];
+    default:
+      return null; // messages, not files: no version
+  }
+}
 
-/** Validate a parsed plot document. Never returns a partially valid plot (SUB-14). */
-export function validatePlot(document: unknown): DebriefFeatureCollection {
-  const found =
-    typeof document === "object" && document !== null
-      ? (document as { schema_version?: unknown }).schema_version
-      : undefined;
+function checkVersion(kind: DocumentKind, document: unknown): void {
+  const found = recordedVersion(kind, document);
+  if (found === null) return;
   if (typeof found !== "string") throw new SchemaVersionError(undefined);
   if (!SEMVER.test(found)) {
-    throw new PlotValidationError([`schema_version "${found}" is not a semantic version`]);
+    throw new DocumentValidationError([`schema version "${found}" is not a semantic version`]);
   }
   // Before 1.0.0 there is no migration guarantee (SUB-13), so only an exact match opens.
   if (compareVersions(found, SCHEMA_VERSION) !== 0) throw new SchemaVersionError(found);
+}
 
+const ajv = new Ajv2019.default({ allErrors: true, strict: false });
+ajv.addSchema(schema, "debrief");
+const validators = new Map<DocumentKind, ValidateFunction>();
+
+function validatorFor(kind: DocumentKind): ValidateFunction {
+  let validate = validators.get(kind);
+  if (!validate) {
+    validate = ajv.compile({ $ref: `debrief#/$defs/${ROOT_CLASS[kind]}` });
+    validators.set(kind, validate);
+  }
+  return validate;
+}
+
+/** Validate a parsed document. Never returns a partially valid one (SUB-14). */
+export function validateDocument<K extends DocumentKind>(
+  kind: K,
+  document: unknown,
+): DocumentTypes[K] {
+  checkVersion(kind, document);
+  const validate = validatorFor(kind);
   if (!validate(document)) {
-    throw new PlotValidationError(
+    throw new DocumentValidationError(
       (validate.errors ?? []).map((e) => `${e.instancePath || "<root>"}: ${e.message}`),
     );
   }
-  return document as unknown as DebriefFeatureCollection;
+  return document as DocumentTypes[K];
+}
+
+export function parseDocument<K extends DocumentKind>(kind: K, text: string): DocumentTypes[K] {
+  return validateDocument(kind, JSON.parse(text));
+}
+
+export function serialiseDocument<K extends DocumentKind>(
+  kind: K,
+  document: DocumentTypes[K],
+): string {
+  validateDocument(kind, document as unknown);
+  return JSON.stringify(document, null, 2) + "\n";
+}
+
+export function validatePlot(document: unknown): DebriefFeatureCollection {
+  return validateDocument("plot", document);
 }
 
 export function parsePlot(text: string): DebriefFeatureCollection {
-  return validatePlot(JSON.parse(text));
+  return parseDocument("plot", text);
 }
 
 export function serialisePlot(plot: DebriefFeatureCollection): string {
-  validatePlot(plot as unknown);
-  return JSON.stringify(plot, null, 2) + "\n";
+  return serialiseDocument("plot", plot);
 }

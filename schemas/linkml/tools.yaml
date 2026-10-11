@@ -1,0 +1,160 @@
+id: https://debrief.info/schemas/debrief/tools
+name: debrief_tools
+title: "Tool declarations and results (TL-04 to TL-13, CAP-24)"
+license: EPL-2.0
+prefixes:
+  linkml: https://w3id.org/linkml/
+  debrief: https://debrief.info/schemas/debrief/
+  prov: http://www.w3.org/ns/prov#
+  geojson: https://purl.org/geojson/vocab#
+  stac: https://stacspec.org/
+default_prefix: debrief
+default_range: string
+imports:
+  - linkml:types
+  - core
+  - features
+  - state
+
+enums:
+  ParameterKindEnum:
+    description: Parameter kinds Debrief can build a form for (TL-07).
+    permissible_values:
+      number: {}
+      integer: {}
+      string: {}
+      boolean: {}
+      choice: {description: "One of a fixed list of strings."}
+      quantity: {description: "A number with a unit of the declared quantity kind."}
+      time: {description: "A UtcTimestamp."}
+  ToolOutputKindEnum:
+    description: What a tool may return (TL-11).
+    permissible_values:
+      new_features: {}
+      modified_features: {}
+      deleted_features: {}
+      non_spatial: {}
+      named_sets: {}
+      state_change: {}
+  ResultPresentationEnum:
+    permissible_values:
+      number: {}
+      table: {}
+      graph: {}
+
+classes:
+  ToolDeclaration:
+    description: How a tool describes itself to Debrief, agents and hooks (TL-04, TL-06).
+    attributes:
+      name:
+        description: Dotted, unique across loaded libraries, for example core.smooth_track.
+        required: true
+        pattern: "^[a-z][a-z0-9_]*(\\.[a-z][a-z0-9_]*)+$"
+      version: {required: true}
+      title: {required: true}
+      explanation:
+        description: Short user-facing explanation of what the tool does (CAP-24).
+        required: true
+      judgement:
+        description: Any judgement the tool involves, shown on its form (CAP-24).
+      applies_to:
+        description: >-
+          Feature kinds from the taxonomy, or "*" for any (TL-06). Debrief
+          offers a tool only if every selected item matches (TL-08).
+        multivalued: true
+        required: true
+        pattern: "^(\\*|[a-z_]+)$"
+      min_selected: {range: integer, minimum_value: 0, ifabsent: int(1)}
+      max_selected: {range: integer, minimum_value: 1}
+      parameters:
+        range: ParameterDeclaration
+        multivalued: true
+        inlined_as_list: true
+      outputs:
+        range: ToolOutputKindEnum
+        multivalued: true
+        required: true
+      uses_randomness:
+        description: When true, Debrief records the seed (SUB-20).
+        range: boolean
+
+  ParameterDeclaration:
+    attributes:
+      name:
+        required: true
+        pattern: "^[a-z][a-z0-9_]*$"
+      title: {required: true}
+      explanation: {description: "Shown beside the field on the form (CAP-24)."}
+      kind: {range: ParameterKindEnum, required: true}
+      quantity_kind:
+        description: Required when kind is quantity.
+        range: QuantityKindEnum
+      required: {range: boolean, ifabsent: true}
+      default:
+        inlined: true
+        any_of:
+          - range: float
+          - range: string
+          - range: boolean
+          - range: Length
+          - range: Speed
+          - range: Angle
+          - range: Duration
+      minimum:
+        description: Lower bound for number, integer and quantity kinds; for a quantity, in the default's unit.
+        range: float
+      maximum:
+        description: Upper bound, as for minimum.
+        range: float
+      choices:
+        description: Required when kind is choice.
+        multivalued: true
+
+  ToolResult:
+    description: What a tool run returns (TL-11). Any combination of parts may be present.
+    attributes:
+      new_features:
+        multivalued: true
+        inlined_as_list: true
+        any_of:
+          - range: TrackFeature
+          - range: AnnotationFeature
+          - range: SensorObservationsFeature
+      modified_features:
+        multivalued: true
+        inlined_as_list: true
+        any_of:
+          - range: TrackFeature
+          - range: AnnotationFeature
+          - range: SensorObservationsFeature
+      deleted_feature_ids: {multivalued: true}
+      non_spatial:
+        range: NonSpatialResult
+        multivalued: true
+        inlined_as_list: true
+      named_sets:
+        range: NamedSet
+        multivalued: true
+        inlined_as_list: true
+      state_change: {range: SharedStateChange, inlined: true}
+
+  NonSpatialResult:
+    description: >-
+      A number, table or graph (TL-13), held column by column. A number is one
+      column with one value; a graph plots its first column against the rest.
+    attributes:
+      title: {required: true}
+      presentation: {range: ResultPresentationEnum, required: true}
+      columns:
+        range: ResultColumn
+        multivalued: true
+        inlined_as_list: true
+        required: true
+  ResultColumn:
+    description: One column; exactly one of numbers or strings is given.
+    attributes:
+      name: {required: true}
+      quantity_kind: {range: QuantityKindEnum}
+      unit: {description: "UCUM unit code, required when quantity_kind is given."}
+      numbers: {range: float, multivalued: true}
+      strings: {multivalued: true}

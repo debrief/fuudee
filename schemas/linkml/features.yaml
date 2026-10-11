@@ -1,0 +1,213 @@
+id: https://debrief.info/schemas/debrief/features
+name: debrief_features
+title: "Debrief plot features: the GeoJSON profile"
+license: EPL-2.0
+prefixes:
+  linkml: https://w3id.org/linkml/
+  debrief: https://debrief.info/schemas/debrief/
+  prov: http://www.w3.org/ns/prov#
+  geojson: https://purl.org/geojson/vocab#
+  stac: https://stacspec.org/
+default_prefix: debrief
+default_range: string
+imports:
+  - linkml:types
+  - core
+  - geojson
+  - prov
+
+description: >-
+  A plot is a GeoJSON FeatureCollection (SUB-05). Every feature carries its
+  kind in properties.kind; the kinds form the taxonomy tools declare against
+  (TL-06). Each feature class has its own single-value kind enum so that
+  validators can tell the classes apart.
+
+enums:
+  FeatureTypeEnum: {permissible_values: {Feature: {}}}
+  FeatureCollectionTypeEnum: {permissible_values: {FeatureCollection: {}}}
+  FeatureKindEnum:
+    description: The feature taxonomy (TL-06).
+    permissible_values:
+      track: {}
+      annotation: {}
+      sensor_observations: {}
+  TrackKindEnum: {permissible_values: {track: {}}}
+  AnnotationKindEnum: {permissible_values: {annotation: {}}}
+  SensorObservationsKindEnum: {permissible_values: {sensor_observations: {}}}
+  AnnotationStyleEnum:
+    description: What an annotation depicts (CAP-03, CAP-04).
+    permissible_values:
+      label: {}
+      shape: {}
+      chart_furniture: {}
+      note: {description: "Free-text note, usually time-only."}
+      time_period: {description: "A period of interest, time-only (TL-11)."}
+  ObservationTypeEnum:
+    description: Sensor observation types Debrief imports (CAP-22). Frequency is never imported.
+    permissible_values:
+      bearing: {}
+      ambiguous_bearing: {description: "Towed-array bearing with two candidate sides."}
+  PayloadFormatEnum:
+    description: Standard formats for opaque payloads (CON-02).
+    permissible_values:
+      arrow: {}
+      parquet: {}
+      geojson: {}
+
+classes:
+  # --- Tracks ---------------------------------------------------------------
+  TrackFeature:
+    description: A platform track. Per-position values are parallel arrays matching the geometry.
+    attributes:
+      type: {range: FeatureTypeEnum, required: true}
+      id: {required: true}
+      geometry: {range: LineStringGeometry, required: true, inlined: true}
+      properties: {range: TrackProperties, required: true, inlined: true}
+  TrackProperties:
+    attributes:
+      kind: {range: TrackKindEnum, required: true}
+      name: {required: true}
+      platform_class: {}
+      times:
+        description: One per position, non-decreasing.
+        range: UtcTimestamp
+        multivalued: true
+        required: true
+      speeds:
+        description: Speed over ground at each position.
+        range: SpeedSeries
+        inlined: true
+      courses:
+        description: Course over ground at each position, true north, clockwise.
+        range: AngleSeries
+        inlined: true
+      provenance:
+        description: Feature-level provenance where needed (SUB-18).
+        range: ProvRecord
+        multivalued: true
+        inlined_as_list: true
+
+  # --- Annotations ----------------------------------------------------------
+  AnnotationFeature:
+    description: >-
+      Shapes, labels and chart furniture as ordinary GeoJSON (CAP-03). An
+      annotation with only a time has null geometry and shall give a time or a
+      time range (CAP-04).
+    attributes:
+      type: {range: FeatureTypeEnum, required: true}
+      id: {required: true}
+      geometry:
+        inlined: true
+        any_of:
+          - range: PointGeometry
+          - range: LineStringGeometry
+          - range: PolygonGeometry
+      properties: {range: AnnotationProperties, required: true, inlined: true}
+  AnnotationProperties:
+    attributes:
+      kind: {range: AnnotationKindEnum, required: true}
+      style: {range: AnnotationStyleEnum, required: true}
+      name: {required: true}
+      text: {}
+      time: {range: UtcTimestamp}
+      time_range: {range: TimeRange, inlined: true}
+      provenance:
+        range: ProvRecord
+        multivalued: true
+        inlined_as_list: true
+
+  # --- Sensor observations --------------------------------------------------
+  SensorObservationsFeature:
+    description: >-
+      A set of sensor observations, such as weeks of bearings, held as an
+      opaque payload (CON-02, NFR-06). Geometry is null; positions come from
+      the host track at each observation time.
+    attributes:
+      type: {range: FeatureTypeEnum, required: true}
+      id: {required: true}
+      geometry:
+        description: Always null.
+        range: PointGeometry
+        inlined: true
+      properties: {range: SensorObservationsProperties, required: true, inlined: true}
+  SensorObservationsProperties:
+    attributes:
+      kind: {range: SensorObservationsKindEnum, required: true}
+      name: {required: true}
+      sensor_name: {required: true}
+      host_track_id:
+        description: The track carrying the sensor.
+        required: true
+      observation_type: {range: ObservationTypeEnum, required: true}
+      time_range: {range: TimeRange, required: true, inlined: true}
+      observation_count: {range: integer, required: true, minimum_value: 0}
+      payload: {range: PayloadRef, required: true, inlined: true}
+      provenance:
+        range: ProvRecord
+        multivalued: true
+        inlined_as_list: true
+
+  PayloadRef:
+    description: >-
+      Envelope for data LinkML expresses badly (CON-02): the payload's format,
+      a versioned reference to its inner schema, units, CRS and time reference.
+    attributes:
+      href:
+        description: Path relative to the referencing file.
+        required: true
+      format: {range: PayloadFormatEnum, required: true}
+      inner_schema: {range: InnerSchemaRef, required: true, inlined: true}
+      columns:
+        range: PayloadColumn
+        multivalued: true
+        inlined_as_list: true
+        required: true
+      crs:
+        description: Coordinate reference system of any positions in the payload.
+        required: true
+      time_reference:
+        description: Time scale of any times in the payload. Always UTC (SUB-01).
+        required: true
+      content_hash: {range: ContentHash, required: true}
+  InnerSchemaRef:
+    attributes:
+      name: {required: true}
+      version: {range: SchemaVersion, required: true}
+  PayloadColumn:
+    attributes:
+      name: {required: true}
+      quantity_kind: {range: QuantityKindEnum}
+      unit:
+        description: UCUM unit code, required when quantity_kind is given.
+
+  # --- Named sets and the collection ---------------------------------------
+  NamedSet:
+    description: A saved, reusable selection (TL-11).
+    attributes:
+      id: {required: true}
+      name: {required: true}
+      feature_ids: {multivalued: true, required: true}
+
+  DebriefFeatureCollection:
+    tree_root: true
+    description: The unit of analysis (SUB-05), stored as an asset of a STAC item.
+    attributes:
+      type: {range: FeatureCollectionTypeEnum, required: true}
+      schema_version: {range: SchemaVersion, required: true}
+      features:
+        multivalued: true
+        inlined_as_list: true
+        required: true
+        any_of:
+          - range: TrackFeature
+          - range: AnnotationFeature
+          - range: SensorObservationsFeature
+      named_sets:
+        range: NamedSet
+        multivalued: true
+        inlined_as_list: true
+      provenance:
+        range: ProvRecord
+        multivalued: true
+        inlined_as_list: true
+        required: true

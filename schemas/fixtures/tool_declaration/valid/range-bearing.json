@@ -1,0 +1,14 @@
+{
+  "name": "core.range_bearing",
+  "version": "0.0.1",
+  "title": "Range and bearing",
+  "explanation": "Range and bearing from the first selected track to the second at current time.",
+  "applies_to": [
+    "track"
+  ],
+  "min_selected": 2,
+  "max_selected": 2,
+  "outputs": [
+    "non_spatial"
+  ]
+}

@@ -1,0 +1,28 @@
+{
+  "name": "core.add_note",
+  "version": "0.0.1",
+  "title": "Add note",
+  "explanation": "Adds a time-only note at current time.",
+  "applies_to": [
+    "*"
+  ],
+  "min_selected": 0,
+  "parameters": [
+    {
+      "name": "text",
+      "title": "Text",
+      "kind": "string",
+      "required": true
+    },
+    {
+      "name": "at",
+      "title": "Time",
+      "kind": "time",
+      "required": false,
+      "default": "2026-10-11T09:30:00.000Z"
+    }
+  ],
+  "outputs": [
+    "new_features"
+  ]
+}

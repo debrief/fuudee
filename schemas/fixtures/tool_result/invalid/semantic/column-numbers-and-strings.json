@@ -1,0 +1,97 @@
+{
+  "modified_features": [
+    {
+      "type": "Feature",
+      "id": "track-nelson",
+      "geometry": {
+        "type": "LineString",
+        "coordinates": [
+          [
+            -4.1201,
+            50.3502
+          ],
+          [
+            -4.1155,
+            50.3471
+          ],
+          [
+            -4.1098,
+            50.344
+          ]
+        ]
+      },
+      "properties": {
+        "kind": "track",
+        "name": "NELSON",
+        "platform_class": "Frigate",
+        "times": [
+          "2026-10-11T09:30:00.000Z",
+          "2026-10-11T09:31:00.000Z",
+          "2026-10-11T09:32:00.000Z"
+        ],
+        "speeds": {
+          "unit": "m/s",
+          "values": [
+            6.17,
+            6.17,
+            6.2
+          ]
+        },
+        "courses": {
+          "unit": "deg",
+          "values": [
+            135.0,
+            135.5,
+            136.0
+          ]
+        }
+      }
+    }
+  ],
+  "non_spatial": [
+    {
+      "title": "Closest approach",
+      "presentation": "table",
+      "columns": [
+        {
+          "name": "plot",
+          "strings": [
+            "serial-01",
+            "serial-02"
+          ],
+          "numbers": [
+            1.0,
+            2.0
+          ]
+        },
+        {
+          "name": "range",
+          "quantity_kind": "length",
+          "unit": "[nmi_i]",
+          "numbers": [
+            2.4,
+            3.1
+          ]
+        }
+      ]
+    }
+  ],
+  "named_sets": [
+    {
+      "id": "set-2",
+      "name": "Smoothed",
+      "feature_ids": [
+        "track-nelson"
+      ]
+    }
+  ],
+  "state_change": {
+    "time": {
+      "current": "2026-10-11T09:31:00.000Z",
+      "range": {
+        "start": "2026-10-11T09:30:00.000Z",
+        "end": "2026-10-11T09:32:00.000Z"
+      }
+    }
+  }
+}

@@ -1,0 +1,59 @@
+id: https://debrief.info/schemas/debrief/geojson
+name: debrief_geojson
+title: "GeoJSON geometries (RFC 7946), imported into LinkML (CON-04)"
+license: EPL-2.0
+prefixes:
+  linkml: https://w3id.org/linkml/
+  debrief: https://debrief.info/schemas/debrief/
+  prov: http://www.w3.org/ns/prov#
+  geojson: https://purl.org/geojson/vocab#
+  stac: https://stacspec.org/
+default_prefix: debrief
+default_range: string
+imports:
+  - linkml:types
+
+description: >-
+  Positions are [longitude, latitude] in WGS84 decimal degrees, as RFC 7946
+  requires; they are exempt from carrying units.
+
+enums:
+  PointTypeEnum: {permissible_values: {Point: {}}}
+  LineStringTypeEnum: {permissible_values: {LineString: {}}}
+  PolygonTypeEnum: {permissible_values: {Polygon: {}}}
+
+classes:
+  PointGeometry:
+    attributes:
+      type: {range: PointTypeEnum, required: true}
+      coordinates:
+        range: float
+        required: true
+        array:
+          exact_number_dimensions: 1
+          dimensions:
+            - exact_cardinality: 2
+  LineStringGeometry:
+    attributes:
+      type: {range: LineStringTypeEnum, required: true}
+      coordinates:
+        range: float
+        required: true
+        array:
+          exact_number_dimensions: 2
+          dimensions:
+            - minimum_cardinality: 2
+            - exact_cardinality: 2
+  PolygonGeometry:
+    description: Linear rings; the first is the exterior. Each ring is closed (first position equals last).
+    attributes:
+      type: {range: PolygonTypeEnum, required: true}
+      coordinates:
+        range: float
+        required: true
+        array:
+          exact_number_dimensions: 3
+          dimensions:
+            - minimum_cardinality: 1
+            - minimum_cardinality: 4
+            - exact_cardinality: 2

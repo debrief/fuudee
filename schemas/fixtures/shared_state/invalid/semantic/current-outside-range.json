@@ -1,0 +1,23 @@
+{
+  "time": {
+    "current": "2026-10-11T08:00:00.000Z",
+    "range": {
+      "start": "2026-10-11T09:30:00.000Z",
+      "end": "2026-10-11T09:32:00.000Z"
+    }
+  },
+  "selection": {
+    "plot": "serial-01/serial-01.geojson",
+    "feature_ids": [
+      "track-nelson"
+    ]
+  },
+  "viewport": {
+    "bbox": [
+      -4.2,
+      50.3,
+      -4.0,
+      50.4
+    ]
+  }
+}

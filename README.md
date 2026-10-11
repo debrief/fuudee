@@ -7,7 +7,7 @@ Debrief v4. Requirements and plans are in [docs/](docs/README.md); identifiers s
 
 | Path | Contents |
 | --- | --- |
-| `schemas/linkml/` | LinkML source for every boundary type (PRN-04) |
+| `schemas/linkml/` | LinkML source for every boundary type (PRN-04); see [schemas/README.md](schemas/README.md) |
 | `schemas/generated/` | JSON Schema generated from LinkML |
 | `schemas/fixtures/` | Golden fixtures shared by Python and TypeScript tests |
 | `python/debrief-schemas/` | Generated Pydantic models and plot validation |

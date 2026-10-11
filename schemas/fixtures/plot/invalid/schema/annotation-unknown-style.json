@@ -1,0 +1,230 @@
+{
+  "type": "FeatureCollection",
+  "schema_version": "0.0.2",
+  "features": [
+    {
+      "type": "Feature",
+      "id": "track-nelson",
+      "geometry": {
+        "type": "LineString",
+        "coordinates": [
+          [
+            -4.1201,
+            50.3502
+          ],
+          [
+            -4.1155,
+            50.3471
+          ],
+          [
+            -4.1098,
+            50.344
+          ]
+        ]
+      },
+      "properties": {
+        "kind": "track",
+        "name": "NELSON",
+        "platform_class": "Frigate",
+        "times": [
+          "2026-10-11T09:30:00.000Z",
+          "2026-10-11T09:31:00.000Z",
+          "2026-10-11T09:32:00.000Z"
+        ],
+        "speeds": {
+          "unit": "m/s",
+          "values": [
+            6.17,
+            6.17,
+            6.2
+          ]
+        },
+        "courses": {
+          "unit": "deg",
+          "values": [
+            135.0,
+            135.5,
+            136.0
+          ]
+        }
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "label-1",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -4.115,
+          50.347
+        ]
+      },
+      "properties": {
+        "kind": "annotation",
+        "style": "doodle",
+        "name": "Turn",
+        "text": "NELSON turns south",
+        "time": "2026-10-11T09:31:00.000Z"
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "box-1",
+      "geometry": {
+        "type": "Polygon",
+        "coordinates": [
+          [
+            [
+              -4.13,
+              50.34
+            ],
+            [
+              -4.1,
+              50.34
+            ],
+            [
+              -4.1,
+              50.36
+            ],
+            [
+              -4.13,
+              50.36
+            ],
+            [
+              -4.13,
+              50.34
+            ]
+          ]
+        ]
+      },
+      "properties": {
+        "kind": "annotation",
+        "style": "shape",
+        "name": "Exercise area"
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "period-1",
+      "geometry": null,
+      "properties": {
+        "kind": "annotation",
+        "style": "time_period",
+        "name": "Serial 1",
+        "time_range": {
+          "start": "2026-10-11T09:30:00.000Z",
+          "end": "2026-10-11T09:32:00.000Z"
+        }
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "sonar-1",
+      "geometry": null,
+      "properties": {
+        "kind": "sensor_observations",
+        "name": "NELSON towed array",
+        "sensor_name": "2087",
+        "host_track_id": "track-nelson",
+        "observation_type": "ambiguous_bearing",
+        "time_range": {
+          "start": "2026-10-11T09:30:00.000Z",
+          "end": "2026-10-11T09:32:00.000Z"
+        },
+        "observation_count": 120,
+        "payload": {
+          "href": "sonar-1.parquet",
+          "format": "parquet",
+          "inner_schema": {
+            "name": "debrief.bearing_observations",
+            "version": "0.0.1"
+          },
+          "columns": [
+            {
+              "name": "time"
+            },
+            {
+              "name": "bearing",
+              "quantity_kind": "angle",
+              "unit": "deg"
+            },
+            {
+              "name": "ambiguous_bearing",
+              "quantity_kind": "angle",
+              "unit": "deg"
+            },
+            {
+              "name": "bearing_error",
+              "quantity_kind": "angle",
+              "unit": "deg"
+            }
+          ],
+          "crs": "EPSG:4326",
+          "time_reference": "UTC",
+          "content_hash": "sha256:a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1"
+        }
+      }
+    }
+  ],
+  "provenance": [
+    {
+      "id": "prov-0001",
+      "kind": "import",
+      "started_at": "2026-10-11T10:00:00.000Z",
+      "ended_at": "2026-10-11T10:00:01.250Z",
+      "tool": {
+        "name": "debrief-io.rep",
+        "version": "0.0.1"
+      },
+      "agent": {
+        "kind": "person",
+        "name": "analyst"
+      },
+      "used": [
+        {
+          "href": "sources/serial-01.rep",
+          "content_hash": "sha256:3f3f3f3f3f3f3f3f3f3f3f3f3f3f3f3f3f3f3f3f3f3f3f3f3f3f3f3f3f3f3f3f"
+        }
+      ]
+    },
+    {
+      "id": "prov-0002",
+      "kind": "tool",
+      "started_at": "2026-10-11T10:05:00.000Z",
+      "tool": {
+        "name": "core.smooth_track",
+        "version": "0.0.1"
+      },
+      "agent": {
+        "kind": "person",
+        "name": "analyst"
+      },
+      "parameters": [
+        {
+          "name": "window",
+          "value": {
+            "value": 500.0,
+            "unit": "m"
+          }
+        },
+        {
+          "name": "method",
+          "value": "moving_average"
+        },
+        {
+          "name": "keep_ends",
+          "value": true
+        }
+      ]
+    }
+  ],
+  "named_sets": [
+    {
+      "id": "set-1",
+      "name": "Blue force",
+      "feature_ids": [
+        "track-nelson"
+      ]
+    }
+  ]
+}

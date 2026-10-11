@@ -1,0 +1,52 @@
+id: https://debrief.info/schemas/debrief/state
+name: debrief_state
+title: "Shared state (SUB-26, SUB-27)"
+license: EPL-2.0
+prefixes:
+  linkml: https://w3id.org/linkml/
+  debrief: https://debrief.info/schemas/debrief/
+  prov: http://www.w3.org/ns/prov#
+  geojson: https://purl.org/geojson/vocab#
+  stac: https://stacspec.org/
+default_prefix: debrief
+default_range: string
+imports:
+  - linkml:types
+  - core
+
+description: >-
+  The three pieces of shared state, readable and settable by views,
+  extensions and tools. Boundary types under CON-01.
+
+classes:
+  TimeState:
+    attributes:
+      current: {range: UtcTimestamp, required: true}
+      range: {range: TimeRange, required: true, inlined: true}
+  Selection:
+    attributes:
+      plot:
+        description: Href of the plot the selection belongs to.
+        required: true
+      feature_ids: {multivalued: true, required: true}
+  Viewport:
+    attributes:
+      bbox:
+        description: "[west, south, east, north] in WGS84 degrees, independent of display projection."
+        range: float
+        required: true
+        array:
+          exact_number_dimensions: 1
+          dimensions:
+            - exact_cardinality: 4
+  SharedState:
+    attributes:
+      time: {range: TimeState, required: true, inlined: true}
+      selection: {range: Selection, required: true, inlined: true}
+      viewport: {range: Viewport, required: true, inlined: true}
+  SharedStateChange:
+    description: A change to some or all of shared state, as set by a view or returned by a tool (TL-10, TL-11).
+    attributes:
+      time: {range: TimeState, inlined: true}
+      selection: {range: Selection, inlined: true}
+      viewport: {range: Viewport, inlined: true}

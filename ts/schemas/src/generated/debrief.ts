@@ -5,7 +5,7 @@
  */
 export type AgentKindEnum = "person" | "software_agent";
 /**
- * Units an angle may be stored in (UCUM codes, SUB-02).
+ * Units an angle may be stored in (UCUM codes).
  *
  * This interface was referenced by `DebriefSchemaDefinitions`'s JSON-Schema
  * via the `definition` "AngleUnitEnum".
@@ -13,38 +13,142 @@ export type AgentKindEnum = "person" | "software_agent";
 export type AngleUnitEnum = "deg" | "rad";
 /**
  * This interface was referenced by `DebriefSchemaDefinitions`'s JSON-Schema
+ * via the `definition` "PointTypeEnum".
+ */
+export type PointTypeEnum = "Point";
+/**
+ * This interface was referenced by `DebriefSchemaDefinitions`'s JSON-Schema
  * via the `definition` "LineStringTypeEnum".
  */
 export type LineStringTypeEnum = "LineString";
 /**
- * Debrief feature taxonomy, used by tools to declare what they apply to (TL-06).
- *
  * This interface was referenced by `DebriefSchemaDefinitions`'s JSON-Schema
- * via the `definition` "FeatureKindEnum".
+ * via the `definition` "PolygonTypeEnum".
  */
-export type FeatureKindEnum = "track";
+export type PolygonTypeEnum = "Polygon";
+/**
+ * This interface was referenced by `DebriefSchemaDefinitions`'s JSON-Schema
+ * via the `definition` "AnnotationKindEnum".
+ */
+export type AnnotationKindEnum = "annotation";
 /**
  * This interface was referenced by `DebriefSchemaDefinitions`'s JSON-Schema
  * via the `definition` "ProvActivityKindEnum".
  */
-export type ProvActivityKindEnum = "import" | "tool" | "edit" | "delete";
+export type ProvActivityKindEnum = "import" | "tool" | "edit" | "delete" | "migration";
 /**
- * Units a speed may be stored in (UCUM codes, SUB-02).
+ * Units a length may be stored in (UCUM codes).
+ *
+ * This interface was referenced by `DebriefSchemaDefinitions`'s JSON-Schema
+ * via the `definition` "LengthUnitEnum".
+ */
+export type LengthUnitEnum = "m" | "km" | "[nmi_i]" | "[yd_i]" | "[ft_i]";
+/**
+ * Units a speed may be stored in (UCUM codes).
  *
  * This interface was referenced by `DebriefSchemaDefinitions`'s JSON-Schema
  * via the `definition` "SpeedUnitEnum".
  */
 export type SpeedUnitEnum = "m/s" | "[kn_i]" | "km/h";
 /**
+ * Units a duration may be stored in (UCUM codes).
+ *
+ * This interface was referenced by `DebriefSchemaDefinitions`'s JSON-Schema
+ * via the `definition` "DurationUnitEnum".
+ */
+export type DurationUnitEnum = "ms" | "s" | "min" | "h";
+/**
+ * What an annotation depicts (CAP-03, CAP-04).
+ *
+ * This interface was referenced by `DebriefSchemaDefinitions`'s JSON-Schema
+ * via the `definition` "AnnotationStyleEnum".
+ */
+export type AnnotationStyleEnum = "label" | "shape" | "chart_furniture" | "note" | "time_period";
+/**
  * This interface was referenced by `DebriefSchemaDefinitions`'s JSON-Schema
  * via the `definition` "FeatureTypeEnum".
  */
 export type FeatureTypeEnum = "Feature";
 /**
+ * What an asset holds in Debrief terms.
+ *
+ * This interface was referenced by `DebriefSchemaDefinitions`'s JSON-Schema
+ * via the `definition` "AssetKindEnum".
+ */
+export type AssetKindEnum = "plot" | "source" | "supporting_file" | "payload" | "result" | "measure_group";
+/**
+ * This interface was referenced by `DebriefSchemaDefinitions`'s JSON-Schema
+ * via the `definition` "CatalogTypeEnum".
+ */
+export type CatalogTypeEnum = "Catalog";
+/**
+ * This interface was referenced by `DebriefSchemaDefinitions`'s JSON-Schema
+ * via the `definition` "TrackKindEnum".
+ */
+export type TrackKindEnum = "track";
+/**
+ * This interface was referenced by `DebriefSchemaDefinitions`'s JSON-Schema
+ * via the `definition` "SensorObservationsKindEnum".
+ */
+export type SensorObservationsKindEnum = "sensor_observations";
+/**
+ * Sensor observation types Debrief imports (CAP-22). Frequency is never imported.
+ *
+ * This interface was referenced by `DebriefSchemaDefinitions`'s JSON-Schema
+ * via the `definition` "ObservationTypeEnum".
+ */
+export type ObservationTypeEnum = "bearing" | "ambiguous_bearing";
+/**
+ * Physical quantity kinds that carry units (SUB-02).
+ *
+ * This interface was referenced by `DebriefSchemaDefinitions`'s JSON-Schema
+ * via the `definition` "QuantityKindEnum".
+ */
+export type QuantityKindEnum = "length" | "speed" | "angle" | "duration";
+/**
+ * Standard formats for opaque payloads (CON-02).
+ *
+ * This interface was referenced by `DebriefSchemaDefinitions`'s JSON-Schema
+ * via the `definition` "PayloadFormatEnum".
+ */
+export type PayloadFormatEnum = "arrow" | "parquet" | "geojson";
+/**
  * This interface was referenced by `DebriefSchemaDefinitions`'s JSON-Schema
  * via the `definition` "FeatureCollectionTypeEnum".
  */
 export type FeatureCollectionTypeEnum = "FeatureCollection";
+/**
+ * The feature taxonomy (TL-06).
+ *
+ * This interface was referenced by `DebriefSchemaDefinitions`'s JSON-Schema
+ * via the `definition` "FeatureKindEnum".
+ */
+export type FeatureKindEnum = "track" | "annotation" | "sensor_observations";
+/**
+ * This interface was referenced by `DebriefSchemaDefinitions`'s JSON-Schema
+ * via the `definition` "ItemTypeEnum".
+ */
+export type ItemTypeEnum = "Feature";
+/**
+ * This interface was referenced by `DebriefSchemaDefinitions`'s JSON-Schema
+ * via the `definition` "ResultPresentationEnum".
+ */
+export type ResultPresentationEnum = "number" | "table" | "graph";
+/**
+ * Parameter kinds Debrief can build a form for (TL-07).
+ *
+ * This interface was referenced by `DebriefSchemaDefinitions`'s JSON-Schema
+ * via the `definition` "ParameterKindEnum".
+ */
+export type ParameterKindEnum = "number" | "integer" | "string" | "boolean" | "choice" | "quantity" | "time";
+/**
+ * What a tool may return (TL-11).
+ *
+ * This interface was referenced by `DebriefSchemaDefinitions`'s JSON-Schema
+ * via the `definition` "ToolOutputKindEnum".
+ */
+export type ToolOutputKindEnum =
+  "new_features" | "modified_features" | "deleted_features" | "non_spatial" | "named_sets" | "state_change";
 
 export interface DebriefSchemaDefinitions {}
 /**
@@ -60,6 +164,14 @@ export interface AgentRef {
 }
 /**
  * This interface was referenced by `DebriefSchemaDefinitions`'s JSON-Schema
+ * via the `definition` "Angle".
+ */
+export interface Angle {
+  unit: AngleUnitEnum;
+  value: number;
+}
+/**
+ * This interface was referenced by `DebriefSchemaDefinitions`'s JSON-Schema
  * via the `definition` "AngleSeries".
  */
 export interface AngleSeries {
@@ -67,32 +179,30 @@ export interface AngleSeries {
   values: number[];
 }
 /**
- * The unit of analysis (SUB-05), stored as an asset of a STAC item.
+ * Shapes, labels and chart furniture as ordinary GeoJSON (CAP-03). An annotation with only a time has null geometry and shall give a time or a time range (CAP-04).
  *
  * This interface was referenced by `DebriefSchemaDefinitions`'s JSON-Schema
- * via the `definition` "DebriefFeatureCollection".
+ * via the `definition` "AnnotationFeature".
  */
-export interface DebriefFeatureCollection {
-  features: TrackFeature[];
-  provenance: ProvRecord[];
-  schema_version: string;
-  type: FeatureCollectionTypeEnum;
-}
-/**
- * A platform track as a GeoJSON Feature with LineString geometry.
- *
- * This interface was referenced by `DebriefSchemaDefinitions`'s JSON-Schema
- * via the `definition` "TrackFeature".
- */
-export interface TrackFeature {
-  geometry: LineStringGeometry;
+export interface AnnotationFeature {
+  geometry?: PointGeometry | LineStringGeometry | PolygonGeometry | null;
   id: string;
-  properties: TrackProperties;
+  properties: AnnotationProperties;
   type: FeatureTypeEnum;
 }
 /**
- * GeoJSON LineString (RFC 7946 section 3.1.4). Each position is [longitude, latitude] in WGS84 decimal degrees.
- *
+ * This interface was referenced by `DebriefSchemaDefinitions`'s JSON-Schema
+ * via the `definition` "PointGeometry".
+ */
+export interface PointGeometry {
+  /**
+   * @minItems 2
+   * @maxItems 2
+   */
+  coordinates: [number, number];
+  type: PointTypeEnum;
+}
+/**
  * This interface was referenced by `DebriefSchemaDefinitions`'s JSON-Schema
  * via the `definition` "LineStringGeometry".
  */
@@ -104,28 +214,33 @@ export interface LineStringGeometry {
   type: LineStringTypeEnum;
 }
 /**
- * Per-position values are parallel arrays, one entry per geometry position, in the same order.
+ * Linear rings; the first is the exterior. Each ring is closed (first position equals last).
  *
  * This interface was referenced by `DebriefSchemaDefinitions`'s JSON-Schema
- * via the `definition` "TrackProperties".
+ * via the `definition` "PolygonGeometry".
  */
-export interface TrackProperties {
+export interface PolygonGeometry {
   /**
-   * Course over ground at each position, true north, clockwise.
+   * @minItems 1
    */
-  courses?: AngleSeries | null;
-  kind: FeatureKindEnum;
+  coordinates: [
+    [[number, number], [number, number], [number, number], [number, number], ...[number, number][]],
+    ...[[number, number], [number, number], [number, number], [number, number], ...[number, number][]][]
+  ];
+  type: PolygonTypeEnum;
+}
+/**
+ * This interface was referenced by `DebriefSchemaDefinitions`'s JSON-Schema
+ * via the `definition` "AnnotationProperties".
+ */
+export interface AnnotationProperties {
+  kind: AnnotationKindEnum;
   name: string;
-  platform_class?: string | null;
-  /**
-   * Feature-level provenance where needed (SUB-18).
-   */
   provenance?: ProvRecord[] | null;
-  /**
-   * Speed over ground at each position.
-   */
-  speeds?: SpeedSeries | null;
-  times: string[];
+  style: AnnotationStyleEnum;
+  text?: string | null;
+  time?: string | null;
+  time_range?: TimeRange | null;
 }
 /**
  * One recorded operation (SUB-18, SUB-19).
@@ -143,12 +258,50 @@ export interface ProvRecord {
    */
   notes?: string[] | null;
   /**
+   * Parameter values the operation ran with, so replay can repeat it (SUB-19).
+   */
+  parameters?: ParameterValue[] | null;
+  /**
    * Random seed, for operations that use randomness (SUB-20).
    */
   seed?: number | null;
   started_at: string;
   tool?: ToolRef | null;
   used?: SourceRef[] | null;
+}
+/**
+ * A tool parameter value as supplied or recorded (TL-07, SUB-19). Scalars, or a quantity with its unit.
+ *
+ * This interface was referenced by `DebriefSchemaDefinitions`'s JSON-Schema
+ * via the `definition` "ParameterValue".
+ */
+export interface ParameterValue {
+  name: string;
+  value: number | string | boolean | Length | Speed | Angle | Duration;
+}
+/**
+ * This interface was referenced by `DebriefSchemaDefinitions`'s JSON-Schema
+ * via the `definition` "Length".
+ */
+export interface Length {
+  unit: LengthUnitEnum;
+  value: number;
+}
+/**
+ * This interface was referenced by `DebriefSchemaDefinitions`'s JSON-Schema
+ * via the `definition` "Speed".
+ */
+export interface Speed {
+  unit: SpeedUnitEnum;
+  value: number;
+}
+/**
+ * This interface was referenced by `DebriefSchemaDefinitions`'s JSON-Schema
+ * via the `definition` "Duration".
+ */
+export interface Duration {
+  unit: DurationUnitEnum;
+  value: number;
 }
 /**
  * The tool and version that performed an operation (SUB-24).
@@ -171,10 +324,437 @@ export interface SourceRef {
   href: string;
 }
 /**
+ * A closed interval of time. Start shall not be after end.
+ *
+ * This interface was referenced by `DebriefSchemaDefinitions`'s JSON-Schema
+ * via the `definition` "TimeRange".
+ */
+export interface TimeRange {
+  end: string;
+  start: string;
+}
+/**
+ * The unit of analysis (SUB-05), stored as an asset of a STAC item.
+ *
+ * This interface was referenced by `DebriefSchemaDefinitions`'s JSON-Schema
+ * via the `definition` "DebriefFeatureCollection".
+ */
+export interface DebriefFeatureCollection {
+  features: (TrackFeature | AnnotationFeature | SensorObservationsFeature)[];
+  named_sets?: NamedSet[] | null;
+  provenance: ProvRecord[];
+  schema_version: string;
+  type: FeatureCollectionTypeEnum;
+}
+/**
+ * A platform track. Per-position values are parallel arrays matching the geometry.
+ *
+ * This interface was referenced by `DebriefSchemaDefinitions`'s JSON-Schema
+ * via the `definition` "TrackFeature".
+ */
+export interface TrackFeature {
+  geometry: LineStringGeometry;
+  id: string;
+  properties: TrackProperties;
+  type: FeatureTypeEnum;
+}
+/**
+ * This interface was referenced by `DebriefSchemaDefinitions`'s JSON-Schema
+ * via the `definition` "TrackProperties".
+ */
+export interface TrackProperties {
+  /**
+   * Course over ground at each position, true north, clockwise.
+   */
+  courses?: AngleSeries | null;
+  kind: TrackKindEnum;
+  name: string;
+  platform_class?: string | null;
+  /**
+   * Feature-level provenance where needed (SUB-18).
+   */
+  provenance?: ProvRecord[] | null;
+  /**
+   * Speed over ground at each position.
+   */
+  speeds?: SpeedSeries | null;
+  /**
+   * One per position, non-decreasing.
+   */
+  times: string[];
+}
+/**
  * This interface was referenced by `DebriefSchemaDefinitions`'s JSON-Schema
  * via the `definition` "SpeedSeries".
  */
 export interface SpeedSeries {
   unit: SpeedUnitEnum;
   values: number[];
+}
+/**
+ * A set of sensor observations, such as weeks of bearings, held as an opaque payload (CON-02, NFR-06). Geometry is null; positions come from the host track at each observation time.
+ *
+ * This interface was referenced by `DebriefSchemaDefinitions`'s JSON-Schema
+ * via the `definition` "SensorObservationsFeature".
+ */
+export interface SensorObservationsFeature {
+  /**
+   * Always null.
+   */
+  geometry?: PointGeometry | null;
+  id: string;
+  properties: SensorObservationsProperties;
+  type: FeatureTypeEnum;
+}
+/**
+ * This interface was referenced by `DebriefSchemaDefinitions`'s JSON-Schema
+ * via the `definition` "SensorObservationsProperties".
+ */
+export interface SensorObservationsProperties {
+  /**
+   * The track carrying the sensor.
+   */
+  host_track_id: string;
+  kind: SensorObservationsKindEnum;
+  name: string;
+  observation_count: number;
+  observation_type: ObservationTypeEnum;
+  payload: PayloadRef;
+  provenance?: ProvRecord[] | null;
+  sensor_name: string;
+  time_range: TimeRange;
+}
+/**
+ * Envelope for data LinkML expresses badly (CON-02): the payload's format, a versioned reference to its inner schema, units, CRS and time reference.
+ *
+ * This interface was referenced by `DebriefSchemaDefinitions`'s JSON-Schema
+ * via the `definition` "PayloadRef".
+ */
+export interface PayloadRef {
+  columns: PayloadColumn[];
+  content_hash: string;
+  /**
+   * Coordinate reference system of any positions in the payload.
+   */
+  crs: string;
+  format: PayloadFormatEnum;
+  /**
+   * Path relative to the referencing file.
+   */
+  href: string;
+  inner_schema: InnerSchemaRef;
+  /**
+   * Time scale of any times in the payload. Always UTC (SUB-01).
+   */
+  time_reference: string;
+}
+/**
+ * This interface was referenced by `DebriefSchemaDefinitions`'s JSON-Schema
+ * via the `definition` "PayloadColumn".
+ */
+export interface PayloadColumn {
+  name: string;
+  quantity_kind?: QuantityKindEnum | null;
+  /**
+   * UCUM unit code, required when quantity_kind is given.
+   */
+  unit?: string | null;
+}
+/**
+ * This interface was referenced by `DebriefSchemaDefinitions`'s JSON-Schema
+ * via the `definition` "InnerSchemaRef".
+ */
+export interface InnerSchemaRef {
+  name: string;
+  version: string;
+}
+/**
+ * A saved, reusable selection (TL-11).
+ *
+ * This interface was referenced by `DebriefSchemaDefinitions`'s JSON-Schema
+ * via the `definition` "NamedSet".
+ */
+export interface NamedSet {
+  feature_ids: string[];
+  id: string;
+  name: string;
+}
+/**
+ * A number, table or graph (TL-13), held column by column. A number is one column with one value; a graph plots its first column against the rest.
+ *
+ * This interface was referenced by `DebriefSchemaDefinitions`'s JSON-Schema
+ * via the `definition` "NonSpatialResult".
+ */
+export interface NonSpatialResult {
+  columns: ResultColumn[];
+  presentation: ResultPresentationEnum;
+  title: string;
+}
+/**
+ * One column; exactly one of numbers or strings is given.
+ *
+ * This interface was referenced by `DebriefSchemaDefinitions`'s JSON-Schema
+ * via the `definition` "ResultColumn".
+ */
+export interface ResultColumn {
+  name: string;
+  numbers?: number[] | null;
+  quantity_kind?: QuantityKindEnum | null;
+  strings?: string[] | null;
+  /**
+   * UCUM unit code, required when quantity_kind is given.
+   */
+  unit?: string | null;
+}
+/**
+ * This interface was referenced by `DebriefSchemaDefinitions`'s JSON-Schema
+ * via the `definition` "ParameterDeclaration".
+ */
+export interface ParameterDeclaration {
+  /**
+   * Required when kind is choice.
+   */
+  choices?: string[] | null;
+  default?: number | string | boolean | Length | Speed | Angle | Duration | null;
+  /**
+   * Shown beside the field on the form (CAP-24).
+   */
+  explanation?: string | null;
+  kind: ParameterKindEnum;
+  /**
+   * Upper bound, as for minimum.
+   */
+  maximum?: number | null;
+  /**
+   * Lower bound for number, integer and quantity kinds; for a quantity, in the default's unit.
+   */
+  minimum?: number | null;
+  name: string;
+  /**
+   * Required when kind is quantity.
+   */
+  quantity_kind?: QuantityKindEnum | null;
+  required?: boolean | null;
+  title: string;
+}
+/**
+ * This interface was referenced by `DebriefSchemaDefinitions`'s JSON-Schema
+ * via the `definition` "Selection".
+ */
+export interface Selection {
+  feature_ids: string[];
+  /**
+   * Href of the plot the selection belongs to.
+   */
+  plot: string;
+}
+/**
+ * This interface was referenced by `DebriefSchemaDefinitions`'s JSON-Schema
+ * via the `definition` "SharedState".
+ */
+export interface SharedState {
+  selection: Selection;
+  time: TimeState;
+  viewport: Viewport;
+}
+/**
+ * This interface was referenced by `DebriefSchemaDefinitions`'s JSON-Schema
+ * via the `definition` "TimeState".
+ */
+export interface TimeState {
+  current: string;
+  range: TimeRange;
+}
+/**
+ * This interface was referenced by `DebriefSchemaDefinitions`'s JSON-Schema
+ * via the `definition` "Viewport".
+ */
+export interface Viewport {
+  /**
+   * @minItems 4
+   * @maxItems 4
+   */
+  bbox: [number, number, number, number];
+}
+/**
+ * A change to some or all of shared state, as set by a view or returned by a tool (TL-10, TL-11).
+ *
+ * This interface was referenced by `DebriefSchemaDefinitions`'s JSON-Schema
+ * via the `definition` "SharedStateChange".
+ */
+export interface SharedStateChange {
+  selection?: Selection | null;
+  time?: TimeState | null;
+  viewport?: Viewport | null;
+}
+/**
+ * This interface was referenced by `DebriefSchemaDefinitions`'s JSON-Schema
+ * via the `definition` "StacAsset".
+ */
+export interface StacAsset {
+  "debrief:asset_kind": AssetKindEnum;
+  /**
+   * Required for sources (SUB-11).
+   */
+  "debrief:content_hash"?: string | null;
+  href: string;
+  /**
+   * The asset's key in the item's assets object; not written inside the asset.
+   */
+  key: string;
+  roles?: string[] | null;
+  title?: string | null;
+  /**
+   * Media type.
+   */
+  type?: string | null;
+  [k: string]: unknown;
+}
+/**
+ * This interface was referenced by `DebriefSchemaDefinitions`'s JSON-Schema
+ * via the `definition` "StacAsset__identifier_optional".
+ */
+export interface StacAsset1 {
+  "debrief:asset_kind": AssetKindEnum;
+  /**
+   * Required for sources (SUB-11).
+   */
+  "debrief:content_hash"?: string | null;
+  href: string;
+  /**
+   * The asset's key in the item's assets object; not written inside the asset.
+   */
+  key?: string;
+  roles?: string[] | null;
+  title?: string | null;
+  /**
+   * Media type.
+   */
+  type?: string | null;
+  [k: string]: unknown;
+}
+/**
+ * A static, file-based STAC catalogue (SUB-15). Holds one protection level (SEC-02).
+ *
+ * This interface was referenced by `DebriefSchemaDefinitions`'s JSON-Schema
+ * via the `definition` "StacCatalog".
+ */
+export interface StacCatalog {
+  /**
+   * The newest data-file schema this catalogue holds (SUB-35).
+   */
+  "debrief:schema_version": string;
+  description: string;
+  id: string;
+  links: StacLink[];
+  stac_extensions?: string[] | null;
+  stac_version: string;
+  title?: string | null;
+  type: CatalogTypeEnum;
+}
+/**
+ * Parent links are authoritative; child links are a hint only and are never trusted (SUB-23).
+ *
+ * This interface was referenced by `DebriefSchemaDefinitions`'s JSON-Schema
+ * via the `definition` "StacLink".
+ */
+export interface StacLink {
+  href: string;
+  rel: string;
+  title?: string | null;
+  /**
+   * Media type.
+   */
+  type?: string | null;
+}
+/**
+ * A STAC item. A plot is the item's "plot" asset (SUB-05, SUB-06).
+ *
+ * This interface was referenced by `DebriefSchemaDefinitions`'s JSON-Schema
+ * via the `definition` "StacItem".
+ */
+export interface StacItem {
+  assets: {
+    [k: string]: StacAsset1;
+  };
+  /**
+   * @minItems 4
+   * @maxItems 4
+   */
+  bbox?: [number, number, number, number];
+  geometry?: PointGeometry | LineStringGeometry | PolygonGeometry | null;
+  id: string;
+  links: StacLink[];
+  properties: StacItemProperties;
+  stac_extensions?: string[] | null;
+  stac_version: string;
+  type: ItemTypeEnum;
+}
+/**
+ * This interface was referenced by `DebriefSchemaDefinitions`'s JSON-Schema
+ * via the `definition` "StacItemProperties".
+ */
+export interface StacItemProperties {
+  /**
+   * Null when start_datetime and end_datetime are given.
+   */
+  datetime?: string | null;
+  /**
+   * Platform names, for catalogue search (SUB-16).
+   */
+  "debrief:participants"?: string[] | null;
+  "debrief:schema_version": string;
+  description?: string | null;
+  end_datetime?: string | null;
+  start_datetime?: string | null;
+  title?: string | null;
+  [k: string]: unknown;
+}
+/**
+ * How a tool describes itself to Debrief, agents and hooks (TL-04, TL-06).
+ *
+ * This interface was referenced by `DebriefSchemaDefinitions`'s JSON-Schema
+ * via the `definition` "ToolDeclaration".
+ */
+export interface ToolDeclaration {
+  /**
+   * Feature kinds from the taxonomy, or "*" for any (TL-06). Debrief offers a tool only if every selected item matches (TL-08).
+   */
+  applies_to: string[];
+  /**
+   * Short user-facing explanation of what the tool does (CAP-24).
+   */
+  explanation: string;
+  /**
+   * Any judgement the tool involves, shown on its form (CAP-24).
+   */
+  judgement?: string | null;
+  max_selected?: number | null;
+  min_selected?: number | null;
+  /**
+   * Dotted, unique across loaded libraries, for example core.smooth_track.
+   */
+  name: string;
+  outputs: ToolOutputKindEnum[];
+  parameters?: ParameterDeclaration[] | null;
+  title: string;
+  /**
+   * When true, Debrief records the seed (SUB-20).
+   */
+  uses_randomness?: boolean | null;
+  version: string;
+}
+/**
+ * What a tool run returns (TL-11). Any combination of parts may be present.
+ *
+ * This interface was referenced by `DebriefSchemaDefinitions`'s JSON-Schema
+ * via the `definition` "ToolResult".
+ */
+export interface ToolResult {
+  deleted_feature_ids?: string[] | null;
+  modified_features?: (TrackFeature | AnnotationFeature | SensorObservationsFeature)[] | null;
+  named_sets?: NamedSet[] | null;
+  new_features?: (TrackFeature | AnnotationFeature | SensorObservationsFeature)[] | null;
+  non_spatial?: NonSpatialResult[] | null;
+  state_change?: SharedStateChange | null;
 }

@@ -1,0 +1,17 @@
+# Data-file schema changelog
+
+The data-file schema is versioned independently of Debrief (SUB-12). Before 1.0.0 there is no migration guarantee (SUB-13).
+
+## 0.0.2 (11 Oct 2026)
+
+- Split into modules: core, geojson, prov, features, stac, state, tools.
+- Plot features: annotations (point, line, polygon or time-only) and sensor observations with an opaque payload envelope, alongside tracks. Named sets.
+- Quantities with units (length, speed, angle, duration) and parameter values.
+- Provenance records the parameters an operation ran with, and schema migrations.
+- STAC catalogues, items, assets and links, with `debrief:schema_version`.
+- Shared state: time, selection, viewport.
+- Tool declarations and tool results.
+
+## 0.0.1 (11 Oct 2026)
+
+- LinkML spike: tracks with unit-carrying speed and course series, provenance, schema version.

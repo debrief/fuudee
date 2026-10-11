@@ -1,0 +1,59 @@
+{
+  "name": "core.smooth_track",
+  "version": "0.0.1",
+  "title": "Smooth track",
+  "explanation": "Removes jitter from a track by averaging positions over a distance window.",
+  "judgement": "A larger window hides genuine manoeuvres; check turns afterwards.",
+  "applies_to": [
+    "track"
+  ],
+  "min_selected": 1,
+  "max_selected": 10,
+  "parameters": [
+    {
+      "name": "window",
+      "title": "Window",
+      "explanation": "Distance over which positions are averaged.",
+      "kind": "quantity",
+      "quantity_kind": "length",
+      "required": true,
+      "default": {
+        "value": 500.0,
+        "unit": "m"
+      },
+      "minimum": 10.0,
+      "maximum": 10000.0
+    },
+    {
+      "name": "method",
+      "title": "Method",
+      "kind": "choice",
+      "required": true,
+      "default": "moving_average",
+      "choices": [
+        "moving_average",
+        "median"
+      ]
+    },
+    {
+      "name": "keep_ends",
+      "title": "Keep end points",
+      "kind": "boolean",
+      "required": false,
+      "default": true
+    },
+    {
+      "name": "passes",
+      "title": "Passes",
+      "kind": "integer",
+      "required": true,
+      "default": 1.0,
+      "minimum": 1.0,
+      "maximum": 5.0
+    }
+  ],
+  "outputs": [
+    "email"
+  ],
+  "uses_randomness": false
+}

@@ -1,0 +1,18 @@
+{
+  "non_spatial": [
+    {
+      "title": "Mean speed",
+      "presentation": "number",
+      "columns": [
+        {
+          "name": "speed",
+          "quantity_kind": "speed",
+          "unit": "[kn_i]",
+          "numbers": [
+            11.8
+          ]
+        }
+      ]
+    }
+  ]
+}
