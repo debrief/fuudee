@@ -7,6 +7,7 @@ import pytest
 
 from debrief_io import DpfError, import_dpf
 from debrief_io.dpf_import import IMPORTER
+from debrief_io.rep import DEFAULT_COLOUR
 from debrief_schemas import DocumentKind, load_document
 from debrief_stac import Catalogue
 
@@ -189,3 +190,165 @@ def test_sweep_of_legacy_samples(tmp_path: Path) -> None:
     ]
     assert omitted["sensor"] == 63
     assert omitted["satc_solution"] == 10
+
+
+def _fix(dtg: str, long: str = "-4.0", extra: str = "", depth: str = "0") -> str:
+    return (
+        f'<fix Course="90" Speed="12" Dtg="951212 {dtg}"{extra}><centre>'
+        f'<shortLocation Depth="{depth}" Lat="50.0" Long="{long}"/></centre></fix>'
+    )
+
+
+def _plot_file(tmp_path: Path, layers: str, name: str = "made.dpf") -> Path:
+    source = tmp_path / name
+    source.write_text(
+        '<?xml version="1.0" encoding="UTF-8"?>\n'
+        '<plot xmlns="http://www.debrief.info/plot">\n'
+        '<details Text="Saved with Debrief version dated today"/>\n'
+        f"<session>\n<layers>\n{layers}\n</layers>\n</session>\n</plot>\n"
+    )
+    return source
+
+
+def test_an_infinite_depth_is_never_written(catalogue: Catalogue, tmp_path: Path) -> None:
+    source = _plot_file(
+        tmp_path,
+        f'<track Name="T"><TrackSegment>\n{_fix("050000", depth="1e999")}\n'
+        f"{_fix('050100', '-3.9', depth='12')}\n</TrackSegment></track>",
+    )
+    report = import_dpf(catalogue, source)
+    (track,) = catalogue.read_plot("made").features
+    assert track.properties.depths.values == [0.0, 12.0]
+    plot_text = (catalogue.store.root / "made" / "plot.geojson").read_text()
+    assert "Infinity" not in plot_text
+    notes = "\n".join(report.omitted)
+    assert "Track 'T': 1 fix had a depth that could not be read ('1e999' at line 7)" in notes
+
+
+def test_an_invalid_plot_leaves_nothing_behind(
+    catalogue: Catalogue, tmp_path: Path, monkeypatch
+) -> None:
+    from debrief_io import dpf_import
+    from debrief_schemas import DocumentValidationError
+
+    source = tmp_path / "small.dpf"
+    source.write_bytes(SYNTHETIC)
+    build = dpf_import.build_plot_from_dpf
+
+    def out_of_order(*args, **kwargs):
+        plot, report = build(*args, **kwargs)
+        plot.features[0].properties.times.reverse()
+        return plot, report
+
+    monkeypatch.setattr(dpf_import, "build_plot_from_dpf", out_of_order)
+    with pytest.raises(DocumentValidationError):
+        import_dpf(catalogue, source)
+    assert catalogue.item_ids() == []
+    assert not (catalogue.store.root / "small").exists()
+
+
+def test_a_failed_write_removes_the_new_item(
+    catalogue: Catalogue, tmp_path: Path, monkeypatch
+) -> None:
+    source = tmp_path / "small.dpf"
+    source.write_bytes(SYNTHETIC)
+
+    def fail(*_args, **_kwargs):
+        raise OSError("disk full")
+
+    monkeypatch.setattr(catalogue, "write_plot", fail)
+    with pytest.raises(OSError, match="disk full"):
+        import_dpf(catalogue, source)
+    assert catalogue.item_ids() == []
+    assert not (catalogue.store.root / "small").exists()
+    reopened = Catalogue.open(catalogue.store.root)
+    assert not [link for link in reopened.model.links if link.rel == "child"]
+
+
+def test_fix_labels_hidden_fixes_and_unknown_leg_content_are_reported(
+    catalogue: Catalogue, tmp_path: Path
+) -> None:
+    hidden = _fix("050000", extra=' Label="Turn here" Visible="false"')
+    labelled = _fix("050100", "-3.9", extra=' Label="0501"')
+    source = _plot_file(
+        tmp_path,
+        f'<track Name="T"><TrackSegment Name="one">{hidden}{labelled}'
+        '<waypoint Name="W1"/></TrackSegment></track>',
+    )
+    report = import_dpf(catalogue, source)
+    notes = "\n".join(report.omitted)
+    assert "Track 'T': 2 fix labels not imported." in notes
+    assert "Track 'T': 1 fix hidden in the legacy plot is imported and will be shown." in notes
+    assert "waypoint 'W1' not imported: in track 'T', leg 'one'" in notes
+
+
+def test_overlapping_legs_become_separate_tracks(catalogue: Catalogue, tmp_path: Path) -> None:
+    source = _plot_file(
+        tmp_path,
+        '<track Name="T">'
+        f'<TrackSegment Name="north">{_fix("050000")}{_fix("050200", "-3.8")}</TrackSegment>'
+        f'<TrackSegment Name="south">{_fix("050100", "-3.9")}{_fix("050300", "-3.7")}'
+        "</TrackSegment></track>"
+        '<track Name="U"><TrackSegment Name="a">'
+        f"{_fix('050000')}{_fix('050100', '-3.9')}</TrackSegment>"
+        f'<TrackSegment Name="b">{_fix("050100", "-3.8")}{_fix("050200", "-3.7")}'
+        "</TrackSegment></track>",
+    )
+    report = import_dpf(catalogue, source)
+    assert report.tracks == ["T (north)", "T (south)", "U"]
+    plot = catalogue.read_plot("made")
+    north = plot.features[0]
+    assert north.properties.name == "T (north)"
+    assert north.geometry.coordinates == [[-4.0, 50.0], [-3.8, 50.0]]
+    notes = "\n".join(report.omitted)
+    assert (
+        "Track 'T' has legs that overlap in time, so each leg is imported as a track of its "
+        "own: 'T (north)', 'T (south)'." in notes
+    )
+    assert "Track 'T' has 2 legs; they are joined" not in notes
+    # legs that only touch are joined; the shared time is reported
+    assert "Track 'U': 1 fix has the same time as the fix before" in notes
+    assert "1995-12-12T05:01:00.000Z" in notes
+
+
+def test_shapes_read_in_part_import_with_notes(catalogue: Catalogue, tmp_path: Path) -> None:
+    source = _plot_file(
+        tmp_path,
+        '<track Name="T"><colour Value="custom" CustomRed="300"/><TrackSegment>'
+        f"{_fix('050000')}{_fix('050100', '-3.9')}</TrackSegment></track>\n"
+        '<layer Name="L"><ellipse Label="old" Maxima="2" Minima="1" Orient="45">'
+        '<centre><shortLocation Lat="50" Long="-4"/></centre></ellipse>\n'
+        '<textlabel Label="back"><centre><shortLocation Lat="50" Long="-4"/></centre>'
+        '<timeRange Start="951212 060000" End="951212 050000"/></textlabel>\n'
+        '<circle Label="bad"><centre><shortLocation Lat="50" Long="-4"/></centre>'
+        '<Radius Units="furlongs" Value="1"/></circle></layer>',
+    )
+    report = import_dpf(catalogue, source)
+    assert report.tracks == ["T"] and report.annotations == 2
+    plot = catalogue.read_plot("made")
+    track = plot.features[0]
+    assert track.properties.style.colour == DEFAULT_COLOUR
+    notes = report.omitted
+    assert (
+        "Line 6: the colour of track 'T': colour values must be 0 to 255; the default is used."
+        in notes
+    )
+    assert any("'back': its time range ends before it starts" in n for n in notes)
+    (bad,) = [n for n in notes if "could not be read" in n]
+    assert bad.startswith("Line 9 could not be read: circle bad:")
+    assert "line" not in bad[len("Line 9") :].lower()
+    assert (
+        "The plot file was saved by legacy Debrief: 'Saved with Debrief version dated today'."
+        in notes
+    )
+
+
+def test_a_file_too_large_is_refused(catalogue: Catalogue, tmp_path: Path, monkeypatch) -> None:
+    from debrief_io import dpf_import
+
+    source = tmp_path / "small.dpf"
+    source.write_bytes(SYNTHETIC)
+    monkeypatch.setattr(dpf_import, "MAX_FILE_BYTES", 100)
+    with pytest.raises(DpfError, match="larger than"):
+        import_dpf(catalogue, source)
+    assert catalogue.item_ids() == []

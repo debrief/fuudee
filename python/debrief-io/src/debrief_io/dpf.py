@@ -122,16 +122,30 @@ def _refuse(*_args: object) -> None:
     raise DpfError("the file declares a document type or entities, which plot files never do")
 
 
-def parse_xml(data: bytes) -> Node:
-    """Read XML into a tree of Nodes, refusing document types and entities."""
+def parse_xml(data: bytes, shallow: frozenset[str] = frozenset()) -> Node:
+    """Read XML into a tree of Nodes, refusing document types and entities.
+
+    An element named in ``shallow`` keeps its children only as bare leaves (tag
+    and line), and nothing below them: the importer only counts those, so a
+    sensor's thousands of cuts cost one small node each, not a whole subtree.
+    """
     parser = expat.ParserCreate(namespace_separator="}")
-    stack: list[Node] = []
+    stack: list[Node | None] = []  # None: inside a subtree that is not kept
     root: list[Node] = []
 
     def start(tag: str, attrs: dict[str, str]) -> None:
-        node = Node(tag.rpartition("}")[2], attrs, parser.CurrentLineNumber)
-        if stack:
-            stack[-1].children.append(node)
+        parent = stack[-1] if stack else None
+        if stack and parent is None:
+            stack.append(None)
+            return
+        local = tag.rpartition("}")[2]
+        if parent is not None and parent.tag in shallow:
+            parent.children.append(Node(local, {}, parser.CurrentLineNumber))
+            stack.append(None)
+            return
+        node = Node(local, attrs, parser.CurrentLineNumber)
+        if parent is not None:
+            parent.children.append(node)
         else:
             root.append(node)
         stack.append(node)
@@ -163,7 +177,11 @@ def from_xml(text: str) -> str:
 
 
 def read_number(text: str | None, what: str) -> float:
-    """MWCXMLReader.readThisDouble: a decimal point or a decimal comma; NaN is refused."""
+    """MWCXMLReader.readThisDouble: a decimal point or a decimal comma.
+
+    NaN and infinities are refused, including a number too large for a
+    double, such as ``1e999``, which Python would read as infinity.
+    """
     if text is None:
         raise DpfError(f"missing {what}")
     trimmed = text.strip()
@@ -171,7 +189,14 @@ def read_number(text: str | None, what: str) -> float:
         raise DpfError(f"{text!r} is not a number ({what})")
     if _AMBIGUOUS_COMMA.fullmatch(trimmed):
         raise DpfError(f"{text!r} is ambiguous: a thousands separator or a decimal comma ({what})")
-    return float(trimmed.replace(",", "."))
+    return finite(float(trimmed.replace(",", ".")), what)
+
+
+def finite(value: float, what: str) -> float:
+    """The value, or DpfError if it is not a finite number."""
+    if not math.isfinite(value):
+        raise DpfError(f"{what} is too large to be a number")
+    return value
 
 
 def read_bool(text: str | None, default: bool) -> bool:
@@ -207,9 +232,9 @@ def read_colour(node: Node | None) -> str | None:
     try:
         rgb = [int(node.attrs.get(key, "0")) for key in ("CustomRed", "CustomGreen", "CustomBlue")]
     except ValueError:
-        raise DpfError(f"line {node.line}: colour values must be whole numbers") from None
+        raise DpfError("colour values must be whole numbers") from None
     if any(not 0 <= v <= 255 for v in rgb):
-        raise DpfError(f"line {node.line}: colour values must be 0 to 255")
+        raise DpfError("colour values must be 0 to 255")
     return "#{:02x}{:02x}{:02x}".format(*rgb)
 
 
@@ -218,6 +243,8 @@ class Location:
     latitude: float
     longitude: float
     depth_m: float
+    # The depth as written, when it could not be read and zero was used instead.
+    bad_depth: str | None = None
 
 
 def read_location(node: Node | None) -> Location | None:
@@ -226,25 +253,28 @@ def read_location(node: Node | None) -> Location | None:
         return None
     short = node.child("shortLocation")
     if short is not None:
-        latitude = read_number(short.attrs.get("Lat"), "latitude")
-        longitude = read_number(short.attrs.get("Long"), "longitude")
-        try:
-            depth = read_number(short.attrs.get("Depth", "0"), "depth")
-        except DpfError:
-            depth = 0.0  # as ShortLocationHandler: an unreadable depth reads as zero
+        a = short.attrs
+        latitude = read_number(a.get("Lat"), "latitude")
+        longitude = read_number(a.get("Long"), "longitude")
     else:
         long_ = node.child("longLocation")
         if long_ is None:
-            raise DpfError(f"line {node.line}: {node.tag} holds no location")
-        latitude, longitude, depth = _long_location(long_)
+            raise DpfError(f"{node.tag} holds no location")
+        a = long_.attrs
+        latitude, longitude = _long_location(a)
+    bad_depth = None
+    try:
+        depth = read_number(a.get("Depth", "0"), "depth")
+    except DpfError:
+        # As ShortLocationHandler: an unreadable depth reads as zero, and is reported.
+        depth, bad_depth = 0.0, a.get("Depth", "")
     if not -90 <= latitude <= 90 or not -180 <= longitude <= 180:
         raise DpfError(f"position {latitude:.4f}, {longitude:.4f} is out of range")
-    return Location(latitude, longitude, depth)
+    return Location(latitude, longitude, depth, bad_depth)
 
 
-def _long_location(node: Node) -> tuple[float, float, float]:
+def _long_location(a: dict[str, str]) -> tuple[float, float]:
     """LongLocationHandler: degrees, minutes, seconds and hemisphere for each axis."""
-    a = node.attrs
 
     def axis(prefix: str, negative: str) -> float:
         degrees = read_number(a.get(f"{prefix}Deg", "0"), "degrees")
@@ -255,8 +285,7 @@ def _long_location(node: Node) -> tuple[float, float, float]:
         value = degrees + int(minutes) / 60.0 + seconds / 3600.0
         return -value if a.get(f"{prefix}Hem", "").upper().startswith(negative) else value
 
-    depth = read_number(a.get("Depth", "0"), "depth")
-    return axis("Lat", "S"), axis("Long", "W"), depth
+    return axis("Lat", "S"), axis("Long", "W")
 
 
 def read_distance_m(node: Node | None) -> float | None:
@@ -265,8 +294,8 @@ def read_distance_m(node: Node | None) -> float | None:
         return None
     units = node.attrs.get("Units", "nm")
     if units not in METRES_PER:
-        raise DpfError(f"line {node.line}: {units!r} is not a distance unit")
-    return read_number(node.attrs.get("Value"), node.tag) * METRES_PER[units]
+        raise DpfError(f"{units!r} is not a distance unit")
+    return finite(read_number(node.attrs.get("Value"), node.tag) * METRES_PER[units], node.tag)
 
 
 def read_time_range(node: Node | None) -> tuple[int | None, int | None, int]:
@@ -293,6 +322,10 @@ class DpfFix:
     label: str | None = None
     comment: str | None = None
     colour: str | None = None
+    visible: bool = True
+    line: int = 0
+    # The depth as written, when it could not be read and zero was used instead.
+    bad_depth: str | None = None
 
 
 @dataclass
@@ -383,6 +416,8 @@ class DpfFile:
     skipped: list[DpfSkipped] = field(default_factory=list)
     # (line number, problem) for elements that could not be read.
     errors: list[tuple[int, str]] = field(default_factory=list)
+    # (line number, problem) for elements read in part, saying what was used instead.
+    warnings: list[tuple[int, str]] = field(default_factory=list)
     # Times with more than millisecond precision, truncated (SUB-01).
     truncated_times: int = 0
     # Settings of the legacy view: gui (tote, stepper, background) and projection.
@@ -428,10 +463,23 @@ TRACK_DISPLAY = {
 
 TRACK_LEGS = {"TrackSegment", "RelativeTMASegment", "AbsoluteTMASegment", "DynamicInfillSegment"}
 
+# What a TMA leg holds besides its fixes: the solution (CoreTMASegmentHandler,
+# RelativeTMASegmentHandler, AbsoluteTMASegmentHandler), reported with the leg.
+TMA_SOLUTION = {"Speed", "Offset", "Origin"}
+TMA_LEGS = {"RelativeTMASegment", "AbsoluteTMASegment"}
+
+# Elements the importer only names or counts the children of, never reads
+# inside: their subtrees are not kept in memory (see parse_xml).
+SHALLOW = frozenset(
+    {"sensor", "tma", "DynamicShapeSet", "composite_track", "satc_solution", "CoreFormatter"}
+    | set(CHART_FEATURES)
+    | set(SHAPE_REASONS)
+)
+
 
 def parse_dpf(data: bytes) -> DpfFile:
     """Read a plot file. Raises DpfError only when the file as a whole cannot be read."""
-    root = parse_xml(data)
+    root = parse_xml(data, SHALLOW)
     if root.tag != "plot":
         raise DpfError(f"the file's top element is {root.tag!r}, not a Debrief plot")
     result = DpfFile()
@@ -560,9 +608,10 @@ def _read_layer(node: Node, result: DpfFile) -> None:
 
 def _read_track(node: Node, result: DpfFile) -> None:
     """TrackHandler: a track's name, colour, legs and fixes, and what it carries."""
+    name = node.name() or "Unnamed track"
     track = DpfTrack(
-        name=node.name() or "Unnamed track",
-        colour=read_colour(node.child("colour")),
+        name=name,
+        colour=_colour_or_default(node.child("colour"), f"track {name!r}", result),
         visible=read_bool(node.attrs.get("Visible"), True),
     )
     loose = DpfLeg("fix", None)  # fixes held directly by the track
@@ -577,6 +626,10 @@ def _read_track(node: Node, result: DpfFile) -> None:
                     leg = DpfLeg(inner.tag, inner.attrs.get("Name"))
                     leg.fixes = _read_fixes(inner, track.name, result)
                     track.legs.append(leg)
+                else:
+                    result.skipped.append(
+                        DpfSkipped(inner.tag, inner.name(), None, f"in track {name!r}: {UNKNOWN}")
+                    )
         elif child.tag == "fix":
             fix = _read_fix_or_report(child, track.name, result)
             if fix:
@@ -599,14 +652,27 @@ def _read_track(node: Node, result: DpfFile) -> None:
     result.tracks.append(track)
 
 
+def _colour_or_default(node: Node | None, what: str, result: DpfFile) -> str | None:
+    """A colour, or None (the default colour) with a warning when it cannot be read."""
+    try:
+        return read_colour(node)
+    except DpfError as error:
+        result.warnings.append((node.line, f"the colour of {what}: {error}; the default is used"))
+        return None
+
+
 def _read_fixes(leg: Node, track: str, result: DpfFile) -> list[DpfFix]:
-    """CoreTrackSegmentHandler: the fixes of one leg."""
+    """CoreTrackSegmentHandler: the fixes of one leg; anything else is reported."""
     fixes = []
     for node in leg.children:
         if node.tag == "fix":
             fix = _read_fix_or_report(node, track, result)
             if fix:
                 fixes.append(fix)
+        elif not (leg.tag in TMA_LEGS and node.tag in TMA_SOLUTION):
+            leg_name = leg.attrs.get("Name")
+            where = f"in track {track!r}" + (f", leg {leg_name!r}" if leg_name else "")
+            result.skipped.append(DpfSkipped(node.tag, node.name(), None, f"{where}: {UNKNOWN}"))
     return fixes
 
 
@@ -641,8 +707,10 @@ def read_fix(node: Node) -> tuple[DpfFix, bool]:
     if course < 0:
         course += 360
     speed = read_number(a.get("Speed", "0"), "speed")
-    if not (math.isfinite(course) and math.isfinite(speed)):
-        raise DpfError("course and speed must be numbers")
+    try:
+        colour = read_colour(node.child("colour"))
+    except DpfError:
+        colour = None  # a fix's own colour is not imported; the track's is used
     fix = DpfFix(
         time_ms=when[0],
         latitude=location.latitude,
@@ -652,7 +720,10 @@ def read_fix(node: Node) -> tuple[DpfFix, bool]:
         speed_kn=speed,
         label=from_xml(a["Label"]) if a.get("Label") else None,
         comment=from_xml(a["Comment"]) if a.get("Comment") else None,
-        colour=read_colour(node.child("colour")),
+        colour=colour,
+        visible=read_bool(a.get("Visible"), True),
+        line=node.line,
+        bad_depth=location.bad_depth,
     )
     return fix, when[1]
 
@@ -684,6 +755,11 @@ def _read_narrative(node: Node, result: DpfFile) -> None:
         )
 
 
+def _kiloyards(text: str | None, what: str) -> float:
+    """A distance in kiloyards, as older files give a circle's radius or an ellipse's axes."""
+    return finite(read_number(text, what) * METRES_PER["kyds"], what)
+
+
 def _corner(node: Node, tag: str) -> tuple[float, float]:
     location = read_location(node.child(tag))
     if location is None:
@@ -696,13 +772,23 @@ def _read_shape(node: Node, layer: str, result: DpfFile) -> DpfShape:
     a = node.attrs
     start, end, truncated = read_time_range(node.child("timeRange"))
     result.truncated_times += truncated
+    label = from_xml(a.get("Label", ""))
     if start is not None and end == start:
         end = None  # as ShapeHandler: an end equal to the start is no end
+    elif start is not None and end is not None and end < start:
+        result.warnings.append(
+            (
+                node.line,
+                f"{node.tag} {label!r}: its time range ends before it starts; "
+                "only its start time is imported",
+            )
+        )
+        end = None
     shape = DpfShape(
         kind=node.tag,
         layer=layer,
-        label=from_xml(a.get("Label", "")),
-        colour=read_colour(node.child("colour")),
+        label=label,
+        colour=_colour_or_default(node.child("colour"), f"{node.tag} {label!r}", result),
         visible=read_bool(a.get("Visible"), True),
         time_ms=start,
         end_ms=end,
@@ -713,7 +799,7 @@ def _read_shape(node: Node, layer: str, result: DpfFile) -> DpfShape:
         shape.centre = _corner(node, "centre")
         radius = read_distance_m(node.child("Radius"))
         if radius is None:  # older files: a Radius attribute in kiloyards
-            radius = read_number(a.get("Radius"), "radius") * METRES_PER["kyds"]
+            radius = _kiloyards(a.get("Radius"), "radius")
         shape.radius_m = radius
     elif node.tag in ("rectangle", "line"):
         shape.points = [_corner(node, "tl"), _corner(node, "br")]
@@ -728,10 +814,15 @@ def _read_shape(node: Node, layer: str, result: DpfFile) -> DpfShape:
         shape.closed = read_bool(a.get("Closed"), True)
     elif node.tag == "ellipse":
         shape.centre = _corner(node, "centre")
-        shape.radius_m = read_distance_m(node.child("Maxima"))
-        shape.minor_m = read_distance_m(node.child("Minima"))
-        if shape.radius_m is None or shape.minor_m is None:
-            raise DpfError("an ellipse needs its maxima and minima")
+        # EllipseHandler: Maxima and Minima elements, or in older files
+        # attributes in kiloyards, as for a circle's radius.
+        for axis, attribute in (("radius_m", "Maxima"), ("minor_m", "Minima")):
+            distance = read_distance_m(node.child(attribute))
+            if distance is None:
+                if attribute not in a:
+                    raise DpfError("an ellipse needs its maxima and minima")
+                distance = _kiloyards(a[attribute], attribute.lower())
+            setattr(shape, axis, distance)
         shape.orientation_deg = read_number(a.get("Orient", "0"), "orientation")
     elif node.tag == "vector":
         # VectorHandler: a start, a bearing in degrees and a distance.

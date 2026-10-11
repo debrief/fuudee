@@ -10,7 +10,9 @@ analyst sees) and in the plot's provenance, so the list travels with the plot.
 What becomes what:
 
 - Tracks: every leg's fixes, joined into one track in time order, with
-  courses, speeds, depths and the track's colour.
+  courses, speeds, depths and the track's colour. When legs overlap in
+  time, joining them would zig-zag between them, so each leg becomes a
+  track of its own instead, named "<track> (<leg>)".
 - Text labels: label annotations. Circles, rectangles, lines, polygons,
   ellipses and vectors: shape annotations. Circles and ellipses become
   polygons of 72 sides, since GeoJSON has no curves.
@@ -29,8 +31,8 @@ from collections import Counter
 from importlib.metadata import version
 from pathlib import Path
 
-from debrief_io.dpf import DpfFile, DpfShape, DpfTrack, parse_dpf
-from debrief_io.importer import Clock, ImportReport, wall_clock
+from debrief_io.dpf import DpfError, DpfFile, DpfFix, DpfShape, DpfTrack, parse_dpf
+from debrief_io.importer import Clock, ImportReport, store_import, wall_clock
 from debrief_io.rep import DEFAULT_COLOUR
 from debrief_kernel.geodesy import Position, destination
 from debrief_kernel.time import format_utc
@@ -43,6 +45,13 @@ MEDIA_TYPE = "application/xml"
 
 # Sides of the polygon that stands in for a circle or an ellipse.
 CURVE_SIDES = 72
+
+# The largest plot file imported. The whole file is read into memory, and its
+# tree with it; legacy plot files are rarely more than a few megabytes.
+MAX_FILE_BYTES = 200 * 1024 * 1024
+
+# How many unreadable depths a note lists by line before summing up the rest.
+LISTED = 5
 
 TMA_LEGS = {
     "RelativeTMASegment": "a TMA solution relative to another track",
@@ -82,10 +91,9 @@ def _entity(element: str, name: str | None, layer: str | None) -> str:
 # --- Tracks ------------------------------------------------------------------------
 
 
-def _track_feature(feature_id: str, track: DpfTrack) -> models.TrackFeature:
-    fixes = sorted(
-        (f for leg in track.legs for f in leg.fixes), key=lambda f: f.time_ms
-    )  # stable: equal times keep file order
+def _track_feature(
+    feature_id: str, name: str, track: DpfTrack, fixes: list[DpfFix]
+) -> models.TrackFeature:
     return models.TrackFeature(
         type="Feature",
         id=feature_id,
@@ -94,7 +102,7 @@ def _track_feature(feature_id: str, track: DpfTrack) -> models.TrackFeature:
         ),
         properties=models.TrackProperties(
             kind="track",
-            name=track.name,
+            name=name,
             times=[format_utc(f.time_ms) for f in fixes],
             speeds=models.SpeedSeries(unit="[kn_i]", values=[f.speed_kn for f in fixes]),
             courses=models.AngleSeries(unit="deg", values=[f.course_deg for f in fixes]),
@@ -104,10 +112,53 @@ def _track_feature(feature_id: str, track: DpfTrack) -> models.TrackFeature:
     )
 
 
-def _track_notes(track: DpfTrack) -> list[str]:
+def _track_parts(track: DpfTrack) -> list[tuple[str, list[DpfFix]]] | None:
+    """Each leg as a track of its own, named "<track> (<leg>)", when legs overlap in time.
+
+    None when they do not, and the legs are joined into one track. Joining
+    legs that overlap would zig-zag between them in time order.
+    """
+    spans = sorted(
+        (min(f.time_ms for f in leg.fixes), max(f.time_ms for f in leg.fixes))
+        for leg in track.legs
+        if leg.fixes
+    )
+    latest_end = None
+    overlap = False
+    for start, end in spans:
+        if latest_end is not None and start < latest_end:
+            overlap = True
+        latest_end = end if latest_end is None else max(latest_end, end)
+    if not overlap:
+        return None
+    parts = []
+    for index, leg in enumerate(track.legs, start=1):
+        leg_name = leg.name or ("loose fixes" if leg.kind == "fix" else f"leg {index}")
+        parts.append((f"{track.name} ({leg_name})", leg.fixes))
+    return parts
+
+
+def _in_time_order(fixes: list[DpfFix]) -> list[DpfFix]:
+    return sorted(fixes, key=lambda f: f.time_ms)  # stable: equal times keep file order
+
+
+def _duplicate_times_note(name: str, fixes: list[DpfFix]) -> str | None:
+    """Fixes that share a time with the fix before them. A plot allows equal times, so they stay."""
+    repeats = [b for a, b in zip(fixes, fixes[1:], strict=False) if a.time_ms == b.time_ms]
+    if not repeats:
+        return None
+    return (
+        f"Track {name!r}: {_plural(len(repeats), 'fix', 'fixes')} "
+        f"{'has' if len(repeats) == 1 else 'have'} the same time as the fix before "
+        f"(the first at {format_utc(repeats[0].time_ms)}); "
+        f"{'it is' if len(repeats) == 1 else 'they are'} imported as saved."
+    )
+
+
+def _track_notes(track: DpfTrack, joined: bool) -> list[str]:
     notes = []
     name = track.name
-    if len(track.legs) > 1:
+    if joined and len(track.legs) > 1:
         notes.append(
             f"Track {name!r} has {len(track.legs)} legs; they are joined into one track "
             "in time order, and their names and line styles are not imported."
@@ -136,11 +187,28 @@ def _track_notes(track: DpfTrack) -> list[str]:
     comments = sum(1 for f in fixes if f.comment)
     if comments:
         notes.append(f"Track {name!r}: {_plural(comments, 'fix comment')} not imported.")
+    labels = sum(1 for f in fixes if f.label)
+    if labels:
+        notes.append(f"Track {name!r}: {_plural(labels, 'fix label')} not imported.")
     coloured = sum(1 for f in fixes if f.colour and f.colour != track.colour)
     if coloured:
         notes.append(
             f"Track {name!r}: {_plural(coloured, 'fix', 'fixes')} drawn in a colour of their own; "
             "a v4 track has one colour, so these take the track's."
+        )
+    hidden = sum(1 for f in fixes if not f.visible)
+    if hidden:
+        notes.append(
+            f"Track {name!r}: {_plural(hidden, 'fix', 'fixes')} hidden in the legacy plot "
+            f"{_are(hidden)} imported and will be shown."
+        )
+    bad = [f for f in fixes if f.bad_depth is not None]
+    if bad:
+        listed = ", ".join(f"{f.bad_depth!r} at line {f.line}" for f in bad[:LISTED])
+        more = f", and {len(bad) - LISTED} more" if len(bad) > LISTED else ""
+        notes.append(
+            f"Track {name!r}: {_plural(len(bad), 'fix', 'fixes')} had a depth that could not "
+            f"be read ({listed}{more}); a depth of zero is used."
         )
     return notes
 
@@ -260,25 +328,43 @@ def build_plot_from_dpf(
             f"{_plural(parsed.truncated_times, 'time')} had more than millisecond precision "
             f"and {'was' if parsed.truncated_times == 1 else 'were'} truncated to milliseconds."
         )
+    if parsed.saved_by:
+        notes.append(f"The plot file was saved by legacy Debrief: {parsed.saved_by!r}.")
     for line, problem in parsed.errors:
         notes.append(f"Line {line} could not be read: {problem}.")
+    for line, problem in parsed.warnings:
+        notes.append(f"Line {line}: {problem}.")
 
     # Tracks.
     hidden = 0
     for track in parsed.tracks:
-        count = sum(len(leg.fixes) for leg in track.legs)
-        if count < 2:
+        parts = _track_parts(track)
+        if parts is not None:
+            names = ", ".join(repr(name) for name, _ in parts)
             notes.append(
-                f"Track {track.name!r} has {_plural(count, 'fix', 'fixes')}, "
-                "so it was not imported as a track."
+                f"Track {track.name!r} has legs that overlap in time, so each leg is "
+                f"imported as a track of its own: {names}."
             )
-            notes += [n for n in _track_notes(track) if "legs; they are joined" not in n]
-            continue
-        features.append(_track_feature(_unique_id("track", track.name, taken), track))
-        report.tracks.append(track.name)
-        report.fixes += count
-        hidden += not track.visible
-        notes += _track_notes(track)
+        else:
+            parts = [(track.name, [f for leg in track.legs for f in leg.fixes])]
+        imported = False
+        for name, fixes in parts:
+            if len(fixes) < 2:
+                notes.append(
+                    f"Track {name!r} has {_plural(len(fixes), 'fix', 'fixes')}, "
+                    "so it was not imported as a track."
+                )
+                continue
+            fixes = _in_time_order(fixes)
+            features.append(_track_feature(_unique_id("track", name, taken), name, track, fixes))
+            report.tracks.append(name)
+            report.fixes += len(fixes)
+            hidden += not track.visible
+            imported = True
+            duplicates = _duplicate_times_note(name, fixes)
+            if duplicates:
+                notes.append(duplicates)
+        notes += _track_notes(track, joined=imported and len(parts) == 1)
 
     # Annotations, grouped by layer.
     members: dict[str, list[str]] = {}
@@ -411,16 +497,29 @@ def import_dpf(
 ) -> ImportReport:
     """Import a legacy plot file as a new plot in the catalogue.
 
-    The file is read before anything is written: a file that cannot be read
-    at all raises DpfError and leaves the catalogue unchanged.
+    The file is read, and the plot built and validated, before anything is
+    written: a file that cannot be read at all raises DpfError, a plot that
+    is not valid raises DocumentValidationError, and either leaves the
+    catalogue unchanged. A file larger than MAX_FILE_BYTES is refused.
     """
     path = Path(path)
-    parsed = parse_dpf(path.read_bytes())
+    with path.open("rb") as stream:
+        data = stream.read(MAX_FILE_BYTES + 1)
+    if len(data) > MAX_FILE_BYTES:
+        raise DpfError(
+            f"{path.name} is larger than {MAX_FILE_BYTES // (1024 * 1024)} MB, "
+            "the largest plot file this importer reads"
+        )
+    parsed = parse_dpf(data)
     item_id = item_id or re.sub(r"[^A-Za-z0-9._-]+", "-", path.stem).strip("-.") or "plot"
     agent = agent or models.AgentRef(kind="person", name="analyst")
-    catalogue.create_plot(item_id, title or path.stem, allow_newer_schema=allow_newer_schema)
-    source = catalogue.add_source(item_id, path, media_type=MEDIA_TYPE)
-    plot, report = build_plot_from_dpf(parsed, source, agent, clock=clock)
-    catalogue.write_plot(item_id, plot, allow_newer_schema=allow_newer_schema)
-    report.item_id = item_id
-    return report
+    return store_import(
+        catalogue,
+        path,
+        data,
+        item_id,
+        title or path.stem,
+        MEDIA_TYPE,
+        lambda source: build_plot_from_dpf(parsed, source, agent, clock=clock),
+        allow_newer_schema=allow_newer_schema,
+    )

@@ -55,6 +55,22 @@ MIN_TOKEN_LENGTH = 32
 log = logging.getLogger("debrief_tools")
 
 
+def _is_plot_file(path: Path) -> bool:
+    """A legacy plot file: a .dpf, or an .xml file whose root element is a plot.
+
+    Legacy Debrief also saves plots as .xml. Other XML is not sent to the plot
+    importer; the first kilobyte is enough to see the root element.
+    """
+    suffix = path.suffix.lower()
+    if suffix == ".dpf":
+        return True
+    if suffix != ".xml":
+        return False
+    with path.open("rb") as stream:
+        head = stream.read(1024)
+    return re.search(rb"<(?:[A-Za-z_][\w.-]*:)?plot[\s>/]", head) is not None
+
+
 class RpcError(Exception):
     def __init__(self, code: int, message: str):
         super().__init__(message)
@@ -305,7 +321,7 @@ class ToolService:
             while item_id in taken:
                 item_id, n = f"{stem}-{n}", n + 1
             agent = params.get("agent") or {"kind": "person", "name": "analyst"}
-            importer = import_dpf if Path(path).suffix.lower() in (".dpf", ".xml") else import_rep
+            importer = import_dpf if _is_plot_file(Path(path)) else import_rep
             report = importer(
                 catalogue, Path(path), item_id=item_id, agent=models.AgentRef(**agent)
             )

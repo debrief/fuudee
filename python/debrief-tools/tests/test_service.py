@@ -336,3 +336,18 @@ def test_a_legacy_plot_file_imports_with_its_omissions_listed(client) -> None:
     assert report["item"] == "shapes" and report["omitted"]
     steps = rpc(client, "debrief/history", {"store": "exercise", "item": "shapes"}).json()
     assert [s["kind"] for s in steps["result"]["steps"]] == ["import"]
+
+
+def test_only_plot_xml_goes_to_the_plot_importer(client, tmp_path: Path) -> None:
+    shapes = Path(__file__).parents[2] / "debrief-io" / "tests" / "data" / "shapes.dpf"
+    saved_as_xml = tmp_path / "saved.xml"
+    saved_as_xml.write_bytes(shapes.read_bytes())
+    params = {"store": "exercise", "path": str(saved_as_xml), "agent": AGENT}
+    report = rpc(client, "debrief/import", params).json()["result"]
+    assert report["tracks"] and report["annotations"]
+    # Other XML is not a plot file: it goes to the REP importer, which lists its lines.
+    other = tmp_path / "route.xml"
+    other.write_text('<?xml version="1.0"?>\n<gpx version="1.1"><rte/></gpx>\n')
+    params = {"store": "exercise", "path": str(other), "agent": AGENT}
+    report = rpc(client, "debrief/import", params).json()["result"]
+    assert report["tracks"] == [] and report["omitted"]

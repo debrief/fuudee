@@ -57,7 +57,7 @@ def test_numbers(text: str, value: float) -> None:
 @pytest.mark.parametrize(
     "text",
     ["12abc", "12.5abc", "22 10", "1.2.3", "", "   ", "x", "NaN", "nan", "Infinity", "1,234",
-     "-12,500", "1,234,567", None],
+     "-12,500", "1,234,567", None, "1e999", "-1e999", "1,5e400"],
 )  # fmt: skip
 def test_numbers_rejected(text: str | None) -> None:
     with pytest.raises(DpfError):
@@ -126,9 +126,17 @@ def test_short_location() -> None:
     assert (loc.latitude, loc.longitude, loc.depth_m) == (50, -1.5, 12)
 
 
-def test_unreadable_depth_reads_as_zero() -> None:
-    loc = read_location(_node('<centre><shortLocation Lat="50" Long="-1" Depth="deep"/></centre>'))
-    assert loc.depth_m == 0
+@pytest.mark.parametrize("depth", ["deep", "1e999"])
+def test_unreadable_depth_reads_as_zero_and_is_kept_for_the_report(depth: str) -> None:
+    loc = read_location(
+        _node(f'<centre><shortLocation Lat="50" Long="-1" Depth="{depth}"/></centre>')
+    )
+    assert (loc.depth_m, loc.bad_depth) == (0, depth)
+
+
+def test_distances_too_large_are_refused() -> None:
+    with pytest.raises(DpfError):
+        read_distance_m(_node('<Radius Units="degs" Value="1e306"/>'))
 
 
 def test_bad_latitude_is_an_error() -> None:
@@ -258,6 +266,80 @@ def test_track_legs_sensors_and_errors() -> None:
     ((line, problem),) = parsed.errors
     assert line == 17 and "NELSON" in problem
     assert parsed.saved_by == "Saved with Debrief version dated today"
+    assert parsed.skipped == []  # a TMA leg's solution is part of the leg, reported with it
+
+
+def test_unknown_children_of_a_leg_are_reported() -> None:
+    parsed = parse_dpf(
+        _plot(
+            f'<track Name="T"><TrackSegment Name="one">{FIX}<waypoint Name="W1"/>'
+            "</TrackSegment><SegmentList><Mystery/></SegmentList></track>"
+        )
+    )
+    assert [(s.element, s.name) for s in parsed.skipped] == [("waypoint", "W1"), ("Mystery", None)]
+    assert "track 'T', leg 'one'" in parsed.skipped[0].reason
+
+
+def test_a_bad_track_colour_falls_back_to_the_default() -> None:
+    parsed = parse_dpf(
+        _plot(
+            '<track Name="T"><colour Value="custom" CustomRed="300"/>'
+            f"<TrackSegment>{FIX}</TrackSegment></track>"
+        )
+    )
+    (track,) = parsed.tracks
+    assert track.colour is None and len(track.legs[0].fixes) == 1
+    ((line, problem),) = parsed.warnings
+    assert line == 6 and "0 to 255" in problem and "default" in problem
+    assert parsed.errors == []
+
+
+def test_skipped_subtrees_are_not_kept() -> None:
+    parsed = parse_xml(
+        b'<plot><sensor Name="S"><sensor_contact><centre><shortLocation/></centre>'
+        b"</sensor_contact></sensor><track><fix><centre/></fix></track></plot>",
+        frozenset({"sensor"}),
+    )
+    sensor, track = parsed.children
+    (contact,) = sensor.children
+    assert contact.tag == "sensor_contact" and contact.children == []
+    assert track.children[0].children[0].tag == "centre"  # not pruned
+
+
+def test_messages_do_not_repeat_the_line_number() -> None:
+    parsed = parse_dpf(
+        _plot('<layer Name="L"><circle Label="c"><centre><shortLocation Lat="50" Long="-4"/>'
+              '</centre><Radius Units="furlongs" Value="1"/></circle></layer>')
+    )  # fmt: skip
+    ((_, problem),) = parsed.errors
+    assert "furlongs" in problem and "line" not in problem.lower()
+
+
+def test_ellipse_axes_as_attributes_in_kiloyards() -> None:
+    parsed = parse_dpf(
+        _plot(
+            '<layer Name="L"><ellipse Label="old" Maxima="2" Minima="1" Orient="45">'
+            '<centre><shortLocation Lat="50" Long="-4"/></centre></ellipse></layer>'
+        )
+    )
+    assert parsed.errors == []
+    (ellipse,) = parsed.shapes
+    assert ellipse.radius_m == pytest.approx(2000 * 0.914399, rel=1e-5)
+    assert ellipse.minor_m == pytest.approx(1000 * 0.914399, rel=1e-5)
+    assert ellipse.orientation_deg == 45
+
+
+def test_a_time_range_ending_before_it_starts_is_reported() -> None:
+    parsed = parse_dpf(
+        _plot(
+            '<layer Name="L"><textlabel Label="back"><centre><shortLocation Lat="50" Long="-4"/>'
+            '</centre><timeRange Start="951212 060000" End="951212 050000"/></textlabel></layer>'
+        )
+    )
+    (label,) = parsed.shapes
+    assert label.end_ms is None and label.time_ms is not None
+    ((_, problem),) = parsed.warnings
+    assert "ends before it starts" in problem
 
 
 SHAPES = """\
