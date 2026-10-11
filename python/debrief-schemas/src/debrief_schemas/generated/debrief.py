@@ -84,7 +84,7 @@ linkml_meta = LinkMLMeta({'default_prefix': 'debrief',
                              'prefix_reference': 'https://w3id.org/linkml/'},
                   'prov': {'prefix_prefix': 'prov',
                            'prefix_reference': 'http://www.w3.org/ns/prov#'}},
-     'source_file': '/home/user/fuudee/schemas/linkml/debrief.yaml',
+     'source_file': 'schemas/linkml/debrief.yaml',
      'title': 'Debrief data-file schema',
      'types': {'ContentHash': {'description': 'SHA-256 of a source file, as '
                                               'lowercase hex prefixed "sha256:" '

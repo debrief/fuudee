@@ -58,6 +58,8 @@ def generate() -> dict[Path, str]:
     view = SchemaView(str(SOURCE))
     _push_type_patterns_to_slots(view)
     schema = view.schema
+    # Record the source relative to the repo so output is the same on every machine.
+    schema.source_file = SOURCE.relative_to(ROOT).as_posix()
 
     json_schema = JsonSchemaGenerator(schema, mergeimports=True).serialize()
     # Stable, diff-friendly output.
