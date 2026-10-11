@@ -182,6 +182,9 @@ export type WebviewMessageKindEnum =
   | "show_plot"
   | "set_selection"
   | "selection_changed"
+  | "set_time"
+  | "time_changed"
+  | "set_viewport"
   | "viewport_changed"
   | "show_form"
   | "run_tool"
@@ -978,6 +981,7 @@ export interface WebviewMessage {
   result_title?: string | null;
   selected_names?: string[] | null;
   selection?: Selection | null;
+  time?: TimeState | null;
   /**
    * The plot's period, so times can be entered as the analyst reads them.
    */

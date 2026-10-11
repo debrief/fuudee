@@ -389,7 +389,7 @@ def _tool_result_problems(result: g.ToolResult, raw: dict[str, Any]) -> list[str
     return problems
 
 
-def _state_problems(state: g.SharedState | g.SharedStateChange) -> list[str]:
+def _state_problems(state: g.SharedState | g.SharedStateChange | g.WebviewMessage) -> list[str]:
     problems = []
     if state.time is not None:
         problems += _time_range_problems("time", state.time.range)
@@ -438,9 +438,12 @@ def _user_config_problems(config: g.UserConfig, raw: dict[str, Any]) -> list[str
 # through schemas/vectors/webview-messages.json, which a test checks matches.
 MESSAGE_MEMBERS: dict[str, tuple[str, ...]] = {
     "ready": (),
-    "show_plot": ("plot", "plot_title", "selection"),
+    "show_plot": ("plot", "plot_title", "selection", "time?", "viewport?"),
     "set_selection": ("selection",),
     "selection_changed": ("selection",),
+    "set_time": ("time",),
+    "time_changed": ("time",),
+    "set_viewport": ("viewport",),
     "viewport_changed": ("viewport",),
     "show_form": ("tool", "selected_names", "time_range?"),
     "run_tool": ("tool_name", "parameters"),
@@ -453,11 +456,14 @@ MESSAGE_MEMBERS: dict[str, tuple[str, ...]] = {
 
 def _webview_message_problems(message: g.WebviewMessage, raw: dict[str, Any]) -> list[str]:
     kind = str(message.kind)
-    needed = MESSAGE_MEMBERS[kind]
+    members = MESSAGE_MEMBERS[kind]
+    needed = [m for m in members if not m.endswith("?")]
+    allowed = {m.rstrip("?") for m in members}
     problems = [f"{kind} needs {member}" for member in needed if member not in raw]
     problems += [
-        f"{kind} does not carry {member}" for member in sorted(set(raw) - {"kind", *needed})
+        f"{kind} does not carry {member}" for member in sorted(set(raw) - {"kind", *allowed})
     ]
+    problems += _state_problems(message)  # time and viewport, where carried
     if message.plot is not None:
         problems += _plot_problems(message.plot, raw["plot"])
     if message.result is not None:

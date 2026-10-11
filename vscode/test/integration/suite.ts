@@ -1,7 +1,8 @@
 /**
  * The Phase 1 tracer, driven inside VS Code: open a plot from a catalogue,
  * select tracks, see the tools on offer, fill in a form, run tools, and see
- * the results on the map and in the results panel.
+ * the results on the map and in the results panel. Phase 2 adds shared state:
+ * current time set by another extension and by a tool.
  */
 import assert from "node:assert/strict";
 import { execFileSync } from "node:child_process";
@@ -57,6 +58,21 @@ export async function run(): Promise<void> {
   await sleep(1500); // let the map settle before the picture
   await screenshot("01-sample-serial-open");
 
+  // Shared state (SUB-26, SUB-27): current time starts at the plot's start;
+  // another extension sets it, and the map's time control and markers follow.
+  const start = api.getState()!.time;
+  assert.equal(start.current, start.range.start);
+  const heard: string[] = [];
+  const listening = api.onDidChangeState((change, origin) => heard.push(`${Object.keys(change).join()}:${origin}`));
+  const midway = new Date((Date.parse(start.range.start) + Date.parse(start.range.end)) / 2).toISOString();
+  assert.equal(api.setState({ time: { current: midway, range: start.range } }), undefined);
+  assert.match(api.setState({ time: { current: "1900-01-01T00:00:00.000Z", range: start.range } }) ?? "", /within the time range/);
+  const viewport = await waitFor("the map to report its viewport", () => api.session.viewport);
+  assert.deepEqual(api.getState()!.viewport, viewport);
+  assert.ok(heard.includes("time:extension"));
+  await sleep(1000);
+  await screenshot("01b-current-time");
+
   // Select BLUE ONE: the tools for one track are offered; open range rings.
   await vscode.commands.executeCommand("debrief.select", ["track-blue-one"]);
   await waitFor("tools for one track", () => api.offered().includes("core.range_rings") || undefined);
@@ -83,6 +99,10 @@ export async function run(): Promise<void> {
   await waitFor("closest approach line", () =>
     api.session.current?.plot.features.some((f) => f.id.startsWith("cpa-")) || undefined,
   );
+  // Closest approach set current time to the moment it found (TL-10).
+  await waitFor("closest approach to move current time", () => heard.some((h) => h === "time:tool:core.closest_approach") || undefined);
+  assert.notEqual(api.getState()!.time.current, midway);
+  listening.dispose();
   await sleep(3000);
   await screenshot("03-closest-approach", true);
 

@@ -6,7 +6,7 @@
  */
 import { userInfo } from "node:os";
 import * as vscode from "vscode";
-import type { ParameterValue, ToolDeclaration } from "@debrief/schemas";
+import type { ParameterValue, SharedState, SharedStateChange, ToolDeclaration } from "@debrief/schemas";
 import { knownStores, openPlot } from "./catalogue.js";
 import { count, describeChanges } from "./format.js";
 import { resolveTimes } from "./timeinput.js";
@@ -22,6 +22,15 @@ import { ToolsProvider } from "./views/tools.js";
 /** What the integration tests and agents can inspect. */
 export interface DebriefApi {
   session: Session;
+  /**
+   * Shared state for other extensions (SUB-27): current time, selection and
+   * viewport of the open plot, or undefined with none open.
+   */
+  getState: () => SharedState | undefined;
+  /** Set some or all of shared state. Returns why it was refused, if it was. */
+  setState: (change: SharedStateChange) => string | undefined;
+  /** Called with each change to shared state and the view, extension or tool that made it. */
+  onDidChangeState: (listener: (change: SharedStateChange, origin: string) => void) => vscode.Disposable;
   ready: Promise<void>;
   tools: () => ToolListing | undefined;
   /** Whether the map has drawn the current plot, for tests and agents. */
@@ -157,6 +166,7 @@ export function activate(context: vscode.ExtensionContext): DebriefApi {
         selection: session.selection,
         parameters: values,
         agent,
+        state: session.state(), // tools read current time, selection and viewport (TL-10)
       });
     } catch (error) {
       return (error as Error).message;
@@ -167,6 +177,8 @@ export function activate(context: vscode.ExtensionContext): DebriefApi {
       if (problem) return problem;
     }
     const result = outcome.result;
+    // A tool sets shared state by returning it, after the plot has its new features.
+    if (result?.state_change) session.apply(result.state_change, `tool:${tool.name}`);
     if (result?.non_spatial?.length) results.show(tool, result);
     const said = describeChanges(result);
     if (said) void vscode.window.showInformationMessage(`${tool.title} ${said}.`);
@@ -205,6 +217,9 @@ export function activate(context: vscode.ExtensionContext): DebriefApi {
   });
 
   command("debrief.select", (ids: string[]) => session.select(ids ?? [], "command"));
+  // Shared state for agents and keyboard users (SUB-27).
+  command("debrief.getState", () => session.state());
+  command("debrief.setState", (change: SharedStateChange) => session.apply(change ?? {}, "command"));
   command("debrief.clearSelection", () => session.select([], "command"));
   command("debrief.refresh", () => {
     catalogues.refresh();
@@ -300,7 +315,17 @@ export function activate(context: vscode.ExtensionContext): DebriefApi {
     }
   });
 
-  return { session, ready, tools: () => listing, mapShowing: () => map.showing, offered: () => tools.offered, toolsProblem: () => tools.problem };
+  return {
+    session,
+    getState: () => session.state(),
+    setState: (change) => session.apply(change, "extension"),
+    onDidChangeState: (listener) => new vscode.Disposable(session.onState(listener)),
+    ready,
+    tools: () => listing,
+    mapShowing: () => map.showing,
+    offered: () => tools.offered,
+    toolsProblem: () => tools.problem,
+  };
 }
 
 export function deactivate(): void {}

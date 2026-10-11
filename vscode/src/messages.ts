@@ -5,6 +5,7 @@
  */
 import { DocumentValidationError, validateDocument, type WebviewMessage } from "@debrief/schemas";
 import table from "../../schemas/vectors/webview-messages.json";
+import { timeProblem, viewportProblem } from "./session.js";
 
 const MEMBERS = table.members as Record<string, string[]>;
 
@@ -18,6 +19,11 @@ export function checkMessage(raw: unknown): WebviewMessage {
     ...needed.filter((m) => !(m in message)).map((m) => `${message.kind} needs ${m}`),
     ...present.filter((m) => !allowed.includes(m)).map((m) => `${message.kind} does not carry ${m}`),
   ];
+  // The rules on shared state Python's validation applies too.
+  const time = message.time && timeProblem(message.time);
+  if (time) problems.push(`time: ${time}`);
+  const viewport = message.viewport && viewportProblem(message.viewport);
+  if (viewport) problems.push(`viewport: ${viewport}`);
   if (problems.length) throw new DocumentValidationError(problems);
   return message;
 }

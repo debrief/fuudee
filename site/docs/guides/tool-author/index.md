@@ -143,6 +143,7 @@ Return a `models.ToolResult` holding any of:
 - **Deleted feature ids.**
 - **Non-spatial results.** A number, a table or a graph, held column by column. Give a column with a quantity its `quantity_kind` and `unit`, so Debrief can show it in the analyst's chosen units (SUB-04).
 - **Named sets.**
+- **A change to shared state** (`state_change`): current time, selection or viewport. Declare `state_change` in `outputs`.
 
 What happens next:
 
@@ -169,6 +170,21 @@ return models.ToolResult(new_features=[line])
 ```
 
 Use `style="label"` for a labelled point, `"shape"` for lines and areas, and `"note"` with `geometry=None` for a note at a time.
+
+## Current time, selection and viewport
+
+`context.state` holds the shared state when the analyst ran your tool: `state.time.current` and `state.time.range`, `state.selection.feature_ids`, and `state.viewport.bbox` as `[west, south, east, north]` in degrees (TL-10). It is `None` when the caller didn't pass it, for example an agent calling the tool service directly, so check before using it.
+
+To move current time, select features or show an area, return a `SharedStateChange`. Closest approach moves current time to the moment it finds:
+
+```python
+change = models.SharedStateChange(
+    time=models.TimeState(current=when, range=context.state.time.range)
+)
+return models.ToolResult(non_spatial=[table], new_features=[line], state_change=change)
+```
+
+Current time must be inside its range, and a selection may name only features the plot will have once your result is applied, including those you add. Shared state is never recorded in provenance and can't be undone (SUB-22). A tool that only changes shared state can run on a read-only catalogue.
 
 **Don't change `context.plot` or the selected features.** They're copies, so changing them has no effect. Return your changes instead. A result that includes something your declaration's `outputs` doesn't list is refused.
 

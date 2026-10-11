@@ -2370,6 +2370,16 @@
             }
           ]
         },
+        "time": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/TimeState"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
         "time_range": {
           "anyOf": [
             {
@@ -2421,6 +2431,9 @@
         "show_plot",
         "set_selection",
         "selection_changed",
+        "set_time",
+        "time_changed",
+        "set_viewport",
         "viewport_changed",
         "show_form",
         "run_tool",

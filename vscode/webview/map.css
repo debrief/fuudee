@@ -27,3 +27,11 @@ body { background: var(--vscode-editor-background); color: var(--vscode-foregrou
 .swatch-latest { width: 9px; height: 9px; border-radius: 50%; background: var(--vscode-editor-foreground); margin: 0 5px; }
 .swatch-selected { border-top: 4px dotted var(--vscode-editor-foreground); }
 .legend summary { cursor: pointer; }
+/* Current time: the control, and each track's position then, a square in its colour. */
+.timebar { position: absolute; top: 8px; left: 50%; transform: translateX(-50%); z-index: 1000; display: flex; align-items: center; gap: 8px; width: min(60%, 560px); padding: 4px 8px; background: var(--vscode-editorWidget-background); color: var(--vscode-editorWidget-foreground); border: 1px solid var(--vscode-editorWidget-border, transparent); }
+.timebar[hidden] { display: none; }
+.timebar input { flex: 1; accent-color: var(--vscode-focusBorder); }
+.time-label { font-family: var(--vscode-editor-font-family); font-size: 12px; white-space: nowrap; }
+.now { width: 10px; height: 10px; }
+.now::after { content: ""; position: absolute; inset: 0; background: var(--now-colour); border: 1.5px solid var(--vscode-editor-foreground); box-sizing: border-box; }
+.swatch-now { width: 9px; height: 9px; background: var(--vscode-editor-foreground); margin: 0 5px; }

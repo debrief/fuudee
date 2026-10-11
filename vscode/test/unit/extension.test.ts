@@ -9,6 +9,8 @@ import { checkMessage } from "../../src/messages.js";
 import { openPlot, readCatalogue } from "../../src/catalogue.js";
 import { densify } from "../../webview/geodesic.js";
 import { count, describeTimes } from "../../src/format.js";
+import { Session } from "../../src/session.js";
+import type { OpenedPlot } from "../../src/catalogue.js";
 
 const repo = path.resolve(__dirname, "../../..");
 const fixtures = path.join(repo, "schemas", "fixtures", "webview_message");
@@ -28,11 +30,11 @@ describe("what a tool needs, in the analyst's words", () => {
 });
 
 describe("webview messages are boundary types (CON-08)", () => {
-  it.each(["show-plot", "selection-changed", "run-tool", "ready"])("accepts %s", (name) => {
+  it.each(["show-plot", "selection-changed", "run-tool", "ready", "time-changed", "set-viewport-across-antimeridian"])("accepts %s", (name) => {
     const raw = JSON.parse(readFileSync(path.join(fixtures, "valid", `${name}.json`), "utf8"));
     expect(checkMessage(raw)).toEqual(raw);
   });
-  it.each(["run-tool-without-name", "ready-with-plot"])("refuses %s, which Python refuses too", (name) => {
+  it.each(["run-tool-without-name", "ready-with-plot", "time-outside-range", "set-time-without-time"])("refuses %s, which Python refuses too", (name) => {
     const raw = JSON.parse(readFileSync(path.join(fixtures, "invalid", "semantic", `${name}.json`), "utf8"));
     expect(() => checkMessage(raw)).toThrow();
   });
@@ -124,4 +126,57 @@ describe("what a tool changed, in glossary terms", () => {
     expect(describeChanges({ new_features: [annotation, annotation], deleted_feature_ids: ["a"] } as never)).toBe(
       "added 2 annotations, deleted 1 feature",
     ));
+});
+
+describe("shared state (SUB-26, SUB-27)", () => {
+  const opened = (id = "serial") =>
+    ({
+      store: { id: "s" },
+      item: {
+        id,
+        bbox: [-4.2, 50.3, -4.0, 50.4],
+        properties: { start_datetime: "1995-12-12T05:00:00.000Z", end_datetime: "1995-12-12T06:00:00.000Z" },
+      },
+      plot: { features: [{ id: "a", properties: { kind: "track" } }, { id: "b", properties: { kind: "track" } }] },
+    }) as unknown as OpenedPlot;
+  const range = { start: "1995-12-12T05:00:00.000Z", end: "1995-12-12T06:00:00.000Z" };
+
+  it("starts current time at the plot's start, and the viewport at its extent", () => {
+    const session = new Session();
+    expect(session.state()).toBeUndefined();
+    session.setPlot(opened());
+    expect(session.state()).toEqual({
+      time: { current: range.start, range },
+      selection: { plot: "serial", feature_ids: [] },
+      viewport: { bbox: [-4.2, 50.3, -4.0, 50.4] },
+    });
+  });
+
+  it("tells every listener who changed what, and refuses what cannot be shown", () => {
+    const session = new Session();
+    session.setPlot(opened());
+    const heard: [string, string][] = [];
+    session.onState((change, origin) => heard.push([Object.keys(change).join(), origin]));
+    expect(session.apply({ time: { current: "1995-12-12T05:30:00.000Z", range }, selection: { plot: "serial", feature_ids: ["b", "ghost"] } }, "tool:x")).toBeUndefined();
+    expect(session.selection).toEqual(["b"]);
+    expect(session.setViewport({ bbox: [170, -20, -170, -10] }, "map")).toBeUndefined(); // across 180°
+    expect(session.setTime({ current: "1995-12-12T07:00:00.000Z", range }, "extension")).toMatch(/within the time range/);
+    expect(session.apply({ time: { current: range.start, range }, viewport: { bbox: [0, 10, 1, 5] } }, "x")).toMatch(/latitudes/);
+    expect(session.time?.current).toBe("1995-12-12T05:30:00.000Z"); // all or nothing
+    expect(heard).toEqual([
+      ["selection", "tool:x"],
+      ["time", "tool:x"],
+      ["viewport", "map"],
+    ]);
+  });
+
+  it("keeps current time across a reload when it still falls in the plot", () => {
+    const session = new Session();
+    session.setPlot(opened());
+    session.setTime({ current: "1995-12-12T05:30:00.000Z", range }, "map");
+    session.setPlot(opened(), true);
+    expect(session.time?.current).toBe("1995-12-12T05:30:00.000Z");
+    session.setPlot(opened("other"));
+    expect(session.time?.current).toBe(range.start);
+  });
 });

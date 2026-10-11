@@ -10,7 +10,7 @@ import { randomBytes } from "node:crypto";
 import { request as httpRequest } from "node:http";
 import { tmpdir } from "node:os";
 import { createInterface } from "node:readline";
-import type { ToolDeclaration, ToolResult } from "@debrief/schemas";
+import type { SharedState, ToolDeclaration, ToolResult } from "@debrief/schemas";
 
 export interface Unavailable {
   library: string;
@@ -208,7 +208,14 @@ export class ToolService {
 
   async callTool(
     name: string,
-    args: { store: string; item: string; selection: string[]; parameters: Record<string, unknown>; agent: Agent },
+    args: {
+      store: string;
+      item: string;
+      selection: string[];
+      parameters: Record<string, unknown>;
+      agent: Agent;
+      state?: SharedState;
+    },
   ): Promise<CallOutcome> {
     const result = await this.request<{
       isError: boolean;

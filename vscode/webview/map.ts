@@ -9,6 +9,9 @@
  * - Annotations, including everything tools draw, are dashed and labelled.
  * - Selected features get an outline in the theme's text colour, which can
  *   never be mistaken for a force colour; everything else is dimmed.
+ * - The time control sets current time; each track shows where it was then
+ *   with a square marker. Panning and zooming set the viewport. Both are
+ *   shared state, so other views, extensions and tools follow (SUB-26, SUB-27).
  *
  * Interface colours come from the VS Code theme; data colours from palette.ts
  * (DEV-07). Plot content is always set as text, never as HTML.
@@ -18,7 +21,7 @@ import "leaflet/dist/leaflet.css";
 import "./map.css";
 import geodesic from "geographiclib-geodesic";
 import { convert, DEFAULT_SETTINGS, formatBearing, formatPosition, formatQuantity, formatTime, UNIT_LABELS } from "@debrief/kernel";
-import type { DebriefFeatureCollection } from "@debrief/schemas";
+import type { DebriefFeatureCollection, TimeState } from "@debrief/schemas";
 import { densify, type LonLat } from "./geodesic.js";
 import { DATA_COLOURS } from "./palette.js";
 import { host, onMessage } from "./vscode.js";
@@ -29,7 +32,9 @@ const settings = DEFAULT_SETTINGS;
 const WGS84 = geodesic.Geodesic.WGS84;
 
 const root = document.getElementById("root")!;
-root.innerHTML = `<div id="map" tabindex="0" aria-label="Plot map"></div><div id="status" class="status"></div><div id="empty" class="empty" hidden></div>`;
+root.innerHTML =
+  `<div id="map" tabindex="0" aria-label="Plot map"></div><div id="status" class="status"></div><div id="empty" class="empty" hidden></div>` +
+  `<div id="timebar" class="timebar" hidden><input id="time" type="range" aria-label="Current time"><span id="time-label" class="time-label"></span></div>`;
 const status = document.getElementById("status")!;
 const mapElement = document.getElementById("map")!;
 
@@ -106,6 +111,7 @@ const Legend = L.Control.extend({
       ["track", "Track, in its force colour; ticks show direction"],
       ["first", "First fix"],
       ["latest", "Latest fix, labelled"],
+      ["now", "Position at current time"],
       ["annotation", "Annotation, including what tools draw"],
       ["selected", "Selected"],
     ];
@@ -318,9 +324,11 @@ function draw(plot: DebriefFeatureCollection): void {
   const empty = document.getElementById("empty")!;
   empty.hidden = plot.features.some((f) => f.geometry);
   empty.textContent = plot.features.length ? "This plot has nothing with a position." : "This plot is empty. Import a REP file to add tracks.";
+  tracks = plot.features.filter((f): f is Track => f.properties.kind === "track" && !!f.geometry);
   restyle();
   drawGraticule();
   placeLabels();
+  drawNow();
 }
 
 // Annotation labels only where the shape is big enough on screen to carry one.
@@ -334,13 +342,106 @@ function placeLabels(): void {
 }
 map.on("zoomend", placeLabels);
 
+// --- Current time (shared state) ------------------------------------------------
+const timebar = document.getElementById("timebar")!;
+const slider = document.getElementById("time") as HTMLInputElement;
+const timeLabel = document.getElementById("time-label")!;
+const now = L.layerGroup().addTo(map);
+let tracks: Track[] = [];
+let time: TimeState | undefined;
+
+/** Where a track was at an instant, between the fixes either side; none outside its span. */
+function positionAt(track: Track, at: number): LonLat | undefined {
+  const times = track.properties.times.map(Date.parse);
+  const coordinates = track.geometry.coordinates as LonLat[];
+  if (at < times[0] || at > times.at(-1)!) return undefined;
+  let i = 0;
+  while (i < times.length - 2 && times[i + 1] < at) i++;
+  const span = times[i + 1] - times[i];
+  const f = span > 0 ? (at - times[i]) / span : 0;
+  const [lon1, lat1] = coordinates[i];
+  const [lon2, lat2] = coordinates[Math.min(i + 1, coordinates.length - 1)];
+  // Along the geodesic between the two fixes, as the line is drawn (SUB-03).
+  const line = WGS84.InverseLine(lat1, lon1, lat2, lon2);
+  const point = line.Position(f * line.s13);
+  return [point.lon2 ?? lon2, point.lat2 ?? lat2];
+}
+
+function drawNow(): void {
+  now.clearLayers();
+  if (!time) return;
+  const at = Date.parse(time.current);
+  for (const track of tracks) {
+    const position = positionAt(track, at);
+    if (!position) continue;
+    const colour = colourOf(track);
+    const icon = L.divIcon({ className: "now", html: "", iconSize: [10, 10] });
+    const marker = L.marker(toLatLng(position), { icon, keyboard: false, title: track.properties.name });
+    marker.on("add", () => marker.getElement()?.style.setProperty("--now-colour", colour));
+    marker.on("click", (event: L.LeafletMouseEvent) => {
+      L.DomEvent.stopPropagation(event);
+      select(track.id, event.originalEvent.ctrlKey || event.originalEvent.metaKey);
+    });
+    marker.addTo(now);
+  }
+}
+
+function showTime(next: TimeState | undefined): void {
+  time = next;
+  timebar.hidden = !time;
+  if (time) {
+    const [start, end] = [Date.parse(time.range.start), Date.parse(time.range.end)];
+    slider.min = String(start);
+    slider.max = String(end);
+    slider.step = String(Math.max(1000, Math.round((end - start) / 1000 / 1000) * 1000));
+    slider.value = String(Date.parse(time.current));
+    timeLabel.textContent = formatTime(Date.parse(time.current), settings);
+  }
+  drawNow();
+}
+
+slider.addEventListener("input", () => {
+  if (!time) return;
+  const current = new Date(Number(slider.value)).toISOString();
+  time = { current, range: time.range };
+  timeLabel.textContent = formatTime(Number(slider.value), settings);
+  drawNow();
+  host.postMessage({ kind: "time_changed", time });
+});
+
+// --- Viewport (shared state) -----------------------------------------------------
+let reporting: ReturnType<typeof setTimeout> | undefined;
+map.on("moveend", () => {
+  clearTimeout(reporting);
+  reporting = setTimeout(() => {
+    const bounds = map.getBounds();
+    const whole = bounds.getEast() - bounds.getWest() >= 360;
+    const wrap = (lon: number) => L.Util.wrapNum(lon, [-180, 180], true);
+    const clamp = (lat: number) => Math.max(-90, Math.min(90, lat));
+    const round = (x: number) => Math.round(x * 1e6) / 1e6;
+    const bbox = [
+      whole ? -180 : wrap(bounds.getWest()),
+      clamp(bounds.getSouth()),
+      whole ? 180 : wrap(bounds.getEast()),
+      clamp(bounds.getNorth()),
+    ].map(round);
+    host.postMessage({ kind: "viewport_changed", viewport: { bbox } });
+  }, 150);
+});
+
+function showViewport(bbox: number[]): void {
+  const [west, south, east, north] = bbox;
+  fit(L.latLngBounds([south, west], [north, east > west ? east : east + 360]), 0);
+  moved = true; // set from elsewhere: keep it, even if a panel opens beside the map
+}
+
 // --- Fitting the view ---------------------------------------------------------
 let moved = false; // whether the analyst has panned or zoomed since the last fit
 let fitting = false;
-function fit(bounds: L.LatLngBounds): void {
+function fit(bounds: L.LatLngBounds, padding = 40): void {
   if (!bounds.isValid()) return;
   fitting = true;
-  map.fitBounds(bounds, { padding: [40, 40], animate: false });
+  map.fitBounds(bounds, { padding: [padding, padding], animate: false });
   fitting = false;
   moved = false;
   placeLabels();
@@ -372,11 +473,16 @@ onMessage((message) => {
     const firstShow = sel.plot !== shownPlot;
     shownPlot = plotId = sel.plot;
     selection = new Set(sel.feature_ids);
+    showTime(message.time as TimeState | undefined);
     draw(message.plot as DebriefFeatureCollection);
     if (firstShow) fit(plotBounds);
   } else if (message.kind === "set_selection") {
     selection = new Set((message.selection as { feature_ids: string[] }).feature_ids);
     restyle();
+  } else if (message.kind === "set_time") {
+    showTime(message.time as TimeState);
+  } else if (message.kind === "set_viewport") {
+    showViewport((message.viewport as { bbox: number[] }).bbox);
   }
 });
 host.postMessage({ kind: "ready" });

@@ -670,7 +670,7 @@ class WebviewMessageKindEnum(str, Enum):
     """
     show_plot = "show_plot"
     """
-    Host to map: draw this plot (plot, plot_title, selection).
+    Host to map: draw this plot (plot, plot_title, selection, and current time and viewport if known).
     """
     set_selection = "set_selection"
     """
@@ -679,6 +679,18 @@ class WebviewMessageKindEnum(str, Enum):
     selection_changed = "selection_changed"
     """
     Map to host: the analyst changed the selection (selection).
+    """
+    set_time = "set_time"
+    """
+    Host to map: current time changed elsewhere (time).
+    """
+    time_changed = "time_changed"
+    """
+    Map to host: the analyst moved current time (time).
+    """
+    set_viewport = "set_viewport"
+    """
+    Host to map: show this area (viewport).
     """
     viewport_changed = "viewport_changed"
     """
@@ -1313,7 +1325,10 @@ class AnnotationProperties(ConfiguredBaseModel):
                        'ParameterDeclaration',
                        'ResultColumn']} })
     text: Optional[str] = Field(default=None, json_schema_extra = { "linkml_meta": {'domain_of': ['AnnotationProperties']} })
-    time: Optional[str] = Field(default=None, json_schema_extra = { "linkml_meta": {'domain_of': ['AnnotationProperties', 'SharedState', 'SharedStateChange']} })
+    time: Optional[str] = Field(default=None, json_schema_extra = { "linkml_meta": {'domain_of': ['AnnotationProperties',
+                       'SharedState',
+                       'SharedStateChange',
+                       'WebviewMessage']} })
     time_range: Optional[TimeRange] = Field(default=None, json_schema_extra = { "linkml_meta": {'domain_of': ['AnnotationProperties',
                        'SensorObservationsProperties',
                        'WebviewMessage']} })
@@ -1846,7 +1861,10 @@ class Viewport(ConfiguredBaseModel):
 class SharedState(ConfiguredBaseModel):
     linkml_meta: ClassVar[LinkMLMeta] = LinkMLMeta({'from_schema': 'https://debrief.info/schemas/debrief'})
 
-    time: TimeState = Field(default=..., json_schema_extra = { "linkml_meta": {'domain_of': ['AnnotationProperties', 'SharedState', 'SharedStateChange']} })
+    time: TimeState = Field(default=..., json_schema_extra = { "linkml_meta": {'domain_of': ['AnnotationProperties',
+                       'SharedState',
+                       'SharedStateChange',
+                       'WebviewMessage']} })
     selection: Selection = Field(default=..., json_schema_extra = { "linkml_meta": {'domain_of': ['SharedState', 'SharedStateChange', 'WebviewMessage']} })
     viewport: Viewport = Field(default=..., json_schema_extra = { "linkml_meta": {'domain_of': ['SharedState', 'SharedStateChange', 'WebviewMessage']} })
 
@@ -1857,7 +1875,10 @@ class SharedStateChange(ConfiguredBaseModel):
     """
     linkml_meta: ClassVar[LinkMLMeta] = LinkMLMeta({'from_schema': 'https://debrief.info/schemas/debrief'})
 
-    time: Optional[TimeState] = Field(default=None, json_schema_extra = { "linkml_meta": {'domain_of': ['AnnotationProperties', 'SharedState', 'SharedStateChange']} })
+    time: Optional[TimeState] = Field(default=None, json_schema_extra = { "linkml_meta": {'domain_of': ['AnnotationProperties',
+                       'SharedState',
+                       'SharedStateChange',
+                       'WebviewMessage']} })
     selection: Optional[Selection] = Field(default=None, json_schema_extra = { "linkml_meta": {'domain_of': ['SharedState', 'SharedStateChange', 'WebviewMessage']} })
     viewport: Optional[Viewport] = Field(default=None, json_schema_extra = { "linkml_meta": {'domain_of': ['SharedState', 'SharedStateChange', 'WebviewMessage']} })
 
@@ -2166,6 +2187,10 @@ class WebviewMessage(ConfiguredBaseModel):
     plot_title: Optional[str] = Field(default=None, json_schema_extra = { "linkml_meta": {'domain_of': ['WebviewMessage']} })
     selection: Optional[Selection] = Field(default=None, json_schema_extra = { "linkml_meta": {'domain_of': ['SharedState', 'SharedStateChange', 'WebviewMessage']} })
     viewport: Optional[Viewport] = Field(default=None, json_schema_extra = { "linkml_meta": {'domain_of': ['SharedState', 'SharedStateChange', 'WebviewMessage']} })
+    time: Optional[TimeState] = Field(default=None, json_schema_extra = { "linkml_meta": {'domain_of': ['AnnotationProperties',
+                       'SharedState',
+                       'SharedStateChange',
+                       'WebviewMessage']} })
     time_range: Optional[TimeRange] = Field(default=None, description="""The plot's period, so times can be entered as the analyst reads them.""", json_schema_extra = { "linkml_meta": {'domain_of': ['AnnotationProperties',
                        'SensorObservationsProperties',
                        'WebviewMessage']} })
