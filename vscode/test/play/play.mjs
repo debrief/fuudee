@@ -76,6 +76,10 @@ try {
   }
   assert.deepEqual(errors, []);
   console.log("Playground played: tools, undo, crash recovery, conflict, import.");
+} catch (error) {
+  if (shots) await page.screenshot({ path: path.join(shots, "play-failed.png") });
+  console.error("status:", await page.locator("#status").innerText(), "| toasts:", await page.locator("#toasts").innerText());
+  throw error;
 } finally {
   await browser.close();
   server.close();

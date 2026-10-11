@@ -25,7 +25,8 @@ type Pyodide = {
   toPy(value: unknown): unknown;
 };
 
-let ready: Promise<Record<string, (...args: unknown[]) => unknown>> | undefined;
+type Call = (name: string, args: unknown[]) => unknown;
+let ready: Promise<Call> | undefined;
 
 async function start(base: string, say: (text: string) => void) {
   say("Loading Python…");
@@ -54,10 +55,9 @@ async function start(base: string, say: (text: string) => void) {
   pyodide.FS.writeFile("/play/code/play.py", await (await fetch(new URL("play.py", base))).text());
   await pyodide.runPythonAsync("import sys; sys.path.insert(0, '/play/code'); import play");
   const play = pyodide.pyimport("play") as unknown as Record<string, (...args: unknown[]) => unknown>;
-  return new Proxy(play, {
-    get: (target, name: string) => (...args: unknown[]) =>
-      (target[name] as (...a: unknown[]) => unknown)(...args.map((a) => (a instanceof Uint8Array ? pyodide.toPy(a) : a))),
-  });
+  // A plain function, not an object: anything with a "then" would be taken for a promise.
+  const call: Call = (name, args) => play[name](...args.map((a) => (a instanceof Uint8Array ? pyodide.toPy(a) : a)));
+  return call;
 }
 
 self.onmessage = async (event: MessageEvent<{ id: number; call: string; args: unknown[]; base?: string }>) => {
@@ -70,7 +70,7 @@ self.onmessage = async (event: MessageEvent<{ id: number; call: string; args: un
       return;
     }
     const play = await ready!;
-    const result = play[call](...args);
+    const result = play(call, args);
     self.postMessage({ id, result: String(result) });
   } catch (error) {
     self.postMessage({ id, error: String((error as Error).message ?? error).split("\n").slice(-6).join("\n") });

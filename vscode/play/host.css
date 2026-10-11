@@ -1,5 +1,6 @@
 /* The playground page, styled with the same theme variables as the webviews. */
 html, body { height: 100%; margin: 0; }
+[hidden] { display: none !important; }
 body { background: var(--vscode-editor-background); color: var(--vscode-foreground); font-family: var(--vscode-font-family); font-size: var(--vscode-font-size); }
 .app { display: grid; grid-template-columns: 290px 1fr; grid-template-rows: 1fr auto; height: 100%; }
 .side { grid-row: 1; overflow-y: auto; background: var(--vscode-sideBar-background); border-right: 1px solid var(--vscode-panel-border); }

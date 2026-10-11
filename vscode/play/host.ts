@@ -150,10 +150,12 @@ window.addEventListener("message", (event) => {
     if (message.kind === "cancel") closeForm();
     if (message.kind === "run_tool" && formTool && message.tool_name === formTool.name) {
       post(form, { kind: "form_busy", message: "Running…" });
-      void runTool(formTool, message.parameters as ParameterValue[]).then((problem) => {
-        if (problem) post(form, { kind: "form_error", message: problem });
-        else closeForm();
-      });
+      void runTool(formTool, message.parameters as ParameterValue[])
+        .catch((error: Error) => `${formTool?.title ?? "The tool"} could not run here: ${error.message}`)
+        .then((problem) => {
+          if (problem) post(form, { kind: "form_error", message: problem });
+          else closeForm();
+        });
     }
   }
 });
