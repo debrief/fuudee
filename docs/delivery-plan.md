@@ -101,10 +101,10 @@ Phase 3 delivers the capabilities every community needs, ending in a pilot-ready
 | Workstream | Deliverables | SRD |
 | --- | --- | --- |
 | Time | Time controller; per-layer display windows; whole-deployment track views with sensor data limited to the window. | CAP-28, CAP-29 |
-| Track operations | Drag, split, merge, jump removal, smoothing, OTG and DR modes, as deltas. | CAP-01, CAP-02 |
-| Annotation | Shapes, labels and chart furniture as GeoJSON; time-only annotations; temporal view. | CAP-03 to CAP-05 |
+| Track operations | Drag, split, merge, jump removal, smoothing, OTG and DR modes, as deltas. Per-fix colour, labels and comments, which legacy plots carry and the Phase 2 .dpf import lists as not imported. | CAP-01, CAP-02, EXT-14 |
+| Annotation | Shapes, labels and chart furniture as GeoJSON; time-only annotations; temporal view. Annotation styling and circle and ellipse geometry, which the Phase 2 .dpf import lists as not imported. | CAP-03 to CAP-05, EXT-14 |
 | Tote | Tote on the architecture chosen by the Phase 0 spike; measure groups stored in the study catalogue. | CAP-06, CAP-07, NFR-04 |
-| Narrative | Word and PDF import in legacy dialects; combined Zulu time axis. | CAP-19, CAP-20, EXT-04 |
+| Narrative | Word and PDF import in legacy dialects; combined Zulu time axis. Narrative entry types, which the Phase 2 .dpf import lists as not imported. | CAP-19, CAP-20, EXT-04, EXT-14 |
 | Collation | Coverage view, source preference, new-data marking, merging new data, upstream-revision flags. | CAP-08 to CAP-12 |
 | Export | Images carrying an embedded GUID. | SUB-25, EXT-05 |
 | Onboarding | Guided walkthroughs on the Phase 1 sample data; onboarding trial against the one-hour target. | DEP-08, CAP-25, NFR-09 |
@@ -119,7 +119,9 @@ Phase 4 runs two parallel streams on the shared core, one per lifecycle. Media s
 | Stream | Deliverables | SRD | Outcome |
 | --- | --- | --- | --- |
 | O and N (overnight) | Storyboard of viewports with times and comments; exports to offline HTML, PowerPoint quad chart and rendered video; media synchronisation for video, image folders and narrative. | CAP-13 to CAP-18, NFR-05, NFR-07, EXT-06 | OUT-02, OUT-05 |
-| D (long tempo) | Bearings and ambiguous towed-array bearings, with side resolution and optional bearing-error wedges; TMA solutions rooted in a selected bearing period; TMA module with manual drag (translate, rotate, stretch, shear), live bearing residuals and residual views, meeting the drag budget. | CAP-21, CAP-22, NFR-04 | OUT-01 |
+| D (long tempo) | Bearings and ambiguous towed-array bearings, with side resolution and optional bearing-error wedges; TMA solutions rooted in a selected bearing period; TMA module with manual drag (translate, rotate, stretch, shear), live bearing residuals and residual views, meeting the drag budget. Sensor cuts and TMA solutions from legacy plots, which the Phase 2 .dpf import lists as not imported. | CAP-21, CAP-22, NFR-04, EXT-14 | OUT-01 |
+
+Legacy content the Phase 2 .dpf import could not hold is listed in each plot's provenance, and the .dpf file is kept unchanged as its source, so re-importing it once these workstreams extend the schema recovers that content (EXT-14, EXT-15).
 
 The D stream follows the old milestones' order: groomed sensor data (M6) before TMA (M7), with ambiguity resolution pulled forward from M9. If six people cannot staff both streams, the O/N storyboard and D sensor import run first and TMA follows once the storyboard ships. SATC and multi-leg generation follow only if D demand appears.
 
