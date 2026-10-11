@@ -1,0 +1,113 @@
+{
+  "name": "debrief",
+  "displayName": "Debrief",
+  "description": "Maritime exercise analysis: catalogues of plots, a map, and Python analysis tools",
+  "version": "0.0.1",
+  "publisher": "debrief",
+  "license": "EPL-2.0",
+  "private": true,
+  "engines": {
+    "vscode": "^1.95.0"
+  },
+  "categories": ["Visualization", "Data Science"],
+  "main": "./dist/extension.js",
+  "activationEvents": [],
+  "contributes": {
+    "viewsContainers": {
+      "activitybar": [
+        {"id": "debrief", "title": "Debrief", "icon": "media/debrief.svg"}
+      ]
+    },
+    "views": {
+      "debrief": [
+        {"id": "debrief.catalogues", "name": "Catalogues"},
+        {"id": "debrief.outline", "name": "Outline"},
+        {"id": "debrief.tools", "name": "Tools"}
+      ]
+    },
+    "viewsWelcome": [
+      {
+        "view": "debrief.catalogues",
+        "contents": "Debrief keeps plots in catalogues: folders you choose.\n[Add catalogue folder](command:debrief.addCatalogue)\n[Create catalogue](command:debrief.createCatalogue)"
+      },
+      {
+        "view": "debrief.outline",
+        "contents": "Open a plot from a catalogue to see its tracks, annotations and sensor data here."
+      }
+    ],
+    "commands": [
+      {"command": "debrief.addCatalogue", "title": "Add catalogue folder…", "category": "Debrief", "icon": "$(folder-opened)"},
+      {"command": "debrief.createCatalogue", "title": "Create catalogue…", "category": "Debrief", "icon": "$(new-folder)"},
+      {"command": "debrief.importRep", "title": "Import REP file…", "category": "Debrief", "icon": "$(cloud-download)"},
+      {"command": "debrief.refresh", "title": "Refresh", "category": "Debrief", "icon": "$(refresh)"},
+      {"command": "debrief.openPlot", "title": "Open plot", "category": "Debrief"},
+      {"command": "debrief.select", "title": "Select features", "category": "Debrief"},
+      {"command": "debrief.clearSelection", "title": "Clear selection", "category": "Debrief", "icon": "$(clear-all)"},
+      {"command": "debrief.showToolForm", "title": "Open tool", "category": "Debrief"},
+      {"command": "debrief.runTool", "title": "Run tool", "category": "Debrief"},
+      {"command": "debrief.restartTools", "title": "Restart tool service", "category": "Debrief"}
+    ],
+    "menus": {
+      "view/title": [
+        {"command": "debrief.importRep", "when": "view == debrief.catalogues", "group": "navigation@1"},
+        {"command": "debrief.addCatalogue", "when": "view == debrief.catalogues", "group": "navigation@2"},
+        {"command": "debrief.refresh", "when": "view == debrief.catalogues", "group": "navigation@3"},
+        {"command": "debrief.clearSelection", "when": "view == debrief.outline", "group": "navigation@1"}
+      ],
+      "view/item/context": [
+        {"command": "debrief.importRep", "when": "view == debrief.catalogues && viewItem == catalogue", "group": "1_import"}
+      ],
+      "commandPalette": [
+        {"command": "debrief.openPlot", "when": "false"},
+        {"command": "debrief.select", "when": "false"},
+        {"command": "debrief.showToolForm", "when": "false"},
+        {"command": "debrief.runTool", "when": "false"}
+      ]
+    },
+    "configuration": {
+      "title": "Debrief",
+      "properties": {
+        "debrief.python": {
+          "type": "string",
+          "default": "",
+          "markdownDescription": "Python interpreter with Debrief's Python packages installed. Leave empty to use `python3`, or `python` on Windows."
+        },
+        "debrief.toolTimeout": {
+          "type": "number",
+          "default": 120,
+          "minimum": 5,
+          "markdownDescription": "Seconds a tool may run before Debrief stops it."
+        }
+      }
+    }
+  },
+  "scripts": {
+    "build": "node scripts/build.mjs",
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "test": "vitest run",
+    "test:integration": "node scripts/build.mjs && node dist-test/run.js",
+    "check:theme": "node scripts/check-theme.mjs",
+    "check:language": "node scripts/check-language.mjs"
+  },
+  "dependencies": {
+    "@debrief/config": "file:../ts/config",
+    "@debrief/kernel": "file:../ts/kernel",
+    "@debrief/schemas": "file:../ts/schemas",
+    "geographiclib-geodesic": "2.2.0",
+    "leaflet": "1.9.4",
+    "react": "19.2.0",
+    "react-dom": "19.2.0",
+    "vscrui": "1.1.0"
+  },
+  "devDependencies": {
+    "@types/leaflet": "1.9.20",
+    "@types/node": "^22.10.2",
+    "@types/react": "19.2.2",
+    "@types/react-dom": "19.2.2",
+    "@types/vscode": "1.95.0",
+    "@vscode/test-electron": "3.1.0",
+    "esbuild": "0.25.10",
+    "typescript": "^5.6.3",
+    "vitest": "^2.1.9"
+  }
+}

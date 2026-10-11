@@ -1,0 +1,16 @@
+/* Interface colours only from the VS Code theme (CON-06, DEV-07). */
+body { background: var(--vscode-editor-background); color: var(--vscode-foreground); font-family: var(--vscode-font-family); font-size: var(--vscode-font-size); margin: 0; }
+.tool-form { max-width: 34rem; padding: 16px 20px; }
+h1 { font-size: 1.4em; font-weight: 600; margin: 0 0 8px; }
+.explanation { margin: 0 0 6px; line-height: 1.5; }
+.judgement { margin: 0 0 12px; padding: 6px 10px; border-left: 3px solid var(--vscode-textBlockQuote-border); background: var(--vscode-textBlockQuote-background); line-height: 1.5; }
+.applies { color: var(--vscode-descriptionForeground); margin: 0 0 16px; }
+.field { margin-bottom: 14px; }
+.field-label { display: block; font-weight: 600; margin-bottom: 4px; }
+.field-label:empty { display: none; }
+.field-explanation { color: var(--vscode-descriptionForeground); font-size: 0.92em; margin-top: 4px; }
+.quantity { display: flex; gap: 8px; align-items: center; }
+.quantity > :first-child { flex: 1; }
+.problem { color: var(--vscode-errorForeground); background: var(--vscode-inputValidation-errorBackground); border: 1px solid var(--vscode-inputValidation-errorBorder); padding: 6px 10px; margin: 8px 0 12px; }
+.actions { display: flex; gap: 8px; margin-top: 18px; }
+.field vscode-textfield, .field input, .field > div:not(.field-explanation):not(.field-problem) { width: 100%; max-width: 26rem; box-sizing: border-box; }

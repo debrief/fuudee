@@ -1,0 +1,13 @@
+/* Interface colours only from the VS Code theme (CON-06, DEV-07). */
+html, body, #root { height: 100%; margin: 0; padding: 0; }
+body { background: var(--vscode-editor-background); color: var(--vscode-foreground); font-family: var(--vscode-font-family); font-size: var(--vscode-font-size); }
+#map { position: absolute; inset: 0; background: var(--vscode-editor-background); }
+.leaflet-container { font: inherit; background: var(--vscode-editor-background); }
+.status { position: absolute; left: 8px; bottom: 8px; z-index: 1000; padding: 2px 6px; background: var(--vscode-editorWidget-background); color: var(--vscode-editorWidget-foreground); border: 1px solid var(--vscode-editorWidget-border, transparent); font-family: var(--vscode-editor-font-family); font-size: 12px; }
+.status:empty { display: none; }
+.empty { position: absolute; top: 40%; left: 0; right: 0; text-align: center; z-index: 1000; color: var(--vscode-descriptionForeground); }
+.track-label { background: transparent; border: none; box-shadow: none; color: var(--vscode-editor-foreground); font-weight: 600; padding: 0; text-shadow: 0 0 3px var(--vscode-editor-background), 0 0 3px var(--vscode-editor-background); }
+.track-label::before { display: none; }
+.leaflet-tooltip { background: var(--vscode-editorHoverWidget-background); color: var(--vscode-editorHoverWidget-foreground); border-color: var(--vscode-editorHoverWidget-border); }
+.leaflet-bar a, .leaflet-bar a:hover { background: var(--vscode-button-secondaryBackground); color: var(--vscode-button-secondaryForeground); border-bottom-color: var(--vscode-widget-border, transparent); }
+.leaflet-control-scale-line { background: var(--vscode-editorWidget-background); color: var(--vscode-editorWidget-foreground); border-color: var(--vscode-editorWidget-foreground); }

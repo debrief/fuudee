@@ -52,8 +52,25 @@ Display always goes through the formatting service (SUB-04), in Python or its Ty
 
 ## Messages
 
-*To be filled in Phase 1, with the first interaction models.* Will cover: what happened, why, and what the analyst can do next; never blame the analyst; never show a stack trace or an internal identifier.
+Say what happened, why, and what the analyst can do next. Never blame the analyst. Never show a stack trace or an internal identifier.
+
+| Write | Not |
+| --- | --- |
+| Closest approach failed: NELSON and LATE do not overlap in time. | Error: ValueError in closest() |
+| Spacing must be at most 100 nmi. | Validation failed: maximum exceeded |
+| The plot changed while the tool was running, so its result was not saved. Run it again. | Conflict (409) |
+| Imported 3 tracks, 135 fixes. Some content was not imported. | Import completed with warnings |
+
+- **Counts read naturally.** Write "1 plot" and "3 plots", never "1 plots".
+- **Nothing is dropped silently (EXT-14).** Say what wasn't done, and where to see the detail.
 
 ## Tool explanations (CAP-24)
 
-*To be filled in Phase 1, from the team's first tools.* Will cover: one sentence on what the tool does; one on any judgement it involves; how to name parameters.
+Written from the first four core tools.
+
+- **Explanation.** One sentence on what the tool does, starting with a verb: "Draws rings at equal ranges around a track's position at a chosen time."
+- **Judgement.** Only where the result involves one. Say what to check: "Distance runs straight between fixes, so a gap in the track shortens it. Check for gaps before relying on distance run or mean speed."
+- **Parameter titles.** Short, sentence case, and a noun: "Spacing", "Number of rings", "Time". Each parameter's explanation says what it changes, in the analyst's units.
+- **New feature names.** Name them so an analyst can find them in the outline: "NELSON 1.5 nmi", "Closest approach NELSON – BLUE".
+
+**The check (DEV-10).** `npm run check:language`, run in CI, reads the **Not** column of the terms table above and fails on any of those words in the extension's interface text.

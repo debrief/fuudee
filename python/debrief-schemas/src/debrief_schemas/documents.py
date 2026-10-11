@@ -440,8 +440,7 @@ def _webview_message_problems(message: g.WebviewMessage, raw: dict[str, Any]) ->
     needed = MESSAGE_MEMBERS[kind]
     problems = [f"{kind} needs {member}" for member in needed if member not in raw]
     problems += [
-        f"{kind} does not carry {member}"
-        for member in sorted(set(raw) - {"kind", *needed})
+        f"{kind} does not carry {member}" for member in sorted(set(raw) - {"kind", *needed})
     ]
     if message.plot is not None:
         problems += _plot_problems(message.plot, raw["plot"])

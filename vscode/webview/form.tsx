@@ -1,0 +1,159 @@
+/**
+ * A tool's form, generated from its declaration (TL-07). It shows the tool's
+ * explanation and any judgement it involves (CAP-24), what it will act on,
+ * and one field per parameter. Values are checked again in Python before the
+ * tool runs, so this form only needs to collect them.
+ */
+import { createRoot } from "react-dom/client";
+import { useEffect, useState } from "react";
+import { FACTORS, UNIT_LABELS } from "@debrief/kernel";
+import type { ParameterDeclaration, ParameterValue, ToolDeclaration } from "@debrief/schemas";
+import { Action, Choice, Field, TextInput, YesNo } from "./ui.js";
+import { host, onMessage } from "./vscode.js";
+import "./form.css";
+
+type Draft = Record<string, { text: string; unit?: string; checked?: boolean }>;
+
+function initial(param: ParameterDeclaration): Draft[string] {
+  const d = param.default as unknown;
+  if (param.kind === "boolean") return { text: "", checked: d === true };
+  if (param.kind === "quantity" && d && typeof d === "object") {
+    const q = d as { value: number; unit: string };
+    return { text: String(q.value), unit: q.unit };
+  }
+  if (param.kind === "quantity") return { text: "", unit: Object.keys(FACTORS[param.quantity_kind as keyof typeof FACTORS])[0] };
+  return { text: d === undefined || d === null ? "" : String(d) };
+}
+
+function toValue(param: ParameterDeclaration, draft: Draft[string]): ParameterValue["value"] | undefined | Error {
+  if (param.kind === "boolean") return draft.checked ?? false;
+  const text = draft.text.trim();
+  if (!text) return undefined;
+  if (param.kind === "number" || param.kind === "integer" || param.kind === "quantity") {
+    const n = Number(text);
+    if (!Number.isFinite(n)) return new Error(`${param.title} must be a number`);
+    return param.kind === "quantity" ? ({ value: n, unit: draft.unit! } as ParameterValue["value"]) : n;
+  }
+  if (param.kind === "time") {
+    // Accept any full UTC time and send it in the stored form, to the millisecond (SUB-01).
+    const ms = Date.parse(/[zZ]|[+-]\d\d:?\d\d$/.test(text) ? text : `${text}Z`);
+    return Number.isNaN(ms) ? new Error(`${param.title} must be a UTC time such as 1995-12-12T05:40:00Z`) : new Date(ms).toISOString();
+  }
+  return text;
+}
+
+function Form() {
+  const [tool, setTool] = useState<ToolDeclaration>();
+  const [names, setNames] = useState<string[]>([]);
+  const [draft, setDraft] = useState<Draft>({});
+  const [busy, setBusy] = useState(false);
+  const [problem, setProblem] = useState<string>();
+
+  useEffect(() => {
+    onMessage((message) => {
+      if (message.kind === "show_form") {
+        const declaration = message.tool as ToolDeclaration;
+        setTool(declaration);
+        setNames(message.selected_names as string[]);
+        setDraft(Object.fromEntries((declaration.parameters ?? []).map((p) => [p.name, initial(p)])));
+        setBusy(false);
+        setProblem(undefined);
+      } else if (message.kind === "form_busy") {
+        setBusy(true);
+      } else if (message.kind === "form_error") {
+        setBusy(false);
+        setProblem(message.message as string);
+      }
+    });
+    host.postMessage({ kind: "ready" });
+  }, []);
+
+  if (!tool) return null;
+  const params = tool.parameters ?? [];
+  const update = (name: string, change: Partial<Draft[string]>) => setDraft((d) => ({ ...d, [name]: { ...d[name], ...change } }));
+
+  const run = () => {
+    const values: ParameterValue[] = [];
+    for (const param of params) {
+      const value = toValue(param, draft[param.name]);
+      if (value instanceof Error) return setProblem(value.message);
+      if (value !== undefined) values.push({ name: param.name, value });
+    }
+    setProblem(undefined);
+    host.postMessage({ kind: "run_tool", tool_name: tool.name, parameters: values });
+  };
+
+  return (
+    <form
+      className="tool-form"
+      onSubmit={(e) => {
+        e.preventDefault();
+        run();
+      }}
+    >
+      <h1>{tool.title}</h1>
+      <p className="explanation">{tool.explanation}</p>
+      {tool.judgement && <p className="judgement">{tool.judgement}</p>}
+      <p className="applies">{names.length ? `Applies to: ${names.join(", ")}` : "Applies to the plot as a whole."}</p>
+      {params.map((param) => {
+        const d = draft[param.name] ?? { text: "" };
+        const id = `p-${param.name}`;
+        const optional = param.required === false ? " (optional)" : "";
+        if (param.kind === "boolean") {
+          return (
+            <Field key={param.name} label="" explanation={param.explanation ?? undefined}>
+              <YesNo checked={d.checked ?? false} label={param.title} onChange={(checked) => update(param.name, { checked })} />
+            </Field>
+          );
+        }
+        if (param.kind === "choice") {
+          return (
+            <Field key={param.name} label={param.title + optional} explanation={param.explanation ?? undefined}>
+              <Choice
+                value={d.text}
+                options={(param.choices ?? []).map((c) => ({ value: c, label: c.replace(/_/g, " ") }))}
+                onChange={(text) => update(param.name, { text })}
+              />
+            </Field>
+          );
+        }
+        if (param.kind === "quantity") {
+          const units = Object.keys(FACTORS[param.quantity_kind as keyof typeof FACTORS]);
+          return (
+            <Field key={param.name} label={param.title + optional} explanation={param.explanation ?? undefined} htmlFor={id}>
+              <div className="quantity">
+                <TextInput id={id} value={d.text} onChange={(text) => update(param.name, { text })} />
+                <Choice
+                  value={d.unit ?? units[0]}
+                  options={units.map((u) => ({ value: u, label: UNIT_LABELS[u] ?? u }))}
+                  onChange={(unit) => update(param.name, { unit })}
+                />
+              </div>
+            </Field>
+          );
+        }
+        const placeholder = param.kind === "time" ? "UTC: 1995-12-12T05:40:00Z" : undefined;
+        return (
+          <Field key={param.name} label={param.title + optional} explanation={param.explanation ?? undefined} htmlFor={id}>
+            <TextInput id={id} value={d.text} placeholder={placeholder} onChange={(text) => update(param.name, { text })} />
+          </Field>
+        );
+      })}
+      {problem && (
+        <div className="problem" role="alert">
+          {problem}
+        </div>
+      )}
+      <div className="actions">
+        <Action primary disabled={busy} onClick={run}>
+          {busy ? "Running…" : "Run"}
+        </Action>
+        <Action disabled={busy} onClick={() => host.postMessage({ kind: "cancel" })}>
+          Cancel
+        </Action>
+      </div>
+    </form>
+  );
+}
+
+createRoot(document.getElementById("root")!).render(<Form />);

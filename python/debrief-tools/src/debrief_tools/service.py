@@ -24,9 +24,11 @@ import hmac
 import json
 import logging
 import os
+import re
 import socket
 import sys
 from importlib.metadata import version
+from pathlib import Path
 from typing import Any
 
 from starlette.applications import Starlette
@@ -35,8 +37,10 @@ from starlette.requests import Request
 from starlette.responses import JSONResponse, Response
 from starlette.routing import Route
 
-from debrief_config import load_config
+from debrief_config import ConfigError, add_store, load_config, update_config
+from debrief_io import import_rep
 from debrief_schemas import DocumentKind, load_document, models
+from debrief_stac import Catalogue, CatalogueError
 from debrief_tools.registry import applies
 from debrief_tools.worker import ToolWorker
 
@@ -177,14 +181,79 @@ class ToolService:
                 raise RpcError(INVALID_PARAMS, "kinds must be a list of feature kinds")
             return {"tools": [n for n, d in self.declarations.items() if applies(d, kinds)]}
         if method == "debrief/stores":
-            config = load_config(self.config_path) if self.config_path else load_config()
+            config = self._config()
             return {
                 "stores": [
                     {"id": s.id, "title": s.title, "read_only": bool(s.read_only)}
                     for s in config.stores
                 ]
             }
+        if method == "debrief/create_catalogue":
+            return self._create_catalogue(params)
+        if method == "debrief/import_rep":
+            return self._import_rep(params)
         raise RpcError(METHOD_NOT_FOUND, f"Unknown method {method}")
+
+    def _config(self) -> models.UserConfig:
+        return load_config(self.config_path) if self.config_path else load_config()
+
+    def _create_catalogue(self, params: dict[str, Any]) -> dict[str, Any]:
+        """Create an empty catalogue in a folder and add it to the user's configuration."""
+        location, title = params.get("location"), params.get("title")
+        if not isinstance(location, str) or not isinstance(title, str) or not title.strip():
+            raise RpcError(INVALID_PARAMS, "create_catalogue needs a location and a title")
+        folder = Path(location)
+        if folder.exists() and any(folder.iterdir()) and not (folder / "catalog.json").exists():
+            raise RpcError(INVALID_PARAMS, f"{folder} is not empty. Choose an empty folder.")
+        try:
+            if not (folder / "catalog.json").exists():
+                folder.mkdir(parents=True, exist_ok=True)
+                identifier = re.sub(r"[^a-z0-9]+", "-", title.lower()).strip("-") or "catalogue"
+                Catalogue.create(folder, identifier, title.strip(), "")
+            store = {}
+
+            def add(config: models.UserConfig) -> models.UserConfig:
+                changed, added = add_store(config, title=title.strip(), location=str(folder))
+                store["id"] = added.id
+                return changed
+
+            update_config(add, Path(self.config_path) if self.config_path else None)
+        except (CatalogueError, ConfigError, OSError) as error:
+            raise RpcError(INVALID_PARAMS, str(error)) from None
+        return {"store": store["id"]}
+
+    def _import_rep(self, params: dict[str, Any]) -> dict[str, Any]:
+        """Import a REP file as a new plot (EXT-01). Nothing in the file is dropped silently."""
+        store_id, path = params.get("store"), params.get("path")
+        store = next((s for s in self._config().stores if s.id == store_id), None)
+        if store is None:
+            raise RpcError(
+                INVALID_PARAMS, f"There is no catalogue {store_id!r} in your configuration."
+            )
+        if store.read_only:
+            raise RpcError(INVALID_PARAMS, f"{store.title} is read-only.")
+        if not isinstance(path, str) or not Path(path).is_file():
+            raise RpcError(INVALID_PARAMS, f"{path} is not a file.")
+        try:
+            catalogue = Catalogue.open(Path(store.location))
+            stem = re.sub(r"[^A-Za-z0-9._-]+", "-", Path(path).stem).strip("-.") or "plot"
+            taken, item_id, n = set(catalogue.item_ids()), stem, 2
+            while item_id in taken:
+                item_id, n = f"{stem}-{n}", n + 1
+            agent = params.get("agent") or {"kind": "person", "name": "analyst"}
+            report = import_rep(
+                catalogue, Path(path), item_id=item_id, agent=models.AgentRef(**agent)
+            )
+        except (CatalogueError, OSError, ValueError) as error:
+            raise RpcError(
+                INVALID_PARAMS, f"{Path(path).name} could not be imported: {error}"
+            ) from None
+        return {
+            "item": report.item_id,
+            "tracks": report.tracks,
+            "fixes": report.fixes,
+            "omitted": report.omitted,
+        }
 
     def _call(self, params: dict[str, Any]) -> dict[str, Any]:
         name, arguments = params.get("name"), params.get("arguments")

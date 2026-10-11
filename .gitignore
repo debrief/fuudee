@@ -156,3 +156,7 @@ site/site/
 
 # Agent worktrees
 .claude/worktrees/
+
+# VS Code extension build and test downloads
+vscode/dist-test/
+vscode/.vscode-test/

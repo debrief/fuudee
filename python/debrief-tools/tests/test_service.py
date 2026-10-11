@@ -252,3 +252,29 @@ def test_protocol_version_negotiation_and_responses(client) -> None:
     )
     response = {"jsonrpc": "2.0", "id": 5, "result": {}}
     assert client.post("/mcp", content=json.dumps(response), headers=HEADERS).status_code == 202
+
+
+def test_create_catalogue_then_import(client, tmp_path) -> None:
+    folder = tmp_path / "new-cat"
+    created = rpc(
+        client, "debrief/create_catalogue", {"location": str(folder), "title": "Exercise two"}
+    )
+    store = created.json()["result"]["store"]
+    assert (folder / "catalog.json").exists()
+    assert store in [s["id"] for s in rpc(client, "debrief/stores").json()["result"]["stores"]]
+    source = tmp_path / "serial.rep"
+    params = {"store": store, "path": str(source), "agent": AGENT}
+    first = rpc(client, "debrief/import_rep", params).json()["result"]
+    again = rpc(client, "debrief/import_rep", params).json()["result"]
+    assert (first["item"], again["item"]) == ("serial", "serial-2")
+    assert first["tracks"] == ["NELSON", "BLUE", "LATE"] and first["fixes"] == 8
+
+
+def test_create_catalogue_refuses_a_folder_with_other_files(client, tmp_path) -> None:
+    folder = tmp_path / "busy"
+    folder.mkdir()
+    (folder / "notes.txt").write_text("x")
+    response = rpc(
+        client, "debrief/create_catalogue", {"location": str(folder), "title": "X"}
+    ).json()
+    assert "not empty" in response["error"]["message"]
