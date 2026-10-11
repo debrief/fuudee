@@ -13,6 +13,7 @@ Every type that crosses a process or language boundary is defined here in LinkML
 | `stac.yaml` | Catalogues, items, assets, links | SUB-06, SUB-15 to SUB-17, SUB-23, SUB-35 |
 | `state.yaml` | Current time, selection and viewport | SUB-26, SUB-27, TL-10 |
 | `tools.yaml` | Tool declarations, parameter declarations, tool results | TL-04 to TL-13, CAP-24 |
+| `formatting.yaml` | The analyst's display formatting settings | SUB-04 |
 | `debrief.yaml` | Root: imports the modules and holds the schema version | SUB-12 |
 
 ## External standards (CON-04)
@@ -40,7 +41,7 @@ Every type that crosses a process or language boundary is defined here in LinkML
 
 ## Fixtures
 
-`fixtures/<kind>/valid`, `invalid/schema` and `invalid/semantic`, where kind is `plot`, `stac_item`, `stac_catalog`, `tool_declaration`, `tool_result` or `shared_state`. Tests in both languages read them. A semantic fixture must pass JSON Schema; a test enforces this.
+`fixtures/<kind>/valid`, `invalid/schema` and `invalid/semantic`, where kind is `plot`, `stac_item`, `stac_catalog`, `tool_declaration`, `tool_result`, `shared_state` or `format_settings`. Tests in both languages read them. A semantic fixture must pass JSON Schema; a test enforces this.
 
 ## Workflow
 

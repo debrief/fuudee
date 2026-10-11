@@ -1,0 +1,452 @@
+{
+  "description": "Shared vectors for the Python and TypeScript formatting services (SUB-04). Each case applies 'settings' over schemas/vectors/format-defaults.json.",
+  "cases": [
+    {
+      "name": "one nautical mile",
+      "settings": {},
+      "op": "quantity",
+      "input": {
+        "value": 1852,
+        "unit": "m"
+      },
+      "expected": "1.00 nmi"
+    },
+    {
+      "name": "speed from m/s to knots",
+      "settings": {},
+      "op": "quantity",
+      "input": {
+        "value": 5.144444,
+        "unit": "m/s"
+      },
+      "expected": "10.0 kn"
+    },
+    {
+      "name": "angle",
+      "settings": {},
+      "op": "quantity",
+      "input": {
+        "value": 45,
+        "unit": "deg"
+      },
+      "expected": "45.0°"
+    },
+    {
+      "name": "angle from radians",
+      "settings": {},
+      "op": "quantity",
+      "input": {
+        "value": 3.141592653589793,
+        "unit": "rad"
+      },
+      "expected": "180.0°"
+    },
+    {
+      "name": "duration in minutes",
+      "settings": {},
+      "op": "quantity",
+      "input": {
+        "value": 90,
+        "unit": "s"
+      },
+      "expected": "1.5 min"
+    },
+    {
+      "name": "yards, no decimals",
+      "settings": {
+        "length_unit": "[yd_i]",
+        "length_decimals": 0
+      },
+      "op": "quantity",
+      "input": {
+        "value": 1,
+        "unit": "[nmi_i]"
+      },
+      "expected": "2025 yd"
+    },
+    {
+      "name": "tie rounds away from zero",
+      "settings": {
+        "speed_unit": "m/s",
+        "speed_decimals": 0
+      },
+      "op": "quantity",
+      "input": {
+        "value": 2.5,
+        "unit": "m/s"
+      },
+      "expected": "3 m/s"
+    },
+    {
+      "name": "tie on exact binary value",
+      "settings": {
+        "length_unit": "m",
+        "length_decimals": 2
+      },
+      "op": "quantity",
+      "input": {
+        "value": 0.125,
+        "unit": "m"
+      },
+      "expected": "0.13 m"
+    },
+    {
+      "name": "not a tie in binary",
+      "settings": {
+        "length_unit": "m",
+        "length_decimals": 2
+      },
+      "op": "quantity",
+      "input": {
+        "value": 1.005,
+        "unit": "m"
+      },
+      "expected": "1.00 m"
+    },
+    {
+      "name": "negative tie",
+      "settings": {
+        "speed_unit": "m/s",
+        "speed_decimals": 0
+      },
+      "op": "quantity",
+      "input": {
+        "value": -2.5,
+        "unit": "m/s"
+      },
+      "expected": "-3 m/s"
+    },
+    {
+      "name": "small negative",
+      "settings": {
+        "speed_unit": "m/s",
+        "speed_decimals": 1
+      },
+      "op": "quantity",
+      "input": {
+        "value": -0.04,
+        "unit": "m/s"
+      },
+      "expected": "0.0 m/s"
+    },
+    {
+      "name": "kilometres per hour",
+      "settings": {
+        "speed_unit": "km/h",
+        "speed_decimals": 2
+      },
+      "op": "quantity",
+      "input": {
+        "value": 10,
+        "unit": "[kn_i]"
+      },
+      "expected": "18.52 km/h"
+    },
+    {
+      "name": "hours",
+      "settings": {
+        "duration_unit": "h",
+        "duration_decimals": 3
+      },
+      "op": "quantity",
+      "input": {
+        "value": 5400000,
+        "unit": "ms"
+      },
+      "expected": "1.500 h"
+    },
+    {
+      "name": "bearing padded",
+      "settings": {},
+      "op": "bearing",
+      "input": {
+        "value": 5,
+        "unit": "deg"
+      },
+      "expected": "005.0°T"
+    },
+    {
+      "name": "bearing no decimals",
+      "settings": {
+        "angle_decimals": 0
+      },
+      "op": "bearing",
+      "input": {
+        "value": 45,
+        "unit": "deg"
+      },
+      "expected": "045°T"
+    },
+    {
+      "name": "bearing rounds to 360 wraps to zero",
+      "settings": {},
+      "op": "bearing",
+      "input": {
+        "value": 359.96,
+        "unit": "deg"
+      },
+      "expected": "000.0°T"
+    },
+    {
+      "name": "negative bearing normalised",
+      "settings": {},
+      "op": "bearing",
+      "input": {
+        "value": -90,
+        "unit": "deg"
+      },
+      "expected": "270.0°T"
+    },
+    {
+      "name": "bearing two decimals",
+      "settings": {
+        "angle_decimals": 2
+      },
+      "op": "bearing",
+      "input": {
+        "value": 180,
+        "unit": "deg"
+      },
+      "expected": "180.00°T"
+    },
+    {
+      "name": "bearing tie",
+      "settings": {
+        "angle_decimals": 0
+      },
+      "op": "bearing",
+      "input": {
+        "value": 12.5,
+        "unit": "deg"
+      },
+      "expected": "013°T"
+    },
+    {
+      "name": "bearing over 360",
+      "settings": {},
+      "op": "bearing",
+      "input": {
+        "value": 725.25,
+        "unit": "deg"
+      },
+      "expected": "005.3°T"
+    },
+    {
+      "name": "degrees and minutes",
+      "settings": {},
+      "op": "position",
+      "input": {
+        "longitude": -4.120167,
+        "latitude": 50.335333
+      },
+      "expected": "50°20.120'N 004°07.210'W"
+    },
+    {
+      "name": "decimal degrees",
+      "settings": {
+        "position_notation": "dd"
+      },
+      "op": "position",
+      "input": {
+        "longitude": -4.120167,
+        "latitude": 50.335333
+      },
+      "expected": "50.335°N 004.120°W"
+    },
+    {
+      "name": "degrees minutes seconds",
+      "settings": {
+        "position_notation": "dms",
+        "position_decimals": 1
+      },
+      "op": "position",
+      "input": {
+        "longitude": -4.120167,
+        "latitude": 50.335333
+      },
+      "expected": "50°20'07.2\"N 004°07'12.6\"W"
+    },
+    {
+      "name": "minutes carry into degrees",
+      "settings": {},
+      "op": "position",
+      "input": {
+        "longitude": 0.0,
+        "latitude": 50.9999999
+      },
+      "expected": "51°00.000'N 000°00.000'E"
+    },
+    {
+      "name": "southern and eastern",
+      "settings": {},
+      "op": "position",
+      "input": {
+        "longitude": 151.2,
+        "latitude": -33.85
+      },
+      "expected": "33°51.000'S 151°12.000'E"
+    },
+    {
+      "name": "dms no decimals",
+      "settings": {
+        "position_notation": "dms",
+        "position_decimals": 0
+      },
+      "op": "position",
+      "input": {
+        "longitude": -0.5,
+        "latitude": 0.0001
+      },
+      "expected": "00°00'00\"N 000°30'00\"W"
+    },
+    {
+      "name": "dd no decimals",
+      "settings": {
+        "position_notation": "dd",
+        "position_decimals": 0
+      },
+      "op": "position",
+      "input": {
+        "longitude": 179.6,
+        "latitude": -89.5
+      },
+      "expected": "90°S 180°E"
+    },
+    {
+      "name": "dm one decimal",
+      "settings": {
+        "position_decimals": 1
+      },
+      "op": "position",
+      "input": {
+        "longitude": -179.99999,
+        "latitude": 89.99999
+      },
+      "expected": "90°00.0'N 180°00.0'W"
+    },
+    {
+      "name": "zulu",
+      "settings": {},
+      "op": "time",
+      "input": {
+        "utc": "2026-10-11T09:30:05.250Z"
+      },
+      "expected": "09:30:05Z"
+    },
+    {
+      "name": "zulu with milliseconds",
+      "settings": {
+        "show_milliseconds": true
+      },
+      "op": "time",
+      "input": {
+        "utc": "2026-10-11T09:30:05.250Z"
+      },
+      "expected": "09:30:05.250Z"
+    },
+    {
+      "name": "date and time",
+      "settings": {
+        "time_style": "date_time"
+      },
+      "op": "time",
+      "input": {
+        "utc": "2026-10-11T09:30:05.250Z"
+      },
+      "expected": "11 Oct 2026 09:30:05Z"
+    },
+    {
+      "name": "single-digit day",
+      "settings": {
+        "time_style": "date_time"
+      },
+      "op": "time",
+      "input": {
+        "utc": "2026-03-01T00:00:00.000Z"
+      },
+      "expected": "1 Mar 2026 00:00:00Z"
+    },
+    {
+      "name": "date-time group",
+      "settings": {
+        "time_style": "dtg"
+      },
+      "op": "time",
+      "input": {
+        "utc": "2026-10-11T09:30:05.250Z"
+      },
+      "expected": "110930Z OCT 26"
+    },
+    {
+      "name": "summer time",
+      "settings": {
+        "time_zone": "Europe/London"
+      },
+      "op": "time",
+      "input": {
+        "utc": "2026-10-11T09:30:05.250Z"
+      },
+      "expected": "10:30:05 UTC+1"
+    },
+    {
+      "name": "winter time",
+      "settings": {
+        "time_zone": "Europe/London",
+        "time_style": "date_time"
+      },
+      "op": "time",
+      "input": {
+        "utc": "2026-12-25T23:59:59.999Z"
+      },
+      "expected": "25 Dec 2026 23:59:59 UTC+0"
+    },
+    {
+      "name": "half-hour offset",
+      "settings": {
+        "time_zone": "Asia/Kolkata"
+      },
+      "op": "time",
+      "input": {
+        "utc": "2026-10-11T09:30:05.250Z"
+      },
+      "expected": "15:00:05 UTC+5:30"
+    },
+    {
+      "name": "negative offset across midnight",
+      "settings": {
+        "time_zone": "America/St_Johns",
+        "time_style": "date_time"
+      },
+      "op": "time",
+      "input": {
+        "utc": "2026-01-01T01:00:00.000Z"
+      },
+      "expected": "31 Dec 2025 21:30:00 UTC-3:30"
+    },
+    {
+      "name": "zero rounds without sign",
+      "settings": {
+        "length_unit": "m",
+        "length_decimals": 0
+      },
+      "op": "quantity",
+      "input": {
+        "value": -0.4,
+        "unit": "m"
+      },
+      "expected": "0 m"
+    },
+    {
+      "name": "before 1970",
+      "settings": {
+        "time_style": "date_time",
+        "show_milliseconds": true
+      },
+      "op": "time",
+      "input": {
+        "utc": "1969-12-31T23:59:59.999Z"
+      },
+      "expected": "31 Dec 1969 23:59:59.999Z"
+    }
+  ]
+}
