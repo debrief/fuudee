@@ -150,3 +150,6 @@ __pycache__/
 .ruff_cache/
 .mypy_cache/
 *.egg-info/
+
+# MkDocs build output
+site/site/
