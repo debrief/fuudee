@@ -11,6 +11,7 @@ import { densify } from "../../webview/geodesic.js";
 import { count, describeTimes } from "../../src/format.js";
 import { Session } from "../../src/session.js";
 import { redact, toolRunLine } from "../../src/diagnostics.js";
+import { changed, displayed, LocalHistory } from "../../src/presentation.js";
 import type { OpenedPlot } from "../../src/catalogue.js";
 
 const repo = path.resolve(__dirname, "../../..");
@@ -235,5 +236,46 @@ describe("logs hold no plot data (NFR-14)", () => {
     expect(toolRunLine(note, { text: "Contact lost near NELSON", at: "05:00Z", x: 1 }, 2, "done", 41.2)).toBe(
       "tool_run tool=core.add_note version=0.0.2 parameters=at:time,text:string undeclared_parameters=1 selected=2 outcome=done ms=41",
     );
+  });
+});
+
+describe("presentation, outside the plot's history (SUB-22)", () => {
+  const plot = {
+    type: "FeatureCollection",
+    schema_version: "0.0.7",
+    features: [
+      { id: "a", properties: { kind: "track", name: "A", style: { colour: "#e01c3e", legacy_symbology: "@C" } } },
+      { id: "b", properties: { kind: "annotation", name: "B" } },
+    ],
+    provenance: [],
+  } as unknown as Parameters<typeof displayed>[0];
+  const empty = { schema_version: "0.0.7", features: [] };
+
+  it("shows the analyst's colours and leaves hidden features off the map", () => {
+    const p = changed(changed(empty, ["a"], { colour: "#0064bd" }), ["b"], { hidden: true });
+    const shown = displayed(plot, p);
+    expect(shown.features.map((f) => f.id)).toEqual(["a"]);
+    expect((shown.features[0].properties as { style: unknown }).style).toEqual({ colour: "#0064bd", legacy_symbology: "@C" });
+    expect((plot.features[0].properties as { style: { colour: string } }).style.colour).toBe("#e01c3e"); // the plot is untouched
+  });
+
+  it("drops entries that no longer say anything", () => {
+    const hidden = changed(empty, ["b"], { hidden: true });
+    expect(changed(hidden, ["b"], { hidden: false }).features).toEqual([]);
+  });
+
+  it("undoes and redoes one plot's changes, and a new change ends redo", () => {
+    const history = new LocalHistory();
+    const step = (label: string) => ({ plot: "p", label, before: empty, after: empty });
+    history.record(step("Colour blue"));
+    history.record(step("Hide on map"));
+    expect(history.undo()?.label).toBe("Hide on map");
+    expect(history.canRedo("p") && !history.canRedo("q")).toBe(true);
+    expect(history.steps("p").map((s) => [s.step.label, s.undone])).toEqual([
+      ["Colour blue", false],
+      ["Hide on map", true],
+    ]);
+    history.record(step("Colour green"));
+    expect(history.canRedo("p")).toBe(false);
   });
 });

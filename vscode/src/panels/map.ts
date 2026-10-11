@@ -7,6 +7,7 @@ import * as vscode from "vscode";
 import type { Session } from "../session.js";
 import { checkMessage } from "../messages.js";
 import { webviewHtml } from "./html.js";
+import { displayed } from "../presentation.js";
 
 export class MapPanel {
   private panel?: vscode.WebviewPanel;
@@ -81,7 +82,7 @@ export class MapPanel {
     this.panel.title = opened.item.properties.title ?? opened.item.id;
     this.post({
       kind: "show_plot",
-      plot: opened.plot,
+      plot: displayed(opened.plot, opened.presentation), // the analyst's colours, hidden left out (SUB-22)
       plot_title: this.panel.title,
       selection: this.selectionMessage(this.session.selection),
       ...(this.session.time && { time: this.session.time }),

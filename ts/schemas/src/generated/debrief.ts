@@ -82,7 +82,8 @@ export type FeatureTypeEnum = "Feature";
  * This interface was referenced by `DebriefSchemaDefinitions`'s JSON-Schema
  * via the `definition` "AssetKindEnum".
  */
-export type AssetKindEnum = "plot" | "source" | "supporting_file" | "payload" | "result" | "measure_group";
+export type AssetKindEnum =
+  "plot" | "source" | "supporting_file" | "payload" | "result" | "measure_group" | "presentation";
 /**
  * This interface was referenced by `DebriefSchemaDefinitions`'s JSON-Schema
  * via the `definition` "CatalogTypeEnum".
@@ -460,7 +461,7 @@ export interface SpeedSeries {
   values: number[];
 }
 /**
- * How a track is drawn. Data colours do not change with the theme (DEV-07). Presentation only: changes are undoable but not recorded in provenance (SUB-22).
+ * How a track is drawn, as imported. Data colours do not change with the theme (DEV-07). The analyst's later changes are presentation, kept in the plot's Presentation, not here: undoable, never recorded in provenance (SUB-22).
  *
  * This interface was referenced by `DebriefSchemaDefinitions`'s JSON-Schema
  * via the `definition` "TrackStyle".
@@ -607,6 +608,24 @@ export interface Delta {
 }
 /**
  * This interface was referenced by `DebriefSchemaDefinitions`'s JSON-Schema
+ * via the `definition` "FeaturePresentation".
+ */
+export interface FeaturePresentation {
+  /**
+   * Lower-case hex RGB, for a track; overrides the colour it was imported with.
+   */
+  colour?: string | null;
+  /**
+   * Not drawn on the map. Still listed, and still selectable, in the outline.
+   */
+  hidden?: boolean | null;
+  /**
+   * The feature's id in the plot.
+   */
+  id: string;
+}
+/**
+ * This interface was referenced by `DebriefSchemaDefinitions`'s JSON-Schema
  * via the `definition` "FormatSettings".
  */
 export interface FormatSettings {
@@ -731,6 +750,17 @@ export interface ParameterDeclaration {
   quantity_kind?: QuantityKindEnum | null;
   required?: boolean | null;
   title: string;
+}
+/**
+ * This interface was referenced by `DebriefSchemaDefinitions`'s JSON-Schema
+ * via the `definition` "Presentation".
+ */
+export interface Presentation {
+  /**
+   * Each feature the analyst has restyled or hidden, once.
+   */
+  features: FeaturePresentation[];
+  schema_version: string;
 }
 /**
  * This interface was referenced by `DebriefSchemaDefinitions`'s JSON-Schema

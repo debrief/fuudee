@@ -6,6 +6,7 @@
  * trusting each item's parent link, never the catalogue's child links, as
  * debrief-stac does. Every file is validated on reading.
  */
+import { createHash } from "node:crypto";
 import { existsSync, readdirSync, readFileSync, statSync } from "node:fs";
 import path from "node:path";
 import { loadConfig, type ConfigError } from "@debrief/config";
@@ -13,6 +14,7 @@ import {
   parseDocument,
   type DebriefFeatureCollection,
   type KnownStore,
+  type Presentation,
   type StacItem,
 } from "@debrief/schemas";
 
@@ -40,6 +42,9 @@ export interface OpenedPlot {
   files: { key: string; title: string; kind: string; href: string }[];
   /** Where the plot's history stood when it was read, from the tool service (SUB-28). */
   base?: { current: number; plot_hash: string };
+  /** The analyst's colours and hidden features (SUB-22), and the hash to pass back when changing them. */
+  presentation: Presentation;
+  presentationHash: string;
 }
 
 /** The file that changes whenever anyone changes the plot's history. */
@@ -134,5 +139,11 @@ export function openPlot(store: KnownStore, itemId: string): OpenedPlot {
       kind: String(asset["debrief:asset_kind"] ?? "file"),
       href: assetPath(store, item, asset),
     }));
-  return { store, item, plot, files };
+  const presentationFile = path.join(store.location, itemId, "presentation.json");
+  const presentationText = existsSync(presentationFile) ? readFileSync(presentationFile, "utf8") : undefined;
+  const presentation = presentationText
+    ? parseDocument("presentation", presentationText)
+    : { schema_version: plot.schema_version, features: [] };
+  const presentationHash = presentationText ? `sha256:${createHash("sha256").update(presentationText, "utf8").digest("hex")}` : "";
+  return { store, item, plot, files: files.filter((f) => f.key !== "presentation"), presentation, presentationHash };
 }

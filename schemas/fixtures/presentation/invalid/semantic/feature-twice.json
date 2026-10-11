@@ -1,0 +1,7 @@
+{
+  "schema_version": "0.0.7",
+  "features": [
+    {"id": "track-nelson", "colour": "#0064bd"},
+    {"id": "track-nelson", "hidden": true}
+  ]
+}

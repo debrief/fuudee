@@ -9,7 +9,11 @@ import { describePeriod } from "../format.js";
 import type { HistoryStep } from "../service.js";
 import { describeStep } from "../wording.js";
 
-type Node = { kind: "status"; text: string; icon: string } | { kind: "step"; step: HistoryStep; current: boolean };
+type Local = { step: { label: string }; undone: boolean };
+type Node =
+  | { kind: "status"; text: string; icon: string }
+  | { kind: "step"; step: HistoryStep; current: boolean }
+  | { kind: "presentation"; local: Local };
 
 const ICONS: Record<HistoryStep["status"], string> = {
   applied: "pass-filled",
@@ -27,8 +31,11 @@ export class HistoryProvider implements vscode.TreeDataProvider<Node> {
 
   constructor(private readonly toolTitle: (name: string) => string | undefined) {}
 
-  update(steps: HistoryStep[], current: number, open = true, problem?: string): void {
-    Object.assign(this, { steps, current, open, problem });
+  local: Local[] = [];
+
+  /** local: presentation changes made in this window, oldest first (SUB-22). */
+  update(steps: HistoryStep[], current: number, open = true, problem?: string, local: Local[] = []): void {
+    Object.assign(this, { steps, current, open, problem, local });
     this.changed.fire();
   }
 
@@ -45,13 +52,23 @@ export class HistoryProvider implements vscode.TreeDataProvider<Node> {
     if (node) return [];
     if (this.problem) return [{ kind: "status", text: this.problem, icon: "warning" }];
     if (!this.open) return [{ kind: "status", text: "Open a plot to see its history.", icon: "info" }];
-    return [...this.steps].reverse().map((step) => ({ kind: "step", step, current: step.seq === this.current }));
+    return [
+      ...[...this.local].reverse().map((local) => ({ kind: "presentation" as const, local })),
+      ...[...this.steps].reverse().map((step) => ({ kind: "step" as const, step, current: step.seq === this.current })),
+    ];
   }
 
   getTreeItem(node: Node): vscode.TreeItem {
     if (node.kind === "status") {
       const item = new vscode.TreeItem(node.text);
       item.iconPath = new vscode.ThemeIcon(node.icon);
+      return item;
+    }
+    if (node.kind === "presentation") {
+      const item = new vscode.TreeItem(node.local.step.label);
+      item.description = `presentation${node.local.undone ? " · undone" : ""} · this window only`;
+      item.tooltip = "A presentation change: undoable here, never recorded in the plot's history (SUB-22).";
+      item.iconPath = new vscode.ThemeIcon(node.local.undone ? "discard" : "symbol-color");
       return item;
     }
     const { step } = node;

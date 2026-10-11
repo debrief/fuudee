@@ -40,6 +40,7 @@ class DocumentKind(StrEnum):
     WEBVIEW_MESSAGE = "webview_message"
     DELTA = "delta"
     HISTORY_HEAD = "history_head"
+    PRESENTATION = "presentation"
 
 
 _MODELS: dict[DocumentKind, type[BaseModel]] = {
@@ -54,6 +55,7 @@ _MODELS: dict[DocumentKind, type[BaseModel]] = {
     DocumentKind.WEBVIEW_MESSAGE: g.WebviewMessage,
     DocumentKind.DELTA: g.Delta,
     DocumentKind.HISTORY_HEAD: g.HistoryHead,
+    DocumentKind.PRESENTATION: g.Presentation,
 }
 
 # Members that GeoJSON and STAC require to be present even when null.
@@ -130,11 +132,17 @@ _FILE_KINDS = (
     DocumentKind.STAC_CATALOG,
     DocumentKind.DELTA,
     DocumentKind.HISTORY_HEAD,
+    DocumentKind.PRESENTATION,
 )
 
 
 def _recorded_version(kind: DocumentKind, document: dict[str, Any]) -> object:
-    if kind in (DocumentKind.PLOT, DocumentKind.DELTA, DocumentKind.HISTORY_HEAD):
+    if kind in (
+        DocumentKind.PLOT,
+        DocumentKind.DELTA,
+        DocumentKind.HISTORY_HEAD,
+        DocumentKind.PRESENTATION,
+    ):
         return document.get("schema_version")
     if kind is DocumentKind.STAC_ITEM:
         properties = document.get("properties")
@@ -471,6 +479,17 @@ def _webview_message_problems(message: g.WebviewMessage, raw: dict[str, Any]) ->
     return problems
 
 
+def _presentation_problems(presentation: g.Presentation) -> list[str]:
+    problems, seen = [], set()
+    for entry in presentation.features:
+        if entry.id in seen:
+            problems.append(f"feature {entry.id!r} is listed twice")
+        seen.add(entry.id)
+        if entry.colour is None and entry.hidden is None:
+            problems.append(f"feature {entry.id!r} has no colour and is not hidden")
+    return problems
+
+
 def _delta_problems(delta: g.Delta, raw: dict[str, Any]) -> list[str]:
     problems = ["after must come before seq"] if delta.after >= delta.seq else []
     problems += _raw_feature_problems(raw.get("added"), "added feature")
@@ -511,6 +530,7 @@ _RULES: dict[DocumentKind, Callable[[Any, dict[str, Any]], list[str]]] = {
     DocumentKind.WEBVIEW_MESSAGE: _webview_message_problems,
     DocumentKind.DELTA: _delta_problems,
     DocumentKind.HISTORY_HEAD: _history_head_problems,
+    DocumentKind.PRESENTATION: lambda presentation, raw: _presentation_problems(presentation),
 }
 
 

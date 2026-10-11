@@ -401,3 +401,29 @@ def test_a_newer_schema_question_reaches_the_caller(config_file: Path) -> None:
         "tools/call", {"name": "core.x", "arguments": {"selection": [], "agent": AGENT}}
     )
     assert result["isError"] and result["_meta"] == {"debrief/newer_schema": True}
+
+
+def test_presentation_is_kept_beside_the_plot_outside_its_history(client, catalogue) -> None:
+    where = {"store": "exercise", "item": "serial"}
+    first = rpc(client, "debrief/presentation", where).json()["result"]
+    assert first == {
+        "presentation": {"schema_version": first["presentation"]["schema_version"], "features": []},
+        "hash": "",
+    }
+    blue = {**first["presentation"], "features": [{"id": "track-nelson", "colour": "#0064bd"}]}
+    changed = rpc(
+        client, "debrief/set_presentation", {**where, "presentation": blue, "hash": ""}
+    ).json()
+    new_hash = changed["result"]["hash"]
+    assert rpc(client, "debrief/presentation", where).json()["result"]["presentation"] == blue
+    stale = rpc(
+        client, "debrief/set_presentation", {**where, "presentation": blue, "hash": ""}
+    ).json()
+    assert stale["error"]["code"] == -32001  # changed since that hash was read
+    hidden = {**blue, "features": [*blue["features"], {"id": "track-late", "hidden": True}]}
+    assert rpc(
+        client, "debrief/set_presentation", {**where, "presentation": hidden, "hash": new_hash}
+    ).json()["result"]
+    steps = rpc(client, "debrief/history", where).json()["result"]["steps"]
+    assert len(steps) == 1  # never recorded in the plot's history (SUB-22)
+    assert "presentation" in catalogue.read_item("serial").assets

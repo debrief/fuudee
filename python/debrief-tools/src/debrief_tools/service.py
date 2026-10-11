@@ -43,7 +43,7 @@ from starlette.routing import Route
 
 from debrief_config import ConfigError, add_store, load_config, update_config
 from debrief_io import import_rep
-from debrief_schemas import DocumentKind, load_document, models
+from debrief_schemas import DocumentKind, dump_document, load_document, models
 from debrief_stac import (
     Base,
     Catalogue,
@@ -215,6 +215,8 @@ class ToolService:
             return self._import_rep(params)
         if method in HISTORY_METHODS:
             return self._history(method, params)
+        if method in ("debrief/presentation", "debrief/set_presentation"):
+            return self._presentation(method, params)
         raise RpcError(METHOD_NOT_FOUND, f"Unknown method {method}")
 
     def _config(self) -> models.UserConfig:
@@ -302,6 +304,47 @@ class ToolService:
         except NewerSchemaError as error:
             raise RpcError(NEWER_SCHEMA, str(error)) from None
         except (CatalogueError, HistoryError, OSError, ValueError) as error:
+            raise RpcError(INVALID_PARAMS, str(error)) from None
+
+    def _presentation(self, method: str, params: dict[str, Any]) -> dict[str, Any]:
+        """Read or replace a plot's presentation: colours and what is hidden (SUB-22).
+
+        set_presentation takes the hash read last; if the presentation changed
+        since, it fails with CONFLICT and nothing is written.
+        """
+        item = params.get("item")
+        if not isinstance(item, str):
+            raise RpcError(INVALID_PARAMS, f"{method} needs a store and an item")
+        writing = method == "debrief/set_presentation"
+        store = self._store(params.get("store"), writing=writing)
+        try:
+            catalogue = Catalogue.open(Path(store.location))
+            if item not in catalogue.item_ids():
+                raise RpcError(INVALID_PARAMS, f"There is no plot {item!r} in {store.title}.")
+            if writing:
+                expected = params.get("hash")
+                if not isinstance(expected, str):
+                    raise RpcError(INVALID_PARAMS, "set_presentation needs the hash last read")
+                presentation = load_document(
+                    DocumentKind.PRESENTATION, json.dumps(params.get("presentation"))
+                )
+                new_hash = catalogue.write_presentation(
+                    item,
+                    presentation,
+                    expected,
+                    allow_newer_schema=params.get("allow_newer_schema") is True,
+                )
+                return {"hash": new_hash}
+            presentation, current = catalogue.read_presentation(item)
+            return {
+                "presentation": json.loads(dump_document(DocumentKind.PRESENTATION, presentation)),
+                "hash": current,
+            }
+        except Conflict as conflict:
+            raise RpcError(CONFLICT, str(conflict)) from None
+        except NewerSchemaError as error:
+            raise RpcError(NEWER_SCHEMA, str(error)) from None
+        except (CatalogueError, OSError, ValueError) as error:
             raise RpcError(INVALID_PARAMS, str(error)) from None
 
     def _import_rep(self, params: dict[str, Any]) -> dict[str, Any]:

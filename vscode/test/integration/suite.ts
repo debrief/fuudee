@@ -152,4 +152,21 @@ export async function run(): Promise<void> {
   assert.deepEqual((await steps()).map((s) => s.status), ["applied", "applied", "abandoned", "applied"]);
   await sleep(1500);
   await screenshot("07-recovered", true);
+
+  // --- Presentation (SUB-22): undoable, never in the plot's history -------------------
+  const feature = (id: string) => ({ feature: { id } });
+  assert.equal(await vscode.commands.executeCommand("debrief.setColour", feature("track-blue-one"), "Green"), undefined);
+  assert.equal(await vscode.commands.executeCommand("debrief.hide", feature("track-ais-cargo-01")), undefined);
+  const shown = () => api.session.current!.presentation.features;
+  assert.deepEqual(shown(), [
+    { id: "track-blue-one", colour: "#00a000" },
+    { id: "track-ais-cargo-01", hidden: true },
+  ]);
+  assert.equal((await steps()).length, 4); // nothing added to the plot's history
+  await sleep(1500);
+  await screenshot("08-presentation");
+  // One undo takes back the latest thing done: the hiding, not a change to the plot.
+  assert.equal(await vscode.commands.executeCommand("debrief.undo"), undefined);
+  assert.deepEqual(shown(), [{ id: "track-blue-one", colour: "#00a000" }]);
+  assert.equal(api.session.current!.base?.current, 4);
 }

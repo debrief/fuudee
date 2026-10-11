@@ -6,6 +6,7 @@
 import * as vscode from "vscode";
 import type { OpenedPlot } from "../catalogue.js";
 import type { Session } from "../session.js";
+import { isHidden } from "../presentation.js";
 import { describeTimes } from "../format.js";
 
 type Feature = OpenedPlot["plot"]["features"][number];
@@ -123,8 +124,9 @@ export class OutlineProvider implements vscode.TreeDataProvider<Node> {
           : props.time_range
             ? describeTimes(props.time_range.start, props.time_range.end)
             : describeTimes(props.time);
-        item.description = [selected ? "selected" : "", when].filter(Boolean).join(" · ");
-        item.contextValue = "feature";
+        const hidden = isHidden(this.session.current?.presentation, feature.id);
+        item.description = [selected ? "selected" : "", hidden ? "hidden on map" : "", when].filter(Boolean).join(" · ");
+        item.contextValue = `feature-${feature.properties.kind}${hidden ? "-hidden" : ""}`;
         return item;
       }
     }

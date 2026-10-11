@@ -581,6 +581,10 @@ class AssetKindEnum(str, Enum):
     """
     A measure group definition (CAP-07).
     """
+    presentation = "presentation"
+    """
+    The analyst's presentation of the plot, outside its history (SUB-22).
+    """
 
 
 class ParameterKindEnum(str, Enum):
@@ -1035,7 +1039,8 @@ class ProvRecord(ConfiguredBaseModel):
                        'NamedSet',
                        'StacItem',
                        'StacCatalog',
-                       'KnownStore']} })
+                       'KnownStore',
+                       'FeaturePresentation']} })
     kind: ProvActivityKindEnum = Field(default=..., json_schema_extra = { "linkml_meta": {'domain_of': ['ProvRecord',
                        'AgentRef',
                        'TrackProperties',
@@ -1180,7 +1185,8 @@ class TrackFeature(ConfiguredBaseModel):
                        'NamedSet',
                        'StacItem',
                        'StacCatalog',
-                       'KnownStore']} })
+                       'KnownStore',
+                       'FeaturePresentation']} })
     geometry: LineStringGeometry = Field(default=..., json_schema_extra = { "linkml_meta": {'domain_of': ['TrackFeature',
                        'AnnotationFeature',
                        'SensorObservationsFeature',
@@ -1241,11 +1247,11 @@ class TrackProperties(ConfiguredBaseModel):
 
 class TrackStyle(ConfiguredBaseModel):
     """
-    How a track is drawn. Data colours do not change with the theme (DEV-07). Presentation only: changes are undoable but not recorded in provenance (SUB-22).
+    How a track is drawn, as imported. Data colours do not change with the theme (DEV-07). The analyst's later changes are presentation, kept in the plot's Presentation, not here: undoable, never recorded in provenance (SUB-22).
     """
     linkml_meta: ClassVar[LinkMLMeta] = LinkMLMeta({'from_schema': 'https://debrief.info/schemas/debrief'})
 
-    colour: str = Field(default=..., description="""Lower-case hex RGB, for example \"#e01c3e\".""", json_schema_extra = { "linkml_meta": {'domain_of': ['TrackStyle']} })
+    colour: str = Field(default=..., description="""Lower-case hex RGB, for example \"#e01c3e\".""", json_schema_extra = { "linkml_meta": {'domain_of': ['TrackStyle', 'FeaturePresentation']} })
     legacy_symbology: Optional[str] = Field(default=None, description="""The REP symbology code the colour came from, such as \"@C\", kept for export.""", json_schema_extra = { "linkml_meta": {'domain_of': ['TrackStyle']} })
 
     @field_validator('colour')
@@ -1286,7 +1292,8 @@ class AnnotationFeature(ConfiguredBaseModel):
                        'NamedSet',
                        'StacItem',
                        'StacCatalog',
-                       'KnownStore']} })
+                       'KnownStore',
+                       'FeaturePresentation']} })
     geometry: Optional[Union[LineStringGeometry, PointGeometry, PolygonGeometry]] = Field(default=None, json_schema_extra = { "linkml_meta": {'any_of': [{'range': 'PointGeometry'},
                     {'range': 'LineStringGeometry'},
                     {'range': 'PolygonGeometry'}],
@@ -1375,7 +1382,8 @@ class SensorObservationsFeature(ConfiguredBaseModel):
                        'NamedSet',
                        'StacItem',
                        'StacCatalog',
-                       'KnownStore']} })
+                       'KnownStore',
+                       'FeaturePresentation']} })
     geometry: Optional[PointGeometry] = Field(default=None, description="""Always null.""", json_schema_extra = { "linkml_meta": {'domain_of': ['TrackFeature',
                        'AnnotationFeature',
                        'SensorObservationsFeature',
@@ -1523,7 +1531,8 @@ class NamedSet(ConfiguredBaseModel):
                        'NamedSet',
                        'StacItem',
                        'StacCatalog',
-                       'KnownStore']} })
+                       'KnownStore',
+                       'FeaturePresentation']} })
     name: str = Field(default=..., json_schema_extra = { "linkml_meta": {'domain_of': ['ParameterValue',
                        'ToolRef',
                        'AgentRef',
@@ -1556,11 +1565,14 @@ class DebriefFeatureCollection(ConfiguredBaseModel):
                        'StacAsset',
                        'StacItem',
                        'StacCatalog']} })
-    schema_version: str = Field(default=..., json_schema_extra = { "linkml_meta": {'domain_of': ['DebriefFeatureCollection', 'Delta', 'HistoryHead']} })
+    schema_version: str = Field(default=..., json_schema_extra = { "linkml_meta": {'domain_of': ['DebriefFeatureCollection',
+                       'Delta',
+                       'HistoryHead',
+                       'Presentation']} })
     features: list[Union[AnnotationFeature, SensorObservationsFeature, TrackFeature]] = Field(default=..., json_schema_extra = { "linkml_meta": {'any_of': [{'range': 'TrackFeature'},
                     {'range': 'AnnotationFeature'},
                     {'range': 'SensorObservationsFeature'}],
-         'domain_of': ['DebriefFeatureCollection']} })
+         'domain_of': ['DebriefFeatureCollection', 'Presentation']} })
     named_sets: Optional[list[NamedSet]] = Field(default=None, json_schema_extra = { "linkml_meta": {'domain_of': ['DebriefFeatureCollection', 'ToolResult', 'Delta']} })
     provenance: list[ProvRecord] = Field(default=..., json_schema_extra = { "linkml_meta": {'domain_of': ['TrackProperties',
                        'AnnotationProperties',
@@ -1751,7 +1763,8 @@ class StacItem(ConfiguredBaseModel):
                        'NamedSet',
                        'StacItem',
                        'StacCatalog',
-                       'KnownStore']} })
+                       'KnownStore',
+                       'FeaturePresentation']} })
     geometry: Optional[Union[LineStringGeometry, PointGeometry, PolygonGeometry]] = Field(default=None, json_schema_extra = { "linkml_meta": {'any_of': [{'range': 'PointGeometry'},
                     {'range': 'LineStringGeometry'},
                     {'range': 'PolygonGeometry'}],
@@ -1796,7 +1809,8 @@ class StacCatalog(ConfiguredBaseModel):
                        'NamedSet',
                        'StacItem',
                        'StacCatalog',
-                       'KnownStore']} })
+                       'KnownStore',
+                       'FeaturePresentation']} })
     title: Optional[str] = Field(default=None, json_schema_extra = { "linkml_meta": {'domain_of': ['StacLink',
                        'StacAsset',
                        'StacItemProperties',
@@ -2125,7 +2139,8 @@ class KnownStore(ConfiguredBaseModel):
                        'NamedSet',
                        'StacItem',
                        'StacCatalog',
-                       'KnownStore']} })
+                       'KnownStore',
+                       'FeaturePresentation']} })
     title: str = Field(default=..., description="""The name the analyst sees.""", json_schema_extra = { "linkml_meta": {'domain_of': ['StacLink',
                        'StacAsset',
                        'StacItemProperties',
@@ -2209,7 +2224,10 @@ class Delta(ConfiguredBaseModel):
     """
     linkml_meta: ClassVar[LinkMLMeta] = LinkMLMeta({'from_schema': 'https://debrief.info/schemas/debrief'})
 
-    schema_version: str = Field(default=..., json_schema_extra = { "linkml_meta": {'domain_of': ['DebriefFeatureCollection', 'Delta', 'HistoryHead']} })
+    schema_version: str = Field(default=..., json_schema_extra = { "linkml_meta": {'domain_of': ['DebriefFeatureCollection',
+                       'Delta',
+                       'HistoryHead',
+                       'Presentation']} })
     seq: int = Field(default=..., description="""Position in the plot's history, from 1, with no gaps.""", ge=1, json_schema_extra = { "linkml_meta": {'domain_of': ['Delta']} })
     after: int = Field(default=..., description="""The delta this one was applied on top of (0 for the first). Replay follows these links, and recovery uses them to finish a change that was written but not completed.""", ge=0, json_schema_extra = { "linkml_meta": {'domain_of': ['Delta']} })
     records: list[ProvRecord] = Field(default=..., description="""The operation that made the change. Usually one; a baseline delta, taken when a plot made before history existed is first changed, carries all the plot's earlier records.""", min_length=1, json_schema_extra = { "linkml_meta": {'domain_of': ['Delta']} })
@@ -2260,7 +2278,10 @@ class HistoryHead(ConfiguredBaseModel):
     """
     linkml_meta: ClassVar[LinkMLMeta] = LinkMLMeta({'from_schema': 'https://debrief.info/schemas/debrief'})
 
-    schema_version: str = Field(default=..., json_schema_extra = { "linkml_meta": {'domain_of': ['DebriefFeatureCollection', 'Delta', 'HistoryHead']} })
+    schema_version: str = Field(default=..., json_schema_extra = { "linkml_meta": {'domain_of': ['DebriefFeatureCollection',
+                       'Delta',
+                       'HistoryHead',
+                       'Presentation']} })
     current: int = Field(default=..., description="""Sequence number of the last delta the plot reflects; 0 for none.""", ge=0, json_schema_extra = { "linkml_meta": {'domain_of': ['TimeState', 'HistoryHead']} })
     latest: int = Field(default=..., description="""Highest sequence number written.""", ge=0, json_schema_extra = { "linkml_meta": {'domain_of': ['HistoryHead']} })
     abandoned: Optional[list[int]] = Field(default=None, description="""Deltas undone and then superseded by a new change (SUB-19): those off the chain to the latest delta, so a lost head can be rebuilt.""", json_schema_extra = { "linkml_meta": {'domain_of': ['HistoryHead']} })
@@ -2289,6 +2310,58 @@ class HistoryHead(ConfiguredBaseModel):
                     raise ValueError(err_msg)
         elif isinstance(v, str) and not pattern.search(v):
             err_msg = f"Invalid plot_hash format: {v}"
+            raise ValueError(err_msg)
+        return v
+
+
+class Presentation(ConfiguredBaseModel):
+    linkml_meta: ClassVar[LinkMLMeta] = LinkMLMeta({'from_schema': 'https://debrief.info/schemas/debrief'})
+
+    schema_version: str = Field(default=..., json_schema_extra = { "linkml_meta": {'domain_of': ['DebriefFeatureCollection',
+                       'Delta',
+                       'HistoryHead',
+                       'Presentation']} })
+    features: list[FeaturePresentation] = Field(default=..., description="""Each feature the analyst has restyled or hidden, once.""", json_schema_extra = { "linkml_meta": {'domain_of': ['DebriefFeatureCollection', 'Presentation']} })
+
+    @field_validator('schema_version')
+    def pattern_schema_version(cls, v):
+        pattern=re.compile(r"^\d+\.\d+\.\d+$")
+        if isinstance(v, list):
+            for element in v:
+                if isinstance(element, str) and not pattern.search(element):
+                    err_msg = f"Invalid schema_version format: {element}"
+                    raise ValueError(err_msg)
+        elif isinstance(v, str) and not pattern.search(v):
+            err_msg = f"Invalid schema_version format: {v}"
+            raise ValueError(err_msg)
+        return v
+
+
+class FeaturePresentation(ConfiguredBaseModel):
+    linkml_meta: ClassVar[LinkMLMeta] = LinkMLMeta({'from_schema': 'https://debrief.info/schemas/debrief'})
+
+    id: str = Field(default=..., description="""The feature's id in the plot.""", json_schema_extra = { "linkml_meta": {'domain_of': ['ProvRecord',
+                       'TrackFeature',
+                       'AnnotationFeature',
+                       'SensorObservationsFeature',
+                       'NamedSet',
+                       'StacItem',
+                       'StacCatalog',
+                       'KnownStore',
+                       'FeaturePresentation']} })
+    colour: Optional[str] = Field(default=None, description="""Lower-case hex RGB, for a track; overrides the colour it was imported with.""", json_schema_extra = { "linkml_meta": {'domain_of': ['TrackStyle', 'FeaturePresentation']} })
+    hidden: Optional[bool] = Field(default=None, description="""Not drawn on the map. Still listed, and still selectable, in the outline.""", json_schema_extra = { "linkml_meta": {'domain_of': ['FeaturePresentation']} })
+
+    @field_validator('colour')
+    def pattern_colour(cls, v):
+        pattern=re.compile(r"^#[0-9a-f]{6}$")
+        if isinstance(v, list):
+            for element in v:
+                if isinstance(element, str) and not pattern.search(element):
+                    err_msg = f"Invalid colour format: {element}"
+                    raise ValueError(err_msg)
+        elif isinstance(v, str) and not pattern.search(v):
+            err_msg = f"Invalid colour format: {v}"
             raise ValueError(err_msg)
         return v
 
@@ -2345,6 +2418,8 @@ KnownStore.model_rebuild()
 WebviewMessage.model_rebuild()
 Delta.model_rebuild()
 HistoryHead.model_rebuild()
+Presentation.model_rebuild()
+FeaturePresentation.model_rebuild()
 
 # Classes that accept undeclared properties (extra_slots), added by the generator.
 StacAsset.model_config["extra"] = "allow"

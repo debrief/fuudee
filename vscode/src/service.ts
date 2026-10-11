@@ -10,7 +10,7 @@ import { randomBytes } from "node:crypto";
 import { request as httpRequest } from "node:http";
 import { tmpdir } from "node:os";
 import { createInterface } from "node:readline";
-import type { SharedState, ToolDeclaration, ToolResult } from "@debrief/schemas";
+import type { Presentation, SharedState, ToolDeclaration, ToolResult } from "@debrief/schemas";
 
 export interface Unavailable {
   library: string;
@@ -299,6 +299,11 @@ export class ToolService {
 
   createCatalogue(location: string, title: string): Promise<{ store: string }> {
     return this.request("debrief/create_catalogue", { location, title });
+  }
+
+  /** Replace a plot's presentation (SUB-22). Fails with CONFLICT if it changed since hash was read. */
+  setPresentation(store: string, item: string, presentation: Presentation, hash: string): Promise<{ hash: string }> {
+    return this.request("debrief/set_presentation", { store, item, presentation, hash });
   }
 
   importRep(store: string, path: string, agent: Agent, allowNewerSchema = false): Promise<ImportReport> {

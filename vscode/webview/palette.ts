@@ -13,3 +13,13 @@ export const DATA_COLOURS = {
   /** Graticule lines: neutral, faint on any theme. */
   graticule: "#7f7f7f",
 } as const;
+
+/** Colours an analyst can give a track, by name (SUB-22): distinct from each other and from the annotation colour. */
+export const TRACK_COLOURS: { name: string; colour: string }[] = [
+  { name: "Red", colour: "#e01c3e" },
+  { name: "Blue", colour: "#0064bd" },
+  { name: "Green", colour: "#00a000" },
+  { name: "Purple", colour: "#8a3ffc" },
+  { name: "Teal", colour: "#00a3a3" },
+  { name: "Grey", colour: "#8a8a8a" },
+];

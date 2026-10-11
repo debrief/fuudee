@@ -17,6 +17,8 @@ import { ResultsPanel } from "./panels/results.js";
 import { CONFLICT, NEWER_SCHEMA, ServiceError, ToolService, type Agent, type CallOutcome, type ToolListing } from "./service.js";
 import { HistoryProvider } from "./views/history.js";
 import { DiagnosticLog, toolRunLine } from "./diagnostics.js";
+import { changed, LocalHistory, type PresentationStep } from "./presentation.js";
+import { TRACK_COLOURS } from "../webview/palette.js";
 import { Session } from "./session.js";
 import { CataloguesProvider } from "./views/catalogues.js";
 import { featureIdsOf, OutlineProvider } from "./views/outline.js";
@@ -249,6 +251,8 @@ export function activate(context: vscode.ExtensionContext): DebriefApi {
       return problem;
     }
     if (outcome.changed) {
+      timeline.push("data");
+      redoTimeline.length = 0;
       const problem = await reloadPlot(true);
       if (problem) return problem;
     }
@@ -267,6 +271,68 @@ export function activate(context: vscode.ExtensionContext): DebriefApi {
     const save = "Save anyway";
     return (await vscode.window.showWarningMessage(message, { modal: true }, save)) === save;
   }
+
+  // --- Presentation's local history (SUB-22) ---------------------------------------
+  const presentationHistory = new LocalHistory();
+  /** What the analyst did in this window, newest last, so one undo takes back the latest. */
+  const timeline: ("data" | "presentation")[] = [];
+  const redoTimeline: ("data" | "presentation")[] = [];
+  let timelinePlot: string | undefined;
+  session.onPlot((opened) => {
+    if (opened?.item.id === timelinePlot) return;
+    timelinePlot = opened?.item.id; // a different plot: undo starts from its own history
+    timeline.length = 0;
+    redoTimeline.length = 0;
+  });
+
+  /** Save a presentation and show it. Never recorded in the plot's history. */
+  const savePresentation = (next: OpenedPlot["presentation"]): Promise<string | undefined> =>
+    ourChange(async () => {
+      const opened = session.current;
+      if (!opened || !service) return "Presentation changes need the tool service.";
+      try {
+        const { hash } = await service.setPresentation(opened.store.id, opened.item.id, next, opened.presentationHash);
+        session.setPlot({ ...opened, presentation: next, presentationHash: hash }, true);
+        await refreshHistory();
+        return undefined;
+      } catch (error) {
+        if ((error as ServiceError).code === CONFLICT) {
+          await reloadPlot(true);
+          return "The plot's presentation was changed elsewhere, so nothing was changed. Debrief is showing the latest.";
+        }
+        return (error as Error).message;
+      }
+    });
+
+  const changePresentation = (label: string, ids: string[], change: { colour?: string; hidden?: boolean }) =>
+    serially(async () => {
+      const opened = session.current;
+      if (!opened) return "Open a plot first.";
+      const before = opened.presentation;
+      const after = changed(before, ids, change);
+      const problem = await savePresentation(after);
+      if (!problem) {
+        presentationHistory.record({ plot: opened.item.id, label, before, after });
+        timeline.push("presentation");
+        redoTimeline.length = 0;
+        await refreshHistory();
+      }
+      return problem;
+    });
+
+  const movePresentation = (how: "undo" | "redo") =>
+    serially(async () => {
+      const step: PresentationStep | undefined = how === "undo" ? presentationHistory.undo() : presentationHistory.redo();
+      if (!step) return undefined;
+      const problem = await savePresentation(how === "undo" ? step.before : step.after);
+      if (problem) {
+        // Not saved: put the step back where it was.
+        if (how === "undo") presentationHistory.redo();
+        else presentationHistory.undo();
+      }
+      await refreshHistory();
+      return problem;
+    });
 
   async function askAboutConflict(title: string, mergeable: boolean): Promise<"merge" | "new_plot" | undefined> {
     const combine = "Combine the changes";
@@ -361,14 +427,17 @@ export function activate(context: vscode.ExtensionContext): DebriefApi {
       try {
         const listed = await service.history(opened.store.id, opened.item.id);
         if (request !== historyRequest) return; // a later refresh has the newer answer
-        history.update(listed.steps, listed.base.current);
+        history.update(listed.steps, listed.base.current, true, undefined, presentationHistory.steps(opened.item.id));
       } catch (error) {
         if (request !== historyRequest) return;
         history.update([], 0, true, (error as Error).message);
       }
     }
-    void vscode.commands.executeCommand("setContext", "debrief.canUndo", history.canUndo());
-    void vscode.commands.executeCommand("setContext", "debrief.canRedo", history.canRedo());
+    const plot = session.current?.item.id;
+    const presentationUndo = !!plot && timeline.at(-1) === "presentation" && presentationHistory.canUndo(plot);
+    const presentationRedo = !!plot && redoTimeline.at(-1) === "presentation" && presentationHistory.canRedo(plot);
+    void vscode.commands.executeCommand("setContext", "debrief.canUndo", presentationUndo || history.canUndo());
+    void vscode.commands.executeCommand("setContext", "debrief.canRedo", presentationRedo || history.canRedo());
   }
 
   /** Undo, redo, or go to a step (SUB-21): replay in the service, then show the result. */
@@ -419,8 +488,56 @@ export function activate(context: vscode.ExtensionContext): DebriefApi {
     if (problem) void vscode.window.showWarningMessage(problem);
     return problem;
   };
-  command("debrief.undo", async () => report(await move("undo")));
-  command("debrief.redo", async () => report(await move("redo")));
+  // One undo for everything the analyst does: Ctrl+Z takes back the latest
+  // thing done in this window, a presentation change or a change to the plot.
+  command("debrief.undo", async () => {
+    const plot = session.current?.item.id;
+    if (plot && timeline.at(-1) === "presentation" && presentationHistory.canUndo(plot)) {
+      timeline.pop();
+      redoTimeline.push("presentation");
+      return report(await movePresentation("undo"));
+    }
+    if (timeline.at(-1) === "data") timeline.pop();
+    const problem = await move("undo");
+    if (!problem) redoTimeline.push("data");
+    return report(problem);
+  });
+  command("debrief.redo", async () => {
+    const plot = session.current?.item.id;
+    if (plot && redoTimeline.at(-1) === "presentation" && presentationHistory.canRedo(plot)) {
+      redoTimeline.pop();
+      timeline.push("presentation");
+      return report(await movePresentation("redo"));
+    }
+    if (redoTimeline.at(-1) === "data") redoTimeline.pop();
+    const problem = await move("redo");
+    if (!problem) timeline.push("data");
+    return report(problem);
+  });
+
+  // Presentation (SUB-22): colours and hiding, beside the plot, outside its history.
+  const targets = (node?: { feature?: { id: string } }) => (node?.feature ? [node.feature.id] : session.selection);
+  // colourName lets agents and keyboard macros choose without the picker.
+  command("debrief.setColour", async (node?: { feature?: { id: string } }, colourName?: string) => {
+    const ids = targets(node).filter((id) => session.current?.plot.features.find((f) => f.id === id)?.properties.kind === "track");
+    if (!ids.length) return report("Select one or more tracks to colour.");
+    const choices = TRACK_COLOURS.map((c) => ({ label: c.name, colour: c.colour }));
+    const picked = colourName
+      ? choices.find((c) => c.label.toLowerCase() === colourName.toLowerCase())
+      : await vscode.window.showQuickPick(choices, {
+          placeHolder: `Colour for ${ids.length === 1 ? "the track" : `${ids.length} tracks`}`,
+        });
+    if (!picked) return undefined;
+    return report(await changePresentation(`Colour ${picked.label.toLowerCase()}`, ids, { colour: picked.colour }));
+  });
+  command("debrief.hide", async (node?: { feature?: { id: string } }) => {
+    const ids = targets(node);
+    return report(ids.length ? await changePresentation("Hide on map", ids, { hidden: true }) : "Select what to hide.");
+  });
+  command("debrief.show", async (node?: { feature?: { id: string } }) => {
+    const ids = targets(node);
+    return report(ids.length ? await changePresentation("Show on map", ids, { hidden: false }) : "Select what to show.");
+  });
   command("debrief.goToStep", async (target?: number | { step: { seq: number } }) => {
     const seq = typeof target === "number" ? target : target?.step.seq;
     return seq === undefined ? undefined : report(await move("goto", seq));
