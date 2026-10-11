@@ -1,0 +1,17 @@
+{
+  "type": "Catalog",
+  "stac_version": "1.1.0",
+  "id": "exercise-2026",
+  "title": "Exercise 2026",
+  "links": [
+    {
+      "rel": "root",
+      "href": "./catalog.json"
+    },
+    {
+      "rel": "child",
+      "href": "serial-01/serial-01.json"
+    }
+  ],
+  "debrief:schema_version": "0.0.2"
+}

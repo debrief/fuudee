@@ -1,0 +1,139 @@
+id: https://debrief.info/schemas/debrief/stac
+name: debrief_stac
+title: "STAC conventions for Debrief catalogues (STAC 1.1)"
+license: EPL-2.0
+prefixes:
+  linkml: https://w3id.org/linkml/
+  debrief: https://debrief.info/schemas/debrief/
+  prov: http://www.w3.org/ns/prov#
+  geojson: https://purl.org/geojson/vocab#
+  stac: https://stacspec.org/
+default_prefix: debrief
+default_range: string
+imports:
+  - linkml:types
+  - core
+  - geojson
+
+description: >-
+  Debrief's subset of STAC 1.1, imported into LinkML (CON-04). Debrief's own
+  fields use the "debrief:" prefix. Classes where STAC allows extension fields
+  (item properties, assets) accept and preserve undeclared properties; the
+  rest are strict (decision 11 Oct).
+
+enums:
+  CatalogTypeEnum: {permissible_values: {Catalog: {}}}
+  ItemTypeEnum: {permissible_values: {Feature: {}}}
+  AssetKindEnum:
+    description: What an asset holds in Debrief terms.
+    permissible_values:
+      plot: {description: "The plot FeatureCollection (SUB-05)."}
+      source: {description: "An immutable imported source file (SUB-10)."}
+      supporting_file: {description: "Video, imagery, acoustic files and the like (SUB-06)."}
+      payload: {description: "An opaque observation payload (CON-02)."}
+      result: {description: "A saved non-spatial result (TL-13, CAP-26)."}
+      measure_group: {description: "A measure group definition (CAP-07)."}
+
+classes:
+  StacLink:
+    description: >-
+      Parent links are authoritative; child links are a hint only and are
+      never trusted (SUB-23).
+    attributes:
+      rel: {required: true}
+      href: {required: true}
+      type: {description: "Media type."}
+      title: {}
+
+  StacAsset:
+    extra_slots:
+      allowed: true
+    attributes:
+      key:
+        identifier: true
+        description: The asset's key in the item's assets object; not written inside the asset.
+      href: {required: true}
+      type: {description: "Media type."}
+      title: {}
+      roles: {multivalued: true}
+      debrief_asset_kind:
+        alias: "debrief:asset_kind"
+        range: AssetKindEnum
+        required: true
+      debrief_content_hash:
+        alias: "debrief:content_hash"
+        description: Required for sources (SUB-11).
+        range: ContentHash
+
+  StacItemProperties:
+    extra_slots:
+      allowed: true
+    attributes:
+      datetime:
+        description: Null when start_datetime and end_datetime are given.
+        range: UtcTimestamp
+      start_datetime: {range: UtcTimestamp}
+      end_datetime: {range: UtcTimestamp}
+      title: {}
+      description: {}
+      debrief_schema_version:
+        alias: "debrief:schema_version"
+        range: SchemaVersion
+        required: true
+      debrief_participants:
+        alias: "debrief:participants"
+        description: Platform names, for catalogue search (SUB-16).
+        multivalued: true
+
+  StacItem:
+    description: A STAC item. A plot is the item's "plot" asset (SUB-05, SUB-06).
+    attributes:
+      type: {range: ItemTypeEnum, required: true}
+      stac_version: {required: true}
+      stac_extensions: {multivalued: true}
+      id: {required: true}
+      geometry:
+        inlined: true
+        any_of:
+          - range: PointGeometry
+          - range: LineStringGeometry
+          - range: PolygonGeometry
+      bbox:
+        description: "[west, south, east, north] in WGS84 degrees."
+        range: float
+        array:
+          exact_number_dimensions: 1
+          dimensions:
+            - exact_cardinality: 4
+      properties: {range: StacItemProperties, required: true, inlined: true}
+      links:
+        range: StacLink
+        multivalued: true
+        inlined_as_list: true
+        required: true
+      assets:
+        range: StacAsset
+        multivalued: true
+        inlined: true
+        inlined_as_list: false
+        required: true
+
+  StacCatalog:
+    description: A static, file-based STAC catalogue (SUB-15). Holds one protection level (SEC-02).
+    attributes:
+      type: {range: CatalogTypeEnum, required: true}
+      stac_version: {required: true}
+      stac_extensions: {multivalued: true}
+      id: {required: true}
+      title: {}
+      description: {required: true}
+      links:
+        range: StacLink
+        multivalued: true
+        inlined_as_list: true
+        required: true
+      debrief_schema_version:
+        alias: "debrief:schema_version"
+        description: The newest data-file schema this catalogue holds (SUB-35).
+        range: SchemaVersion
+        required: true

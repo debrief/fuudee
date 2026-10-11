@@ -38,6 +38,11 @@ The model covers a GeoJSON FeatureCollection of tracks (LineString geometry, par
 | 6 | Geometry unions (`any_of` Point, LineString, null) generate correctly in Pydantic and JSON Schema. | GeoJSON can be imported into LinkML (CON-04), including null geometry for time-only annotations (CAP-04). | Next model increment. |
 | 7 | Optional fields accept explicit `null`; serialisation drops them. | A file holding `"speeds": null` does not round-trip byte for byte. | Writers omit absent fields; fixtures contain no nulls. |
 | 8 | Generated schemas forbid unknown properties. | Strict, but rejects GeoJSON foreign members and STAC extension fields written by other tools. | Decided 11 Oct: strict now, opened where the standards expect it (see Decisions). |
+| 9 | `extra_slots` (allow undeclared properties) is honoured by JSON Schema but ignored by Pydantic. | Python would reject STAC extension fields TypeScript accepts. | The generator sets `extra="allow"` on those classes and rebuilds them, then every class containing them, innermost first. |
+| 10 | A keyed map of objects (STAC `assets`) needs an identifier slot. JSON Schema keeps the key outside each object; Pydantic expects it inside too. | The two disagree on the same file. | The Python reader copies each key into its asset and the writer removes it. |
+| 11 | Optional array slots get nullable elements in JSON Schema rather than a nullable slot. | `"bbox": [null, null, null, null]` passed JSON Schema. | The generator strips `null` from array element types. A fixture guards it. |
+| 12 | `linkml:Any` excludes arrays in JSON Schema. | Unusable for parameter values. | Parameter values are a typed union instead: number, string, boolean, or a quantity. |
+| 13 | Modules imported into the root schema are reloaded from disk by the generators. | Edits made to the schema before generation (finding 2) silently missed imported classes. | The generator merges imports first, then edits. |
 
 ## Decisions
 
@@ -50,6 +55,6 @@ The model covers a GeoJSON FeatureCollection of tracks (LineString geometry, par
 
 **Strict now, open where standards expect it (11 Oct).** Debrief's own classes reject undeclared properties. When STAC items are modelled, extra properties will be allowed only where the standard expects them (STAC extension fields, GeoJSON foreign members), and preserved unchanged on round trip.
 
-## Not yet covered
+## Follow-on
 
-STAC items and catalogues, opaque Arrow or Parquet payloads (CON-02), shared state (SUB-26), tool declarations (TL-04, CAP-24). These are the rest of the Phase 0 Schemas workstream.
+Findings 9 to 13 came from completing the Phase 0 Schemas workstream (schema 0.0.2): STAC, payload envelopes (CON-02), shared state, and tool declarations and results. See `schemas/README.md`. None needed the JSON Schema fallback.

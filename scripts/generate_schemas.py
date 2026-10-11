@@ -44,7 +44,7 @@ def _push_type_patterns_to_slots(view: SchemaView) -> None:
     UtcTimestamp with microseconds would pass Pydantic validation while
     failing JSON Schema validation.
     """
-    for cls in view.all_classes().values():
+    for cls in view.schema.classes.values():
         for att in (cls.attributes or {}).values():
             if att.pattern or not att.range or att.range not in view.all_types():
                 continue
@@ -54,8 +54,85 @@ def _push_type_patterns_to_slots(view: SchemaView) -> None:
     view.set_modified()
 
 
+def _class_ranges(view: SchemaView, name: str) -> set[str]:
+    """Classes referenced by a class's attributes, including any_of alternatives."""
+    classes = view.all_classes()
+    found = set()
+    for att in (classes[name].attributes or {}).values():
+        ranges = [att.range] + [option.range for option in att.any_of or []]
+        found.update(r for r in ranges if r in classes)
+    return found
+
+
+def _allow_extra_in_pydantic(view: SchemaView, pydantic: str) -> str:
+    """Let classes with extra_slots allowed accept undeclared properties.
+
+    gen-pydantic forbids extra properties on every class, ignoring
+    extra_slots, while gen-json-schema honours it. Without this, Pydantic
+    would reject STAC extension fields that JSON Schema accepts. Each changed
+    class, then every class containing it, is rebuilt innermost first so the
+    change reaches nested models.
+    """
+    classes = view.all_classes()
+    extra = sorted(n for n, c in classes.items() if c.extra_slots and c.extra_slots.allowed)
+    if not extra:
+        return pydantic
+
+    affected = set(extra)
+    while True:
+        more = {n for n in classes if _class_ranges(view, n) & affected} - affected
+        if not more:
+            break
+        affected |= more
+
+    ordered: list[str] = []
+
+    def visit(name: str) -> None:
+        if name in ordered:
+            return
+        for dependency in sorted(_class_ranges(view, name) & affected - {name}):
+            visit(dependency)
+        ordered.append(name)
+
+    for name in sorted(affected):
+        visit(name)
+
+    lines = [
+        "",
+        "",
+        "# Classes that accept undeclared properties (extra_slots), added by the generator.",
+    ]
+    lines += [f'{name}.model_config["extra"] = "allow"' for name in extra]
+    lines += [f"{name}.model_rebuild(force=True)" for name in ordered]
+    return pydantic.rstrip("\n") + "\n".join(lines) + "\n"
+
+
+def _strip_null_array_items(view: SchemaView, json_schema: dict) -> None:
+    """Optional LinkML array slots get nullable items in JSON Schema.
+
+    gen-json-schema marks the elements nullable instead of the slot, so
+    [null, null, null, null] would pass as a bbox while Pydantic rejects it.
+    """
+
+    def strip(node: dict) -> None:
+        items = node.get("items")
+        if not isinstance(items, dict):
+            return
+        if isinstance(items.get("type"), list) and "null" in items["type"]:
+            kept = [t for t in items["type"] if t != "null"]
+            items["type"] = kept[0] if len(kept) == 1 else kept
+        strip(items)
+
+    for class_name, cls in view.schema.classes.items():
+        for att_name, att in (cls.attributes or {}).items():
+            if att.array is not None:
+                strip(json_schema["$defs"][class_name]["properties"][att.alias or att_name])
+
+
 def generate() -> dict[Path, str]:
     view = SchemaView(str(SOURCE))
+    # Fold the modules into one schema so edits below reach every class.
+    view.merge_imports()
     _push_type_patterns_to_slots(view)
     schema = view.schema
     # Record the source relative to the repo so output is the same on every machine.
@@ -63,9 +140,12 @@ def generate() -> dict[Path, str]:
 
     json_schema = JsonSchemaGenerator(schema, mergeimports=True).serialize()
     # Stable, diff-friendly output.
-    json_schema = json.dumps(json.loads(json_schema), indent=2, sort_keys=True) + "\n"
+    json_schema = json.loads(json_schema)
+    _strip_null_array_items(view, json_schema)
+    json_schema = json.dumps(json_schema, indent=2, sort_keys=True) + "\n"
 
     pydantic = PydanticGenerator(schema, mergeimports=True).serialize()
+    pydantic = _allow_extra_in_pydantic(view, pydantic)
 
     version = schema.version
     return {

@@ -1,0 +1,90 @@
+{
+  "type": "Feature",
+  "stac_version": "1.1.0",
+  "stac_extensions": [],
+  "id": "serial-01",
+  "geometry": {
+    "type": "Polygon",
+    "coordinates": [
+      [
+        [
+          -4.13,
+          50.34
+        ],
+        [
+          -4.1,
+          50.34
+        ],
+        [
+          -4.1,
+          50.36
+        ],
+        [
+          -4.13,
+          50.36
+        ],
+        [
+          -4.13,
+          50.34
+        ]
+      ]
+    ]
+  },
+  "bbox": [
+    -4.13,
+    50.34,
+    -4.1,
+    50.36
+  ],
+  "properties": {
+    "datetime": null,
+    "start_datetime": "2026-10-11T09:30:00.000Z",
+    "end_datetime": "2026-10-11T09:32:00.000Z",
+    "title": "Serial 1",
+    "debrief:schema_version": "0.0.2",
+    "debrief:participants": [
+      "NELSON"
+    ],
+    "processing:software": {
+      "debrief": "4.0.0"
+    }
+  },
+  "links": [
+    {
+      "rel": "parent",
+      "href": "../catalog.json",
+      "type": "application/json"
+    },
+    {
+      "rel": "root",
+      "href": "../catalog.json"
+    }
+  ],
+  "assets": {
+    "plot": {
+      "href": "serial-01.geojson",
+      "type": "application/geo+json",
+      "roles": [
+        "data"
+      ],
+      "debrief:asset_kind": "plot"
+    },
+    "source-rep": {
+      "href": "sources/serial-01.rep",
+      "type": "text/plain",
+      "roles": [
+        "source"
+      ],
+      "debrief:asset_kind": "source"
+    },
+    "video": {
+      "href": "media/bridge.mp4",
+      "type": "video/mp4",
+      "roles": [
+        "overview"
+      ],
+      "debrief:asset_kind": "supporting_file",
+      "file:size": 1048576
+    }
+  }
+}

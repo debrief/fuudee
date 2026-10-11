@@ -1,0 +1,76 @@
+id: https://debrief.info/schemas/debrief/prov
+name: debrief_prov
+title: "Provenance, a PROV subset imported into LinkML (CON-04)"
+license: EPL-2.0
+prefixes:
+  linkml: https://w3id.org/linkml/
+  debrief: https://debrief.info/schemas/debrief/
+  prov: http://www.w3.org/ns/prov#
+  geojson: https://purl.org/geojson/vocab#
+  stac: https://stacspec.org/
+default_prefix: debrief
+default_range: string
+imports:
+  - linkml:types
+  - core
+
+enums:
+  ProvActivityKindEnum:
+    permissible_values:
+      import: {}
+      tool: {}
+      edit: {}
+      delete: {}
+      migration: {description: "Schema migration on open (SUB-13)."}
+  AgentKindEnum:
+    permissible_values:
+      person: {}
+      software_agent: {}
+
+classes:
+  ProvRecord:
+    class_uri: prov:Activity
+    description: One recorded operation (SUB-18, SUB-19).
+    attributes:
+      id: {required: true}
+      kind: {range: ProvActivityKindEnum, required: true}
+      started_at: {range: UtcTimestamp, required: true}
+      ended_at: {range: UtcTimestamp}
+      tool: {range: ToolRef, inlined: true}
+      agent: {range: AgentRef, required: true, inlined: true}
+      parameters:
+        description: Parameter values the operation ran with, so replay can repeat it (SUB-19).
+        range: ParameterValue
+        multivalued: true
+        inlined_as_list: true
+      used:
+        range: SourceRef
+        multivalued: true
+        inlined_as_list: true
+      seed:
+        description: Random seed, for operations that use randomness (SUB-20).
+        range: integer
+      notes:
+        description: Free-text notes such as truncations or omitted content (EXT-14, EXT-15).
+        multivalued: true
+
+  ToolRef:
+    description: The tool and version that performed an operation (SUB-24).
+    attributes:
+      name: {required: true}
+      version: {required: true}
+
+  AgentRef:
+    class_uri: prov:Agent
+    description: Who made a change; for software agents, which model (SUB-24).
+    attributes:
+      kind: {range: AgentKindEnum, required: true}
+      name: {required: true}
+      model: {}
+
+  SourceRef:
+    class_uri: prov:Entity
+    description: An immutable source file read by an operation (SUB-10, SUB-11).
+    attributes:
+      href: {required: true}
+      content_hash: {range: ContentHash, required: true}

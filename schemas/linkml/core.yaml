@@ -1,0 +1,121 @@
+id: https://debrief.info/schemas/debrief/core
+name: debrief_core
+title: "Debrief core types and quantities"
+license: EPL-2.0
+prefixes:
+  linkml: https://w3id.org/linkml/
+  debrief: https://debrief.info/schemas/debrief/
+  prov: http://www.w3.org/ns/prov#
+  geojson: https://purl.org/geojson/vocab#
+  stac: https://stacspec.org/
+default_prefix: debrief
+default_range: string
+imports:
+  - linkml:types
+
+types:
+  UtcTimestamp:
+    typeof: string
+    description: >-
+      Instant in UTC with exactly millisecond precision (SUB-01), for example
+      2026-10-11T09:30:00.000Z.
+    pattern: "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}\\.\\d{3}Z$"
+  SchemaVersion:
+    typeof: string
+    description: Semantic version of the data-file schema (SUB-12).
+    pattern: "^\\d+\\.\\d+\\.\\d+$"
+  ContentHash:
+    typeof: string
+    description: SHA-256 of a file, as lowercase hex prefixed "sha256:" (SUB-11).
+    pattern: "^sha256:[0-9a-f]{64}$"
+
+enums:
+  QuantityKindEnum:
+    description: Physical quantity kinds that carry units (SUB-02).
+    permissible_values:
+      length: {}
+      speed: {}
+      angle: {}
+      duration: {}
+  LengthUnitEnum:
+    description: Units a length may be stored in (UCUM codes).
+    permissible_values:
+      m: {description: "metres"}
+      km: {description: "kilometres"}
+      "[nmi_i]": {description: "international nautical miles"}
+      "[yd_i]": {description: "international yards"}
+      "[ft_i]": {description: "international feet"}
+  SpeedUnitEnum:
+    description: Units a speed may be stored in (UCUM codes).
+    permissible_values:
+      m/s: {description: "metres per second"}
+      "[kn_i]": {description: "international knots"}
+      km/h: {description: "kilometres per hour"}
+  AngleUnitEnum:
+    description: Units an angle may be stored in (UCUM codes).
+    permissible_values:
+      deg: {description: "degrees"}
+      rad: {description: "radians"}
+  DurationUnitEnum:
+    description: Units a duration may be stored in (UCUM codes).
+    permissible_values:
+      ms: {description: "milliseconds"}
+      s: {description: "seconds"}
+      min: {description: "minutes"}
+      h: {description: "hours"}
+
+classes:
+  # A quantity carries its unit in the data (decision 11 Oct). Each quantity
+  # kind has its own unit enum, so a unit of the wrong dimension is a schema
+  # error in every language. Series carry the unit once for many values.
+  Length:
+    attributes:
+      value: {range: float, required: true}
+      unit: {range: LengthUnitEnum, required: true}
+  Speed:
+    attributes:
+      value: {range: float, required: true}
+      unit: {range: SpeedUnitEnum, required: true}
+  Angle:
+    attributes:
+      value: {range: float, required: true}
+      unit: {range: AngleUnitEnum, required: true}
+  Duration:
+    attributes:
+      value: {range: float, required: true}
+      unit: {range: DurationUnitEnum, required: true}
+
+  SpeedSeries:
+    attributes:
+      unit: {range: SpeedUnitEnum, required: true}
+      values: {range: float, multivalued: true, required: true}
+  AngleSeries:
+    attributes:
+      unit: {range: AngleUnitEnum, required: true}
+      values: {range: float, multivalued: true, required: true}
+
+  TimeRange:
+    description: A closed interval of time. Start shall not be after end.
+    attributes:
+      start: {range: UtcTimestamp, required: true}
+      end: {range: UtcTimestamp, required: true}
+
+  ParameterValue:
+    description: >-
+      A tool parameter value as supplied or recorded (TL-07, SUB-19). Scalars,
+      or a quantity with its unit.
+    attributes:
+      name:
+        required: true
+        pattern: "^[a-z][a-z0-9_]*$"
+      value:
+        required: true
+        inlined: true
+        any_of:
+          - range: float
+          - range: string
+          - range: boolean
+          - range: Length
+          - range: Speed
+          - range: Angle
+          - range: Duration

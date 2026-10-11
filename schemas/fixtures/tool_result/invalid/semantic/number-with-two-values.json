@@ -1,0 +1,17 @@
+{
+  "non_spatial": [
+    {
+      "title": "Mean",
+      "presentation": "number",
+      "columns": [
+        {
+          "name": "x",
+          "numbers": [
+            1.0,
+            2.0
+          ]
+        }
+      ]
+    }
+  ]
+}

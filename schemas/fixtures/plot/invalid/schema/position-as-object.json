@@ -1,0 +1,75 @@
+{
+  "type": "FeatureCollection",
+  "schema_version": "0.0.2",
+  "features": [
+    {
+      "type": "Feature",
+      "id": "track-nelson",
+      "geometry": {
+        "type": "LineString",
+        "coordinates": [
+          {
+            "longitude": -4.12,
+            "latitude": 50.35
+          },
+          [
+            -4.1155,
+            50.3471
+          ],
+          [
+            -4.1098,
+            50.344
+          ]
+        ]
+      },
+      "properties": {
+        "kind": "track",
+        "name": "NELSON",
+        "platform_class": "Frigate",
+        "times": [
+          "2026-10-11T09:30:00.000Z",
+          "2026-10-11T09:31:00.000Z",
+          "2026-10-11T09:32:00.000Z"
+        ],
+        "speeds": {
+          "unit": "m/s",
+          "values": [
+            6.17,
+            6.17,
+            6.2
+          ]
+        },
+        "courses": {
+          "unit": "deg",
+          "values": [
+            135.0,
+            135.5,
+            136.0
+          ]
+        }
+      }
+    }
+  ],
+  "provenance": [
+    {
+      "id": "prov-0001",
+      "kind": "import",
+      "started_at": "2026-10-11T10:00:00.000Z",
+      "ended_at": "2026-10-11T10:00:01.250Z",
+      "tool": {
+        "name": "debrief-io.rep",
+        "version": "0.0.1"
+      },
+      "agent": {
+        "kind": "person",
+        "name": "analyst"
+      },
+      "used": [
+        {
+          "href": "sources/serial-01.rep",
+          "content_hash": "sha256:3f3f3f3f3f3f3f3f3f3f3f3f3f3f3f3f3f3f3f3f3f3f3f3f3f3f3f3f3f3f3f3f"
+        }
+      ]
+    }
+  ]
+}
