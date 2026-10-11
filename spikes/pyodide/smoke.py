@@ -16,7 +16,7 @@ from debrief_kernel.formatting import format_bearing, format_position, format_qu
 from debrief_kernel.geodesy import Position, TrackPath, closest_approach, destination, range_bearing
 from debrief_kernel.time import parse_utc
 from debrief_kernel.units import angle, duration, length, speed
-from debrief_schemas import DocumentKind, SCHEMA_VERSION, dump_document, load_document
+from debrief_schemas import SCHEMA_VERSION, DocumentKind, dump_document, load_document
 
 
 def main(fixtures: Path) -> dict:
@@ -43,9 +43,14 @@ def main(fixtures: Path) -> dict:
     # Kernel: geodesy, units and formatting give identical answers.
     wellington, salamanca = Position(174.81, -41.32), Position(-5.50, 40.96)
     rng, brg = range_bearing(wellington, salamanca)
-    a = TrackPath([0, 3_600_000], [Position(0, 0), destination(Position(0, 0), angle(45), length(12, "[nmi_i]"))])
+    a = TrackPath(
+        [0, 3_600_000],
+        [Position(0, 0), destination(Position(0, 0), angle(45), length(12, "[nmi_i]"))],
+    )
     b_start = destination(Position(0, 0), angle(90), length(6, "[nmi_i]"))
-    b = TrackPath([0, 3_600_000], [b_start, destination(b_start, angle(330), length(10, "[nmi_i]"))])
+    b = TrackPath(
+        [0, 3_600_000], [b_start, destination(b_start, angle(330), length(10, "[nmi_i]"))]
+    )
     cpa = closest_approach(a, b)
     report["kernel"] = {
         "wellington_salamanca_m": round(rng.value, 3),
