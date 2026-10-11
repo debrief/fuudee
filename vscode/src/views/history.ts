@@ -58,8 +58,9 @@ export class HistoryProvider implements vscode.TreeDataProvider<Node> {
     const { label, status } = describeStep(step, this.toolTitle);
     const item = new vscode.TreeItem(label);
     item.id = `step-${step.seq}`;
-    item.description = `${node.current ? "current · " : ""}${describePeriod(step.at)} · ${step.agent}`;
-    item.tooltip = `${label}\n${status}\nBy ${step.agent}, ${describePeriod(step.at)}`;
+    const marker = node.current ? "current" : step.status === "undone" ? "undone" : step.status === "abandoned" ? "replaced" : "";
+    item.description = [`step ${step.seq}`, marker, describePeriod(step.at), step.agent].filter(Boolean).join(" · ");
+    item.tooltip = `Step ${step.seq}: ${label}\n${status}\nBy ${step.agent}, ${describePeriod(step.at)}`;
     item.iconPath = new vscode.ThemeIcon(
       ICONS[step.status],
       step.status === "abandoned" ? new vscode.ThemeColor("disabledForeground") : undefined,
