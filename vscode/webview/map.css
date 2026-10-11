@@ -40,3 +40,9 @@ body { background: var(--vscode-editor-background); color: var(--vscode-foregrou
 .step { background: var(--vscode-button-secondaryBackground); color: var(--vscode-button-secondaryForeground); border: none; width: 22px; height: 22px; cursor: pointer; font: inherit; }
 .step:hover { background: var(--vscode-button-secondaryHoverBackground); }
 .step:focus-visible, .timebar input:focus-visible { outline: 1px solid var(--vscode-focusBorder); }
+/* Hidden features: a count above the key, with a way to show them all (SUB-22). */
+.hidden-control { display: flex; align-items: center; gap: 8px; background: var(--vscode-editorWidget-background); color: var(--vscode-editorWidget-foreground); border: 1px solid var(--vscode-editorWidget-border, transparent); padding: 4px 8px; font-size: 11px; }
+.hidden-control[hidden] { display: none; }
+.hidden-control button { background: var(--vscode-button-secondaryBackground); color: var(--vscode-button-secondaryForeground); border: none; padding: 2px 8px; cursor: pointer; font: inherit; }
+.hidden-control button:hover { background: var(--vscode-button-secondaryHoverBackground); }
+.hidden-control button:focus-visible { outline: 1px solid var(--vscode-focusBorder); }

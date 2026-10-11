@@ -2,11 +2,11 @@
 
 import pytest
 
-from debrief_schemas import models
-from debrief_stac import Base, Catalogue, Changes
+from debrief_schemas import SCHEMA_VERSION, models
+from debrief_stac import Base, Catalogue, Changes, NewerSchemaError
 from debrief_tools import Registry, ToolRunError, run_tool, tool
 from debrief_tools.declare import Tool
-from debrief_tools.run import ToolRunConflict
+from debrief_tools.run import ToolRunConflict, ToolRunNewerSchema
 
 REGISTRY = Registry.discover()
 ANALYST = models.AgentRef(kind="person", name="analyst")
@@ -203,3 +203,17 @@ def test_a_run_from_an_older_view_of_the_plot_is_a_conflict(catalogue: Catalogue
     assert merged.changed and len(catalogue.history(ITEM).steps()) == 3
     with pytest.raises(ToolRunError, match="not one this plot's history holds"):
         run(catalogue, "core.track_summary", ["track-nelson"], base=Base(9, seen.plot_hash))
+
+
+def test_saving_a_newer_schema_into_a_shared_catalogue_asks_first(catalogue: Catalogue) -> None:
+    # Before 1.0 an older catalogue can't be opened at all (SUB-13), so this
+    # stands in for one an older Debrief keeps using alongside this one.
+    catalogue.model.debrief_schema_version = "0.0.1"
+    pair = ["track-nelson", "track-blue"]
+    with pytest.raises(ToolRunNewerSchema, match="other users of the catalogue may not"):
+        run(catalogue, "core.closest_approach", pair)
+    assert len(catalogue.history(ITEM).steps()) == 1  # nothing saved
+    with pytest.raises(NewerSchemaError):
+        catalogue.history(ITEM).undo()
+    assert run(catalogue, "core.closest_approach", pair, allow_newer_schema=True).changed
+    assert catalogue.schema_version == SCHEMA_VERSION

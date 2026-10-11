@@ -229,7 +229,8 @@
         "supporting_file",
         "payload",
         "result",
-        "measure_group"
+        "measure_group",
+        "presentation"
       ],
       "title": "AssetKindEnum",
       "type": "string"
@@ -459,6 +460,36 @@
       ],
       "title": "FeatureKindEnum",
       "type": "string"
+    },
+    "FeaturePresentation": {
+      "additionalProperties": false,
+      "description": "",
+      "properties": {
+        "colour": {
+          "description": "Lower-case hex RGB, for a track; overrides the colour it was imported with.",
+          "pattern": "^#[0-9a-f]{6}$",
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "hidden": {
+          "description": "Not drawn on the map. Still listed, and still selectable, in the outline.",
+          "type": [
+            "boolean",
+            "null"
+          ]
+        },
+        "id": {
+          "description": "The feature's id in the plot.",
+          "type": "string"
+        }
+      },
+      "required": [
+        "id"
+      ],
+      "title": "FeaturePresentation",
+      "type": "object"
     },
     "FeatureTypeEnum": {
       "description": "",
@@ -1116,6 +1147,29 @@
       ],
       "title": "PositionNotationEnum",
       "type": "string"
+    },
+    "Presentation": {
+      "additionalProperties": false,
+      "description": "",
+      "properties": {
+        "features": {
+          "description": "Each feature the analyst has restyled or hidden, once.",
+          "items": {
+            "$ref": "#/$defs/FeaturePresentation"
+          },
+          "type": "array"
+        },
+        "schema_version": {
+          "pattern": "^\\d+\\.\\d+\\.\\d+$",
+          "type": "string"
+        }
+      },
+      "required": [
+        "schema_version",
+        "features"
+      ],
+      "title": "Presentation",
+      "type": "object"
     },
     "ProvActivityKindEnum": {
       "description": "",
@@ -2232,7 +2286,7 @@
     },
     "TrackStyle": {
       "additionalProperties": false,
-      "description": "How a track is drawn. Data colours do not change with the theme (DEV-07). Presentation only: changes are undoable but not recorded in provenance (SUB-22).",
+      "description": "How a track is drawn, as imported. Data colours do not change with the theme (DEV-07). The analyst's later changes are presentation, kept in the plot's Presentation, not here: undoable, never recorded in provenance (SUB-22).",
       "properties": {
         "colour": {
           "description": "Lower-case hex RGB, for example \"#e01c3e\".",
@@ -2301,6 +2355,14 @@
       "additionalProperties": false,
       "description": "",
       "properties": {
+        "hidden_count": {
+          "description": "How many of the plot's features are hidden on the map (SUB-22), so the map can say so.",
+          "minimum": 0,
+          "type": [
+            "integer",
+            "null"
+          ]
+        },
         "kind": {
           "$ref": "#/$defs/WebviewMessageKindEnum"
         },
@@ -2435,6 +2497,7 @@
         "time_changed",
         "set_viewport",
         "viewport_changed",
+        "show_hidden",
         "show_form",
         "run_tool",
         "cancel",

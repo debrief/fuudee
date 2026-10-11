@@ -40,6 +40,7 @@ class DocumentKind(StrEnum):
     WEBVIEW_MESSAGE = "webview_message"
     DELTA = "delta"
     HISTORY_HEAD = "history_head"
+    PRESENTATION = "presentation"
 
 
 _MODELS: dict[DocumentKind, type[BaseModel]] = {
@@ -54,6 +55,7 @@ _MODELS: dict[DocumentKind, type[BaseModel]] = {
     DocumentKind.WEBVIEW_MESSAGE: g.WebviewMessage,
     DocumentKind.DELTA: g.Delta,
     DocumentKind.HISTORY_HEAD: g.HistoryHead,
+    DocumentKind.PRESENTATION: g.Presentation,
 }
 
 # Members that GeoJSON and STAC require to be present even when null.
@@ -130,11 +132,17 @@ _FILE_KINDS = (
     DocumentKind.STAC_CATALOG,
     DocumentKind.DELTA,
     DocumentKind.HISTORY_HEAD,
+    DocumentKind.PRESENTATION,
 )
 
 
 def _recorded_version(kind: DocumentKind, document: dict[str, Any]) -> object:
-    if kind in (DocumentKind.PLOT, DocumentKind.DELTA, DocumentKind.HISTORY_HEAD):
+    if kind in (
+        DocumentKind.PLOT,
+        DocumentKind.DELTA,
+        DocumentKind.HISTORY_HEAD,
+        DocumentKind.PRESENTATION,
+    ):
         return document.get("schema_version")
     if kind is DocumentKind.STAC_ITEM:
         properties = document.get("properties")
@@ -438,13 +446,14 @@ def _user_config_problems(config: g.UserConfig, raw: dict[str, Any]) -> list[str
 # through schemas/vectors/webview-messages.json, which a test checks matches.
 MESSAGE_MEMBERS: dict[str, tuple[str, ...]] = {
     "ready": (),
-    "show_plot": ("plot", "plot_title", "selection", "time?", "viewport?"),
+    "show_plot": ("plot", "plot_title", "selection", "time?", "viewport?", "hidden_count?"),
     "set_selection": ("selection",),
     "selection_changed": ("selection",),
     "set_time": ("time",),
     "time_changed": ("time",),
     "set_viewport": ("viewport",),
     "viewport_changed": ("viewport",),
+    "show_hidden": (),
     "show_form": ("tool", "selected_names", "time_range?"),
     "run_tool": ("tool_name", "parameters"),
     "cancel": (),
@@ -468,6 +477,17 @@ def _webview_message_problems(message: g.WebviewMessage, raw: dict[str, Any]) ->
         problems += _plot_problems(message.plot, raw["plot"])
     if message.result is not None:
         problems += _tool_result_problems(message.result, raw["result"])
+    return problems
+
+
+def _presentation_problems(presentation: g.Presentation) -> list[str]:
+    problems, seen = [], set()
+    for entry in presentation.features:
+        if entry.id in seen:
+            problems.append(f"feature {entry.id!r} is listed twice")
+        seen.add(entry.id)
+        if entry.colour is None and entry.hidden is None:
+            problems.append(f"feature {entry.id!r} has no colour and is not hidden")
     return problems
 
 
@@ -511,6 +531,7 @@ _RULES: dict[DocumentKind, Callable[[Any, dict[str, Any]], list[str]]] = {
     DocumentKind.WEBVIEW_MESSAGE: _webview_message_problems,
     DocumentKind.DELTA: _delta_problems,
     DocumentKind.HISTORY_HEAD: _history_head_problems,
+    DocumentKind.PRESENTATION: lambda presentation, raw: _presentation_problems(presentation),
 }
 
 

@@ -7,12 +7,15 @@ import * as vscode from "vscode";
 import type { Session } from "../session.js";
 import { checkMessage } from "../messages.js";
 import { webviewHtml } from "./html.js";
+import { displayed, hiddenIds } from "../presentation.js";
 
 export class MapPanel {
   private panel?: vscode.WebviewPanel;
   private ready = false;
   /** The plot the map last drew, once it is ready. */
   showing?: string;
+  /** How many hidden features the map last said there were. */
+  hiddenCount?: number;
 
   constructor(
     private readonly extension: vscode.Uri,
@@ -59,7 +62,8 @@ export class MapPanel {
       try {
         message = checkMessage(raw);
       } catch (error) {
-        this.log(`Map sent a message Debrief did not accept: ${(error as Error).message}`);
+        // Not the message: it can quote plot content (NFR-14).
+        this.log("webview_message_refused panel=map");
         return;
       }
       if (message.kind === "ready") {
@@ -71,6 +75,8 @@ export class MapPanel {
         this.session.setTime(message.time!, "map");
       } else if (message.kind === "viewport_changed") {
         this.session.setViewport(message.viewport!, "map");
+      } else if (message.kind === "show_hidden") {
+        void vscode.commands.executeCommand("debrief.showAllHidden");
       }
     });
   }
@@ -79,14 +85,20 @@ export class MapPanel {
     const opened = this.session.current;
     if (!opened || !this.panel) return;
     this.panel.title = opened.item.properties.title ?? opened.item.id;
+    // Hiding is shared, so the map says how many are hidden, with a way to show them (SUB-22).
+    const hidden = hiddenIds(opened.plot, opened.presentation).length;
     this.post({
       kind: "show_plot",
-      plot: opened.plot,
+      plot: displayed(opened.plot, opened.presentation), // the analyst's colours, hidden left out (SUB-22)
       plot_title: this.panel.title,
       selection: this.selectionMessage(this.session.selection),
+      hidden_count: hidden,
       ...(this.session.time && { time: this.session.time }),
     });
-    if (this.ready) this.showing = opened.item.id;
+    if (this.ready) {
+      this.showing = opened.item.id;
+      this.hiddenCount = hidden;
+    }
   }
 
   private post(message: unknown): void {

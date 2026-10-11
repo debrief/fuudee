@@ -95,8 +95,9 @@ classes:
         inlined_as_list: true
   TrackStyle:
     description: >-
-      How a track is drawn. Data colours do not change with the theme
-      (DEV-07). Presentation only: changes are undoable but not recorded in
+      How a track is drawn, as imported. Data colours do not change with the
+      theme (DEV-07). The analyst's later changes are presentation, kept in
+      the plot's Presentation, not here: undoable, never recorded in
       provenance (SUB-22).
     attributes:
       colour:

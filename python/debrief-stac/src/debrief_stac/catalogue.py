@@ -33,13 +33,25 @@ from debrief_schemas import (
     models,
 )
 from debrief_stac.hashing import content_hash
-from debrief_stac.history import Base, Changes, History, baseline_record, empty_plot
+from debrief_stac.history import (
+    HISTORY,
+    LOCK,
+    Base,
+    Changes,
+    Conflict,
+    History,
+    baseline_record,
+    empty_plot,
+    text_hash,
+)
 from debrief_stac.store import FileStore, Store
 
 STAC_VERSION = "1.1.0"
 CATALOGUE_FILE = "catalog.json"
 PLOT_ASSET = "plot"
 PLOT_FILE = "plot.geojson"
+PRESENTATION_ASSET = "presentation"
+PRESENTATION_FILE = "presentation.json"
 # Asset kinds whose content hashes replay checks (SUB-11).
 VERIFIED_KINDS = ("source", "payload")
 
@@ -473,6 +485,56 @@ class Catalogue:
         the item, as the plot file is.
         """
         return self._add_file(item_id, Path(path), "payloads", "payload", key, media_type)
+
+    # --- Presentation (SUB-22) ------------------------------------------------
+
+    def read_presentation(self, item_id: str) -> tuple[models.Presentation, str]:
+        """The analyst's presentation of a plot, and the hash to pass back when changing it.
+
+        A plot nobody has restyled has an empty presentation.
+        """
+        path = f"{item_id}/{PRESENTATION_FILE}"
+        if not self.store.exists(path):
+            return models.Presentation(schema_version=SCHEMA_VERSION, features=[]), ""
+        text = self.store.read_text(path)
+        return load_document(DocumentKind.PRESENTATION, text), text_hash(text)
+
+    def write_presentation(
+        self,
+        item_id: str,
+        presentation: models.Presentation,
+        expected_hash: str,
+        *,
+        allow_newer_schema: bool = False,
+    ) -> str:
+        """Replace a plot's presentation; never recorded in its history (SUB-22).
+
+        expected_hash is the hash read_presentation gave: if someone else has
+        changed the presentation since, Conflict is raised and nothing is
+        written (SUB-28). Returns the new hash.
+        """
+        self._check_schema(allow_newer_schema)
+        text = dump_document(DocumentKind.PRESENTATION, presentation)  # validates
+        path = f"{item_id}/{PRESENTATION_FILE}"
+        with self.store.locked(f"{item_id}/{HISTORY}/{LOCK}"):
+            _, current = self.read_presentation(item_id)
+            if current != expected_hash:
+                raise Conflict(
+                    "The plot's presentation was changed elsewhere. Debrief is showing the latest.",
+                    mergeable=False,
+                )
+            self.store.write_text_atomic(path, text)
+            item = self.read_item(item_id)
+            if PRESENTATION_ASSET not in item.assets:
+                item.assets[PRESENTATION_ASSET] = models.StacAsset(
+                    key=PRESENTATION_ASSET,
+                    href=f"./{PRESENTATION_FILE}",
+                    type="application/json",
+                    roles=["metadata"],
+                    debrief_asset_kind="presentation",
+                )
+                self._write_item(item)
+        return text_hash(text)
 
     def _add_file(
         self, item_id: str, path: Path, folder: str, kind: str, key: str | None, media_type: str

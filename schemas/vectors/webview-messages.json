@@ -7,7 +7,8 @@
       "plot_title",
       "selection",
       "time?",
-      "viewport?"
+      "viewport?",
+      "hidden_count?"
     ],
     "set_selection": [
       "selection"
@@ -27,6 +28,7 @@
     "viewport_changed": [
       "viewport"
     ],
+    "show_hidden": [],
     "show_form": [
       "tool",
       "selected_names",

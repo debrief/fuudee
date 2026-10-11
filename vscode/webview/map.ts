@@ -128,6 +128,34 @@ const Legend = L.Control.extend({
   },
 });
 new Legend({ position: "bottomleft" }).addTo(map);
+
+// Hidden features (SUB-22): hiding is shared, so the map always says how many
+// are hidden and offers to show them. Added after the key, so it sits above it.
+let hiddenControl: { count: HTMLElement; box: HTMLElement } | undefined;
+const Hidden = L.Control.extend({
+  onAdd() {
+    const box = L.DomUtil.create("div", "hidden-control");
+    box.hidden = true;
+    box.setAttribute("role", "status");
+    const count = L.DomUtil.create("span", "", box);
+    const show = L.DomUtil.create("button", "", box);
+    show.textContent = "Show all";
+    show.title = "Show every hidden feature on the map";
+    L.DomEvent.on(show, "click", (e) => {
+      L.DomEvent.stopPropagation(e);
+      host.postMessage({ kind: "show_hidden" });
+    });
+    L.DomEvent.disableClickPropagation(box);
+    hiddenControl = { count, box };
+    return box;
+  },
+});
+new Hidden({ position: "bottomleft" }).addTo(map);
+function showHidden(count: number): void {
+  if (!hiddenControl) return;
+  hiddenControl.box.hidden = count === 0;
+  hiddenControl.count.textContent = `${count} hidden`;
+}
 document.documentElement.style.setProperty("--debrief-annotation", DATA_COLOURS.annotation);
 document.documentElement.style.setProperty("--debrief-track", DATA_COLOURS.track);
 
@@ -529,6 +557,7 @@ onMessage((message) => {
     selection = new Set(sel.feature_ids);
     showTime(message.time as TimeState | undefined);
     draw(message.plot as DebriefFeatureCollection);
+    showHidden(typeof message.hidden_count === "number" ? message.hidden_count : 0);
     if (firstShow) fit(plotBounds);
   } else if (message.kind === "set_selection") {
     selection = new Set((message.selection as { feature_ids: string[] }).feature_ids);

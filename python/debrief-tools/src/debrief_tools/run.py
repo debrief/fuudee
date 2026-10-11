@@ -11,7 +11,6 @@ returns a number, table or graph changes nothing and records nothing.
 from __future__ import annotations
 
 import time
-import traceback
 import uuid
 from dataclasses import dataclass
 from typing import Any
@@ -24,7 +23,8 @@ from debrief_schemas import (
     load_document,
     models,
 )
-from debrief_stac import Base, Catalogue, Changes, Conflict, HistoryError
+from debrief_stac import Base, Catalogue, Changes, Conflict, HistoryError, NewerSchemaError
+from debrief_tools import diagnostics
 from debrief_tools.declare import Tool, ToolContext
 from debrief_tools.parameters import ParameterError, bind
 from debrief_tools.registry import Registry, applies
@@ -35,7 +35,14 @@ class ToolRunError(Exception):
 
     def __init__(self, message: str, detail: str | None = None):
         super().__init__(message)
-        self.detail = detail  # for logs, never shown as the main message
+        # For logs: the failure as diagnostics.describe_exception gives it, with no
+        # message text in it (NFR-14). Never shown as the main message.
+        self.detail = detail
+
+
+class ToolRunNewerSchema(ToolRunError):
+    """Saving would write a newer schema into the catalogue (SUB-35): ask, then run again
+    with allow_newer_schema."""
 
 
 class ToolRunConflict(ToolRunError):
@@ -101,7 +108,9 @@ def execute(
     try:
         result = tool.run(context)
     except Exception as error:  # a failing tool fails its own run, nothing more (TL-03)
-        raise ToolRunError(f"{declaration.title} failed: {error}", traceback.format_exc()) from None
+        raise ToolRunError(
+            f"{declaration.title} failed: {error}", diagnostics.describe_exception(error)
+        ) from None
     try:
         result = load_document(
             DocumentKind.TOOL_RESULT, dump_document(DocumentKind.TOOL_RESULT, result)
@@ -148,6 +157,7 @@ def run_tool(
     on_conflict: str = "refuse",
     base: Base | None = None,
     state: models.SharedState | None = None,
+    allow_newer_schema: bool = False,
 ) -> RunOutcome:
     """Run a tool on a plot and record what it changes.
 
@@ -194,12 +204,21 @@ def run_tool(
     )
     # The delta holds the operation and its output, so replay never re-runs the tool.
     try:
-        catalogue.commit(item_id, [record], changes, base, merge=on_conflict == "merge")
+        catalogue.commit(
+            item_id,
+            [record],
+            changes,
+            base,
+            merge=on_conflict == "merge",
+            allow_newer_schema=allow_newer_schema,
+        )
     except Conflict as conflict:
         if on_conflict == "new_plot":
             new_item = catalogue.save_as_new(item_id, base, [record], changes)
             return RunOutcome(result, changed=True, record=record, new_item=new_item)
         raise ToolRunConflict(str(conflict), conflict.mergeable) from None
+    except NewerSchemaError as error:
+        raise ToolRunNewerSchema(str(error)) from None
     except (HistoryError, DocumentValidationError) as error:
         raise ToolRunError(
             f"{declaration.title} produced a change that does not fit the plot, "

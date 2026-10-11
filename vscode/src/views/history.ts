@@ -3,19 +3,24 @@
  * Undo is replay to an earlier step, so any step still in the plot or undone
  * can be returned to; steps replaced by a later change are kept on record but
  * cannot be. The history itself lives in Python; this view presents it.
+ * Presentation changes made in this window are grouped at the top (SUB-22),
+ * and the entry Ctrl+Z will take back next is marked.
  */
 import * as vscode from "vscode";
 import { describePeriod } from "../format.js";
+import type { PresentationStep, TimelineEntry } from "../presentation.js";
 import type { HistoryStep } from "../service.js";
 import { describeStep } from "../wording.js";
+import { historyRows, type LocalRow, type Row } from "./historyrows.js";
 
-type Node = { kind: "status"; text: string; icon: string } | { kind: "step"; step: HistoryStep; current: boolean };
+type Node = { kind: "status"; text: string; icon: string } | Row | LocalRow;
 
 const ICONS: Record<HistoryStep["status"], string> = {
   applied: "pass-filled",
   undone: "discard",
   abandoned: "circle-slash",
 };
+const NEXT = "next to undo";
 
 export class HistoryProvider implements vscode.TreeDataProvider<Node> {
   private readonly changed = new vscode.EventEmitter<void>();
@@ -24,11 +29,21 @@ export class HistoryProvider implements vscode.TreeDataProvider<Node> {
   current = 0;
   problem?: string;
   open = false;
+  local: { step: PresentationStep; undone: boolean }[] = [];
+  next?: TimelineEntry;
 
   constructor(private readonly toolTitle: (name: string) => string | undefined) {}
 
-  update(steps: HistoryStep[], current: number, open = true, problem?: string): void {
-    Object.assign(this, { steps, current, open, problem });
+  /** local: presentation changes made in this window, oldest first (SUB-22); next: what Ctrl+Z takes back next. */
+  update(
+    steps: HistoryStep[],
+    current: number,
+    open = true,
+    problem?: string,
+    local: { step: PresentationStep; undone: boolean }[] = [],
+    next?: TimelineEntry,
+  ): void {
+    Object.assign(this, { steps, current, open, problem, local, next });
     this.changed.fire();
   }
 
@@ -41,11 +56,16 @@ export class HistoryProvider implements vscode.TreeDataProvider<Node> {
     return this.steps.some((s) => s.status === "undone");
   }
 
+  /** The rows as listed, for tests and agents. */
+  rows(): Row[] {
+    return historyRows(this.steps, this.current, this.local, this.next);
+  }
+
   getChildren(node?: Node): Node[] {
-    if (node) return [];
+    if (node) return node.kind === "group" ? node.children : [];
     if (this.problem) return [{ kind: "status", text: this.problem, icon: "warning" }];
     if (!this.open) return [{ kind: "status", text: "Open a plot to see its history.", icon: "info" }];
-    return [...this.steps].reverse().map((step) => ({ kind: "step", step, current: step.seq === this.current }));
+    return this.rows();
   }
 
   getTreeItem(node: Node): vscode.TreeItem {
@@ -54,12 +74,29 @@ export class HistoryProvider implements vscode.TreeDataProvider<Node> {
       item.iconPath = new vscode.ThemeIcon(node.icon);
       return item;
     }
+    if (node.kind === "group") {
+      const item = new vscode.TreeItem(node.label, vscode.TreeItemCollapsibleState.Expanded);
+      item.id = "presentation-group";
+      item.description = "undoable here, not in the plot's history";
+      item.tooltip = "Colours and hiding changed in this window: undoable here, never recorded in the plot's history (SUB-22).";
+      item.iconPath = new vscode.ThemeIcon("symbol-color");
+      return item;
+    }
+    if (node.kind === "presentation") {
+      const item = new vscode.TreeItem(node.step.label);
+      item.description = [node.undone ? "undone" : "", node.nextToUndo ? NEXT : ""].filter(Boolean).join(" · ");
+      item.tooltip = "A presentation change: undoable here, never recorded in the plot's history (SUB-22).";
+      item.iconPath = new vscode.ThemeIcon(node.undone ? "discard" : "symbol-color");
+      return item;
+    }
     const { step } = node;
     const { label, status } = describeStep(step, this.toolTitle);
     const item = new vscode.TreeItem(label);
     item.id = `step-${step.seq}`;
     const marker = node.current ? "current" : step.status === "undone" ? "undone" : step.status === "abandoned" ? "replaced" : "";
-    item.description = [`step ${step.seq}`, marker, describePeriod(step.at), step.agent].filter(Boolean).join(" · ");
+    item.description = [`step ${step.seq}`, marker, node.nextToUndo ? NEXT : "", describePeriod(step.at), step.agent]
+      .filter(Boolean)
+      .join(" · ");
     item.tooltip = `Step ${step.seq}: ${label}\n${status}\nBy ${step.agent}, ${describePeriod(step.at)}`;
     item.iconPath = new vscode.ThemeIcon(
       ICONS[step.status],

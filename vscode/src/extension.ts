@@ -7,15 +7,18 @@
 import { userInfo } from "node:os";
 import * as vscode from "vscode";
 import type { ParameterValue, SharedState, SharedStateChange, ToolDeclaration } from "@debrief/schemas";
-import { headFile, headOnDisk, knownStores, openPlot, type OpenedPlot } from "./catalogue.js";
+import { headFile, headOnDisk, knownStores, openPlot, presentationFile, presentationHashOnDisk, type OpenedPlot } from "./catalogue.js";
 import { unwatchFile, watchFile } from "node:fs";
 import { count, describeChanges } from "./format.js";
 import { resolveTimes } from "./timeinput.js";
 import { FormPanel } from "./panels/form.js";
 import { MapPanel } from "./panels/map.js";
 import { ResultsPanel } from "./panels/results.js";
-import { CONFLICT, ServiceError, ToolService, type Agent, type CallOutcome, type ToolListing } from "./service.js";
+import { CONFLICT, NEWER_SCHEMA, ServiceError, ToolService, type Agent, type CallOutcome, type ToolListing } from "./service.js";
 import { HistoryProvider } from "./views/history.js";
+import { DiagnosticLog, hashed, logKey, serviceLine, toolRunLine, type ToolOutcome } from "./diagnostics.js";
+import { applyStep, hiddenIds, hiddenNotice, presentationChange, UndoTimeline, type TimelineEntry } from "./presentation.js";
+import { TRACK_COLOURS } from "../webview/palette.js";
 import { Session } from "./session.js";
 import { CataloguesProvider } from "./views/catalogues.js";
 import { featureIdsOf, OutlineProvider } from "./views/outline.js";
@@ -44,11 +47,15 @@ export interface DebriefApi {
   offered: () => string[];
   /** Why tools are not available, if they are not. */
   toolsProblem: () => string | undefined;
+  /** How many features the map says are hidden, for tests and agents. */
+  hiddenOnMap: () => number | undefined;
 }
 
 export function activate(context: vscode.ExtensionContext): DebriefApi {
   const output = vscode.window.createOutputChannel("Debrief");
-  const log = (line: string) => output.appendLine(line);
+  // Everything logged is redacted, on screen and in the file (NFR-14).
+  const diagnostics = new DiagnosticLog(context.logUri.fsPath, (line) => output.appendLine(line));
+  const log = (line: string) => diagnostics.write("info", line);
   const configFile = process.env.DEBRIEF_CONFIG || undefined;
   const session = new Session();
   const agent: Agent = { kind: "person", name: userInfo().username };
@@ -89,7 +96,13 @@ export function activate(context: vscode.ExtensionContext): DebriefApi {
         const started = await ToolService.start({
           python: python(),
           timeoutSeconds: settings().get<number>("toolTimeout") ?? 120,
-          log,
+          // What the service prints is free text unless it is one of its own log lines (NFR-14).
+          log: (line) => {
+            const safe = serviceLine(line);
+            if (safe) log(safe);
+          },
+          // The same key, so the service's hashes and ours match.
+          env: { DEBRIEF_LOG_KEY: logKey().toString("hex") },
         });
         await started.initialise();
         listing = await started.listTools();
@@ -103,7 +116,7 @@ export function activate(context: vscode.ExtensionContext): DebriefApi {
         // A plot opened before the service started: open it again, finishing any interrupted change.
         if (session.current) await serially(() => reloadPlot(true));
       } catch (error) {
-        log((error as Error).message);
+        log(`service_start_failed message=${hashed((error as Error).message)}`);
         tools.update(undefined, [], (error as Error).message);
       } finally {
         starting = undefined;
@@ -180,15 +193,28 @@ export function activate(context: vscode.ExtensionContext): DebriefApi {
 
   // --- Running a tool ---------------------------------------------------------------
   const runTool = (tool: ToolDeclaration, parameters: ParameterValue[]): Promise<string | undefined> =>
-    serially(() => ourChange(() => runToolNow(tool, parameters)));
-  const runToolNow = async (tool: ToolDeclaration, parameters: ParameterValue[]): Promise<string | undefined> => {
+    serially(() =>
+      ourChange(async () => {
+        const started = Date.now();
+        const selected = session.selection.length;
+        const { problem, outcome } = await runToolNow(tool, parameters);
+        const supplied = Object.fromEntries(parameters.map((p) => [p.name, true]));
+        // The outcome code only: the problem is free text, for the analyst, never the log (NFR-14).
+        diagnostics.write(problem ? "warning" : "info", toolRunLine(tool, supplied, selected, outcome, Date.now() - started));
+        return problem;
+      }),
+    );
+  type Ran = { problem?: string; outcome: ToolOutcome };
+  const refused = (problem: string): Ran => ({ problem, outcome: "refused" });
+  const runToolNow = async (tool: ToolDeclaration, parameters: ParameterValue[]): Promise<Ran> => {
     const opened = session.current;
-    if (!opened) return "Open a plot first.";
-    if (!service) return "Debrief's tool service is not running. Run 'Debrief: Restart tool service'.";
+    if (!opened) return refused("Open a plot first.");
+    if (!service) return refused("Debrief's tool service is not running. Run 'Debrief: Restart tool service'.");
     const timeProblem = resolveTimes(tool, parameters, opened);
-    if (typeof timeProblem === "string") return timeProblem;
+    if (typeof timeProblem === "string") return refused(timeProblem);
     parameters = timeProblem;
     const values = Object.fromEntries(parameters.map((p) => [p.name, p.value]));
+    let allowNewerSchema = false;
     const call = (on_conflict?: "merge" | "new_plot") =>
       service!.callTool(tool.name, {
         store: opened.store.id,
@@ -199,23 +225,34 @@ export function activate(context: vscode.ExtensionContext): DebriefApi {
         state: session.state(), // tools read current time, selection and viewport (TL-10)
         base: opened.base, // the plot the analyst is looking at (SUB-28)
         ...(on_conflict && { on_conflict }),
+        ...(allowNewerSchema && { allow_newer_schema: true }),
       });
     let outcome: CallOutcome;
     try {
       outcome = await call();
+      if (!outcome.ok && outcome.newerSchema) {
+        if (!(await confirmNewerSchema(outcome.message))) {
+          return { problem: `${tool.title} was not saved.`, outcome: "needs_newer_schema_confirmed" };
+        }
+        allowNewerSchema = true;
+        outcome = await call();
+      }
       if (!outcome.ok && outcome.conflict) {
         // Changed elsewhere since it was opened: never overwrite, offer a choice (SUB-29).
         const choice = await askAboutConflict(tool.title, outcome.conflict.mergeable);
         if (!choice) {
           await reloadPlot(true);
-          return `${tool.title} was not run: the plot was changed elsewhere. Debrief is showing the latest; run it again if it still applies.`;
+          return {
+            problem: `${tool.title} was not run: the plot was changed elsewhere. Debrief is showing the latest; run it again if it still applies.`,
+            outcome: "conflict",
+          };
         }
         outcome = await call(choice);
       }
     } catch (error) {
-      return (error as Error).message;
+      return { problem: (error as Error).message, outcome: "failed" };
     }
-    if (!outcome.ok) return outcome.message;
+    if (!outcome.ok) return { problem: outcome.message, outcome: outcome.outcome ?? "failed" };
     if (outcome.newItem) {
       // Show the original as it now is; offer the new plot, carrying time and selection.
       const newItem = outcome.newItem;
@@ -226,11 +263,12 @@ export function activate(context: vscode.ExtensionContext): DebriefApi {
           "Open the new plot",
         )
         .then((open) => open && serially(() => loadPlot(opened.store, newItem, true)));
-      return problem;
+      return { problem, outcome: "saved_as_new_plot" };
     }
     if (outcome.changed) {
+      timeline.record(opened.item.id, { kind: "data" });
       const problem = await reloadPlot(true);
-      if (problem) return problem;
+      if (problem) return { problem, outcome: "changed" };
     }
     const result = outcome.result;
     // A tool sets shared state by returning it, after the plot has its new features.
@@ -238,9 +276,65 @@ export function activate(context: vscode.ExtensionContext): DebriefApi {
     if (result?.non_spatial?.length) results.show(tool, result);
     const said = describeChanges(result);
     if (said) void vscode.window.showInformationMessage(`${tool.title} ${said}.`);
-    return undefined;
+    return { outcome: outcome.changed ? "changed" : "unchanged" };
   };
   const form = new FormPanel(context.extensionUri, runTool, log);
+
+  /** Warn before writing a newer schema into a shared catalogue (SUB-35). */
+  async function confirmNewerSchema(message: string): Promise<boolean> {
+    const save = "Save anyway";
+    return (await vscode.window.showWarningMessage(message, { modal: true }, save)) === save;
+  }
+
+  // --- Presentation's local history and the undo timeline (SUB-21, SUB-22) -----------
+  /** What the analyst did in this window, per plot, newest last, so one undo takes back the latest. */
+  const timeline = new UndoTimeline();
+
+  /** Save a presentation and show it. Never recorded in the plot's history. */
+  const savePresentation = (next: OpenedPlot["presentation"]): Promise<string | undefined> =>
+    ourChange(async () => {
+      const opened = session.current;
+      if (!opened || !service) return "Presentation changes need the tool service.";
+      try {
+        const { hash } = await service.setPresentation(opened.store.id, opened.item.id, next, opened.presentationHash);
+        session.setPlot({ ...opened, presentation: next, presentationHash: hash }, true);
+        return undefined;
+      } catch (error) {
+        if ((error as ServiceError).code === CONFLICT) {
+          await reloadPlot(true);
+          return "The plot's presentation was changed elsewhere, so nothing was changed. Debrief is showing the latest; try again if you still want to.";
+        }
+        return (error as Error).message;
+      }
+    });
+
+  const changePresentation = (label: string, ids: string[], change: { colour: string } | { hidden: boolean }) =>
+    serially(async () => {
+      const opened = session.current;
+      if (!opened) return "Open a plot first.";
+      const { step, next } = presentationChange(opened.item.id, label, opened.presentation, ids, change);
+      const problem = await savePresentation(next);
+      if (!problem) timeline.record(opened.item.id, { kind: "presentation", step });
+      await refreshHistory();
+      return problem;
+    });
+
+  /**
+   * Undo or redo a presentation step on the presentation as it is now, so
+   * others' changes since are kept (SUB-28). The timeline moves only if it saved.
+   */
+  const movePresentation = (entry: Extract<TimelineEntry, { kind: "presentation" }>, how: "undo" | "redo") =>
+    serially(async () => {
+      const opened = session.current;
+      if (!opened || opened.item.id !== entry.step.plot) return "Open the plot first.";
+      const problem = await savePresentation(applyStep(opened.presentation, entry.step, how));
+      if (!problem) {
+        if (how === "undo") timeline.undone(entry.step.plot, entry);
+        else timeline.redone(entry.step.plot, entry);
+      }
+      await refreshHistory();
+      return problem;
+    });
 
   async function askAboutConflict(title: string, mergeable: boolean): Promise<"merge" | "new_plot" | undefined> {
     const combine = "Combine the changes";
@@ -256,7 +350,7 @@ export function activate(context: vscode.ExtensionContext): DebriefApi {
   }
 
   // --- Opening, reloading, and noticing changes made elsewhere ---------------------
-  let watched: string | undefined;
+  let watched: string[] = [];
   let checking = false;
 
   /**
@@ -271,7 +365,8 @@ export function activate(context: vscode.ExtensionContext): DebriefApi {
       try {
         ({ base, recovered } = await service.open(store.id, itemId));
       } catch (error) {
-        log(`Opening ${itemId}: ${(error as Error).message}`);
+        // The plot's id only as a hash, and no message: both can name things (NFR-14).
+        log(`open_failed item=${hashed(itemId)} code=${(error as ServiceError).code ?? "-"}`);
       }
     }
     const opened = { ...openPlot(store, itemId), base };
@@ -298,32 +393,40 @@ export function activate(context: vscode.ExtensionContext): DebriefApi {
 
   /**
    * Notice a change made elsewhere: another window, another analyst on a shared
-   * folder, an agent (SUB-28). Polled, because change events are unreliable on
-   * network shares. The plot is never overwritten: Debrief shows the latest.
+   * folder, an agent (SUB-28), to the plot or to its presentation. Polled,
+   * because change events are unreliable on network shares. Nothing is ever
+   * overwritten: Debrief shows the latest.
    */
   function watch(opened: OpenedPlot): void {
-    const file = headFile(opened.store, opened.item.id);
-    if (watched === file) return;
-    if (watched) unwatchFile(watched);
-    watched = file;
-    watchFile(file, { interval: 1000 }, () => {
-      if (writing || checking) return; // ours, or a check already waiting
-      checking = true;
-      // Checked in turn with our own changes, so one of ours finishing is never mistaken for another's.
-      void serially(async () => {
-        checking = false;
-        const current = session.current;
-        if (writing || !current || headFile(current.store, current.item.id) !== file) return;
-        const onDisk = headOnDisk(current.store, current.item.id);
-        if (!onDisk || (onDisk.current === current.base?.current && onDisk.plot_hash === current.base?.plot_hash)) return;
-        const problem = await reloadPlot(true);
-        void vscode.window.showInformationMessage(
-          problem ?? `${current.item.properties.title ?? current.item.id} was changed elsewhere. Debrief is showing the latest.`,
-        );
-      });
+    const files = [headFile(opened.store, opened.item.id), presentationFile(opened.store, opened.item.id)];
+    if (watched.join() === files.join()) return;
+    watched.forEach((file) => unwatchFile(file));
+    watched = files;
+    for (const file of files) watchFile(file, { interval: 1000 }, () => noticeChange(files));
+  }
+  function noticeChange(files: string[]): void {
+    if (writing || checking) return; // ours, or a check already waiting
+    checking = true;
+    // Checked in turn with our own changes, so one of ours finishing is never mistaken for another's.
+    void serially(async () => {
+      checking = false;
+      const current = session.current;
+      if (writing || !current || headFile(current.store, current.item.id) !== files[0]) return;
+      const onDisk = headOnDisk(current.store, current.item.id);
+      const plotChanged = !!onDisk && (onDisk.current !== current.base?.current || onDisk.plot_hash !== current.base?.plot_hash);
+      const presentationChanged = presentationHashOnDisk(current.store, current.item.id) !== current.presentationHash;
+      if (!plotChanged && !presentationChanged) return;
+      const problem = await reloadPlot(true);
+      const title = current.item.properties.title ?? current.item.id;
+      void vscode.window.showInformationMessage(
+        problem ??
+          (plotChanged
+            ? `${title} was changed elsewhere. Debrief is showing the latest.`
+            : `${title}'s colours or hidden features were changed elsewhere. Debrief is showing the latest.`),
+      );
     });
   }
-  context.subscriptions.push({ dispose: () => watched && unwatchFile(watched) });
+  context.subscriptions.push({ dispose: () => watched.forEach((file) => unwatchFile(file)) });
 
   let historyRequest = 0;
   async function refreshHistory(): Promise<void> {
@@ -335,14 +438,26 @@ export function activate(context: vscode.ExtensionContext): DebriefApi {
       try {
         const listed = await service.history(opened.store.id, opened.item.id);
         if (request !== historyRequest) return; // a later refresh has the newer answer
-        history.update(listed.steps, listed.base.current);
+        history.update(
+          listed.steps,
+          listed.base.current,
+          true,
+          undefined,
+          timeline.presentationSteps(opened.item.id),
+          timeline.nextUndo(opened.item.id),
+        );
       } catch (error) {
         if (request !== historyRequest) return;
         history.update([], 0, true, (error as Error).message);
       }
     }
-    void vscode.commands.executeCommand("setContext", "debrief.canUndo", history.canUndo());
-    void vscode.commands.executeCommand("setContext", "debrief.canRedo", history.canRedo());
+    const plot = session.current?.item.id;
+    const nextUndo = plot ? timeline.nextUndo(plot) : undefined;
+    const nextRedo = plot ? timeline.nextRedo(plot) : undefined;
+    const canUndo = nextUndo?.kind === "presentation" || history.canUndo();
+    const canRedo = nextRedo?.kind === "presentation" || (nextRedo?.kind === "data" && history.canRedo());
+    void vscode.commands.executeCommand("setContext", "debrief.canUndo", canUndo);
+    void vscode.commands.executeCommand("setContext", "debrief.canRedo", canRedo);
   }
 
   /** Undo, redo, or go to a step (SUB-21): replay in the service, then show the result. */
@@ -353,7 +468,13 @@ export function activate(context: vscode.ExtensionContext): DebriefApi {
         if (!opened) return "Open a plot first.";
         if (!service || !opened.base) return "Undo needs Debrief's tool service. Run 'Debrief: Restart tool service'.";
         try {
-          await service.move(how, opened.store.id, opened.item.id, opened.base, step);
+          try {
+            await service.move(how, opened.store.id, opened.item.id, opened.base, step);
+          } catch (error) {
+            if ((error as ServiceError).code !== NEWER_SCHEMA) throw error;
+            if (!(await confirmNewerSchema((error as Error).message))) return "Nothing was changed."; // declined: the timeline must not move
+            await service.move(how, opened.store.id, opened.item.id, opened.base, step, true);
+          }
         } catch (error) {
           if ((error as ServiceError).code === CONFLICT) {
             await reloadPlot(true);
@@ -377,6 +498,14 @@ export function activate(context: vscode.ExtensionContext): DebriefApi {
     try {
       await serially(() => loadPlot(store, itemId));
       map.reveal();
+      // Hiding is shared: say so, so nothing on the plot goes unseen (SUB-22).
+      const opened = session.current;
+      const notice = opened && hiddenNotice(hiddenIds(opened.plot, opened.presentation).length);
+      if (notice) {
+        void vscode.window
+          .showInformationMessage(notice, "Show all")
+          .then((choice) => choice && vscode.commands.executeCommand("debrief.showAllHidden"));
+      }
     } catch (error) {
       void vscode.window.showErrorMessage(`The plot could not be opened: ${(error as Error).message}`);
     }
@@ -387,8 +516,57 @@ export function activate(context: vscode.ExtensionContext): DebriefApi {
     if (problem) void vscode.window.showWarningMessage(problem);
     return problem;
   };
-  command("debrief.undo", async () => report(await move("undo")));
-  command("debrief.redo", async () => report(await move("redo")));
+  // One undo for everything the analyst does: Ctrl+Z takes back the latest
+  // thing done in this window, a presentation change or a change to the plot.
+  // The timeline moves only once the undo or redo has succeeded.
+  command("debrief.undo", async () => {
+    const plot = session.current?.item.id;
+    if (!plot) return report("Open a plot first.");
+    const entry = timeline.nextUndo(plot);
+    if (entry?.kind === "presentation") return report(await movePresentation(entry, "undo"));
+    // A change to the plot: made in this window, or (none recorded) one from before it.
+    const problem = await move("undo");
+    if (!problem) timeline.undone(plot, entry ?? { kind: "data" });
+    await refreshHistory();
+    return report(problem);
+  });
+  command("debrief.redo", async () => {
+    const plot = session.current?.item.id;
+    const entry = plot ? timeline.nextRedo(plot) : undefined;
+    // Only what was undone in this window, and only until a new change (SUB-21).
+    if (!plot || !entry) return report("There is nothing to redo.");
+    if (entry.kind === "presentation") return report(await movePresentation(entry, "redo"));
+    const problem = await move("redo");
+    if (!problem) timeline.redone(plot, entry);
+    await refreshHistory();
+    return report(problem);
+  });
+
+  // Presentation (SUB-22): colours and hiding, beside the plot, outside its history.
+  // A node from the outline, a list of ids (the map's "Show all"), or else the selection.
+  type Target = { feature?: { id: string }; ids?: string[] };
+  const targets = (node?: Target) => node?.ids ?? (node?.feature ? [node.feature.id] : session.selection);
+  // colourName lets agents and keyboard macros choose without the picker.
+  command("debrief.setColour", async (node?: Target, colourName?: string) => {
+    const ids = targets(node).filter((id) => session.current?.plot.features.find((f) => f.id === id)?.properties.kind === "track");
+    if (!ids.length) return report("Select one or more tracks to colour.");
+    const choices = TRACK_COLOURS.map((c) => ({ label: c.name, colour: c.colour }));
+    const picked = colourName
+      ? choices.find((c) => c.label.toLowerCase() === colourName.toLowerCase())
+      : await vscode.window.showQuickPick(choices, {
+          placeHolder: `Colour for ${ids.length === 1 ? "the track" : `${ids.length} tracks`}`,
+        });
+    if (!picked) return undefined;
+    return report(await changePresentation(`Colour ${picked.label.toLowerCase()}`, ids, { colour: picked.colour }));
+  });
+  command("debrief.hide", async (node?: Target) => {
+    const ids = targets(node);
+    return report(ids.length ? await changePresentation("Hide on map", ids, { hidden: true }) : "Select what to hide.");
+  });
+  command("debrief.show", async (node?: Target) => {
+    const ids = targets(node);
+    return report(ids.length ? await changePresentation("Show on map", ids, { hidden: false }) : "Select what to show.");
+  });
   command("debrief.goToStep", async (target?: number | { step: { seq: number } }) => {
     const seq = typeof target === "number" ? target : target?.step.seq;
     return seq === undefined ? undefined : report(await move("goto", seq));
@@ -397,6 +575,12 @@ export function activate(context: vscode.ExtensionContext): DebriefApi {
     vscode.commands.executeCommand("debrief.goToStep", target),
   );
   command("debrief.historySteps", () => history.steps);
+  command("debrief.historyRows", () => history.rows());
+  command("debrief.showAllHidden", () => {
+    const opened = session.current;
+    const ids = opened ? hiddenIds(opened.plot, opened.presentation) : [];
+    return ids.length ? vscode.commands.executeCommand("debrief.show", { ids }) : undefined;
+  });
 
   command("debrief.select", (ids: string[]) => session.select(ids ?? [], "command"));
   // Shared state for agents and keyboard users (SUB-27).
@@ -475,7 +659,14 @@ export function activate(context: vscode.ExtensionContext): DebriefApi {
     });
     if (!files?.length) return;
     try {
-      const report = await service!.importFile(storeId, files[0].fsPath, agent);
+      let report;
+      try {
+        report = await service!.importFile(storeId, files[0].fsPath, agent);
+      } catch (error) {
+        if ((error as ServiceError).code !== NEWER_SCHEMA) throw error;
+        if (!(await confirmNewerSchema((error as Error).message))) return;
+        report = await service!.importFile(storeId, files[0].fsPath, agent, true);
+      }
       catalogues.refresh();
       const parts = [count(report.tracks.length, "track"), count(report.fixes, "fix", "fixes")];
       if (report.annotations) parts.push(count(report.annotations, "annotation"));
@@ -489,9 +680,10 @@ export function activate(context: vscode.ExtensionContext): DebriefApi {
           "Open plot",
         );
         if (choice === "Show what was not imported") {
-          output.appendLine(`Not imported from ${files[0].fsPath}:`);
-          report.omitted.forEach((line) => output.appendLine(`  ${line}`));
-          output.show(true);
+          // Plot content: shown in an untitled document, never written to the output channel or log (NFR-14).
+          const content = [`Not imported from ${files[0].fsPath}:`, ...report.omitted.map((line) => `  ${line}`)].join("\n");
+          const document = await vscode.workspace.openTextDocument({ content, language: "plaintext" });
+          await vscode.window.showTextDocument(document, { preview: false });
         } else if (choice === "Open plot") {
           await vscode.commands.executeCommand("debrief.openPlot", storeId, report.item);
         }
@@ -513,6 +705,7 @@ export function activate(context: vscode.ExtensionContext): DebriefApi {
     mapShowing: () => map.showing,
     offered: () => tools.offered,
     toolsProblem: () => tools.problem,
+    hiddenOnMap: () => map.hiddenCount,
   };
 }
 

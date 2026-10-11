@@ -425,15 +425,15 @@ class History:
         if not ok:
             raise HistoryError("The plot you started from is not one this plot's history holds.")
 
-    def goto(self, seq: int, base: Base | None = None) -> None:
+    def goto(self, seq: int, base: Base | None = None, *, allow_newer_schema: bool = False) -> None:
         """Undo or redo to a step (SUB-21): replay to it and move the head there.
 
         Only steps on the chain to the latest can be returned to: abandoned
         steps cannot, and neither can the state before the plot's first step.
         """
-        self._move(lambda head: seq, base)
+        self._move(lambda head: seq, base, allow_newer_schema)
 
-    def undo(self, base: Base | None = None) -> int:
+    def undo(self, base: Base | None = None, *, allow_newer_schema: bool = False) -> int:
         """Go back one step. Returns the step now current."""
 
         def previous(head: models.HistoryHead) -> int:
@@ -441,9 +441,9 @@ class History:
                 raise HistoryError("There is nothing to undo: the plot is as it was imported.")
             return self.delta(head.current).after
 
-        return self._move(previous, base)
+        return self._move(previous, base, allow_newer_schema)
 
-    def redo(self, base: Base | None = None) -> int:
+    def redo(self, base: Base | None = None, *, allow_newer_schema: bool = False) -> int:
         """Go forward one undone step. Nothing is redoable once a new change is made."""
 
         def following(head: models.HistoryHead) -> int:
@@ -452,10 +452,12 @@ class History:
             live = self.chain(head.latest)
             return live[live.index(head.current) + 1] if head.current else live[0]
 
-        return self._move(following, base)
+        return self._move(following, base, allow_newer_schema)
 
-    def _move(self, choose, base: Base | None) -> int:
+    def _move(self, choose, base: Base | None, allow_newer_schema: bool) -> int:
         """Choose a step from the head and move there, all under the lock."""
+        # Undo rewrites the plot file in this version's schema (SUB-35).
+        self.catalogue._check_schema(allow_newer_schema)
         with self._locked():
             self._repair()
             head = self._read_head()

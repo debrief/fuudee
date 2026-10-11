@@ -33,6 +33,7 @@ enums:
       payload: {description: "An opaque observation payload (CON-02)."}
       result: {description: "A saved non-spatial result (TL-13, CAP-26)."}
       measure_group: {description: "A measure group definition (CAP-07)."}
+      presentation: {description: "The analyst's presentation of the plot, outside its history (SUB-22)."}
 
 classes:
   StacLink:

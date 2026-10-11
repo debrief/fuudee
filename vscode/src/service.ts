@@ -10,7 +10,8 @@ import { randomBytes } from "node:crypto";
 import { request as httpRequest } from "node:http";
 import { tmpdir } from "node:os";
 import { createInterface } from "node:readline";
-import type { SharedState, ToolDeclaration, ToolResult } from "@debrief/schemas";
+import type { Presentation, SharedState, ToolDeclaration, ToolResult } from "@debrief/schemas";
+import type { ToolOutcome } from "./diagnostics.js";
 
 export interface Unavailable {
   library: string;
@@ -25,6 +26,8 @@ export interface ToolListing {
 
 export interface CallOutcome {
   ok: boolean;
+  /** How the run ended, in the words both logs use. */
+  outcome?: ToolOutcome;
   message: string;
   result?: ToolResult;
   changed?: boolean;
@@ -32,6 +35,8 @@ export interface CallOutcome {
   conflict?: { mergeable: boolean };
   /** Set when the result was saved as a new plot (SUB-29). */
   newItem?: string;
+  /** Saving would write a newer schema into the catalogue: ask, then call again allowing it (SUB-35). */
+  newerSchema?: boolean;
 }
 
 /** Where a plot's history stands: pass it back with the next change (SUB-28). */
@@ -81,6 +86,8 @@ export class ServiceError extends Error {
 
 /** The JSON-RPC error the service returns when the plot changed since the caller's base. */
 export const CONFLICT = -32001;
+/** The JSON-RPC error for a write that would put a newer schema into the catalogue (SUB-35). */
+export const NEWER_SCHEMA = -32002;
 
 export interface ServiceOptions {
   python: string;
@@ -258,18 +265,34 @@ export class ToolService {
       state?: SharedState;
       base?: Base;
       on_conflict?: "refuse" | "merge" | "new_plot";
+      allow_newer_schema?: boolean;
     },
   ): Promise<CallOutcome> {
     const result = await this.request<{
       isError: boolean;
       content: { text: string }[];
       structuredContent?: { result: ToolResult; changed: boolean; new_item?: string };
-      _meta?: { "debrief/conflict"?: { mergeable: boolean } };
+      _meta?: { "debrief/conflict"?: { mergeable: boolean }; "debrief/newer_schema"?: boolean; "debrief/outcome"?: ToolOutcome };
     }>("tools/call", { name, arguments: args });
     const message = result.content[0]?.text.split("\n")[0] ?? "";
-    if (result.isError) return { ok: false, message, conflict: result._meta?.["debrief/conflict"] };
+    if (result.isError) {
+      return {
+        ok: false,
+        message,
+        outcome: result._meta?.["debrief/outcome"],
+        conflict: result._meta?.["debrief/conflict"],
+        newerSchema: result._meta?.["debrief/newer_schema"],
+      };
+    }
     const structured = result.structuredContent;
-    return { ok: true, message, result: structured?.result, changed: structured?.changed, newItem: structured?.new_item };
+    return {
+      ok: true,
+      message,
+      outcome: result._meta?.["debrief/outcome"],
+      result: structured?.result,
+      changed: structured?.changed,
+      newItem: structured?.new_item,
+    };
   }
 
   /** Open a plot: finish any change a crash interrupted, and say where its history stands. */
@@ -282,16 +305,27 @@ export class ToolService {
   }
 
   /** Undo, redo, or go to a step. Fails with CONFLICT if the plot changed since base. */
-  move(how: "undo" | "redo" | "goto", store: string, item: string, base: Base, step?: number): Promise<Opened> {
-    return this.request(`debrief/${how}`, { store, item, base, ...(step !== undefined && { step }) });
+  move(how: "undo" | "redo" | "goto", store: string, item: string, base: Base, step?: number, allowNewerSchema = false): Promise<Opened> {
+    return this.request(`debrief/${how}`, {
+      store,
+      item,
+      base,
+      ...(step !== undefined && { step }),
+      ...(allowNewerSchema && { allow_newer_schema: true }),
+    });
   }
 
   createCatalogue(location: string, title: string): Promise<{ store: string }> {
     return this.request("debrief/create_catalogue", { location, title });
   }
 
+  /** Replace a plot's presentation (SUB-22). Fails with CONFLICT if it changed since hash was read. */
+  setPresentation(store: string, item: string, presentation: Presentation, hash: string): Promise<{ hash: string }> {
+    return this.request("debrief/set_presentation", { store, item, presentation, hash });
+  }
+
   /** Import a REP file or a legacy plot file (.dpf) as a new plot. */
-  importFile(store: string, path: string, agent: Agent): Promise<ImportReport> {
-    return this.request("debrief/import", { store, path, agent });
+  importFile(store: string, path: string, agent: Agent, allowNewerSchema = false): Promise<ImportReport> {
+    return this.request("debrief/import", { store, path, agent, ...(allowNewerSchema && { allow_newer_schema: true }) });
   }
 }

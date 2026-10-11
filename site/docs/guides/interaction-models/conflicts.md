@@ -22,7 +22,7 @@ Plots are never locked (SUB-29). Instead every change says which version of the 
    - **Cancel** saves nothing and shows the latest; the analyst can run the tool again.
 3. **Saved as a new plot.** The new plot, *Serial 1 (your changes)*, has the history the analyst was working from, the same sources and files, and then their change. The original keeps the other change. Debrief offers to open it.
 4. **Met by undo.** Undo is refused if the plot changed since it was shown; Debrief shows the latest and says nothing was undone.
-5. **Newer schema.** A plot written by a newer Debrief is refused, with the version it needs, and never partly loaded (SUB-14). The warning before writing a newer schema into a shared catalogue (SUB-35) is described with it.
+5. **Newer schema.** A plot written by a newer Debrief is refused, with the version it needs, and never partly loaded (SUB-14). Before saving a change, an undo or an import would write a newer schema into a catalogue other analysts share, Debrief says so and asks: **Save anyway** updates the catalogue's declared version; closing the dialog saves nothing (SUB-35). Until schema 1.0 a catalogue must match exactly to open at all (SUB-13), so the question first appears after 1.0.
 
 Each save is atomic and takes a lock for the milliseconds it lasts, so two processes saving at once can't interleave; a reader never waits (NFR-11).
 

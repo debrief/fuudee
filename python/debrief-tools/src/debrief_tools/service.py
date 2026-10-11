@@ -30,6 +30,7 @@ import os
 import re
 import socket
 import sys
+import time
 from importlib.metadata import version
 from pathlib import Path
 from typing import Any
@@ -42,8 +43,16 @@ from starlette.routing import Route
 
 from debrief_config import ConfigError, add_store, load_config, update_config
 from debrief_io import import_dpf, import_rep
-from debrief_schemas import DocumentKind, load_document, models
-from debrief_stac import Base, Catalogue, CatalogueError, Conflict, HistoryError
+from debrief_schemas import DocumentKind, dump_document, load_document, models
+from debrief_stac import (
+    Base,
+    Catalogue,
+    CatalogueError,
+    Conflict,
+    HistoryError,
+    NewerSchemaError,
+)
+from debrief_tools import diagnostics
 from debrief_tools.registry import applies
 from debrief_tools.worker import ToolWorker
 
@@ -79,12 +88,28 @@ class RpcError(Exception):
 
 INVALID_REQUEST, METHOD_NOT_FOUND, INVALID_PARAMS, INTERNAL = -32600, -32601, -32602, -32603
 CONFLICT = -32001  # the plot changed since the caller's base: open it again (SUB-28)
+NEWER_SCHEMA = -32002  # would write a newer schema into the catalogue: ask, then allow (SUB-35)
 HISTORY_METHODS = (
     "debrief/open",
     "debrief/history",
     "debrief/undo",
     "debrief/redo",
     "debrief/goto",
+)
+KNOWN_METHODS = frozenset(
+    (
+        "initialize",
+        "ping",
+        "tools/list",
+        "tools/call",
+        "debrief/tools_for_selection",
+        "debrief/stores",
+        "debrief/create_catalogue",
+        "debrief/import_rep",
+        "debrief/presentation",
+        "debrief/set_presentation",
+        *HISTORY_METHODS,
+    )
 )
 
 
@@ -221,6 +246,8 @@ class ToolService:
             return self._import(params)
         if method in HISTORY_METHODS:
             return self._history(method, params)
+        if method in ("debrief/presentation", "debrief/set_presentation"):
+            return self._presentation(method, params)
         raise RpcError(METHOD_NOT_FOUND, f"Unknown method {method}")
 
     def _config(self) -> models.UserConfig:
@@ -285,15 +312,16 @@ class ToolService:
             history = catalogue.history(item)
             recovered = history.open()
             expected = Base(base["current"], base["plot_hash"]) if base else None
+            allow = params.get("allow_newer_schema") is True
             if method == "debrief/undo":
-                history.undo(expected)
+                history.undo(expected, allow_newer_schema=allow)
             elif method == "debrief/redo":
-                history.redo(expected)
+                history.redo(expected, allow_newer_schema=allow)
             elif method == "debrief/goto":
                 step = params.get("step")
                 if type(step) is not int:
                     raise RpcError(INVALID_PARAMS, "goto needs the step to return to")
-                history.goto(step, expected)
+                history.goto(step, expected, allow_newer_schema=allow)
             head = history.head()
             out: dict[str, Any] = {
                 "base": {"current": head.current, "plot_hash": head.plot_hash},
@@ -304,7 +332,50 @@ class ToolService:
             return out
         except Conflict as conflict:
             raise RpcError(CONFLICT, str(conflict)) from None
+        except NewerSchemaError as error:
+            raise RpcError(NEWER_SCHEMA, str(error)) from None
         except (CatalogueError, HistoryError, OSError, ValueError) as error:
+            raise RpcError(INVALID_PARAMS, str(error)) from None
+
+    def _presentation(self, method: str, params: dict[str, Any]) -> dict[str, Any]:
+        """Read or replace a plot's presentation: colours and what is hidden (SUB-22).
+
+        set_presentation takes the hash read last; if the presentation changed
+        since, it fails with CONFLICT and nothing is written.
+        """
+        item = params.get("item")
+        if not isinstance(item, str):
+            raise RpcError(INVALID_PARAMS, f"{method} needs a store and an item")
+        writing = method == "debrief/set_presentation"
+        store = self._store(params.get("store"), writing=writing)
+        try:
+            catalogue = Catalogue.open(Path(store.location))
+            if item not in catalogue.item_ids():
+                raise RpcError(INVALID_PARAMS, f"There is no plot {item!r} in {store.title}.")
+            if writing:
+                expected = params.get("hash")
+                if not isinstance(expected, str):
+                    raise RpcError(INVALID_PARAMS, "set_presentation needs the hash last read")
+                presentation = load_document(
+                    DocumentKind.PRESENTATION, json.dumps(params.get("presentation"))
+                )
+                new_hash = catalogue.write_presentation(
+                    item,
+                    presentation,
+                    expected,
+                    allow_newer_schema=params.get("allow_newer_schema") is True,
+                )
+                return {"hash": new_hash}
+            presentation, current = catalogue.read_presentation(item)
+            return {
+                "presentation": json.loads(dump_document(DocumentKind.PRESENTATION, presentation)),
+                "hash": current,
+            }
+        except Conflict as conflict:
+            raise RpcError(CONFLICT, str(conflict)) from None
+        except NewerSchemaError as error:
+            raise RpcError(NEWER_SCHEMA, str(error)) from None
+        except (CatalogueError, OSError, ValueError) as error:
             raise RpcError(INVALID_PARAMS, str(error)) from None
 
     def _import(self, params: dict[str, Any]) -> dict[str, Any]:
@@ -323,8 +394,14 @@ class ToolService:
             agent = params.get("agent") or {"kind": "person", "name": "analyst"}
             importer = import_dpf if _is_plot_file(Path(path)) else import_rep
             report = importer(
-                catalogue, Path(path), item_id=item_id, agent=models.AgentRef(**agent)
+                catalogue,
+                Path(path),
+                item_id=item_id,
+                agent=models.AgentRef(**agent),
+                allow_newer_schema=params.get("allow_newer_schema") is True,
             )
+        except NewerSchemaError as error:
+            raise RpcError(NEWER_SCHEMA, str(error)) from None
         except (CatalogueError, OSError, ValueError) as error:
             raise RpcError(
                 INVALID_PARAMS, f"{Path(path).name} could not be imported: {error}"
@@ -338,6 +415,25 @@ class ToolService:
             "omitted": report.omitted,
         }
 
+    def _log_run(
+        self, name: str, arguments: dict[str, Any], outcome: dict[str, Any], seconds: float
+    ) -> None:
+        """One line per run, with no plot data in it (NFR-14)."""
+        declaration = self.declarations[name]
+        supplied = arguments.get("parameters")
+        log.info(
+            "%s",
+            diagnostics.tool_run(
+                tool=name,
+                version=declaration.version,
+                parameter_kinds={p.name: str(p.kind) for p in declaration.parameters or []},
+                supplied=supplied if isinstance(supplied, dict) else None,
+                selected=len(arguments.get("selection") or []),
+                outcome=_outcome(outcome),
+                seconds=seconds,
+            ),
+        )
+
     def _call(self, params: dict[str, Any]) -> dict[str, Any]:
         name, arguments = params.get("name"), params.get("arguments")
         if not isinstance(name, str) or not isinstance(arguments, dict):
@@ -346,15 +442,22 @@ class ToolService:
             raise RpcError(INVALID_PARAMS, f"There is no tool called {name}.")
         problem = _argument_problem(arguments)
         if problem:
-            return _tool_error(problem)
+            return {**_tool_error(problem), "_meta": {"debrief/outcome": "refused"}}
+        started = time.monotonic()
         outcome = self.worker.call(name, arguments)
+        self._log_run(name, arguments, outcome, time.monotonic() - started)
+        # How the run ended, in the words both logs use (diagnostics.OUTCOMES).
+        meta: dict[str, Any] = {"debrief/outcome": _outcome(outcome)}
         if "error" in outcome:
             error = _tool_error(outcome["error"])
             if "conflict" in outcome:
                 # The caller chooses: run again with on_conflict "merge" (when
                 # mergeable) or "new_plot" (SUB-28, SUB-29).
-                error["_meta"] = {"debrief/conflict": outcome["conflict"]}
-            return error
+                meta["debrief/conflict"] = outcome["conflict"]
+            if outcome.get("newer_schema"):
+                # The caller asks the analyst, then runs again with allow_newer_schema (SUB-35).
+                meta["debrief/newer_schema"] = True
+            return {**error, "_meta": meta}
         if outcome.get("new_item"):
             summary = f"The plot had changed, so the result was saved as {outcome['new_item']}."
         elif outcome["changed"]:
@@ -369,7 +472,20 @@ class ToolService:
             "content": [{"type": "text", "text": f"{summary}\n{json.dumps(structured)}"}],
             "structuredContent": structured,
             "isError": False,
+            "_meta": meta,
         }
+
+
+def _outcome(outcome: dict[str, Any]) -> str:
+    if "conflict" in outcome:
+        return "conflict"
+    if outcome.get("newer_schema"):
+        return "needs_newer_schema_confirmed"
+    if "error" in outcome:
+        return str(outcome.get("failure", "failed"))
+    if outcome.get("new_item"):
+        return "saved_as_new_plot"
+    return "changed" if outcome["changed"] else "unchanged"
 
 
 def _argument_problem(arguments: dict[str, Any]) -> str | None:
@@ -446,7 +562,9 @@ def build_app(service: ToolService, token: str, port: int) -> Starlette:
         except RpcError as error:
             return _error(message["id"], error.code, str(error))
         except Exception as error:  # noqa: BLE001 - the service outlives any one request
-            log.exception("%s", message["method"])
+            # The method's name only if it is one of ours; the formatter leaves out the message.
+            method = message["method"] if message["method"] in KNOWN_METHODS else "-"
+            log.exception("rpc_error method=%s", method)
             return _error(message["id"], INTERNAL, f"Internal error: {error}")
         return JSONResponse({"jsonrpc": "2.0", "id": message["id"], "result": result})
 
@@ -456,6 +574,17 @@ def build_app(service: ToolService, token: str, port: int) -> Starlette:
 def _error(request_id: Any, code: int, message: str) -> JSONResponse:
     return JSONResponse(
         {"jsonrpc": "2.0", "id": request_id, "error": {"code": code, "message": message}}
+    )
+
+
+def log_unavailable(problem: dict[str, Any]) -> None:
+    """A library or tool that could not load. Why is free text (often an import
+    error), so it is logged only as a hash (NFR-14)."""
+    log.warning(
+        "tool_unavailable library=%s tool=%s reason=<text:%s>",
+        problem["library"],
+        problem["tool"] or "-",
+        diagnostics.keyed_hash(str(problem["reason"])),
     )
 
 
@@ -477,10 +606,12 @@ def serve(
     worker = ToolWorker(libraries or [], os.environ.get("DEBRIEF_CONFIG"), timeout_s)
     service = ToolService(worker)
     for problem in service.unavailable:
-        log.warning("%s %s: %s", problem["library"], problem["tool"] or "", problem["reason"])
+        log_unavailable(problem)
     app = build_app(service, token, port)
     print(json.dumps({"port": port, "tools": len(service.declarations)}), flush=True)
     try:
-        uvicorn.Server(uvicorn.Config(app, log_level="warning")).run(sockets=[listener])
+        # log_config=None: uvicorn's loggers keep the redacting handlers diagnostics set up.
+        config = uvicorn.Config(app, log_level="warning", log_config=None, access_log=False)
+        uvicorn.Server(config).run(sockets=[listener])
     finally:
         worker.close()
