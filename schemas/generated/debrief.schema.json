@@ -294,6 +294,125 @@
       "title": "DebriefFeatureCollection",
       "type": "object"
     },
+    "Delta": {
+      "additionalProperties": false,
+      "description": "One recorded change to a plot.",
+      "properties": {
+        "added": {
+          "items": {
+            "anyOf": [
+              {
+                "$ref": "#/$defs/TrackFeature"
+              },
+              {
+                "$ref": "#/$defs/AnnotationFeature"
+              },
+              {
+                "$ref": "#/$defs/SensorObservationsFeature"
+              }
+            ]
+          },
+          "type": [
+            "array",
+            "null"
+          ]
+        },
+        "after": {
+          "description": "The delta this one was applied on top of (0 for the first). Replay follows these links, and recovery uses them to finish a change that was written but not completed.",
+          "minimum": 0,
+          "type": "integer"
+        },
+        "deleted_ids": {
+          "items": {
+            "type": "string"
+          },
+          "type": [
+            "array",
+            "null"
+          ]
+        },
+        "deleted_named_set_ids": {
+          "items": {
+            "type": "string"
+          },
+          "type": [
+            "array",
+            "null"
+          ]
+        },
+        "modified": {
+          "description": "Features changed, in full, replacing those with the same id.",
+          "items": {
+            "anyOf": [
+              {
+                "$ref": "#/$defs/TrackFeature"
+              },
+              {
+                "$ref": "#/$defs/AnnotationFeature"
+              },
+              {
+                "$ref": "#/$defs/SensorObservationsFeature"
+              }
+            ]
+          },
+          "type": [
+            "array",
+            "null"
+          ]
+        },
+        "named_sets": {
+          "description": "Named sets added or replaced, by id.",
+          "items": {
+            "$ref": "#/$defs/NamedSet"
+          },
+          "type": [
+            "array",
+            "null"
+          ]
+        },
+        "order": {
+          "description": "Feature ids in the order the plot holds them after this change, when that is not the natural order (features kept in place, added ones last).",
+          "items": {
+            "type": "string"
+          },
+          "type": [
+            "array",
+            "null"
+          ]
+        },
+        "records": {
+          "description": "The operation that made the change. Usually one; a baseline delta, taken when a plot made before history existed is first changed, carries all the plot's earlier records.",
+          "items": {
+            "$ref": "#/$defs/ProvRecord"
+          },
+          "minItems": 1,
+          "type": "array"
+        },
+        "result_hash": {
+          "description": "Content hash of the plot file after this delta, to check replay.",
+          "pattern": "^sha256:[0-9a-f]{64}$",
+          "type": "string"
+        },
+        "schema_version": {
+          "pattern": "^\\d+\\.\\d+\\.\\d+$",
+          "type": "string"
+        },
+        "seq": {
+          "description": "Position in the plot's history, from 1, with no gaps.",
+          "minimum": 1,
+          "type": "integer"
+        }
+      },
+      "required": [
+        "schema_version",
+        "seq",
+        "after",
+        "records",
+        "result_hash"
+      ],
+      "title": "Delta",
+      "type": "object"
+    },
     "Duration": {
       "additionalProperties": false,
       "description": "",
@@ -417,6 +536,49 @@
         "time_zone"
       ],
       "title": "FormatSettings",
+      "type": "object"
+    },
+    "HistoryHead": {
+      "additionalProperties": false,
+      "description": "Where a plot's history stands. Written after each delta, before the plot.",
+      "properties": {
+        "abandoned": {
+          "description": "Deltas undone and then superseded by a new change (SUB-19): those off the chain to the latest delta, so a lost head can be rebuilt.",
+          "items": {
+            "type": "integer"
+          },
+          "type": [
+            "array",
+            "null"
+          ]
+        },
+        "current": {
+          "description": "Sequence number of the last delta the plot reflects; 0 for none.",
+          "minimum": 0,
+          "type": "integer"
+        },
+        "latest": {
+          "description": "Highest sequence number written.",
+          "minimum": 0,
+          "type": "integer"
+        },
+        "plot_hash": {
+          "description": "Content hash the plot file has when it reflects current.",
+          "pattern": "^sha256:[0-9a-f]{64}$",
+          "type": "string"
+        },
+        "schema_version": {
+          "pattern": "^\\d+\\.\\d+\\.\\d+$",
+          "type": "string"
+        }
+      },
+      "required": [
+        "schema_version",
+        "current",
+        "latest",
+        "plot_hash"
+      ],
+      "title": "HistoryHead",
       "type": "object"
     },
     "InnerSchemaRef": {
@@ -2324,5 +2486,5 @@
   ],
   "title": "debrief",
   "type": "object",
-  "version": "0.0.6"
+  "version": "0.0.7"
 }

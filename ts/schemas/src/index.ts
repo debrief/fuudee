@@ -18,6 +18,8 @@ import type {
   ToolResult,
   UserConfig,
   WebviewMessage,
+  Delta,
+  HistoryHead,
 } from "./generated/debrief.js";
 import { SCHEMA_VERSION } from "./generated/schemaVersion.js";
 
@@ -35,6 +37,8 @@ export interface DocumentTypes {
   format_settings: FormatSettings;
   user_config: UserConfig;
   webview_message: WebviewMessage;
+  delta: Delta;
+  history_head: HistoryHead;
 }
 export type DocumentKind = keyof DocumentTypes;
 
@@ -48,6 +52,8 @@ const ROOT_CLASS: Record<DocumentKind, string> = {
   format_settings: "FormatSettings",
   user_config: "UserConfig",
   webview_message: "WebviewMessage",
+  delta: "Delta",
+  history_head: "HistoryHead",
 };
 
 export const DOCUMENT_KINDS = Object.keys(ROOT_CLASS) as DocumentKind[];
@@ -92,6 +98,8 @@ function recordedVersion(kind: DocumentKind, document: unknown): unknown {
   const record = document as Record<string, unknown>;
   switch (kind) {
     case "plot":
+    case "delta":
+    case "history_head":
       return record.schema_version;
     case "stac_item": {
       const properties = record.properties;

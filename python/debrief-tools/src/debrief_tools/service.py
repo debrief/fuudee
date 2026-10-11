@@ -2,8 +2,11 @@
 
 The protocol is MCP's Streamable HTTP transport (JSON-RPC 2.0, one POST per
 request, JSON responses), so the VS Code extension and any MCP-capable agent
-use the same tools (TL-01, TL-17). Debrief adds one method,
-debrief/tools_for_selection, so the offering rule lives in Python (TL-08).
+use the same tools (TL-01, TL-17). Debrief adds methods of its own, named
+debrief/...: debrief/tools_for_selection, so the offering rule lives in
+Python (TL-08); stores, catalogues and import; and a plot's history
+(debrief/open, debrief/history, debrief/undo, debrief/redo, debrief/goto),
+so undo is the same for the extension and an agent (SUB-21).
 
 Security (SEC-06 to SEC-08):
 - runs as the user who started it, so it can read only what they can;
@@ -40,7 +43,7 @@ from starlette.routing import Route
 from debrief_config import ConfigError, add_store, load_config, update_config
 from debrief_io import import_rep
 from debrief_schemas import DocumentKind, load_document, models
-from debrief_stac import Catalogue, CatalogueError
+from debrief_stac import Base, Catalogue, CatalogueError, Conflict, HistoryError
 from debrief_tools.registry import applies
 from debrief_tools.worker import ToolWorker
 
@@ -59,6 +62,14 @@ class RpcError(Exception):
 
 
 INVALID_REQUEST, METHOD_NOT_FOUND, INVALID_PARAMS, INTERNAL = -32600, -32601, -32602, -32603
+CONFLICT = -32001  # the plot changed since the caller's base: open it again (SUB-28)
+HISTORY_METHODS = (
+    "debrief/open",
+    "debrief/history",
+    "debrief/undo",
+    "debrief/redo",
+    "debrief/goto",
+)
 
 
 _QUANTITY = {
@@ -192,6 +203,8 @@ class ToolService:
             return self._create_catalogue(params)
         if method == "debrief/import_rep":
             return self._import_rep(params)
+        if method in HISTORY_METHODS:
+            return self._history(method, params)
         raise RpcError(METHOD_NOT_FOUND, f"Unknown method {method}")
 
     def _config(self) -> models.UserConfig:
@@ -222,16 +235,66 @@ class ToolService:
             raise RpcError(INVALID_PARAMS, str(error)) from None
         return {"store": store["id"]}
 
-    def _import_rep(self, params: dict[str, Any]) -> dict[str, Any]:
-        """Import a REP file as a new plot (EXT-01). Nothing in the file is dropped silently."""
-        store_id, path = params.get("store"), params.get("path")
+    def _store(self, store_id: Any, *, writing: bool) -> models.KnownStore:
         store = next((s for s in self._config().stores if s.id == store_id), None)
         if store is None:
             raise RpcError(
                 INVALID_PARAMS, f"There is no catalogue {store_id!r} in your configuration."
             )
-        if store.read_only:
+        if writing and store.read_only:
             raise RpcError(INVALID_PARAMS, f"{store.title} is read-only.")
+        return store
+
+    def _history(self, method: str, params: dict[str, Any]) -> dict[str, Any]:
+        """A plot's history: open (recovering an interrupted change), list, undo, redo, goto.
+
+        Every change returns the new base, which the caller passes back with its
+        next change, so one made meanwhile elsewhere is never overwritten (SUB-28).
+        """
+        item, base = params.get("item"), params.get("base")
+        if not isinstance(item, str):
+            raise RpcError(INVALID_PARAMS, f"{method} needs a store and an item")
+        if base is not None and not (
+            isinstance(base, dict)
+            and type(base.get("current")) is int
+            and isinstance(base.get("plot_hash"), str)
+        ):
+            raise RpcError(INVALID_PARAMS, "base must be {current, plot_hash}")
+        writing = method in ("debrief/undo", "debrief/redo", "debrief/goto")
+        store = self._store(params.get("store"), writing=writing)
+        try:
+            catalogue = Catalogue.open(Path(store.location))
+            if item not in catalogue.item_ids():
+                raise RpcError(INVALID_PARAMS, f"There is no plot {item!r} in {store.title}.")
+            history = catalogue.history(item)
+            recovered = history.open()
+            expected = Base(base["current"], base["plot_hash"]) if base else None
+            if method == "debrief/undo":
+                history.undo(expected)
+            elif method == "debrief/redo":
+                history.redo(expected)
+            elif method == "debrief/goto":
+                step = params.get("step")
+                if type(step) is not int:
+                    raise RpcError(INVALID_PARAMS, "goto needs the step to return to")
+                history.goto(step, expected)
+            head = history.head()
+            out: dict[str, Any] = {
+                "base": {"current": head.current, "plot_hash": head.plot_hash},
+                "recovered": recovered,
+            }
+            if method == "debrief/history":
+                out["steps"] = [_step(s) for s in history.steps()]
+            return out
+        except Conflict as conflict:
+            raise RpcError(CONFLICT, str(conflict)) from None
+        except (CatalogueError, HistoryError, OSError, ValueError) as error:
+            raise RpcError(INVALID_PARAMS, str(error)) from None
+
+    def _import_rep(self, params: dict[str, Any]) -> dict[str, Any]:
+        """Import a REP file as a new plot (EXT-01). Nothing in the file is dropped silently."""
+        path = params.get("path")
+        store = self._store(params.get("store"), writing=True)
         if not isinstance(path, str) or not Path(path).is_file():
             raise RpcError(INVALID_PARAMS, f"{path} is not a file.")
         try:
@@ -266,9 +329,21 @@ class ToolService:
             return _tool_error(problem)
         outcome = self.worker.call(name, arguments)
         if "error" in outcome:
-            return _tool_error(outcome["error"])
-        summary = "The plot was updated." if outcome["changed"] else "The plot was not changed."
+            error = _tool_error(outcome["error"])
+            if "conflict" in outcome:
+                # The caller chooses: run again with on_conflict "merge" (when
+                # mergeable) or "new_plot" (SUB-28, SUB-29).
+                error["_meta"] = {"debrief/conflict": outcome["conflict"]}
+            return error
+        if outcome.get("new_item"):
+            summary = f"The plot had changed, so the result was saved as {outcome['new_item']}."
+        elif outcome["changed"]:
+            summary = "The plot was updated."
+        else:
+            summary = "The plot was not changed."
         structured = {"result": outcome["result"], "changed": outcome["changed"]}
+        if outcome.get("new_item"):
+            structured["new_item"] = outcome["new_item"]
         return {
             # Agents that read only text still get the whole result.
             "content": [{"type": "text", "text": f"{summary}\n{json.dumps(structured)}"}],
@@ -294,7 +369,23 @@ def _argument_problem(arguments: dict[str, Any]) -> str | None:
         )
     if not isinstance(arguments.get("parameters", {}), dict):
         return "parameters must be an object"
+    if arguments.get("on_conflict", "refuse") not in ("refuse", "merge", "new_plot"):
+        return "on_conflict must be refuse, merge or new_plot"
     return None
+
+
+def _step(step: Any) -> dict[str, Any]:
+    """One history step as the History view shows it: what made it, when, by whom."""
+    first = step.records[0]
+    return {
+        "seq": step.seq,
+        "status": step.status,
+        "kind": str(first.kind),
+        "tool": first.tool.name if first.tool else None,
+        "agent": ", ".join(dict.fromkeys(r.agent.name for r in step.records)),
+        "at": first.ended_at or first.started_at,
+        "records": len(step.records),
+    }
 
 
 def _tool_error(message: str) -> dict[str, Any]:

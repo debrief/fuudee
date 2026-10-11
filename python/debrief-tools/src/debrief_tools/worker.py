@@ -22,9 +22,9 @@ from typing import Any
 
 from debrief_config import load_config
 from debrief_schemas import DocumentKind, dump_document, models
-from debrief_stac import Catalogue
+from debrief_stac import Base, Catalogue
 from debrief_tools.registry import Registry
-from debrief_tools.run import ToolRunError, run_tool
+from debrief_tools.run import ToolRunConflict, ToolRunError, run_tool
 
 log = logging.getLogger("debrief_tools")
 _registry: Registry | None = None
@@ -47,7 +47,10 @@ def _describe() -> dict[str, Any]:
 
 
 def _call(name: str, arguments: dict[str, Any], config_path: str | None) -> dict[str, Any]:
-    """Run one tool call. Returns {"result", "changed"} or {"error"}."""
+    """Run one tool call. Returns {"result", "changed", "new_item"} or {"error"}.
+
+    A run that meets a change made meanwhile also returns {"conflict": {"mergeable"}}.
+    """
     assert _registry is not None
     try:
         config = load_config(config_path) if config_path else load_config()
@@ -56,6 +59,15 @@ def _call(name: str, arguments: dict[str, Any], config_path: str | None) -> dict
             raise ToolRunError(
                 f"There is no store {arguments.get('store')!r} in your Debrief configuration."
             )
+        base = arguments.get("base")
+        if base is not None:
+            if not (
+                isinstance(base, dict)
+                and type(base.get("current")) is int
+                and isinstance(base.get("plot_hash"), str)
+            ):
+                raise ToolRunError("base must be {current, plot_hash}, as debrief/open returns.")
+            base = Base(base["current"], base["plot_hash"])
         outcome = run_tool(
             _registry,
             Catalogue.open(store.location),
@@ -65,7 +77,11 @@ def _call(name: str, arguments: dict[str, Any], config_path: str | None) -> dict
             arguments.get("parameters"),
             models.AgentRef(**arguments["agent"]),
             read_only=bool(store.read_only),
+            on_conflict=str(arguments.get("on_conflict") or "refuse"),
+            base=base,
         )
+    except ToolRunConflict as conflict:
+        return {"error": str(conflict), "conflict": {"mergeable": conflict.mergeable}}
     except ToolRunError as error:
         if error.detail:
             log.warning("%s\n%s", error, error.detail)
@@ -76,6 +92,7 @@ def _call(name: str, arguments: dict[str, Any], config_path: str | None) -> dict
     return {
         "result": json.loads(dump_document(DocumentKind.TOOL_RESULT, outcome.result)),
         "changed": outcome.changed,
+        "new_item": outcome.new_item,
     }
 
 

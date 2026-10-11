@@ -38,6 +38,8 @@ class DocumentKind(StrEnum):
     FORMAT_SETTINGS = "format_settings"
     USER_CONFIG = "user_config"
     WEBVIEW_MESSAGE = "webview_message"
+    DELTA = "delta"
+    HISTORY_HEAD = "history_head"
 
 
 _MODELS: dict[DocumentKind, type[BaseModel]] = {
@@ -50,6 +52,8 @@ _MODELS: dict[DocumentKind, type[BaseModel]] = {
     DocumentKind.FORMAT_SETTINGS: g.FormatSettings,
     DocumentKind.USER_CONFIG: g.UserConfig,
     DocumentKind.WEBVIEW_MESSAGE: g.WebviewMessage,
+    DocumentKind.DELTA: g.Delta,
+    DocumentKind.HISTORY_HEAD: g.HistoryHead,
 }
 
 # Members that GeoJSON and STAC require to be present even when null.
@@ -120,8 +124,17 @@ def _validator(kind: DocumentKind) -> Draft201909Validator:
 # --- Layer 1: schema version ---------------------------------------------------
 
 
+_FILE_KINDS = (
+    DocumentKind.PLOT,
+    DocumentKind.STAC_ITEM,
+    DocumentKind.STAC_CATALOG,
+    DocumentKind.DELTA,
+    DocumentKind.HISTORY_HEAD,
+)
+
+
 def _recorded_version(kind: DocumentKind, document: dict[str, Any]) -> object:
-    if kind is DocumentKind.PLOT:
+    if kind in (DocumentKind.PLOT, DocumentKind.DELTA, DocumentKind.HISTORY_HEAD):
         return document.get("schema_version")
     if kind is DocumentKind.STAC_ITEM:
         properties = document.get("properties")
@@ -132,7 +145,7 @@ def _recorded_version(kind: DocumentKind, document: dict[str, Any]) -> object:
 
 
 def _check_version(kind: DocumentKind, document: Any) -> None:
-    if kind not in (DocumentKind.PLOT, DocumentKind.STAC_ITEM, DocumentKind.STAC_CATALOG):
+    if kind not in _FILE_KINDS:
         return  # messages, not files
     found = _recorded_version(kind, document) if isinstance(document, dict) else None
     if not isinstance(found, str):
@@ -452,6 +465,34 @@ def _webview_message_problems(message: g.WebviewMessage, raw: dict[str, Any]) ->
     return problems
 
 
+def _delta_problems(delta: g.Delta, raw: dict[str, Any]) -> list[str]:
+    problems = ["after must come before seq"] if delta.after >= delta.seq else []
+    problems += _raw_feature_problems(raw.get("added"), "added feature")
+    problems += _raw_feature_problems(raw.get("modified"), "modified feature")
+    for feature in (delta.added or []) + (delta.modified or []):
+        problems += _feature_problems(feature, None)
+    features = (delta.added or []) + (delta.modified or [])
+    ids = [f.id for f in features] + list(delta.deleted_ids or [])
+    problems += [
+        f"feature {i!r} appears more than once in the delta"
+        for i in sorted(set(ids))
+        if ids.count(i) > 1
+    ]
+    return problems
+
+
+def _history_head_problems(head: g.HistoryHead, raw: dict[str, Any]) -> list[str]:
+    problems = []
+    if head.current > head.latest:
+        problems.append("current is beyond latest")
+    abandoned = list(head.abandoned or [])
+    if any(not 1 <= seq <= head.latest for seq in abandoned):
+        problems.append("abandoned names a delta that does not exist")
+    if head.current in abandoned:
+        problems.append("current is an abandoned delta")
+    return problems
+
+
 _RULES: dict[DocumentKind, Callable[[Any, dict[str, Any]], list[str]]] = {
     DocumentKind.PLOT: _plot_problems,
     DocumentKind.STAC_ITEM: _stac_item_problems,
@@ -462,6 +503,8 @@ _RULES: dict[DocumentKind, Callable[[Any, dict[str, Any]], list[str]]] = {
     DocumentKind.FORMAT_SETTINGS: _format_settings_problems,
     DocumentKind.USER_CONFIG: _user_config_problems,
     DocumentKind.WEBVIEW_MESSAGE: _webview_message_problems,
+    DocumentKind.DELTA: _delta_problems,
+    DocumentKind.HISTORY_HEAD: _history_head_problems,
 }
 
 
@@ -488,6 +531,7 @@ def _to_json_shape(kind: DocumentKind, document: dict[str, Any]) -> dict[str, An
     feature_lists = {
         DocumentKind.PLOT: ("features",),
         DocumentKind.TOOL_RESULT: ("new_features", "modified_features"),
+        DocumentKind.DELTA: ("added", "modified"),
     }.get(kind, ())
     for name in feature_lists:
         for feature in document.get(name, []):

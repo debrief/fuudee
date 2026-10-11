@@ -27,10 +27,16 @@ It prints `{"port": N, "tools": M}` once it is listening. The VS Code extension:
 2. starts the service with the token in its environment;
 3. reads the port from the service's first line of output.
 
-**Protocol.** MCP's Streamable HTTP transport: JSON-RPC 2.0 over `POST /mcp`, with JSON responses. It supports `initialize`, `ping`, `tools/list` and `tools/call`, plus two Debrief methods:
+**Protocol.** MCP's Streamable HTTP transport: JSON-RPC 2.0 over `POST /mcp`, with JSON responses. It supports `initialize`, `ping`, `tools/list` and `tools/call`, plus Debrief methods:
 
 - `debrief/tools_for_selection` (`{"kinds": ["track", "track"]}`), which returns the names of the tools on offer;
-- `debrief/stores`.
+- `debrief/stores`, `debrief/create_catalogue` and `debrief/import_rep`;
+- a plot's history (SUB-21), each taking `{"store", "item"}`:
+  - `debrief/open` finishes any change interrupted by a crash and says what it did (`recovered`);
+  - `debrief/history` lists the steps: `seq`, `status` (applied, undone or abandoned), `kind`, `tool`, `agent`, `at`;
+  - `debrief/undo`, `debrief/redo` and `debrief/goto` (`"step": n`) move through them.
+
+  Each returns `base` (`{"current", "plot_hash"}`). Pass it back as `base` with the next undo, redo or goto: if the plot was changed elsewhere meanwhile the call fails with code -32001 and nothing changes (SUB-28).
 
 `tools/list` carries each tool's full declaration in `_meta["debrief/declaration"]`. Libraries and tools that are unavailable are listed in the result's `_meta["debrief/unavailable"]`.
 
@@ -42,6 +48,10 @@ A test drives the service with the official MCP Python client, so any MCP-capabl
 {"store": "exercise", "item": "serial-01", "selection": ["track-nelson", "track-blue"],
  "parameters": {"rings": 2}, "agent": {"kind": "software_agent", "name": "Claude", "model": "..."}}
 ```
+
+`base` (optional) is the `base` from `debrief/open` or `debrief/history` for the plot the analyst is looking at; the tool then runs on that plot, and a change made elsewhere since is a conflict (SUB-28). Without it the tool runs on the plot as it is now.
+
+`on_conflict` (optional) says what to do if the plot changes while the tool runs: `refuse` (the default) fails the call with `_meta["debrief/conflict"] = {"mergeable": bool}`; `merge` applies the result on top when the two changes touch different features; `new_plot` saves the result as a copy of the plot and names it in `structuredContent.new_item` (SUB-28, SUB-29).
 
 `agent` is required, so provenance always says who ran a tool (SUB-24). Each tool's `inputSchema` describes its parameters, so an agent can discover them.
 

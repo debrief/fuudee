@@ -2,6 +2,10 @@
 
 The data-file schema is versioned independently of Debrief (SUB-12). Before 1.0.0 there is no migration guarantee (SUB-13).
 
+## 0.0.7 (11 Oct 2026)
+
+- Plot history (`Delta`, `HistoryHead`): every change recorded as a delta holding both the operation and its output, with a head for undo and redo; undone deltas superseded by a new change are kept, marked abandoned (SUB-19 to SUB-21, NFR-10).
+
 ## 0.0.6 (11 Oct 2026)
 
 - A quantity kind for angular rates such as bearing rate (`AngularRate`), in degrees per minute, degrees per second or radians per second. Degrees per minute is the analysts' standard. Tool parameters, recorded values and result columns can carry it.

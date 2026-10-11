@@ -561,6 +561,48 @@ export interface NamedSet {
   name: string;
 }
 /**
+ * One recorded change to a plot.
+ *
+ * This interface was referenced by `DebriefSchemaDefinitions`'s JSON-Schema
+ * via the `definition` "Delta".
+ */
+export interface Delta {
+  added?: (TrackFeature | AnnotationFeature | SensorObservationsFeature)[] | null;
+  /**
+   * The delta this one was applied on top of (0 for the first). Replay follows these links, and recovery uses them to finish a change that was written but not completed.
+   */
+  after: number;
+  deleted_ids?: string[] | null;
+  deleted_named_set_ids?: string[] | null;
+  /**
+   * Features changed, in full, replacing those with the same id.
+   */
+  modified?: (TrackFeature | AnnotationFeature | SensorObservationsFeature)[] | null;
+  /**
+   * Named sets added or replaced, by id.
+   */
+  named_sets?: NamedSet[] | null;
+  /**
+   * Feature ids in the order the plot holds them after this change, when that is not the natural order (features kept in place, added ones last).
+   */
+  order?: string[] | null;
+  /**
+   * The operation that made the change. Usually one; a baseline delta, taken when a plot made before history existed is first changed, carries all the plot's earlier records.
+   *
+   * @minItems 1
+   */
+  records: [ProvRecord, ...ProvRecord[]];
+  /**
+   * Content hash of the plot file after this delta, to check replay.
+   */
+  result_hash: string;
+  schema_version: string;
+  /**
+   * Position in the plot's history, from 1, with no gaps.
+   */
+  seq: number;
+}
+/**
  * This interface was referenced by `DebriefSchemaDefinitions`'s JSON-Schema
  * via the `definition` "FormatSettings".
  */
@@ -580,6 +622,31 @@ export interface FormatSettings {
    * IANA time zone for display, or UTC for Zulu time (SUB-01).
    */
   time_zone: string;
+}
+/**
+ * Where a plot's history stands. Written after each delta, before the plot.
+ *
+ * This interface was referenced by `DebriefSchemaDefinitions`'s JSON-Schema
+ * via the `definition` "HistoryHead".
+ */
+export interface HistoryHead {
+  /**
+   * Deltas undone and then superseded by a new change (SUB-19): those off the chain to the latest delta, so a lost head can be rebuilt.
+   */
+  abandoned?: number[] | null;
+  /**
+   * Sequence number of the last delta the plot reflects; 0 for none.
+   */
+  current: number;
+  /**
+   * Highest sequence number written.
+   */
+  latest: number;
+  /**
+   * Content hash the plot file has when it reflects current.
+   */
+  plot_hash: string;
+  schema_version: string;
 }
 /**
  * This interface was referenced by `DebriefSchemaDefinitions`'s JSON-Schema
