@@ -160,3 +160,6 @@ site/site/
 # VS Code extension build and test downloads
 vscode/dist-test/
 vscode/.vscode-test/
+
+# The blog playground, built by scripts/build_playground.sh
+site/docs/play/

@@ -1,0 +1,42 @@
+/* The playground page, styled with the same theme variables as the webviews. */
+html, body { height: 100%; margin: 0; }
+body { background: var(--vscode-editor-background); color: var(--vscode-foreground); font-family: var(--vscode-font-family); font-size: var(--vscode-font-size); }
+.app { display: grid; grid-template-columns: 290px 1fr; grid-template-rows: 1fr auto; height: 100%; }
+.side { grid-row: 1; overflow-y: auto; background: var(--vscode-sideBar-background); border-right: 1px solid var(--vscode-panel-border); }
+.side section { padding: 6px 10px 10px; border-bottom: 1px solid var(--vscode-sideBarSectionHeader-border); }
+.side h2 { font-size: 11px; text-transform: uppercase; letter-spacing: .04em; margin: 4px 0 6px; display: flex; justify-content: space-between; align-items: center; color: var(--vscode-sideBarSectionHeader-foreground); }
+.side select { width: 100%; background: var(--vscode-dropdown-background); color: var(--vscode-foreground); border: 1px solid var(--vscode-dropdown-border); padding: 3px; font: inherit; }
+.list { list-style: none; margin: 0; padding: 0; max-height: 210px; overflow-y: auto; }
+.list li { padding: 2px 4px; cursor: default; border-radius: 2px; }
+#outline li { cursor: pointer; }
+#outline li:hover { background: var(--vscode-list-hoverBackground); }
+#outline li.selected { background: var(--vscode-list-activeSelectionBackground); color: var(--vscode-list-activeSelectionForeground); }
+.detail { color: var(--vscode-descriptionForeground); font-size: 12px; }
+.step.undone .name, .step.abandoned .name { color: var(--vscode-descriptionForeground); }
+.step.abandoned .name { text-decoration: line-through; }
+button { background: var(--vscode-button-secondaryBackground); color: var(--vscode-button-secondaryForeground); border: 1px solid var(--vscode-button-border); padding: 3px 8px; margin: 2px 2px 2px 0; font: inherit; cursor: pointer; border-radius: 2px; }
+button:hover:not(:disabled) { background: var(--vscode-button-secondaryHoverBackground); }
+button:disabled { opacity: .5; cursor: default; }
+button.primary { background: var(--vscode-button-background); color: var(--vscode-button-foreground); }
+button.link { background: none; border: none; color: var(--vscode-list-highlightForeground); padding: 0 2px; font-size: 12px; }
+button:focus-visible, li:focus-visible { outline: 1px solid var(--vscode-focusBorder); }
+#panel-try button { display: block; width: 100%; text-align: left; }
+.tools li { display: flex; align-items: baseline; gap: 6px; flex-wrap: wrap; }
+.file input { display: block; margin: 4px 0; color: var(--vscode-foreground); font: inherit; }
+.omitted { font-size: 12px; padding-left: 16px; max-height: 160px; overflow-y: auto; }
+main { grid-row: 1; display: flex; min-width: 0; position: relative; }
+.frame { border: 0; display: block; }
+.frame-map { flex: 1; min-width: 0; height: 100%; }
+.side-frame { width: 380px; border-left: 1px solid var(--vscode-panel-border); display: flex; }
+.side-frame[hidden] { display: none; }
+.side-frame .frame { flex: 1; height: 100%; }
+footer { grid-column: 1 / span 2; padding: 3px 10px; background: var(--vscode-editorWidget-background); border-top: 1px solid var(--vscode-panel-border); font-size: 12px; }
+.status.busy::before { content: "⟳ "; display: inline-block; animation: spin 1.2s linear infinite; }
+@keyframes spin { to { transform: rotate(360deg); } }
+.toasts { position: fixed; right: 12px; bottom: 34px; display: flex; flex-direction: column; gap: 6px; max-width: 380px; z-index: 10; }
+.toast { background: var(--vscode-editorWidget-background); color: var(--vscode-editorWidget-foreground); border: 1px solid var(--vscode-editorWidget-border); border-left: 3px solid var(--vscode-focusBorder); padding: 8px 10px; box-shadow: 0 2px 8px #0005; }
+.toast.warning { border-left-color: var(--vscode-inputValidation-errorBorder); }
+dialog { background: var(--vscode-editorWidget-background); color: var(--vscode-editorWidget-foreground); border: 1px solid var(--vscode-editorWidget-border); max-width: 460px; }
+dialog::backdrop { background: #0006; }
+.buttons { display: flex; gap: 6px; justify-content: flex-end; flex-wrap: wrap; }
+@media (max-width: 760px) { .app { grid-template-columns: 1fr; grid-template-rows: 55vh auto auto; } .side { grid-row: 2; max-height: none; } main { grid-row: 1; } footer { grid-column: 1; } .side-frame { width: 50%; } }
