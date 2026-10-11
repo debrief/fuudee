@@ -674,7 +674,7 @@ class WebviewMessageKindEnum(str, Enum):
     """
     show_plot = "show_plot"
     """
-    Host to map: draw this plot (plot, plot_title, selection, and current time and viewport if known).
+    Host to map: draw this plot (plot, plot_title, selection, and current time and viewport if known, and how many features are hidden).
     """
     set_selection = "set_selection"
     """
@@ -699,6 +699,10 @@ class WebviewMessageKindEnum(str, Enum):
     viewport_changed = "viewport_changed"
     """
     Map to host: the analyst panned or zoomed (viewport).
+    """
+    show_hidden = "show_hidden"
+    """
+    Map to host: show every feature hidden on the map (no members).
     """
     show_form = "show_form"
     """
@@ -2200,6 +2204,7 @@ class WebviewMessage(ConfiguredBaseModel):
                        'WebviewMessage']} })
     plot: Optional[DebriefFeatureCollection] = Field(default=None, json_schema_extra = { "linkml_meta": {'domain_of': ['Selection', 'WebviewMessage']} })
     plot_title: Optional[str] = Field(default=None, json_schema_extra = { "linkml_meta": {'domain_of': ['WebviewMessage']} })
+    hidden_count: Optional[int] = Field(default=None, description="""How many of the plot's features are hidden on the map (SUB-22), so the map can say so.""", ge=0, json_schema_extra = { "linkml_meta": {'domain_of': ['WebviewMessage']} })
     selection: Optional[Selection] = Field(default=None, json_schema_extra = { "linkml_meta": {'domain_of': ['SharedState', 'SharedStateChange', 'WebviewMessage']} })
     viewport: Optional[Viewport] = Field(default=None, json_schema_extra = { "linkml_meta": {'domain_of': ['SharedState', 'SharedStateChange', 'WebviewMessage']} })
     time: Optional[TimeState] = Field(default=None, json_schema_extra = { "linkml_meta": {'domain_of': ['AnnotationProperties',

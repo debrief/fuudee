@@ -187,6 +187,7 @@ export type WebviewMessageKindEnum =
   | "time_changed"
   | "set_viewport"
   | "viewport_changed"
+  | "show_hidden"
   | "show_form"
   | "run_tool"
   | "cancel"
@@ -1002,6 +1003,10 @@ export interface UserConfig {
  * via the `definition` "WebviewMessage".
  */
 export interface WebviewMessage {
+  /**
+   * How many of the plot's features are hidden on the map (SUB-22), so the map can say so.
+   */
+  hidden_count?: number | null;
   kind: WebviewMessageKindEnum;
   message?: string | null;
   parameters?: ParameterValue[] | null;

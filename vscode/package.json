@@ -56,7 +56,7 @@
       {"command": "debrief.setColour", "title": "Change colour…", "category": "Debrief", "icon": "$(symbol-color)"},
       {"command": "debrief.hide", "title": "Hide on map", "category": "Debrief", "icon": "$(eye-closed)"},
       {"command": "debrief.show", "title": "Show on map", "category": "Debrief", "icon": "$(eye)"},
-      {"command": "debrief.goToStep", "title": "Go back to this step", "category": "Debrief"},
+        {"command": "debrief.goToStep", "title": "Go back to this step", "category": "Debrief"},
       {"command": "debrief.redoToStep", "title": "Redo up to this step", "category": "Debrief"}
     ],
     "menus": {
@@ -70,10 +70,10 @@
       ],
       "view/item/context": [
         {"command": "debrief.importRep", "when": "view == debrief.catalogues && viewItem == catalogue", "group": "1_import"},
-        {"command": "debrief.setColour", "title": "Change colour…", "category": "Debrief", "icon": "$(symbol-color)"},
-      {"command": "debrief.hide", "title": "Hide on map", "category": "Debrief", "icon": "$(eye-closed)"},
-      {"command": "debrief.show", "title": "Show on map", "category": "Debrief", "icon": "$(eye)"},
-      {"command": "debrief.goToStep", "when": "view == debrief.history && viewItem == step-applied", "group": "1_history"},
+        {"command": "debrief.setColour", "when": "view == debrief.outline && viewItem =~ /^feature-track/", "group": "1_presentation@1"},
+        {"command": "debrief.hide", "when": "view == debrief.outline && viewItem =~ /^feature-/ && viewItem =~ /^(?!.*-hidden$)/", "group": "1_presentation@2"},
+        {"command": "debrief.show", "when": "view == debrief.outline && viewItem =~ /-hidden$/", "group": "1_presentation@2"},
+        {"command": "debrief.goToStep", "when": "view == debrief.history && viewItem == step-applied", "group": "1_history"},
         {"command": "debrief.redoToStep", "when": "view == debrief.history && viewItem == step-undone", "group": "1_history"}
       ],
       "commandPalette": [
@@ -81,10 +81,7 @@
         {"command": "debrief.select", "when": "false"},
         {"command": "debrief.showToolForm", "when": "false"},
         {"command": "debrief.runTool", "when": "false"},
-        {"command": "debrief.setColour", "title": "Change colour…", "category": "Debrief", "icon": "$(symbol-color)"},
-      {"command": "debrief.hide", "title": "Hide on map", "category": "Debrief", "icon": "$(eye-closed)"},
-      {"command": "debrief.show", "title": "Show on map", "category": "Debrief", "icon": "$(eye)"},
-      {"command": "debrief.goToStep", "when": "false"},
+        {"command": "debrief.goToStep", "when": "false"},
         {"command": "debrief.redoToStep", "when": "false"}
       ]
     },

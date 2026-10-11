@@ -12,6 +12,8 @@ import pytest
 from starlette.testclient import TestClient
 
 from debrief_schemas import models
+from debrief_tools import diagnostics
+from debrief_tools import service as service_module
 from debrief_tools.service import ToolService, build_app
 from debrief_tools.worker import ToolWorker
 
@@ -332,7 +334,10 @@ def test_a_conflict_tells_the_caller_whether_it_can_merge(config_file: Path) -> 
         "tools/call",
         {"name": "core.x", "arguments": {"selection": [], "agent": AGENT}},
     )
-    assert result["isError"] and result["_meta"] == {"debrief/conflict": {"mergeable": True}}
+    assert result["isError"] and result["_meta"] == {
+        "debrief/conflict": {"mergeable": True},
+        "debrief/outcome": "conflict",
+    }
     refused = service.handle(
         "tools/call",
         {"name": "core.x", "arguments": {"selection": [], "agent": AGENT, "on_conflict": "x"}},
@@ -362,7 +367,6 @@ def test_shared_state_goes_to_the_tool_and_its_change_comes_back(client) -> None
 
 def test_tool_runs_are_logged_without_plot_data(client, catalogue, caplog) -> None:
     caplog.set_level(logging.INFO, logger="debrief_tools")
-    logging.getLogger("debrief_tools").addHandler(caplog.handler)
     secret = {"text": "Contact lost near NELSON", "at": "1995-12-12T05:05:00.000Z"}
     call(client, "core.add_note", ["track-nelson"], parameters=secret)
     call(client, "core.closest_approach", ["track-nelson"])  # refused: does not apply
@@ -400,7 +404,10 @@ def test_a_newer_schema_question_reaches_the_caller(config_file: Path) -> None:
     result = service.handle(
         "tools/call", {"name": "core.x", "arguments": {"selection": [], "agent": AGENT}}
     )
-    assert result["isError"] and result["_meta"] == {"debrief/newer_schema": True}
+    assert result["isError"] and result["_meta"] == {
+        "debrief/newer_schema": True,
+        "debrief/outcome": "needs_newer_schema_confirmed",
+    }
 
 
 def test_presentation_is_kept_beside_the_plot_outside_its_history(client, catalogue) -> None:
@@ -427,3 +434,52 @@ def test_presentation_is_kept_beside_the_plot_outside_its_history(client, catalo
     steps = rpc(client, "debrief/history", where).json()["result"]["steps"]
     assert len(steps) == 1  # never recorded in the plot's history (SUB-22)
     assert "presentation" in catalogue.read_item("serial").assets
+
+
+def test_a_failing_tool_logs_no_names_from_its_message(client, catalogue) -> None:
+    # The tool's message names the tracks, unquoted: the analyst sees it, the log never does.
+    result = call(client, "core.closest_approach", ["track-nelson", "track-late"])["result"]
+    assert result["isError"] and "do not overlap" in result["content"][0]["text"]
+    assert result["_meta"] == {"debrief/outcome": "failed"}
+    text = (Path(os.environ["DEBRIEF_LOG_DIR"]) / "tools-worker.log").read_text()
+    assert "tool_failed tool=core.closest_approach" in text
+    assert "ValueError message=<text:" in text and "core.py:" in text
+    assert "NELSON" not in text and "LATE" not in text and "overlap" not in text
+
+
+def test_every_tool_call_says_how_it_ended(client, catalogue) -> None:
+    note = {"text": "x", "at": "1995-12-12T05:05:00.000Z"}
+    changed = call(client, "core.add_note", ["track-nelson"], parameters=note)
+    assert changed["result"]["_meta"] == {"debrief/outcome": "changed"}
+    unchanged = call(client, "core.track_summary", ["track-nelson"])
+    assert unchanged["result"]["_meta"] == {"debrief/outcome": "unchanged"}
+    refused = call(client, "core.closest_approach", ["track-nelson"])
+    assert refused["result"]["_meta"] == {"debrief/outcome": "refused"}
+    for result in (changed, unchanged, refused):
+        assert result["result"]["_meta"]["debrief/outcome"] in diagnostics.OUTCOMES
+
+
+def test_the_service_logs_no_free_text_from_requests_or_libraries(tmp_path, caplog) -> None:
+    class Unavailable:
+        def describe(self):
+            reason = "ImportError: No module named 'nelson_tools' at /home/a/NELSON.py"
+            return {
+                "tools": [],
+                "unavailable": [{"library": "lab", "tool": None, "reason": reason}],
+            }
+
+    caplog.set_level(logging.INFO, logger="debrief_tools")
+    service = ToolService(Unavailable())  # type: ignore[arg-type]
+    for problem in service.unavailable:
+        service_module.log_unavailable(problem)
+    app = build_app(service, TOKEN, PORT)
+    with TestClient(app, base_url=f"http://127.0.0.1:{PORT}", raise_server_exceptions=False) as c:
+        service.handle = lambda method, params: 1 / 0  # type: ignore[method-assign]
+        rpc(c, "NELSON was here")
+        rpc(c, "tools/list")
+    lines = [r.getMessage() for r in caplog.records]
+    assert "rpc_error method=-" in lines and "rpc_error method=tools/list" in lines
+    assert any(
+        line.startswith("tool_unavailable library=lab tool=- reason=<text:") for line in lines
+    )
+    assert not any("NELSON" in line or "nelson" in line for line in lines)

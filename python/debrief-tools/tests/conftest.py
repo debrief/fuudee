@@ -1,5 +1,7 @@
 """A catalogue holding one imported plot: two crossing tracks and a third far away in time."""
 
+import os
+import tempfile
 from pathlib import Path
 
 import pytest
@@ -7,6 +9,10 @@ import pytest
 from debrief_config import add_store, update_config
 from debrief_io import import_rep
 from debrief_stac import Catalogue
+
+# Tests, and the worker processes they start, never touch the user's log folder or log key.
+os.environ.setdefault("DEBRIEF_LOG_DIR", tempfile.mkdtemp(prefix="debrief-test-logs-"))
+os.environ.setdefault("DEBRIEF_LOG_KEY", "ab" * 32)
 
 REP = """\
 951212 050000.000 NELSON @C 50 20 00.00 N 004 10 00.00 W 090.0 12.0 0

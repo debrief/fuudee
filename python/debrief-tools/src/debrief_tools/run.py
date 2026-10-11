@@ -11,7 +11,6 @@ returns a number, table or graph changes nothing and records nothing.
 from __future__ import annotations
 
 import time
-import traceback
 import uuid
 from dataclasses import dataclass
 from typing import Any
@@ -25,6 +24,7 @@ from debrief_schemas import (
     models,
 )
 from debrief_stac import Base, Catalogue, Changes, Conflict, HistoryError, NewerSchemaError
+from debrief_tools import diagnostics
 from debrief_tools.declare import Tool, ToolContext
 from debrief_tools.parameters import ParameterError, bind
 from debrief_tools.registry import Registry, applies
@@ -35,7 +35,9 @@ class ToolRunError(Exception):
 
     def __init__(self, message: str, detail: str | None = None):
         super().__init__(message)
-        self.detail = detail  # for logs, never shown as the main message
+        # For logs: the failure as diagnostics.describe_exception gives it, with no
+        # message text in it (NFR-14). Never shown as the main message.
+        self.detail = detail
 
 
 class ToolRunNewerSchema(ToolRunError):
@@ -106,7 +108,9 @@ def execute(
     try:
         result = tool.run(context)
     except Exception as error:  # a failing tool fails its own run, nothing more (TL-03)
-        raise ToolRunError(f"{declaration.title} failed: {error}", traceback.format_exc()) from None
+        raise ToolRunError(
+            f"{declaration.title} failed: {error}", diagnostics.describe_exception(error)
+        ) from None
     try:
         result = load_document(
             DocumentKind.TOOL_RESULT, dump_document(DocumentKind.TOOL_RESULT, result)

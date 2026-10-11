@@ -55,7 +55,7 @@ A test drives the service with the official MCP Python client, so any MCP-capabl
 
 `agent` is required, so provenance always says who ran a tool (SUB-24). Each tool's `inputSchema` describes its parameters, so an agent can discover them.
 
-A failed run comes back as an MCP tool result with `isError: true` and a message for the analyst; the plot is untouched. A successful run returns `structuredContent: {"result": <ToolResult>, "changed": bool}`, with the same JSON in a text block for agents that read only text.
+A failed run comes back as an MCP tool result with `isError: true` and a message for the analyst; the plot is untouched. A successful run returns `structuredContent: {"result": <ToolResult>, "changed": bool}`, with the same JSON in a text block for agents that read only text. Every result says how the run ended in `_meta["debrief/outcome"]`: `changed`, `unchanged`, `refused`, `failed`, `conflict`, `timed_out`, `crashed`, `saved_as_new_plot` or `needs_newer_schema_confirmed`, the same words the service's and the extension's logs use.
 
 The service negotiates the protocol version (2025-06-18 or 2025-03-26), refuses bodies over 10 MB, and answers malformed requests with JSON-RPC errors.
 
@@ -67,6 +67,16 @@ The service negotiates the protocol version (2025-06-18 or 2025-03-26), refuses 
 - **No browsers.** Requests with an `Origin` header, or whose `Host` isn't the loopback address and port, are refused. This defeats DNS rebinding from a web page.
 - **Tool code never runs in the service.** Libraries are imported only in the worker process, and the token is removed from the environment before the worker starts.
 - **Known stores only.** Tools act only on stores listed in the user's configuration, by id. A client can't point a tool at an arbitrary path. Stores marked read-only refuse tools that would change a plot.
+
+## Logs (NFR-14)
+
+The service and its worker log to `tools.log` and `tools-worker.log` in the user's log folder (`~/.local/state/debrief`, `~/Library/Logs/Debrief` or `%LOCALAPPDATA%\Debrief\Logs`; `DEBRIEF_LOG_DIR` overrides it), rotated at 1 MB. Logs hold no plot data, so they can be shared for support or an accreditation review without being read first:
+
+- **No free text.** Lines are fixed words and codes: `tool_run tool=core.range_rings version=0.0.2 parameters=rings:integer selected=1 outcome=changed ms=41`. Parameter names and kinds are logged, never values.
+- **Exceptions** are their type, a hash of their message and their frames as `file.py:line:function`; never the message, source lines or folders. A tool's message still reaches the analyst in the result.
+- **Other libraries' messages** (uvicorn's, Python warnings) are logged as the logger's name and a hash only; uvicorn logs warnings and above.
+- **Hashes are keyed**: HMAC-SHA256 under a 32-byte key made once per install, kept as `log-key` (mode 0600) beside the configuration file, never in the log folder, so a shared log can't be checked against a list of likely names. `DEBRIEF_LOG_KEY` (64 hex digits) overrides it; the extension passes its key that way, so its lines and the service's hash the same things alike.
+- **Redaction** of quoted text (straight and curly quotes), file paths and `file://` URIs backs this up on every line. A Windows or UNC path may have spaces in its folder names, and in its last part when the path runs to `: ` or the end of the line, so the rest of such a line is hashed with it; a POSIX path ends at the first space. Python and TypeScript are held to `schemas/vectors/redaction.json`.
 
 ## Not yet
 
