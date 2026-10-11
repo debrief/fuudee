@@ -95,3 +95,23 @@ def test_applies_honours_counts() -> None:
     declaration = Registry.discover().tools["core.closest_approach"].declaration
     assert not applies(declaration, ["track"] * 3)
     assert applies(declaration, ["track"] * 2)
+
+
+def test_invalid_declaration_names_the_tool_and_parameter() -> None:
+    from debrief_tools.declare import DeclarationError
+
+    with pytest.raises(DeclarationError) as error:
+        tool(
+            **{
+                **_declaration("lab.x", ["track"]),
+                "parameters": [
+                    {"name": "t", "title": "T", "kind": "quantity", "quantity_kind": "time"}
+                ],
+            }
+        )(lambda context: None)
+    message = str(error.value)
+    assert "The declaration of lab.x is not valid" in message
+    assert (
+        "parameter 't', quantity_kind: 'time' is not one of length, speed, angle, duration"
+        in message
+    )

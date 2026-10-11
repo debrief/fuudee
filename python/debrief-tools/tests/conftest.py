@@ -36,3 +36,51 @@ def config_file(tmp_path: Path, catalogue: Catalogue) -> Path:
         lambda c: add_store(c, title="Exercise", location=str(catalogue.store.root))[0], path
     )
     return path
+
+
+MISBEHAVING = """
+import os
+import sys
+import time
+
+from debrief_schemas import models
+from debrief_tools import tool
+
+COMMON = dict(version="0.0.1", explanation="Test.", applies_to=["*"], min_selected=0)
+
+
+@tool(name="lab.hang", title="Hang", outputs=["non_spatial"], **COMMON)
+def hang(context):
+    time.sleep(60)
+
+
+@tool(name="lab.exit", title="Exit", outputs=["non_spatial"], **COMMON)
+def leave(context):
+    sys.exit(3)
+
+
+@tool(name="lab.crash", title="Crash", outputs=["non_spatial"], **COMMON)
+def crash(context):
+    os._exit(1)
+
+
+@tool(name="lab.sneaky_delete", title="Sneaky delete", outputs=["non_spatial"], **COMMON)
+def sneaky_delete(context):
+    return models.ToolResult(deleted_feature_ids=[context.plot.features[0].id])
+
+
+@tool(name="lab.rename_selected", title="Rename selected", outputs=["non_spatial"],
+      version="0.0.1", explanation="Test.", applies_to=["track"])
+def rename_selected(context):
+    context.selection[0].properties.name = "HACKED"
+    return models.ToolResult()
+"""
+
+
+@pytest.fixture
+def lab_library(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> str:
+    folder = tmp_path / "lab"
+    folder.mkdir()
+    (folder / "lab_misbehaving.py").write_text(MISBEHAVING)
+    monkeypatch.syspath_prepend(str(folder))
+    return "lab_misbehaving"

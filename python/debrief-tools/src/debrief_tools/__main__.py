@@ -18,10 +18,13 @@ def main() -> None:
         command = commands.add_parser(name)
         command.add_argument("--library", action="append", default=[], help="extra tool module")
     commands.choices["serve"].add_argument("--port", type=int, default=0)
+    commands.choices["serve"].add_argument(
+        "--timeout", type=float, default=120.0, help="seconds before a tool call is stopped"
+    )
     args = parser.parse_args()
     logging.basicConfig(level=logging.INFO, format="%(levelname)s %(message)s")
     if args.command == "serve":
-        serve(args.port, args.library)
+        serve(args.port, args.library, args.timeout)
         return
     registry = Registry.discover(args.library)
     for tool in registry.tools.values():

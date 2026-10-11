@@ -10,18 +10,23 @@ from pathlib import Path
 import pytest
 from starlette.testclient import TestClient
 
-from debrief_tools import Registry
 from debrief_tools.service import ToolService, build_app
+from debrief_tools.worker import ToolWorker
 
 TOKEN = "t" * 40
 PORT = 43210
 HEADERS = {"authorization": f"Bearer {TOKEN}", "host": f"127.0.0.1:{PORT}"}
 
 
+AGENT = {"kind": "person", "name": "analyst"}
+
+
 @pytest.fixture
-def client(config_file: Path) -> TestClient:
-    app = build_app(ToolService(Registry.discover(), str(config_file)), TOKEN, PORT)
-    return TestClient(app, base_url=f"http://127.0.0.1:{PORT}")
+def client(config_file: Path, lab_library: str):
+    worker = ToolWorker([lab_library], str(config_file), timeout_s=3)
+    app = build_app(ToolService(worker, str(config_file)), TOKEN, PORT)
+    yield TestClient(app, base_url=f"http://127.0.0.1:{PORT}")
+    worker.close()
 
 
 def rpc(client: TestClient, method: str, params: dict | None = None, headers=HEADERS):
@@ -58,7 +63,7 @@ def test_tools_list_carries_declarations(client) -> None:
     rings = tools["core.range_rings"]
     assert rings["title"] == "Range rings"
     assert rings["_meta"]["debrief/declaration"]["parameters"][0]["quantity_kind"] == "length"
-    assert rings["inputSchema"]["required"] == ["store", "item", "selection"]
+    assert rings["inputSchema"]["required"] == ["store", "item", "selection", "agent"]
 
 
 def test_tools_for_selection(client) -> None:
@@ -77,34 +82,21 @@ def test_stores_lists_configuration(client) -> None:
 
 
 def test_call_runs_and_writes(client, catalogue) -> None:
-    arguments = {"store": "exercise", "item": "serial", "selection": ["track-nelson", "track-blue"]}
-    result = rpc(
-        client, "tools/call", {"name": "core.closest_approach", "arguments": arguments}
-    ).json()["result"]
+    result = call(client, "core.closest_approach", ["track-nelson", "track-blue"])["result"]
     assert result["isError"] is False and result["structuredContent"]["changed"] is True
+    assert '"non_spatial"' in result["content"][0]["text"]  # agents reading only text see it
     assert catalogue.read_plot("serial").features[-1].id.startswith("cpa-")
 
 
 def test_call_errors_are_results_not_crashes(client) -> None:
-    for arguments in (
-        {"store": "nowhere", "item": "serial", "selection": []},
-        {"store": "exercise", "item": "serial", "selection": ["track-nelson"]},
-    ):
-        result = rpc(
-            client, "tools/call", {"name": "core.closest_approach", "arguments": arguments}
-        ).json()
-        assert result["result"]["isError"] is True
-    assert (
-        "no store 'nowhere'"
-        in rpc(
-            client,
-            "tools/call",
-            {
-                "name": "core.closest_approach",
-                "arguments": {"store": "nowhere", "item": "x", "selection": []},
-            },
-        ).json()["result"]["content"][0]["text"]
-    )
+    no_store = call(client, "core.closest_approach", store="nowhere")["result"]
+    assert no_store["isError"] and "no store 'nowhere'" in no_store["content"][0]["text"]
+    wrong = call(client, "core.closest_approach", ["track-nelson"])["result"]
+    assert wrong["isError"] and "does not apply" in wrong["content"][0]["text"]
+    anonymous = call(client, "core.track_summary", ["track-nelson"], agent=None)["result"]
+    assert anonymous["isError"] and "Say who is running the tool" in anonymous["content"][0]["text"]
+    twice = call(client, "core.track_summary", ["track-nelson", "track-nelson"])["result"]
+    assert twice["isError"] and "more than once" in twice["content"][0]["text"]
     assert rpc(client, "ping").json()["result"] == {}  # still serving
 
 
@@ -152,7 +144,12 @@ def test_official_mcp_client_lists_and_calls_tools(config_file: Path, catalogue)
                 listed = await client.list_tools()
                 called = await client.call_tool(
                     "core.track_summary",
-                    {"store": "exercise", "item": "serial", "selection": ["track-nelson"]},
+                    {
+                        "store": "exercise",
+                        "item": "serial",
+                        "selection": ["track-nelson"],
+                        "agent": {"kind": "software_agent", "name": "test agent", "model": "none"},
+                    },
                 )
                 return listed, called
 
@@ -163,3 +160,95 @@ def test_official_mcp_client_lists_and_calls_tools(config_file: Path, catalogue)
     finally:
         server.terminate()
         server.wait(timeout=10)
+
+
+def call(client, name, selection=(), **extra):
+    arguments = {
+        "store": "exercise",
+        "item": "serial",
+        "selection": list(selection),
+        "agent": AGENT,
+        **extra,
+    }
+    return rpc(client, "tools/call", {"name": name, "arguments": arguments}).json()
+
+
+@pytest.mark.parametrize(
+    ("tool", "message"),
+    [
+        ("lab.hang", "longer than 3 seconds"),
+        ("lab.exit", "stopped unexpectedly"),
+        ("lab.crash", "stopped unexpectedly"),
+    ],
+)
+def test_a_tool_that_hangs_or_dies_fails_only_its_own_call(
+    client, catalogue, tool, message
+) -> None:
+    before = catalogue.read_plot("serial")
+    result = call(client, tool)["result"]
+    assert result["isError"] is True and message in result["content"][0]["text"]
+    assert rpc(client, "ping").json()["result"] == {}
+    assert call(client, "core.track_summary", ["track-nelson"])["result"]["isError"] is False
+    assert catalogue.read_plot("serial") == before
+
+
+def test_undeclared_output_is_refused(client, catalogue) -> None:
+    result = call(client, "lab.sneaky_delete")["result"]
+    assert result["isError"] and "does not declare" in result["content"][0]["text"]
+    assert catalogue.read_plot("serial").features[0].id == "track-nelson"
+
+
+def test_changing_the_selection_in_place_changes_nothing(client, catalogue) -> None:
+    assert call(client, "lab.rename_selected", ["track-nelson"])["result"]["isError"] is False
+    assert catalogue.read_plot("serial").features[0].properties.name == "NELSON"
+
+
+def test_tool_input_schema_lists_parameters(client) -> None:
+    tools = {t["name"]: t for t in rpc(client, "tools/list").json()["result"]["tools"]}
+    schema = tools["core.range_rings"]["inputSchema"]["properties"]["parameters"]
+    assert schema["properties"]["rings"]["type"] == "integer"
+    assert tools["core.add_note"]["inputSchema"]["properties"]["parameters"]["required"] == [
+        "text",
+        "at",
+    ]
+
+
+@pytest.mark.parametrize(
+    ("body", "expected"),
+    [
+        ({"jsonrpc": "2.0", "id": 1, "method": "ping", "params": []}, -32602),
+        (
+            {
+                "jsonrpc": "2.0",
+                "id": 1,
+                "method": "tools/call",
+                "params": {"name": "lab.none", "arguments": {}},
+            },
+            -32602,
+        ),
+    ],
+)
+def test_malformed_requests_get_json_rpc_errors(client, body, expected) -> None:
+    response = client.post("/mcp", content=json.dumps(body), headers=HEADERS)
+    assert response.status_code == 200 and response.json()["error"]["code"] == expected
+
+
+def test_protocol_version_negotiation_and_responses(client) -> None:
+    assert (
+        rpc(client, "initialize", {"protocolVersion": "2025-03-26"}).json()["result"][
+            "protocolVersion"
+        ]
+        == "2025-03-26"
+    )
+    assert (
+        rpc(client, "initialize", {"protocolVersion": "1999-01-01"}).json()["result"][
+            "protocolVersion"
+        ]
+        == "2025-06-18"
+    )
+    assert (
+        rpc(client, "ping", headers={**HEADERS, "mcp-protocol-version": "1999-01-01"}).status_code
+        == 400
+    )
+    response = {"jsonrpc": "2.0", "id": 5, "result": {}}
+    assert client.post("/mcp", content=json.dumps(response), headers=HEADERS).status_code == 202
