@@ -28,6 +28,32 @@ export interface CallOutcome {
   message: string;
   result?: ToolResult;
   changed?: boolean;
+  /** The plot changed while the tool ran, or since the analyst opened it (SUB-28). */
+  conflict?: { mergeable: boolean };
+  /** Set when the result was saved as a new plot (SUB-29). */
+  newItem?: string;
+}
+
+/** Where a plot's history stands: pass it back with the next change (SUB-28). */
+export interface Base {
+  current: number;
+  plot_hash: string;
+}
+
+export interface HistoryStep {
+  seq: number;
+  status: "applied" | "undone" | "abandoned";
+  kind: string;
+  tool: string | null;
+  agent: string;
+  at: string;
+  records: number;
+}
+
+export interface Opened {
+  base: Base;
+  /** What opening had to repair after a crash, for the analyst (NFR-10). */
+  recovered: string[];
 }
 
 export interface ImportReport {
@@ -42,7 +68,17 @@ export interface Agent {
   name: string;
 }
 
-export class ServiceError extends Error {}
+export class ServiceError extends Error {
+  constructor(
+    message: string,
+    readonly code?: number,
+  ) {
+    super(message);
+  }
+}
+
+/** The JSON-RPC error the service returns when the plot changed since the caller's base. */
+export const CONFLICT = -32001;
 
 export interface ServiceOptions {
   python: string;
@@ -169,8 +205,11 @@ export class ToolService {
               return reject(new ServiceError(`Debrief's tool service refused the request (${response.statusCode}).`));
             }
             try {
-              const parsed = JSON.parse(Buffer.concat(chunks).toString("utf8")) as { result?: T; error?: { message: string } };
-              if (parsed.error) reject(new ServiceError(parsed.error.message));
+              const parsed = JSON.parse(Buffer.concat(chunks).toString("utf8")) as {
+                result?: T;
+                error?: { message: string; code?: number };
+              };
+              if (parsed.error) reject(new ServiceError(parsed.error.message, parsed.error.code));
               else resolve(parsed.result as T);
             } catch (error) {
               reject(new ServiceError(`Debrief's tool service sent a reply Debrief could not read: ${(error as Error).message}`));
@@ -215,17 +254,34 @@ export class ToolService {
       parameters: Record<string, unknown>;
       agent: Agent;
       state?: SharedState;
+      base?: Base;
+      on_conflict?: "refuse" | "merge" | "new_plot";
     },
   ): Promise<CallOutcome> {
     const result = await this.request<{
       isError: boolean;
       content: { text: string }[];
-      structuredContent?: { result: ToolResult; changed: boolean };
+      structuredContent?: { result: ToolResult; changed: boolean; new_item?: string };
+      _meta?: { "debrief/conflict"?: { mergeable: boolean } };
     }>("tools/call", { name, arguments: args });
     const message = result.content[0]?.text.split("\n")[0] ?? "";
-    return result.isError
-      ? { ok: false, message }
-      : { ok: true, message, result: result.structuredContent?.result, changed: result.structuredContent?.changed };
+    if (result.isError) return { ok: false, message, conflict: result._meta?.["debrief/conflict"] };
+    const structured = result.structuredContent;
+    return { ok: true, message, result: structured?.result, changed: structured?.changed, newItem: structured?.new_item };
+  }
+
+  /** Open a plot: finish any change a crash interrupted, and say where its history stands. */
+  open(store: string, item: string): Promise<Opened> {
+    return this.request("debrief/open", { store, item });
+  }
+
+  history(store: string, item: string): Promise<Opened & { steps: HistoryStep[] }> {
+    return this.request("debrief/history", { store, item });
+  }
+
+  /** Undo, redo, or go to a step. Fails with CONFLICT if the plot changed since base. */
+  move(how: "undo" | "redo" | "goto", store: string, item: string, base: Base, step?: number): Promise<Opened> {
+    return this.request(`debrief/${how}`, { store, item, base, ...(step !== undefined && { step }) });
   }
 
   createCatalogue(location: string, title: string): Promise<{ store: string }> {

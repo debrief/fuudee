@@ -10,6 +10,7 @@ from __future__ import annotations
 
 import os
 import shutil
+import socket
 import stat
 import tempfile
 import time
@@ -92,6 +93,26 @@ def _replace(temporary: str | Path, target: Path) -> None:
             if time.monotonic() > deadline:
                 raise
             time.sleep(0.05)
+
+
+def _owner_is_gone(lock: Path) -> bool:
+    """Whether a lock was left by a process on this machine that has since died.
+
+    Only checked on POSIX, where signal 0 asks without disturbing the process;
+    elsewhere, and for locks taken on another machine, the age rule applies.
+    """
+    if os.name != "posix":
+        return False
+    try:
+        host, pid = lock.read_text(encoding="utf-8").split()
+        if host != socket.gethostname():
+            return False
+        os.kill(int(pid), 0)
+    except ProcessLookupError:
+        return True
+    except (OSError, ValueError):  # unreadable, half-written, or alive but not ours
+        return False
+    return False
 
 
 class FileStore:
@@ -194,7 +215,8 @@ class FileStore:
 
         For writes that take milliseconds, never for an analyst's session: plots
         are not locked while open (SUB-29). A lock left by a process that died
-        is taken over once it is LOCK_STALE_S old.
+        is taken over at once if it was on this machine, otherwise once it is
+        LOCK_STALE_S old.
         """
         lock = self._resolve(path)
         lock.parent.mkdir(parents=True, exist_ok=True)
@@ -205,7 +227,7 @@ class FileStore:
                 break
             except FileExistsError:
                 try:
-                    if time.time() - lock.stat().st_mtime > LOCK_STALE_S:
+                    if _owner_is_gone(lock) or time.time() - lock.stat().st_mtime > LOCK_STALE_S:
                         lock.unlink(missing_ok=True)
                         continue
                 except FileNotFoundError:
@@ -216,7 +238,7 @@ class FileStore:
                     ) from None
                 time.sleep(0.02)
         try:
-            os.write(handle, f"{os.getpid()}\n".encode())
+            os.write(handle, f"{socket.gethostname()} {os.getpid()}\n".encode())
             os.close(handle)
             yield
         finally:

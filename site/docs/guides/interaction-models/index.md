@@ -9,8 +9,8 @@ Worked patterns applied the same way across hosts, tools and agents (DEV-08). Ea
 | [Selection and tool offering](selection.md) | Phase 1 | Requirements gathered |
 | [Tool invocation and forms](tool-invocation.md) | Phase 1 | Requirements gathered |
 | [Unavailable capabilities](unavailable-capabilities.md) | Phase 1 | Requirements gathered |
-| [Undo](undo.md) | Phase 2 | Requirements gathered |
-| [Conflicts](conflicts.md) | Phase 2 | Requirements gathered |
+| [Undo](undo.md) | Phase 2 | Written |
+| [Conflicts](conflicts.md) | Phase 2 | Written |
 | [Long-running operations](long-running-operations.md) | Phase 2 | Requirements gathered |
 | [Check overrides](check-overrides.md) | Phase 2 | Requirements gathered |
 | [Keyboard equivalents](keyboard-equivalents.md) | Phase 3 | Requirements gathered |

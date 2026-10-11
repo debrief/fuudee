@@ -38,6 +38,23 @@ export interface OpenedPlot {
   plot: DebriefFeatureCollection;
   /** Assets other than the plot itself: sources, supporting files and payloads. */
   files: { key: string; title: string; kind: string; href: string }[];
+  /** Where the plot's history stood when it was read, from the tool service (SUB-28). */
+  base?: { current: number; plot_hash: string };
+}
+
+/** The file that changes whenever anyone changes the plot's history. */
+export function headFile(store: KnownStore, itemId: string): string {
+  return path.join(store.location, itemId, "history", "head.json");
+}
+
+/** Where the plot's history stands on disk now, or undefined if it cannot be read. */
+export function headOnDisk(store: KnownStore, itemId: string): { current: number; plot_hash: string } | undefined {
+  try {
+    const head = parseDocument("history_head", readFileSync(headFile(store, itemId), "utf8"));
+    return { current: head.current, plot_hash: head.plot_hash };
+  } catch {
+    return undefined;
+  }
 }
 
 export function knownStores(configFile?: string): { stores: KnownStore[]; problem?: string } {

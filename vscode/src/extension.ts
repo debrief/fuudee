@@ -7,13 +7,15 @@
 import { userInfo } from "node:os";
 import * as vscode from "vscode";
 import type { ParameterValue, SharedState, SharedStateChange, ToolDeclaration } from "@debrief/schemas";
-import { knownStores, openPlot } from "./catalogue.js";
+import { headFile, headOnDisk, knownStores, openPlot, type OpenedPlot } from "./catalogue.js";
+import { unwatchFile, watchFile } from "node:fs";
 import { count, describeChanges } from "./format.js";
 import { resolveTimes } from "./timeinput.js";
 import { FormPanel } from "./panels/form.js";
 import { MapPanel } from "./panels/map.js";
 import { ResultsPanel } from "./panels/results.js";
-import { ServiceError, ToolService, type Agent, type ToolListing } from "./service.js";
+import { CONFLICT, ServiceError, ToolService, type Agent, type CallOutcome, type ToolListing } from "./service.js";
+import { HistoryProvider } from "./views/history.js";
 import { Session } from "./session.js";
 import { CataloguesProvider } from "./views/catalogues.js";
 import { featureIdsOf, OutlineProvider } from "./views/outline.js";
@@ -54,12 +56,14 @@ export function activate(context: vscode.ExtensionContext): DebriefApi {
   const catalogues = new CataloguesProvider(configFile);
   const outline = new OutlineProvider(session);
   const tools = new ToolsProvider(session);
+  const history = new HistoryProvider((name) => listing?.tools.find((t) => t.name === name)?.title);
   const outlineView = vscode.window.createTreeView("debrief.outline", { treeDataProvider: outline, canSelectMany: true });
   context.subscriptions.push(
     output,
     vscode.window.registerTreeDataProvider("debrief.catalogues", catalogues),
     outlineView,
     vscode.window.registerTreeDataProvider("debrief.tools", tools),
+    vscode.window.registerTreeDataProvider("debrief.history", history),
   );
 
   const map = new MapPanel(context.extensionUri, session, log);
@@ -96,6 +100,8 @@ export function activate(context: vscode.ExtensionContext): DebriefApi {
         });
         service = started;
         await refreshTools();
+        // A plot opened before the service started: open it again, finishing any interrupted change.
+        if (session.current) await reloadPlot(true);
       } catch (error) {
         log((error as Error).message);
         tools.update(undefined, [], (error as Error).message);
@@ -161,22 +167,48 @@ export function activate(context: vscode.ExtensionContext): DebriefApi {
     if (typeof timeProblem === "string") return timeProblem;
     parameters = timeProblem;
     const values = Object.fromEntries(parameters.map((p) => [p.name, p.value]));
-    let outcome;
-    try {
-      outcome = await service.callTool(tool.name, {
+    const call = (on_conflict?: "merge" | "new_plot") =>
+      service!.callTool(tool.name, {
         store: opened.store.id,
         item: opened.item.id,
         selection: session.selection,
         parameters: values,
         agent,
         state: session.state(), // tools read current time, selection and viewport (TL-10)
+        base: opened.base, // the plot the analyst is looking at (SUB-28)
+        ...(on_conflict && { on_conflict }),
       });
+    let outcome: CallOutcome;
+    try {
+      writing++;
+      outcome = await call();
+      if (!outcome.ok && outcome.conflict) {
+        // Changed elsewhere since it was opened: never overwrite, offer a choice (SUB-29).
+        const choice = await askAboutConflict(tool.title, outcome.conflict.mergeable);
+        if (!choice) {
+          await reloadPlot(true);
+          return `${tool.title} was not run: the plot was changed elsewhere. Debrief is showing the latest; run it again if it still applies.`;
+        }
+        outcome = await call(choice);
+      }
     } catch (error) {
       return (error as Error).message;
+    } finally {
+      writing--;
     }
     if (!outcome.ok) return outcome.message;
+    if (outcome.newItem) {
+      catalogues.refresh();
+      const open = await vscode.window.showInformationMessage(
+        `${tool.title}: your result was saved as a new plot, ${outcome.newItem}. The original keeps the other change.`,
+        "Open the new plot",
+      );
+      if (open) await loadPlot(opened.store, outcome.newItem);
+      else await reloadPlot(true);
+      return undefined;
+    }
     if (outcome.changed) {
-      const problem = reloadPlot(true);
+      const problem = await reloadPlot(true);
       if (problem) return problem;
     }
     const result = outcome.result;
@@ -189,17 +221,116 @@ export function activate(context: vscode.ExtensionContext): DebriefApi {
   };
   const form = new FormPanel(context.extensionUri, runTool, log);
 
+  async function askAboutConflict(title: string, mergeable: boolean): Promise<"merge" | "new_plot" | undefined> {
+    const combine = "Combine the changes";
+    const saveNew = "Save mine as a new plot";
+    const choice = await vscode.window.showWarningMessage(
+      mergeable
+        ? `The plot was changed elsewhere while you were working. The other change touches different features from ${title}'s, so the two can be combined, or ${title}'s result can be saved as a new plot.`
+        : `The plot was changed elsewhere while you were working, and the change touches the same features as ${title}'s. ${title}'s result can be saved as a new plot.`,
+      { modal: true },
+      ...(mergeable ? [combine, saveNew] : [saveNew]),
+    );
+    return choice === combine ? "merge" : choice === saveNew ? "new_plot" : undefined;
+  }
+
+  // --- Opening, reloading, and noticing changes made elsewhere ---------------------
+  /** Writes of our own in progress, so the watcher doesn't report them as someone else's. */
+  let writing = 0;
+  let watched: string | undefined;
+
+  /**
+   * Open a plot: the service finishes any change a crash interrupted first
+   * (NFR-10) and says where its history stands. Without the service the plot
+   * is read as it is, and can't be changed.
+   */
+  async function loadPlot(store: OpenedPlot["store"], itemId: string, keepSelection = false): Promise<void> {
+    let base: OpenedPlot["base"];
+    let recovered: string[] = [];
+    if (service) {
+      try {
+        ({ base, recovered } = await service.open(store.id, itemId));
+      } catch (error) {
+        log(`Opening ${itemId}: ${(error as Error).message}`);
+      }
+    }
+    const opened = { ...openPlot(store, itemId), base };
+    session.setPlot(opened, keepSelection && session.current?.item.id === itemId);
+    watch(opened);
+    catalogues.refresh();
+    await refreshHistory();
+    if (recovered.length) {
+      void vscode.window.showWarningMessage(`${opened.item.properties.title ?? itemId}: ${recovered.join(" ")}`);
+    }
+  }
+
   /** Read the plot again after a change. Returns a problem to show, if it can't be read. */
-  function reloadPlot(keepSelection: boolean): string | undefined {
+  async function reloadPlot(keepSelection: boolean): Promise<string | undefined> {
     const opened = session.current;
     if (!opened) return undefined;
     try {
-      session.setPlot(openPlot(opened.store, opened.item.id), keepSelection);
-      catalogues.refresh();
+      await loadPlot(opened.store, opened.item.id, keepSelection);
       return undefined;
     } catch (error) {
       return `The plot was changed, but Debrief could not read it back: ${(error as Error).message}`;
     }
+  }
+
+  /**
+   * Notice a change made elsewhere: another window, another analyst on a shared
+   * folder, an agent (SUB-28). Polled, because change events are unreliable on
+   * network shares. The plot is never overwritten: Debrief shows the latest.
+   */
+  function watch(opened: OpenedPlot): void {
+    const file = headFile(opened.store, opened.item.id);
+    if (watched === file) return;
+    if (watched) unwatchFile(watched);
+    watched = file;
+    watchFile(file, { interval: 1000 }, () => {
+      const current = session.current;
+      if (writing || !current || headFile(current.store, current.item.id) !== file) return;
+      const onDisk = headOnDisk(current.store, current.item.id);
+      if (!onDisk || (onDisk.current === current.base?.current && onDisk.plot_hash === current.base?.plot_hash)) return;
+      void reloadPlot(true).then((problem) => {
+        void vscode.window.showInformationMessage(
+          problem ?? `${current.item.properties.title ?? current.item.id} was changed elsewhere. Debrief is showing the latest.`,
+        );
+      });
+    });
+  }
+  context.subscriptions.push({ dispose: () => watched && unwatchFile(watched) });
+
+  async function refreshHistory(): Promise<void> {
+    const opened = session.current;
+    if (!opened || !service) return history.update([], 0, !!opened, opened ? "History needs the tool service." : undefined);
+    try {
+      const listed = await service.history(opened.store.id, opened.item.id);
+      history.update(listed.steps, listed.base.current);
+    } catch (error) {
+      history.update([], 0, true, (error as Error).message);
+    }
+    void vscode.commands.executeCommand("setContext", "debrief.canUndo", history.canUndo());
+    void vscode.commands.executeCommand("setContext", "debrief.canRedo", history.canRedo());
+  }
+
+  /** Undo, redo, or go to a step (SUB-21): replay in the service, then show the result. */
+  async function move(how: "undo" | "redo" | "goto", step?: number): Promise<string | undefined> {
+    const opened = session.current;
+    if (!opened) return "Open a plot first.";
+    if (!service || !opened.base) return "Undo needs Debrief's tool service. Run 'Debrief: Restart tool service'.";
+    try {
+      writing++;
+      await service.move(how, opened.store.id, opened.item.id, opened.base, step);
+    } catch (error) {
+      if ((error as ServiceError).code === CONFLICT) {
+        await reloadPlot(true);
+        return "The plot was changed elsewhere, so nothing was undone. Debrief is showing the latest; try again if you still want to.";
+      }
+      return (error as Error).message;
+    } finally {
+      writing--;
+    }
+    return reloadPlot(true);
   }
 
   const storeById = (id: string) => knownStores(configFile).stores.find((s) => s.id === id);
@@ -208,25 +339,41 @@ export function activate(context: vscode.ExtensionContext): DebriefApi {
   const command = (name: string, handler: (...args: never[]) => unknown) =>
     context.subscriptions.push(vscode.commands.registerCommand(name, handler));
 
-  command("debrief.openPlot", (storeId: string, itemId: string) => {
+  command("debrief.openPlot", async (storeId: string, itemId: string) => {
     const store = storeById(storeId);
     if (!store) return;
     try {
-      session.setPlot(openPlot(store, itemId));
+      await loadPlot(store, itemId);
       map.reveal();
     } catch (error) {
       void vscode.window.showErrorMessage(`The plot could not be opened: ${(error as Error).message}`);
     }
   });
 
+  // History (SUB-21). Each returns the problem, if any, for agents and tests.
+  const report = (problem: string | undefined) => {
+    if (problem) void vscode.window.showWarningMessage(problem);
+    return problem;
+  };
+  command("debrief.undo", async () => report(await move("undo")));
+  command("debrief.redo", async () => report(await move("redo")));
+  command("debrief.goToStep", async (target?: number | { step: { seq: number } }) => {
+    const seq = typeof target === "number" ? target : target?.step.seq;
+    return seq === undefined ? undefined : report(await move("goto", seq));
+  });
+  command("debrief.redoToStep", (target?: { step: { seq: number } }) =>
+    vscode.commands.executeCommand("debrief.goToStep", target),
+  );
+  command("debrief.historySteps", () => history.steps);
+
   command("debrief.select", (ids: string[]) => session.select(ids ?? [], "command"));
   // Shared state for agents and keyboard users (SUB-27).
   command("debrief.getState", () => session.state());
   command("debrief.setState", (change: SharedStateChange) => session.apply(change ?? {}, "command"));
   command("debrief.clearSelection", () => session.select([], "command"));
-  command("debrief.refresh", () => {
+  command("debrief.refresh", async () => {
     catalogues.refresh();
-    const problem = reloadPlot(true);
+    const problem = await reloadPlot(true);
     if (problem) void vscode.window.showErrorMessage(problem);
   });
   command("debrief.restartTools", () => startService());

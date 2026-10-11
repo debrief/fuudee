@@ -1,6 +1,7 @@
 """History: deltas, replay, undo and redo, recovery after a crash, and conflicts."""
 
 import json
+import os
 import shutil
 from pathlib import Path
 
@@ -415,3 +416,29 @@ def test_two_processes_changing_and_undoing_at_once_keep_the_history_whole(
     assert history.replay(head.current) == catalogue.read_plot("p")
     applied = {s.seq for s in history.steps() if s.status == "applied"}
     assert applied == set(history.chain(head.current))
+
+
+@pytest.mark.skipif(os.name != "posix", reason="process liveness is checked on POSIX only")
+def test_a_lock_left_by_a_killed_process_is_taken_over_at_once(catalogue: Catalogue) -> None:
+    import socket
+    import subprocess
+    import sys
+
+    dead = subprocess.run(
+        [sys.executable, "-c", "import os; print(os.getpid())"], capture_output=True
+    )
+    lock = catalogue.store.root / "p" / "history" / ".lock"
+    lock.write_text(f"{socket.gethostname()} {int(dead.stdout)}\n")
+    store.LOCK_WAIT_S, wait = 0.5, store.LOCK_WAIT_S
+    try:
+        catalogue.commit("p", [record(2)], Changes(added=[note("b")]))
+    finally:
+        store.LOCK_WAIT_S = wait
+    assert names(catalogue) == ["a", "b"] and not lock.exists()
+    lock.write_text(f"{socket.gethostname()} {os.getpid()}\n")  # alive: never taken
+    store.LOCK_WAIT_S = 0.2
+    try:
+        with pytest.raises(store.StoreBusy):
+            catalogue.commit("p", [record(3)], Changes(added=[note("c")]))
+    finally:
+        store.LOCK_WAIT_S = wait

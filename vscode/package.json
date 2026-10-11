@@ -22,7 +22,8 @@
       "debrief": [
         {"id": "debrief.catalogues", "name": "Catalogues"},
         {"id": "debrief.outline", "name": "Outline"},
-        {"id": "debrief.tools", "name": "Tools"}
+        {"id": "debrief.tools", "name": "Tools"},
+        {"id": "debrief.history", "name": "History"}
       ]
     },
     "viewsWelcome": [
@@ -33,6 +34,10 @@
       {
         "view": "debrief.outline",
         "contents": "Open a plot from a catalogue to see its tracks, annotations and sensor data here."
+      },
+      {
+        "view": "debrief.history",
+        "contents": "Every change to the open plot appears here. Undo returns the plot to an earlier step; nothing is lost."
       }
     ],
     "commands": [
@@ -45,25 +50,40 @@
       {"command": "debrief.clearSelection", "title": "Clear selection", "category": "Debrief", "icon": "$(clear-all)"},
       {"command": "debrief.showToolForm", "title": "Open tool", "category": "Debrief"},
       {"command": "debrief.runTool", "title": "Run tool", "category": "Debrief"},
-      {"command": "debrief.restartTools", "title": "Restart tool service", "category": "Debrief"}
+      {"command": "debrief.restartTools", "title": "Restart tool service", "category": "Debrief"},
+      {"command": "debrief.undo", "title": "Undo last change to plot", "category": "Debrief", "icon": "$(discard)", "enablement": "debrief.canUndo"},
+      {"command": "debrief.redo", "title": "Redo change to plot", "category": "Debrief", "icon": "$(redo)", "enablement": "debrief.canRedo"},
+      {"command": "debrief.goToStep", "title": "Undo to here", "category": "Debrief"},
+      {"command": "debrief.redoToStep", "title": "Redo to here", "category": "Debrief"}
     ],
     "menus": {
       "view/title": [
         {"command": "debrief.importRep", "when": "view == debrief.catalogues", "group": "navigation@1"},
         {"command": "debrief.addCatalogue", "when": "view == debrief.catalogues", "group": "navigation@2"},
         {"command": "debrief.refresh", "when": "view == debrief.catalogues", "group": "navigation@3"},
-        {"command": "debrief.clearSelection", "when": "view == debrief.outline", "group": "navigation@1"}
+        {"command": "debrief.clearSelection", "when": "view == debrief.outline", "group": "navigation@1"},
+        {"command": "debrief.undo", "when": "view == debrief.history", "group": "navigation@1"},
+        {"command": "debrief.redo", "when": "view == debrief.history", "group": "navigation@2"}
       ],
       "view/item/context": [
-        {"command": "debrief.importRep", "when": "view == debrief.catalogues && viewItem == catalogue", "group": "1_import"}
+        {"command": "debrief.importRep", "when": "view == debrief.catalogues && viewItem == catalogue", "group": "1_import"},
+        {"command": "debrief.goToStep", "when": "view == debrief.history && viewItem == step-applied", "group": "1_history"},
+        {"command": "debrief.redoToStep", "when": "view == debrief.history && viewItem == step-undone", "group": "1_history"}
       ],
       "commandPalette": [
         {"command": "debrief.openPlot", "when": "false"},
         {"command": "debrief.select", "when": "false"},
         {"command": "debrief.showToolForm", "when": "false"},
-        {"command": "debrief.runTool", "when": "false"}
+        {"command": "debrief.runTool", "when": "false"},
+        {"command": "debrief.goToStep", "when": "false"},
+        {"command": "debrief.redoToStep", "when": "false"}
       ]
     },
+    "keybindings": [
+      {"command": "debrief.undo", "key": "ctrl+z", "mac": "cmd+z", "when": "activeWebviewPanelId == 'debrief.map' || focusedView == debrief.history || focusedView == debrief.outline"},
+      {"command": "debrief.redo", "key": "ctrl+shift+z", "mac": "cmd+shift+z", "when": "activeWebviewPanelId == 'debrief.map' || focusedView == debrief.history || focusedView == debrief.outline"},
+      {"command": "debrief.redo", "key": "ctrl+y", "when": "activeWebviewPanelId == 'debrief.map' || focusedView == debrief.history || focusedView == debrief.outline"}
+    ],
     "configuration": {
       "title": "Debrief",
       "properties": {
