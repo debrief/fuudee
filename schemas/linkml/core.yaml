@@ -37,6 +37,7 @@ enums:
       speed: {}
       angle: {}
       duration: {}
+      angular_rate: {description: "Rate of change of an angle, such as bearing rate."}
   LengthUnitEnum:
     description: Units a length may be stored in (UCUM codes).
     permissible_values:
@@ -63,6 +64,14 @@ enums:
       s: {description: "seconds"}
       min: {description: "minutes"}
       h: {description: "hours"}
+  AngularRateUnitEnum:
+    description: >-
+      Units an angular rate may be stored in (UCUM codes). Degrees per minute is
+      the analysts' standard for bearing rate.
+    permissible_values:
+      deg/min: {description: "degrees per minute"}
+      deg/s: {description: "degrees per second"}
+      rad/s: {description: "radians per second"}
 
 classes:
   # A quantity carries its unit in the data (decision 11 Oct). Each quantity
@@ -84,6 +93,10 @@ classes:
     attributes:
       value: {range: float, required: true}
       unit: {range: DurationUnitEnum, required: true}
+  AngularRate:
+    attributes:
+      value: {range: float, required: true}
+      unit: {range: AngularRateUnitEnum, required: true}
 
   SpeedSeries:
     attributes:
@@ -123,3 +136,4 @@ classes:
           - range: Speed
           - range: Angle
           - range: Duration
+          - range: AngularRate

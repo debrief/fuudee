@@ -447,6 +447,48 @@
         "utc": "1969-12-31T23:59:59.999Z"
       },
       "expected": "31 Dec 1969 23:59:59.999Z"
+    },
+    {
+      "name": "bearing rate in degrees per minute",
+      "settings": {},
+      "op": "quantity",
+      "input": {
+        "value": 1.25,
+        "unit": "deg/min"
+      },
+      "expected": "1.3°/min"
+    },
+    {
+      "name": "bearing rate from degrees per second",
+      "settings": {},
+      "op": "quantity",
+      "input": {
+        "value": 0.02,
+        "unit": "deg/s"
+      },
+      "expected": "1.2°/min"
+    },
+    {
+      "name": "bearing rate drawing left is negative",
+      "settings": {
+        "angle_decimals": 2
+      },
+      "op": "quantity",
+      "input": {
+        "value": -0.35,
+        "unit": "deg/min"
+      },
+      "expected": "-0.35°/min"
+    },
+    {
+      "name": "bearing rate from radians per second",
+      "settings": {},
+      "op": "quantity",
+      "input": {
+        "value": 0.0003,
+        "unit": "rad/s"
+      },
+      "expected": "1.0°/min"
     }
   ]
 }

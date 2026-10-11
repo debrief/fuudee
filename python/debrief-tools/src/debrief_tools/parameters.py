@@ -24,7 +24,9 @@ class ParameterError(ValueError):
 
 def _default(param: models.ParameterDeclaration) -> Any:
     default = param.default
-    if isinstance(default, models.Length | models.Speed | models.Angle | models.Duration):
+    if isinstance(
+        default, models.Length | models.Speed | models.Angle | models.Duration | models.AngularRate
+    ):
         return default.model_dump(mode="json")
     return default
 
@@ -63,7 +65,8 @@ def _check(param: models.ParameterDeclaration, value: Any) -> tuple[Any, str | N
         bound_unit = (
             str(param.default.unit)
             if isinstance(
-                param.default, models.Length | models.Speed | models.Angle | models.Duration
+                param.default,
+                models.Length | models.Speed | models.Angle | models.Duration | models.AngularRate,
             )
             else unit
         )

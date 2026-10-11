@@ -1,6 +1,6 @@
 """Physical quantities with units (SUB-02).
 
-A Quantity knows its kind (length, speed, angle, duration) from its unit, so
+A Quantity knows its kind (length, speed, angle, duration, angular rate) from its unit, so
 arithmetic across incompatible kinds raises rather than silently mixing
 metres and knots. Units are the UCUM codes the schema uses; the factor table
 below is checked against the schema's unit enums by the tests.
@@ -20,8 +20,15 @@ FACTORS: dict[str, dict[str, float]] = {
     "speed": {"m/s": 1.0, "[kn_i]": 1852.0 / 3600.0, "km/h": 1000.0 / 3600.0},
     "angle": {"deg": 1.0, "rad": 180.0 / math.pi},
     "duration": {"ms": 0.001, "s": 1.0, "min": 60.0, "h": 3600.0},
+    "angular_rate": {"deg/min": 1.0, "deg/s": 60.0, "rad/s": 60.0 * 180.0 / math.pi},
 }
-BASE_UNITS = {"length": "m", "speed": "m/s", "angle": "deg", "duration": "s"}
+BASE_UNITS = {
+    "length": "m",
+    "speed": "m/s",
+    "angle": "deg",
+    "duration": "s",
+    "angular_rate": "deg/min",
+}
 
 _KIND_OF_UNIT = {unit: kind for kind, units in FACTORS.items() for unit in units}
 
@@ -30,6 +37,7 @@ _MODEL_CLASSES = {
     "speed": schema.Speed,
     "angle": schema.Angle,
     "duration": schema.Duration,
+    "angular_rate": schema.AngularRate,
 }
 
 
@@ -88,6 +96,8 @@ class Quantity:
             pair = {self.kind, other.kind}
             if pair == {"speed", "duration"}:
                 return Quantity(self.base * other.base, "m")
+            if pair == {"angular_rate", "duration"}:
+                return Quantity(self.base * other.base / 60.0, "deg")
             raise IncompatibleUnitsError(f"cannot multiply {self.kind} by {other.kind}")
         return Quantity(self.value * other, self.unit)
 
@@ -101,6 +111,8 @@ class Quantity:
                 return Quantity(self.base / other.base, "m/s")
             if (self.kind, other.kind) == ("length", "speed"):
                 return Quantity(self.base / other.base, "s")
+            if (self.kind, other.kind) == ("angle", "duration"):
+                return Quantity(self.base / other.base * 60.0, "deg/min")
             raise IncompatibleUnitsError(f"cannot divide {self.kind} by {other.kind}")
         return Quantity(self.value / other, self.unit)
 
@@ -145,6 +157,10 @@ def angle(value: float, unit: str = "deg") -> Quantity:
 
 def duration(value: float, unit: str = "s") -> Quantity:
     return _checked(value, unit, "duration")
+
+
+def angular_rate(value: float, unit: str = "deg/min") -> Quantity:
+    return _checked(value, unit, "angular_rate")
 
 
 def _checked(value: float, unit: str, kind: str) -> Quantity:

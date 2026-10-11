@@ -40,6 +40,7 @@ Display always goes through the formatting service (SUB-04), in Python or its Ty
 | Speed | knots, one decimal | `12.3 kn` |
 | Range and distance | nautical miles, two decimals | `4.25 nmi` |
 | Bearing | three figures, true, one decimal | `045.0°T` |
+| Bearing rate | degrees per minute, as bearings' decimals; negative is drawing left | `1.2°/min` |
 | Position | degrees and decimal minutes | `50°20.120'N 004°07.210'W` |
 | Time | Zulu | `09:30:05Z` |
 | Date and time | day month year, Zulu | `11 Oct 2026 09:30:05Z` |

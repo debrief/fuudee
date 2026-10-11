@@ -25,6 +25,9 @@ export const UNIT_LABELS: Record<string, string> = {
   s: "s",
   min: "min",
   h: "h",
+  "deg/min": "°/min",
+  "deg/s": "°/s",
+  "rad/s": "rad/s",
 };
 
 /** Must equal schemas/vectors/format-defaults.json; a test checks. */
@@ -61,6 +64,8 @@ const pad = (n: number, width: number) => String(n).padStart(width, "0");
 export function formatQuantity(quantity: Quantity, settings: FormatSettings = DEFAULT_SETTINGS): string {
   const kind = kindOf(quantity.unit);
   if (kind === "angle") return `${fixed(convert(quantity, "deg").value, settings.angle_decimals)}°`;
+  // Always degrees per minute, the analysts' standard for bearing rate.
+  if (kind === "angular_rate") return `${fixed(convert(quantity, "deg/min").value, settings.angle_decimals)}°/min`;
   const [unit, decimals] = {
     length: [settings.length_unit, settings.length_decimals],
     speed: [settings.speed_unit, settings.speed_decimals],

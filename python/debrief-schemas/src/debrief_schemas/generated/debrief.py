@@ -32,7 +32,7 @@ from pydantic import (
 
 
 metamodel_version = "1.12.0"
-version = "0.0.5"
+version = "0.0.6"
 
 
 class ConfiguredBaseModel(BaseModel):
@@ -347,6 +347,10 @@ class QuantityKindEnum(str, Enum):
     speed = "speed"
     angle = "angle"
     duration = "duration"
+    angular_rate = "angular_rate"
+    """
+    Rate of change of an angle, such as bearing rate.
+    """
 
 
 class LengthUnitEnum(str, Enum):
@@ -426,6 +430,24 @@ class DurationUnitEnum(str, Enum):
     h = "h"
     """
     hours
+    """
+
+
+class AngularRateUnitEnum(str, Enum):
+    """
+    Units an angular rate may be stored in (UCUM codes). Degrees per minute is the analysts' standard for bearing rate.
+    """
+    degSOLIDUSmin = "deg/min"
+    """
+    degrees per minute
+    """
+    degSOLIDUSs = "deg/s"
+    """
+    degrees per second
+    """
+    radSOLIDUSs = "rad/s"
+    """
+    radians per second
     """
 
 
@@ -692,11 +714,17 @@ class WebviewMessageKindEnum(str, Enum):
 class Length(ConfiguredBaseModel):
     linkml_meta: ClassVar[LinkMLMeta] = LinkMLMeta({'from_schema': 'https://debrief.info/schemas/debrief'})
 
-    value: float = Field(default=..., json_schema_extra = { "linkml_meta": {'domain_of': ['Length', 'Speed', 'Angle', 'Duration', 'ParameterValue']} })
+    value: float = Field(default=..., json_schema_extra = { "linkml_meta": {'domain_of': ['Length',
+                       'Speed',
+                       'Angle',
+                       'Duration',
+                       'AngularRate',
+                       'ParameterValue']} })
     unit: LengthUnitEnum = Field(default=..., json_schema_extra = { "linkml_meta": {'domain_of': ['Length',
                        'Speed',
                        'Angle',
                        'Duration',
+                       'AngularRate',
                        'SpeedSeries',
                        'AngleSeries',
                        'LengthSeries',
@@ -707,11 +735,17 @@ class Length(ConfiguredBaseModel):
 class Speed(ConfiguredBaseModel):
     linkml_meta: ClassVar[LinkMLMeta] = LinkMLMeta({'from_schema': 'https://debrief.info/schemas/debrief'})
 
-    value: float = Field(default=..., json_schema_extra = { "linkml_meta": {'domain_of': ['Length', 'Speed', 'Angle', 'Duration', 'ParameterValue']} })
+    value: float = Field(default=..., json_schema_extra = { "linkml_meta": {'domain_of': ['Length',
+                       'Speed',
+                       'Angle',
+                       'Duration',
+                       'AngularRate',
+                       'ParameterValue']} })
     unit: SpeedUnitEnum = Field(default=..., json_schema_extra = { "linkml_meta": {'domain_of': ['Length',
                        'Speed',
                        'Angle',
                        'Duration',
+                       'AngularRate',
                        'SpeedSeries',
                        'AngleSeries',
                        'LengthSeries',
@@ -722,11 +756,17 @@ class Speed(ConfiguredBaseModel):
 class Angle(ConfiguredBaseModel):
     linkml_meta: ClassVar[LinkMLMeta] = LinkMLMeta({'from_schema': 'https://debrief.info/schemas/debrief'})
 
-    value: float = Field(default=..., json_schema_extra = { "linkml_meta": {'domain_of': ['Length', 'Speed', 'Angle', 'Duration', 'ParameterValue']} })
+    value: float = Field(default=..., json_schema_extra = { "linkml_meta": {'domain_of': ['Length',
+                       'Speed',
+                       'Angle',
+                       'Duration',
+                       'AngularRate',
+                       'ParameterValue']} })
     unit: AngleUnitEnum = Field(default=..., json_schema_extra = { "linkml_meta": {'domain_of': ['Length',
                        'Speed',
                        'Angle',
                        'Duration',
+                       'AngularRate',
                        'SpeedSeries',
                        'AngleSeries',
                        'LengthSeries',
@@ -737,11 +777,38 @@ class Angle(ConfiguredBaseModel):
 class Duration(ConfiguredBaseModel):
     linkml_meta: ClassVar[LinkMLMeta] = LinkMLMeta({'from_schema': 'https://debrief.info/schemas/debrief'})
 
-    value: float = Field(default=..., json_schema_extra = { "linkml_meta": {'domain_of': ['Length', 'Speed', 'Angle', 'Duration', 'ParameterValue']} })
+    value: float = Field(default=..., json_schema_extra = { "linkml_meta": {'domain_of': ['Length',
+                       'Speed',
+                       'Angle',
+                       'Duration',
+                       'AngularRate',
+                       'ParameterValue']} })
     unit: DurationUnitEnum = Field(default=..., json_schema_extra = { "linkml_meta": {'domain_of': ['Length',
                        'Speed',
                        'Angle',
                        'Duration',
+                       'AngularRate',
+                       'SpeedSeries',
+                       'AngleSeries',
+                       'LengthSeries',
+                       'PayloadColumn',
+                       'ResultColumn']} })
+
+
+class AngularRate(ConfiguredBaseModel):
+    linkml_meta: ClassVar[LinkMLMeta] = LinkMLMeta({'from_schema': 'https://debrief.info/schemas/debrief'})
+
+    value: float = Field(default=..., json_schema_extra = { "linkml_meta": {'domain_of': ['Length',
+                       'Speed',
+                       'Angle',
+                       'Duration',
+                       'AngularRate',
+                       'ParameterValue']} })
+    unit: AngularRateUnitEnum = Field(default=..., json_schema_extra = { "linkml_meta": {'domain_of': ['Length',
+                       'Speed',
+                       'Angle',
+                       'Duration',
+                       'AngularRate',
                        'SpeedSeries',
                        'AngleSeries',
                        'LengthSeries',
@@ -756,6 +823,7 @@ class SpeedSeries(ConfiguredBaseModel):
                        'Speed',
                        'Angle',
                        'Duration',
+                       'AngularRate',
                        'SpeedSeries',
                        'AngleSeries',
                        'LengthSeries',
@@ -771,6 +839,7 @@ class AngleSeries(ConfiguredBaseModel):
                        'Speed',
                        'Angle',
                        'Duration',
+                       'AngularRate',
                        'SpeedSeries',
                        'AngleSeries',
                        'LengthSeries',
@@ -786,6 +855,7 @@ class LengthSeries(ConfiguredBaseModel):
                        'Speed',
                        'Angle',
                        'Duration',
+                       'AngularRate',
                        'SpeedSeries',
                        'AngleSeries',
                        'LengthSeries',
@@ -848,14 +918,20 @@ class ParameterValue(ConfiguredBaseModel):
                        'ToolDeclaration',
                        'ParameterDeclaration',
                        'ResultColumn']} })
-    value: Union[Angle, Duration, Length, Speed, bool, float, str] = Field(default=..., json_schema_extra = { "linkml_meta": {'any_of': [{'range': 'float'},
+    value: Union[Angle, AngularRate, Duration, Length, Speed, bool, float, str] = Field(default=..., json_schema_extra = { "linkml_meta": {'any_of': [{'range': 'float'},
                     {'range': 'string'},
                     {'range': 'boolean'},
                     {'range': 'Length'},
                     {'range': 'Speed'},
                     {'range': 'Angle'},
-                    {'range': 'Duration'}],
-         'domain_of': ['Length', 'Speed', 'Angle', 'Duration', 'ParameterValue']} })
+                    {'range': 'Duration'},
+                    {'range': 'AngularRate'}],
+         'domain_of': ['Length',
+                       'Speed',
+                       'Angle',
+                       'Duration',
+                       'AngularRate',
+                       'ParameterValue']} })
 
     @field_validator('name')
     def pattern_name(cls, v):
@@ -1411,6 +1487,7 @@ class PayloadColumn(ConfiguredBaseModel):
                        'Speed',
                        'Angle',
                        'Duration',
+                       'AngularRate',
                        'SpeedSeries',
                        'AngleSeries',
                        'LengthSeries',
@@ -1882,13 +1959,14 @@ class ParameterDeclaration(ConfiguredBaseModel):
                        'WebviewMessage']} })
     quantity_kind: Optional[QuantityKindEnum] = Field(default=None, description="""Required when kind is quantity.""", json_schema_extra = { "linkml_meta": {'domain_of': ['PayloadColumn', 'ParameterDeclaration', 'ResultColumn']} })
     required: Optional[bool] = Field(default=True, json_schema_extra = { "linkml_meta": {'domain_of': ['ParameterDeclaration'], 'ifabsent': 'True'} })
-    default: Optional[Union[Angle, Duration, Length, Speed, bool, float, str]] = Field(default=None, json_schema_extra = { "linkml_meta": {'any_of': [{'range': 'float'},
+    default: Optional[Union[Angle, AngularRate, Duration, Length, Speed, bool, float, str]] = Field(default=None, json_schema_extra = { "linkml_meta": {'any_of': [{'range': 'float'},
                     {'range': 'string'},
                     {'range': 'boolean'},
                     {'range': 'Length'},
                     {'range': 'Speed'},
                     {'range': 'Angle'},
-                    {'range': 'Duration'}],
+                    {'range': 'Duration'},
+                    {'range': 'AngularRate'}],
          'domain_of': ['ParameterDeclaration']} })
     minimum: Optional[float] = Field(default=None, description="""Lower bound for number, integer and quantity kinds; for a quantity, in the default's unit.""", json_schema_extra = { "linkml_meta": {'domain_of': ['ParameterDeclaration']} })
     maximum: Optional[float] = Field(default=None, description="""Upper bound, as for minimum.""", json_schema_extra = { "linkml_meta": {'domain_of': ['ParameterDeclaration']} })
@@ -1969,6 +2047,7 @@ class ResultColumn(ConfiguredBaseModel):
                        'Speed',
                        'Angle',
                        'Duration',
+                       'AngularRate',
                        'SpeedSeries',
                        'AngleSeries',
                        'LengthSeries',
@@ -2105,6 +2184,7 @@ Length.model_rebuild()
 Speed.model_rebuild()
 Angle.model_rebuild()
 Duration.model_rebuild()
+AngularRate.model_rebuild()
 SpeedSeries.model_rebuild()
 AngleSeries.model_rebuild()
 LengthSeries.model_rebuild()

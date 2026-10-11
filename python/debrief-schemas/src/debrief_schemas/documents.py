@@ -62,6 +62,7 @@ UNITS_BY_KIND: dict[str, set[str]] = {
     "speed": {u.value for u in g.SpeedUnitEnum},
     "angle": {u.value for u in g.AngleUnitEnum},
     "duration": {u.value for u in g.DurationUnitEnum},
+    "angular_rate": {u.value for u in g.AngularRateUnitEnum},
 }
 
 
@@ -291,6 +292,7 @@ def _value_matches(kind: str, quantity_kind: Any, value: Any) -> bool:
         "speed": g.Speed,
         "angle": g.Angle,
         "duration": g.Duration,
+        "angular_rate": g.AngularRate,
     }
     if kind == "quantity":
         return quantity_kind is not None and isinstance(value, quantity_types[str(quantity_kind)])

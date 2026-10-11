@@ -100,3 +100,12 @@ def test_normalise_bearing(given: float, expected: float) -> None:
 )
 def test_bearing_difference_wraps(a: float, b: float, expected: float) -> None:
     assert bearing_difference(a, b) == pytest.approx(expected)
+
+
+def test_bearing_rate_from_angle_over_time() -> None:
+    from debrief_kernel.units import angle, angular_rate, duration
+
+    rate = angle(3.0) / duration(2.0, "min")
+    assert rate.unit == "deg/min" and rate.value == pytest.approx(1.5)
+    assert (angular_rate(0.5) * duration(10, "min")).to("deg").value == pytest.approx(5.0)
+    assert angular_rate(1.0, "deg/s").to("deg/min").value == pytest.approx(60.0)

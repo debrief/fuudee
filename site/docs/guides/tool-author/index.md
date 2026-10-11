@@ -75,7 +75,7 @@ Each parameter becomes a field on the form (TL-07). Debrief checks the value bef
 | `string` | Text box | `str` |
 | `boolean` | Checkbox | `bool` |
 | `choice` | Drop-down of `choices` | `str` |
-| `quantity` | Number with a unit picker, for a `quantity_kind` of `length`, `speed`, `angle` or `duration` | A kernel `Quantity`. `.to("m")` gives another `Quantity`; `.to("m").value` gives the number. |
+| `quantity` | Number with a unit picker, for a `quantity_kind` of `length`, `speed`, `angle`, `duration` or `angular_rate` | A kernel `Quantity`. `.to("m")` gives another `Quantity`; `.to("m").value` gives the number. |
 | `time` | UTC time | Epoch milliseconds (`int`) |
 
 Units are written as UCUM codes, the same everywhere in Debrief:
@@ -86,8 +86,9 @@ Units are written as UCUM codes, the same everywhere in Debrief:
 | `speed` | `m/s`, `[kn_i]` (knots), `km/h` |
 | `angle` | `deg`, `rad` |
 | `duration` | `ms`, `s`, `min`, `h` |
+| `angular_rate` | `deg/min` (the analysts' standard for bearing rate), `deg/s`, `rad/s` |
 
-A range rate is a speed. There's no kind for a bearing rate yet, so a column of bearing rates can't carry its unit; one is being added.
+A range rate is a speed. A bearing rate is an `angular_rate`, shown in degrees per minute: `1.2°/min`. In the kernel, an angle divided by a duration gives one: `angle(3) / duration(2, "min")` is 1.5°/min.
 
 - **Defaults.** Give one wherever there's a sensible value; it fills the form.
 - **Optional parameters.** Mark one optional with `required: false`. It reaches your tool as `None` when left empty.
@@ -129,7 +130,7 @@ Your tool receives Debrief's own types (TL-09), generated from the schema. Each 
 | `closest_approach(path_a, path_b)` | `.time_ms`, `.range`, `.position_a`, `.position_b`, or `None` if the tracks never overlap |
 | `series_values(track.properties.speeds, "[kn_i]")` | A speed or course series as plain numbers in the unit you ask for |
 | `parse_utc(text)`, `format_utc(ms)` | UTC strings to epoch milliseconds and back |
-| `length(5, "[nmi_i]")`, `speed(...)`, `angle(...)`, `duration(...)` | A `Quantity` |
+| `length(5, "[nmi_i]")`, `speed(...)`, `angle(...)`, `duration(...)`, `angular_rate(...)` | A `Quantity` |
 
 The geometry calls are in `debrief_kernel.geodesy`, the time calls in `debrief_kernel.time`, and the quantity calls in `debrief_kernel.units`. For thousands of points, `debrief_kernel.geodesy_arrays` does the same over numpy arrays, about fifty times faster.
 
