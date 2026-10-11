@@ -32,7 +32,7 @@ from pydantic import (
 
 
 metamodel_version = "1.12.0"
-version = "0.0.3"
+version = "0.0.4"
 
 
 class ConfiguredBaseModel(BaseModel):
@@ -1043,6 +1043,7 @@ class TrackProperties(ConfiguredBaseModel):
     times: list[str] = Field(default=..., description="""One per position, non-decreasing.""", json_schema_extra = { "linkml_meta": {'domain_of': ['TrackProperties']} })
     speeds: Optional[SpeedSeries] = Field(default=None, description="""Speed over ground at each position.""", json_schema_extra = { "linkml_meta": {'domain_of': ['TrackProperties']} })
     courses: Optional[AngleSeries] = Field(default=None, description="""Course over ground at each position, true north, clockwise.""", json_schema_extra = { "linkml_meta": {'domain_of': ['TrackProperties']} })
+    style: Optional[TrackStyle] = Field(default=None, json_schema_extra = { "linkml_meta": {'domain_of': ['TrackProperties', 'AnnotationProperties']} })
     provenance: Optional[list[ProvRecord]] = Field(default=None, description="""Feature-level provenance where needed (SUB-18).""", json_schema_extra = { "linkml_meta": {'domain_of': ['TrackProperties',
                        'AnnotationProperties',
                        'SensorObservationsProperties',
@@ -1058,6 +1059,29 @@ class TrackProperties(ConfiguredBaseModel):
                     raise ValueError(err_msg)
         elif isinstance(v, str) and not pattern.search(v):
             err_msg = f"Invalid times format: {v}"
+            raise ValueError(err_msg)
+        return v
+
+
+class TrackStyle(ConfiguredBaseModel):
+    """
+    How a track is drawn. Data colours do not change with the theme (DEV-07). Presentation only: changes are undoable but not recorded in provenance (SUB-22).
+    """
+    linkml_meta: ClassVar[LinkMLMeta] = LinkMLMeta({'from_schema': 'https://debrief.info/schemas/debrief'})
+
+    colour: str = Field(default=..., description="""Lower-case hex RGB, for example \"#e01c3e\".""", json_schema_extra = { "linkml_meta": {'domain_of': ['TrackStyle']} })
+    legacy_symbology: Optional[str] = Field(default=None, description="""The REP symbology code the colour came from, such as \"@C\", kept for export.""", json_schema_extra = { "linkml_meta": {'domain_of': ['TrackStyle']} })
+
+    @field_validator('colour')
+    def pattern_colour(cls, v):
+        pattern=re.compile(r"^#[0-9a-f]{6}$")
+        if isinstance(v, list):
+            for element in v:
+                if isinstance(element, str) and not pattern.search(element):
+                    err_msg = f"Invalid colour format: {element}"
+                    raise ValueError(err_msg)
+        elif isinstance(v, str) and not pattern.search(v):
+            err_msg = f"Invalid colour format: {v}"
             raise ValueError(err_msg)
         return v
 
@@ -1108,7 +1132,7 @@ class AnnotationProperties(ConfiguredBaseModel):
                        'AnnotationProperties',
                        'SensorObservationsProperties',
                        'ParameterDeclaration']} })
-    style: AnnotationStyleEnum = Field(default=..., json_schema_extra = { "linkml_meta": {'domain_of': ['AnnotationProperties']} })
+    style: AnnotationStyleEnum = Field(default=..., json_schema_extra = { "linkml_meta": {'domain_of': ['TrackProperties', 'AnnotationProperties']} })
     name: str = Field(default=..., json_schema_extra = { "linkml_meta": {'domain_of': ['ParameterValue',
                        'ToolRef',
                        'AgentRef',
@@ -1891,6 +1915,7 @@ AgentRef.model_rebuild()
 SourceRef.model_rebuild()
 TrackFeature.model_rebuild()
 TrackProperties.model_rebuild()
+TrackStyle.model_rebuild()
 AnnotationFeature.model_rebuild()
 AnnotationProperties.model_rebuild()
 SensorObservationsFeature.model_rebuild()

@@ -1,6 +1,6 @@
 {
   "type": "FeatureCollection",
-  "schema_version": "0.0.3",
+  "schema_version": "0.0.4",
   "features": [
     {
       "type": "Feature",
@@ -46,6 +46,10 @@
             135.5,
             136.0
           ]
+        },
+        "style": {
+          "colour": "#e01c3e",
+          "legacy_symbology": "@C"
         }
       }
     }
