@@ -1395,7 +1395,7 @@
 <p><strong>Source.</strong> A file imported into Debrief, such as a REP file or a legacy plot. Debrief never changes a source; a revision arrives as a new source (SUB-10).</p>
 <p><strong>Supporting file.</strong> Video, imagery, acoustic files and other content that is not geographic data, kept beside a plot (SUB-06).</p>
 <p><strong>History</strong> (in guides, <strong>provenance</strong>). The record of every operation that produced a plot: imports, tool runs, edits and deletions, with who or what made them (SUB-18 to SUB-24).</p>
-<p><strong>Fix.</strong> A single timestamped position of a platform, with course and speed where known.</p>
+<p><strong>Fix.</strong> A single timestamped position of a platform, with course, speed and depth where known. Depth is positive down.</p>
 <p><strong>Track.</strong> The movement of one platform over time: its fixes in order.</p>
 <p><strong>Annotation.</strong> A shape, label, note or period of interest drawn on or attached to a plot (CAP-03). An annotation with only a time, such as a note or a period, has no position (CAP-04).</p>
 <p><strong>Named set.</strong> A saved selection of features, reusable as a selection or as a tool's input (TL-11).</p>
@@ -1486,8 +1486,8 @@
 </tr>
 <tr>
 <td>Depth in every location</td>
-<td>Positions are latitude and longitude; depth is not yet modelled</td>
-<td>Schema 0.0.2</td>
+<td>Positions are latitude and longitude; a track may carry a depth series, positive down</td>
+<td>Schema 0.0.4</td>
 </tr>
 <tr>
 <td>World Location, World Speed, World Distance, World Vector</td>
