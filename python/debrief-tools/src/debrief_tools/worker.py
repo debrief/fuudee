@@ -31,7 +31,7 @@ from debrief_schemas import (
 from debrief_stac import Base, Catalogue
 from debrief_tools import diagnostics
 from debrief_tools.registry import Registry
-from debrief_tools.run import ToolRunConflict, ToolRunError, run_tool
+from debrief_tools.run import ToolRunConflict, ToolRunError, ToolRunNewerSchema, run_tool
 
 log = logging.getLogger("debrief_tools")
 _registry: Registry | None = None
@@ -94,7 +94,10 @@ def _call(name: str, arguments: dict[str, Any], config_path: str | None) -> dict
             on_conflict=str(arguments.get("on_conflict") or "refuse"),
             base=base,
             state=state,
+            allow_newer_schema=arguments.get("allow_newer_schema") is True,
         )
+    except ToolRunNewerSchema as error:
+        return {"error": str(error), "newer_schema": True}
     except ToolRunConflict as conflict:
         return {"error": str(conflict), "conflict": {"mergeable": conflict.mergeable}}
     except ToolRunError as error:

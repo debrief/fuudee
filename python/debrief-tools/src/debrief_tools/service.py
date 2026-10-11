@@ -44,7 +44,14 @@ from starlette.routing import Route
 from debrief_config import ConfigError, add_store, load_config, update_config
 from debrief_io import import_rep
 from debrief_schemas import DocumentKind, load_document, models
-from debrief_stac import Base, Catalogue, CatalogueError, Conflict, HistoryError
+from debrief_stac import (
+    Base,
+    Catalogue,
+    CatalogueError,
+    Conflict,
+    HistoryError,
+    NewerSchemaError,
+)
 from debrief_tools import diagnostics
 from debrief_tools.registry import applies
 from debrief_tools.worker import ToolWorker
@@ -65,6 +72,7 @@ class RpcError(Exception):
 
 INVALID_REQUEST, METHOD_NOT_FOUND, INVALID_PARAMS, INTERNAL = -32600, -32601, -32602, -32603
 CONFLICT = -32001  # the plot changed since the caller's base: open it again (SUB-28)
+NEWER_SCHEMA = -32002  # would write a newer schema into the catalogue: ask, then allow (SUB-35)
 HISTORY_METHODS = (
     "debrief/open",
     "debrief/history",
@@ -271,15 +279,16 @@ class ToolService:
             history = catalogue.history(item)
             recovered = history.open()
             expected = Base(base["current"], base["plot_hash"]) if base else None
+            allow = params.get("allow_newer_schema") is True
             if method == "debrief/undo":
-                history.undo(expected)
+                history.undo(expected, allow_newer_schema=allow)
             elif method == "debrief/redo":
-                history.redo(expected)
+                history.redo(expected, allow_newer_schema=allow)
             elif method == "debrief/goto":
                 step = params.get("step")
                 if type(step) is not int:
                     raise RpcError(INVALID_PARAMS, "goto needs the step to return to")
-                history.goto(step, expected)
+                history.goto(step, expected, allow_newer_schema=allow)
             head = history.head()
             out: dict[str, Any] = {
                 "base": {"current": head.current, "plot_hash": head.plot_hash},
@@ -290,6 +299,8 @@ class ToolService:
             return out
         except Conflict as conflict:
             raise RpcError(CONFLICT, str(conflict)) from None
+        except NewerSchemaError as error:
+            raise RpcError(NEWER_SCHEMA, str(error)) from None
         except (CatalogueError, HistoryError, OSError, ValueError) as error:
             raise RpcError(INVALID_PARAMS, str(error)) from None
 
@@ -357,6 +368,9 @@ class ToolService:
                 # The caller chooses: run again with on_conflict "merge" (when
                 # mergeable) or "new_plot" (SUB-28, SUB-29).
                 error["_meta"] = {"debrief/conflict": outcome["conflict"]}
+            if outcome.get("newer_schema"):
+                # The caller asks the analyst, then runs again with allow_newer_schema (SUB-35).
+                error["_meta"] = {"debrief/newer_schema": True}
             return error
         if outcome.get("new_item"):
             summary = f"The plot had changed, so the result was saved as {outcome['new_item']}."
@@ -378,6 +392,8 @@ class ToolService:
 def _outcome(outcome: dict[str, Any]) -> str:
     if "conflict" in outcome:
         return "conflict"
+    if outcome.get("newer_schema"):
+        return "needs_newer_schema_confirmed"
     if "error" in outcome:
         return str(outcome.get("failure", "failed"))
     if outcome.get("new_item"):

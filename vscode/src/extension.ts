@@ -14,7 +14,7 @@ import { resolveTimes } from "./timeinput.js";
 import { FormPanel } from "./panels/form.js";
 import { MapPanel } from "./panels/map.js";
 import { ResultsPanel } from "./panels/results.js";
-import { CONFLICT, ServiceError, ToolService, type Agent, type CallOutcome, type ToolListing } from "./service.js";
+import { CONFLICT, NEWER_SCHEMA, ServiceError, ToolService, type Agent, type CallOutcome, type ToolListing } from "./service.js";
 import { HistoryProvider } from "./views/history.js";
 import { DiagnosticLog, toolRunLine } from "./diagnostics.js";
 import { Session } from "./session.js";
@@ -202,6 +202,7 @@ export function activate(context: vscode.ExtensionContext): DebriefApi {
     if (typeof timeProblem === "string") return timeProblem;
     parameters = timeProblem;
     const values = Object.fromEntries(parameters.map((p) => [p.name, p.value]));
+    let allowNewerSchema = false;
     const call = (on_conflict?: "merge" | "new_plot") =>
       service!.callTool(tool.name, {
         store: opened.store.id,
@@ -212,10 +213,16 @@ export function activate(context: vscode.ExtensionContext): DebriefApi {
         state: session.state(), // tools read current time, selection and viewport (TL-10)
         base: opened.base, // the plot the analyst is looking at (SUB-28)
         ...(on_conflict && { on_conflict }),
+        ...(allowNewerSchema && { allow_newer_schema: true }),
       });
     let outcome: CallOutcome;
     try {
       outcome = await call();
+      if (!outcome.ok && outcome.newerSchema) {
+        if (!(await confirmNewerSchema(outcome.message))) return `${tool.title} was not saved.`;
+        allowNewerSchema = true;
+        outcome = await call();
+      }
       if (!outcome.ok && outcome.conflict) {
         // Changed elsewhere since it was opened: never overwrite, offer a choice (SUB-29).
         const choice = await askAboutConflict(tool.title, outcome.conflict.mergeable);
@@ -254,6 +261,12 @@ export function activate(context: vscode.ExtensionContext): DebriefApi {
     return undefined;
   };
   const form = new FormPanel(context.extensionUri, runTool, log);
+
+  /** Warn before writing a newer schema into a shared catalogue (SUB-35). */
+  async function confirmNewerSchema(message: string): Promise<boolean> {
+    const save = "Save anyway";
+    return (await vscode.window.showWarningMessage(message, { modal: true }, save)) === save;
+  }
 
   async function askAboutConflict(title: string, mergeable: boolean): Promise<"merge" | "new_plot" | undefined> {
     const combine = "Combine the changes";
@@ -366,7 +379,13 @@ export function activate(context: vscode.ExtensionContext): DebriefApi {
         if (!opened) return "Open a plot first.";
         if (!service || !opened.base) return "Undo needs Debrief's tool service. Run 'Debrief: Restart tool service'.";
         try {
-          await service.move(how, opened.store.id, opened.item.id, opened.base, step);
+          try {
+            await service.move(how, opened.store.id, opened.item.id, opened.base, step);
+          } catch (error) {
+            if ((error as ServiceError).code !== NEWER_SCHEMA) throw error;
+            if (!(await confirmNewerSchema((error as Error).message))) return undefined;
+            await service.move(how, opened.store.id, opened.item.id, opened.base, step, true);
+          }
         } catch (error) {
           if ((error as ServiceError).code === CONFLICT) {
             await reloadPlot(true);
@@ -485,7 +504,14 @@ export function activate(context: vscode.ExtensionContext): DebriefApi {
     const files = await vscode.window.showOpenDialog({ canSelectMany: false, filters: { "REP files": ["rep", "REP"] } });
     if (!files?.length) return;
     try {
-      const report = await service!.importRep(storeId, files[0].fsPath, agent);
+      let report;
+      try {
+        report = await service!.importRep(storeId, files[0].fsPath, agent);
+      } catch (error) {
+        if ((error as ServiceError).code !== NEWER_SCHEMA) throw error;
+        if (!(await confirmNewerSchema((error as Error).message))) return;
+        report = await service!.importRep(storeId, files[0].fsPath, agent, true);
+      }
       catalogues.refresh();
       const summary = `Imported ${count(report.tracks.length, "track")}, ${count(report.fixes, "fix", "fixes")}.`;
       // Nothing is dropped silently (EXT-14): say what was not imported.

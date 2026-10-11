@@ -32,6 +32,8 @@ export interface CallOutcome {
   conflict?: { mergeable: boolean };
   /** Set when the result was saved as a new plot (SUB-29). */
   newItem?: string;
+  /** Saving would write a newer schema into the catalogue: ask, then call again allowing it (SUB-35). */
+  newerSchema?: boolean;
 }
 
 /** Where a plot's history stands: pass it back with the next change (SUB-28). */
@@ -79,6 +81,8 @@ export class ServiceError extends Error {
 
 /** The JSON-RPC error the service returns when the plot changed since the caller's base. */
 export const CONFLICT = -32001;
+/** The JSON-RPC error for a write that would put a newer schema into the catalogue (SUB-35). */
+export const NEWER_SCHEMA = -32002;
 
 export interface ServiceOptions {
   python: string;
@@ -256,16 +260,19 @@ export class ToolService {
       state?: SharedState;
       base?: Base;
       on_conflict?: "refuse" | "merge" | "new_plot";
+      allow_newer_schema?: boolean;
     },
   ): Promise<CallOutcome> {
     const result = await this.request<{
       isError: boolean;
       content: { text: string }[];
       structuredContent?: { result: ToolResult; changed: boolean; new_item?: string };
-      _meta?: { "debrief/conflict"?: { mergeable: boolean } };
+      _meta?: { "debrief/conflict"?: { mergeable: boolean }; "debrief/newer_schema"?: boolean };
     }>("tools/call", { name, arguments: args });
     const message = result.content[0]?.text.split("\n")[0] ?? "";
-    if (result.isError) return { ok: false, message, conflict: result._meta?.["debrief/conflict"] };
+    if (result.isError) {
+      return { ok: false, message, conflict: result._meta?.["debrief/conflict"], newerSchema: result._meta?.["debrief/newer_schema"] };
+    }
     const structured = result.structuredContent;
     return { ok: true, message, result: structured?.result, changed: structured?.changed, newItem: structured?.new_item };
   }
@@ -280,15 +287,21 @@ export class ToolService {
   }
 
   /** Undo, redo, or go to a step. Fails with CONFLICT if the plot changed since base. */
-  move(how: "undo" | "redo" | "goto", store: string, item: string, base: Base, step?: number): Promise<Opened> {
-    return this.request(`debrief/${how}`, { store, item, base, ...(step !== undefined && { step }) });
+  move(how: "undo" | "redo" | "goto", store: string, item: string, base: Base, step?: number, allowNewerSchema = false): Promise<Opened> {
+    return this.request(`debrief/${how}`, {
+      store,
+      item,
+      base,
+      ...(step !== undefined && { step }),
+      ...(allowNewerSchema && { allow_newer_schema: true }),
+    });
   }
 
   createCatalogue(location: string, title: string): Promise<{ store: string }> {
     return this.request("debrief/create_catalogue", { location, title });
   }
 
-  importRep(store: string, path: string, agent: Agent): Promise<ImportReport> {
-    return this.request("debrief/import_rep", { store, path, agent });
+  importRep(store: string, path: string, agent: Agent, allowNewerSchema = false): Promise<ImportReport> {
+    return this.request("debrief/import_rep", { store, path, agent, ...(allowNewerSchema && { allow_newer_schema: true }) });
   }
 }

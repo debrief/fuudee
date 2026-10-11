@@ -373,3 +373,31 @@ def test_tool_runs_are_logged_without_plot_data(client, catalogue, caplog) -> No
     )
     assert "outcome=refused" in lines[1]
     assert not any("NELSON" in line or "Contact" in line for line in lines)
+
+
+def test_a_newer_schema_question_reaches_the_caller(config_file: Path) -> None:
+    class Older:
+        def describe(self):
+            return {"tools": [], "unavailable": []}
+
+        def call(self, name, arguments):
+            return {
+                "error": "This catalogue holds data-file schema 0.0.6 ...",
+                "newer_schema": True,
+            }
+
+    service = ToolService(Older(), str(config_file))  # type: ignore[arg-type]
+    service.declarations = {
+        "core.x": models.ToolDeclaration(
+            name="core.x",
+            version="1",
+            title="X",
+            explanation="E",
+            applies_to=["*"],
+            outputs=["non_spatial"],
+        )
+    }
+    result = service.handle(
+        "tools/call", {"name": "core.x", "arguments": {"selection": [], "agent": AGENT}}
+    )
+    assert result["isError"] and result["_meta"] == {"debrief/newer_schema": True}
