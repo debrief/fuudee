@@ -11,8 +11,9 @@ report (for the message the analyst sees) and in the plot's provenance.
 from __future__ import annotations
 
 import re
-import time as clock
+import time
 from collections import defaultdict
+from collections.abc import Callable
 from dataclasses import dataclass, field
 from importlib.metadata import version
 from pathlib import Path
@@ -23,6 +24,13 @@ from debrief_schemas import SCHEMA_VERSION, DebriefFeatureCollection, models
 from debrief_stac import Catalogue
 
 IMPORTER = "debrief-io.rep"
+
+# Returns the current time in epoch milliseconds.
+Clock = Callable[[], int]
+
+
+def wall_clock() -> int:
+    return int(time.time() * 1000)
 
 
 @dataclass
@@ -73,10 +81,14 @@ def _track(feature_id: str, name: str, fixes: list[RepFix]) -> models.TrackFeatu
 
 
 def build_plot(
-    text: str, source: models.SourceRef, agent: models.AgentRef
+    text: str, source: models.SourceRef, agent: models.AgentRef, *, clock: Clock = wall_clock
 ) -> tuple[DebriefFeatureCollection, ImportReport]:
-    """Parse REP text into a plot and a report of what was and was not imported."""
-    started = format_utc(int(clock.time() * 1000))
+    """Parse REP text into a plot and a report of what was and was not imported.
+
+    The clock times the provenance record. A builder that must produce the
+    same plot every run, such as the sample data, passes a fixed clock.
+    """
+    started = format_utc(clock())
     parsed = parse_rep(text)
     report = ImportReport(item_id="")
 
@@ -125,7 +137,7 @@ def build_plot(
         id=f"import-{started}",
         kind="import",
         started_at=started,
-        ended_at=format_utc(int(clock.time() * 1000)),
+        ended_at=format_utc(clock()),
         tool=models.ToolRef(name=IMPORTER, version=version("debrief-io")),
         agent=agent,
         used=[source],
@@ -148,6 +160,7 @@ def import_rep(
     title: str | None = None,
     agent: models.AgentRef | None = None,
     allow_newer_schema: bool = False,
+    clock: Clock = wall_clock,
 ) -> ImportReport:
     """Import a REP file as a new plot in the catalogue."""
     path = Path(path)
@@ -160,7 +173,7 @@ def import_rep(
         text = raw.decode("utf-8")
     except UnicodeDecodeError:
         text = raw.decode("latin-1")  # legacy files are often Latin-1; every byte decodes
-    plot, report = build_plot(text, source, agent)
+    plot, report = build_plot(text, source, agent, clock=clock)
     catalogue.write_plot(item_id, plot, allow_newer_schema=allow_newer_schema)
     report.item_id = item_id
     return report

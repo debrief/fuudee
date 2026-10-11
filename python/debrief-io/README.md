@@ -16,7 +16,7 @@ The import runs in four steps:
 2. The fix lines are parsed into tracks, with speeds in knots, courses in degrees and a colour taken from the REP symbology.
 3. One provenance record is written, naming the importer and its version, the source and its hash, and every omission (SUB-18).
 4. Nothing is dropped silently. Each of these is listed, both in the report and in provenance:
-   - other record types (`;SENSOR:`, `;NARRATIVE:` and so on);
+   - other record types (`;SENSOR:`, `;NARRATIVE:` and so on), but not `;;` comment lines, which hold no data;
    - lines that could not be read;
    - tracks with a single fix;
    - depths of a track where some fixes give none, since a depth series has no gaps;
@@ -37,6 +37,8 @@ Ported from legacy Debrief's `ImportFix` and `DebriefFormatDateTime`, with their
 - labels with `//` comments.
 
 Legacy files that are not UTF-8 are read as Latin-1.
+
+The provenance record is timed by a `clock` (epoch milliseconds), the wall clock by default. A builder that must give the same plot every run, such as the sample data, passes a fixed one.
 
 Checked against every REP file in legacy Debrief's sample data: 85 files and 173,548 fixes. The only line that failed is in `BAD_boat2.rep`, a file broken on purpose. A 28,000-fix file imports in about 1.5 s.
 

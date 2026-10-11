@@ -101,3 +101,12 @@ def test_latin1_file_imports(tmp_path: Path) -> None:
         "951212 050100 NELSON @C 50 20 0 N 4 6 0 W 90 12 0\n".encode("latin-1")
     )
     assert import_rep(catalogue, source).fixes == 2
+
+
+def test_clock_makes_provenance_repeatable(setup) -> None:
+    catalogue, source = setup
+    ticks = iter([1_000, 2_000])
+    import_rep(catalogue, source, clock=lambda: next(ticks))
+    (record,) = catalogue.read_plot("serial-01").provenance
+    assert record.started_at == "1970-01-01T00:00:01.000Z"
+    assert record.ended_at == "1970-01-01T00:00:02.000Z"
