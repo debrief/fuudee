@@ -37,7 +37,7 @@ The model covers a GeoJSON FeatureCollection of tracks (LineString geometry, par
 | 5 | Cross-field rules (parallel arrays the same length as the geometry) cannot be expressed in LinkML. | TypeScript validation is structural only. | Rules live in Python (PRN-03). Files reaching TypeScript are written by Python, so this is acceptable while the extension never writes plot data itself. |
 | 6 | Geometry unions (`any_of` Point, LineString, null) generate correctly in Pydantic and JSON Schema. | GeoJSON can be imported into LinkML (CON-04), including null geometry for time-only annotations (CAP-04). | Next model increment. |
 | 7 | Optional fields accept explicit `null`; serialisation drops them. | A file holding `"speeds": null` does not round-trip byte for byte. | Writers omit absent fields; fixtures contain no nulls. |
-| 8 | Generated schemas forbid unknown properties. | Strict, but rejects GeoJSON foreign members and STAC extension fields written by other tools. | Open: decide per class whether to allow extra members when STAC items are modelled. |
+| 8 | Generated schemas forbid unknown properties. | Strict, but rejects GeoJSON foreign members and STAC extension fields written by other tools. | Decided 11 Oct: strict now, opened where the standards expect it (see Decisions). |
 
 ## Decisions
 
@@ -48,9 +48,7 @@ The model covers a GeoJSON FeatureCollection of tracks (LineString geometry, par
 - GeoJSON positions are exempt: RFC 7946 fixes them as `[longitude, latitude]` in WGS84 degrees.
 - Costs: every reader converts before arithmetic, so the Phase 0 kernel must provide unit-aware arithmetic over these series (SUB-02) and the formatting service converts for display (SUB-04). Python enum member names generated from UCUM codes are unreadable (`mSOLIDUSs`); code should compare against string values.
 
-## Still open
-
-- **Foreign members (finding 8).** Allow unknown properties on GeoJSON and STAC classes, or stay strict?
+**Strict now, open where standards expect it (11 Oct).** Debrief's own classes reject undeclared properties. When STAC items are modelled, extra properties will be allowed only where the standard expects them (STAC extension fields, GeoJSON foreign members), and preserved unchanged on round trip.
 
 ## Not yet covered
 
