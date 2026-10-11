@@ -101,11 +101,11 @@ def _call(name: str, arguments: dict[str, Any], config_path: str | None) -> dict
     except ToolRunConflict as conflict:
         return {"error": str(conflict), "conflict": {"mergeable": conflict.mergeable}}
     except ToolRunError as error:
-        if error.detail:
-            log.warning("%s\n%s", error, error.detail)
+        if error.detail:  # the tool failed: its type, hashed message and frames (NFR-14)
+            log.warning("tool_failed tool=%s\n%s", name, error.detail)
         return {"error": str(error), "failure": "failed" if error.detail else "refused"}
     except Exception as error:  # noqa: BLE001 - reported as this call's failure
-        log.exception("tools/call %s", name)
+        log.exception("tool_error tool=%s", name)  # the formatter leaves out the message
         return {"error": f"The tool could not run: {error}", "failure": "failed"}
     return {
         "result": json.loads(dump_document(DocumentKind.TOOL_RESULT, outcome.result)),

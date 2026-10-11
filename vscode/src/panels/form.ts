@@ -67,7 +67,8 @@ export class FormPanel {
     try {
       message = checkMessage(raw);
     } catch (error) {
-      this.log(`Tool form sent a message Debrief did not accept: ${(error as Error).message}`);
+      // Not the message: it can quote what the analyst typed (NFR-14).
+      this.log("webview_message_refused panel=form");
       return;
     }
     if (message.kind === "ready") {

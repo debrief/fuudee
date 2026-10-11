@@ -446,13 +446,14 @@ def _user_config_problems(config: g.UserConfig, raw: dict[str, Any]) -> list[str
 # through schemas/vectors/webview-messages.json, which a test checks matches.
 MESSAGE_MEMBERS: dict[str, tuple[str, ...]] = {
     "ready": (),
-    "show_plot": ("plot", "plot_title", "selection", "time?", "viewport?"),
+    "show_plot": ("plot", "plot_title", "selection", "time?", "viewport?", "hidden_count?"),
     "set_selection": ("selection",),
     "selection_changed": ("selection",),
     "set_time": ("time",),
     "time_changed": ("time",),
     "set_viewport": ("viewport",),
     "viewport_changed": ("viewport",),
+    "show_hidden": (),
     "show_form": ("tool", "selected_names", "time_range?"),
     "run_tool": ("tool_name", "parameters"),
     "cancel": (),

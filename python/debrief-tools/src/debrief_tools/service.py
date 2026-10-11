@@ -96,6 +96,21 @@ HISTORY_METHODS = (
     "debrief/redo",
     "debrief/goto",
 )
+KNOWN_METHODS = frozenset(
+    (
+        "initialize",
+        "ping",
+        "tools/list",
+        "tools/call",
+        "debrief/tools_for_selection",
+        "debrief/stores",
+        "debrief/create_catalogue",
+        "debrief/import_rep",
+        "debrief/presentation",
+        "debrief/set_presentation",
+        *HISTORY_METHODS,
+    )
+)
 
 
 _QUANTITY = {
@@ -427,20 +442,22 @@ class ToolService:
             raise RpcError(INVALID_PARAMS, f"There is no tool called {name}.")
         problem = _argument_problem(arguments)
         if problem:
-            return _tool_error(problem)
+            return {**_tool_error(problem), "_meta": {"debrief/outcome": "refused"}}
         started = time.monotonic()
         outcome = self.worker.call(name, arguments)
         self._log_run(name, arguments, outcome, time.monotonic() - started)
+        # How the run ended, in the words both logs use (diagnostics.OUTCOMES).
+        meta: dict[str, Any] = {"debrief/outcome": _outcome(outcome)}
         if "error" in outcome:
             error = _tool_error(outcome["error"])
             if "conflict" in outcome:
                 # The caller chooses: run again with on_conflict "merge" (when
                 # mergeable) or "new_plot" (SUB-28, SUB-29).
-                error["_meta"] = {"debrief/conflict": outcome["conflict"]}
+                meta["debrief/conflict"] = outcome["conflict"]
             if outcome.get("newer_schema"):
                 # The caller asks the analyst, then runs again with allow_newer_schema (SUB-35).
-                error["_meta"] = {"debrief/newer_schema": True}
-            return error
+                meta["debrief/newer_schema"] = True
+            return {**error, "_meta": meta}
         if outcome.get("new_item"):
             summary = f"The plot had changed, so the result was saved as {outcome['new_item']}."
         elif outcome["changed"]:
@@ -455,6 +472,7 @@ class ToolService:
             "content": [{"type": "text", "text": f"{summary}\n{json.dumps(structured)}"}],
             "structuredContent": structured,
             "isError": False,
+            "_meta": meta,
         }
 
 
@@ -544,7 +562,9 @@ def build_app(service: ToolService, token: str, port: int) -> Starlette:
         except RpcError as error:
             return _error(message["id"], error.code, str(error))
         except Exception as error:  # noqa: BLE001 - the service outlives any one request
-            log.exception("%s", message["method"])
+            # The method's name only if it is one of ours; the formatter leaves out the message.
+            method = message["method"] if message["method"] in KNOWN_METHODS else "-"
+            log.exception("rpc_error method=%s", method)
             return _error(message["id"], INTERNAL, f"Internal error: {error}")
         return JSONResponse({"jsonrpc": "2.0", "id": message["id"], "result": result})
 
@@ -554,6 +574,17 @@ def build_app(service: ToolService, token: str, port: int) -> Starlette:
 def _error(request_id: Any, code: int, message: str) -> JSONResponse:
     return JSONResponse(
         {"jsonrpc": "2.0", "id": request_id, "error": {"code": code, "message": message}}
+    )
+
+
+def log_unavailable(problem: dict[str, Any]) -> None:
+    """A library or tool that could not load. Why is free text (often an import
+    error), so it is logged only as a hash (NFR-14)."""
+    log.warning(
+        "tool_unavailable library=%s tool=%s reason=<text:%s>",
+        problem["library"],
+        problem["tool"] or "-",
+        diagnostics.keyed_hash(str(problem["reason"])),
     )
 
 
@@ -575,10 +606,12 @@ def serve(
     worker = ToolWorker(libraries or [], os.environ.get("DEBRIEF_CONFIG"), timeout_s)
     service = ToolService(worker)
     for problem in service.unavailable:
-        log.warning("%s %s: %s", problem["library"], problem["tool"] or "", problem["reason"])
+        log_unavailable(problem)
     app = build_app(service, token, port)
     print(json.dumps({"port": port, "tools": len(service.declarations)}), flush=True)
     try:
-        uvicorn.Server(uvicorn.Config(app, log_level="warning")).run(sockets=[listener])
+        # log_config=None: uvicorn's loggers keep the redacting handlers diagnostics set up.
+        config = uvicorn.Config(app, log_level="warning", log_config=None, access_log=False)
+        uvicorn.Server(config).run(sockets=[listener])
     finally:
         worker.close()

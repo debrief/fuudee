@@ -1,40 +1,91 @@
 {
-  "description": "Log redaction (NFR-14): quoted text and file paths become short hashes (the first 8 hex digits of SHA-256 of the UTF-8 text). Python's debrief_tools.diagnostics and the extension's diagnostics are both held to these cases.",
+  "description": "Log redaction (NFR-14), the second line of defence behind logging no free text: quoted text (straight or curly quotes), file paths and file URIs become short keyed hashes, the first 8 hex digits of HMAC-SHA256 of the UTF-8 text under the install's log key. These cases use the fixed test key below. Python's debrief_tools.diagnostics and the extension's diagnostics are both held to them. A Windows or UNC path may have spaces in its folder names, and in its last part when it runs to ': ' or the end of the line, so the rest of such a line is hashed with it.",
+  "key": "000102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f",
   "cases": [
     {
       "name": "feature names in quotes",
       "line": "The plot has no feature 'track-nelson'; refresh and select again.",
-      "expected": "The plot has no feature '<text:f8ec635f>'; refresh and select again."
+      "expected": "The plot has no feature '<text:8cc5cb04>'; refresh and select again."
     },
     {
       "name": "apostrophes kept",
       "line": "Debrief's tool service can't read the plot 'serial-1'",
-      "expected": "Debrief's tool service can't read the plot '<text:baf151a6>'"
+      "expected": "Debrief's tool service can't read the plot '<text:b8d4440f>'"
+    },
+    {
+      "name": "apostrophe inside single quotes",
+      "line": "no track called 'O'BRIEN' in the plot",
+      "expected": "no track called '<text:688830e7>' in the plot"
+    },
+    {
+      "name": "apostrophe inside double quotes",
+      "line": "no track called \"O'BRIEN\" in the plot",
+      "expected": "no track called \"<text:688830e7>\" in the plot"
     },
     {
       "name": "double quotes",
       "line": "Range rings failed: no track called \"BLUE ONE\"",
-      "expected": "Range rings failed: no track called \"<text:97a4a8c3>\""
+      "expected": "Range rings failed: no track called \"<text:6e0e44c9>\""
+    },
+    {
+      "name": "curly double quotes",
+      "line": "no track called “BLUE ONE” here",
+      "expected": "no track called “<text:6e0e44c9>” here"
+    },
+    {
+      "name": "curly single quotes, curly apostrophe inside",
+      "line": "no track called ‘O’BRIEN’ here, and that’s that",
+      "expected": "no track called ‘<text:2e698aa0>’ here, and that’s that"
     },
     {
       "name": "POSIX path",
       "line": "Cannot read /home/analyst/exercise/serial-1/plot.geojson: permission denied",
-      "expected": "Cannot read <path:eb27ee35>: permission denied"
+      "expected": "Cannot read <path:da2429fb>: permission denied"
     },
     {
       "name": "Windows path",
+      "line": "Cannot open C:\\Users\\analyst\\Exercise\\serial.rep for reading",
+      "expected": "Cannot open <path:283bc1f5>"
+    },
+    {
+      "name": "Windows path running to the end of the line",
       "line": "C:\\Users\\analyst\\Exercise\\serial.rep is not a file.",
-      "expected": "<path:869265da> is not a file."
+      "expected": "<path:1d470f58>"
+    },
+    {
+      "name": "Windows path with spaces, up to a colon",
+      "line": "Cannot open C:\\Users\\Ian Mayo\\My Plots\\serial one.rep: access denied",
+      "expected": "Cannot open <path:977d648e>: access denied"
+    },
+    {
+      "name": "two Windows paths",
+      "line": "copy C:\\a\\x.rep to D:\\b\\y.rep now",
+      "expected": "copy <path:6de35945> to <path:d8f75c03>"
     },
     {
       "name": "UNC path",
       "line": "Cannot open \\\\fileserver\\debrief\\exercise: share unavailable",
-      "expected": "Cannot open <path:a252aeee>: share unavailable"
+      "expected": "Cannot open <path:931bc2db>: share unavailable"
+    },
+    {
+      "name": "UNC path with spaces",
+      "line": "Cannot open \\\\fileserver\\Debrief Data\\Serial 1\\plot.geojson: share unavailable",
+      "expected": "Cannot open <path:11bb5b80>: share unavailable"
     },
     {
       "name": "forward-slash Windows path",
       "line": "Opening D:/data/cat failed",
-      "expected": "Opening <path:fd5bbfb3> failed"
+      "expected": "Opening <path:817db421> failed"
+    },
+    {
+      "name": "file URI",
+      "line": "Opening file:///home/analyst/exercise/serial.rep failed",
+      "expected": "Opening <path:e67941ea> failed"
+    },
+    {
+      "name": "file URI to a share",
+      "line": "see file://fileserver/debrief/serial%201.rep, then retry",
+      "expected": "see <path:7504d4df>, then retry"
     },
     {
       "name": "method names and URLs kept",
@@ -59,17 +110,17 @@
     {
       "name": "traceback frame",
       "line": "  File \"/home/analyst/tools/mytool.py\", line 12, in run",
-      "expected": "  File \"<text:13f70ffe>\", line 12, in run"
+      "expected": "  File \"<text:40c97fbf>\", line 12, in run"
     },
     {
       "name": "already redacted, unchanged",
-      "line": "no feature '<text:f8ec635f>' in <path:eb27ee35>: \"<text:97a4a8c3>\"",
-      "expected": "no feature '<text:f8ec635f>' in <path:eb27ee35>: \"<text:97a4a8c3>\""
+      "line": "no feature '<text:0123abcd>' in <path:4567ef01>: \"<text:89abcdef>\" and “<text:00ff00ff>”",
+      "expected": "no feature '<text:0123abcd>' in <path:4567ef01>: \"<text:89abcdef>\" and “<text:00ff00ff>”"
     },
     {
       "name": "several in one line",
       "line": "copy /srv/a/b.rep to 'NELSON' and \"RED\"",
-      "expected": "copy <path:5f72b02a> to '<text:13a17b46>' and \"<text:65cbe1e1>\""
+      "expected": "copy <path:7d8f97f6> to '<text:e4bfbcf8>' and \"<text:39ad9691>\""
     }
   ]
 }

@@ -52,6 +52,23 @@ export function headFile(store: KnownStore, itemId: string): string {
   return path.join(store.location, itemId, "history", "head.json");
 }
 
+/** The plot's presentation (SUB-22), changed by anyone sharing the catalogue. */
+export function presentationFile(store: KnownStore, itemId: string): string {
+  return path.join(store.location, itemId, "presentation.json");
+}
+
+const presentationHashOf = (text: string | undefined) =>
+  text === undefined ? "" : `sha256:${createHash("sha256").update(text, "utf8").digest("hex")}`;
+
+/** The hash of the presentation on disk now ("" if there is none), as the service gives it. */
+export function presentationHashOnDisk(store: KnownStore, itemId: string): string | undefined {
+  try {
+    return presentationHashOf(readFileSync(presentationFile(store, itemId), "utf8"));
+  } catch (error) {
+    return (error as NodeJS.ErrnoException).code === "ENOENT" ? "" : undefined;
+  }
+}
+
 /** Where the plot's history stands on disk now, or undefined if it cannot be read. */
 export function headOnDisk(store: KnownStore, itemId: string): { current: number; plot_hash: string } | undefined {
   try {
@@ -139,11 +156,11 @@ export function openPlot(store: KnownStore, itemId: string): OpenedPlot {
       kind: String(asset["debrief:asset_kind"] ?? "file"),
       href: assetPath(store, item, asset),
     }));
-  const presentationFile = path.join(store.location, itemId, "presentation.json");
-  const presentationText = existsSync(presentationFile) ? readFileSync(presentationFile, "utf8") : undefined;
+  const presentationPath = presentationFile(store, itemId);
+  const presentationText = existsSync(presentationPath) ? readFileSync(presentationPath, "utf8") : undefined;
   const presentation = presentationText
     ? parseDocument("presentation", presentationText)
     : { schema_version: plot.schema_version, features: [] };
-  const presentationHash = presentationText ? `sha256:${createHash("sha256").update(presentationText, "utf8").digest("hex")}` : "";
+  const presentationHash = presentationHashOf(presentationText);
   return { store, item, plot, files: files.filter((f) => f.key !== "presentation"), presentation, presentationHash };
 }

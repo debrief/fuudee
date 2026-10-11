@@ -2355,6 +2355,14 @@
       "additionalProperties": false,
       "description": "",
       "properties": {
+        "hidden_count": {
+          "description": "How many of the plot's features are hidden on the map (SUB-22), so the map can say so.",
+          "minimum": 0,
+          "type": [
+            "integer",
+            "null"
+          ]
+        },
         "kind": {
           "$ref": "#/$defs/WebviewMessageKindEnum"
         },
@@ -2489,6 +2497,7 @@
         "time_changed",
         "set_viewport",
         "viewport_changed",
+        "show_hidden",
         "show_form",
         "run_tool",
         "cancel",

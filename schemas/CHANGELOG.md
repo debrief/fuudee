@@ -7,6 +7,7 @@ The data-file schema is versioned independently of Debrief (SUB-12). Before 1.0.
 - Plot history (`Delta`, `HistoryHead`): every change recorded as a delta holding both the operation and its output, with a head for undo and redo; undone deltas superseded by a new change are kept, marked abandoned (SUB-19 to SUB-21, NFR-10).
 - Presentation (`Presentation`): the analyst's track colours and hidden features, kept beside the plot as `presentation.json` (asset kind `presentation`) but outside its history and provenance (SUB-22).
 - Webview messages carry current time and viewport (`set_time`, `time_changed`, `set_viewport`, and `time` and `viewport` on `show_plot`), so the map shows and sets all three pieces of shared state (SUB-26, SUB-27).
+- The map is told how many features are hidden (`hidden_count` on `show_plot`) and can ask for them all to be shown (`show_hidden`), so hiding, which is shared, never goes unseen (SUB-22).
 
 ## 0.0.6 (11 Oct 2026)
 

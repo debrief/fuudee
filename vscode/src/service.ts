@@ -11,6 +11,7 @@ import { request as httpRequest } from "node:http";
 import { tmpdir } from "node:os";
 import { createInterface } from "node:readline";
 import type { Presentation, SharedState, ToolDeclaration, ToolResult } from "@debrief/schemas";
+import type { ToolOutcome } from "./diagnostics.js";
 
 export interface Unavailable {
   library: string;
@@ -25,6 +26,8 @@ export interface ToolListing {
 
 export interface CallOutcome {
   ok: boolean;
+  /** How the run ended, in the words both logs use. */
+  outcome?: ToolOutcome;
   message: string;
   result?: ToolResult;
   changed?: boolean;
@@ -269,14 +272,27 @@ export class ToolService {
       isError: boolean;
       content: { text: string }[];
       structuredContent?: { result: ToolResult; changed: boolean; new_item?: string };
-      _meta?: { "debrief/conflict"?: { mergeable: boolean }; "debrief/newer_schema"?: boolean };
+      _meta?: { "debrief/conflict"?: { mergeable: boolean }; "debrief/newer_schema"?: boolean; "debrief/outcome"?: ToolOutcome };
     }>("tools/call", { name, arguments: args });
     const message = result.content[0]?.text.split("\n")[0] ?? "";
     if (result.isError) {
-      return { ok: false, message, conflict: result._meta?.["debrief/conflict"], newerSchema: result._meta?.["debrief/newer_schema"] };
+      return {
+        ok: false,
+        message,
+        outcome: result._meta?.["debrief/outcome"],
+        conflict: result._meta?.["debrief/conflict"],
+        newerSchema: result._meta?.["debrief/newer_schema"],
+      };
     }
     const structured = result.structuredContent;
-    return { ok: true, message, result: structured?.result, changed: structured?.changed, newItem: structured?.new_item };
+    return {
+      ok: true,
+      message,
+      outcome: result._meta?.["debrief/outcome"],
+      result: structured?.result,
+      changed: structured?.changed,
+      newItem: structured?.new_item,
+    };
   }
 
   /** Open a plot: finish any change a crash interrupted, and say where its history stands. */

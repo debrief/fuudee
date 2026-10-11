@@ -6,6 +6,7 @@
  */
 import assert from "node:assert/strict";
 import { execFileSync } from "node:child_process";
+import { writeFileSync } from "node:fs";
 import path from "node:path";
 import * as vscode from "vscode";
 import type { DebriefApi } from "../../src/extension.js";
@@ -163,10 +164,40 @@ export async function run(): Promise<void> {
     { id: "track-ais-cargo-01", hidden: true },
   ]);
   assert.equal((await steps()).length, 4); // nothing added to the plot's history
+  // Hiding is shared, so the map says how many are hidden, with "Show all".
+  await waitFor("the map to count the hidden track", () => api.hiddenOnMap() === 1 || undefined);
+  type Row = { kind: string; label?: string; nextToUndo?: boolean; children?: { step: { label: string }; nextToUndo: boolean; undone: boolean }[] };
+  const rows = () => vscode.commands.executeCommand<Row[]>("debrief.historyRows");
+  // Presentation steps in their own group at the top; the one Ctrl+Z takes next is marked.
+  const group = (await rows())[0];
+  assert.equal(group.label, "Presentation (this window)");
+  assert.deepEqual(group.children!.map((c) => [c.step.label, c.nextToUndo]), [["Hide on map", true], ["Colour green", false]]);
   await sleep(1500);
   await screenshot("08-presentation");
   // One undo takes back the latest thing done: the hiding, not a change to the plot.
   assert.equal(await vscode.commands.executeCommand("debrief.undo"), undefined);
   assert.deepEqual(shown(), [{ id: "track-blue-one", colour: "#00a000" }]);
   assert.equal(api.session.current!.base?.current, 4);
+  await waitFor("the map to show nothing hidden", () => api.hiddenOnMap() === 0 || undefined);
+
+  // Someone else colours a track meanwhile: Debrief notices, and undo keeps their change (SUB-28).
+  const presentationPath = path.join(current.store.location, current.item.id, "presentation.json");
+  const theirs = { ...api.session.current!.presentation, features: [...shown(), { id: "track-red-one", colour: "#8a3ffc" }] };
+  writeFileSync(presentationPath, JSON.stringify(theirs, null, 2));
+  await waitFor("their colour to show", () => shown().some((e) => e.id === "track-red-one") || undefined, 15000);
+  assert.equal(await vscode.commands.executeCommand("debrief.undo"), undefined); // takes back Colour green only
+  assert.deepEqual(shown(), [{ id: "track-red-one", colour: "#8a3ffc" }]);
+
+  // A new change ends redo: Ctrl+Y never brings back an older undone step.
+  assert.equal(await vscode.commands.executeCommand("debrief.hide", feature("track-ais-cargo-01")), undefined);
+  assert.equal(await vscode.commands.executeCommand("debrief.redo"), "There is nothing to redo.");
+  assert.equal(api.session.current!.base?.current, 4);
+
+  // "Show all" on the map shows every hidden feature again.
+  await waitFor("the map to count the hidden track", () => api.hiddenOnMap() === 1 || undefined);
+  await sleep(1500);
+  await screenshot("09-hidden-on-map");
+  await vscode.commands.executeCommand("debrief.showAllHidden");
+  await waitFor("nothing hidden", () => api.hiddenOnMap() === 0 || undefined);
+  assert.deepEqual(shown(), [{ id: "track-red-one", colour: "#8a3ffc" }]);
 }
