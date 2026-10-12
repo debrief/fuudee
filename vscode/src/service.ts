@@ -53,6 +53,8 @@ export interface HistoryStep {
   agent: string;
   at: string;
   records: number;
+  /** The first record's notes: they name an edit made without a tool. */
+  notes?: string[];
 }
 
 export interface Opened {

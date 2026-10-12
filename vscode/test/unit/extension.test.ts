@@ -3,11 +3,12 @@ import { tmpdir } from "node:os";
 import path from "node:path";
 import { execFileSync } from "node:child_process";
 import { describe, expect, it } from "vitest";
-import type { ToolDeclaration } from "@debrief/schemas";
+import type { ParameterDeclaration, ToolDeclaration } from "@debrief/schemas";
 import { describeStep, needs } from "../../src/wording.js";
 import { checkMessage } from "../../src/messages.js";
 import { openPlot, readCatalogue } from "../../src/catalogue.js";
 import { densify } from "../../webview/geodesic.js";
+import { initial } from "../../webview/formdraft.js";
 import { count, describeTimes } from "../../src/format.js";
 import { Session } from "../../src/session.js";
 import { keyedHash, loadLogKey, logKeyFile, redact, serviceLine, setLogKey, toolRunLine } from "../../src/diagnostics.js";
@@ -131,6 +132,27 @@ describe("times as an analyst types them (SUB-04)", () => {
     expect(new Date(parseTime("01:00Z", { start: "2023-06-15T22:00:00.000Z", end: "2023-06-16T03:00:00.000Z" })!).toISOString()).toBe(
       "2023-06-16T01:00:00.000Z",
     ));
+});
+
+describe("a tool form's time fields start at current time (SUB-26)", () => {
+  const now = "2023-06-15T09:30:05.000Z";
+  const time = { name: "at", title: "Time", kind: "time" } as ParameterDeclaration;
+  it("shows current time as the analyst reads it, in a form the field accepts", () => {
+    const { text } = initial(time, now);
+    expect(text).toBe("15 Jun 2023 09:30:05Z");
+    expect(new Date(parseTime(text)!).toISOString()).toBe(now);
+  });
+  it("keeps the tool's own default", () =>
+    expect(initial({ ...time, default: "2023-06-15T08:00:00.000Z" } as ParameterDeclaration, now).text).toBe("2023-06-15T08:00:00.000Z"));
+  it("leaves the field empty when there is no current time", () => expect(initial(time).text).toBe(""));
+  it("leaves fields of other kinds alone", () =>
+    expect(initial({ name: "label", title: "Label", kind: "string" } as ParameterDeclaration, now).text).toBe(""));
+  it("travels in show_form", () => {
+    const tool = { name: "core.add_note", version: "1", title: "Add note", explanation: "E", applies_to: ["*"], outputs: ["new_features"] };
+    const message = { kind: "show_form", tool, selected_names: [], current_time: now };
+    expect(checkMessage(message)).toEqual(message);
+    expect(() => checkMessage({ kind: "set_time", time: { current: now, range: { start: now, end: now } }, current_time: now })).toThrow();
+  });
 });
 
 describe("what a tool changed, in glossary terms", () => {
@@ -335,7 +357,7 @@ describe("contributed menus", () => {
 describe("presentation, outside the plot's history (SUB-22)", () => {
   const plot = {
     type: "FeatureCollection",
-    schema_version: "0.0.7",
+    schema_version: "0.0.8",
     features: [
       { id: "a", properties: { kind: "track", name: "A", style: { colour: "#e01c3e", legacy_symbology: "@C" } } },
       { id: "b", properties: { kind: "annotation", name: "B" } },
@@ -343,7 +365,7 @@ describe("presentation, outside the plot's history (SUB-22)", () => {
     ],
     provenance: [],
   } as unknown as Parameters<typeof displayed>[0];
-  const empty = { schema_version: "0.0.7", features: [] };
+  const empty = { schema_version: "0.0.8", features: [] };
 
   it("shows the analyst's colours and leaves hidden features off the map", () => {
     const p = changed(changed(empty, ["a"], { colour: "#0064bd" }), ["b"], { hidden: true });
@@ -383,7 +405,7 @@ describe("presentation, outside the plot's history (SUB-22)", () => {
 
 describe("one undo timeline per plot (SUB-21, SUB-22)", () => {
   const step = (plot: string, label: string) =>
-    presentationChange(plot, label, { schema_version: "0.0.7", features: [] }, ["a"], { hidden: true }).step;
+    presentationChange(plot, label, { schema_version: "0.0.8", features: [] }, ["a"], { hidden: true }).step;
   const presentation = (s: ReturnType<typeof step>): TimelineEntry => ({ kind: "presentation", step: s });
 
   it("keeps each plot's timeline when switching plots and back", () => {
@@ -434,7 +456,7 @@ describe("the History view (SUB-21, SUB-22)", () => {
     { seq: 1, status: "applied", kind: "import", tool: "debrief-io.rep", agent: "a", at: "", records: 1 },
     { seq: 2, status: "applied", kind: "tool", tool: "core.add_note", agent: "a", at: "", records: 1 },
   ] as HistoryStep[];
-  const colour = presentationChange("p", "Colour green", { schema_version: "0.0.7", features: [] }, ["a"], { colour: "#00a000" }).step;
+  const colour = presentationChange("p", "Colour green", { schema_version: "0.0.8", features: [] }, ["a"], { colour: "#00a000" }).step;
 
   it("groups this window's presentation changes at the top, and marks what Ctrl+Z takes next", () => {
     const rows = historyRows(steps, 2, [{ step: colour, undone: false }], { kind: "presentation", step: colour });

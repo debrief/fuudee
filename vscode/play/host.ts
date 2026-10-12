@@ -236,7 +236,14 @@ function openForm(tool: ToolDeclaration): void {
 function sendForm(): void {
   if (!formTool || !opened) return;
   const range = time?.range;
-  post(form, { kind: "show_form", tool: formTool, selected_names: selectedNames(), ...(range && { time_range: range }) });
+  const current = time?.current;
+  post(form, {
+    kind: "show_form",
+    tool: formTool,
+    selected_names: selectedNames(),
+    ...(range && { time_range: range }),
+    ...(current && { current_time: current }),
+  });
 }
 function closeForm(): void {
   if (form) closeSide();

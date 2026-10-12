@@ -6,25 +6,13 @@
  */
 import { createRoot } from "react-dom/client";
 import { useEffect, useState } from "react";
-import { DEFAULT_SETTINGS, FACTORS, formatTime, UNIT_LABELS } from "@debrief/kernel";
+import { FACTORS, UNIT_LABELS } from "@debrief/kernel";
 import type { ParameterDeclaration, ParameterValue, TimeRange, ToolDeclaration } from "@debrief/schemas";
 import { parseTime, TIME_EXAMPLES } from "../src/timeinput.js";
+import { type Draft, initial, showTime } from "./formdraft.js";
 import { Action, Choice, Field, TextInput, YesNo } from "./ui.js";
 import { host, onMessage } from "./vscode.js";
 import "./form.css";
-
-type Draft = Record<string, { text: string; unit?: string; checked?: boolean }>;
-
-function initial(param: ParameterDeclaration): Draft[string] {
-  const d = param.default as unknown;
-  if (param.kind === "boolean") return { text: "", checked: d === true };
-  if (param.kind === "quantity" && d && typeof d === "object") {
-    const q = d as { value: number; unit: string };
-    return { text: String(q.value), unit: q.unit };
-  }
-  if (param.kind === "quantity") return { text: "", unit: Object.keys(FACTORS[param.quantity_kind as keyof typeof FACTORS])[0] };
-  return { text: d === undefined || d === null ? "" : String(d) };
-}
 
 function toValue(param: ParameterDeclaration, draft: Draft[string], range?: TimeRange): ParameterValue["value"] | undefined | Error {
   if (param.kind === "boolean") return draft.checked ?? false;
@@ -59,7 +47,8 @@ function Form() {
         // Re-sent when only the selection changed: keep what the analyst typed.
         setTool((previous) => {
           if (previous?.name !== declaration.name) {
-            setDraft(Object.fromEntries((declaration.parameters ?? []).map((p) => [p.name, initial(p)])));
+            const now = message.current_time as string | undefined;
+            setDraft(Object.fromEntries((declaration.parameters ?? []).map((p) => [p.name, initial(p, now)])));
             setBusy(false);
             setProblem(undefined);
           }
@@ -141,7 +130,7 @@ function Form() {
         }
         if (param.kind === "time") {
           const ms = d.text.trim() ? parseTime(d.text, range) : undefined;
-          const echo = d.text.trim() ? (ms === undefined ? "Not a time Debrief understands" : `Means ${formatTime(ms, { ...DEFAULT_SETTINGS, time_style: "date_time" })}`) : undefined;
+          const echo = d.text.trim() ? (ms === undefined ? "Not a time Debrief understands" : `Means ${showTime(ms)}`) : undefined;
           return (
             <Field key={param.name} label={param.title + optional} explanation={param.explanation ?? undefined} htmlFor={id}>
               <TextInput id={id} value={d.text} placeholder="Such as 09:30Z" onChange={(text) => update(param.name, { text })} />

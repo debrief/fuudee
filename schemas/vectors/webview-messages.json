@@ -32,7 +32,8 @@
     "show_form": [
       "tool",
       "selected_names",
-      "time_range?"
+      "time_range?",
+      "current_time?"
     ],
     "run_tool": [
       "tool_name",

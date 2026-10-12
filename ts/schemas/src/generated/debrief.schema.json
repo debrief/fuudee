@@ -2355,6 +2355,14 @@
       "additionalProperties": false,
       "description": "",
       "properties": {
+        "current_time": {
+          "description": "Current time from shared state, which a tool form offers for its time fields.",
+          "pattern": "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}\\.\\d{3}Z$",
+          "type": [
+            "string",
+            "null"
+          ]
+        },
         "hidden_count": {
           "description": "How many of the plot's features are hidden on the map (SUB-22), so the map can say so.",
           "minimum": 0,
@@ -2562,5 +2570,5 @@
   ],
   "title": "debrief",
   "type": "object",
-  "version": "0.0.7"
+  "version": "0.0.8"
 }

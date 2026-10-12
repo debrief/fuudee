@@ -511,7 +511,11 @@ def _argument_problem(arguments: dict[str, Any]) -> str | None:
 
 
 def _step(step: Any) -> dict[str, Any]:
-    """One history step as the History view shows it: what made it, when, by whom."""
+    """One history step as the History view shows it: what made it, when, by whom.
+
+    The notes name an edit made without a tool; the playground (vscode/play/play.py)
+    lists the same fields, so both name steps alike.
+    """
     first = step.records[0]
     return {
         "seq": step.seq,
@@ -521,6 +525,7 @@ def _step(step: Any) -> dict[str, Any]:
         "agent": ", ".join(dict.fromkeys(r.agent.name for r in step.records)),
         "at": first.ended_at or first.started_at,
         "records": len(step.records),
+        "notes": list(first.notes or []),
     }
 
 

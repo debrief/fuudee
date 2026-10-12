@@ -1,0 +1,8 @@
+{
+  "kind": "set_selection",
+  "selection": {
+    "plot": "serial/plot.geojson",
+    "feature_ids": []
+  },
+  "current_time": "1995-12-12T05:30:00.000Z"
+}

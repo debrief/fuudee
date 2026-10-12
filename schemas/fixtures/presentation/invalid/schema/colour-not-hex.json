@@ -1,4 +1,4 @@
 {
-  "schema_version": "0.0.7",
+  "schema_version": "0.0.8",
   "features": [{"id": "track-nelson", "colour": "blue"}]
 }

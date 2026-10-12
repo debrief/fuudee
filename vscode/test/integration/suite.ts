@@ -119,7 +119,7 @@ export async function run(): Promise<void> {
   assert.match(refused ?? "", /does not apply to this selection/);
 
   // --- Phase 2 exit: edit, undo, a Debrief process killed mid-save, recover ---------
-  type Step = { seq: number; status: string; tool: string | null };
+  type Step = { seq: number; status: string; tool: string | null; notes?: string[] };
   const steps = () => vscode.commands.executeCommand<Step[]>("debrief.historySteps");
   await vscode.commands.executeCommand("debrief.history.focus");
   await waitFor("history to list the runs", async () => (await steps()).length === 3 || undefined);
@@ -151,6 +151,8 @@ export async function run(): Promise<void> {
   await vscode.commands.executeCommand("debrief.openPlot", current.store.id, current.item.id);
   await waitFor("the recovered note", () => api.session.current?.plot.features.some((f) => f.id === "note-before-the-crash") || undefined);
   assert.deepEqual((await steps()).map((s) => s.status), ["applied", "applied", "abandoned", "applied"]);
+  // An edit made without a tool is named by its note, as in the playground.
+  assert.deepEqual((await steps()).at(-1)?.notes, ["Note added just before a crash"]);
   await sleep(1500);
   await screenshot("07-recovered", true);
 
