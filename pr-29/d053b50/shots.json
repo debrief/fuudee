@@ -1,0 +1,17 @@
+{
+ "shots": [
+  {
+   "source": "blog/posts/2026-10-11-load-and-look.md",
+   "url": "blog/2026/10/11/load-and-look/",
+   "title": "Load and look: the whole path, end to end",
+   "file": "blog-posts-2026-10-11-load-and-look.png"
+  },
+  {
+   "source": "try.md",
+   "url": "try/",
+   "title": "Try Debrief",
+   "file": "try.png"
+  }
+ ],
+ "more": 0
+}
