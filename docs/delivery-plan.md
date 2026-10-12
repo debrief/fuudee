@@ -184,7 +184,7 @@ The schema freeze may come earlier, even before pilots, if the model settles.
 
 **Decisions taken during Phase 3**
 
-- [x] One plot file, with its view inside it: analysts pass one plot file to a colleague, with no files beside it. Content goes into history (recorded, undoable, with provenance); view state that travels with the plot goes into the plot's island, the view of its whole-plot feature, outside the history's hashes and replay. Colour and hiding are content. The time window is one per plot, in the island, replacing per-layer display windows. `presentation.json` is retired; a plot that has one becomes one recorded step on first opening (SUB-22, CAP-28). (12 Oct)
+- [x] One plot file, with its view inside it: analysts pass one plot file to a colleague, with no files beside it. Content goes into history (recorded, undoable, with provenance); view state that travels with the plot goes into the plot's island, the view of its whole-plot feature, outside the history's hashes and replay. Colour and hiding are content. The time window is one per plot, in the island, replacing per-layer display windows. `presentation.json` is retired. A plot of the current schema version that still has one becomes one recorded step on first opening; before schema 1.0 older plots cannot be opened at all (SUB-13), so in practice this rarely runs (SUB-22, CAP-28). (12 Oct)
 
 **Risks**
 
