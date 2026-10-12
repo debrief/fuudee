@@ -7,11 +7,16 @@ Validation runs in three layers, in order:
 2. JSON Schema generated from LinkML: the same check the TypeScript side runs.
 3. Rules LinkML cannot express, such as parallel arrays matching the
    geometry. These live here only, in Python (PRN-03).
+
+Text that has passed layers 2 and 3 once is remembered by its hash, so the
+same text read again, or a document written out just as it was read, is not
+checked against them a second time: the answer could only be the same.
 """
 
 from __future__ import annotations
 
 import copy
+import hashlib
 import json
 import re
 from collections.abc import Callable, Iterable
@@ -454,7 +459,7 @@ MESSAGE_MEMBERS: dict[str, tuple[str, ...]] = {
     "set_viewport": ("viewport",),
     "viewport_changed": ("viewport",),
     "show_hidden": (),
-    "show_form": ("tool", "selected_names", "time_range?"),
+    "show_form": ("tool", "selected_names", "time_range?", "current_time?"),
     "run_tool": ("tool_name", "parameters"),
     "cancel": (),
     "form_busy": ("message",),
@@ -570,11 +575,21 @@ def _to_json_shape(kind: DocumentKind, document: dict[str, Any]) -> dict[str, An
 # --- Public API -----------------------------------------------------------------
 
 
-def load_document(kind: DocumentKind | str, source: str | bytes | dict[str, Any]) -> Any:
-    """Parse and fully validate a document. Never returns a partially loaded one."""
-    kind = DocumentKind(kind)
-    document = json.loads(source) if isinstance(source, (str, bytes)) else source
+# Hashes of texts that passed layers 2 and 3, by kind. Bounded: when full it
+# is emptied, so a long session only ever validates some text again.
+_PASSED: set[tuple[DocumentKind, bytes]] = set()
+_PASSED_MAX = 512
+
+
+def _validate(kind: DocumentKind, document: Any, text: str | bytes | None, build: bool) -> Any:
+    """Check a document, unless its text has passed before. Returns its model if build is set."""
     _check_version(kind, document)
+    key = None
+    if text is not None:
+        data = text.encode() if isinstance(text, str) else text
+        key = (kind, hashlib.sha256(data).digest())
+        if key in _PASSED:
+            return _MODELS[kind].model_validate(_to_model_shape(kind, document)) if build else None
 
     errors = sorted(_validator(kind).iter_errors(document), key=lambda e: list(e.path))
     if errors:
@@ -586,15 +601,28 @@ def load_document(kind: DocumentKind | str, source: str | bytes | dict[str, Any]
     problems = _RULES[kind](model, document)
     if problems:
         raise DocumentValidationError(problems)
+    if key is not None:
+        if len(_PASSED) >= _PASSED_MAX:
+            _PASSED.clear()
+        _PASSED.add(key)
     return model
+
+
+def load_document(kind: DocumentKind | str, source: str | bytes | dict[str, Any]) -> Any:
+    """Parse and fully validate a document. Never returns a partially loaded one."""
+    kind = DocumentKind(kind)
+    text = source if isinstance(source, (str, bytes)) else None
+    document = json.loads(source) if text is not None else source
+    return _validate(kind, document, text, build=True)
 
 
 def dump_document(kind: DocumentKind | str, model: BaseModel) -> str:
     """Serialise a document, validating it first so an invalid file is never written."""
     kind = DocumentKind(kind)
     document = _to_json_shape(kind, model.model_dump(mode="json", by_alias=True, exclude_none=True))
-    load_document(kind, document)
-    return json.dumps(document, indent=2, ensure_ascii=False) + "\n"
+    text = json.dumps(document, indent=2, ensure_ascii=False) + "\n"
+    _validate(kind, document, text, build=False)
+    return text
 
 
 def load_plot(source: str | bytes | dict[str, Any]) -> g.DebriefFeatureCollection:

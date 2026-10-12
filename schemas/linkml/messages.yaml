@@ -33,7 +33,7 @@ enums:
       set_viewport: {description: "Host to map: show this area (viewport)."}
       viewport_changed: {description: "Map to host: the analyst panned or zoomed (viewport)."}
       show_hidden: {description: "Map to host: show every feature hidden on the map (no members)."}
-      show_form: {description: "Host to form: show this tool's form (tool, selected_names, time_range of the plot)."}
+      show_form: {description: "Host to form: show this tool's form (tool, selected_names, time_range of the plot, and current time if known)."}
       run_tool: {description: "Form to host: run the tool with these values (tool_name, parameters)."}
       cancel: {description: "Form to host: close without running."}
       form_busy: {description: "Host to form: the tool is running (message)."}
@@ -57,6 +57,9 @@ classes:
         description: The plot's period, so times can be entered as the analyst reads them.
         range: TimeRange
         inlined: true
+      current_time:
+        description: Current time from shared state, which a tool form offers for its time fields.
+        range: UtcTimestamp
       tool: {range: ToolDeclaration, inlined: true}
       selected_names: {multivalued: true}
       tool_name: {}

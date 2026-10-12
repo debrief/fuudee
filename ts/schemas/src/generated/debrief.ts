@@ -1004,6 +1004,10 @@ export interface UserConfig {
  */
 export interface WebviewMessage {
   /**
+   * Current time from shared state, which a tool form offers for its time fields.
+   */
+  current_time?: string | null;
+  /**
    * How many of the plot's features are hidden on the map (SUB-22), so the map can say so.
    */
   hidden_count?: number | null;

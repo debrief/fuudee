@@ -172,6 +172,8 @@ try {
   await page.locator(`#outline li[data-id="track-blue-one"]`).click();
   await page.locator("#tools button", { hasText: "Range rings" }).click();
   await page.frameLocator(".frame-form").getByRole("button", { name: "Run" }).waitFor();
+  // Its time field starts at current time, as the analyst reads it.
+  assert.match(await page.frameLocator(".frame-form").locator("#p-at input").inputValue(), /^\d{1,2} [A-Z][a-z]{2} \d{4} \d\d:\d\d:\d\dZ$/);
   const [mapAt, formAt] = [await page.locator(".frame-map").boundingBox(), await page.locator(".frame-form").boundingBox()];
   assert.ok(formAt.y >= mapAt.y + mapAt.height - 1, "form is under the map");
   assert.ok(formAt.width <= 400, "form fits the width");
@@ -179,6 +181,7 @@ try {
   await page.locator(".side-frame").scrollIntoViewIfNeeded();
   await shot("play-08-narrow-form");
   await page.setViewportSize({ width: 1400, height: 820 });
+  await shot("play-08b-form-current-time");
 
   // The geodesic demo: drag B and the two answers change; the arrow keys move a pin too.
   await page.goto(`${BASE}/geodesic.html`);

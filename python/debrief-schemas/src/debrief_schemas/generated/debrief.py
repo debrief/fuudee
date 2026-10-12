@@ -32,7 +32,7 @@ from pydantic import (
 
 
 metamodel_version = "1.12.0"
-version = "0.0.7"
+version = "0.0.8"
 
 
 class ConfiguredBaseModel(BaseModel):
@@ -706,7 +706,7 @@ class WebviewMessageKindEnum(str, Enum):
     """
     show_form = "show_form"
     """
-    Host to form: show this tool's form (tool, selected_names, time_range of the plot).
+    Host to form: show this tool's form (tool, selected_names, time_range of the plot, and current time if known).
     """
     run_tool = "run_tool"
     """
@@ -2214,6 +2214,7 @@ class WebviewMessage(ConfiguredBaseModel):
     time_range: Optional[TimeRange] = Field(default=None, description="""The plot's period, so times can be entered as the analyst reads them.""", json_schema_extra = { "linkml_meta": {'domain_of': ['AnnotationProperties',
                        'SensorObservationsProperties',
                        'WebviewMessage']} })
+    current_time: Optional[str] = Field(default=None, description="""Current time from shared state, which a tool form offers for its time fields.""", json_schema_extra = { "linkml_meta": {'domain_of': ['WebviewMessage']} })
     tool: Optional[ToolDeclaration] = Field(default=None, json_schema_extra = { "linkml_meta": {'domain_of': ['ProvRecord', 'WebviewMessage']} })
     selected_names: Optional[list[str]] = Field(default=None, json_schema_extra = { "linkml_meta": {'domain_of': ['WebviewMessage']} })
     tool_name: Optional[str] = Field(default=None, json_schema_extra = { "linkml_meta": {'domain_of': ['WebviewMessage']} })
@@ -2221,6 +2222,19 @@ class WebviewMessage(ConfiguredBaseModel):
     message: Optional[str] = Field(default=None, json_schema_extra = { "linkml_meta": {'domain_of': ['WebviewMessage']} })
     result_title: Optional[str] = Field(default=None, json_schema_extra = { "linkml_meta": {'domain_of': ['WebviewMessage']} })
     result: Optional[ToolResult] = Field(default=None, json_schema_extra = { "linkml_meta": {'domain_of': ['WebviewMessage']} })
+
+    @field_validator('current_time')
+    def pattern_current_time(cls, v):
+        pattern=re.compile(r"^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}Z$")
+        if isinstance(v, list):
+            for element in v:
+                if isinstance(element, str) and not pattern.search(element):
+                    err_msg = f"Invalid current_time format: {element}"
+                    raise ValueError(err_msg)
+        elif isinstance(v, str) and not pattern.search(v):
+            err_msg = f"Invalid current_time format: {v}"
+            raise ValueError(err_msg)
+        return v
 
 
 class Delta(ConfiguredBaseModel):
