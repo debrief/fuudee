@@ -544,7 +544,11 @@ def _agent(params: dict[str, Any]) -> models.AgentRef:
 
 def _step(step: Any) -> dict[str, Any]:
     """One history step as the History view shows it: what made it, when, by whom.
-    An edit's note names it, such as "Colour of BLUE ONE set to red"."""
+
+    The notes name an edit made without a tool, such as "Colour of BLUE ONE set
+    to red"; the playground (vscode/play/play.py)
+    lists the same fields, so both name steps alike.
+    """
     first = step.records[0]
     return {
         "seq": step.seq,

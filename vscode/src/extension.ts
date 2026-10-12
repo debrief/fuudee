@@ -603,7 +603,7 @@ export function activate(context: vscode.ExtensionContext): DebriefApi {
   command("debrief.showToolForm", (name: string) => {
     const tool = listing?.tools.find((t) => t.name === name);
     if (!tool) return;
-    form.show(tool, session.selectedFeatures().map((f) => f.properties.name), timeRangeOf());
+    form.show(tool, session.selectedFeatures().map((f) => f.properties.name), timeRangeOf(), session.time?.current);
   });
   // The form says what the tool will act on, so it follows the selection.
   session.onSelection(() => form.updateSelection(session.selectedFeatures().map((f) => f.properties.name)));

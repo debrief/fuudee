@@ -1,0 +1,30 @@
+{
+  "kind": "show_form",
+  "tool": {
+    "name": "core.add_note",
+    "version": "0.0.1",
+    "title": "Add note",
+    "explanation": "Adds a time-only note.",
+    "applies_to": [
+      "*"
+    ],
+    "min_selected": 0,
+    "parameters": [
+      {
+        "name": "at",
+        "title": "Time",
+        "kind": "time",
+        "required": true
+      }
+    ],
+    "outputs": [
+      "new_features"
+    ]
+  },
+  "selected_names": [],
+  "time_range": {
+    "start": "1995-12-12T05:00:00.000Z",
+    "end": "1995-12-12T06:00:00.000Z"
+  },
+  "current_time": "1995-12-12T05:30:00.000Z"
+}

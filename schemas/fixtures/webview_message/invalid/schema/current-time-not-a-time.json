@@ -1,0 +1,17 @@
+{
+  "kind": "show_form",
+  "tool": {
+    "name": "core.add_note",
+    "version": "0.0.1",
+    "title": "Add note",
+    "explanation": "Adds a time-only note.",
+    "applies_to": [
+      "*"
+    ],
+    "outputs": [
+      "new_features"
+    ]
+  },
+  "selected_names": [],
+  "current_time": "half past nine"
+}

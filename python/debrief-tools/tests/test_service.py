@@ -311,6 +311,22 @@ def test_history_open_list_undo_redo_and_goto(client, catalogue) -> None:
     assert history("debrief/history", item="nothing")["error"]["code"] == -32602
 
 
+def test_history_steps_carry_their_notes_for_naming(client, catalogue) -> None:
+    # An edit made without a tool is named in the History view by its note.
+    from debrief_stac import Changes
+
+    at = "2024-01-01T00:00:00.000Z"
+    colleague = models.AgentRef(kind="person", name="a colleague")
+    note = models.ProvRecord(
+        id="edit-note", kind="edit", started_at=at, agent=colleague, notes=["Note added"]
+    )
+    catalogue.commit("serial", [note], Changes(deleted_ids=["track-late"]))
+    where = {"store": "exercise", "item": "serial"}
+    steps = rpc(client, "debrief/history", where).json()["result"]["steps"]
+    assert [(s["kind"], s["tool"], s["notes"]) for s in steps][-1] == ("edit", None, ["Note added"])
+    assert steps[0]["kind"] == "import" and isinstance(steps[0]["notes"], list)
+
+
 def test_a_conflict_tells_the_caller_whether_it_can_merge(config_file: Path) -> None:
     class Meanwhile:
         def describe(self):

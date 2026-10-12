@@ -124,3 +124,35 @@ def test_webview_message_members_match_shared_table() -> None:
     table = json.loads((ROOT / "schemas" / "vectors" / "webview-messages.json").read_text())
     assert table["members"] == {k: list(v) for k, v in MESSAGE_MEMBERS.items()}
     assert set(table["members"]) == {k.value for k in generated.WebviewMessageKindEnum}
+
+
+def test_text_that_passed_is_not_checked_again(monkeypatch) -> None:
+    from debrief_schemas import documents
+
+    checked: list[DocumentKind] = []
+    real = documents._validator
+
+    def counting(kind):
+        checked.append(kind)
+        return real(kind)
+
+    fixture = (FIXTURES / "plot" / "valid" / "mixed-features.json").read_text()
+    text = dump_document(DocumentKind.PLOT, load_document(DocumentKind.PLOT, fixture))
+    monkeypatch.setattr(documents, "_validator", counting)
+    monkeypatch.setattr(documents, "_PASSED", set())
+    plot = load_document(DocumentKind.PLOT, text)
+    again = load_document(DocumentKind.PLOT, text)
+    assert checked == [DocumentKind.PLOT] and again == plot and again is not plot
+    # Written out just as it was read: the same text, so not checked again either.
+    assert dump_document(DocumentKind.PLOT, plot) == text
+    assert checked == [DocumentKind.PLOT]
+    # A changed text is checked in full, and one that fails is never remembered.
+    broken = text.replace('"Feature"', '"Thing"', 1)
+    for _ in range(2):
+        with pytest.raises(DocumentValidationError):
+            load_document(DocumentKind.PLOT, broken)
+    assert checked == [DocumentKind.PLOT] * 3
+    # The schema version is still checked every time.
+    monkeypatch.setattr(documents, "SCHEMA_VERSION", "9.9.9")
+    with pytest.raises(SchemaVersionError):
+        load_document(DocumentKind.PLOT, text)

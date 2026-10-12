@@ -39,5 +39,6 @@ record = models.ProvRecord(
     kind="edit",
     started_at="2023-06-15T09:00:00.000Z",
     agent=models.AgentRef(kind="person", name="analyst"),
+    notes=["Note added just before a crash"],  # what the History view calls the step
 )
 catalogue.commit(sys.argv[2], [record], Changes(added=[note]))

@@ -12,7 +12,7 @@ export type RunRequest = (tool: ToolDeclaration, parameters: ParameterValue[]) =
 export class FormPanel {
   private panel?: vscode.WebviewPanel;
   private ready = false;
-  private pending?: { tool: ToolDeclaration; names: string[]; timeRange?: TimeRange };
+  private pending?: { tool: ToolDeclaration; names: string[]; timeRange?: TimeRange; currentTime?: string };
 
   constructor(
     private readonly extension: vscode.Uri,
@@ -25,8 +25,9 @@ export class FormPanel {
     return this.panel ? this.pending?.tool.name : undefined;
   }
 
-  show(tool: ToolDeclaration, selectedNames: string[], timeRange?: TimeRange): void {
-    this.pending = { tool, names: selectedNames, timeRange };
+  /** Open the form; its time fields start at currentTime, when there is one. */
+  show(tool: ToolDeclaration, selectedNames: string[], timeRange?: TimeRange, currentTime?: string): void {
+    this.pending = { tool, names: selectedNames, timeRange, currentTime };
     if (!this.panel) {
       this.panel = vscode.window.createWebviewPanel("debrief.form", tool.title, vscode.ViewColumn.Beside, {
         enableScripts: true,
@@ -56,9 +57,15 @@ export class FormPanel {
 
   private send(): void {
     if (!this.panel || !this.ready || !this.pending) return;
-    const { tool, names, timeRange } = this.pending;
+    const { tool, names, timeRange, currentTime } = this.pending;
     void this.panel.webview.postMessage(
-      checkMessage({ kind: "show_form", tool, selected_names: names, ...(timeRange && { time_range: timeRange }) }),
+      checkMessage({
+        kind: "show_form",
+        tool,
+        selected_names: names,
+        ...(timeRange && { time_range: timeRange }),
+        ...(currentTime && { current_time: currentTime }),
+      }),
     );
   }
 

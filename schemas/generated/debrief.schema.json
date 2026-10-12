@@ -159,6 +159,13 @@
       "additionalProperties": false,
       "description": "",
       "properties": {
+        "hidden": {
+          "description": "Not drawn on the map. Still listed, and still selectable, in the outline. Content: hiding is a recorded, undoable change (SUB-22).",
+          "type": [
+            "boolean",
+            "null"
+          ]
+        },
         "kind": {
           "$ref": "#/$defs/AnnotationKindEnum"
         },
@@ -229,8 +236,7 @@
         "supporting_file",
         "payload",
         "result",
-        "measure_group",
-        "presentation"
+        "measure_group"
       ],
       "title": "AssetKindEnum",
       "type": "string"
@@ -258,6 +264,9 @@
               },
               {
                 "$ref": "#/$defs/SensorObservationsFeature"
+              },
+              {
+                "$ref": "#/$defs/PlotFeature"
               }
             ]
           },
@@ -300,6 +309,7 @@
       "description": "One recorded change to a plot.",
       "properties": {
         "added": {
+          "description": "Features added. A whole-plot feature here never carries its view: the island is not content (SUB-22).",
           "items": {
             "anyOf": [
               {
@@ -310,6 +320,9 @@
               },
               {
                 "$ref": "#/$defs/SensorObservationsFeature"
+              },
+              {
+                "$ref": "#/$defs/PlotFeature"
               }
             ]
           },
@@ -353,6 +366,9 @@
               },
               {
                 "$ref": "#/$defs/SensorObservationsFeature"
+              },
+              {
+                "$ref": "#/$defs/PlotFeature"
               }
             ]
           },
@@ -390,7 +406,7 @@
           "type": "array"
         },
         "result_hash": {
-          "description": "Content hash of the plot file after this delta, to check replay.",
+          "description": "Content hash of the plot file after this delta, to check replay, taken with the island (the whole-plot feature's view) left out, so a change of view never looks like a change of content (SUB-22).",
           "pattern": "^sha256:[0-9a-f]{64}$",
           "type": "string"
         },
@@ -456,40 +472,11 @@
       "enum": [
         "track",
         "annotation",
-        "sensor_observations"
+        "sensor_observations",
+        "plot"
       ],
       "title": "FeatureKindEnum",
       "type": "string"
-    },
-    "FeaturePresentation": {
-      "additionalProperties": false,
-      "description": "",
-      "properties": {
-        "colour": {
-          "description": "Lower-case hex RGB, for a track; overrides the colour it was imported with.",
-          "pattern": "^#[0-9a-f]{6}$",
-          "type": [
-            "string",
-            "null"
-          ]
-        },
-        "hidden": {
-          "description": "Not drawn on the map. Still listed, and still selectable, in the outline.",
-          "type": [
-            "boolean",
-            "null"
-          ]
-        },
-        "id": {
-          "description": "The feature's id in the plot.",
-          "type": "string"
-        }
-      },
-      "required": [
-        "id"
-      ],
-      "title": "FeaturePresentation",
-      "type": "object"
     },
     "FeatureTypeEnum": {
       "description": "",
@@ -594,7 +581,7 @@
           "type": "integer"
         },
         "plot_hash": {
-          "description": "Content hash the plot file has when it reflects current.",
+          "description": "Content hash the plot file has when it reflects current, island left out.",
           "pattern": "^sha256:[0-9a-f]{64}$",
           "type": "string"
         },
@@ -1068,6 +1055,105 @@
       "title": "PayloadRef",
       "type": "object"
     },
+    "PlotFeature": {
+      "additionalProperties": false,
+      "description": "The whole plot: its own details, and its view (the island). At most one per plot. Geometry is always null, so the plot file stays plain GeoJSON for other tools.",
+      "properties": {
+        "geometry": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/PointGeometry"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": "Always null."
+        },
+        "id": {
+          "type": "string"
+        },
+        "properties": {
+          "$ref": "#/$defs/PlotProperties"
+        },
+        "type": {
+          "$ref": "#/$defs/FeatureTypeEnum"
+        }
+      },
+      "required": [
+        "type",
+        "id",
+        "properties"
+      ],
+      "title": "PlotFeature",
+      "type": "object"
+    },
+    "PlotKindEnum": {
+      "description": "",
+      "enum": [
+        "plot"
+      ],
+      "title": "PlotKindEnum",
+      "type": "string"
+    },
+    "PlotProperties": {
+      "additionalProperties": false,
+      "description": "",
+      "properties": {
+        "description": {
+          "description": "What the plot is for. Content.",
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "kind": {
+          "$ref": "#/$defs/PlotKindEnum"
+        },
+        "title": {
+          "description": "The plot's title. Content, like everything outside view.",
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "view": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/PlotView"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": "The island: how the plot is being viewed. Outside the plot's history (see the module description). Kept last, so it is easy to find and strip."
+        }
+      },
+      "required": [
+        "kind"
+      ],
+      "title": "PlotProperties",
+      "type": "object"
+    },
+    "PlotView": {
+      "additionalProperties": false,
+      "description": "View state saved in the plot file: not content, so not undoable and not recorded in provenance (SUB-22). Two people changing it at once are told, not silently overwritten (SUB-28). Later view state joins here.",
+      "properties": {
+        "time_window": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/TimeRange"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": "The plot's time window: the period shown, one for the whole plot (CAP-28, CAP-29). Start shall not be after end."
+        }
+      },
+      "title": "PlotView",
+      "type": "object"
+    },
     "PointGeometry": {
       "additionalProperties": false,
       "description": "",
@@ -1147,29 +1233,6 @@
       ],
       "title": "PositionNotationEnum",
       "type": "string"
-    },
-    "Presentation": {
-      "additionalProperties": false,
-      "description": "",
-      "properties": {
-        "features": {
-          "description": "Each feature the analyst has restyled or hidden, once.",
-          "items": {
-            "$ref": "#/$defs/FeaturePresentation"
-          },
-          "type": "array"
-        },
-        "schema_version": {
-          "pattern": "^\\d+\\.\\d+\\.\\d+$",
-          "type": "string"
-        }
-      },
-      "required": [
-        "schema_version",
-        "features"
-      ],
-      "title": "Presentation",
-      "type": "object"
     },
     "ProvActivityKindEnum": {
       "description": "",
@@ -1411,6 +1474,13 @@
       "additionalProperties": false,
       "description": "",
       "properties": {
+        "hidden": {
+          "description": "Not drawn on the map. Still listed, and still selectable, in the outline. Content: hiding is a recorded, undoable change (SUB-22).",
+          "type": [
+            "boolean",
+            "null"
+          ]
+        },
         "host_track_id": {
           "description": "The track carrying the sensor.",
           "type": "string"
@@ -2224,6 +2294,13 @@
           ],
           "description": "Depth below the sea surface at each position, positive down. Absent where depth is not known."
         },
+        "hidden": {
+          "description": "Not drawn on the map. Still listed, and still selectable, in the outline. Content: hiding is a recorded, undoable change (SUB-22).",
+          "type": [
+            "boolean",
+            "null"
+          ]
+        },
         "kind": {
           "$ref": "#/$defs/TrackKindEnum"
         },
@@ -2286,7 +2363,7 @@
     },
     "TrackStyle": {
       "additionalProperties": false,
-      "description": "How a track is drawn, as imported. Data colours do not change with the theme (DEV-07). The analyst's later changes are presentation, kept in the plot's Presentation, not here: undoable, never recorded in provenance (SUB-22).",
+      "description": "How a track is drawn. Data colours do not change with the theme (DEV-07). Colour is content: the analyst changing it (blue friendly to red enemy, say) is a recorded, undoable change (SUB-22).",
       "properties": {
         "colour": {
           "description": "Lower-case hex RGB, for example \"#e01c3e\".",
@@ -2355,6 +2432,14 @@
       "additionalProperties": false,
       "description": "",
       "properties": {
+        "current_time": {
+          "description": "Current time from shared state, which a tool form offers for its time fields.",
+          "pattern": "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}\\.\\d{3}Z$",
+          "type": [
+            "string",
+            "null"
+          ]
+        },
         "hidden_count": {
           "description": "How many of the plot's features are hidden on the map (SUB-22), so the map can say so.",
           "minimum": 0,
@@ -2526,6 +2611,9 @@
           },
           {
             "$ref": "#/$defs/SensorObservationsFeature"
+          },
+          {
+            "$ref": "#/$defs/PlotFeature"
           }
         ]
       },
@@ -2562,5 +2650,5 @@
   ],
   "title": "debrief",
   "type": "object",
-  "version": "0.0.7"
+  "version": "0.0.9"
 }
