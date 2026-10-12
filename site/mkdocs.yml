@@ -1,6 +1,7 @@
 site_name: Debrief v4
 site_description: Development blog and guides for Debrief v4
-site_url: https://debrief.github.io/fuudee/
+# A pull-request preview is published below this, at pr-preview/pr-N/.
+site_url: !ENV [SITE_URL, "https://debrief.github.io/fuudee/"]
 repo_url: https://github.com/debrief/fuudee
 repo_name: debrief/fuudee
 edit_uri: edit/main/site/docs/
@@ -21,6 +22,9 @@ theme:
     - navigation.sections
     - navigation.indexes
     - content.code.copy
+
+hooks:
+  - hooks/page_map.py
 
 plugins:
   - search

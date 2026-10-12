@@ -2,12 +2,13 @@ name: Publish site
 
 # Builds the blog and guides from main and publishes them to the gh-pages
 # branch, which GitHub Pages serves (DEV-01). Each publish is a new commit on
-# gh-pages replacing its contents; history is kept, nothing is force-pushed.
+# gh-pages replacing its contents, apart from pull-request previews under
+# pr-preview/ (preview.yml); history is kept, nothing is force-pushed.
 on:
   push:
     branches: [main]
     # The playground (site/docs/play) is built from the extension and the Python packages.
-    paths: ["site/**", "python/**", "ts/**", "vscode/**", "scripts/build_playground.sh", "pyproject.toml", "uv.lock", ".github/workflows/pages.yml"]
+    paths: ["site/**", "python/**", "ts/**", "vscode/**", "scripts/build_site.sh", "scripts/build_playground.sh", "pyproject.toml", "uv.lock", ".github/workflows/pages.yml"]
   workflow_dispatch:
 
 permissions:
@@ -22,26 +23,16 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-        with:
-          fetch-depth: 0
       - uses: astral-sh/setup-uv@v6
         with:
           python-version: "3.12"
       - uses: actions/setup-node@v4
         with:
           node-version: "22"
-      - name: Build the playground (site/docs/play)
-        run: |
-          uv sync --locked
-          for package in schemas kernel config; do
-            npm ci --prefix ts/$package
-            npm run --prefix ts/$package build
-          done
-          npm ci --prefix vscode
-          scripts/build_playground.sh
-      - name: Build and push to gh-pages
-        run: |
-          git config user.name "github-actions[bot]"
-          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          uv run --only-group docs mkdocs gh-deploy --strict --config-file site/mkdocs.yml \
-            --remote-branch gh-pages --message "Publish site from {sha}"
+      - run: scripts/build_site.sh site/site
+      - uses: JamesIves/github-pages-deploy-action@v4
+        with:
+          branch: gh-pages
+          folder: site/site
+          clean-exclude: pr-preview/
+          commit-message: Publish site from ${{ github.sha }}
