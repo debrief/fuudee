@@ -1,0 +1,71 @@
+/* The playground page, styled with the same theme variables as the webviews. */
+html, body { height: 100%; margin: 0; }
+[hidden] { display: none !important; }
+body { background: var(--vscode-editor-background); color: var(--vscode-foreground); font-family: var(--vscode-font-family); font-size: var(--vscode-font-size); }
+.app { display: grid; grid-template-columns: clamp(210px, 28vw, 290px) 1fr; grid-template-rows: 1fr auto; height: 100%; }
+.side { grid-row: 1; overflow-y: auto; background: var(--vscode-sideBar-background); border-right: 1px solid var(--vscode-panel-border); }
+.side section { padding: 6px 10px 10px; border-bottom: 1px solid var(--vscode-sideBarSectionHeader-border); }
+.side h2 { font-size: 11px; text-transform: uppercase; letter-spacing: .04em; margin: 4px 0 6px; display: flex; justify-content: space-between; align-items: center; color: var(--vscode-sideBarSectionHeader-foreground); }
+.side select { width: 100%; background: var(--vscode-dropdown-background); color: var(--vscode-foreground); border: 1px solid var(--vscode-dropdown-border); padding: 3px; font: inherit; }
+.list { list-style: none; margin: 0; padding: 0; max-height: 210px; overflow-y: auto; }
+.list li { padding: 2px 4px; cursor: default; border-radius: 2px; }
+#outline li { cursor: pointer; }
+#outline li:hover { background: var(--vscode-list-hoverBackground); }
+#outline li.selected { background: var(--vscode-list-activeSelectionBackground); color: var(--vscode-list-activeSelectionForeground); }
+.detail { color: var(--vscode-descriptionForeground); font-size: 12px; }
+.step.undone .name, .step.abandoned .name { color: var(--vscode-descriptionForeground); }
+.step.abandoned .name { text-decoration: line-through; }
+button { background: var(--vscode-button-secondaryBackground); color: var(--vscode-button-secondaryForeground); border: 1px solid var(--vscode-button-border); padding: 3px 8px; margin: 2px 2px 2px 0; font: inherit; cursor: pointer; border-radius: 2px; }
+button:hover:not(:disabled) { background: var(--vscode-button-secondaryHoverBackground); }
+button:disabled { opacity: .5; cursor: default; }
+button.primary { background: var(--vscode-button-background); color: var(--vscode-button-foreground); }
+button.link { background: none; border: none; color: var(--vscode-list-highlightForeground); padding: 0 2px; font-size: 12px; }
+button:focus-visible, li:focus-visible { outline: 1px solid var(--vscode-focusBorder); }
+.timebar { display: grid; grid-template-columns: auto 1fr auto; align-items: center; gap: 4px; }
+.timebar input { min-width: 0; accent-color: var(--vscode-focusBorder); }
+.timebar .step { margin: 0; padding: 0 6px; }
+.timebar .time-label { grid-column: 1 / -1; font-family: var(--vscode-editor-font-family); font-size: 12px; }
+.timebar input:focus-visible { outline: 1px solid var(--vscode-focusBorder); }
+#panel-try button { display: block; width: 100%; text-align: left; }
+.tools li { display: flex; align-items: baseline; gap: 6px; flex-wrap: wrap; }
+.file input { display: block; margin: 4px 0; color: var(--vscode-foreground); font: inherit; }
+.omitted-panel { padding: 10px 14px; overflow-y: auto; font-size: 13px; }
+.omitted-panel h2 { font-size: 15px; margin: 4px 0 8px; }
+.omitted-panel ul { padding-left: 18px; }
+.omitted-panel li { margin: 2px 0; }
+main { grid-row: 1; display: flex; min-width: 0; position: relative; }
+.frame { border: 0; display: block; }
+.frame-map { flex: 1; min-width: 0; height: 100%; }
+.side-frame { width: clamp(260px, 34vw, 380px); border-left: 1px solid var(--vscode-panel-border); display: flex; flex-direction: column; min-height: 0; }
+.side-frame[hidden] { display: none; }
+.side-frame .frame { flex: 1; min-height: 0; width: 100%; }
+.side-frame .omitted-panel { flex: 1; }
+.side-bar { display: flex; justify-content: space-between; align-items: center; padding: 2px 4px 2px 12px; font-size: 11px; text-transform: uppercase; letter-spacing: .04em; color: var(--vscode-sideBarSectionHeader-foreground); background: var(--vscode-sideBar-background); border-bottom: 1px solid var(--vscode-panel-border); }
+.side-bar button { text-transform: none; letter-spacing: 0; }
+.unavailable h2 { color: var(--vscode-disabledForeground); }
+.status.problem { color: var(--vscode-errorForeground); }
+footer { grid-column: 1 / span 2; padding: 3px 10px; background: var(--vscode-editorWidget-background); border-top: 1px solid var(--vscode-panel-border); font-size: 12px; }
+.status.busy::before { content: "⟳ "; display: inline-block; animation: spin 1.2s linear infinite; }
+@keyframes spin { to { transform: rotate(360deg); } }
+.toasts { position: fixed; right: 12px; bottom: 34px; display: flex; flex-direction: column; gap: 6px; max-width: 380px; z-index: 10; }
+.toast { background: var(--vscode-editorWidget-background); color: var(--vscode-editorWidget-foreground); border: 1px solid var(--vscode-editorWidget-border); border-left: 3px solid var(--vscode-focusBorder); padding: 8px 10px; box-shadow: 0 2px 8px #0005; }
+.toast.warning { border-left-color: var(--vscode-inputValidation-errorBorder); }
+dialog { background: var(--vscode-editorWidget-background); color: var(--vscode-editorWidget-foreground); border: 1px solid var(--vscode-editorWidget-border); max-width: 460px; }
+dialog::backdrop { background: #0006; }
+.buttons { display: flex; gap: 6px; justify-content: flex-end; flex-wrap: wrap; }
+/* Narrower: the form or results go under the map, not beside it. */
+@media (max-width: 900px) {
+  main { flex-direction: column; }
+  .frame-map { flex: 1; height: auto; min-height: 240px; }
+  .side-frame { width: auto; height: min(440px, 55%); border-left: 0; border-top: 1px solid var(--vscode-panel-border); }
+}
+/* Phone-sized: one column, the page scrolls; the map first, then the panels. */
+@media (max-width: 600px) {
+  html, body { height: auto; }
+  .app { grid-template-columns: 1fr; grid-template-rows: auto auto auto; height: auto; min-height: 100vh; }
+  main { grid-row: 1; }
+  .frame-map { flex: none; height: 55vh; }
+  .side-frame { height: 460px; }
+  .side { grid-row: 2; border-right: 0; overflow: visible; }
+  footer { grid-column: 1; position: sticky; bottom: 0; }
+}
