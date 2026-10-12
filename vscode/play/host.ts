@@ -16,9 +16,11 @@ import type { DebriefFeatureCollection, ParameterValue, StacItem, TimeState, Too
 import { count, describeChanges, describePeriod, describeTimes } from "../src/format.js";
 import { resolveTimes } from "../src/timeinput.js";
 import { describeStep, needs } from "../src/wording.js";
+import { displayed, hiddenIds, isFeature, isHidden, timeWindowOf, type PlotFeature } from "../src/hidden.js";
+import { TRACK_COLOURS } from "../webview/palette.js";
 import { TimeControl } from "../webview/timecontrol.js";
 
-type Feature = DebriefFeatureCollection["features"][number];
+type Feature = PlotFeature;
 interface Step {
   seq: number;
   status: "applied" | "undone" | "abandoned";
@@ -30,6 +32,7 @@ interface Step {
 }
 interface Opened {
   item: StacItem;
+  /** The plot, with its whole-plot feature and view (the island, SUB-22). */
   plot: DebriefFeatureCollection;
   base: { current: number; plot_hash: string };
   steps: Step[];
@@ -107,13 +110,16 @@ let offered: string[] = [];
 let formTool: ToolDeclaration | undefined;
 let colleagueDuringNextRun = false;
 
-const features = (): Feature[] => opened?.plot.features ?? [];
+/** The plot's features, without its whole-plot feature (the plot's own details and view). */
+const features = (): Feature[] => (opened?.plot.features ?? []).filter(isFeature);
 const selectedNames = () => selection.map((id) => features().find((f) => f.id === id)?.properties.name ?? id);
 
-function timeOf(item: StacItem, previous?: TimeState): TimeState | undefined {
+/** The plot's time window (its view, kept in the plot file outside its history), or else its period. */
+function timeOf(item: StacItem, plot: DebriefFeatureCollection, previous?: TimeState): TimeState | undefined {
   const p = item.properties;
-  const start = p.start_datetime ?? p.datetime ?? undefined;
-  const end = p.end_datetime ?? p.datetime ?? undefined;
+  const window = timeWindowOf(plot);
+  const start = window?.start ?? p.start_datetime ?? p.datetime ?? undefined;
+  const end = window?.end ?? p.end_datetime ?? p.datetime ?? undefined;
   if (!start || !end) return previous;
   if (previous && Date.parse(previous.current) >= Date.parse(start) && Date.parse(previous.current) <= Date.parse(end)) {
     return { current: previous.current, range: { start, end } };
@@ -125,9 +131,10 @@ function showPlot(): void {
   if (!opened) return;
   post(map, {
     kind: "show_plot",
-    plot: opened.plot,
+    plot: displayed(opened.plot), // hidden features left out (SUB-22)
     plot_title: opened.item.properties.title ?? opened.item.id,
     selection: { plot: opened.item.id, feature_ids: selection },
+    hidden_count: hiddenIds(opened.plot).length, // hiding is shared: the map says how many, with "Show all"
     ...(time && { time }),
   });
 }
@@ -141,7 +148,7 @@ async function openPlot(item: string, keep = false): Promise<void> {
   $<HTMLSelectElement>("plots").value = item;
   const ids = new Set(features().map((f) => f.id));
   selection = keep ? selection.filter((id) => ids.has(id)) : [];
-  showTime(timeOf(opened.item, previousTime));
+  showTime(timeOf(opened.item, opened.plot, previousTime));
   $("plot-title").textContent = opened.item.properties.title ?? item;
   if (opened.base.plot_hash !== shown) showPlot();
   else {
@@ -177,6 +184,7 @@ window.addEventListener("message", (event) => {
   if (name === "map") {
     if (message.kind === "selection_changed") void select((message.selection as { feature_ids: string[] }).feature_ids, true);
     if (message.kind === "time_changed") showTime(message.time as TimeState);
+    if (message.kind === "show_hidden" && opened) void restyle(hiddenIds(opened.plot), { hidden: false });
   } else if (name === "form") {
     if (message.kind === "cancel") closeForm();
     if (message.kind === "run_tool" && formTool && message.tool_name === formTool.name) {
@@ -315,6 +323,28 @@ async function runTool(tool: ToolDeclaration, parameters: ParameterValue[], onCo
   return undefined;
 }
 
+// --- Colour and hiding: content, so steps in the plot's history (SUB-22) --------------
+/** Colour tracks, or hide or show features, as one recorded, undoable step; then show the plot. */
+async function restyle(ids: string[], change: { colour: string; colour_name: string } | { hidden: boolean }): Promise<void> {
+  if (!opened || !pythonReady || !ids.length) return;
+  const outcome = await pythonJson<{ error?: string }>("restyle", opened.item.id, JSON.stringify({ base: opened.base, features: ids, ...change }));
+  if (outcome.error) toast(outcome.error, "warning");
+  await openPlot(opened.item.id, true);
+}
+const tracksSelected = () => selection.filter((id) => features().find((f) => f.id === id)?.properties.kind === "track");
+$<HTMLSelectElement>("colour").append(...TRACK_COLOURS.map((c) => new Option(c.name, c.colour)));
+$<HTMLSelectElement>("colour").onchange = (e) => {
+  const picker = e.target as HTMLSelectElement;
+  const chosen = TRACK_COLOURS.find((c) => c.colour === picker.value);
+  picker.value = "";
+  if (!chosen) return;
+  if (!tracksSelected().length) return toast("Select one or more tracks to colour.", "warning");
+  void restyle(tracksSelected(), { colour: chosen.colour, colour_name: chosen.name.toLowerCase() });
+};
+$("hide").onclick = () => (selection.length ? void restyle(selection, { hidden: true }) : toast("Select what to hide.", "warning"));
+// With nothing selected, Show shows everything hidden, as the map's "Show all" does.
+$("show").onclick = () => opened && void restyle(selection.length ? selection : hiddenIds(opened.plot), { hidden: false });
+
 // --- History ----------------------------------------------------------------------
 async function move(how: "undo" | "redo" | "goto", step?: number): Promise<void> {
   if (!opened || !pythonReady) return;
@@ -360,7 +390,8 @@ function renderOutline(): void {
         const props = f.properties as { times?: string[]; time?: string };
         row.innerHTML = `<span class="name"></span> <span class="detail"></span>`;
         row.querySelector(".name")!.textContent = f.properties.name;
-        row.querySelector(".detail")!.textContent = props.times ? describeTimes(props.times[0], props.times.at(-1)) : f.properties.kind;
+        const when = props.times ? describeTimes(props.times[0], props.times.at(-1)) : f.properties.kind;
+        row.querySelector(".detail")!.textContent = isHidden(f) ? `hidden on map · ${when}` : when;
         const choose = (add: boolean) =>
           void select(add ? (selection.includes(f.id) ? selection.filter((i) => i !== f.id) : [...selection, f.id]) : [f.id]);
         row.onclick = (e) => choose(e.ctrlKey || e.metaKey || e.shiftKey);
@@ -476,7 +507,7 @@ for (const panel of ["tools", "history", "try", "import"]) $(`panel-${panel}`).h
 // The panels in the order the demo lists them, after the plot and its outline.
 for (const panel of panelOrder) if (["tools", "history", "try", "import"].includes(panel)) $("side").append($(`panel-${panel}`));
 /** History, Try and Import need Python: off until it is ready. */
-const NEEDS_PYTHON = ["undo", "redo", "crash", "colleague", "colleague-during", "file"];
+const NEEDS_PYTHON = ["undo", "redo", "crash", "colleague", "colleague-during", "file", "colour", "hide", "show"];
 function needsPython(on: boolean): void {
   for (const id of NEEDS_PYTHON) $<HTMLButtonElement | HTMLInputElement>(id).disabled = !on;
 }
@@ -544,7 +575,7 @@ async function preview(item: string): Promise<void> {
     ]);
     if (opened) return; // Python was quicker
     opened = { item: stac, plot, base: { current: 0, plot_hash: "" }, steps: [], recovered: [] };
-    showTime(timeOf(stac));
+    showTime(timeOf(stac, plot));
     $("plot-title").textContent = stac.properties.title ?? item;
     showPlot();
     renderOutline();

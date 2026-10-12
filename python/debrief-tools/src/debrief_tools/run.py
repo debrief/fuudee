@@ -6,6 +6,11 @@ misbehaving tool can fail a run but cannot damage a plot. A run that changes
 features is written atomically with one provenance record naming the tool, its
 version, who ran it, the selection and the parameter values. A run that only
 returns a number, table or graph changes nothing and records nothing.
+
+A tool sees the plot's content only, never its island (the whole-plot
+feature's view, such as the time window): a run is recorded by its
+selection and parameters, so nothing it reads may sit outside the history
+(SUB-19, SUB-22). A tool that needs a time span takes it as a parameter.
 """
 
 from __future__ import annotations
@@ -23,6 +28,7 @@ from debrief_schemas import (
     load_document,
     models,
 )
+from debrief_schemas.island import PLOT_KIND, without_view
 from debrief_stac import Base, Catalogue, Changes, Conflict, HistoryError, NewerSchemaError
 from debrief_tools import diagnostics
 from debrief_tools.declare import Tool, ToolContext
@@ -85,13 +91,16 @@ def execute(
     declaration = tool.declaration
     if len(set(selection_ids)) != len(selection_ids):
         raise ToolRunError("The selection names a feature more than once.")
-    # The tool sees a copy: whatever it does to it, only its result can change the plot.
-    copy = plot.model_copy(deep=True)
+    # The tool sees a copy of the content: whatever it does to it, only its result can
+    # change the plot, and the plot's view (its island) is not content.
+    copy = without_view(plot).model_copy(deep=True)
     by_id = {feature.id: feature for feature in copy.features}
     missing = [i for i in selection_ids if i not in by_id]
     if missing:
         raise ToolRunError(f"The plot has no feature {missing[0]!r}; refresh and select again.")
     selection = [by_id[i] for i in selection_ids]
+    if any(f.properties.kind == PLOT_KIND for f in selection):
+        raise ToolRunError("Tools act on a plot's features, not on the plot's own details.")
     kinds = [str(f.properties.kind) for f in selection]
     if not applies(declaration, kinds):
         raise ToolRunError(f"{declaration.title} does not apply to this selection.")

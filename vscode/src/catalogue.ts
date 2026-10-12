@@ -6,7 +6,6 @@
  * trusting each item's parent link, never the catalogue's child links, as
  * debrief-stac does. Every file is validated on reading.
  */
-import { createHash } from "node:crypto";
 import { existsSync, readdirSync, readFileSync, statSync } from "node:fs";
 import path from "node:path";
 import { loadConfig, type ConfigError } from "@debrief/config";
@@ -14,7 +13,6 @@ import {
   parseDocument,
   type DebriefFeatureCollection,
   type KnownStore,
-  type Presentation,
   type StacItem,
 } from "@debrief/schemas";
 
@@ -42,31 +40,13 @@ export interface OpenedPlot {
   files: { key: string; title: string; kind: string; href: string }[];
   /** Where the plot's history stood when it was read, from the tool service (SUB-28). */
   base?: { current: number; plot_hash: string };
-  /** The analyst's colours and hidden features (SUB-22), and the hash to pass back when changing them. */
-  presentation: Presentation;
-  presentationHash: string;
+  /** The hash of the plot's view (its island, SUB-22) when it was read, to pass back when changing it. */
+  viewHash?: string;
 }
 
 /** The file that changes whenever anyone changes the plot's history. */
 export function headFile(store: KnownStore, itemId: string): string {
   return path.join(store.location, itemId, "history", "head.json");
-}
-
-/** The plot's presentation (SUB-22), changed by anyone sharing the catalogue. */
-export function presentationFile(store: KnownStore, itemId: string): string {
-  return path.join(store.location, itemId, "presentation.json");
-}
-
-const presentationHashOf = (text: string | undefined) =>
-  text === undefined ? "" : `sha256:${createHash("sha256").update(text, "utf8").digest("hex")}`;
-
-/** The hash of the presentation on disk now ("" if there is none), as the service gives it. */
-export function presentationHashOnDisk(store: KnownStore, itemId: string): string | undefined {
-  try {
-    return presentationHashOf(readFileSync(presentationFile(store, itemId), "utf8"));
-  } catch (error) {
-    return (error as NodeJS.ErrnoException).code === "ENOENT" ? "" : undefined;
-  }
 }
 
 /** Where the plot's history stands on disk now, or undefined if it cannot be read. */
@@ -156,11 +136,5 @@ export function openPlot(store: KnownStore, itemId: string): OpenedPlot {
       kind: String(asset["debrief:asset_kind"] ?? "file"),
       href: assetPath(store, item, asset),
     }));
-  const presentationPath = presentationFile(store, itemId);
-  const presentationText = existsSync(presentationPath) ? readFileSync(presentationPath, "utf8") : undefined;
-  const presentation = presentationText
-    ? parseDocument("presentation", presentationText)
-    : { schema_version: plot.schema_version, features: [] };
-  const presentationHash = presentationHashOf(presentationText);
-  return { store, item, plot, files: files.filter((f) => f.key !== "presentation"), presentation, presentationHash };
+  return { store, item, plot, files };
 }

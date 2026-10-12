@@ -82,8 +82,7 @@ export type FeatureTypeEnum = "Feature";
  * This interface was referenced by `DebriefSchemaDefinitions`'s JSON-Schema
  * via the `definition` "AssetKindEnum".
  */
-export type AssetKindEnum =
-  "plot" | "source" | "supporting_file" | "payload" | "result" | "measure_group" | "presentation";
+export type AssetKindEnum = "plot" | "source" | "supporting_file" | "payload" | "result" | "measure_group";
 /**
  * This interface was referenced by `DebriefSchemaDefinitions`'s JSON-Schema
  * via the `definition` "CatalogTypeEnum".
@@ -122,6 +121,11 @@ export type QuantityKindEnum = "length" | "speed" | "angle" | "duration" | "angu
 export type PayloadFormatEnum = "arrow" | "parquet" | "geojson";
 /**
  * This interface was referenced by `DebriefSchemaDefinitions`'s JSON-Schema
+ * via the `definition` "PlotKindEnum".
+ */
+export type PlotKindEnum = "plot";
+/**
+ * This interface was referenced by `DebriefSchemaDefinitions`'s JSON-Schema
  * via the `definition` "FeatureCollectionTypeEnum".
  */
 export type FeatureCollectionTypeEnum = "FeatureCollection";
@@ -131,7 +135,7 @@ export type FeatureCollectionTypeEnum = "FeatureCollection";
  * This interface was referenced by `DebriefSchemaDefinitions`'s JSON-Schema
  * via the `definition` "FeatureKindEnum".
  */
-export type FeatureKindEnum = "track" | "annotation" | "sensor_observations";
+export type FeatureKindEnum = "track" | "annotation" | "sensor_observations" | "plot";
 /**
  * This interface was referenced by `DebriefSchemaDefinitions`'s JSON-Schema
  * via the `definition` "PositionNotationEnum".
@@ -287,6 +291,10 @@ export interface PolygonGeometry {
  * via the `definition` "AnnotationProperties".
  */
 export interface AnnotationProperties {
+  /**
+   * Not drawn on the map. Still listed, and still selectable, in the outline. Content: hiding is a recorded, undoable change (SUB-22).
+   */
+  hidden?: boolean | null;
   kind: AnnotationKindEnum;
   name: string;
   provenance?: ProvRecord[] | null;
@@ -397,7 +405,7 @@ export interface TimeRange {
  * via the `definition` "DebriefFeatureCollection".
  */
 export interface DebriefFeatureCollection {
-  features: (TrackFeature | AnnotationFeature | SensorObservationsFeature)[];
+  features: (TrackFeature | AnnotationFeature | SensorObservationsFeature | PlotFeature)[];
   named_sets?: NamedSet[] | null;
   provenance: ProvRecord[];
   schema_version: string;
@@ -428,6 +436,10 @@ export interface TrackProperties {
    * Depth below the sea surface at each position, positive down. Absent where depth is not known.
    */
   depths?: LengthSeries | null;
+  /**
+   * Not drawn on the map. Still listed, and still selectable, in the outline. Content: hiding is a recorded, undoable change (SUB-22).
+   */
+  hidden?: boolean | null;
   kind: TrackKindEnum;
   name: string;
   platform_class?: string | null;
@@ -462,7 +474,7 @@ export interface SpeedSeries {
   values: number[];
 }
 /**
- * How a track is drawn, as imported. Data colours do not change with the theme (DEV-07). The analyst's later changes are presentation, kept in the plot's Presentation, not here: undoable, never recorded in provenance (SUB-22).
+ * How a track is drawn. Data colours do not change with the theme (DEV-07). Colour is content: the analyst changing it (blue friendly to red enemy, say) is a recorded, undoable change (SUB-22).
  *
  * This interface was referenced by `DebriefSchemaDefinitions`'s JSON-Schema
  * via the `definition` "TrackStyle".
@@ -497,6 +509,10 @@ export interface SensorObservationsFeature {
  * via the `definition` "SensorObservationsProperties".
  */
 export interface SensorObservationsProperties {
+  /**
+   * Not drawn on the map. Still listed, and still selectable, in the outline. Content: hiding is a recorded, undoable change (SUB-22).
+   */
+  hidden?: boolean | null;
   /**
    * The track carrying the sensor.
    */
@@ -555,6 +571,52 @@ export interface InnerSchemaRef {
   version: string;
 }
 /**
+ * The whole plot: its own details, and its view (the island). At most one per plot. Geometry is always null, so the plot file stays plain GeoJSON for other tools.
+ *
+ * This interface was referenced by `DebriefSchemaDefinitions`'s JSON-Schema
+ * via the `definition` "PlotFeature".
+ */
+export interface PlotFeature {
+  /**
+   * Always null.
+   */
+  geometry?: PointGeometry | null;
+  id: string;
+  properties: PlotProperties;
+  type: FeatureTypeEnum;
+}
+/**
+ * This interface was referenced by `DebriefSchemaDefinitions`'s JSON-Schema
+ * via the `definition` "PlotProperties".
+ */
+export interface PlotProperties {
+  /**
+   * What the plot is for. Content.
+   */
+  description?: string | null;
+  kind: PlotKindEnum;
+  /**
+   * The plot's title. Content, like everything outside view.
+   */
+  title?: string | null;
+  /**
+   * The island: how the plot is being viewed. Outside the plot's history (see the module description). Kept last, so it is easy to find and strip.
+   */
+  view?: PlotView | null;
+}
+/**
+ * View state saved in the plot file: not content, so not undoable and not recorded in provenance (SUB-22). Two people changing it at once are told, not silently overwritten (SUB-28). Later view state joins here.
+ *
+ * This interface was referenced by `DebriefSchemaDefinitions`'s JSON-Schema
+ * via the `definition` "PlotView".
+ */
+export interface PlotView {
+  /**
+   * The plot's time window: the period shown, one for the whole plot (CAP-28, CAP-29). Start shall not be after end.
+   */
+  time_window?: TimeRange | null;
+}
+/**
  * A saved, reusable selection (TL-11).
  *
  * This interface was referenced by `DebriefSchemaDefinitions`'s JSON-Schema
@@ -572,7 +634,10 @@ export interface NamedSet {
  * via the `definition` "Delta".
  */
 export interface Delta {
-  added?: (TrackFeature | AnnotationFeature | SensorObservationsFeature)[] | null;
+  /**
+   * Features added. A whole-plot feature here never carries its view: the island is not content (SUB-22).
+   */
+  added?: (TrackFeature | AnnotationFeature | SensorObservationsFeature | PlotFeature)[] | null;
   /**
    * The delta this one was applied on top of (0 for the first). Replay follows these links, and recovery uses them to finish a change that was written but not completed.
    */
@@ -582,7 +647,7 @@ export interface Delta {
   /**
    * Features changed, in full, replacing those with the same id.
    */
-  modified?: (TrackFeature | AnnotationFeature | SensorObservationsFeature)[] | null;
+  modified?: (TrackFeature | AnnotationFeature | SensorObservationsFeature | PlotFeature)[] | null;
   /**
    * Named sets added or replaced, by id.
    */
@@ -598,7 +663,7 @@ export interface Delta {
    */
   records: [ProvRecord, ...ProvRecord[]];
   /**
-   * Content hash of the plot file after this delta, to check replay.
+   * Content hash of the plot file after this delta, to check replay, taken with the island (the whole-plot feature's view) left out, so a change of view never looks like a change of content (SUB-22).
    */
   result_hash: string;
   schema_version: string;
@@ -606,24 +671,6 @@ export interface Delta {
    * Position in the plot's history, from 1, with no gaps.
    */
   seq: number;
-}
-/**
- * This interface was referenced by `DebriefSchemaDefinitions`'s JSON-Schema
- * via the `definition` "FeaturePresentation".
- */
-export interface FeaturePresentation {
-  /**
-   * Lower-case hex RGB, for a track; overrides the colour it was imported with.
-   */
-  colour?: string | null;
-  /**
-   * Not drawn on the map. Still listed, and still selectable, in the outline.
-   */
-  hidden?: boolean | null;
-  /**
-   * The feature's id in the plot.
-   */
-  id: string;
 }
 /**
  * This interface was referenced by `DebriefSchemaDefinitions`'s JSON-Schema
@@ -666,7 +713,7 @@ export interface HistoryHead {
    */
   latest: number;
   /**
-   * Content hash the plot file has when it reflects current.
+   * Content hash the plot file has when it reflects current, island left out.
    */
   plot_hash: string;
   schema_version: string;
@@ -751,17 +798,6 @@ export interface ParameterDeclaration {
   quantity_kind?: QuantityKindEnum | null;
   required?: boolean | null;
   title: string;
-}
-/**
- * This interface was referenced by `DebriefSchemaDefinitions`'s JSON-Schema
- * via the `definition` "Presentation".
- */
-export interface Presentation {
-  /**
-   * Each feature the analyst has restyled or hidden, once.
-   */
-  features: FeaturePresentation[];
-  schema_version: string;
 }
 /**
  * This interface was referenced by `DebriefSchemaDefinitions`'s JSON-Schema

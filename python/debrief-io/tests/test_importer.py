@@ -37,7 +37,14 @@ def test_import_creates_valid_plot(setup) -> None:
     assert report.tracks == ["NELSON", "HMS BLUE"]
     assert report.fixes == 6
     plot = catalogue.read_plot("serial-01")
-    tracks = {f.properties.name: f for f in plot.features}
+    tracks = {f.properties.name: f for f in plot.features if f.properties.kind == "track"}
+    # The plot's own details come with it, and a time window over its whole period,
+    # kept in the plot's island, outside its history (SUB-22).
+    details = plot.features[-1]
+    assert details.properties.kind == "plot" and details.properties.title == "Serial 1"
+    window = details.properties.view.time_window
+    item = catalogue.read_item("serial-01").properties
+    assert (window.start, window.end) == (item.start_datetime, item.end_datetime)
     nelson, blue = tracks["NELSON"], tracks["HMS BLUE"]
     assert nelson.id == "track-nelson" and blue.id == "track-hms-blue"
     assert nelson.properties.style.colour == "#e01c3e"

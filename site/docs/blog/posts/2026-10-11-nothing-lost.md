@@ -87,6 +87,9 @@ Current time, the selection and the viewport are now shared state:
 
 Changing a track's colour or hiding a feature on the map is *presentation*. It travels with the plot, but it isn't a change to the analysis, so it's never recorded in the plot's history or provenance. It's undoable all the same: presentation changes are listed at the top of the History view, and one `Ctrl+Z` takes back whatever the analyst did last.
 
+!!! note "Update, 12 Oct 2026"
+    We've changed our minds on this. Analysts told us that turning a blue friendly track red, once it proves hostile, *is* part of the analysis, and that they want one plot file to hand to a colleague, with nothing beside it. So colour and hiding are now ordinary changes to the plot: recorded in its history with who made them, named there ("Colour of BLUE ONE set to red"), and undone by `Ctrl+Z` like anything else. View state that should travel with the plot, starting with its time window, is kept inside the plot file, in an *island* the history ignores: it is never a step and never undone.
+
 ## Also in Phase 2
 
 - **Legacy plots.** Debrief v3 `.dpf` files import, with every element that has no v4 equivalent named at the end of the import and recorded in the plot's provenance. Across the 46 legacy sample files, 45 import; the 46th is broken on purpose.

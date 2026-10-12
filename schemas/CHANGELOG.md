@@ -2,6 +2,13 @@
 
 The data-file schema is versioned independently of Debrief (SUB-12). Before 1.0.0 there is no migration guarantee (SUB-13).
 
+## 0.0.9 (12 Oct 2026)
+
+- A whole-plot feature (`PlotFeature`, kind `plot`, at most one per plot, null geometry) carries the plot's own details (`title`, `description`), which are content, and its island (`view`): view state kept in the plot file but outside its history. The island is left out of every history hash and of every delta, is not undoable and is never recorded in provenance (SUB-22, decision 12 Oct). Its first member is the plot's time window (`view.time_window`), one for the whole plot, replacing per-layer display windows (CAP-28, CAP-29).
+- Features can be hidden (`hidden` on track, annotation and sensor observation properties). Hiding, like a track's colour, is content: a recorded, undoable change.
+- Presentation (`Presentation`, `presentation.json`, asset kind `presentation`) is retired. A `presentation.json` still found beside a plot of this schema version is turned into one recorded step when a writer opens the plot, then deleted; a read-only store applies it in memory. Plots of 0.0.8 or earlier cannot be opened by 0.0.9 at all (SUB-13), so this rarely runs.
+- A delta never holds a whole-plot feature's view (a rule checked on reading).
+
 ## 0.0.8 (12 Oct 2026)
 
 - A tool form is told current time (`current_time` on `show_form`), so its time fields start at the time the analyst is looking at (SUB-26, TL-07).

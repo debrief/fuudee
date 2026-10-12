@@ -86,7 +86,7 @@ Phase 2 completes the substrate: every change is recorded, replayable and recove
 
 | Workstream | Deliverables | SRD |
 | --- | --- | --- |
-| Provenance and undo | Deltas for every change to data; deterministic replay from sources; undo as replay to a point; local history for presentation changes. | SUB-19 to SUB-24 |
+| Provenance and undo | Deltas for every change to data; deterministic replay from sources; undo as replay to a point; local history for presentation changes (replaced on 12 Oct: colour and hiding are recorded changes, and view state that travels with a plot lives in its island). | SUB-19 to SUB-24 |
 | Shared state | Current time, selection and viewport, readable and settable by views, extensions and tools. | SUB-26, SUB-27, TL-10 |
 | File safety | Schema-version refusal of newer files; shared-catalogue schema-version warning; detection of changes on disk; save-as-new on conflict; atomic saves; crash recovery by replaying deltas. | SUB-14, SUB-28, SUB-29, SUB-35, NFR-10, NFR-11 |
 | Diagnostics | Local logging with parameter values, paths and feature names removed. | NFR-14 |
@@ -100,7 +100,7 @@ Phase 3 delivers the capabilities every community needs, ending in a pilot-ready
 
 | Workstream | Deliverables | SRD |
 | --- | --- | --- |
-| Time | Time controller; per-layer display windows; whole-deployment track views with sensor data limited to the window. | CAP-28, CAP-29 |
+| Time | Time controller setting the plot's time window, one for the whole plot and saved in the plot file outside its history (the window itself is readable and settable through the tool service already); whole-deployment track views with sensor data limited to the window. | CAP-28, CAP-29, SUB-22 |
 | Track operations | Drag, split, merge, jump removal, smoothing, OTG and DR modes, as deltas. Per-fix colour, labels and comments, which legacy plots carry and the Phase 2 .dpf import lists as not imported. | CAP-01, CAP-02, EXT-14 |
 | Annotation | Shapes, labels and chart furniture as GeoJSON; time-only annotations; temporal view. Annotation styling and circle and ellipse geometry, which the Phase 2 .dpf import lists as not imported. | CAP-03 to CAP-05, EXT-14 |
 | Tote | Tote on the architecture chosen by the Phase 0 spike; measure groups stored in the study catalogue. | CAP-06, CAP-07, NFR-04 |
@@ -181,6 +181,10 @@ The schema freeze may come earlier, even before pilots, if the model settles.
 - [x] Time precision: milliseconds (SUB-01) stands. Sub-millisecond legacy timestamps are truncated on .dpf import and recorded in provenance (EXT-14). (11 Oct)
 - [x] LinkML fallback: PRN-04 now names hand-written JSON Schema as the fallback for affected types only, gated on the Phase 0 spike failing its exit criterion. (11 Oct)
 - [x] Phase 4 order under staffing pressure: O/N storyboard and D sensor import run first; TMA follows once the storyboard ships. (11 Oct)
+
+**Decisions taken during Phase 3**
+
+- [x] One plot file, with its view inside it: analysts pass one plot file to a colleague, with no files beside it. Content goes into history (recorded, undoable, with provenance); view state that travels with the plot goes into the plot's island, the view of its whole-plot feature, outside the history's hashes and replay. Colour and hiding are content. The time window is one per plot, in the island, replacing per-layer display windows. `presentation.json` is retired. A plot of the current schema version that still has one becomes one recorded step on first opening; before schema 1.0 older plots cannot be opened at all (SUB-13), so in practice this rarely runs (SUB-22, CAP-28). (12 Oct)
 
 **Risks**
 

@@ -3,17 +3,16 @@
  * Undo is replay to an earlier step, so any step still in the plot or undone
  * can be returned to; steps replaced by a later change are kept on record but
  * cannot be. The history itself lives in Python; this view presents it.
- * Presentation changes made in this window are grouped at the top (SUB-22),
- * and the entry Ctrl+Z will take back next is marked.
+ * Colour and hiding are steps like any other (SUB-22, decision 12 Oct). The
+ * step Ctrl+Z will take back next is marked.
  */
 import * as vscode from "vscode";
 import { describePeriod } from "../format.js";
-import type { PresentationStep, TimelineEntry } from "../presentation.js";
 import type { HistoryStep } from "../service.js";
 import { describeStep } from "../wording.js";
-import { historyRows, type LocalRow, type Row } from "./historyrows.js";
+import { historyRows, type Row } from "./historyrows.js";
 
-type Node = { kind: "status"; text: string; icon: string } | Row | LocalRow;
+type Node = { kind: "status"; text: string; icon: string } | Row;
 
 const ICONS: Record<HistoryStep["status"], string> = {
   applied: "pass-filled",
@@ -29,21 +28,11 @@ export class HistoryProvider implements vscode.TreeDataProvider<Node> {
   current = 0;
   problem?: string;
   open = false;
-  local: { step: PresentationStep; undone: boolean }[] = [];
-  next?: TimelineEntry;
 
   constructor(private readonly toolTitle: (name: string) => string | undefined) {}
 
-  /** local: presentation changes made in this window, oldest first (SUB-22); next: what Ctrl+Z takes back next. */
-  update(
-    steps: HistoryStep[],
-    current: number,
-    open = true,
-    problem?: string,
-    local: { step: PresentationStep; undone: boolean }[] = [],
-    next?: TimelineEntry,
-  ): void {
-    Object.assign(this, { steps, current, open, problem, local, next });
+  update(steps: HistoryStep[], current: number, open = true, problem?: string): void {
+    Object.assign(this, { steps, current, open, problem });
     this.changed.fire();
   }
 
@@ -58,11 +47,11 @@ export class HistoryProvider implements vscode.TreeDataProvider<Node> {
 
   /** The rows as listed, for tests and agents. */
   rows(): Row[] {
-    return historyRows(this.steps, this.current, this.local, this.next);
+    return historyRows(this.steps, this.current);
   }
 
   getChildren(node?: Node): Node[] {
-    if (node) return node.kind === "group" ? node.children : [];
+    if (node) return [];
     if (this.problem) return [{ kind: "status", text: this.problem, icon: "warning" }];
     if (!this.open) return [{ kind: "status", text: "Open a plot to see its history.", icon: "info" }];
     return this.rows();
@@ -72,21 +61,6 @@ export class HistoryProvider implements vscode.TreeDataProvider<Node> {
     if (node.kind === "status") {
       const item = new vscode.TreeItem(node.text);
       item.iconPath = new vscode.ThemeIcon(node.icon);
-      return item;
-    }
-    if (node.kind === "group") {
-      const item = new vscode.TreeItem(node.label, vscode.TreeItemCollapsibleState.Expanded);
-      item.id = "presentation-group";
-      item.description = "undoable here, not in the plot's history";
-      item.tooltip = "Colours and hiding changed in this window: undoable here, never recorded in the plot's history (SUB-22).";
-      item.iconPath = new vscode.ThemeIcon("symbol-color");
-      return item;
-    }
-    if (node.kind === "presentation") {
-      const item = new vscode.TreeItem(node.step.label);
-      item.description = [node.undone ? "undone" : "", node.nextToUndo ? NEXT : ""].filter(Boolean).join(" · ");
-      item.tooltip = "A presentation change: undoable here, never recorded in the plot's history (SUB-22).";
-      item.iconPath = new vscode.ThemeIcon(node.undone ? "discard" : "symbol-color");
       return item;
     }
     const { step } = node;

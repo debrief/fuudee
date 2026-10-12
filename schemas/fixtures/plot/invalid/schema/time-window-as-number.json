@@ -1,0 +1,57 @@
+{
+  "type": "FeatureCollection",
+  "schema_version": "0.0.9",
+  "features": [
+    {
+      "type": "Feature",
+      "id": "plot",
+      "geometry": null,
+      "properties": {
+        "kind": "plot",
+        "title": "Serial 1: towed array trial",
+        "description": "Blue force tracking a submarine through the exercise area.",
+        "view": {
+          "time_window": {
+            "start": 1791711000000,
+            "end": "2026-10-11T09:31:30.000Z"
+          }
+        }
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "track-nelson",
+      "geometry": {
+        "type": "LineString",
+        "coordinates": [
+          [
+            -4.1201,
+            50.3502
+          ],
+          [
+            -4.1155,
+            50.3471
+          ],
+          [
+            -4.1098,
+            50.344
+          ]
+        ]
+      },
+      "properties": {
+        "kind": "track",
+        "name": "NELSON",
+        "times": [
+          "2026-10-11T09:30:00.000Z",
+          "2026-10-11T09:31:00.000Z",
+          "2026-10-11T09:32:00.000Z"
+        ],
+        "style": {
+          "colour": "#e01c3e"
+        },
+        "hidden": true
+      }
+    }
+  ],
+  "provenance": []
+}

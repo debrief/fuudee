@@ -153,6 +153,40 @@ try {
   await page.locator("#side-frame .side-bar button", { hasText: "Close" }).click();
   assert.equal(await page.locator("#side-frame").isHidden(), true);
 
+  // Colour and hiding are content: each is a step in the history, named, and undone by Ctrl+Z (SUB-22).
+  const mapFrame = page.frameLocator(".frame-map");
+  const blueLine = () => mapFrame.locator(`path.leaflet-interactive[stroke="${blue}"]`).count();
+  const red = "#e01c3e";
+  await page.locator(`#outline li[data-id="track-blue-one"]`).click();
+  await page.selectOption("#colour", { label: "Red" });
+  await page.waitForFunction(() => document.getElementById("history")?.textContent?.includes("Colour of BLUE ONE set to red"));
+  assert.equal(await blueLine(), 0, "BLUE ONE is drawn red now");
+  await shot("islands-01-colour-in-history");
+  const ais = await page.locator(`#outline li[data-id^="track-ais-"]`).first().getAttribute("data-id");
+  await page.locator(`#outline li[data-id="${ais}"]`).click();
+  await page.locator("#hide").click();
+  await mapFrame.locator(".hidden-control", { hasText: "1 hidden" }).waitFor();
+  assert.match(await text(`#outline li[data-id="${ais}"] .detail`), /hidden on map/);
+  assert.match(await history(), /hidden on the map/);
+  await shot("islands-02-hidden-on-map");
+  // Ctrl+Z twice: the hiding, then the colour, are undone like any change.
+  await page.locator("#selected-count").click();
+  await page.keyboard.press("Control+z");
+  await mapFrame.locator(".hidden-control").waitFor({ state: "hidden" });
+  await page.keyboard.press("Control+z");
+  await page.waitForFunction(() => /Colour of BLUE ONE set to red[^]*undone/.test(document.getElementById("history")?.textContent ?? ""));
+  await mapFrame.locator(`path.leaflet-interactive[stroke="${blue}"]`).first().waitFor();
+  assert.notEqual(blue, red);
+  await shot("islands-03-undo-restored-colour");
+  // Redo both, then the map's "Show all" shows the hidden track again, as one more step.
+  await page.keyboard.press("Control+y");
+  await page.waitForFunction(() => (document.getElementById("history")?.textContent?.match(/undone/g) ?? []).length === 1);
+  await page.keyboard.press("Control+y");
+  await mapFrame.locator(".hidden-control", { hasText: "1 hidden" }).waitFor();
+  await mapFrame.locator(".hidden-control button").click();
+  await mapFrame.locator(".hidden-control").waitFor({ state: "hidden" });
+  assert.match(await history(), /shown on the map/);
+
   // Import a legacy plot file.
   const dpf = path.resolve("../python/debrief-io/tests/data/shapes.dpf");
   if (existsSync(dpf)) {

@@ -167,7 +167,7 @@ The substrate is shared, domain-neutral, and the basis of the shared-cost argume
 - **SUB-19** Every change to data (tool outputs, edits, imports, deletions and named sets) shall be recorded as a delta, whether or not its output is kept. Prior states shall be reachable by replaying from source data, not by inverting operations.
 - **SUB-20** Replay shall be deterministic. Operations that use randomness shall record their seed.
 - **SUB-21** Undo shall be implemented as replay to a point. Tools shall not be required to implement undo.
-- **SUB-22** Presentation changes (styling, layer visibility, display windows such as CAP-28) shall be undoable through a local history but not recorded in provenance. View state (current time, selection, viewport) shall be neither undoable nor recorded.
+- **SUB-22** Content goes into history; view state goes into the island. Content is everything a plot holds, including how its features are styled (a track's colour) and whether each is hidden on the map: every change to it is a recorded, undoable step with provenance (SUB-19). View state shall be neither undoable nor recorded. Some view state travels with the plot, so an analyst can pass one plot file to a colleague with no files beside it: it is kept in the plot file as the plot's island, on the plot's own whole-plot feature, and its first member is the plot's time window (CAP-28). The island shall be left out of the history's hashes and replay, so changing it never conflicts with a change to content and undo never changes it; two analysts changing it at once shall be told rather than silently overwritten (SUB-28). Current time, selection and viewport are view state that is not saved (SUB-26). (Decision, 12 Oct 2026; replaces presentation kept beside the plot with a local history.)
 - **SUB-23** Links to parent documents shall be authoritative. Links to child documents may be stored as a convenience hint but shall never be trusted. Children shall be found by walking the catalogue.
 - **SUB-24** Provenance shall record the tool version, including user-written tools, and the identity of any agent and model that made a change.
 - **SUB-25** Images exported from Debrief shall carry an embedded GUID in their metadata linking back to their source.
@@ -299,8 +299,8 @@ Capabilities are replaceable and are where feature requests land. Each shall be 
 
 ### 7.11 Display legibility
 
-- **CAP-28** The analyst shall be able to limit each layer's displayed sensor data, such as bearing lines, to a window around current time, independently of the plot's overall time range. The window may extend before and after current time; by default it trails. A plot-wide default shall apply to layers without their own setting. The window is a display filter, not shared state (SUB-26).
-- **CAP-29** Debrief shall display tracks for a whole deployment (weeks) at once. Sensor data such as bearings shall be shown only within a window the analyst sets (CAP-28). Bearings are never all rendered at once; the window is the volume strategy for observation-heavy datasets (NFR-06), not only a legibility aid.
+- **CAP-28** The analyst shall be able to limit the plot's displayed sensor data, such as bearing lines, to a time window, independently of the plot's overall time range. There is one window for the whole plot, not one per layer (decision, 12 Oct 2026). The window is saved in the plot file as view state, in the plot's island (SUB-22), so it travels with the plot; it is not shared state (SUB-26). The time controller may move it with current time.
+- **CAP-29** Debrief shall display tracks for a whole deployment (weeks) at once. Sensor data such as bearings shall be shown only within the plot's time window, which the analyst sets (CAP-28). Bearings are never all rendered at once; the window is the volume strategy for observation-heavy datasets (NFR-06), not only a legibility aid.
 
 ## 8. Outcome requirements
 

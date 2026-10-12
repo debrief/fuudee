@@ -6,10 +6,10 @@
 import * as vscode from "vscode";
 import type { OpenedPlot } from "../catalogue.js";
 import type { Session } from "../session.js";
-import { isHidden } from "../presentation.js";
+import { isFeature, isHidden, type PlotFeature } from "../hidden.js";
 import { describeTimes } from "../format.js";
 
-type Feature = OpenedPlot["plot"]["features"][number];
+type Feature = PlotFeature;
 export type Node =
   | { kind: "section"; id: "features" | "files" | "reference"; label: string; children: Node[] }
   | { kind: "group"; id: string; label: string; parent: Node; children: Node[] }
@@ -34,7 +34,7 @@ function build(opened: OpenedPlot): { roots: Node[]; features: Map<string, Node>
   });
   const plotSection = section("features", "Plot features");
   for (const g of GROUPS) {
-    const members = opened.plot.features.filter((f) => f.properties.kind === g.kind);
+    const members = opened.plot.features.filter(isFeature).filter((f) => f.properties.kind === g.kind);
     if (!members.length) continue;
     const group: Node & { kind: "group" } = { kind: "group", id: g.id, label: g.label, parent: plotSection, children: [] };
     for (const feature of members) {
@@ -124,7 +124,7 @@ export class OutlineProvider implements vscode.TreeDataProvider<Node> {
           : props.time_range
             ? describeTimes(props.time_range.start, props.time_range.end)
             : describeTimes(props.time);
-        const hidden = isHidden(this.session.current?.presentation, feature.id);
+        const hidden = isHidden(feature);
         item.description = [selected ? "selected" : "", hidden ? "hidden on map" : "", when].filter(Boolean).join(" · ");
         item.contextValue = `feature-${feature.properties.kind}${hidden ? "-hidden" : ""}`;
         return item;

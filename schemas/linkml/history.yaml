@@ -23,7 +23,9 @@ description: >-
   operations is a separate check of determinism (SUB-20, decision 11 Oct).
   Undo moves the head back to an earlier delta; a change made after undoing
   marks the undone deltas abandoned, kept on record but no longer replayed
-  (SUB-21, decision 11 Oct).
+  (SUB-21, decision 11 Oct). The plot's island, its view state, is never in
+  a delta and never in a hash: undo and replay leave it as it is (SUB-22,
+  decision 12 Oct).
 
 classes:
   Delta:
@@ -54,12 +56,16 @@ classes:
         required: true
         minimum_cardinality: 1
       added:
+        description: >-
+          Features added. A whole-plot feature here never carries its view:
+          the island is not content (SUB-22).
         multivalued: true
         inlined_as_list: true
         any_of:
           - range: TrackFeature
           - range: AnnotationFeature
           - range: SensorObservationsFeature
+          - range: PlotFeature
       modified:
         description: Features changed, in full, replacing those with the same id.
         multivalued: true
@@ -68,6 +74,7 @@ classes:
           - range: TrackFeature
           - range: AnnotationFeature
           - range: SensorObservationsFeature
+          - range: PlotFeature
       deleted_ids: {multivalued: true}
       named_sets:
         description: Named sets added or replaced, by id.
@@ -81,7 +88,10 @@ classes:
           that is not the natural order (features kept in place, added ones last).
         multivalued: true
       result_hash:
-        description: Content hash of the plot file after this delta, to check replay.
+        description: >-
+          Content hash of the plot file after this delta, to check replay,
+          taken with the island (the whole-plot feature's view) left out, so
+          a change of view never looks like a change of content (SUB-22).
         range: ContentHash
         required: true
 
@@ -106,6 +116,6 @@ classes:
         range: integer
         multivalued: true
       plot_hash:
-        description: Content hash the plot file has when it reflects current.
+        description: Content hash the plot file has when it reflects current, island left out.
         range: ContentHash
         required: true

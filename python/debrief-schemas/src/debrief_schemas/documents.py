@@ -31,6 +31,7 @@ from pydantic import BaseModel
 
 from debrief_schemas.generated import debrief as g
 from debrief_schemas.generated.schema_version import SCHEMA_VERSION
+from debrief_schemas.island import dump_json
 
 
 class DocumentKind(StrEnum):
@@ -45,7 +46,6 @@ class DocumentKind(StrEnum):
     WEBVIEW_MESSAGE = "webview_message"
     DELTA = "delta"
     HISTORY_HEAD = "history_head"
-    PRESENTATION = "presentation"
 
 
 _MODELS: dict[DocumentKind, type[BaseModel]] = {
@@ -60,7 +60,6 @@ _MODELS: dict[DocumentKind, type[BaseModel]] = {
     DocumentKind.WEBVIEW_MESSAGE: g.WebviewMessage,
     DocumentKind.DELTA: g.Delta,
     DocumentKind.HISTORY_HEAD: g.HistoryHead,
-    DocumentKind.PRESENTATION: g.Presentation,
 }
 
 # Members that GeoJSON and STAC require to be present even when null.
@@ -118,14 +117,14 @@ def _json_schema() -> dict[str, Any]:
 
 
 @cache
-def _validator(kind: DocumentKind) -> Draft201909Validator:
+def _class_validator(name: str) -> Draft201909Validator:
     schema = _json_schema()
-    root = {
-        "$schema": schema["$schema"],
-        "$defs": schema["$defs"],
-        "$ref": f"#/$defs/{_MODELS[kind].__name__}",
-    }
+    root = {"$schema": schema["$schema"], "$defs": schema["$defs"], "$ref": f"#/$defs/{name}"}
     return Draft201909Validator(root)
+
+
+def _validator(kind: DocumentKind) -> Draft201909Validator:
+    return _class_validator(_MODELS[kind].__name__)
 
 
 # --- Layer 1: schema version ---------------------------------------------------
@@ -137,7 +136,6 @@ _FILE_KINDS = (
     DocumentKind.STAC_CATALOG,
     DocumentKind.DELTA,
     DocumentKind.HISTORY_HEAD,
-    DocumentKind.PRESENTATION,
 )
 
 
@@ -146,7 +144,6 @@ def _recorded_version(kind: DocumentKind, document: dict[str, Any]) -> object:
         DocumentKind.PLOT,
         DocumentKind.DELTA,
         DocumentKind.HISTORY_HEAD,
-        DocumentKind.PRESENTATION,
     ):
         return document.get("schema_version")
     if kind is DocumentKind.STAC_ITEM:
@@ -255,6 +252,11 @@ def _feature_problems(feature: Any, track_ids: set[str] | None) -> list[str]:
             problems.append(f"{where}: an annotation without geometry needs a time or time range")
         problems += _time_range_problems(where, props.time_range)
 
+    elif props.kind == "plot":
+        if feature.geometry is not None:
+            problems.append(f"{where}: the whole-plot feature has null geometry")
+        problems += view_problems(props.view, where)
+
     elif props.kind == "sensor_observations":
         if feature.geometry is not None:
             problems.append(f"{where}: sensor observations have null geometry")
@@ -285,6 +287,8 @@ def _plot_problems(plot: g.DebriefFeatureCollection, raw: dict[str, Any]) -> lis
     duplicates = sorted({i for i in ids if ids.count(i) > 1})
     problems += [f"feature id {i!r} is used more than once" for i in duplicates]
     track_ids = {f.id for f in plot.features if f.properties.kind == "track"}
+    if sum(f.properties.kind == "plot" for f in plot.features) > 1:
+        problems.append("a plot has at most one whole-plot feature (kind plot)")
     for feature in plot.features:
         problems += _feature_problems(feature, track_ids)
     known = set(ids)
@@ -485,15 +489,29 @@ def _webview_message_problems(message: g.WebviewMessage, raw: dict[str, Any]) ->
     return problems
 
 
-def _presentation_problems(presentation: g.Presentation) -> list[str]:
-    problems, seen = [], set()
-    for entry in presentation.features:
-        if entry.id in seen:
-            problems.append(f"feature {entry.id!r} is listed twice")
-        seen.add(entry.id)
-        if entry.colour is None and entry.hidden is None:
-            problems.append(f"feature {entry.id!r} has no colour and is not hidden")
-    return problems
+def view_problems(view: g.PlotView | None, where: str = "view") -> list[str]:
+    """Rules for the plot's island (its view) that JSON Schema cannot express."""
+    if view is None:
+        return []
+    return _time_range_problems(f"{where} time window", view.time_window)
+
+
+def load_view(source: dict[str, Any] | None) -> g.PlotView | None:
+    """Validate a plot's view (its island) on its own, as JSON Schema and the rules do
+    for a whole plot. None for no view. Raises DocumentValidationError."""
+    if source is None:
+        return None
+    validator = _class_validator("PlotView")
+    errors = sorted(validator.iter_errors(source), key=lambda e: list(e.path))
+    if errors:
+        raise DocumentValidationError(
+            [f"view/{'/'.join(map(str, e.path))}: {e.message}" for e in errors]
+        )
+    view = g.PlotView.model_validate(source)
+    problems = view_problems(view)
+    if problems:
+        raise DocumentValidationError(problems)
+    return view
 
 
 def _delta_problems(delta: g.Delta, raw: dict[str, Any]) -> list[str]:
@@ -503,6 +521,11 @@ def _delta_problems(delta: g.Delta, raw: dict[str, Any]) -> list[str]:
     for feature in (delta.added or []) + (delta.modified or []):
         problems += _feature_problems(feature, None)
     features = (delta.added or []) + (delta.modified or [])
+    problems += [
+        f"{f.id}: a delta never records the plot's view, which is outside its history"
+        for f in features
+        if f.properties.kind == "plot" and f.properties.view is not None
+    ]
     ids = [f.id for f in features] + list(delta.deleted_ids or [])
     problems += [
         f"feature {i!r} appears more than once in the delta"
@@ -536,7 +559,6 @@ _RULES: dict[DocumentKind, Callable[[Any, dict[str, Any]], list[str]]] = {
     DocumentKind.WEBVIEW_MESSAGE: _webview_message_problems,
     DocumentKind.DELTA: _delta_problems,
     DocumentKind.HISTORY_HEAD: _history_head_problems,
-    DocumentKind.PRESENTATION: lambda presentation, raw: _presentation_problems(presentation),
 }
 
 
@@ -620,7 +642,7 @@ def dump_document(kind: DocumentKind | str, model: BaseModel) -> str:
     """Serialise a document, validating it first so an invalid file is never written."""
     kind = DocumentKind(kind)
     document = _to_json_shape(kind, model.model_dump(mode="json", by_alias=True, exclude_none=True))
-    text = json.dumps(document, indent=2, ensure_ascii=False) + "\n"
+    text = dump_json(document)
     _validate(kind, document, text, build=False)
     return text
 

@@ -7,7 +7,7 @@
 import { userInfo } from "node:os";
 import * as vscode from "vscode";
 import type { ParameterValue, SharedState, SharedStateChange, ToolDeclaration } from "@debrief/schemas";
-import { headFile, headOnDisk, knownStores, openPlot, presentationFile, presentationHashOnDisk, type OpenedPlot } from "./catalogue.js";
+import { headFile, headOnDisk, knownStores, openPlot, type OpenedPlot } from "./catalogue.js";
 import { unwatchFile, watchFile } from "node:fs";
 import { count, describeChanges } from "./format.js";
 import { resolveTimes } from "./timeinput.js";
@@ -17,7 +17,7 @@ import { ResultsPanel } from "./panels/results.js";
 import { CONFLICT, NEWER_SCHEMA, ServiceError, ToolService, type Agent, type CallOutcome, type ToolListing } from "./service.js";
 import { HistoryProvider } from "./views/history.js";
 import { DiagnosticLog, hashed, logKey, serviceLine, toolRunLine, type ToolOutcome } from "./diagnostics.js";
-import { applyStep, hiddenIds, hiddenNotice, presentationChange, UndoTimeline, type TimelineEntry } from "./presentation.js";
+import { hiddenIds, hiddenNotice, isFeature } from "./hidden.js";
 import { TRACK_COLOURS } from "../webview/palette.js";
 import { Session } from "./session.js";
 import { CataloguesProvider } from "./views/catalogues.js";
@@ -266,7 +266,6 @@ export function activate(context: vscode.ExtensionContext): DebriefApi {
       return { problem, outcome: "saved_as_new_plot" };
     }
     if (outcome.changed) {
-      timeline.record(opened.item.id, { kind: "data" });
       const problem = await reloadPlot(true);
       if (problem) return { problem, outcome: "changed" };
     }
@@ -286,55 +285,38 @@ export function activate(context: vscode.ExtensionContext): DebriefApi {
     return (await vscode.window.showWarningMessage(message, { modal: true }, save)) === save;
   }
 
-  // --- Presentation's local history and the undo timeline (SUB-21, SUB-22) -----------
-  /** What the analyst did in this window, per plot, newest last, so one undo takes back the latest. */
-  const timeline = new UndoTimeline();
-
-  /** Save a presentation and show it. Never recorded in the plot's history. */
-  const savePresentation = (next: OpenedPlot["presentation"]): Promise<string | undefined> =>
-    ourChange(async () => {
-      const opened = session.current;
-      if (!opened || !service) return "Presentation changes need the tool service.";
-      try {
-        const { hash } = await service.setPresentation(opened.store.id, opened.item.id, next, opened.presentationHash);
-        session.setPlot({ ...opened, presentation: next, presentationHash: hash }, true);
-        return undefined;
-      } catch (error) {
-        if ((error as ServiceError).code === CONFLICT) {
-          await reloadPlot(true);
-          return "The plot's presentation was changed elsewhere, so nothing was changed. Debrief is showing the latest; try again if you still want to.";
-        }
-        return (error as Error).message;
-      }
-    });
-
-  const changePresentation = (label: string, ids: string[], change: { colour: string } | { hidden: boolean }) =>
-    serially(async () => {
-      const opened = session.current;
-      if (!opened) return "Open a plot first.";
-      const { step, next } = presentationChange(opened.item.id, label, opened.presentation, ids, change);
-      const problem = await savePresentation(next);
-      if (!problem) timeline.record(opened.item.id, { kind: "presentation", step });
-      await refreshHistory();
-      return problem;
-    });
-
+  // --- Colour and hiding: content, recorded in the plot's history (SUB-22) ----------
   /**
-   * Undo or redo a presentation step on the presentation as it is now, so
-   * others' changes since are kept (SUB-28). The timeline moves only if it saved.
+   * Colour tracks, or hide or show features: a step in the plot's history like
+   * any change, named by its note ("Colour of BLUE ONE set to red"), and undone
+   * by Ctrl+Z like any other (decision 12 Oct). A change made elsewhere since
+   * the plot was opened is never overwritten (SUB-28).
    */
-  const movePresentation = (entry: Extract<TimelineEntry, { kind: "presentation" }>, how: "undo" | "redo") =>
-    serially(async () => {
-      const opened = session.current;
-      if (!opened || opened.item.id !== entry.step.plot) return "Open the plot first.";
-      const problem = await savePresentation(applyStep(opened.presentation, entry.step, how));
-      if (!problem) {
-        if (how === "undo") timeline.undone(entry.step.plot, entry);
-        else timeline.redone(entry.step.plot, entry);
-      }
-      await refreshHistory();
-      return problem;
-    });
+  const restyle = (ids: string[], change: { colour: string; colour_name?: string } | { hidden: boolean }) =>
+    serially(() =>
+      ourChange(async () => {
+        const opened = session.current;
+        if (!opened) return "Open a plot first.";
+        if (!service || !opened.base) return "Changing colours and hiding needs Debrief's tool service. Run 'Debrief: Restart tool service'.";
+        const save = (allow = false) => service!.restyle(opened.store.id, opened.item.id, opened.base!, agent, ids, change, allow);
+        try {
+          try {
+            await save();
+          } catch (error) {
+            if ((error as ServiceError).code !== NEWER_SCHEMA) throw error;
+            if (!(await confirmNewerSchema((error as Error).message))) return "Nothing was changed.";
+            await save(true);
+          }
+        } catch (error) {
+          if ((error as ServiceError).code === CONFLICT) {
+            await reloadPlot(true);
+            return "The plot was changed elsewhere, so nothing was changed. Debrief is showing the latest; try again if you still want to.";
+          }
+          return (error as Error).message;
+        }
+        return reloadPlot(true);
+      }),
+    );
 
   async function askAboutConflict(title: string, mergeable: boolean): Promise<"merge" | "new_plot" | undefined> {
     const combine = "Combine the changes";
@@ -361,15 +343,21 @@ export function activate(context: vscode.ExtensionContext): DebriefApi {
   async function loadPlot(store: OpenedPlot["store"], itemId: string, keep = false): Promise<void> {
     let base: OpenedPlot["base"];
     let recovered: string[] = [];
+    let viewHash: string | undefined;
+    let shown: OpenedPlot["plot"] | undefined;
     if (service) {
       try {
-        ({ base, recovered } = await service.open(store.id, itemId));
+        const answer = await service.open(store.id, itemId, agent);
+        ({ base, recovered } = answer);
+        viewHash = answer.view_hash;
+        shown = answer.plot; // a retired presentation.json applied in memory (a read-only store)
       } catch (error) {
         // The plot's id only as a hash, and no message: both can name things (NFR-14).
         log(`open_failed item=${hashed(itemId)} code=${(error as ServiceError).code ?? "-"}`);
       }
     }
-    const opened = { ...openPlot(store, itemId), base };
+    const read = openPlot(store, itemId);
+    const opened = { ...read, plot: shown ?? read.plot, base, viewHash };
     session.setPlot(opened, keep);
     watch(opened);
     catalogues.refresh();
@@ -393,12 +381,12 @@ export function activate(context: vscode.ExtensionContext): DebriefApi {
 
   /**
    * Notice a change made elsewhere: another window, another analyst on a shared
-   * folder, an agent (SUB-28), to the plot or to its presentation. Polled,
+   * folder, an agent (SUB-28). Polled,
    * because change events are unreliable on network shares. Nothing is ever
    * overwritten: Debrief shows the latest.
    */
   function watch(opened: OpenedPlot): void {
-    const files = [headFile(opened.store, opened.item.id), presentationFile(opened.store, opened.item.id)];
+    const files = [headFile(opened.store, opened.item.id)];
     if (watched.join() === files.join()) return;
     watched.forEach((file) => unwatchFile(file));
     watched = files;
@@ -414,15 +402,11 @@ export function activate(context: vscode.ExtensionContext): DebriefApi {
       if (writing || !current || headFile(current.store, current.item.id) !== files[0]) return;
       const onDisk = headOnDisk(current.store, current.item.id);
       const plotChanged = !!onDisk && (onDisk.current !== current.base?.current || onDisk.plot_hash !== current.base?.plot_hash);
-      const presentationChanged = presentationHashOnDisk(current.store, current.item.id) !== current.presentationHash;
-      if (!plotChanged && !presentationChanged) return;
+      if (!plotChanged) return;
       const problem = await reloadPlot(true);
       const title = current.item.properties.title ?? current.item.id;
       void vscode.window.showInformationMessage(
-        problem ??
-          (plotChanged
-            ? `${title} was changed elsewhere. Debrief is showing the latest.`
-            : `${title}'s colours or hidden features were changed elsewhere. Debrief is showing the latest.`),
+        problem ?? `${title} was changed elsewhere. Debrief is showing the latest.`,
       );
     });
   }
@@ -438,26 +422,14 @@ export function activate(context: vscode.ExtensionContext): DebriefApi {
       try {
         const listed = await service.history(opened.store.id, opened.item.id);
         if (request !== historyRequest) return; // a later refresh has the newer answer
-        history.update(
-          listed.steps,
-          listed.base.current,
-          true,
-          undefined,
-          timeline.presentationSteps(opened.item.id),
-          timeline.nextUndo(opened.item.id),
-        );
+        history.update(listed.steps, listed.base.current, true);
       } catch (error) {
         if (request !== historyRequest) return;
         history.update([], 0, true, (error as Error).message);
       }
     }
-    const plot = session.current?.item.id;
-    const nextUndo = plot ? timeline.nextUndo(plot) : undefined;
-    const nextRedo = plot ? timeline.nextRedo(plot) : undefined;
-    const canUndo = nextUndo?.kind === "presentation" || history.canUndo();
-    const canRedo = nextRedo?.kind === "presentation" || (nextRedo?.kind === "data" && history.canRedo());
-    void vscode.commands.executeCommand("setContext", "debrief.canUndo", canUndo);
-    void vscode.commands.executeCommand("setContext", "debrief.canRedo", canRedo);
+    void vscode.commands.executeCommand("setContext", "debrief.canUndo", history.canUndo());
+    void vscode.commands.executeCommand("setContext", "debrief.canRedo", history.canRedo());
   }
 
   /** Undo, redo, or go to a step (SUB-21): replay in the service, then show the result. */
@@ -472,7 +444,7 @@ export function activate(context: vscode.ExtensionContext): DebriefApi {
             await service.move(how, opened.store.id, opened.item.id, opened.base, step);
           } catch (error) {
             if ((error as ServiceError).code !== NEWER_SCHEMA) throw error;
-            if (!(await confirmNewerSchema((error as Error).message))) return "Nothing was changed."; // declined: the timeline must not move
+            if (!(await confirmNewerSchema((error as Error).message))) return "Nothing was changed.";
             await service.move(how, opened.store.id, opened.item.id, opened.base, step, true);
           }
         } catch (error) {
@@ -500,7 +472,7 @@ export function activate(context: vscode.ExtensionContext): DebriefApi {
       map.reveal();
       // Hiding is shared: say so, so nothing on the plot goes unseen (SUB-22).
       const opened = session.current;
-      const notice = opened && hiddenNotice(hiddenIds(opened.plot, opened.presentation).length);
+      const notice = opened && hiddenNotice(hiddenIds(opened.plot).length);
       if (notice) {
         void vscode.window
           .showInformationMessage(notice, "Show all")
@@ -516,33 +488,21 @@ export function activate(context: vscode.ExtensionContext): DebriefApi {
     if (problem) void vscode.window.showWarningMessage(problem);
     return problem;
   };
-  // One undo for everything the analyst does: Ctrl+Z takes back the latest
-  // thing done in this window, a presentation change or a change to the plot.
-  // The timeline moves only once the undo or redo has succeeded.
+  // Ctrl+Z is the plot's history: colour and hiding are steps in it like any change.
   command("debrief.undo", async () => {
-    const plot = session.current?.item.id;
-    if (!plot) return report("Open a plot first.");
-    const entry = timeline.nextUndo(plot);
-    if (entry?.kind === "presentation") return report(await movePresentation(entry, "undo"));
-    // A change to the plot: made in this window, or (none recorded) one from before it.
+    if (!session.current) return report("Open a plot first.");
     const problem = await move("undo");
-    if (!problem) timeline.undone(plot, entry ?? { kind: "data" });
     await refreshHistory();
     return report(problem);
   });
   command("debrief.redo", async () => {
-    const plot = session.current?.item.id;
-    const entry = plot ? timeline.nextRedo(plot) : undefined;
-    // Only what was undone in this window, and only until a new change (SUB-21).
-    if (!plot || !entry) return report("There is nothing to redo.");
-    if (entry.kind === "presentation") return report(await movePresentation(entry, "redo"));
+    if (!session.current || !history.canRedo()) return report("There is nothing to redo.");
     const problem = await move("redo");
-    if (!problem) timeline.redone(plot, entry);
     await refreshHistory();
     return report(problem);
   });
 
-  // Presentation (SUB-22): colours and hiding, beside the plot, outside its history.
+  // Colour and hiding (SUB-22): content, so each is a step in the plot's history.
   // A node from the outline, a list of ids (the map's "Show all"), or else the selection.
   type Target = { feature?: { id: string }; ids?: string[] };
   const targets = (node?: Target) => node?.ids ?? (node?.feature ? [node.feature.id] : session.selection);
@@ -557,15 +517,20 @@ export function activate(context: vscode.ExtensionContext): DebriefApi {
           placeHolder: `Colour for ${ids.length === 1 ? "the track" : `${ids.length} tracks`}`,
         });
     if (!picked) return undefined;
-    return report(await changePresentation(`Colour ${picked.label.toLowerCase()}`, ids, { colour: picked.colour }));
+    return report(await restyle(ids, { colour: picked.colour, colour_name: picked.label.toLowerCase() }));
   });
+  const features = (ids: string[]) =>
+    ids.filter((id) => {
+      const feature = session.current?.plot.features.find((f) => f.id === id);
+      return !!feature && isFeature(feature);
+    });
   command("debrief.hide", async (node?: Target) => {
-    const ids = targets(node);
-    return report(ids.length ? await changePresentation("Hide on map", ids, { hidden: true }) : "Select what to hide.");
+    const ids = features(targets(node));
+    return report(ids.length ? await restyle(ids, { hidden: true }) : "Select what to hide.");
   });
   command("debrief.show", async (node?: Target) => {
-    const ids = targets(node);
-    return report(ids.length ? await changePresentation("Show on map", ids, { hidden: false }) : "Select what to show.");
+    const ids = features(targets(node));
+    return report(ids.length ? await restyle(ids, { hidden: false }) : "Select what to show.");
   });
   command("debrief.goToStep", async (target?: number | { step: { seq: number } }) => {
     const seq = typeof target === "number" ? target : target?.step.seq;
@@ -578,7 +543,7 @@ export function activate(context: vscode.ExtensionContext): DebriefApi {
   command("debrief.historyRows", () => history.rows());
   command("debrief.showAllHidden", () => {
     const opened = session.current;
-    const ids = opened ? hiddenIds(opened.plot, opened.presentation) : [];
+    const ids = opened ? hiddenIds(opened.plot) : [];
     return ids.length ? vscode.commands.executeCommand("debrief.show", { ids }) : undefined;
   });
 

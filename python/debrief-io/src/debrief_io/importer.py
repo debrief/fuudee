@@ -22,8 +22,9 @@ from pathlib import Path
 from debrief_io.rep import RepFix, colour_for, parse_rep
 from debrief_kernel.time import format_utc
 from debrief_schemas import SCHEMA_VERSION, DebriefFeatureCollection, dump_plot, models
-from debrief_stac import Catalogue
+from debrief_stac import Catalogue, period_view, with_plot_details
 from debrief_stac.hashing import content_hash
+from debrief_stac.history import view_hash
 
 IMPORTER = "debrief-io.rep"
 
@@ -186,6 +187,9 @@ def store_import(
         href=f"sources/{path.name}", content_hash=content_hash(io.BytesIO(data))
     )
     plot, report = build(expected)
+    # The plot's own details, and a time window over its whole period to start with.
+    plot = with_plot_details(plot, title)
+    view = period_view(plot)
     dump_plot(plot)  # validates, raising DocumentValidationError before anything is written
     catalogue.create_plot(item_id, title, allow_newer_schema=allow_newer_schema)
     try:
@@ -198,6 +202,8 @@ def store_import(
                 update={"provenance": [record.model_copy(update={"used": [stored]})]}
             )
         catalogue.write_plot(item_id, plot, allow_newer_schema=allow_newer_schema)
+        if view is not None:
+            catalogue.write_view(item_id, view, view_hash(None))
     except BaseException:
         catalogue.discard_plot(item_id)
         raise

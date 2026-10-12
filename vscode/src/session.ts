@@ -10,8 +10,9 @@
 import { EventEmitter } from "node:events";
 import type { SharedState, SharedStateChange, TimeState, Viewport } from "@debrief/schemas";
 import type { OpenedPlot } from "./catalogue.js";
+import { isFeature, timeWindowOf, type PlotFeature } from "./hidden.js";
 
-type Feature = OpenedPlot["plot"]["features"][number];
+type Feature = PlotFeature;
 
 const WORLD: Viewport = { bbox: [-180, -90, 180, 90] };
 
@@ -87,13 +88,15 @@ export class Session {
   }
 
   /**
-   * The plot's period, keeping current time where it was. A range widened
-   * earlier (by a tool, say) is kept, so current time never jumps back.
+   * The plot's time window (its view, kept in the plot file, SUB-22), or else
+   * its period, keeping current time where it was. A range widened earlier
+   * (by a tool, say) is kept, so current time never jumps back.
    */
   private timeFor(opened: OpenedPlot, previous?: TimeState): TimeState | undefined {
     const props = opened.item.properties;
-    let start = props.start_datetime ?? props.datetime ?? undefined;
-    let end = props.end_datetime ?? props.datetime ?? undefined;
+    const window = timeWindowOf(opened.plot);
+    let start = window?.start ?? props.start_datetime ?? props.datetime ?? undefined;
+    let end = window?.end ?? props.end_datetime ?? props.datetime ?? undefined;
     if (!start || !end) return previous;
     if (!previous) return { current: start, range: { start, end } };
     const ms = Date.parse;
@@ -172,7 +175,7 @@ export class Session {
   }
 
   selectedFeatures(): Feature[] {
-    const byId = new Map((this.current?.plot.features ?? []).map((f) => [f.id, f]));
+    const byId = new Map((this.current?.plot.features ?? []).filter(isFeature).map((f) => [f.id, f]));
     return this.selection.map((id) => byId.get(id)!).filter(Boolean);
   }
 }
