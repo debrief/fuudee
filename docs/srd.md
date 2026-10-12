@@ -299,7 +299,7 @@ Capabilities are replaceable and are where feature requests land. Each shall be 
 
 ### 7.11 Display legibility
 
-- **CAP-28** The analyst shall be able to limit the plot's displayed sensor data, such as bearing lines, to a time window, independently of the plot's overall time range. There is one window for the whole plot, not one per layer (decision, 12 Oct 2026). The window is saved in the plot file as view state, in the plot's island (SUB-22), so it travels with the plot; it is not shared state (SUB-26). The time controller may move it with current time.
+- **CAP-28** The analyst shall be able to limit the plot's displayed sensor data, such as bearing lines, to a time window, independently of the plot's overall time range. There is one window for the whole plot, not one per layer (decision, 12 Oct 2026). The window is saved in the plot file as view state, in the plot's island (SUB-22), so it travels with the plot; the saved window is not itself shared state (SUB-26), but shared state's time range follows the window as shown, including while the analyst drags it, so views and tools see what the analyst sees. The time controller may move it with current time.
 - **CAP-29** Debrief shall display tracks for a whole deployment (weeks) at once. Sensor data such as bearings shall be shown only within the plot's time window, which the analyst sets (CAP-28). Bearings are never all rendered at once; the window is the volume strategy for observation-heavy datasets (NFR-06), not only a legibility aid.
 
 ## 8. Outcome requirements
