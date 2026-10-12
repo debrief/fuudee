@@ -220,12 +220,11 @@ export class TimeControl {
       if (what === "band" && this.window.end - this.window.start >= this.extent.end - this.extent.start) what = ms < (this.window.start + this.window.end) / 2 ? "start" : "end";
       event.preventDefault();
       area.setPointerCapture(event.pointerId);
+      // Focus first: the other handle losing focus ends its gesture, never this one.
+      if (what !== "band") this.part<HTMLElement>(what === "start" ? ".tc-start" : ".tc-end").focus({ preventScroll: true });
       dragging = { what, from: ms, window: { ...this.window } };
       this.gesture.begin(this.window);
-      if (what !== "band") {
-        this.part<HTMLElement>(what === "start" ? ".tc-start" : ".tc-end").focus({ preventScroll: true });
-        this.gesture.move(moveEdge(this.window, this.extent, what, ms));
-      }
+      if (what !== "band") this.gesture.move(moveEdge(this.window, this.extent, what, ms));
     });
     area.addEventListener("pointermove", (event) => {
       if (!dragging) return;

@@ -80,13 +80,16 @@ export async function run(): Promise<void> {
   const period = api.session.period()!;
   const base = api.session.current!.base;
   const narrow = { start: "2023-06-15T09:00:00.000Z", end: "2023-06-15T10:00:00.000Z" };
+  const checks = api.viewChecks();
   assert.equal(await vscode.commands.executeCommand("debrief.setTimeWindow", narrow), undefined);
   assert.deepEqual(api.getState()!.time.range, narrow);
   assert.deepEqual(api.session.current!.base, base, "no step in the history");
   const plotPath = path.join(opened.store.location, "serial-1", "plot.geojson");
   const island = () => JSON.parse(readFileSync(plotPath, "utf8")).features.find((f: { properties: { kind: string } }) => f.properties.kind === "plot").properties.view;
   assert.deepEqual(island().time_window, narrow);
-  await sleep(1500);
+  await sleep(2500);
+  // Debrief's own save is never taken for a colleague's: the plot is not opened again for it.
+  assert.equal(api.viewChecks(), checks, "Debrief's own save of the window was checked as a change elsewhere");
   await screenshot("01c-time-window");
   // A colleague's window, written by another process: noticed, shown, and said.
   const theirs = { start: "2023-06-15T10:00:00.000Z", end: "2023-06-15T11:00:00.000Z" };
@@ -103,6 +106,20 @@ export async function run(): Promise<void> {
   // Back to the whole plot, saved over theirs, which Debrief has read since.
   assert.equal(await vscode.commands.executeCommand("debrief.setTimeWindow", period), undefined);
   assert.deepEqual(island().time_window, period);
+  // Two windows let go of in quick succession, as two key presses are: the first one's
+  // save finishing never puts it back on screen over the second.
+  const ranges: string[] = [];
+  const watching = api.onDidChangeState((change) => change.time && ranges.push(change.time.range.start));
+  const first = { start: "2023-06-15T08:05:00.000Z", end: period.end };
+  const second = { start: "2023-06-15T08:10:00.000Z", end: period.end };
+  await Promise.all([
+    vscode.commands.executeCommand("debrief.setTimeWindow", first),
+    vscode.commands.executeCommand("debrief.setTimeWindow", second),
+  ]);
+  watching.dispose();
+  assert.deepEqual(ranges, [first.start, second.start], "the window shown went back to one let go of earlier");
+  assert.deepEqual(island().time_window, second);
+  assert.equal(await vscode.commands.executeCommand("debrief.setTimeWindow", period), undefined);
 
   // Select BLUE ONE: the tools for one track are offered; open range rings.
   await vscode.commands.executeCommand("debrief.select", ["track-blue-one"]);
@@ -122,6 +139,10 @@ export async function run(): Promise<void> {
   assert.equal(problem, undefined);
   await waitFor("rings", () => (api.session.current?.plot.features.length === before + 5) || undefined);
   assert.equal(api.session.current!.plot.provenance.at(-1)?.tool?.name, "core.range_rings");
+  // Nor is a change to the plot's content Debrief made itself.
+  const checksAfterRun = api.viewChecks();
+  await sleep(2500);
+  assert.equal(api.viewChecks(), checksAfterRun, "Debrief's own tool run was checked as a change elsewhere");
 
   // BLUE ONE and RED ONE: closest approach is offered; run it and see the result.
   await vscode.commands.executeCommand("debrief.select", ["track-blue-one", "track-red-one"]);

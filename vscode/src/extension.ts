@@ -8,7 +8,7 @@ import { userInfo } from "node:os";
 import * as vscode from "vscode";
 import type { ParameterValue, SharedState, SharedStateChange, TimeRange, ToolDeclaration } from "@debrief/schemas";
 import { headFile, headOnDisk, knownStores, openPlot, plotFile, type OpenedPlot } from "./catalogue.js";
-import { unwatchFile, watchFile } from "node:fs";
+import { statSync, unwatchFile, watchFile } from "node:fs";
 import { count, describeChanges } from "./format.js";
 import { resolveTimes } from "./timeinput.js";
 import { FormPanel } from "./panels/form.js";
@@ -52,6 +52,8 @@ export interface DebriefApi {
   hiddenOnMap: () => number | undefined;
   /** Whether the time controller in the sidebar has loaded, for tests and agents. */
   timeControllerShowing: () => boolean;
+  /** How many times the plot's view has been read again after a change on disk, for tests. */
+  viewChecks: () => number;
 }
 
 export function activate(context: vscode.ExtensionContext): DebriefApi {
@@ -195,6 +197,7 @@ export function activate(context: vscode.ExtensionContext): DebriefApi {
     try {
       return await work();
     } finally {
+      seePlotFile(); // as we left it: not a change of someone else's to check
       writing--;
     }
   }
@@ -367,18 +370,24 @@ export function activate(context: vscode.ExtensionContext): DebriefApi {
           await refreshHistory();
           return reloaded;
         }
-        showView(opened, answer);
+        showView(opened, answer, true);
         return undefined;
       }),
     );
 
-  /** Show a view the service read: the plot's content is as it was, so it isn't read again. */
-  function showView(opened: OpenedPlot, answer: OpenedView): void {
+  /**
+   * Show a view the service read: the plot's content is as it was, so it isn't
+   * read again. Our own window is on screen already, from when it moved; showing
+   * it again as its save finishes could put back a window since moved on from.
+   */
+  function showView(opened: OpenedPlot, answer: OpenedView, ours = false): void {
     opened.viewHash = answer.view_hash;
     setViewOf(opened.plot, answer.view);
-    session.windowChanged(timeWindowOf(opened.plot), "plot-view");
+    if (ours) session.savedWindow = timeWindowOf(opened.plot) ?? session.period();
+    else session.windowChanged(timeWindowOf(opened.plot), "plot-view");
   }
 
+  let viewChecks = 0;
   /**
    * Read the plot's view again, after a change to the plot file that left its
    * history alone: a colleague's new window, say. True if it had changed.
@@ -386,6 +395,7 @@ export function activate(context: vscode.ExtensionContext): DebriefApi {
   async function refreshView(): Promise<boolean> {
     const opened = session.current;
     if (!opened || !service) return false;
+    viewChecks++;
     let answer: OpenedView;
     try {
       answer = await service.open(opened.store.id, opened.item.id, agent);
@@ -473,17 +483,43 @@ export function activate(context: vscode.ExtensionContext): DebriefApi {
     // The plot file too: a change to its time window leaves the history alone (SUB-22).
     const plot = plotFile(opened.store, opened.item);
     const files = [headFile(opened.store, opened.item.id), ...(plot ? [plot] : [])];
-    if (watched.join() === files.join()) return;
+    if (watched.join() === files.join()) return seePlotFile();
     watched.forEach((file) => unwatchFile(file));
     watched = files;
-    for (const file of files) watchFile(file, { interval: 1000 }, () => noticeChange(files));
+    seePlotFile();
+    for (const file of files) {
+      watchFile(file, { interval: 1000 }, (now) => {
+        if (file === files[1]) {
+          // The plot file as Debrief last wrote or read it: nothing to check. Checking
+          // means opening the plot through the service, a second or so for a big one.
+          if (now.mtimeMs === plotFileSeen) return;
+          plotFileSeen = now.mtimeMs;
+        }
+        noticeChange(files, file === files[1]);
+      });
+    }
   }
-  function noticeChange(files: string[]): void {
-    if (writing || checking) return; // ours, or a check already waiting
+  /** When the plot file was last changed as Debrief last wrote or read it. */
+  let plotFileSeen: number | undefined;
+  function seePlotFile(): void {
+    try {
+      plotFileSeen = watched[1] ? statSync(watched[1]).mtimeMs : undefined;
+    } catch {
+      plotFileSeen = undefined;
+    }
+  }
+  /** Whether the plot file itself changed, not only its history: its window may have. */
+  let viewToCheck = false;
+  function noticeChange(files: string[], plotFileChanged: boolean): void {
+    if (writing) return; // ours
+    viewToCheck ||= plotFileChanged;
+    if (checking) return; // a check already waiting
     checking = true;
     // Checked in turn with our own changes, so one of ours finishing is never mistaken for another's.
     void serially(async () => {
       checking = false;
+      const checkView = viewToCheck;
+      viewToCheck = false;
       const current = session.current;
       if (writing || !current || headFile(current.store, current.item.id) !== files[0]) return;
       const onDisk = headOnDisk(current.store, current.item.id);
@@ -491,7 +527,7 @@ export function activate(context: vscode.ExtensionContext): DebriefApi {
       const title = current.item.properties.title ?? current.item.id;
       if (!plotChanged) {
         // Perhaps only its time window: show that, without reading the plot's content again.
-        if (await refreshView()) {
+        if (checkView && (await refreshView())) {
           void vscode.window.showInformationMessage(`The time window of ${title} was changed elsewhere. Debrief is showing the latest.`);
         }
         return;
@@ -774,6 +810,7 @@ export function activate(context: vscode.ExtensionContext): DebriefApi {
     toolsProblem: () => tools.problem,
     hiddenOnMap: () => map.hiddenCount,
     timeControllerShowing: () => timeView.showing,
+    viewChecks: () => viewChecks,
   };
 }
 

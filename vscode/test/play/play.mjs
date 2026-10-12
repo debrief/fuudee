@@ -289,6 +289,14 @@ try {
     assert.equal(Number(await tc(".tc-end").getAttribute("aria-valuenow")), end - 300000);
     await page.keyboard.press("End");
     assert.equal(Number(await tc(".tc-end").getAttribute("aria-valuenow")), end);
+    // With the end handle focused, drag the start handle: the other handle losing focus never stops the drag.
+    const startNow = Number(await tc(".tc-start").getAttribute("aria-valuenow"));
+    const grip = await tc(".tc-start").boundingBox();
+    await page.mouse.move(grip.x + grip.width / 2, grip.y + grip.height / 2);
+    await page.mouse.down();
+    for (let i = 1; i <= 5; i++) await page.mouse.move(grip.x + grip.width / 2 - i * 4, grip.y + grip.height / 2);
+    await page.mouse.up();
+    assert.ok(Number(await tc(".tc-start").getAttribute("aria-valuenow")) < startNow, "the start handle followed the pointer");
 
     // Space plays from a slider, at the chosen speed; playing stops at the window's end.
     await tc(".tc-current").focus();
