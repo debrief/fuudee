@@ -1,0 +1,29 @@
+{
+ "shots": [
+  {
+   "source": "blog/posts/2026-10-11-nothing-lost.md",
+   "url": "blog/2026/10/11/nothing-lost/",
+   "title": "Nothing lost: undo, crashes, and a plot shared with others",
+   "file": "blog-posts-2026-10-11-nothing-lost.png"
+  },
+  {
+   "source": "guides/glossary.md",
+   "url": "guides/glossary/",
+   "title": "Glossary",
+   "file": "guides-glossary.png"
+  },
+  {
+   "source": "guides/interaction-models/undo.md",
+   "url": "guides/interaction-models/undo/",
+   "title": "Undo",
+   "file": "guides-interaction-models-undo.png"
+  },
+  {
+   "source": "guides/tool-author/index.md",
+   "url": "guides/tool-author/",
+   "title": "Tool-author guide",
+   "file": "guides-tool-author-index.png"
+  }
+ ],
+ "more": 0
+}
