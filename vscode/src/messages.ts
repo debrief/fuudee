@@ -24,6 +24,8 @@ export function checkMessage(raw: unknown): WebviewMessage {
   if (time) problems.push(`time: ${time}`);
   const viewport = message.viewport && viewportProblem(message.viewport);
   if (viewport) problems.push(`viewport: ${viewport}`);
+  const range = message.time_range;
+  if (range && !(Date.parse(range.start) <= Date.parse(range.end))) problems.push("time_range: time range starts after it ends");
   if (problems.length) throw new DocumentValidationError(problems);
   return message;
 }

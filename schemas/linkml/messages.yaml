@@ -15,8 +15,8 @@ imports:
   - tools
 
 description: >-
-  Every message the VS Code extension host and its webviews (map, tool form,
-  results) send each other. They cross a process boundary, so they are
+  Every message the VS Code extension host and its webviews (map, time
+  controller, tool form, results) send each other. They cross a process boundary, so they are
   boundary types (CON-01, CON-08), validated on receipt. The same messages
   will serve the web build's host (CON-05). Which members each kind needs is
   checked by the receiver.
@@ -39,6 +39,8 @@ enums:
       form_busy: {description: "Host to form: the tool is running (message)."}
       form_error: {description: "Host to form: the run failed or a value was refused (message)."}
       show_results: {description: "Host to results: show a tool's result (tool, result_title, result)."}
+      show_time: {description: "Host to time controller: current time, its range being the plot's time window (time), and the plot's whole period (time_range); neither when no plot is open."}
+      window_changed: {description: "Time controller to host: the analyst let go of the time window; save it in the plot (time_range)."}
 
 classes:
   WebviewMessage:
@@ -54,7 +56,10 @@ classes:
       viewport: {range: Viewport, inlined: true}
       time: {range: TimeState, inlined: true}
       time_range:
-        description: The plot's period, so times can be entered as the analyst reads them.
+        description: >-
+          The plot's period, so times can be entered as the analyst reads them
+          (show_form) and the time window set within it (show_time); or the
+          time window to save (window_changed).
         range: TimeRange
         inlined: true
       current_time:

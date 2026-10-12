@@ -2536,7 +2536,7 @@
               "type": "null"
             }
           ],
-          "description": "The plot's period, so times can be entered as the analyst reads them."
+          "description": "The plot's period, so times can be entered as the analyst reads them (show_form) and the time window set within it (show_time); or the time window to save (window_changed)."
         },
         "tool": {
           "anyOf": [
@@ -2588,7 +2588,9 @@
         "cancel",
         "form_busy",
         "form_error",
-        "show_results"
+        "show_results",
+        "show_time",
+        "window_changed"
       ],
       "title": "WebviewMessageKindEnum",
       "type": "string"

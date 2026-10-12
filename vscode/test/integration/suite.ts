@@ -6,6 +6,7 @@
  */
 import assert from "node:assert/strict";
 import { execFileSync } from "node:child_process";
+import { readFileSync } from "node:fs";
 import path from "node:path";
 import * as vscode from "vscode";
 import type { DebriefApi } from "../../src/extension.js";
@@ -72,6 +73,36 @@ export async function run(): Promise<void> {
   assert.ok(heard.includes("time:extension"));
   await sleep(1000);
   await screenshot("01b-current-time");
+
+  // --- The time controller (CAP-28): a view at the top of the Debrief sidebar --------
+  await waitFor("the time controller in the sidebar", () => api.timeControllerShowing() || undefined);
+  // The time window is view state: saved in the plot file (its island), never a step in its history.
+  const period = api.session.period()!;
+  const base = api.session.current!.base;
+  const narrow = { start: "2023-06-15T09:00:00.000Z", end: "2023-06-15T10:00:00.000Z" };
+  assert.equal(await vscode.commands.executeCommand("debrief.setTimeWindow", narrow), undefined);
+  assert.deepEqual(api.getState()!.time.range, narrow);
+  assert.deepEqual(api.session.current!.base, base, "no step in the history");
+  const plotPath = path.join(opened.store.location, "serial-1", "plot.geojson");
+  const island = () => JSON.parse(readFileSync(plotPath, "utf8")).features.find((f: { properties: { kind: string } }) => f.properties.kind === "plot").properties.view;
+  assert.deepEqual(island().time_window, narrow);
+  await sleep(1500);
+  await screenshot("01c-time-window");
+  // A colleague's window, written by another process: noticed, shown, and said.
+  const theirs = { start: "2023-06-15T10:00:00.000Z", end: "2023-06-15T11:00:00.000Z" };
+  execFileSync(process.env.DEBRIEF_PYTHON || "python3", [
+    "-c",
+    "import sys, json; from pathlib import Path; from debrief_stac import Catalogue; from debrief_schemas import models; " +
+      "c = Catalogue.open(Path(sys.argv[1])); view, h = c.read_view('serial-1'); " +
+      "c.write_view('serial-1', {'time_window': json.loads(sys.argv[2])}, h, agent=models.AgentRef(kind='person', name='a colleague'))",
+    opened.store.location,
+    JSON.stringify(theirs),
+  ]);
+  await waitFor("the colleague's window", () => api.getState()?.time.range.start === theirs.start || undefined);
+  assert.deepEqual(api.session.current!.base, base, "the plot's content was not read again as a change");
+  // Back to the whole plot, saved over theirs, which Debrief has read since.
+  assert.equal(await vscode.commands.executeCommand("debrief.setTimeWindow", period), undefined);
+  assert.deepEqual(island().time_window, period);
 
   // Select BLUE ONE: the tools for one track are offered; open range rings.
   await vscode.commands.executeCommand("debrief.select", ["track-blue-one"]);

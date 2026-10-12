@@ -6,20 +6,21 @@
  */
 import { userInfo } from "node:os";
 import * as vscode from "vscode";
-import type { ParameterValue, SharedState, SharedStateChange, ToolDeclaration } from "@debrief/schemas";
-import { headFile, headOnDisk, knownStores, openPlot, type OpenedPlot } from "./catalogue.js";
+import type { ParameterValue, SharedState, SharedStateChange, TimeRange, ToolDeclaration } from "@debrief/schemas";
+import { headFile, headOnDisk, knownStores, openPlot, plotFile, type OpenedPlot } from "./catalogue.js";
 import { unwatchFile, watchFile } from "node:fs";
 import { count, describeChanges } from "./format.js";
 import { resolveTimes } from "./timeinput.js";
 import { FormPanel } from "./panels/form.js";
 import { MapPanel } from "./panels/map.js";
 import { ResultsPanel } from "./panels/results.js";
-import { CONFLICT, NEWER_SCHEMA, ServiceError, ToolService, type Agent, type CallOutcome, type ToolListing } from "./service.js";
+import { TIME_VIEW, TimeView } from "./panels/timeview.js";
+import { CONFLICT, NEWER_SCHEMA, ServiceError, ToolService, type Agent, type CallOutcome, type OpenedView, type ToolListing } from "./service.js";
 import { HistoryProvider } from "./views/history.js";
 import { DiagnosticLog, hashed, logKey, serviceLine, toolRunLine, type ToolOutcome } from "./diagnostics.js";
-import { hiddenIds, hiddenNotice, isFeature } from "./hidden.js";
+import { hiddenIds, hiddenNotice, isFeature, setViewOf, timeWindowOf, viewOf } from "./hidden.js";
 import { TRACK_COLOURS } from "../webview/palette.js";
-import { Session } from "./session.js";
+import { Session, timeProblem } from "./session.js";
 import { CataloguesProvider } from "./views/catalogues.js";
 import { featureIdsOf, OutlineProvider } from "./views/outline.js";
 import { ToolsProvider } from "./views/tools.js";
@@ -49,6 +50,8 @@ export interface DebriefApi {
   toolsProblem: () => string | undefined;
   /** How many features the map says are hidden, for tests and agents. */
   hiddenOnMap: () => number | undefined;
+  /** Whether the time controller in the sidebar has loaded, for tests and agents. */
+  timeControllerShowing: () => boolean;
 }
 
 export function activate(context: vscode.ExtensionContext): DebriefApi {
@@ -74,6 +77,11 @@ export function activate(context: vscode.ExtensionContext): DebriefApi {
   );
 
   const map = new MapPanel(context.extensionUri, session, log);
+  // The time controller, at the top of the sidebar; it saves the window when the analyst lets go.
+  const timeView = new TimeView(context.extensionUri, session, (window) => void saveWindow(window).then(report), log);
+  context.subscriptions.push(
+    vscode.window.registerWebviewViewProvider(TIME_VIEW, timeView, { webviewOptions: { retainContextWhenHidden: true } }),
+  );
   const results = new ResultsPanel(context.extensionUri);
 
   // --- The tool service -----------------------------------------------------------
@@ -318,6 +326,82 @@ export function activate(context: vscode.ExtensionContext): DebriefApi {
       }),
     );
 
+  // --- The time window: view state, in the plot file outside its history (SUB-22) -----
+  /**
+   * Save the time window in the plot's island: never a step in its history,
+   * never undone, never in provenance. Called when the analyst lets go of the
+   * window, not as it moves. A window changed elsewhere since the plot was
+   * read is never overwritten (SUB-28): Debrief shows that one and says so.
+   */
+  const saveWindow = (window: TimeRange): Promise<string | undefined> =>
+    serially(() =>
+      ourChange(async () => {
+        const opened = session.current;
+        if (!opened) return "Open a plot first.";
+        const problem = timeProblem({ current: window.start, range: window });
+        if (problem) return problem;
+        if (!service || opened.viewHash === undefined) {
+          return "Saving the time window needs Debrief's tool service. Run 'Debrief: Restart tool service'.";
+        }
+        const view = { ...(viewOf(opened.plot) ?? {}), time_window: window };
+        const save = (allow = false) => service!.setView(opened.store.id, opened.item.id, view, opened.viewHash!, agent, allow);
+        let answer: OpenedView;
+        try {
+          try {
+            answer = await save();
+          } catch (error) {
+            if ((error as ServiceError).code !== NEWER_SCHEMA) throw error;
+            if (!(await confirmNewerSchema((error as Error).message))) return "The time window was not saved.";
+            answer = await save(true);
+          }
+        } catch (error) {
+          if ((error as ServiceError).code === CONFLICT) {
+            await refreshView();
+            return "Someone else changed the time window, so yours was not saved. Debrief is showing theirs; set it again if you still want yours.";
+          }
+          return (error as Error).message;
+        }
+        // A plot made before plots had details of their own gets them first, as a step in its history.
+        if (answer.base.current !== opened.base?.current || answer.base.plot_hash !== opened.base?.plot_hash) {
+          const reloaded = await reloadPlot(true);
+          await refreshHistory();
+          return reloaded;
+        }
+        showView(opened, answer);
+        return undefined;
+      }),
+    );
+
+  /** Show a view the service read: the plot's content is as it was, so it isn't read again. */
+  function showView(opened: OpenedPlot, answer: OpenedView): void {
+    opened.viewHash = answer.view_hash;
+    setViewOf(opened.plot, answer.view);
+    session.windowChanged(timeWindowOf(opened.plot), "plot-view");
+  }
+
+  /**
+   * Read the plot's view again, after a change to the plot file that left its
+   * history alone: a colleague's new window, say. True if it had changed.
+   */
+  async function refreshView(): Promise<boolean> {
+    const opened = session.current;
+    if (!opened || !service) return false;
+    let answer: OpenedView;
+    try {
+      answer = await service.open(opened.store.id, opened.item.id, agent);
+    } catch {
+      return false;
+    }
+    if (session.current !== opened) return false; // another plot was opened meanwhile
+    if (answer.base.current !== opened.base?.current || answer.base.plot_hash !== opened.base?.plot_hash) {
+      await reloadPlot(true);
+      return true;
+    }
+    if (answer.view_hash === opened.viewHash) return false;
+    showView(opened, answer);
+    return true;
+  }
+
   async function askAboutConflict(title: string, mergeable: boolean): Promise<"merge" | "new_plot" | undefined> {
     const combine = "Combine the changes";
     const saveNew = "Save mine as a new plot";
@@ -386,7 +470,9 @@ export function activate(context: vscode.ExtensionContext): DebriefApi {
    * overwritten: Debrief shows the latest.
    */
   function watch(opened: OpenedPlot): void {
-    const files = [headFile(opened.store, opened.item.id)];
+    // The plot file too: a change to its time window leaves the history alone (SUB-22).
+    const plot = plotFile(opened.store, opened.item);
+    const files = [headFile(opened.store, opened.item.id), ...(plot ? [plot] : [])];
     if (watched.join() === files.join()) return;
     watched.forEach((file) => unwatchFile(file));
     watched = files;
@@ -402,9 +488,15 @@ export function activate(context: vscode.ExtensionContext): DebriefApi {
       if (writing || !current || headFile(current.store, current.item.id) !== files[0]) return;
       const onDisk = headOnDisk(current.store, current.item.id);
       const plotChanged = !!onDisk && (onDisk.current !== current.base?.current || onDisk.plot_hash !== current.base?.plot_hash);
-      if (!plotChanged) return;
-      const problem = await reloadPlot(true);
       const title = current.item.properties.title ?? current.item.id;
+      if (!plotChanged) {
+        // Perhaps only its time window: show that, without reading the plot's content again.
+        if (await refreshView()) {
+          void vscode.window.showInformationMessage(`The time window of ${title} was changed elsewhere. Debrief is showing the latest.`);
+        }
+        return;
+      }
+      const problem = await reloadPlot(true);
       void vscode.window.showInformationMessage(
         problem ?? `${title} was changed elsewhere. Debrief is showing the latest.`,
       );
@@ -547,6 +639,16 @@ export function activate(context: vscode.ExtensionContext): DebriefApi {
     return ids.length ? vscode.commands.executeCommand("debrief.show", { ids }) : undefined;
   });
 
+  // The time window, for agents, keyboard macros and tests: saved as when the analyst lets go of it.
+  command("debrief.setTimeWindow", async (window?: TimeRange) => {
+    if (!window || !session.current) return report("Open a plot first.");
+    const problem = timeProblem({ current: window.start, range: window });
+    if (problem) return report(problem);
+    const time = session.time;
+    const current = time ? Math.min(Date.parse(window.end), Math.max(Date.parse(window.start), Date.parse(time.current))) : Date.parse(window.start);
+    session.setTime({ current: new Date(current).toISOString(), range: window }, "command");
+    return report(await saveWindow(window));
+  });
   command("debrief.select", (ids: string[]) => session.select(ids ?? [], "command"));
   // Shared state for agents and keyboard users (SUB-27).
   command("debrief.getState", () => session.state());
@@ -671,6 +773,7 @@ export function activate(context: vscode.ExtensionContext): DebriefApi {
     offered: () => tools.offered,
     toolsProblem: () => tools.problem,
     hiddenOnMap: () => map.hiddenCount,
+    timeControllerShowing: () => timeView.showing,
   };
 }
 

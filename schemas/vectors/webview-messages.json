@@ -50,6 +50,13 @@
       "tool",
       "result_title",
       "result"
+    ],
+    "show_time": [
+      "time?",
+      "time_range?"
+    ],
+    "window_changed": [
+      "time_range"
     ]
   }
 }

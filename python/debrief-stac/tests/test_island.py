@@ -252,7 +252,7 @@ def test_a_plot_without_details_gets_them_once_as_a_recorded_step(tmp_path: Path
     catalogue.commit("p", [record(1)], Changes(added=[note("a")]))
     catalogue.write_view("p", WINDOW, view_hash(None), agent=AGENT)
     steps = catalogue.history("p").steps()
-    assert len(steps) == 2 and steps[1].records[0].notes == ["Plot details added, to keep its view"]
+    assert len(steps) == 2 and steps[1].records[0].notes == ["Plot details added"]
     assert island_on_disk(catalogue) == WINDOW
     catalogue.write_view("p", LATER, view_hash(WINDOW))
     assert len(catalogue.history("p").steps()) == 2  # once only

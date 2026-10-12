@@ -1,7 +1,8 @@
 /**
- * The plot's map, in a webview beside the editor (SUB-30, SUB-03). It shows and
- * sets all three pieces of shared state: selection, current time (its time
- * control) and viewport (SUB-26, SUB-27).
+ * The plot's map, in a webview beside the editor (SUB-30, SUB-03). It shows all
+ * three pieces of shared state and sets selection and viewport (SUB-26,
+ * SUB-27). Current time and the time window are set in the time controller,
+ * at the top of the sidebar (panels/timeview.ts); the map draws the window.
  */
 import * as vscode from "vscode";
 import type { Session } from "../session.js";

@@ -20,6 +20,7 @@
     },
     "views": {
       "debrief": [
+        {"type": "webview", "id": "debrief.time", "name": "Time"},
         {"id": "debrief.catalogues", "name": "Catalogues"},
         {"id": "debrief.outline", "name": "Outline"},
         {"id": "debrief.tools", "name": "Tools"},

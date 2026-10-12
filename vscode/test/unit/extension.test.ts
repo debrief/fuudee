@@ -35,11 +35,11 @@ describe("what a tool needs, in the analyst's words", () => {
 });
 
 describe("webview messages are boundary types (CON-08)", () => {
-  it.each(["show-plot", "selection-changed", "run-tool", "ready", "time-changed", "set-viewport-across-antimeridian"])("accepts %s", (name) => {
+  it.each(["show-plot", "selection-changed", "run-tool", "ready", "time-changed", "set-viewport-across-antimeridian", "show-time", "show-time-no-plot", "window-changed"])("accepts %s", (name) => {
     const raw = JSON.parse(readFileSync(path.join(fixtures, "valid", `${name}.json`), "utf8"));
     expect(checkMessage(raw)).toEqual(raw);
   });
-  it.each(["run-tool-without-name", "ready-with-plot", "time-outside-range", "set-time-without-time"])("refuses %s, which Python refuses too", (name) => {
+  it.each(["run-tool-without-name", "ready-with-plot", "time-outside-range", "set-time-without-time", "window-changed-ends-before-it-starts", "window-changed-without-window"])("refuses %s, which Python refuses too", (name) => {
     const raw = JSON.parse(readFileSync(path.join(fixtures, "invalid", "semantic", `${name}.json`), "utf8"));
     expect(() => checkMessage(raw)).toThrow();
   });

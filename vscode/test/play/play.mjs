@@ -55,15 +55,16 @@ try {
   assert.match(await history(), /step 1/);
   await shot("play-01-ready");
 
-  // Current time is set at the top of the side column; the map shows no control of its own.
+  // The time controller is at the top of the side column; the map has no control of its own.
   const timeLabel = () => text("#timebar .time-label");
   assert.equal(await page.locator("#side section").first().getAttribute("id"), "panel-time");
-  assert.equal(await page.frameLocator(".frame-map").locator("#timebar").isHidden(), true);
+  assert.equal(await page.frameLocator(".frame-map").locator(".tc-window, .tc-current").count(), 0);
   const timeBefore = await timeLabel();
   const markers = () => page.frameLocator(".frame-map").locator(".now").count();
   await page.locator("#timebar .forward").click();
   await page.waitForFunction((was) => document.querySelector("#timebar .time-label")?.textContent !== was, timeBefore);
   assert.ok((await markers()) > 0, "tracks show where they were at current time");
+  await playTheTimeController();
 
   // The map: a click on BLUE ONE's first fix, inside the exercise area, selects BLUE ONE, not the area.
   const plot = JSON.parse(readFileSync(path.join(root, "sample/serial-1/plot.geojson"), "utf8"));
@@ -240,6 +241,84 @@ try {
   if (site) await playFromThePost();
   assert.deepEqual(errors, []);
   console.log(`Playground played: map selection, keyboard, tools, undo, crash recovery, conflict, import, narrow, CDN blocked${site ? ", and from a blog post" : ""}.`);
+
+  /**
+   * The time controller (CAP-28): drag the window and the map shows only it, at
+   * once; it is saved when let go, and is no step in the history. The keys move
+   * the handles; Space plays; a colleague's window is shown and said.
+   */
+  async function playTheTimeController() {
+    const tc = (selector) => page.locator(`#timebar ${selector}`);
+    const mapFrame = page.frameLocator(".frame-map");
+    // Leaflet fades a label out over 200 ms, so a redrawn one can briefly have company.
+    const label = (name) => mapFrame.locator(".track-label", { hasText: name }).first();
+    // Tug 01's last fix is at 10:35; the whole plot runs 08:00 to 12:00.
+    await label("Tug 01").waitFor();
+    assert.equal(await tc(".tc-start").getAttribute("role"), "slider");
+    assert.match(await tc(".tc-start").getAttribute("aria-valuetext"), /08:00:00Z/);
+    const stepsBefore = await history();
+    const startBefore = await text("#timebar .tc-window-start");
+    await shot("time-01-controller");
+
+    // Drag the window's start most of the way along. The map follows before it is let go.
+    const rail = await tc(".tc-window").boundingBox();
+    const handle = await tc(".tc-start").boundingBox();
+    const [x, y] = [handle.x + handle.width / 2, handle.y + handle.height / 2];
+    await page.mouse.move(x, y);
+    await page.mouse.down();
+    for (let i = 1; i <= 10; i++) await page.mouse.move(x + i * rail.width * 0.07, y); // a hand's drag
+    await page.waitForFunction(async () => true); // let the frame draw
+    for (let i = 0; i < 50 && (await mapFrame.locator(".track-label", { hasText: "Tug 01" }).count()); i++) await page.waitForTimeout(100);
+    assert.equal(await mapFrame.locator(".track-label", { hasText: "Tug 01" }).count(), 0, "Tug 01 ended before the window");
+    await page.mouse.up();
+    assert.notEqual(await text("#timebar .tc-window-start"), startBefore);
+    assert.match(await text("#timebar .tc-window-start"), /15 Jun 2023 1[01]:\d\d:\d\dZ/);
+    // Current time is kept inside the window; the whole tracks stay, faint.
+    const [start, current] = [Number(await tc(".tc-start").getAttribute("aria-valuenow")), Number(await tc(".tc-current").inputValue())];
+    assert.ok(current >= start, "current time is inside the window");
+    assert.ok((await mapFrame.locator('path[stroke-opacity="0.35"], path[stroke-opacity="0.12"]').count()) >= 10, "every track's whole line, faint");
+    // View state: saved in the plot, never a step in its history.
+    await page.waitForTimeout(500);
+    assert.equal(await history(), stepsBefore);
+    await shot("time-02-window-narrowed");
+
+    // Keys: an arrow moves a handle by a step (the plot's four hours: 5 min); End puts it back.
+    await tc(".tc-end").focus();
+    const end = Number(await tc(".tc-end").getAttribute("aria-valuenow"));
+    await page.keyboard.press("ArrowLeft");
+    assert.equal(Number(await tc(".tc-end").getAttribute("aria-valuenow")), end - 300000);
+    await page.keyboard.press("End");
+    assert.equal(Number(await tc(".tc-end").getAttribute("aria-valuenow")), end);
+
+    // Space plays from a slider, at the chosen speed; playing stops at the window's end.
+    await tc(".tc-current").focus();
+    await page.keyboard.press("Home");
+    const from = await timeLabel();
+    await page.keyboard.press("Space");
+    assert.equal(await tc(".tc-play").getAttribute("aria-label"), "Pause");
+    await page.waitForFunction((was) => document.querySelector("#timebar .time-label")?.textContent !== was, from);
+    await shot("time-03-playing");
+    await tc(".tc-speed").selectOption("3600");
+    await page.waitForFunction(() => document.querySelector("#timebar .tc-play")?.getAttribute("aria-label") === "Play", null, { timeout: 15000 });
+    assert.equal(await tc(".tc-current").inputValue(), await tc(".tc-end").getAttribute("aria-valuenow"));
+
+    // A colleague changes the window: Debrief shows theirs and says so; still no step.
+    const ours = await text("#timebar .tc-window-start");
+    await page.locator("#colleague-window").click();
+    await page.locator(".toast", { hasText: "time window of Serial 1 was changed elsewhere" }).waitFor();
+    assert.notEqual(await text("#timebar .tc-window-start"), ours);
+    assert.equal(await history(), stepsBefore);
+    await page.locator("#side").evaluate((side) => (side.scrollTop = 0)); // the controller in the picture
+    await shot("time-04-colleague-window");
+
+    // Home on the start handle: the whole plot again, saved over the colleague's (read since).
+    await tc(".tc-start").focus();
+    await page.keyboard.press("Home");
+    await label("Tug 01").waitFor();
+    assert.equal(await text("#timebar .tc-window-start"), startBefore);
+    await page.waitForTimeout(500);
+    assert.equal(await page.locator(".toast.warning").count(), 0, "saved, with no conflict");
+  }
 
   /** With the CDN blocked, the page says so plainly; the map still works. */
   async function cdnBlocked() {

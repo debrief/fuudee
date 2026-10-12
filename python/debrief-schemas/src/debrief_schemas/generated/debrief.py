@@ -732,6 +732,14 @@ class WebviewMessageKindEnum(str, Enum):
     """
     Host to results: show a tool's result (tool, result_title, result).
     """
+    show_time = "show_time"
+    """
+    Host to time controller: current time, its range being the plot's time window (time), and the plot's whole period (time_range); neither when no plot is open.
+    """
+    window_changed = "window_changed"
+    """
+    Time controller to host: the analyst let go of the time window; save it in the plot (time_range).
+    """
 
 
 
@@ -2330,7 +2338,7 @@ class WebviewMessage(ConfiguredBaseModel):
                        'SharedState',
                        'SharedStateChange',
                        'WebviewMessage']} })
-    time_range: Optional[TimeRange] = Field(default=None, description="""The plot's period, so times can be entered as the analyst reads them.""", json_schema_extra = { "linkml_meta": {'domain_of': ['AnnotationProperties',
+    time_range: Optional[TimeRange] = Field(default=None, description="""The plot's period, so times can be entered as the analyst reads them (show_form) and the time window set within it (show_time); or the time window to save (window_changed).""", json_schema_extra = { "linkml_meta": {'domain_of': ['AnnotationProperties',
                        'SensorObservationsProperties',
                        'WebviewMessage']} })
     current_time: Optional[str] = Field(default=None, description="""Current time from shared state, which a tool form offers for its time fields.""", json_schema_extra = { "linkml_meta": {'domain_of': ['WebviewMessage']} })

@@ -3,7 +3,7 @@
  * so hiding and showing are steps in the plot's history (decision 12 Oct).
  * Kept free of VS Code so it can be tested.
  */
-import type { DebriefFeatureCollection } from "@debrief/schemas";
+import type { DebriefFeatureCollection, PlotView } from "@debrief/schemas";
 
 type Feature = DebriefFeatureCollection["features"][number];
 
@@ -42,4 +42,27 @@ export function timeWindowOf(plot: DebriefFeatureCollection): { start: string; e
     if (f.properties.kind === "plot") return f.properties.view?.time_window ?? undefined;
   }
   return undefined;
+}
+
+/** The plot's whole view (its island), or undefined if it has none. */
+export function viewOf(plot: DebriefFeatureCollection): PlotView | undefined {
+  for (const f of plot.features) {
+    if (f.properties.kind === "plot") return f.properties.view ?? undefined;
+  }
+  return undefined;
+}
+
+/**
+ * Put a view read from the service into the plot as held in memory, so the
+ * window can be shown without reading the plot's content again. False if the
+ * plot has no whole-plot feature to hold it.
+ */
+export function setViewOf(plot: DebriefFeatureCollection, view: PlotView | null): boolean {
+  for (const f of plot.features) {
+    if (f.properties.kind !== "plot") continue;
+    if (view) f.properties.view = view;
+    else delete f.properties.view;
+    return true;
+  }
+  return false;
 }

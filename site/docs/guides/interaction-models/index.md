@@ -13,6 +13,7 @@ Worked patterns applied the same way across hosts, tools and agents (DEV-08). Ea
 | [Conflicts](conflicts.md) | Phase 2 | Written |
 | [Long-running operations](long-running-operations.md) | Phase 2 | Requirements gathered |
 | [Check overrides](check-overrides.md) | Phase 2 | Requirements gathered |
+| [Time controller](time-controller.md) | Phase 3 | Written |
 | [Keyboard equivalents](keyboard-equivalents.md) | Phase 3 | Requirements gathered |
 
 Analysts review the Phase 1 models before they are built.

@@ -675,7 +675,7 @@ class Catalogue:
         feature = plot_feature(with_plot_details(plot, title))
         record = _edit_record(
             agent or models.AgentRef(kind="software_agent", name="debrief-stac"),
-            "Plot details added, to keep its view",
+            "Plot details added",
         )
         self.commit(item_id, [record], Changes(added=[feature]))
 

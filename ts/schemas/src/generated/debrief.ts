@@ -197,7 +197,9 @@ export type WebviewMessageKindEnum =
   | "cancel"
   | "form_busy"
   | "form_error"
-  | "show_results";
+  | "show_results"
+  | "show_time"
+  | "window_changed";
 
 export interface DebriefSchemaDefinitions {}
 /**
@@ -1058,7 +1060,7 @@ export interface WebviewMessage {
   selection?: Selection | null;
   time?: TimeState | null;
   /**
-   * The plot's period, so times can be entered as the analyst reads them.
+   * The plot's period, so times can be entered as the analyst reads them (show_form) and the time window set within it (show_time); or the time window to save (window_changed).
    */
   time_range?: TimeRange | null;
   tool?: ToolDeclaration | null;

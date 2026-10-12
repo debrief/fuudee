@@ -8,6 +8,7 @@ The data-file schema is versioned independently of Debrief (SUB-12). Before 1.0.
 - Features can be hidden (`hidden` on track, annotation and sensor observation properties). Hiding, like a track's colour, is content: a recorded, undoable change.
 - Presentation (`Presentation`, `presentation.json`, asset kind `presentation`) is retired. A `presentation.json` still found beside a plot of this schema version is turned into one recorded step when a writer opens the plot, then deleted; a read-only store applies it in memory. Plots of 0.0.8 or earlier cannot be opened by 0.0.9 at all (SUB-13), so this rarely runs.
 - A delta never holds a whole-plot feature's view (a rule checked on reading).
+- Webview messages for the time controller: `show_time` (current time, its range being the time window, and the plot's period as `time_range`) and `window_changed` (the window to save, as `time_range`, sent when the analyst lets go). A `time_range` on any message must not end before it starts (CAP-28, SUB-26).
 
 ## 0.0.8 (12 Oct 2026)
 

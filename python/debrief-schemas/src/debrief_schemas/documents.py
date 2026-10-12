@@ -469,6 +469,8 @@ MESSAGE_MEMBERS: dict[str, tuple[str, ...]] = {
     "form_busy": ("message",),
     "form_error": ("message",),
     "show_results": ("tool", "result_title", "result"),
+    "show_time": ("time?", "time_range?"),
+    "window_changed": ("time_range",),
 }
 
 
@@ -482,6 +484,7 @@ def _webview_message_problems(message: g.WebviewMessage, raw: dict[str, Any]) ->
         f"{kind} does not carry {member}" for member in sorted(set(raw) - {"kind", *allowed})
     ]
     problems += _state_problems(message)  # time and viewport, where carried
+    problems += _time_range_problems("time_range", message.time_range)
     if message.plot is not None:
         problems += _plot_problems(message.plot, raw["plot"])
     if message.result is not None:

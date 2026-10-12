@@ -77,6 +77,9 @@ Current time, the selection and the viewport are now shared state:
 - **Other extensions** can read and set the state.
 - **Tools** see it and can change it.
 
+!!! note "Update, 12 Oct 2026"
+    The time control has moved off the map, to the top of the Debrief sidebar, and now sets the plot's time window and plays too. See [One window, one file: the time controller](2026-10-12-time-controller.md).
+
 *Closest approach* now moves current time to the moment it found:
 
 ![Closest approach sets current time to 09:21:17Z, the moment in its result](images/phase-2/time-from-a-tool.png)
