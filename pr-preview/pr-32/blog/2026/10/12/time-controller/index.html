@@ -69,7 +69,7 @@
     
     
     
-    <body dir="ltr" data-md-color-scheme="default" data-md-color-primary="indigo" data-md-color-accent="indigo"><div class="pr-preview-banner" style="background:#fff4ce;color:#3b2f00;border-bottom:1px solid #e0c060;padding:6px 16px;font:14px/1.4 system-ui,sans-serif;text-align:center">Preview of <a style="color:inherit;text-decoration:underline" href="https://github.com/debrief/fuudee/pull/32">pull request #32</a>: Time controller: one window for the whole plot, play and step, in the VS Code sidebar and the playground. Built from 8b4179a on 2026-10-12 08:25 UTC. <a style="color:inherit;text-decoration:underline" href="https://debrief.github.io/fuudee/pr-preview/">All previews</a></div>
+    <body dir="ltr" data-md-color-scheme="default" data-md-color-primary="indigo" data-md-color-accent="indigo"><div class="pr-preview-banner" style="background:#fff4ce;color:#3b2f00;border-bottom:1px solid #e0c060;padding:6px 16px;font:14px/1.4 system-ui,sans-serif;text-align:center">Preview of <a style="color:inherit;text-decoration:underline" href="https://github.com/debrief/fuudee/pull/32">pull request #32</a>: Time controller: one window for the whole plot, play and step, in the VS Code sidebar and the playground. Built from f5c2aea on 2026-10-12 10:14 UTC. <a style="color:inherit;text-decoration:underline" href="https://debrief.github.io/fuudee/pr-preview/">All previews</a></div>
   
     
     <input class="md-toggle" data-md-toggle="drawer" type="checkbox" id="__drawer" autocomplete="off">
@@ -1371,7 +1371,18 @@
     </span>
   </a>
   
-    <nav class="md-nav" aria-label="A colleague&#39;s window">
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#update-later-on-12-oct-three-changes-from-an-expert-panel" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Update, later on 12 Oct: three changes from an expert panel
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Update, later on 12 Oct: three changes from an expert panel">
       <ul class="md-nav__list">
         
           <li class="md-nav__item">
@@ -1479,7 +1490,7 @@
                           <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 20a8 8 0 0 0 8-8 8 8 0 0 0-8-8 8 8 0 0 0-8 8 8 8 0 0 0 8 8m0-18a10 10 0 0 1 10 10 10 10 0 0 1-10 10C6.47 22 2 17.5 2 12A10 10 0 0 1 12 2m.5 5v5.25l4.5 2.67-.75 1.23L11 13V7z"/></svg>
                           <span class="md-ellipsis">
                             
-                              5 min read
+                              6 min read
                             
                           </span>
                         </div>
@@ -1512,7 +1523,7 @@
 
 <p><em>The VS Code picture comes from the integration test, which drives the real VS Code with the real Python tool service on the sample exercise. The others come from the playground test, which plays the demo below in a browser.</em></p>
 <h2 id="the-controller">The controller<a class="headerlink" href="#the-controller" title="Permanent link">&para;</a></h2>
-<p><img alt="The Time view at the top of VS Code's Debrief sidebar: the window is 09:00 to 10:00Z, and the map draws that hour solid and the rest of each track faintly" src="../../../../images/phase-3/time-controller.png" /></p>
+<p><img alt="The Time view at the top of VS Code's Debrief sidebar: the map draws the window solid and the rest of each track as a thin, quieter line" src="../../../../images/phase-3/time-controller.png" /></p>
 <p>In VS Code the controller is the <strong>Time</strong> view, at the top of the Debrief sidebar. The catalogues, outline, tools and history stay below it. The map no longer has a control along its bottom edge; it only draws. The playground has the same component at the top of its side column.</p>
 <p>It has three parts:</p>
 <ul>
@@ -1523,9 +1534,9 @@
 <p>The speeds are 1×, 10×, 60×, 600× and 3600× real time. Exercise serials last hours and deployments last weeks, so the speeds run from watching a close-quarters encounter as it happened (1×) to crossing a week in under three minutes (3600×). The default, 60×, plays a minute of the exercise each second, so a four-hour serial takes four minutes.</p>
 <p>Everything works from the keyboard. The arrow keys move a handle or current time by a step, Page Up and Page Down by ten, and Home and End to the ends. Each slider says its time to screen readers. The <a href="../../../../../guides/interaction-models/time-controller/">time controller</a> interaction model has the full table.</p>
 <h2 id="what-the-map-shows">What the map shows<a class="headerlink" href="#what-the-map-shows" title="Permanent link">&para;</a></h2>
-<p><img alt="The window narrowed to 10:48 to 12:00Z in the playground: within it the tracks are solid, with direction ticks and labels; outside it they are faint" src="../../../../images/phase-3/window-narrowed.png" /></p>
-<p>Within the window, tracks are drawn in full: solid lines, direction ticks, a hollow dot at the first fix in the window and a labelled dot at the last. Outside the window, each whole track stays as a faint line.</p>
-<p>Hiding everything outside the window would be cleaner, but it would lose the shape of the exercise, and for deployments the requirement is to see a whole deployment's tracks at once, with sensor data limited to the window. So the faint line stays. It's context, with no ticks, dots or labels to compete with the window.</p>
+<p><img alt="The window narrowed to 10:48 to 12:00Z in the playground: within it the tracks are solid, with direction ticks and labels; outside it they are thin, quieter lines in each track's colour" src="../../../../images/phase-3/window-narrowed.png" /></p>
+<p>Within the window, tracks are drawn in full: solid lines, direction ticks, a hollow dot at the first fix in the window and a labelled dot at the last. Outside the window, each whole track stays as a thin, solid line in a quieter version of its colour: a <em>context track</em>.</p>
+<p>Hiding everything outside the window would be cleaner, but it would lose the shape of the exercise, and for deployments the requirement is to see a whole deployment's tracks at once, with sensor data limited to the window. So the context track stays, with no ticks, dots or labels to compete with the window. It is drawn at least 3:1 against the map on any theme, so it is quiet without being hard to see. A busy plot can draw it <strong>faint</strong> instead, or turn it <strong>off</strong>, from the <strong>Context tracks</strong> list under the controller.</p>
 <p>Annotations with a time or a period are drawn only while it falls in the window. Annotations without one, such as the exercise area, always are.</p>
 <p>Bearings aren't drawn yet. When they are, they'll be drawn only within the window. Weeks of bearings at once would be unreadable, and the window is also how Debrief will keep millions of observations off the screen.</p>
 <h2 id="moving-shows-letting-go-saves">Moving shows; letting go saves<a class="headerlink" href="#moving-shows-letting-go-saves" title="Permanent link">&para;</a></h2>
@@ -1556,7 +1567,7 @@
 <td>Yes</td>
 </tr>
 <tr>
-<td>Time window</td>
+<td>Time window, how context tracks are drawn</td>
 <td>The plot file, in its <em>island</em></td>
 <td>No</td>
 <td>No</td>
@@ -1580,9 +1591,17 @@
 <p><img alt="After a colleague narrowed the window from another computer: Debrief shows theirs and says so" src="../../../../images/phase-3/colleague-window.png" /></p>
 <p>The window is still shared through the file, so two people can change it at once. Debrief watches the plot file as well as its history. When a colleague's window arrives, Debrief shows it without reading the plot's content again, and says so.</p>
 <p>If you let go of a window after a colleague changed theirs, yours isn't saved over it. Debrief shows theirs and says: <em>Someone else changed the time window, so yours was not saved.</em> Set it again if you still want yours. That's the same rule as every other change: nothing is silently overwritten.</p>
+<h2 id="update-later-on-12-oct-three-changes-from-an-expert-panel">Update, later on 12 Oct: three changes from an expert panel<a class="headerlink" href="#update-later-on-12-oct-three-changes-from-an-expert-panel" title="Permanent link">&para;</a></h2>
+<p>We asked a panel (an analyst, an interaction designer, an accessibility specialist and a data-integrity reviewer) three questions the first version left open. They agreed unanimously, and the controller now does this:</p>
+<ul>
+<li><strong>Context tracks you can see.</strong> The faint line was too faint on some themes. A context track is now clear by default: at least 3:1 against the map, worked out from the theme for every colour Debrief gives a track. A plot can still draw them faint, or not at all; that choice is saved with the plot, like the window. If you need the contrast everywhere, the setting <strong>Debrief › Map: Minimum Context Contrast</strong> draws faint as clear on every plot you open. High-contrast themes draw them in full colour.</li>
+<li><strong>A window of at least a second.</strong> The handles stop a second apart and never cross. When the window is too short to play at the chosen speed, <strong>Play</strong> is off and says why: <em>Window too short to play at 60×: widen it or slow down</em>.</li>
+<li><strong>A tool's time outside your window is shown, never saved.</strong> Closest approach moves current time to the moment it finds. If that's outside your window, the window on screen widens just enough to take it in (to at most twice its length; beyond that it moves instead). The part that differs is hatched, the tool's message adds <em>(outside your saved window)</em>, and a note stays until you choose: <strong>Keep</strong> saves the window shown; <strong>Revert</strong> goes back to yours. Dragging the window counts as Keep. Nothing a tool does is ever saved as your window behind your back, so a colleague opening the plot sees the window you chose.</li>
+</ul>
+<p><img alt="After Closest approach, in the playground: the window widened to 09:21:18Z, the widened part of the bar hatched, and a note saying Showing beyond saved window, with Keep and Revert" src="../../../../images/phase-3/beyond-saved-window.png" /></p>
 <h3 id="try-it">Try it<a class="headerlink" href="#try-it" title="Permanent link">&para;</a></h3>
-<p>Narrow the window, play, then press <strong>A colleague changes the time window</strong>. Note that <strong>History</strong> doesn't change:</p>
-<div class="debrief-demo" data-demo="?panels=try,history" data-height="780px"></div>
+<p>Narrow the window, play, then press <strong>A colleague changes the time window</strong>. Note that <strong>History</strong> doesn't change. Then narrow the window to before 09:00, select BLUE ONE and RED ONE, and run <strong>Closest approach</strong>:</p>
+<div class="debrief-demo" data-demo="?panels=try,tools,history" data-height="820px"></div>
 
 <h2 id="not-yet">Not yet<a class="headerlink" href="#not-yet" title="Permanent link">&para;</a></h2>
 <ul>

@@ -71,7 +71,7 @@
     
     
     
-    <body dir="ltr" data-md-color-scheme="default" data-md-color-primary="indigo" data-md-color-accent="indigo"><div class="pr-preview-banner" style="background:#fff4ce;color:#3b2f00;border-bottom:1px solid #e0c060;padding:6px 16px;font:14px/1.4 system-ui,sans-serif;text-align:center">Preview of <a style="color:inherit;text-decoration:underline" href="https://github.com/debrief/fuudee/pull/32">pull request #32</a>: Time controller: one window for the whole plot, play and step, in the VS Code sidebar and the playground. Built from 8b4179a on 2026-10-12 08:25 UTC. <a style="color:inherit;text-decoration:underline" href="https://debrief.github.io/fuudee/pr-preview/">All previews</a></div>
+    <body dir="ltr" data-md-color-scheme="default" data-md-color-primary="indigo" data-md-color-accent="indigo"><div class="pr-preview-banner" style="background:#fff4ce;color:#3b2f00;border-bottom:1px solid #e0c060;padding:6px 16px;font:14px/1.4 system-ui,sans-serif;text-align:center">Preview of <a style="color:inherit;text-decoration:underline" href="https://github.com/debrief/fuudee/pull/32">pull request #32</a>: Time controller: one window for the whole plot, play and step, in the VS Code sidebar and the playground. Built from f5c2aea on 2026-10-12 10:14 UTC. <a style="color:inherit;text-decoration:underline" href="https://debrief.github.io/fuudee/pr-preview/">All previews</a></div>
   
     
     <input class="md-toggle" data-md-toggle="drawer" type="checkbox" id="__drawer" autocomplete="off">
@@ -1501,11 +1501,11 @@
 <tbody>
 <tr>
 <td>CAP-28</td>
-<td>One time window for the whole plot, independent of its overall time range, saved in the plot file as view state.</td>
+<td>One time window for the whole plot, independent of its overall time range, saved in the plot file as view state. A tool's time outside it is shown, never saved, until the analyst keeps or reverts it.</td>
 </tr>
 <tr>
 <td>CAP-29</td>
-<td>Tracks for a whole deployment at once; sensor data only within the window.</td>
+<td>Tracks for a whole deployment at once, at least 3:1 against the map outside the window by default; sensor data only within the window.</td>
 </tr>
 <tr>
 <td>SUB-22</td>
@@ -1528,7 +1528,7 @@
 <h2 id="model">Model<a class="headerlink" href="#model" title="Permanent link">&para;</a></h2>
 <ol>
 <li><strong>One controller, every host.</strong> VS Code shows it as the <strong>Time</strong> view at the top of the Debrief sidebar, above the catalogues, outline, tools and history. The playground shows the same component at the top of its side column. The map only draws: it has no control of its own.</li>
-<li><strong>The time window</strong> is a slider with two handles over the plot's whole period. Drag a handle to move that end; drag the band between them to move the whole window. The caption says how long the window is.</li>
+<li><strong>The time window</strong> is a slider with two handles over the plot's whole period. Drag a handle to move that end; drag the band between them to move the whole window. The caption says how long the window is. The window is never shorter than one second: the handles stop a second apart and never cross. A plot saved with a window of no length opens showing its first second, and that is saved only if the analyst moves it.</li>
 <li><strong>Current time</strong> is a slider over the window, never outside it. When the window moves past current time, current time moves with it. <strong>‹</strong> and <strong>›</strong> step back and forward; the caption shows the step, about a hundredth of the window (1 s up to 1 day).</li>
 <li>
 <p><strong>Play</strong> (<strong>▶</strong>, or Space) moves current time forward at the chosen speed and stops at the end of the window. Playing from the end starts again at the window's start. The speeds are multiples of real time:</p>
@@ -1568,14 +1568,36 @@
 </tr>
 </tbody>
 </table>
-<p>Current time moves ten times a second while playing: smooth to follow, without flooding the views.</p>
+<p>Current time moves ten times a second while playing: smooth to follow, without flooding the views. A window shorter than one of those moves (the speed times a tenth of a second: 6 s at 60×) cannot be played: <strong>Play</strong> is off and says <em>Window too short to play at 60×: widen it or slow down</em>, on hover and to screen readers. It stays focusable, so the reason can be read.</p>
 </li>
 <li>
-<p><strong>What the map shows.</strong> Within the window, tracks are drawn in full: solid lines, direction ticks, a hollow dot at the first fix in the window and a filled, labelled dot at the last. Outside it, each whole track stays as a faint line, so a deployment of weeks still reads as one picture (CAP-29). Annotations with a time or a period are drawn only while it falls in the window; annotations without one always are. Sensor data will be drawn only within the window (CAP-29); bearings are not drawn yet.</p>
-</li>
-<li><strong>Moving shows; letting go saves.</strong> The map follows the window as it moves. The window is saved in the plot when the analyst lets go: the pointer is released, or the key is released. Holding an arrow key down saves once. Saving on every movement would rewrite the plot file many times a second and, on a shared folder, look to a colleague like a flood of changes.</li>
-<li>
-<p><strong>What is saved where.</strong></p>
+<p><strong>What the map shows.</strong> Within the window, tracks are drawn in full: solid lines 2.5 px wide, direction ticks, a hollow dot at the first fix in the window and a filled, labelled dot at the last. Outside it, each whole track stays in view as a <strong>context track</strong>, so a deployment of weeks still reads as one picture (CAP-29): a solid line 1.5 px wide, with no ticks, dots or labels, in the track's hue made quieter (moved toward the theme's text colour). Annotations with a time or a period are drawn only while it falls in the window; annotations without one always are. Sensor data will be drawn only within the window (CAP-29); bearings are not drawn yet.</p>
+<p><strong>Context tracks</strong> are set for the plot, under the controller's buttons, and saved in its island like the window:</p>
+<table>
+<thead>
+<tr>
+<th>Setting</th>
+<th>Draws them</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Clear (the default)</td>
+<td>At least 3:1 against the map's background on any theme, as drawn. Debrief works this out from the theme's editor background: opacity 0.6, and each colour's lightness moved away from the background only as far as it needs.</td>
+</tr>
+<tr>
+<td>Faint</td>
+<td>Fainter (opacity 0.35), for a busy plot. No 3:1 promise.</td>
+</tr>
+<tr>
+<td>Off</td>
+<td>Not at all: only the window shows.</td>
+</tr>
+</tbody>
+</table>
+<p>An analyst who needs the contrast everywhere turns on the setting <strong>Debrief › Map: Minimum Context Contrast</strong> (<code>debrief.map.minimumContextContrast</code>): faint is then drawn clear on every plot they open, without changing the plot; off is still off. High-contrast themes draw context tracks in the track's own colour, opaque, 1 px wide. Selecting a feature dims the others, context tracks included, but never below opacity 0.3, and never on a high-contrast theme.
+6. <strong>Moving shows; letting go saves.</strong> The map follows the window as it moves. The window is saved in the plot when the analyst lets go: the pointer is released, or the key is released. Holding an arrow key down saves once. Saving on every movement would rewrite the plot file many times a second and, on a shared folder, look to a colleague like a flood of changes.
+7. <strong>What is saved where.</strong></p>
 <table>
 <thead>
 <tr>
@@ -1587,7 +1609,7 @@
 </thead>
 <tbody>
 <tr>
-<td>Time window</td>
+<td>Time window, context tracks</td>
 <td>The plot file, in its island</td>
 <td>No</td>
 <td>No</td>
@@ -1607,8 +1629,16 @@
 </tbody>
 </table>
 <p>The window travels with the plot: a colleague given the plot file opens it on the same window. <code>Ctrl+Z</code> never changes the window, and moving the window never conflicts with a change to the plot's content.
-8. <strong>Shared state follows the window.</strong> The range of current time in shared state is the window as shown, so tools and other extensions see it, and it follows a drag at once. A tool that moves current time outside the window widens the window on screen, not in the plot file; the next window the analyst sets is saved as usual.
-9. <strong>A colleague's window.</strong> If someone else changes the plot's window, Debrief notices (it watches the plot file as well as its history), shows the new window without reading the plot's content again, and says so. If the analyst lets go of a window after a colleague changed it, theirs is kept: Debrief shows it and says <em>Someone else changed the time window, so yours was not saved</em>. Nothing is merged or overwritten silently (SUB-28).</p>
+8. <strong>Shared state follows the window.</strong> The range of current time in shared state is the window as shown, so tools and other extensions see it, and it follows a drag at once.
+9. <strong>A tool's time outside the saved window.</strong> Closest approach, say, moves current time to the moment it finds. If that is outside the saved window, Debrief shows it without saving anything:</p>
+<ul>
+<li>the window shown widens by the least amount that takes the time in, but never to more than twice the saved window's length. Beyond that, the window moves instead: the saved length, centred on the time, kept within the plot's period;</li>
+<li>the part of the window bar that differs from the saved window is hatched, and a note says <em>Showing beyond saved window</em> (or <em>Showing a different period from the saved window</em>, when it moved), with <strong>Keep</strong> and <strong>Revert</strong>. It stays until the analyst chooses, and screen readers hear it (a polite live region);</li>
+<li>the tool's message adds <em>(outside your saved window)</em>. The history records the tool's run and its result, such as the closest approach's time, never a window.</li>
+</ul>
+<p><strong>Keep</strong> saves the window shown, as letting go does, conflict checks included (SUB-28). <strong>Revert</strong> shows the saved window again, with current time moved to its nearest edge. Dragging a handle or the band, or moving a handle from the keyboard, saves the window as left, so it counts as Keep. Moving current time, stepping and playing inside the window shown neither save it nor clear the note. If the plot is closed or VS Code reloads, the window shown is lost and the saved one returns.</p>
+<p>A tool whose purpose is to set the window (none ships yet) can ask for its range to be saved (<code>save_window</code> on its <code>state_change</code>). Debrief saves it, through the same path, only when the analyst ran that tool by hand from its form on the plot still open; a run by an agent, a command, a chain or a replay is shown as above, never saved.
+10. <strong>A colleague's window.</strong> If someone else changes the plot's window, Debrief notices (it watches the plot file as well as its history), shows the new window without reading the plot's content again, and says so. If the analyst lets go of a window after a colleague changed it, theirs is kept: Debrief shows it and says <em>Someone else changed the time window, so yours was not saved</em>. Nothing is merged or overwritten silently (SUB-28).</p>
 </li>
 </ol>
 <h3 id="keyboard">Keyboard<a class="headerlink" href="#keyboard" title="Permanent link">&para;</a></h3>
@@ -1634,12 +1664,12 @@
 <tr>
 <td>Window start</td>
 <td>Home, End</td>
-<td>To the plot's start; to the window's end</td>
+<td>To the plot's start; to a second before the window's end</td>
 </tr>
 <tr>
 <td>Window end</td>
 <td>Home, End</td>
-<td>To the window's start; to the plot's end</td>
+<td>To a second after the window's start; to the plot's end</td>
 </tr>
 <tr>
 <td>Current time</td>
@@ -1665,6 +1695,16 @@
 <td>Speed</td>
 <td>↑ ↓</td>
 <td>Choose a speed</td>
+</tr>
+<tr>
+<td>Keep, Revert</td>
+<td>Enter, Space</td>
+<td>Save the window shown; show the saved window again</td>
+</tr>
+<tr>
+<td>Context tracks</td>
+<td>↑ ↓</td>
+<td>Clear, faint or off</td>
 </tr>
 </tbody>
 </table>
@@ -1695,12 +1735,13 @@
     end</code></pre>
 <h2 id="reference-implementation">Reference implementation<a class="headerlink" href="#reference-implementation" title="Permanent link">&para;</a></h2>
 <ul>
-<li><strong>The component:</strong> <code>vscode/webview/timecontrol.ts</code> and <code>timecontrol.css</code>; its rules, free of the page, in <code>vscode/webview/timelogic.ts</code> (window limits, steps, speeds, <code>Player</code>, <code>WindowGesture</code>), tested in <code>vscode/test/unit/timecontrol.test.ts</code>.</li>
-<li><strong>VS Code:</strong> the Time view, <code>vscode/src/panels/timeview.ts</code> and <code>vscode/webview/time.ts</code>; saving and noticing windows in <code>vscode/src/extension.ts</code> (<code>saveWindow</code>, <code>refreshView</code>, <code>watch</code>); the window in shared state in <code>vscode/src/session.ts</code> (<code>windowChanged</code>); what the map draws in <code>vscode/webview/map.ts</code> (<code>drawWindow</code>). The command <code>debrief.setTimeWindow</code> sets it for agents and keyboard macros.</li>
-<li><strong>The playground:</strong> <code>vscode/play/host.ts</code> (<code>saveWindow</code>) and <code>set_view</code> in <code>vscode/play/play.py</code>.</li>
-<li><strong>Messages:</strong> <code>show_time</code> and <code>window_changed</code> (<code>WebviewMessage</code>).</li>
-<li><strong>The service:</strong> <code>debrief/set_view</code> and <code>debrief/open</code>; <code>Catalogue.write_view</code>.</li>
-<li><strong>The tests:</strong> the integration test's time window steps; the playground test's <code>playTheTimeController</code>.</li>
+<li><strong>The component:</strong> <code>vscode/webview/timecontrol.ts</code> and <code>timecontrol.css</code>; its rules, free of the page, in <code>vscode/webview/timelogic.ts</code> (window limits, steps, speeds, <code>Player</code>, <code>WindowGesture</code>, <code>windowForTime</code>, <code>placeToolTime</code>, <code>SavedWindow</code>), tested in <code>vscode/test/unit/timecontrol.test.ts</code> and <code>timewindow.test.ts</code>.</li>
+<li><strong>Context tracks:</strong> <code>vscode/webview/contrast.ts</code> (<code>contextStyle</code>: colour, opacity and width per theme), tested against every palette colour on Dark+ and Light+ in <code>vscode/test/unit/contrast.test.ts</code>; drawn by <code>applyContext</code> in <code>vscode/webview/map.ts</code>.</li>
+<li><strong>VS Code:</strong> the Time view, <code>vscode/src/panels/timeview.ts</code> and <code>vscode/webview/time.ts</code>; saving and noticing the island in <code>vscode/src/extension.ts</code> (<code>saveWindow</code>, <code>saveContext</code>, <code>saveView</code>, <code>applyToolState</code>, <code>refreshView</code>, <code>watch</code>); the window in shared state in <code>vscode/src/session.ts</code> (<code>windowChanged</code>, <code>onView</code>); what the map draws in <code>vscode/webview/map.ts</code> (<code>drawWindow</code>). The commands <code>debrief.setTimeWindow</code> and <code>debrief.setContextTracks</code> set them for agents and keyboard macros.</li>
+<li><strong>The playground:</strong> <code>vscode/play/host.ts</code> (<code>saveView</code>, <code>showToolTime</code>) and <code>set_view</code> in <code>vscode/play/play.py</code>. It has no settings: the minimum-contrast setting is always off there.</li>
+<li><strong>Messages:</strong> <code>show_time</code> (with <code>saved_window</code>, <code>context_tracks</code>, <code>minimum_context_contrast</code>), <code>window_changed</code>, <code>context_changed</code> and <code>set_context</code> (<code>WebviewMessage</code>).</li>
+<li><strong>The service:</strong> <code>debrief/set_view</code> and <code>debrief/open</code>; <code>Catalogue.write_view</code>. The island's <code>context_tracks</code> and a result's <code>save_window</code> are in the schema (0.0.10).</li>
+<li><strong>The tests:</strong> the integration test's time window and context steps; the playground test's <code>playTheTimeController</code> and its closest approach steps.</li>
 </ul>
 <p><em>Not yet:</em> drawing sensor data (bearings arrive with Phase 4's D stream, and will be limited to the window); the window following current time while playing; a choice of step.</p>
 
