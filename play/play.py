@@ -15,7 +15,7 @@ from typing import Any
 
 from debrief_io import import_dpf, import_rep
 from debrief_schemas import DocumentKind, dump_document, models
-from debrief_stac import Base, Catalogue, Changes, HistoryError
+from debrief_stac import Base, Catalogue, Changes, History, HistoryError
 from debrief_tools import Registry
 from debrief_tools.registry import applies
 from debrief_tools.run import ToolRunConflict, ToolRunError, run_tool
@@ -62,9 +62,9 @@ def offered(kinds_json: str) -> str:
     return json.dumps([n for n, t in registry.tools.items() if applies(t.declaration, kinds)])
 
 
-def _steps(item: str) -> list[dict[str, Any]]:
+def _steps(history: History) -> list[dict[str, Any]]:
     out = []
-    for step in _cat().history(item).steps():
+    for step in history.steps():
         first = step.records[0]
         out.append(
             {
@@ -92,7 +92,7 @@ def open_plot(item: str) -> str:
             "item": _json(DocumentKind.STAC_ITEM, _cat().read_item(item)),
             "plot": _json(DocumentKind.PLOT, history.plot()),
             "base": {"current": head.current, "plot_hash": head.plot_hash},
-            "steps": _steps(item),
+            "steps": _steps(history),
             "recovered": recovered,
             "presentation": _json(DocumentKind.PRESENTATION, presentation),
             "presentation_hash": presentation_hash,
