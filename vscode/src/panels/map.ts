@@ -7,7 +7,7 @@ import * as vscode from "vscode";
 import type { Session } from "../session.js";
 import { checkMessage } from "../messages.js";
 import { webviewHtml } from "./html.js";
-import { displayed, hiddenIds } from "../presentation.js";
+import { displayed, hiddenIds } from "../hidden.js";
 
 export class MapPanel {
   private panel?: vscode.WebviewPanel;
@@ -86,10 +86,10 @@ export class MapPanel {
     if (!opened || !this.panel) return;
     this.panel.title = opened.item.properties.title ?? opened.item.id;
     // Hiding is shared, so the map says how many are hidden, with a way to show them (SUB-22).
-    const hidden = hiddenIds(opened.plot, opened.presentation).length;
+    const hidden = hiddenIds(opened.plot).length;
     this.post({
       kind: "show_plot",
-      plot: displayed(opened.plot, opened.presentation), // the analyst's colours, hidden left out (SUB-22)
+      plot: displayed(opened.plot), // hidden features left out (SUB-22)
       plot_title: this.panel.title,
       selection: this.selectionMessage(this.session.selection),
       hidden_count: hidden,

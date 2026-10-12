@@ -292,7 +292,8 @@ function draw(plot: DebriefFeatureCollection): void {
   for (const feature of plot.features) {
     const colour = colourOf(feature);
     const geometry = feature.geometry;
-    if (!geometry) continue; // time-only annotations live in the outline (CAP-04)
+    // Time-only annotations live in the outline (CAP-04); the plot's own details are not drawn.
+    if (!geometry || feature.properties.kind === "plot") continue;
     const layers: L.Layer[] = [];
     const paths: L.Path[] = [];
     const click = (event: L.LeafletMouseEvent) => {

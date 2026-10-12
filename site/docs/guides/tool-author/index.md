@@ -186,6 +186,8 @@ return models.ToolResult(non_spatial=[table], new_features=[line], state_change=
 
 Current time must be inside its range, and a selection may name only features the plot will have once your result is applied, including those you add. Shared state is never recorded in provenance and can't be undone (SUB-22). A tool that only changes shared state can run on a read-only catalogue.
 
+**`context.plot` is the plot's content.** It may include the plot's own details, a feature of kind `plot` with the plot's title; skip it when you walk the features, and it can never be selected. It never includes the plot's view, such as its time window: your run is recorded by its selection and parameters, so it must not depend on anything outside the plot's history. If your tool needs a period, declare a `time` parameter, or read `context.state` (SUB-22).
+
 **Don't change `context.plot` or the selected features.** They're copies, so changing them has no effect. Return your changes instead. A result that includes something your declaration's `outputs` doesn't list is refused.
 
 ## When something is wrong

@@ -12,17 +12,8 @@ import { initial } from "../../webview/formdraft.js";
 import { count, describeTimes } from "../../src/format.js";
 import { Session } from "../../src/session.js";
 import { keyedHash, loadLogKey, logKeyFile, redact, serviceLine, setLogKey, toolRunLine } from "../../src/diagnostics.js";
-import {
-  applyStep,
-  changed,
-  displayed,
-  hiddenIds,
-  hiddenNotice,
-  presentationChange,
-  UndoTimeline,
-  type TimelineEntry,
-} from "../../src/presentation.js";
-import { historyRows, PRESENTATION_GROUP } from "../../src/views/historyrows.js";
+import { displayed, hiddenIds, hiddenNotice, isFeature, isHidden, timeWindowOf } from "../../src/hidden.js";
+import { historyRows } from "../../src/views/historyrows.js";
 import type { HistoryStep } from "../../src/service.js";
 import type { OpenedPlot } from "../../src/catalogue.js";
 
@@ -100,7 +91,10 @@ describe("reading a catalogue Python wrote", () => {
   });
   it("opens a plot with its source", () => {
     const opened = openPlot(store, "serial-1");
-    expect(opened.plot.features.map((f) => f.properties.name)).toEqual(["NELSON", "BLUE", "TRAWLER 7"]);
+    expect(opened.plot.features.filter(isFeature).map((f) => f.properties.name)).toEqual(["NELSON", "BLUE", "TRAWLER 7"]);
+    // The plot's own details, with its view: a time window over its period (SUB-22).
+    expect(opened.plot.features.at(-1)?.properties.kind).toBe("plot");
+    expect(timeWindowOf(opened.plot)).toEqual({ start: opened.item.properties.start_datetime, end: opened.item.properties.end_datetime });
     expect(opened.files).toEqual([expect.objectContaining({ kind: "source", title: "demo.rep" })]);
   });
   it("reports a missing catalogue instead of failing", () =>
@@ -347,132 +341,63 @@ describe("contributed menus", () => {
       expect(entry).not.toHaveProperty("category");
     }
   });
-  it("offer presentation commands on the outline's features only", () => {
+  it("offer colour and hiding on the outline's features only", () => {
     const when = (command: string) =>
       manifest.contributes.menus["view/item/context"].find((e: { command: string }) => e.command === command).when as string;
     for (const command of ["debrief.setColour", "debrief.hide", "debrief.show"]) expect(when(command)).toContain("view == debrief.outline");
   });
 });
 
-describe("presentation, outside the plot's history (SUB-22)", () => {
+describe("hiding and colour are the plot's own content (SUB-22)", () => {
   const plot = {
     type: "FeatureCollection",
-    schema_version: "0.0.8",
+    schema_version: "0.0.9",
     features: [
-      { id: "a", properties: { kind: "track", name: "A", style: { colour: "#e01c3e", legacy_symbology: "@C" } } },
-      { id: "b", properties: { kind: "annotation", name: "B" } },
-      { id: "c", properties: { kind: "track", name: "C" } },
+      { id: "a", properties: { kind: "track", name: "A", style: { colour: "#e01c3e" } } },
+      { id: "b", properties: { kind: "annotation", name: "B", hidden: true } },
+      { id: "c", properties: { kind: "track", name: "C", hidden: true } },
+      {
+        id: "plot",
+        geometry: null,
+        properties: { kind: "plot", title: "P", view: { time_window: { start: "1995-12-12T05:00:00.000Z", end: "1995-12-12T06:00:00.000Z" } } },
+      },
     ],
     provenance: [],
   } as unknown as Parameters<typeof displayed>[0];
-  const empty = { schema_version: "0.0.8", features: [] };
 
-  it("shows the analyst's colours and leaves hidden features off the map", () => {
-    const p = changed(changed(empty, ["a"], { colour: "#0064bd" }), ["b"], { hidden: true });
-    const shown = displayed(plot, p);
-    expect(shown.features.map((f) => f.id)).toEqual(["a", "c"]);
-    expect((shown.features[0].properties as { style: unknown }).style).toEqual({ colour: "#0064bd", legacy_symbology: "@C" });
-    expect((plot.features[0].properties as { style: { colour: string } }).style.colour).toBe("#e01c3e"); // the plot is untouched
-  });
-
-  it("drops entries that no longer say anything", () => {
-    const hidden = changed(empty, ["b"], { hidden: true });
-    expect(changed(hidden, ["b"], { hidden: false }).features).toEqual([]);
+  it("leaves hidden features and the plot's own details off the map, colours as they are", () => {
+    const shown = displayed(plot);
+    expect(shown.features.map((f) => f.id)).toEqual(["a"]);
+    expect(shown.features[0]).toBe(plot.features[0]); // nothing restyled on the way
   });
 
   it("says how many features are hidden, so hiding never goes unseen", () => {
-    const p = changed(empty, ["b", "c", "gone"], { hidden: true });
-    expect(hiddenIds(plot, p)).toEqual(["b", "c"]); // only features the plot has
+    expect(hiddenIds(plot)).toEqual(["b", "c"]);
+    expect(isHidden(plot.features[3])).toBe(false);
     expect(hiddenNotice(2)).toBe("2 features of this plot are hidden on the map.");
     expect(hiddenNotice(1)).toBe("1 feature of this plot is hidden on the map.");
     expect(hiddenNotice(0)).toBeUndefined();
   });
 
-  it("undoes on the presentation as it is now, keeping others' changes (SUB-28)", () => {
-    const { step, next } = presentationChange("p", "Hide on map", changed(empty, ["a"], { colour: "#0064bd" }), ["b"], { hidden: true });
-    expect(next.features).toEqual([{ id: "a", colour: "#0064bd" }, { id: "b", hidden: true }]);
-    // Meanwhile someone else colours c and recolours a.
-    const theirs = changed(changed(next, ["c"], { colour: "#00a000" }), ["a"], { colour: "#8a3ffc" });
-    const undone = applyStep(theirs, step, "undo");
-    expect(undone.features).toEqual([{ id: "a", colour: "#8a3ffc" }, { id: "c", colour: "#00a000" }]);
-    expect(applyStep(undone, step, "redo").features).toContainEqual({ id: "b", hidden: true });
-    // A colour step puts back the colour each feature had, or none.
-    const colour = presentationChange("p", "Colour red", theirs, ["a", "b"], { colour: "#e01c3e" });
-    expect(colour.step.before).toEqual({ a: "#8a3ffc", b: undefined });
-    expect(applyStep(colour.next, colour.step, "undo")).toEqual(theirs);
-  });
-});
-
-describe("one undo timeline per plot (SUB-21, SUB-22)", () => {
-  const step = (plot: string, label: string) =>
-    presentationChange(plot, label, { schema_version: "0.0.8", features: [] }, ["a"], { hidden: true }).step;
-  const presentation = (s: ReturnType<typeof step>): TimelineEntry => ({ kind: "presentation", step: s });
-
-  it("keeps each plot's timeline when switching plots and back", () => {
-    const timeline = new UndoTimeline();
-    const hide = presentation(step("p", "Hide on map"));
-    timeline.record("p", { kind: "data" });
-    timeline.record("p", hide);
-    timeline.record("q", { kind: "data" });
-    expect(timeline.nextUndo("p")).toBe(hide);
-    expect(timeline.nextUndo("q")?.kind).toBe("data");
-    expect(timeline.presentationSteps("p").map((s) => s.step.label)).toEqual(["Hide on map"]);
-    expect(timeline.presentationSteps("q")).toEqual([]);
-  });
-
-  it("moves an entry only once the undo has succeeded", () => {
-    const timeline = new UndoTimeline();
-    const hide = presentation(step("p", "Hide on map"));
-    timeline.record("p", { kind: "data" });
-    timeline.record("p", hide);
-    // An undo that failed (a conflict, say) leaves the entry where it was.
-    expect(timeline.nextUndo("p")).toBe(hide);
-    expect(timeline.nextRedo("p")).toBeUndefined();
-    timeline.undone("p", hide);
-    expect(timeline.nextUndo("p")?.kind).toBe("data");
-    expect(timeline.nextRedo("p")).toBe(hide);
-    expect(timeline.presentationSteps("p")).toEqual([{ step: (hide as { step: unknown }).step, undone: true }]);
-    timeline.redone("p", hide);
-    expect(timeline.nextUndo("p")).toBe(hide);
-  });
-
-  it("after any new change, redo has nothing older to bring back", () => {
-    const timeline = new UndoTimeline();
-    timeline.record("p", { kind: "data" });
-    const undoneData = timeline.nextUndo("p")!;
-    timeline.undone("p", undoneData);
-    expect(timeline.nextRedo("p")).toBe(undoneData);
-    timeline.record("p", presentation(step("p", "Colour green")));
-    expect(timeline.nextRedo("p")).toBeUndefined(); // Ctrl+Y does nothing, never redoes the older data step
-    // An undo of a change from before this window (none recorded) can still be redone.
-    const fresh = new UndoTimeline();
-    fresh.undone("r", { kind: "data" });
-    expect(fresh.nextRedo("r")?.kind).toBe("data");
+  it("reads the plot's time window from its view", () => {
+    expect(timeWindowOf(plot)).toEqual({ start: "1995-12-12T05:00:00.000Z", end: "1995-12-12T06:00:00.000Z" });
+    expect(timeWindowOf({ ...plot, features: plot.features.slice(0, 3) })).toBeUndefined();
   });
 });
 
 describe("the History view (SUB-21, SUB-22)", () => {
   const steps = [
     { seq: 1, status: "applied", kind: "import", tool: "debrief-io.rep", agent: "a", at: "", records: 1 },
-    { seq: 2, status: "applied", kind: "tool", tool: "core.add_note", agent: "a", at: "", records: 1 },
+    { seq: 2, status: "applied", kind: "edit", tool: null, agent: "a", at: "", records: 1, notes: ["Colour of A set to green"] },
   ] as HistoryStep[];
-  const colour = presentationChange("p", "Colour green", { schema_version: "0.0.8", features: [] }, ["a"], { colour: "#00a000" }).step;
 
-  it("groups this window's presentation changes at the top, and marks what Ctrl+Z takes next", () => {
-    const rows = historyRows(steps, 2, [{ step: colour, undone: false }], { kind: "presentation", step: colour });
-    expect(rows[0]).toMatchObject({ kind: "group", label: PRESENTATION_GROUP });
-    expect((rows[0] as { children: { nextToUndo: boolean }[] }).children[0].nextToUndo).toBe(true);
-    expect(rows.slice(1).map((r) => [r.kind, (r as { nextToUndo?: boolean }).nextToUndo])).toEqual([
-      ["step", false],
-      ["step", false],
+  it("lists a colour change as a step, named by its note, and marks it as what Ctrl+Z takes next", () => {
+    const rows = historyRows(steps, 2);
+    expect(rows.map((r) => [r.step.seq, r.current, r.nextToUndo])).toEqual([
+      [2, true, true],
+      [1, false, false],
     ]);
-  });
-
-  it("marks the plot's current step when Ctrl+Z will undo a change to the plot", () => {
-    const rows = historyRows(steps, 2, [{ step: colour, undone: true }], { kind: "data" });
-    expect((rows[0] as { children: { nextToUndo: boolean }[] }).children[0].nextToUndo).toBe(false);
-    expect(rows[1]).toMatchObject({ kind: "step", current: true, nextToUndo: true });
-    expect(historyRows(steps, 1, [], undefined).every((r) => !(r as { nextToUndo?: boolean }).nextToUndo)).toBe(true); // the import can't be undone
-    expect(historyRows(steps, 2, [], undefined)[0]).toMatchObject({ kind: "step", nextToUndo: true });
+    expect(describeStep(rows[0].step, () => undefined).label).toBe("Colour of A set to green");
+    expect(historyRows(steps, 1).every((r) => !r.nextToUndo)).toBe(true); // the import can't be undone
   });
 });

@@ -10,7 +10,7 @@ import { randomBytes } from "node:crypto";
 import { request as httpRequest } from "node:http";
 import { tmpdir } from "node:os";
 import { createInterface } from "node:readline";
-import type { Presentation, SharedState, ToolDeclaration, ToolResult } from "@debrief/schemas";
+import type { DebriefFeatureCollection, PlotView, SharedState, ToolDeclaration, ToolResult } from "@debrief/schemas";
 import type { ToolOutcome } from "./diagnostics.js";
 
 export interface Unavailable {
@@ -61,6 +61,17 @@ export interface Opened {
   base: Base;
   /** What opening had to repair after a crash, for the analyst (NFR-10). */
   recovered: string[];
+}
+
+/** What opening a plot says besides: its view (the island) and, rarely, the plot itself. */
+export interface OpenedView extends Opened {
+  /** The plot's view, kept in the plot file outside its history (SUB-22), and its hash. */
+  view: PlotView | null;
+  view_hash: string;
+  /** A retired presentation.json was made one recorded step. */
+  migrated?: boolean;
+  /** The plot with a retired presentation.json applied in memory, where it could not be migrated. */
+  plot?: DebriefFeatureCollection;
 }
 
 export interface ImportReport {
@@ -298,8 +309,8 @@ export class ToolService {
   }
 
   /** Open a plot: finish any change a crash interrupted, and say where its history stands. */
-  open(store: string, item: string): Promise<Opened> {
-    return this.request("debrief/open", { store, item });
+  open(store: string, item: string, agent: Agent): Promise<OpenedView> {
+    return this.request("debrief/open", { store, item, agent });
   }
 
   history(store: string, item: string): Promise<Opened & { steps: HistoryStep[] }> {
@@ -321,9 +332,33 @@ export class ToolService {
     return this.request("debrief/create_catalogue", { location, title });
   }
 
-  /** Replace a plot's presentation (SUB-22). Fails with CONFLICT if it changed since hash was read. */
-  setPresentation(store: string, item: string, presentation: Presentation, hash: string): Promise<{ hash: string }> {
-    return this.request("debrief/set_presentation", { store, item, presentation, hash });
+  /**
+   * Colour tracks, or hide or show features: a recorded, undoable step like any
+   * change (SUB-22, decision 12 Oct). Fails with CONFLICT if the plot changed since base.
+   */
+  restyle(
+    store: string,
+    item: string,
+    base: Base,
+    agent: Agent,
+    features: string[],
+    change: { colour: string; colour_name?: string } | { hidden: boolean },
+    allowNewerSchema = false,
+  ): Promise<Opened & { changed: boolean }> {
+    return this.request("colour" in change ? "debrief/set_colour" : "debrief/set_hidden", {
+      store,
+      item,
+      base,
+      agent,
+      features,
+      ...change,
+      ...(allowNewerSchema && { allow_newer_schema: true }),
+    });
+  }
+
+  /** Change the plot's view (its island): never recorded or undone. Fails with CONFLICT if it changed since hash was read. */
+  setView(store: string, item: string, view: PlotView | null, hash: string, agent: Agent, allowNewerSchema = false): Promise<OpenedView> {
+    return this.request("debrief/set_view", { store, item, view, hash, agent, ...(allowNewerSchema && { allow_newer_schema: true }) });
   }
 
   /** Import a REP file or a legacy plot file (.dpf) as a new plot. */
