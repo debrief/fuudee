@@ -40,6 +40,7 @@ by write_view, which refuses if it changed since the writer read it.
 
 from __future__ import annotations
 
+import copy
 import hashlib
 import json
 import re
@@ -165,19 +166,45 @@ def _parsed(text: str) -> object | None:
         return None
 
 
+# The last plot files read or written, by the digest of their text: each one's
+# content text and island. Taking the island out means parsing the whole file,
+# slow for a large plot, and the same file is hashed several times a change.
+_SPLIT: dict[bytes, tuple[str, View | None]] = {}
+_SPLIT_KEPT = 2
+
+
+def _digest(text: str) -> bytes:
+    return hashlib.sha256(text.encode("utf-8")).digest()
+
+
+def _remember(text: str, content: str, view: View | None) -> None:
+    while len(_SPLIT) >= _SPLIT_KEPT:
+        _SPLIT.pop(next(iter(_SPLIT)))
+    _SPLIT[_digest(text)] = (content, copy.deepcopy(view))
+
+
+def _split(text: str) -> tuple[str, View | None]:
+    """A plot file's content text, and its island as found (not checked)."""
+    if '"view"' not in text:  # no island: cheap
+        return text, None
+    found = _SPLIT.get(_digest(text))
+    if found is None:
+        document = _parsed(text)
+        view = view_in(document)
+        if view is not None:
+            set_view_in(document, None)
+        found = (dump_json(document) if view is not None else text, view)
+        _remember(text, *found)
+    return found
+
+
 def content_text(text: str) -> str:
     """A plot file's content: its text with the island left out, as Debrief writes it.
 
     A file with no island is its own content, so plots that have never had
     one hash as they always did.
     """
-    if '"view"' not in text:  # no island: the common case, and cheap
-        return text
-    document = _parsed(text)
-    if view_in(document) is None:
-        return text
-    set_view_in(document, None)
-    return dump_json(document)
+    return _split(text)[0]
 
 
 def content_hash(text: str) -> str:
@@ -192,14 +219,14 @@ def view_hash(view: View | None) -> str:
 
 def island_of(text: str | None) -> View | None:
     """The island in a plot file, or None. One that is not valid is left out."""
-    if text is None or '"view"' not in text:
+    view = _split(text)[1] if text is not None else None
+    if view is None:
         return None
-    view = view_in(_parsed(text))
     try:
         load_view(view)
     except (DocumentValidationError, ValueError):
         return None
-    return view
+    return copy.deepcopy(view)
 
 
 def with_island(text: str, view: View | None) -> str:
@@ -236,7 +263,13 @@ def apply(
         raise HistoryError(
             f"The change adds a feature whose id is already used: {sorted(clash)[0]}"
         )
-    if any(f.id in deleted and f.properties.kind == PLOT_KIND for f in plot.features):
+    if any(
+        f.properties.kind == PLOT_KIND
+        and (f.id in deleted or (f.id in modified and modified[f.id].properties.kind != PLOT_KIND))
+        for f in plot.features
+    ):
+        # Deleted, or replaced by a feature of another kind: either way the plot
+        # would lose its details, and the island with them.
         raise HistoryError("The plot's own details (its whole-plot feature) cannot be deleted.")
     features = [modified.get(f.id, f) for f in plot.features if f.id not in deleted]
     features += changes.added
@@ -339,11 +372,11 @@ class History:
         head = self.head()
         text = self._read_plot_text()
         if text is not None and content_hash(text) == head.plot_hash:
-            try:
-                return load_document(DocumentKind.PLOT, text)
-            except DocumentValidationError:  # the content is sound, so the island is not
-                return load_document(DocumentKind.PLOT, content_text(text))
-        plot = self.replay(head.current)
+            # The content, then the island on its own: content this process wrote was
+            # checked as it was written, so it is not checked again (it is slow).
+            plot = load_document(DocumentKind.PLOT, content_text(text))
+        else:
+            plot = self.replay(head.current)
         view = island_of(text)
         return with_view(plot, load_view(view)) if view is not None else plot
 
@@ -413,7 +446,10 @@ class History:
         """
         if text is None:
             text = dump_document(DocumentKind.PLOT, plot)
-        self.catalogue.store_plot_text(self.item_id, plot, with_island(text, view))
+        whole = with_island(text, view)
+        self.catalogue.store_plot_text(self.item_id, plot, whole)
+        if whole is not text:
+            _remember(whole, text, view)
         return text_hash(text)
 
     def _disk_view(self) -> View | None:
@@ -632,9 +668,11 @@ class History:
             if not set_view_in(document, view):
                 raise HistoryError("This plot has no whole-plot feature to keep its view in.")
             new_text = dump_json(document)
-            if content_hash(new_text) != content_hash(text):  # never: only the island moved
+            content = content_text(text)
+            if content_text(new_text) != content:  # never: only the island moved
                 raise HistoryError("Changing the plot's view would have changed its content.")
             self.store.write_text_atomic(self._plot_path, new_text)
+            _remember(new_text, content, view)
         return view_hash(view)
 
     # --- Opening: making the history whole -----------------------------------

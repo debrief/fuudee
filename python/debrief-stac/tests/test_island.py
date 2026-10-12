@@ -14,6 +14,7 @@ import pytest
 from debrief_schemas import DocumentValidationError, models
 from debrief_schemas.island import view_of
 from debrief_stac import Base, Catalogue, CatalogueError, Changes, Conflict, HistoryError
+from debrief_stac import history as history_module
 from debrief_stac.history import content_hash, text_hash, view_hash
 
 AGENT = models.AgentRef(kind="person", name="analyst")
@@ -217,6 +218,20 @@ def test_hashes_of_plots_without_an_island_are_unchanged(catalogue) -> None:
     assert content_hash(text) == text_hash(text)
 
 
+def test_a_plot_written_here_is_not_parsed_again_for_its_island(catalogue, monkeypatch) -> None:
+    # Taking the island out parses the whole file: slow for a large plot, so a
+    # file this process wrote is remembered, not parsed again on every read.
+    set_window(catalogue)
+    catalogue.commit("p", [record(2)], Changes(added=[note("b")]))
+    parsed = []
+    original = history_module._parsed
+    monkeypatch.setattr(history_module, "_parsed", lambda text: parsed.append(1) or original(text))
+    plot = catalogue.read_plot("p")
+    catalogue.history("p").open()
+    assert view_of(plot).model_dump(mode="json", exclude_none=True) == WINDOW
+    assert parsed == []
+
+
 def test_a_view_that_is_not_valid_is_refused(catalogue) -> None:
     _, current = catalogue.read_view("p")
     backwards = {
@@ -246,6 +261,13 @@ def test_a_plot_without_details_gets_them_once_as_a_recorded_step(tmp_path: Path
 def test_the_whole_plot_feature_cannot_be_deleted(catalogue) -> None:
     with pytest.raises(HistoryError, match="cannot be deleted"):
         catalogue.commit("p", [record(2)], Changes(deleted_ids=["plot"]))
+    # Nor replaced by a feature of another kind, as a tool's modified features could.
+    with pytest.raises(HistoryError, match="cannot be deleted"):
+        catalogue.commit("p", [record(2)], Changes(modified=[note("plot")]))
+    set_window(catalogue)
+    with pytest.raises(HistoryError, match="cannot be deleted"):
+        catalogue.commit("p", [record(2)], Changes(modified=[note("plot")]))
+    assert island_on_disk(catalogue) == WINDOW
 
 
 def test_save_as_new_takes_the_view_with_it(catalogue) -> None:
