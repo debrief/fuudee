@@ -71,7 +71,7 @@
     
     
     
-    <body dir="ltr" data-md-color-scheme="default" data-md-color-primary="indigo" data-md-color-accent="indigo"><div class="pr-preview-banner" style="background:#fff4ce;color:#3b2f00;border-bottom:1px solid #e0c060;padding:6px 16px;font:14px/1.4 system-ui,sans-serif;text-align:center">Preview of <a style="color:inherit;text-decoration:underline" href="https://github.com/debrief/fuudee/pull/32">pull request #32</a>: Time controller: one window for the whole plot, play and step, in the VS Code sidebar and the playground. Built from f5c2aea on 2026-10-12 10:14 UTC. <a style="color:inherit;text-decoration:underline" href="https://debrief.github.io/fuudee/pr-preview/">All previews</a></div>
+    <body dir="ltr" data-md-color-scheme="default" data-md-color-primary="indigo" data-md-color-accent="indigo"><div class="pr-preview-banner" style="background:#fff4ce;color:#3b2f00;border-bottom:1px solid #e0c060;padding:6px 16px;font:14px/1.4 system-ui,sans-serif;text-align:center">Preview of <a style="color:inherit;text-decoration:underline" href="https://github.com/debrief/fuudee/pull/32">pull request #32</a>: Time controller: one window for the whole plot, play and step, in the VS Code sidebar and the playground. Built from c5767bb on 2026-10-12 16:36 UTC. <a style="color:inherit;text-decoration:underline" href="https://debrief.github.io/fuudee/pr-preview/">All previews</a></div>
   
     
     <input class="md-toggle" data-md-toggle="drawer" type="checkbox" id="__drawer" autocomplete="off">
@@ -1527,11 +1527,12 @@
 </table>
 <h2 id="model">Model<a class="headerlink" href="#model" title="Permanent link">&para;</a></h2>
 <ol>
-<li><strong>One controller, every host.</strong> VS Code shows it as the <strong>Time</strong> view at the top of the Debrief sidebar, above the catalogues, outline, tools and history. The playground shows the same component at the top of its side column. The map only draws: it has no control of its own.</li>
-<li><strong>The time window</strong> is a slider with two handles over the plot's whole period. Drag a handle to move that end; drag the band between them to move the whole window. The caption says how long the window is. The window is never shorter than one second: the handles stop a second apart and never cross. A plot saved with a window of no length opens showing its first second, and that is saved only if the analyst moves it.</li>
-<li><strong>Current time</strong> is a slider over the window, never outside it. When the window moves past current time, current time moves with it. <strong>‹</strong> and <strong>›</strong> step back and forward; the caption shows the step, about a hundredth of the window (1 s up to 1 day).</li>
 <li>
-<p><strong>Play</strong> (<strong>▶</strong>, or Space) moves current time forward at the chosen speed and stops at the end of the window. Playing from the end starts again at the window's start. The speeds are multiples of real time:</p>
+<p><strong>One controller, every host.</strong> VS Code shows it as the <strong>Time</strong> view at the top of the Debrief sidebar, above the catalogues, outline, tools and history. The playground shows the same component at the top of its side column. The map only draws: it has no control of its own.</p>
+<p>The controller is compact, so the whole of it shows without scrolling at the height VS Code first gives the view (at 1440 × 900, with the other Debrief views open), note and all. From the top: the window's start and end, with its length, on one line; the window's slider; the note, when there is one, on one line; current time's slider, with the step beside it; and <strong>‹</strong>, <strong>▶</strong>, <strong>›</strong>, the speed and current time on one line. Names that a caption would repeat are on hover and for screen readers instead.
+2. <strong>The time window</strong> is a slider with two handles over the plot's whole period. Drag a handle to move that end; drag the band between them to move the whole window. Above it, the window's start and end, and how long it is. The window is never shorter than one second: the handles stop a second apart and never cross. A plot saved with a window of no length opens showing its first second, and that is saved only if the analyst moves it.
+3. <strong>Current time</strong> is a slider over the window, never outside it. When the window moves past current time, current time moves with it. <strong>‹</strong> and <strong>›</strong> step back and forward; the step, about a hundredth of the window (1 s up to 1 day), shows beside the slider. Current time itself shows at the end of the buttons' line.
+4. <strong>Play</strong> (<strong>▶</strong>, or Space) moves current time forward at the chosen speed and stops at the end of the window. Playing from the end starts again at the window's start. The speeds are multiples of real time:</p>
 <table>
 <thead>
 <tr>
@@ -1572,7 +1573,7 @@
 </li>
 <li>
 <p><strong>What the map shows.</strong> Within the window, tracks are drawn in full: solid lines 2.5 px wide, direction ticks, a hollow dot at the first fix in the window and a filled, labelled dot at the last. Outside it, each whole track stays in view as a <strong>context track</strong>, so a deployment of weeks still reads as one picture (CAP-29): a solid line 1.5 px wide, with no ticks, dots or labels, in the track's hue made quieter (moved toward the theme's text colour). Annotations with a time or a period are drawn only while it falls in the window; annotations without one always are. Sensor data will be drawn only within the window (CAP-29); bearings are not drawn yet.</p>
-<p><strong>Context tracks</strong> are set for the plot, under the controller's buttons, and saved in its island like the window:</p>
+<p><strong>Context tracks</strong> are set for the plot and saved in its island like the window. In VS Code they are in the Time view's <strong>...</strong> menu, on its title bar: <strong>Context tracks: Clear</strong>, <strong>Faint</strong> and <strong>Off</strong>, the plot's choice checked (the commands <code>debrief.contextTracks.clear</code>, <code>.faint</code> and <code>.off</code>, which run <code>debrief.setContextTracks</code>). When the analyst's setting draws faint as clear, the view's title says so. The playground has no title menu: its <strong>Context</strong> list is beside the window's length.</p>
 <table>
 <thead>
 <tr>
@@ -1633,7 +1634,7 @@
 9. <strong>A tool's time outside the saved window.</strong> Closest approach, say, moves current time to the moment it finds. If that is outside the saved window, Debrief shows it without saving anything:</p>
 <ul>
 <li>the window shown widens by the least amount that takes the time in, but never to more than twice the saved window's length. Beyond that, the window moves instead: the saved length, centred on the time, kept within the plot's period;</li>
-<li>the part of the window bar that differs from the saved window is hatched, and a note says <em>Showing beyond saved window</em> (or <em>Showing a different period from the saved window</em>, when it moved), with <strong>Keep</strong> and <strong>Revert</strong>. It stays until the analyst chooses, and screen readers hear it (a polite live region);</li>
+<li>the part of the window bar that differs from the saved window is hatched, and a note says <em>Showing beyond saved window</em> (or <em>Showing a different period from the saved window</em>, when it moved), with <strong>Keep</strong> and <strong>Revert</strong> at its right. The note is one line: in a narrow view its text is cut short, and shows whole on hover. It stays until the analyst chooses, and screen readers hear all of it (a polite live region);</li>
 <li>the tool's message adds <em>(outside your saved window)</em>. The history records the tool's run and its result, such as the closest approach's time, never a window.</li>
 </ul>
 <p><strong>Keep</strong> saves the window shown, as letting go does, conflict checks included (SUB-28). <strong>Revert</strong> shows the saved window again, with current time moved to its nearest edge. Dragging a handle or the band, or moving a handle from the keyboard, saves the window as left, so it counts as Keep. Moving current time, stepping and playing inside the window shown neither save it nor clear the note. If the plot is closed or VS Code reloads, the window shown is lost and the saved one returns.</p>
@@ -1702,9 +1703,9 @@
 <td>Save the window shown; show the saved window again</td>
 </tr>
 <tr>
-<td>Context tracks</td>
+<td>Context tracks (the playground's list)</td>
 <td>↑ ↓</td>
-<td>Clear, faint or off</td>
+<td>Clear, faint or off. In VS Code, the view's <strong>...</strong> menu, or the commands in the Command Palette</td>
 </tr>
 </tbody>
 </table>
@@ -1737,11 +1738,11 @@
 <ul>
 <li><strong>The component:</strong> <code>vscode/webview/timecontrol.ts</code> and <code>timecontrol.css</code>; its rules, free of the page, in <code>vscode/webview/timelogic.ts</code> (window limits, steps, speeds, <code>Player</code>, <code>WindowGesture</code>, <code>windowForTime</code>, <code>placeToolTime</code>, <code>SavedWindow</code>), tested in <code>vscode/test/unit/timecontrol.test.ts</code> and <code>timewindow.test.ts</code>.</li>
 <li><strong>Context tracks:</strong> <code>vscode/webview/contrast.ts</code> (<code>contextStyle</code>: colour, opacity and width per theme), tested against every palette colour on Dark+ and Light+ in <code>vscode/test/unit/contrast.test.ts</code>; drawn by <code>applyContext</code> in <code>vscode/webview/map.ts</code>.</li>
-<li><strong>VS Code:</strong> the Time view, <code>vscode/src/panels/timeview.ts</code> and <code>vscode/webview/time.ts</code>; saving and noticing the island in <code>vscode/src/extension.ts</code> (<code>saveWindow</code>, <code>saveContext</code>, <code>saveView</code>, <code>applyToolState</code>, <code>refreshView</code>, <code>watch</code>); the window in shared state in <code>vscode/src/session.ts</code> (<code>windowChanged</code>, <code>onView</code>); what the map draws in <code>vscode/webview/map.ts</code> (<code>drawWindow</code>). The commands <code>debrief.setTimeWindow</code> and <code>debrief.setContextTracks</code> set them for agents and keyboard macros.</li>
+<li><strong>VS Code:</strong> the Time view, <code>vscode/src/panels/timeview.ts</code> and <code>vscode/webview/time.ts</code>; saving and noticing the island in <code>vscode/src/extension.ts</code> (<code>saveWindow</code>, <code>saveContext</code>, <code>saveView</code>, <code>applyToolState</code>, <code>refreshView</code>, <code>watch</code>); the window in shared state in <code>vscode/src/session.ts</code> (<code>windowChanged</code>, <code>onView</code>); what the map draws in <code>vscode/webview/map.ts</code> (<code>drawWindow</code>). The commands <code>debrief.setTimeWindow</code> and <code>debrief.setContextTracks</code> set them for agents and keyboard macros; the Time view's title menu runs <code>debrief.contextTracks.clear</code>, <code>.faint</code> and <code>.off</code>, checked through the context key <code>debrief.contextTracks</code>.</li>
 <li><strong>The playground:</strong> <code>vscode/play/host.ts</code> (<code>saveView</code>, <code>showToolTime</code>) and <code>set_view</code> in <code>vscode/play/play.py</code>. It has no settings: the minimum-contrast setting is always off there.</li>
-<li><strong>Messages:</strong> <code>show_time</code> (with <code>saved_window</code>, <code>context_tracks</code>, <code>minimum_context_contrast</code>), <code>window_changed</code>, <code>context_changed</code> and <code>set_context</code> (<code>WebviewMessage</code>).</li>
+<li><strong>Messages:</strong> <code>show_time</code> (with <code>saved_window</code>, <code>context_tracks</code>, <code>minimum_context_contrast</code>), <code>window_changed</code>, <code>context_changed</code> and <code>set_context</code> (<code>WebviewMessage</code>). VS Code's Time view no longer sends <code>context_changed</code>, since the choice moved to its title menu; the kind stays in the schema.</li>
 <li><strong>The service:</strong> <code>debrief/set_view</code> and <code>debrief/open</code>; <code>Catalogue.write_view</code>. The island's <code>context_tracks</code> and a result's <code>save_window</code> are in the schema (0.0.10).</li>
-<li><strong>The tests:</strong> the integration test's time window and context steps; the playground test's <code>playTheTimeController</code> and its closest approach steps.</li>
+<li><strong>The tests:</strong> the integration test's time window and context steps; the playground test's <code>playTheTimeController</code> and its closest approach steps, and <code>vscodeTimeView</code>, which loads VS Code's Time view page at the view's first size and checks that everything shows without scrolling, with the note and without.</li>
 </ul>
 <p><em>Not yet:</em> drawing sensor data (bearings arrive with Phase 4's D stream, and will be limited to the window); the window following current time while playing; a choice of step.</p>
 

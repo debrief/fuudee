@@ -24,7 +24,7 @@ button.primary { background: var(--vscode-button-background); color: var(--vscod
 button.link { background: none; border: none; color: var(--vscode-list-highlightForeground); padding: 0 2px; font-size: 12px; }
 button:focus-visible, li:focus-visible { outline: 1px solid var(--vscode-focusBorder); }
 /* The time controller has its own styles (timecontrol.css, shared with VS Code); the side column's list style stays off it. */
-.side .tc-speed { width: auto; padding: 0 2px; }
+.side .tc-speed, .side .tc-context { width: auto; padding: 0 2px; }
 #panel-try button { display: block; width: 100%; text-align: left; }
 .tools li { display: flex; align-items: baseline; gap: 6px; flex-wrap: wrap; }
 .file input { display: block; margin: 4px 0; color: var(--vscode-foreground); font: inherit; }
