@@ -11,6 +11,7 @@ from __future__ import annotations
 
 from typing import Any
 
+from debrief_kernel.formatting import UNIT_LABELS
 from debrief_kernel.time import TimeError, parse_utc
 from debrief_kernel.units import FACTORS, Quantity
 from debrief_schemas import models
@@ -61,7 +62,10 @@ def _check(param: models.ParameterDeclaration, value: Any) -> tuple[Any, str | N
         except (TypeError, ValueError):
             return None, f"{title} must be a number with a unit"
         if isinstance(number, bool) or quantity.kind != str(param.quantity_kind):
-            return None, f"{title} must be a {param.quantity_kind}, not {unit}"
+            return (
+                None,
+                f"{title} must be a {param.quantity_kind}, not {UNIT_LABELS.get(unit, unit)}",
+            )
         bound_unit = (
             str(param.default.unit)
             if isinstance(
@@ -78,7 +82,8 @@ def _check(param: models.ParameterDeclaration, value: Any) -> tuple[Any, str | N
             return None, f"{title} must be a whole number"
         quantity, magnitude, bound_unit = None, float(value), ""
         value = int(value) if kind == "integer" else float(value)
-    suffix = f" {bound_unit}" if bound_unit else ""
+    # Units as the analyst reads them ("nmi"), not as they are stored ("[nmi_i]").
+    suffix = f" {UNIT_LABELS.get(bound_unit, bound_unit)}" if bound_unit else ""
     if param.minimum is not None and magnitude < param.minimum:
         return None, f"{title} must be at least {param.minimum:g}{suffix}"
     if param.maximum is not None and magnitude > param.maximum:

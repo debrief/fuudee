@@ -14,6 +14,7 @@ from collections.abc import Sequence
 from dataclasses import dataclass
 
 from geographiclib.geodesic import Geodesic
+from geographiclib.geodesicline import GeodesicLine
 
 from debrief_kernel.time import parse_utc
 from debrief_kernel.units import Quantity, normalise_bearing
@@ -57,15 +58,26 @@ def destination(origin: Position, bearing: Quantity, distance: Quantity) -> Posi
     return Position(_wrap_longitude(result["lon2"]), result["lat2"])
 
 
-def interpolate(a: Position, b: Position, fraction: float) -> Position:
-    """The point a given fraction of the way along the geodesic from a to b."""
+def interpolate(
+    a: Position, b: Position, fraction: float, line: GeodesicLine | None = None
+) -> Position:
+    """The point a given fraction of the way along the geodesic from a to b.
+
+    ``line`` is the geodesic from a to b (``WGS84.InverseLine``) when the caller
+    already has it, as TrackPath does: working it out is most of the cost.
+    """
     if fraction <= 0.0:
         return a
     if fraction >= 1.0:
         return b
-    line = WGS84.InverseLine(a.latitude, a.longitude, b.latitude, b.longitude)
+    if line is None:
+        line = _line(a, b)
     point = line.Position(fraction * line.s13, Geodesic.LATITUDE | Geodesic.LONGITUDE)
     return Position(_wrap_longitude(point["lon2"]), point["lat2"])
+
+
+def _line(a: Position, b: Position) -> GeodesicLine:
+    return WGS84.InverseLine(a.latitude, a.longitude, b.latitude, b.longitude)
 
 
 def geodesic_points(a: Position, b: Position, segments: int) -> list[Position]:
@@ -101,6 +113,9 @@ class TrackPath:
             raise ValueError("times are not in order")
         self.times_ms = list(times_ms)
         self.positions = list(positions)
+        # The geodesic between each pair of fixes, worked out once: closest approach
+        # asks for many positions along the same few legs.
+        self._lines: dict[int, GeodesicLine] = {}
 
     @classmethod
     def from_feature(cls, feature: schema.TrackFeature) -> TrackPath:
@@ -126,9 +141,11 @@ class TrackPath:
         t0, t1 = self.times_ms[index], self.times_ms[index + 1]
         if t1 == t0:
             return self.positions[index + 1]
-        return interpolate(
-            self.positions[index], self.positions[index + 1], (time_ms - t0) / (t1 - t0)
-        )
+        a, b = self.positions[index], self.positions[index + 1]
+        line = self._lines.get(index)
+        if line is None:
+            line = self._lines[index] = _line(a, b)
+        return interpolate(a, b, (time_ms - t0) / (t1 - t0), line)
 
 
 @dataclass(frozen=True, slots=True)
@@ -159,8 +176,12 @@ def closest_approach(
     lo, hi = int(lo), int(hi)
     breaks = sorted({lo, hi, *(t for t in a.times_ms + b.times_ms if lo < t < hi)})
 
+    ranges: dict[int, float] = {}
+
     def range_at(t: int) -> float:
-        return _range_m(a.position_at(t), b.position_at(t))
+        if t not in ranges:
+            ranges[t] = _range_m(a.position_at(t), b.position_at(t))
+        return ranges[t]
 
     best_t, best_r = lo, range_at(lo)
     for t0, t1 in zip(breaks, breaks[1:], strict=False):

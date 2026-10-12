@@ -436,6 +436,32 @@ def test_presentation_is_kept_beside_the_plot_outside_its_history(client, catalo
     assert "presentation" in catalogue.read_item("serial").assets
 
 
+def test_a_legacy_plot_file_imports_with_its_omissions_listed(client) -> None:
+    shapes = Path(__file__).parents[2] / "debrief-io" / "tests" / "data" / "shapes.dpf"
+    params = {"store": "exercise", "path": str(shapes), "agent": AGENT}
+    report = rpc(client, "debrief/import", params).json()["result"]
+    assert report["item"] == "shapes" and report["omitted"]
+    steps = rpc(client, "debrief/history", {"store": "exercise", "item": "shapes"}).json()
+    assert [s["kind"] for s in steps["result"]["steps"]] == ["import"]
+
+
+def test_only_plot_xml_goes_to_the_plot_importer(client, tmp_path: Path) -> None:
+    shapes = Path(__file__).parents[2] / "debrief-io" / "tests" / "data" / "shapes.dpf"
+    saved_as_xml = tmp_path / "saved.xml"
+    saved_as_xml.write_bytes(shapes.read_bytes())
+    params = {"store": "exercise", "path": str(saved_as_xml), "agent": AGENT}
+    report = rpc(client, "debrief/import", params).json()["result"]
+    assert report["tracks"] and report["annotations"]
+    # Other XML is not a plot file: it goes to the REP importer, which finds no tracks
+    # in it and refuses it, quoting the lines it could not read.
+    other = tmp_path / "route.xml"
+    other.write_text('<?xml version="1.0"?>\n<gpx version="1.1"><rte/></gpx>\n')
+    params = {"store": "exercise", "path": str(other), "agent": AGENT}
+    error = rpc(client, "debrief/import", params).json()["error"]
+    assert "route.xml could not be imported: no tracks could be read" in error["message"]
+    assert "Line 1 could not be read" in error["message"]
+
+
 def test_a_failing_tool_logs_no_names_from_its_message(client, catalogue) -> None:
     # The tool's message names the tracks, unquoted: the analyst sees it, the log never does.
     result = call(client, "core.closest_approach", ["track-nelson", "track-late"])["result"]
@@ -483,27 +509,3 @@ def test_the_service_logs_no_free_text_from_requests_or_libraries(tmp_path, capl
         line.startswith("tool_unavailable library=lab tool=- reason=<text:") for line in lines
     )
     assert not any("NELSON" in line or "nelson" in line for line in lines)
-
-
-def test_a_legacy_plot_file_imports_with_its_omissions_listed(client) -> None:
-    shapes = Path(__file__).parents[2] / "debrief-io" / "tests" / "data" / "shapes.dpf"
-    params = {"store": "exercise", "path": str(shapes), "agent": AGENT}
-    report = rpc(client, "debrief/import", params).json()["result"]
-    assert report["item"] == "shapes" and report["omitted"]
-    steps = rpc(client, "debrief/history", {"store": "exercise", "item": "shapes"}).json()
-    assert [s["kind"] for s in steps["result"]["steps"]] == ["import"]
-
-
-def test_only_plot_xml_goes_to_the_plot_importer(client, tmp_path: Path) -> None:
-    shapes = Path(__file__).parents[2] / "debrief-io" / "tests" / "data" / "shapes.dpf"
-    saved_as_xml = tmp_path / "saved.xml"
-    saved_as_xml.write_bytes(shapes.read_bytes())
-    params = {"store": "exercise", "path": str(saved_as_xml), "agent": AGENT}
-    report = rpc(client, "debrief/import", params).json()["result"]
-    assert report["tracks"] and report["annotations"]
-    # Other XML is not a plot file: it goes to the REP importer, which lists its lines.
-    other = tmp_path / "route.xml"
-    other.write_text('<?xml version="1.0"?>\n<gpx version="1.1"><rte/></gpx>\n')
-    params = {"store": "exercise", "path": str(other), "agent": AGENT}
-    report = rpc(client, "debrief/import", params).json()["result"]
-    assert report["tracks"] == [] and report["omitted"]

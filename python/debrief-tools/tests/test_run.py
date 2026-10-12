@@ -81,7 +81,7 @@ def test_tool_that_raises_fails_its_run_only(catalogue: Catalogue) -> None:
     before = catalogue.read_plot(ITEM)
     with pytest.raises(ToolRunError, match="do not overlap in time"):
         run(catalogue, "core.closest_approach", ["track-nelson", "track-late"])
-    with pytest.raises(ToolRunError, match="outside NELSON"):
+    with pytest.raises(ToolRunError, match="^Range rings.*12 Dec 1995 09:00:00Z is outside NELSON"):
         run(catalogue, "core.range_rings", ["track-nelson"], {"at": "1995-12-12T09:00:00.000Z"})
     assert catalogue.read_plot(ITEM) == before
 

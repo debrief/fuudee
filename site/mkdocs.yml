@@ -31,6 +31,11 @@ plugins:
       archive: false
       categories_allowed: [Architecture, Practice, Capability]
 
+extra_javascript:
+  - javascripts/demo.js
+extra_css:
+  - stylesheets/demo.css
+
 markdown_extensions:
   - admonition
   - attr_list
@@ -46,6 +51,7 @@ markdown_extensions:
 
 nav:
   - Home: index.md
+  - Try Debrief: try.md
   - Blog:
       - blog/index.md
   - Guides:
