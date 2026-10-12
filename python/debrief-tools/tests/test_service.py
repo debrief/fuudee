@@ -410,30 +410,92 @@ def test_a_newer_schema_question_reaches_the_caller(config_file: Path) -> None:
     }
 
 
-def test_presentation_is_kept_beside_the_plot_outside_its_history(client, catalogue) -> None:
-    where = {"store": "exercise", "item": "serial"}
-    first = rpc(client, "debrief/presentation", where).json()["result"]
-    assert first == {
-        "presentation": {"schema_version": first["presentation"]["schema_version"], "features": []},
-        "hash": "",
-    }
-    blue = {**first["presentation"], "features": [{"id": "track-nelson", "colour": "#0064bd"}]}
-    changed = rpc(
-        client, "debrief/set_presentation", {**where, "presentation": blue, "hash": ""}
-    ).json()
-    new_hash = changed["result"]["hash"]
-    assert rpc(client, "debrief/presentation", where).json()["result"]["presentation"] == blue
-    stale = rpc(
-        client, "debrief/set_presentation", {**where, "presentation": blue, "hash": ""}
-    ).json()
-    assert stale["error"]["code"] == -32001  # changed since that hash was read
-    hidden = {**blue, "features": [*blue["features"], {"id": "track-late", "hidden": True}]}
-    assert rpc(
-        client, "debrief/set_presentation", {**where, "presentation": hidden, "hash": new_hash}
+def test_colour_and_hiding_are_recorded_steps_undone_like_any_other(client, catalogue) -> None:
+    where = {"store": "exercise", "item": "serial", "agent": AGENT}
+    base = rpc(client, "debrief/open", where).json()["result"]["base"]
+    coloured = rpc(
+        client,
+        "debrief/set_colour",
+        {**where, "base": base, "features": ["track-nelson"], "colour": "#00a000"}
+        | {"colour_name": "green"},
     ).json()["result"]
+    assert coloured["changed"] and coloured["base"]["current"] == 2
     steps = rpc(client, "debrief/history", where).json()["result"]["steps"]
-    assert len(steps) == 1  # never recorded in the plot's history (SUB-22)
-    assert "presentation" in catalogue.read_item("serial").assets
+    assert steps[-1]["kind"] == "edit" and steps[-1]["notes"] == ["Colour of NELSON set to green"]
+    hidden = rpc(
+        client,
+        "debrief/set_hidden",
+        {**where, "base": coloured["base"], "features": ["track-late"], "hidden": True},
+    ).json()["result"]
+    assert hidden["base"]["current"] == 3
+    plot = catalogue.read_plot("serial")
+    assert next(f for f in plot.features if f.id == "track-late").properties.hidden
+    # A stale base is refused, as for any change (SUB-28).
+    stale = rpc(
+        client,
+        "debrief/set_hidden",
+        {**where, "base": base, "features": ["track-nelson"], "hidden": True},
+    ).json()["error"]
+    assert stale["code"] == -32001
+    # Ctrl+Z is just history undo.
+    rpc(client, "debrief/undo", {**where, "base": hidden["base"]})
+    rpc(client, "debrief/undo", where)
+    nelson = next(f for f in catalogue.read_plot("serial").features if f.id == "track-nelson")
+    assert nelson.properties.style is None or nelson.properties.style.colour != "#00a000"
+    bad = rpc(
+        client, "debrief/set_colour", {**where, "features": ["track-nelson"], "colour": "green"}
+    )
+    assert bad.json()["error"]["code"] == -32602
+
+
+def test_the_view_is_set_with_its_hash_and_never_recorded(client, catalogue) -> None:
+    where = {"store": "exercise", "item": "serial", "agent": AGENT}
+    opened = rpc(client, "debrief/open", where).json()["result"]
+    # An imported plot starts with a window over its whole period.
+    assert opened["view"] == {
+        "time_window": {"start": "1995-12-12T05:00:00.000Z", "end": "1995-12-12T07:10:00.000Z"}
+    }
+    window = {
+        "time_window": {"start": "2026-10-11T09:30:00.000Z", "end": "2026-10-11T09:31:00.000Z"}
+    }
+    first = rpc(
+        client, "debrief/set_view", {**where, "view": window, "hash": opened["view_hash"]}
+    ).json()["result"]
+    assert first["view"] == window
+    assert first["base"] == opened["base"]  # the view is not content: the base never moves
+    later = {"time_window": {**window["time_window"], "start": "2026-10-11T09:30:30.000Z"}}
+    second = rpc(
+        client, "debrief/set_view", {**where, "view": later, "hash": first["view_hash"]}
+    ).json()["result"]
+    assert second["base"] == first["base"]
+    steps = rpc(client, "debrief/history", where).json()["result"]["steps"]
+    assert len(steps) == 1  # and nothing is recorded
+    stale = rpc(client, "debrief/set_view", {**where, "view": window, "hash": first["view_hash"]})
+    assert stale.json()["error"]["code"] == -32001
+    reopened = rpc(client, "debrief/open", where).json()["result"]
+    assert reopened["view"] == later and reopened["view_hash"] == second["view_hash"]
+    backwards = {
+        "time_window": {"start": "2026-10-11T09:31:00.000Z", "end": "2026-10-11T09:30:00.000Z"}
+    }
+    refused = rpc(
+        client, "debrief/set_view", {**where, "view": backwards, "hash": second["view_hash"]}
+    ).json()["error"]
+    assert refused["code"] == -32602 and "starts after it ends" in refused["message"]
+    assert rpc(client, "debrief/presentation", where).json()["error"]["code"] == -32601
+
+
+def test_opening_migrates_a_retired_presentation(client, catalogue) -> None:
+    folder = Path(catalogue.store.root) / "serial"
+    (folder / "presentation.json").write_text(
+        json.dumps({"schema_version": "0.0.7", "features": [{"id": "track-late", "hidden": True}]})
+    )
+    where = {"store": "exercise", "item": "serial", "agent": AGENT}
+    opened = rpc(client, "debrief/open", where).json()["result"]
+    assert opened["migrated"] and opened["base"]["current"] == 2
+    assert not (folder / "presentation.json").exists()
+    steps = rpc(client, "debrief/history", where).json()["result"]["steps"]
+    assert steps[-1]["notes"] == ["Hidden features kept from presentation.json"]
+    assert steps[-1]["agent"] == "analyst"
 
 
 def test_a_legacy_plot_file_imports_with_its_omissions_listed(client) -> None:

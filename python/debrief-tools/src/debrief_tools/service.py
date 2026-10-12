@@ -4,9 +4,12 @@ The protocol is MCP's Streamable HTTP transport (JSON-RPC 2.0, one POST per
 request, JSON responses), so the VS Code extension and any MCP-capable agent
 use the same tools (TL-01, TL-17). Debrief adds methods of its own, named
 debrief/...: debrief/tools_for_selection, so the offering rule lives in
-Python (TL-08); stores, catalogues and import (REP and legacy .dpf); and a plot's history
+Python (TL-08); stores, catalogues and import (REP and legacy .dpf); a plot's history
 (debrief/open, debrief/history, debrief/undo, debrief/redo, debrief/goto),
-so undo is the same for the extension and an agent (SUB-21).
+so undo is the same for the extension and an agent (SUB-21); colour and hiding,
+recorded in that history like any change (debrief/set_colour, debrief/set_hidden);
+and the plot's view, its island, kept in the plot file outside its history
+(debrief/set_view; debrief/open returns it) (SUB-22, decision 12 Oct).
 
 Security (SEC-06 to SEC-08):
 - runs as the user who started it, so it can read only what they can;
@@ -95,7 +98,11 @@ HISTORY_METHODS = (
     "debrief/undo",
     "debrief/redo",
     "debrief/goto",
+    "debrief/set_colour",
+    "debrief/set_hidden",
+    "debrief/set_view",
 )
+WRITING_METHODS = HISTORY_METHODS[2:]
 KNOWN_METHODS = frozenset(
     (
         "initialize",
@@ -106,8 +113,6 @@ KNOWN_METHODS = frozenset(
         "debrief/stores",
         "debrief/create_catalogue",
         "debrief/import_rep",
-        "debrief/presentation",
-        "debrief/set_presentation",
         *HISTORY_METHODS,
     )
 )
@@ -246,8 +251,6 @@ class ToolService:
             return self._import(params)
         if method in HISTORY_METHODS:
             return self._history(method, params)
-        if method in ("debrief/presentation", "debrief/set_presentation"):
-            return self._presentation(method, params)
         raise RpcError(METHOD_NOT_FOUND, f"Unknown method {method}")
 
     def _config(self) -> models.UserConfig:
@@ -289,10 +292,13 @@ class ToolService:
         return store
 
     def _history(self, method: str, params: dict[str, Any]) -> dict[str, Any]:
-        """A plot's history: open (recovering an interrupted change), list, undo, redo, goto.
+        """A plot's history and view: open (recovering an interrupted change), list,
+        undo, redo, goto, colour, hide; and set_view, which changes the plot's island.
 
         Every change returns the new base, which the caller passes back with its
         next change, so one made meanwhile elsewhere is never overwritten (SUB-28).
+        The view has a hash of its own for the same purpose: changing it never
+        moves the base, and changing the plot never moves the view's hash.
         """
         item, base = params.get("item"), params.get("base")
         if not isinstance(item, str):
@@ -303,8 +309,7 @@ class ToolService:
             and isinstance(base.get("plot_hash"), str)
         ):
             raise RpcError(INVALID_PARAMS, "base must be {current, plot_hash}")
-        writing = method in ("debrief/undo", "debrief/redo", "debrief/goto")
-        store = self._store(params.get("store"), writing=writing)
+        store = self._store(params.get("store"), writing=method in WRITING_METHODS)
         try:
             catalogue = Catalogue.open(Path(store.location))
             if item not in catalogue.item_ids():
@@ -313,7 +318,10 @@ class ToolService:
             recovered = history.open()
             expected = Base(base["current"], base["plot_hash"]) if base else None
             allow = params.get("allow_newer_schema") is True
-            if method == "debrief/undo":
+            out: dict[str, Any] = {"recovered": recovered}
+            if method == "debrief/open":
+                out.update(self._open(catalogue, store, item, params))
+            elif method == "debrief/undo":
                 history.undo(expected, allow_newer_schema=allow)
             elif method == "debrief/redo":
                 history.redo(expected, allow_newer_schema=allow)
@@ -322,11 +330,21 @@ class ToolService:
                 if type(step) is not int:
                     raise RpcError(INVALID_PARAMS, "goto needs the step to return to")
                 history.goto(step, expected, allow_newer_schema=allow)
+            elif method in ("debrief/set_colour", "debrief/set_hidden"):
+                out["changed"] = self._restyle(catalogue, item, method, params, expected, allow)
+            elif method == "debrief/set_view":
+                view, given = params.get("view"), params.get("hash")
+                if not isinstance(given, str) or not (view is None or isinstance(view, dict)):
+                    raise RpcError(INVALID_PARAMS, "set_view needs the view and the hash last read")
+                catalogue.write_view(
+                    item, view, given, agent=_agent(params), allow_newer_schema=allow
+                )
+            if method in ("debrief/open", "debrief/set_view"):
+                view, view_hash = catalogue.read_view(item)
+                out["view"] = view.model_dump(mode="json", exclude_none=True) if view else None
+                out["view_hash"] = view_hash
             head = history.head()
-            out: dict[str, Any] = {
-                "base": {"current": head.current, "plot_hash": head.plot_hash},
-                "recovered": recovered,
-            }
+            out["base"] = {"current": head.current, "plot_hash": head.plot_hash}
             if method == "debrief/history":
                 out["steps"] = [_step(s) for s in history.steps()]
             return out
@@ -337,46 +355,50 @@ class ToolService:
         except (CatalogueError, HistoryError, OSError, ValueError) as error:
             raise RpcError(INVALID_PARAMS, str(error)) from None
 
-    def _presentation(self, method: str, params: dict[str, Any]) -> dict[str, Any]:
-        """Read or replace a plot's presentation: colours and what is hidden (SUB-22).
+    def _open(
+        self, catalogue: Catalogue, store: models.KnownStore, item: str, params: dict[str, Any]
+    ) -> dict[str, Any]:
+        """Opening a plot that still has a retired presentation.json: a writer makes it
+        one recorded step and deletes it; where that cannot be done (a read-only
+        store, say) the plot comes back with it applied in memory, for display."""
+        if catalogue.legacy_presentation(item) is None:
+            return {}
+        if not store.read_only:
+            try:
+                return {"migrated": catalogue.migrate_presentation(item, _agent(params))}
+            except (NewerSchemaError, OSError):
+                pass
+        return {"plot": json.loads(dump_document(DocumentKind.PLOT, catalogue.read_plot(item)))}
 
-        set_presentation takes the hash read last; if the presentation changed
-        since, it fails with CONFLICT and nothing is written.
-        """
-        item = params.get("item")
-        if not isinstance(item, str):
-            raise RpcError(INVALID_PARAMS, f"{method} needs a store and an item")
-        writing = method == "debrief/set_presentation"
-        store = self._store(params.get("store"), writing=writing)
-        try:
-            catalogue = Catalogue.open(Path(store.location))
-            if item not in catalogue.item_ids():
-                raise RpcError(INVALID_PARAMS, f"There is no plot {item!r} in {store.title}.")
-            if writing:
-                expected = params.get("hash")
-                if not isinstance(expected, str):
-                    raise RpcError(INVALID_PARAMS, "set_presentation needs the hash last read")
-                presentation = load_document(
-                    DocumentKind.PRESENTATION, json.dumps(params.get("presentation"))
-                )
-                new_hash = catalogue.write_presentation(
-                    item,
-                    presentation,
-                    expected,
-                    allow_newer_schema=params.get("allow_newer_schema") is True,
-                )
-                return {"hash": new_hash}
-            presentation, current = catalogue.read_presentation(item)
-            return {
-                "presentation": json.loads(dump_document(DocumentKind.PRESENTATION, presentation)),
-                "hash": current,
-            }
-        except Conflict as conflict:
-            raise RpcError(CONFLICT, str(conflict)) from None
-        except NewerSchemaError as error:
-            raise RpcError(NEWER_SCHEMA, str(error)) from None
-        except (CatalogueError, OSError, ValueError) as error:
-            raise RpcError(INVALID_PARAMS, str(error)) from None
+    def _restyle(
+        self,
+        catalogue: Catalogue,
+        item: str,
+        method: str,
+        params: dict[str, Any],
+        base: Base | None,
+        allow: bool,
+    ) -> bool:
+        """Colour tracks or hide features: recorded and undoable, like any change."""
+        features = params.get("features")
+        if not isinstance(features, list) or not all(isinstance(f, str) for f in features):
+            raise RpcError(INVALID_PARAMS, f"{method} needs the features to change")
+        agent = _agent(params)
+        if method == "debrief/set_colour":
+            colour, name = params.get("colour"), params.get("colour_name")
+            if not isinstance(colour, str) or not (name is None or isinstance(name, str)):
+                raise RpcError(INVALID_PARAMS, "set_colour needs a colour, such as #e01c3e")
+            step = catalogue.set_colour(
+                item, features, colour, agent, base, colour_name=name, allow_newer_schema=allow
+            )
+        else:
+            hidden = params.get("hidden")
+            if not isinstance(hidden, bool):
+                raise RpcError(INVALID_PARAMS, "set_hidden needs hidden, true or false")
+            step = catalogue.set_hidden(
+                item, features, hidden, agent, base, allow_newer_schema=allow
+            )
+        return step is not None
 
     def _import(self, params: dict[str, Any]) -> dict[str, Any]:
         """Import a REP file (EXT-01) or a legacy plot file, .dpf (EXT-14, EXT-15), as a
@@ -391,13 +413,12 @@ class ToolService:
             taken, item_id, n = set(catalogue.item_ids()), stem, 2
             while item_id in taken:
                 item_id, n = f"{stem}-{n}", n + 1
-            agent = params.get("agent") or {"kind": "person", "name": "analyst"}
             importer = import_dpf if _is_plot_file(Path(path)) else import_rep
             report = importer(
                 catalogue,
                 Path(path),
                 item_id=item_id,
-                agent=models.AgentRef(**agent),
+                agent=_agent(params),
                 allow_newer_schema=params.get("allow_newer_schema") is True,
             )
         except NewerSchemaError as error:
@@ -510,8 +531,20 @@ def _argument_problem(arguments: dict[str, Any]) -> str | None:
     return None
 
 
+def _agent(params: dict[str, Any]) -> models.AgentRef:
+    """Who is making a change, for its provenance record (SUB-24)."""
+    agent = params.get("agent") or {"kind": "person", "name": "analyst"}
+    if not isinstance(agent, dict):
+        raise RpcError(INVALID_PARAMS, "agent must be {kind, name}")
+    try:
+        return models.AgentRef(**agent)
+    except ValueError:
+        raise RpcError(INVALID_PARAMS, "agent must be {kind, name}") from None
+
+
 def _step(step: Any) -> dict[str, Any]:
-    """One history step as the History view shows it: what made it, when, by whom."""
+    """One history step as the History view shows it: what made it, when, by whom.
+    An edit's note names it, such as "Colour of BLUE ONE set to red"."""
     first = step.records[0]
     return {
         "seq": step.seq,
@@ -521,6 +554,7 @@ def _step(step: Any) -> dict[str, Any]:
         "agent": ", ".join(dict.fromkeys(r.agent.name for r in step.records)),
         "at": first.ended_at or first.started_at,
         "records": len(step.records),
+        "notes": list(first.notes or []),
     }
 
 

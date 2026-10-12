@@ -13,7 +13,9 @@ records how (SUB-18):
 5. The scripted narrative is written, kept as a supporting file and read
    into time-only note annotations.
 
-6. The exercise area and the named sets are added, each with its own record.
+6. The exercise area and the named sets are added, each with its own record,
+   with the plot's own details (its title). Its view, a time window over the
+   serial, goes in the plot's island, outside its history.
 
 Provenance times come from a fixed clock, so two builds with the same seed
 and the same lockfile are byte-for-byte identical. (pyarrow writes its
@@ -41,7 +43,8 @@ from debrief_sample.synth import (
     sonar_bearings,
 )
 from debrief_schemas import SCHEMA_VERSION, DebriefFeatureCollection, models
-from debrief_stac import Catalogue
+from debrief_stac import Catalogue, with_plot_details
+from debrief_stac.history import view_hash
 
 TOOL = "debrief-sample"
 DEFAULT_SEED = 1995  # the year of the single-serial sample this replaces
@@ -433,7 +436,13 @@ def _build_serial(
         named_sets=named_sets,
         provenance=provenance,
     )
+    # The plot's own details, and its view: a time window over the serial (SUB-22).
+    plot = with_plot_details(
+        plot, serial.title, f"Blue hunting red: {serial.blue.name} and {serial.red.name}."
+    )
     catalogue.write_plot(item, plot)
+    window = {"start": format_utc(serial.start_ms), "end": format_utc(serial.end_ms)}
+    catalogue.write_view(item, {"time_window": window}, view_hash(None))
     return {
         "tracks": sum(1 for f in plot.features if f.properties.kind == "track"),
         "background_tracks": len(ais_paths),

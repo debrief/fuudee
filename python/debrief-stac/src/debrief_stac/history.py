@@ -26,11 +26,22 @@ the changes made meanwhile (SUB-28, SUB-29). Each write holds a short lock
 The plot file is never trusted over the history: if it does not match the
 head it is rebuilt, and kept aside first if it holds content the history
 never recorded (an edit made outside Debrief).
+
+The plot file also holds the plot's island: view state, such as its time
+window, on the whole-plot feature's view (SUB-22, decision 12 Oct). The
+island is not content. Every hash here (a delta's result_hash, the head's
+plot_hash, a writer's Base) is taken over the plot with the island left out,
+so a change of view never looks like an edit and never conflicts with one.
+Deltas never hold it; replay, undo and redo produce content and carry the
+island on disk over unchanged; a change of content keeps whatever island is
+on disk when it is written, read under the lock. The island is written only
+by write_view, which refuses if it changed since the writer read it.
 """
 
 from __future__ import annotations
 
 import hashlib
+import json
 import re
 import time as clock
 from collections.abc import Iterable
@@ -45,7 +56,17 @@ from debrief_schemas import (
     DocumentValidationError,
     dump_document,
     load_document,
+    load_view,
     models,
+)
+from debrief_schemas.island import (
+    PLOT_KIND,
+    dump_json,
+    set_view_in,
+    strip_feature_view,
+    view_hash_text,
+    view_in,
+    with_view,
 )
 from debrief_stac.store import StoreBusy
 
@@ -57,7 +78,13 @@ HEAD = "head.json"
 LOCK = ".lock"
 DELTA_FILE = re.compile(r"^(\d{6})\.json$")
 
-Feature = models.TrackFeature | models.AnnotationFeature | models.SensorObservationsFeature
+Feature = (
+    models.TrackFeature
+    | models.AnnotationFeature
+    | models.SensorObservationsFeature
+    | models.PlotFeature
+)
+View = dict  # a plot's island as JSON: the whole-plot feature's view
 
 
 class HistoryError(Exception):
@@ -131,6 +158,61 @@ def text_hash(text: str) -> str:
     return f"sha256:{hashlib.sha256(text.encode('utf-8')).hexdigest()}"
 
 
+def _parsed(text: str) -> object | None:
+    try:
+        return json.loads(text)
+    except ValueError:
+        return None
+
+
+def content_text(text: str) -> str:
+    """A plot file's content: its text with the island left out, as Debrief writes it.
+
+    A file with no island is its own content, so plots that have never had
+    one hash as they always did.
+    """
+    if '"view"' not in text:  # no island: the common case, and cheap
+        return text
+    document = _parsed(text)
+    if view_in(document) is None:
+        return text
+    set_view_in(document, None)
+    return dump_json(document)
+
+
+def content_hash(text: str) -> str:
+    """The hash the history records for a plot file: its content's, island left out."""
+    return text_hash(content_text(text))
+
+
+def view_hash(view: View | None) -> str:
+    """The hash of an island, to pass back to write_view; the same for any layout."""
+    return text_hash(view_hash_text(view))
+
+
+def island_of(text: str | None) -> View | None:
+    """The island in a plot file, or None. One that is not valid is left out."""
+    if text is None or '"view"' not in text:
+        return None
+    view = view_in(_parsed(text))
+    try:
+        load_view(view)
+    except (DocumentValidationError, ValueError):
+        return None
+    return view
+
+
+def with_island(text: str, view: View | None) -> str:
+    """A plot file's content text with an island put in. A plot with no whole-plot
+    feature has nowhere to keep one, so its text is returned as it is."""
+    if view is None:
+        return text
+    document = json.loads(text)
+    if not set_view_in(document, view):
+        return text
+    return dump_json(document)
+
+
 def empty_plot() -> DebriefFeatureCollection:
     return DebriefFeatureCollection(
         type="FeatureCollection", schema_version=SCHEMA_VERSION, features=[], provenance=[]
@@ -154,6 +236,8 @@ def apply(
         raise HistoryError(
             f"The change adds a feature whose id is already used: {sorted(clash)[0]}"
         )
+    if any(f.id in deleted and f.properties.kind == PLOT_KIND for f in plot.features):
+        raise HistoryError("The plot's own details (its whole-plot feature) cannot be deleted.")
     features = [modified.get(f.id, f) for f in plot.features if f.id not in deleted]
     features += changes.added
     if changes.order:
@@ -250,12 +334,23 @@ class History:
         return Base(head.current, head.plot_hash)
 
     def plot(self) -> DebriefFeatureCollection:
-        """The plot as of the head: the plot file if it matches, else replayed."""
+        """The plot as of the head, with its island: the plot file if its content
+        matches, else replayed, with the island in the file carried over."""
         head = self.head()
         text = self._read_plot_text()
-        if text is not None and text_hash(text) == head.plot_hash:
-            return load_document(DocumentKind.PLOT, text)
-        return self.replay(head.current)
+        if text is not None and content_hash(text) == head.plot_hash:
+            try:
+                return load_document(DocumentKind.PLOT, text)
+            except DocumentValidationError:  # the content is sound, so the island is not
+                return load_document(DocumentKind.PLOT, content_text(text))
+        plot = self.replay(head.current)
+        view = island_of(text)
+        return with_view(plot, load_view(view)) if view is not None else plot
+
+    def view(self) -> tuple[models.PlotView | None, str]:
+        """The plot's island, and the hash to pass back to write_view when changing it."""
+        view = island_of(self._read_plot_text())
+        return load_view(view), view_hash(view)
 
     def chain(self, upto: int) -> list[int]:
         """The deltas replayed to reach a step: follow each delta's after link back."""
@@ -278,7 +373,8 @@ class History:
         return out
 
     def replay(self, upto: int) -> DebriefFeatureCollection:
-        """The plot as it was after a step, rebuilt from the recorded deltas (SUB-19)."""
+        """The plot's content as it was after a step, rebuilt from the recorded deltas
+        (SUB-19). Content only: the island is never in the history."""
         plot = empty_plot()
         for seq in self.chain(upto):
             delta = self.delta(seq)
@@ -306,17 +402,29 @@ class History:
             f"{self._folder}/{HEAD}", dump_document(DocumentKind.HISTORY_HEAD, head)
         )
 
-    def _write_plot(self, plot: DebriefFeatureCollection, text: str | None = None) -> str:
-        """Write the plot; text, when given, is plot already dumped (and so validated)."""
+    def _write_plot(
+        self, plot: DebriefFeatureCollection, view: View | None, text: str | None = None
+    ) -> str:
+        """Write the plot's content with an island; returns the content's hash.
+
+        plot is content (no island); text, when given, is it already dumped
+        (and so validated). view is the island to keep: the one on disk,
+        read under the lock.
+        """
         if text is None:
             text = dump_document(DocumentKind.PLOT, plot)
-        self.catalogue.store_plot_text(self.item_id, plot, text)
+        self.catalogue.store_plot_text(self.item_id, plot, with_island(text, view))
         return text_hash(text)
 
+    def _disk_view(self) -> View | None:
+        """The island on disk now. Hold the lock, so nobody changes it meanwhile."""
+        return island_of(self._read_plot_text())
+
     def _current_plot(self, head: models.HistoryHead) -> DebriefFeatureCollection:
+        """The plot's content as of the head."""
         text = self._read_plot_text()
-        if text is not None and text_hash(text) == head.plot_hash:
-            return load_document(DocumentKind.PLOT, text)
+        if text is not None and content_hash(text) == head.plot_hash:
+            return load_document(DocumentKind.PLOT, content_text(text))
         return self.replay(head.current)
 
     def commit(
@@ -346,7 +454,7 @@ class History:
                 head.plot_hash,
             ):
                 self._check_merge(base, head, changes, merge)
-            return self._append(head, self._current_plot(head), records, changes)
+            return self._append(head, self._current_plot(head), records, changes, self._disk_view())
 
     def _append(
         self,
@@ -354,8 +462,20 @@ class History:
         plot: DebriefFeatureCollection,
         records: list[models.ProvRecord],
         changes: Changes,
+        view: View | None,
     ) -> int:
-        """Write a delta, then the head, then the plot (write-ahead, NFR-10). Hold the lock."""
+        """Write a delta, then the head, then the plot (write-ahead, NFR-10). Hold the lock.
+
+        plot is content; view is the island to keep, never recorded in the delta.
+        """
+        changes = Changes(
+            [strip_feature_view(f) for f in changes.added],
+            [strip_feature_view(f) for f in changes.modified],
+            changes.deleted_ids,
+            changes.named_sets,
+            changes.deleted_named_set_ids,
+            changes.order,
+        )
         new_plot = apply(plot, records, changes)
         text = dump_document(DocumentKind.PLOT, new_plot)
         seq = head.latest + 1
@@ -384,7 +504,8 @@ class History:
             ) from None
         self._deltas[seq] = delta
         self._write_head(self._new_head(seq, seq, text_hash(text)))
-        self._write_plot(new_plot, text)  # dumped above: validating it again is slow and the same
+        # Dumped above: validating it again is slow and the same.
+        self._write_plot(new_plot, view, text)
         return seq
 
     def _check_merge(
@@ -475,11 +596,46 @@ class History:
             seq = choose(head)
             if seq not in self.chain(head.latest):
                 raise HistoryError(f"Step {seq} cannot be returned to.")
+            view = self._disk_view()  # undo never changes the island
             plot = self.replay(seq)
             text = dump_document(DocumentKind.PLOT, plot)
             self._write_head(self._new_head(seq, head.latest, text_hash(text)))
-            self._write_plot(plot, text)
+            self._write_plot(plot, view, text)
             return seq
+
+    def write_view(self, view: models.PlotView | View | None, expected_hash: str) -> str:
+        """Replace the plot's island, and nothing else (SUB-22). Returns its new hash.
+
+        expected_hash is the hash view() gave: if the island has changed since,
+        Conflict is raised and nothing is written, so two people changing the
+        window never silently overwrite each other (SUB-28). The island is
+        never recorded: no delta, no provenance, no undo. The plot file is
+        rewritten whole and atomically, under the history's lock, with its
+        content exactly as it was.
+        """
+        if isinstance(view, models.PlotView):
+            view = view.model_dump(mode="json", exclude_none=True)
+        load_view(view)  # validates
+        with self._locked():
+            self._repair()
+            text = self._read_plot_text()
+            assert text is not None
+            current = island_of(text)
+            if view_hash(current) != expected_hash:
+                raise Conflict(
+                    "The plot's view was changed elsewhere. Debrief is showing the latest.",
+                    mergeable=False,
+                )
+            if view == current:
+                return expected_hash
+            document = json.loads(text)
+            if not set_view_in(document, view):
+                raise HistoryError("This plot has no whole-plot feature to keep its view in.")
+            new_text = dump_json(document)
+            if content_hash(new_text) != content_hash(text):  # never: only the island moved
+                raise HistoryError("Changing the plot's view would have changed its content.")
+            self.store.write_text_atomic(self._plot_path, new_text)
+        return view_hash(view)
 
     # --- Opening: making the history whole -----------------------------------
 
@@ -544,15 +700,17 @@ class History:
         if head != stored:
             self._write_head(head)
         text = self._read_plot_text()
-        if text is None or text_hash(text) != head.plot_hash:
-            if text is not None and text_hash(text) not in self._recorded_hashes():
+        if text is None or content_hash(text) != head.plot_hash:
+            # The island is view state, not content: kept whatever the file's content.
+            view = island_of(text)
+            if text is not None and content_hash(text) not in self._recorded_hashes():
                 kept = self._keep_aside()
                 notes.append(
                     "The plot file had been changed outside Debrief, so it was rebuilt from "
                     f"its history; the file as found is kept as {kept}."
                 )
             plot = self.replay(head.current)
-            plot_hash = self._write_plot(plot)
+            plot_hash = self._write_plot(plot, view)
             if head.current and not self._replays_as_recorded(plot, head.current):
                 notes.append(
                     f"Replaying the history gave a different plot from the one recorded at "
@@ -573,11 +731,11 @@ class History:
         )
         if not (plot.features or plot.named_sets or plot.provenance):
             self._write_head(start)
-            self._write_plot(empty_plot())
+            self._write_plot(empty_plot(), None)
             return []
         records = list(plot.provenance or []) or [baseline_record()]
         changes = Changes(list(plot.features), named_sets=list(plot.named_sets or []))
-        self._append(start, empty_plot(), records, changes)
+        self._append(start, empty_plot(), records, changes, island_of(text))
         return ["Started this plot's history from its saved content."]
 
     def _recorded_hashes(self) -> set[str]:
@@ -602,7 +760,7 @@ class History:
         if head is None or self.store.exists(self._delta_path(head.latest + 1)):
             return False
         text = self._read_plot_text()
-        return text is not None and text_hash(text) == head.plot_hash
+        return text is not None and content_hash(text) == head.plot_hash
 
     def recover(self) -> list[str]:
         """Make the history and the plot agree. Returns what was done, for the analyst.
@@ -617,6 +775,8 @@ class History:
         - A plot file that does not match the head (a crash between the head
           and the plot) is rebuilt from the history. If it holds content the
           history never recorded, it is kept aside under another name first.
+          Only content is compared: a file that differs in its island alone
+          matches, and its island is kept whenever the file is rebuilt.
         """
         if self._whole():
             return []

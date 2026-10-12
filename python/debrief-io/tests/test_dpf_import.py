@@ -121,7 +121,8 @@ def test_omissions_and_truncation(catalogue: Catalogue, tmp_path: Path) -> None:
     report = import_dpf(catalogue, source)
     assert report.tracks == ["NELSON"]
     plot = catalogue.read_plot("small")
-    (track,) = plot.features
+    track, details = plot.features
+    assert details.properties.kind == "plot" and details.properties.title == "small"
     assert track.properties.times[0] == "1995-12-12T05:00:00.000Z"
     assert track.properties.style.colour == "#0064bd"
     assert track.properties.depths.values == [0.0, 10.0]
@@ -217,7 +218,7 @@ def test_an_infinite_depth_is_never_written(catalogue: Catalogue, tmp_path: Path
         f"{_fix('050100', '-3.9', depth='12')}\n</TrackSegment></track>",
     )
     report = import_dpf(catalogue, source)
-    (track,) = catalogue.read_plot("made").features
+    track, _ = catalogue.read_plot("made").features
     assert track.properties.depths.values == [0.0, 12.0]
     plot_text = (catalogue.store.root / "made" / "plot.geojson").read_text()
     assert "Infinity" not in plot_text

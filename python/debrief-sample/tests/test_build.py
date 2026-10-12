@@ -9,6 +9,7 @@ from pathlib import Path
 
 import pytest
 
+from debrief_kernel.time import parse_utc
 from debrief_sample import DEFAULT_SEED, build
 from debrief_sample import builder as sample_builder
 from debrief_sample.builder import TOOL, extract_path
@@ -169,3 +170,22 @@ def test_exercise_set_holds_the_exercise(built: Path) -> None:
     assert "annotation-exercise-area" in exercise.feature_ids
     assert "narrative-001" in exercise.feature_ids
     assert not any(i.startswith("track-ais-") for i in exercise.feature_ids)
+
+
+def test_each_plot_has_its_details_and_a_window_over_its_serial(built: Path) -> None:
+    catalogue = Catalogue.open(built)
+    for serial in SERIALS:
+        plot = catalogue.read_plot(serial.item_id)
+        (details,) = [f for f in plot.features if f.properties.kind == "plot"]
+        assert details.properties.title == serial.title
+        view, _ = catalogue.read_view(serial.item_id)
+        window = view.time_window
+        assert (parse_utc(window.start), parse_utc(window.end)) == (serial.start_ms, serial.end_ms)
+        # The window is view state: in the plot file, never in its history (SUB-22).
+        history = catalogue.history(serial.item_id)
+        assert all(
+            f.properties.view is None
+            for s in history.steps()
+            for f in history.delta(s.seq).added or []
+            if f.properties.kind == "plot"
+        )

@@ -167,7 +167,8 @@ def test_change_saved_while_a_tool_runs_is_not_overwritten(catalogue: Catalogue)
         # Another process saves the plot while this tool is still running.
         plot = catalogue.read_plot(ITEM)
         record = plot.provenance[0].model_copy(update={"id": "elsewhere"})
-        catalogue.commit(ITEM, [record], Changes(deleted_ids=[f.id for f in plot.features[1:]]))
+        others = [f.id for f in plot.features[1:] if f.properties.kind != "plot"]
+        catalogue.commit(ITEM, [record], Changes(deleted_ids=others))
         return REGISTRY.tools["core.add_note"].run(context)
 
     registry.tools["core.add_note"] = Tool(declaration, meanwhile)
@@ -175,10 +176,10 @@ def test_change_saved_while_a_tool_runs_is_not_overwritten(catalogue: Catalogue)
     with pytest.raises(ToolRunConflict, match="changed elsewhere") as conflict:
         run_tool(registry, catalogue, ITEM, "core.add_note", [], params, ANALYST)
     assert conflict.value.mergeable  # the note touches nothing the other change touched
-    assert len(catalogue.read_plot(ITEM).features) == 1
+    assert [f.id for f in catalogue.read_plot(ITEM).features] == ["track-nelson", "plot"]
     # Combined: the other change stays, and the note is added on top (SUB-29).
     run_tool(registry, catalogue, ITEM, "core.add_note", [], params, ANALYST, on_conflict="merge")
-    assert [f.id for f in catalogue.read_plot(ITEM).features] == ["track-nelson", "note"]
+    assert [f.id for f in catalogue.read_plot(ITEM).features] == ["track-nelson", "plot", "note"]
 
 
 def test_provenance_ids_are_unique(catalogue: Catalogue) -> None:
@@ -217,3 +218,26 @@ def test_saving_a_newer_schema_into_a_shared_catalogue_asks_first(catalogue: Cat
         catalogue.history(ITEM).undo()
     assert run(catalogue, "core.closest_approach", pair, allow_newer_schema=True).changed
     assert catalogue.schema_version == SCHEMA_VERSION
+
+
+def test_a_tool_sees_content_never_the_island(catalogue: Catalogue) -> None:
+    """A run is recorded by its selection and parameters, so it may not read view state
+    kept outside the history (SUB-19, SUB-22)."""
+    registry = Registry()
+    declaration = REGISTRY.tools["core.add_note"].declaration
+    seen = {}
+
+    def look(context):
+        seen["views"] = [
+            f.properties.view for f in context.plot.features if f.properties.kind == "plot"
+        ]
+        return REGISTRY.tools["core.add_note"].run(context)
+
+    registry.tools["core.add_note"] = Tool(declaration, look)
+    assert catalogue.read_view(ITEM)[0] is not None  # imported with a window
+    params = {"text": "x", "at": "1995-12-12T05:05:00.000Z"}
+    run_tool(registry, catalogue, ITEM, "core.add_note", [], params, ANALYST)
+    assert seen["views"] == [None]
+    assert catalogue.read_view(ITEM)[0] is not None  # and the run kept it
+    with pytest.raises(ToolRunError, match="not on the plot's own details"):
+        run(catalogue, "core.add_note", ["plot"], params)

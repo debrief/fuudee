@@ -8,7 +8,9 @@ from debrief_stac.catalogue import (
     ItemSummary,
     NewerSchemaError,
     diff,
+    period_view,
     plot_extent,
+    with_plot_details,
 )
 from debrief_stac.composite import CompositeCatalogue
 from debrief_stac.history import Base, Changes, Conflict, History, HistoryError, Step
@@ -33,5 +35,7 @@ __all__ = [
     "StoreBusy",
     "StoreError",
     "diff",
+    "period_view",
     "plot_extent",
+    "with_plot_details",
 ]

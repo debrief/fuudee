@@ -4,7 +4,8 @@ Layout on disk:
 
     catalog.json                    the catalogue (StacCatalog)
     <item>/<item>.json              one STAC item per plot
-    <item>/plot.geojson             the plot (SUB-05), as of its history's head
+    <item>/plot.geojson             the plot (SUB-05), as of its history's head, with
+                                    its island (view state, outside the history)
     <item>/history/                 every change to the plot as a delta (SUB-19)
     <item>/sources/<file>           immutable imported sources (SUB-10)
     <item>/media/<file>             supporting files (SUB-06)
@@ -19,6 +20,7 @@ from __future__ import annotations
 import json
 import re
 import time as clock
+import uuid
 from collections.abc import Iterator
 from dataclasses import dataclass, field
 from pathlib import Path, PurePosixPath
@@ -32,17 +34,18 @@ from debrief_schemas import (
     load_document,
     models,
 )
+from debrief_schemas.island import PLOT_FEATURE_ID, plot_feature
 from debrief_stac.hashing import content_hash
 from debrief_stac.history import (
-    HISTORY,
     LOCK,
     Base,
     Changes,
     Conflict,
     History,
+    apply,
     baseline_record,
     empty_plot,
-    text_hash,
+    view_hash,
 )
 from debrief_stac.store import FileStore, Store
 
@@ -50,8 +53,10 @@ STAC_VERSION = "1.1.0"
 CATALOGUE_FILE = "catalog.json"
 PLOT_ASSET = "plot"
 PLOT_FILE = "plot.geojson"
-PRESENTATION_ASSET = "presentation"
-PRESENTATION_FILE = "presentation.json"
+# Retired (decision 12 Oct): colours and hiding are content now. A plot that
+# still has one is migrated on opening (see migrate_presentation).
+LEGACY_PRESENTATION_FILE = "presentation.json"
+_COLOUR = re.compile(r"^#[0-9a-f]{6}$")
 # Asset kinds whose content hashes replay checks (SUB-11).
 VERIFIED_KINDS = ("source", "payload")
 
@@ -117,6 +122,34 @@ def plot_extent(plot: DebriefFeatureCollection) -> Extent:
             times += [parse_utc(props.time_range.start), parse_utc(props.time_range.end)]
     bbox = (min(lons), min(lats), max(lons), max(lats)) if lons else None
     return Extent(bbox, min(times) if times else None, max(times) if times else None)
+
+
+def with_plot_details(
+    plot: DebriefFeatureCollection, title: str, description: str | None = None
+) -> DebriefFeatureCollection:
+    """The plot with a whole-plot feature holding its title, last, unless it has one."""
+    if plot_feature(plot) is not None:
+        return plot
+    taken = {f.id for f in plot.features}
+    feature_id, n = PLOT_FEATURE_ID, 2
+    while feature_id in taken:
+        feature_id, n = f"{PLOT_FEATURE_ID}-{n}", n + 1
+    feature = models.PlotFeature(
+        type="Feature",
+        id=feature_id,
+        geometry=None,
+        properties=models.PlotProperties(kind="plot", title=title, description=description),
+    )
+    return plot.model_copy(update={"features": [*plot.features, feature]})
+
+
+def period_view(plot: DebriefFeatureCollection) -> dict | None:
+    """A view whose time window is the plot's whole period: where a new plot starts."""
+    extent = plot_extent(plot)
+    if extent.start_ms is None:
+        return None
+    window = {"start": format_utc(extent.start_ms), "end": format_utc(extent.end_ms)}
+    return {"time_window": window}
 
 
 @dataclass(frozen=True)
@@ -331,8 +364,16 @@ class Catalogue:
         """The plot as of its history's head, recovering an interrupted change first (NFR-10).
 
         In a folder that cannot be written, the plot is rebuilt in memory instead.
+        A retired presentation.json not yet migrated (a read-only store, say) is
+        applied in memory.
         """
-        return self.history(item_id).plot()
+        plot = self.history(item_id).plot()
+        entries = self.legacy_presentation(item_id)
+        if entries:
+            changes = presentation_changes(plot, entries)
+            if changes.touched():
+                plot = apply(plot, [], changes)
+        return plot
 
     def store_plot_text(self, item_id: str, plot: DebriefFeatureCollection, text: str) -> None:
         """Write the materialised plot atomically and refresh the item's extent (NFR-11).
@@ -404,6 +445,9 @@ class Catalogue:
                 delta = old.delta(seq)
                 new.commit(list(delta.records), Changes.of(delta))
             new.commit(records, changes)
+            view, _ = old.view()  # view state goes with the copy, outside its history
+            if view is not None and plot_feature(new.plot()) is not None:
+                new.write_view(view, view_hash(None))
         except BaseException:
             # Never leave half a copy that looks like a plot.
             self.discard_plot(new_id)
@@ -486,55 +530,212 @@ class Catalogue:
         """
         return self._add_file(item_id, Path(path), "payloads", "payload", key, media_type)
 
-    # --- Presentation (SUB-22) ------------------------------------------------
+    # --- Colour and hiding: content, recorded like any change (SUB-22) -------
 
-    def read_presentation(self, item_id: str) -> tuple[models.Presentation, str]:
-        """The analyst's presentation of a plot, and the hash to pass back when changing it.
-
-        A plot nobody has restyled has an empty presentation.
-        """
-        path = f"{item_id}/{PRESENTATION_FILE}"
-        if not self.store.exists(path):
-            return models.Presentation(schema_version=SCHEMA_VERSION, features=[]), ""
-        text = self.store.read_text(path)
-        return load_document(DocumentKind.PRESENTATION, text), text_hash(text)
-
-    def write_presentation(
+    def set_colour(
         self,
         item_id: str,
-        presentation: models.Presentation,
-        expected_hash: str,
+        feature_ids: list[str],
+        colour: str,
+        agent: models.AgentRef,
+        base: Base | None = None,
+        *,
+        colour_name: str | None = None,
+        allow_newer_schema: bool = False,
+    ) -> int | None:
+        """Change the colour of tracks: a recorded, undoable step (decision 12 Oct).
+
+        The step's note names it, such as "Colour of BLUE ONE set to red". base
+        is the plot the analyst was looking at: if it has changed since,
+        Conflict is raised and nothing is written (SUB-28). Returns the new
+        step's number, or None if nothing needed to change.
+        """
+        if not _COLOUR.match(colour):
+            raise CatalogueError(f"{colour!r} is not a colour: give lower-case hex, like #e01c3e.")
+
+        def recolour(feature):
+            props = feature.properties
+            if props.kind != "track":
+                raise CatalogueError(f"Only tracks have a colour; {props.name} is not a track.")
+            if props.style is not None and props.style.colour == colour:
+                return None
+            style = (props.style or models.TrackStyle(colour=colour)).model_copy(
+                update={"colour": colour}
+            )
+            return props.model_copy(update={"style": style})
+
+        return self._edit_features(
+            item_id,
+            feature_ids,
+            recolour,
+            lambda who: f"Colour of {who} set to {colour_name or colour}",
+            agent,
+            base,
+            allow_newer_schema,
+        )
+
+    def set_hidden(
+        self,
+        item_id: str,
+        feature_ids: list[str],
+        hidden: bool,
+        agent: models.AgentRef,
+        base: Base | None = None,
         *,
         allow_newer_schema: bool = False,
-    ) -> str:
-        """Replace a plot's presentation; never recorded in its history (SUB-22).
+    ) -> int | None:
+        """Hide features on the map, or show them again: a recorded, undoable step
+        (decision 12 Oct). See set_colour."""
 
-        expected_hash is the hash read_presentation gave: if someone else has
-        changed the presentation since, Conflict is raised and nothing is
-        written (SUB-28). Returns the new hash.
+        def rehide(feature):
+            props = feature.properties
+            if bool(props.hidden) == hidden:
+                return None
+            return props.model_copy(update={"hidden": True if hidden else None})
+
+        return self._edit_features(
+            item_id,
+            feature_ids,
+            rehide,
+            lambda who: f"{who} {'hidden on' if hidden else 'shown on'} the map",
+            agent,
+            base,
+            allow_newer_schema,
+        )
+
+    def _edit_features(
+        self, item_id, feature_ids, change, describe, agent, base, allow_newer_schema
+    ) -> int | None:
+        if not feature_ids:
+            raise CatalogueError("Choose the features to change.")
+        history = self.history(item_id)
+        if base is None:
+            base = history.base()  # read before the plot, as run_tool does
+            plot = history.plot()
+        else:
+            history.check_base(base)
+            plot = history.replay(base.current)
+        by_id = {f.id: f for f in plot.features}
+        modified, names = [], []
+        for feature_id in dict.fromkeys(feature_ids):
+            feature = by_id.get(feature_id)
+            if feature is None or feature.properties.kind == "plot":
+                raise CatalogueError(f"The plot has no feature {feature_id!r}.")
+            names.append(feature.properties.name)
+            props = change(feature)
+            if props is not None:
+                modified.append(feature.model_copy(update={"properties": props}))
+        if not modified:
+            return None
+        record = _edit_record(agent, describe(_who(names)))
+        return self.commit(
+            item_id,
+            [record],
+            Changes(modified=modified),
+            base,
+            allow_newer_schema=allow_newer_schema,
+        )
+
+    # --- The plot's island: its view (SUB-22) ---------------------------------
+
+    def read_view(self, item_id: str) -> tuple[models.PlotView | None, str]:
+        """The plot's view (its island), and the hash to pass back when changing it."""
+        return self.history(item_id).view()
+
+    def write_view(
+        self,
+        item_id: str,
+        view: models.PlotView | dict | None,
+        expected_hash: str,
+        *,
+        agent: models.AgentRef | None = None,
+        allow_newer_schema: bool = False,
+    ) -> str:
+        """Change the plot's view: never recorded, never undone (SUB-22). Returns the new hash.
+
+        If the view changed since expected_hash was read, Conflict is raised
+        and nothing is written (SUB-28). A plot made before plots had a
+        whole-plot feature gets one first, as a recorded change by agent: its
+        title is content, and the view needs somewhere to live.
         """
         self._check_schema(allow_newer_schema)
-        text = dump_document(DocumentKind.PRESENTATION, presentation)  # validates
-        path = f"{item_id}/{PRESENTATION_FILE}"
-        with self.store.locked(f"{item_id}/{HISTORY}/{LOCK}"):
-            _, current = self.read_presentation(item_id)
-            if current != expected_hash:
+        history = self.history(item_id)
+        if view is not None and plot_feature(history.plot()) is None:
+            if expected_hash != view_hash(None):
                 raise Conflict(
-                    "The plot's presentation was changed elsewhere. Debrief is showing the latest.",
+                    "The plot's view was changed elsewhere. Debrief is showing the latest.",
                     mergeable=False,
                 )
-            self.store.write_text_atomic(path, text)
-            item = self.read_item(item_id)
-            if PRESENTATION_ASSET not in item.assets:
-                item.assets[PRESENTATION_ASSET] = models.StacAsset(
-                    key=PRESENTATION_ASSET,
-                    href=f"./{PRESENTATION_FILE}",
-                    type="application/json",
-                    roles=["metadata"],
-                    debrief_asset_kind="presentation",
-                )
-                self._write_item(item)
-        return text_hash(text)
+            self._add_plot_feature(item_id, agent)
+        return history.write_view(view, expected_hash)
+
+    def _add_plot_feature(self, item_id: str, agent: models.AgentRef | None) -> None:
+        plot = self.read_plot(item_id)
+        title = self.read_item(item_id).properties.title or item_id
+        feature = plot_feature(with_plot_details(plot, title))
+        record = _edit_record(
+            agent or models.AgentRef(kind="software_agent", name="debrief-stac"),
+            "Plot details added, to keep its view",
+        )
+        self.commit(item_id, [record], Changes(added=[feature]))
+
+    # --- Retired presentation.json: migrated on opening (decision 12 Oct) ------
+
+    def legacy_presentation(self, item_id: str) -> list[dict] | None:
+        """The entries of a retired presentation.json beside the plot, or None if there is none.
+
+        Read leniently, field by field: the format is retired, so its schema
+        is gone. Entries that make no sense are left out.
+        """
+        path = f"{item_id}/{LEGACY_PRESENTATION_FILE}"
+        if not self.store.exists(path):
+            return None
+        try:
+            raw = json.loads(self.store.read_text(path))
+        except (ValueError, OSError):
+            return []
+        entries = raw.get("features") if isinstance(raw, dict) else None
+        out = []
+        for entry in entries if isinstance(entries, list) else []:
+            if not isinstance(entry, dict) or not isinstance(entry.get("id"), str):
+                continue
+            colour = entry.get("colour")
+            out.append(
+                {
+                    "id": entry["id"],
+                    "colour": colour if isinstance(colour, str) and _COLOUR.match(colour) else None,
+                    "hidden": entry.get("hidden") is True,
+                }
+            )
+        return out
+
+    def migrate_presentation(self, item_id: str, agent: models.AgentRef) -> bool:
+        """Turn a retired presentation.json into content: one recorded step, then delete it.
+
+        The step applies its colours and hidden features to the features
+        themselves, recorded as an edit by agent (the analyst opening the
+        plot), so they are undoable like any change. A presentation that
+        changes nothing is deleted with no step. Returns whether there was
+        one. Raises OSError on a store that cannot be written: read_plot
+        applies it in memory there.
+        """
+        entries = self.legacy_presentation(item_id)
+        if entries is None:
+            return False
+        history = self.history(item_id)
+        with self.store.locked(f"{item_id}/history/{LOCK}"):
+            if self.legacy_presentation(item_id) is None:  # migrated meanwhile
+                return False
+            history._repair()
+            head = history._read_head()
+            assert head is not None
+            plot = history._current_plot(head)
+            changes = presentation_changes(plot, entries)
+            if changes.touched():
+                record = _edit_record(agent, _migration_note(entries))
+                history._append(head, plot, [record], changes, history._disk_view())
+            self.store.delete(f"{item_id}/{LEGACY_PRESENTATION_FILE}")
+        return True
 
     def _add_file(
         self, item_id: str, path: Path, folder: str, kind: str, key: str | None, media_type: str
@@ -615,3 +816,60 @@ def diff(before: DebriefFeatureCollection, after: DebriefFeatureCollection) -> C
     if list(new) != natural:
         changes.order = list(new)
     return changes
+
+
+def _edit_record(agent: models.AgentRef, note: str) -> models.ProvRecord:
+    """The record of an edit made by hand, such as a colour change. The note names it."""
+    now = format_utc(int(clock.time() * 1000))
+    return models.ProvRecord(
+        id=f"edit-{uuid.uuid4()}",
+        kind="edit",
+        started_at=now,
+        ended_at=now,
+        agent=agent,
+        notes=[note],
+    )
+
+
+def _who(names: list[str]) -> str:
+    """The features a note names: by name for one or two, by count for more."""
+    if len(names) == 1:
+        return names[0]
+    if len(names) == 2:
+        return f"{names[0]} and {names[1]}"
+    return f"{len(names)} features"
+
+
+def presentation_changes(plot: DebriefFeatureCollection, entries: list[dict]) -> Changes:
+    """What a retired presentation.json does to a plot's features: colours on tracks,
+    hidden on any feature. Features the plot no longer has are left out."""
+    by_id = {e["id"]: e for e in entries}
+    modified = []
+    for feature in plot.features:
+        entry = by_id.get(feature.id)
+        if entry is None or feature.properties.kind == "plot":
+            continue
+        props = feature.properties
+        update: dict = {}
+        if entry["colour"] and props.kind == "track":
+            style = props.style or models.TrackStyle(colour=entry["colour"])
+            if style.colour != entry["colour"] or props.style is None:
+                update["style"] = style.model_copy(update={"colour": entry["colour"]})
+        if entry["hidden"] and not props.hidden:
+            update["hidden"] = True
+        if update:
+            modified.append(
+                feature.model_copy(update={"properties": props.model_copy(update=update)})
+            )
+    return Changes(modified=modified)
+
+
+def _migration_note(entries: list[dict]) -> str:
+    colours = sum(1 for e in entries if e["colour"])
+    hidden = sum(1 for e in entries if e["hidden"])
+    parts = []
+    if colours:
+        parts.append("colours")
+    if hidden:
+        parts.append("hidden features")
+    return f"{' and '.join(parts).capitalize() or 'Presentation'} kept from presentation.json"

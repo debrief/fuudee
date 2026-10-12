@@ -22,6 +22,14 @@ description: >-
   (TL-06). Each feature class has its own single-value kind enum so that
   validators can tell the classes apart.
 
+  A plot may hold one whole-plot feature (kind plot) with the plot's own
+  details. Its view property is the plot's island: view state such as the
+  plot's time window, kept in the plot file so the plot travels as one file,
+  but outside its history. The island is left out of history hashing and
+  replay, is not undoable and is never recorded in provenance (SUB-22).
+  Everything else in the plot, the whole-plot feature's title included, is
+  content: recorded, undoable, with provenance.
+
 enums:
   FeatureTypeEnum: {permissible_values: {Feature: {}}}
   FeatureCollectionTypeEnum: {permissible_values: {FeatureCollection: {}}}
@@ -31,6 +39,8 @@ enums:
       track: {}
       annotation: {}
       sensor_observations: {}
+      plot: {description: "The whole plot: its own details and its view. At most one per plot."}
+  PlotKindEnum: {permissible_values: {plot: {}}}
   TrackKindEnum: {permissible_values: {track: {}}}
   AnnotationKindEnum: {permissible_values: {annotation: {}}}
   SensorObservationsKindEnum: {permissible_values: {sensor_observations: {}}}
@@ -88,6 +98,11 @@ classes:
         range: LengthSeries
         inlined: true
       style: {range: TrackStyle, inlined: true}
+      hidden:
+        description: >-
+          Not drawn on the map. Still listed, and still selectable, in the
+          outline. Content: hiding is a recorded, undoable change (SUB-22).
+        range: boolean
       provenance:
         description: Feature-level provenance where needed (SUB-18).
         range: ProvRecord
@@ -95,10 +110,9 @@ classes:
         inlined_as_list: true
   TrackStyle:
     description: >-
-      How a track is drawn, as imported. Data colours do not change with the
-      theme (DEV-07). The analyst's later changes are presentation, kept in
-      the plot's Presentation, not here: undoable, never recorded in
-      provenance (SUB-22).
+      How a track is drawn. Data colours do not change with the theme
+      (DEV-07). Colour is content: the analyst changing it (blue friendly to
+      red enemy, say) is a recorded, undoable change (SUB-22).
     attributes:
       colour:
         description: Lower-case hex RGB, for example "#e01c3e".
@@ -131,6 +145,11 @@ classes:
       text: {}
       time: {range: UtcTimestamp}
       time_range: {range: TimeRange, inlined: true}
+      hidden:
+        description: >-
+          Not drawn on the map. Still listed, and still selectable, in the
+          outline. Content: hiding is a recorded, undoable change (SUB-22).
+        range: boolean
       provenance:
         range: ProvRecord
         multivalued: true
@@ -162,6 +181,11 @@ classes:
       time_range: {range: TimeRange, required: true, inlined: true}
       observation_count: {range: integer, required: true, minimum_value: 0}
       payload: {range: PayloadRef, required: true, inlined: true}
+      hidden:
+        description: >-
+          Not drawn on the map. Still listed, and still selectable, in the
+          outline. Content: hiding is a recorded, undoable change (SUB-22).
+        range: boolean
       provenance:
         range: ProvRecord
         multivalued: true
@@ -200,6 +224,47 @@ classes:
       unit:
         description: UCUM unit code, required when quantity_kind is given.
 
+  # --- The whole plot -------------------------------------------------------
+  PlotFeature:
+    description: >-
+      The whole plot: its own details, and its view (the island). At most one
+      per plot. Geometry is always null, so the plot file stays plain GeoJSON
+      for other tools.
+    attributes:
+      type: {range: FeatureTypeEnum, required: true}
+      id: {required: true}
+      geometry:
+        description: Always null.
+        range: PointGeometry
+        inlined: true
+      properties: {range: PlotProperties, required: true, inlined: true}
+  PlotProperties:
+    attributes:
+      kind: {range: PlotKindEnum, required: true}
+      title:
+        description: The plot's title. Content, like everything outside view.
+      description:
+        description: What the plot is for. Content.
+      view:
+        description: >-
+          The island: how the plot is being viewed. Outside the plot's
+          history (see the module description). Kept last, so it is easy to
+          find and strip.
+        range: PlotView
+        inlined: true
+  PlotView:
+    description: >-
+      View state saved in the plot file: not content, so not undoable and not
+      recorded in provenance (SUB-22). Two people changing it at once are
+      told, not silently overwritten (SUB-28). Later view state joins here.
+    attributes:
+      time_window:
+        description: >-
+          The plot's time window: the period shown, one for the whole plot
+          (CAP-28, CAP-29). Start shall not be after end.
+        range: TimeRange
+        inlined: true
+
   # --- Named sets and the collection ---------------------------------------
   NamedSet:
     description: A saved, reusable selection (TL-11).
@@ -222,6 +287,7 @@ classes:
           - range: TrackFeature
           - range: AnnotationFeature
           - range: SensorObservationsFeature
+          - range: PlotFeature
       named_sets:
         range: NamedSet
         multivalued: true

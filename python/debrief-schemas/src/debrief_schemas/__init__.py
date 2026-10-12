@@ -9,6 +9,7 @@ from debrief_schemas.documents import (
     dump_plot,
     load_document,
     load_plot,
+    load_view,
 )
 from debrief_schemas.generated import debrief as models
 from debrief_schemas.generated.debrief import DebriefFeatureCollection
@@ -25,5 +26,6 @@ __all__ = [
     "dump_plot",
     "load_document",
     "load_plot",
+    "load_view",
     "models",
 ]
