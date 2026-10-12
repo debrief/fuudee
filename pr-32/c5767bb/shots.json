@@ -1,0 +1,41 @@
+{
+ "shots": [
+  {
+   "source": "blog/posts/2026-10-11-nothing-lost.md",
+   "url": "blog/2026/10/11/nothing-lost/",
+   "title": "Nothing lost: undo, crashes, and a plot shared with others",
+   "file": "blog-posts-2026-10-11-nothing-lost.png"
+  },
+  {
+   "source": "blog/posts/2026-10-12-time-controller.md",
+   "url": "blog/2026/10/12/time-controller/",
+   "title": "One window, one file: the time controller",
+   "file": "blog-posts-2026-10-12-time-controller.png"
+  },
+  {
+   "source": "guides/glossary.md",
+   "url": "guides/glossary/",
+   "title": "Glossary",
+   "file": "guides-glossary.png"
+  },
+  {
+   "source": "guides/interaction-models/index.md",
+   "url": "guides/interaction-models/",
+   "title": "Interaction models",
+   "file": "guides-interaction-models-index.png"
+  },
+  {
+   "source": "guides/interaction-models/time-controller.md",
+   "url": "guides/interaction-models/time-controller/",
+   "title": "Time controller",
+   "file": "guides-interaction-models-time-controller.png"
+  },
+  {
+   "source": "guides/interaction-models/undo.md",
+   "url": "guides/interaction-models/undo/",
+   "title": "Undo",
+   "file": "guides-interaction-models-undo.png"
+  }
+ ],
+ "more": 2
+}
