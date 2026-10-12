@@ -6,6 +6,7 @@
 import { createServer } from "node:http";
 import { readFile } from "node:fs/promises";
 import { existsSync, readFileSync } from "node:fs";
+import { execFileSync } from "node:child_process";
 import path from "node:path";
 import assert from "node:assert/strict";
 import { chromium } from "playwright";
@@ -123,6 +124,8 @@ try {
   await page.locator(".toast", { hasText: "(outside your saved window)" }).waitFor();
   await page.waitForFunction(() => document.querySelector("#timebar .tc-cue-text")?.textContent === "Showing beyond saved window");
   assert.equal(await tc(".tc-cue").getAttribute("aria-live"), "polite");
+  assert.ok((await tc(".tc-cue").boundingBox()).height <= 26, "the note is one line, Keep and Revert inline");
+  assert.equal(await tc(".tc-cue-text").getAttribute("title"), "Showing beyond saved window");
   assert.equal(await page.locator("#timebar .tc-beyond:visible").count(), 1);
   assert.ok((await end()) > at("09:21") && (await end()) <= at("09:22"), "widened by the least amount");
   const mapView = page.frameLocator(".frame-map");
@@ -302,6 +305,7 @@ try {
   await shot("play-09-geodesic");
 
   await contextOnDark();
+  await vscodeTimeView();
   await cdnBlocked();
   if (site) await playFromThePost();
   assert.deepEqual(errors, []);
@@ -452,6 +456,82 @@ try {
     assert.ok((await clear()) >= 10, "clear context tracks on a dark theme");
     await shot("context-02-clear-dark", dark);
     await dark.close();
+  }
+
+  /**
+   * VS Code's Time view page (dist/webview/time.js), at the size VS Code first gives the
+   * view at 1440×900 with the other Debrief views open (measured in the integration test's
+   * screenshots: about 297 × 136 px; a little less here). Everything shows without scrolling,
+   * the note and its Keep and Revert included, and the context choice is not in the view
+   * (it is in the view's title menu).
+   */
+  async function vscodeTimeView() {
+    const extension = path.resolve(import.meta.dirname, "..", "..");
+    const webview = path.join(extension, "dist", "webview");
+    execFileSync(process.execPath, ["scripts/build.mjs"], { cwd: extension, stdio: "inherit" }); // the page as it is now
+    const files = serve(webview);
+    const view = await browser.newPage({ viewport: { width: 290, height: 132 }, colorScheme: "dark" });
+    view.on("pageerror", (e) => errors.push(String(e)));
+    const posted = [];
+    await view.exposeFunction("tellTest", (message) => posted.push(message));
+    await view.route("**/time-view.html", (route) =>
+      route.fulfill({
+        contentType: "text/html",
+        body:
+          `<!doctype html><html lang="en-GB"><head><meta charset="utf-8"><link rel="stylesheet" href="time.css">` +
+          // VS Code's own fonts and sizes, and the theme tokens the page uses for its colours.
+          `<style>:root { --vscode-font-family: system-ui, Ubuntu, "Droid Sans", sans-serif; --vscode-font-size: 13px; --vscode-editor-font-family: "Droid Sans Mono", monospace; --vscode-foreground: #ccc; --vscode-descriptionForeground: #9d9d9d; --vscode-sideBar-background: #181818; --vscode-focusBorder: #0078d4; --vscode-button-background: #0078d4; --vscode-button-foreground: #fff; --vscode-button-secondaryBackground: #313131; --vscode-button-secondaryForeground: #ccc; --vscode-dropdown-background: #313131; --vscode-input-background: #313131; --vscode-inputValidation-warningBorder: #b89500; --vscode-inputValidation-warningBackground: #352a05; }</style>` +
+          `</head><body><div id="root"></div><script>window.acquireVsCodeApi = () => ({ postMessage: (m) => window.tellTest(m) });</script>` +
+          `<script src="time.js"></script></body></html>`,
+      }),
+    );
+    await view.goto(`http://127.0.0.1:${files.address().port}/time-view.html`);
+    await view.waitForFunction(() => document.getElementById("timebar"));
+    for (let i = 0; i < 50 && !posted.some((m) => m.kind === "ready"); i++) await view.waitForTimeout(100);
+    const period = { start: "2023-06-15T08:00:00.000Z", end: "2023-06-15T12:00:00.000Z" };
+    const showTime = (range, saved) =>
+      view.evaluate(([range, saved]) => window.postMessage({ kind: "show_time", time: { current: "2023-06-15T09:21:17.000Z", range }, time_range: { start: "2023-06-15T08:00:00.000Z", end: "2023-06-15T12:00:00.000Z" }, saved_window: saved, context_tracks: "faint" }, "*"), [range, saved]);
+    const allShown = async (state) => {
+      const box = await view.evaluate(() => {
+        const bottom = (selector) => document.querySelector(selector).getBoundingClientRect().bottom;
+        return {
+          scroll: document.documentElement.scrollHeight - innerHeight,
+          height: innerHeight,
+          bottoms: [".tc-play", ".tc-speed", ".time-label", ".tc-current", ".tc-step-label", ".tc-cue", ".tc-window-length"].map(bottom),
+        };
+      });
+      assert.ok(box.scroll <= 0, `${state}: the Time view scrolls by ${box.scroll}px`);
+      for (const b of box.bottoms) assert.ok(b <= box.height, `${state}: something ends at ${b}px, below the view's ${box.height}px`);
+    };
+    // A window as saved: no note.
+    const early = { start: period.start, end: "2023-06-15T09:00:00.000Z" };
+    await showTime(early, early);
+    await view.locator(".time-label", { hasText: "09:00:00Z" }).waitFor();
+    assert.equal(await view.locator(".tc-cue-text").innerText(), "");
+    await allShown("no note");
+    assert.equal(await view.locator(".tc-context").count(), 0, "the context choice is in the view's title menu, not the view");
+    await shot("vscode-time-view-saved", view);
+    // A tool showed a wider window: the note, on one line, the whole text on hover and to screen readers.
+    const widened = { start: period.start, end: "2023-06-15T09:22:00.000Z" };
+    await showTime(widened, early);
+    await view.locator(".tc-cue-text", { hasText: "Showing beyond saved window" }).waitFor();
+    await allShown("with the note");
+    assert.equal(await view.locator(".tc-cue").getAttribute("aria-live"), "polite");
+    assert.equal(await view.locator(".tc-cue-text").getAttribute("title"), "Showing beyond saved window");
+    const [cue, keep, revert] = await Promise.all([".tc-cue", ".tc-keep", ".tc-revert"].map((s) => view.locator(s).boundingBox()));
+    assert.ok(cue.height <= 26, "the note is one line");
+    assert.ok(keep.y >= cue.y && revert.y >= cue.y && revert.x + revert.width <= cue.x + cue.width + 1, "Keep and Revert inline in the note");
+    // Play, the steps and speed share a row with current time.
+    const row = await Promise.all([".back", ".tc-play", ".forward", ".tc-speed", ".time-label"].map((s) => view.locator(s).boundingBox()));
+    for (const box of row) assert.ok(Math.abs(box.y + box.height / 2 - (row[1].y + row[1].height / 2)) <= 3, "one row");
+    await shot("vscode-time-view-note", view);
+    // Keep, from the keyboard: the window is sent to be saved.
+    await view.locator(".tc-keep").focus();
+    await view.keyboard.press("Enter");
+    for (let i = 0; i < 20 && !posted.some((m) => m.kind === "window_changed"); i++) await view.waitForTimeout(50);
+    assert.deepEqual(posted.find((m) => m.kind === "window_changed")?.time_range, widened);
+    await view.close();
+    files.close();
   }
 
   /** With the CDN blocked, the page says so plainly; the map still works. */

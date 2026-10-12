@@ -1,6 +1,6 @@
 /* The sidebar's time view: interface colours only from the theme (CON-06, DEV-07). */
 html, body { margin: 0; padding: 0; }
 body { background: var(--vscode-sideBar-background, var(--vscode-editor-background)); color: var(--vscode-foreground); font-family: var(--vscode-font-family); font-size: var(--vscode-font-size); }
-#root { padding: 2px 12px 4px; }
+#root { padding: 2px 8px 4px; }
 .empty { margin: 4px 0; color: var(--vscode-descriptionForeground); }
 .empty[hidden] { display: none; }

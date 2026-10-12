@@ -88,7 +88,6 @@ export function activate(context: vscode.ExtensionContext): DebriefApi {
     session,
     // Not saved: show the time controller what is saved again, so it never claims otherwise.
     (window) => void saveWindow(window).then(resync).then(report),
-    (contextTracks) => void saveContext(contextTracks).then(resync).then(report),
     log,
   );
   context.subscriptions.push(
@@ -766,6 +765,10 @@ export function activate(context: vscode.ExtensionContext): DebriefApi {
     if (!contextTracks || !["clear", "faint", "off"].includes(contextTracks)) return report("Choose clear, faint or off.");
     return report(resync(await saveContext(contextTracks)));
   });
+  // The Time view's title menu: the same choice, the plot's current one checked.
+  for (const choice of ["clear", "faint", "off"] as const) {
+    command(`debrief.contextTracks.${choice}`, () => vscode.commands.executeCommand("debrief.setContextTracks", choice));
+  }
   command("debrief.select", (ids: string[]) => session.select(ids ?? [], "command"));
   // Shared state for agents and keyboard users (SUB-27).
   command("debrief.getState", () => session.state());

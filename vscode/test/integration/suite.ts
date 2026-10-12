@@ -173,8 +173,9 @@ export async function run(): Promise<void> {
   assert.deepEqual(island().time_window, shown);
 
   // How tracks outside the window are drawn: the plot's view, never a step in its history (CAP-29).
+  // Chosen from the Time view's title menu ("..."): its entries run these commands.
   const baseNow = api.session.current!.base;
-  assert.equal(await vscode.commands.executeCommand("debrief.setContextTracks", "faint"), undefined);
+  assert.equal(await vscode.commands.executeCommand("debrief.contextTracks.faint"), undefined);
   assert.equal(island().context_tracks, "faint");
   await waitFor("the map to draw context faint", () => api.mapContext() === "faint" || undefined);
   assert.deepEqual(api.session.current!.base, baseNow, "no step in the history");
@@ -182,17 +183,13 @@ export async function run(): Promise<void> {
   const config = vscode.workspace.getConfiguration("debrief");
   await config.update("map.minimumContextContrast", true, vscode.ConfigurationTarget.Global);
   await waitFor("the setting to draw faint as clear", () => api.mapContext() === "clear" || undefined);
-  // For the picture: hide the views below the Time view for a moment, so the whole controller shows.
-  const toggle = (view: string) => vscode.commands.executeCommand(`${view}.toggleVisibility`).then(undefined, () => undefined);
-  const below = ["debrief.catalogues", "debrief.outline", "debrief.tools"];
-  for (const view of below) await toggle(view);
+  // The Time view's description says so, beside its title.
   await sleep(1500);
   await screenshot("03b-context-tracks-setting");
-  for (const view of below) await toggle(view);
-  assert.equal(await vscode.commands.executeCommand("debrief.setContextTracks", "off"), undefined);
+  assert.equal(await vscode.commands.executeCommand("debrief.contextTracks.off"), undefined);
   await waitFor("context off", () => api.mapContext() === "off" || undefined);
   await config.update("map.minimumContextContrast", undefined, vscode.ConfigurationTarget.Global);
-  assert.equal(await vscode.commands.executeCommand("debrief.setContextTracks", "clear"), undefined);
+  assert.equal(await vscode.commands.executeCommand("debrief.contextTracks.clear"), undefined);
   await waitFor("context clear", () => api.mapContext() === "clear" || undefined);
   assert.equal(island().context_tracks, "clear");
   assert.equal(await vscode.commands.executeCommand("debrief.setTimeWindow", period), undefined);

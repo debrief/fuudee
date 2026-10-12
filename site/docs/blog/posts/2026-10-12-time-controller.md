@@ -17,7 +17,7 @@ Debrief now has a time controller. The analyst sets one time window for the whol
 
 ![The Time view at the top of VS Code's Debrief sidebar: the map draws the window solid and the rest of each track as a thin, quieter line](images/phase-3/time-controller.png)
 
-In VS Code the controller is the **Time** view, at the top of the Debrief sidebar. The catalogues, outline, tools and history stay below it. The map no longer has a control along its bottom edge; it only draws. The playground has the same component at the top of its side column.
+In VS Code the controller is the **Time** view, at the top of the Debrief sidebar. The catalogues, outline, tools and history stay below it. The map no longer has a control along its bottom edge; it only draws. The playground has the same component at the top of its side column. It is compact, so all of it shows at the height VS Code first gives the view, without scrolling: play, the steps and the speed share a line with current time, and the note about a tool's window (below) is one line.
 
 It has three parts:
 
@@ -35,7 +35,7 @@ Everything works from the keyboard. The arrow keys move a handle or current time
 
 Within the window, tracks are drawn in full: solid lines, direction ticks, a hollow dot at the first fix in the window and a labelled dot at the last. Outside the window, each whole track stays as a thin, solid line in a quieter version of its colour: a *context track*.
 
-Hiding everything outside the window would be cleaner, but it would lose the shape of the exercise, and for deployments the requirement is to see a whole deployment's tracks at once, with sensor data limited to the window. So the context track stays, with no ticks, dots or labels to compete with the window. It is drawn at least 3:1 against the map on any theme, so it is quiet without being hard to see. A busy plot can draw it **faint** instead, or turn it **off**, from the **Context tracks** list under the controller.
+Hiding everything outside the window would be cleaner, but it would lose the shape of the exercise, and for deployments the requirement is to see a whole deployment's tracks at once, with sensor data limited to the window. So the context track stays, with no ticks, dots or labels to compete with the window. It is drawn at least 3:1 against the map on any theme, so it is quiet without being hard to see. A busy plot can draw it **faint** instead, or turn it **off**, from the Time view's **...** menu in VS Code (in the playground, the **Context** list beside the window's length).
 
 Annotations with a time or a period are drawn only while it falls in the window. Annotations without one, such as the exercise area, always are.
 

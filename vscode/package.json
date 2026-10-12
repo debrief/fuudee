@@ -58,10 +58,16 @@
       {"command": "debrief.hide", "title": "Hide on map", "category": "Debrief", "icon": "$(eye-closed)"},
       {"command": "debrief.show", "title": "Show on map", "category": "Debrief", "icon": "$(eye)"},
         {"command": "debrief.goToStep", "title": "Go back to this step", "category": "Debrief"},
-      {"command": "debrief.redoToStep", "title": "Redo up to this step", "category": "Debrief"}
+      {"command": "debrief.redoToStep", "title": "Redo up to this step", "category": "Debrief"},
+      {"command": "debrief.contextTracks.clear", "title": "Context tracks: Clear", "category": "Debrief", "enablement": "debrief.contextTracks", "toggled": {"condition": "debrief.contextTracks == clear"}},
+      {"command": "debrief.contextTracks.faint", "title": "Context tracks: Faint", "category": "Debrief", "enablement": "debrief.contextTracks", "toggled": {"condition": "debrief.contextTracks == faint"}},
+      {"command": "debrief.contextTracks.off", "title": "Context tracks: Off", "category": "Debrief", "enablement": "debrief.contextTracks", "toggled": {"condition": "debrief.contextTracks == off"}}
     ],
     "menus": {
       "view/title": [
+        {"command": "debrief.contextTracks.clear", "when": "view == debrief.time && debrief.contextTracks", "group": "1_context@1"},
+        {"command": "debrief.contextTracks.faint", "when": "view == debrief.time && debrief.contextTracks", "group": "1_context@2"},
+        {"command": "debrief.contextTracks.off", "when": "view == debrief.time && debrief.contextTracks", "group": "1_context@3"},
         {"command": "debrief.importRep", "when": "view == debrief.catalogues", "group": "navigation@1"},
         {"command": "debrief.addCatalogue", "when": "view == debrief.catalogues", "group": "navigation@2"},
         {"command": "debrief.refresh", "when": "view == debrief.catalogues", "group": "navigation@3"},

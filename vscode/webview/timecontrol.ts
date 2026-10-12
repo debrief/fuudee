@@ -1,8 +1,9 @@
 /**
  * The time controller (CAP-28, SUB-26): the plot's time window, set with a
  * slider of two handles over the plot's whole period; current time, set with
- * a slider over the window; step buttons; and play, at a chosen speed. Below
- * them, how tracks outside the window are drawn (CAP-29).
+ * a slider over the window; step buttons; and play, at a chosen speed. How
+ * tracks outside the window are drawn (CAP-29) is chosen beside the window's
+ * caption in the playground, and from the Time view's title menu in VS Code.
  *
  * One component for every host: VS Code shows it in the Debrief sidebar
  * (webview/time.ts), and the playground at the top of its side column.
@@ -56,8 +57,8 @@ export interface TimeControlHost {
   moved(time: TimeState): void;
   /** The analyst let go of the window, or chose Keep: save it in the plot. */
   windowSaved(window: TimeRange): void;
-  /** The analyst chose how tracks outside the window are drawn: save it in the plot. */
-  contextChanged(context: ContextTracks): void;
+  /** The analyst chose how tracks outside the window are drawn, where the control offers it: save it in the plot. */
+  contextChanged?(context: ContextTracks): void;
 }
 
 /** What the host knows of the plot's view (its island) beyond the window shown. */
@@ -69,6 +70,15 @@ export interface TimeView {
   minimumContrast?: boolean;
 }
 
+export interface TimeControlOptions {
+  /**
+   * Show the choice of how context tracks are drawn in the control (the
+   * playground). VS Code offers it in the Time view's title menu instead.
+   */
+  contextInView?: boolean;
+  clock?: Clock;
+}
+
 export class TimeControl {
   private current = 0;
   private window: Span = { start: 0, end: 0 };
@@ -78,41 +88,48 @@ export class TimeControl {
   private readonly gesture: WindowGesture;
   private readonly saved: SavedWindow;
   private readonly part: <T extends HTMLElement>(selector: string) => T;
+  private readonly contextInView: boolean;
 
   constructor(
     private readonly element: HTMLElement,
     private readonly host: TimeControlHost,
-    clock?: Clock,
+    options: TimeControlOptions = {},
   ) {
+    this.contextInView = options.contextInView ?? true;
     element.classList.add("timebar");
     element.setAttribute("role", "group");
     element.setAttribute("aria-label", "Time controller");
     element.hidden = true;
+    // Compact, to fit VS Code's sidebar view at its first height: the window's ends and
+    // length on one line, its slider, a one-line note, current time's slider with the step,
+    // and the buttons on the same line as current time.
+    const context = this.contextInView
+      ? `<label class="tc-context-row" title="How tracks outside the time window are drawn, for everyone who opens this plot"><span>Context</span>` +
+        `<select class="tc-context" aria-label="Context tracks">` +
+        `<option value="clear">Clear</option><option value="faint">Faint</option><option value="off">Off</option></select>` +
+        `<span class="tc-context-note"></span></label>`
+      : "";
     element.innerHTML =
-      `<div class="tc-caption"><span>Time window</span><span class="tc-window-length"></span></div>` +
+      `<div class="tc-caption"><span class="tc-ends" title="Time window"><span class="tc-window-start"></span><span class="tc-to">–</span><span class="tc-window-end"></span></span>` +
+      `<span class="tc-window-length" title="Length of the time window"></span>${context}</div>` +
       `<div class="tc-window">` +
       `<div class="tc-rail"></div><div class="tc-band" title="Drag to move the window"></div>` +
       `<div class="tc-beyond" hidden></div><div class="tc-beyond" hidden></div>` +
       `<div class="tc-handle tc-start" role="slider" tabindex="0" aria-label="Time window start" aria-orientation="horizontal"></div>` +
       `<div class="tc-handle tc-end" role="slider" tabindex="0" aria-label="Time window end" aria-orientation="horizontal"></div>` +
       `</div>` +
-      `<div class="tc-ends"><span class="tc-window-start"></span> – <span class="tc-window-end"></span></div>` +
       `<div class="tc-cue" role="status" aria-live="polite"><span class="tc-cue-text"></span>` +
       `<span class="tc-cue-actions" hidden><button class="tc-keep" title="Save the window shown as the plot's time window">Keep</button>` +
       `<button class="tc-revert" title="Show the saved time window again">Revert</button></span></div>` +
-      `<div class="tc-caption"><span>Current time</span><span class="tc-step-label"></span></div>` +
-      `<input type="range" class="tc-current" aria-label="Current time">` +
+      `<div class="tc-current-row"><input type="range" class="tc-current" aria-label="Current time">` +
+      `<span class="tc-step-label" title="The arrow keys and the step buttons move current time by this much"></span></div>` +
       `<div class="tc-buttons">` +
       `<button class="step back" title="Step back" aria-label="Step back">‹</button>` +
       `<button class="tc-play" title="Play (Space)" aria-label="Play">▶</button>` +
       `<button class="step forward" title="Step forward" aria-label="Step forward">›</button>` +
       `<select class="tc-speed" aria-label="Playing speed"></select>` +
-      `<span class="time-label"></span>` +
-      `</div>` +
-      `<label class="tc-context-row"><span>Context tracks</span>` +
-      `<select class="tc-context" title="How tracks outside the time window are drawn, for everyone who opens this plot">` +
-      `<option value="clear">Clear</option><option value="faint">Faint</option><option value="off">Off</option></select>` +
-      `<span class="tc-context-note"></span></label>`;
+      `<span class="time-label" title="Current time"></span>` +
+      `</div>`;
     this.part = <T extends HTMLElement>(selector: string) => element.querySelector<T>(selector)!;
     const speed = this.part<HTMLSelectElement>(".tc-speed");
     for (const s of SPEEDS) {
@@ -125,7 +142,7 @@ export class TimeControl {
       () => (this.shown ? { current: this.current, window: this.window } : undefined),
       (ms) => this.moveCurrent(ms),
       (playing) => this.showPlaying(playing),
-      clock,
+      options.clock,
     );
     speed.value = String(this.player.speed);
     speed.title = describeSpeed(this.player.speed);
@@ -186,8 +203,10 @@ export class TimeControl {
       this.tell();
     });
 
-    const context = this.part<HTMLSelectElement>(".tc-context");
-    context.addEventListener("change", () => this.host.contextChanged(context.value as ContextTracks));
+    if (this.contextInView) {
+      const context = this.part<HTMLSelectElement>(".tc-context");
+      context.addEventListener("change", () => this.host.contextChanged?.(context.value as ContextTracks));
+    }
 
     this.windowKeys(this.part(".tc-start"), "start");
     this.windowKeys(this.part(".tc-end"), "end");
@@ -214,10 +233,12 @@ export class TimeControl {
     this.saved.fromHost(view.saved ? spanOf(view.saved) : window);
     this.extent = extentOf(period ? spanOf(period) : undefined, this.window);
     this.current = clamp(Date.parse(time.current), this.window.start, this.window.end);
-    const context = this.part<HTMLSelectElement>(".tc-context");
-    context.value = view.context ?? "clear";
-    const floor = !!view.minimumContrast && context.value === "faint";
-    this.part(".tc-context-note").textContent = floor ? "shown as clear by your setting" : "";
+    if (this.contextInView) {
+      const context = this.part<HTMLSelectElement>(".tc-context");
+      context.value = view.context ?? "clear";
+      const floor = !!view.minimumContrast && context.value === "faint";
+      this.part(".tc-context-note").textContent = floor ? "shown as clear by your setting" : "";
+    }
     this.render();
   }
 
@@ -346,7 +367,12 @@ export class TimeControl {
       hatch.style.width = width(part);
     });
     const cueText = this.part(".tc-cue-text");
-    if (cueText.textContent !== (cue?.message ?? "")) cueText.textContent = cue?.message ?? "";
+    if (cueText.textContent !== (cue?.message ?? "")) {
+      // One line: the whole text on hover when it is cut short; screen readers hear it all.
+      cueText.textContent = cue?.message ?? "";
+      if (cue) cueText.title = cue.message;
+      else cueText.removeAttribute("title");
+    }
     this.part(".tc-cue-actions").hidden = !cue;
     this.part(".tc-cue").classList.toggle("showing", !!cue);
 
@@ -357,7 +383,7 @@ export class TimeControl {
     slider.value = String(this.current);
     const label = show(this.current);
     slider.setAttribute("aria-valuetext", label);
-    slider.title = `${show(this.window.start)} to ${show(this.window.end)}`;
+    slider.title = `Current time, from ${show(this.window.start)} to ${show(this.window.end)}`;
     this.part(".time-label").textContent = oneDay ? formatTime(this.current, DEFAULT_SETTINGS) : label;
     const step = describeStep(stepFor(this.window));
     this.part(".tc-step-label").textContent = `step ${step}`;

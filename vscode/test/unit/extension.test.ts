@@ -346,6 +346,20 @@ describe("contributed menus", () => {
       manifest.contributes.menus["view/item/context"].find((e: { command: string }) => e.command === command).when as string;
     for (const command of ["debrief.setColour", "debrief.hide", "debrief.show"]) expect(when(command)).toContain("view == debrief.outline");
   });
+  it("offer context tracks in the Time view's title menu, the plot's choice checked (CAP-29)", () => {
+    const source = readFileSync(path.join(repo, "vscode", "src", "extension.ts"), "utf8");
+    for (const choice of ["clear", "faint", "off"]) {
+      const id = `debrief.contextTracks.${choice}`;
+      const entry = manifest.contributes.menus["view/title"].find((e: { command: string }) => e.command === id);
+      // In the "..." menu, not as an icon on the title bar; only with a plot open.
+      expect(entry.when).toBe("view == debrief.time && debrief.contextTracks");
+      expect(entry.group).not.toMatch(/^navigation/);
+      const definition = manifest.contributes.commands.find((c: { command: string }) => c.command === id);
+      expect(definition.title).toBe(`Context tracks: ${choice[0].toUpperCase()}${choice.slice(1)}`);
+      expect(definition.toggled).toEqual({ condition: `debrief.contextTracks == ${choice}` });
+    }
+    expect(source).toContain('command(`debrief.contextTracks.${choice}`, () => vscode.commands.executeCommand("debrief.setContextTracks", choice))');
+  });
 });
 
 describe("hiding and colour are the plot's own content (SUB-22)", () => {
