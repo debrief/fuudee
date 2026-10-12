@@ -7,7 +7,8 @@ name: Publish site
 on:
   push:
     branches: [main]
-    paths: ["site/**", "scripts/build_site.sh", "pyproject.toml", "uv.lock", ".github/workflows/pages.yml"]
+    # The playground (site/docs/play) is built from the extension and the Python packages.
+    paths: ["site/**", "python/**", "ts/**", "vscode/**", "scripts/build_site.sh", "scripts/build_playground.sh", "pyproject.toml", "uv.lock", ".github/workflows/pages.yml"]
   workflow_dispatch:
 
 permissions:

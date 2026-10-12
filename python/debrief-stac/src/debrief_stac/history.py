@@ -306,8 +306,10 @@ class History:
             f"{self._folder}/{HEAD}", dump_document(DocumentKind.HISTORY_HEAD, head)
         )
 
-    def _write_plot(self, plot: DebriefFeatureCollection) -> str:
-        text = dump_document(DocumentKind.PLOT, plot)
+    def _write_plot(self, plot: DebriefFeatureCollection, text: str | None = None) -> str:
+        """Write the plot; text, when given, is plot already dumped (and so validated)."""
+        if text is None:
+            text = dump_document(DocumentKind.PLOT, plot)
         self.catalogue.store_plot_text(self.item_id, plot, text)
         return text_hash(text)
 
@@ -382,7 +384,7 @@ class History:
             ) from None
         self._deltas[seq] = delta
         self._write_head(self._new_head(seq, seq, text_hash(text)))
-        self._write_plot(new_plot)
+        self._write_plot(new_plot, text)  # dumped above: validating it again is slow and the same
         return seq
 
     def _check_merge(
@@ -476,7 +478,7 @@ class History:
             plot = self.replay(seq)
             text = dump_document(DocumentKind.PLOT, plot)
             self._write_head(self._new_head(seq, head.latest, text_hash(text)))
-            self._write_plot(plot)
+            self._write_plot(plot, text)
             return seq
 
     # --- Opening: making the history whole -----------------------------------

@@ -29,8 +29,8 @@ def test_values_are_converted_for_the_tool() -> None:
 @pytest.mark.parametrize(
     ("supplied", "problem"),
     [
-        ({"spacing": {"value": 5, "unit": "[kn_i]"}}, "Spacing must be a length, not [kn_i]"),
-        ({"spacing": {"value": 300, "unit": "km"}}, "Spacing must be at most 100 [nmi_i]"),
+        ({"spacing": {"value": 5, "unit": "[kn_i]"}}, "Spacing must be a length, not kn"),
+        ({"spacing": {"value": 300, "unit": "km"}}, "Spacing must be at most 100 nmi"),
         ({"spacing": 5}, "Spacing must be a number with a unit"),
         (
             {"spacing": {"value": 5, "unit": "nm"}},

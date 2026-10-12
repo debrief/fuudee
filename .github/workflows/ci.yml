@@ -120,6 +120,50 @@ jobs:
       - run: uv sync --locked --only-group docs
       - run: uv run --only-group docs mkdocs build --strict --config-file site/mkdocs.yml
 
+  playground:
+    # The blog's playable demos: Debrief's webviews and Python, in the browser
+    # (CON-09). Builds the playground and the site, then plays every demo in
+    # Chromium as a reader would, including one started from a blog post.
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v6
+        with:
+          python-version: "3.12"
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: npm
+          cache-dependency-path: |
+            ts/schemas/package-lock.json
+            ts/kernel/package-lock.json
+            ts/config/package-lock.json
+            vscode/package-lock.json
+      - name: Install
+        run: |
+          uv sync --locked
+          for package in schemas kernel config; do
+            npm ci --prefix ts/$package
+            npm run --prefix ts/$package build
+          done
+          npm ci --prefix vscode
+          (cd vscode && npx playwright install --with-deps chromium)
+      - name: Build the playground and the site
+        run: |
+          scripts/build_playground.sh
+          uv run --only-group docs mkdocs build --strict --config-file site/mkdocs.yml
+      - name: Play every demo
+        working-directory: vscode
+        env:
+          DEBRIEF_SCREENSHOTS: ${{ github.workspace }}/playground-screenshots
+        run: mkdir -p "$DEBRIEF_SCREENSHOTS" && npm run test:play
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: playground-screenshots
+          path: playground-screenshots
+          if-no-files-found: ignore
+
   pyodide:
     # Python tools must run in the browser for the web build (CON-09). Runs the
     # same smoke test under CPython and Pyodide and requires identical results.

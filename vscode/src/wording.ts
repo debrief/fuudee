@@ -25,17 +25,21 @@ export function needs(tool: ToolDeclaration): string {
 
 /** A step in a plot's history, as the History view names it. */
 export function describeStep(
-  step: { kind: string; tool: string | null; status: string },
+  step: { kind: string; tool: string | null; status: string; notes?: string[] },
   toolTitle: (name: string) => string | undefined,
 ): { label: string; status: string } {
+  // An edit made without a tool is named by its note, when it has a short one.
+  const note = step.kind === "edit" && !step.tool ? step.notes?.[0] : undefined;
   const label =
-    step.kind === "import"
-      ? "Imported"
-      : step.tool
-        ? (toolTitle(step.tool) ?? `Made by ${step.tool}`) // not a tool installed here
-        : step.kind === "edit"
-          ? "Edited"
-          : step.kind.charAt(0).toUpperCase() + step.kind.slice(1);
+    note && note.length <= 48
+      ? note
+      : step.kind === "import"
+        ? "Imported"
+        : step.tool
+          ? (toolTitle(step.tool) ?? `Made by ${step.tool}`) // not a tool installed here
+          : step.kind === "edit"
+            ? "Edited"
+            : step.kind.charAt(0).toUpperCase() + step.kind.slice(1);
   const status =
     step.status === "undone"
       ? "Undone; can be redone"

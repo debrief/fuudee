@@ -8,7 +8,8 @@ name: Preview site
 on:
   pull_request:
     types: [opened, reopened, synchronize, closed]
-    paths: ["site/**", "scripts/build_site.sh", "scripts/preview_shots.mjs", "pyproject.toml", "uv.lock", ".github/workflows/preview.yml"]
+    # The playground (site/docs/play) is built from the extension and the Python packages.
+    paths: ["site/**", "python/**", "ts/**", "vscode/**", "scripts/build_site.sh", "scripts/build_playground.sh", "scripts/preview_shots.mjs", "pyproject.toml", "uv.lock", ".github/workflows/preview.yml"]
 
 permissions:
   contents: write

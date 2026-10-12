@@ -103,6 +103,16 @@ def test_latin1_file_imports(tmp_path: Path) -> None:
     assert import_rep(catalogue, source).fixes == 2
 
 
+def test_file_with_no_tracks_is_refused_and_says_why(tmp_path: Path) -> None:
+    catalogue = Catalogue.create(tmp_path / "cat", "ex", "Exercise", "Test")
+    source = tmp_path / "junk.rep"
+    source.write_text("this is junk\nmore\n")
+    with pytest.raises(ValueError, match="no tracks could be read") as refused:
+        import_rep(catalogue, source)
+    assert "Line 1 could not be read: 'this is' is not a date and time." in str(refused.value)
+    assert catalogue.item_ids() == []  # nothing written
+
+
 def test_clock_makes_provenance_repeatable(setup) -> None:
     catalogue, source = setup
     ticks = iter([1_000, 2_000])

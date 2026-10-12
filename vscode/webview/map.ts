@@ -94,6 +94,7 @@ const Zoom = L.Control.extend({
       a.title = title;
       a.href = "#";
       a.setAttribute("role", "button");
+      a.setAttribute("aria-label", title);
       L.DomEvent.on(a, "click", (e) => {
         L.DomEvent.preventDefault(e);
         action();
@@ -286,6 +287,7 @@ function directionTicks(track: Track, colour: string): L.Marker[] {
 }
 
 function draw(plot: DebriefFeatureCollection): void {
+  const areas: L.Path[] = [];
   features.clearLayers();
   drawn.clear();
   sized.length = 0;
@@ -333,9 +335,18 @@ function draw(plot: DebriefFeatureCollection): void {
       latlngs.forEach((p) => plotBounds.extend(p));
     } else if (geometry.type === "Polygon") {
       const rings = (geometry.coordinates as LonLat[][]).map((ring) => densify(ring).map(toLatLng));
-      const polygon = L.polygon(rings, { color: colour, weight: 1.5, dashArray: "6 5", fillOpacity: 0.05, baseWeight: 1.5 } as L.PolylineOptions);
-      polygon.on("click", click);
+      // An area is selected by its outline, never by a click inside it: what lies inside,
+      // such as a track in an exercise area, must stay clickable. Its fill takes no
+      // clicks, and a wide, invisible line along its edge takes them instead.
+      const polygon = L.polygon(rings, { color: colour, weight: 1.5, dashArray: "6 5", fillOpacity: 0.05, baseWeight: 1.5, interactive: false } as L.PolylineOptions);
+      const edge = L.polyline(
+        rings.map((ring) => [...ring, ring[0]]),
+        { color: colour, opacity: 0, weight: 10, className: "area-edge" },
+      );
+      edge.on("click", click);
       paths.push(polygon);
+      layers.push(edge);
+      areas.push(polygon, edge);
       // Label at the northernmost point, so nested rings each keep a readable label.
       const top = rings[0].reduce((a, b) => (b.lat > a.lat ? b : a));
       const label = L.marker(top, { icon: L.divIcon({ className: "annotation-anchor", iconSize: [0, 0] }), interactive: false, keyboard: false });
@@ -353,6 +364,8 @@ function draw(plot: DebriefFeatureCollection): void {
     [...paths, ...layers].forEach((layer) => layer.addTo(features));
     drawn.set(feature.id, { layers: [...paths, ...layers], paths });
   }
+  // Areas underneath everything else, so a track crossing an area's edge is on top.
+  for (const area of areas.reverse()) area.bringToBack();
   const empty = document.getElementById("empty")!;
   empty.hidden = plot.features.some((f) => f.geometry);
   empty.textContent = plot.features.length ? "This plot has nothing with a position." : "This plot is empty. Import a REP file to add tracks.";
@@ -453,6 +466,7 @@ function showTime(next: TimeState | undefined): void {
     slider.value = String(Date.parse(time.current));
     slider.title = `${formatTime(start, dated)} to ${formatTime(end, dated)}`;
     timeLabel.textContent = formatTime(Date.parse(time.current), dated);
+    slider.setAttribute("aria-valuetext", timeLabel.textContent);
   }
   drawNow();
 }
@@ -466,6 +480,7 @@ function moveTo(ms: number): void {
   slider.value = String(ms);
   time = { current: new Date(ms).toISOString(), range: time.range };
   timeLabel.textContent = formatTime(ms, dated);
+  slider.setAttribute("aria-valuetext", timeLabel.textContent);
   if (pending) return;
   pending = true;
   requestAnimationFrame(() => {

@@ -113,6 +113,7 @@
     "typecheck": "tsc -p tsconfig.json --noEmit",
     "test": "vitest run",
     "test:integration": "node scripts/build.mjs && node dist-test/run.js",
+    "test:play": "node test/play/play.mjs ../site/docs/play ../site/site",
     "check:theme": "node scripts/check-theme.mjs",
     "check:language": "node scripts/check-language.mjs"
   },
@@ -134,6 +135,7 @@
     "@types/vscode": "1.95.0",
     "@vscode/test-electron": "3.1.0",
     "esbuild": "0.25.10",
+    "playwright": "1.56.1",
     "typescript": "^5.6.3",
     "vitest": "^2.1.9"
   }
