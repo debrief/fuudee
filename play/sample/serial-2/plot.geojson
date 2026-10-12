@@ -1,6 +1,6 @@
 {
   "type": "FeatureCollection",
-  "schema_version": "0.0.8",
+  "schema_version": "0.0.9",
   "features": [
     {
       "type": "Feature",
@@ -14552,6 +14552,22 @@
         "name": "EXCON",
         "text": "Serial 2 ended.",
         "time": "2023-06-15T17:00:00.000Z"
+      },
+      "geometry": null
+    },
+    {
+      "type": "Feature",
+      "id": "plot",
+      "properties": {
+        "kind": "plot",
+        "title": "Serial 2",
+        "description": "Blue hunting red: BLUE ONE and RED ONE.",
+        "view": {
+          "time_window": {
+            "start": "2023-06-15T12:00:00.000Z",
+            "end": "2023-06-15T17:00:00.000Z"
+          }
+        }
       },
       "geometry": null
     }

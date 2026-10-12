@@ -1547,6 +1547,10 @@
 <h2 id="colour-is-not-history">Colour is not history<a class="headerlink" href="#colour-is-not-history" title="Permanent link">&para;</a></h2>
 <p><img alt="BLUE ONE recoloured green and Cargo 01 hidden; the History view lists both as presentation changes" src="../../../../images/phase-2/presentation.png" /></p>
 <p>Changing a track's colour or hiding a feature on the map is <em>presentation</em>. It travels with the plot, but it isn't a change to the analysis, so it's never recorded in the plot's history or provenance. It's undoable all the same: presentation changes are listed at the top of the History view, and one <code>Ctrl+Z</code> takes back whatever the analyst did last.</p>
+<div class="admonition note">
+<p class="admonition-title">Update, 12 Oct 2026</p>
+<p>We've changed our minds on this. Analysts told us that turning a blue friendly track red, once it proves hostile, <em>is</em> part of the analysis, and that they want one plot file to hand to a colleague, with nothing beside it. So colour and hiding are now ordinary changes to the plot: recorded in its history with who made them, named there ("Colour of BLUE ONE set to red"), and undone by <code>Ctrl+Z</code> like anything else. View state that should travel with the plot, starting with its time window, is kept inside the plot file, in an <em>island</em> the history ignores: it is never a step and never undone.</p>
+</div>
 <h2 id="also-in-phase-2">Also in Phase 2<a class="headerlink" href="#also-in-phase-2" title="Permanent link">&para;</a></h2>
 <ul>
 <li><strong>Legacy plots.</strong> Debrief v3 <code>.dpf</code> files import, with every element that has no v4 equivalent named at the end of the import and recorded in the plot's provenance. Across the 46 legacy sample files, 45 import; the 46th is broken on purpose.

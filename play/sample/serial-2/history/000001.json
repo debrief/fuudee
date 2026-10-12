@@ -1,5 +1,5 @@
 {
-  "schema_version": "0.0.8",
+  "schema_version": "0.0.9",
   "seq": 1,
   "after": 0,
   "records": [
@@ -14832,6 +14832,16 @@
         "time": "2023-06-15T17:00:00.000Z"
       },
       "geometry": null
+    },
+    {
+      "type": "Feature",
+      "id": "plot",
+      "properties": {
+        "kind": "plot",
+        "title": "Serial 2",
+        "description": "Blue hunting red: BLUE ONE and RED ONE."
+      },
+      "geometry": null
     }
   ],
   "named_sets": [
@@ -14899,5 +14909,5 @@
       ]
     }
   ],
-  "result_hash": "sha256:34c3118704d1b34ccc303300b7cb3e313e9a89a10fbd256b934d9cea4b5ae611"
+  "result_hash": "sha256:d15b86ffc2f901b746e58cace6fce5b97ecfd76f4db89c028af0311244875338"
 }

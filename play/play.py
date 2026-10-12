@@ -15,7 +15,7 @@ from typing import Any
 
 from debrief_io import import_dpf, import_rep
 from debrief_schemas import DocumentKind, dump_document, models
-from debrief_stac import Base, Catalogue, Changes, History, HistoryError
+from debrief_stac import Base, Catalogue, CatalogueError, Changes, Conflict, History, HistoryError
 from debrief_tools import Registry
 from debrief_tools.registry import applies
 from debrief_tools.run import ToolRunConflict, ToolRunError, run_tool
@@ -85,17 +85,18 @@ def open_plot(item: str) -> str:
     """The plot, after finishing any change a crash interrupted (NFR-10)."""
     history = _cat().history(item)
     recovered = history.recover()
+    _cat().migrate_presentation(item, YOU)  # a retired presentation.json, as the service does
     head = history.head()
-    presentation, presentation_hash = _cat().read_presentation(item)
+    _, view_hash = _cat().read_view(item)
     return json.dumps(
         {
             "item": _json(DocumentKind.STAC_ITEM, _cat().read_item(item)),
+            # With its view (the island): the plot's time window, outside its history.
             "plot": _json(DocumentKind.PLOT, history.plot()),
             "base": {"current": head.current, "plot_hash": head.plot_hash},
+            "view_hash": view_hash,
             "steps": _steps(history),
             "recovered": recovered,
-            "presentation": _json(DocumentKind.PRESENTATION, presentation),
-            "presentation_hash": presentation_hash,
         }
     )
 
@@ -146,6 +147,30 @@ def move(item: str, how: str, step: int | None = None) -> str:
         else:
             history.goto(int(step))
     except HistoryError as error:
+        return json.dumps({"error": str(error)})
+    return json.dumps({"ok": True})
+
+
+def restyle(item: str, request_json: str) -> str:
+    """Colour tracks, or hide or show features: a recorded, undoable step like any
+    change (SUB-22, decision 12 Oct), as debrief/set_colour and debrief/set_hidden do."""
+    request = json.loads(request_json)
+    base = Base(**request["base"]) if request.get("base") else None
+    try:
+        if "colour" in request:
+            _cat().set_colour(
+                item,
+                request["features"],
+                request["colour"],
+                YOU,
+                base,
+                colour_name=request.get("colour_name"),
+            )
+        else:
+            _cat().set_hidden(item, request["features"], bool(request["hidden"]), YOU, base)
+    except Conflict:
+        return json.dumps({"error": "The plot was changed elsewhere, so nothing was changed."})
+    except (CatalogueError, HistoryError) as error:
         return json.dumps({"error": str(error)})
     return json.dumps({"ok": True})
 
