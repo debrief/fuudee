@@ -498,6 +498,18 @@ def test_the_view_is_set_with_its_hash_and_never_recorded(client, catalogue) -> 
     ).json()["error"]
     assert refused["code"] == -32602 and "starts after it ends" in refused["message"]
     assert rpc(client, "debrief/presentation", where).json()["error"]["code"] == -32601
+    # How tracks outside the window are drawn is view state too (CAP-29).
+    faint = {**later, "context_tracks": "faint"}
+    third = rpc(
+        client, "debrief/set_view", {**where, "view": faint, "hash": second["view_hash"]}
+    ).json()["result"]
+    assert third["view"] == faint and third["base"] == second["base"]
+    unknown = {**later, "context_tracks": "dim"}
+    refused = rpc(
+        client, "debrief/set_view", {**where, "view": unknown, "hash": third["view_hash"]}
+    ).json()["error"]
+    assert refused["code"] == -32602
+    assert len(rpc(client, "debrief/history", where).json()["result"]["steps"]) == 1
 
 
 def test_opening_migrates_a_retired_presentation(client, catalogue) -> None:

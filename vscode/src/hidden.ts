@@ -44,6 +44,11 @@ export function timeWindowOf(plot: DebriefFeatureCollection): { start: string; e
   return undefined;
 }
 
+/** How the plot says tracks outside the time window are drawn (its island, CAP-29); undefined means clear. */
+export function contextTracksOf(plot: DebriefFeatureCollection): PlotView["context_tracks"] {
+  return viewOf(plot)?.context_tracks ?? undefined;
+}
+
 /** The plot's whole view (its island), or undefined if it has none. */
 export function viewOf(plot: DebriefFeatureCollection): PlotView | undefined {
   for (const f of plot.features) {

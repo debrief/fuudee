@@ -90,6 +90,20 @@ try {
   await page.keyboard.press("Enter");
   await page.waitForFunction(() => document.querySelectorAll("#outline li.selected").length === 1 && document.querySelectorAll("#outline li")[1].classList.contains("selected"));
 
+  // The window first ends at 09:00, before the closest approach of BLUE ONE and RED ONE (09:21).
+  const tc = (selector) => page.locator(`#timebar ${selector}`);
+  const at = (hhmm) => Date.parse(`2023-06-15T${hhmm}:00.000Z`);
+  const end = async () => Number(await tc(".tc-end").getAttribute("aria-valuenow"));
+  await tc(".tc-start").focus();
+  await page.keyboard.press("Home");
+  await tc(".tc-end").focus();
+  await page.keyboard.press("End");
+  for (const key of ["PageDown", "PageDown", "PageDown", ...Array(6).fill("ArrowLeft")]) await page.keyboard.press(key); // 5 min steps
+  assert.equal(await end(), at("09:00"));
+  await page.waitForTimeout(500);
+  const cue = () => text("#timebar .tc-cue-text");
+  assert.equal(await cue(), "");
+
   // Select BLUE ONE and RED ONE in the outline; Closest approach is offered.
   await page.locator(`#outline li[data-id="track-blue-one"]`).click();
   await page.locator(`#outline li[data-id="track-red-one"]`).click({ modifiers: ["Control"] });
@@ -103,6 +117,56 @@ try {
   await page.waitForFunction(() => document.getElementById("history")?.textContent?.includes("Closest approach"));
   console.log(`Closest approach, from Run to its result: ${Date.now() - started} ms`);
   await shot("play-03-closest-approach");
+
+  // Its moment is outside the saved window: the window shown widens to take it in, never saved,
+  // the widened part hatched, and a note with Keep and Revert stays until the reader chooses (CAP-28).
+  await page.locator(".toast", { hasText: "(outside your saved window)" }).waitFor();
+  await page.waitForFunction(() => document.querySelector("#timebar .tc-cue-text")?.textContent === "Showing beyond saved window");
+  assert.equal(await tc(".tc-cue").getAttribute("aria-live"), "polite");
+  assert.equal(await page.locator("#timebar .tc-beyond:visible").count(), 1);
+  assert.ok((await end()) > at("09:21") && (await end()) <= at("09:22"), "widened by the least amount");
+  const mapView = page.frameLocator(".frame-map");
+  const cpaLabel = mapView.locator(".annotation-label", { hasText: "Closest approach" });
+  await cpaLabel.first().waitFor(); // the map shows the widened window: the closest approach is drawn
+  await page.locator("#side").evaluate((side) => (side.scrollTop = 0));
+  await shot("time-06-beyond-saved-window");
+  // Stepping current time inside the window shown neither saves it nor clears the note.
+  await tc(".back").click();
+  assert.equal(await cue(), "Showing beyond saved window");
+  // Revert: the saved window again, current time at its nearest edge.
+  await tc(".tc-revert").click();
+  await page.waitForFunction(() => document.querySelector("#timebar .tc-cue-text")?.textContent === "");
+  assert.equal(await end(), at("09:00"));
+  assert.equal(Number(await tc(".tc-current").inputValue()), at("09:00"));
+  await cpaLabel.first().waitFor({ state: "detached" });
+
+  // A window of ten minutes: the moment is too far for widening (more than twice), so the window moves.
+  await tc(".tc-end").focus();
+  await page.keyboard.press("Home"); // a second after the start
+  await page.keyboard.press("ArrowRight");
+  await page.keyboard.press("ArrowRight");
+  await page.waitForTimeout(500);
+  const savedEnd = await end();
+  await page.locator("#tools button", { hasText: "Closest approach" }).click();
+  await form.getByRole("button", { name: "Run" }).click();
+  await page.waitForFunction(() => document.querySelector("#timebar .tc-cue-text")?.textContent === "Showing a different period from the saved window", null, { timeout: 60000 });
+  assert.ok((await end()) > at("09:21"), "moved to take the moment in");
+  await page.locator("#side").evaluate((side) => (side.scrollTop = 0));
+  await shot("time-07-different-period");
+  // Keep: saved through the normal path, as letting go is; no step in the history.
+  const stepsBeforeKeep = await history();
+  await tc(".tc-keep").click();
+  await page.waitForFunction(() => document.querySelector("#timebar .tc-cue-text")?.textContent === "");
+  await page.waitForTimeout(600);
+  assert.equal(await page.locator(".toast.warning").count(), 0, "kept, with no conflict");
+  assert.equal(await history(), stepsBeforeKeep);
+  assert.notEqual(await end(), savedEnd);
+  // Back to the whole plot.
+  await tc(".tc-start").focus();
+  await page.keyboard.press("Home");
+  await tc(".tc-end").focus();
+  await page.keyboard.press("End");
+  await page.waitForTimeout(500);
 
   // Ctrl+Z on the map undoes (forwarded from its frame), and closes results that no longer apply.
   await page.frameLocator(".frame-map").locator("#map").focus();
@@ -237,6 +301,7 @@ try {
   assert.notEqual(await text("#a"), a);
   await shot("play-09-geodesic");
 
+  await contextOnDark();
   await cdnBlocked();
   if (site) await playFromThePost();
   assert.deepEqual(errors, []);
@@ -273,14 +338,37 @@ try {
     await page.mouse.up();
     assert.notEqual(await text("#timebar .tc-window-start"), startBefore);
     assert.match(await text("#timebar .tc-window-start"), /15 Jun 2023 1[01]:\d\d:\d\dZ/);
-    // Current time is kept inside the window; the whole tracks stay, faint.
+    // Current time is kept inside the window; the whole tracks stay, thin and clear (CAP-29).
     const [start, current] = [Number(await tc(".tc-start").getAttribute("aria-valuenow")), Number(await tc(".tc-current").inputValue())];
     assert.ok(current >= start, "current time is inside the window");
-    assert.ok((await mapFrame.locator('path[stroke-opacity="0.35"], path[stroke-opacity="0.12"]').count()) >= 10, "every track's whole line, faint");
+    const contextLines = (opacity) => mapFrame.locator(`path[stroke-width="1.5"][stroke-opacity="${opacity}"]`).count();
+    assert.ok((await contextLines("0.6")) + (await contextLines("0.3")) >= 10, "every track's whole line, clear (or dimmed for the selection)");
     // View state: saved in the plot, never a step in its history.
     await page.waitForTimeout(500);
     assert.equal(await history(), stepsBefore);
     await shot("time-02-window-narrowed");
+
+    // Context tracks: clear, faint or off, for the plot; view state, so no step in its history.
+    await mapFrame.locator("#map").focus();
+    await page.keyboard.press("Escape"); // nothing selected: nothing dimmed
+    await page.waitForFunction(() => !document.querySelector("#outline li.selected"));
+    assert.equal(await tc(".tc-context").inputValue(), "clear");
+    await page.waitForFunction(async () => true);
+    for (let i = 0; i < 30 && (await contextLines("0.6")) < 10; i++) await page.waitForTimeout(100);
+    assert.ok((await contextLines("0.6")) >= 10, "clear: opacity 0.6, at least 3:1 against the map");
+    await shot("context-01-clear-light");
+    await tc(".tc-context").selectOption("faint");
+    for (let i = 0; i < 50 && (await contextLines("0.35")) < 10; i++) await page.waitForTimeout(100);
+    assert.ok((await contextLines("0.35")) >= 10, "faint");
+    await tc(".tc-context").selectOption("off");
+    for (let i = 0; i < 50 && (await contextLines("0.35")) > 0; i++) await page.waitForTimeout(100);
+    assert.equal((await contextLines("0.35")) + (await contextLines("0.6")), 0, "off: no context lines");
+    await tc(".tc-context").selectOption("clear");
+    for (let i = 0; i < 50 && (await contextLines("0.6")) < 10; i++) await page.waitForTimeout(100);
+    assert.ok((await contextLines("0.6")) >= 10, "clear again");
+    await page.waitForTimeout(500);
+    assert.equal(await history(), stepsBefore, "context tracks are view state: no step");
+    assert.equal(await page.locator(".toast.warning").count(), 0);
 
     // Keys: an arrow moves a handle by a step (the plot's four hours: 5 min); End puts it back.
     await tc(".tc-end").focus();
@@ -310,6 +398,28 @@ try {
     await page.waitForFunction(() => document.querySelector("#timebar .tc-play")?.getAttribute("aria-label") === "Play", null, { timeout: 15000 });
     assert.equal(await tc(".tc-current").inputValue(), await tc(".tc-end").getAttribute("aria-valuenow"));
 
+    // A window of one second (Home on the end handle: a second after the start; the handles never cross)
+    // is too short to play at 3600×: Play is off and says why. At 1× it plays.
+    const endWas = Number(await tc(".tc-end").getAttribute("aria-valuenow"));
+    await tc(".tc-end").focus();
+    await page.keyboard.press("Home");
+    assert.equal(Number(await tc(".tc-end").getAttribute("aria-valuenow")) - Number(await tc(".tc-start").getAttribute("aria-valuenow")), 1000);
+    assert.equal(await tc(".tc-play").getAttribute("aria-disabled"), "true");
+    assert.equal(await tc(".tc-play").getAttribute("title"), "Window too short to play at 3600×: widen it or slow down");
+    assert.equal(await tc(".tc-play").getAttribute("aria-description"), "Window too short to play at 3600×: widen it or slow down");
+    await tc(".tc-current").focus();
+    await page.keyboard.press("Space");
+    assert.equal(await tc(".tc-play").getAttribute("aria-label"), "Play", "not playing");
+    await tc(".tc-play").hover();
+    await shot("time-05-play-off-too-short");
+    await tc(".tc-speed").selectOption("1");
+    assert.equal(await tc(".tc-play").getAttribute("aria-disabled"), "false");
+    await tc(".tc-speed").selectOption("60");
+    await tc(".tc-end").focus();
+    await page.keyboard.press("End");
+    assert.ok(Number(await tc(".tc-end").getAttribute("aria-valuenow")) >= endWas);
+    await page.waitForTimeout(500);
+
     // A colleague changes the window: Debrief shows theirs and says so; still no step.
     const ours = await text("#timebar .tc-window-start");
     await page.locator("#colleague-window").click();
@@ -326,6 +436,22 @@ try {
     assert.equal(await text("#timebar .tc-window-start"), startBefore);
     await page.waitForTimeout(500);
     assert.equal(await page.locator(".toast.warning").count(), 0, "saved, with no conflict");
+  }
+
+  /** Context tracks on a dark theme: clear, as the map draws them before Python starts. */
+  async function contextOnDark() {
+    const dark = await browser.newPage({ viewport: { width: 1400, height: 820 }, colorScheme: "dark" });
+    dark.on("pageerror", (e) => errors.push(String(e)));
+    await dark.goto(`${BASE}/index.html`);
+    const map = dark.frameLocator(".frame-map");
+    await map.locator(".track-label").first().waitFor({ timeout: 60000 });
+    await dark.locator("#timebar .tc-start").focus();
+    for (const key of ["PageUp", "PageUp", "PageUp"]) await dark.keyboard.press(key); // shown, not saved before Python
+    const clear = () => map.locator('path[stroke-width="1.5"][stroke-opacity="0.6"]').count();
+    for (let i = 0; i < 30 && (await clear()) < 10; i++) await dark.waitForTimeout(100);
+    assert.ok((await clear()) >= 10, "clear context tracks on a dark theme");
+    await shot("context-02-clear-dark", dark);
+    await dark.close();
   }
 
   /** With the CDN blocked, the page says so plainly; the map still works. */

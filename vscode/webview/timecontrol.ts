@@ -1,20 +1,30 @@
 /**
  * The time controller (CAP-28, SUB-26): the plot's time window, set with a
  * slider of two handles over the plot's whole period; current time, set with
- * a slider over the window; step buttons; and play, at a chosen speed.
+ * a slider over the window; step buttons; and play, at a chosen speed. Below
+ * them, how tracks outside the window are drawn (CAP-29).
  *
  * One component for every host: VS Code shows it in the Debrief sidebar
  * (webview/time.ts), and the playground at the top of its side column.
  *
  * - The window moves the map at once, and is saved in the plot when the
- *   analyst lets go (see WindowGesture in timelogic.ts).
+ *   analyst lets go (see WindowGesture in timelogic.ts). It is never less
+ *   than a second long: the handles stop a second apart.
+ * - When a tool shows a window other than the saved one, the part that
+ *   differs is hatched and a note says so, with Keep (save it) and Revert
+ *   (the saved window again), until the analyst chooses. Letting go of the
+ *   window counts as Keep. See SavedWindow in timelogic.ts.
+ * - Play is off, and says why, when the window is shorter than one tick of
+ *   playing at the chosen speed.
  * - Keyboard: the arrow keys move a handle or current time by one step, Page
  *   Up and Page Down by ten, Home and End to the ends; Space plays and pauses
  *   while any slider has focus. Every slider says its time to screen readers.
  */
 import { DEFAULT_SETTINGS, formatTime } from "@debrief/kernel";
 import type { TimeRange, TimeState } from "@debrief/schemas";
+import type { ContextTracks } from "./contrast.js";
 import {
+  atLeastMinimum,
   clamp,
   describeSpeed,
   describeStep,
@@ -22,9 +32,12 @@ import {
   moveEdge,
   Player,
   sameSpan,
+  SavedWindow,
   shiftWindow,
   SPEEDS,
   stepFor,
+  tooShortReason,
+  tooShortToPlay,
   WindowGesture,
   type Clock,
   type Span,
@@ -41,8 +54,19 @@ const KEY_STEPS: Record<string, number> = { ArrowRight: 1, ArrowUp: 1, ArrowLeft
 export interface TimeControlHost {
   /** Current time or the window moved: show it now. time.range is the window. */
   moved(time: TimeState): void;
-  /** The analyst let go of the window: save it in the plot. */
+  /** The analyst let go of the window, or chose Keep: save it in the plot. */
   windowSaved(window: TimeRange): void;
+  /** The analyst chose how tracks outside the window are drawn: save it in the plot. */
+  contextChanged(context: ContextTracks): void;
+}
+
+/** What the host knows of the plot's view (its island) beyond the window shown. */
+export interface TimeView {
+  /** The window as saved in the plot; without it, the window shown is taken as saved. */
+  saved?: TimeRange;
+  context?: ContextTracks;
+  /** The analyst's setting shows faint context tracks as clear. */
+  minimumContrast?: boolean;
 }
 
 export class TimeControl {
@@ -52,6 +76,7 @@ export class TimeControl {
   private shown = false;
   private readonly player: Player;
   private readonly gesture: WindowGesture;
+  private readonly saved: SavedWindow;
   private readonly part: <T extends HTMLElement>(selector: string) => T;
 
   constructor(
@@ -67,10 +92,14 @@ export class TimeControl {
       `<div class="tc-caption"><span>Time window</span><span class="tc-window-length"></span></div>` +
       `<div class="tc-window">` +
       `<div class="tc-rail"></div><div class="tc-band" title="Drag to move the window"></div>` +
+      `<div class="tc-beyond" hidden></div><div class="tc-beyond" hidden></div>` +
       `<div class="tc-handle tc-start" role="slider" tabindex="0" aria-label="Time window start" aria-orientation="horizontal"></div>` +
       `<div class="tc-handle tc-end" role="slider" tabindex="0" aria-label="Time window end" aria-orientation="horizontal"></div>` +
       `</div>` +
       `<div class="tc-ends"><span class="tc-window-start"></span> – <span class="tc-window-end"></span></div>` +
+      `<div class="tc-cue" role="status" aria-live="polite"><span class="tc-cue-text"></span>` +
+      `<span class="tc-cue-actions" hidden><button class="tc-keep" title="Save the window shown as the plot's time window">Keep</button>` +
+      `<button class="tc-revert" title="Show the saved time window again">Revert</button></span></div>` +
       `<div class="tc-caption"><span>Current time</span><span class="tc-step-label"></span></div>` +
       `<input type="range" class="tc-current" aria-label="Current time">` +
       `<div class="tc-buttons">` +
@@ -79,7 +108,11 @@ export class TimeControl {
       `<button class="step forward" title="Step forward" aria-label="Step forward">›</button>` +
       `<select class="tc-speed" aria-label="Playing speed"></select>` +
       `<span class="time-label"></span>` +
-      `</div>`;
+      `</div>` +
+      `<label class="tc-context-row"><span>Context tracks</span>` +
+      `<select class="tc-context" title="How tracks outside the time window are drawn, for everyone who opens this plot">` +
+      `<option value="clear">Clear</option><option value="faint">Faint</option><option value="off">Off</option></select>` +
+      `<span class="tc-context-note"></span></label>`;
     this.part = <T extends HTMLElement>(selector: string) => element.querySelector<T>(selector)!;
     const speed = this.part<HTMLSelectElement>(".tc-speed");
     for (const s of SPEEDS) {
@@ -99,8 +132,10 @@ export class TimeControl {
     speed.addEventListener("change", () => {
       this.player.speed = Number(speed.value);
       speed.title = describeSpeed(this.player.speed);
+      this.render();
     });
 
+    this.saved = new SavedWindow((window) => this.host.windowSaved(rangeOf(window)));
     this.gesture = new WindowGesture(
       (window) => {
         this.window = window;
@@ -108,7 +143,12 @@ export class TimeControl {
         this.render();
         this.tell();
       },
-      (window) => this.host.windowSaved(rangeOf(window)),
+      (window) => {
+        // Let go: saved as left, which also settles a window a tool showed (Keep).
+        this.saved.letGo(window);
+        this.host.windowSaved(rangeOf(window));
+        this.render();
+      },
     );
 
     // Current time.
@@ -124,20 +164,42 @@ export class TimeControl {
     this.part(".forward").addEventListener("click", () => this.moveCurrent(this.current + stepFor(this.window)));
     this.part(".tc-play").addEventListener("click", () => this.player.toggle());
 
-    // Space plays and pauses from any slider; on a button or the speed list it does what it always does.
+    // Space plays and pauses from any slider; on a button or a list it does what it always does.
     element.addEventListener("keydown", (event) => {
       if (event.key !== " " || (event.target as HTMLElement).closest("button, select")) return;
       event.preventDefault();
       this.player.toggle();
     });
 
+    // A window other than the saved one: keep it, or go back.
+    this.part(".tc-keep").addEventListener("click", () => {
+      this.saved.keep(this.window);
+      this.render();
+    });
+    this.part(".tc-revert").addEventListener("click", () => {
+      const back = this.saved.revert(this.current);
+      if (!back) return;
+      this.window = back.window;
+      this.extent = extentOf(this.extent, this.window);
+      this.current = back.current;
+      this.render();
+      this.tell();
+    });
+
+    const context = this.part<HTMLSelectElement>(".tc-context");
+    context.addEventListener("change", () => this.host.contextChanged(context.value as ContextTracks));
+
     this.windowKeys(this.part(".tc-start"), "start");
     this.windowKeys(this.part(".tc-end"), "end");
     this.windowPointer();
   }
 
-  /** Show current time, its range being the window, and the plot's period; none hides the control. */
-  show(time: TimeState | undefined, period?: TimeRange): void {
+  /**
+   * Show current time, its range being the window shown, and the plot's
+   * period, with what the host knows of the plot's view; no time hides the
+   * control.
+   */
+  show(time: TimeState | undefined, period?: TimeRange, view: TimeView = {}): void {
     this.shown = !!time;
     this.element.hidden = !time;
     if (!time) {
@@ -145,11 +207,17 @@ export class TimeControl {
       this.player.pause();
       return;
     }
-    const window = spanOf(time.range);
+    // A window of no length shows its first second; it is saved only when the analyst lets go.
+    const window = atLeastMinimum(spanOf(time.range));
     // Mid-drag, the analyst's hand wins: a window set elsewhere would make the handles jump.
     if (!this.gesture.active) this.window = window;
+    this.saved.fromHost(view.saved ? spanOf(view.saved) : window);
     this.extent = extentOf(period ? spanOf(period) : undefined, this.window);
     this.current = clamp(Date.parse(time.current), this.window.start, this.window.end);
+    const context = this.part<HTMLSelectElement>(".tc-context");
+    context.value = view.context ?? "clear";
+    const floor = !!view.minimumContrast && context.value === "faint";
+    this.part(".tc-context-note").textContent = floor ? "shown as clear by your setting" : "";
     this.render();
   }
 
@@ -175,7 +243,7 @@ export class TimeControl {
     const button = this.part<HTMLButtonElement>(".tc-play");
     button.textContent = playing ? "❚❚" : "▶";
     button.setAttribute("aria-label", playing ? "Pause" : "Play");
-    button.title = playing ? "Pause (Space)" : "Play (Space)";
+    this.render();
   }
 
   // --- The window: keys and pointer ---------------------------------------------
@@ -183,6 +251,7 @@ export class TimeControl {
     handle.addEventListener("keydown", (event) => {
       const step = stepFor(this.extent);
       const now = this.window[edge];
+      // Home and End go as far as the handle can: the period's end, or a second from the other handle.
       const to =
         event.key === "Home" ? (edge === "start" ? this.extent.start : this.window.start)
         : event.key === "End" ? (edge === "start" ? this.window.end : this.extent.end)
@@ -214,7 +283,7 @@ export class TimeControl {
         ? "start"
         : target.classList.contains("tc-end")
           ? "end"
-          : target.classList.contains("tc-band")
+          : target.classList.contains("tc-band") || target.classList.contains("tc-beyond")
             ? "band"
             : Math.abs(ms - this.window.start) <= Math.abs(ms - this.window.end) ? "start" : "end";
       if (what === "band" && this.window.end - this.window.start >= this.extent.end - this.extent.start) what = ms < (this.window.start + this.window.end) / 2 ? "start" : "end";
@@ -250,13 +319,14 @@ export class TimeControl {
     const { start, end } = this.extent;
     const span = end - start || 1;
     const percent = (ms: number) => `${(100 * (ms - start)) / span}%`;
+    const width = (s: Span) => `${(100 * (s.end - s.start)) / span}%`;
     const startHandle = this.part(".tc-start");
     const endHandle = this.part(".tc-end");
     startHandle.style.left = percent(this.window.start);
     endHandle.style.left = percent(this.window.end);
     const band = this.part(".tc-band");
     band.style.left = percent(this.window.start);
-    band.style.width = `${(100 * (this.window.end - this.window.start)) / span}%`;
+    band.style.width = width(this.window);
     this.sliderValues(startHandle, this.window.start, start, this.window.end);
     this.sliderValues(endHandle, this.window.end, this.window.start, end);
     // The date once, unless the window crosses midnight.
@@ -265,6 +335,20 @@ export class TimeControl {
     this.part(".tc-window-end").textContent = oneDay ? formatTime(this.window.end, DEFAULT_SETTINGS) : show(this.window.end);
     const whole = sameSpan(this.window, this.extent);
     this.part(".tc-window-length").textContent = whole ? "whole plot" : describeLength(this.window.end - this.window.start);
+
+    // A window other than the saved one: hatch what differs, and say so until the analyst chooses.
+    const cue = this.gesture.active ? undefined : this.saved.cue(this.window);
+    this.element.querySelectorAll<HTMLElement>(".tc-beyond").forEach((hatch, i) => {
+      const part = cue?.parts[i];
+      hatch.hidden = !part;
+      if (!part) return;
+      hatch.style.left = percent(part.start);
+      hatch.style.width = width(part);
+    });
+    const cueText = this.part(".tc-cue-text");
+    if (cueText.textContent !== (cue?.message ?? "")) cueText.textContent = cue?.message ?? "";
+    this.part(".tc-cue-actions").hidden = !cue;
+    this.part(".tc-cue").classList.toggle("showing", !!cue);
 
     const slider = this.part<HTMLInputElement>(".tc-current");
     slider.min = String(this.window.start);
@@ -279,6 +363,19 @@ export class TimeControl {
     this.part(".tc-step-label").textContent = `step ${step}`;
     this.part(".back").title = `Step back ${step}`;
     this.part(".forward").title = `Step forward ${step}`;
+
+    // Play is off when one tick at this speed would pass the whole window; it says why.
+    const play = this.part<HTMLButtonElement>(".tc-play");
+    const tooShort = !this.player.playing && tooShortToPlay(this.window, this.player.speed);
+    play.setAttribute("aria-disabled", String(tooShort));
+    play.classList.toggle("off", tooShort);
+    if (tooShort) {
+      play.title = tooShortReason(this.player.speed);
+      play.setAttribute("aria-description", play.title);
+    } else {
+      play.title = this.player.playing ? "Pause (Space)" : "Play (Space)";
+      play.removeAttribute("aria-description");
+    }
   }
 
   private sliderValues(handle: HTMLElement, value: number, min: number, max: number): void {

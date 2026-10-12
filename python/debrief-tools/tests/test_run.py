@@ -241,3 +241,54 @@ def test_a_tool_sees_content_never_the_island(catalogue: Catalogue) -> None:
     assert catalogue.read_view(ITEM)[0] is not None  # and the run kept it
     with pytest.raises(ToolRunError, match="not on the plot's own details"):
         run(catalogue, "core.add_note", ["plot"], params)
+
+
+def _window_tool(state_change):
+    """A test tool whose purpose is to set the time window (no shipped tool does yet)."""
+
+    @tool(
+        name="lab.set_window",
+        version="0.1.0",
+        title="Set window",
+        explanation="Sets the time window.",
+        applies_to=["*"],
+        min_selected=0,
+        outputs=["state_change"],
+    )
+    def set_window(context):
+        return models.ToolResult(state_change=state_change)
+
+    registry = Registry()
+    registry.tools["lab.set_window"] = set_window.debrief_tool
+    return registry
+
+
+def test_a_tool_may_ask_for_its_range_to_be_saved_as_the_window(catalogue: Catalogue) -> None:
+    # The host decides whether to honour it: only for a run the analyst made by hand (CAP-28).
+    window = models.TimeRange(start="1995-12-12T05:10:00.000Z", end="1995-12-12T05:40:00.000Z")
+    change = models.SharedStateChange(
+        time=models.TimeState(current="1995-12-12T05:10:00.000Z", range=window), save_window=True
+    )
+    before = catalogue.read_plot(ITEM)
+    outcome = run_tool(_window_tool(change), catalogue, ITEM, "lab.set_window", [], None, ANALYST)
+    assert outcome.result.state_change.save_window is True
+    assert outcome.result.state_change.time.range == window
+    # Shared state only: the plot, its provenance and its view are untouched.
+    assert not outcome.changed and outcome.record is None
+    assert catalogue.read_plot(ITEM) == before
+
+
+def test_asking_to_save_the_window_without_a_time_is_refused(catalogue: Catalogue) -> None:
+    change = models.SharedStateChange(save_window=True)
+    with pytest.raises(ToolRunError, match="save_window needs a time"):
+        run_tool(_window_tool(change), catalogue, ITEM, "lab.set_window", [], None, ANALYST)
+
+
+def test_closest_approach_records_its_time_not_a_window(catalogue: Catalogue) -> None:
+    outcome = run(catalogue, "core.closest_approach", ["track-nelson", "track-blue"])
+    change = outcome.result.state_change
+    assert change is None or not change.save_window  # never asks for its range to be saved
+    plot = catalogue.read_plot(ITEM)
+    record = plot.provenance[-1]
+    assert "time_window" not in record.model_dump_json()
+    assert plot.features[-1].properties.time.startswith("1995-12-12T05:1")

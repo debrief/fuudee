@@ -7,6 +7,7 @@
 import "./timecontrol.css";
 import "./time.css";
 import type { TimeRange, TimeState } from "@debrief/schemas";
+import type { ContextTracks } from "./contrast.js";
 import { TimeControl } from "./timecontrol.js";
 import { host, onMessage } from "./vscode.js";
 
@@ -35,12 +36,17 @@ const control = new TimeControl(document.getElementById("timebar")!, {
     pending = undefined;
     host.postMessage({ kind: "window_changed", time_range: window });
   },
+  contextChanged: (context) => host.postMessage({ kind: "context_changed", context_tracks: context }),
 });
 
 onMessage((message) => {
   if (message.kind !== "show_time") return;
   const time = message.time as TimeState | undefined;
   empty.hidden = !!time;
-  control.show(time, message.time_range as TimeRange | undefined);
+  control.show(time, message.time_range as TimeRange | undefined, {
+    saved: message.saved_window as TimeRange | undefined,
+    context: message.context_tracks as ContextTracks | undefined,
+    minimumContrast: message.minimum_context_contrast === true,
+  });
 });
 host.postMessage({ kind: "ready" });

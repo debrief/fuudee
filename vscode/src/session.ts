@@ -10,7 +10,8 @@
 import { EventEmitter } from "node:events";
 import type { SharedState, SharedStateChange, TimeRange, TimeState, Viewport } from "@debrief/schemas";
 import type { OpenedPlot } from "./catalogue.js";
-import { isFeature, timeWindowOf, type PlotFeature } from "./hidden.js";
+import { contextShown, type ContextTracks } from "../webview/contrast.js";
+import { contextTracksOf, isFeature, timeWindowOf, type PlotFeature } from "./hidden.js";
 
 type Feature = PlotFeature;
 
@@ -64,6 +65,33 @@ export class Session {
     return () => this.events.off("selection", listener);
   }
 
+  /**
+   * The plot's view (its island) was saved or read again: the saved window or
+   * how context tracks are drawn may have changed, or the analyst's setting
+   * for the minimum contrast did.
+   */
+  onView(listener: () => void): () => void {
+    this.events.on("view", listener);
+    return () => this.events.off("view", listener);
+  }
+
+  viewChanged(): void {
+    this.emit("view");
+  }
+
+  /** The analyst's setting: faint context tracks are drawn as clear (debrief.map.minimumContextContrast). */
+  minimumContextContrast = false;
+
+  /** How the plot says tracks outside the window are drawn; clear if it doesn't say. */
+  contextTracks(): ContextTracks {
+    return (this.current && contextTracksOf(this.current.plot)) ?? "clear";
+  }
+
+  /** How the map draws them: the plot's choice, with the analyst's setting applied. */
+  contextShown(): ContextTracks {
+    return contextShown(this.contextTracks(), this.minimumContextContrast);
+  }
+
   /** Any change to shared state: selection, time or viewport. origin names who set it. */
   onState(listener: (change: SharedStateChange, origin: string) => void): () => void {
     this.events.on("state", listener);
@@ -112,9 +140,10 @@ export class Session {
   /**
    * Current time over a plot opened or read again. A plot opened afresh starts
    * at its window's start. Read again with its window as it was, current time
-   * and the range stay where they were, a range widened earlier (by a tool,
-   * say) included, so current time never jumps back. Read again with a window
-   * changed elsewhere, the new window is shown, with current time kept inside it.
+   * and the window shown stay where they were, a window a tool showed (widened
+   * or moved, never saved) included, so current time never jumps back. Read
+   * again with a window changed elsewhere, the new window is shown, with
+   * current time kept inside it.
    */
   private timeFor(window: TimeRange | undefined, previous?: TimeState, saved?: TimeRange): TimeState | undefined {
     if (!window) return previous;
@@ -124,10 +153,7 @@ export class Session {
       const current = Math.min(ms(window.end), Math.max(ms(window.start), ms(previous.current)));
       return { current: new Date(current).toISOString(), range: window };
     }
-    let { start, end } = window;
-    if (ms(previous.range.start) < ms(start)) start = previous.range.start;
-    if (ms(previous.range.end) > ms(end)) end = previous.range.end;
-    return { current: previous.current, range: { start, end } };
+    return previous;
   }
 
   /**

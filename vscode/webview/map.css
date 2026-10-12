@@ -20,9 +20,10 @@ body { background: var(--vscode-editor-background); color: var(--vscode-foregrou
 .zoom-to a { width: auto !important; padding: 0 6px; font-size: 11px; line-height: 26px; }
 .legend { background: var(--vscode-editorWidget-background); color: var(--vscode-editorWidget-foreground); border: 1px solid var(--vscode-editorWidget-border, transparent); padding: 4px 8px; font-size: 11px; }
 .legend-row { display: flex; align-items: center; gap: 6px; line-height: 18px; }
+.legend-row[hidden] { display: none; }
 .swatch { display: inline-block; width: 18px; height: 0; }
 .swatch-track { border-top: 3px solid var(--debrief-track); }
-.swatch-context { border-top: 1.5px solid var(--debrief-track); opacity: 0.35; }
+.swatch-context { border-top: 1.5px solid var(--debrief-track); }
 .swatch-annotation { border-top: 2px dashed var(--debrief-annotation); }
 .swatch-first { width: 8px; height: 8px; border-radius: 50%; border: 2px solid var(--vscode-editor-foreground); margin: 0 5px; }
 .swatch-latest { width: 9px; height: 9px; border-radius: 50%; background: var(--vscode-editor-foreground); margin: 0 5px; }

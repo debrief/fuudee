@@ -6,10 +6,11 @@
  */
 import { userInfo } from "node:os";
 import * as vscode from "vscode";
-import type { ParameterValue, SharedState, SharedStateChange, TimeRange, ToolDeclaration } from "@debrief/schemas";
+import type { ContextTracksEnum, ParameterValue, PlotView, SharedState, SharedStateChange, TimeRange, ToolDeclaration } from "@debrief/schemas";
 import { headFile, headOnDisk, knownStores, openPlot, plotFile, type OpenedPlot } from "./catalogue.js";
 import { statSync, unwatchFile, watchFile } from "node:fs";
-import { count, describeChanges } from "./format.js";
+import { count, describeToolRun } from "./format.js";
+import { placeToolTime } from "../webview/timelogic.js";
 import { resolveTimes } from "./timeinput.js";
 import { FormPanel } from "./panels/form.js";
 import { MapPanel } from "./panels/map.js";
@@ -52,6 +53,8 @@ export interface DebriefApi {
   hiddenOnMap: () => number | undefined;
   /** Whether the time controller in the sidebar has loaded, for tests and agents. */
   timeControllerShowing: () => boolean;
+  /** How the map was last told to draw tracks outside the window, for tests and agents. */
+  mapContext: () => string | undefined;
   /** How many times the plot's view has been read again after a change on disk, for tests. */
   viewChecks: () => number;
 }
@@ -80,7 +83,14 @@ export function activate(context: vscode.ExtensionContext): DebriefApi {
 
   const map = new MapPanel(context.extensionUri, session, log);
   // The time controller, at the top of the sidebar; it saves the window when the analyst lets go.
-  const timeView = new TimeView(context.extensionUri, session, (window) => void saveWindow(window).then(report), log);
+  const timeView = new TimeView(
+    context.extensionUri,
+    session,
+    // Not saved: show the time controller what is saved again, so it never claims otherwise.
+    (window) => void saveWindow(window).then(resync).then(report),
+    (contextTracks) => void saveContext(contextTracks).then(resync).then(report),
+    log,
+  );
   context.subscriptions.push(
     vscode.window.registerWebviewViewProvider(TIME_VIEW, timeView, { webviewOptions: { retainContextWhenHidden: true } }),
   );
@@ -91,6 +101,16 @@ export function activate(context: vscode.ExtensionContext): DebriefApi {
   let listing: ToolListing | undefined;
   let starting: Promise<void> | undefined;
   const settings = () => vscode.workspace.getConfiguration("debrief");
+  // An analyst who needs it can have faint context tracks drawn clear on every plot (CAP-29).
+  const readContrastSetting = () => (session.minimumContextContrast = settings().get<boolean>("map.minimumContextContrast") === true);
+  readContrastSetting();
+  context.subscriptions.push(
+    vscode.workspace.onDidChangeConfiguration((event) => {
+      if (!event.affectsConfiguration("debrief.map.minimumContextContrast")) return;
+      readContrastSetting();
+      session.viewChanged();
+    }),
+  );
   const python = () =>
     process.env.DEBRIEF_PYTHON || settings().get<string>("python") || (process.platform === "win32" ? "python" : "python3");
 
@@ -203,12 +223,13 @@ export function activate(context: vscode.ExtensionContext): DebriefApi {
   }
 
   // --- Running a tool ---------------------------------------------------------------
-  const runTool = (tool: ToolDeclaration, parameters: ParameterValue[]): Promise<string | undefined> =>
+  /** byHand: the analyst ran it from its form, not an agent or a command (CAP-28: only then may it save the window). */
+  const runTool = (tool: ToolDeclaration, parameters: ParameterValue[], byHand = false): Promise<string | undefined> =>
     serially(() =>
       ourChange(async () => {
         const started = Date.now();
         const selected = session.selection.length;
-        const { problem, outcome } = await runToolNow(tool, parameters);
+        const { problem, outcome } = await runToolNow(tool, parameters, byHand);
         const supplied = Object.fromEntries(parameters.map((p) => [p.name, true]));
         // The outcome code only: the problem is free text, for the analyst, never the log (NFR-14).
         diagnostics.write(problem ? "warning" : "info", toolRunLine(tool, supplied, selected, outcome, Date.now() - started));
@@ -217,7 +238,7 @@ export function activate(context: vscode.ExtensionContext): DebriefApi {
     );
   type Ran = { problem?: string; outcome: ToolOutcome };
   const refused = (problem: string): Ran => ({ problem, outcome: "refused" });
-  const runToolNow = async (tool: ToolDeclaration, parameters: ParameterValue[]): Promise<Ran> => {
+  const runToolNow = async (tool: ToolDeclaration, parameters: ParameterValue[], byHand: boolean): Promise<Ran> => {
     const opened = session.current;
     if (!opened) return refused("Open a plot first.");
     if (!service) return refused("Debrief's tool service is not running. Run 'Debrief: Restart tool service'.");
@@ -282,13 +303,46 @@ export function activate(context: vscode.ExtensionContext): DebriefApi {
     }
     const result = outcome.result;
     // A tool sets shared state by returning it, after the plot has its new features.
-    if (result?.state_change) session.apply(result.state_change, `tool:${tool.name}`);
+    const outside = result?.state_change ? applyToolState(result.state_change, tool, byHand && session.current?.item.id === opened.item.id && session.current.store.id === opened.store.id) : false;
     if (result?.non_spatial?.length) results.show(tool, result);
-    const said = describeChanges(result);
-    if (said) void vscode.window.showInformationMessage(`${tool.title} ${said}.`);
+    const said = describeToolRun(tool.title, result, outside);
+    if (said) void vscode.window.showInformationMessage(said);
     return { outcome: outcome.changed ? "changed" : "unchanged" };
   };
-  const form = new FormPanel(context.extensionUri, runTool, log);
+  /**
+   * Shared state a tool returned. Current time outside the saved window is
+   * shown in a window widened or moved to take it in, never saved (CAP-28):
+   * the time controller says so until the analyst keeps or reverts it. A tool
+   * whose purpose is to set the window has it saved, through the normal path,
+   * only when the analyst ran it by hand on this plot. True if current time
+   * is outside the saved window.
+   */
+  function applyToolState(change: SharedStateChange, tool: ToolDeclaration, byHandHere: boolean): boolean {
+    const { save_window: saveWindowAsked, ...state } = change;
+    const shown = session.time?.range;
+    const saved = session.savedWindow ?? shown;
+    if (!state.time || !shown || !saved) {
+      session.apply(state, `tool:${tool.name}`);
+      return false;
+    }
+    const span = (r: TimeRange) => ({ start: Date.parse(r.start), end: Date.parse(r.end) });
+    const range = (s: { start: number; end: number }) => ({ start: new Date(s.start).toISOString(), end: new Date(s.end).toISOString() });
+    const period = session.period();
+    const placed = placeToolTime(Date.parse(state.time.current), span(state.time.range), {
+      saved: span(saved),
+      shown: span(shown),
+      period: period && span(period),
+      saveWindow: saveWindowAsked === true,
+      byHand: byHandHere,
+      samePlot: byHandHere,
+    });
+    const window = range(placed.window);
+    session.apply({ ...state, time: { current: state.time.current, range: window } }, `tool:${tool.name}`);
+    if (placed.save) void saveWindow(window).then(report);
+    return placed.outside;
+  }
+  // From the form: the analyst ran it by hand.
+  const form = new FormPanel(context.extensionUri, (tool, values) => runTool(tool, values, true), log);
 
   /** Warn before writing a newer schema into a shared catalogue (SUB-35). */
   async function confirmNewerSchema(message: string): Promise<boolean> {
@@ -336,17 +390,32 @@ export function activate(context: vscode.ExtensionContext): DebriefApi {
    * window, not as it moves. A window changed elsewhere since the plot was
    * read is never overwritten (SUB-28): Debrief shows that one and says so.
    */
-  const saveWindow = (window: TimeRange): Promise<string | undefined> =>
+  const saveWindow = (window: TimeRange): Promise<string | undefined> => {
+    const problem = timeProblem({ current: window.start, range: window });
+    if (problem) return Promise.resolve(problem);
+    return saveView({ time_window: window }, {
+      needsService: "Saving the time window needs Debrief's tool service. Run 'Debrief: Restart tool service'.",
+      notSaved: "The time window was not saved.",
+      conflict: "Someone else changed the time window, so yours was not saved. Debrief is showing theirs; set it again if you still want yours.",
+    });
+  };
+
+  /** How tracks outside the window are drawn, for everyone who opens the plot: view state, saved as the window is (CAP-29). */
+  const saveContext = (contextTracks: ContextTracksEnum): Promise<string | undefined> =>
+    saveView({ context_tracks: contextTracks }, {
+      needsService: "Saving how context tracks are drawn needs Debrief's tool service. Run 'Debrief: Restart tool service'.",
+      notSaved: "How context tracks are drawn was not saved.",
+      conflict: "Someone else changed this plot's view, so your choice was not saved. Debrief is showing theirs; choose again if you still want yours.",
+    });
+
+  /** Change part of the plot's island, never overwriting a change made elsewhere since it was read (SUB-28). */
+  const saveView = (change: Partial<PlotView>, say: { needsService: string; notSaved: string; conflict: string }): Promise<string | undefined> =>
     serially(() =>
       ourChange(async () => {
         const opened = session.current;
         if (!opened) return "Open a plot first.";
-        const problem = timeProblem({ current: window.start, range: window });
-        if (problem) return problem;
-        if (!service || opened.viewHash === undefined) {
-          return "Saving the time window needs Debrief's tool service. Run 'Debrief: Restart tool service'.";
-        }
-        const view = { ...(viewOf(opened.plot) ?? {}), time_window: window };
+        if (!service || opened.viewHash === undefined) return say.needsService;
+        const view = { ...(viewOf(opened.plot) ?? {}), ...change };
         const save = (allow = false) => service!.setView(opened.store.id, opened.item.id, view, opened.viewHash!, agent, allow);
         let answer: OpenedView;
         try {
@@ -354,13 +423,13 @@ export function activate(context: vscode.ExtensionContext): DebriefApi {
             answer = await save();
           } catch (error) {
             if ((error as ServiceError).code !== NEWER_SCHEMA) throw error;
-            if (!(await confirmNewerSchema((error as Error).message))) return "The time window was not saved.";
+            if (!(await confirmNewerSchema((error as Error).message))) return say.notSaved;
             answer = await save(true);
           }
         } catch (error) {
           if ((error as ServiceError).code === CONFLICT) {
             await refreshView();
-            return "Someone else changed the time window, so yours was not saved. Debrief is showing theirs; set it again if you still want yours.";
+            return say.conflict;
           }
           return (error as Error).message;
         }
@@ -385,6 +454,8 @@ export function activate(context: vscode.ExtensionContext): DebriefApi {
     setViewOf(opened.plot, answer.view);
     if (ours) session.savedWindow = timeWindowOf(opened.plot) ?? session.period();
     else session.windowChanged(timeWindowOf(opened.plot), "plot-view");
+    // The saved window and how context tracks are drawn: the time controller and the map follow.
+    session.viewChanged();
   }
 
   let viewChecks = 0;
@@ -612,6 +683,10 @@ export function activate(context: vscode.ExtensionContext): DebriefApi {
   });
 
   // History (SUB-21). Each returns the problem, if any, for agents and tests.
+  const resync = (problem: string | undefined) => {
+    if (problem) session.viewChanged();
+    return problem;
+  };
   const report = (problem: string | undefined) => {
     if (problem) void vscode.window.showWarningMessage(problem);
     return problem;
@@ -684,6 +759,12 @@ export function activate(context: vscode.ExtensionContext): DebriefApi {
     const current = time ? Math.min(Date.parse(window.end), Math.max(Date.parse(window.start), Date.parse(time.current))) : Date.parse(window.start);
     session.setTime({ current: new Date(current).toISOString(), range: window }, "command");
     return report(await saveWindow(window));
+  });
+  // How tracks outside the window are drawn, for agents, keyboard macros and tests: saved as from the time controller.
+  command("debrief.setContextTracks", async (contextTracks?: ContextTracksEnum) => {
+    if (!session.current) return report("Open a plot first.");
+    if (!contextTracks || !["clear", "faint", "off"].includes(contextTracks)) return report("Choose clear, faint or off.");
+    return report(resync(await saveContext(contextTracks)));
   });
   command("debrief.select", (ids: string[]) => session.select(ids ?? [], "command"));
   // Shared state for agents and keyboard users (SUB-27).
@@ -810,6 +891,7 @@ export function activate(context: vscode.ExtensionContext): DebriefApi {
     toolsProblem: () => tools.problem,
     hiddenOnMap: () => map.hiddenCount,
     timeControllerShowing: () => timeView.showing,
+    mapContext: () => map.context,
     viewChecks: () => viewChecks,
   };
 }

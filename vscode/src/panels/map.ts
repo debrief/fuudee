@@ -17,6 +17,8 @@ export class MapPanel {
   showing?: string;
   /** How many hidden features the map last said there were. */
   hiddenCount?: number;
+  /** How the map was last told to draw tracks outside the window, for tests and agents. */
+  context?: string;
 
   constructor(
     private readonly extension: vscode.Uri,
@@ -31,6 +33,12 @@ export class MapPanel {
       if (origin === "map" || origin === "plot") return; // the map set it, or show_plot carries it
       if (change.time) this.post({ kind: "set_time", time: change.time });
       if (change.viewport) this.post({ kind: "set_viewport", viewport: change.viewport });
+    });
+    // How tracks outside the window are drawn: the plot's choice, the analyst's setting applied (CAP-29).
+    session.onView(() => {
+      if (!this.session.current || !this.panel || !this.ready) return;
+      this.context = this.session.contextShown();
+      this.post({ kind: "set_context", context_tracks: this.context });
     });
   }
 
@@ -94,11 +102,13 @@ export class MapPanel {
       plot_title: this.panel.title,
       selection: this.selectionMessage(this.session.selection),
       hidden_count: hidden,
+      context_tracks: this.session.contextShown(),
       ...(this.session.time && { time: this.session.time }),
     });
     if (this.ready) {
       this.showing = opened.item.id;
       this.hiddenCount = hidden;
+      this.context = this.session.contextShown();
     }
   }
 

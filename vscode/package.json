@@ -104,6 +104,11 @@
           "default": 120,
           "minimum": 5,
           "markdownDescription": "Seconds a tool may run before Debrief stops it."
+        },
+        "debrief.map.minimumContextContrast": {
+          "type": "boolean",
+          "default": false,
+          "markdownDescription": "Always draw tracks outside the time window clearly enough to see (at least 3:1 against the map), even on a plot set to draw them faint. A plot set to hide them still hides them."
         }
       }
     }

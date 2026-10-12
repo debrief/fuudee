@@ -25,7 +25,7 @@ Use the glossary term. These replacements come up most often:
 | source | input file, raw file | Imported sources are never modified (SUB-10). |
 | tool | function, plugin, script | |
 | history | provenance log, audit trail | In the interface. "Provenance" is fine in guides and the tool-author guide. |
-| undo to here | revert, roll back | Undo is replay to a point (SUB-21). |
+| undo to here | revert to, roll back | Undo is replay to a point (SUB-21). Revert alone is only the time controller's button that shows the saved time window again; it changes nothing in the plot. |
 | current time | playhead, cursor | Shared state (SUB-26). |
 | bearing | azimuth, heading | Heading is the platform's own direction. |
 

@@ -7,9 +7,11 @@
  *   current time in shared state. Within it, tracks are solid lines in their
  *   force colour, with ticks showing the direction of travel, a hollow dot at
  *   the first fix in the window and a filled, labelled dot at the last.
- *   Outside it, each whole track stays as a faint line, so a deployment of
- *   weeks still reads as one picture; fixes there are not marked. Hovering a
- *   track shows the nearest fix.
+ *   Outside it, each whole track stays as a thin, solid line in a quieter
+ *   version of its colour (its context), so a deployment of weeks still
+ *   reads as one picture; fixes there are not marked. The plot says whether
+ *   context is clear (at least 3:1 on any theme), faint or off; see
+ *   contrast.ts. Hovering a track shows the nearest fix.
  * - Annotations, including everything tools draw, are dashed and labelled.
  *   One with a time or a period is drawn only while that falls in the window;
  *   one without a time always is.
@@ -31,6 +33,7 @@ import geodesic from "geographiclib-geodesic";
 import { convert, DEFAULT_SETTINGS, formatBearing, formatPosition, formatQuantity, formatTime, UNIT_LABELS } from "@debrief/kernel";
 import type { DebriefFeatureCollection, TimeState } from "@debrief/schemas";
 import { densify, type LonLat } from "./geodesic.js";
+import { CONTEXT_WEIGHT, contextStyle, parseColour, WINDOW_WEIGHT, type ContextStyle, type ContextTracks, type MapTheme, type Rgb } from "./contrast.js";
 import { DATA_COLOURS } from "./palette.js";
 import { host, onMessage } from "./vscode.js";
 
@@ -200,7 +203,7 @@ let plotId = "";
 /**
  * What is drawn for each feature. layers and paths are drawn once per plot;
  * windowed and windowedPaths are a track's part in the time window, drawn
- * again whenever the window moves; context is a track's whole line, faint.
+ * again whenever the window moves; context is a track's whole line, thin.
  */
 interface Drawn {
   layers: L.Layer[];
@@ -208,11 +211,66 @@ interface Drawn {
   windowed: L.Layer[];
   windowedPaths: L.Path[];
   context?: L.Polyline;
+  /** How the context line is drawn now; none when context tracks are off. */
+  contextStyle?: ContextStyle;
+  /** The track's own colour. */
+  colour?: string;
   /** An annotation's time or period, if it has one. */
   when?: { start: number; end: number };
 }
 const drawn = new Map<string, Drawn>();
-const CONTEXT_OPACITY = 0.35;
+
+// --- Context tracks: each track outside the window (CAP-29, expert panel 12 Oct) ----
+/** How tracks outside the window are drawn: the plot's choice, the analyst's setting applied by the host. */
+let contextMode: ContextTracks = "clear";
+/** The theme the map is drawn on, read from VS Code's variables each time it is needed. */
+function mapTheme(): MapTheme {
+  const classes = document.body.classList;
+  const highContrast = classes.contains("vscode-high-contrast") || classes.contains("vscode-high-contrast-light");
+  const light = classes.contains("vscode-light") || classes.contains("vscode-high-contrast-light");
+  const fallback = (dark: number): Rgb => [dark, dark, dark];
+  return {
+    background: parseColour(css("--vscode-editor-background")) ?? fallback(light ? 1 : 0.12),
+    foreground: parseColour(css("--vscode-editor-foreground")) ?? fallback(light ? 0.2 : 0.83),
+    highContrast,
+  };
+}
+/** Draw each track's context line as the mode and theme now say, then its selection state. */
+function applyContext(): void {
+  const theme = mapTheme();
+  for (const entry of drawn.values()) {
+    if (!entry.context || !entry.colour) continue;
+    entry.contextStyle = contextStyle(entry.colour, contextMode, theme);
+    if (!entry.contextStyle) {
+      features.removeLayer(entry.context);
+      continue;
+    }
+    const { colour, weight } = entry.contextStyle;
+    entry.context.setStyle({ color: colour, weight });
+    (entry.context.options as { baseWeight?: number }).baseWeight = weight;
+    if (!features.hasLayer(entry.context)) {
+      features.addLayer(entry.context);
+      entry.context.bringToBack();
+      for (const area of areas) area.bringToBack();
+    }
+  }
+  showContextKey(theme);
+  restyle();
+}
+/** The key's context row: drawn as a track of the default colour would be, or gone when off. */
+function showContextKey(theme: MapTheme): void {
+  const swatch = document.querySelector<HTMLElement>(".swatch-context");
+  if (!swatch) return;
+  const style = contextStyle(DATA_COLOURS.track, contextMode, theme);
+  swatch.parentElement!.hidden = !style;
+  if (!style) return;
+  swatch.style.borderTopColor = style.colour;
+  swatch.style.borderTopWidth = `${style.weight}px`;
+  swatch.style.opacity = String(style.opacity);
+}
+// VS Code changes theme by changing the page's classes and variables: draw again for the new one.
+new MutationObserver(() => applyContext()).observe(document.body, { attributes: true, attributeFilter: ["class"] });
+new MutationObserver(() => applyContext()).observe(document.documentElement, { attributes: true, attributeFilter: ["style", "class"] });
 
 function colourOf(feature: Feature): string {
   if (feature.properties.kind === "track") return feature.properties.style?.colour ?? DATA_COLOURS.track;
@@ -232,13 +290,14 @@ function select(id: string | undefined, add: boolean): void {
 
 function restyle(): void {
   const any = selection.size > 0;
-  for (const [id, { paths, windowedPaths, context }] of drawn) {
+  for (const [id, { paths, windowedPaths, context, contextStyle: style }] of drawn) {
     const selected = selection.has(id);
     for (const path of [...paths, ...windowedPaths]) {
       const base = (path.options as { baseWeight?: number }).baseWeight ?? 2;
       path.setStyle({ weight: selected ? base + 1 : base, opacity: !any || selected ? 1 : 0.3 });
     }
-    context?.setStyle({ opacity: !any || selected ? CONTEXT_OPACITY : 0.12 });
+    // Dimmed for a selection elsewhere: a state of its own, never below its floor.
+    if (context && style) context.setStyle({ opacity: !any || selected ? style.opacity : style.dimmed });
   }
   halo.clearLayers();
   const outline = css("--vscode-editor-foreground");
@@ -332,15 +391,16 @@ function draw(plot: DebriefFeatureCollection): void {
       const coordinates = geometry.coordinates as LonLat[];
       const latlngs = densify(coordinates).map(toLatLng);
       if (isTrack) {
-        // The whole track, faint: context for the part in the window, drawn in drawWindow.
+        // The whole track, solid and thin: context for the part in the window, drawn in drawWindow.
+        // No ticks, dots or labels: those belong to the window. Styled in applyContext.
         const track = feature as Track;
-        const context = L.polyline(latlngs, { color: colour, weight: 1.5, opacity: CONTEXT_OPACITY, baseWeight: 1.5 } as L.PolylineOptions);
+        const context = L.polyline(latlngs, { color: colour, weight: CONTEXT_WEIGHT, baseWeight: CONTEXT_WEIGHT } as L.PolylineOptions);
         context.on("click", click);
         hoverFixes(context, track);
         layers.push(context);
         latlngs.forEach((p) => plotBounds.extend(p));
-        [...layers].forEach((layer) => layer.addTo(features));
-        drawn.set(feature.id, { layers, paths, windowed: [], windowedPaths: [], context });
+        context.addTo(features);
+        drawn.set(feature.id, { layers, paths, windowed: [], windowedPaths: [], context, colour });
         continue;
       }
       const line = L.polyline(latlngs, { color: colour, weight: 2, dashArray: "6 5", baseWeight: 2 } as L.PolylineOptions);
@@ -380,6 +440,7 @@ function draw(plot: DebriefFeatureCollection): void {
     drawn.set(feature.id, { layers: [...paths, ...layers], paths, windowed: [], windowedPaths: [], when: timeOf(feature) });
   }
   areas.reverse();
+  applyContext();
   const empty = document.getElementById("empty")!;
   empty.hidden = plot.features.some((f) => f.geometry);
   empty.textContent = plot.features.length ? "This plot has nothing with a position." : "This plot is empty. Import a REP file to add tracks.";
@@ -433,7 +494,7 @@ function drawWindow(): void {
       L.DomEvent.stopPropagation(event);
       select(track.id, event.originalEvent.ctrlKey || event.originalEvent.metaKey);
     };
-    const line = L.polyline(densify(part.coordinates).map(toLatLng), { color: colour, weight: 2.5, baseWeight: 2.5 } as L.PolylineOptions);
+    const line = L.polyline(densify(part.coordinates).map(toLatLng), { color: colour, weight: WINDOW_WEIGHT, baseWeight: WINDOW_WEIGHT } as L.PolylineOptions);
     line.on("click", click);
     hoverFixes(line, track);
     shown.windowedPaths.push(line);
@@ -639,6 +700,7 @@ onMessage((message) => {
     shownPlot = plotId = sel.plot;
     selection = new Set(sel.feature_ids);
     showTime(message.time as TimeState | undefined);
+    contextMode = (message.context_tracks as ContextTracks | undefined) ?? "clear";
     draw(message.plot as DebriefFeatureCollection);
     showHidden(typeof message.hidden_count === "number" ? message.hidden_count : 0);
     if (firstShow) fit(plotBounds);
@@ -649,6 +711,9 @@ onMessage((message) => {
     showTime(message.time as TimeState);
   } else if (message.kind === "set_viewport") {
     showViewport((message.viewport as { bbox: number[] }).bbox);
+  } else if (message.kind === "set_context") {
+    contextMode = message.context_tracks as ContextTracks;
+    applyContext();
   }
 });
 host.postMessage({ kind: "ready" });

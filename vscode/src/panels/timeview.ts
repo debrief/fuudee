@@ -6,10 +6,11 @@
  *
  * It sets current time and the time window as shared state at once, so the
  * map follows a drag, and asks for the window to be saved in the plot when
- * the analyst lets go (windowSaved).
+ * the analyst lets go (windowSaved). It shows the window as saved too, so
+ * it can say when a tool shows another, and how context tracks are drawn.
  */
 import * as vscode from "vscode";
-import type { TimeRange } from "@debrief/schemas";
+import type { ContextTracksEnum, TimeRange } from "@debrief/schemas";
 import { checkMessage } from "../messages.js";
 import type { Session } from "../session.js";
 import { webviewHtml } from "./html.js";
@@ -24,9 +25,11 @@ export class TimeView implements vscode.WebviewViewProvider {
     private readonly extension: vscode.Uri,
     private readonly session: Session,
     private readonly windowSaved: (window: TimeRange) => void,
+    private readonly contextChanged: (context: ContextTracksEnum) => void,
     private readonly log: (line: string) => void,
   ) {
     session.onPlot(() => this.showTime());
+    session.onView(() => this.showTime());
     session.onState((change, origin) => {
       if (change.time && origin !== TIME_VIEW) this.showTime();
     });
@@ -63,16 +66,26 @@ export class TimeView implements vscode.WebviewViewProvider {
         this.session.setTime(message.time!, TIME_VIEW);
       } else if (message.kind === "window_changed") {
         this.windowSaved(message.time_range!);
+      } else if (message.kind === "context_changed") {
+        this.contextChanged(message.context_tracks!);
       }
     });
   }
 
+  /** Current time, the window shown and as saved, and how context tracks are drawn. */
   private showTime(): void {
     if (!this.view || !this.ready) return;
     const time = this.session.current ? this.session.time : undefined;
     const period = this.session.period();
+    const saved = this.session.savedWindow;
     void this.view.webview.postMessage(
-      checkMessage({ kind: "show_time", ...(time && { time }), ...(time && period && { time_range: period }) }),
+      checkMessage({
+        kind: "show_time",
+        ...(time && { time }),
+        ...(time && period && { time_range: period }),
+        ...(time && saved && { saved_window: saved }),
+        ...(time && { context_tracks: this.session.contextTracks(), minimum_context_contrast: this.session.minimumContextContrast }),
+      }),
     );
   }
 }

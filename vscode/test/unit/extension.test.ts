@@ -351,7 +351,7 @@ describe("contributed menus", () => {
 describe("hiding and colour are the plot's own content (SUB-22)", () => {
   const plot = {
     type: "FeatureCollection",
-    schema_version: "0.0.9",
+    schema_version: "0.0.10",
     features: [
       { id: "a", properties: { kind: "track", name: "A", style: { colour: "#e01c3e" } } },
       { id: "b", properties: { kind: "annotation", name: "B", hidden: true } },

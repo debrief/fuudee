@@ -40,15 +40,25 @@ export function extentOf(period: Span | undefined, window: Span): Span {
   return { start: Math.min(period.start, window.start), end: Math.max(period.end, window.end) };
 }
 
+/** The shortest window: one second. A window of no length would show nothing and play nowhere. */
+export const MINIMUM_WINDOW = SECOND;
+
+/** A window as shown: one loaded with no length (or less than a second) shows its first second. */
+export function atLeastMinimum(window: Span): Span {
+  return window.end - window.start >= MINIMUM_WINDOW ? window : { start: window.start, end: window.start + MINIMUM_WINDOW };
+}
+
 /**
- * The window with one edge moved to a time, kept within the extent and never
- * ending before it starts. Whole seconds: the window is saved as the analyst
- * reads it.
+ * The window with one edge moved to a time, kept within the extent and at
+ * least a second long: the handles stop a second apart and never cross.
+ * Whole seconds: the window is saved as the analyst reads it.
  */
 export function moveEdge(window: Span, extent: Span, edge: "start" | "end", to: number): Span {
   const at = Math.round(to / SECOND) * SECOND;
-  if (edge === "start") return { start: clamp(at, extent.start, window.end), end: window.end };
-  return { start: window.start, end: clamp(at, window.start, extent.end) };
+  const last = window.end - MINIMUM_WINDOW;
+  const first = window.start + MINIMUM_WINDOW;
+  if (edge === "start") return { start: clamp(at, Math.min(extent.start, last), last), end: window.end };
+  return { start: window.start, end: clamp(at, first, Math.max(extent.end, first)) };
 }
 
 /** The whole window moved by an amount, keeping its length, within the extent. */
@@ -73,13 +83,22 @@ export const sameSpan = (a: Span | undefined, b: Span | undefined): boolean => !
 export const SPEEDS = [1, 10, 60, 600, 3600];
 export const DEFAULT_SPEED = 60;
 
+/** How often playing moves current time: ten times a second, smooth enough to follow without flooding the views. */
+export const TICK_MS = 100;
+
+/** How far one tick of playing moves current time at a speed. */
+export const tickAdvance = (speed: number): number => speed * TICK_MS;
+
+/** Whether a window is too short to play at a speed: shorter than one tick moves current time. */
+export const tooShortToPlay = (window: Span, speed: number): boolean => window.end - window.start < tickAdvance(speed);
+
+/** Why Play is off, as the analyst reads it. */
+export const tooShortReason = (speed: number): string => `Window too short to play at ${speed}×: widen it or slow down`;
+
 export function describeSpeed(speed: number): string {
   const plot = speed * SECOND;
   return `${speed}× real time: ${plot >= MINUTE ? describeStep(plot) : `${speed} s`} of the plot each second`;
 }
-
-/** How often playing moves current time: ten times a second, smooth enough to follow without flooding the views. */
-export const TICK_MS = 100;
 
 /** The clock playing uses, replaceable in tests. */
 export interface Clock {
@@ -123,7 +142,7 @@ export class Player {
 
   play(): void {
     const at = this.where();
-    if (this.playing || !at || at.window.end <= at.window.start) return;
+    if (this.playing || !at || tooShortToPlay(at.window, this.speed)) return;
     if (at.current >= at.window.end) this.moveTo(at.window.start);
     this.last = this.clock.now();
     this.stopTicking = this.clock.every(TICK_MS, () => this.tick());
@@ -190,5 +209,140 @@ export class WindowGesture {
   /** Let go without saving, such as when another plot is opened mid-drag. */
   cancel(): void {
     this.from = this.latest = undefined;
+  }
+}
+
+// --- A time outside the saved window (CAP-28, expert panel 12 Oct) ------------------
+
+const within = (at: number, span: Span) => at >= span.start && at <= span.end;
+const toSecond = (ms: number, round: (x: number) => number) => round(ms / SECOND) * SECOND;
+
+/**
+ * The window to show when a tool moves current time, never saved: the window
+ * shown if the time is in it; else the saved window widened by the least
+ * amount that takes the time in, unless that would make it more than twice
+ * as long; else a window of the saved length, centred on the time, kept in
+ * the plot's period. Whole seconds.
+ */
+export function windowForTime(saved: Span, shown: Span, at: number, period?: Span): Span {
+  if (within(at, shown)) return shown;
+  const base = atLeastMinimum(saved);
+  if (within(at, base)) return base;
+  const widened = { start: toSecond(Math.min(base.start, at), Math.floor), end: toSecond(Math.max(base.end, at), Math.ceil) };
+  const length = base.end - base.start;
+  if (widened.end - widened.start <= 2 * length) return widened;
+  let start = toSecond(at - length / 2, Math.round);
+  if (period && within(at, period) && period.end - period.start >= length) start = clamp(start, period.start, period.end - length);
+  return { start, end: start + length };
+}
+
+/** How a tool's time is shown: in a window, and whether that window is saved. */
+export interface ToolTime {
+  window: Span;
+  /** Saved through the normal path, as if the analyst had let go of it. */
+  save: boolean;
+  /** The time is outside the saved window: the tool's message says so. */
+  outside: boolean;
+}
+
+/**
+ * Where a tool's current time is shown. A tool whose purpose is to set the
+ * window (save_window) has its range saved, through the normal path, only
+ * when the analyst ran it by hand on the plot still open; otherwise its
+ * range is shown and not saved. Every other tool's time is shown in the
+ * window windowForTime gives, never saved.
+ */
+export function placeToolTime(
+  at: number,
+  range: Span,
+  how: { saved: Span; shown: Span; period?: Span; saveWindow: boolean; byHand: boolean; samePlot: boolean },
+): ToolTime {
+  const saved = atLeastMinimum(how.saved);
+  if (how.saveWindow && how.byHand && how.samePlot) return { window: atLeastMinimum(range), save: true, outside: false };
+  const window = how.saveWindow ? atLeastMinimum(range) : windowForTime(saved, how.shown, at, how.period);
+  return { window, save: false, outside: !within(at, saved) };
+}
+
+/** How the window shown differs from the saved one: the parts beyond it, and what to say. */
+export interface Beyond {
+  kind: "widened" | "shifted";
+  /** The parts of the window shown that are not in the saved window: hatched on the bar. */
+  parts: Span[];
+  message: string;
+}
+
+/** How the window shown differs from the saved one, or undefined if it doesn't. */
+export function beyondSaved(shown: Span, saved: Span): Beyond | undefined {
+  const [a, b] = [atLeastMinimum(shown), atLeastMinimum(saved)];
+  if (sameSpan(a, b)) return undefined;
+  const parts: Span[] = [];
+  if (a.start < b.start) parts.push({ start: a.start, end: Math.min(a.end, b.start) });
+  if (a.end > b.end) parts.push({ start: Math.max(a.start, b.end), end: a.end });
+  return a.start <= b.start && a.end >= b.end
+    ? { kind: "widened", parts, message: "Showing beyond saved window" }
+    : { kind: "shifted", parts, message: "Showing a different period from the saved window" };
+}
+
+/**
+ * The saved window, as the time controller keeps it, and the cue that the
+ * window shown differs from it. Keep saves the window shown; Revert shows the
+ * saved one again; letting go of the window saves it as left, so it counts
+ * as Keep. Moving current time, stepping and playing change neither.
+ */
+export class SavedWindow {
+  saved?: Span;
+  /** Windows asked to be saved and not yet confirmed by the host, oldest first. */
+  private pending: Span[] = [];
+  /** The saved window before them, which the host may still report meanwhile. */
+  private before?: Span;
+
+  constructor(private readonly save: (window: Span) => void) {}
+
+  /**
+   * The host says what is saved. While saves the analyst asked for are on
+   * their way, one of them, or the window saved before them, is no news:
+   * the latest asked for stands. Anything else (a colleague's window) wins.
+   */
+  fromHost(saved: Span): void {
+    if (this.pending.length) {
+      const confirmed = this.pending.findIndex((p) => sameSpan(p, saved));
+      if (confirmed >= 0) {
+        this.pending.splice(0, confirmed + 1);
+        this.before = saved;
+        if (this.pending.length) return;
+      } else if (this.before && sameSpan(this.before, saved)) return;
+    }
+    this.pending = [];
+    this.before = undefined;
+    this.saved = { ...saved };
+  }
+
+  /** What the cue says about the window shown, if anything. */
+  cue(shown: Span): Beyond | undefined {
+    return this.saved ? beyondSaved(shown, this.saved) : undefined;
+  }
+
+  /** Keep: save the window shown, through the normal path. */
+  keep(shown: Span): void {
+    this.asked(shown);
+    this.save(shown);
+  }
+
+  private asked(window: Span): void {
+    if (!this.pending.length) this.before = this.saved;
+    this.pending.push({ ...window });
+    this.saved = { ...window };
+  }
+
+  /** Revert: the saved window again, current time moved to its nearest edge. */
+  revert(current: number): { window: Span; current: number } | undefined {
+    if (!this.saved) return undefined;
+    const window = atLeastMinimum(this.saved);
+    return { window, current: clamp(current, window.start, window.end) };
+  }
+
+  /** The analyst let go of the window: it is saved as left, so the cue goes. */
+  letGo(window: Span): void {
+    this.asked(window);
   }
 }

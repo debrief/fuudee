@@ -1,0 +1,20 @@
+{
+  "kind": "show_time",
+  "time": {
+    "current": "1995-12-12T06:40:00.000Z",
+    "range": {
+      "start": "1995-12-12T05:30:00.000Z",
+      "end": "1995-12-12T06:40:00.000Z"
+    }
+  },
+  "time_range": {
+    "start": "1995-12-12T05:00:00.000Z",
+    "end": "1995-12-12T07:10:00.000Z"
+  },
+  "saved_window": {
+    "start": "1995-12-12T05:30:00.000Z",
+    "end": "1995-12-12T06:30:00.000Z"
+  },
+  "context_tracks": "clear",
+  "minimum_context_contrast": true
+}

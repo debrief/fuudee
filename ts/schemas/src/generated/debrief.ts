@@ -89,6 +89,13 @@ export type AssetKindEnum = "plot" | "source" | "supporting_file" | "payload" | 
  */
 export type CatalogTypeEnum = "Catalog";
 /**
+ * How the map draws each track outside the time window: its context (CAP-29). An analyst's setting for the minimum contrast can show faint as clear, never off as anything else.
+ *
+ * This interface was referenced by `DebriefSchemaDefinitions`'s JSON-Schema
+ * via the `definition` "ContextTracksEnum".
+ */
+export type ContextTracksEnum = "clear" | "faint" | "off";
+/**
  * This interface was referenced by `DebriefSchemaDefinitions`'s JSON-Schema
  * via the `definition` "TrackKindEnum".
  */
@@ -199,7 +206,9 @@ export type WebviewMessageKindEnum =
   | "form_error"
   | "show_results"
   | "show_time"
-  | "window_changed";
+  | "window_changed"
+  | "context_changed"
+  | "set_context";
 
 export interface DebriefSchemaDefinitions {}
 /**
@@ -614,6 +623,10 @@ export interface PlotProperties {
  */
 export interface PlotView {
   /**
+   * How tracks outside the time window are drawn (CAP-29). Left out means clear.
+   */
+  context_tracks?: ContextTracksEnum | null;
+  /**
    * The plot's time window: the period shown, one for the whole plot (CAP-28, CAP-29). Start shall not be after end.
    */
   time_window?: TimeRange | null;
@@ -847,6 +860,10 @@ export interface Viewport {
  * via the `definition` "SharedStateChange".
  */
 export interface SharedStateChange {
+  /**
+   * From a tool whose purpose is to set the time window: save time's range as the plot's window. Honoured only when the analyst ran the tool by hand on this plot; otherwise, and without it, a range beyond the saved window is shown, never saved (CAP-28). Needs time.
+   */
+  save_window?: boolean | null;
   selection?: Selection | null;
   time?: TimeState | null;
   viewport?: Viewport | null;
@@ -1042,6 +1059,10 @@ export interface UserConfig {
  */
 export interface WebviewMessage {
   /**
+   * How tracks outside the time window are drawn (CAP-29).
+   */
+  context_tracks?: ContextTracksEnum | null;
+  /**
    * Current time from shared state, which a tool form offers for its time fields.
    */
   current_time?: string | null;
@@ -1051,11 +1072,19 @@ export interface WebviewMessage {
   hidden_count?: number | null;
   kind: WebviewMessageKindEnum;
   message?: string | null;
+  /**
+   * The analyst's setting that shows faint context tracks as clear, so the time controller can say so.
+   */
+  minimum_context_contrast?: boolean | null;
   parameters?: ParameterValue[] | null;
   plot?: DebriefFeatureCollection | null;
   plot_title?: string | null;
   result?: ToolResult | null;
   result_title?: string | null;
+  /**
+   * The time window as saved in the plot, so the time controller can say when the window shown differs from it (CAP-28).
+   */
+  saved_window?: TimeRange | null;
   selected_names?: string[] | null;
   selection?: Selection | null;
   time?: TimeState | null;

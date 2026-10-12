@@ -145,6 +145,9 @@ export async function run(): Promise<void> {
   assert.equal(api.viewChecks(), checksAfterRun, "Debrief's own tool run was checked as a change elsewhere");
 
   // BLUE ONE and RED ONE: closest approach is offered; run it and see the result.
+  // The window first ends before the moment it finds (09:21), so that moment is outside it.
+  const early = { start: period.start, end: "2023-06-15T09:00:00.000Z" };
+  assert.equal(await vscode.commands.executeCommand("debrief.setTimeWindow", early), undefined);
   await vscode.commands.executeCommand("debrief.select", ["track-blue-one", "track-red-one"]);
   await waitFor("tools for two tracks", () => api.offered().includes("core.closest_approach") || undefined);
   assert.equal(await vscode.commands.executeCommand("debrief.runTool", "core.closest_approach", {}), undefined);
@@ -155,8 +158,44 @@ export async function run(): Promise<void> {
   await waitFor("closest approach to move current time", () => heard.some((h) => h === "time:tool:core.closest_approach") || undefined);
   assert.notEqual(api.getState()!.time.current, midway);
   listening.dispose();
+  // Outside the saved window: shown in a window widened to take it in, never saved (CAP-28).
+  const cpaTime = api.getState()!.time.current;
+  assert.ok(cpaTime > early.end, "closest approach is after the window");
+  const shown = api.getState()!.time.range;
+  assert.equal(shown.start, early.start);
+  assert.ok(shown.end >= cpaTime && Date.parse(shown.end) - Date.parse(shown.start) <= 2 * 3600000, "widened, to no more than twice");
+  assert.deepEqual(api.session.savedWindow, early, "never saved");
+  assert.deepEqual(island().time_window, early);
   await sleep(3000);
   await screenshot("03-closest-approach", true);
+  // Keep, as the time controller's button does: saved through the normal path.
+  assert.equal(await vscode.commands.executeCommand("debrief.setTimeWindow", shown), undefined);
+  assert.deepEqual(island().time_window, shown);
+
+  // How tracks outside the window are drawn: the plot's view, never a step in its history (CAP-29).
+  const baseNow = api.session.current!.base;
+  assert.equal(await vscode.commands.executeCommand("debrief.setContextTracks", "faint"), undefined);
+  assert.equal(island().context_tracks, "faint");
+  await waitFor("the map to draw context faint", () => api.mapContext() === "faint" || undefined);
+  assert.deepEqual(api.session.current!.base, baseNow, "no step in the history");
+  // The analyst's setting draws faint as clear on every plot; off stays off.
+  const config = vscode.workspace.getConfiguration("debrief");
+  await config.update("map.minimumContextContrast", true, vscode.ConfigurationTarget.Global);
+  await waitFor("the setting to draw faint as clear", () => api.mapContext() === "clear" || undefined);
+  // For the picture: hide the views below the Time view for a moment, so the whole controller shows.
+  const toggle = (view: string) => vscode.commands.executeCommand(`${view}.toggleVisibility`).then(undefined, () => undefined);
+  const below = ["debrief.catalogues", "debrief.outline", "debrief.tools"];
+  for (const view of below) await toggle(view);
+  await sleep(1500);
+  await screenshot("03b-context-tracks-setting");
+  for (const view of below) await toggle(view);
+  assert.equal(await vscode.commands.executeCommand("debrief.setContextTracks", "off"), undefined);
+  await waitFor("context off", () => api.mapContext() === "off" || undefined);
+  await config.update("map.minimumContextContrast", undefined, vscode.ConfigurationTarget.Global);
+  assert.equal(await vscode.commands.executeCommand("debrief.setContextTracks", "clear"), undefined);
+  await waitFor("context clear", () => api.mapContext() === "clear" || undefined);
+  assert.equal(island().context_tracks, "clear");
+  assert.equal(await vscode.commands.executeCommand("debrief.setTimeWindow", period), undefined);
 
   const tracks = api.session.current!.plot.features.filter((f) => f.properties.kind === "track").map((f) => f.id);
   await vscode.commands.executeCommand("debrief.select", tracks);

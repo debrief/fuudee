@@ -41,6 +41,15 @@ enums:
       sensor_observations: {}
       plot: {description: "The whole plot: its own details and its view. At most one per plot."}
   PlotKindEnum: {permissible_values: {plot: {}}}
+  ContextTracksEnum:
+    description: >-
+      How the map draws each track outside the time window: its context
+      (CAP-29). An analyst's setting for the minimum contrast can show faint
+      as clear, never off as anything else.
+    permissible_values:
+      clear: {description: "Easy to see on any theme: at least 3:1 against the map's background."}
+      faint: {description: "Fainter, for a busy plot. Not guaranteed to reach 3:1."}
+      "off": {description: "Not drawn: only what is in the time window shows."}
   TrackKindEnum: {permissible_values: {track: {}}}
   AnnotationKindEnum: {permissible_values: {annotation: {}}}
   SensorObservationsKindEnum: {permissible_values: {sensor_observations: {}}}
@@ -264,6 +273,11 @@ classes:
           (CAP-28, CAP-29). Start shall not be after end.
         range: TimeRange
         inlined: true
+      context_tracks:
+        description: >-
+          How tracks outside the time window are drawn (CAP-29). Left out
+          means clear.
+        range: ContextTracksEnum
 
   # --- Named sets and the collection ---------------------------------------
   NamedSet:

@@ -2,13 +2,19 @@
 
 The data-file schema is versioned independently of Debrief (SUB-12). Before 1.0.0 there is no migration guarantee (SUB-13).
 
+## 0.0.10 (12 Oct 2026)
+
+- Webview messages for the time controller: `show_time` (current time, its range being the time window shown, and the plot's period as `time_range`) and `window_changed` (the window to save, as `time_range`, sent when the analyst lets go). A `time_range` on any message must not end before it starts (CAP-28, SUB-26).
+- The island says how tracks outside the time window are drawn (`view.context_tracks`: `clear`, `faint` or `off`; left out means `clear`). The time controller is told it, with the window as saved (`saved_window`) and whether the analyst's setting shows faint as clear (`minimum_context_contrast`), on `show_time`; it sends the analyst's choice as `context_changed`. The map is told how to draw them (`context_tracks` on `show_plot`, and `set_context`) (CAP-29, expert panel 12 Oct).
+- A tool whose purpose is to set the time window can ask for its range to be saved (`save_window` on a result's `state_change`, which then needs `time`). Debrief honours it only when the analyst ran the tool by hand on that plot; otherwise a time outside the saved window is shown, never saved (CAP-28).
+- Before 1.0.0 only an exact version opens (SUB-13): plots written as 0.0.9 must be imported or built again.
+
 ## 0.0.9 (12 Oct 2026)
 
 - A whole-plot feature (`PlotFeature`, kind `plot`, at most one per plot, null geometry) carries the plot's own details (`title`, `description`), which are content, and its island (`view`): view state kept in the plot file but outside its history. The island is left out of every history hash and of every delta, is not undoable and is never recorded in provenance (SUB-22, decision 12 Oct). Its first member is the plot's time window (`view.time_window`), one for the whole plot, replacing per-layer display windows (CAP-28, CAP-29).
 - Features can be hidden (`hidden` on track, annotation and sensor observation properties). Hiding, like a track's colour, is content: a recorded, undoable change.
 - Presentation (`Presentation`, `presentation.json`, asset kind `presentation`) is retired. A `presentation.json` still found beside a plot of this schema version is turned into one recorded step when a writer opens the plot, then deleted; a read-only store applies it in memory. Plots of 0.0.8 or earlier cannot be opened by 0.0.9 at all (SUB-13), so this rarely runs.
 - A delta never holds a whole-plot feature's view (a rule checked on reading).
-- Webview messages for the time controller: `show_time` (current time, its range being the time window, and the plot's period as `time_range`) and `window_changed` (the window to save, as `time_range`, sent when the analyst lets go). A `time_range` on any message must not end before it starts (CAP-28, SUB-26).
 
 ## 0.0.8 (12 Oct 2026)
 
