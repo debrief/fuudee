@@ -55,6 +55,16 @@ try {
   assert.match(await history(), /step 1/);
   await shot("play-01-ready");
 
+  // Current time is set at the top of the side column; the map shows no control of its own.
+  const timeLabel = () => text("#timebar .time-label");
+  assert.equal(await page.locator("#side section").first().getAttribute("id"), "panel-time");
+  assert.equal(await page.frameLocator(".frame-map").locator("#timebar").isHidden(), true);
+  const timeBefore = await timeLabel();
+  const markers = () => page.frameLocator(".frame-map").locator(".now").count();
+  await page.locator("#timebar .forward").click();
+  await page.waitForFunction((was) => document.querySelector("#timebar .time-label")?.textContent !== was, timeBefore);
+  assert.ok((await markers()) > 0, "tracks show where they were at current time");
+
   // The map: a click on BLUE ONE's first fix, inside the exercise area, selects BLUE ONE, not the area.
   const plot = JSON.parse(readFileSync(path.join(root, "sample/serial-1/plot.geojson"), "utf8"));
   const blue = plot.features.find((f) => f.properties.name === "BLUE ONE").properties.style.colour;

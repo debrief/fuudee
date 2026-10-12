@@ -16,6 +16,7 @@ import type { DebriefFeatureCollection, ParameterValue, StacItem, TimeState, Too
 import { count, describeChanges, describePeriod, describeTimes } from "../src/format.js";
 import { resolveTimes } from "../src/timeinput.js";
 import { describeStep, needs } from "../src/wording.js";
+import { TimeControl } from "../webview/timecontrol.js";
 
 type Feature = DebriefFeatureCollection["features"][number];
 interface Step {
@@ -85,6 +86,22 @@ const post = (target: HTMLIFrameElement | undefined, message: unknown) => {
 let opened: Opened | undefined;
 let selection: string[] = [];
 let time: TimeState | undefined;
+// Current time is set at the top of the side column, not over the map as in VS Code.
+let timePending = false;
+const timeControl = new TimeControl($("timebar"), (moved) => {
+  time = moved;
+  if (timePending) return; // tell the map at most once a frame, however fast the slider moves
+  timePending = true;
+  requestAnimationFrame(() => {
+    timePending = false;
+    if (time) post(map, { kind: "set_time", time });
+  });
+});
+/** Current time as set by opening a plot or by a tool. */
+function showTime(next: TimeState | undefined): void {
+  time = next;
+  timeControl.show(time);
+}
 let tools: ToolDeclaration[] = [];
 let offered: string[] = [];
 let formTool: ToolDeclaration | undefined;
@@ -124,7 +141,7 @@ async function openPlot(item: string, keep = false): Promise<void> {
   $<HTMLSelectElement>("plots").value = item;
   const ids = new Set(features().map((f) => f.id));
   selection = keep ? selection.filter((id) => ids.has(id)) : [];
-  time = timeOf(opened.item, previousTime);
+  showTime(timeOf(opened.item, previousTime));
   $("plot-title").textContent = opened.item.properties.title ?? item;
   if (opened.base.plot_hash !== shown) showPlot();
   else {
@@ -159,7 +176,7 @@ window.addEventListener("message", (event) => {
   }
   if (name === "map") {
     if (message.kind === "selection_changed") void select((message.selection as { feature_ids: string[] }).feature_ids, true);
-    if (message.kind === "time_changed") time = message.time as TimeState;
+    if (message.kind === "time_changed") showTime(message.time as TimeState);
   } else if (name === "form") {
     if (message.kind === "cancel") closeForm();
     if (message.kind === "run_tool" && formTool && message.tool_name === formTool.name) {
@@ -282,7 +299,7 @@ async function runTool(tool: ToolDeclaration, parameters: ParameterValue[], onCo
     await openPlot(opened.item.id, true);
   }
   if (result.state_change?.time) {
-    time = result.state_change.time;
+    showTime(result.state_change.time);
     post(map, { kind: "set_time", time });
   }
   if (result.non_spatial?.length) showResults(tool, result);
@@ -520,7 +537,7 @@ async function preview(item: string): Promise<void> {
     ]);
     if (opened) return; // Python was quicker
     opened = { item: stac, plot, base: { current: 0, plot_hash: "" }, steps: [], recovered: [] };
-    time = timeOf(stac);
+    showTime(timeOf(stac));
     $("plot-title").textContent = stac.properties.title ?? item;
     showPlot();
     renderOutline();
