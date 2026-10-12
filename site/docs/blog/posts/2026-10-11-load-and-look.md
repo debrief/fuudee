@@ -12,7 +12,7 @@ Phase 1's job is to prove the architecture by walking one path all the way throu
 <!-- more -->
 
 !!! note "Update, 11 October 2026"
-    The demo below is today's Debrief, so it includes features added since this post was written, such as the time control along the bottom of the map and undo.
+    The demo below is today's Debrief, so it includes features added since this post was written, such as the time control at the top of the side column and undo.
 
 *Every picture here comes from CI. A test drives the real VS Code, with the real extension and the real Python tool service, on Debrief's sample exercise. It takes these screenshots as it goes, so they can't drift from what the software does.*
 

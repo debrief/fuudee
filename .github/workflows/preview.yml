@@ -1,13 +1,15 @@
 name: Preview site
 
 # A pull request that changes the site gets a live copy of it at
-# https://debrief.github.io/fuudee/pr-preview/pr-N/, linked from a comment and
-# removed when the pull request closes. Screenshots of the pages it changes go
-# in its description, kept on the pr-screenshots branch so they outlive the
-# preview. Pull requests from forks get neither: they cannot write here.
+# https://debrief.github.io/fuudee/pr-preview/pr-N/, linked from a comment.
+# Previews are kept after their pull requests close, so earlier versions can be
+# read and played with later: each page names its pull request, and
+# pr-preview/ lists them all. Screenshots of the pages a pull request changes
+# go in its description, kept on the pr-screenshots branch. Pull requests from
+# forks get neither: they cannot write here.
 on:
   pull_request:
-    types: [opened, reopened, synchronize, closed]
+    types: [opened, reopened, synchronize]
     # The playground (site/docs/play) is built from the extension and the Python packages.
     paths: ["site/**", "python/**", "ts/**", "vscode/**", "scripts/build_site.sh", "scripts/build_playground.sh", "scripts/preview_shots.mjs", "pyproject.toml", "uv.lock", ".github/workflows/preview.yml"]
 
@@ -31,20 +33,20 @@ jobs:
         with:
           fetch-depth: 0
       - uses: astral-sh/setup-uv@v6
-        if: github.event.action != 'closed'
         with:
           python-version: "3.12"
       - uses: actions/setup-node@v4
-        if: github.event.action != 'closed'
         with:
           node-version: "22"
       - name: Build the site
-        if: github.event.action != 'closed'
         env:
+          PREVIEW_PR: ${{ github.event.pull_request.number }}
+          PREVIEW_PR_TITLE: ${{ github.event.pull_request.title }}
+          PREVIEW_PR_URL: ${{ github.event.pull_request.html_url }}
+          PREVIEW_SHA: ${{ github.event.pull_request.head.sha }}
           SITE_URL: https://debrief.github.io/fuudee/pr-preview/pr-${{ github.event.pull_request.number }}/
         run: scripts/build_site.sh preview-site
       - name: Screenshot the pages this pull request changes
-        if: github.event.action != 'closed'
         run: |
           export PLAYWRIGHT_DIR="$RUNNER_TEMP/playwright"
           npm install --no-save --prefix "$PLAYWRIGHT_DIR" playwright@1.56.1
@@ -56,15 +58,27 @@ jobs:
           source-dir: preview-site
           preview-branch: gh-pages
           umbrella-dir: pr-preview
+          action: deploy
+      - name: List every preview
+        run: |
+          git fetch origin gh-pages
+          mkdir previews preview-index
+          git archive origin/gh-pages pr-preview | tar -x -C previews
+          python3 scripts/preview_index.py previews/pr-preview preview-index/index.html
       - uses: JamesIves/github-pages-deploy-action@v4
-        if: github.event.action != 'closed'
+        with:
+          branch: gh-pages
+          folder: preview-index
+          target-folder: pr-preview
+          clean: false
+          commit-message: List pull-request previews
+      - uses: JamesIves/github-pages-deploy-action@v4
         with:
           branch: pr-screenshots
           folder: shots
           clean: false
           commit-message: Screenshots for pull request ${{ github.event.pull_request.number }} at ${{ github.event.pull_request.head.sha }}
       - name: Put the preview and screenshots in the description
-        if: github.event.action != 'closed'
         uses: actions/github-script@v7
         with:
           script: |
@@ -78,7 +92,8 @@ jobs:
               "<!-- site-preview:start -->",
               "## Site preview",
               "",
-              `Live preview: ${preview} (updated for ${SHA.slice(0, 7)}; it can take a minute to appear).`,
+              `Live preview: ${preview} (updated for ${SHA.slice(0, 7)}; it can take a minute to appear). ` +
+                "It is kept after this pull request closes; [all previews](https://debrief.github.io/fuudee/pr-preview/).",
               "",
               ...shots.flatMap((s) => [
                 `<details open><summary><a href="${preview}${s.url}">${s.title}</a> (<code>${s.source}</code>)</summary>`,

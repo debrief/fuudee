@@ -24,6 +24,7 @@ import { convert, DEFAULT_SETTINGS, formatBearing, formatPosition, formatQuantit
 import type { DebriefFeatureCollection, TimeState } from "@debrief/schemas";
 import { densify, type LonLat } from "./geodesic.js";
 import { DATA_COLOURS } from "./palette.js";
+import { TimeControl } from "./timecontrol.js";
 import { host, onMessage } from "./vscode.js";
 
 type Feature = DebriefFeatureCollection["features"][number];
@@ -34,11 +35,7 @@ const WGS84 = geodesic.Geodesic.WGS84;
 const root = document.getElementById("root")!;
 root.innerHTML =
   `<div id="map" tabindex="0" aria-label="Plot map"></div><div id="status" class="status"></div><div id="empty" class="empty" hidden></div>` +
-  `<div id="timebar" class="timebar" hidden>` +
-  `<button id="back" class="step" title="Step back" aria-label="Step back">‹</button>` +
-  `<input id="time" type="range" aria-label="Current time">` +
-  `<button id="forward" class="step" title="Step forward" aria-label="Step forward">›</button>` +
-  `<span id="time-label" class="time-label" aria-live="polite"></span></div>`;
+  `<div id="timebar" hidden></div>`;
 const status = document.getElementById("status")!;
 const mapElement = document.getElementById("map")!;
 
@@ -389,15 +386,23 @@ map.on("zoomend", placeLabels);
 
 // --- Current time (shared state) ------------------------------------------------
 const timebar = document.getElementById("timebar")!;
-const slider = document.getElementById("time") as HTMLInputElement;
-const timeLabel = document.getElementById("time-label")!;
+// Tell the host at most once a frame, however fast the slider moves.
+let pending = false;
+// A page hosting the map can show the time control itself (data-timebar="host").
+const timeControl = new TimeControl(timebar, (moved) => {
+  time = moved;
+  if (pending) return;
+  pending = true;
+  requestAnimationFrame(() => {
+    pending = false;
+    drawNow();
+    host.postMessage({ kind: "time_changed", time });
+  });
+});
 const now = L.layerGroup().addTo(map);
 /** Each track with its fix times parsed once, and its marker at current time. */
 let tracks: { track: Track; times: number[]; marker?: L.Marker }[] = [];
 let time: TimeState | undefined;
-const dated = { ...settings, time_style: "date_time" as const };
-// Steps the buttons and arrow keys move by: about a hundredth of the plot's period.
-const STEPS = [1, 5, 10, 30, 60, 120, 300, 600, 900, 1800, 3600, 7200, 21600, 43200, 86400].map((s) => s * 1000);
 
 function setTracks(plotTracks: Track[]): void {
   now.clearLayers();
@@ -455,50 +460,10 @@ function drawNow(): void {
 
 function showTime(next: TimeState | undefined): void {
   time = next;
-  timebar.hidden = !time;
-  if (time) {
-    const [start, end] = [Date.parse(time.range.start), Date.parse(time.range.end)];
-    const step = STEPS.find((s) => s >= (end - start) / 100) ?? STEPS.at(-1)!;
-    slider.min = String(start);
-    slider.max = String(end);
-    slider.step = "1000"; // dragging reaches any second; buttons and arrow keys move by step
-    slider.dataset.step = String(step);
-    slider.value = String(Date.parse(time.current));
-    slider.title = `${formatTime(start, dated)} to ${formatTime(end, dated)}`;
-    timeLabel.textContent = formatTime(Date.parse(time.current), dated);
-    slider.setAttribute("aria-valuetext", timeLabel.textContent);
-  }
+  if (document.body.dataset.timebar !== "host") timeControl.show(time);
   drawNow();
 }
 
-// Tell the host at most once a frame, however fast the slider moves.
-let pending = false;
-function moveTo(ms: number): void {
-  if (!time) return;
-  const [start, end] = [Date.parse(time.range.start), Date.parse(time.range.end)];
-  ms = Math.max(start, Math.min(end, ms));
-  slider.value = String(ms);
-  time = { current: new Date(ms).toISOString(), range: time.range };
-  timeLabel.textContent = formatTime(ms, dated);
-  slider.setAttribute("aria-valuetext", timeLabel.textContent);
-  if (pending) return;
-  pending = true;
-  requestAnimationFrame(() => {
-    pending = false;
-    drawNow();
-    host.postMessage({ kind: "time_changed", time });
-  });
-}
-slider.addEventListener("input", () => moveTo(Number(slider.value)));
-slider.addEventListener("keydown", (event) => {
-  const step = Number(slider.dataset.step);
-  const by = { ArrowRight: step, ArrowUp: step, ArrowLeft: -step, ArrowDown: -step, PageUp: 10 * step, PageDown: -10 * step }[event.key];
-  if (by === undefined) return;
-  event.preventDefault();
-  moveTo(Number(slider.value) + by);
-});
-document.getElementById("back")!.addEventListener("click", () => moveTo(Number(slider.value) - Number(slider.dataset.step)));
-document.getElementById("forward")!.addEventListener("click", () => moveTo(Number(slider.value) + Number(slider.dataset.step)));
 L.DomEvent.disableClickPropagation(timebar);
 L.DomEvent.disableScrollPropagation(timebar);
 

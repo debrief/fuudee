@@ -25,6 +25,7 @@ theme:
 
 hooks:
   - hooks/page_map.py
+  - hooks/preview_banner.py
 
 plugins:
   - search
