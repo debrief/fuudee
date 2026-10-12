@@ -17,6 +17,10 @@
 
 - [ ] The post, screenshots, sample data and guides contain nothing sensitive: unclassified sample data only, no real exercise or deployment data, organisations by initial only
 
+## Screenshots
+
+<!-- Any change someone can see: screenshots of it, before and after where that helps. A change to the site also gets a live preview, and screenshots of the pages it changes are added below this description automatically. -->
+
 ## Test plan
 
 <!-- What you ran, and what CI covers. -->
