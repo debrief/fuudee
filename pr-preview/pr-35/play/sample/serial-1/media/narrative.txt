@@ -1,0 +1,35 @@
+# Narrative, Serial 1 of the Debrief sample exercise. Times are Zulu.
+# Fiction: the exercise and its platforms are invented; AIS vessel names are generated.
+15 Jun 2023 08:00:00Z  EXCON     Serial 1 started. Sea state 3, wind south-west 15 kn, visibility good.
+15 Jun 2023 08:00:00Z  RED ONE   Dived north-east of the area. Intention: transit south-west undetected.
+15 Jun 2023 08:00:00Z  BLUE ONE  On task. Searching the north-east of the area with bow sonar.
+15 Jun 2023 08:00:00Z  BLUE ONE  Steady on 295.0°T, 10.0 kn.
+15 Jun 2023 08:00:00Z  RED ONE   Steady on 225.0°T, 5.0 kn, 20 m.
+15 Jun 2023 08:29:00Z  BLUE ONE  Bow sonar contact, bearing 277.0°T. Classifying.
+15 Jun 2023 08:30:00Z  BLUE ONE  Came to 215.0°T, 10.0 kn.
+15 Jun 2023 08:36:30Z  BLUE ONE  Contact classified submarine, designated RED ONE, bearing 281.8°T.
+15 Jun 2023 08:55:00Z  BLUE ONE  Holding RED ONE. Request permission to simulate an attack.
+15 Jun 2023 08:58:00Z  EXCON     Permission granted.
+15 Jun 2023 09:00:00Z  BLUE ONE  RED ONE bearing 315.1°T, drawing right 1.6°/min.
+15 Jun 2023 09:05:00Z  BLUE ONE  Came to 345.0°T, 7.0 kn.
+15 Jun 2023 09:07:00Z  BLUE ONE  Simulated attack on RED ONE complete.
+15 Jun 2023 09:20:00Z  RED ONE   Came to 250.0°T, 4.0 kn, 25 m.
+15 Jun 2023 09:21:17Z  EXCON     Closest approach of BLUE ONE and RED ONE: 2.29 nmi.
+15 Jun 2023 09:30:00Z  BLUE ONE  RED ONE bearing 255.2°T, drawing left 3.1°/min.
+15 Jun 2023 09:35:00Z  BLUE ONE  Lost RED ONE, last bearing 241.7°T.
+15 Jun 2023 09:40:00Z  BLUE ONE  Came to 190.0°T, 10.0 kn.
+15 Jun 2023 09:42:30Z  BLUE ONE  Regained RED ONE, bearing 231.8°T.
+15 Jun 2023 10:00:00Z  EXCON     Weather: wind backing south, 18 kn.
+15 Jun 2023 10:00:00Z  BLUE ONE  RED ONE bearing 271.4°T, drawing right 2.6°/min.
+15 Jun 2023 10:15:00Z  BLUE ONE  Came to 335.0°T, 10.0 kn.
+15 Jun 2023 10:30:00Z  RED ONE   Communications window missed. Continuing to the south-west.
+15 Jun 2023 10:30:00Z  RED ONE   Came to 200.0°T, 5.0 kn, 15 m.
+15 Jun 2023 10:30:00Z  BLUE ONE  RED ONE bearing 275.3°T, drawing left 2.7°/min.
+15 Jun 2023 10:35:30Z  BLUE ONE  Lost RED ONE, last bearing 252.3°T.
+15 Jun 2023 10:45:00Z  BLUE ONE  Regained RED ONE, bearing 219.2°T.
+15 Jun 2023 10:47:00Z  BLUE ONE  Lost RED ONE, last bearing 215.1°T.
+15 Jun 2023 10:50:00Z  BLUE ONE  Came to 165.0°T, 10.0 kn.
+15 Jun 2023 11:08:00Z  BLUE ONE  Regained RED ONE, bearing 224.9°T.
+15 Jun 2023 11:16:30Z  BLUE ONE  Lost RED ONE, last bearing 235.4°T.
+15 Jun 2023 11:25:00Z  BLUE ONE  Came to 280.0°T, 10.0 kn.
+15 Jun 2023 12:00:00Z  EXCON     Serial 1 ended. Units reposition for Serial 2.
