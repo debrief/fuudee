@@ -43,8 +43,8 @@ from debrief_stac.history import (
     LOCK,
     Base,
     Changes,
-    Conflict,
     History,
+    NoPlotDetails,
     apply,
     baseline_record,
     empty_plot,
@@ -476,7 +476,10 @@ class Catalogue:
         """
         self._check_schema(allow_newer_schema)
         path = Path(path)
-        text = path.read_text(encoding="utf-8")
+        try:
+            text = path.read_text(encoding="utf-8")
+        except UnicodeDecodeError:
+            raise CatalogueError(f"{path.name} was not added: it is not a plot file.") from None
         stem = re.sub(r"[^A-Za-z0-9._-]+", "-", path.stem).strip("-.") or "plot"
         if stem == "plot":  # a plot file as a catalogue keeps it: named after its title
             stem = _slug(_title_in(text)) or stem
@@ -501,8 +504,16 @@ class Catalogue:
         try:
             self.history(item_id).adopt(text, [record], path.name)
             details = plot_feature(self.read_plot(item_id))
-            title = details.properties.title if details is not None else None
-            if title:
+            title = (details.properties.title if details is not None else None) or path.stem
+            # The same plot added twice, or a plot already here sent back with changes:
+            # two plots listed under one title could not be told apart.
+            titles = {s.title for s in self.summaries() if s.item_id != item_id}
+            if title in titles:
+                origin = f"{title} (from {path.name}"
+                title, n = f"{origin})", 2
+                while title in titles:
+                    title, n = f"{origin}, {n})", n + 1
+            if title != path.stem:
                 item = self.read_item(item_id)
                 item.properties.title = title
                 self._write_item(item)
@@ -721,12 +732,9 @@ class Catalogue:
         """
         self._check_schema(allow_newer_schema)
         history = self.history(item_id)
-        if view is not None and plot_feature(history.plot()) is None:
-            if expected_hash != view_hash(None):
-                raise Conflict(
-                    "The plot's view was changed elsewhere. Debrief is showing the latest.",
-                    mergeable=False,
-                )
+        try:
+            return history.write_view(view, expected_hash)
+        except NoPlotDetails:  # only once the view is known not to have changed meanwhile
             self._add_plot_feature(item_id, agent)
         return history.write_view(view, expected_hash)
 
@@ -893,7 +901,7 @@ def _title_in(text: str) -> str | None:
     """The title in a plot file's whole-plot feature, if it has one."""
     try:
         document = json.loads(text)
-    except ValueError:
+    except (ValueError, RecursionError):
         return None
     features = document.get("features") if isinstance(document, dict) else None
     for feature in features if isinstance(features, list) else []:

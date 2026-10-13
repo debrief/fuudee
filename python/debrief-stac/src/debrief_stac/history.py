@@ -27,7 +27,12 @@ content hashes. A history whose chain is broken is never trusted: the plot is
 shown as its file holds it and nothing is written to it. Content that does
 not match an intact history (an edit made outside Debrief) is never trusted
 silently either: a writer keeps the file aside and rebuilds the plot from its
-history, and says so; a reader shows the rebuilt plot and says so.
+history, and says so; a reader shows the rebuilt plot and says so. The
+checksums are not a signature: anyone can work them out again over a changed
+step. So a plot rebuilt by replay (to undo, to repair, on adding a received
+file) must be the plot its step recorded, and pass every rule, or nothing is
+written: a forged history can make a plot read-only, never make Debrief write
+a broken one.
 
 Nobody locks a plot while an analyst has it open (SUB-29). A writer says
 which state it read (its Base); if the plot has moved on since, the change
@@ -52,6 +57,7 @@ from __future__ import annotations
 import copy
 import hashlib
 import json
+import math
 import re
 import time as clock
 from collections import OrderedDict
@@ -120,10 +126,15 @@ INTERRUPTED = (
 MISMATCH = (
     "This plot's history does not match its content: it may have been edited outside Debrief."
 )
+UNREBUILDABLE = "replaying its history does not give the plot it records at step {seq}"
 
 
 class HistoryError(Exception):
     """The history cannot do what was asked. The message is for the analyst."""
+
+
+class NoPlotDetails(HistoryError):
+    """The plot has no whole-plot feature, so no island: nowhere to keep a view."""
 
 
 class Conflict(HistoryError):
@@ -196,13 +207,41 @@ class Step:
     seq: int
     records: list[models.ProvRecord]
     status: str  # "applied", "undone" (can be redone) or "abandoned"
+    after: int = 0  # the step it was made after: what undoing it goes back to
+    # It changes nothing but the plot's records, as the step recording that a plot file
+    # was added does: undo and redo take it with the change before it.
+    records_only: bool = False
+
+
+# A UTF-16 surrogate written as an escape: legal JSON, but alone it is not text, and
+# could not be hashed or written. Debrief never writes one.
+_SURROGATE_ESCAPE = re.compile(r"\\u[dD][89a-fA-F]")
+
+
+def _not_json(name: str) -> None:
+    raise ValueError(f"{name} is not JSON")  # NaN and Infinity, which Python reads
+
+
+def _finite(text: str) -> float:
+    value = float(text)
+    if not math.isfinite(value):
+        raise ValueError(f"{text} is too large a number")
+    return value
 
 
 def _parsed(text: str) -> object | None:
+    """The JSON in a plot file, or None if it is not JSON Debrief can read and write
+    again: badly formed, nested too deeply to read, holding text that is not Unicode,
+    or a number that is not finite."""
     try:
-        return json.loads(text)
-    except ValueError:
+        # A number too large for a float, such as 1e999, is legal JSON but read as
+        # infinity, which JSON cannot hold: the file could not be written again.
+        document = json.loads(text, parse_constant=_not_json, parse_float=_finite)
+        if _SURROGATE_ESCAPE.search(text):
+            json.dumps(document, ensure_ascii=False).encode("utf-8")  # a lone one fails
+    except (ValueError, RecursionError):  # UnicodeEncodeError is a ValueError
         return None
+    return document
 
 
 def _digest(text: str) -> bytes:
@@ -395,6 +434,10 @@ class _Step:
             self._model = models.HistoryStep.model_validate(self.as_json("applied"))
         return self._model
 
+    def records_only(self) -> bool:
+        """Whether it changes nothing on the plot, only its records."""
+        return not any(self.raw.get(name) for name in _CHANGES)
+
     def records(self) -> list[models.ProvRecord]:
         if self._model is not None:
             return list(self._model.records)
@@ -410,9 +453,13 @@ class _Step:
         times the size of the plot; one line a step keeps it readable and diffable."""
         if state not in self._texts:
             self._texts[state] = json.dumps(
-                self.as_json(state), ensure_ascii=False, separators=(",", ":")
+                self.as_json(state), ensure_ascii=False, separators=(",", ":"), allow_nan=False
             )
         return self._texts[state]
+
+
+# The members of a step that change the plot's features or named sets.
+_CHANGES = ("added", "modified", "deleted_ids", "named_sets", "deleted_named_set_ids", "order")
 
 
 def _stripped(raw: dict[str, Any]) -> dict[str, Any]:
@@ -435,7 +482,10 @@ class _File:
     has_history: bool = True
     problem: str | None = None  # why the history cannot be trusted, for the analyst
     digest: bytes = b""
-    stat: tuple[int, int] | None = None
+    stat: tuple[int, ...] | None = None
+    # The content as a model, when this process made it: kept with the very text it
+    # was dumped to, so a plot read for the next change is not built again.
+    model: tuple[str, DebriefFeatureCollection] | None = field(default=None, repr=False)
 
     @property
     def latest(self) -> int:
@@ -566,18 +616,20 @@ class History:
             return self.store.read_text(self._plot_path)
         except FileNotFoundError:
             return None
+        except UnicodeDecodeError:
+            raise HistoryError("The plot file cannot be read: it is not a plot.") from None
 
     def _read(self, *, for_reading: bool = False) -> _File | None:
         """The plot file as it is now, checked; None if there is none.
 
-        for_reading: only to show the plot, never to change it. A file whose size
-        and modification time are as this process last saw it is then taken as
+        for_reading: only to show the plot, never to change it. A file whose size,
+        modification time and file number are as this process last saw it is then taken as
         unchanged, without reading it again (a large plot is tens of megabytes).
         A writer always reads it, under the lock: a filesystem that keeps
         modification times coarsely could otherwise hide another's change.
         """
         try:
-            stat = self.store.size_and_mtime(self._plot_path)
+            stat = self.store.version(self._plot_path)
         except FileNotFoundError:
             stat = None
         cached = _FILES.get(self._key)
@@ -621,7 +673,7 @@ class History:
         """
         if before is not None and before.stat is not None:
             try:
-                now = self.store.size_and_mtime(self._plot_path)
+                now = self.store.version(self._plot_path)
             except FileNotFoundError:
                 now = None
             if now != before.stat:
@@ -637,7 +689,7 @@ class History:
             self.store.write_text_atomic(self._plot_path, text)
         file.digest = _digest(text)
         try:
-            file.stat = self.store.size_and_mtime(self._plot_path)
+            file.stat = self.store.version(self._plot_path)
         except OSError:
             file.stat = None
         _keep(self._key, file)
@@ -652,6 +704,7 @@ class History:
     ) -> None:
         """Write content (text, already dumped and validated) with the island in file."""
         file.content = text
+        file.model = (text, plot)
         self._write(file, plot, _with_island_fast(text, plot, _valid_view(file.view)), before)
 
     # --- Making the history whole ---------------------------------------------
@@ -666,12 +719,13 @@ class History:
             if file.problem is not None:
                 return file, [DAMAGED.format(why=file.problem)]
             if not file.matches():
-                rebuilt = _File(
-                    dump_document(DocumentKind.PLOT, self._replay(file, file.current)),
-                    file.view,
-                    file.current,
-                    file.steps,
-                )
+                try:
+                    _, text = self._rebuilt(file, file.current)
+                except HistoryError as error:
+                    damaged = _File(file.content, file.view, file.current, file.steps)
+                    damaged.problem = str(error)
+                    return damaged, [DAMAGED.format(why=damaged.problem)]
+                rebuilt = _File(text, file.view, file.current, file.steps)
                 return rebuilt, [
                     f"{MISMATCH} It is shown as its history records it, and left as it is."
                 ]
@@ -703,9 +757,11 @@ class History:
                 return [DAMAGED.format(why=file.problem)]
             notes = []
             if not file.matches():
+                try:
+                    plot, text = self._rebuilt(file, file.current)
+                except HistoryError as error:  # nothing to rebuild it from: left as it is
+                    return [DAMAGED.format(why=error)]
                 kept = self._keep_aside()
-                plot = self._replay(file, file.current)
-                text = dump_document(DocumentKind.PLOT, plot)
                 rebuilt = _File(text, file.view, file.current, file.steps)
                 self._write_content(rebuilt, plot, text, None)
                 notes.append(
@@ -801,6 +857,8 @@ class History:
             )
         if file.problem is not None:
             raise HistoryError(DAMAGED.format(why=file.problem))
+        if not file.matches():  # _repair could not rebuild it
+            raise HistoryError(DAMAGED.format(why=UNREBUILDABLE.format(seq=file.current)))
         return file
 
     # --- Reading ----------------------------------------------------------------
@@ -854,7 +912,8 @@ class History:
         file = self._trusted()
         states = _states(file.steps, file.current)
         return [
-            Step(s.seq, s.records(), state) for s, state in zip(file.steps, states, strict=True)
+            Step(s.seq, s.records(), state, s.after, s.records_only())
+            for s, state in zip(file.steps, states, strict=True)
         ]
 
     def replay(self, upto: int) -> DebriefFeatureCollection:
@@ -870,7 +929,25 @@ class History:
             plot = apply(plot, step.records, Changes.of(step))
         return plot
 
+    @classmethod
+    def _rebuilt(cls, file: _File, upto: int) -> tuple[DebriefFeatureCollection, str]:
+        """The plot as of a step, replayed, and its text: refused unless it is the plot
+        that step recorded. Only a history put together outside Debrief fails this: its
+        checksums can be worked out again, so they cannot vouch for it."""
+        try:
+            plot = cls._replay(file, upto)
+            text = dump_document(DocumentKind.PLOT, plot)
+        except (HistoryError, DocumentValidationError):
+            raise HistoryError(UNREBUILDABLE.format(seq=upto)) from None
+        expected = file.steps[upto - 1].result_hash if upto else _empty_hash()
+        if text_hash(text) != expected:
+            raise HistoryError(UNREBUILDABLE.format(seq=upto))
+        return plot, text
+
     def _content(self, file: _File) -> DebriefFeatureCollection:
+        """The content as a model, to apply a change to. Never changed in place."""
+        if file.model is not None and file.model[0] is file.content:
+            return file.model[1]
         return load_document(DocumentKind.PLOT, file.content)
 
     # --- Writing ----------------------------------------------------------------
@@ -911,8 +988,9 @@ class History:
             result_hash=text_hash(text),
             step_hash=GENESIS_HASH,
         )
-        # Its features are the new content's, checked as it was dumped just now.
-        raw = _stripped(dump_history_step(model, features_checked=True))
+        # Its features are the new content's, checked as it was dumped just now, so only
+        # the rest of the step is checked against JSON Schema.
+        raw = _stripped(dump_history_step(model))
         previous = file.steps[-1].hash if file.steps else GENESIS_HASH
         hash_ = step_hash(raw, previous)
         step = _Step(raw, hash_, model.model_copy(update={"step_hash": hash_}))
@@ -1000,23 +1078,35 @@ class History:
         self._move(lambda file: seq, base, allow_newer_schema)
 
     def undo(self, base: Base | None = None, *, allow_newer_schema: bool = False) -> int:
-        """Go back one step. Returns the step now current."""
+        """Go back one change. Returns the step now current.
+
+        A step that changes only the plot's records, such as the one recording that a
+        plot file was added, shows nothing on the plot: it is undone together with the
+        change before it, so Undo never seems to do nothing.
+        """
 
         def previous(file: _File) -> int:
-            if file.current == 0 or file.steps[file.current - 1].after == 0:
+            seq = file.current
+            while seq and file.steps[seq - 1].records_only() and file.steps[seq - 1].after:
+                seq = file.steps[seq - 1].after
+            if seq == 0 or file.steps[seq - 1].after == 0:
                 raise HistoryError("There is nothing to undo: the plot is as it was imported.")
-            return file.steps[file.current - 1].after
+            return file.steps[seq - 1].after
 
         return self._move(previous, base, allow_newer_schema)
 
     def redo(self, base: Base | None = None, *, allow_newer_schema: bool = False) -> int:
-        """Go forward one undone step. Nothing is redoable once a new change is made."""
+        """Go forward one undone change, and any steps after it that change only the
+        plot's records. Nothing is redoable once a new change is made."""
 
         def following(file: _File) -> int:
             if file.current == file.latest:
                 raise HistoryError("There is nothing to redo.")
             live = file.chain(file.latest)
-            return live[live.index(file.current) + 1] if file.current else live[0]
+            at = live.index(file.current) + 1 if file.current else 0
+            while at + 1 < len(live) and file.steps[live[at + 1] - 1].records_only():
+                at += 1
+            return live[at]
 
         return self._move(following, base, allow_newer_schema)
 
@@ -1039,11 +1129,11 @@ class History:
             seq = choose(file)
             if seq < 1 or seq > file.latest or seq not in file.chain(file.latest):
                 raise HistoryError(f"Step {seq} cannot be returned to.")
-            plot = self._replay(file, seq)
-            # The text the step recorded: checked when it was made, so not checked again.
-            text = dump_document(
-                DocumentKind.PLOT, plot, expected_hash=file.steps[seq - 1].result_hash
-            )
+            try:
+                # Its features were all checked in the steps that made them, so this is quick.
+                plot, text = self._rebuilt(file, seq)
+            except HistoryError as error:
+                raise HistoryError(f"Step {seq} cannot be returned to: {error}.") from None
             moved = _File(text, file.view, seq, file.steps)
             self._write_content(moved, plot, text, file)
             return seq
@@ -1073,7 +1163,7 @@ class History:
                 return expected_hash
             document = json.loads(file.content)
             if not set_view_in(document, view):
-                raise HistoryError("This plot has nowhere to keep its time window.")
+                raise NoPlotDetails("This plot has nowhere to keep its time window.")
             whole = dump_json(document)
             moved = _File(file.content, view, file.current, file.steps)
             self._write(moved, None, whole, file)
@@ -1089,12 +1179,7 @@ class History:
             raise HistoryError(f"Step {upto} is not in the plot's history.")
         steps = file.steps[:upto]
         start = _File("", None, upto, steps)
-        plot = self._replay(start, upto)
-        text = dump_document(
-            DocumentKind.PLOT,
-            plot,
-            expected_hash=steps[upto - 1].result_hash if upto else None,
-        )
+        plot, text = self._rebuilt(start, upto)
         start.content = text
         with other._locked():
             other._write_content(start, plot, text, None)
@@ -1124,6 +1209,12 @@ class History:
             received.steps, received.current = steps, current
             if not received.matches():
                 raise HistoryError(f"{name} was not added. {MISMATCH}")
+            try:  # its checksums can be worked out again by anyone, so replay it too
+                self._rebuilt(received, current)
+            except HistoryError as error:
+                raise HistoryError(
+                    f"{name} was not added: its history has been changed outside Debrief ({error})."
+                ) from None
         else:
             received, notes = self._baseline(received)
             plot = load_document(DocumentKind.PLOT, received.content)

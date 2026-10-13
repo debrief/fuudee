@@ -9,10 +9,25 @@ import type { HistoryStep } from "../service.js";
 export type Row = { kind: "step"; step: HistoryStep; current: boolean; nextToUndo: boolean };
 
 export function historyRows(steps: HistoryStep[], current: number): Row[] {
-  const currentIndex = steps.findIndex((s) => s.seq === current);
-  const undoable = currentIndex > 0; // the import can't be undone
-  return [...steps].reverse().map((step) => {
-    const isCurrent = step.seq === current;
-    return { kind: "step", step, current: isCurrent, nextToUndo: isCurrent && undoable };
-  });
+  const next = nextToUndo(steps, current);
+  return [...steps].reverse().map((step) => ({ kind: "step", step, current: step.seq === current, nextToUndo: next.has(step.seq) }));
+}
+
+/**
+ * The steps Ctrl+Z takes back next: the current step and, when that step changes
+ * only the plot's records (a received plot file's arrival), the change before it
+ * too, as the service does, so Undo never seems to do nothing.
+ */
+function nextToUndo(steps: HistoryStep[], current: number): Set<number> {
+  const bySeq = new Map(steps.map((s) => [s.seq, s]));
+  const taken = new Set<number>();
+  let step = bySeq.get(current);
+  while (step) {
+    taken.add(step.seq);
+    if (!step.records_only || !step.after) break;
+    step = bySeq.get(step.after);
+  }
+  // The first step (the import) can't be undone, nor a step undone only with it.
+  const undoable = step !== undefined && (step.after ?? steps.indexOf(step)) > 0;
+  return undoable ? taken : new Set();
 }

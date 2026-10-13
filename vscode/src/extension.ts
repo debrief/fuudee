@@ -566,17 +566,25 @@ export function activate(context: vscode.ExtensionContext): DebriefApi {
       watchFile(file, { interval: 1000 }, (now) => {
         // The plot file as Debrief last wrote or read it: nothing to check. Checking
         // its view means opening the plot through the service, a second or so for a big one.
-        if (now.mtimeMs === plotFileSeen) return;
-        plotFileSeen = now.mtimeMs;
+        if (fileVersion(now) === plotFileSeen) return;
+        plotFileSeen = fileVersion(now);
         noticeChange(file);
       });
     }
   }
-  /** When the plot file was last changed as Debrief last wrote or read it. */
-  let plotFileSeen: number | undefined;
+  /**
+   * Which version of the plot file it is. Its modification time alone can miss a save
+   * made in the same second where times are kept coarsely (some network shares, FAT);
+   * every save replaces the file with a new one, so its inode tells them apart too.
+   */
+  function fileVersion(stats: { mtimeMs: number; size: number; ino: number }): string {
+    return `${stats.mtimeMs}/${stats.size}/${stats.ino}`;
+  }
+  /** The plot file as Debrief last wrote or read it. */
+  let plotFileSeen: string | undefined;
   function seePlotFile(): void {
     try {
-      plotFileSeen = watched[0] ? statSync(watched[0]).mtimeMs : undefined;
+      plotFileSeen = watched[0] ? fileVersion(statSync(watched[0])) : undefined;
     } catch {
       plotFileSeen = undefined;
     }

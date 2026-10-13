@@ -436,4 +436,20 @@ describe("the History view (SUB-21, SUB-22)", () => {
     expect(describeStep(rows[0].step, () => undefined).label).toBe("Colour of A set to green");
     expect(historyRows(steps, 1).every((r) => !r.nextToUndo)).toBe(true); // the import can't be undone
   });
+
+  it("marks the sender's last change with the step recording a received plot file's arrival", () => {
+    const received = [
+      { ...steps[0], after: 0 },
+      { ...steps[1], after: 1 },
+      { seq: 3, status: "applied", kind: "import", tool: null, agent: "b", at: "", records: 1, after: 2, records_only: true },
+    ] as HistoryStep[];
+    expect(historyRows(received, 3).map((r) => [r.step.seq, r.nextToUndo])).toEqual([
+      [3, true],
+      [2, true],
+      [1, false],
+    ]);
+    // Straight after the import, the arrival goes with the import: nothing to undo.
+    const plain = [{ ...steps[0], after: 0 }, { ...received[2], seq: 2, after: 1 }] as HistoryStep[];
+    expect(historyRows(plain, 2).every((r) => !r.nextToUndo)).toBe(true);
+  });
 });

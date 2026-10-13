@@ -206,6 +206,43 @@ def test_a_failure_before_the_rename_leaves_the_old_file_whole(
     assert names(catalogue) == ["a", "b"]
 
 
+@pytest.mark.skipif(os.name != "posix", reason="POSIX permissions")
+def test_a_saved_plot_file_can_be_read_by_a_colleague_sharing_the_folder(
+    catalogue: Catalogue,
+) -> None:
+    """The temporary file a save writes is private to its owner; the plot file it
+    becomes must not be, or a colleague sharing the folder could not open the plot."""
+    umask = os.umask(0)
+    os.umask(umask)
+    assert plot_file(catalogue).stat().st_mode & 0o777 == 0o666 & ~umask
+    plot_file(catalogue).chmod(0o640)  # an analyst's own choice is kept
+    catalogue.commit("p", [record(2)], Changes(added=[note("b")]))
+    assert plot_file(catalogue).stat().st_mode & 0o777 == 0o640
+
+
+def test_a_reader_notices_a_save_made_within_one_tick_of_a_coarse_clock(
+    catalogue: Catalogue,
+) -> None:
+    """Some network shares and FAT keep modification times to the second or two: a save
+    by another process, of the same size, can leave the time as it was. Every save
+    replaces the file, so the reader still sees a new file."""
+    catalogue.commit("p", [record(2)], Changes(added=[details()]))
+    _, current = catalogue.read_view("p")
+    catalogue.write_view("p", WINDOW, current)
+    assert (
+        catalogue.read_plot("p").features[1].properties.view.time_window.end.endswith("45:00.000Z")
+    )
+    path = plot_file(catalogue)
+    before = path.stat()
+    other = path.with_name(".another-process")
+    other.write_text(path.read_text().replace("09:45:00.000Z", "09:55:00.000Z"))
+    os.replace(other, path)  # as another process saves: a new file, renamed into place
+    os.utime(path, ns=(before.st_atime_ns, before.st_mtime_ns))
+    assert path.stat().st_size == before.st_size
+    view = catalogue.read_plot("p").features[1].properties.view
+    assert view.time_window.end.endswith("55:00.000Z")
+
+
 def test_a_temporary_file_left_by_a_killed_process_is_cleared(catalogue: Catalogue) -> None:
     folder = plot_file(catalogue).parent
     before = plot_file(catalogue).read_bytes()
@@ -550,6 +587,67 @@ def test_a_state_marked_wrongly_is_noticed(three: Catalogue) -> None:
     refused_everywhere(three, "step 3 is marked replaced by a later change but is in the plot")
 
 
+def rehash(raw: dict) -> None:
+    """What someone forging a history does: work every checksum out again."""
+    previous = GENESIS_HASH
+    for step in raw["history"]["steps"]:
+        step["step_hash"] = step_hash(step, previous)
+        previous = step["step_hash"]
+    raw["history"]["head_hash"] = previous
+
+
+def test_a_history_that_does_not_rebuild_its_content_is_left_as_it_is(three: Catalogue) -> None:
+    """Checksums worked out again over a changed step, and the content edited too: the
+    content does not match, and replaying cannot rebuild it. Left as it is, said so,
+    and never kept aside again and again, once for every time it is opened."""
+
+    def forge(raw):
+        raw["history"]["steps"][2]["added"][0]["properties"]["name"] = "Forged"
+        rehash(raw)
+        raw["features"][2]["properties"]["name"] = "Edited"
+
+    tamper(three, forge)
+    for _ in range(3):
+        forget_cache()
+        refused_everywhere(three, "replaying its history does not give the plot it records")
+    assert not list(plot_file(three).parent.glob("plot.geojson.kept-*"))
+
+
+def test_a_forged_history_cannot_make_undo_write_a_plot_that_breaks_the_rules(
+    catalogue: Catalogue,
+) -> None:
+    """Each step valid on its own and every checksum worked out again, but going back to
+    step 2 would give a named set naming a feature the plot does not have."""
+    catalogue.commit("p", [record(2)], Changes(added=[note("x")]))
+    catalogue.commit("p", [record(3)], Changes(deleted_ids=["x"]))
+    raw = on_disk(catalogue)
+    steps = raw["history"]["steps"]
+    del steps[1]["added"], steps[2]["deleted_ids"]
+    steps[1]["named_sets"] = [{"id": "s", "name": "Ghosts", "feature_ids": ["ghost"]}]
+    steps[2]["deleted_named_set_ids"] = ["s"]
+    plot = empty_plot()
+    for step in steps:  # each result_hash made to match what the forged steps give
+        model = models.HistoryStep.model_validate(step)
+        plot = apply(plot, model.records, Changes.of(model))
+        step["result_hash"] = text_hash(
+            json.dumps(
+                {**plot.model_dump(mode="json", exclude_none=True), "features": raw["features"]},
+                indent=2,
+                ensure_ascii=False,
+            )
+            + "\n"
+        )
+    raw["history"]["current"] = 3
+    rehash(raw)
+    plot_file(catalogue).write_text(json.dumps(raw, indent=2) + "\n")
+    forget_cache()
+    assert catalogue.history("p").open() == []  # as it stands, it is a sound plot
+    before = plot_file(catalogue).read_bytes()
+    with pytest.raises(HistoryError, match="Step 2 cannot be returned to: replaying its history"):
+        catalogue.history("p").goto(2)
+    assert plot_file(catalogue).read_bytes() == before
+
+
 # --- Save as new, and plots passed to a colleague ------------------------------------
 
 
@@ -632,10 +730,16 @@ def test_a_received_plot_file_brings_its_whole_history(
     assert colleague.read_view(item)[0].time_window.start == WINDOW["time_window"]["start"]
     # Undo, redo and going back to a step work as they did for the sender.
     history = colleague.history(item)
-    history.undo()  # the "added" step
-    history.undo()  # the sender's last note
+    # The "added" step shows nothing on the plot, so one undo takes it with the sender's
+    # last change, and one redo brings both back: Undo never seems to do nothing.
+    assert [s.records_only for s in steps] == [False, False, False, False, True]
+    assert history.undo() == 2
     assert [f.id for f in colleague.read_plot(item).features] == ["a", "plot"]
-    history.redo()
+    assert statuses(colleague, item)[-2:] == ["undone", "undone"]
+    assert history.redo() == 5
+    assert [f.id for f in colleague.read_plot(item).features] == ["a", "plot", "c"]
+    history.goto(4)  # the History view still reaches every step, the sender's last one too
+    assert [s.status for s in history.steps()][-1] == "undone"
     history.goto(1)
     assert [f.id for f in colleague.read_plot(item).features] == ["a"]
     # A file named plot.geojson, as a catalogue keeps it, is named after the plot's title.
@@ -683,6 +787,78 @@ def test_a_received_plot_file_without_history_gets_a_first_step(tmp_path: Path) 
     colleague = Catalogue.create(tmp_path / "colleague", "theirs", "Colleague's", "")
     item = colleague.add_plot_file(plain, AGENT)
     assert [len(s.records) for s in colleague.history(item).steps()] == [1, 1]
+    # Its first step can't be undone, and the step recording its arrival goes with it.
+    with pytest.raises(HistoryError, match="nothing to undo"):
+        colleague.history(item).undo()
+
+
+def test_a_plot_added_twice_is_listed_under_two_titles(
+    catalogue: Catalogue, tmp_path: Path
+) -> None:
+    received = sent(catalogue, tmp_path)
+    colleague = Catalogue.create(tmp_path / "colleague", "theirs", "Colleague's", "")
+    first = colleague.add_plot_file(received, AGENT)
+    second = colleague.add_plot_file(received, AGENT)
+    third = colleague.add_plot_file(received, AGENT)
+    assert [colleague.read_item(i).properties.title for i in (first, second, third)] == [
+        "Serial 1",
+        "Serial 1 (from serial-1.geojson)",
+        "Serial 1 (from serial-1.geojson, 2)",
+    ]
+    # The plot's own title is its content, and is never changed.
+    assert {plot_feature_title(colleague, i) for i in (first, second, third)} == {"Serial 1"}
+
+
+def plot_feature_title(catalogue: Catalogue, item: str) -> str:
+    return next(f for f in catalogue.read_plot(item).features if f.id == "plot").properties.title
+
+
+def test_a_received_file_whose_history_does_not_rebuild_it_is_refused(
+    catalogue: Catalogue, tmp_path: Path
+) -> None:
+    """Its checksums worked out again over a changed step: they match, and the content
+    matches the current step's result_hash, but replaying the history gives another plot."""
+    received = sent(catalogue, tmp_path)
+    raw = json.loads(received.read_text())
+    raw["history"]["steps"][3]["added"][0]["properties"]["name"] = "Forged"
+    rehash(raw)
+    received.write_text(json.dumps(raw))
+    colleague = Catalogue.create(tmp_path / "colleague", "theirs", "Colleague's", "")
+    with pytest.raises(HistoryError, match="was not added: its history has been changed"):
+        colleague.add_plot_file(received, AGENT)
+    assert colleague.item_ids() == []
+
+
+@pytest.mark.parametrize(
+    "text",
+    [
+        "[" * 100_000 + "]" * 100_000,  # nested too deeply to read
+        '{"type": "FeatureCollection", "schema_version": "0.0.11", "features": [], '
+        '"provenance": [], "x": "\\ud800"}',  # a lone surrogate: not text
+        '{"type": "FeatureCollection", "schema_version": "0.0.11", "features": [], '
+        '"provenance": [], "x": 1e999}',  # read as infinity, which can't be written as JSON
+        '{"type": "FeatureCollection", "schema_version": "0.0.11", "features": [], '
+        '"provenance": [], "x": NaN}',  # not JSON, though Python reads it
+    ],
+    ids=["deep", "surrogate", "huge-number", "nan"],
+)
+def test_a_received_file_that_is_not_json_debrief_can_read_is_refused_plainly(
+    tmp_path: Path, text: str
+) -> None:
+    received = tmp_path / "odd.geojson"
+    received.write_text(text)
+    colleague = Catalogue.create(tmp_path / "colleague", "theirs", "Colleague's", "")
+    with pytest.raises(HistoryError, match="is not a plot file"):
+        colleague.add_plot_file(received, AGENT)
+    assert colleague.item_ids() == []
+
+
+def test_a_plot_file_holding_a_lone_surrogate_is_refused_plainly(catalogue: Catalogue) -> None:
+    text = plot_file(catalogue).read_text().replace('"op-1"', '"op-\\ud800"', 1)
+    plot_file(catalogue).write_text(text)
+    forget_cache()
+    with pytest.raises(HistoryError, match="The plot file cannot be read: it is not a plot."):
+        catalogue.history("p").open()
 
 
 # --- Moving a history folder into the plot file -------------------------------------

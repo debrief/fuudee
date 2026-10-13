@@ -31,9 +31,13 @@ The analyst sends serial 1 as a single file. The colleague uses **Add a plot fil
 
 The History view lists the sender's steps exactly as they were: the import, two tool runs (the second undone, then replaced), a note added by a colleague, the colour change, the hidden track, and **Show all**. The newest step, **Added from a plot file**, records the arrival: its note names the file (*serial-1-from-ian.geojson*) and the catalogue, and it records who added it. No earlier step is changed.
 
-![After two undos: the step recording the arrival, then the sender's "Show all", are undone, so the track the sender had hidden is hidden again](images/phase-3/undid-a-senders-step.png)
+![After one undo: the sender's "Show all" is undone, with the step recording the arrival, so the track the sender had hidden is hidden again](images/phase-3/undid-a-senders-step.png)
 
-The colleague then presses `Ctrl+Z` twice. The first undo takes back the arrival step, which changes nothing on the map. The second takes back the sender's **Show all**, so the cargo track the sender had hidden is hidden again, and the map says *1 hidden*. Redo brings both back. To go further, **Go back to this step** on any step works as it did for the sender.
+The colleague then presses `Ctrl+Z`. The step recording the arrival changes nothing on the map, so an undo that took back only that would seem to do nothing. Instead, `Ctrl+Z` takes it back together with the change before it: the sender's **Show all**, so the cargo track the sender had hidden is hidden again, and the map says *1 hidden*. The History view marks both as *next to undo* beforehand. Redo brings both back. To go further, **Go back to this step** on any step works as it did for the sender.
+
+One thing doesn't come across: a step the sender had undone and not redone. It comes with the history, but the step recording the arrival is made after the plot as the sender left it, so the sender's undone step is now replaced by a later change, as it would be if the sender had made a new change. It can be read, but not redone.
+
+If the plot is already in the catalogue (the same file added twice, or a plot sent back with changes), the new one is listed as *Serial 1 (from serial-1-from-ian.geojson)*, so the two can be told apart. The plot's own title is unchanged.
 
 You can try this in the playground: under **Import your own**, choose a Debrief plot file (`.geojson`). It's added in your browser and never uploaded.
 
@@ -52,7 +56,7 @@ When something doesn't match, Debrief says so in plain words, and never carries 
 - *"This plot's history has been changed outside Debrief: step 2 of its history is not as Debrief recorded it."* The plot is shown as its file holds it, but undo, redo and changes are refused. A file like this is refused by **Add a plot file…** too.
 - *"This plot's history does not match its content: it may have been edited outside Debrief."* The plot is rebuilt from its history, and the file as found is kept beside it.
 
-The checksums catch mistakes and edits made without Debrief. They are not a signature: someone who sets out to forge a history can work out new checksums. Protecting a plot from a determined forger is a job for the folder's permissions and the network it sits on (SEC-01).
+The checksums catch mistakes and edits made without Debrief. They are not a signature: someone who sets out to forge a history can work out new checksums. Protecting a plot from a determined forger is a job for the folder's permissions and the network it sits on (SEC-01). What Debrief does make sure of is that a history it can't rebuild is never trusted: **Add a plot file…** replays the history and refuses a file whose steps don't give the plot it holds, and going back to a step replays to it and refuses if that doesn't give the plot the step recorded, so a forged history can't make Debrief write a broken plot.
 
 ## Crash safety, simpler
 
@@ -77,7 +81,19 @@ One file holding everything is bigger, and every change rewrites it. We measured
 | Read the plot again | 0.5 s | 0.4 s |
 | Open in a new session, with its history listed | 14 to 15 s | 14 to 16 s |
 
-On the sample exercise's serial 1 (0.4 MB) every one of these takes a quarter of a second or less, before and after. Most of the time on the large plot goes on checking the plot's content against the data format, as it did before; opening it in a new session also checks every step once. Undo is quicker now because the content a step recorded is recognised by its checksum, so it isn't checked again.
+On the sample exercise's serial 1 (0.4 MB) every one of these takes a quarter of a second or less, before and after. Most of the time on the large plot went on checking the plot's content against the data format, every feature of it, for every change.
+
+So now each feature is checked once. A feature's check depends on that feature alone, so one that has passed (in the plot as read, or in the step that added it) isn't checked again; a change checks the features it adds or changes, and the rules that span the whole plot (no two features with one id, every named set naming features the plot has) still run every time. Measured again on the same synthetic plot (18.6 MB with its history, on another machine), before and after:
+
+| | Every feature, every time | Each feature once |
+| --- | --- | --- |
+| Make a change | 4.5 s | 1.0 to 1.5 s |
+| Undo or redo | 0.6 s | 0.7 s |
+| Change the time window | 1.1 s | 0.6 s |
+| Open in a new session, with its history listed | 9.4 s | 7.2 s |
+| Add the plot file to another catalogue | 14.5 s | 8.6 s |
+
+Opening in a new session still checks every step once, every feature in it included: a plot file read from disk, or received from someone, is never taken on trust. Undo and redo rebuild the plot by replaying its steps, whose features were all checked when the steps were read, and then check that the plot they give is the one the step recorded.
 
 The history is written one step a line, without the indentation the content has, which keeps the file far smaller than indenting it would. Checks are only done once: steps this process has already checked are not checked again, and when another process adds a step, only that step is.
 

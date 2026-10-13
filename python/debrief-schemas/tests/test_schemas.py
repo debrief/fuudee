@@ -156,3 +156,104 @@ def test_text_that_passed_is_not_checked_again(monkeypatch) -> None:
     monkeypatch.setattr(documents, "SCHEMA_VERSION", "9.9.9")
     with pytest.raises(SchemaVersionError):
         load_document(DocumentKind.PLOT, text)
+
+
+# --- Features checked one at a time, and only once ------------------------------------
+
+
+@pytest.mark.parametrize("case", _cases("invalid/schema"), ids=_id)
+def test_schema_problems_are_those_of_checking_the_document_whole(
+    case: tuple[DocumentKind, Path],
+) -> None:
+    """Feature lists are checked one feature at a time: the problems found, and their
+    order, are those of checking the whole document at once."""
+    from debrief_schemas import documents
+
+    kind, path = case
+    document = json.loads(path.read_text())
+    whole = documents._class_validator(_MODELS[kind].__name__)
+    expected = [
+        f"{'/'.join(map(str, e.path)) or '<root>'}: {e.message}"
+        for e in sorted(whole.iter_errors(document), key=lambda e: list(e.path))
+    ]
+    try:
+        load_document(kind, document)
+    except SchemaVersionError:
+        return
+    except DocumentValidationError as error:
+        assert error.problems == expected
+    else:
+        pytest.fail("accepted")
+
+
+def test_a_feature_that_passed_is_not_checked_again(monkeypatch) -> None:
+    """A plot of tens of megabytes changed by one note has only that note checked
+    against JSON Schema; a feature that fails is never remembered."""
+    from debrief_schemas import documents
+
+    checked: list[str] = []
+    real = documents._item_validator
+
+    class Counting:
+        def __init__(self, inner):
+            self.inner = inner
+
+        def iter_errors(self, item):
+            checked.append(item.get("id"))
+            return self.inner.iter_errors(item)
+
+    fixture = (FIXTURES / "plot" / "valid" / "mixed-features.json").read_text()
+    text = dump_document(DocumentKind.PLOT, load_document(DocumentKind.PLOT, fixture))
+    monkeypatch.setattr(documents, "_item_validator", lambda *key: Counting(real(*key)))
+    monkeypatch.setattr(documents, "_FEATURES_PASSED", set())
+    monkeypatch.setattr(documents, "_PASSED", set())
+    plot = load_document(DocumentKind.PLOT, text)  # as Debrief wrote it
+    assert checked == [f.id for f in plot.features]
+    checked.clear()
+    note = generated.AnnotationFeature(
+        type="Feature",
+        id="note-new",
+        geometry=None,
+        properties=generated.AnnotationProperties(
+            kind="annotation", style="note", name="New", time="2026-10-11T09:30:00.000Z"
+        ),
+    )
+    bigger = plot.model_copy(update={"features": [*plot.features, note]})
+    dump_document(DocumentKind.PLOT, bigger)
+    assert checked == ["note-new"]
+    checked.clear()
+    raw = json.loads(text)
+    raw["features"][0]["properties"]["kind"] = "nonsense"
+    for _ in range(2):
+        with pytest.raises(DocumentValidationError, match="^features/0: "):
+            load_document(DocumentKind.PLOT, raw)
+    assert checked == [raw["features"][0]["id"]] * 2
+
+
+def test_many_features_are_checked_for_duplicate_ids_quickly() -> None:
+    """Counting each id across the list made a plot of 50,000 notes take half a minute."""
+    import time
+
+    from debrief_schemas.documents import _plot_problems
+
+    notes = [
+        generated.AnnotationFeature(
+            type="Feature",
+            id=f"n{i}",
+            geometry=None,
+            properties=generated.AnnotationProperties(
+                kind="annotation", style="note", name="N", time="2026-10-11T09:30:00.000Z"
+            ),
+        )
+        for i in range(20_000)
+    ]
+    plot = generated.DebriefFeatureCollection(
+        type="FeatureCollection",
+        schema_version=SCHEMA_VERSION,
+        features=[*notes, notes[0]],
+        provenance=[],
+    )
+    started = time.perf_counter()
+    problems = _plot_problems(plot, {"features": []})
+    assert time.perf_counter() - started < 2
+    assert problems == ["feature id 'n0' is used more than once"]

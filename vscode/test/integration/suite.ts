@@ -332,12 +332,19 @@ export async function run(): Promise<void> {
   assert.equal(received.at(-1)?.notes?.[0], "Added from the plot file serial-1-from-ian.geojson");
   assert.match(received.at(-1)?.notes?.[1] ?? "", /^Added to the catalogue /);
   assert.equal(api.hiddenOnMap(), 0);
+  // Listed under a title of its own: the plot it came from is in this catalogue too.
+  assert.match(api.session.current?.item.properties.title ?? "", / \(from serial-1-from-ian\.geojson\)$/);
+  // Ctrl+Z would take back the arrival, which shows nothing, with the sender's last step.
+  assert.deepEqual(
+    (await rows()).filter((r) => r.nextToUndo).map((r) => r.step.seq),
+    [8, 7],
+  );
   await vscode.commands.executeCommand("debrief.history.focus");
   await sleep(1500);
   await screenshot("11-received-plot-file", true);
-  // ...and undoes a step the sender made: the sender's "Show all" (after the step recording
-  // its arrival), so the track the sender had hidden is hidden again.
-  assert.equal(await vscode.commands.executeCommand("debrief.undo"), undefined);
+  // ...and undoes a step the sender made with one Ctrl+Z: the sender's "Show all", taken
+  // back with the step recording the arrival, so the track the sender had hidden is
+  // hidden again.
   assert.equal(await vscode.commands.executeCommand("debrief.undo"), undefined);
   await waitFor("the sender's hidden track", () => api.hiddenOnMap() === 1 || undefined);
   assert.deepEqual((await steps()).slice(-2).map((s) => s.status), ["undone", "undone"]);

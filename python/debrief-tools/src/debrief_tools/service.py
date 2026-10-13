@@ -592,6 +592,9 @@ def _step(step: Any) -> dict[str, Any]:
         "at": first.ended_at or first.started_at,
         "records": len(step.records),
         "notes": list(first.notes or []),
+        # What undoing it goes back to, and whether undo takes it with the step before.
+        "after": step.after,
+        "records_only": step.records_only,
     }
 
 

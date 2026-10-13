@@ -623,6 +623,11 @@ def test_a_plot_file_from_a_colleague_is_added_with_its_history(
         "Added from the plot file serial-from-ian.geojson",
         "Added to the catalogue Exercise",
     ]
+    # The arrival changes only the records: undo takes it with the sender's tool run.
+    assert [(s["after"], s["records_only"]) for s in steps] == [(0, False), (1, False), (2, True)]
+    base = rpc(client, "debrief/open", where).json()["result"]["base"]
+    rpc(client, "debrief/undo", {**where, "base": base})
+    assert rpc(client, "debrief/open", where).json()["result"]["base"]["current"] == 1
     rpc(client, "debrief/goto", {**where, "step": 1})  # back before the sender's tool run
     plot = catalogue.read_plot("serial-from-ian")
     assert not any(f.id.startswith("cpa-") for f in plot.features)

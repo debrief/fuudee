@@ -55,6 +55,13 @@ export interface HistoryStep {
   records: number;
   /** The first record's notes: they name an edit made without a tool. */
   notes?: string[];
+  /** The step it was made after: what undoing it goes back to. */
+  after?: number;
+  /**
+   * It changes nothing on the plot, only its records, as the step recording that a
+   * plot file was added does: Ctrl+Z takes it with the step before it.
+   */
+  records_only?: boolean;
 }
 
 export interface Opened {
