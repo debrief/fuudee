@@ -150,17 +150,19 @@ export class TrackEditor {
     );
   }
 
-  // --- The control: the whole track, or its fixes in the window ---------------------------
+  // --- The control: the whole track or its fixes in the window; shear or stretch -----------
   private addControl(): void {
     const editor = this;
     const Control = L.Control.extend({
       onAdd() {
         const box = L.DomUtil.create("div", "leaflet-bar track-extent");
-        box.setAttribute("role", "group");
-        box.setAttribute("aria-label", "What moving or rotating the selected track changes");
-        L.DomUtil.create("span", "track-extent-label", box).textContent = "Move or rotate";
+        // Two choices, side by side for a screen reader as on the screen: what the handles change, and what dragging an end does.
+        const extents = L.DomUtil.create("div", "track-extents", box);
+        extents.setAttribute("role", "group");
+        extents.setAttribute("aria-label", "What the handles on the selected track change");
+        L.DomUtil.create("span", "track-extent-label", extents).textContent = "What changes";
         const button = (extent: Extent, text: string, title: string) => {
-          const b = L.DomUtil.create("button", "track-extent-button", box) as HTMLButtonElement;
+          const b = L.DomUtil.create("button", "track-extent-button", extents) as HTMLButtonElement;
           b.type = "button";
           b.textContent = text;
           b.title = title;
@@ -171,8 +173,8 @@ export class TrackEditor {
           });
           return b;
         };
-        const whole = button("whole", "Whole track", "Move or rotate every fix of the track");
-        const inWindow = button("window", "Time window", "Move or rotate only the fixes in the time window; the track jumps where they meet the rest");
+        const whole = button("whole", "Whole track", "Move, rotate, shear or stretch every fix of the track");
+        const inWindow = button("window", "Time window", "Change only the fixes in the time window; the track jumps where they meet the rest");
         // What dragging an end of the period does: shear (most used with TMA legs) or stretch.
         const ends = L.DomUtil.create("div", "track-ends", box);
         ends.setAttribute("role", "group");
@@ -202,7 +204,7 @@ export class TrackEditor {
     new Control({ position: "topleft" }).addTo(this.host.map);
   }
 
-  /** Move or rotate the whole track, or only its fixes in the time window. */
+  /** Change the whole track, or only its fixes in the time window. */
   setExtent(extent: Extent): void {
     if (this.drag || this.nudge || this.run.saving) return;
     this.extent = extent;

@@ -84,11 +84,12 @@ body { background: var(--vscode-editor-background); color: var(--vscode-foregrou
 .track-handle-stretch::before { border: 4px double var(--vscode-focusBorder); }
 .track-handle-start:focus, .track-handle-end:focus { outline-offset: 4px; }
 .track-arm { stroke: var(--vscode-focusBorder); }
-/* What moving or rotating the selected track changes: the whole track, or its fixes in the window. */
-.track-extent { display: flex; flex-direction: column; background: var(--vscode-editorWidget-background); color: var(--vscode-editorWidget-foreground); font-size: 11px; }
+/* What the selected track's handles change: the whole track, or its fixes in the window; and, beside it so the control stays short on a short map, what dragging an end does. */
+.track-extent { display: flex; flex-direction: row; background: var(--vscode-editorWidget-background); color: var(--vscode-editorWidget-foreground); font-size: 11px; }
 .track-extent[hidden] { display: none; }
 .track-extent-label { padding: 3px 8px 2px; color: var(--vscode-descriptionForeground); }
-.track-ends { display: flex; flex-direction: column; border-top: 1px solid var(--vscode-widget-border, transparent); }
+.track-extents { display: flex; flex-direction: column; }
+.track-ends { display: flex; flex-direction: column; border-left: 1px solid var(--vscode-widget-border, transparent); }
 .track-extent .track-extent-button { display: block; min-width: 62px; padding: 3px 8px; border: none; border-top: 1px solid var(--vscode-widget-border, transparent); background: var(--vscode-button-secondaryBackground); color: var(--vscode-button-secondaryForeground); font: inherit; text-align: left; cursor: pointer; }
 .track-extent .track-extent-button:hover { background: var(--vscode-button-secondaryHoverBackground); }
 .track-extent .track-extent-button[aria-pressed="true"] { background: var(--vscode-button-background); color: var(--vscode-button-foreground); font-weight: 600; }

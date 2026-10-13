@@ -610,6 +610,8 @@ interface FormField {
   options?: { value: string; label: string }[];
   /** What the text means, or what is wrong with it. */
   read?: (text: string) => { means: string } | { problem: string };
+  /** The label and the value offered, from the choices made so far: worked out again when a choice changes, the value only while it is still the one offered. */
+  follow?: (values: Record<string, string>) => { label: string; value: string };
 }
 /** A small form in a dialog: each field says, beneath it, what it understood or what is wrong; nothing is sent until all are right. Resolves to the values, or undefined for Cancel. */
 function trackForm(title: string, action: string, fields: FormField[], warning?: string): Promise<Record<string, string> | undefined> {
@@ -623,10 +625,13 @@ function trackForm(title: string, action: string, fields: FormField[], warning?:
     form.append(heading);
     if (warning) form.append(Object.assign(document.createElement("p"), { className: "form-warning", textContent: warning }));
     const notes = new Map<string, HTMLElement>();
+    const following: (() => void)[] = [];
+    const chosen = () => Object.fromEntries(fields.map((f) => [f.id, (form.elements.namedItem(f.id) as HTMLInputElement | null)?.value ?? ""]));
     for (const field of fields) {
       const row = document.createElement("label");
       row.className = "form-row";
-      row.append(Object.assign(document.createElement("span"), { textContent: field.label }));
+      const label = Object.assign(document.createElement("span"), { textContent: field.label });
+      row.append(label);
       let input: HTMLInputElement | HTMLSelectElement;
       if (field.options) {
         input = document.createElement("select");
@@ -651,9 +656,22 @@ function trackForm(title: string, action: string, fields: FormField[], warning?:
       };
       input.addEventListener("input", say);
       if (input.value) say();
+      if (field.follow) {
+        const follow = field.follow;
+        let offered = input.value;
+        following.push(() => {
+          const now = follow(chosen());
+          label.textContent = now.label;
+          if (input.value === offered) input.value = now.value;
+          offered = now.value;
+          say();
+        });
+      }
+      if (field.options) input.addEventListener("change", () => following.forEach((f) => f()));
       row.append(input, note);
       form.append(row);
     }
+    following.forEach((f) => f());
     const buttons = document.createElement("div");
     buttons.className = "buttons";
     const go = Object.assign(document.createElement("button"), { type: "submit", className: "primary", textContent: action, value: "go" });
@@ -664,7 +682,7 @@ function trackForm(title: string, action: string, fields: FormField[], warning?:
     document.body.append(dialog);
     let values: Record<string, string> | undefined;
     form.addEventListener("submit", (event) => {
-      const data = Object.fromEntries(fields.map((f) => [f.id, (form.elements.namedItem(f.id) as HTMLInputElement | null)?.value ?? ""]));
+      const data = chosen();
       const wrong = fields.filter((f) => f.read && "problem" in f.read(data[f.id] ?? ""));
       if (wrong.length) {
         event.preventDefault();
@@ -739,11 +757,15 @@ $("rotate-track").onclick = async () => {
   const problem = await changeTrack({ kind: "edit", feature: track.id, edit });
   if (problem) toast(problem, "warning");
 };
-/** What a shear or a stretch holds, and what the track makes good now; or say why it cannot be done. */
-function heldFields(track: NonNullable<ReturnType<typeof trackOf>>, verb: string): { fields: FormField[]; now: NonNullable<ReturnType<typeof legNow>> } | undefined {
+/** What the track, or its fixes in the time window, makes good now: as the form offers it when that is chosen. */
+function legChosen(track: NonNullable<ReturnType<typeof trackOf>>, extent: string): NonNullable<ReturnType<typeof legNow>> | undefined {
   const times = track.properties.times.map(Date.parse);
-  const now = legNow(track.geometry.coordinates as [number, number][], times, periodIndices(times));
-  if (!now) {
+  const period = windowPeriod(extent);
+  return legNow(track.geometry.coordinates as [number, number][], times, periodIndices(times, period && { start: Date.parse(period.start), end: Date.parse(period.end) }));
+}
+/** What a shear or a stretch holds, and what the track makes good now; or say why it cannot be done. */
+function heldFields(track: NonNullable<ReturnType<typeof trackOf>>, verb: string): FormField[] | undefined {
+  if (!legChosen(track, "whole")) {
     toast(`${track.properties.name} has fixes at only one time, so it cannot be ${verb}.`, "warning");
     return undefined;
   }
@@ -755,23 +777,31 @@ function heldFields(track: NonNullable<ReturnType<typeof trackOf>>, verb: string
       { value: "end", label: "Hold the end; the start moves" },
     ],
   };
-  return { fields: [extentField(), anchor], now };
+  return [extentField(), anchor];
 }
-const speedField = (value: string, positive: boolean, now: string): FormField => ({
-  id: "speed",
-  label: `Speed made good (now ${now.split(" ").slice(1).join(" ")})`,
-  value,
-  read: (t) => shown(readSpeed(t, undefined, positive), () => describeSpeed(readSpeed(t) as { value: number; unit: string })),
-});
+/** The course or the speed made good, offered as it is now for what is chosen to change. */
+function madeGood(track: NonNullable<ReturnType<typeof trackOf>>, id: "course" | "speed", label: string, read: FormField["read"]): FormField {
+  return {
+    id,
+    label,
+    read,
+    follow: (values) => {
+      const now = legChosen(track, values.extent);
+      if (!now) return { label: `${label} (its fixes there are at only one time)`, value: "" };
+      const [course, ...speed] = now.said.split(" ");
+      return { label: `${label} (now ${id === "course" ? course : speed.join(" ")})`, value: now[id] };
+    },
+  };
+}
+const courseField = (track: NonNullable<ReturnType<typeof trackOf>>) =>
+  madeGood(track, "course", "Course made good, true", (t) => shown(readBearing(t), () => formatBearing({ value: readBearing(t) as number, unit: "deg" })));
+const speedField = (track: NonNullable<ReturnType<typeof trackOf>>, positive: boolean) =>
+  madeGood(track, "speed", "Speed made good", (t) => shown(readSpeed(t, undefined, positive), () => describeSpeed(readSpeed(t) as { value: number; unit: string })));
 $("shear-track").onclick = async () => {
   const track = oneTrack("shear");
   const held = track && heldFields(track, "sheared");
   if (!track || !held) return;
-  const values = await trackForm(
-    `Shear ${track.properties.name}`,
-    "Shear",
-    [...held.fields, { id: "course", label: `Course made good, true (now ${held.now.said.split(" ")[0]})`, value: held.now.course, read: (t) => shown(readBearing(t), () => formatBearing({ value: readBearing(t) as number, unit: "deg" })) }, speedField(held.now.speed, false, held.now.said)],
-  );
+  const values = await trackForm(`Shear ${track.properties.name}`, "Shear", [...held, courseField(track), speedField(track, false)]);
   if (!values) return;
   const period = windowPeriod(values.extent);
   const edit = { action: "shear", anchor: values.anchor, course: { value: readBearing(values.course), unit: "deg" }, speed: readSpeed(values.speed), ...(period && { period }) };
@@ -782,7 +812,7 @@ $("stretch-track").onclick = async () => {
   const track = oneTrack("stretch");
   const held = track && heldFields(track, "stretched");
   if (!track || !held) return;
-  const values = await trackForm(`Stretch ${track.properties.name}`, "Stretch", [...held.fields, speedField(held.now.speed, true, held.now.said)]);
+  const values = await trackForm(`Stretch ${track.properties.name}`, "Stretch", [...held, speedField(track, true)]);
   if (!values) return;
   const period = windowPeriod(values.extent);
   const edit = { action: "stretch", anchor: values.anchor, speed: readSpeed(values.speed, undefined, true), ...(period && { period }) };

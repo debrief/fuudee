@@ -60,6 +60,19 @@ export async function playShear(page, shot) {
   await page.waitForFunction(() => !document.querySelector("#toasts .toast"), null, { timeout: 15000 });
   await button("Time window").click();
   assert.equal(await button("Shear").getAttribute("aria-pressed"), "true", "dragging an end shears, unless the analyst chooses");
+  // Two choices on the map, side by side and each named for what it chooses: what the handles change (for a shear as for a move), and what dragging an end does.
+  assert.equal(await mapFrame.getByRole("group", { name: "What the handles on the selected track change" }).getByRole("button").count(), 2);
+  assert.equal(await mapFrame.getByRole("group", { name: "What dragging an end of the selected track does" }).getByRole("button").count(), 2);
+  assert.equal(await mapFrame.locator('[role="group"]:has(button[data-mode])').count(), 1, "Shear and Stretch are not inside the other choice");
+  const tops = await mapFrame.locator('.track-extent [role="group"]').evaluateAll((all) => all.map((g) => Math.round(g.getBoundingClientRect().top)));
+  assert.deepEqual(tops, [tops[0], tops[0]], "side by side, so the control is short enough for a short map");
+  // Under the outline, the track's actions and the annotations' are labelled groups, each in at most two rows.
+  for (const [group, count] of [["Track", 6], ["Annotation", 4]]) {
+    const buttons = page.getByRole("group", { name: group, exact: true }).getByRole("button");
+    assert.equal(await buttons.count(), count, group);
+    const rows = new Set(await buttons.evaluateAll((all) => all.map((b) => Math.round(b.getBoundingClientRect().top))));
+    assert.ok(rows.size <= 2, `${group}: ${rows.size} rows`);
+  }
   // Five handles: move, rotate, pivot, and the two ends, each named for a screen reader.
   assert.equal(await mapFrame.locator(".track-handle").count(), 5);
   assert.equal(await handle("end").getAttribute("aria-label"), "RED ONE, fixes in the time window: shear from the end, holding the start; drag it, or use the arrow keys");
@@ -146,8 +159,17 @@ export async function playShear(page, shot) {
   n = await steps();
   await page.locator("#shear-track").click();
   await dialog.waitFor();
-  assert.match(await page.locator("#track-form-course").inputValue(), /^\d{3}\.\d$/, "offers the course it makes good now");
+  const offered = async () => [await page.locator("#track-form-course").inputValue(), await page.locator("#track-form-speed").inputValue()];
+  const [wholeCourse, wholeSpeed] = await offered();
+  assert.match(wholeCourse, /^\d{3}\.\d$/, "offers the course it makes good now");
+  // Choosing the fixes in the window offers what they make good, not the whole track's; the labels say it too.
+  await page.locator("#track-form-extent").selectOption("window");
+  const [windowCourse, windowSpeed] = await offered();
+  assert.notDeepEqual([windowCourse, windowSpeed], [wholeCourse, wholeSpeed]);
+  assert.equal(await dialog.getByText(`Course made good, true (now ${windowCourse}°T)`).count(), 1);
+  assert.equal(await dialog.getByText(`Speed made good (now ${windowSpeed} kn)`).count(), 1);
   await page.locator("#track-form-extent").selectOption("whole");
+  assert.deepEqual(await offered(), [wholeCourse, wholeSpeed]);
   await page.locator("#track-form-anchor").selectOption("end");
   await page.locator("#track-form-course").fill("200");
   await page.locator("#track-form-course-note", { hasText: "Means 200.0°T" }).waitFor();

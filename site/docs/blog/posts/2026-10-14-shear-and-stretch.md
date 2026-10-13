@@ -49,7 +49,7 @@ The courses and speeds recorded with each fix aren't thrown away and worked out 
 
 `Tab` to a diamond. Shearing, the arrow keys move it 5 pixels at a time (25 with `Shift`). Stretching, `Up` makes the leg 0.1 knots faster and `Down` 0.1 knots slower (1 knot with `Shift`). As with every handle, a run of presses is one step, not one per press.
 
-For an exact answer there's **Shear track…** on the outline's menu (**Shear…** under the outline in the playground): which end stays, then the course and speed you want the leg to make good, offered as what it makes good now. **Stretch track…** asks only for the speed. Speeds can be typed in knots, metres per second or kilometres an hour.
+For an exact answer there's **Shear track…** on the outline's menu (**Shear…** under *Track*, below the outline, in the playground): which end stays, then the course and speed you want the leg to make good, offered as what it makes good now. **Stretch track…** asks only for the speed. Speeds can be typed in knots, metres per second or kilometres an hour.
 
 ![The Shear form in the playground: whole track, holding the end, 200 typed for the course and read as 200.0°T, 6 for the speed and read as 6.0 kn](images/phase-3/shear-form.png)
 
@@ -67,7 +67,7 @@ Each shear or stretch records which end was held and when, how far and which way
 
 ## Try it
 
-Select **RED ONE**, narrow the time window to one of its legs, choose **Time window** on the map, and drag the diamond at the leg's end. Then choose **Stretch** and drag again, or try **Shear…** under the outline:
+Select **RED ONE**, narrow the time window to one of its legs, choose **Time window** on the map, and drag the diamond at the leg's end. Then choose **Stretch** and drag again, or try **Shear…** under *Track*, below the outline:
 
 <div class="debrief-demo" data-demo="?panels=history" data-height="820px" data-caption="Select a track, then drag the diamond at its end to shear it. Everything runs in your browser."></div>
 

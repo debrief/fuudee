@@ -23,7 +23,7 @@ How every map action can be done without a mouse.
 | Drag a track, or its fixes in the time window | `Tab` to the selected track's move handle; the arrow keys move it 5 pixels (25 with `Shift`), and the run of presses is one step, as for an annotation's handle. *Whole track* and *Time window* are buttons on the map. Or **Move track…** and type the distance and bearing ([track operations](track-operations.md), item 11). |
 | Rotate a track | `Tab` to its rotate handle; `Right` and `Up` turn it 1° clockwise, `Left` and `Down` anticlockwise, 10° with `Shift`; one step for the run. The pivot handle moves with the arrow keys. Or **Rotate track…**, with the pivot and angle typed. |
 | Shear or stretch a track | `Tab` to a diamond beside the first or last fix. Shearing, the arrow keys move it 5 pixels (25 with `Shift`), the other end held; stretching (*Stretch* on the map), `Up` and `Right` make it 0.1 kn faster, `Down` and `Left` slower, 1 kn with `Shift`. One step for the run. Or **Shear track…** (course and speed made good) and **Stretch track…** (speed) ([track operations](track-operations.md#shearing-and-stretching)). |
-| Split or merge tracks | **Split track at current time…** and **Merge selected tracks** on the outline's context menu (buttons under the outline in the playground); there is no map gesture for either. |
+| Split or merge tracks | **Split track at current time…** and **Merge selected tracks** on the outline's context menu (**Split…** and **Merge** under *Track*, below the outline, in the playground); there is no map gesture for either. |
 | Clear the selection | `Escape` on the map; or the outline, a native tree. |
 | Pan, zoom | Arrow keys, and `+` and `-`, with the map focused. |
 
