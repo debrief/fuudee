@@ -30,7 +30,10 @@ that fix (ranges and bearings from it, along geodesics: an azimuthal
 equidistant frame), so it is right at any latitude and across the
 antimeridian. Near the ends of the period the window narrows evenly, so the
 period's first and last fixes never move and the average never pulls a fix
-sideways. Only fixes in the period move. Recorded courses and speeds are
+sideways. A gap in the data (more than GAP_FACTOR times the track's median time
+between fixes) is treated as an end: fixes either side of it are never averaged
+together, so a platform that went somewhere while nothing was recorded is not
+pulled across the gap. Only fixes in the period move. Recorded courses and speeds are
 smoothed with the same window (courses as directions), so they stay in step
 with the positions; depths are kept. Times never change, so the fixes stay in
 time order.
@@ -62,6 +65,9 @@ MAX_RUN = 5
 # Smoothing averages each fix with this many fixes, itself in the middle, unless the analyst says.
 DEFAULT_WINDOW = 5
 LARGEST_WINDOW = 99
+# A gap in the data: more than this many times the track's median time between fixes.
+# Smoothing never averages fixes either side of one: the window narrows at it as at an end.
+GAP_FACTOR = 10
 # How much of a label a step's name quotes.
 LABEL_SHOWN = 16
 _MARK_MEMBERS = ("colour", "label", "comment")
@@ -167,6 +173,12 @@ def find_jumps(
                 anchor, i, run = run[0], run[0] + 1, []
                 continue
         else:
+            # A fix of the run that the track goes on from smoothly is not off the track: the
+            # platform really went there (a sprint, then a drift), so it is not offered, nor
+            # any before it that the track goes on from. Only fixes the track also leaves too
+            # fast are a jump: off it, and back.
+            while run and not too_fast(run[-1], i):
+                run.pop()
             found += run
             run = []
             anchor = i
@@ -256,11 +268,13 @@ def marks_within(
 
 
 def without_fixes(
-    track: models.TrackFeature, times: Sequence[str]
+    track: models.TrackFeature, times: Sequence[str], threshold: Quantity | None = None
 ) -> tuple[models.TrackFeature, int]:
     """The track without the fixes at the times given, every series and mark kept in
     step with the fixes that stay. Returns it and how many marked fixes went with them.
-    Refused, plainly, for a time the track has no fix at, or when fewer than two fixes
+    Where the track has more than one fix at a time given, only those found to be jumps
+    at the threshold go (the others are real data). Refused, plainly, for a time the
+    track has no fix at, for one whose jump cannot be told, or when fewer than two fixes
     would be left."""
     name = track.properties.name
     wanted = {parse_utc(t) for t in times}
@@ -270,7 +284,21 @@ def without_fixes(
     missing = wanted - set(track_times)
     if missing:
         raise TrackError(f"{name} has no fix at {_when(min(missing))}, so nothing was removed.")
-    keep = [i for i, t in enumerate(track_times) if t not in wanted]
+    remove: set[int] = set()
+    jumps: set[int] | None = None
+    for t in sorted(wanted):
+        at = [i for i, u in enumerate(track_times) if u == t]
+        if len(at) > 1:
+            if jumps is None:
+                jumps = {j.index for j in find_jumps(track, threshold)[1]}
+            at = [i for i in at if i in jumps]
+            if not at or len(at) == track_times.count(t):
+                raise TrackError(
+                    f"{name} has {track_times.count(t)} fixes at {_when(t)}, and which of them "
+                    "is the jump cannot be told, so nothing was removed."
+                )
+        remove.update(at)
+    keep = [i for i in range(len(track_times)) if i not in remove]
     if len(keep) < FEWEST_FIXES:
         raise TrackError(
             f"Removing those fixes would leave {name} with {len(keep)} "
@@ -320,6 +348,21 @@ def smoothed(
         )
     start, end = indices[0], indices[-1]
     half = window // 2
+    # Each fix's stretch of the period between gaps in the data: its first and last stay put.
+    times = times_of(track)
+    steps = [b - a for a, b in zip(times, times[1:], strict=False) if b > a]
+    gap = GAP_FACTOR * statistics.median(steps) if steps else math.inf
+    stretch_start, stretch_end = {}, {}
+    first = start
+    for i in indices:
+        if i > start and times[i] - times[i - 1] > gap:
+            first = i
+        stretch_start[i] = first
+    last = end
+    for i in reversed(indices):
+        if i < end and times[i + 1] - times[i] > gap:
+            last = i
+        stretch_end[i] = last
     props = track.properties
     positions = [list(p) for p in track.geometry.coordinates]
     courses = list(props.courses.values) if props.courses else None
@@ -328,7 +371,7 @@ def smoothed(
     full_turn = Quantity(360.0, "deg").to(course_unit).value
     largest, largest_at, moved = 0.0, None, 0
     for i in indices:
-        h = min(half, i - start, end - i)
+        h = min(half, i - stretch_start[i], stretch_end[i] - i)
         if h == 0:
             continue
         around = range(i - h, i + h + 1)

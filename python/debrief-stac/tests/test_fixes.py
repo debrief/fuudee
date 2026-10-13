@@ -157,17 +157,44 @@ def test_the_first_and_last_fixes_can_be_jumps() -> None:
     assert jump_times(track(positions)) == [at(0), at(14)]
 
 
-def test_two_fixes_at_one_time_in_different_places_is_a_jump() -> None:
+def at_one_time(north_m: float = 2000) -> models.TrackFeature:
+    """Ten fixes, and an eleventh at the same time as the fifth, north_m north of it."""
     positions = steady(10)
-    positions.insert(5, jumped(positions, 5, 800)[5])
+    positions.insert(5, jumped(positions, 4, north_m)[4])
     t = track(positions)
     times = list(t.properties.times)
     times[5] = times[4]  # the same time as the fix before, somewhere else
-    t = t.model_copy(
+    return t.model_copy(
         update={"properties": t.properties.model_copy(update={"times": sorted(times)})}
     )
-    (jump,) = find_jumps(t)[1]
+
+
+def test_two_fixes_at_one_time_in_different_places_is_a_jump() -> None:
+    (jump,) = find_jumps(at_one_time())[1]
     assert jump.index == 5 and math.isinf(jump.speed_kn)
+
+
+def test_a_sprint_between_drifts_is_not_a_jump() -> None:
+    # Sprint and drift: 3 kn, then 20 kn for three minutes, then 3 kn. The track goes on
+    # smoothly from where the sprint took it, so nothing is offered, though it is far
+    # above three times the median speed.
+    positions = steady(31, 3)
+    for knots, n in ((20, 3), (3, 30)):
+        positions += steady(n + 1, knots, start=tuple(positions[-1]))[1:]
+    assert jump_times(track(positions)) == []
+
+
+def test_removing_a_jump_at_the_time_of_another_fix_keeps_the_other() -> None:
+    t = at_one_time()
+    (jump,) = find_jumps(t)[1]
+    after, _ = without_fixes(t, [jump.time])
+    assert len(after.properties.times) == 10
+    assert after.properties.times.count(jump.time) == 1
+    assert after.geometry.coordinates[4] == t.geometry.coordinates[4]  # the good one kept
+    # Neither of two fixes at a time is a jump (they are in one place): which to remove
+    # cannot be told, so nothing is.
+    with pytest.raises(TrackError, match="2 fixes at 09:04:00Z"):
+        without_fixes(at_one_time(0.1), [jump.time])
 
 
 def test_the_threshold_decides_and_the_period_limits() -> None:
@@ -358,6 +385,19 @@ def test_smoothing_keeps_the_ends_and_the_times_and_says_how_far_fixes_moved() -
 def test_a_straight_steady_track_is_hardly_moved() -> None:
     _, smoothing = smoothed(track(steady(20)), 7, list(range(20)))
     assert smoothing.largest_m < 0.05
+
+
+def test_smoothing_never_averages_across_a_gap_in_the_data() -> None:
+    # An hour of fixes, three hours with none while the ship went 30 nmi, an hour more.
+    before = steady(20, 10)
+    resumed = destination(Position(*before[-1]), Quantity(90, "deg"), Quantity(30 * 1852, "m"))
+    t = track(before + steady(20, 10, start=(resumed.longitude, resumed.latitude)))
+    times = [at(i) for i in range(20)] + [at(200 + i) for i in range(20)]
+    t = t.model_copy(update={"properties": t.properties.model_copy(update={"times": times})})
+    after, smoothing = smoothed(t, 5, list(range(40)))
+    assert smoothing.largest_m < 0.05  # each side straight and steady: hardly moved
+    assert after.geometry.coordinates[19] == t.geometry.coordinates[19]
+    assert after.geometry.coordinates[20] == t.geometry.coordinates[20]
 
 
 def test_smoothing_only_a_period_keeps_its_ends_and_the_rest() -> None:

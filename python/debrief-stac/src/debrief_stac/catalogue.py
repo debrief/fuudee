@@ -1096,7 +1096,7 @@ class Catalogue:
         def change(plot: DebriefFeatureCollection):
             track = self._track(plot, feature_id)
             exact = sorted({fixes.fix_at(track, t) for t in times})
-            after, lost = fixes.without_fixes(track, exact)
+            after, lost = fixes.without_fixes(track, exact, threshold)
             notes = [f"At {fixes.describe_times(exact)}"]
             parameters = [models.ParameterValue(name="fix_times", value=" ".join(exact))]
             if threshold is not None:
