@@ -50,17 +50,23 @@ export function turned(positions: LonLat[], indices: number[], pivot: LonLat, de
   return out;
 }
 
-/** Where a rotation turns about unless the analyst chooses: the fix in the period nearest current time, when that is within the period's fixes; else the period's first fix. */
+/**
+ * Where a rotation turns about unless the analyst chooses: the fix in the period nearest
+ * current time, when that is within the period's fixes; else the period's first fix.
+ * Found by halving (times are in order), as it is worked out again each frame of playback.
+ */
 export function defaultPivotIndex(times: number[], indices: number[], current?: number): number {
-  let choice = indices[0];
-  if (current !== undefined && times[indices[0]] <= current && current <= times[indices[indices.length - 1]]) {
-    let best = Infinity;
-    for (const i of indices) {
-      const d = Math.abs(times[i] - current);
-      if (d < best) [best, choice] = [d, i];
-    }
+  const last = indices.length - 1;
+  if (current === undefined || !(times[indices[0]] <= current && current <= times[indices[last]])) return indices[0];
+  // The first fix in the period at or after current time, then whichever of it and the one before is nearer (the earlier on a tie).
+  let [lo, hi] = [0, last];
+  while (lo < hi) {
+    const mid = (lo + hi) >> 1;
+    if (times[indices[mid]] < current) lo = mid + 1;
+    else hi = mid;
   }
-  return choice;
+  if (lo > 0 && current - times[indices[lo - 1]] <= times[indices[lo]] - current) lo -= 1;
+  return indices[lo];
 }
 
 /** The angle, in degrees in (-180, 180], from the bearing of `from` to that of `to`, seen from pivot: positive is clockwise. */
@@ -76,11 +82,18 @@ export function turnBetween(pivot: LonLat, from: LonLat, to: LonLat): number {
 export function handlePlaces(positions: LonLat[], indices: number[], pivot: LonLat, pivotIndex?: number): { move: LonLat; rotate?: LonLat } {
   let middle = indices[Math.floor((indices.length - 1) / 2)];
   if (middle === pivotIndex && indices.length > 1) middle = indices[Math.min(indices.length - 1, indices.indexOf(middle) + 1)];
-  let far = { metres: 0, bearing: 0 };
+  // The farthest fix, found on a flat approximation (cheap enough for every frame of playback
+  // on a long track), then measured along the geodesic: only the handle's place depends on it.
+  const cos = Math.cos((pivot[1] * Math.PI) / 180);
+  let farthest = -1;
+  let most = 0;
   for (const i of indices) {
-    const rb = rangeBearing(pivot, positions[i]);
-    if (rb.metres > far.metres) far = rb;
+    const dx = ((((positions[i][0] - pivot[0]) % 360) + 540) % 360 - 180) * cos;
+    const dy = positions[i][1] - pivot[1];
+    const d = dx * dx + dy * dy;
+    if (d > most) [most, farthest] = [d, i];
   }
+  const far = farthest < 0 ? { metres: 0, bearing: 0 } : rangeBearing(pivot, positions[farthest]);
   return { move: positions[middle], rotate: far.metres > 0 ? travel(pivot, far.bearing, far.metres * 1.15) : undefined };
 }
 
@@ -304,9 +317,35 @@ export function readTurn(text: string): number | { problem: string } {
   let value = Number(match[1]);
   const sense = match[2]?.toLowerCase();
   if (sense === "anticlockwise" || sense === "acw") value = -Math.abs(value);
+  else if (sense) value = Math.abs(value); // "-10 clockwise" is clockwise, as it says
   if (Math.abs(value) >= 360) return { problem: "Type an angle of less than 360 degrees." };
   if (!value) return { problem: "An angle of 0 turns nothing." };
   return value;
+}
+
+// --- Merging: what the merged track is called, and what of the tracks it does not keep ------
+
+/** What merged tracks are called unless the analyst says: the earliest's name; or, for parts of one split track ("BLUE ONE (1)", "BLUE ONE (2)"), the track's own. As debrief_stac.tracks.merged_name. */
+export function mergedName(names: string[]): string {
+  const parts = names.map((n) => /^(.*\S) \((\d+)\)$/.exec(n));
+  const bases = new Set(parts.map((m) => m?.[1]));
+  return parts.every((m) => m) && bases.size === 1 ? parts[0]![1] : names[0];
+}
+
+interface Mergeable {
+  properties: { name: string; times: string[]; speeds?: unknown; courses?: unknown; depths?: unknown };
+}
+
+/** The tracks in the order a merge joins them, and what of them it would not keep, said as the step's notes say it: "Courses not kept: BLUE TWO had none". As debrief_stac.tracks.merge. */
+export function mergePlan<T extends Mergeable>(tracks: T[]): { ordered: T[]; lost: string[] } {
+  const span = (t: T) => [Date.parse(t.properties.times[0]), Date.parse(t.properties.times[t.properties.times.length - 1])];
+  const ordered = [...tracks].sort((a, b) => span(a)[0] - span(b)[0] || span(a)[1] - span(b)[1]);
+  const lost: string[] = [];
+  for (const [member, title] of [["speeds", "Speeds"], ["courses", "Courses"], ["depths", "Depths"]] as const) {
+    const missing = ordered.filter((t) => t.properties[member] == null).map((t) => t.properties.name);
+    if (missing.length && missing.length < ordered.length) lost.push(`${title} not kept: ${missing.join(", ")} had none`);
+  }
+  return { ordered, lost };
 }
 
 /** What a distance typed means, for the form to say beneath it: "1.20 nmi". */

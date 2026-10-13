@@ -117,12 +117,19 @@ def rotated(
     track: models.TrackFeature, pivot: Position, angle: Quantity, indices: Sequence[int]
 ) -> models.TrackFeature | None:
     """The track with each fix at indices turned about pivot by angle (positive is
-    clockwise): its range from the pivot kept, its bearing from it turned. The
-    courses of the fixes turned are turned by the same angle. None if nothing turns."""
+    clockwise): its range from the pivot kept, its bearing from it turned. None if
+    nothing turns.
+
+    The course at each fix turned keeps its angle to the geodesic from the pivot,
+    as a rigid turn does: near the pivot that is the angle itself; far from it, or
+    near a pole, the meridians converge and the course turns by more or less (turned
+    about a pole, a ship steering 090 still steers 090). So the courses stay the
+    track's own direction of travel, as drawn."""
     turn = angle.to("deg").value
     if turn % 360.0 == 0:
         return None
     positions = [list(p) for p in track.geometry.coordinates]
+    turns = {i: turn for i in indices}
     for i in indices:
         lon, lat = positions[i]
         fix = Position(lon, lat)
@@ -131,15 +138,19 @@ def rotated(
             continue
         to = destination(pivot, Quantity(bearing.value + turn, "deg"), distance)
         positions[i] = [to.longitude, to.latitude]
+        # The geodesic from the pivot arrives at the fix on the reverse of the bearing
+        # back to the pivot: how much that turned is how much the course turns.
+        back_before = range_bearing(fix, pivot)[1].value
+        back_after = range_bearing(to, pivot)[1].value
+        turns[i] = back_after - back_before
     courses = None
     series = track.properties.courses
     if series is not None:
         unit = str(series.unit)
         full = Quantity(360.0, "deg").to(unit).value
-        step = angle.to(unit).value
         courses = list(series.values)
         for i in indices:
-            courses[i] = (courses[i] + step) % full
+            courses[i] = (courses[i] + Quantity(turns[i], "deg").to(unit).value) % full
     return _with_positions(track, positions, courses)
 
 
@@ -264,13 +275,26 @@ def overlaps(tracks: Sequence[models.TrackFeature]) -> list[Overlap]:
     return found
 
 
+_PART = re.compile(r"^(.*\S) \((\d+)\)$")
+
+
+def merged_name(names: Sequence[str]) -> str:
+    """What merged tracks are called unless the analyst says: the earliest's name; or,
+    for parts of one split track ("BLUE ONE (1)", "BLUE ONE (2)"), the track's own."""
+    parts = [_PART.match(n) for n in names]
+    bases = {m.group(1) for m in parts if m}
+    if all(parts) and len(bases) == 1:
+        return bases.pop()
+    return names[0]
+
+
 def merge(
     tracks: Sequence[models.TrackFeature], name: str | None = None
 ) -> tuple[models.TrackFeature, list[str]]:
-    """Tracks joined into one, in time order, under the earliest's id, name (unless
-    one is given), style and platform class. Refused, saying where, if any overlap in
-    time. Speeds, courses or depths are kept only if every track has them; the
-    notes say which were not, and why."""
+    """Tracks joined into one, in time order, under the earliest's id, style and
+    platform class, and its name unless one is given (see merged_name). Refused,
+    saying where, if any overlap in time. Speeds, courses or depths are kept only if
+    every track has them; the notes say which were not, and why."""
     if len(tracks) < 2:
         raise TrackError("Select two or more tracks to merge.")
     clashes = overlaps(tracks)
@@ -286,7 +310,7 @@ def merge(
     ordered = sorted(tracks, key=lambda t: (times_of(t)[0], times_of(t)[-1]))
     earliest = ordered[0]
     props = earliest.properties
-    name = (name or "").strip() or props.name
+    name = (name or "").strip() or merged_name([t.properties.name for t in ordered])
     notes: list[str] = []
     series: dict = {}
     for member, title in (("speeds", "Speeds"), ("courses", "Courses"), ("depths", "Depths")):
@@ -342,6 +366,7 @@ __all__ = [
     "describe_pivot",
     "describe_rotation",
     "merge",
+    "merged_name",
     "moved",
     "new_track_id",
     "overlaps",

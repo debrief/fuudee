@@ -97,26 +97,19 @@ class RpcError(Exception):
 INVALID_REQUEST, METHOD_NOT_FOUND, INVALID_PARAMS, INTERNAL = -32600, -32601, -32602, -32603
 CONFLICT = -32001  # the plot changed since the caller's base: open it again (SUB-28)
 NEWER_SCHEMA = -32002  # would write a newer schema into the catalogue: ask, then allow (SUB-35)
-HISTORY_METHODS = (
-    "debrief/open",
-    "debrief/history",
-    "debrief/undo",
-    "debrief/redo",
-    "debrief/goto",
-    "debrief/set_colour",
-    "debrief/set_hidden",
-    "debrief/set_view",
+# Named groups, not slices of one list: a method added to one group cannot shift another.
+READING_METHODS = ("debrief/open", "debrief/history")
+STEP_METHODS = ("debrief/undo", "debrief/redo", "debrief/goto")
+PRESENTATION_METHODS = ("debrief/set_colour", "debrief/set_hidden", "debrief/set_view")
+ANNOTATION_METHODS = (
     "debrief/add_annotation",
     "debrief/edit_annotation",
     "debrief/delete_annotations",
     "debrief/set_north_arrow",
-    "debrief/edit_track",
-    "debrief/split_track",
-    "debrief/merge_tracks",
 )
-ANNOTATION_METHODS = HISTORY_METHODS[8:12]
-TRACK_METHODS = HISTORY_METHODS[12:]
-WRITING_METHODS = HISTORY_METHODS[2:]
+TRACK_METHODS = ("debrief/edit_track", "debrief/split_track", "debrief/merge_tracks")
+WRITING_METHODS = STEP_METHODS + PRESENTATION_METHODS + ANNOTATION_METHODS + TRACK_METHODS
+HISTORY_METHODS = READING_METHODS + WRITING_METHODS
 KNOWN_METHODS = frozenset(
     (
         "initialize",
@@ -485,7 +478,8 @@ class ToolService:
         bearing, or rotate with angle and perhaps pivot, either for a period or the
         whole track) and, for a rotation's default pivot, current_time. split_track
         takes the feature, the time (at) and perhaps names for the two parts;
-        merge_tracks the features and perhaps a name.
+        merge_tracks the features and perhaps a name, and says in notes what was not
+        kept (speeds, courses or depths some of the tracks had not).
         """
         agent = _agent(params)
         if method == "debrief/edit_track":
@@ -518,10 +512,10 @@ class ToolService:
             raise RpcError(INVALID_PARAMS, "merge_tracks needs the tracks to merge")
         if name is not None and not isinstance(name, str):
             raise RpcError(INVALID_PARAMS, "name must be text")
-        _, merged = catalogue.merge_tracks(
+        _, merged, lost = catalogue.merge_tracks(
             item, features, agent, base, name=name, allow_newer_schema=allow
         )
-        return {"changed": True, "feature": merged}
+        return {"changed": True, "feature": merged, "notes": lost}
 
     def _import(self, params: dict[str, Any]) -> dict[str, Any]:
         """Import a REP file (EXT-01) or a legacy plot file, .dpf (EXT-14, EXT-15), as a

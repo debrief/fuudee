@@ -413,7 +413,7 @@ export class ToolService {
   /**
    * Move, rotate, split or merge tracks: each a recorded, undoable step named like
    * "BLUE ONE moved 1.20 nmi 045.0°T" (CAP-01, CAP-02). Fails with CONFLICT if the
-   * plot changed since base.
+   * plot changed since base. A merge's notes say what it did not keep.
    */
   changeTrack(
     store: string,
@@ -422,7 +422,7 @@ export class ToolService {
     agent: Agent,
     change: TrackChange,
     allowNewerSchema = false,
-  ): Promise<Opened & { changed: boolean; feature?: string; features?: string[] }> {
+  ): Promise<Opened & { changed: boolean; feature?: string; features?: string[]; notes?: string[] }> {
     const [method, params] =
       change.kind === "edit"
         ? ["debrief/edit_track", { feature: change.feature, edit: change.edit, ...(change.current_time && { current_time: change.current_time }) }]

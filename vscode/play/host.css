@@ -82,3 +82,4 @@ dialog::backdrop { background: #0006; }
 .track-form input, .track-form select { font: inherit; background: var(--vscode-input-background); color: var(--vscode-input-foreground); border: 1px solid var(--vscode-input-border, var(--vscode-widget-border)); padding: 3px 4px; }
 .track-form input:focus, .track-form select:focus { outline: 1px solid var(--vscode-focusBorder); }
 .track-form .form-note.problem { color: var(--vscode-errorForeground); }
+.track-form .form-warning { max-width: 32em; margin: 0 0 8px; padding: 4px 6px; border-left: 3px solid var(--vscode-inputValidation-errorBorder); }

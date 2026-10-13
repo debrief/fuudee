@@ -24,7 +24,7 @@ import { placeToolTime } from "../webview/timelogic.js";
 import { TRACK_COLOURS } from "../webview/palette.js";
 import { TimeControl } from "../webview/timecontrol.js";
 import { formatBearing } from "@debrief/kernel";
-import { defaultPivotIndex, describeDistance, describeTurn, periodIndices, readBearing, readDistance, readTurn } from "../webview/trackedit.js";
+import { defaultPivotIndex, describeDistance, describeTurn, mergedName, mergePlan, periodIndices, readBearing, readDistance, readTurn } from "../webview/trackedit.js";
 
 type Feature = PlotFeature;
 interface Step {
@@ -612,7 +612,7 @@ interface FormField {
   read?: (text: string) => { means: string } | { problem: string };
 }
 /** A small form in a dialog: each field says, beneath it, what it understood or what is wrong; nothing is sent until all are right. Resolves to the values, or undefined for Cancel. */
-function trackForm(title: string, action: string, fields: FormField[]): Promise<Record<string, string> | undefined> {
+function trackForm(title: string, action: string, fields: FormField[], warning?: string): Promise<Record<string, string> | undefined> {
   return new Promise((resolve) => {
     const dialog = document.createElement("dialog");
     dialog.className = "track-form";
@@ -621,6 +621,7 @@ function trackForm(title: string, action: string, fields: FormField[]): Promise<
     form.method = "dialog";
     const heading = Object.assign(document.createElement("h2"), { textContent: title });
     form.append(heading);
+    if (warning) form.append(Object.assign(document.createElement("p"), { className: "form-warning", textContent: warning }));
     const notes = new Map<string, HTMLElement>();
     for (const field of fields) {
       const row = document.createElement("label");
@@ -755,7 +756,17 @@ $("split-track").onclick = async () => {
 $("merge-tracks").onclick = async () => {
   const ids = tracksSelected();
   if (ids.length < 2) return toast("Select two or more tracks to merge: Ctrl-click to add one.", "warning");
-  const problem = await changeTrack({ kind: "merge", features: ids });
+  // The name, offered as the earliest's (or the split track's, for its parts); and, before anything is lost, what would be.
+  const { ordered, lost } = mergePlan(ids.map(trackOf).filter((t): t is NonNullable<ReturnType<typeof trackOf>> => !!t));
+  const named = (t: string) => (t.trim() ? { means: `named ${t.trim()}` } : { problem: "Give the merged track a name." });
+  const values = await trackForm(
+    `Merge ${ordered.map((t) => t.properties.name).join(", ")}`,
+    lost.length ? "Merge anyway" : "Merge",
+    [{ id: "name", label: "Name for the merged track", value: mergedName(ordered.map((t) => t.properties.name)), read: named }],
+    lost.length ? `Only what every track has is kept. ${lost.join(". ")}. Undo puts them back.` : undefined,
+  );
+  if (!values) return;
+  const problem = await changeTrack({ kind: "merge", features: ids, name: values.name.trim() });
   if (problem) toast(problem, "warning");
 };
 

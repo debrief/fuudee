@@ -731,6 +731,8 @@ def test_tracks_are_moved_rotated_split_and_merged_as_recorded_steps(client, cat
         client, "debrief/merge_tracks", {**where, "base": rotated["base"], **together}
     ).json()["result"]
     assert merged["feature"] == "track-nelson"
+    # What was not kept is said to the caller, not only in the step's notes: here, nothing.
+    assert merged["notes"] == []
     steps = rpc(client, "debrief/history", where).json()["result"]["steps"]
     assert [s["notes"][0] for s in steps[-3:]] == [
         "NELSON moved 1.20 nmi 045.0°T",
@@ -754,3 +756,19 @@ def test_tracks_are_moved_rotated_split_and_merged_as_recorded_steps(client, cat
     assert bad["code"] == -32602 and "distance and a bearing" in bad["message"]
     rpc(client, "debrief/undo", {**where, "base": merged["base"]})
     assert "track-late" in {f.id for f in catalogue.read_plot("serial").features}
+
+
+def test_every_method_that_writes_is_known_and_reading_ones_do_not_write() -> None:
+    from debrief_tools import service
+
+    groups = (
+        service.STEP_METHODS,
+        service.PRESENTATION_METHODS,
+        service.ANNOTATION_METHODS,
+        service.TRACK_METHODS,
+    )
+    assert set(service.WRITING_METHODS) == {m for g in groups for m in g}
+    assert set(service.HISTORY_METHODS) <= service.KNOWN_METHODS
+    assert not set(service.READING_METHODS) & set(service.WRITING_METHODS)
+    assert "debrief/merge_tracks" in service.TRACK_METHODS
+    assert "debrief/set_north_arrow" in service.ANNOTATION_METHODS

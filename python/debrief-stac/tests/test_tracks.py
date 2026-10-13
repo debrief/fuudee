@@ -15,6 +15,7 @@ from debrief_stac.tracks import (
     TrackError,
     default_pivot,
     merge,
+    merged_name,
     moved,
     overlaps,
     period_indices,
@@ -209,8 +210,65 @@ def test_a_rotation_keeps_each_range_from_the_pivot_and_turns_its_bearing(
         assert (b1.value - b0.value - angle) % 360 == pytest.approx(0, abs=1e-7) or (
             b1.value - b0.value - angle
         ) % 360 == pytest.approx(360, abs=1e-7)
-    # Courses over ground turn with the track.
-    assert after.properties.courses.values == pytest.approx([(90 + angle) % 360] * 3)
+    # Courses over ground turn with the track: by as much as the bearing back to the
+    # pivot turned, which is the angle give or take how far the meridians converge.
+    for old, new, course in zip(
+        before.geometry.coordinates,
+        after.geometry.coordinates,
+        after.properties.courses.values,
+        strict=True,
+    ):
+        turn = (
+            angle  # the fix at the pivot turns by the angle itself
+            if Position(*old) == centre
+            else range_bearing(Position(*new), centre)[1].value
+            - range_bearing(Position(*old), centre)[1].value
+        )
+        assert (course - 90 - turn) % 360 == pytest.approx(0, abs=1e-6)
+
+
+@pytest.mark.parametrize(
+    ("pivot", "angle"),
+    [
+        ((-4.0, 50.0), 90.0),  # on the track
+        ((-4.0, 40.0), 90.0),  # 600 nmi south of it: the meridians converge
+        ((-4.0, 75.0), -60.0),  # far north of it
+    ],
+)
+def test_after_a_rotation_each_course_is_still_the_tracks_direction(pivot, angle) -> None:
+    # A track steering 090, fixes close enough for each leg to be the course.
+    before = track("t", "T", [[-4.0 + 0.01 * i, 50.0] for i in range(6)])
+    before = before.model_copy(
+        update={
+            "properties": before.properties.model_copy(
+                update={
+                    "courses": models.AngleSeries(
+                        unit="deg",
+                        values=[
+                            range_bearing(Position(*a), Position(*b))[1].value
+                            for a, b in zip(
+                                before.geometry.coordinates,
+                                before.geometry.coordinates[1:] + [[-3.94, 50.0]],
+                                strict=True,
+                            )
+                        ],
+                    )
+                }
+            )
+        }
+    )
+    after = rotated(before, Position(*pivot), Quantity(angle, "deg"), range(6))
+    legs = after.geometry.coordinates
+    for i in range(5):
+        heading = range_bearing(Position(*legs[i]), Position(*legs[i + 1]))[1].value
+        assert after.properties.courses.values[i] == pytest.approx(heading, abs=0.01)
+
+
+def test_turned_about_a_pole_a_course_is_kept() -> None:
+    # About the North Pole, a turn is a change of longitude: a ship steering 090 still does.
+    before = track("t", "T", [[0.0, 80.0], [1.0, 80.0]])
+    after = rotated(before, Position(0.0, 90.0), Quantity(30, "deg"), range(2))
+    assert after.properties.courses.values == pytest.approx([90.0, 90.0], abs=1e-6)
 
 
 def test_a_rotation_in_radians_keeps_courses_in_radians() -> None:
@@ -221,8 +279,9 @@ def test_a_rotation_in_radians_keeps_courses_in_radians() -> None:
     before = before.model_copy(update={"properties": props})
     after = rotated(before, Position(-4.0, 50.0), Quantity(90, "deg"), range(2))
     assert str(after.properties.courses.unit) == "rad"
+    # A quarter turn, and a little more where the meridians converge (0.1° of longitude).
     assert after.properties.courses.values == pytest.approx(
-        [(6.2 + 1.5707963) % 6.2831853, 1.6707963]
+        [(6.2 + 1.5707963) % 6.2831853, 1.6707963], abs=2e-3
     )
 
 
@@ -313,7 +372,7 @@ def test_rotating_a_track_is_one_step_with_its_pivot(catalogue) -> None:
     assert parameters(record)["pivot_longitude"] == pivot.longitude
     after = feature(catalogue, "track-blue")
     assert after.geometry.coordinates[3] == BLUE.geometry.coordinates[3]
-    assert after.properties.courses.values == pytest.approx([70.0] * 6)
+    assert after.properties.courses.values == pytest.approx([70.0] * 6, abs=0.01)
     # A pivot given is used.
     edit = {"action": "rotate", "angle": {"value": 5, "unit": "deg"}, "pivot": [-4.5, 50.5]}
     catalogue.edit_track("p", "track-red", edit, AGENT)
@@ -425,6 +484,35 @@ def test_a_split_takes_names_and_needs_two_fixes_each_side(catalogue) -> None:
         catalogue.split_track("p", "track-blue", at(25), AGENT, names=["Same", "Same"])
 
 
+def test_sensor_observations_across_the_split_stay_with_the_first_part_and_it_says_so(
+    catalogue,
+) -> None:
+    # "early" runs from 09:00 to 09:20: split at 09:15, it cannot go with either part whole.
+    catalogue.split_track("p", "track-blue", at(15), AGENT)
+    assert feature(catalogue, "early").properties.host_track_id == "track-blue"
+    assert last_record(catalogue).notes[2:] == [
+        "early bearings runs past the split and stays with BLUE ONE (1)"
+    ]
+    valid(catalogue)
+
+
+def test_parts_of_a_split_track_merged_again_are_the_track_again(catalogue) -> None:
+    _, parts = catalogue.split_track("p", "track-blue", at(25), AGENT)
+    _, merged_id, lost = catalogue.merge_tracks("p", parts, AGENT)
+    merged = feature(catalogue, merged_id)
+    assert merged_id == "track-blue" and lost == []
+    assert merged.properties.name == "BLUE ONE"
+    assert merged.geometry == BLUE.geometry
+    assert merged.properties.times == BLUE.properties.times
+    assert feature(catalogue, "late").properties.host_track_id == "track-blue"
+    assert {s.id: s.feature_ids for s in catalogue.read_plot("p").named_sets}["set-1"] == [
+        "track-blue"
+    ]
+    # Other names: the earliest's.
+    assert merged_name(["BLUE ONE (1)", "RED ONE (2)"]) == "BLUE ONE (1)"
+    assert merged_name(["BLUE ONE", "BLUE ONE (2)"]) == "BLUE ONE"
+
+
 def test_a_fix_at_the_split_time_starts_the_second_part() -> None:
     first, second = split(BLUE, parse_utc(at(20)), ("A", "B"), "b")
     assert first.properties.times[-1] == at(10) and second.properties.times[0] == at(20)
@@ -435,7 +523,8 @@ def test_a_fix_at_the_split_time_starts_the_second_part() -> None:
 
 def test_merging_joins_tracks_in_time_order_in_one_step(catalogue) -> None:
     # Given latest first: still joined in time order, under the earliest's id.
-    step, merged_id = catalogue.merge_tracks("p", ["track-blue-later", "track-blue"], AGENT)
+    step, merged_id, lost = catalogue.merge_tracks("p", ["track-blue-later", "track-blue"], AGENT)
+    assert lost == []
     assert merged_id == "track-blue"
     merged = feature(catalogue, merged_id)
     assert merged.properties.name == "BLUE ONE"

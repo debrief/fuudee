@@ -163,20 +163,27 @@ export async function playTracks(page, shot) {
   assert.match(await latest(), /^BLUE ONE split at \d\d:\d\d:\d\dZ$/);
   assert.deepEqual(await selected(), ["BLUE ONE (1)", "BLUE ONE (2)"]);
   await page.mouse.move(2, 2);
+  // The colleague's notice gone first: the pictures are for the post.
+  await page.waitForFunction(() => !document.querySelector("#toasts .toast"), null, { timeout: 15000 });
   await shot("tracks-05-split");
 
-  // Merge them again: one step, the earliest's name kept.
+  // Merge them again: the form offers the track's own name back; one step.
   n = await steps();
   await page.locator("#merge-tracks").click();
+  await dialog.waitFor();
+  assert.equal(await page.locator("#track-form-name").inputValue(), "BLUE ONE");
+  assert.equal(await dialog.locator(".form-warning").count(), 0, "nothing would be lost");
+  await dialog.getByRole("button", { name: "Merge", exact: true }).click();
   await stepAdded(n);
   assert.equal(await latest(), "BLUE ONE (1) and BLUE ONE (2) merged");
-  assert.deepEqual(await selected(), ["BLUE ONE (1)"]);
+  assert.deepEqual(await selected(), ["BLUE ONE"]);
   assert.equal(await page.locator(`#outline li[data-id="track-blue-one-2"]`).count(), 0);
   await shot("tracks-06-merged");
   // Tracks that overlap in time are refused, the message saying where.
   n = await steps();
   await page.locator(`#outline li[data-id="track-red-one"]`).click({ modifiers: ["Control"] });
   await page.locator("#merge-tracks").click();
+  await dialog.getByRole("button", { name: "Merge", exact: true }).click();
   await page.locator(".toast", { hasText: /The tracks were not merged: they overlap in time \(.* from \d\d:\d\d:\d\dZ to \d\d:\d\d:\d\dZ\)/ }).waitFor();
   assert.equal(await steps(), n);
   await shot("tracks-07-overlap-refused");

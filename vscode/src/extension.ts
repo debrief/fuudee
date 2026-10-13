@@ -8,7 +8,7 @@ import { userInfo } from "node:os";
 import * as vscode from "vscode";
 import type { AnnotationSpec, ContextTracksEnum, ParameterValue, PlotView, SharedState, SharedStateChange, TimeRange, ToolDeclaration, TrackEdit } from "@debrief/schemas";
 import { formatBearing, formatPosition, parsePosition, POSITION_EXAMPLE, UNIT_LABELS } from "@debrief/kernel";
-import { defaultPivotIndex, describeDistance, describeTurn, periodIndices, readBearing, readDistance, readTurn } from "../webview/trackedit.js";
+import { defaultPivotIndex, describeDistance, describeTurn, mergedName, mergePlan, periodIndices, readBearing, readDistance, readTurn } from "../webview/trackedit.js";
 import { changedSince, historyOnDisk, knownStores, openPlot, plotFile, type OpenedPlot } from "./catalogue.js";
 import { statSync, unwatchFile, watchFile } from "node:fs";
 import { count, describeTimes, describeToolRun, settings as displaySettings } from "./format.js";
@@ -445,7 +445,7 @@ export function activate(context: vscode.ExtensionContext): DebriefApi {
    */
   const changeTrack = (change: TrackChange) =>
     serially(() =>
-      ourChange(async (): Promise<{ problem?: string; feature?: string; features?: string[] }> => {
+      ourChange(async (): Promise<{ problem?: string; feature?: string; features?: string[]; notes?: string[] }> => {
         const opened = session.current;
         if (!opened) return { problem: "Open a plot first." };
         if (!service || !opened.base) return { problem: "Changing tracks needs Debrief's tool service. Run 'Debrief: Restart tool service'." };
@@ -467,7 +467,7 @@ export function activate(context: vscode.ExtensionContext): DebriefApi {
           return { problem: (error as Error).message };
         }
         const problem = await reloadPlot(true);
-        return { problem, feature: answer.feature, features: answer.features };
+        return { problem, feature: answer.feature, features: answer.features, ...(answer.notes?.length && { notes: answer.notes }) };
       }),
     );
 
@@ -1089,14 +1089,36 @@ export function activate(context: vscode.ExtensionContext): DebriefApi {
     if (!done.problem && done.features) session.select(done.features, "command");
     return trackDone(done);
   });
-  // "Merge selected tracks": the tracks selected, or the ids given, joined in time order.
+  // "Merge selected tracks": the tracks selected, or the ids given, joined in time order. Asked for
+  // the merged track's name, and, if speeds, courses or depths would not be kept, asked first
+  // whether to merge anyway. With the ids given (agents, tests), no questions; what was not kept comes back.
   command("debrief.mergeTracks", async (target?: string[] | Target, others?: readonly unknown[] | { name?: string }) => {
     const nodes = Array.isArray(others) ? featureIdsOf(others as never) : [];
     const ids = Array.isArray(target) ? target : nodes.length ? nodes : session.selection;
-    const tracks = ids.filter((id) => trackById(id));
+    const tracks = ids.map(trackById).filter((t): t is TrackFeature => !!t);
     if (tracks.length < 2) return { problem: report("Select two or more tracks to merge.") };
-    const name = others && !Array.isArray(others) ? (others as { name?: string }).name : undefined;
-    const done = await changeTrack({ kind: "merge", features: tracks, ...(name && { name }) });
+    let name = others && !Array.isArray(others) ? (others as { name?: string }).name : undefined;
+    if (!Array.isArray(target)) {
+      const { ordered, lost } = mergePlan(tracks);
+      if (lost.length) {
+        const go = "Merge anyway";
+        const answer = await vscode.window.showWarningMessage(
+          `Merging ${ordered.map((t) => t.properties.name).join(", ")} keeps only what every track has.`,
+          { modal: true, detail: `${lost.join(". ")}. Undo puts them back.` },
+          go,
+        );
+        if (answer !== go) return {};
+      }
+      name = await vscode.window.showInputBox({
+        title: `Merge ${count(ordered.length, "track", "tracks")}`,
+        prompt: "Name for the merged track",
+        value: mergedName(ordered.map((t) => t.properties.name)),
+        validateInput: (text) => (text.trim() ? undefined : "Give the merged track a name."),
+      });
+      if (name === undefined) return {};
+      name = name.trim();
+    }
+    const done = await changeTrack({ kind: "merge", features: tracks.map((t) => t.id), ...(name && { name }) });
     if (!done.problem && done.feature) session.select([done.feature], "command");
     return trackDone(done);
   });

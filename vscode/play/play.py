@@ -224,7 +224,7 @@ def track(item: str, request_json: str) -> str:
                 item, change["feature"], change["at"], YOU, base, names=change.get("names")
             )
         else:
-            _, out["feature"] = _cat().merge_tracks(
+            _, out["feature"], out["notes"] = _cat().merge_tracks(
                 item, change["features"], YOU, base, name=change.get("name")
             )
     except Conflict:

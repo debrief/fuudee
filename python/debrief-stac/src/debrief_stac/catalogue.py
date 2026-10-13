@@ -942,7 +942,8 @@ class Catalogue:
         are a new track, listed straight after it. Each part keeps the track's style,
         hiding and provenance, and is named as given, or "BLUE ONE (1)" and "BLUE ONE
         (2)". Sensor observations that start at or after the time move to the second
-        part; named sets holding the track hold both. Returns the step and the two
+        part; those running across it stay with the first, and the step's notes say
+        so; named sets holding the track hold both. Returns the step and the two
         parts' ids."""
         at_ms = parse_utc(at)
 
@@ -955,15 +956,16 @@ class Catalogue:
             second_id = tracks.new_track_id(chosen[1], {f.id for f in plot.features})
             first, second = tracks.split(track, at_ms, chosen, second_id)
             modified: list = [first]
+            across: list[str] = []
             for feature in plot.features:
                 props = feature.properties
-                if (
-                    props.kind == "sensor_observations"
-                    and props.host_track_id == feature_id
-                    and parse_utc(props.time_range.start) >= at_ms
-                ):
+                if props.kind != "sensor_observations" or props.host_track_id != feature_id:
+                    continue
+                if parse_utc(props.time_range.start) >= at_ms:
                     hosted = props.model_copy(update={"host_track_id": second_id})
                     modified.append(feature.model_copy(update={"properties": hosted}))
+                elif parse_utc(props.time_range.end) >= at_ms:
+                    across.append(props.name)
             sets = [
                 s.model_copy(update={"feature_ids": _after(s.feature_ids, feature_id, second_id)})
                 for s in plot.named_sets or []
@@ -973,7 +975,15 @@ class Catalogue:
             order = _after([f.id for f in plot.features], feature_id, second_id)
             note = f"{name} split at {format_time(at_ms, DEFAULT_SETTINGS)}"
             record = {
-                "notes": [f"Into {first.properties.name} and {second.properties.name}"],
+                "notes": [
+                    f"Into {first.properties.name} and {second.properties.name}",
+                    # Their observations are not split: those from the time on keep a host
+                    # that ends before them. Said, so it is not found out later.
+                    *(
+                        f"{n} runs past the split and stays with {first.properties.name}"
+                        for n in across
+                    ),
+                ],
                 "parameters": [
                     models.ParameterValue(name="at", value=at),
                     models.ParameterValue(name="first_name", value=first.properties.name),
@@ -995,13 +1005,15 @@ class Catalogue:
         *,
         name: str | None = None,
         allow_newer_schema: bool = False,
-    ) -> tuple[int, str]:
+    ) -> tuple[int, str, list[str]]:
         """Merge two or more tracks into one, in time order, as one step: "BLUE ONE and
         BLUE TWO merged". The merged track keeps the earliest's id, style and name
-        (unless one is given); the others go. Tracks that overlap in time are not
+        (unless one is given; parts of one split track, "BLUE ONE (1)" and "BLUE ONE
+        (2)", are "BLUE ONE" again); the others go. Tracks that overlap in time are not
         merged, and the message says where they overlap. Sensor observations and
         named sets that referred to the others refer to the merged track. Returns
-        the step and the merged track's id."""
+        the step, the merged track's id and what was not kept ("Courses not kept:
+        BLUE TWO had none"), which the step's notes say too."""
         chosen = list(dict.fromkeys(feature_ids))
 
         def change(plot: DebriefFeatureCollection):
@@ -1028,9 +1040,10 @@ class Catalogue:
                 "selected": chosen,
             }
             changes = Changes(modified=modified, deleted_ids=gone, named_sets=sets)
-            return changes, note, merged.id, record
+            return changes, note, (merged.id, lost), record
 
-        return self._change(item_id, change, agent, base, allow_newer_schema)
+        step, (merged_id, lost) = self._change(item_id, change, agent, base, allow_newer_schema)
+        return step, merged_id, lost
 
     @staticmethod
     def _track(plot: DebriefFeatureCollection, feature_id: str) -> models.TrackFeature:

@@ -18,6 +18,8 @@ import {
   gestureChange,
   handlePlaces,
   KeyRun,
+  mergedName,
+  mergePlan,
   moveEdit,
   moveReadout,
   NUDGE_PX,
@@ -59,6 +61,32 @@ describe("what moves", () => {
     expect(defaultPivotIndex(TIMES, period, T0 + 26 * MINUTE)).toBe(3);
     expect(defaultPivotIndex(TIMES, period, T0 + 55 * MINUTE)).toBe(1);
     expect(defaultPivotIndex(TIMES, period, undefined)).toBe(1);
+    // Halfway between two fixes: the earlier, as the tool service chooses.
+    expect(defaultPivotIndex(TIMES, period, T0 + 25 * MINUTE)).toBe(2);
+    expect(defaultPivotIndex(TIMES, period, TIMES[4])).toBe(4);
+    expect(defaultPivotIndex(TIMES, [3], TIMES[3])).toBe(3);
+  });
+
+  it("finds the pivot and the farthest fix of a long track as a fix-by-fix search would", () => {
+    // Worked out again each frame of playback (current time moves the pivot), so it must stay cheap.
+    const n = 5000;
+    const times = Array.from({ length: n }, (_, i) => T0 + i * 7000 + (i % 3) * 1000);
+    const positions: LonLat[] = times.map((_, i) => [179.5 + i * 0.0002, 60 + Math.sin(i / 300) * 0.2]);
+    const indices = periodIndices(times, { start: times[100], end: times[4000] });
+    for (const current of [times[100], times[2500] + 3000, times[2500] + 3500, times[4000], T0 + 999 * 7000 + 1234]) {
+      let nearest = indices[0];
+      for (const i of indices) if (Math.abs(times[i] - current) < Math.abs(times[nearest] - current)) nearest = i;
+      expect(defaultPivotIndex(times, indices, current)).toBe(nearest);
+      const pivot = positions[nearest];
+      let far = { metres: 0, bearing: 0 };
+      for (const i of indices) {
+        const rb = rangeBearing(pivot, positions[i]);
+        if (rb.metres > far.metres) far = rb;
+      }
+      const rotate = rangeBearing(pivot, handlePlaces(positions, indices, pivot, nearest).rotate!);
+      expect(rotate.metres).toBeCloseTo(far.metres * 1.15, 0);
+      expect(rotate.bearing).toBeCloseTo(far.bearing, 6);
+    }
   });
 
   it("puts the move handle in the middle, never on the pivot, and the rotate handle beyond the farthest fix", () => {
@@ -282,7 +310,36 @@ describe("what the analyst types", () => {
     expect(readTurn("-12")).toBe(-12);
     expect(readTurn("12 anticlockwise")).toBe(-12);
     expect(readTurn("12° clockwise")).toBe(12);
+    // A sense given wins over a sign: "-12 clockwise" turns clockwise, as it says.
+    expect(readTurn("-12 clockwise")).toBe(12);
+    expect(readTurn("-12 anticlockwise")).toBe(-12);
     expect(readTurn("0")).toEqual({ problem: "An angle of 0 turns nothing." });
     expect(readTurn("400")).toHaveProperty("problem");
+  });
+});
+
+describe("merging", () => {
+  const track = (name: string, start: number, has: { courses?: boolean; depths?: boolean } = {}) => ({
+    properties: {
+      name,
+      times: [T0 + start * MINUTE, T0 + (start + 10) * MINUTE].map((t) => new Date(t).toISOString()),
+      speeds: { unit: "[kn_i]", values: [1, 2] },
+      ...(has.courses !== false && { courses: { unit: "deg", values: [0, 0] } }),
+      ...(has.depths && { depths: { unit: "m", values: [5, 5] } }),
+    },
+  });
+
+  it("calls parts of one split track by the track's name again, else the earliest's", () => {
+    expect(mergedName(["BLUE ONE (1)", "BLUE ONE (2)"])).toBe("BLUE ONE");
+    expect(mergedName(["BLUE ONE (1)", "RED ONE (2)"])).toBe("BLUE ONE (1)");
+    expect(mergedName(["BLUE ONE", "BLUE TWO"])).toBe("BLUE ONE");
+  });
+
+  it("says, before merging, what would not be kept, in time order", () => {
+    const later = track("BLUE TWO", 30, { courses: false });
+    const plan = mergePlan([later, track("BLUE ONE", 0, { depths: true })]);
+    expect(plan.ordered.map((t) => t.properties.name)).toEqual(["BLUE ONE", "BLUE TWO"]);
+    expect(plan.lost).toEqual(["Courses not kept: BLUE TWO had none", "Depths not kept: BLUE TWO had none"]);
+    expect(mergePlan([track("A", 0), track("B", 20)]).lost).toEqual([]);
   });
 });
