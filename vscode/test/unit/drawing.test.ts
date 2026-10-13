@@ -19,6 +19,7 @@ import {
   hint,
   isComplete,
   lengthIn,
+  onTheGlobe,
   placePoint,
   readout,
   removeLast,
@@ -246,6 +247,21 @@ describe("handles on a selected annotation", () => {
     expect(removeVertex({ ...AREA, shape: "line", positions: AREA.positions!.slice(0, 2) as AnnotationSpec["positions"] }, 0)).toEqual({
       problem: "A line needs at least 2 positions, so this one can't be removed.",
     });
+  });
+
+  it("past the antimeridian the map reads 185°E, say; what is drawn or dragged there is kept as 175°W", () => {
+    // The map goes on east of 180°; a plot keeps longitudes between -180° and 180°, and refuses others.
+    const line = specOfDrawing(place(startDrawing("line"), [179.5, -17], [185, -17.2]));
+    expect(line.positions![1][0]).toBeCloseTo(-175, 9);
+    expect(specOfDrawing(place(startDrawing("circle"), [-181, -17], [-180.5, -17])).positions![0][0]).toBeCloseTo(179, 9);
+    const fiji: AnnotationSpec = { shape: "area", name: "Fiji box", positions: [[179.6, -17], [179.9, -17], [179.8, -17.3]] };
+    const move = handlesOf(fiji).find((h) => h.role === "move")!;
+    const moved = dragTo(fiji, move, [move.at[0] + 0.3, move.at[1]]);
+    expect(moved.positions!.map((p) => Number(p[0].toFixed(9)))).toEqual([179.9, -179.8, -179.9]);
+    const corner = dragTo(fiji, handlesOf(fiji)[1], [180.4, -17]);
+    expect(corner.positions![1][0]).toBeCloseTo(-179.6, 9);
+    for (const spec of [line, moved, corner]) for (const [lon] of spec.positions!) expect(Math.abs(lon)).toBeLessThanOrEqual(180);
+    expect(onTheGlobe(CENTRE)).toEqual(CENTRE);
   });
 
   it("nudging is dragging a little at a time: three nudges of a corner move it three times as far", () => {

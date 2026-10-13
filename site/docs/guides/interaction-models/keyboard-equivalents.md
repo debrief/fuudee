@@ -17,7 +17,7 @@ How every map action can be done without a mouse.
 | Map action | Without a pointer |
 | --- | --- |
 | Draw a line, area, circle, ellipse, label or marker | `Tab` to the map's *Draw an annotation* toolbar, `Enter` on a kind; the arrow keys pan the map under the cross in its middle, `Space` places a point there, `Enter` finishes, `Backspace` removes the last, `Escape` cancels. Or **Add annotation…** and type the positions ([annotations](annotations.md), items 1 to 6). |
-| Drag a corner, centre, radius, axis or label | `Tab` to its handle; the arrow keys move it 5 pixels (25 with `Shift`); the run of presses is one step when they stop, on `Enter`, or when the keyboard moves on; `Escape` puts it back. Or type the change on its properties form. |
+| Drag a corner, centre, radius, axis or label | `Tab` to its handle; the arrow keys move it 5 pixels (25 with `Shift`); the run of presses is one step when they stop, on `Enter`, or when the keyboard moves on (presses made while it is saved follow as the next step); `Escape` puts it back. Or type the change on its properties form. |
 | Add a corner between two | Arrow keys on the handle between them. |
 | Remove a corner | `Delete` or `Backspace` on its handle. |
 | Clear the selection | `Escape` on the map; or the outline, a native tree. |

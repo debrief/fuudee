@@ -70,3 +70,5 @@ body { background: var(--vscode-editor-background); color: var(--vscode-foregrou
 .edit-handle-centre, .edit-handle-move, .edit-handle-position { border-radius: 50%; }
 .edit-handle-move { background: var(--vscode-focusBorder); }
 .edit-handle:focus { outline: 2px solid var(--vscode-editor-foreground); outline-offset: 2px; }
+/* On a narrow map the note on how to change a selection would cover it; the handles say it themselves. */
+@media (max-width: 480px) { .drawing-status.selection-note { display: none; } }

@@ -62,7 +62,7 @@ How an analyst adds a line, area, circle, ellipse, label, marker or note to a pl
     | Hiding an annotation on the map | Yes (as for any feature) | Yes |
     | Choosing a Timeline entry (current time), opening a form | No | No |
 
-12. **Drawing on the map.** The map has a toolbar, *Draw an annotation*, below the zoom buttons: **Line**, **Area**, **Circle**, **Ellipse**, **Label**, **Marker** and **Cancel**. Choosing a kind starts drawing it: the button shows pressed, the map gets a focus outline and a cross for a pointer, and a note at the top of the map says what to do next and what has been drawn so far. Choosing the pressed kind again, **Cancel** or `Escape` stops and keeps nothing; `Backspace` removes the last point placed.
+12. **Drawing on the map.** The map has a toolbar, *Draw an annotation*, below the zoom buttons: **Line**, **Area**, **Circle**, **Ellipse**, **Label**, **Marker** and **Cancel**. Choosing a kind starts drawing it: the button shows pressed, the map gets a focus outline and a cross for a pointer, and a note at the top of the map says what to do next and what has been drawn so far. Choosing the pressed kind again, **Cancel** (which leaves the keyboard on that kind) or `Escape` stops and keeps nothing; `Backspace` removes the last point placed.
 
     | Kind | Draw it by | The map says |
     | --- | --- | --- |
@@ -76,7 +76,7 @@ How an analyst adds a line, area, circle, ellipse, label, marker or note to a pl
 
 13. **Finishing opens the form.** A finished drawing opens the annotation form (**Add annotation**), with its kind, positions and size filled in, at the name. The analyst names it, gives it a time or a style if they want, and **Add** saves it as **one step** (*Area 'Patrol box' added*); **Cancel** (or closing the form) keeps nothing, and the dashed drawing leaves the map. Until then nothing is in the plot. *Why the form, rather than adding at once with a made-up name:* adding at once and then naming it would be two steps for one annotation, and Undo would take away only the name; a made-up name ("Area 1") would end up in plots. With the form, each finished annotation is one undoable step with the analyst's own name, and Cancel leaves no trace in the history.
 
-14. **Changing it on the map.** An annotation selected on its own, and drawn on the map now, shows handles in the theme's focus colour, and the note at the top says how to use them:
+14. **Changing it on the map.** An annotation selected on its own, and drawn on the map now, shows handles in the theme's focus colour, and the note at the top says how to use them (on a map narrower than 480 pixels the note gives way to the map; each handle's own name says it):
 
     | Kind | Handles |
     | --- | --- |
@@ -90,7 +90,7 @@ How an analyst adds a line, area, circle, ellipse, label, marker or note to a pl
 15. **The keyboard.** Every drawing and every change can be made without a pointer:
 
     - *Drawing:* `Tab` to the toolbar and press `Enter` on a kind; the keyboard goes to the map, which shows a cross in its middle. The arrow keys pan the map under the cross (as they always do), `Space` places a point at the cross, `Enter` finishes, `Backspace` removes the last point, `Escape` cancels.
-    - *Changing:* `Tab` to a handle (each is named for a screen reader: *Area 'Patrol box': corner 2 of 4; drag it, or use the arrow keys; Delete removes it*). The arrow keys move it 5 pixels, 25 with `Shift`; a run of presses is saved as one step once they stop (under a second), on `Enter`, or when the keyboard moves on; `Escape` first puts it back. Arrow keys on a between-handle add a corner there. `Delete` or `Backspace` on a corner removes it, unless that would leave an area fewer than three corners or a line fewer than two, which the map says.
+    - *Changing:* `Tab` to a handle (each is named for a screen reader: *Area 'Patrol box': corner 2 of 4; drag it, or use the arrow keys; Delete removes it*). The arrow keys move it 5 pixels, 25 with `Shift`; a run of presses is saved as one step once they stop (under a second), on `Enter`, or when the keyboard moves on; `Escape` first puts it back. Presses made while that step is still being saved are not lost: the map says so, and they are made as the next step once it is. Arrow keys on a between-handle add a corner there. `Delete` or `Backspace` on a corner removes it, unless that would leave an area fewer than three corners or a line fewer than two, which the map says.
     - *Exactly:* the properties form (item 7) changes any position or size by typing it, as before.
 
 16. **Shared state and conflicts.** Drawing and editing change neither current time, the time window nor the selection; tracks stay selectable with `Ctrl` or `Cmd` click. If the plot changes elsewhere during a drag (a colleague, an agent), the map shows the latest at once, drops the drag and says *The plot was changed elsewhere, so your change was not made. Debrief is showing the latest; try again if you still want to.* A change sent from a plot that has since moved on is refused the same way (SUB-28). A change the service refuses for any other reason is said in a notification, and the map shows the annotation as it is.

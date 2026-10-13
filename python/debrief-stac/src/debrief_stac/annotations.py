@@ -314,12 +314,17 @@ def describe_change(
 
 def _moved_whole(old: list[list[float]], new: list[list[float]]) -> bool:
     """Whether every position moved by the same change of longitude and latitude,
-    as when the whole annotation is dragged or nudged."""
+    as when the whole annotation is dragged or nudged; across the antimeridian too,
+    where a longitude goes from 179.9 to -179.9."""
     if len(old) != len(new) or not old:
         return False
     d_lon, d_lat = new[0][0] - old[0][0], new[0][1] - old[0][1]
+
+    def same_lon(change: float) -> bool:
+        return abs((change - d_lon + 180.0) % 360.0 - 180.0) < 1e-9
+
     return all(
-        abs(b[0] - a[0] - d_lon) < 1e-9 and abs(b[1] - a[1] - d_lat) < 1e-9
+        same_lon(b[0] - a[0]) and abs(b[1] - a[1] - d_lat) < 1e-9
         for a, b in zip(old, new, strict=True)
     )
 

@@ -269,6 +269,16 @@ ELLIPSE = {
             {"positions": [[-4.19, 50.31], [-4.09, 50.33], [-4.04, 50.29]]},
             "Area 'Transit lane' moved",
         ),
+        # Moved across the antimeridian: each longitude is kept between -180 and 180.
+        (
+            {
+                "shape": "area",
+                "name": "Fiji box",
+                "positions": [[179.6, -17.0], [179.9, -17.0], [179.8, -17.3]],
+            },
+            {"positions": [[179.9, -17.0], [-179.8, -17.0], [-179.9, -17.3]]},
+            "Area 'Fiji box' moved",
+        ),
         # A corner dragged, added or removed.
         (
             AREA,

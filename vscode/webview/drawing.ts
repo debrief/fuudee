@@ -61,6 +61,15 @@ export function isComplete(drawing: Drawing): boolean {
   return needed !== undefined && drawing.points.length >= needed;
 }
 
+/**
+ * A position with its longitude between -180° and 180°, as a plot keeps it. The
+ * map goes on past the antimeridian, so a point placed or dragged there reads as
+ * 185°E, say, which is 175°W.
+ */
+export function onTheGlobe([lon, lat]: LonLat): LonLat {
+  return [lon >= -180 && lon <= 180 ? lon : ((((lon + 180) % 360) + 360) % 360) - 180, lat];
+}
+
 const distinct = (points: LonLat[]) => new Set(points.map(([lon, lat]) => `${lon},${lat}`)).size;
 
 /** The drawing with each point that repeats the one before it left out: a double-click places one point, not two. */
@@ -113,7 +122,7 @@ export function specOfDrawing(drawing: Drawing, settings: FormatSettings = DEFAU
   const { tool, points } = drawing;
   const spec: AnnotationSpec = { shape: tool, name: "" };
   if (tool === "circle" || tool === "ellipse") {
-    if (points.length) spec.positions = [points[0]];
+    if (points.length) spec.positions = [onTheGlobe(points[0])];
     if (points.length < 2) return spec;
     const { metres, bearing } = rangeBearing(points[0], points[1]);
     if (tool === "circle") {
@@ -126,7 +135,7 @@ export function specOfDrawing(drawing: Drawing, settings: FormatSettings = DEFAU
     return spec;
   }
   const positions = tool === "line" || tool === "area" ? points : points.slice(0, 1);
-  if (positions.length) spec.positions = positions as AnnotationSpec["positions"];
+  if (positions.length) spec.positions = positions.map(onTheGlobe) as AnnotationSpec["positions"];
   return spec;
 }
 
@@ -317,17 +326,17 @@ export function dragTo(spec: AnnotationSpec, handle: Pick<Handle, "role" | "inde
     case "vertex":
     case "centre":
     case "position":
-      points[handle.index] = to;
+      points[handle.index] = onTheGlobe(to);
       next.positions = points as AnnotationSpec["positions"];
       break;
     case "midpoint":
-      points.splice(handle.index + 1, 0, to);
+      points.splice(handle.index + 1, 0, onTheGlobe(to));
       next.positions = points as AnnotationSpec["positions"];
       break;
     case "move": {
       const dLon = to[0] - handle.at[0];
       const dLat = to[1] - handle.at[1];
-      next.positions = points.map(([lon, lat]) => [lon + dLon, Math.max(-90, Math.min(90, lat + dLat))]) as AnnotationSpec["positions"];
+      next.positions = points.map(([lon, lat]) => onTheGlobe([lon + dLon, Math.max(-90, Math.min(90, lat + dLat))])) as AnnotationSpec["positions"];
       break;
     }
     case "radius": {

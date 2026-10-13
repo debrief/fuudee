@@ -19,7 +19,8 @@
  *   change (edit_annotation), one step. Escape during a drag puts it back.
  *   A focused handle moves with the arrow keys; the change is sent when the
  *   analyst stops (or presses Enter, or moves on), so one run of presses is
- *   one step. Delete or Backspace removes a focused vertex.
+ *   one step. Arrow keys pressed while that step is being saved are kept and
+ *   made as the next one. Delete or Backspace removes a focused vertex.
  * - Nothing here changes current time, the window or the selection. If the
  *   plot changes elsewhere during a drag, the drag is dropped and the map says so.
  *
@@ -110,6 +111,8 @@ export class MapEditor {
   /** When the last drag ended: the click that ends a drag is not a click on the map. */
   private dragEnded?: { at: L.Point; time: number };
   private nudge?: { role: Handle["role"]; index: number; original: AnnotationSpec; spec: AnnotationSpec; timer?: ReturnType<typeof setTimeout> };
+  /** Arrow keys pressed while a change was being saved: made, as the next change, once it is. */
+  private queued?: { role: Handle["role"]; index: number; moves: [number, number][] };
   /** A change sent, waiting for the plot to come back with it. */
   private awaiting = false;
   /** A finished drawing, waiting for the form. */
@@ -202,7 +205,12 @@ export class MapEditor {
           editor.buttons.set(key, b);
         };
         for (const { tool, label, title } of TOOLS) button(tool, label, title, () => (editor.drawing?.tool === tool ? editor.cancel() : editor.start(tool)));
-        button("cancel", "Cancel", "Stop, and keep nothing of what was placed (Escape)", () => editor.cancel());
+        button("cancel", "Cancel", "Stop, and keep nothing of what was placed (Escape)", () => {
+          // Cancel turns itself off; the keyboard goes to the kind that was being drawn, not nowhere.
+          const tool = editor.drawing?.tool;
+          editor.cancel();
+          if (tool) editor.buttons.get(tool)?.focus();
+        });
         // Up and down move along the toolbar, as a toolbar's arrow keys do; Tab moves on as ever.
         bar.addEventListener("keydown", (e) => {
           const step = e.key === "ArrowDown" ? 1 : e.key === "ArrowUp" ? -1 : 0;
@@ -278,22 +286,21 @@ export class MapEditor {
     if (!this.drawing) return false;
     const original = event.originalEvent;
     if (original.ctrlKey || original.metaKey) return false;
-    const ended = this.pressEnded;
-    this.pressEnded = undefined;
-    if (ended && Date.now() - ended.time < 500 && event.containerPoint.distanceTo(ended.at) < 1) {
-      return true;
-    }
     this.place(lonLat(event.latlng));
     return true;
   }
 
-  /** Whether a click is the end of a handle's drag, which selects nothing. */
+  /**
+   * Whether a click is the end of a handle's drag, or of the press that placed a
+   * circle's or an ellipse's centre (and perhaps dragged out its size): it places
+   * and selects nothing, even once the drawing is finished.
+   */
   endingDrag(event: L.LeafletMouseEvent): boolean {
-    const ended = this.dragEnded;
     if (this.drag) return true;
-    if (!ended) return false;
-    this.dragEnded = undefined;
-    return Date.now() - ended.time < 500 && event.containerPoint.distanceTo(ended.at) < 2;
+    const recent = (ended?: { at: L.Point; time: number }) => !!ended && Date.now() - ended.time < 500 && event.containerPoint.distanceTo(ended.at) < 2;
+    const ending = recent(this.dragEnded) || recent(this.pressEnded);
+    this.dragEnded = this.pressEnded = undefined;
+    return ending;
   }
 
   /** A double-click finishes a line or an area. */
@@ -378,6 +385,8 @@ export class MapEditor {
   /** The map drew the plot again: a change sent has come back, or the plot changed elsewhere. */
   plotDrawn(): void {
     const interrupted = (this.drag || this.nudge) && !this.awaiting;
+    const queued = this.queued;
+    this.queued = undefined;
     if (this.drag) this.endDrag();
     if (this.nudge?.timer) clearTimeout(this.nudge.timer);
     this.nudge = undefined;
@@ -388,6 +397,8 @@ export class MapEditor {
     if (interrupted) this.say("The plot was changed elsewhere, so your change was not made. Debrief is showing the latest; try again if you still want to.");
     else if (!this.drawing) this.say("");
     this.setSelection(this.selection);
+    // Moves made while the last change was saved: now made, from where it is now.
+    if (queued && !interrupted && this.selected && !this.drawing) for (const move of queued.moves) this.nudgeBy(queued, move);
   }
 
   /** The selection changed: handles on an annotation selected alone. */
@@ -400,7 +411,7 @@ export class MapEditor {
     this.selected = id && spec && handlesOf(spec).length ? { id, spec } : undefined;
     this.showHandles();
     if (this.selected && !this.drawing && !this.pending && (before !== id || this.saying !== "other")) {
-      this.say(`${titleOf(this.selected.spec)}: drag a handle to change it, or Tab to one and use the arrow keys. Each change is one step.`, undefined, "selection");
+      this.say(`${titleOf(this.selected.spec)}: drag a handle, or Tab to one and use the arrow keys.`, undefined, "selection");
     } else if (!this.selected && this.saying === "selection") this.say("");
   }
 
@@ -437,7 +448,10 @@ export class MapEditor {
     this.handles = wanted.map((handle) => ({ handle, marker: this.makeHandle(handle) }));
     this.handles.forEach((h) => h.marker.addTo(this.handleLayer));
     this.rebuilding = false;
-    if (focus && hadFocus) this.handles.find((h) => h.handle.role === focus.role && h.handle.index === focus.index)?.marker.getElement()?.focus();
+    if (!hadFocus) return;
+    const target = focus && this.handles.find((h) => h.handle.role === focus.role && h.handle.index === focus.index)?.marker.getElement();
+    // The handle that had the keyboard went (the annotation deselected, say): the map keeps it, not the page.
+    (target ?? this.host.element).focus({ preventScroll: true });
   }
 
   private makeHandle(handle: Handle): L.Marker {
@@ -469,7 +483,8 @@ export class MapEditor {
   // --- Dragging a handle -----------------------------------------------------------------
   private beginDrag(event: PointerEvent, handle: Handle, element: HTMLElement): void {
     const spec = this.current();
-    if (event.button !== 0 || !spec || this.drawing || this.awaiting) return;
+    if (event.button !== 0 || !spec || this.drawing) return;
+    if (this.awaiting) return this.say("Saving the last change: drag again once it is saved.");
     event.preventDefault();
     event.stopPropagation();
     if (this.nudge) this.commitNudge();
@@ -544,6 +559,7 @@ export class MapEditor {
   }
 
   private cancelEdit(): void {
+    this.queued = undefined;
     if (this.drag) this.cancelDrag();
     if (this.nudge) {
       if (this.nudge.timer) clearTimeout(this.nudge.timer);
@@ -561,24 +577,19 @@ export class MapEditor {
     if (direction) {
       event.preventDefault();
       event.stopPropagation(); // not the map's own panning
-      if (this.awaiting || this.drag) return;
+      if (this.drag) return;
       const step = event.shiftKey ? NUDGE_PX * 5 : NUDGE_PX;
-      this.nudge ??= { role: handle.role, index: handle.index, original: spec, spec };
-      const nudge = this.nudge;
-      const now = handlesOf(nudge.spec).find((h) => h.role === nudge.role && h.index === nudge.index);
-      if (!now) return;
-      const { map } = this.host;
-      const to = map.containerPointToLatLng(map.latLngToContainerPoint(toLatLng(now.at)).add([direction[0] * step, direction[1] * step]));
-      nudge.spec = dragTo(nudge.spec, now, lonLat(to), settings);
-      Object.assign(nudge, handleAfter(now));
-      this.showChanged(nudge.spec, nudge);
-      this.say(editReadout(nudge.spec, nudge, settings));
-      if (nudge.timer) clearTimeout(nudge.timer);
-      nudge.timer = setTimeout(() => this.commitNudge(), NUDGE_SETTLE_MS);
+      const move: [number, number] = [direction[0] * step, direction[1] * step];
+      if (this.awaiting) {
+        // The last change is still being saved: this move is kept, and made as the next change once it is.
+        (this.queued ??= { role: handle.role, index: handle.index, moves: [] }).moves.push(move);
+        return this.say("Saving the last change; your next move follows once it is saved.");
+      }
+      this.nudgeBy(handle, move);
     } else if (event.key === "Enter" && this.nudge) {
       event.preventDefault();
       this.commitNudge();
-    } else if (event.key === "Escape" && (this.nudge || this.drag)) {
+    } else if (event.key === "Escape" && (this.nudge || this.drag || this.queued)) {
       event.preventDefault();
       event.stopPropagation(); // keeps the selection
       this.cancelEdit();
@@ -586,12 +597,31 @@ export class MapEditor {
     } else if ((event.key === "Delete" || event.key === "Backspace") && handle.role === "vertex") {
       event.preventDefault();
       event.stopPropagation();
-      if (this.awaiting || this.drag) return;
+      if (this.drag) return;
+      if (this.awaiting) return this.say("Saving the last change: press Delete again once it is saved.");
       if (this.nudge) this.commitNudge();
       const removed = removeVertex(this.current()!, handle.index);
       if ("problem" in removed) return this.say(removed.problem);
       this.commit(removed.spec, { role: "vertex", index: Math.max(0, handle.index - 1) });
     }
+  }
+
+  /** Move a handle by pixels on the screen, live; the run of moves is sent once the analyst stops. */
+  private nudgeBy(handle: Pick<Handle, "role" | "index">, [dx, dy]: [number, number]): void {
+    const spec = this.current();
+    if (!spec) return;
+    this.nudge ??= { role: handle.role, index: handle.index, original: spec, spec };
+    const nudge = this.nudge;
+    const now = handlesOf(nudge.spec).find((h) => h.role === nudge.role && h.index === nudge.index);
+    if (!now) return;
+    const { map } = this.host;
+    const to = map.containerPointToLatLng(map.latLngToContainerPoint(toLatLng(now.at)).add([dx, dy]));
+    nudge.spec = dragTo(nudge.spec, now, lonLat(to), settings);
+    Object.assign(nudge, handleAfter(now));
+    this.showChanged(nudge.spec, nudge);
+    this.say(editReadout(nudge.spec, nudge, settings));
+    if (nudge.timer) clearTimeout(nudge.timer);
+    nudge.timer = setTimeout(() => this.commitNudge(), NUDGE_SETTLE_MS);
   }
 
   private commitNudge(): void {
@@ -635,6 +665,9 @@ export class MapEditor {
 
   private say(text: string, readoutText?: string, saying: "selection" | "other" = "other"): void {
     this.saying = text ? saying : undefined;
+    // How to change a selection is not read out each time one is made: its handles say it.
+    this.statusHint.setAttribute("aria-live", this.saying === "selection" ? "off" : "polite");
+    this.statusBox.classList.toggle("selection-note", this.saying === "selection");
     this.statusHint.textContent = text;
     if (readoutText !== undefined) this.statusReadout.textContent = readoutText;
     else if (!this.drawing) this.statusReadout.textContent = "";

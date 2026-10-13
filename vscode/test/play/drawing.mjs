@@ -30,6 +30,9 @@ export async function playDrawing(page, shot) {
     return { x: b.x + b.width / 2, y: b.y + b.height / 2 };
   };
   const handle = (role, index = 0) => mapFrame.locator(`.edit-handle[data-role="${role}"][data-index="${index}"]`);
+  const selected = () => page.$$eval("#outline li.selected .name", (rows) => rows.map((r) => r.textContent));
+  /** What has the keyboard in the map: "MAP", or a button's or a handle's name. */
+  const focused = () => mapFrame.locator("body").evaluate(() => (document.activeElement?.id === "map" ? "MAP" : (document.activeElement?.getAttribute("aria-label") ?? document.activeElement?.textContent ?? "")));
 
   // The toolbar: a named toolbar of buttons, Cancel off until something is being drawn.
   const before = await timeLabel();
@@ -142,6 +145,20 @@ export async function playDrawing(page, shot) {
   await page.waitForTimeout(1000);
   assert.equal(await steps(), n + 1, "one step for a run of nudges");
 
+  // Keys pressed while that change is still being saved are not lost: they follow it, as
+  // the next step, once it is saved (the map says so meanwhile).
+  n = await steps();
+  const from = await centreOf(handle("move"));
+  await handle("move").focus();
+  await page.keyboard.press("ArrowRight");
+  await page.waitForTimeout(850); // the run settles, and is sent
+  await page.keyboard.press("ArrowLeft");
+  await page.keyboard.press("ArrowLeft");
+  await stepAdded(n + 1);
+  assert.equal(await steps(), n + 2, "the run, then the moves made while it was saved");
+  const to = await centreOf(handle("move"));
+  assert.ok(Math.abs(to.x - (from.x - 5)) < 2 && Math.abs(to.y - from.y) < 2, `moved right 5 then left 10, not ${to.x - from.x}`);
+
   // Delete on a focused corner removes it, down to three and no further.
   await handle("vertex", 4).waitFor();
   n = await steps();
@@ -170,6 +187,9 @@ export async function playDrawing(page, shot) {
   const said = await mapFrame.locator(".drawing-readout").innerText();
   await page.mouse.up();
   await form.locator("#field-name input").waitFor();
+  // The press that drew it selects nothing when let go: the area is still selected.
+  await page.waitForTimeout(300);
+  assert.deepEqual(await selected(), ["Patrol box"], "drawing a circle by dragging keeps the selection");
   // The radius is the one the map said, in the analyst's unit.
   const radius = /^Radius (\d+\.\d\d) nmi/.exec(said)[1];
   assert.equal(await form.locator("#field-radius input").inputValue(), String(Number(radius)));
@@ -186,6 +206,11 @@ export async function playDrawing(page, shot) {
   await page.mouse.up();
   await historySays("Circle 'Keep clear' resized");
   assert.equal(await steps(), n + 1);
+  // Escape on a handle clears the selection; the keyboard stays on the map, not lost with the handle.
+  await handle("radius").focus();
+  await page.keyboard.press("Escape");
+  await handle("radius").waitFor({ state: "detached" });
+  assert.equal(await focused(), "MAP");
 
   // An ellipse by clicks: the centre, the end of its longer axis, then its side.
   await tool("Ellipse").click();
@@ -232,6 +257,22 @@ export async function playDrawing(page, shot) {
   await mapFrame.locator("#map.drawing-mode").waitFor({ state: "detached" });
   assert.equal(await tool("Line").getAttribute("aria-pressed"), "false");
   assert.equal(await steps(), n);
+  // Cancel on the toolbar turns itself off; the keyboard goes to the kind it was drawing.
+  await tool("Area").click();
+  await tool("Cancel").focus();
+  await page.keyboard.press("Enter");
+  await mapFrame.locator("#map.drawing-mode").waitFor({ state: "detached" });
+  assert.equal(await focused(), "Area");
+
+  // The note on how to change a selection is short; on a narrow map it gives way to the map.
+  await page.locator(`#outline li[data-id="annotation-patrol-box"]`).click();
+  await status.getByText("Area 'Patrol box': drag a handle, or Tab to one and use the arrow keys.").waitFor();
+  const wide = page.viewportSize();
+  await page.setViewportSize({ width: 640, height: wide.height }); // the map about 430 px wide
+  await status.waitFor({ state: "hidden" });
+  await handle("move").waitFor();
+  await page.setViewportSize(wide);
+  await status.waitFor({ state: "visible" });
 
   // Drawing never moved current time or the window.
   assert.equal(await timeLabel(), before);

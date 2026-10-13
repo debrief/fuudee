@@ -60,8 +60,12 @@ export interface DebriefApi {
   mapContext: () => string | undefined;
   /** How many times the plot's view has been read again after a change on disk, for tests. */
   viewChecks: () => number;
-  /** For tests: act on a message as if the map had sent it (drawing or dragging an annotation, say). */
-  fromMap: (message: unknown) => Promise<void>;
+  /**
+   * For tests only: act on a message as if the map had sent it (drawing or dragging an
+   * annotation, say). Present only when the extension runs under test, so no other
+   * extension can pose as the map.
+   */
+  fromMap?: (message: unknown) => Promise<void>;
 }
 
 export function activate(context: vscode.ExtensionContext): DebriefApi {
@@ -1108,7 +1112,7 @@ export function activate(context: vscode.ExtensionContext): DebriefApi {
     timeControllerShowing: () => timeView.showing,
     mapContext: () => map.context,
     viewChecks: () => viewChecks,
-    fromMap: (message) => map.receive(message),
+    ...(context.extensionMode === vscode.ExtensionMode.Test && { fromMap: (message: unknown) => map.receive(message) }),
   };
 }
 
