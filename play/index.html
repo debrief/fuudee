@@ -6,13 +6,14 @@
 <meta name="color-scheme" content="dark light">
 <title>Debrief in your browser</title>
 <link rel="stylesheet" href="theme.css">
+<link rel="stylesheet" href="timecontrol.css">
 <link rel="stylesheet" href="host.css">
 </head>
 <body>
 <div class="app">
   <aside id="side" class="side">
     <section id="panel-time">
-      <h2>Current time</h2>
+      <h2>Time</h2>
       <div id="timebar"></div>
     </section>
     <section>
@@ -43,6 +44,7 @@
       <button id="crash">Crash part-way through a save</button>
       <button id="reopen" class="primary" hidden>Reopen the plot</button>
       <button id="colleague">A colleague changes the plot</button>
+      <button id="colleague-window">A colleague changes the time window</button>
       <button id="colleague-during">A colleague changes it while your next tool runs</button>
     </section>
     <section id="panel-import">

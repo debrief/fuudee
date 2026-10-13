@@ -885,6 +885,8 @@
       
         
       
+        
+      
     
     
     
@@ -1225,6 +1227,34 @@
   
   
     <li class="md-nav__item">
+      <a href="../time-controller/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Time controller
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
       <a href="../keyboard-equivalents/" class="md-nav__link">
         
   
@@ -1494,7 +1524,7 @@
 <li><strong>The island:</strong> <code>debrief_schemas.island</code>; in <code>debrief_stac.history</code>, <code>content_hash</code> (every hash leaves the island out), <code>write_view</code> (under the history's lock, refused if the view changed since it was read) and the island carried over by commit, replay, undo and recovery; <code>debrief/set_view</code>, and the view and its hash from <code>debrief/open</code>.</li>
 <li><strong>Retired:</strong> <code>presentation.json</code>. Before schema 1.0 a plot from an older schema version cannot be opened at all (SUB-13), so this rarely applies: a plot of the current version that still has one gets, the first time a writer opens it, one recorded step applying its colours and hidden features, and the file is deleted (<code>Catalogue.migrate_presentation</code>); a read-only catalogue applies it in memory.</li>
 </ul>
-<p><em>Not yet:</em> the time controller that sets the plot's window, and other view state in the island, which arrive with their features. Other presentation (line styles, labels) will be content, like colour.</p>
+<p>The <a href="../time-controller/">time controller</a> sets the plot's window and says what is saved where. <em>Not yet:</em> other view state in the island, which arrives with its features. Other presentation (line styles, labels) will be content, like colour.</p>
 
 
 

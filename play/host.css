@@ -23,11 +23,8 @@ button:disabled { opacity: .5; cursor: default; }
 button.primary { background: var(--vscode-button-background); color: var(--vscode-button-foreground); }
 button.link { background: none; border: none; color: var(--vscode-list-highlightForeground); padding: 0 2px; font-size: 12px; }
 button:focus-visible, li:focus-visible { outline: 1px solid var(--vscode-focusBorder); }
-.timebar { display: grid; grid-template-columns: auto 1fr auto; align-items: center; gap: 4px; }
-.timebar input { min-width: 0; accent-color: var(--vscode-focusBorder); }
-.timebar .step { margin: 0; padding: 0 6px; }
-.timebar .time-label { grid-column: 1 / -1; font-family: var(--vscode-editor-font-family); font-size: 12px; }
-.timebar input:focus-visible { outline: 1px solid var(--vscode-focusBorder); }
+/* The time controller has its own styles (timecontrol.css, shared with VS Code); the side column's list style stays off it. */
+.side .tc-speed, .side .tc-context { width: auto; padding: 0 2px; }
 #panel-try button { display: block; width: 100%; text-align: left; }
 .tools li { display: flex; align-items: baseline; gap: 6px; flex-wrap: wrap; }
 .file input { display: block; margin: 4px 0; color: var(--vscode-foreground); font: inherit; }

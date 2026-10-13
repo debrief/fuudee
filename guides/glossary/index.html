@@ -881,6 +881,8 @@
       
         
       
+        
+      
     
     
     
@@ -1121,6 +1123,34 @@
     
   
     Check overrides
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../interaction-models/time-controller/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Time controller
   
 
     
@@ -1474,6 +1504,8 @@
 <p><strong>Supporting file.</strong> Video, imagery, acoustic files and other content that is not geographic data, kept beside a plot (SUB-06).</p>
 <p><strong>History</strong> (in guides, <strong>provenance</strong>). The record of every operation that produced a plot: imports, tool runs, edits and deletions, with who or what made them (SUB-18 to SUB-24).</p>
 <p><strong>Time window.</strong> The period of the plot being looked at, one for the whole plot. Sensor data is shown only within it (CAP-28, CAP-29). Saved with the plot, but not part of its history: changing it is never undone.</p>
+<p><strong>Saved window.</strong> The time window as saved in the plot. A tool that moves current time outside it shows a wider or moved window instead, without saving it; the time controller says so, with <strong>Keep</strong> to save the window shown and <strong>Revert</strong> to show the saved window again (CAP-28).</p>
+<p><strong>Context tracks.</strong> Each track's whole line outside the time window, drawn thin and quieter so the whole picture stays in view. A plot draws them visible (at least 3:1 against the map), faint or hidden (CAP-29).</p>
 <p><strong>Island</strong> (in guides). View state saved inside the plot file, so it travels with the plot, but outside its history: never recorded, never undone. The time window is the first. Everything else in a plot, a track's colour and what is hidden included, is part of its history (SUB-22).</p>
 <p><strong>Feature.</strong> Anything in a plot: a track, an annotation, or a set of sensor observations. Used where a statement covers all three, as in "Plot features" in the outline; otherwise name the kind.</p>
 <p><strong>Fix.</strong> A single timestamped position of a platform, with course, speed and depth where known. Depth is positive down.</p>
@@ -1497,7 +1529,7 @@
 <p><strong>Measure group.</strong> A named, reusable set of measures for a mode of analysis, defined by a study's lead analyst. The Tote is a view onto one (CAP-07).</p>
 <p><strong>CPA</strong> (closest point of approach). The time and range at which two platforms are nearest.</p>
 <p><strong>Current time.</strong> The instant, within a time range, that every view follows. Shared state, with selection and viewport (SUB-26).</p>
-<p><strong>Display window.</strong> A period around current time outside which a layer's sensor data is hidden, so that weeks of bearings stay legible (CAP-28, CAP-29).</p>
+<p><strong>Display window.</strong> The earlier name for the <a href="#data">time window</a>, when each layer was to have its own. There is now one time window for the whole plot (CAP-28, decision 12 Oct 2026).</p>
 <p><strong>Storyboard.</strong> A sequence of map views, each with a time and narrative comments, exported as offline HTML, a PowerPoint quad chart or video (CAP-13, CAP-14).</p>
 <p><strong>Tool.</strong> An analysis operation written in Python: Debrief builds its form and offers it when it applies (section 6 of the SRD).</p>
 <h2 id="conventions">Conventions<a class="headerlink" href="#conventions" title="Permanent link">&para;</a></h2>

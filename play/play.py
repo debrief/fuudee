@@ -14,6 +14,7 @@ from pathlib import Path
 from typing import Any
 
 from debrief_io import import_dpf, import_rep
+from debrief_kernel.time import format_utc, parse_utc
 from debrief_schemas import DocumentKind, dump_document, models
 from debrief_stac import Base, Catalogue, CatalogueError, Changes, Conflict, History, HistoryError
 from debrief_tools import Registry
@@ -175,6 +176,39 @@ def restyle(item: str, request_json: str) -> str:
     return json.dumps({"ok": True})
 
 
+def set_view(item: str, request_json: str) -> str:
+    """Save the plot's view (its island), as debrief/set_view does: never recorded,
+    never undone (SUB-22). A view changed since hash was read is refused (SUB-28)."""
+    request = json.loads(request_json)
+    try:
+        view_hash = _cat().write_view(item, request["view"], request["hash"], agent=YOU)
+    except Conflict:
+        return json.dumps({"conflict": True})
+    except (CatalogueError, HistoryError, ValueError) as error:
+        return json.dumps({"error": str(error)})
+    head = _cat().history(item).head()
+    return json.dumps(
+        {"view_hash": view_hash, "base": {"current": head.current, "plot_hash": head.plot_hash}}
+    )
+
+
+def colleague_window(item: str) -> str:
+    """A colleague narrows the time window to its last third, as if from another
+    computer: the plot file changes, its history does not."""
+    view, view_hash = _cat().read_view(item)
+    extent = _cat().read_item(item).properties
+    shown = view.time_window if view and view.time_window else None
+    start = shown.start if shown else extent.start_datetime
+    end = shown.end if shown else extent.end_datetime
+    if start is None or end is None:
+        return json.dumps({"error": "The plot has no period to set a window in."})
+    first, last = parse_utc(start), parse_utc(end)
+    window = {"start": format_utc(first + (last - first) * 2 // 3 // 1000 * 1000), "end": end}
+    current = view.model_dump(mode="json", exclude_none=True) if view else {}
+    _cat().write_view(item, {**current, "time_window": window}, view_hash, agent=COLLEAGUE)
+    return json.dumps({"ok": True})
+
+
 def _note(item: str, prefix: str, name: str, at: str) -> models.AnnotationFeature:
     taken = {f.id for f in _cat().read_plot(item).features}
     n = 1
@@ -195,7 +229,7 @@ def _record(agent: models.AgentRef, at: str, what: str, note: str) -> models.Pro
     )
 
 
-def crash(item: str, at: str) -> str:
+def crash(item: str, at: str, when: str | None = None) -> str:
     """Save a note and die part-way: after the step is written, before it is current.
 
     In the browser the process can't really be killed, so the save is stopped
@@ -217,7 +251,7 @@ def crash(item: str, at: str) -> str:
         _cat().commit(
             item,
             [_record(YOU, at, "saved-before-the-crash", "Note added just before a crash")],
-            Changes(added=[_note(item, "note-crash", "Saved just before the crash", at)]),
+            Changes(added=[_note(item, "note-crash", "Saved just before the crash", when or at)]),
         )
     except Killed:
         pass
@@ -226,12 +260,15 @@ def crash(item: str, at: str) -> str:
     return json.dumps({"ok": True})
 
 
-def colleague(item: str, at: str) -> str:
-    """A colleague adds a note to the same plot, as if from another computer (SUB-28)."""
+def colleague(item: str, at: str, when: str | None = None) -> str:
+    """A colleague adds a note to the same plot, as if from another computer (SUB-28).
+
+    The change is made at, now; the note is about when, a time in the plot (the
+    reader's current time), so the plot's period stays the exercise's."""
     _cat().commit(
         item,
         [_record(COLLEAGUE, at, "colleague", "Note added by a colleague")],
-        Changes(added=[_note(item, "note-colleague", "A colleague's note", at)]),
+        Changes(added=[_note(item, "note-colleague", "A colleague's note", when or at)]),
     )
     return json.dumps({"ok": True})
 
