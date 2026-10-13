@@ -1,10 +1,13 @@
 import pytest
 
 from debrief_kernel.geodesy import (
+    CURVE_SIDES,
     Position,
     TrackPath,
+    circle_ring,
     closest_approach,
     destination,
+    ellipse_ring,
     geodesic_points,
     interpolate,
     range_bearing,
@@ -154,3 +157,54 @@ def test_track_rejects_bad_input() -> None:
         TrackPath([1, 0], [Position(0, 0), Position(1, 1)])
     with pytest.raises(ValueError):
         TrackPath([], [])
+
+
+# --- Circles and ellipses ------------------------------------------------------------
+
+
+def test_circle_ring_is_closed_and_every_position_at_the_radius() -> None:
+    centre = Position(-4.0, 50.0)
+    ring = circle_ring(centre, length(2, "[nmi_i]"))
+    assert len(ring) == CURVE_SIDES + 1
+    assert ring[0] == ring[-1]
+    for position in ring[:-1]:
+        assert range_between(centre, position).value == pytest.approx(3704.0, abs=1e-6)
+    # The first position is due north; they go clockwise.
+    assert range_bearing(centre, ring[0])[1].value == pytest.approx(0.0, abs=1e-9)
+    assert range_bearing(centre, ring[CURVE_SIDES // 4])[1].value == pytest.approx(90.0, abs=1e-9)
+
+
+def test_ellipse_ring_has_its_axes_where_it_says() -> None:
+    centre = Position(-4.0, 50.0)
+    ring = ellipse_ring(centre, length(3000), length(1000), angle(45))
+    assert ring[0] == ring[-1]
+    end_of_major = range_bearing(centre, ring[0])
+    assert end_of_major[0].value == pytest.approx(3000, abs=1e-6)
+    assert end_of_major[1].value == pytest.approx(45, abs=1e-9)
+    end_of_minor = range_bearing(centre, ring[CURVE_SIDES // 4])
+    assert end_of_minor[0].value == pytest.approx(1000, abs=1e-6)
+    assert end_of_minor[1].value == pytest.approx(135, abs=1e-9)
+    for position in ring:
+        assert 1000 - 1e-6 <= range_between(centre, position).value <= 3000 + 1e-6
+
+
+def test_a_circle_of_equal_axes_is_a_circle() -> None:
+    centre = Position(10.0, -20.0)
+    as_ellipse = ellipse_ring(centre, length(500), length(500), angle(0))
+    as_circle = circle_ring(centre, length(500))
+    for a, b in zip(as_ellipse, as_circle, strict=True):
+        assert a.longitude == pytest.approx(b.longitude, abs=1e-12)
+        assert a.latitude == pytest.approx(b.latitude, abs=1e-12)
+
+
+@pytest.mark.parametrize(
+    "make",
+    [
+        lambda c: circle_ring(c, length(0)),
+        lambda c: ellipse_ring(c, length(100), length(200), angle(0)),
+        lambda c: ellipse_ring(c, length(100), length(0), angle(0)),
+    ],
+)
+def test_curves_of_no_size_or_the_wrong_way_round_are_refused(make) -> None:
+    with pytest.raises(ValueError):
+        make(Position(0, 0))

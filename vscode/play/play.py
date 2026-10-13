@@ -178,6 +178,30 @@ def restyle(item: str, request_json: str) -> str:
     return json.dumps({"ok": True})
 
 
+def annotate(item: str, request_json: str) -> str:
+    """Add, change or delete annotations, or show or remove the north arrow: each a
+    recorded, undoable step (CAP-03), as debrief/add_annotation, debrief/edit_annotation,
+    debrief/delete_annotations and debrief/set_north_arrow do."""
+    request = json.loads(request_json)
+    base = Base(**request["base"]) if request.get("base") else None
+    change = request["change"]
+    feature = None
+    try:
+        if change["kind"] == "add":
+            _, feature = _cat().add_annotation(item, change["annotation"], YOU, base)
+        elif change["kind"] == "edit":
+            _cat().edit_annotation(item, change["feature"], change["annotation"], YOU, base)
+        elif change["kind"] == "delete":
+            _cat().delete_annotations(item, change["features"], YOU, base)
+        else:
+            _cat().set_north_arrow(item, bool(change["shown"]), YOU, base)
+    except Conflict:
+        return json.dumps({"error": "The plot was changed elsewhere, so nothing was changed."})
+    except (CatalogueError, HistoryError) as error:
+        return json.dumps({"error": str(error)})
+    return json.dumps({"ok": True, "feature": feature})
+
+
 def set_view(item: str, request_json: str) -> str:
     """Save the plot's view (its island), as debrief/set_view does: never recorded,
     never undone (SUB-22). A view changed since hash was read is refused (SUB-28)."""

@@ -8,11 +8,13 @@ import pytest
 from debrief_kernel.formatting import (
     DEFAULT_SETTINGS,
     FormatSettings,
+    PositionError,
     fixed,
     format_bearing,
     format_position,
     format_quantity,
     format_time,
+    parse_position,
 )
 from debrief_kernel.geodesy import Position
 from debrief_kernel.time import parse_utc
@@ -66,3 +68,34 @@ def test_dtg_is_always_zulu() -> None:
     )
     with pytest.raises(ValueError):
         format_time(0, settings)
+
+
+# --- Reading positions -------------------------------------------------------------
+
+POSITIONS = json.loads((VECTORS / "positions.json").read_text())["cases"]
+
+
+@pytest.mark.parametrize("case", POSITIONS, ids=lambda c: c["name"])
+def test_shared_position_vector(case: dict) -> None:
+    if case.get("error"):
+        with pytest.raises(PositionError):
+            parse_position(case["input"])
+        return
+    position = parse_position(case["input"])
+    assert position.longitude == pytest.approx(case["expected"][0], abs=1e-9)
+    assert position.latitude == pytest.approx(case["expected"][1], abs=1e-9)
+
+
+@pytest.mark.parametrize("notation", ["dd", "dm", "dms"])
+def test_what_format_position_writes_reads_back(notation: str) -> None:
+    settings = DEFAULT_SETTINGS.model_copy(update={"position_notation": notation})
+    for position in (Position(-4.120166, 50.335333), Position(151.2153, -33.8568)):
+        read = parse_position(format_position(position, settings))
+        # Within the precision written: dd to a thousandth of a degree.
+        assert read.longitude == pytest.approx(position.longitude, abs=6e-4)
+        assert read.latitude == pytest.approx(position.latitude, abs=6e-4)
+
+
+def test_a_position_error_says_what_to_type() -> None:
+    with pytest.raises(PositionError, match="50°20.120'N 004°07.210'W"):
+        parse_position("somewhere")

@@ -1,0 +1,23 @@
+{
+  "kind": "save_annotation",
+  "annotation": {
+    "shape": "star",
+    "name": "Exclusion zone",
+    "positions": [
+      [
+        -4.12,
+        50.33
+      ]
+    ],
+    "radius": {
+      "value": 2,
+      "unit": "[nmi_i]"
+    },
+    "appearance": {
+      "colour": "#e01c3e",
+      "line_style": "solid",
+      "fill_colour": "#e01c3e",
+      "fill_opacity": 0.15
+    }
+  }
+}

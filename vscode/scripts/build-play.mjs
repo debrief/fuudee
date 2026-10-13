@@ -14,6 +14,7 @@ await build({
   entryPoints: {
     map: "webview/map.ts",
     form: "webview/form.tsx",
+    annotation: "webview/annotationform.tsx",
     results: "webview/results.tsx",
     shim: "play/shim.ts",
     geodesic: "play/geodesic.ts",
@@ -33,7 +34,7 @@ await build({
   format: "esm",
   external: ["https://*"],
 });
-for (const file of ["index.html", "geodesic.html", "frame-map.html", "frame-form.html", "frame-results.html", "theme.css", "host.css", "play.py"]) {
+for (const file of ["index.html", "geodesic.html", "frame-map.html", "frame-form.html", "frame-annotation.html", "frame-results.html", "theme.css", "host.css", "play.py"]) {
   cpSync(path.join("play", file), path.join(out, file));
 }
 cpSync("webview/timecontrol.css", path.join(out, "timecontrol.css"));

@@ -3,7 +3,7 @@
  * these wrappers, so the library can be replaced in one place (PRN-09).
  */
 import type { ReactNode } from "react";
-import { Button, Checkbox, Dropdown, TextField } from "vscrui";
+import { Button, Checkbox, Dropdown, TextArea, TextField } from "vscrui";
 import "vscrui/dist/_name_.css";
 
 export function Field(props: { label: string; explanation?: string; problem?: string; children: ReactNode; htmlFor?: string }) {
@@ -19,18 +19,43 @@ export function Field(props: { label: string; explanation?: string; problem?: st
   );
 }
 
-export function TextInput(props: { id?: string; value: string; placeholder?: string; onChange: (value: string) => void }) {
-  return <TextField id={props.id} value={props.value} placeholder={props.placeholder} onChange={props.onChange} />;
+/** A text field. label, when given, is joined to the field itself, so screen readers name it. */
+export function TextInput(props: { id?: string; value: string; placeholder?: string; label?: string; onChange: (value: string) => void }) {
+  return (
+    <TextField id={props.id} value={props.value} placeholder={props.placeholder} onChange={props.onChange}>
+      {props.label}
+    </TextField>
+  );
 }
 
-export function Choice(props: { value: string; options: { value: string; label: string }[]; onChange: (value: string) => void }) {
-  const selected = props.options.find((o) => o.value === props.value);
+/** A text box of several lines, such as positions one per line. */
+export function TextBox(props: { id?: string; value: string; placeholder?: string; label?: string; onChange: (value: string) => void }) {
   return (
-    <Dropdown
-      value={selected}
-      options={props.options}
-      onChange={(choice) => choice && props.onChange(typeof choice === "string" ? choice : choice.value)}
-    />
+    <TextArea id={props.id} value={props.value} placeholder={props.placeholder} onChange={props.onChange} resize="vertical">
+      {props.label}
+    </TextArea>
+  );
+}
+
+// vscrui shows no label for an option whose value is empty, so "" travels as this instead.
+const EMPTY = "⁣empty";
+
+export function Choice(props: { value: string; options: { value: string; label: string }[]; onChange: (value: string) => void }) {
+  const options = props.options.map((o) => (o.value === "" ? { ...o, value: EMPTY } : o));
+  const selected = options.find((o) => o.value === (props.value === "" ? EMPTY : props.value));
+  // The list's buttons would submit a form they sit in: choosing is never submitting.
+  return (
+    <div className="choice" onClick={(event) => event.preventDefault()}>
+      <Dropdown
+        value={selected}
+        options={options}
+        onChange={(choice) => {
+          if (!choice) return;
+          const value = typeof choice === "string" ? choice : choice.value;
+          props.onChange(value === EMPTY ? "" : value);
+        }}
+      />
+    </div>
   );
 }
 

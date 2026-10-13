@@ -38,6 +38,7 @@ from debrief_schemas import (
     models,
 )
 from debrief_schemas.island import PLOT_FEATURE_ID, plot_feature
+from debrief_stac import annotations
 from debrief_stac.hashing import content_hash
 from debrief_stac.history import (
     LOCK,
@@ -707,6 +708,164 @@ class Catalogue:
             base,
             allow_newer_schema=allow_newer_schema,
         )
+
+    # --- Annotations: made, changed and deleted by hand (CAP-03 to CAP-05) ------
+
+    def add_annotation(
+        self,
+        item_id: str,
+        spec: models.AnnotationSpec | dict,
+        agent: models.AgentRef,
+        base: Base | None = None,
+        *,
+        allow_newer_schema: bool = False,
+    ) -> tuple[int, str]:
+        """Add an annotation described by spec: one recorded, undoable step, named
+        like "Circle 'Exclusion zone' added". Returns the step and the new feature's id.
+        AnnotationError says, in plain words, what is wrong with the description."""
+        described = annotations.spec_from(spec)
+
+        def change(plot: DebriefFeatureCollection):
+            feature_id = annotations.new_id(described.name, {f.id for f in plot.features})
+            feature = annotations.build(described, feature_id)
+            return Changes(added=[feature]), f"{annotations.title_of(feature)} added", feature_id
+
+        return self._change(item_id, change, agent, base, allow_newer_schema)
+
+    def edit_annotation(
+        self,
+        item_id: str,
+        feature_id: str,
+        spec: models.AnnotationSpec | dict,
+        agent: models.AgentRef,
+        base: Base | None = None,
+        *,
+        allow_newer_schema: bool = False,
+    ) -> int | None:
+        """Change an annotation to the description given, as one step: its position,
+        size, time, name and appearance at once ("Style of 'Exclusion zone' changed",
+        say). A dict may give only what changes; the rest is kept. None if nothing changed."""
+
+        def change(plot: DebriefFeatureCollection):
+            before = self._annotation(plot, feature_id)
+            if isinstance(spec, dict):
+                merged = annotations.spec_of(before).model_dump(mode="json", exclude_none=True)
+                merged.update(spec)
+                described = annotations.spec_from(merged)
+            else:
+                described = spec
+            after = annotations.build(described, feature_id, previous=before)
+            note = annotations.describe_change(before, after)
+            if note is None:
+                return None
+            return Changes(modified=[after]), note, None
+
+        result = self._change(item_id, change, agent, base, allow_newer_schema)
+        return None if result is None else result[0]
+
+    def delete_annotations(
+        self,
+        item_id: str,
+        feature_ids: list[str],
+        agent: models.AgentRef,
+        base: Base | None = None,
+        *,
+        allow_newer_schema: bool = False,
+    ) -> int:
+        """Delete annotations as one step. Named sets keep the rest of their members;
+        a set left empty goes too. Undo brings them all back."""
+        if not feature_ids:
+            raise CatalogueError("Choose the annotations to delete.")
+
+        def change(plot: DebriefFeatureCollection):
+            gone = [self._annotation(plot, i) for i in dict.fromkeys(feature_ids)]
+            ids = {f.id for f in gone}
+            sets, emptied = [], []
+            for named in plot.named_sets or []:
+                if ids & set(named.feature_ids):
+                    kept = [i for i in named.feature_ids if i not in ids]
+                    if kept:
+                        sets.append(named.model_copy(update={"feature_ids": kept}))
+                    else:
+                        emptied.append(named.id)
+            note = (
+                f"{annotations.title_of(gone[0])} deleted"
+                if len(gone) == 1
+                else f"{len(gone)} annotations deleted"
+            )
+            changes = Changes(
+                deleted_ids=[f.id for f in gone], named_sets=sets, deleted_named_set_ids=emptied
+            )
+            return changes, note, None
+
+        return self._change(item_id, change, agent, base, allow_newer_schema)[0]
+
+    def set_north_arrow(
+        self,
+        item_id: str,
+        shown: bool,
+        agent: models.AgentRef,
+        base: Base | None = None,
+        *,
+        allow_newer_schema: bool = False,
+    ) -> int | None:
+        """Add the north arrow to the plot, or remove it: chart furniture is content,
+        so either is a recorded, undoable step (CAP-03). None if already so."""
+
+        def change(plot: DebriefFeatureCollection):
+            present = [
+                f.id
+                for f in plot.features
+                if f.properties.kind == "annotation"
+                and str(f.properties.furniture or "") == "north_arrow"
+            ]
+            if shown and not present:
+                arrow = annotations.north_arrow()
+                if arrow.id in {f.id for f in plot.features}:
+                    arrow.id = annotations.new_id("north arrow", {f.id for f in plot.features})
+                return Changes(added=[arrow]), "North arrow added", None
+            if not shown and present:
+                return Changes(deleted_ids=present), "North arrow removed", None
+            return None
+
+        result = self._change(item_id, change, agent, base, allow_newer_schema)
+        return None if result is None else result[0]
+
+    @staticmethod
+    def _annotation(plot: DebriefFeatureCollection, feature_id: str) -> models.AnnotationFeature:
+        feature = next((f for f in plot.features if f.id == feature_id), None)
+        if feature is None:
+            raise CatalogueError(f"The plot has no feature {feature_id!r}.")
+        if feature.properties.kind != "annotation":
+            raise CatalogueError(f"{feature.properties.name} is not an annotation.")
+        return feature
+
+    def _change(self, item_id, change, agent, base, allow_newer_schema):
+        """Make one change by hand: change(plot) gives the changes, the note naming
+        them and a value to return with the step, or None if nothing changes. base is
+        the plot the analyst was looking at: changed since, Conflict is raised (SUB-28)."""
+        history = self.history(item_id)
+        if base is None:
+            base = history.base()  # read before the plot, as run_tool does
+            plot = history.plot()
+        else:
+            history.check_base(base)
+            plot = history.replay(base.current)
+        try:
+            made = change(plot)
+        except annotations.AnnotationError as error:
+            raise CatalogueError(str(error)) from None
+        if made is None:
+            return None
+        changes, note, value = made
+        step = self.commit(
+            item_id,
+            [_edit_record(agent, note)],
+            changes,
+            base,
+            allow_newer_schema=allow_newer_schema,
+        )
+        return step, value
 
     # --- The plot's island: its view (SUB-22) ---------------------------------
 

@@ -10,7 +10,7 @@ import { randomBytes } from "node:crypto";
 import { request as httpRequest } from "node:http";
 import { tmpdir } from "node:os";
 import { createInterface } from "node:readline";
-import type { DebriefFeatureCollection, PlotView, SharedState, ToolDeclaration, ToolResult } from "@debrief/schemas";
+import type { AnnotationSpec, DebriefFeatureCollection, PlotView, SharedState, ToolDeclaration, ToolResult } from "@debrief/schemas";
 import type { ToolOutcome } from "./diagnostics.js";
 
 export interface Unavailable {
@@ -99,6 +99,13 @@ export interface ImportReport {
   narrative_entries?: number;
   omitted: string[];
 }
+
+/** A change to the plot's annotations, made by hand or by an agent (CAP-03). */
+export type AnnotationChange =
+  | { kind: "add"; annotation: AnnotationSpec }
+  | { kind: "edit"; feature: string; annotation: Partial<AnnotationSpec> }
+  | { kind: "delete"; features: string[] }
+  | { kind: "north_arrow"; shown: boolean };
 
 export interface Agent {
   kind: "person" | "software_agent";
@@ -371,6 +378,30 @@ export class ToolService {
       ...change,
       ...(allowNewerSchema && { allow_newer_schema: true }),
     });
+  }
+
+  /**
+   * Add, change or delete annotations, or show or remove the north arrow: each a
+   * recorded, undoable step named like "Circle 'Exclusion zone' added" (CAP-03).
+   * Fails with CONFLICT if the plot changed since base.
+   */
+  annotate(
+    store: string,
+    item: string,
+    base: Base,
+    agent: Agent,
+    change: AnnotationChange,
+    allowNewerSchema = false,
+  ): Promise<Opened & { changed: boolean; feature?: string }> {
+    const [method, params] =
+      change.kind === "add"
+        ? ["debrief/add_annotation", { annotation: change.annotation }]
+        : change.kind === "edit"
+          ? ["debrief/edit_annotation", { feature: change.feature, annotation: change.annotation }]
+          : change.kind === "delete"
+            ? ["debrief/delete_annotations", { features: change.features }]
+            : ["debrief/set_north_arrow", { shown: change.shown }];
+    return this.request(method, { store, item, base, agent, ...params, ...(allowNewerSchema && { allow_newer_schema: true }) });
   }
 
   /** Change the plot's view (its island): never recorded or undone. Fails with CONFLICT if it changed since hash was read. */

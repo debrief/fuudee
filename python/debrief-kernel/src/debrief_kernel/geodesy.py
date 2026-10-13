@@ -94,6 +94,72 @@ def geodesic_points(a: Position, b: Position, segments: int) -> list[Position]:
     return points
 
 
+# Sides of the polygon that stands in for a circle or an ellipse in a plot file,
+# so that other GeoJSON tools see the area (GeoJSON has no curves). Debrief
+# draws circles and ellipses from their centre and size, not from this polygon.
+CURVE_SIDES = 72
+
+
+def circle_ring(centre: Position, radius: Quantity, sides: int = CURVE_SIDES) -> list[Position]:
+    """A closed ring of positions at one geodesic range from centre, clockwise from north.
+
+    The first position is due north of the centre and is repeated at the end,
+    as a GeoJSON polygon ring requires.
+    """
+    if radius.to("m").value <= 0:
+        raise ValueError("a circle's radius must be more than zero")
+    return _ring(centre, lambda t: (t, radius.to("m").value), sides)
+
+
+def ellipse_ring(
+    centre: Position,
+    semi_major: Quantity,
+    semi_minor: Quantity,
+    orientation: Quantity,
+    sides: int = CURVE_SIDES,
+) -> list[Position]:
+    """A closed ring approximating an ellipse about centre.
+
+    Its longer axis points along orientation (true, clockwise from north).
+    Each position is at parametric angle t: (a cos t, b sin t) in the ellipse's
+    own axes, found by following the geodesic from the centre at that point's
+    bearing for that point's distance. As legacy Debrief drew them, so an
+    imported ellipse keeps its shape. The first position is at the end of the
+    longer axis, and is repeated at the end.
+    """
+    a, b = semi_major.to("m").value, semi_minor.to("m").value
+    if not 0 < b <= a:
+        raise ValueError(
+            "an ellipse's semi-minor axis must be more than zero and at most its semi-major axis"
+        )
+    turn = orientation.to("deg").value
+
+    def at(t_deg: float) -> tuple[float, float]:
+        t = math.radians(t_deg)
+        x, y = a * math.cos(t), b * math.sin(t)
+        return (turn + math.degrees(math.atan2(y, x))) % 360.0, math.hypot(x, y)
+
+    return _ring(centre, at, sides)
+
+
+def _ring(centre: Position, at, sides: int) -> list[Position]:
+    if sides < 3:
+        raise ValueError("a ring needs at least three sides")
+    ring = []
+    for i in range(sides):
+        bearing, distance = at(360.0 * i / sides)
+        result = WGS84.Direct(
+            centre.latitude,
+            centre.longitude,
+            bearing,
+            distance,
+            Geodesic.LATITUDE | Geodesic.LONGITUDE,
+        )
+        ring.append(Position(result["lon2"], result["lat2"]))
+    ring.append(ring[0])
+    return ring
+
+
 def _wrap_longitude(longitude: float) -> float:
     wrapped = math.fmod(longitude + 180.0, 360.0)
     if wrapped < 0:

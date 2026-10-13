@@ -9,6 +9,9 @@ file received from a colleague, with its whole history (debrief/add_plot_file); 
 (debrief/open, debrief/history, debrief/undo, debrief/redo, debrief/goto),
 so undo is the same for the extension and an agent (SUB-21); colour and hiding,
 recorded in that history like any change (debrief/set_colour, debrief/set_hidden);
+annotations added, changed and deleted by hand, and the north arrow, recorded the
+same way (debrief/add_annotation, debrief/edit_annotation, debrief/delete_annotations,
+debrief/set_north_arrow);
 and the plot's view, its island, kept in the plot file outside its history
 (debrief/set_view; debrief/open returns it) (SUB-22, decision 12 Oct).
 
@@ -102,7 +105,12 @@ HISTORY_METHODS = (
     "debrief/set_colour",
     "debrief/set_hidden",
     "debrief/set_view",
+    "debrief/add_annotation",
+    "debrief/edit_annotation",
+    "debrief/delete_annotations",
+    "debrief/set_north_arrow",
 )
+ANNOTATION_METHODS = HISTORY_METHODS[-4:]
 WRITING_METHODS = HISTORY_METHODS[2:]
 KNOWN_METHODS = frozenset(
     (
@@ -336,6 +344,8 @@ class ToolService:
                 history.goto(step, expected, allow_newer_schema=allow)
             elif method in ("debrief/set_colour", "debrief/set_hidden"):
                 out["changed"] = self._restyle(catalogue, item, method, params, expected, allow)
+            elif method in ANNOTATION_METHODS:
+                out.update(self._annotate(catalogue, item, method, params, expected, allow))
             elif method == "debrief/set_view":
                 view, given = params.get("view"), params.get("hash")
                 if not isinstance(given, str) or not (view is None or isinstance(view, dict)):
@@ -406,6 +416,51 @@ class ToolService:
                 item, features, hidden, agent, base, allow_newer_schema=allow
             )
         return step is not None
+
+    def _annotate(
+        self,
+        catalogue: Catalogue,
+        item: str,
+        method: str,
+        params: dict[str, Any],
+        base: Base | None,
+        allow: bool,
+    ) -> dict[str, Any]:
+        """Add, change or delete annotations, or show the north arrow: each one
+        recorded, undoable step, named like "Circle 'Exclusion zone' added" (CAP-03).
+
+        An annotation is described as an AnnotationSpec (the forms' description);
+        its positions may be numbers or text in any notation the analyst types.
+        edit_annotation may give only the members that change.
+        """
+        agent = _agent(params)
+        if method == "debrief/add_annotation":
+            annotation = params.get("annotation")
+            if not isinstance(annotation, dict):
+                raise RpcError(INVALID_PARAMS, "add_annotation needs the annotation to add")
+            _, feature = catalogue.add_annotation(
+                item, annotation, agent, base, allow_newer_schema=allow
+            )
+            return {"changed": True, "feature": feature}
+        if method == "debrief/edit_annotation":
+            feature, annotation = params.get("feature"), params.get("annotation")
+            if not isinstance(feature, str) or not isinstance(annotation, dict):
+                raise RpcError(INVALID_PARAMS, "edit_annotation needs the feature and its changes")
+            step = catalogue.edit_annotation(
+                item, feature, annotation, agent, base, allow_newer_schema=allow
+            )
+            return {"changed": step is not None, "feature": feature}
+        if method == "debrief/delete_annotations":
+            features = params.get("features")
+            if not isinstance(features, list) or not all(isinstance(f, str) for f in features):
+                raise RpcError(INVALID_PARAMS, "delete_annotations needs the features to delete")
+            catalogue.delete_annotations(item, features, agent, base, allow_newer_schema=allow)
+            return {"changed": True}
+        shown = params.get("shown")
+        if not isinstance(shown, bool):
+            raise RpcError(INVALID_PARAMS, "set_north_arrow needs shown, true or false")
+        step = catalogue.set_north_arrow(item, shown, agent, base, allow_newer_schema=allow)
+        return {"changed": step is not None}
 
     def _import(self, params: dict[str, Any]) -> dict[str, Any]:
         """Import a REP file (EXT-01) or a legacy plot file, .dpf (EXT-14, EXT-15), as a

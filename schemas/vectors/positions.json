@@ -1,0 +1,154 @@
+{
+  "description": "Shared vectors for reading positions the analyst types (SUB-04): the Python kernel's parse_position and the TypeScript kernel's parsePosition. expected is [longitude, latitude] in degrees, to within 1e-9; error means the text is refused.",
+  "cases": [
+    {
+      "name": "degrees and decimal minutes, as Debrief writes them",
+      "input": "50°20.120'N 004°07.210'W",
+      "expected": [
+        -4.120166667,
+        50.335333333
+      ]
+    },
+    {
+      "name": "degrees, minutes and seconds",
+      "input": "50°20'07.2\"N 004°07'12.6\"W",
+      "expected": [
+        -4.120166667,
+        50.335333333
+      ]
+    },
+    {
+      "name": "decimal degrees with hemispheres",
+      "input": "50.335°N 004.120°W",
+      "expected": [
+        -4.12,
+        50.335
+      ]
+    },
+    {
+      "name": "spaces instead of symbols",
+      "input": "50 20.120 N 004 07.210 W",
+      "expected": [
+        -4.120166667,
+        50.335333333
+      ]
+    },
+    {
+      "name": "lower case, no leading zeros",
+      "input": "50 20.12 n 4 7.21 w",
+      "expected": [
+        -4.120166667,
+        50.335333333
+      ]
+    },
+    {
+      "name": "hemisphere letters first",
+      "input": "N50 20.120 W004 07.210",
+      "expected": [
+        -4.120166667,
+        50.335333333
+      ]
+    },
+    {
+      "name": "signed decimals, latitude first",
+      "input": "50.335, -4.120",
+      "expected": [
+        -4.12,
+        50.335
+      ]
+    },
+    {
+      "name": "signed decimals without a comma",
+      "input": "-33.8568 151.2153",
+      "expected": [
+        151.2153,
+        -33.8568
+      ]
+    },
+    {
+      "name": "southern and eastern hemispheres",
+      "input": "33°51.408'S 151°12.918'E",
+      "expected": [
+        151.2153,
+        -33.8568
+      ]
+    },
+    {
+      "name": "longitude first when the letters say so",
+      "input": "004°07.210'W 50°20.120'N",
+      "expected": [
+        -4.120166667,
+        50.335333333
+      ]
+    },
+    {
+      "name": "typographic primes",
+      "input": "50°20′07.2″N 004°07′12.6″W",
+      "expected": [
+        -4.120166667,
+        50.335333333
+      ]
+    },
+    {
+      "name": "the antimeridian",
+      "input": "10°00.000'S 180°00.000'E",
+      "expected": [
+        180.0,
+        -10.0
+      ]
+    },
+    {
+      "name": "a pole",
+      "input": "90 0 N 0 0 E",
+      "expected": [
+        0.0,
+        90.0
+      ]
+    },
+    {
+      "name": "one half only",
+      "input": "50°20.120'N",
+      "error": true
+    },
+    {
+      "name": "words",
+      "input": "near the buoy",
+      "error": true
+    },
+    {
+      "name": "minutes of 60 or more",
+      "input": "50 61.0 N 004 07.210 W",
+      "error": true
+    },
+    {
+      "name": "a sign with a hemisphere",
+      "input": "-50 20.120 N 004 07.210 W",
+      "error": true
+    },
+    {
+      "name": "latitude beyond the pole",
+      "input": "91, 4",
+      "error": true
+    },
+    {
+      "name": "longitude beyond 180",
+      "input": "10 N 181 E",
+      "error": true
+    },
+    {
+      "name": "two latitudes",
+      "input": "50 N 10 S",
+      "error": true
+    },
+    {
+      "name": "decimals before the last number",
+      "input": "50.5 20 N 4 7 W",
+      "error": true
+    },
+    {
+      "name": "empty",
+      "input": "",
+      "error": true
+    }
+  ]
+}

@@ -37,6 +37,8 @@ It prints `{"port": N, "tools": M}` once it is listening. The VS Code extension:
   - `debrief/history` lists the steps: `seq`, `status` (applied, undone or abandoned), `kind`, `tool`, `agent`, `at`;
   - `debrief/undo`, `debrief/redo` and `debrief/goto` (`"step": n`) move through them.
 
+  - annotations (CAP-03), each one recorded, undoable step named in the History view: `debrief/add_annotation` (`{"annotation": {...}}`, an `AnnotationSpec`: `shape`, `name`, `positions` as `[longitude, latitude]` or text in the analyst's notation, `radius` or `semi_major`, `semi_minor` and `orientation`, `time` or `time_range`, `appearance`; returns the new `feature`), `debrief/edit_annotation` (`{"feature", "annotation"}`, giving only what changes), `debrief/delete_annotations` (`{"features"}`) and `debrief/set_north_arrow` (`{"shown": true}`);
+
   Each returns `base` (`{"current", "plot_hash"}`) and `latest`, how many steps the history holds. Pass it back as `base` with the next undo, redo or goto: if the plot was changed elsewhere meanwhile the call fails with code -32001 and nothing changes (SUB-28).
 
 `tools/list` carries each tool's full declaration in `_meta["debrief/declaration"]`. Libraries and tools that are unavailable are listed in the result's `_meta["debrief/unavailable"]`.

@@ -109,9 +109,80 @@
       "title": "AngularRateUnitEnum",
       "type": "string"
     },
+    "AnnotationAppearance": {
+      "additionalProperties": false,
+      "description": "How an annotation is drawn: its line, its fill and its label. Data colours do not change with the theme (DEV-07). Widths and sizes are in screen pixels, so they are the same at every zoom.",
+      "properties": {
+        "colour": {
+          "description": "Its line's colour, and its label's. Lower-case hex RGB, for example \"#c7820a\".",
+          "pattern": "^#[0-9a-f]{6}$",
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "fill_colour": {
+          "description": "Colour inside an area, circle or ellipse. Lower-case hex RGB. Left out, the line's colour.",
+          "pattern": "^#[0-9a-f]{6}$",
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "fill_opacity": {
+          "description": "How opaque the fill of an area, circle or ellipse is, from 0 (none) to 1 (solid). Left out, 0.25 with a fill colour, or else a faint tint of 0.05, so what lies inside stays clear.",
+          "maximum": 1,
+          "minimum": 0,
+          "type": [
+            "number",
+            "null"
+          ]
+        },
+        "label_position": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/LabelPositionEnum"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "label_size": {
+          "description": "Height of its label's text in screen pixels.",
+          "maximum": 32,
+          "minimum": 8,
+          "type": [
+            "integer",
+            "null"
+          ]
+        },
+        "line_style": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/LineStyleEnum"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "line_width": {
+          "description": "Width of its line in screen pixels.",
+          "maximum": 10,
+          "minimum": 1,
+          "type": [
+            "integer",
+            "null"
+          ]
+        }
+      },
+      "title": "AnnotationAppearance",
+      "type": "object"
+    },
     "AnnotationFeature": {
       "additionalProperties": false,
-      "description": "Shapes, labels and chart furniture as ordinary GeoJSON (CAP-03). An annotation with only a time has null geometry and shall give a time or a time range (CAP-04).",
+      "description": "Shapes, labels and chart furniture as ordinary GeoJSON (CAP-03). An annotation with only a time has null geometry and shall give a time or a time range (CAP-04); chart furniture has null geometry and needs neither. A circle or an ellipse is a polygon approximating it, for other tools, with its centre and size as properties, which Debrief draws from.",
       "properties": {
         "geometry": {
           "anyOf": [
@@ -159,6 +230,37 @@
       "additionalProperties": false,
       "description": "",
       "properties": {
+        "appearance": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/AnnotationAppearance"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": "How it is drawn on the map. Left out, or any member of it left out, means Debrief's default for annotations. Content, like a track's colour: changing it is a recorded, undoable change (SUB-22)."
+        },
+        "centre": {
+          "items": {
+            "description": "The centre of a circle or an ellipse, [longitude, latitude] in WGS84 degrees. Its geometry is the polygon that approximates it.",
+            "type": "number"
+          },
+          "maxItems": 2,
+          "minItems": 2,
+          "type": "array"
+        },
+        "furniture": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/ChartFurnitureEnum"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": "What chart furniture it is. Chart furniture has no geometry and needs no time."
+        },
         "hidden": {
           "description": "Not drawn on the map. Still listed, and still selectable, in the outline. Content: hiding is a recorded, undoable change (SUB-22).",
           "type": [
@@ -172,6 +274,17 @@
         "name": {
           "type": "string"
         },
+        "orientation": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/Angle"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": "The direction of an ellipse's longer axis from its centre, true north, clockwise."
+        },
         "provenance": {
           "items": {
             "$ref": "#/$defs/ProvRecord"
@@ -180,6 +293,50 @@
             "array",
             "null"
           ]
+        },
+        "radius": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/Length"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": "A circle's radius, along geodesics from its centre."
+        },
+        "semi_major": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/Length"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": "Half an ellipse's longer axis, along the geodesic from its centre."
+        },
+        "semi_minor": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/Length"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": "Half an ellipse's shorter axis, along the geodesic from its centre."
+        },
+        "shape": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/AnnotationShapeEnum"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": "How it is drawn. Required for circles and ellipses; otherwise it may be left out and follows from the geometry."
         },
         "style": {
           "$ref": "#/$defs/AnnotationStyleEnum"
@@ -216,6 +373,124 @@
       "title": "AnnotationProperties",
       "type": "object"
     },
+    "AnnotationShapeEnum": {
+      "description": "How an annotation is drawn (CAP-03). Left out, it follows from the geometry: a line string is a line, a polygon an area, a point a label (style label) or a marker, and no geometry a note. Circles and ellipses must say so, since GeoJSON has no curves: their geometry is a polygon that approximates them, for other tools, and their own properties (centre, radius or semi-axes and orientation) say exactly what they are.",
+      "enum": [
+        "line",
+        "area",
+        "circle",
+        "ellipse",
+        "label",
+        "marker",
+        "note"
+      ],
+      "title": "AnnotationShapeEnum",
+      "type": "string"
+    },
+    "AnnotationSpec": {
+      "additionalProperties": false,
+      "description": "An annotation as the analyst describes it in a form, or an agent in a request: what is made into an annotation feature, recorded as one step in the plot's history (CAP-03, SUB-19). Positions are numbers here; forms read them in the analyst's notation and say what they mean.",
+      "properties": {
+        "appearance": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/AnnotationAppearance"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "name": {
+          "type": "string"
+        },
+        "orientation": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/Angle"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "positions": {
+          "items": {
+            "items": {
+              "description": "[longitude, latitude] pairs: the line's positions, or the area's corners (not closed); one, the centre or position, for a circle, ellipse, label or marker; none for a note.",
+              "type": "number"
+            },
+            "maxItems": 2,
+            "minItems": 2,
+            "type": "array"
+          },
+          "minItems": 1,
+          "type": "array"
+        },
+        "radius": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/Length"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "semi_major": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/Length"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "semi_minor": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/Length"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "shape": {
+          "$ref": "#/$defs/AnnotationShapeEnum"
+        },
+        "text": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "time": {
+          "pattern": "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}\\.\\d{3}Z$",
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "time_range": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/TimeRange"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        }
+      },
+      "required": [
+        "shape",
+        "name"
+      ],
+      "title": "AnnotationSpec",
+      "type": "object"
+    },
     "AnnotationStyleEnum": {
       "description": "What an annotation depicts (CAP-03, CAP-04).",
       "enum": [
@@ -247,6 +522,14 @@
         "Catalog"
       ],
       "title": "CatalogTypeEnum",
+      "type": "string"
+    },
+    "ChartFurnitureEnum": {
+      "description": "Chart furniture a plot can carry (CAP-03). The scale bar is always drawn.",
+      "enum": [
+        "north_arrow"
+      ],
+      "title": "ChartFurnitureEnum",
       "type": "string"
     },
     "ContextTracksEnum": {
@@ -817,6 +1100,19 @@
       "title": "KnownStore",
       "type": "object"
     },
+    "LabelPositionEnum": {
+      "description": "Where an annotation's label is drawn, relative to it.",
+      "enum": [
+        "above",
+        "below",
+        "left",
+        "right",
+        "centre",
+        "none"
+      ],
+      "title": "LabelPositionEnum",
+      "type": "string"
+    },
     "Length": {
       "additionalProperties": false,
       "description": "",
@@ -901,6 +1197,16 @@
         "LineString"
       ],
       "title": "LineStringTypeEnum",
+      "type": "string"
+    },
+    "LineStyleEnum": {
+      "description": "How an annotation's line is drawn.",
+      "enum": [
+        "solid",
+        "dashed",
+        "dotted"
+      ],
+      "title": "LineStyleEnum",
       "type": "string"
     },
     "NamedSet": {
@@ -2642,6 +2948,17 @@
       "additionalProperties": false,
       "description": "",
       "properties": {
+        "annotation": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/AnnotationSpec"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": "An annotation as the form describes it (show_annotation_form, save_annotation)."
+        },
         "context_tracks": {
           "anyOf": [
             {
@@ -2656,6 +2973,13 @@
         "current_time": {
           "description": "Current time from shared state, which a tool form offers for its time fields.",
           "pattern": "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}\\.\\d{3}Z$",
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "feature_id": {
+          "description": "The annotation a form changes or deletes, or the map asks to change.",
           "type": [
             "string",
             "null"
@@ -2831,7 +3155,11 @@
         "show_time",
         "window_changed",
         "context_changed",
-        "set_context"
+        "set_context",
+        "show_annotation_form",
+        "save_annotation",
+        "delete_annotation",
+        "edit_annotation"
       ],
       "title": "WebviewMessageKindEnum",
       "type": "string"
@@ -2904,5 +3232,5 @@
   ],
   "title": "debrief",
   "type": "object",
-  "version": "0.0.11"
+  "version": "0.0.12"
 }

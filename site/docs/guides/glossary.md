@@ -36,7 +36,13 @@ Adapted from `DOMAIN_GLOSSARY.md` in debrief/debrief-future, itself adapted from
 
 **Track.** The movement of one platform over time: its fixes in order.
 
-**Annotation.** A shape, label, note or period of interest drawn on or attached to a plot (CAP-03). An annotation with only a time, such as a note or a period, has no position (CAP-04).
+**Annotation.** A line, area, circle, ellipse, label, marker, note or period of interest drawn on or attached to a plot, or chart furniture such as the north arrow (CAP-03). An annotation with only a time, such as a note or a period, has no position (CAP-04). How it looks (colour, line, fill, label) is part of the plot: changing it is a step in its history. Write *annotation*, not *shape*, in the interface.
+
+**Circle, ellipse** (annotations). Every position at one range from a centre; or an ellipse about a centre, its longer axis along a true bearing. Ranges are measured along geodesics. Kept in the plot file with their exact centre and size, and a polygon approximating them so other GeoJSON tools see the area (CAP-03).
+
+**Chart furniture.** What a chart carries besides its data: the scale bar, always drawn, and the north arrow, which a plot shows or not.
+
+**Timeline.** The view listing a plot's time-only annotations, such as narrative notes and periods of interest, in time order. Choosing an entry moves current time to it (CAP-05). The SRD calls it the temporal view.
 
 **Named set.** A saved selection of features, reusable as a selection or as a tool's input (TL-11).
 

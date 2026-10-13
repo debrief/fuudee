@@ -61,6 +61,41 @@ enums:
       chart_furniture: {}
       note: {description: "Free-text note, usually time-only."}
       time_period: {description: "A period of interest, time-only (TL-11)."}
+  AnnotationShapeEnum:
+    description: >-
+      How an annotation is drawn (CAP-03). Left out, it follows from the
+      geometry: a line string is a line, a polygon an area, a point a label
+      (style label) or a marker, and no geometry a note. Circles and ellipses
+      must say so, since GeoJSON has no curves: their geometry is a polygon
+      that approximates them, for other tools, and their own properties
+      (centre, radius or semi-axes and orientation) say exactly what they are.
+    permissible_values:
+      line: {description: "A line through two or more positions, drawn along geodesics."}
+      area: {description: "A closed area with three or more corners, drawn along geodesics."}
+      circle: {description: "Every position at one range from a centre, measured along geodesics."}
+      ellipse: {description: "An ellipse about a centre, its axes measured along geodesics from it."}
+      label: {description: "Text at a position."}
+      marker: {description: "A marked position."}
+      note: {description: "Text at a time, with no position (CAP-04)."}
+  LineStyleEnum:
+    description: How an annotation's line is drawn.
+    permissible_values:
+      solid: {}
+      dashed: {}
+      dotted: {}
+  LabelPositionEnum:
+    description: Where an annotation's label is drawn, relative to it.
+    permissible_values:
+      above: {}
+      below: {}
+      left: {}
+      right: {}
+      centre: {}
+      none: {description: "No label on the map; the annotation is still named in the outline."}
+  ChartFurnitureEnum:
+    description: Chart furniture a plot can carry (CAP-03). The scale bar is always drawn.
+    permissible_values:
+      north_arrow: {description: "An arrow pointing to true north, in a corner of the map."}
   ObservationTypeEnum:
     description: Sensor observation types Debrief imports (CAP-22). Frequency is never imported.
     permissible_values:
@@ -135,7 +170,9 @@ classes:
     description: >-
       Shapes, labels and chart furniture as ordinary GeoJSON (CAP-03). An
       annotation with only a time has null geometry and shall give a time or a
-      time range (CAP-04).
+      time range (CAP-04); chart furniture has null geometry and needs neither.
+      A circle or an ellipse is a polygon approximating it, for other tools,
+      with its centre and size as properties, which Debrief draws from.
     attributes:
       type: {range: FeatureTypeEnum, required: true}
       id: {required: true}
@@ -154,6 +191,50 @@ classes:
       text: {}
       time: {range: UtcTimestamp}
       time_range: {range: TimeRange, inlined: true}
+      shape:
+        description: >-
+          How it is drawn. Required for circles and ellipses; otherwise it
+          may be left out and follows from the geometry.
+        range: AnnotationShapeEnum
+      centre:
+        description: >-
+          The centre of a circle or an ellipse, [longitude, latitude] in WGS84
+          degrees. Its geometry is the polygon that approximates it.
+        range: float
+        array:
+          exact_number_dimensions: 1
+          dimensions:
+            - exact_cardinality: 2
+      radius:
+        description: A circle's radius, along geodesics from its centre.
+        range: Length
+        inlined: true
+      semi_major:
+        description: Half an ellipse's longer axis, along the geodesic from its centre.
+        range: Length
+        inlined: true
+      semi_minor:
+        description: Half an ellipse's shorter axis, along the geodesic from its centre.
+        range: Length
+        inlined: true
+      orientation:
+        description: >-
+          The direction of an ellipse's longer axis from its centre, true
+          north, clockwise.
+        range: Angle
+        inlined: true
+      furniture:
+        description: >-
+          What chart furniture it is. Chart furniture has no geometry and needs
+          no time.
+        range: ChartFurnitureEnum
+      appearance:
+        description: >-
+          How it is drawn on the map. Left out, or any member of it left out,
+          means Debrief's default for annotations. Content, like a track's
+          colour: changing it is a recorded, undoable change (SUB-22).
+        range: AnnotationAppearance
+        inlined: true
       hidden:
         description: >-
           Not drawn on the map. Still listed, and still selectable, in the
@@ -163,6 +244,70 @@ classes:
         range: ProvRecord
         multivalued: true
         inlined_as_list: true
+
+  AnnotationAppearance:
+    description: >-
+      How an annotation is drawn: its line, its fill and its label. Data
+      colours do not change with the theme (DEV-07). Widths and sizes are in
+      screen pixels, so they are the same at every zoom.
+    attributes:
+      colour:
+        description: Its line's colour, and its label's. Lower-case hex RGB, for example "#c7820a".
+        pattern: "^#[0-9a-f]{6}$"
+      line_style: {range: LineStyleEnum}
+      line_width:
+        description: Width of its line in screen pixels.
+        range: integer
+        minimum_value: 1
+        maximum_value: 10
+      fill_colour:
+        description: >-
+          Colour inside an area, circle or ellipse. Lower-case hex RGB. Left
+          out, the line's colour.
+        pattern: "^#[0-9a-f]{6}$"
+      fill_opacity:
+        description: >-
+          How opaque the fill of an area, circle or ellipse is, from 0 (none)
+          to 1 (solid). Left out, 0.25 with a fill colour, or else a faint
+          tint of 0.05, so what lies inside stays clear.
+        range: float
+        minimum_value: 0
+        maximum_value: 1
+      label_size:
+        description: Height of its label's text in screen pixels.
+        range: integer
+        minimum_value: 8
+        maximum_value: 32
+      label_position: {range: LabelPositionEnum}
+
+  AnnotationSpec:
+    description: >-
+      An annotation as the analyst describes it in a form, or an agent in a
+      request: what is made into an annotation feature, recorded as one step
+      in the plot's history (CAP-03, SUB-19). Positions are numbers here;
+      forms read them in the analyst's notation and say what they mean.
+    attributes:
+      shape: {range: AnnotationShapeEnum, required: true}
+      name: {required: true}
+      text: {}
+      positions:
+        description: >-
+          [longitude, latitude] pairs: the line's positions, or the area's
+          corners (not closed); one, the centre or position, for a circle,
+          ellipse, label or marker; none for a note.
+        range: float
+        array:
+          exact_number_dimensions: 2
+          dimensions:
+            - minimum_cardinality: 1
+            - exact_cardinality: 2
+      radius: {range: Length, inlined: true}
+      semi_major: {range: Length, inlined: true}
+      semi_minor: {range: Length, inlined: true}
+      orientation: {range: Angle, inlined: true}
+      time: {range: UtcTimestamp}
+      time_range: {range: TimeRange, inlined: true}
+      appearance: {range: AnnotationAppearance, inlined: true}
 
   # --- Sensor observations --------------------------------------------------
   SensorObservationsFeature:

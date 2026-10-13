@@ -75,8 +75,50 @@ def test_shapes_sample_imports(catalogue: Catalogue) -> None:
 
     ellipse = next(f for f in plot.features if f.properties.name == "test ellipse")
     ring = ellipse.geometry.coordinates[0]
-    assert len(ring) == 73 and ring[0] == ring[-1]
+    assert len(ring) == 73 and ring[0] == ring[-1]  # for other GeoJSON tools
     assert ellipse.properties.time == "1995-12-12T06:02:00.000Z"
+    # Exactly what it is, and drawn as legacy drew it.
+    props = ellipse.properties
+    assert (str(props.shape), props.centre, props.orientation.value) == (
+        "ellipse",
+        [-21.5, 21.8],
+        45.0,
+    )
+    assert props.semi_major.value == pytest.approx(0.0411447 * 60 * 1852, abs=0.001)
+    assert props.semi_minor.value == pytest.approx(0.0246868 * 60 * 1852, abs=0.001)
+    assert props.appearance.model_dump(exclude_none=True) == {
+        "colour": "#ff9600",
+        "line_style": "solid",
+        "line_width": 2,
+        "label_size": 12,
+        "label_position": "left",
+    }
+
+    # Circles: centre and radius, line style, width and fill as legacy drew them.
+    def look(name: str) -> dict:
+        found = next(f for f in plot.features if f.properties.name == name)
+        assert str(found.properties.shape) == "circle"
+        return found.properties.appearance.model_dump(exclude_none=True)
+
+    dot_dash = next(
+        f for f in plot.features if f.properties.name == "dot-dash 2px semi-transparent"
+    )
+    assert dot_dash.properties.radius.value == pytest.approx(2000 * 1852 / 2025.371828, abs=0.001)
+    assert look("dot-dash 2px semi-transparent") | {"label_size": 12} == {
+        "colour": "#e01c3e",
+        "line_style": "dashed",
+        "line_width": 2,
+        "fill_colour": "#e01c3e",
+        "fill_opacity": 0.5,
+        "label_size": 12,
+        "label_position": "left",
+    }
+    assert look("dotted 1px solid fill")["line_style"] == "dotted"
+    assert "fill_colour" not in look("dotted 1px solid fill")  # Filled="false"
+    assert look("solid hairwidth solid fill")["fill_opacity"] == 1.0
+    assert look("solid hairwidth no fill")["line_width"] == 1  # a hairline, as thin as v4 draws
+    labels = [f for f in plot.features if str(getattr(f.properties, "shape", "")) == "label"]
+    assert labels and all(f.geometry.type == "Point" for f in labels)
 
     poly = next(f for f in plot.features if f.properties.name == "test poly")
     assert poly.properties.text == "test\npoly"
@@ -102,13 +144,16 @@ def test_provenance_names_source_and_every_omission(catalogue: Catalogue) -> Non
         "sensor 'SENSOR' (sensor, 4 cuts) not imported",
         "TMA solution set 'TARGET' (tma, 4 solutions) not imported",
         "Track 'NEL_STYLE': 2 fix comments not imported.",
-        "14 circles drawn as polygons of 72 sides",
-        "1 ellipse drawn as a polygon of 72 sides",
+        "14 text labels drawn with a symbol ('Carrier', 'Square'",
+        "1 annotation drawn with dot-dash (such as 'dot-dash 2px semi-transparent'): drawn dashed",
+        "1 annotation drawn with unconnected points (such as 'unconnected 4px semi transparent'): "
+        "drawn dotted",
         "wheel 'test wheel' in layer 'Annotations' not imported",
         "Narrative entry types not imported: 'GenComment2' (1).",
         "Layer 'Annotations' (layer, shown): its settings are not imported",
         "kept as the named set 'Annotations'",
-        "Display settings not imported",
+        "Display settings not imported: fix labels, symbols and arrows; track symbols, fonts "
+        "and line styles.",
         "View settings not imported: the map projection",
     ]:
         assert expected in notes, expected

@@ -377,6 +377,19 @@ class DpfShape:
     radius_m: float | None = None
     minor_m: float | None = None
     orientation_deg: float = 0.0
+    # How it is drawn (ShapeHandler, LabelHandler, CanvasType's line styles).
+    line_style: int | None = None  # CanvasType: 0 solid, 1 long dashes, 2 dotted,
+    #                                3 dot-dash, 4 short dashes, 5 unconnected
+    line_thickness: int | None = None
+    filled: bool = False
+    semi_transparent: bool = False
+    label_location: str | None = None  # Left, Right, Top, Bottom or Centre
+    label_visible: bool = True
+    font_size: float | None = None
+    font_styled: bool = False  # a family other than Arial, or bold or italic
+    font_colour: str | None = None
+    symbol: str | None = None  # a text label's symbol, such as "Carrier"
+    arrow_at_end: bool = False
 
 
 @dataclass(frozen=True)
@@ -767,6 +780,44 @@ def _corner(node: Node, tag: str) -> tuple[float, float]:
     return (location.longitude, location.latitude)
 
 
+def _whole(text: str | None, what: str) -> int | None:
+    return None if text is None else int(read_number(text, what))
+
+
+def _read_look(node: Node, shape: DpfShape, result: DpfFile) -> None:
+    """How a shape or label is drawn: its line, fill, label and font. Values that
+    cannot be read are left at the default, with a warning."""
+    a = node.attrs
+    what = f"{node.tag} {shape.label!r}"
+    try:
+        shape.line_style = _whole(a.get("LineStyle"), "line style")
+        shape.line_thickness = _whole(a.get("LineThickness"), "line thickness")
+    except DpfError as error:
+        result.warnings.append((node.line, f"the line of {what}: {error}; the default is used"))
+    shape.filled = read_bool(a.get("Filled"), False)
+    shape.semi_transparent = read_bool(a.get("SemiTransparent"), False)
+    shape.label_location = a.get("LabelLocation")
+    shape.label_visible = read_bool(a.get("LabelVisible"), True)
+    shape.arrow_at_end = read_bool(a.get("ArrowAtEnd"), False)
+    if read_bool(a.get("SymbolVisible"), True):
+        shape.symbol = a.get("Symbol")
+    font = node.child("font")
+    if font is not None:
+        try:
+            shape.font_size = read_number(font.attrs.get("Size"), "font size")
+        except DpfError:
+            shape.font_size = None
+        shape.font_styled = (
+            font.attrs.get("Family", "Arial") != "Arial"
+            or read_bool(font.attrs.get("Bold"), False)
+            or read_bool(font.attrs.get("Italic"), False)
+        )
+    if node.child("fontcolour") is not None:
+        shape.font_colour = _colour_or_default(
+            node.child("fontcolour"), f"the label of {what}", result
+        )
+
+
 def _read_shape(node: Node, layer: str, result: DpfFile) -> DpfShape:
     """ShapeHandler and LabelHandler, with each shape's own handler for its geometry."""
     a = node.attrs
@@ -793,6 +844,7 @@ def _read_shape(node: Node, layer: str, result: DpfFile) -> DpfShape:
         time_ms=start,
         end_ms=end,
     )
+    _read_look(node, shape, result)
     if node.tag == "textlabel":
         shape.points = [_corner(node, "centre")]
     elif node.tag == "circle":

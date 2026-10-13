@@ -10,7 +10,7 @@ body { background: var(--vscode-editor-background); color: var(--vscode-foregrou
 .list { list-style: none; margin: 0; padding: 0; max-height: 210px; overflow-y: auto; }
 .list li { padding: 2px 4px; cursor: default; border-radius: 2px; }
 #outline li { cursor: pointer; }
-.outline-actions { display: flex; gap: 4px; margin-top: 6px; align-items: center; }
+.outline-actions { display: flex; flex-wrap: wrap; gap: 4px; margin-top: 6px; align-items: center; }
 .side .outline-actions select { width: auto; flex: 1; min-width: 0; }
 #outline li:hover { background: var(--vscode-list-hoverBackground); }
 #outline li.selected { background: var(--vscode-list-activeSelectionBackground); color: var(--vscode-list-activeSelectionForeground); }
@@ -68,3 +68,11 @@ dialog::backdrop { background: #0006; }
   .side { grid-row: 2; border-right: 0; overflow: visible; }
   footer { grid-column: 1; position: sticky; bottom: 0; }
 }
+/* The Timeline: time-only annotations in time order; choosing one moves current time to it (CAP-05). */
+.timeline li { padding: 0; }
+.timeline button { display: block; width: 100%; text-align: left; background: none; border: none; margin: 0; padding: 3px 4px; color: var(--vscode-foreground); }
+.timeline button:hover { background: var(--vscode-list-hoverBackground); }
+.timeline .when { font-family: var(--vscode-editor-font-family); font-size: 12px; margin-right: 6px; }
+.timeline li.current button { background: var(--vscode-list-inactiveSelectionBackground); }
+.timeline li.current .when::before { content: "▶ "; color: var(--vscode-list-highlightForeground); }
+#north-arrow[aria-pressed="true"] { background: var(--vscode-button-background); color: var(--vscode-button-foreground); }

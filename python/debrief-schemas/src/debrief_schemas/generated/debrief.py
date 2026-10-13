@@ -32,7 +32,7 @@ from pydantic import (
 
 
 metamodel_version = "1.12.0"
-version = "0.0.11"
+version = "0.0.12"
 
 
 class ConfiguredBaseModel(BaseModel):
@@ -551,6 +551,74 @@ class AnnotationStyleEnum(str, Enum):
     """
 
 
+class AnnotationShapeEnum(str, Enum):
+    """
+    How an annotation is drawn (CAP-03). Left out, it follows from the geometry: a line string is a line, a polygon an area, a point a label (style label) or a marker, and no geometry a note. Circles and ellipses must say so, since GeoJSON has no curves: their geometry is a polygon that approximates them, for other tools, and their own properties (centre, radius or semi-axes and orientation) say exactly what they are.
+    """
+    line = "line"
+    """
+    A line through two or more positions, drawn along geodesics.
+    """
+    area = "area"
+    """
+    A closed area with three or more corners, drawn along geodesics.
+    """
+    circle = "circle"
+    """
+    Every position at one range from a centre, measured along geodesics.
+    """
+    ellipse = "ellipse"
+    """
+    An ellipse about a centre, its axes measured along geodesics from it.
+    """
+    label = "label"
+    """
+    Text at a position.
+    """
+    marker = "marker"
+    """
+    A marked position.
+    """
+    note = "note"
+    """
+    Text at a time, with no position (CAP-04).
+    """
+
+
+class LineStyleEnum(str, Enum):
+    """
+    How an annotation's line is drawn.
+    """
+    solid = "solid"
+    dashed = "dashed"
+    dotted = "dotted"
+
+
+class LabelPositionEnum(str, Enum):
+    """
+    Where an annotation's label is drawn, relative to it.
+    """
+    above = "above"
+    below = "below"
+    left = "left"
+    right = "right"
+    centre = "centre"
+    none = "none"
+    """
+    No label on the map; the annotation is still named in the outline.
+    """
+
+
+class ChartFurnitureEnum(str, Enum):
+    """
+    Chart furniture a plot can carry (CAP-03). The scale bar is always drawn.
+    """
+    north_arrow = "north_arrow"
+    """
+    An arrow pointing to true north, in a corner of the map.
+    """
+
+
 class ObservationTypeEnum(str, Enum):
     """
     Sensor observation types Debrief imports (CAP-22). Frequency is never imported.
@@ -765,6 +833,22 @@ class WebviewMessageKindEnum(str, Enum):
     set_context = "set_context"
     """
     Host to map: draw tracks outside the window this way (context_tracks), the analyst's setting already applied.
+    """
+    show_annotation_form = "show_annotation_form"
+    """
+    Host to annotation form: add an annotation, or change the one given (annotation and feature_id); the plot's period (time_range) and current time if known.
+    """
+    save_annotation = "save_annotation"
+    """
+    Annotation form to host: add this annotation, or change the one named (annotation, and feature_id when changing one).
+    """
+    delete_annotation = "delete_annotation"
+    """
+    Annotation form to host: delete this annotation (feature_id).
+    """
+    edit_annotation = "edit_annotation"
+    """
+    Map to host: the analyst asked to change this annotation, by double-clicking it (feature_id).
     """
 
 
@@ -987,6 +1071,7 @@ class ParameterValue(ConfiguredBaseModel):
                        'AgentRef',
                        'TrackProperties',
                        'AnnotationProperties',
+                       'AnnotationSpec',
                        'SensorObservationsProperties',
                        'InnerSchemaRef',
                        'PayloadColumn',
@@ -1161,6 +1246,7 @@ class ToolRef(ConfiguredBaseModel):
                        'AgentRef',
                        'TrackProperties',
                        'AnnotationProperties',
+                       'AnnotationSpec',
                        'SensorObservationsProperties',
                        'InnerSchemaRef',
                        'PayloadColumn',
@@ -1192,6 +1278,7 @@ class AgentRef(ConfiguredBaseModel):
                        'AgentRef',
                        'TrackProperties',
                        'AnnotationProperties',
+                       'AnnotationSpec',
                        'SensorObservationsProperties',
                        'InnerSchemaRef',
                        'PayloadColumn',
@@ -1282,6 +1369,7 @@ class TrackProperties(ConfiguredBaseModel):
                        'AgentRef',
                        'TrackProperties',
                        'AnnotationProperties',
+                       'AnnotationSpec',
                        'SensorObservationsProperties',
                        'InnerSchemaRef',
                        'PayloadColumn',
@@ -1323,7 +1411,7 @@ class TrackStyle(ConfiguredBaseModel):
     """
     linkml_meta: ClassVar[LinkMLMeta] = LinkMLMeta({'from_schema': 'https://debrief.info/schemas/debrief'})
 
-    colour: str = Field(default=..., description="""Lower-case hex RGB, for example \"#e01c3e\".""", json_schema_extra = { "linkml_meta": {'domain_of': ['TrackStyle']} })
+    colour: str = Field(default=..., description="""Lower-case hex RGB, for example \"#e01c3e\".""", json_schema_extra = { "linkml_meta": {'domain_of': ['TrackStyle', 'AnnotationAppearance']} })
     legacy_symbology: Optional[str] = Field(default=None, description="""The REP symbology code the colour came from, such as \"@C\", kept for export.""", json_schema_extra = { "linkml_meta": {'domain_of': ['TrackStyle']} })
 
     @field_validator('colour')
@@ -1342,7 +1430,7 @@ class TrackStyle(ConfiguredBaseModel):
 
 class AnnotationFeature(ConfiguredBaseModel):
     """
-    Shapes, labels and chart furniture as ordinary GeoJSON (CAP-03). An annotation with only a time has null geometry and shall give a time or a time range (CAP-04).
+    Shapes, labels and chart furniture as ordinary GeoJSON (CAP-03). An annotation with only a time has null geometry and shall give a time or a time range (CAP-04); chart furniture has null geometry and needs neither. A circle or an ellipse is a polygon approximating it, for other tools, with its centre and size as properties, which Debrief draws from.
     """
     linkml_meta: ClassVar[LinkMLMeta] = LinkMLMeta({'from_schema': 'https://debrief.info/schemas/debrief'})
 
@@ -1400,6 +1488,7 @@ class AnnotationProperties(ConfiguredBaseModel):
                        'AgentRef',
                        'TrackProperties',
                        'AnnotationProperties',
+                       'AnnotationSpec',
                        'SensorObservationsProperties',
                        'InnerSchemaRef',
                        'PayloadColumn',
@@ -1407,14 +1496,26 @@ class AnnotationProperties(ConfiguredBaseModel):
                        'ToolDeclaration',
                        'ParameterDeclaration',
                        'ResultColumn']} })
-    text: Optional[str] = Field(default=None, json_schema_extra = { "linkml_meta": {'domain_of': ['AnnotationProperties']} })
+    text: Optional[str] = Field(default=None, json_schema_extra = { "linkml_meta": {'domain_of': ['AnnotationProperties', 'AnnotationSpec']} })
     time: Optional[str] = Field(default=None, json_schema_extra = { "linkml_meta": {'domain_of': ['AnnotationProperties',
+                       'AnnotationSpec',
                        'SharedState',
                        'SharedStateChange',
                        'WebviewMessage']} })
     time_range: Optional[TimeRange] = Field(default=None, json_schema_extra = { "linkml_meta": {'domain_of': ['AnnotationProperties',
+                       'AnnotationSpec',
                        'SensorObservationsProperties',
                        'WebviewMessage']} })
+    shape: Optional[AnnotationShapeEnum] = Field(default=None, description="""How it is drawn. Required for circles and ellipses; otherwise it may be left out and follows from the geometry.""", json_schema_extra = { "linkml_meta": {'domain_of': ['AnnotationProperties', 'AnnotationSpec']} })
+    centre: Optional[conlist(min_length=2, max_length=2, item_type=float)] = Field(default=None, description="""The centre of a circle or an ellipse, [longitude, latitude] in WGS84 degrees. Its geometry is the polygon that approximates it.""", json_schema_extra = { "linkml_meta": {'array': {'dimensions': [{'exact_cardinality': 2}],
+                   'exact_number_dimensions': 1},
+         'domain_of': ['AnnotationProperties']} })
+    radius: Optional[Length] = Field(default=None, description="""A circle's radius, along geodesics from its centre.""", json_schema_extra = { "linkml_meta": {'domain_of': ['AnnotationProperties', 'AnnotationSpec']} })
+    semi_major: Optional[Length] = Field(default=None, description="""Half an ellipse's longer axis, along the geodesic from its centre.""", json_schema_extra = { "linkml_meta": {'domain_of': ['AnnotationProperties', 'AnnotationSpec']} })
+    semi_minor: Optional[Length] = Field(default=None, description="""Half an ellipse's shorter axis, along the geodesic from its centre.""", json_schema_extra = { "linkml_meta": {'domain_of': ['AnnotationProperties', 'AnnotationSpec']} })
+    orientation: Optional[Angle] = Field(default=None, description="""The direction of an ellipse's longer axis from its centre, true north, clockwise.""", json_schema_extra = { "linkml_meta": {'domain_of': ['AnnotationProperties', 'AnnotationSpec']} })
+    furniture: Optional[ChartFurnitureEnum] = Field(default=None, description="""What chart furniture it is. Chart furniture has no geometry and needs no time.""", json_schema_extra = { "linkml_meta": {'domain_of': ['AnnotationProperties']} })
+    appearance: Optional[AnnotationAppearance] = Field(default=None, description="""How it is drawn on the map. Left out, or any member of it left out, means Debrief's default for annotations. Content, like a track's colour: changing it is a recorded, undoable change (SUB-22).""", json_schema_extra = { "linkml_meta": {'domain_of': ['AnnotationProperties', 'AnnotationSpec']} })
     hidden: Optional[bool] = Field(default=None, description="""Not drawn on the map. Still listed, and still selectable, in the outline. Content: hiding is a recorded, undoable change (SUB-22).""", json_schema_extra = { "linkml_meta": {'domain_of': ['TrackProperties',
                        'AnnotationProperties',
                        'SensorObservationsProperties']} })
@@ -1422,6 +1523,100 @@ class AnnotationProperties(ConfiguredBaseModel):
                        'AnnotationProperties',
                        'SensorObservationsProperties',
                        'DebriefFeatureCollection']} })
+
+    @field_validator('time')
+    def pattern_time(cls, v):
+        pattern=re.compile(r"^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}Z$")
+        if isinstance(v, list):
+            for element in v:
+                if isinstance(element, str) and not pattern.search(element):
+                    err_msg = f"Invalid time format: {element}"
+                    raise ValueError(err_msg)
+        elif isinstance(v, str) and not pattern.search(v):
+            err_msg = f"Invalid time format: {v}"
+            raise ValueError(err_msg)
+        return v
+
+
+class AnnotationAppearance(ConfiguredBaseModel):
+    """
+    How an annotation is drawn: its line, its fill and its label. Data colours do not change with the theme (DEV-07). Widths and sizes are in screen pixels, so they are the same at every zoom.
+    """
+    linkml_meta: ClassVar[LinkMLMeta] = LinkMLMeta({'from_schema': 'https://debrief.info/schemas/debrief'})
+
+    colour: Optional[str] = Field(default=None, description="""Its line's colour, and its label's. Lower-case hex RGB, for example \"#c7820a\".""", json_schema_extra = { "linkml_meta": {'domain_of': ['TrackStyle', 'AnnotationAppearance']} })
+    line_style: Optional[LineStyleEnum] = Field(default=None, json_schema_extra = { "linkml_meta": {'domain_of': ['AnnotationAppearance']} })
+    line_width: Optional[int] = Field(default=None, description="""Width of its line in screen pixels.""", ge=1, le=10, json_schema_extra = { "linkml_meta": {'domain_of': ['AnnotationAppearance']} })
+    fill_colour: Optional[str] = Field(default=None, description="""Colour inside an area, circle or ellipse. Lower-case hex RGB. Left out, the line's colour.""", json_schema_extra = { "linkml_meta": {'domain_of': ['AnnotationAppearance']} })
+    fill_opacity: Optional[float] = Field(default=None, description="""How opaque the fill of an area, circle or ellipse is, from 0 (none) to 1 (solid). Left out, 0.25 with a fill colour, or else a faint tint of 0.05, so what lies inside stays clear.""", ge=0, le=1, json_schema_extra = { "linkml_meta": {'domain_of': ['AnnotationAppearance']} })
+    label_size: Optional[int] = Field(default=None, description="""Height of its label's text in screen pixels.""", ge=8, le=32, json_schema_extra = { "linkml_meta": {'domain_of': ['AnnotationAppearance']} })
+    label_position: Optional[LabelPositionEnum] = Field(default=None, json_schema_extra = { "linkml_meta": {'domain_of': ['AnnotationAppearance']} })
+
+    @field_validator('colour')
+    def pattern_colour(cls, v):
+        pattern=re.compile(r"^#[0-9a-f]{6}$")
+        if isinstance(v, list):
+            for element in v:
+                if isinstance(element, str) and not pattern.search(element):
+                    err_msg = f"Invalid colour format: {element}"
+                    raise ValueError(err_msg)
+        elif isinstance(v, str) and not pattern.search(v):
+            err_msg = f"Invalid colour format: {v}"
+            raise ValueError(err_msg)
+        return v
+
+    @field_validator('fill_colour')
+    def pattern_fill_colour(cls, v):
+        pattern=re.compile(r"^#[0-9a-f]{6}$")
+        if isinstance(v, list):
+            for element in v:
+                if isinstance(element, str) and not pattern.search(element):
+                    err_msg = f"Invalid fill_colour format: {element}"
+                    raise ValueError(err_msg)
+        elif isinstance(v, str) and not pattern.search(v):
+            err_msg = f"Invalid fill_colour format: {v}"
+            raise ValueError(err_msg)
+        return v
+
+
+class AnnotationSpec(ConfiguredBaseModel):
+    """
+    An annotation as the analyst describes it in a form, or an agent in a request: what is made into an annotation feature, recorded as one step in the plot's history (CAP-03, SUB-19). Positions are numbers here; forms read them in the analyst's notation and say what they mean.
+    """
+    linkml_meta: ClassVar[LinkMLMeta] = LinkMLMeta({'from_schema': 'https://debrief.info/schemas/debrief'})
+
+    shape: AnnotationShapeEnum = Field(default=..., json_schema_extra = { "linkml_meta": {'domain_of': ['AnnotationProperties', 'AnnotationSpec']} })
+    name: str = Field(default=..., json_schema_extra = { "linkml_meta": {'domain_of': ['ParameterValue',
+                       'ToolRef',
+                       'AgentRef',
+                       'TrackProperties',
+                       'AnnotationProperties',
+                       'AnnotationSpec',
+                       'SensorObservationsProperties',
+                       'InnerSchemaRef',
+                       'PayloadColumn',
+                       'NamedSet',
+                       'ToolDeclaration',
+                       'ParameterDeclaration',
+                       'ResultColumn']} })
+    text: Optional[str] = Field(default=None, json_schema_extra = { "linkml_meta": {'domain_of': ['AnnotationProperties', 'AnnotationSpec']} })
+    positions: Optional[conlist(min_length=1, item_type=conlist(min_length=2, max_length=2, item_type=float))] = Field(default=None, description="""[longitude, latitude] pairs: the line's positions, or the area's corners (not closed); one, the centre or position, for a circle, ellipse, label or marker; none for a note.""", json_schema_extra = { "linkml_meta": {'array': {'dimensions': [{'minimum_cardinality': 1}, {'exact_cardinality': 2}],
+                   'exact_number_dimensions': 2},
+         'domain_of': ['AnnotationSpec']} })
+    radius: Optional[Length] = Field(default=None, json_schema_extra = { "linkml_meta": {'domain_of': ['AnnotationProperties', 'AnnotationSpec']} })
+    semi_major: Optional[Length] = Field(default=None, json_schema_extra = { "linkml_meta": {'domain_of': ['AnnotationProperties', 'AnnotationSpec']} })
+    semi_minor: Optional[Length] = Field(default=None, json_schema_extra = { "linkml_meta": {'domain_of': ['AnnotationProperties', 'AnnotationSpec']} })
+    orientation: Optional[Angle] = Field(default=None, json_schema_extra = { "linkml_meta": {'domain_of': ['AnnotationProperties', 'AnnotationSpec']} })
+    time: Optional[str] = Field(default=None, json_schema_extra = { "linkml_meta": {'domain_of': ['AnnotationProperties',
+                       'AnnotationSpec',
+                       'SharedState',
+                       'SharedStateChange',
+                       'WebviewMessage']} })
+    time_range: Optional[TimeRange] = Field(default=None, json_schema_extra = { "linkml_meta": {'domain_of': ['AnnotationProperties',
+                       'AnnotationSpec',
+                       'SensorObservationsProperties',
+                       'WebviewMessage']} })
+    appearance: Optional[AnnotationAppearance] = Field(default=None, json_schema_extra = { "linkml_meta": {'domain_of': ['AnnotationProperties', 'AnnotationSpec']} })
 
     @field_validator('time')
     def pattern_time(cls, v):
@@ -1493,6 +1688,7 @@ class SensorObservationsProperties(ConfiguredBaseModel):
                        'AgentRef',
                        'TrackProperties',
                        'AnnotationProperties',
+                       'AnnotationSpec',
                        'SensorObservationsProperties',
                        'InnerSchemaRef',
                        'PayloadColumn',
@@ -1504,6 +1700,7 @@ class SensorObservationsProperties(ConfiguredBaseModel):
     host_track_id: str = Field(default=..., description="""The track carrying the sensor.""", json_schema_extra = { "linkml_meta": {'domain_of': ['SensorObservationsProperties']} })
     observation_type: ObservationTypeEnum = Field(default=..., json_schema_extra = { "linkml_meta": {'domain_of': ['SensorObservationsProperties']} })
     time_range: TimeRange = Field(default=..., json_schema_extra = { "linkml_meta": {'domain_of': ['AnnotationProperties',
+                       'AnnotationSpec',
                        'SensorObservationsProperties',
                        'WebviewMessage']} })
     observation_count: int = Field(default=..., ge=0, json_schema_extra = { "linkml_meta": {'domain_of': ['SensorObservationsProperties']} })
@@ -1553,6 +1750,7 @@ class InnerSchemaRef(ConfiguredBaseModel):
                        'AgentRef',
                        'TrackProperties',
                        'AnnotationProperties',
+                       'AnnotationSpec',
                        'SensorObservationsProperties',
                        'InnerSchemaRef',
                        'PayloadColumn',
@@ -1584,6 +1782,7 @@ class PayloadColumn(ConfiguredBaseModel):
                        'AgentRef',
                        'TrackProperties',
                        'AnnotationProperties',
+                       'AnnotationSpec',
                        'SensorObservationsProperties',
                        'InnerSchemaRef',
                        'PayloadColumn',
@@ -1698,6 +1897,7 @@ class NamedSet(ConfiguredBaseModel):
                        'AgentRef',
                        'TrackProperties',
                        'AnnotationProperties',
+                       'AnnotationSpec',
                        'SensorObservationsProperties',
                        'InnerSchemaRef',
                        'PayloadColumn',
@@ -2049,6 +2249,7 @@ class SharedState(ConfiguredBaseModel):
     linkml_meta: ClassVar[LinkMLMeta] = LinkMLMeta({'from_schema': 'https://debrief.info/schemas/debrief'})
 
     time: TimeState = Field(default=..., json_schema_extra = { "linkml_meta": {'domain_of': ['AnnotationProperties',
+                       'AnnotationSpec',
                        'SharedState',
                        'SharedStateChange',
                        'WebviewMessage']} })
@@ -2063,6 +2264,7 @@ class SharedStateChange(ConfiguredBaseModel):
     linkml_meta: ClassVar[LinkMLMeta] = LinkMLMeta({'from_schema': 'https://debrief.info/schemas/debrief'})
 
     time: Optional[TimeState] = Field(default=None, json_schema_extra = { "linkml_meta": {'domain_of': ['AnnotationProperties',
+                       'AnnotationSpec',
                        'SharedState',
                        'SharedStateChange',
                        'WebviewMessage']} })
@@ -2082,6 +2284,7 @@ class ToolDeclaration(ConfiguredBaseModel):
                        'AgentRef',
                        'TrackProperties',
                        'AnnotationProperties',
+                       'AnnotationSpec',
                        'SensorObservationsProperties',
                        'InnerSchemaRef',
                        'PayloadColumn',
@@ -2143,6 +2346,7 @@ class ParameterDeclaration(ConfiguredBaseModel):
                        'AgentRef',
                        'TrackProperties',
                        'AnnotationProperties',
+                       'AnnotationSpec',
                        'SensorObservationsProperties',
                        'InnerSchemaRef',
                        'PayloadColumn',
@@ -2251,6 +2455,7 @@ class ResultColumn(ConfiguredBaseModel):
                        'AgentRef',
                        'TrackProperties',
                        'AnnotationProperties',
+                       'AnnotationSpec',
                        'SensorObservationsProperties',
                        'InnerSchemaRef',
                        'PayloadColumn',
@@ -2388,6 +2593,7 @@ class WebviewMessage(ConfiguredBaseModel):
     selection: Optional[Selection] = Field(default=None, json_schema_extra = { "linkml_meta": {'domain_of': ['SharedState', 'SharedStateChange', 'WebviewMessage']} })
     viewport: Optional[Viewport] = Field(default=None, json_schema_extra = { "linkml_meta": {'domain_of': ['SharedState', 'SharedStateChange', 'WebviewMessage']} })
     time: Optional[TimeState] = Field(default=None, json_schema_extra = { "linkml_meta": {'domain_of': ['AnnotationProperties',
+                       'AnnotationSpec',
                        'SharedState',
                        'SharedStateChange',
                        'WebviewMessage']} })
@@ -2395,6 +2601,7 @@ class WebviewMessage(ConfiguredBaseModel):
     context_tracks: Optional[ContextTracksEnum] = Field(default=None, description="""How tracks outside the time window are drawn (CAP-29).""", json_schema_extra = { "linkml_meta": {'domain_of': ['PlotView', 'WebviewMessage']} })
     minimum_context_contrast: Optional[bool] = Field(default=None, description="""The analyst's setting that shows faint context tracks as visible, so the time controller can say so.""", json_schema_extra = { "linkml_meta": {'domain_of': ['WebviewMessage']} })
     time_range: Optional[TimeRange] = Field(default=None, description="""The plot's period, so times can be entered as the analyst reads them (show_form) and the time window set within it (show_time); or the time window to save (window_changed).""", json_schema_extra = { "linkml_meta": {'domain_of': ['AnnotationProperties',
+                       'AnnotationSpec',
                        'SensorObservationsProperties',
                        'WebviewMessage']} })
     current_time: Optional[str] = Field(default=None, description="""Current time from shared state, which a tool form offers for its time fields.""", json_schema_extra = { "linkml_meta": {'domain_of': ['WebviewMessage']} })
@@ -2405,6 +2612,8 @@ class WebviewMessage(ConfiguredBaseModel):
     message: Optional[str] = Field(default=None, json_schema_extra = { "linkml_meta": {'domain_of': ['WebviewMessage']} })
     result_title: Optional[str] = Field(default=None, json_schema_extra = { "linkml_meta": {'domain_of': ['WebviewMessage']} })
     result: Optional[ToolResult] = Field(default=None, json_schema_extra = { "linkml_meta": {'domain_of': ['WebviewMessage']} })
+    annotation: Optional[AnnotationSpec] = Field(default=None, description="""An annotation as the form describes it (show_annotation_form, save_annotation).""", json_schema_extra = { "linkml_meta": {'domain_of': ['WebviewMessage']} })
+    feature_id: Optional[str] = Field(default=None, description="""The annotation a form changes or deletes, or the map asks to change.""", json_schema_extra = { "linkml_meta": {'domain_of': ['WebviewMessage']} })
 
     @field_validator('current_time')
     def pattern_current_time(cls, v):
@@ -2620,6 +2829,8 @@ TrackProperties.model_rebuild()
 TrackStyle.model_rebuild()
 AnnotationFeature.model_rebuild()
 AnnotationProperties.model_rebuild()
+AnnotationAppearance.model_rebuild()
+AnnotationSpec.model_rebuild()
 SensorObservationsFeature.model_rebuild()
 SensorObservationsProperties.model_rebuild()
 PayloadRef.model_rebuild()

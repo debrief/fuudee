@@ -37,3 +37,47 @@ export function densify(points: LonLat[], stepM = STEP_M): LonLat[] {
   }
   return out;
 }
+
+/** Points the map draws around a circle or an ellipse: enough to look smooth at any zoom. */
+export const RING_POINTS = 180;
+
+/**
+ * A closed ring at one geodesic range from centre (SUB-03): what the map draws
+ * for a circle, from its centre and radius, not from the polygon stored for
+ * other tools. Longitudes are unrolled about the centre, so a circle across the
+ * antimeridian is drawn whole.
+ */
+export function circleRing(centre: LonLat, radiusM: number, points = RING_POINTS): LonLat[] {
+  return ring(centre, (t) => [t, radiusM], points);
+}
+
+/**
+ * A closed ring approximating an ellipse about centre, its longer axis along
+ * orientation (degrees true): at parametric angle t, the point (a cos t, b sin t)
+ * in the ellipse's own axes, reached along the geodesic from the centre. As
+ * debrief_kernel.geodesy.ellipse_ring makes the stored polygon.
+ */
+export function ellipseRing(centre: LonLat, semiMajorM: number, semiMinorM: number, orientationDeg: number, points = RING_POINTS): LonLat[] {
+  return ring(
+    centre,
+    (t) => {
+      const r = (t * Math.PI) / 180;
+      const x = semiMajorM * Math.cos(r);
+      const y = semiMinorM * Math.sin(r);
+      return [(orientationDeg + (Math.atan2(y, x) * 180) / Math.PI + 360) % 360, Math.hypot(x, y)];
+    },
+    points,
+  );
+}
+
+function ring(centre: LonLat, at: (t: number) => [number, number], points: number): LonLat[] {
+  const [lon, lat] = centre;
+  const out: LonLat[] = [];
+  for (let i = 0; i < points; i++) {
+    const [bearing, distance] = at((360 * i) / points);
+    const p = WGS84.Direct(lat, lon, bearing, distance, MASK);
+    out.push([p.lon2!, p.lat2!]);
+  }
+  out.push(out[0]);
+  return out;
+}

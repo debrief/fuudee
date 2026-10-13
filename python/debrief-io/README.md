@@ -63,9 +63,10 @@ What becomes what:
 | --- | --- |
 | Track, all its legs | One track: fixes joined in time order, with courses, speeds, depths and the track's colour. TMA solution legs and dynamic infills are imported as their saved fixes; the solution behind them is not. When legs overlap in time, each leg becomes a track of its own, named `<track> (<leg>)`, since joining them would zig-zag. Fixes that share a time are kept and reported. A colour that cannot be read is replaced by the default, with a note. |
 | Text label | Label annotation (a point). |
-| Circle, ellipse | Shape annotation, a polygon of 72 sides, since a plot holds no curves. |
-| Rectangle, polygon | Shape annotation, a polygon. An open polygon is a line. |
-| Line, vector | Shape annotation, a line. |
+| Circle, ellipse | Circle or ellipse annotation: its exact centre and radius, or semi-axes and orientation, with a polygon of 72 sides as its geometry so other GeoJSON tools see the area (schema 0.0.12). An ellipse saved with its axes the wrong way round is turned a quarter, so the same ellipse is drawn. |
+| Rectangle, polygon | Area annotation. An open polygon is a line. |
+| Line, vector | Line annotation. |
+| How a shape or label is drawn | Its appearance: colour, line style (solid, dotted; long dashes, short dashes and dot-dash as dashed; unconnected points as dotted, listed), line width (a hairline as 1 px), fill (semi-transparent at half opacity, otherwise solid; only areas, circles and ellipses), label size from its font size, and label position (left, right, above, below, centre, or none when its label is hidden). |
 | A shape's time range | The annotation's time, or time range. |
 | Narrative entry | A time-only note annotation, named after its track, as the sample data holds its narrative. The entry's type is listed as not imported. |
 | Layer, narrative | A named set of the annotations or notes it held, with the layer's name. Its settings are listed as not imported, since v4 has no layers yet. |
@@ -78,7 +79,8 @@ Not imported, each named in the report and in provenance:
 - chart features: grids, scales, coastlines, chart libraries, time displays;
 - tracks with fewer than two fixes, fix labels and comments, fixes drawn in their own colour, hidden fixes (imported and shown), and depths that could not be read (imported as zero, listed by line);
 - anything inside a track or one of its legs that is not a fix or a part of the track this importer knows;
-- display settings: fix labels and symbols, fonts, line styles, the colours of annotations, and visibility, so hidden items are shown;
+- display settings: fix labels and symbols, track fonts and line styles, and visibility, so hidden items are shown;
+- how annotations were drawn, where v4 cannot draw it: a text label's symbol (such as `Carrier`), counted with the symbols named; fonts other than plain Arial (the size is kept); a label colour of its own; arrowheads; and dash patterns v4 does not have, each counted with examples;
 - view settings: the tote, the time stepper, the background and the projection;
 - elements that could not be read, with their line numbers, and any element this importer does not know, by element name and name.
 
