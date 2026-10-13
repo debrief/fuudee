@@ -66,31 +66,46 @@ export class MapPanel {
       this.panel = undefined;
       this.showing = undefined;
     });
-    this.panel.webview.onDidReceiveMessage((raw) => {
-      let message;
-      try {
-        message = checkMessage(raw);
-      } catch (error) {
-        // Not the message: it can quote plot content (NFR-14).
-        this.log("webview_message_refused panel=map");
-        return;
-      }
-      if (message.kind === "ready") {
-        this.ready = true;
-        this.showPlot();
-      } else if (message.kind === "selection_changed") {
-        this.session.select(message.selection!.feature_ids, "map");
-      } else if (message.kind === "time_changed") {
-        this.session.setTime(message.time!, "map");
-      } else if (message.kind === "viewport_changed") {
-        this.session.setViewport(message.viewport!, "map");
-      } else if (message.kind === "show_hidden") {
-        void vscode.commands.executeCommand("debrief.showAllHidden");
-      } else if (message.kind === "edit_annotation") {
-        // Double-clicked on the map: its properties form (CAP-03).
-        void vscode.commands.executeCommand("debrief.editAnnotation", message.feature_id);
-      }
-    });
+    this.panel.webview.onDidReceiveMessage((raw) => void this.receive(raw));
+  }
+
+  /** A message from the map webview; tests may pass one as if the map had sent it. Resolves once it is acted on. */
+  async receive(raw: unknown): Promise<void> {
+    let message;
+    try {
+      message = checkMessage(raw);
+    } catch (error) {
+      // Not the message: it can quote plot content (NFR-14).
+      this.log("webview_message_refused panel=map");
+      return;
+    }
+    if (message.kind === "ready") {
+      this.ready = true;
+      this.showPlot();
+    } else if (message.kind === "selection_changed") {
+      this.session.select(message.selection!.feature_ids, "map");
+    } else if (message.kind === "time_changed") {
+      this.session.setTime(message.time!, "map");
+    } else if (message.kind === "viewport_changed") {
+      this.session.setViewport(message.viewport!, "map");
+    } else if (message.kind === "show_hidden") {
+      void vscode.commands.executeCommand("debrief.showAllHidden");
+    } else if (message.kind === "edit_annotation" && message.annotation) {
+      // Dragged or nudged on the map: changed so, as one step. Refused, the map shows it as it is.
+      const done = await vscode.commands.executeCommand<{ problem?: string } | undefined>("debrief.editAnnotation", message.feature_id, message.annotation);
+      if (done?.problem) this.refresh();
+    } else if (message.kind === "edit_annotation") {
+      // Double-clicked on the map: its properties form (CAP-03).
+      void vscode.commands.executeCommand("debrief.editAnnotation", message.feature_id);
+    } else if (message.kind === "annotation_drawn") {
+      // Drawn on the map: the form, to name it and add it as one step.
+      await vscode.commands.executeCommand("debrief.addDrawnAnnotation", message.annotation);
+    }
+  }
+
+  /** Draw the plot again as it is: after a change on the map was refused, or a drawing's form closed unsaved. */
+  refresh(): void {
+    if (this.ready) this.showPlot();
   }
 
   private showPlot(): void {

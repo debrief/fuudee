@@ -91,6 +91,9 @@ Press **Add annotation…** under the outline, name a circle, give it a radius a
 ## Not yet
 
 - **Drawing on the map.** Placing and dragging positions with the pointer is part B.
+
+!!! note "Update, 13 Oct 2026"
+    Annotations can now be drawn on the map, and changed there with handles or the arrow keys. See [Drawing on the map](2026-10-13-drawing-on-the-map.md).
 - **Arrowheads, label symbols and more chart furniture.** Listed when a legacy plot has them.
 - **Changing an annotation's kind** once made: delete it and add another.
 - **Circles across the antimeridian** are drawn whole in Debrief, but their polygon, for other tools, is not split there as GeoJSON advises.

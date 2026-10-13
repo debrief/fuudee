@@ -131,6 +131,17 @@ export function draftOf(spec: AnnotationSpec): AnnotationDraft {
   return { ...fields, shown: { draft: fields, spec } };
 }
 
+/**
+ * A new annotation's fields from a description: one drawn on the map, say, or
+ * a circle at the middle of the map. Nothing is "as shown", so every field is
+ * read as typed; the name is left for the analyst.
+ */
+export function drawnDraft(spec: AnnotationSpec): AnnotationDraft {
+  const fields = draftOf({ ...spec, name: "" });
+  delete fields.shown;
+  return fields;
+}
+
 /** Values the fields left as shown keep exactly: see AnnotationDraft.shown. */
 function keepShown(draft: AnnotationDraft, spec: AnnotationSpec): void {
   if (!draft.shown) return;

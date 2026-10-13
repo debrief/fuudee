@@ -81,3 +81,23 @@ function ring(centre: LonLat, at: (t: number) => [number, number], points: numbe
   out.push(out[0]);
   return out;
 }
+
+/** The range in metres and the initial bearing in degrees true from a to b, along the geodesic (SUB-03). */
+export function rangeBearing(a: LonLat, b: LonLat): { metres: number; bearing: number } {
+  const g = WGS84.Inverse(a[1], a[0], b[1], b[0]);
+  return { metres: g.s12 ?? 0, bearing: (((g.azi1 ?? 0) % 360) + 360) % 360 };
+}
+
+/** The position reached from a along the geodesic at bearing (degrees true) for metres. */
+export function travel(a: LonLat, bearing: number, metres: number): LonLat {
+  const p = WGS84.Direct(a[1], a[0], bearing, metres, MASK);
+  return [p.lon2!, p.lat2!];
+}
+
+/** The area inside a ring of corners (not closed), in square metres, along geodesics. */
+export function geodesicArea(corners: LonLat[]): number {
+  if (corners.length < 3) return 0;
+  const polygon = WGS84.Polygon(false);
+  for (const [lon, lat] of corners) polygon.AddPoint(lat, lon);
+  return Math.abs(polygon.Compute(false, true).area ?? 0);
+}

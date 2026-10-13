@@ -1,0 +1,21 @@
+{
+  "kind": "annotation_drawn",
+  "annotation": {
+    "shape": "area",
+    "name": "",
+    "positions": [
+      [
+        -75.8,
+        37.05
+      ],
+      [
+        -75.55,
+        37.1
+      ],
+      [
+        -75.45,
+        37.02
+      ]
+    ]
+  }
+}

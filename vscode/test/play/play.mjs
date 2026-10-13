@@ -11,6 +11,7 @@ import path from "node:path";
 import assert from "node:assert/strict";
 import { chromium } from "playwright";
 import { playAnnotations } from "./annotations.mjs";
+import { playDrawing } from "./drawing.mjs";
 
 const root = path.resolve(process.argv[2] ?? "../site/docs/play");
 const site = process.argv[3] ? path.resolve(process.argv[3]) : undefined;
@@ -261,6 +262,9 @@ try {
   // Annotations through their form: a circle added, restyled, undone; an ellipse, an
   // area and a label; the north arrow; the Timeline moving current time (CAP-03 to CAP-05).
   await playAnnotations(page, shot);
+  // Drawing and editing them on the map: by pointer and by keyboard, each finished
+  // annotation and each release one step; a colleague's change during a drag (CAP-03, NFR-13).
+  await playDrawing(page, shot);
 
   // Import a legacy plot file.
   const dpf = path.resolve("../python/debrief-io/tests/data/shapes.dpf");
@@ -608,6 +612,22 @@ try {
     await annotated.frameLocator(".frame-annotation").getByRole("button", { name: "Add" }).waitFor();
     await post.locator(".debrief-demo").first().scrollIntoViewIfNeeded();
     await shot("annot-06-in-the-post", post);
+    // The drawing post's demo: the map's toolbar draws, and the form opens to name it.
+    await post.goto(`http://127.0.0.1:${siteServer.address().port}/blog/2026/10/13/drawing-on-the-map/`);
+    await post.locator(".debrief-demo").first().getByRole("button", { name: "Start the demo" }).click();
+    const drawn = post.frameLocator(".debrief-demo-frame");
+    await drawn.locator("#status", { hasText: "Ready" }).waitFor({ timeout: 240000 });
+    const demoMap = drawn.frameLocator(".frame-map");
+    await demoMap.getByRole("toolbar", { name: "Draw an annotation" }).getByRole("button", { name: "Circle", exact: true }).click();
+    await demoMap.locator("#map.drawing-mode").waitFor();
+    const mapBox = await demoMap.locator("#map").boundingBox();
+    await post.mouse.click(mapBox.x + mapBox.width * 0.5, mapBox.y + mapBox.height * 0.5);
+    await post.mouse.click(mapBox.x + mapBox.width * 0.6, mapBox.y + mapBox.height * 0.5);
+    const named = drawn.frameLocator(".frame-annotation").locator("#field-radius input");
+    await named.waitFor();
+    assert.notEqual(await named.inputValue(), "");
+    await post.locator(".debrief-demo").first().scrollIntoViewIfNeeded();
+    await shot("draw-07-in-the-post", post);
     siteServer.close();
   }
 } catch (error) {

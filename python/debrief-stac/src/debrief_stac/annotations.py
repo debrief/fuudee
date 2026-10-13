@@ -303,7 +303,30 @@ def describe_change(
         return f"Time of {title_of(after)} changed"
     if changed == {"name"}:
         return f"{title_of(before)} renamed {after.properties.name!r}"
+    # Drawn on the map: dragged or nudged whole, a corner or the size changed.
+    if changed == {"positions"}:
+        moved = _moved_whole(old.positions or [], new.positions or [])
+        return f"{title_of(after)} {'moved' if moved else 'reshaped'}"
+    if changed <= {"radius", "semi_major", "semi_minor", "orientation"}:
+        return f"{title_of(after)} {'resized' if changed == {'radius'} else 'reshaped'}"
     return f"{title_of(after)} changed"
+
+
+def _moved_whole(old: list[list[float]], new: list[list[float]]) -> bool:
+    """Whether every position moved by the same change of longitude and latitude,
+    as when the whole annotation is dragged or nudged; across the antimeridian too,
+    where a longitude goes from 179.9 to -179.9."""
+    if len(old) != len(new) or not old:
+        return False
+    d_lon, d_lat = new[0][0] - old[0][0], new[0][1] - old[0][1]
+
+    def same_lon(change: float) -> bool:
+        return abs((change - d_lon + 180.0) % 360.0 - 180.0) < 1e-9
+
+    return all(
+        same_lon(b[0] - a[0]) and abs(b[1] - a[1] - d_lat) < 1e-9
+        for a, b in zip(old, new, strict=True)
+    )
 
 
 def new_id(name: str, taken: set[str]) -> str:

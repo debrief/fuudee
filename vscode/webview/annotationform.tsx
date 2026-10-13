@@ -13,7 +13,7 @@ import { useEffect, useState } from "react";
 import { UNIT_LABELS } from "@debrief/kernel";
 import type { AnnotationSpec, TimeRange } from "@debrief/schemas";
 import { parseTime } from "../src/timeinput.js";
-import { type AnnotationDraft, draftOf, EXAMPLE_COLOUR, echoPositions, FILLED, type Field as DraftField, LENGTH_UNITS, newDraft, positionsLabel, replacing, SHAPES, specOf } from "./annotationdraft.js";
+import { type AnnotationDraft, draftOf, drawnDraft, EXAMPLE_COLOUR, echoPositions, FILLED, type Field as DraftField, LENGTH_UNITS, newDraft, positionsLabel, replacing, SHAPES, specOf } from "./annotationdraft.js";
 import type { Shape } from "./annotationlook.js";
 import { showTime } from "./formdraft.js";
 import { ANNOTATION_COLOURS } from "./palette.js";
@@ -32,6 +32,8 @@ function Form() {
   const [tried, setTried] = useState(false);
   const [otherColour, setOtherColour] = useState(false);
   const [otherFill, setOtherFill] = useState(false);
+  /** Counts the forms shown to add an annotation: each puts the keyboard at the name. */
+  const [shownToAdd, setShownToAdd] = useState(0);
 
   useEffect(() => {
     onMessage((message) => {
@@ -40,7 +42,8 @@ function Form() {
         const id = message.feature_id as string | undefined;
         setFeatureId(id);
         setRange(message.time_range as TimeRange | undefined);
-        const next = id && spec ? draftOf(spec) : newDraft(spec?.positions?.[0] as [number, number] | undefined, spec?.shape ?? "circle");
+        // Changing one: its fields as they are. Adding one: what was drawn on the map, if anything, to name.
+        const next = id && spec ? draftOf(spec) : spec ? drawnDraft(spec) : newDraft();
         // A new annotation's time starts at current time, as a tool form's does (SUB-26).
         const now = message.current_time as string | undefined;
         if (!id && now) next.time = showTime(Date.parse(now));
@@ -50,6 +53,8 @@ function Form() {
         setBusy(false);
         setProblem(undefined);
         setTried(false);
+        // Adding: straight to the name, which is all a drawn annotation still needs.
+        if (!id) setShownToAdd((n) => n + 1);
       } else if (message.kind === "form_busy") {
         setBusy(true);
       } else if (message.kind === "form_error") {
@@ -59,6 +64,11 @@ function Form() {
     });
     host.postMessage({ kind: "ready" });
   }, []);
+
+  // Adding: straight to the name, once the form is drawn; all a drawn annotation still needs.
+  useEffect(() => {
+    if (shownToAdd) document.querySelector<HTMLElement>("#field-name input")?.focus();
+  }, [shownToAdd]);
 
   if (!draft) return null;
   const shape = draft.shape;

@@ -251,7 +251,8 @@ export type WebviewMessageKindEnum =
   | "show_annotation_form"
   | "save_annotation"
   | "delete_annotation"
-  | "edit_annotation";
+  | "edit_annotation"
+  | "annotation_drawn";
 
 export interface DebriefSchemaDefinitions {}
 /**
@@ -1257,7 +1258,7 @@ export interface UserConfig {
  */
 export interface WebviewMessage {
   /**
-   * An annotation as the form describes it (show_annotation_form, save_annotation).
+   * An annotation as the form describes it (show_annotation_form, save_annotation), as drawn on the map (annotation_drawn), or as changed on the map (edit_annotation).
    */
   annotation?: AnnotationSpec | null;
   /**

@@ -266,7 +266,22 @@ window.addEventListener("message", (event) => {
     if (message.kind === "time_changed") showTime(message.time as TimeState);
     if (message.kind === "viewport_changed") viewport = (message.viewport as { bbox: number[] }).bbox;
     if (message.kind === "show_hidden" && opened) void restyle(hiddenIds(opened.plot), { hidden: false });
-    if (message.kind === "edit_annotation") editAnnotation(message.feature_id as string);
+    if (message.kind === "edit_annotation" && message.annotation) {
+      // Dragged or nudged on the map: changed so, as one step. Refused, the map shows the latest.
+      const change = { kind: "edit", feature: message.feature_id, annotation: message.annotation };
+      void annotate(change).then(async (problem) => {
+        if (!problem || !opened) return;
+        toast(`${problem} Debrief is showing the latest; try again if you still want to.`, "warning");
+        await openPlot(opened.item.id, true);
+        showPlot();
+      });
+    } else if (message.kind === "edit_annotation") editAnnotation(message.feature_id as string);
+    if (message.kind === "annotation_drawn") {
+      // Drawn on the map: the form, filled in with what was drawn, to name it and add it as one step.
+      openAnnotationForm({ spec: { ...(message.annotation as AnnotationSpec), name: "" } });
+      drawnUnsaved = !!annotationFrame;
+      if (!annotationFrame) showPlot(); // no form (Python not ready): nothing stays drawn
+    }
   } else if (name === "annotation") {
     if (message.kind === "cancel") closeSide();
     if (message.kind === "save_annotation" || message.kind === "delete_annotation") {
@@ -280,8 +295,9 @@ window.addEventListener("message", (event) => {
             ? { kind: "edit", feature: id, annotation: message.annotation }
             : { kind: "add", annotation: message.annotation };
       void annotate(change).then((problem) => {
-        if (problem) post(annotationFrame, { kind: "form_error", message: problem });
-        else closeSide();
+        if (problem) return post(annotationFrame, { kind: "form_error", message: problem });
+        drawnUnsaved = false; // saved: the map has the plot with it
+        closeSide();
       });
     }
   } else if (name === "form") {
@@ -321,7 +337,14 @@ function showSide(title: string, content: HTMLElement): void {
   $("side-frame").replaceChildren(bar, content);
   $("side-frame").hidden = false;
 }
+/** The annotation form is naming what was drawn on the map, not yet saved. */
+let drawnUnsaved = false;
 function closeSide(): void {
+  if (drawnUnsaved) {
+    // Closed without saving: what was drawn for it goes from the map.
+    drawnUnsaved = false;
+    showPlot();
+  }
   formTool = undefined;
   form = undefined;
   results = undefined;

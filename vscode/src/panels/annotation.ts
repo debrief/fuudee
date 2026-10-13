@@ -13,6 +13,8 @@ export interface AnnotationActions {
   save: (spec: AnnotationSpec, featureId?: string) => Promise<string | undefined>;
   /** Delete featureId. Returns a problem to show, if any. */
   remove: (featureId: string) => Promise<string | undefined>;
+  /** The form closed: saved, or cancelled or closed without saving (a drawing it was naming is then let go). */
+  closed?: (saved: boolean) => void;
 }
 
 interface Showing {
@@ -26,6 +28,7 @@ export class AnnotationPanel {
   private panel?: vscode.WebviewPanel;
   private ready = false;
   private showing?: Showing;
+  private saved = false;
 
   constructor(
     private readonly extension: vscode.Uri,
@@ -49,7 +52,11 @@ export class AnnotationPanel {
       });
       this.ready = false;
       this.panel.webview.html = webviewHtml(this.panel.webview, this.extension, "annotation", title);
-      this.panel.onDidDispose(() => (this.panel = undefined));
+      this.saved = false;
+      this.panel.onDidDispose(() => {
+        this.panel = undefined;
+        this.actions.closed?.(this.saved);
+      });
       this.panel.webview.onDidReceiveMessage((raw) => void this.receive(raw));
     } else {
       this.panel.reveal(undefined, false);
@@ -99,7 +106,10 @@ export class AnnotationPanel {
           ? await this.actions.save(message.annotation!, message.feature_id ?? undefined)
           : await this.actions.remove(message.feature_id!);
       if (problem) void this.panel?.webview.postMessage(checkMessage({ kind: "form_error", message: problem }));
-      else this.close();
+      else {
+        this.saved = true;
+        this.close();
+      }
     }
   }
 }

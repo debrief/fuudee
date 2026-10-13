@@ -700,7 +700,8 @@ MESSAGE_MEMBERS: dict[str, tuple[str, ...]] = {
     "show_annotation_form": ("annotation?", "feature_id?", "time_range?", "current_time?"),
     "save_annotation": ("annotation", "feature_id?"),
     "delete_annotation": ("feature_id",),
-    "edit_annotation": ("feature_id",),
+    "edit_annotation": ("feature_id", "annotation?"),
+    "annotation_drawn": ("annotation",),
 }
 
 

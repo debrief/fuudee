@@ -2,6 +2,11 @@
 
 The data-file schema is versioned independently of Debrief (SUB-12). Before 1.0.0 there is no migration guarantee (SUB-13).
 
+## 0.0.13 (13 Oct 2026)
+
+- Webview messages for drawing and editing annotations on the map: `annotation_drawn` (`annotation`, its name empty), sent when the analyst finishes drawing one, so the host opens the annotation form with it; and `annotation` on `edit_annotation`, sent when the analyst lets go of a handle or stops nudging one, so the host changes the annotation so, as one recorded step, without the form. Plot files are unchanged.
+- Before 1.0.0 only an exact version opens (SUB-13): plots written as 0.0.12 must be imported or built again.
+
 ## 0.0.12 (13 Oct 2026)
 
 - Annotations say how they are drawn (`shape` on `AnnotationProperties`: `line`, `area`, `circle`, `ellipse`, `label`, `marker` or `note`). Left out, it follows from the geometry, so earlier annotations need nothing new. A rule checks that a shape has its geometry: a line a line string, an area, circle or ellipse a polygon, a label or marker a point, a note none (CAP-03, CAP-04).
