@@ -9,7 +9,7 @@ The Phase 1 tracer, as a VS Code extension (CON-05):
 - **Tools view.** Offers the tools that apply to the selection, and explains the rest (TL-08, TL-09, CON-10).
 - **Tool forms.** Generated from each tool's declaration (TL-07, CAP-24).
 - **Results.** Shown in a panel beside the map (TL-13).
-- **Annotations.** **Add annotation…** on the Outline view opens a form for a line, area, circle, ellipse, label, marker or note: positions in the analyst's notation, sizes with their units, a time or period, and a style. Change or delete one from the outline's menu, or double-click it on the map. Each is one step in the plot's history; **North arrow** on the Outline view's menu shows the chart's north arrow (CAP-03, CAP-04). See [annotations](../site/docs/guides/interaction-models/annotations.md).
+- **Annotations.** **Add annotation…** on the Outline view opens a form for a line, area, circle, ellipse, label, marker or note: positions in the analyst's notation, sizes with their units, a time or period, and a style. Change or delete one from the outline's menu, or double-click it on the map. Each is one step in the plot's history; **North arrow** on the Outline view's menu shows the chart's north arrow (CAP-03, CAP-04). Or draw one on the map with its toolbar (Line, Area, Circle, Ellipse, Label, Marker): the form opens to name it. Selected alone, an annotation shows handles to drag, or to move with the arrow keys; each release is one step. See [annotations](../site/docs/guides/interaction-models/annotations.md).
 - **Timeline view.** The plot's notes and periods in time order; choosing one moves current time to it (CAP-05).
 - **Time view.** At the top of the sidebar: the plot's time window, current time within it, and play (CAP-28, SUB-26). The window is saved in the plot file, outside its history. See the [time controller](../site/docs/guides/interaction-models/time-controller.md).
 
@@ -52,7 +52,7 @@ The integration test:
 3. selects tracks and opens a tool form;
 4. runs range rings, closest approach and track summary;
 5. checks that each run was recorded in the plot's history;
-6. adds, restyles, undoes and deletes annotations, shows the north arrow, moves current time from the Timeline, and imports a legacy plot with styled circles and ellipses.
+6. adds, restyles, undoes and deletes annotations, shows the north arrow, moves current time from the Timeline, opens the form for an area drawn on the map and changes an area as the map's handles do, and imports a legacy plot with styled circles and ellipses.
 
 CI runs it on every pull request and keeps the screenshots as an artifact.
 

@@ -32,7 +32,7 @@ from pydantic import (
 
 
 metamodel_version = "1.12.0"
-version = "0.0.12"
+version = "0.0.13"
 
 
 class ConfiguredBaseModel(BaseModel):
@@ -848,7 +848,11 @@ class WebviewMessageKindEnum(str, Enum):
     """
     edit_annotation = "edit_annotation"
     """
-    Map to host: the analyst asked to change this annotation, by double-clicking it (feature_id).
+    Map to host: the analyst asked to change this annotation (feature_id): by double-clicking it, which opens its form; or, with annotation, by dragging or nudging it on the map, which changes it so as one recorded step.
+    """
+    annotation_drawn = "annotation_drawn"
+    """
+    Map to host: the analyst finished drawing an annotation on the map (annotation, its name empty); open the annotation form with it, to name it and add it as one step.
     """
 
 
@@ -2612,7 +2616,7 @@ class WebviewMessage(ConfiguredBaseModel):
     message: Optional[str] = Field(default=None, json_schema_extra = { "linkml_meta": {'domain_of': ['WebviewMessage']} })
     result_title: Optional[str] = Field(default=None, json_schema_extra = { "linkml_meta": {'domain_of': ['WebviewMessage']} })
     result: Optional[ToolResult] = Field(default=None, json_schema_extra = { "linkml_meta": {'domain_of': ['WebviewMessage']} })
-    annotation: Optional[AnnotationSpec] = Field(default=None, description="""An annotation as the form describes it (show_annotation_form, save_annotation).""", json_schema_extra = { "linkml_meta": {'domain_of': ['WebviewMessage']} })
+    annotation: Optional[AnnotationSpec] = Field(default=None, description="""An annotation as the form describes it (show_annotation_form, save_annotation), as drawn on the map (annotation_drawn), or as changed on the map (edit_annotation).""", json_schema_extra = { "linkml_meta": {'domain_of': ['WebviewMessage']} })
     feature_id: Optional[str] = Field(default=None, description="""The annotation a form changes or deletes, or the map asks to change.""", json_schema_extra = { "linkml_meta": {'domain_of': ['WebviewMessage']} })
 
     @field_validator('current_time')

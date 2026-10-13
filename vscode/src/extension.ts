@@ -60,6 +60,8 @@ export interface DebriefApi {
   mapContext: () => string | undefined;
   /** How many times the plot's view has been read again after a change on disk, for tests. */
   viewChecks: () => number;
+  /** For tests: act on a message as if the map had sent it (drawing or dragging an annotation, say). */
+  fromMap: (message: unknown) => Promise<void>;
 }
 
 export function activate(context: vscode.ExtensionContext): DebriefApi {
@@ -437,6 +439,8 @@ export function activate(context: vscode.ExtensionContext): DebriefApi {
         return done.problem;
       },
       remove: async (featureId) => (await annotate({ kind: "delete", features: [featureId] })).problem,
+      // Closed unsaved: what was drawn on the map for it goes.
+      closed: (saved) => saved || map.refresh(),
     },
     log,
   );
@@ -847,6 +851,14 @@ export function activate(context: vscode.ExtensionContext): DebriefApi {
     });
     return {};
   });
+  // Drawn on the map (annotation_drawn): the form, filled in with what was drawn, to name it and
+  // add it as one step. Cancel adds nothing. Never changes current time, the window or the selection.
+  command("debrief.addDrawnAnnotation", (spec?: AnnotationSpec) => {
+    if (!session.current) return { problem: report("Open a plot first.") };
+    if (!spec || typeof spec !== "object" || !("shape" in spec)) return { problem: report("Draw an annotation on the map first.") };
+    annotationForm.show({ spec: { ...spec, name: "" }, timeRange: timeRangeOfPlot(), currentTime: session.time?.current });
+    return {};
+  });
   // From the outline's menu (a node), the map (an id), or the selection; with changes, without the form.
   command("debrief.editAnnotation", async (target?: string | Target, changes?: Partial<AnnotationSpec>) => {
     const id = typeof target === "string" ? target : targets(target ?? undefined).find((i) => annotationById(i));
@@ -1096,6 +1108,7 @@ export function activate(context: vscode.ExtensionContext): DebriefApi {
     timeControllerShowing: () => timeView.showing,
     mapContext: () => map.context,
     viewChecks: () => viewChecks,
+    fromMap: (message) => map.receive(message),
   };
 }
 

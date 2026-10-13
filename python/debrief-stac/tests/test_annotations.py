@@ -226,7 +226,7 @@ def test_restyling_is_its_own_step_and_undo_restores_the_style(catalogue: Catalo
 def test_changing_the_radius_makes_the_polygon_again(catalogue: Catalogue) -> None:
     _, feature_id = catalogue.add_annotation("p", CIRCLE, AGENT)
     catalogue.edit_annotation("p", feature_id, {"radius": {"value": 5, "unit": "km"}}, AGENT)
-    assert last_note(catalogue) == "Circle 'Exclusion zone' changed"
+    assert last_note(catalogue) == "Circle 'Exclusion zone' resized"
     ring = feature(catalogue, feature_id).geometry.coordinates[0]
     assert range_between(Position(*CENTRE), Position(*ring[10])).value == pytest.approx(5000)
 
@@ -242,6 +242,65 @@ def test_each_kind_of_change_is_named(catalogue: Catalogue, change: dict, note: 
     _, feature_id = catalogue.add_annotation("p", CIRCLE, AGENT)
     catalogue.edit_annotation("p", feature_id, change, AGENT)
     assert last_note(catalogue) == note
+
+
+AREA = {
+    "shape": "area",
+    "name": "Transit lane",
+    "positions": [[-4.2, 50.3], [-4.1, 50.32], [-4.05, 50.28]],
+}
+ELLIPSE = {
+    "shape": "ellipse",
+    "name": "Search area",
+    "positions": [CENTRE],
+    "semi_major": {"value": 3, "unit": "[nmi_i]"},
+    "semi_minor": {"value": 1, "unit": "[nmi_i]"},
+    "orientation": {"value": 45, "unit": "deg"},
+}
+
+
+@pytest.mark.parametrize(
+    ("spec", "change", "note"),
+    [
+        # Dragged or nudged whole on the map: every position by the same amount.
+        (CIRCLE, {"positions": [[-4.1, 50.34]]}, "Circle 'Exclusion zone' moved"),
+        (
+            AREA,
+            {"positions": [[-4.19, 50.31], [-4.09, 50.33], [-4.04, 50.29]]},
+            "Area 'Transit lane' moved",
+        ),
+        # A corner dragged, added or removed.
+        (
+            AREA,
+            {"positions": [[-4.2, 50.3], [-4.1, 50.35], [-4.05, 50.28]]},
+            "Area 'Transit lane' reshaped",
+        ),
+        (
+            AREA,
+            {"positions": [[-4.2, 50.3], [-4.15, 50.33], [-4.1, 50.32], [-4.05, 50.28]]},
+            "Area 'Transit lane' reshaped",
+        ),
+        # An ellipse's axis handles: its size and orientation.
+        (
+            ELLIPSE,
+            {
+                "semi_major": {"value": 4, "unit": "[nmi_i]"},
+                "orientation": {"value": 60, "unit": "deg"},
+            },
+            "Ellipse 'Search area' reshaped",
+        ),
+    ],
+)
+def test_changes_made_on_the_map_are_named_for_what_was_done(
+    catalogue: Catalogue, spec: dict, change: dict, note: str
+) -> None:
+    _, feature_id = catalogue.add_annotation("p", spec, AGENT)
+    steps = len(catalogue.history("p").steps())
+    catalogue.edit_annotation("p", feature_id, change, AGENT)
+    assert last_note(catalogue) == note
+    assert len(catalogue.history("p").steps()) == steps + 1
+    catalogue.history("p").undo()
+    assert spec_of(feature(catalogue, feature_id)).positions == spec["positions"]
 
 
 def test_a_change_that_changes_nothing_is_not_a_step(catalogue: Catalogue) -> None:

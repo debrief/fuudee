@@ -82,7 +82,11 @@
       "feature_id"
     ],
     "edit_annotation": [
-      "feature_id"
+      "feature_id",
+      "annotation?"
+    ],
+    "annotation_drawn": [
+      "annotation"
     ]
   }
 }

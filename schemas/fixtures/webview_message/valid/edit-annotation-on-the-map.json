@@ -1,0 +1,18 @@
+{
+  "kind": "edit_annotation",
+  "feature_id": "annotation-exclusion-zone",
+  "annotation": {
+    "shape": "circle",
+    "name": "Exclusion zone",
+    "positions": [
+      [
+        -4.1,
+        50.34
+      ]
+    ],
+    "radius": {
+      "value": 2.5,
+      "unit": "[nmi_i]"
+    }
+  }
+}

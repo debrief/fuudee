@@ -19,6 +19,11 @@
  *   the polygon their plot file holds for other tools. One with a time or a
  *   period is drawn only while that falls in the window; one without a time
  *   always is. Double-clicking one opens its properties form.
+ * - Drawing and editing annotations (mapedit.ts): a toolbar to draw a line,
+ *   area, circle, ellipse, label or marker, which the annotation form then
+ *   names and adds as one step; handles on an annotation selected alone, to
+ *   drag or nudge, each release one step. Neither changes current time, the
+ *   window or the selection.
  * - Chart furniture: the scale bar always, and a north arrow when the plot has one.
  * - Selected features get an outline in the theme's text colour, which can
  *   never be mistaken for a force colour; everything else is dimmed.
@@ -38,9 +43,10 @@ import geodesic from "geographiclib-geodesic";
 import { convert, DEFAULT_SETTINGS, formatBearing, formatPosition, formatQuantity, formatTime, UNIT_LABELS } from "@debrief/kernel";
 import type { DebriefFeatureCollection, TimeState } from "@debrief/schemas";
 import type { AnnotationProperties } from "@debrief/schemas";
-import { labelPlacement, labelText, lookOf, shapeOf, type Look } from "./annotationlook.js";
+import { labelPlacement, labelText, lookOf, shapeOf, specOfFeature, type Look } from "./annotationlook.js";
 import { circleRing, densify, ellipseRing, type LonLat } from "./geodesic.js";
 import { CONTEXT_WEIGHT, contextStyle, parseColour, WINDOW_WEIGHT, type ContextStyle, type ContextTracks, type MapTheme, type Rgb } from "./contrast.js";
+import { MapEditor } from "./mapedit.js";
 import { DATA_COLOURS } from "./palette.js";
 import { host, onMessage } from "./vscode.js";
 
@@ -311,6 +317,7 @@ function select(id: string | undefined, add: boolean): void {
   }
   selection = next;
   restyle();
+  editor.setSelection([...selection]);
   host.postMessage({ kind: "selection_changed", selection: { plot: plotId, feature_ids: [...selection] } });
 }
 
@@ -328,6 +335,7 @@ function restyle(): void {
   halo.clearLayers();
   const outline = css("--vscode-editor-foreground");
   for (const id of selection) {
+    if (editing.has(id)) continue; // drawn changed, with its handles, instead
     const entry = drawn.get(id);
     // The track's part in the window, or its whole line when none of it is in the window.
     const outlined = entry?.windowedPaths.length ? [...entry.paths, ...entry.windowedPaths] : [...(entry?.paths ?? []), ...(entry?.context ? [entry.context] : [])];
@@ -396,6 +404,9 @@ function directionTicks(coordinates: LonLat[], colour: string): L.Marker[] {
 let areas: L.Path[] = [];
 function draw(plot: DebriefFeatureCollection): void {
   areas = [];
+  annotations = new Map(
+    plot.features.filter((f): f is Annotation => f.properties.kind === "annotation" && !!f.geometry && !f.properties.furniture).map((f) => [f.id, f]),
+  );
   features.clearLayers();
   drawn.clear();
   sized.length = 0;
@@ -412,6 +423,7 @@ function draw(plot: DebriefFeatureCollection): void {
     const paths: L.Path[] = [];
     const click = (event: L.LeafletMouseEvent) => {
       L.DomEvent.stopPropagation(event);
+      if (editor.takeClick(event)) return; // drawing: a click places a point, even on a track
       select(feature.id, event.originalEvent.ctrlKey || event.originalEvent.metaKey);
     };
     const isTrack = feature.properties.kind === "track";
@@ -469,6 +481,7 @@ function drawAnnotation(feature: Annotation, click: (event: L.LeafletMouseEvent)
   const label = labelText(shape, props);
   const edit = (event: L.LeafletMouseEvent) => {
     L.DomEvent.stopPropagation(event);
+    if (editor.takeDoubleClick(event)) return; // drawing: a double-click finishes
     host.postMessage({ kind: "edit_annotation", feature_id: feature.id });
   };
   const tooltip = (layer: L.Layer, direction = placement?.direction, offset = placement?.offset) => {
@@ -580,6 +593,7 @@ function drawWindow(): void {
     const colour = colourOf(track);
     const click = (event: L.LeafletMouseEvent) => {
       L.DomEvent.stopPropagation(event);
+      if (editor.takeClick(event)) return;
       select(track.id, event.originalEvent.ctrlKey || event.originalEvent.metaKey);
     };
     const line = L.polyline(densify(part.coordinates).map(toLatLng), { color: colour, weight: WINDOW_WEIGHT, baseWeight: WINDOW_WEIGHT } as L.PolylineOptions);
@@ -610,6 +624,7 @@ function drawWindow(): void {
   for (const area of areas) area.bringToBack();
   restyle();
   drawNow();
+  editor.refresh(); // an annotation with handles may have come into the window, or left it
 }
 
 /**
@@ -701,6 +716,7 @@ function drawNow(): void {
     marker.on("add", () => marker.getElement()?.style.setProperty("--now-colour", colour));
     marker.on("click", (event: L.LeafletMouseEvent) => {
       L.DomEvent.stopPropagation(event);
+      if (editor.takeClick(event)) return;
       select(track.id, event.originalEvent.ctrlKey || event.originalEvent.metaKey);
     });
     marker.addTo(now);
@@ -775,12 +791,40 @@ new ResizeObserver(() => {
   if (!moved) fit(plotBounds);
 }).observe(mapElement);
 
-map.on("click", () => select(undefined, false));
+map.on("click", (event: L.LeafletMouseEvent) => {
+  if (!editor.active && !editor.endingDrag(event)) select(undefined, false);
+});
 mapElement.addEventListener("keydown", (event) => {
-  if (event.key === "Escape") select(undefined, false);
+  if (event.key === "Escape" && !editor.active) select(undefined, false);
 });
 map.on("mousemove", (event: L.LeafletMouseEvent) => {
   status.textContent = formatPosition({ latitude: event.latlng.lat, longitude: L.Util.wrapNum(event.latlng.lng, [-180, 180], true) }, settings);
+});
+
+// --- Drawing and editing annotations (mapedit.ts) -----------------------------------
+/** Annotations drawn changed, with handles, instead of as they are in the plot. */
+const editing = new Set<string>();
+let annotations = new Map<string, Annotation>();
+const editor = new MapEditor({
+  map,
+  element: mapElement,
+  post: (message) => host.postMessage(message),
+  annotation: (id) => {
+    const feature = annotations.get(id);
+    const shown = drawn.get(id)?.layers.some((layer) => features.hasLayer(layer));
+    return feature && shown ? specOfFeature(feature) : undefined;
+  },
+  setShown: (id, shown) => {
+    const entry = drawn.get(id);
+    if (!entry) return;
+    if (shown) editing.delete(id);
+    else editing.add(id);
+    for (const layer of entry.layers) {
+      if (shown) features.addLayer(layer);
+      else features.removeLayer(layer);
+    }
+    restyle();
+  },
 });
 
 let shownPlot = "";
@@ -793,11 +837,14 @@ onMessage((message) => {
     showTime(message.time as TimeState | undefined);
     contextMode = (message.context_tracks as ContextTracks | undefined) ?? "visible";
     draw(message.plot as DebriefFeatureCollection);
+    editing.clear();
+    editor.plotDrawn();
     showHidden(typeof message.hidden_count === "number" ? message.hidden_count : 0);
     if (firstShow) fit(plotBounds);
   } else if (message.kind === "set_selection") {
     selection = new Set((message.selection as { feature_ids: string[] }).feature_ids);
     restyle();
+    editor.setSelection([...selection]);
   } else if (message.kind === "set_time") {
     showTime(message.time as TimeState);
   } else if (message.kind === "set_viewport") {

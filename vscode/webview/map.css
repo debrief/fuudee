@@ -43,3 +43,30 @@ body { background: var(--vscode-editor-background); color: var(--vscode-foregrou
 .north-arrow { color: var(--vscode-editor-foreground); background: var(--vscode-editorWidget-background); border: 1px solid var(--vscode-editorWidget-border, transparent); padding: 4px 6px 2px; line-height: 0; }
 .north-arrow[hidden] { display: none; }
 .north-arrow text { font-family: var(--vscode-font-family); font-weight: 600; }
+/* Drawing annotations (mapedit.ts): the toolbar, the cross and what the map says, in theme colours. */
+.draw-toolbar { display: flex; flex-direction: column; }
+.draw-toolbar .draw-button { display: block; min-width: 62px; padding: 3px 8px; border: none; border-bottom: 1px solid var(--vscode-widget-border, transparent); background: var(--vscode-button-secondaryBackground); color: var(--vscode-button-secondaryForeground); font: inherit; font-size: 11px; text-align: left; cursor: pointer; }
+.draw-toolbar .draw-button:last-child { border-bottom: none; }
+.draw-toolbar .draw-button:hover:not(:disabled) { background: var(--vscode-button-secondaryHoverBackground); }
+.draw-toolbar .draw-button[aria-pressed="true"] { background: var(--vscode-button-background); color: var(--vscode-button-foreground); font-weight: 600; }
+.draw-toolbar .draw-button:disabled { opacity: 0.5; cursor: default; }
+.draw-toolbar .draw-button:focus-visible { outline: 1px solid var(--vscode-focusBorder); outline-offset: -1px; }
+#map.drawing-mode, #map.drawing-mode .leaflet-interactive { cursor: crosshair; }
+#map.drawing-mode { outline: 2px solid var(--vscode-focusBorder); outline-offset: -2px; }
+.drawing-status { position: absolute; left: 50%; transform: translateX(-50%); top: 8px; z-index: 1000; max-width: min(640px, calc(100% - 200px)); padding: 4px 8px; background: var(--vscode-editorWidget-background); color: var(--vscode-editorWidget-foreground); border: 1px solid var(--vscode-focusBorder); font-size: 12px; line-height: 1.4; }
+.drawing-status[hidden] { display: none; }
+.drawing-readout { font-family: var(--vscode-editor-font-family); }
+.drawing-readout:empty { display: none; }
+.drawing-keys { display: none; color: var(--vscode-descriptionForeground); }
+.map-focused #map.drawing-mode ~ .drawing-status .drawing-keys { display: block; }
+.centre-cross { display: none; position: absolute; left: 50%; top: 50%; width: 21px; height: 21px; margin: -10px 0 0 -10px; z-index: 900; pointer-events: none; }
+.centre-cross::before, .centre-cross::after { content: ""; position: absolute; background: var(--vscode-focusBorder); }
+.centre-cross::before { left: 10px; top: 0; width: 1px; height: 21px; }
+.centre-cross::after { top: 10px; left: 0; height: 1px; width: 21px; }
+.map-focused #map.drawing-mode ~ .centre-cross { display: block; }
+/* Handles on a selected annotation: drag them, or focus one and use the arrow keys. */
+.edit-handle { box-sizing: border-box; background: var(--vscode-editor-background); border: 2px solid var(--vscode-focusBorder); border-radius: 2px; cursor: move; touch-action: none; }
+.edit-handle-midpoint { border-width: 1.5px; border-style: dashed; border-radius: 50%; opacity: 0.85; cursor: copy; }
+.edit-handle-centre, .edit-handle-move, .edit-handle-position { border-radius: 50%; }
+.edit-handle-move { background: var(--vscode-focusBorder); }
+.edit-handle:focus { outline: 2px solid var(--vscode-editor-foreground); outline-offset: 2px; }

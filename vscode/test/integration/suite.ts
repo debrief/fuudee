@@ -437,6 +437,41 @@ export async function run(): Promise<void> {
   assert.equal(await vscode.commands.executeCommand("debrief.undo"), undefined);
   assert.ok(annotation("annotation-datum-buoy"));
 
+  // --- Drawing and editing on the map (CAP-03, NFR-13) ----------------------------------
+  // What the map sends when the analyst finishes drawing: the form opens with it, to be
+  // named; closed unsaved, nothing is recorded. (The pointer and keys are played in the playground test.)
+  const drawnBefore = (await steps()).length;
+  const timeBefore = api.getState()!.time;
+  await api.fromMap({ kind: "annotation_drawn", annotation: { shape: "area", name: "", positions: [[-75.62, 37.12], [-75.42, 37.14], [-75.4, 36.98]] } });
+  await waitFor("the form, with what was drawn", async () => (await vscode.commands.executeCommand<string | undefined>("debrief.annotationFormOpen")) === "" || undefined);
+  await sleep(2500);
+  await screenshot("18-drawn-area-form");
+  await vscode.commands.executeCommand("workbench.action.closeActiveEditor");
+  assert.equal((await steps()).length, drawnBefore);
+  // An area selected alone shows its handles on the map.
+  await vscode.commands.executeCommand("debrief.select", ["annotation-transit-lane"]);
+  await sleep(2000);
+  await screenshot("19-handles-on-the-map");
+  // Letting go of a handle sends the whole description, changed: one step, named for what was done.
+  const lane = annotation("annotation-transit-lane")!;
+  const corners = ((lane as unknown as { geometry: { coordinates: number[][][] } }).geometry.coordinates[0]).slice(0, -1);
+  const laneSpec = { shape: "area", name: "Transit lane", positions: corners, appearance: lane.properties.appearance };
+  await api.fromMap({ kind: "edit_annotation", feature_id: "annotation-transit-lane", annotation: { ...laneSpec, positions: corners.map(([lon, lat]) => [lon + 0.02, lat - 0.01]) } });
+  assert.deepEqual((await steps()).at(-1)?.notes, ["Area 'Transit lane' moved"]);
+  await api.fromMap({ kind: "edit_annotation", feature_id: "annotation-transit-lane", annotation: { ...laneSpec, positions: [...corners.slice(0, 2), [-75.5, 36.95], ...corners.slice(2)] } });
+  assert.deepEqual((await steps()).at(-1)?.notes, ["Area 'Transit lane' reshaped"]);
+  assert.equal((await steps()).length, drawnBefore + 2);
+  assert.equal(await vscode.commands.executeCommand("debrief.undo"), undefined);
+  assert.equal(await vscode.commands.executeCommand("debrief.undo"), undefined);
+  const back = annotation("annotation-transit-lane") as unknown as { geometry: { coordinates: number[][][] } };
+  assert.deepEqual(back.geometry.coordinates[0].slice(0, -1), corners);
+  // A change the service refuses is reported, and the map shows the annotation as it is.
+  await api.fromMap({ kind: "edit_annotation", feature_id: "annotation-transit-lane", annotation: { ...laneSpec, positions: corners.slice(0, 2) } });
+  assert.equal((await steps()).length, drawnBefore + 2);
+  assert.deepEqual((await steps()).slice(-2).map((s) => s.status), ["undone", "undone"]);
+  // None of it moved current time or the window.
+  assert.deepEqual(api.getState()!.time, timeBefore);
+
   // A legacy plot file: its circles, ellipses and styling come in as annotations.
   const dpf = path.resolve(__dirname, "../../python/debrief-io/tests/data/shapes.dpf");
   execFileSync(process.env.DEBRIEF_PYTHON!, [

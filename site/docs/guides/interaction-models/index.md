@@ -14,7 +14,7 @@ Worked patterns applied the same way across hosts, tools and agents (DEV-08). Ea
 | [Long-running operations](long-running-operations.md) | Phase 2 | Requirements gathered |
 | [Check overrides](check-overrides.md) | Phase 2 | Requirements gathered |
 | [Time controller](time-controller.md) | Phase 3 | Written |
-| [Annotations](annotations.md) | Phase 3 | Written (part A: forms) |
-| [Keyboard equivalents](keyboard-equivalents.md) | Phase 3 | Requirements gathered |
+| [Annotations](annotations.md) | Phase 3 | Written (forms; drawing and editing on the map) |
+| [Keyboard equivalents](keyboard-equivalents.md) | Phase 3 | Partly written (annotations) |
 
 Analysts review the Phase 1 models before they are built.
