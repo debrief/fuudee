@@ -114,7 +114,7 @@
       "description": "How an annotation is drawn: its line, its fill and its label. Data colours do not change with the theme (DEV-07). Widths and sizes are in screen pixels, so they are the same at every zoom.",
       "properties": {
         "colour": {
-          "description": "Its line's colour, and its label's. Lower-case hex RGB, for example \"#c7820a\".",
+          "description": "Its line's colour, and a label's or a marker's dot. Lower-case hex RGB, for example \"#c7820a\". Label text is drawn in the theme's text colour, so it stays readable on any map.",
           "pattern": "^#[0-9a-f]{6}$",
           "type": [
             "string",

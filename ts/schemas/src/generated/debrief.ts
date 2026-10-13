@@ -297,7 +297,7 @@ export interface AngularRate {
  */
 export interface AnnotationAppearance {
   /**
-   * Its line's colour, and its label's. Lower-case hex RGB, for example "#c7820a".
+   * Its line's colour, and a label's or a marker's dot. Lower-case hex RGB, for example "#c7820a". Label text is drawn in the theme's text colour, so it stays readable on any map.
    */
   colour?: string | null;
   /**

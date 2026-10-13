@@ -7,7 +7,7 @@ import path from "node:path";
 import { describe, expect, it } from "vitest";
 import geodesic from "geographiclib-geodesic";
 import type { DebriefFeatureCollection } from "@debrief/schemas";
-import { draftOf, echoPositions, newDraft, readPositions, specOf, type AnnotationDraft } from "../../webview/annotationdraft.js";
+import { draftOf, echoPositions, newDraft, readPositions, replacing, specOf, type AnnotationDraft } from "../../webview/annotationdraft.js";
 import { labelPlacement, labelText, lookOf, shapeOf, specOfFeature } from "../../webview/annotationlook.js";
 import { circleRing, ellipseRing } from "../../webview/geodesic.js";
 import { DATA_COLOURS } from "../../webview/palette.js";
@@ -94,12 +94,35 @@ describe("the annotation form reads what the analyst types", () => {
       expect(spec!.shape).toBe(described.shape);
       expect(spec!.appearance).toEqual(described.appearance);
       expect(spec!.time ?? spec!.time_range).toEqual(described.time ?? described.time_range);
-      // Positions within the precision the form writes them: a thousandth of a minute.
-      (described.positions ?? []).forEach(([lon, lat], i) => {
-        expect(Math.abs(spec!.positions![i][0] - lon)).toBeLessThan(2e-5);
-        expect(Math.abs(spec!.positions![i][1] - lat)).toBeLessThan(2e-5);
-      });
+      // Exactly, though the form shows positions to a thousandth of a minute: saved unchanged, nothing changes.
+      expect(spec!.positions).toEqual(described.positions);
     }
+  });
+
+  it("keeps the exact value of every field left as shown, and reads every field changed", () => {
+    const described = {
+      shape: "ellipse" as const,
+      name: "Imported",
+      positions: [[-4.123456789, 50.333333333]] as [[number, number]],
+      semi_major: { value: 1234.5678912, unit: "m" as const },
+      semi_minor: { value: 987.6543219, unit: "m" as const },
+      orientation: { value: 37.123456789, unit: "deg" as const },
+      time_range: { start: "2026-10-11T09:30:12.345Z", end: "2026-10-11T10:00:00.999Z" },
+      appearance: { fill_opacity: 0.6274 },
+    };
+    const shown = draftOf(described);
+    expect(specOf(shown, RANGE).spec).toEqual(described);
+    const changed = specOf({ ...shown, positions: "50 20 N 4 7 W", end: "11:00Z" }, RANGE).spec!;
+    expect(changed.positions![0][1]).toBeCloseTo(50 + 20 / 60, 12);
+    expect(changed.time_range).toEqual({ start: "2026-10-11T09:30:12.345Z", end: "2026-10-11T11:00:00.000Z" });
+    expect(changed.semi_major).toEqual(described.semi_major);
+    expect(specOf({ ...shown, unit: "km" }, RANGE).spec!.semi_major).toEqual({ value: 1234.567891, unit: "km" }); // the number as typed, in the unit chosen
+  });
+
+  it("sends a change as the whole description, clearing what the form leaves empty", () => {
+    const shown = draftOf({ shape: "label", name: "Buoy", text: "D7", positions: [[-4, 50]], time: "2026-10-11T09:30:00.000Z", appearance: { colour: "#0064bd" } });
+    const { spec } = specOf({ ...shown, text: "", when: "none", colour: "" }, RANGE);
+    expect(replacing(spec!)).toMatchObject({ text: null, time: null, time_range: null, appearance: null, name: "Buoy" });
   });
 });
 

@@ -40,12 +40,13 @@ export function TextBox(props: { id?: string; value: string; placeholder?: strin
 // vscrui shows no label for an option whose value is empty, so "" travels as this instead.
 const EMPTY = "⁣empty";
 
-export function Choice(props: { value: string; options: { value: string; label: string }[]; onChange: (value: string) => void }) {
+/** A list to choose from. label, when given, names it for screen readers: vscrui's list button has no label of its own. */
+export function Choice(props: { value: string; options: { value: string; label: string }[]; label?: string; onChange: (value: string) => void }) {
   const options = props.options.map((o) => (o.value === "" ? { ...o, value: EMPTY } : o));
   const selected = options.find((o) => o.value === (props.value === "" ? EMPTY : props.value));
   // The list's buttons would submit a form they sit in: choosing is never submitting.
   return (
-    <div className="choice" onClick={(event) => event.preventDefault()}>
+    <div className="choice" role={props.label ? "group" : undefined} aria-label={props.label} onClick={(event) => event.preventDefault()}>
       <Dropdown
         value={selected}
         options={options}

@@ -31,6 +31,9 @@ export async function playAnnotations(page, shot) {
   await form.locator("#field-radius input").fill("0");
   await form.getByRole("button", { name: "Add" }).click();
   await form.locator(".field-problem", { hasText: "Give the radius, a number more than zero." }).waitFor();
+  // The keyboard lands on the field to correct; each list is named for screen readers.
+  await form.locator("#field-radius input:focus").waitFor();
+  await form.getByRole("group", { name: "Unit" }).waitFor();
   await form.locator("#field-radius input").fill("4");
   await form.getByRole("button", { name: "Add" }).click();
   await historySays("Circle 'Exclusion zone' added");
@@ -61,6 +64,14 @@ export async function playAnnotations(page, shot) {
   assert.match(await history(), /Style of Circle 'Exclusion zone' changed[^]*undone/);
   await page.keyboard.press("Control+y");
   await solid.first().waitFor();
+
+  // Saved unchanged, nothing changes, and nothing is recorded.
+  const steps = await page.locator("#history li").count();
+  await page.locator(`#outline li[data-id="annotation-exclusion-zone"]`).click();
+  await page.locator("#edit-annotation").click();
+  await form.getByRole("button", { name: "Save changes" }).click();
+  await page.locator(".frame-annotation").waitFor({ state: "detached" });
+  assert.equal(await page.locator("#history li").count(), steps);
 
   // An ellipse, an area and a label, each styled, so the picture shows them all.
   await page.locator("#add-annotation").click();

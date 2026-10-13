@@ -744,13 +744,27 @@ class Catalogue:
     ) -> int | None:
         """Change an annotation to the description given, as one step: its position,
         size, time, name and appearance at once ("Style of 'Exclusion zone' changed",
-        say). A dict may give only what changes; the rest is kept. None if nothing changed."""
+        say). A dict may give only what changes; the rest is kept, and a member given
+        as None is cleared. A time given replaces a period, and a period a time.
+        None if nothing changed."""
 
         def change(plot: DebriefFeatureCollection):
             before = self._annotation(plot, feature_id)
+            if before.properties.furniture is not None:
+                raise CatalogueError(
+                    f"The {before.properties.name.lower()} is chart furniture: it can be "
+                    "shown or removed, but has nothing to change."
+                )
             if isinstance(spec, dict):
                 merged = annotations.spec_of(before).model_dump(mode="json", exclude_none=True)
                 merged.update(spec)
+                # A time given replaces a period, and a period a time; a note has no position.
+                if spec.get("time") is not None and "time_range" not in spec:
+                    merged.pop("time_range", None)
+                if spec.get("time_range") is not None and "time" not in spec:
+                    merged.pop("time", None)
+                if merged.get("shape") == "note" and "positions" not in spec:
+                    merged.pop("positions", None)
                 described = annotations.spec_from(merged)
             else:
                 described = spec

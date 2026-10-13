@@ -58,6 +58,13 @@ export interface AnnotationDraft {
   fillOpacity: string;
   labelSize: string;
   labelPosition: "" | LabelPositionEnum;
+  /**
+   * What a properties form was opened with: its fields as first shown, and the
+   * annotation they show. A field left as shown keeps its exact value, so saving
+   * an annotation unchanged changes nothing, even where the field shows it rounded
+   * (a position to a thousandth of a minute, a time to the second).
+   */
+  shown?: { draft: AnnotationDraft; spec: AnnotationSpec };
 }
 
 export type Field = keyof AnnotationDraft;
@@ -98,7 +105,7 @@ export function draftOf(spec: AnnotationSpec): AnnotationDraft {
   const draft = newDraft(undefined, spec.shape);
   const look = spec.appearance ?? {};
   const size = spec.radius ?? spec.semi_major ?? undefined;
-  return {
+  const fields: AnnotationDraft = {
     ...draft,
     name: spec.name,
     text: spec.text ?? "",
@@ -121,6 +128,36 @@ export function draftOf(spec: AnnotationSpec): AnnotationDraft {
     labelSize: look.label_size ? String(look.label_size) : "",
     labelPosition: look.label_position ?? "",
   };
+  return { ...fields, shown: { draft: fields, spec } };
+}
+
+/** Values the fields left as shown keep exactly: see AnnotationDraft.shown. */
+function keepShown(draft: AnnotationDraft, spec: AnnotationSpec): void {
+  if (!draft.shown) return;
+  const { draft: was, spec: old } = draft.shown;
+  const same = (...fields: Field[]) => fields.every((f) => draft[f] === was[f]);
+  if (spec.positions && old.positions && same("shape", "positions")) spec.positions = old.positions;
+  if (spec.radius && old.radius && same("radius", "unit")) spec.radius = old.radius;
+  if (spec.semi_major && old.semi_major && same("semiMajor", "unit")) spec.semi_major = old.semi_major;
+  if (spec.semi_minor && old.semi_minor && same("semiMinor", "unit")) spec.semi_minor = old.semi_minor;
+  if (spec.orientation && old.orientation && same("orientation")) spec.orientation = old.orientation;
+  if (spec.time && old.time && same("time")) spec.time = old.time;
+  if (spec.time_range && old.time_range) {
+    const start = same("start") ? old.time_range.start : spec.time_range.start;
+    const end = same("end") ? old.time_range.end : spec.time_range.end;
+    if (Date.parse(end) >= Date.parse(start)) spec.time_range = { start, end };
+  }
+  const fill = old.appearance?.fill_opacity;
+  if (spec.appearance?.fill_opacity !== undefined && fill !== undefined && fill !== null && same("fillOpacity")) spec.appearance.fill_opacity = fill;
+}
+
+/**
+ * A changed annotation's whole description, as the service is sent it: what the
+ * form leaves empty (text, time, style, a size it no longer has) is given as null,
+ * so it is cleared rather than kept.
+ */
+export function replacing(spec: AnnotationSpec): AnnotationSpec {
+  return { text: null, time: null, time_range: null, appearance: null, radius: null, semi_major: null, semi_minor: null, orientation: null, ...spec };
 }
 
 const METRES: Record<string, number> = { m: 1, km: 1000, "[nmi_i]": 1852, "[yd_i]": 0.9144, "[ft_i]": 0.3048 };
@@ -278,5 +315,7 @@ export function specOf(draft: AnnotationDraft, range?: TimeRange): { spec?: Anno
   }
   if (Object.keys(look).length) spec.appearance = look;
 
-  return Object.keys(problems).length ? { problems } : { spec, problems };
+  if (Object.keys(problems).length) return { problems };
+  keepShown(draft, spec);
+  return { spec, problems };
 }

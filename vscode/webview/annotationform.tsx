@@ -13,7 +13,7 @@ import { useEffect, useState } from "react";
 import { UNIT_LABELS } from "@debrief/kernel";
 import type { AnnotationSpec, TimeRange } from "@debrief/schemas";
 import { parseTime } from "../src/timeinput.js";
-import { type AnnotationDraft, draftOf, EXAMPLE_COLOUR, echoPositions, FILLED, type Field as DraftField, LENGTH_UNITS, newDraft, positionsLabel, SHAPES, specOf } from "./annotationdraft.js";
+import { type AnnotationDraft, draftOf, EXAMPLE_COLOUR, echoPositions, FILLED, type Field as DraftField, LENGTH_UNITS, newDraft, positionsLabel, replacing, SHAPES, specOf } from "./annotationdraft.js";
 import type { Shape } from "./annotationlook.js";
 import { showTime } from "./formdraft.js";
 import { ANNOTATION_COLOURS } from "./palette.js";
@@ -70,11 +70,16 @@ function Form() {
   const update = (change: Partial<AnnotationDraft>) => setDraft((d) => ({ ...d!, ...change }));
 
   const save = () => {
-    const { spec } = specOf(draft, range);
+    const { spec, problems } = specOf(draft, range);
     setTried(true);
-    if (!spec) return setProblem("Some fields need correcting; each says what is wrong.");
+    if (!spec) {
+      // To the first field to correct, so a keyboard or screen reader user lands on it.
+      const first = Object.keys(problems)[0];
+      requestAnimationFrame(() => document.querySelector<HTMLElement>(`#field-${first}-other input, #field-${first} input, #field-${first} textarea, #field-${first} button`)?.focus());
+      return setProblem("Some fields need correcting; each says what is wrong.");
+    }
     setProblem(undefined);
-    host.postMessage({ kind: "save_annotation", annotation: spec, ...(featureId && { feature_id: featureId }) });
+    host.postMessage({ kind: "save_annotation", ...(featureId ? { annotation: replacing(spec), feature_id: featureId } : { annotation: spec }) });
   };
 
   const text = (field: DraftField, label: string, options: { placeholder?: string; explanation?: string; echo?: string } = {}) => (
@@ -99,6 +104,7 @@ function Form() {
     <Field label={label} problem={problemOf(field)}>
       <div className="colour-row" id={`field-${field}`}>
         <Choice
+          label={label}
           value={other ? OTHER : value}
           options={[{ value: "", label: none }, ...ANNOTATION_COLOURS.map((c) => ({ value: c.colour, label: c.name })), { value: OTHER, label: "Other colour…" }]}
           onChange={(chosen) => {
@@ -138,7 +144,7 @@ function Form() {
       {adding ? (
         <Field label="Kind" explanation={SHAPES.find((s) => s.value === shape)!.explanation}>
           <div id="field-shape">
-            <Choice value={shape} options={SHAPES.map((s) => ({ value: s.value, label: s.label }))} onChange={(value) => update({ shape: value as Shape, when: value === "note" && draft.when === "none" ? "time" : draft.when })} />
+            <Choice label="Kind" value={shape} options={SHAPES.map((s) => ({ value: s.value, label: s.label }))} onChange={(value) => update({ shape: value as Shape, when: value === "note" && draft.when === "none" ? "time" : draft.when })} />
           </div>
         </Field>
       ) : (
@@ -187,7 +193,7 @@ function Form() {
               )}
             <Field label="Unit">
               <div id="field-unit">
-                <Choice value={draft.unit} options={units} onChange={(unit) => update({ unit })} />
+                <Choice label="Unit" value={draft.unit} options={units} onChange={(unit) => update({ unit })} />
               </div>
             </Field>
           </div>
@@ -199,6 +205,7 @@ function Form() {
       <Field label="" explanation={shape === "note" ? "A note has no position, so it needs a time. It is listed in the Timeline." : "With a time or a period, it is drawn only while that falls in the time window; with none, always."}>
         <div id="field-when">
           <Choice
+            label="Time"
             value={draft.when}
             options={[...(shape === "note" ? [] : [{ value: "none", label: "No time: always shown" }]), { value: "time", label: "At a time" }, { value: "period", label: "Over a period" }]}
             onChange={(when) => update({ when: when as AnnotationDraft["when"] })}
@@ -222,6 +229,7 @@ function Form() {
               <Field label="Line">
                 <div id="field-lineStyle">
                   <Choice
+                    label="Line"
                     value={draft.lineStyle}
                     options={[
                       { value: "", label: "Dashed (the default)" },
@@ -247,6 +255,7 @@ function Form() {
             <Field label="Label">
               <div id="field-labelPosition">
                 <Choice
+                  label="Label position"
                   value={draft.labelPosition}
                   options={[
                     { value: "", label: "Where Debrief puts it" },

@@ -519,7 +519,9 @@ function drawAnnotation(feature: Annotation, click: (event: L.LeafletMouseEvent)
       const marker = L.marker(anchor, { icon: L.divIcon({ className: "annotation-anchor", iconSize: [0, 0] }), interactive: false, keyboard: false });
       tooltip(marker);
       layers.push(marker);
-      sized.push({ label: marker, bounds: L.latLngBounds(outer) });
+      // Hidden while the shape is too small on screen to carry it: a label Debrief placed
+      // needs room around it; one whose place the analyst chose stays down to a small mark.
+      sized.push({ label: marker, bounds: L.latLngBounds(outer), least: props.appearance?.label_position ? CHOSEN_LABEL_ROOM : LABEL_ROOM });
     }
     rings[0].forEach((p) => plotBounds.extend(p));
   } else if (geometry.type === "Point") {
@@ -631,13 +633,16 @@ function partIn(entry: { track: Track; times: number[] }, window: { start: numbe
   return first <= last ? { coordinates: part, first, last } : { coordinates: part };
 }
 
-// Annotation labels only where the shape is big enough on screen to carry one.
-const sized: { label: L.Layer & { getTooltip(): L.Tooltip | undefined }; bounds: L.LatLngBounds }[] = [];
+// Annotation labels only where the shape is big enough on screen to carry one: its
+// diagonal in pixels, at least LABEL_ROOM, or CHOSEN_LABEL_ROOM where the analyst placed the label.
+const LABEL_ROOM = 70;
+const CHOSEN_LABEL_ROOM = 24;
+const sized: { label: L.Layer & { getTooltip(): L.Tooltip | undefined }; bounds: L.LatLngBounds; least: number }[] = [];
 function placeLabels(): void {
-  for (const { label, bounds } of sized) {
+  for (const { label, bounds, least } of sized) {
     const size = map.latLngToContainerPoint(bounds.getNorthEast()).distanceTo(map.latLngToContainerPoint(bounds.getSouthWest()));
     const element = label.getTooltip()?.getElement();
-    if (element) element.style.visibility = size >= 70 ? "visible" : "hidden";
+    if (element) element.style.visibility = size >= least ? "visible" : "hidden";
   }
 }
 map.on("zoomend", placeLabels);

@@ -232,8 +232,9 @@ LABEL_POSITIONS = {
     "Centre": "centre",
     "Center": "centre",
 }
-# Opacity of a legacy fill: semi-transparent, or solid.
-SEMI_TRANSPARENT = 0.5
+# Opacity of a legacy fill: semi-transparent, or solid. Legacy Debrief drew a
+# semi-transparent fill with alpha 160 of 255 (PlainShape.TRANSPARENCY_SHADE).
+SEMI_TRANSPARENT = round(160 / 255, 2)
 
 
 def _line(coordinates: list[list[float]]) -> models.LineStringGeometry:
@@ -382,7 +383,8 @@ def _look_notes(shapes: list[DpfShape]) -> list[str]:
     if coloured:
         notes.append(
             f"{_plural(len(coloured), 'annotation')} with a label colour of its own"
-            f"{named(coloured)}: v4 draws a label in its annotation's colour."
+            f"{named(coloured)}: v4 draws every label in the theme's text colour, so it "
+            "stays readable on any map."
         )
     arrows = [s for s in shapes if s.arrow_at_end]
     if arrows:

@@ -176,6 +176,8 @@ def test_positions_can_be_typed_in_the_analysts_notation() -> None:
             "not both",
         ),
         ({**CIRCLE, "positions": ["somewhere"]}, "Not a position"),
+        # Beyond about half the world, a geodesic circle folds back on itself.
+        ({**CIRCLE, "radius": {"value": 25_000, "unit": "km"}}, "at most 10,000 km"),
     ],
 )
 def test_a_description_that_cannot_be_made_is_refused_plainly(spec: dict, message: str) -> None:
@@ -247,6 +249,46 @@ def test_a_change_that_changes_nothing_is_not_a_step(catalogue: Catalogue) -> No
     steps = len(catalogue.history("p").steps())
     assert catalogue.edit_annotation("p", feature_id, {"name": "Exclusion zone"}, AGENT) is None
     assert len(catalogue.history("p").steps()) == steps
+
+
+def test_a_form_clears_what_it_leaves_empty(catalogue: Catalogue) -> None:
+    """The form sends the whole description, with None for what it leaves empty:
+    text, style and time can be taken away again."""
+    styled = {**CIRCLE, "time": "2026-10-11T09:45:00.000Z", "appearance": {"colour": "#0064bd"}}
+    _, feature_id = catalogue.add_annotation("p", styled, AGENT)
+    cleared = {**CIRCLE, "text": None, "time": None, "time_range": None, "appearance": None}
+    catalogue.edit_annotation("p", feature_id, cleared, AGENT)
+    props = feature(catalogue, feature_id).properties
+    assert (props.time, props.appearance) == (None, None)
+
+
+def test_a_time_replaces_a_period_and_a_period_a_time(catalogue: Catalogue) -> None:
+    period = {"start": "2026-10-11T09:00:00.000Z", "end": "2026-10-11T10:00:00.000Z"}
+    catalogue.edit_annotation("p", "note-1", {"time_range": period}, AGENT)
+    props = feature(catalogue, "note-1").properties
+    assert (props.time, props.time_range.start) == (None, period["start"])
+    catalogue.edit_annotation("p", "note-1", {"time": "2026-10-11T09:40:00.000Z"}, AGENT)
+    props = feature(catalogue, "note-1").properties
+    assert (props.time, props.time_range) == ("2026-10-11T09:40:00.000Z", None)
+
+
+def test_a_change_keeps_the_annotations_provenance(catalogue: Catalogue) -> None:
+    made = models.ProvRecord(
+        id="op-9", kind="tool", started_at="2026-10-11T10:00:00.000Z", agent=AGENT
+    )
+    note = feature(catalogue, "note-1")
+    with_provenance = note.model_copy(
+        update={"properties": note.properties.model_copy(update={"provenance": [made]})}
+    )
+    catalogue.commit("p", [made], Changes(modified=[with_provenance]))
+    catalogue.edit_annotation("p", "note-1", {"text": "Started"}, AGENT)
+    assert [r.id for r in feature(catalogue, "note-1").properties.provenance] == ["op-9"]
+
+
+def test_the_north_arrow_has_nothing_to_change(catalogue: Catalogue) -> None:
+    catalogue.set_north_arrow("p", True, AGENT)
+    with pytest.raises(CatalogueError, match="chart furniture"):
+        catalogue.edit_annotation("p", "furniture-north-arrow", {"name": "N"}, AGENT)
 
 
 def test_hiding_survives_a_change(catalogue: Catalogue) -> None:

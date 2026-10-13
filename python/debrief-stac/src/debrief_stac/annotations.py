@@ -46,6 +46,9 @@ POSITIONS = {
     "note": (0, 0),
 }
 FILLED = ("area", "circle", "ellipse")
+# The largest radius or semi-axis: a quarter of the way round the world. Beyond
+# about half, a geodesic circle folds back on itself and is no longer a circle.
+LARGEST_M = 10_000_000.0
 NORTH_ARROW_ID = "furniture-north-arrow"
 
 
@@ -118,7 +121,7 @@ def build(
     previous: models.AnnotationFeature | None = None,
 ) -> models.AnnotationFeature:
     """The annotation feature a description makes. previous is the feature it
-    replaces, when changing one: whether it is hidden carries over."""
+    replaces, when changing one: whether it is hidden, and its provenance, carry over."""
     shape = str(spec.shape)
     name = " ".join((spec.name or "").split())
     if not name:
@@ -197,6 +200,7 @@ def build(
             time_range=spec.time_range,
             appearance=appearance,
             hidden=previous.properties.hidden if previous is not None else None,
+            provenance=previous.properties.provenance if previous is not None else None,
             **extra,
         ),
     )
@@ -233,6 +237,8 @@ def _quantity(value: Any) -> Quantity:
 def _size(value: models.Length | None, what: str, title: str, name: str) -> models.Length:
     if value is None or value.value <= 0:
         raise AnnotationError(f"{title} {name!r}: give its {what}, more than zero.")
+    if _quantity(value).to("m").value > LARGEST_M:
+        raise AnnotationError(f"{title} {name!r}: give its {what} as at most 10,000 km.")
     return value
 
 

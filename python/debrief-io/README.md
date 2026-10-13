@@ -66,7 +66,7 @@ What becomes what:
 | Circle, ellipse | Circle or ellipse annotation: its exact centre and radius, or semi-axes and orientation, with a polygon of 72 sides as its geometry so other GeoJSON tools see the area (schema 0.0.12). An ellipse saved with its axes the wrong way round is turned a quarter, so the same ellipse is drawn. |
 | Rectangle, polygon | Area annotation. An open polygon is a line. |
 | Line, vector | Line annotation. |
-| How a shape or label is drawn | Its appearance: colour, line style (solid, dotted; long dashes, short dashes and dot-dash as dashed; unconnected points as dotted, listed), line width (a hairline as 1 px), fill (semi-transparent at half opacity, otherwise solid; only areas, circles and ellipses), label size from its font size, and label position (left, right, above, below, centre, or none when its label is hidden). |
+| How a shape or label is drawn | Its appearance: colour, line style (solid, dotted; long dashes, short dashes and dot-dash as dashed; unconnected points as dotted, listed), line width (a hairline as 1 px), fill (semi-transparent at 63% opacity, as legacy Debrief drew it, otherwise solid; only areas, circles and ellipses), label size from its font size, and label position (left, right, above, below, centre, or none when its label is hidden). |
 | A shape's time range | The annotation's time, or time range. |
 | Narrative entry | A time-only note annotation, named after its track, as the sample data holds its narrative. The entry's type is listed as not imported. |
 | Layer, narrative | A named set of the annotations or notes it held, with the layer's name. Its settings are listed as not imported, since v4 has no layers yet. |

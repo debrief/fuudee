@@ -109,7 +109,7 @@ def test_shapes_sample_imports(catalogue: Catalogue) -> None:
         "line_style": "dashed",
         "line_width": 2,
         "fill_colour": "#e01c3e",
-        "fill_opacity": 0.5,
+        "fill_opacity": 0.63,
         "label_size": 12,
         "label_position": "left",
     }

@@ -274,11 +274,14 @@ try {
     await page.locator(".side-bar button", { hasText: "Close" }).click();
     await mapFrame.locator('path[stroke-dasharray="1 4"]').first().waitFor(); // the dotted circle
     // Closer, on the legacy plot's styled circles.
-    const filled = await mapFrame.locator('path[fill-opacity="0.5"]').first().boundingBox();
+    const filled = await mapFrame.locator('path[fill-opacity="0.63"]').first().boundingBox();
     await page.mouse.move(filled.x + filled.width / 2, filled.y + filled.height / 2);
     await page.mouse.wheel(0, -150); // about two and a half zoom levels
     await page.waitForTimeout(800);
     await page.mouse.move(2, 2);
+    // A label whose place the plot chose (legacy LabelLocation="Left") is shown on a small
+    // circle, where one Debrief placed would wait for more room.
+    await mapFrame.locator(".annotation-label", { hasText: "solid hairwidth solid fill" }).waitFor({ state: "visible" });
     await shot("annot-05-imported-dpf");
   }
   // A Debrief plot file, as a colleague would send it: one file, its history included.
