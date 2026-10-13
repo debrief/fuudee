@@ -55,6 +55,10 @@ class Store(Protocol):
 
     def size_and_mtime(self, path: str) -> tuple[int, int]: ...
 
+    def leftovers(self, path: str) -> list[str]: ...
+
+    def discard_leftovers(self, path: str) -> int: ...
+
 
 LOCK_WAIT_S = 10.0
 LOCK_STALE_S = 30.0
@@ -276,3 +280,19 @@ class FileStore:
     def size_and_mtime(self, path: str) -> tuple[int, int]:
         info = self._resolve(path).stat()
         return info.st_size, info.st_mtime_ns
+
+    def leftovers(self, path: str) -> list[str]:
+        """Temporary files beside a file from atomic writes of it: one in progress, or
+        one whose process died before the rename (NFR-11)."""
+        target = self._resolve(path)
+        return sorted(p.name for p in target.parent.glob(f".{target.name}.*.tmp"))
+
+    def discard_leftovers(self, path: str) -> int:
+        """Remove what an atomic write of this file left when its process died before
+        the rename. Only while holding the file's lock, so that no write in progress
+        is mistaken for one. Returns how many there were."""
+        target = self._resolve(path)
+        found = list(target.parent.glob(f".{target.name}.*.tmp"))
+        for leftover in found:
+            leftover.unlink(missing_ok=True)
+        return len(found)

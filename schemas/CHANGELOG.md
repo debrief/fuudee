@@ -2,6 +2,13 @@
 
 The data-file schema is versioned independently of Debrief (SUB-12). Before 1.0.0 there is no migration guarantee (SUB-13).
 
+## 0.0.11 (13 Oct 2026)
+
+- A plot file carries its whole history, as the top-level member `history` (`PlotHistory`): the current step, `head_hash`, and every step (`HistoryStep`: its operation's provenance records and its output, as a delta held, plus its `state`, applied, undone or abandoned, and its `step_hash`). Passing the one file passes undo, redo and provenance. The history is a GeoJSON foreign member, so the file is still plain GeoJSON to other tools (SUB-19, decision 13 Oct).
+- The history is a hash chain: `step_hash` is the SHA-256 of the step's canonical JSON (all members but `step_hash` and `state`, keys sorted, no spaces, UTF-8) followed by the previous step's `step_hash` (64 zeros after `sha256:` for step 1); `head_hash` is the last step's. Rules, checked on reading: steps numbered from 1 with no gaps; each step after an earlier one; the current step within range and never abandoned; each step's state as the after links and the current step say; the chain whole; and the current step's `result_hash` equal to the hash of the file's content, which leaves out both the island and the history. The island stays outside every checksum.
+- `Delta` and `HistoryHead` describe the earlier layout (a history folder beside the plot file) and are read only to move such a history into its plot file.
+- Before 1.0.0 only an exact version opens (SUB-13): plots written as 0.0.10 must be imported or built again.
+
 ## 0.0.10 (12 Oct 2026)
 
 - Webview messages for the time controller: `show_time` (current time, its range being the time window shown, and the plot's period as `time_range`) and `window_changed` (the window to save, as `time_range`, sent when the analyst lets go). A `time_range` on any message must not end before it starts (CAP-28, SUB-26).

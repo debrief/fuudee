@@ -6,7 +6,7 @@ import { describe, expect, it } from "vitest";
 import type { ParameterDeclaration, ToolDeclaration } from "@debrief/schemas";
 import { describeStep, needs } from "../../src/wording.js";
 import { checkMessage } from "../../src/messages.js";
-import { openPlot, readCatalogue } from "../../src/catalogue.js";
+import { changedSince, historyIn, historyOnDisk, openPlot, plotFile, readCatalogue } from "../../src/catalogue.js";
 import { densify } from "../../webview/geodesic.js";
 import { initial } from "../../webview/formdraft.js";
 import { count, describeTimes } from "../../src/format.js";
@@ -99,6 +99,25 @@ describe("reading a catalogue Python wrote", () => {
   });
   it("reports a missing catalogue instead of failing", () =>
     expect(readCatalogue({ ...store, location: path.join(work, "nowhere") }).problem).toMatch(/No catalogue found/));
+  it("reads the plot's content without its history, which is in the same file (decision 13 Oct)", () => {
+    const file = plotFile(store, openPlot(store, "serial-1").item)!;
+    const raw = JSON.parse(readFileSync(file, "utf8"));
+    expect(Object.keys(raw).at(-1)).toBe("history");
+    expect(raw.history.steps).toHaveLength(1);
+    expect("history" in openPlot(store, "serial-1").plot).toBe(false); // never sent to a view
+    expect(historyOnDisk(file)).toEqual({ current: 1, latest: 1, plot_hash: raw.history.steps[0].result_hash });
+  });
+  it("tells a colleague's change from a change of view alone", () => {
+    const base = { current: 2, plot_hash: "sha256:b" };
+    const opened = { base, latest: 3 };
+    expect(changedSince({ current: 2, latest: 3, plot_hash: "sha256:b" }, opened)).toBe(false); // the window only
+    expect(changedSince({ current: 3, latest: 3, plot_hash: "sha256:c" }, opened)).toBe(true); // redone
+    expect(changedSince({ current: 2, latest: 4, plot_hash: "sha256:b2" }, opened)).toBe(true); // a new step
+    expect(changedSince({ current: 2, latest: 3, plot_hash: "sha256:x" }, opened)).toBe(true); // other content
+    expect(changedSince(undefined, opened)).toBe(false);
+    expect(historyIn('{"type": "FeatureCollection"}')).toBeUndefined();
+    expect(historyIn('{"history": {"current": 0, "head_hash": "h", "steps": []}}')).toEqual({ current: 0, latest: 0, plot_hash: undefined });
+  });
 });
 
 import { parseTime } from "../../src/timeinput.js";
@@ -242,6 +261,9 @@ describe("history steps, in the analyst's words (SUB-21)", () => {
     [{ kind: "edit", tool: null, status: "applied" }, "Edited", "In the plot"],
     [{ kind: "edit", tool: null, status: "applied", notes: ["Note added by a colleague"] }, "Note added by a colleague", "In the plot"],
     [{ kind: "edit", tool: null, status: "applied", notes: ["The plot had content but no record of how it was made, so this is long."] }, "Edited", "In the plot"],
+    // A plot file received from a colleague: the step recording its arrival (decision 13 Oct).
+    [{ kind: "import", tool: null, status: "applied", notes: ["Added from the plot file serial-1.geojson"] }, "Added from the plot file serial-1.geojson", "In the plot"],
+    [{ kind: "import", tool: null, status: "applied", notes: ["Added from the plot file a-very-long-name-sent-by-a-colleague.geojson"] }, "Added from a plot file", "In the plot"],
   ])("%#", (step, label, status) => expect(describeStep(step, title)).toEqual({ label, status }));
 });
 
@@ -365,7 +387,7 @@ describe("contributed menus", () => {
 describe("hiding and colour are the plot's own content (SUB-22)", () => {
   const plot = {
     type: "FeatureCollection",
-    schema_version: "0.0.10",
+    schema_version: "0.0.11",
     features: [
       { id: "a", properties: { kind: "track", name: "A", style: { colour: "#e01c3e" } } },
       { id: "b", properties: { kind: "annotation", name: "B", hidden: true } },

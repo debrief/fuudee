@@ -599,3 +599,37 @@ def test_the_service_logs_no_free_text_from_requests_or_libraries(tmp_path, capl
         line.startswith("tool_unavailable library=lab tool=- reason=<text:") for line in lines
     )
     assert not any("NELSON" in line or "nelson" in line for line in lines)
+
+
+def test_a_plot_file_from_a_colleague_is_added_with_its_history(
+    client, catalogue, tmp_path: Path
+) -> None:
+    """One file, history included (decision 13 Oct): undo works on what the sender did."""
+    call(client, "core.closest_approach", ["track-nelson", "track-blue"])  # the sender's step
+    received = tmp_path / "inbox" / "serial-from-ian.geojson"
+    received.parent.mkdir()
+    received.write_bytes((catalogue.store.root / "serial" / "plot.geojson").read_bytes())
+    params = {"store": "exercise", "path": str(received), "agent": {"kind": "person", "name": "jo"}}
+    added = rpc(client, "debrief/add_plot_file", params).json()["result"]
+    assert added["item"] == "serial-from-ian" and added["steps"] == 3
+    where = {"store": "exercise", "item": "serial-from-ian"}
+    steps = rpc(client, "debrief/history", where).json()["result"]["steps"]
+    assert [(s["kind"], s["tool"], s["agent"]) for s in steps] == [
+        ("import", "debrief-io.rep", "analyst"),
+        ("tool", "core.closest_approach", "analyst"),
+        ("import", None, "jo"),
+    ]
+    assert steps[-1]["notes"] == [
+        "Added from the plot file serial-from-ian.geojson",
+        "Added to the catalogue Exercise",
+    ]
+    rpc(client, "debrief/goto", {**where, "step": 1})  # back before the sender's tool run
+    plot = catalogue.read_plot("serial-from-ian")
+    assert not any(f.id.startswith("cpa-") for f in plot.features)
+    # A file whose history was changed outside Debrief is refused, and says why.
+    raw = json.loads(received.read_text())
+    raw["history"]["steps"][1]["records"][0]["agent"]["name"] = "someone else"
+    received.write_text(json.dumps(raw))
+    error = rpc(client, "debrief/add_plot_file", params).json()["error"]
+    assert error["code"] == -32602
+    assert "history has been changed outside Debrief" in error["message"]

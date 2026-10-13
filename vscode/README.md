@@ -2,7 +2,7 @@
 
 The Phase 1 tracer, as a VS Code extension (CON-05):
 
-- **Catalogues view.** Browse your catalogues and import REP files (CAP-08).
+- **Catalogues view.** Browse your catalogues and import REP files (CAP-08). **Add a plot file…** adds a plot file a colleague sent you, with its whole history, so you can undo what they did (SUB-19, decision 13 Oct).
 - **The map.** Opens beside the views in Web Mercator, with lines drawn along geodesics (SUB-03, SUB-30).
 - **Outline.** Plot features, supporting files and reference data (SUB-31).
 - **One selection.** Selecting in the map or the outline selects everywhere (SUB-26).

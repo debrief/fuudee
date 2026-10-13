@@ -176,16 +176,16 @@ def test_recovery_with_an_island_only_difference_keeps_the_plot(catalogue) -> No
     assert island_on_disk(catalogue) == LATER
 
 
-def test_recovery_after_a_crash_keeps_the_island(catalogue) -> None:
+def test_a_rebuild_keeps_the_island(catalogue) -> None:
     set_window(catalogue)
     history = catalogue.history("p")
     history.commit([record(2)], Changes(added=[note("b")]))
-    # A crash between the head and the plot: the plot file is the old one.
+    # The content edited outside Debrief: a note taken out, the history left as it was.
     raw = json.loads(plot_file(catalogue).read_text())
     raw["features"] = [f for f in raw["features"] if f["id"] != "b"]
     raw["provenance"] = raw["provenance"][:1]
     plot_file(catalogue).write_text(json.dumps(raw, indent=2) + "\n")
-    assert catalogue.history("p").recover() == []  # a recorded state: rebuilt, not kept aside
+    assert "rebuilt from its history" in catalogue.history("p").recover()[0]
     assert [f.id for f in catalogue.read_plot("p").features] == ["plot", "blue", "a", "b"]
     assert island_on_disk(catalogue) == WINDOW
 
@@ -196,7 +196,7 @@ def test_an_outside_edit_is_still_kept_aside(catalogue) -> None:
     raw["features"][2]["properties"]["name"] = "Changed outside Debrief"
     plot_file(catalogue).write_text(json.dumps(raw, indent=2) + "\n")
     notes = catalogue.history("p").recover()
-    assert "changed outside Debrief" in notes[0]
+    assert "may have been edited outside Debrief" in notes[0]
     assert list(plot_file(catalogue).parent.glob("plot.geojson.kept-*"))
     assert island_on_disk(catalogue) == WINDOW
 
@@ -212,10 +212,14 @@ def test_a_damaged_island_never_stops_the_plot_opening(catalogue) -> None:
     assert catalogue.read_view("p")[0] is None
 
 
-def test_hashes_of_plots_without_an_island_are_unchanged(catalogue) -> None:
+def test_the_content_hash_of_a_plot_without_an_island_leaves_out_only_its_history(
+    catalogue,
+) -> None:
     text = plot_file(catalogue).read_text()
     assert '"view"' not in text
-    assert content_hash(text) == text_hash(text)
+    raw = json.loads(text)
+    del raw["history"]
+    assert content_hash(text) == text_hash(json.dumps(raw, indent=2, ensure_ascii=False) + "\n")
 
 
 def test_a_plot_written_here_is_not_parsed_again_for_its_island(catalogue, monkeypatch) -> None:

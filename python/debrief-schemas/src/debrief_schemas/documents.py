@@ -29,6 +29,13 @@ from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 from jsonschema import Draft201909Validator
 from pydantic import BaseModel
 
+from debrief_schemas.chain import (
+    HISTORY_MEMBER,
+    chain_problem,
+    content_text_of,
+    pointer_problems,
+    text_hash,
+)
 from debrief_schemas.generated import debrief as g
 from debrief_schemas.generated.schema_version import SCHEMA_VERSION
 from debrief_schemas.island import dump_json
@@ -296,6 +303,32 @@ def _plot_problems(plot: g.DebriefFeatureCollection, raw: dict[str, Any]) -> lis
         missing = [i for i in named_set.feature_ids if i not in known]
         if missing:
             problems.append(f"named set {named_set.id}: unknown features {missing}")
+    if plot.history is not None:
+        problems += history_problems(plot.history, raw)
+    return problems
+
+
+def history_problems(history: g.PlotHistory, raw: dict[str, Any]) -> list[str]:
+    """Rules for a plot file's history (decision 13 Oct): each step's own rules, the
+    numbering and pointers, the hash chain, and the current step's result_hash
+    matching the file's content (island and history left out)."""
+    raw_steps = raw[HISTORY_MEMBER]["steps"]
+    problems = []
+    for step, raw_step in zip(history.steps, raw_steps, strict=True):
+        problems += [f"history step {step.seq}: {p}" for p in step_problems(step, raw_step)]
+    pointers, _ = pointer_problems(
+        [(s.seq, s.after, str(s.state)) for s in history.steps], history.current
+    )
+    problems += [f"history: {p}" for p in pointers]
+    broken = chain_problem(raw_steps, history.head_hash)
+    if broken:
+        problems.append(f"history: {broken}")
+    if not pointers:
+        content = text_hash(content_text_of(raw))
+        if history.current and history.steps[history.current - 1].result_hash != content:
+            problems.append("history: the current step's result_hash is not the content's hash")
+        if not history.current and (raw.get("features") or raw.get("provenance")):
+            problems.append("history: a plot with content has no current step")
     return problems
 
 
@@ -536,7 +569,59 @@ def load_view(source: dict[str, Any] | None) -> g.PlotView | None:
     return view
 
 
-def _delta_problems(delta: g.Delta, raw: dict[str, Any]) -> list[str]:
+def step_problems(step: g.HistoryStep | g.Delta, raw: dict[str, Any]) -> list[str]:
+    """Rules for one change, a history step or a delta of the earlier layout."""
+    return _delta_problems(step, raw)
+
+
+def load_history_step(raw: dict[str, Any]) -> g.HistoryStep:
+    """Validate one step of a plot file's history on its own: JSON Schema and the
+    step's rules. The history checks only steps it has not checked before, rather
+    than the whole history each time the file changes. Raises DocumentValidationError."""
+    validator = _class_validator("HistoryStep")
+    errors = sorted(validator.iter_errors(raw), key=lambda e: list(e.path))
+    if errors:
+        raise DocumentValidationError(
+            [f"{'/'.join(map(str, e.path)) or '<root>'}: {e.message}" for e in errors]
+        )
+    step = g.HistoryStep.model_validate(raw)
+    problems = _delta_problems(step, raw)
+    if problems:
+        raise DocumentValidationError(problems)
+    return step
+
+
+def dump_history_step(step: g.HistoryStep, *, features_checked: bool = False) -> dict[str, Any]:
+    """A step as JSON, as it is written in the plot file. Validated.
+
+    features_checked says its features have just been checked against JSON
+    Schema as part of a plot (the content the step makes), so only the rest
+    of the step is checked against it again; the step's rules all run.
+    """
+    document = step.model_dump(mode="json", by_alias=True, exclude_none=True)
+    _feature_geometry(document, ("added", "modified"))
+    if not features_checked:
+        load_history_step(document)
+        return document
+    envelope = {k: v for k, v in document.items() if k not in ("added", "modified")}
+    errors = sorted(
+        _class_validator("HistoryStep").iter_errors(envelope), key=lambda e: list(e.path)
+    )
+    problems = [f"{'/'.join(map(str, e.path)) or '<root>'}: {e.message}" for e in errors]
+    problems += _delta_problems(step, document)
+    if problems:
+        raise DocumentValidationError(problems)
+    return document
+
+
+def _feature_geometry(document: dict[str, Any], names: Iterable[str]) -> None:
+    for name in names:
+        for feature in document.get(name, []):
+            for member in _NULLABLE_REQUIRED_FEATURE_MEMBERS:
+                feature.setdefault(member, None)
+
+
+def _delta_problems(delta: g.Delta | g.HistoryStep, raw: dict[str, Any]) -> list[str]:
     problems = ["after must come before seq"] if delta.after >= delta.seq else []
     problems += _raw_feature_problems(raw.get("added"), "added feature")
     problems += _raw_feature_problems(raw.get("modified"), "modified feature")
@@ -609,10 +694,10 @@ def _to_json_shape(kind: DocumentKind, document: dict[str, Any]) -> dict[str, An
         DocumentKind.TOOL_RESULT: ("new_features", "modified_features"),
         DocumentKind.DELTA: ("added", "modified"),
     }.get(kind, ())
-    for name in feature_lists:
-        for feature in document.get(name, []):
-            for member in _NULLABLE_REQUIRED_FEATURE_MEMBERS:
-                feature.setdefault(member, None)
+    _feature_geometry(document, feature_lists)
+    if kind is DocumentKind.PLOT and isinstance(document.get(HISTORY_MEMBER), dict):
+        for step in document[HISTORY_MEMBER].get("steps", []):
+            _feature_geometry(step, ("added", "modified"))
     return document
 
 
@@ -660,13 +745,30 @@ def load_document(kind: DocumentKind | str, source: str | bytes | dict[str, Any]
     return _validate(kind, document, text, build=True)
 
 
-def dump_document(kind: DocumentKind | str, model: BaseModel) -> str:
-    """Serialise a document, validating it first so an invalid file is never written."""
+def dump_document(
+    kind: DocumentKind | str, model: BaseModel, *, expected_hash: str | None = None
+) -> str:
+    """Serialise a document, validating it first so an invalid file is never written.
+
+    expected_hash, when given, is the hash of a text already checked: a plot's
+    content as a step recorded it, rebuilt by replay. If the text has that hash
+    it is that text, and is not checked again.
+    """
     kind = DocumentKind(kind)
     document = _to_json_shape(kind, model.model_dump(mode="json", by_alias=True, exclude_none=True))
     text = dump_json(document)
+    if expected_hash is not None and text_hash(text) == expected_hash:
+        _check_version(kind, document)
+        _passed(kind, text)
+        return text
     _validate(kind, document, text, build=False)
     return text
+
+
+def _passed(kind: DocumentKind, text: str) -> None:
+    if len(_PASSED) >= _PASSED_MAX:
+        _PASSED.clear()
+    _PASSED.add((kind, hashlib.sha256(text.encode()).digest()))
 
 
 def load_plot(source: str | bytes | dict[str, Any]) -> g.DebriefFeatureCollection:

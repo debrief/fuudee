@@ -48,6 +48,9 @@ This works because of the order things are written in:
 
 A crash at any point loses at most the change in progress, and here not even that.
 
+!!! note "Update, 13 Oct 2026"
+    The steps no longer sit in a folder beside the plot: the plot file now carries its whole history, so the one file an analyst sends a colleague brings undo, redo and every record with it. Each save writes a complete new plot file and only then puts it in place of the old one, so a crash leaves the plot exactly as it was before the save in progress; reopening says a save was interrupted. The history is also checked for changes made outside Debrief. See [One file, history included](2026-10-13-history-in-the-plot-file.md).
+
 ### Try it
 
 Run a tool, undo it, then **Crash part-way through a save** and **Reopen the plot**:

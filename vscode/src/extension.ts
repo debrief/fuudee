@@ -7,7 +7,7 @@
 import { userInfo } from "node:os";
 import * as vscode from "vscode";
 import type { ContextTracksEnum, ParameterValue, PlotView, SharedState, SharedStateChange, TimeRange, ToolDeclaration } from "@debrief/schemas";
-import { headFile, headOnDisk, knownStores, openPlot, plotFile, type OpenedPlot } from "./catalogue.js";
+import { changedSince, historyOnDisk, knownStores, openPlot, plotFile, type OpenedPlot } from "./catalogue.js";
 import { statSync, unwatchFile, watchFile } from "node:fs";
 import { count, describeToolRun } from "./format.js";
 import { placeToolTime } from "../webview/timelogic.js";
@@ -473,7 +473,11 @@ export function activate(context: vscode.ExtensionContext): DebriefApi {
       return false;
     }
     if (session.current !== opened) return false; // another plot was opened meanwhile
-    if (answer.base.current !== opened.base?.current || answer.base.plot_hash !== opened.base?.plot_hash) {
+    if (
+      answer.base.current !== opened.base?.current ||
+      answer.base.plot_hash !== opened.base?.plot_hash ||
+      (answer.latest !== undefined && answer.latest !== opened.latest)
+    ) {
       await reloadPlot(true);
       return true;
     }
@@ -506,13 +510,14 @@ export function activate(context: vscode.ExtensionContext): DebriefApi {
    */
   async function loadPlot(store: OpenedPlot["store"], itemId: string, keep = false): Promise<void> {
     let base: OpenedPlot["base"];
+    let latest: number | undefined;
     let recovered: string[] = [];
     let viewHash: string | undefined;
     let shown: OpenedPlot["plot"] | undefined;
     if (service) {
       try {
         const answer = await service.open(store.id, itemId, agent);
-        ({ base, recovered } = answer);
+        ({ base, recovered, latest } = answer);
         viewHash = answer.view_hash;
         shown = answer.plot; // a retired presentation.json applied in memory (a read-only store)
       } catch (error) {
@@ -521,7 +526,7 @@ export function activate(context: vscode.ExtensionContext): DebriefApi {
       }
     }
     const read = openPlot(store, itemId);
-    const opened = { ...read, plot: shown ?? read.plot, base, viewHash };
+    const opened = { ...read, plot: shown ?? read.plot, base, latest, viewHash };
     session.setPlot(opened, keep);
     watch(opened);
     catalogues.refresh();
@@ -545,27 +550,25 @@ export function activate(context: vscode.ExtensionContext): DebriefApi {
 
   /**
    * Notice a change made elsewhere: another window, another analyst on a shared
-   * folder, an agent (SUB-28). Polled,
-   * because change events are unreliable on network shares. Nothing is ever
+   * folder, an agent (SUB-28). Polled, because change events are unreliable on
+   * network shares. One file holds the plot's content, its view and its whole
+   * history (decision 13 Oct), so it is the only file watched. Nothing is ever
    * overwritten: Debrief shows the latest.
    */
   function watch(opened: OpenedPlot): void {
-    // The plot file too: a change to its time window leaves the history alone (SUB-22).
     const plot = plotFile(opened.store, opened.item);
-    const files = [headFile(opened.store, opened.item.id), ...(plot ? [plot] : [])];
+    const files = plot ? [plot] : [];
     if (watched.join() === files.join()) return seePlotFile();
     watched.forEach((file) => unwatchFile(file));
     watched = files;
     seePlotFile();
     for (const file of files) {
       watchFile(file, { interval: 1000 }, (now) => {
-        if (file === files[1]) {
-          // The plot file as Debrief last wrote or read it: nothing to check. Checking
-          // means opening the plot through the service, a second or so for a big one.
-          if (now.mtimeMs === plotFileSeen) return;
-          plotFileSeen = now.mtimeMs;
-        }
-        noticeChange(files, file === files[1]);
+        // The plot file as Debrief last wrote or read it: nothing to check. Checking
+        // its view means opening the plot through the service, a second or so for a big one.
+        if (now.mtimeMs === plotFileSeen) return;
+        plotFileSeen = now.mtimeMs;
+        noticeChange(file);
       });
     }
   }
@@ -573,31 +576,27 @@ export function activate(context: vscode.ExtensionContext): DebriefApi {
   let plotFileSeen: number | undefined;
   function seePlotFile(): void {
     try {
-      plotFileSeen = watched[1] ? statSync(watched[1]).mtimeMs : undefined;
+      plotFileSeen = watched[0] ? statSync(watched[0]).mtimeMs : undefined;
     } catch {
       plotFileSeen = undefined;
     }
   }
-  /** Whether the plot file itself changed, not only its history: its window may have. */
-  let viewToCheck = false;
-  function noticeChange(files: string[], plotFileChanged: boolean): void {
+  function noticeChange(file: string): void {
     if (writing) return; // ours
-    viewToCheck ||= plotFileChanged;
     if (checking) return; // a check already waiting
     checking = true;
     // Checked in turn with our own changes, so one of ours finishing is never mistaken for another's.
     void serially(async () => {
       checking = false;
-      const checkView = viewToCheck;
-      viewToCheck = false;
       const current = session.current;
-      if (writing || !current || headFile(current.store, current.item.id) !== files[0]) return;
-      const onDisk = headOnDisk(current.store, current.item.id);
-      const plotChanged = !!onDisk && (onDisk.current !== current.base?.current || onDisk.plot_hash !== current.base?.plot_hash);
+      if (writing || !current || plotFile(current.store, current.item) !== file) return;
+      // A step made, undone or redone elsewhere moves the history's current step, its
+      // length or the content's hash; a new time window moves none of them.
+      const plotChanged = changedSince(historyOnDisk(file), current);
       const title = current.item.properties.title ?? current.item.id;
       if (!plotChanged) {
         // Perhaps only its time window: show that, without reading the plot's content again.
-        if (checkView && (await refreshView())) {
+        if (await refreshView()) {
           void vscode.window.showInformationMessage(`The time window of ${title} was changed elsewhere. Debrief is showing the latest.`);
         }
         return;
@@ -879,6 +878,67 @@ export function activate(context: vscode.ExtensionContext): DebriefApi {
       }
     } catch (error) {
       void vscode.window.showErrorMessage((error as Error).message);
+    }
+  });
+
+  /**
+   * Add a plot file received from a colleague: one .geojson file holding the plot,
+   * its view and its whole history (decision 13 Oct). Its history comes with it, so
+   * undo, redo and going back to a step work on what the sender did; one more step
+   * records where it came from. A file whose history fails its checksums is refused.
+   * For tests and agents, the catalogue and the file may be given.
+   */
+  command("debrief.addPlotFile", async (node?: { view?: { store: { id: string } } }, given?: string) => {
+    if (!needService()) return { problem: "Adding a plot file needs the tool service." };
+    const writable = knownStores(configFile).stores.filter((s) => !s.read_only);
+    if (!writable.length) {
+      void vscode.window.showWarningMessage("Add or create a catalogue first; a plot file is added to a catalogue.");
+      return { problem: "no catalogue" };
+    }
+    let storeId = node?.view?.store.id;
+    if (!storeId) {
+      const picked =
+        writable.length === 1
+          ? { id: writable[0].id }
+          : await vscode.window.showQuickPick(
+              writable.map((s) => ({ label: s.title, description: s.location, id: s.id })),
+              { placeHolder: "Add the plot file to which catalogue?" },
+            );
+      storeId = picked?.id;
+    }
+    if (!storeId) return undefined;
+    let file = given;
+    if (!file) {
+      const files = await vscode.window.showOpenDialog({
+        canSelectMany: false,
+        openLabel: "Add plot file",
+        filters: { "Debrief plot files": ["geojson", "json"] },
+      });
+      file = files?.[0]?.fsPath;
+    }
+    if (!file) return undefined;
+    try {
+      let added;
+      try {
+        added = await service!.addPlotFile(storeId, file, agent);
+      } catch (error) {
+        if ((error as ServiceError).code !== NEWER_SCHEMA) throw error;
+        if (!(await confirmNewerSchema((error as Error).message))) return undefined;
+        added = await service!.addPlotFile(storeId, file, agent, true);
+      }
+      catalogues.refresh();
+      const message = `Added ${added.title} with its history: ${count(added.steps, "step")}, undo and redo included.`;
+      if (given) {
+        void vscode.window.showInformationMessage(message);
+      } else {
+        void vscode.window.showInformationMessage(message, "Open plot").then((choice) => {
+          if (choice === "Open plot") void vscode.commands.executeCommand("debrief.openPlot", storeId, added.item);
+        });
+      }
+      return { item: added.item };
+    } catch (error) {
+      void vscode.window.showErrorMessage((error as Error).message);
+      return { problem: (error as Error).message };
     }
   });
 

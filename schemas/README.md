@@ -14,6 +14,7 @@ Every type that crosses a process or language boundary is defined here in LinkML
 | `state.yaml` | Current time, selection and viewport | SUB-26, SUB-27, TL-10 |
 | `tools.yaml` | Tool declarations, parameter declarations, tool results | TL-04 to TL-13, CAP-24 |
 | `formatting.yaml` | The analyst's display formatting settings | SUB-04 |
+| `history.yaml` | A plot's history, kept in its plot file (`PlotHistory`, `HistoryStep`), and the earlier history-folder layout (`Delta`, `HistoryHead`) | SUB-19 to SUB-21, NFR-10, NFR-11 |
 | `debrief.yaml` | Root: imports the modules and holds the schema version | SUB-12 |
 
 ## External standards (CON-04)
@@ -37,11 +38,11 @@ Every type that crosses a process or language boundary is defined here in LinkML
 
 1. **Schema version** (files only): a file with a different version is refused before it is read (SUB-14). Before 1.0.0 there is no migration, so only an exact match opens.
 2. **Structure**: the generated JSON Schema, run identically in Python and TypeScript.
-3. **Rules** LinkML cannot express, in Python only (PRN-03). Examples: parallel arrays match the geometry, track times are in order, polygon rings are closed, a time-only annotation has a time, a parameter's default matches its kind.
+3. **Rules** LinkML cannot express, in Python only (PRN-03). Examples: parallel arrays match the geometry, track times are in order, polygon rings are closed, a time-only annotation has a time, a parameter's default matches its kind, a plot's history is an unbroken hash chain whose current step matches its content.
 
 ## Fixtures
 
-`fixtures/<kind>/valid`, `invalid/schema` and `invalid/semantic`, where kind is `plot`, `stac_item`, `stac_catalog`, `tool_declaration`, `tool_result`, `shared_state` or `format_settings`. Tests in both languages read them. A semantic fixture must pass JSON Schema; a test enforces this.
+`fixtures/<kind>/valid`, `invalid/schema` and `invalid/semantic`, where kind is a document kind (`plot`, `stac_item`, `stac_catalog`, `tool_declaration`, `tool_result`, `shared_state`, `format_settings`, `user_config`, `webview_message`, and `delta` and `history_head` of the earlier history layout). Plot fixtures named `history-*` carry a history in the plot file: its hash chain, numbering, pointers and content hash. Tests in both languages read them. A semantic fixture must pass JSON Schema; a test enforces this.
 
 ## Workflow
 

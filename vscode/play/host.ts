@@ -619,7 +619,7 @@ $<HTMLSelectElement>("plots").onchange = (e) => void openPlot((e.target as HTMLS
 $("crash").onclick = async () => {
   if (!opened) return;
   await python("crash", opened.item.id, new Date().toISOString(), time?.current ?? null);
-  toast("Debrief stopped part-way through saving a note: the change was written, but not yet made current. Reopen the plot to see what happens.", "warning");
+  toast("Debrief stopped part-way through saving a note: the new plot file was written, but had not yet replaced the old one. Reopen the plot to see what happens.", "warning");
   $("reopen").hidden = false;
 };
 $("reopen").onclick = async () => {
@@ -648,15 +648,24 @@ $<HTMLInputElement>("file").onchange = async (e) => {
   const file = (e.target as HTMLInputElement).files?.[0];
   if (!file) return;
   status(`Importing ${file.name}…`, true);
-  const report = await pythonJson<{ item?: string; tracks: string[]; fixes: number; annotations: number; omitted: string[]; error?: string }>(
-    "import_file",
-    file.name,
-    new Uint8Array(await file.arrayBuffer()),
-  );
+  const report = await pythonJson<{
+    item?: string;
+    tracks: string[];
+    fixes: number;
+    annotations: number;
+    omitted: string[];
+    error?: string;
+    plot_file?: boolean;
+    steps?: number;
+  }>("import_file", file.name, new Uint8Array(await file.arrayBuffer()));
   status("Ready. Everything runs in your browser; nothing is sent anywhere.");
   if (report.error || !report.item) return toast(report.error ?? "The file could not be imported.", "warning");
   await refreshPlots();
   await openPlot(report.item);
+  if (report.plot_file) {
+    // A Debrief plot file: its whole history came with it (decision 13 Oct).
+    return toast(`Added ${file.name} with its history: ${count(report.steps ?? 0, "step")}, undo and redo included.`);
+  }
   const parts = [count(report.tracks.length, "track"), count(report.fixes, "fix", "fixes")];
   if (report.annotations) parts.push(count(report.annotations, "annotation"));
   // Nothing is dropped silently (EXT-15): what wasn't imported is listed beside the map.
@@ -682,6 +691,7 @@ async function preview(item: string): Promise<void> {
       fetch(`sample/${item}/${item}.json`).then((r) => r.json()),
     ]);
     if (opened) return; // Python was quicker
+    delete plot.history; // the plot file's history: nothing on screen reads it
     opened = { item: stac, plot, base: { current: 0, plot_hash: "" }, view_hash: "", steps: [], recovered: [] };
     showTime(timeOf(stac, plot));
     $("plot-title").textContent = stac.properties.title ?? item;

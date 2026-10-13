@@ -132,6 +132,10 @@ export type PayloadFormatEnum = "arrow" | "parquet" | "geojson";
  */
 export type PlotKindEnum = "plot";
 /**
+ * Applied, undone or abandoned: what the after links and the history's current step say. Not part of step_hash, since undo changes it.
+ */
+export type StepStateEnum = "applied" | "undone" | "abandoned";
+/**
  * This interface was referenced by `DebriefSchemaDefinitions`'s JSON-Schema
  * via the `definition` "FeatureCollectionTypeEnum".
  */
@@ -177,6 +181,13 @@ export type ResultPresentationEnum = "number" | "table" | "graph";
  * via the `definition` "ParameterKindEnum".
  */
 export type ParameterKindEnum = "number" | "integer" | "string" | "boolean" | "choice" | "quantity" | "time";
+/**
+ * Where a step stands, as the after links and the current step say.
+ *
+ * This interface was referenced by `DebriefSchemaDefinitions`'s JSON-Schema
+ * via the `definition` "StepStateEnum".
+ */
+export type StepStateEnum1 = "applied" | "undone" | "abandoned";
 /**
  * What a tool may return (TL-11).
  *
@@ -417,6 +428,10 @@ export interface TimeRange {
  */
 export interface DebriefFeatureCollection {
   features: (TrackFeature | AnnotationFeature | SensorObservationsFeature | PlotFeature)[];
+  /**
+   * The plot's whole history: every step, with its provenance and whether it is applied, undone or abandoned, and the current step (SUB-19, SUB-21, decision 13 Oct). A GeoJSON foreign member, so other tools still read the file as GeoJSON. Not content: left out of every content hash. Last in the file. A plot sent to a view or a tool never carries it.
+   */
+  history?: PlotHistory | null;
   named_sets?: NamedSet[] | null;
   provenance: ProvRecord[];
   schema_version: string;
@@ -632,29 +647,35 @@ export interface PlotView {
   time_window?: TimeRange | null;
 }
 /**
- * A saved, reusable selection (TL-11).
+ * A plot's whole history, kept in its plot file as the top-level member history (decision 13 Oct). Steps are numbered from 1 with no gaps, in the order they were made.
  *
  * This interface was referenced by `DebriefSchemaDefinitions`'s JSON-Schema
- * via the `definition` "NamedSet".
+ * via the `definition` "PlotHistory".
  */
-export interface NamedSet {
-  feature_ids: string[];
-  id: string;
-  name: string;
+export interface PlotHistory {
+  /**
+   * The step the plot's content reflects; 0 for none (an empty plot). Never an abandoned step.
+   */
+  current: number;
+  /**
+   * The last step's step_hash, or the starting value for a history with no steps, so a step removed from the end is noticed.
+   */
+  head_hash: string;
+  steps: HistoryStep[];
 }
 /**
- * One recorded change to a plot.
+ * One recorded change to a plot, in its plot file's history.
  *
  * This interface was referenced by `DebriefSchemaDefinitions`'s JSON-Schema
- * via the `definition` "Delta".
+ * via the `definition` "HistoryStep".
  */
-export interface Delta {
+export interface HistoryStep {
   /**
    * Features added. A whole-plot feature here never carries its view: the island is not content (SUB-22).
    */
   added?: (TrackFeature | AnnotationFeature | SensorObservationsFeature | PlotFeature)[] | null;
   /**
-   * The delta this one was applied on top of (0 for the first). Replay follows these links, and recovery uses them to finish a change that was written but not completed.
+   * The step this one was applied on top of (0 for the first). Replay follows these links back from a step to the first.
    */
   after: number;
   deleted_ids?: string[] | null;
@@ -672,13 +693,73 @@ export interface Delta {
    */
   order?: string[] | null;
   /**
-   * The operation that made the change. Usually one; a baseline delta, taken when a plot made before history existed is first changed, carries all the plot's earlier records.
+   * The operation that made the change. Usually one; a baseline step, taken when a plot made outside Debrief is first opened, carries all the plot's earlier records.
    *
    * @minItems 1
    */
   records: [ProvRecord, ...ProvRecord[]];
   /**
-   * Content hash of the plot file after this delta, to check replay, taken with the island (the whole-plot feature's view) left out, so a change of view never looks like a change of content (SUB-22).
+   * Hash of the plot's content after this step: the plot file with its island and its history left out, as Debrief writes it (SUB-22).
+   */
+  result_hash: string;
+  /**
+   * Position in the plot's history, from 1, with no gaps.
+   */
+  seq: number;
+  state: StepStateEnum;
+  /**
+   * SHA-256 of this step's canonical JSON, without step_hash and state, followed by the previous step's step_hash (see the module description).
+   */
+  step_hash: string;
+}
+/**
+ * A saved, reusable selection (TL-11).
+ *
+ * This interface was referenced by `DebriefSchemaDefinitions`'s JSON-Schema
+ * via the `definition` "NamedSet".
+ */
+export interface NamedSet {
+  feature_ids: string[];
+  id: string;
+  name: string;
+}
+/**
+ * One recorded change, in the earlier layout: a file of its own in the plot's history folder. Read only to move a history into its plot file.
+ *
+ * This interface was referenced by `DebriefSchemaDefinitions`'s JSON-Schema
+ * via the `definition` "Delta".
+ */
+export interface Delta {
+  /**
+   * Features added, never with the whole-plot feature's view.
+   */
+  added?: (TrackFeature | AnnotationFeature | SensorObservationsFeature | PlotFeature)[] | null;
+  /**
+   * The delta this one was applied on top of (0 for the first).
+   */
+  after: number;
+  deleted_ids?: string[] | null;
+  deleted_named_set_ids?: string[] | null;
+  /**
+   * Features changed, in full, replacing those with the same id.
+   */
+  modified?: (TrackFeature | AnnotationFeature | SensorObservationsFeature | PlotFeature)[] | null;
+  /**
+   * Named sets added or replaced, by id.
+   */
+  named_sets?: NamedSet[] | null;
+  /**
+   * Feature ids in the order the plot holds them after this change.
+   */
+  order?: string[] | null;
+  /**
+   * The operation that made the change.
+   *
+   * @minItems 1
+   */
+  records: [ProvRecord, ...ProvRecord[]];
+  /**
+   * Content hash of the plot file after this delta, island left out.
    */
   result_hash: string;
   schema_version: string;
@@ -709,14 +790,14 @@ export interface FormatSettings {
   time_zone: string;
 }
 /**
- * Where a plot's history stands. Written after each delta, before the plot.
+ * Where a plot's history stood, in the earlier layout (history/head.json). Read only to move a history into its plot file.
  *
  * This interface was referenced by `DebriefSchemaDefinitions`'s JSON-Schema
  * via the `definition` "HistoryHead".
  */
 export interface HistoryHead {
   /**
-   * Deltas undone and then superseded by a new change (SUB-19): those off the chain to the latest delta, so a lost head can be rebuilt.
+   * Deltas undone and then superseded by a new change.
    */
   abandoned?: number[] | null;
   /**

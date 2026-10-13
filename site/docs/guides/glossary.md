@@ -8,13 +8,19 @@ Adapted from `DOMAIN_GLOSSARY.md` in debrief/debrief-future, itself adapted from
 
 **Plot.** The unit of analysis: one exercise serial or deployment period, its tracks, annotations, sensor observations and narrative, with the history of every change made to it. Stored as GeoJSON in a STAC catalogue (SUB-05).
 
+**Plot file.** The one file that holds a plot: its content, its island and its whole history. Send it to a colleague and the history goes with it, undo included; they add it to a catalogue with **Add a plot file…**. Other GeoJSON tools can read it (SUB-07, SUB-19).
+
 **Catalogue.** A folder of plots, sources and supporting files, described in STAC. Each catalogue holds data of one protection level (SEC-02).
 
-**Source.** A file imported into Debrief, such as a REP file or a legacy plot. Debrief never changes a source; a revision arrives as a new source (SUB-10).
+**Source.** A file imported into Debrief, such as a REP file or a legacy plot. Debrief never changes a source; a revision arrives as a new source (SUB-10). A catalogue keeps its sources, but they don't travel with a plot file: the plot's first step holds what was imported, and its history names each source.
 
 **Supporting file.** Video, imagery, acoustic files and other content that is not geographic data, kept beside a plot (SUB-06).
 
-**History** (in guides, **provenance**). The record of every operation that produced a plot: imports, tool runs, edits and deletions, with who or what made them (SUB-18 to SUB-24).
+**History** (in guides, **provenance**). The record of every operation that produced a plot: imports, tool runs, edits and deletions, with who or what made them (SUB-18 to SUB-24). Kept in the plot file, all of it, always.
+
+**Step.** One change in a plot's history: what made it, who, when, and what it changed. A step is in the plot, undone (can be redone) or replaced by a later change (kept on record) (SUB-19, SUB-21).
+
+**Checksum** (in guides). A short fingerprint of some data that changes if the data does. Each step of a plot's history carries one covering the step and the step before, and the current step records the checksum of the plot's content, so a history altered outside Debrief is noticed. The island is outside every checksum (SUB-19).
 
 **Time window.** The period of the plot being looked at, one for the whole plot. Sensor data is shown only within it (CAP-28, CAP-29). Saved with the plot, but not part of its history: changing it is never undone.
 

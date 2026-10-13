@@ -282,6 +282,17 @@
           },
           "type": "array"
         },
+        "history": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/PlotHistory"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": "The plot's whole history: every step, with its provenance and whether it is applied, undone or abandoned, and the current step (SUB-19, SUB-21, decision 13 Oct). A GeoJSON foreign member, so other tools still read the file as GeoJSON. Not content: left out of every content hash. Last in the file. A plot sent to a view or a tool never carries it."
+        },
         "named_sets": {
           "items": {
             "$ref": "#/$defs/NamedSet"
@@ -316,10 +327,10 @@
     },
     "Delta": {
       "additionalProperties": false,
-      "description": "One recorded change to a plot.",
+      "description": "One recorded change, in the earlier layout: a file of its own in the plot's history folder. Read only to move a history into its plot file.",
       "properties": {
         "added": {
-          "description": "Features added. A whole-plot feature here never carries its view: the island is not content (SUB-22).",
+          "description": "Features added, never with the whole-plot feature's view.",
           "items": {
             "anyOf": [
               {
@@ -342,7 +353,7 @@
           ]
         },
         "after": {
-          "description": "The delta this one was applied on top of (0 for the first). Replay follows these links, and recovery uses them to finish a change that was written but not completed.",
+          "description": "The delta this one was applied on top of (0 for the first).",
           "minimum": 0,
           "type": "integer"
         },
@@ -398,7 +409,7 @@
           ]
         },
         "order": {
-          "description": "Feature ids in the order the plot holds them after this change, when that is not the natural order (features kept in place, added ones last).",
+          "description": "Feature ids in the order the plot holds them after this change.",
           "items": {
             "type": "string"
           },
@@ -408,7 +419,7 @@
           ]
         },
         "records": {
-          "description": "The operation that made the change. Usually one; a baseline delta, taken when a plot made before history existed is first changed, carries all the plot's earlier records.",
+          "description": "The operation that made the change.",
           "items": {
             "$ref": "#/$defs/ProvRecord"
           },
@@ -416,7 +427,7 @@
           "type": "array"
         },
         "result_hash": {
-          "description": "Content hash of the plot file after this delta, to check replay, taken with the island (the whole-plot feature's view) left out, so a change of view never looks like a change of content (SUB-22).",
+          "description": "Content hash of the plot file after this delta, island left out.",
           "pattern": "^sha256:[0-9a-f]{64}$",
           "type": "string"
         },
@@ -568,10 +579,10 @@
     },
     "HistoryHead": {
       "additionalProperties": false,
-      "description": "Where a plot's history stands. Written after each delta, before the plot.",
+      "description": "Where a plot's history stood, in the earlier layout (history/head.json). Read only to move a history into its plot file.",
       "properties": {
         "abandoned": {
-          "description": "Deltas undone and then superseded by a new change (SUB-19): those off the chain to the latest delta, so a lost head can be rebuilt.",
+          "description": "Deltas undone and then superseded by a new change.",
           "items": {
             "type": "integer"
           },
@@ -607,6 +618,138 @@
         "plot_hash"
       ],
       "title": "HistoryHead",
+      "type": "object"
+    },
+    "HistoryStep": {
+      "additionalProperties": false,
+      "description": "One recorded change to a plot, in its plot file's history.",
+      "properties": {
+        "added": {
+          "description": "Features added. A whole-plot feature here never carries its view: the island is not content (SUB-22).",
+          "items": {
+            "anyOf": [
+              {
+                "$ref": "#/$defs/TrackFeature"
+              },
+              {
+                "$ref": "#/$defs/AnnotationFeature"
+              },
+              {
+                "$ref": "#/$defs/SensorObservationsFeature"
+              },
+              {
+                "$ref": "#/$defs/PlotFeature"
+              }
+            ]
+          },
+          "type": [
+            "array",
+            "null"
+          ]
+        },
+        "after": {
+          "description": "The step this one was applied on top of (0 for the first). Replay follows these links back from a step to the first.",
+          "minimum": 0,
+          "type": "integer"
+        },
+        "deleted_ids": {
+          "items": {
+            "type": "string"
+          },
+          "type": [
+            "array",
+            "null"
+          ]
+        },
+        "deleted_named_set_ids": {
+          "items": {
+            "type": "string"
+          },
+          "type": [
+            "array",
+            "null"
+          ]
+        },
+        "modified": {
+          "description": "Features changed, in full, replacing those with the same id.",
+          "items": {
+            "anyOf": [
+              {
+                "$ref": "#/$defs/TrackFeature"
+              },
+              {
+                "$ref": "#/$defs/AnnotationFeature"
+              },
+              {
+                "$ref": "#/$defs/SensorObservationsFeature"
+              },
+              {
+                "$ref": "#/$defs/PlotFeature"
+              }
+            ]
+          },
+          "type": [
+            "array",
+            "null"
+          ]
+        },
+        "named_sets": {
+          "description": "Named sets added or replaced, by id.",
+          "items": {
+            "$ref": "#/$defs/NamedSet"
+          },
+          "type": [
+            "array",
+            "null"
+          ]
+        },
+        "order": {
+          "description": "Feature ids in the order the plot holds them after this change, when that is not the natural order (features kept in place, added ones last).",
+          "items": {
+            "type": "string"
+          },
+          "type": [
+            "array",
+            "null"
+          ]
+        },
+        "records": {
+          "description": "The operation that made the change. Usually one; a baseline step, taken when a plot made outside Debrief is first opened, carries all the plot's earlier records.",
+          "items": {
+            "$ref": "#/$defs/ProvRecord"
+          },
+          "minItems": 1,
+          "type": "array"
+        },
+        "result_hash": {
+          "description": "Hash of the plot's content after this step: the plot file with its island and its history left out, as Debrief writes it (SUB-22).",
+          "pattern": "^sha256:[0-9a-f]{64}$",
+          "type": "string"
+        },
+        "seq": {
+          "description": "Position in the plot's history, from 1, with no gaps.",
+          "minimum": 1,
+          "type": "integer"
+        },
+        "state": {
+          "$ref": "#/$defs/StepStateEnum",
+          "description": "Applied, undone or abandoned: what the after links and the history's current step say. Not part of step_hash, since undo changes it."
+        },
+        "step_hash": {
+          "description": "SHA-256 of this step's canonical JSON, without step_hash and state, followed by the previous step's step_hash (see the module description).",
+          "pattern": "^sha256:[0-9a-f]{64}$",
+          "type": "string"
+        }
+      },
+      "required": [
+        "seq",
+        "state",
+        "after",
+        "records",
+        "result_hash",
+        "step_hash"
+      ],
+      "title": "HistoryStep",
       "type": "object"
     },
     "InnerSchemaRef": {
@@ -1096,6 +1239,35 @@
         "properties"
       ],
       "title": "PlotFeature",
+      "type": "object"
+    },
+    "PlotHistory": {
+      "additionalProperties": false,
+      "description": "A plot's whole history, kept in its plot file as the top-level member history (decision 13 Oct). Steps are numbered from 1 with no gaps, in the order they were made.",
+      "properties": {
+        "current": {
+          "description": "The step the plot's content reflects; 0 for none (an empty plot). Never an abandoned step.",
+          "minimum": 0,
+          "type": "integer"
+        },
+        "head_hash": {
+          "description": "The last step's step_hash, or the starting value for a history with no steps, so a step removed from the end is noticed.",
+          "pattern": "^sha256:[0-9a-f]{64}$",
+          "type": "string"
+        },
+        "steps": {
+          "items": {
+            "$ref": "#/$defs/HistoryStep"
+          },
+          "type": "array"
+        }
+      },
+      "required": [
+        "current",
+        "head_hash",
+        "steps"
+      ],
+      "title": "PlotHistory",
       "type": "object"
     },
     "PlotKindEnum": {
@@ -2009,6 +2181,16 @@
       "title": "StacLink",
       "type": "object"
     },
+    "StepStateEnum": {
+      "description": "Where a step stands, as the after links and the current step say.",
+      "enum": [
+        "applied",
+        "undone",
+        "abandoned"
+      ],
+      "title": "StepStateEnum",
+      "type": "string"
+    },
     "StoreKindEnum": {
       "description": "How a store is reached. Only static file catalogues so far (SUB-15).",
       "enum": [
@@ -2680,6 +2862,17 @@
       },
       "type": "array"
     },
+    "history": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/PlotHistory"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "description": "The plot's whole history: every step, with its provenance and whether it is applied, undone or abandoned, and the current step (SUB-19, SUB-21, decision 13 Oct). A GeoJSON foreign member, so other tools still read the file as GeoJSON. Not content: left out of every content hash. Last in the file. A plot sent to a view or a tool never carries it."
+    },
     "named_sets": {
       "items": {
         "$ref": "#/$defs/NamedSet"
@@ -2711,5 +2904,5 @@
   ],
   "title": "debrief",
   "type": "object",
-  "version": "0.0.10"
+  "version": "0.0.11"
 }

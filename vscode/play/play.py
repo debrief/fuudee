@@ -10,9 +10,11 @@ crash happens there and is gone when the page is closed.
 from __future__ import annotations
 
 import json
+import shutil
 from pathlib import Path
 from typing import Any
 
+import debrief_stac.store as store_module
 from debrief_io import import_dpf, import_rep
 from debrief_kernel.time import format_utc, parse_utc
 from debrief_schemas import DocumentKind, dump_document, models
@@ -230,23 +232,24 @@ def _record(agent: models.AgentRef, at: str, what: str, note: str) -> models.Pro
 
 
 def crash(item: str, at: str, when: str | None = None) -> str:
-    """Save a note and die part-way: after the step is written, before it is current.
+    """Save a note and die part-way: the new plot file is written in full beside the
+    old one, but the process dies before it replaces it (NFR-11).
 
     In the browser the process can't really be killed, so the save is stopped
-    at exactly that point, leaving the files as a killed process would.
+    at exactly that point, leaving the files as a killed process would: the old
+    plot file, whole, and the new one under a temporary name.
     """
-    store = _cat().store
-    real = store.write_text_atomic
+    real = store_module._replace
 
     class Killed(Exception):
         pass
 
-    def die_before_the_head(path: str, text: str) -> None:
-        if path.endswith("head.json"):
-            raise Killed
-        real(path, text)
+    def die_before_the_rename(temporary, target) -> None:
+        # What a killed process leaves: its temporary file, which nobody cleans up.
+        shutil.copyfile(temporary, f"{temporary}.left.tmp")
+        raise Killed
 
-    store.write_text_atomic = die_before_the_head
+    store_module._replace = die_before_the_rename
     try:
         _cat().commit(
             item,
@@ -256,7 +259,7 @@ def crash(item: str, at: str, when: str | None = None) -> str:
     except Killed:
         pass
     finally:
-        store.write_text_atomic = real
+        store_module._replace = real
     return json.dumps({"ok": True})
 
 
@@ -274,7 +277,8 @@ def colleague(item: str, at: str, when: str | None = None) -> str:
 
 
 def import_file(name: str, data: bytes) -> str:
-    """Import a REP or legacy .dpf file the reader dropped in, as a new plot."""
+    """Import a REP or legacy .dpf file the reader dropped in, as a new plot; or add a
+    Debrief plot file (.geojson) with its whole history, as a colleague would."""
     work = Path("/play/uploads")
     work.mkdir(parents=True, exist_ok=True)
     path = work / Path(name).name
@@ -283,6 +287,13 @@ def import_file(name: str, data: bytes) -> str:
     taken, item_id, n = set(_cat().item_ids()), stem, 2
     while item_id in taken:
         item_id, n = f"{stem}-{n}", n + 1
+    if path.suffix.lower() in (".geojson", ".json"):
+        try:
+            added = _cat().add_plot_file(path, YOU)
+        except Exception as error:  # noqa: BLE001 - shown to the reader as the failure
+            return json.dumps({"error": f"{path.name} could not be added: {error}"})
+        steps = len(_cat().history(added).steps())
+        return json.dumps({"item": added, "plot_file": True, "steps": steps})
     importer = import_dpf if path.suffix.lower() in (".dpf", ".xml") else import_rep
     try:
         report = importer(_cat(), path, item_id=item_id, agent=YOU)

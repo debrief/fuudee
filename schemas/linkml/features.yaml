@@ -311,3 +311,13 @@ classes:
         multivalued: true
         inlined_as_list: true
         required: true
+      history:
+        description: >-
+          The plot's whole history: every step, with its provenance and
+          whether it is applied, undone or abandoned, and the current step
+          (SUB-19, SUB-21, decision 13 Oct). A GeoJSON foreign member, so
+          other tools still read the file as GeoJSON. Not content: left out
+          of every content hash. Last in the file. A plot sent to a view or
+          a tool never carries it.
+        range: PlotHistory
+        inlined: true

@@ -13,7 +13,7 @@ from debrief_stac.catalogue import (
     with_plot_details,
 )
 from debrief_stac.composite import CompositeCatalogue
-from debrief_stac.history import Base, Changes, Conflict, History, HistoryError, Step
+from debrief_stac.history import Base, Changes, Conflict, Head, History, HistoryError, Step
 from debrief_stac.store import FileStore, Store, StoreBusy, StoreError
 
 __all__ = [
@@ -21,6 +21,7 @@ __all__ = [
     "Changes",
     "Conflict",
     "History",
+    "Head",
     "HistoryError",
     "Step",
     "STAC_VERSION",

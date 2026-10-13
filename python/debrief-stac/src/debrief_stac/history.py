@@ -1,41 +1,50 @@
-"""A plot's history: every change a delta, replay, undo, recovery and conflicts.
+"""A plot's history, kept inside its plot file: steps, replay, undo, integrity and conflicts.
 
-Layout, inside the plot's item folder:
+One file, history included (decision 13 Oct). The plot file holds three things:
 
-    history/000001.json ...    one Delta per change, never rewritten (SUB-19)
-    history/head.json          where the history stands (HistoryHead)
-    plot.geojson               the plot as of head.current: a materialised view
+    content          the plot: features, named sets, provenance (SUB-05)
+    the island       view state, on the whole-plot feature's view (SUB-22)
+    history          every step, as the top-level member history (SUB-19)
 
-A change is written ahead: the delta first, created exclusively so two
-writers can never both claim the same number; then the head; then the plot.
-A crash at any point loses at most that change, and opening the plot again
-finishes or rebuilds it from the deltas (NFR-10). Each delta holds the
+so an analyst can pass the one file to a colleague and pass undo, redo, going
+back to a step and every provenance record with it. Each step holds the
 operation and its output, so replay applies outputs and never needs the tool
-that made them (decision 11 Oct). Undo moves the head back; a change made
-after undoing marks the undone deltas abandoned, kept on record (SUB-19, SUB-21).
+or the source files (decision 11 Oct): a source's first import is itself a
+step whose output is Debrief GeoJSON. Undo moves the current step back; a
+change made after undoing marks the undone steps abandoned, kept on record
+(SUB-19, SUB-21). All history is kept, always: nothing caps or folds it.
 
-The deltas are the record; the head and the plot file can be rebuilt from
-them. The steps not abandoned always form one chain, ending at the latest,
-so a lost or damaged head is rebuilt with the latest step current.
+Every change rewrites the whole file atomically, through a temporary file
+renamed over it (NFR-11), so the file on disk is always the whole old plot or
+the whole new one: a crash loses at most the change in progress (NFR-10).
+
+Integrity. The history is a hash chain (debrief_schemas.chain): each step's
+step_hash covers the step and the one before it, so a step altered, removed
+or reordered is noticed, and the current step's result_hash must be the hash
+of the content in the file. Content hashes leave out the island and the
+history: the island because it is view state, the history because it records
+content hashes. A history whose chain is broken is never trusted: the plot is
+shown as its file holds it and nothing is written to it. Content that does
+not match an intact history (an edit made outside Debrief) is never trusted
+silently either: a writer keeps the file aside and rebuilds the plot from its
+history, and says so; a reader shows the rebuilt plot and says so.
 
 Nobody locks a plot while an analyst has it open (SUB-29). A writer says
-which head it read (its Base); if the head has moved since, the change is
-refused as a Conflict, or merged when it touches different features from
+which state it read (its Base); if the plot has moved on since, the change
+is refused as a Conflict, or merged when it touches different features from
 the changes made meanwhile (SUB-28, SUB-29). Each write holds a short lock
-(milliseconds) so that two processes cannot interleave their head writes.
-The plot file is never trusted over the history: if it does not match the
-head it is rebuilt, and kept aside first if it holds content the history
-never recorded (an edit made outside Debrief).
+(milliseconds) so that two processes cannot interleave their writes.
 
-The plot file also holds the plot's island: view state, such as its time
-window, on the whole-plot feature's view (SUB-22, decision 12 Oct). The
-island is not content. Every hash here (a delta's result_hash, the head's
-plot_hash, a writer's Base) is taken over the plot with the island left out,
-so a change of view never looks like an edit and never conflicts with one.
-Deltas never hold it; replay, undo and redo produce content and carry the
-island on disk over unchanged; a change of content keeps whatever island is
-on disk when it is written, read under the lock. The island is written only
-by write_view, which refuses if it changed since the writer read it.
+The island is written only by write_view, which refuses if it changed since
+the writer read it, and never touches the content or the history. A change
+of content keeps whatever island is on disk when it is written, read under
+the lock.
+
+A plot made before history lived in its plot file has a history folder
+beside it (history/000001.json ..., history/head.json). The first writer to
+open it moves that history into the plot file, checks the result replays to
+the same content, and only then removes the folder. A reader that cannot
+write folds it in memory.
 """
 
 from __future__ import annotations
@@ -45,9 +54,10 @@ import hashlib
 import json
 import re
 import time as clock
-from collections.abc import Iterable
+from collections import OrderedDict
+from collections.abc import Callable, Iterable
 from dataclasses import dataclass, field
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Any
 
 from debrief_kernel.time import format_utc
 from debrief_schemas import (
@@ -55,14 +65,26 @@ from debrief_schemas import (
     DebriefFeatureCollection,
     DocumentKind,
     DocumentValidationError,
+    SchemaVersionError,
     dump_document,
     load_document,
     load_view,
     models,
 )
+from debrief_schemas.chain import (
+    GENESIS_HASH,
+    HISTORY_MEMBER,
+    UNHASHED,
+    content_of,
+    pointer_problems,
+    step_hash,
+    text_hash,
+)
+from debrief_schemas.documents import dump_history_step, load_history_step
 from debrief_schemas.island import (
     PLOT_KIND,
     dump_json,
+    plot_feature,
     set_view_in,
     strip_feature_view,
     view_hash_text,
@@ -74,10 +96,10 @@ from debrief_stac.store import StoreBusy
 if TYPE_CHECKING:
     from debrief_stac.catalogue import Catalogue
 
-HISTORY = "history"
-HEAD = "head.json"
-LOCK = ".lock"
-DELTA_FILE = re.compile(r"^(\d{6})\.json$")
+LOCK = ".lock"  # in the item's folder, beside the plot file
+LEGACY_FOLDER = "history"
+LEGACY_HEAD = "head.json"
+LEGACY_DELTA = re.compile(r"^(\d{6})\.json$")
 
 Feature = (
     models.TrackFeature
@@ -86,6 +108,18 @@ Feature = (
     | models.PlotFeature
 )
 View = dict  # a plot's island as JSON: the whole-plot feature's view
+
+DAMAGED = (
+    "This plot's history has been changed outside Debrief: {why}. Debrief shows the plot "
+    "as its file holds it, but will not change it. Ask whoever sent it for a fresh copy."
+)
+INTERRUPTED = (
+    "A save was interrupted before it finished, so the plot is as it was before that "
+    "change. Nothing else was lost."
+)
+MISMATCH = (
+    "This plot's history does not match its content: it may have been edited outside Debrief."
+)
 
 
 class HistoryError(Exception):
@@ -129,22 +163,31 @@ class Changes:
         return bool(self.touched())
 
     @classmethod
-    def of(cls, delta: models.Delta) -> Changes:
+    def of(cls, step: models.HistoryStep | models.Delta) -> Changes:
         return cls(
-            list(delta.added or []),
-            list(delta.modified or []),
-            list(delta.deleted_ids or []),
-            list(delta.named_sets or []),
-            list(delta.deleted_named_set_ids or []),
-            list(delta.order) if delta.order else None,
+            list(step.added or []),
+            list(step.modified or []),
+            list(step.deleted_ids or []),
+            list(step.named_sets or []),
+            list(step.deleted_named_set_ids or []),
+            list(step.order) if step.order else None,
         )
 
 
 @dataclass(frozen=True)
 class Base:
-    """The head a writer read, so a change made meanwhile is never overwritten."""
+    """The state a writer read, so a change made meanwhile is never overwritten."""
 
     current: int
+    plot_hash: str
+
+
+@dataclass(frozen=True)
+class Head:
+    """Where a plot's history stands: its current step, its latest, and the content's hash."""
+
+    current: int
+    latest: int
     plot_hash: str
 
 
@@ -155,10 +198,6 @@ class Step:
     status: str  # "applied", "undone" (can be redone) or "abandoned"
 
 
-def text_hash(text: str) -> str:
-    return f"sha256:{hashlib.sha256(text.encode('utf-8')).hexdigest()}"
-
-
 def _parsed(text: str) -> object | None:
     try:
         return json.loads(text)
@@ -166,15 +205,17 @@ def _parsed(text: str) -> object | None:
         return None
 
 
-# The last plot files read or written, by the digest of their text: each one's
-# content text and island. Taking the island out means parsing the whole file,
-# slow for a large plot, and the same file is hashed several times a change.
-_SPLIT: dict[bytes, tuple[str, View | None]] = {}
-_SPLIT_KEPT = 2
-
-
 def _digest(text: str) -> bytes:
     return hashlib.sha256(text.encode("utf-8")).digest()
+
+
+# --- A plot file's content and island, from its text ---------------------------
+
+# The last plot files split, by the digest of their text: each one's content
+# text and island. Splitting parses the whole file, slow for a large plot, and
+# the same file is split several times a change.
+_SPLIT: dict[bytes, tuple[str, View | None]] = {}
+_SPLIT_KEPT = 2
 
 
 def _remember(text: str, content: str, view: View | None) -> None:
@@ -185,30 +226,26 @@ def _remember(text: str, content: str, view: View | None) -> None:
 
 def _split(text: str) -> tuple[str, View | None]:
     """A plot file's content text, and its island as found (not checked)."""
-    if '"view"' not in text:  # no island: cheap
-        return text, None
+    if '"view"' not in text and f'"{HISTORY_MEMBER}"' not in text:
+        return text, None  # neither island nor history: its own content
     found = _SPLIT.get(_digest(text))
     if found is None:
         document = _parsed(text)
-        view = view_in(document)
-        if view is not None:
-            set_view_in(document, None)
-        found = (dump_json(document) if view is not None else text, view)
+        if not isinstance(document, dict):
+            return text, None
+        found = (dump_json(content_of(document)), view_in(document))
         _remember(text, *found)
     return found
 
 
 def content_text(text: str) -> str:
-    """A plot file's content: its text with the island left out, as Debrief writes it.
-
-    A file with no island is its own content, so plots that have never had
-    one hash as they always did.
-    """
+    """A plot file's content: its text without its island and its history, as Debrief
+    writes it. What every content hash is taken over."""
     return _split(text)[0]
 
 
 def content_hash(text: str) -> str:
-    """The hash the history records for a plot file: its content's, island left out."""
+    """The hash the history records for a plot file: its content's."""
     return text_hash(content_text(text))
 
 
@@ -220,6 +257,10 @@ def view_hash(view: View | None) -> str:
 def island_of(text: str | None) -> View | None:
     """The island in a plot file, or None. One that is not valid is left out."""
     view = _split(text)[1] if text is not None else None
+    return _valid_view(view)
+
+
+def _valid_view(view: View | None) -> View | None:
     if view is None:
         return None
     try:
@@ -230,7 +271,7 @@ def island_of(text: str | None) -> View | None:
 
 
 def with_island(text: str, view: View | None) -> str:
-    """A plot file's content text with an island put in. A plot with no whole-plot
+    """A plot's content text with an island put in. A plot with no whole-plot
     feature has nowhere to keep one, so its text is returned as it is."""
     if view is None:
         return text
@@ -240,10 +281,40 @@ def with_island(text: str, view: View | None) -> str:
     return dump_json(document)
 
 
+def _with_island_fast(text: str, plot: DebriefFeatureCollection, view: View | None) -> str:
+    """with_island without parsing the whole plot: the whole-plot feature is found in
+    the text as dump_document wrote it, and replaced. Falls back to parsing."""
+    feature = plot_feature(plot) if view is not None else None
+    if feature is None:
+        return with_island(text, view)
+    raw = feature.model_dump(mode="json", by_alias=True, exclude_none=True)
+    raw.setdefault("geometry", None)
+    indent = "\n    "  # a feature in the plot's features list
+    before = json.dumps(raw, indent=2, ensure_ascii=False).replace("\n", indent)
+    raw["properties"]["view"] = view
+    after = json.dumps(raw, indent=2, ensure_ascii=False).replace("\n", indent)
+    at = text.find(f"{indent}{before},") if f"{indent}{before}," in text else -1
+    if at < 0:
+        at = text.find(f"{indent}{before}\n")
+    if at < 0:
+        return with_island(text, view)
+    start = at + len(indent)
+    return text[:start] + after + text[start + len(before) :]
+
+
 def empty_plot() -> DebriefFeatureCollection:
     return DebriefFeatureCollection(
         type="FeatureCollection", schema_version=SCHEMA_VERSION, features=[], provenance=[]
     )
+
+
+_EMPTY: list[str] = []
+
+
+def _empty_hash() -> str:
+    if not _EMPTY:
+        _EMPTY.append(text_hash(dump_document(DocumentKind.PLOT, empty_plot())))
+    return _EMPTY[0]
 
 
 def apply(
@@ -287,57 +358,208 @@ def apply(
             "features": features,
             "named_sets": list(sets.values()) or None,
             "provenance": [*(plot.provenance or []), *records],
+            "history": None,
         }
     )
 
 
-class History:
-    """The history of one plot in a catalogue.
+# --- Steps and plot files in memory --------------------------------------------
 
-    Deltas never change once written, so each History caches those it reads;
-    make a new one (Catalogue.history) for each operation.
-    """
+
+class _Step:
+    """One step of a history: as JSON without its state and hash, its hash, and,
+    built when first needed, its model and its text in the file for each state."""
+
+    __slots__ = ("raw", "hash", "_model", "_texts")
+
+    def __init__(self, raw: dict[str, Any], hash_: str, model: Any = None):
+        self.raw = raw
+        self.hash = hash_
+        self._model = model
+        self._texts: dict[str, str] = {}
+
+    @property
+    def seq(self) -> int:
+        return self.raw["seq"]
+
+    @property
+    def after(self) -> int:
+        return self.raw["after"]
+
+    @property
+    def result_hash(self) -> str:
+        return self.raw["result_hash"]
+
+    def model(self) -> models.HistoryStep:
+        if self._model is None:
+            self._model = models.HistoryStep.model_validate(self.as_json("applied"))
+        return self._model
+
+    def records(self) -> list[models.ProvRecord]:
+        if self._model is not None:
+            return list(self._model.records)
+        return [models.ProvRecord.model_validate(r) for r in self.raw["records"]]
+
+    def as_json(self, state: str) -> dict[str, Any]:
+        rest = {k: v for k, v in self.raw.items() if k != "seq"}
+        return {"seq": self.seq, "state": state, **rest, "step_hash": self.hash}
+
+    def text(self, state: str) -> str:
+        """The step as it is written in the plot file: one line, compact. Indenting a
+        step's coordinates as the content is indented would make the history several
+        times the size of the plot; one line a step keeps it readable and diffable."""
+        if state not in self._texts:
+            self._texts[state] = json.dumps(
+                self.as_json(state), ensure_ascii=False, separators=(",", ":")
+            )
+        return self._texts[state]
+
+
+def _stripped(raw: dict[str, Any]) -> dict[str, Any]:
+    return {k: v for k, v in raw.items() if k not in UNHASHED}
+
+
+def _states(steps: list[_Step], current: int) -> list[str]:
+    _, states = pointer_problems([(s.seq, s.after, None) for s in steps], current)
+    return states
+
+
+@dataclass
+class _File:
+    """A plot file as read: content text, island, history; and what is wrong with it."""
+
+    content: str
+    view: View | None
+    current: int
+    steps: list[_Step]
+    has_history: bool = True
+    problem: str | None = None  # why the history cannot be trusted, for the analyst
+    digest: bytes = b""
+    stat: tuple[int, int] | None = None
+
+    @property
+    def latest(self) -> int:
+        return len(self.steps)
+
+    @property
+    def plot_hash(self) -> str:
+        return text_hash(self.content)
+
+    @property
+    def expected_hash(self) -> str:
+        return self.steps[self.current - 1].result_hash if self.current else _empty_hash()
+
+    def matches(self) -> bool:
+        """Whether the content is what the history says it is."""
+        return self.plot_hash == self.expected_hash
+
+    def head(self) -> Head:
+        return Head(self.current, self.latest, self.plot_hash)
+
+    def chain(self, upto: int) -> list[int]:
+        seqs = []
+        while upto:
+            seqs.append(upto)
+            upto = self.steps[upto - 1].after
+        return seqs[::-1]
+
+    def history_text(self) -> str:
+        """The history member as it is written, at its place in the file."""
+        states = _states(self.steps, self.current)
+        head = self.steps[-1].hash if self.steps else GENESIS_HASH
+        if self.steps:
+            body = ",\n      ".join(
+                s.text(state) for s, state in zip(self.steps, states, strict=True)
+            )
+            steps = f"[\n      {body}\n    ]"
+        else:
+            steps = "[]"
+        return (
+            f'{{\n    "current": {self.current},\n    "head_hash": "{head}",\n'
+            f'    "steps": {steps}\n  }}'
+        )
+
+
+def compose(content_and_island: str, history: _File) -> str:
+    """The whole plot file: content with its island, as dump_document writes it, then
+    the history, last, one step a line. Built from text already made, never by
+    dumping the whole document again."""
+    if not content_and_island.endswith("\n}\n"):
+        raise HistoryError("The plot could not be written: its content is not as expected.")
+    return f'{content_and_island[:-3]},\n  "{HISTORY_MEMBER}": {history.history_text()}\n}}\n'
+
+
+# The plot files last read or written, by path: each one as read, with its
+# steps, so a file read again unchanged is not parsed again, and a file another
+# process changed has only its new steps checked.
+_FILES: OrderedDict[str, _File] = OrderedDict()
+_FILES_KEPT = 4
+
+
+def _keep(key: str, file: _File) -> None:
+    _FILES[key] = file
+    _FILES.move_to_end(key)
+    while len(_FILES) > _FILES_KEPT:
+        _FILES.popitem(last=False)
+
+
+def _read_steps(raw_history: Any, previous: _File | None) -> tuple[list[_Step], int, str | None]:
+    """Check a history as read: every step valid and on the chain, the numbers and
+    pointers sound. Steps already checked, unchanged, are not checked again."""
+    if not (
+        isinstance(raw_history, dict)
+        and type(raw_history.get("current")) is int
+        and isinstance(raw_history.get("steps"), list)
+    ):
+        return [], 0, "its history cannot be read"
+    known = previous.steps if previous is not None and previous.problem is None else []
+    steps: list[_Step] = []
+    hash_ = GENESIS_HASH
+    for index, raw in enumerate(raw_history["steps"]):
+        if not isinstance(raw, dict):
+            return steps, 0, f"step {index + 1} of its history cannot be read"
+        stripped = _stripped(raw)
+        given = raw.get("step_hash")
+        if index < len(known) and known[index].hash == given and known[index].raw == stripped:
+            steps.append(known[index])
+            hash_ = given
+            continue
+        try:
+            model = load_history_step(raw)
+        except (DocumentValidationError, ValueError) as error:
+            return steps, 0, f"step {index + 1} of its history cannot be read ({error})"
+        if step_hash(raw, hash_) != given:
+            return steps, 0, f"step {index + 1} of its history is not as Debrief recorded it"
+        steps.append(_Step(stripped, given, model))
+        hash_ = given
+    if raw_history.get("head_hash") != hash_:
+        return steps, 0, "the last step of its history is missing or was changed"
+    current = raw_history["current"]
+    problems, _ = pointer_problems(
+        [
+            (s.seq, s.after, raw.get("state"))
+            for s, raw in zip(steps, raw_history["steps"], strict=True)
+        ],
+        current,
+    )
+    if problems:
+        return steps, 0, problems[0]
+    return steps, current, None
+
+
+class History:
+    """The history of one plot in a catalogue. Make a new one (Catalogue.history)
+    for each operation; what it reads is shared through a cache of plot files."""
 
     def __init__(self, catalogue: Catalogue, item_id: str):
         self.catalogue = catalogue
         self.item_id = item_id
         self.store = catalogue.store
-        self._folder = f"{item_id}/{HISTORY}"
+        self._legacy_folder = f"{item_id}/{LEGACY_FOLDER}"
         self._plot_path = catalogue.plot_path(item_id)
-        self._deltas: dict[int, models.Delta] = {}
+        self._key = f"{getattr(self.store, 'root', id(self.store))}/{self._plot_path}"
 
-    # --- Reading ----------------------------------------------------------------
-
-    def _delta_path(self, seq: int) -> str:
-        return f"{self._folder}/{seq:06d}.json"
-
-    def delta(self, seq: int) -> models.Delta:
-        if seq not in self._deltas:
-            try:
-                delta = load_document(
-                    DocumentKind.DELTA, self.store.read_text(self._delta_path(seq))
-                )
-            except FileNotFoundError:
-                raise HistoryError(f"Step {seq} of the plot's history is missing.") from None
-            except (DocumentValidationError, ValueError) as error:
-                raise HistoryError(
-                    f"Step {seq} of the plot's history is damaged: {error}"
-                ) from None
-            if delta.seq != seq:
-                raise HistoryError(f"Step {seq} of the plot's history holds step {delta.seq}.")
-            self._deltas[seq] = delta
-        return self._deltas[seq]
-
-    def _read_head(self) -> models.HistoryHead | None:
-        """The head as stored, or None if there is none or it is damaged."""
-        try:
-            return load_document(
-                DocumentKind.HISTORY_HEAD, self.store.read_text(f"{self._folder}/{HEAD}")
-            )
-        except FileNotFoundError:
-            return None
-        except (DocumentValidationError, ValueError):
-            return None  # rebuilt from the deltas by recover
+    # --- Reading the file -------------------------------------------------------
 
     def _read_plot_text(self) -> str | None:
         try:
@@ -345,39 +567,262 @@ class History:
         except FileNotFoundError:
             return None
 
-    def head(self) -> models.HistoryHead:
-        """The head, after making the history whole (see recover).
+    def _read(self, *, for_reading: bool = False) -> _File | None:
+        """The plot file as it is now, checked; None if there is none.
 
-        Where the store cannot be written (a read-only share), or another
-        process is saving, the history is made whole in memory only.
+        for_reading: only to show the plot, never to change it. A file whose size
+        and modification time are as this process last saw it is then taken as
+        unchanged, without reading it again (a large plot is tens of megabytes).
+        A writer always reads it, under the lock: a filesystem that keeps
+        modification times coarsely could otherwise hide another's change.
         """
+        try:
+            stat = self.store.size_and_mtime(self._plot_path)
+        except FileNotFoundError:
+            stat = None
+        cached = _FILES.get(self._key)
+        if for_reading and cached is not None and stat is not None and cached.stat == stat:
+            return cached
+        text = self._read_plot_text()
+        if text is None:
+            return None
+        digest = _digest(text)
+        if cached is not None and cached.digest == digest:
+            cached.stat = stat
+            return cached
+        document = _parsed(text)
+        if not isinstance(document, dict):
+            raise HistoryError("The plot file cannot be read: it is not a plot.")
+        found = document.get("schema_version")
+        if found != SCHEMA_VERSION:
+            raise SchemaVersionError(found if isinstance(found, str) else None)
+        content = dump_json(content_of(document))
+        view = view_in(document)
+        if HISTORY_MEMBER not in document:
+            file = _File(content, view, 0, [], has_history=False)
+        else:
+            steps, current, problem = _read_steps(document[HISTORY_MEMBER], cached)
+            file = _File(content, view, current, steps, problem=problem)
+        file.digest, file.stat = digest, stat
+        _keep(self._key, file)
+        return file
+
+    def _write(
+        self,
+        file: _File,
+        plot: DebriefFeatureCollection | None,
+        content_and_island: str,
+        before: _File | None,
+    ) -> None:
+        """Write the whole plot file atomically (NFR-11). Hold the lock.
+
+        before is the file as read under the lock: if it has changed since (a
+        writer that did not take the lock), nothing is written.
+        """
+        if before is not None and before.stat is not None:
+            try:
+                now = self.store.size_and_mtime(self._plot_path)
+            except FileNotFoundError:
+                now = None
+            if now != before.stat:
+                raise Conflict(
+                    "Someone else changed the plot at the same moment. Nothing was saved; "
+                    "open the plot again to see their change.",
+                    mergeable=False,
+                )
+        text = compose(content_and_island, file)
+        if plot is not None:
+            self.catalogue.store_plot_text(self.item_id, plot, text)
+        else:
+            self.store.write_text_atomic(self._plot_path, text)
+        file.digest = _digest(text)
+        try:
+            file.stat = self.store.size_and_mtime(self._plot_path)
+        except OSError:
+            file.stat = None
+        _keep(self._key, file)
+        _remember(text, file.content, file.view)
+
+    def _write_content(
+        self,
+        file: _File,
+        plot: DebriefFeatureCollection,
+        text: str,
+        before: _File | None,
+    ) -> None:
+        """Write content (text, already dumped and validated) with the island in file."""
+        file.content = text
+        self._write(file, plot, _with_island_fast(text, plot, _valid_view(file.view)), before)
+
+    # --- Making the history whole ---------------------------------------------
+
+    def _legacy_exists(self) -> bool:
+        return self.store.exists(self._legacy_folder)
+
+    def _settled(self) -> tuple[_File, list[str]]:
+        """What the plot is, worked out without writing anything, and what was found."""
+        file = self._read(for_reading=True)
+        if file is not None and file.has_history:
+            if file.problem is not None:
+                return file, [DAMAGED.format(why=file.problem)]
+            if not file.matches():
+                rebuilt = _File(
+                    dump_document(DocumentKind.PLOT, self._replay(file, file.current)),
+                    file.view,
+                    file.current,
+                    file.steps,
+                )
+                return rebuilt, [
+                    f"{MISMATCH} It is shown as its history records it, and left as it is."
+                ]
+            return file, []
+        if self._legacy_exists():
+            folded, notes = self._fold_legacy(file)
+            if folded is not None:
+                return folded, notes
+        return self._baseline(file)
+
+    def _baseline(self, file: _File | None) -> tuple[_File, list[str]]:
+        """A history for a plot that has none: one step holding its content."""
+        view = file.view if file is not None else None
+        plot = load_document(DocumentKind.PLOT, file.content) if file is not None else empty_plot()
+        start = _File(dump_document(DocumentKind.PLOT, empty_plot()), view, 0, [])
+        if not (plot.features or plot.named_sets or plot.provenance):
+            return start, []
+        records = list(plot.provenance or []) or [baseline_record()]
+        changes = Changes(list(plot.features), named_sets=list(plot.named_sets or []))
+        new, _, text = self._step(start, empty_plot(), records, changes)
+        new.content = text
+        return new, ["Started this plot's history from its saved content."]
+
+    def _repair(self) -> list[str]:
+        """Make the plot file whole, writing it if need be. Hold the lock."""
+        file = self._read()
+        if file is not None and file.has_history:
+            if file.problem is not None:
+                return [DAMAGED.format(why=file.problem)]
+            notes = []
+            if not file.matches():
+                kept = self._keep_aside()
+                plot = self._replay(file, file.current)
+                text = dump_document(DocumentKind.PLOT, plot)
+                rebuilt = _File(text, file.view, file.current, file.steps)
+                self._write_content(rebuilt, plot, text, None)
+                notes.append(
+                    f"{MISMATCH} It was rebuilt from its history; the file as found is kept "
+                    f"as {kept}."
+                )
+            if self._legacy_exists():  # a move into the plot file, interrupted at the end
+                self.store.delete_folder(self._legacy_folder)
+            if self._discard_leftovers():
+                notes.append(INTERRUPTED)
+            return notes
+        if self._legacy_exists():
+            folded, notes = self._fold_legacy(file)
+            if folded is not None:
+                self._write_folded(folded, file)
+                return notes
+            return notes  # cannot be moved: left as it is, read in memory
+        new, notes = self._baseline(file)
+        plot = load_document(DocumentKind.PLOT, new.content)
+        self._write_content(new, plot, new.content, None)
+        return notes
+
+    def _discard_leftovers(self) -> int:
+        """Clear what a save killed before its rename left beside the plot file. Hold
+        the lock. The plot file is the one before that save: nothing else is lost."""
+        try:
+            return self.store.discard_leftovers(self._plot_path)
+        except OSError:
+            return 0
+
+    def _whole(self) -> bool:
+        file = self._read(for_reading=True)
+        return (
+            file is not None
+            and file.has_history
+            and file.problem is None
+            and file.matches()
+            and not self._legacy_exists()
+            and not self.store.leftovers(self._plot_path)
+        )
+
+    def recover(self) -> list[str]:
+        """Make the plot file whole. Returns what was done, for the analyst.
+
+        - A plot with no history yet (made outside Debrief) gets a first step
+          holding its content and all its earlier records.
+        - A plot whose history is still in a history folder beside it has it
+          moved into the plot file, checked, and the folder removed.
+        - A plot whose content does not match its intact history (edited
+          outside Debrief) is rebuilt from its history, and the file as found
+          is kept aside under another name first. Only content is compared:
+          a file that differs in its island alone matches.
+        - A plot whose history's chain is broken is left as it is, and the
+          analyst is told: nothing will be written to it.
+        """
+        if self._whole():
+            return []
+        with self._locked():
+            return self._repair()
+
+    def open(self) -> list[str]:
+        """recover, for a reader: on a store that cannot be written, says so instead."""
+        try:
+            return self.recover()
+        except StoreBusy:
+            return []  # another process is saving; it leaves the plot whole
+        except OSError:
+            if self._whole():
+                return []
+            _, notes = self._settled()
+            return notes or [
+                "This plot needs repairing, but its folder cannot be changed, so it is "
+                "shown as its history records it and left as it is."
+            ]
+
+    def _state(self) -> _File:
+        """The plot as it stands, made whole first where it can be."""
         try:
             self.recover()
         except (OSError, StoreBusy):
-            head, _, _ = self._settled()
-            if head is not None:
-                return head
-            raise
-        head = self._read_head()
-        assert head is not None
-        return head
+            pass
+        file, _ = self._settled()
+        return file
+
+    def _writable(self) -> _File:
+        """The plot file, whole, for a change. Hold the lock."""
+        self._repair()
+        file = self._read()
+        if file is None or not file.has_history:  # its history folder could not be moved in
+            raise HistoryError(
+                "This plot's history could not be moved into its plot file, so it cannot "
+                "be changed."
+            )
+        if file.problem is not None:
+            raise HistoryError(DAMAGED.format(why=file.problem))
+        return file
+
+    # --- Reading ----------------------------------------------------------------
+
+    def head(self) -> Head:
+        """Where the history stands: current step, latest step, content hash."""
+        return self._state().head()
 
     def base(self) -> Base:
         head = self.head()
         return Base(head.current, head.plot_hash)
 
+    def problem(self) -> str | None:
+        """Why the plot cannot be changed, for the analyst, or None."""
+        file = self._state()
+        return DAMAGED.format(why=file.problem) if file.problem else None
+
     def plot(self) -> DebriefFeatureCollection:
-        """The plot as of the head, with its island: the plot file if its content
-        matches, else replayed, with the island in the file carried over."""
-        head = self.head()
-        text = self._read_plot_text()
-        if text is not None and content_hash(text) == head.plot_hash:
-            # The content, then the island on its own: content this process wrote was
-            # checked as it was written, so it is not checked again (it is slow).
-            plot = load_document(DocumentKind.PLOT, content_text(text))
-        else:
-            plot = self.replay(head.current)
-        view = island_of(text)
+        """The plot's content as of its current step, with its island."""
+        file = self._state()
+        plot = load_document(DocumentKind.PLOT, file.content)
+        view = _valid_view(file.view)
         return with_view(plot, load_view(view)) if view is not None else plot
 
     def view(self) -> tuple[models.PlotView | None, str]:
@@ -385,83 +830,93 @@ class History:
         view = island_of(self._read_plot_text())
         return load_view(view), view_hash(view)
 
+    def _trusted(self) -> _File:
+        file = self._state()
+        if file.problem is not None:
+            raise HistoryError(DAMAGED.format(why=file.problem))
+        return file
+
+    def delta(self, seq: int) -> models.HistoryStep:
+        """One step, by its number."""
+        file = self._trusted()
+        if not 1 <= seq <= file.latest:
+            raise HistoryError(f"Step {seq} is not in the plot's history.")
+        return file.steps[seq - 1].model()
+
+    step = delta
+
     def chain(self, upto: int) -> list[int]:
-        """The deltas replayed to reach a step: follow each delta's after link back."""
-        seqs = []
-        seq = upto
-        while seq:
-            seqs.append(seq)
-            seq = self.delta(seq).after
-        return seqs[::-1]
+        """The steps replayed to reach a step: follow each step's after link back."""
+        return self._trusted().chain(upto)
 
     def steps(self) -> list[Step]:
         """Every recorded change, oldest first, and whether it is in the plot now."""
-        head = self.head()
-        applied = set(self.chain(head.current))
-        live = set(self.chain(head.latest))
-        out = []
-        for seq in range(1, head.latest + 1):
-            status = "applied" if seq in applied else "undone" if seq in live else "abandoned"
-            out.append(Step(seq, list(self.delta(seq).records), status))
-        return out
+        file = self._trusted()
+        states = _states(file.steps, file.current)
+        return [
+            Step(s.seq, s.records(), state) for s, state in zip(file.steps, states, strict=True)
+        ]
 
     def replay(self, upto: int) -> DebriefFeatureCollection:
-        """The plot's content as it was after a step, rebuilt from the recorded deltas
-        (SUB-19). Content only: the island is never in the history."""
+        """The plot's content as it was after a step, rebuilt from the recorded steps
+        (SUB-19). Never needs a source file. Content only: no island, no history."""
+        return self._replay(self._trusted(), upto)
+
+    @staticmethod
+    def _replay(file: _File, upto: int) -> DebriefFeatureCollection:
         plot = empty_plot()
-        for seq in self.chain(upto):
-            delta = self.delta(seq)
-            plot = apply(plot, delta.records, Changes.of(delta))
+        for seq in file.chain(upto):
+            step = file.steps[seq - 1].model()
+            plot = apply(plot, step.records, Changes.of(step))
         return plot
+
+    def _content(self, file: _File) -> DebriefFeatureCollection:
+        return load_document(DocumentKind.PLOT, file.content)
 
     # --- Writing ----------------------------------------------------------------
 
     def _locked(self):
-        return self.store.locked(f"{self._folder}/{LOCK}")
+        return self.store.locked(f"{self.item_id}/{LOCK}")
 
-    def _new_head(self, current: int, latest: int, plot_hash: str) -> models.HistoryHead:
-        """A head; the abandoned steps are those off the chain to the latest."""
-        live = set(self.chain(latest))
-        return models.HistoryHead(
-            schema_version=SCHEMA_VERSION,
-            current=current,
-            latest=latest,
-            abandoned=[s for s in range(1, latest + 1) if s not in live] or None,
-            plot_hash=plot_hash,
+    def _step(
+        self,
+        file: _File,
+        plot: DebriefFeatureCollection,
+        records: list[models.ProvRecord],
+        changes: Changes,
+    ) -> tuple[_File, DebriefFeatureCollection, str]:
+        """The file with one more step, and the new content and its text (not yet in it)."""
+        changes = Changes(
+            [strip_feature_view(f) for f in changes.added],
+            [strip_feature_view(f) for f in changes.modified],
+            changes.deleted_ids,
+            changes.named_sets,
+            changes.deleted_named_set_ids,
+            changes.order,
         )
-
-    def _write_head(self, head: models.HistoryHead) -> None:
-        self.store.write_text_atomic(
-            f"{self._folder}/{HEAD}", dump_document(DocumentKind.HISTORY_HEAD, head)
+        new_plot = apply(plot, records, changes)
+        text = dump_document(DocumentKind.PLOT, new_plot)
+        seq = file.latest + 1
+        model = models.HistoryStep(
+            seq=seq,
+            state="applied",
+            after=file.current,
+            records=records,
+            added=changes.added or None,
+            modified=changes.modified or None,
+            deleted_ids=changes.deleted_ids or None,
+            named_sets=changes.named_sets or None,
+            deleted_named_set_ids=changes.deleted_named_set_ids or None,
+            order=changes.order or None,
+            result_hash=text_hash(text),
+            step_hash=GENESIS_HASH,
         )
-
-    def _write_plot(
-        self, plot: DebriefFeatureCollection, view: View | None, text: str | None = None
-    ) -> str:
-        """Write the plot's content with an island; returns the content's hash.
-
-        plot is content (no island); text, when given, is it already dumped
-        (and so validated). view is the island to keep: the one on disk,
-        read under the lock.
-        """
-        if text is None:
-            text = dump_document(DocumentKind.PLOT, plot)
-        whole = with_island(text, view)
-        self.catalogue.store_plot_text(self.item_id, plot, whole)
-        if whole is not text:
-            _remember(whole, text, view)
-        return text_hash(text)
-
-    def _disk_view(self) -> View | None:
-        """The island on disk now. Hold the lock, so nobody changes it meanwhile."""
-        return island_of(self._read_plot_text())
-
-    def _current_plot(self, head: models.HistoryHead) -> DebriefFeatureCollection:
-        """The plot's content as of the head."""
-        text = self._read_plot_text()
-        if text is not None and content_hash(text) == head.plot_hash:
-            return load_document(DocumentKind.PLOT, content_text(text))
-        return self.replay(head.current)
+        # Its features are the new content's, checked as it was dumped just now.
+        raw = _stripped(dump_history_step(model, features_checked=True))
+        previous = file.steps[-1].hash if file.steps else GENESIS_HASH
+        hash_ = step_hash(raw, previous)
+        step = _Step(raw, hash_, model.model_copy(update={"step_hash": hash_}))
+        return _File(file.content, file.view, seq, [*file.steps, step]), new_plot, text
 
     def commit(
         self,
@@ -473,92 +928,44 @@ class History:
     ) -> int:
         """Record a change and apply it to the plot. Returns the new step's number.
 
-        base is the head the change was made against; if the plot has changed
+        base is the state the change was made against; if the plot has changed
         since, Conflict is raised, unless merge is set and the changes made
-        meanwhile touch different features (SUB-29). Once this returns, or
-        fails after the delta is written, the change is saved: a later step
-        that fails is finished when the plot is next opened.
+        meanwhile touch different features (SUB-29). The plot file is rewritten
+        whole and atomically: once this returns, the change is saved; if it
+        fails, the file is as it was (NFR-11).
         """
         if not records:
             raise HistoryError("A change needs a record of what made it and who (SUB-24).")
         with self._locked():
-            self._repair()
-            head = self._read_head()
-            assert head is not None
+            file = self._writable()
             if base is not None and (base.current, base.plot_hash) != (
-                head.current,
-                head.plot_hash,
+                file.current,
+                file.plot_hash,
             ):
-                self._check_merge(base, head, changes, merge)
-            return self._append(head, self._current_plot(head), records, changes, self._disk_view())
+                self._check_merge(file, base, changes, merge)
+            return self._commit_locked(file, records, changes)
 
-    def _append(
-        self,
-        head: models.HistoryHead,
-        plot: DebriefFeatureCollection,
-        records: list[models.ProvRecord],
-        changes: Changes,
-        view: View | None,
+    def _commit_locked(
+        self, file: _File, records: list[models.ProvRecord], changes: Changes
     ) -> int:
-        """Write a delta, then the head, then the plot (write-ahead, NFR-10). Hold the lock.
+        """Record a change and write the plot with it. Hold the lock."""
+        new, new_plot, text = self._step(file, self._content(file), records, changes)
+        self._write_content(new, new_plot, text, file)
+        return new.current
 
-        plot is content; view is the island to keep, never recorded in the delta.
-        """
-        changes = Changes(
-            [strip_feature_view(f) for f in changes.added],
-            [strip_feature_view(f) for f in changes.modified],
-            changes.deleted_ids,
-            changes.named_sets,
-            changes.deleted_named_set_ids,
-            changes.order,
-        )
-        new_plot = apply(plot, records, changes)
-        text = dump_document(DocumentKind.PLOT, new_plot)
-        seq = head.latest + 1
-        delta = models.Delta(
-            schema_version=SCHEMA_VERSION,
-            seq=seq,
-            after=head.current,
-            records=records,
-            added=changes.added or None,
-            modified=changes.modified or None,
-            deleted_ids=changes.deleted_ids or None,
-            named_sets=changes.named_sets or None,
-            deleted_named_set_ids=changes.deleted_named_set_ids or None,
-            order=changes.order or None,
-            result_hash=text_hash(text),
-        )
-        try:
-            self.store.write_text_exclusive(
-                self._delta_path(seq), dump_document(DocumentKind.DELTA, delta)
-            )
-        except FileExistsError:  # a writer that did not take the lock
-            raise Conflict(
-                "Someone else changed the plot at the same moment. Nothing was saved; "
-                "open the plot again to see their change.",
-                mergeable=False,
-            ) from None
-        self._deltas[seq] = delta
-        self._write_head(self._new_head(seq, seq, text_hash(text)))
-        # Dumped above: validating it again is slow and the same.
-        self._write_plot(new_plot, view, text)
-        return seq
-
-    def _check_merge(
-        self, base: Base, head: models.HistoryHead, changes: Changes, merge: bool
-    ) -> None:
-        theirs = self.chain(head.current)
+    def _check_merge(self, file: _File, base: Base, changes: Changes, merge: bool) -> None:
+        theirs = file.chain(file.current)
         known = base.current == 0 or (
-            base.current in theirs and self.delta(base.current).result_hash == base.plot_hash
+            base.current in theirs and file.steps[base.current - 1].result_hash == base.plot_hash
         )
-        if not known or base.current == head.current:
+        if not known or base.current == file.current:
             raise Conflict(
                 "The plot was changed elsewhere since you opened it, in a way that cannot be "
                 "combined with your change. Save your work as a new plot.",
                 mergeable=False,
             )
         since = theirs[theirs.index(base.current) + 1 :] if base.current else theirs
-        touched = set().union(*(Changes.of(self.delta(s)).touched() for s in since))
+        touched = set().union(*(Changes.of(file.steps[s - 1].model()).touched() for s in since))
         overlap = touched & changes.touched()
         if overlap or not merge:
             raise Conflict(
@@ -576,67 +983,69 @@ class History:
 
     def check_base(self, base: Base) -> None:
         """Refuse a base that names no recorded state of this plot."""
-        head = self.head()
-        if base.current == 0 or base.current > head.latest:
+        file = self._trusted()
+        if base.current == 0 or base.current > file.latest:
             ok = base.current == 0
         else:
-            ok = self.delta(base.current).result_hash == base.plot_hash
+            ok = file.steps[base.current - 1].result_hash == base.plot_hash
         if not ok:
             raise HistoryError("The plot you started from is not one this plot's history holds.")
 
     def goto(self, seq: int, base: Base | None = None, *, allow_newer_schema: bool = False) -> None:
-        """Undo or redo to a step (SUB-21): replay to it and move the head there.
+        """Undo or redo to a step (SUB-21): replay to it and make it current.
 
         Only steps on the chain to the latest can be returned to: abandoned
         steps cannot, and neither can the state before the plot's first step.
         """
-        self._move(lambda head: seq, base, allow_newer_schema)
+        self._move(lambda file: seq, base, allow_newer_schema)
 
     def undo(self, base: Base | None = None, *, allow_newer_schema: bool = False) -> int:
         """Go back one step. Returns the step now current."""
 
-        def previous(head: models.HistoryHead) -> int:
-            if head.current == 0 or self.delta(head.current).after == 0:
+        def previous(file: _File) -> int:
+            if file.current == 0 or file.steps[file.current - 1].after == 0:
                 raise HistoryError("There is nothing to undo: the plot is as it was imported.")
-            return self.delta(head.current).after
+            return file.steps[file.current - 1].after
 
         return self._move(previous, base, allow_newer_schema)
 
     def redo(self, base: Base | None = None, *, allow_newer_schema: bool = False) -> int:
         """Go forward one undone step. Nothing is redoable once a new change is made."""
 
-        def following(head: models.HistoryHead) -> int:
-            if head.current == head.latest:
+        def following(file: _File) -> int:
+            if file.current == file.latest:
                 raise HistoryError("There is nothing to redo.")
-            live = self.chain(head.latest)
-            return live[live.index(head.current) + 1] if head.current else live[0]
+            live = file.chain(file.latest)
+            return live[live.index(file.current) + 1] if file.current else live[0]
 
         return self._move(following, base, allow_newer_schema)
 
-    def _move(self, choose, base: Base | None, allow_newer_schema: bool) -> int:
-        """Choose a step from the head and move there, all under the lock."""
+    def _move(
+        self, choose: Callable[[_File], int], base: Base | None, allow_newer_schema: bool
+    ) -> int:
+        """Choose a step and make it current, all under the lock."""
         # Undo rewrites the plot file in this version's schema (SUB-35).
         self.catalogue._check_schema(allow_newer_schema)
         with self._locked():
-            self._repair()
-            head = self._read_head()
-            assert head is not None
+            file = self._writable()
             if base is not None and (base.current, base.plot_hash) != (
-                head.current,
-                head.plot_hash,
+                file.current,
+                file.plot_hash,
             ):
                 raise Conflict(
                     "The plot was changed elsewhere since you opened it. Open it again first.",
                     mergeable=False,
                 )
-            seq = choose(head)
-            if seq not in self.chain(head.latest):
+            seq = choose(file)
+            if seq < 1 or seq > file.latest or seq not in file.chain(file.latest):
                 raise HistoryError(f"Step {seq} cannot be returned to.")
-            view = self._disk_view()  # undo never changes the island
-            plot = self.replay(seq)
-            text = dump_document(DocumentKind.PLOT, plot)
-            self._write_head(self._new_head(seq, head.latest, text_hash(text)))
-            self._write_plot(plot, view, text)
+            plot = self._replay(file, seq)
+            # The text the step recorded: checked when it was made, so not checked again.
+            text = dump_document(
+                DocumentKind.PLOT, plot, expected_hash=file.steps[seq - 1].result_hash
+            )
+            moved = _File(text, file.view, seq, file.steps)
+            self._write_content(moved, plot, text, file)
             return seq
 
     def write_view(self, view: models.PlotView | View | None, expected_hash: str) -> str:
@@ -645,18 +1054,16 @@ class History:
         expected_hash is the hash view() gave: if the island has changed since,
         Conflict is raised and nothing is written, so two people changing the
         window never silently overwrite each other (SUB-28). The island is
-        never recorded: no delta, no provenance, no undo. The plot file is
-        rewritten whole and atomically, under the history's lock, with its
-        content exactly as it was.
+        never recorded: no step, no provenance, no undo. The plot file is
+        rewritten whole and atomically, under the lock, with its content and
+        history exactly as they were.
         """
         if isinstance(view, models.PlotView):
             view = view.model_dump(mode="json", exclude_none=True)
         load_view(view)  # validates
         with self._locked():
-            self._repair()
-            text = self._read_plot_text()
-            assert text is not None
-            current = island_of(text)
+            file = self._writable()
+            current = _valid_view(file.view)
             if view_hash(current) != expected_hash:
                 raise Conflict(
                     "The plot's view was changed elsewhere. Debrief is showing the latest.",
@@ -664,178 +1071,179 @@ class History:
                 )
             if view == current:
                 return expected_hash
-            document = json.loads(text)
+            document = json.loads(file.content)
             if not set_view_in(document, view):
                 raise HistoryError("This plot has nowhere to keep its time window.")
-            new_text = dump_json(document)
-            content = content_text(text)
-            if content_text(new_text) != content:  # never: only the island moved
-                raise HistoryError("Changing the plot's view would have changed its content.")
-            self.store.write_text_atomic(self._plot_path, new_text)
-            _remember(new_text, content, view)
+            whole = dump_json(document)
+            moved = _File(file.content, view, file.current, file.steps)
+            self._write(moved, None, whole, file)
         return view_hash(view)
 
-    # --- Opening: making the history whole -----------------------------------
+    # --- Copies and received files --------------------------------------------
 
-    def _delta_seqs(self) -> list[int]:
-        found = []
-        for name in self.store.files(self._folder):
-            match = DELTA_FILE.match(name)
-            if match:
-                found.append(int(match.group(1)))
-        return sorted(found)
+    def fork_into(self, other: History, upto: int) -> None:
+        """Start another plot's history as a copy of this one's first steps, up to and
+        including upto, with upto current: the steps and their checksums unchanged."""
+        file = self._trusted()
+        if not 0 <= upto <= file.latest:
+            raise HistoryError(f"Step {upto} is not in the plot's history.")
+        steps = file.steps[:upto]
+        start = _File("", None, upto, steps)
+        plot = self._replay(start, upto)
+        text = dump_document(
+            DocumentKind.PLOT,
+            plot,
+            expected_hash=steps[upto - 1].result_hash if upto else None,
+        )
+        start.content = text
+        with other._locked():
+            other._write_content(start, plot, text, None)
 
-    def _settled(self) -> tuple[models.HistoryHead | None, list[str], int | None]:
-        """Where the history stands, worked out without writing anything.
-
-        Returns the head (None for a plot with no history yet), what was
-        found, and the number of a last delta that is unreadable (a crash part
-        way through writing it, where the filesystem could not write it whole).
-        """
-        notes: list[str] = []
-        head = self._read_head()
-        if head is None:
-            seqs = set(self._delta_seqs())
-            latest = 0
-            while latest + 1 in seqs:
-                latest += 1
-            if not latest:
-                return None, notes, None
-            try:
-                self.delta(latest)
-            except HistoryError:
-                latest -= 1  # the last one is unreadable: set aside by _repair
-                if not latest:
-                    return None, notes, 1
-            head = self._new_head(latest, latest, self.delta(latest).result_hash)
-            notes.append(
-                "The plot's history had lost its record of the current step, so it was "
-                "rebuilt from the recorded changes with the latest change current."
-            )
-        # Finish any change whose delta was written but whose head was not,
-        # whatever head was written meanwhile: the delta is the record.
-        while self.store.exists(self._delta_path(head.latest + 1)):
-            seq = head.latest + 1
-            try:
-                delta = self.delta(seq)
-            except HistoryError:
-                return head, notes, seq
-            head = self._new_head(seq, seq, delta.result_hash)
-            notes.append(f"Finished saving a change that was interrupted (step {seq}).")
-        return head, notes, None
-
-    def _repair(self) -> list[str]:
-        """Make the history and the plot agree. Hold the lock."""
-        stored = self._read_head()
-        head, notes, partial = self._settled()
-        if partial is not None:
-            self.store.rename(self._delta_path(partial), f"{self._folder}/.{partial:06d}.partial")
-            notes.append(
-                f"A change was interrupted before it was saved (step {partial}); it is lost."
-            )
-        if head is None:
-            return notes + self._start()
-        if head != stored:
-            self._write_head(head)
-        text = self._read_plot_text()
-        if text is None or content_hash(text) != head.plot_hash:
-            # The island is view state, not content: kept whatever the file's content.
-            view = island_of(text)
-            if text is not None and content_hash(text) not in self._recorded_hashes():
-                kept = self._keep_aside()
-                notes.append(
-                    "The plot file had been changed outside Debrief, so it was rebuilt from "
-                    f"its history; the file as found is kept as {kept}."
+    def adopt(self, text: str, records: list[models.ProvRecord] | None, name: str) -> list[str]:
+        """Make this (new, empty) plot the plot file received as text, with its whole
+        history, then record where it came from as one more step, so earlier steps
+        are never rewritten. Refuses a file whose history cannot be trusted."""
+        received = _File("", None, 0, [])
+        document = _parsed(text)
+        if not isinstance(document, dict):
+            raise HistoryError(f"{name} is not a plot file.")
+        found = document.get("schema_version")
+        if found != SCHEMA_VERSION:
+            raise SchemaVersionError(found if isinstance(found, str) else None)
+        received.content = dump_json(content_of(document))
+        received.view = _valid_view(view_in(document))
+        plot = load_document(DocumentKind.PLOT, received.content)  # checks the content
+        notes = []
+        if HISTORY_MEMBER in document:
+            steps, current, problem = _read_steps(document[HISTORY_MEMBER], None)
+            if problem is not None:
+                raise HistoryError(
+                    f"{name} was not added: its history has been changed outside Debrief "
+                    f"({problem})."
                 )
-            plot = self.replay(head.current)
-            plot_hash = self._write_plot(plot, view)
-            if head.current and not self._replays_as_recorded(plot, head.current):
-                notes.append(
-                    f"Replaying the history gave a different plot from the one recorded at "
-                    f"step {head.current}; check the plot."
-                )
-            if plot_hash != head.plot_hash:
-                head = head.model_copy(update={"plot_hash": plot_hash})
-                self._write_head(head)
+            received.steps, received.current = steps, current
+            if not received.matches():
+                raise HistoryError(f"{name} was not added. {MISMATCH}")
+        else:
+            received, notes = self._baseline(received)
+            plot = load_document(DocumentKind.PLOT, received.content)
+        with self._locked():
+            self._write_content(received, plot, received.content, None)
+            if records:
+                file = self._writable()
+                self._commit_locked(file, records, Changes())
         return notes
 
-    def _start(self) -> list[str]:
-        """Start the history of a plot that has none: a baseline holding its content."""
-        text = self._read_plot_text()
-        plot = load_document(DocumentKind.PLOT, text) if text is not None else empty_plot()
-        empty_hash = text_hash(dump_document(DocumentKind.PLOT, empty_plot()))
-        start = models.HistoryHead(
-            schema_version=SCHEMA_VERSION, current=0, latest=0, plot_hash=empty_hash
-        )
-        if not (plot.features or plot.named_sets or plot.provenance):
-            self._write_head(start)
-            self._write_plot(empty_plot(), None)
-            return []
-        records = list(plot.provenance or []) or [baseline_record()]
-        changes = Changes(list(plot.features), named_sets=list(plot.named_sets or []))
-        self._append(start, empty_plot(), records, changes, island_of(text))
-        return ["Started this plot's history from its saved content."]
+    # --- The history folder of the earlier layout ------------------------------
 
-    def _recorded_hashes(self) -> set[str]:
-        return {self.delta(s).result_hash for s in self._delta_seqs()}
+    def _fold_legacy(self, file: _File | None) -> tuple[_File | None, list[str]]:
+        """The plot with the history in its history folder moved into it, in memory,
+        checked: replaying it gives the content its head recorded."""
+        deltas, current, notes = self._legacy_deltas()
+        if not deltas:
+            return None, notes
+        steps: list[_Step] = []
+        previous = GENESIS_HASH
+        for delta in deltas:
+            raw = delta.model_dump(mode="json", by_alias=True, exclude_none=True)
+            raw.pop("schema_version", None)
+            model = models.HistoryStep.model_validate(
+                {**raw, "state": "applied", "step_hash": GENESIS_HASH}
+            )
+            stripped = _stripped(dump_history_step(model))
+            hash_ = step_hash(stripped, previous)
+            step = _Step(stripped, hash_, model.model_copy(update={"step_hash": hash_}))
+            steps.append(step)
+            previous = step.hash
+        folded = _File("", file.view if file is not None else None, current, steps)
+        plot = self._replay(folded, current)
+        text = dump_document(DocumentKind.PLOT, plot)
+        if text_hash(text) != folded.expected_hash:
+            return None, [
+                "This plot's history could not be moved into its plot file: replaying it "
+                f"does not give the plot it recorded at step {current}. It is left as it is."
+            ]
+        folded.content = text
+        return folded, notes + [
+            "This plot's history was moved into its plot file, so the one file now carries it."
+        ]
 
-    def _replays_as_recorded(self, plot: DebriefFeatureCollection, seq: int) -> bool:
-        delta = self.delta(seq)
-        # The plot is stamped with the schema it was written under.
-        as_written = plot.model_copy(update={"schema_version": delta.schema_version})
-        return text_hash(dump_document(DocumentKind.PLOT, as_written)) == delta.result_hash
+    def _write_folded(self, folded: _File, file: _File | None) -> None:
+        plot = load_document(DocumentKind.PLOT, folded.content)
+        self._write_content(folded, plot, folded.content, None)
+        _FILES.pop(self._key, None)  # read it back from disk, as anyone else would
+        check = self._read()
+        if (
+            check is None
+            or check.problem is not None
+            or not check.matches()
+            or [s.hash for s in check.steps] != [s.hash for s in folded.steps]
+            or check.current != folded.current
+        ):
+            raise HistoryError(
+                "This plot's history could not be moved into its plot file; the history "
+                "folder is kept."
+            )
+        self.store.delete_folder(self._legacy_folder)
+
+    def _legacy_deltas(self) -> tuple[list[models.Delta], int, list[str]]:
+        """The deltas of a history folder that form its history, and its current step.
+
+        As the earlier layout's recovery did: a lost or damaged head is rebuilt
+        with the latest delta current; a delta written but not made current (a
+        crash between the two) is finished; a last delta written only in part
+        is left out (NFR-10).
+        """
+        folder = self._legacy_folder
+        notes: list[str] = []
+        try:
+            head = load_document(
+                DocumentKind.HISTORY_HEAD, self.store.read_text(f"{folder}/{LEGACY_HEAD}")
+            )
+        except (FileNotFoundError, DocumentValidationError, ValueError):
+            head = None
+        seqs = set()
+        for name in self.store.files(folder):
+            match = LEGACY_DELTA.match(name)
+            if match:
+                seqs.add(int(match.group(1)))
+        deltas: list[models.Delta] = []
+        while len(deltas) + 1 in seqs:
+            seq = len(deltas) + 1
+            try:
+                delta = load_document(
+                    DocumentKind.DELTA, self.store.read_text(f"{folder}/{seq:06d}.json")
+                )
+            except (DocumentValidationError, ValueError):
+                notes.append(
+                    f"A change was interrupted before it was saved (step {seq}); it is lost."
+                )
+                break
+            if delta.seq != seq:
+                break
+            deltas.append(delta)
+        if head is None:
+            if deltas:
+                notes.append(
+                    "The plot's history had lost its record of the current step, so it was "
+                    "rebuilt from the recorded changes with the latest change current."
+                )
+            return deltas, len(deltas), notes
+        if len(deltas) < head.latest:
+            raise HistoryError(f"Step {len(deltas) + 1} of the plot's history is missing.")
+        current = head.current
+        for delta in deltas[head.latest :]:
+            notes.append(f"Finished saving a change that was interrupted (step {delta.seq}).")
+            current = delta.seq
+        return deltas, current, notes
 
     def _keep_aside(self) -> str:
         stamp = format_utc(int(clock.time() * 1000)).replace(":", "")
         kept, n = f"{self._plot_path}.kept-{stamp}", 2
         while self.store.exists(kept):
             kept, n = f"{self._plot_path}.kept-{stamp}-{n}", n + 1
-        self.store.rename(self._plot_path, kept)
+        self.store.copy(self._plot_path, kept)
         return kept.split("/")[-1]
-
-    def _whole(self) -> bool:
-        head = self._read_head()
-        if head is None or self.store.exists(self._delta_path(head.latest + 1)):
-            return False
-        text = self._read_plot_text()
-        return text is not None and content_hash(text) == head.plot_hash
-
-    def recover(self) -> list[str]:
-        """Make the history and the plot agree. Returns what was done, for the analyst.
-
-        - A plot with no history yet gets a baseline delta holding its content
-          and all its earlier records.
-        - A lost or damaged head is rebuilt from the deltas.
-        - A delta written but not completed (a crash between the delta and
-          the head) is completed: at most the change in progress is lost
-          (NFR-10), and here not even that. A delta written only in part is
-          set aside.
-        - A plot file that does not match the head (a crash between the head
-          and the plot) is rebuilt from the history. If it holds content the
-          history never recorded, it is kept aside under another name first.
-          Only content is compared: a file that differs in its island alone
-          matches, and its island is kept whenever the file is rebuilt.
-        """
-        if self._whole():
-            return []
-        with self._locked():
-            return self._repair()
-
-    def open(self) -> list[str]:
-        """recover, for a reader: on a store that cannot be written, says so instead."""
-        try:
-            return self.recover()
-        except StoreBusy:
-            return []  # another process is saving; it leaves the plot whole
-        except OSError:
-            return (
-                []
-                if self._whole()
-                else [
-                    "This plot needs repairing, but its folder cannot be changed, so it is "
-                    "shown as its history records it and left as it is."
-                ]
-            )
 
 
 def baseline_record() -> models.ProvRecord:
