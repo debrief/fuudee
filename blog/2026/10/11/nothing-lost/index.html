@@ -1492,7 +1492,7 @@
                           <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 20a8 8 0 0 0 8-8 8 8 0 0 0-8-8 8 8 0 0 0-8 8 8 8 0 0 0 8 8m0-18a10 10 0 0 1 10 10 10 10 0 0 1-10 10C6.47 22 2 17.5 2 12A10 10 0 0 1 12 2m.5 5v5.25l4.5 2.67-.75 1.23L11 13V7z"/></svg>
                           <span class="md-ellipsis">
                             
-                              5 min read
+                              6 min read
                             
                           </span>
                         </div>
@@ -1550,6 +1550,10 @@
 <li>then the plot file.</li>
 </ol>
 <p>A crash at any point loses at most the change in progress, and here not even that.</p>
+<div class="admonition note">
+<p class="admonition-title">Update, 13 Oct 2026</p>
+<p>The steps no longer sit in a folder beside the plot: the plot file now carries its whole history, so the one file an analyst sends a colleague brings undo, redo and every record with it. Each save writes a complete new plot file and only then puts it in place of the old one, so a crash leaves the plot exactly as it was before the save in progress; reopening says a save was interrupted. The history is also checked for changes made outside Debrief. See <a href="../../13/history-in-the-plot-file/">One file, history included</a>.</p>
+</div>
 <h3 id="try-it">Try it<a class="headerlink" href="#try-it" title="Permanent link">&para;</a></h3>
 <p>Run a tool, undo it, then <strong>Crash part-way through a save</strong> and <strong>Reopen the plot</strong>:</p>
 <div class="debrief-demo" data-demo="?panels=tools,try,history" data-height="780px"></div>

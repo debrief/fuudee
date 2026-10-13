@@ -1481,21 +1481,30 @@
 <td>NFR-11</td>
 <td>Saves are atomic; a failed save leaves the original intact and says so.</td>
 </tr>
+<tr>
+<td>SUB-19</td>
+<td>The plot's whole history is in its plot file, protected by checksums.</td>
+</tr>
 </tbody>
 </table>
 <h2 id="model">Model<a class="headerlink" href="#model" title="Permanent link">&para;</a></h2>
 <p>Plots are never locked (SUB-29). Instead every change says which version of the plot it was made against (its <em>base</em>), and is refused if the plot has moved on.</p>
 <ol>
-<li><strong>Noticed while open.</strong> Debrief checks each second whether the open plot's history has changed on disk: another window, another analyst on a shared folder, an agent. If it has, the map, outline and History view show the latest, and a notification says <em>"Serial 1 was changed elsewhere. Debrief is showing the latest."</em> (SUB-28). Nothing the analyst had done is lost: their changes were already saved as steps.</li>
+<li><strong>Noticed while open.</strong> Debrief checks each second whether the open plot's file has changed on disk: another window, another analyst on a shared folder, an agent. The plot file holds the plot's whole history, so Debrief compares the history's current step, how many steps it holds, and the checksum of the content the current step recorded. If the plot has moved on, the map, outline and History view show the latest, and a notification says <em>"Serial 1 was changed elsewhere. Debrief is showing the latest."</em> (SUB-28). Nothing the analyst had done is lost: their changes were already saved as steps. If only the plot's time window changed (its island), Debrief shows the new window and says so, without reading the plot again.</li>
 <li><strong>Met by a tool run.</strong> If the plot changed between the analyst opening it and running a tool, the tool's result is not saved. Debrief asks, in a dialog:</li>
 <li>where the two changes touch <strong>different features</strong>: <strong>Combine the changes</strong> (the tool's result is applied on top of the other change) or <strong>Save mine as a new plot</strong>;</li>
 <li>where they touch <strong>the same features</strong> (including a named set that refers to a feature the other change deleted): only <strong>Save mine as a new plot</strong>. Overlapping changes are never combined automatically.</li>
 <li><strong>Cancel</strong> saves nothing and shows the latest; the analyst can run the tool again.</li>
-<li><strong>Saved as a new plot.</strong> The new plot, <em>Serial 1 (your changes)</em>, has the history the analyst was working from, the same sources and files, and then their change. The original keeps the other change. Debrief offers to open it.</li>
+<li><strong>Saved as a new plot.</strong> The new plot, <em>Serial 1 (your changes)</em>, has the history the analyst was working from (every step up to it, unchanged, checksums and all), the same sources and files, and then their change. The original keeps the other change. Debrief offers to open it.</li>
 <li><strong>Met by undo.</strong> Undo is refused if the plot changed since it was shown; Debrief shows the latest and says nothing was undone.</li>
-<li><strong>Newer schema.</strong> A plot written by a newer Debrief is refused, with the version it needs, and never partly loaded (SUB-14). Before saving a change, an undo or an import would write a newer schema into a catalogue other analysts share, Debrief says so and asks: <strong>Save anyway</strong> updates the catalogue's declared version; closing the dialog saves nothing (SUB-35). Until schema 1.0 a catalogue must match exactly to open at all (SUB-13), so the question first appears after 1.0.</li>
+<li>
+<p><strong>Newer schema.</strong> A plot written by a newer Debrief is refused, with the version it needs, and never partly loaded (SUB-14). Before saving a change, an undo or an import would write a newer schema into a catalogue other analysts share, Debrief says so and asks: <strong>Save anyway</strong> updates the catalogue's declared version; closing the dialog saves nothing (SUB-35). Until schema 1.0 a catalogue must match exactly to open at all (SUB-13), so the question first appears after 1.0.</p>
+</li>
+<li>
+<p><strong>Changed outside Debrief.</strong> A plot whose history fails its checksums (a step altered, removed or moved by hand) is shown as its file holds it, but Debrief changes nothing in it and says so: <em>"This plot's history has been changed outside Debrief: step 2 of its history is not as Debrief recorded it. Debrief shows the plot as its file holds it, but will not change it. Ask whoever sent it for a fresh copy."</em> A plot whose content no longer matches its intact history (edited in another program, say) is rebuilt from its history, the file as found is kept beside it, and Debrief says so. A change to the time window alone is never treated as either.</p>
+</li>
 </ol>
-<p>Each save is atomic and takes a lock for the milliseconds it lasts, so two processes saving at once can't interleave; a reader never waits (NFR-11).</p>
+<p>Each save rewrites the whole plot file, content and history together, through a new file that replaces the old one only once it is complete, and takes a lock for the milliseconds it lasts, so two processes saving at once can't interleave; a reader never waits (NFR-11). If a process dies part-way, the plot file is the one from before that save, whole; opening the plot says a save was interrupted.</p>
 <pre class="mermaid"><code>sequenceDiagram
     actor Analyst
     participant Host as Extension host
@@ -1514,9 +1523,10 @@
     Host-&gt;&gt;Host: reload plot and History view</code></pre>
 <h2 id="reference-implementation">Reference implementation<a class="headerlink" href="#reference-implementation" title="Permanent link">&para;</a></h2>
 <ul>
-<li><strong>Detecting and merging:</strong> <code>History.commit</code> and <code>_check_merge</code> in <code>debrief_stac.history</code>; <code>Catalogue.save_as_new</code>.</li>
+<li><strong>Detecting and merging:</strong> <code>History.commit</code> and <code>_check_merge</code> in <code>debrief_stac.history</code>; <code>Catalogue.save_as_new</code> (<code>History.fork_into</code>).</li>
+<li><strong>Checksums:</strong> <code>debrief_schemas.chain</code> (the hash chain, the content hash, the step rules); the <code>DAMAGED</code> and <code>MISMATCH</code> messages in <code>debrief_stac.history</code>.</li>
 <li><strong>The service:</strong> <code>base</code> and <code>on_conflict</code> on <code>tools/call</code>; error -32001 on <code>debrief/undo</code>, <code>redo</code> and <code>goto</code>.</li>
-<li><strong>The extension:</strong> <code>watch</code>, <code>askAboutConflict</code> and <code>runTool</code> in <code>vscode/src/extension.ts</code>.</li>
+<li><strong>The extension:</strong> <code>watch</code>, <code>askAboutConflict</code> and <code>runTool</code> in <code>vscode/src/extension.ts</code>; <code>historyOnDisk</code> and <code>changedSince</code> in <code>vscode/src/catalogue.ts</code>.</li>
 </ul>
 
 

@@ -1471,7 +1471,7 @@
 </tr>
 <tr>
 <td>SUB-19, SUB-20</td>
-<td>Prior states are rebuilt by deterministic replay from sources.</td>
+<td>Prior states are rebuilt by deterministic replay of the recorded steps; the whole history is in the plot file, protected by checksums.</td>
 </tr>
 <tr>
 <td>SUB-22</td>
@@ -1480,6 +1480,10 @@
 <tr>
 <td>NFR-10</td>
 <td>After an unexpected exit, at most the last operation is lost.</td>
+</tr>
+<tr>
+<td>NFR-11</td>
+<td>Saves are atomic: the plot file is always the whole plot before a change or after it.</td>
 </tr>
 </tbody>
 </table>
@@ -1494,7 +1498,10 @@
 <li><strong>Colour and hiding are changes to the plot.</strong> Changing a track's colour (blue friendly to red enemy, say) or hiding a feature on the map, from the outline's context menu, is a step like any other: recorded with who made it, named in the History view ("Colour of BLUE ONE set to red", "Cargo 01 hidden on the map"), and undone by <code>Ctrl+Z</code> (decision, 12 Oct 2026). A colour or hiding change made against a plot someone else has changed since is refused, as any change is, and Debrief shows the latest (SUB-28). Hidden features never go unseen: the map shows how many are hidden, with <strong>Show all</strong>, and opening a plot with hidden features says how many.</li>
 <li><strong>The plot's island: view state that travels with the plot.</strong> Some view state is saved in the plot file, so a colleague given the plot sees it as it was left: the plot's time window, for now (one window for the whole plot, CAP-28). It sits on the plot's own details (the whole-plot feature) as its <em>view</em>, an island outside the history. Changing it is never a step, is never undone and is never recorded. The history ignores it: every hash and every recorded step leaves it out, so moving the window never conflicts with a change to the plot, undo and redo leave it where it is, and a plot file whose only difference is its window is never treated as edited outside Debrief. Two people changing the window at once are told, not silently overwritten: a change of view names the view it started from.</li>
 <li><strong>What isn't undone.</strong> Current time, selection and viewport are view state: undo leaves them where they are, and they aren't recorded (SUB-22). Neither is the plot's island. Results panels stay open.</li>
-<li><strong>After a crash.</strong> Opening a plot finishes a change that was interrupted part-way, and says so; at most the change in progress is lost (NFR-10).</li>
+<li><strong>After a crash.</strong> Every change rewrites the plot file whole, and the new file replaces the old one only once it is complete, so a crash leaves the plot as it was before the change in progress. Opening the plot says a save was interrupted; at most that change is lost (NFR-10, NFR-11).</li>
+<li><strong>The history travels with the plot.</strong> The plot file holds the whole history, every step, undone and replaced ones included, so an analyst who sends a colleague the plot file sends its history. The colleague adds it to a catalogue with <strong>Add a plot file…</strong> (on the Catalogues view); one more step records where it came from, and the colleague can undo, redo and go back to any step, the sender's included (decision, 13 Oct 2026). That step changes nothing on the map, so <code>Ctrl+Z</code> takes it back together with the sender's last change, and redo brings both back; the History view marks both as <em>next to undo</em>. A step the sender had undone and not redone comes across replaced by that later step: kept on record, but it can't be redone. Source files don't travel and aren't needed: each step holds its output.</li>
+<li><strong>Nothing is ever thrown away.</strong> All history is kept: there is no limit on steps and nothing is folded together.</li>
+<li><strong>Checked for changes made outside Debrief.</strong> Each step carries a checksum that covers it and the step before, and the current step records the checksum of the plot's content. A history altered by hand is shown but never changed: undo, redo and every change are refused, and Debrief says what failed. Content that no longer matches its history is rebuilt from the history, with the file as found kept beside it. The island is outside every checksum, so a new time window is never mistaken for an edit.</li>
 </ol>
 <p>Undo works by replay: the plot is rebuilt from the recorded outputs of the steps up to the one chosen, never by asking tools to reverse themselves (SUB-20, SUB-21). Replay rebuilds content only; the island on disk is carried over unchanged. Agents undo through the tool service's <code>debrief/undo</code>, <code>debrief/redo</code> and <code>debrief/goto</code>, colour and hide through <code>debrief/set_colour</code> and <code>debrief/set_hidden</code>, and change the view through <code>debrief/set_view</code>, with the same rules. Tools see a plot's content, never its island: a tool run is recorded by its selection and parameters, so it must not depend on view state outside the history; a tool that needs a time span takes it as a parameter.</p>
 <pre class="mermaid"><code>sequenceDiagram
@@ -1510,18 +1517,19 @@
         Service--&gt;&gt;Host: -32001
         Host-&gt;&gt;Host: show the latest; say nothing was undone
     else
-        History-&gt;&gt;History: replay to the step before; write head, then plot
+        History-&gt;&gt;History: replay to the step before; write the plot file whole
         Service--&gt;&gt;Host: new base
         Host-&gt;&gt;Host: reload plot and History view
     end</code></pre>
 <h2 id="reference-implementation">Reference implementation<a class="headerlink" href="#reference-implementation" title="Permanent link">&para;</a></h2>
 <ul>
-<li><strong>The history:</strong> <code>debrief_stac.history</code> (deltas, replay, undo, redo, recovery).</li>
+<li><strong>The history:</strong> <code>debrief_stac.history</code> (steps in the plot file, replay, undo, redo, recovery, checksums, moving a history folder into the plot file); <code>debrief_schemas.chain</code> (the hash chain and the content hash); <code>HistoryStep</code> and <code>PlotHistory</code> in <code>schemas/linkml/history.yaml</code>.</li>
+<li><strong>A plot file from a colleague:</strong> <code>Catalogue.add_plot_file</code>; <code>debrief/add_plot_file</code>; <strong>Add a plot file…</strong> (<code>debrief.addPlotFile</code>) in <code>vscode/src/extension.ts</code>.</li>
 <li><strong>The service:</strong> <code>debrief/open</code>, <code>debrief/history</code>, <code>debrief/undo</code>, <code>debrief/redo</code>, <code>debrief/goto</code> in <code>debrief_tools.service</code>.</li>
 <li><strong>The extension:</strong> the History view, <code>vscode/src/views/history.ts</code>; commands and keys in <code>vscode/src/extension.ts</code> (<code>move</code>) and <code>vscode/package.json</code>.</li>
-<li><strong>The test:</strong> the integration test's Phase 2 exit: edit, undo, a Debrief process killed mid-save, recover.</li>
+<li><strong>The test:</strong> the integration test's Phase 2 exit: edit, undo, a Debrief process killed mid-save, recover; and its last part, a plot file sent to a colleague, who undoes a step the sender made.</li>
 <li><strong>Colour and hiding:</strong> <code>debrief_stac.Catalogue.set_colour</code> and <code>set_hidden</code>; <code>debrief/set_colour</code> and <code>debrief/set_hidden</code>; <code>restyle</code> and the colour and hide commands in <code>vscode/src/extension.ts</code>; <code>vscode/src/hidden.ts</code> (what the map shows).</li>
-<li><strong>The island:</strong> <code>debrief_schemas.island</code>; in <code>debrief_stac.history</code>, <code>content_hash</code> (every hash leaves the island out), <code>write_view</code> (under the history's lock, refused if the view changed since it was read) and the island carried over by commit, replay, undo and recovery; <code>debrief/set_view</code>, and the view and its hash from <code>debrief/open</code>.</li>
+<li><strong>The island:</strong> <code>debrief_schemas.island</code>; in <code>debrief_stac.history</code>, <code>content_hash</code> (every hash leaves the island and the history out), <code>write_view</code> (under the history's lock, refused if the view changed since it was read) and the island carried over by commit, replay, undo and recovery; <code>debrief/set_view</code>, and the view and its hash from <code>debrief/open</code>.</li>
 <li><strong>Retired:</strong> <code>presentation.json</code>. Before schema 1.0 a plot from an older schema version cannot be opened at all (SUB-13), so this rarely applies: a plot of the current version that still has one gets, the first time a writer opens it, one recorded step applying its colours and hidden features, and the file is deleted (<code>Catalogue.migrate_presentation</code>); a read-only catalogue applies it in memory.</li>
 </ul>
 <p>The <a href="../time-controller/">time controller</a> sets the plot's window and says what is saved where. <em>Not yet:</em> other view state in the island, which arrives with its features. Other presentation (line styles, labels) will be content, like colour.</p>
