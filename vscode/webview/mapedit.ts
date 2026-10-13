@@ -414,8 +414,13 @@ export class MapEditor {
   setSelection(ids: string[]): void {
     this.selection = ids;
     const id = ids.length === 1 ? ids[0] : undefined;
-    const spec = id ? this.host.annotation(id) : undefined;
     const before = this.selected?.id;
+    // The same annotation said again while it is dragged, nudged or being saved (the click that
+    // chose it landing late, or another view): it stays as it is, with its handles and the gesture.
+    // Its own layers are off the map meanwhile, so asking for it now would find nothing and drop
+    // the handles under the pointer, leaving the drag with nothing to let go of.
+    if (id && id === before && (this.drag || this.nudge || this.awaiting)) return;
+    const spec = id ? this.host.annotation(id) : undefined;
     if (this.selected && before !== id) this.cancelEdit();
     this.selected = id && spec && handlesOf(spec).length ? { id, spec } : undefined;
     this.showHandles();

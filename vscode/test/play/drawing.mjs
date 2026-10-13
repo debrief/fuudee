@@ -87,6 +87,13 @@ export async function playDrawing(page, shot) {
   await page.mouse.down();
   await page.mouse.move(corner.x + 30, corner.y - 40, { steps: 6 });
   await status.getByText(/Area 'Patrol box': corner 2 at .* · area .* nmi²/).waitFor();
+  // The selection said again meanwhile, as when the click that chose it lands after the press
+  // (or another view says it): the drag goes on, its handles with it.
+  await page.evaluate(() => document.querySelector('#outline li[data-id="annotation-patrol-box"]').click());
+  await page.waitForTimeout(300);
+  await page.mouse.move(corner.x + 40, corner.y - 50, { steps: 2 });
+  await status.getByText(/Area 'Patrol box': corner 2 at .* · area .* nmi²/).waitFor();
+  assert.equal(await mapFrame.locator(".edit-handle").count(), 9, "the handles stay through the drag");
   await page.mouse.up();
   await historySays("Area 'Patrol box' reshaped");
   assert.equal(await steps(), n + 1, "one step for one release");
@@ -230,6 +237,10 @@ export async function playDrawing(page, shot) {
   // Without a pointer: Enter on Marker, Space places it at the cross in the middle of the map.
   // The form opens; Cancel keeps nothing, on the map or in the history.
   n = await steps();
+  await page.locator(".frame-annotation").waitFor({ state: "detached" });
+  await page.waitForTimeout(300);
+  const exerciseArea = mapFrame.locator('path[fill-opacity="0.05"]').first();
+  const panFrom = (await exerciseArea.boundingBox()).x;
   await tool("Label").focus();
   await page.keyboard.press("ArrowDown"); // along the toolbar, as a toolbar's arrow keys go
   assert.equal(await mapFrame.locator(".draw-button:focus").innerText(), "Marker");
@@ -244,6 +255,10 @@ export async function playDrawing(page, shot) {
   await page.locator(".frame-annotation").waitFor({ state: "detached" });
   await page.waitForTimeout(500);
   assert.equal(await steps(), n);
+  // The form opened beside the map, and closed, while the map was still panning: the map is
+  // where the one arrow key took it, not off sideways by half the form's width.
+  const panned = (await exerciseArea.boundingBox()).x - panFrom;
+  assert.ok(Math.abs(panned - 80) < 3, `the map panned 80 px for the arrow key, not ${panned}`);
 
   // Escape cancels a drawing part-way; Backspace removes the last point.
   await tool("Line").click();

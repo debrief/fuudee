@@ -176,6 +176,9 @@ export class TrackEditor {
     const before = this.selected?.id;
     this.selection = ids;
     const id = ids.length === 1 ? ids[0] : undefined;
+    // The same track said again while it is dragged, nudged or being saved (the click that chose it
+    // landing late, or another view): it stays as it is, the handle in use where the pointer has it.
+    if (id && id === before && (this.drag || this.nudge || this.run.saving)) return;
     const shown = id ? this.host.track(id) : undefined;
     if (before && before !== id) this.cancelGesture();
     if (id !== before) this.chosenPivot = undefined;

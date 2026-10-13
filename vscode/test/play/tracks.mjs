@@ -22,6 +22,9 @@ export async function playTracks(page, shot) {
   /** Press on a handle, move by (dx, dy) as a hand would, and leave the button down. */
   const grab = async (role, dx, dy) => {
     const at = await centreOf(handle(role));
+    // On the map, where a hand can reach it: a press beyond the map's edge would grab nothing.
+    const frame = await page.locator(".frame-map").boundingBox();
+    assert.ok(at.x > frame.x && at.x < frame.x + frame.width && at.y > frame.y && at.y < frame.y + frame.height, `the ${role} handle is on the map, at ${Math.round(at.x)}, ${Math.round(at.y)}`);
     await page.mouse.move(at.x, at.y);
     await page.mouse.down();
     await page.mouse.move(at.x + dx, at.y + dy, { steps: 8 });

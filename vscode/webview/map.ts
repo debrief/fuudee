@@ -790,6 +790,16 @@ function fit(bounds: L.LatLngBounds, padding = 40): void {
 map.on("movestart zoomstart", () => {
   if (!fitting) moved = true;
 });
+// A resize keeps the map's centre by shifting the map. A pan still animating then (an arrow
+// key pressed just before a form opens beside the map, say) would carry on to where it was
+// heading in the old size and undo that shift: the map would end up off sideways by half the
+// change in width, and stay so once the form closes. The shift goes into the pan as well.
+// (Leaflet 1.9 keeps the pan in _panAnim, from _startPos; it has no public way to do this.)
+map.on("resize", (event: L.ResizeEvent) => {
+  const pan = (map as unknown as { _panAnim?: { _inProgress?: boolean; _startPos?: L.Point } })._panAnim;
+  if (!pan?._inProgress || !pan._startPos) return;
+  pan._startPos = pan._startPos.subtract(event.oldSize.divideBy(2).round().subtract(event.newSize.divideBy(2).round()));
+});
 // When a form or results panel opens beside the map, keep the plot in view.
 new ResizeObserver(() => {
   if (!mapElement.clientWidth || !mapElement.clientHeight) return; // hidden: nothing to fit
