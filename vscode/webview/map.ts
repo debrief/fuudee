@@ -623,8 +623,11 @@ function drawMarks(track: Track, first: number, last: number, colour: string, cl
 const checks = L.layerGroup().addTo(map);
 /** What the note at the top of the map says for show_fixes, so taking them away clears only that. */
 let checkNote = "";
+/** Where the fixes ringed for the analyst to check are, so none is ever off the map unseen. */
+let checkBounds: L.LatLngBounds | undefined;
 function showFixes(message: { feature_id?: string; fix_times?: string[]; preview?: { coordinates: number[][] }; message?: string }): void {
   checks.clearLayers();
+  checkBounds = undefined;
   const entry = tracks.find((t) => t.track.id === message.feature_id);
   if (!entry) {
     if (checkNote) editor.say("");
@@ -639,6 +642,7 @@ function showFixes(message: { feature_id?: string; fix_times?: string[]; preview
     L.polyline(densify(coordinates).map(toLatLng), { color: css("--vscode-focusBorder"), weight: 2.5, dashArray: "6 4", interactive: false, className: "fix-preview" }).addTo(checks);
   }
   const wanted = new Set(message.fix_times ?? []);
+  const ringed: L.LatLng[] = [];
   track.properties.times.forEach((time, i) => {
     if (!wanted.has(time)) return;
     wanted.delete(time); // the first fix at a time
@@ -646,10 +650,21 @@ function showFixes(message: { feature_id?: string; fix_times?: string[]; preview
     const marker = L.circleMarker(at, { radius: 9, color: ring, weight: 2.5, fill: false, className: "fix-check" });
     marker.bindTooltip(text(`To check: ${describeFix(track, i)}`), { className: "fix-tooltip" });
     marker.addTo(checks);
+    ringed.push(at);
   });
+  checkBounds = ringed.length ? L.latLngBounds(ringed) : undefined;
+  keepChecksInView();
   checkNote = message.message ?? "";
   if (checkNote) editor.say(checkNote);
   else editor.say("");
+}
+/** Zoom out, keeping what is shown, until every fix ringed to check is in view. */
+function keepChecksInView(): void {
+  if (!checkBounds || map.getBounds().pad(-0.05).contains(checkBounds)) return;
+  fitting = true;
+  map.fitBounds(L.latLngBounds([checkBounds.getSouthWest(), checkBounds.getNorthEast()]).extend(map.getBounds()), { padding: [24, 24], animate: false });
+  fitting = false;
+  placeLabels();
 }
 
 // --- The time window (CAP-28, CAP-29) ----------------------------------------------
@@ -887,6 +902,7 @@ new ResizeObserver(() => {
   map.invalidateSize({ animate: false });
   fitting = false;
   if (!moved) fit(plotBounds);
+  keepChecksInView(); // a panel opened beside the map may have narrowed a ringed fix out of view
 }).observe(mapElement);
 
 map.on("click", (event: L.LeafletMouseEvent) => {

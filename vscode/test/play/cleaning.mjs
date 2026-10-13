@@ -32,6 +32,13 @@ export async function playCleaning(page, shot) {
   await stepAdded(n);
   assert.equal(await latest(), "GPS glitches put into RED ONE");
 
+  // Closer in, so some of the jumps to come are off the map: finding them brings them all into view.
+  const mapBox = await page.locator(".frame-map").boundingBox();
+  await page.mouse.move(mapBox.x + mapBox.width / 2, mapBox.y + mapBox.height / 2);
+  await page.mouse.wheel(0, -120);
+  await page.waitForTimeout(800);
+  await page.mouse.move(2, 2);
+
   // Jumps…: the threshold offered, then the jumps found, ringed and listed, all ticked. Nothing is removed yet.
   n = await steps();
   await page.locator("#find-jumps").click();
@@ -50,7 +57,16 @@ export async function playCleaning(page, shot) {
   assert.equal(await rings(), 3);
   await note.getByText("RED ONE: 3 jumps found, each faster than 30.0 kn to reach.").waitFor();
   assert.equal(await steps(), n, "finding jumps changes nothing");
+  // Every jump found is in view, the map zooming out if one was off it: none is removed unseen.
+  await page.waitForTimeout(500); // the panel beside the map opened, and the map narrowed
+  const frame = await page.locator(".frame-map").boundingBox();
+  for (let i = 0; i < 3; i++) {
+    const ring = await mapFrame.locator("path.fix-check").nth(i).boundingBox();
+    const inside = ring && ring.x >= frame.x && ring.y >= frame.y && ring.x + ring.width <= frame.x + frame.width && ring.y + ring.height <= frame.y + frame.height;
+    assert.ok(inside, `jump ${i + 1} of 3 is ringed in view`);
+  }
   await page.mouse.move(2, 2);
+  await page.waitForFunction(() => !document.querySelector("#toasts .toast"), null, { timeout: 15000 }); // the notices gone: the pictures are for the post
   await shot("clean-01-jumps-found");
   // Unticked, a jump is not removed, and its ring goes; ticked again, it comes back.
   await boxes.nth(1).uncheck();
