@@ -12,11 +12,13 @@
  *   plot=serial-1         the sample serial to open
  *   panels=tools,history,try,import   the side panels, in this order (all by default)
  */
-import type { DebriefFeatureCollection, ParameterValue, StacItem, TimeState, ToolDeclaration, ToolResult } from "@debrief/schemas";
-import { count, describeChanges, describePeriod, describeTimes } from "../src/format.js";
+import type { DebriefFeatureCollection, ParameterValue, PlotView, SharedStateChange, StacItem, TimeRange, TimeState, ToolDeclaration, ToolResult } from "@debrief/schemas";
+import { count, describePeriod, describeTimes, describeToolRun } from "../src/format.js";
 import { resolveTimes } from "../src/timeinput.js";
 import { describeStep, needs } from "../src/wording.js";
-import { displayed, hiddenIds, isFeature, isHidden, timeWindowOf, type PlotFeature } from "../src/hidden.js";
+import { contextTracksOf, displayed, hiddenIds, isFeature, isHidden, setViewOf, timeWindowOf, viewOf, type PlotFeature } from "../src/hidden.js";
+import { contextShown, type ContextTracks } from "../webview/contrast.js";
+import { placeToolTime } from "../webview/timelogic.js";
 import { TRACK_COLOURS } from "../webview/palette.js";
 import { TimeControl } from "../webview/timecontrol.js";
 
@@ -35,6 +37,8 @@ interface Opened {
   /** The plot, with its whole-plot feature and view (the island, SUB-22). */
   plot: DebriefFeatureCollection;
   base: { current: number; plot_hash: string };
+  /** The hash of the plot's view (its island) when read, to pass back when saving the time window. */
+  view_hash: string;
   steps: Step[];
   recovered: string[];
 }
@@ -89,21 +93,37 @@ const post = (target: HTMLIFrameElement | undefined, message: unknown) => {
 let opened: Opened | undefined;
 let selection: string[] = [];
 let time: TimeState | undefined;
-// Current time is set at the top of the side column, not over the map as in VS Code.
+// The time controller is at the top of the side column, as at the top of VS Code's sidebar:
+// the same component. Current time and the window move the map at once; the window
+// is saved in the plot when the reader lets go of it.
 let timePending = false;
-const timeControl = new TimeControl($("timebar"), (moved) => {
-  time = moved;
-  if (timePending) return; // tell the map at most once a frame, however fast the slider moves
-  timePending = true;
-  requestAnimationFrame(() => {
-    timePending = false;
-    if (time) post(map, { kind: "set_time", time });
-  });
+const timeControl = new TimeControl($("timebar"), {
+  moved: (moved) => {
+    time = moved;
+    if (timePending) return; // tell the map at most once a frame, however fast a slider moves
+    timePending = true;
+    requestAnimationFrame(() => {
+      timePending = false;
+      if (time) post(map, { kind: "set_time", time });
+    });
+  },
+  windowSaved: (window) => void saveWindow(window),
+  contextChanged: (context) => void saveView({ context_tracks: context }),
 });
-/** Current time as set by opening a plot or by a tool. */
+/** The time window as the plot file last had it, or the plot's period. */
+let savedWindow: TimeRange | undefined;
+const periodOf = (item: StacItem): TimeRange | undefined => {
+  const p = item.properties;
+  const start = p.start_datetime ?? p.datetime ?? undefined;
+  const end = p.end_datetime ?? p.datetime ?? undefined;
+  return start && end ? { start, end } : undefined;
+};
+/** How the plot says tracks outside the window are drawn. The playground has no settings: the minimum-contrast setting is off. */
+const contextOf = (): ContextTracks => (opened && contextTracksOf(opened.plot)) ?? "visible";
+/** Current time as set by opening a plot or by a tool, with the window as saved. */
 function showTime(next: TimeState | undefined): void {
   time = next;
-  timeControl.show(time);
+  timeControl.show(time, opened && periodOf(opened.item), { saved: savedWindow, context: contextOf(), minimumContrast: false });
 }
 let tools: ToolDeclaration[] = [];
 let offered: string[] = [];
@@ -114,17 +134,69 @@ let colleagueDuringNextRun = false;
 const features = (): Feature[] => (opened?.plot.features ?? []).filter(isFeature);
 const selectedNames = () => selection.map((id) => features().find((f) => f.id === id)?.properties.name ?? id);
 
-/** The plot's time window (its view, kept in the plot file outside its history), or else its period. */
+/**
+ * Current time over the plot's time window (its view, kept in the plot file outside
+ * its history), or else its period. Read again with the window as it was, current
+ * time and the range stay where they were; a window changed elsewhere is shown,
+ * with current time kept inside it.
+ */
 function timeOf(item: StacItem, plot: DebriefFeatureCollection, previous?: TimeState): TimeState | undefined {
-  const p = item.properties;
-  const window = timeWindowOf(plot);
-  const start = window?.start ?? p.start_datetime ?? p.datetime ?? undefined;
-  const end = window?.end ?? p.end_datetime ?? p.datetime ?? undefined;
-  if (!start || !end) return previous;
-  if (previous && Date.parse(previous.current) >= Date.parse(start) && Date.parse(previous.current) <= Date.parse(end)) {
-    return { current: previous.current, range: { start, end } };
+  const window = timeWindowOf(plot) ?? periodOf(item);
+  const saved = savedWindow;
+  savedWindow = window;
+  if (!window) return previous;
+  if (!previous) return { current: window.start, range: window };
+  if (saved && saved.start === window.start && saved.end === window.end) return previous;
+  const ms = Date.parse;
+  const current = Math.min(ms(window.end), Math.max(ms(window.start), ms(previous.current)));
+  return { current: new Date(current).toISOString(), range: window };
+}
+
+/**
+ * Save the time window in the plot's island when the reader lets go of it: never a
+ * step in the history, never undone (SUB-22). A window a colleague changed meanwhile
+ * is never overwritten (SUB-28).
+ */
+let saving: Promise<void> = Promise.resolve();
+const saveWindow = (window: TimeRange): Promise<void> => saveView({ time_window: window });
+/** Change part of the plot's island: the time window, or how context tracks are drawn (CAP-28, CAP-29). */
+function saveView(change: Partial<PlotView>): Promise<void> {
+  // One at a time, each with the hash the last one left, as VS Code does: two quick
+  // key presses must never look like a colleague's change.
+  const what = change.time_window ? "The time window" : "How context tracks are drawn";
+  saving = saving.then(() => saveViewNow(change, what)).catch((error: Error) => toast(`${what} was not saved: ${error.message}`, "warning"));
+  return saving;
+}
+async function saveViewNow(change: Partial<PlotView>, what: string): Promise<void> {
+  if (!opened || !pythonReady) return; // the preview, before Python: shown, not saved
+  const item = opened.item.id;
+  const view = { ...(viewOf(opened.plot) ?? {}), ...change };
+  const outcome = await pythonJson<{ view_hash?: string; base?: Opened["base"]; conflict?: boolean; error?: string }>(
+    "set_view",
+    item,
+    JSON.stringify({ view, hash: opened.view_hash }),
+  );
+  if (outcome.conflict) {
+    await openPlot(item, true);
+    return toast(
+      change.time_window
+        ? "Someone else changed the time window, so yours was not saved. Debrief is showing theirs; set it again if you still want yours."
+        : "Someone else changed this plot's view, so your choice was not saved. Debrief is showing theirs; choose again if you still want yours.",
+      "warning",
+    );
   }
-  return { current: start, range: { start, end } };
+  if (outcome.error || !outcome.view_hash || !outcome.base) {
+    showTime(time); // what is saved, again
+    return toast(outcome.error ?? `${what} was not saved.`, "warning");
+  }
+  if (opened?.item.id !== item) return;
+  if (outcome.base.plot_hash !== opened.base.plot_hash || outcome.base.current !== opened.base.current) return openPlot(item, true);
+  opened.view_hash = outcome.view_hash;
+  setViewOf(opened.plot, view);
+  savedWindow = view.time_window ?? savedWindow;
+  // The controller shows what is saved; the map draws context tracks as the plot now says.
+  showTime(time);
+  if (change.context_tracks) post(map, { kind: "set_context", context_tracks: contextShown(contextOf(), false) });
 }
 
 function showPlot(): void {
@@ -135,6 +207,7 @@ function showPlot(): void {
     plot_title: opened.item.properties.title ?? opened.item.id,
     selection: { plot: opened.item.id, feature_ids: selection },
     hidden_count: hiddenIds(opened.plot).length, // hiding is shared: the map says how many, with "Show all"
+    context_tracks: contextShown(contextOf(), false),
     ...(time && { time }),
   });
 }
@@ -154,6 +227,7 @@ async function openPlot(item: string, keep = false): Promise<void> {
   else {
     post(map, { kind: "set_selection", selection: { plot: item, feature_ids: selection } });
     if (time) post(map, { kind: "set_time", time });
+    post(map, { kind: "set_context", context_tracks: contextShown(contextOf(), false) });
   }
   renderOutline();
   renderHistory();
@@ -270,6 +344,7 @@ function closeResults(): void {
 
 async function runTool(tool: ToolDeclaration, parameters: ParameterValue[], onConflict?: string): Promise<string | undefined> {
   if (!opened) return "Open a plot first.";
+  const ranOn = opened.item.id; // the plot it ran on: a window it asks to save is saved only there
   const resolved = resolveTimes(tool, parameters, opened);
   if (typeof resolved === "string") return resolved;
   const request = {
@@ -284,7 +359,7 @@ async function runTool(tool: ToolDeclaration, parameters: ParameterValue[], onCo
     // The colleague's change lands while the tool runs (SUB-28).
     colleagueDuringNextRun = false;
     $<HTMLButtonElement>("colleague-during").textContent = "A colleague changes it while your next tool runs";
-    await python("colleague", opened.item.id, new Date().toISOString());
+    await python("colleague", opened.item.id, new Date().toISOString(), time?.current ?? null);
   }
   const outcome = await pythonJson<{ result?: ToolResult; changed?: boolean; new_item?: string; error?: string; conflict?: { mergeable: boolean } }>(
     "run",
@@ -313,14 +388,40 @@ async function runTool(tool: ToolDeclaration, parameters: ParameterValue[], onCo
   } else if (outcome.changed) {
     await openPlot(opened.item.id, true);
   }
-  if (result.state_change?.time) {
-    showTime(result.state_change.time);
-    post(map, { kind: "set_time", time });
-  }
+  const outside = result.state_change?.time ? showToolTime(result.state_change, ranOn) : false;
   if (result.non_spatial?.length) showResults(tool, result);
-  const said = describeChanges(result);
-  if (said) toast(`${tool.title} ${said}.`);
+  const said = describeToolRun(tool.title, result, outside);
+  if (said) toast(said);
   return undefined;
+}
+
+/**
+ * Current time a tool set, as VS Code shows it (CAP-28): outside the saved
+ * window it is shown in a window widened or moved to take it in, never saved,
+ * and the time controller says so until the reader keeps or reverts it. A
+ * tool whose purpose is to set the window has it saved only when run by hand
+ * (here, always from its form) on the plot still open. True if current time
+ * is outside the saved window.
+ */
+function showToolTime(change: SharedStateChange, ranOn: string): boolean {
+  if (!change.time || !opened) return false;
+  const span = (r: TimeRange) => ({ start: Date.parse(r.start), end: Date.parse(r.end) });
+  const range = (s: { start: number; end: number }) => ({ start: new Date(s.start).toISOString(), end: new Date(s.end).toISOString() });
+  const shown = time?.range ?? change.time.range;
+  const period = periodOf(opened.item);
+  const here = opened.item.id === ranOn;
+  const placed = placeToolTime(Date.parse(change.time.current), span(change.time.range), {
+    saved: span(savedWindow ?? shown),
+    shown: span(shown),
+    period: period && span(period),
+    saveWindow: change.save_window === true,
+    byHand: here,
+    samePlot: here,
+  });
+  showTime({ current: change.time.current, range: range(placed.window) });
+  post(map, { kind: "set_time", time });
+  if (placed.save) void saveWindow(range(placed.window));
+  return placed.outside;
 }
 
 // --- Colour and hiding: content, so steps in the plot's history (SUB-22) --------------
@@ -507,7 +608,7 @@ for (const panel of ["tools", "history", "try", "import"]) $(`panel-${panel}`).h
 // The panels in the order the demo lists them, after the plot and its outline.
 for (const panel of panelOrder) if (["tools", "history", "try", "import"].includes(panel)) $("side").append($(`panel-${panel}`));
 /** History, Try and Import need Python: off until it is ready. */
-const NEEDS_PYTHON = ["undo", "redo", "crash", "colleague", "colleague-during", "file", "colour", "hide", "show"];
+const NEEDS_PYTHON = ["undo", "redo", "crash", "colleague", "colleague-window", "colleague-during", "file", "colour", "hide", "show"];
 function needsPython(on: boolean): void {
   for (const id of NEEDS_PYTHON) $<HTMLButtonElement | HTMLInputElement>(id).disabled = !on;
 }
@@ -517,7 +618,7 @@ $("redo").onclick = () => void move("redo");
 $<HTMLSelectElement>("plots").onchange = (e) => void openPlot((e.target as HTMLSelectElement).value);
 $("crash").onclick = async () => {
   if (!opened) return;
-  await python("crash", opened.item.id, new Date().toISOString());
+  await python("crash", opened.item.id, new Date().toISOString(), time?.current ?? null);
   toast("Debrief stopped part-way through saving a note: the change was written, but not yet made current. Reopen the plot to see what happens.", "warning");
   $("reopen").hidden = false;
 };
@@ -527,10 +628,17 @@ $("reopen").onclick = async () => {
 };
 $("colleague").onclick = async () => {
   if (!opened) return;
-  await python("colleague", opened.item.id, new Date().toISOString());
+  await python("colleague", opened.item.id, new Date().toISOString(), time?.current ?? null);
   // As the extension does when the plot changes on disk: show the latest, and say so.
   await openPlot(opened.item.id, true);
   toast(`${opened.item.properties.title} was changed elsewhere. Debrief is showing the latest.`);
+};
+$("colleague-window").onclick = async () => {
+  if (!opened) return;
+  await python("colleague_window", opened.item.id);
+  // As the extension does when the plot file changes: show the latest, and say so.
+  await openPlot(opened.item.id, true);
+  toast(`The time window of ${opened.item.properties.title} was changed elsewhere. Debrief is showing the latest.`);
 };
 $("colleague-during").onclick = (e) => {
   colleagueDuringNextRun = true;
@@ -574,7 +682,7 @@ async function preview(item: string): Promise<void> {
       fetch(`sample/${item}/${item}.json`).then((r) => r.json()),
     ]);
     if (opened) return; // Python was quicker
-    opened = { item: stac, plot, base: { current: 0, plot_hash: "" }, steps: [], recovered: [] };
+    opened = { item: stac, plot, base: { current: 0, plot_hash: "" }, view_hash: "", steps: [], recovered: [] };
     showTime(timeOf(stac, plot));
     $("plot-title").textContent = stac.properties.title ?? item;
     showPlot();

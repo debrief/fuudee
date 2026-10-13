@@ -6,6 +6,7 @@
  */
 import assert from "node:assert/strict";
 import { execFileSync } from "node:child_process";
+import { readFileSync } from "node:fs";
 import path from "node:path";
 import * as vscode from "vscode";
 import type { DebriefApi } from "../../src/extension.js";
@@ -73,6 +74,53 @@ export async function run(): Promise<void> {
   await sleep(1000);
   await screenshot("01b-current-time");
 
+  // --- The time controller (CAP-28): a view at the top of the Debrief sidebar --------
+  await waitFor("the time controller in the sidebar", () => api.timeControllerShowing() || undefined);
+  // The time window is view state: saved in the plot file (its island), never a step in its history.
+  const period = api.session.period()!;
+  const base = api.session.current!.base;
+  const narrow = { start: "2023-06-15T09:00:00.000Z", end: "2023-06-15T10:00:00.000Z" };
+  const checks = api.viewChecks();
+  assert.equal(await vscode.commands.executeCommand("debrief.setTimeWindow", narrow), undefined);
+  assert.deepEqual(api.getState()!.time.range, narrow);
+  assert.deepEqual(api.session.current!.base, base, "no step in the history");
+  const plotPath = path.join(opened.store.location, "serial-1", "plot.geojson");
+  const island = () => JSON.parse(readFileSync(plotPath, "utf8")).features.find((f: { properties: { kind: string } }) => f.properties.kind === "plot").properties.view;
+  assert.deepEqual(island().time_window, narrow);
+  await sleep(2500);
+  // Debrief's own save is never taken for a colleague's: the plot is not opened again for it.
+  assert.equal(api.viewChecks(), checks, "Debrief's own save of the window was checked as a change elsewhere");
+  await screenshot("01c-time-window");
+  // A colleague's window, written by another process: noticed, shown, and said.
+  const theirs = { start: "2023-06-15T10:00:00.000Z", end: "2023-06-15T11:00:00.000Z" };
+  execFileSync(process.env.DEBRIEF_PYTHON || "python3", [
+    "-c",
+    "import sys, json; from pathlib import Path; from debrief_stac import Catalogue; from debrief_schemas import models; " +
+      "c = Catalogue.open(Path(sys.argv[1])); view, h = c.read_view('serial-1'); " +
+      "c.write_view('serial-1', {'time_window': json.loads(sys.argv[2])}, h, agent=models.AgentRef(kind='person', name='a colleague'))",
+    opened.store.location,
+    JSON.stringify(theirs),
+  ]);
+  await waitFor("the colleague's window", () => api.getState()?.time.range.start === theirs.start || undefined);
+  assert.deepEqual(api.session.current!.base, base, "the plot's content was not read again as a change");
+  // Back to the whole plot, saved over theirs, which Debrief has read since.
+  assert.equal(await vscode.commands.executeCommand("debrief.setTimeWindow", period), undefined);
+  assert.deepEqual(island().time_window, period);
+  // Two windows let go of in quick succession, as two key presses are: the first one's
+  // save finishing never puts it back on screen over the second.
+  const ranges: string[] = [];
+  const watching = api.onDidChangeState((change) => change.time && ranges.push(change.time.range.start));
+  const first = { start: "2023-06-15T08:05:00.000Z", end: period.end };
+  const second = { start: "2023-06-15T08:10:00.000Z", end: period.end };
+  await Promise.all([
+    vscode.commands.executeCommand("debrief.setTimeWindow", first),
+    vscode.commands.executeCommand("debrief.setTimeWindow", second),
+  ]);
+  watching.dispose();
+  assert.deepEqual(ranges, [first.start, second.start], "the window shown went back to one let go of earlier");
+  assert.deepEqual(island().time_window, second);
+  assert.equal(await vscode.commands.executeCommand("debrief.setTimeWindow", period), undefined);
+
   // Select BLUE ONE: the tools for one track are offered; open range rings.
   await vscode.commands.executeCommand("debrief.select", ["track-blue-one"]);
   await waitFor("tools for one track", () => api.offered().includes("core.range_rings") || undefined);
@@ -91,8 +139,15 @@ export async function run(): Promise<void> {
   assert.equal(problem, undefined);
   await waitFor("rings", () => (api.session.current?.plot.features.length === before + 5) || undefined);
   assert.equal(api.session.current!.plot.provenance.at(-1)?.tool?.name, "core.range_rings");
+  // Nor is a change to the plot's content Debrief made itself.
+  const checksAfterRun = api.viewChecks();
+  await sleep(2500);
+  assert.equal(api.viewChecks(), checksAfterRun, "Debrief's own tool run was checked as a change elsewhere");
 
   // BLUE ONE and RED ONE: closest approach is offered; run it and see the result.
+  // The window first ends before the moment it finds (09:21), so that moment is outside it.
+  const early = { start: period.start, end: "2023-06-15T09:00:00.000Z" };
+  assert.equal(await vscode.commands.executeCommand("debrief.setTimeWindow", early), undefined);
   await vscode.commands.executeCommand("debrief.select", ["track-blue-one", "track-red-one"]);
   await waitFor("tools for two tracks", () => api.offered().includes("core.closest_approach") || undefined);
   assert.equal(await vscode.commands.executeCommand("debrief.runTool", "core.closest_approach", {}), undefined);
@@ -103,8 +158,41 @@ export async function run(): Promise<void> {
   await waitFor("closest approach to move current time", () => heard.some((h) => h === "time:tool:core.closest_approach") || undefined);
   assert.notEqual(api.getState()!.time.current, midway);
   listening.dispose();
+  // Outside the saved window: shown in a window widened to take it in, never saved (CAP-28).
+  const cpaTime = api.getState()!.time.current;
+  assert.ok(cpaTime > early.end, "closest approach is after the window");
+  const shown = api.getState()!.time.range;
+  assert.equal(shown.start, early.start);
+  assert.ok(shown.end >= cpaTime && Date.parse(shown.end) - Date.parse(shown.start) <= 2 * 3600000, "widened, to no more than twice");
+  assert.deepEqual(api.session.savedWindow, early, "never saved");
+  assert.deepEqual(island().time_window, early);
   await sleep(3000);
   await screenshot("03-closest-approach", true);
+  // Keep, as the time controller's button does: saved through the normal path.
+  assert.equal(await vscode.commands.executeCommand("debrief.setTimeWindow", shown), undefined);
+  assert.deepEqual(island().time_window, shown);
+
+  // How tracks outside the window are drawn: the plot's view, never a step in its history (CAP-29).
+  // Chosen from the Time view's title menu ("..."): its entries run these commands.
+  const baseNow = api.session.current!.base;
+  assert.equal(await vscode.commands.executeCommand("debrief.contextTracks.faint"), undefined);
+  assert.equal(island().context_tracks, "faint");
+  await waitFor("the map to draw context faint", () => api.mapContext() === "faint" || undefined);
+  assert.deepEqual(api.session.current!.base, baseNow, "no step in the history");
+  // The analyst's setting draws faint as visible on every plot; hidden stays hidden.
+  const config = vscode.workspace.getConfiguration("debrief");
+  await config.update("map.minimumContextContrast", true, vscode.ConfigurationTarget.Global);
+  await waitFor("the setting to draw faint as visible", () => api.mapContext() === "visible" || undefined);
+  // The Time view's description says so, beside its title.
+  await sleep(1500);
+  await screenshot("03b-context-tracks-setting");
+  assert.equal(await vscode.commands.executeCommand("debrief.contextTracks.hidden"), undefined);
+  await waitFor("context hidden", () => api.mapContext() === "hidden" || undefined);
+  await config.update("map.minimumContextContrast", undefined, vscode.ConfigurationTarget.Global);
+  assert.equal(await vscode.commands.executeCommand("debrief.contextTracks.visible"), undefined);
+  await waitFor("context visible", () => api.mapContext() === "visible" || undefined);
+  assert.equal(island().context_tracks, "visible");
+  assert.equal(await vscode.commands.executeCommand("debrief.setTimeWindow", period), undefined);
 
   const tracks = api.session.current!.plot.features.filter((f) => f.properties.kind === "track").map((f) => f.id);
   await vscode.commands.executeCommand("debrief.select", tracks);

@@ -3,15 +3,25 @@
  *
  * - Click selects; Ctrl or Cmd click adds or removes; Escape or a click on
  *   empty sea clears (SUB-26, interaction model "Selection").
- * - Tracks are solid lines in their force colour, with ticks showing the
- *   direction of travel, a hollow dot at the first fix and a filled, labelled
- *   dot at the latest. Hovering a track shows the nearest fix.
+ * - The map shows the plot's time window (CAP-28, CAP-29): the range of
+ *   current time in shared state. Within it, tracks are solid lines in their
+ *   force colour, with ticks showing the direction of travel, a hollow dot at
+ *   the first fix in the window and a filled, labelled dot at the last.
+ *   Outside it, each whole track stays as a thin, solid line in a quieter
+ *   version of its colour (its context), so a deployment of weeks still
+ *   reads as one picture; fixes there are not marked. The plot says whether
+ *   context is visible (at least 3:1 on any theme), faint or hidden; see
+ *   contrast.ts. Hovering a track shows the nearest fix.
  * - Annotations, including everything tools draw, are dashed and labelled.
+ *   One with a time or a period is drawn only while that falls in the window;
+ *   one without a time always is.
  * - Selected features get an outline in the theme's text colour, which can
  *   never be mistaken for a force colour; everything else is dimmed.
- * - The time control sets current time; each track shows where it was then
- *   with a square marker. Panning and zooming set the viewport. Both are
- *   shared state, so other views, extensions and tools follow (SUB-26, SUB-27).
+ * - Each track shows where it was at current time with a square marker.
+ *   Current time and the window are set by the time controller, which a host
+ *   places beside the map (the sidebar in VS Code, the side column in the
+ *   playground). Panning and zooming set the viewport. All are shared state,
+ *   so other views, extensions and tools follow (SUB-26, SUB-27).
  *
  * Interface colours come from the VS Code theme; data colours from palette.ts
  * (DEV-07). Plot content is always set as text, never as HTML.
@@ -23,8 +33,8 @@ import geodesic from "geographiclib-geodesic";
 import { convert, DEFAULT_SETTINGS, formatBearing, formatPosition, formatQuantity, formatTime, UNIT_LABELS } from "@debrief/kernel";
 import type { DebriefFeatureCollection, TimeState } from "@debrief/schemas";
 import { densify, type LonLat } from "./geodesic.js";
+import { CONTEXT_WEIGHT, contextStyle, parseColour, WINDOW_WEIGHT, type ContextStyle, type ContextTracks, type MapTheme, type Rgb } from "./contrast.js";
 import { DATA_COLOURS } from "./palette.js";
-import { TimeControl } from "./timecontrol.js";
 import { host, onMessage } from "./vscode.js";
 
 type Feature = DebriefFeatureCollection["features"][number];
@@ -33,9 +43,7 @@ const settings = DEFAULT_SETTINGS;
 const WGS84 = geodesic.Geodesic.WGS84;
 
 const root = document.getElementById("root")!;
-root.innerHTML =
-  `<div id="map" tabindex="0" aria-label="Plot map"></div><div id="status" class="status"></div><div id="empty" class="empty" hidden></div>` +
-  `<div id="timebar" hidden></div>`;
+root.innerHTML = `<div id="map" tabindex="0" aria-label="Plot map"></div><div id="status" class="status"></div><div id="empty" class="empty" hidden></div>`;
 const status = document.getElementById("status")!;
 const mapElement = document.getElementById("map")!;
 
@@ -76,7 +84,7 @@ new ScaleBar({ position: "bottomright" }).addTo(map);
 let plotBounds = L.latLngBounds([]);
 function boundsOf(ids: Iterable<string>): L.LatLngBounds {
   const bounds = L.latLngBounds([]);
-  for (const id of ids) for (const layer of drawn.get(id)?.layers ?? []) {
+  for (const id of ids) for (const layer of [...(drawn.get(id)?.layers ?? []), ...(drawn.get(id)?.windowed ?? [])]) {
     if (layer instanceof L.Polyline || layer instanceof L.Polygon) bounds.extend(layer.getBounds());
     else if (layer instanceof L.CircleMarker) bounds.extend(layer.getLatLng());
   }
@@ -110,9 +118,10 @@ const Legend = L.Control.extend({
     const div = L.DomUtil.create("details", "legend");
     L.DomUtil.create("summary", "", div).textContent = "Key";
     const rows: [string, string][] = [
-      ["track", "Track, in its force colour; ticks show direction"],
-      ["first", "First fix"],
-      ["latest", "Latest fix, labelled"],
+      ["track", "Track in the time window, in its force colour; ticks show direction"],
+      ["context", "Track outside the time window"],
+      ["first", "First fix in the window"],
+      ["latest", "Last fix in the window, labelled"],
       ["now", "Position at current time"],
       ["annotation", "Annotation, including what tools draw"],
       ["selected", "Selected"],
@@ -191,7 +200,77 @@ const halo = L.layerGroup().addTo(map);
 const features = L.layerGroup().addTo(map);
 let selection = new Set<string>();
 let plotId = "";
-const drawn = new Map<string, { layers: L.Layer[]; paths: L.Path[] }>();
+/**
+ * What is drawn for each feature. layers and paths are drawn once per plot;
+ * windowed and windowedPaths are a track's part in the time window, drawn
+ * again whenever the window moves; context is a track's whole line, thin.
+ */
+interface Drawn {
+  layers: L.Layer[];
+  paths: L.Path[];
+  windowed: L.Layer[];
+  windowedPaths: L.Path[];
+  context?: L.Polyline;
+  /** How the context line is drawn now; none when context tracks are hidden. */
+  contextStyle?: ContextStyle;
+  /** The track's own colour. */
+  colour?: string;
+  /** An annotation's time or period, if it has one. */
+  when?: { start: number; end: number };
+}
+const drawn = new Map<string, Drawn>();
+
+// --- Context tracks: each track outside the window (CAP-29, expert panel 12 Oct) ----
+/** How tracks outside the window are drawn: the plot's choice, the analyst's setting applied by the host. */
+let contextMode: ContextTracks = "visible";
+/** The theme the map is drawn on, read from VS Code's variables each time it is needed. */
+function mapTheme(): MapTheme {
+  const classes = document.body.classList;
+  const highContrast = classes.contains("vscode-high-contrast") || classes.contains("vscode-high-contrast-light");
+  const light = classes.contains("vscode-light") || classes.contains("vscode-high-contrast-light");
+  const fallback = (dark: number): Rgb => [dark, dark, dark];
+  return {
+    background: parseColour(css("--vscode-editor-background")) ?? fallback(light ? 1 : 0.12),
+    foreground: parseColour(css("--vscode-editor-foreground")) ?? fallback(light ? 0.2 : 0.83),
+    highContrast,
+  };
+}
+/** Draw each track's context line as the mode and theme now say, then its selection state. */
+function applyContext(): void {
+  const theme = mapTheme();
+  for (const entry of drawn.values()) {
+    if (!entry.context || !entry.colour) continue;
+    entry.contextStyle = contextStyle(entry.colour, contextMode, theme);
+    if (!entry.contextStyle) {
+      features.removeLayer(entry.context);
+      continue;
+    }
+    const { colour, weight } = entry.contextStyle;
+    entry.context.setStyle({ color: colour, weight });
+    (entry.context.options as { baseWeight?: number }).baseWeight = weight;
+    if (!features.hasLayer(entry.context)) {
+      features.addLayer(entry.context);
+      entry.context.bringToBack();
+      for (const area of areas) area.bringToBack();
+    }
+  }
+  showContextKey(theme);
+  restyle();
+}
+/** The key's context row: drawn as a track of the default colour would be, or gone when hidden. */
+function showContextKey(theme: MapTheme): void {
+  const swatch = document.querySelector<HTMLElement>(".swatch-context");
+  if (!swatch) return;
+  const style = contextStyle(DATA_COLOURS.track, contextMode, theme);
+  swatch.parentElement!.hidden = !style;
+  if (!style) return;
+  swatch.style.borderTopColor = style.colour;
+  swatch.style.borderTopWidth = `${style.weight}px`;
+  swatch.style.opacity = String(style.opacity);
+}
+// VS Code changes theme by changing the page's classes and variables: draw again for the new one.
+new MutationObserver(() => applyContext()).observe(document.body, { attributes: true, attributeFilter: ["class"] });
+new MutationObserver(() => applyContext()).observe(document.documentElement, { attributes: true, attributeFilter: ["style", "class"] });
 
 function colourOf(feature: Feature): string {
   if (feature.properties.kind === "track") return feature.properties.style?.colour ?? DATA_COLOURS.track;
@@ -211,17 +290,22 @@ function select(id: string | undefined, add: boolean): void {
 
 function restyle(): void {
   const any = selection.size > 0;
-  for (const [id, { paths }] of drawn) {
+  for (const [id, { paths, windowedPaths, context, contextStyle: style }] of drawn) {
     const selected = selection.has(id);
-    for (const path of paths) {
+    for (const path of [...paths, ...windowedPaths]) {
       const base = (path.options as { baseWeight?: number }).baseWeight ?? 2;
       path.setStyle({ weight: selected ? base + 1 : base, opacity: !any || selected ? 1 : 0.3 });
     }
+    // Dimmed for a selection elsewhere: a state of its own, never below its floor.
+    if (context && style) context.setStyle({ opacity: !any || selected ? style.opacity : style.dimmed });
   }
   halo.clearLayers();
   const outline = css("--vscode-editor-foreground");
   for (const id of selection) {
-    for (const path of drawn.get(id)?.paths ?? []) {
+    const entry = drawn.get(id);
+    // The track's part in the window, or its whole line when none of it is in the window.
+    const outlined = entry?.windowedPaths.length ? [...entry.paths, ...entry.windowedPaths] : [...(entry?.paths ?? []), ...(entry?.context ? [entry.context] : [])];
+    for (const path of outlined) {
       if (path instanceof L.Polyline) {
         const weight = ((path.options as { baseWeight?: number }).baseWeight ?? 2) + 5;
         L.polyline(path.getLatLngs() as L.LatLng[], { color: outline, weight, opacity: 0.55, dashArray: "2 8", lineCap: "round", interactive: false }).addTo(halo);
@@ -259,8 +343,7 @@ function describeFix(track: Track, index: number): string {
   return parts.join("  ·  ");
 }
 
-function directionTicks(track: Track, colour: string): L.Marker[] {
-  const coordinates = track.geometry.coordinates as LonLat[];
+function directionTicks(coordinates: LonLat[], colour: string): L.Marker[] {
   if (coordinates.length < 3) return [];
   const count = Math.min(5, coordinates.length - 1);
   const ticks: L.Marker[] = [];
@@ -283,8 +366,10 @@ function directionTicks(track: Track, colour: string): L.Marker[] {
   return ticks;
 }
 
+/** Areas, kept underneath everything else, so a track crossing an area's edge is on top. */
+let areas: L.Path[] = [];
 function draw(plot: DebriefFeatureCollection): void {
-  const areas: L.Path[] = [];
+  areas = [];
   features.clearLayers();
   drawn.clear();
   sized.length = 0;
@@ -305,31 +390,23 @@ function draw(plot: DebriefFeatureCollection): void {
     if (geometry.type === "LineString") {
       const coordinates = geometry.coordinates as LonLat[];
       const latlngs = densify(coordinates).map(toLatLng);
-      const line = L.polyline(latlngs, {
-        color: colour,
-        weight: isTrack ? 2.5 : 2,
-        dashArray: isTrack ? undefined : "6 5",
-        baseWeight: isTrack ? 2.5 : 2,
-      } as L.PolylineOptions);
-      line.on("click", click);
       if (isTrack) {
+        // The whole track, solid and thin: context for the part in the window, drawn in drawWindow.
+        // No ticks, dots or labels: those belong to the window. Styled in applyContext.
         const track = feature as Track;
-        line.bindTooltip(text(name), { sticky: true });
-        line.on("mousemove", (event: L.LeafletMouseEvent) => {
-          line.setTooltipContent(text(describeFix(track, nearestFix(track, event.latlng))));
-        });
-        const first = L.circleMarker(toLatLng(coordinates[0]), { radius: 4, color: colour, weight: 2, fill: true, fillOpacity: 0, baseWeight: 2 } as L.CircleMarkerOptions);
-        first.bindTooltip(text(describeFix(track, 0)));
-        const latest = L.circleMarker(toLatLng(coordinates.at(-1)!), { radius: 4.5, color: colour, fillColor: colour, fillOpacity: 1, weight: 1, baseWeight: 1 } as L.CircleMarkerOptions);
-        latest.bindTooltip(text(name), { permanent: true, direction: "right", className: "track-label", offset: [6, 0] });
-        first.on("click", click);
-        latest.on("click", click);
-        paths.push(line, first, latest);
-        layers.push(...directionTicks(track, colour));
-      } else {
-        line.bindTooltip(text(name), { permanent: true, direction: "center", className: "annotation-label" });
-        paths.push(line);
+        const context = L.polyline(latlngs, { color: colour, weight: CONTEXT_WEIGHT, baseWeight: CONTEXT_WEIGHT } as L.PolylineOptions);
+        context.on("click", click);
+        hoverFixes(context, track);
+        layers.push(context);
+        latlngs.forEach((p) => plotBounds.extend(p));
+        context.addTo(features);
+        drawn.set(feature.id, { layers, paths, windowed: [], windowedPaths: [], context, colour });
+        continue;
       }
+      const line = L.polyline(latlngs, { color: colour, weight: 2, dashArray: "6 5", baseWeight: 2 } as L.PolylineOptions);
+      line.on("click", click);
+      line.bindTooltip(text(name), { permanent: true, direction: "center", className: "annotation-label" });
+      paths.push(line);
       latlngs.forEach((p) => plotBounds.extend(p));
     } else if (geometry.type === "Polygon") {
       const rings = (geometry.coordinates as LonLat[][]).map((ring) => densify(ring).map(toLatLng));
@@ -360,18 +437,112 @@ function draw(plot: DebriefFeatureCollection): void {
       plotBounds.extend(point);
     }
     [...paths, ...layers].forEach((layer) => layer.addTo(features));
-    drawn.set(feature.id, { layers: [...paths, ...layers], paths });
+    drawn.set(feature.id, { layers: [...paths, ...layers], paths, windowed: [], windowedPaths: [], when: timeOf(feature) });
   }
-  // Areas underneath everything else, so a track crossing an area's edge is on top.
-  for (const area of areas.reverse()) area.bringToBack();
+  areas.reverse();
+  applyContext();
   const empty = document.getElementById("empty")!;
   empty.hidden = plot.features.some((f) => f.geometry);
   empty.textContent = plot.features.length ? "This plot has nothing with a position." : "This plot is empty. Import a REP file to add tracks.";
   setTracks(plot.features.filter((f): f is Track => f.properties.kind === "track" && !!f.geometry));
-  restyle();
+  drawnWindow = undefined;
+  drawWindow();
   drawGraticule();
   placeLabels();
+}
+
+/** An annotation's time or period, if it has one: it is drawn only while that is in the window. */
+function timeOf(feature: Feature): { start: number; end: number } | undefined {
+  if (feature.properties.kind !== "annotation") return undefined;
+  const { time, time_range: range } = feature.properties;
+  if (range) return { start: Date.parse(range.start), end: Date.parse(range.end) };
+  return time ? { start: Date.parse(time), end: Date.parse(time) } : undefined;
+}
+
+/** Hovering a track line shows its nearest fix. */
+function hoverFixes(line: L.Polyline, track: Track): void {
+  line.bindTooltip(text(track.properties.name), { sticky: true });
+  line.on("mousemove", (event: L.LeafletMouseEvent) => {
+    line.setTooltipContent(text(describeFix(track, nearestFix(track, event.latlng))));
+  });
+}
+
+// --- The time window (CAP-28, CAP-29) ----------------------------------------------
+/** The window last drawn, so a change to current time alone draws nothing again. */
+let drawnWindow: { start: number; end: number } | undefined;
+const ALL = { start: -Infinity, end: Infinity };
+
+/**
+ * Draw what depends on the time window: each track's part in it, with its
+ * ticks and end dots, and the annotations whose time falls in it.
+ */
+function drawWindow(): void {
+  const window = time ? { start: Date.parse(time.range.start), end: Date.parse(time.range.end) } : ALL;
+  if (drawnWindow && drawnWindow.start === window.start && drawnWindow.end === window.end) return;
+  drawnWindow = window;
+  for (const entry of tracks) {
+    const shown = drawn.get(entry.track.id);
+    if (!shown) continue;
+    shown.windowed.forEach((layer) => features.removeLayer(layer));
+    shown.windowed = [];
+    shown.windowedPaths = [];
+    const part = partIn(entry, window);
+    if (!part) continue;
+    const { track } = entry;
+    const colour = colourOf(track);
+    const click = (event: L.LeafletMouseEvent) => {
+      L.DomEvent.stopPropagation(event);
+      select(track.id, event.originalEvent.ctrlKey || event.originalEvent.metaKey);
+    };
+    const line = L.polyline(densify(part.coordinates).map(toLatLng), { color: colour, weight: WINDOW_WEIGHT, baseWeight: WINDOW_WEIGHT } as L.PolylineOptions);
+    line.on("click", click);
+    hoverFixes(line, track);
+    shown.windowedPaths.push(line);
+    if (part.first !== undefined && part.last !== undefined) {
+      const coordinates = track.geometry.coordinates as LonLat[];
+      const first = L.circleMarker(toLatLng(coordinates[part.first]), { radius: 4, color: colour, weight: 2, fill: true, fillOpacity: 0, baseWeight: 2 } as L.CircleMarkerOptions);
+      first.bindTooltip(text(describeFix(track, part.first)));
+      const last = L.circleMarker(toLatLng(coordinates[part.last]), { radius: 4.5, color: colour, fillColor: colour, fillOpacity: 1, weight: 1, baseWeight: 1 } as L.CircleMarkerOptions);
+      last.bindTooltip(text(track.properties.name), { permanent: true, direction: "right", className: "track-label", offset: [6, 0] });
+      first.on("click", click);
+      last.on("click", click);
+      shown.windowedPaths.push(first, last);
+    }
+    shown.windowed = [...shown.windowedPaths, ...directionTicks(part.coordinates, colour)];
+    shown.windowed.forEach((layer) => layer.addTo(features));
+  }
+  for (const shown of drawn.values()) {
+    if (!shown.when) continue;
+    const inWindow = shown.when.end >= window.start && shown.when.start <= window.end;
+    for (const layer of shown.layers) {
+      if (inWindow) features.addLayer(layer);
+      else features.removeLayer(layer);
+    }
+  }
+  for (const area of areas) area.bringToBack();
+  restyle();
   drawNow();
+}
+
+/**
+ * A track's part in the window: its fixes there, with the positions at the
+ * window's edges where the track crosses them, and the first and last fix in
+ * the window, if any. None if the track is not in the window at all.
+ */
+function partIn(entry: { track: Track; times: number[] }, window: { start: number; end: number }): { coordinates: LonLat[]; first?: number; last?: number } | undefined {
+  const { track, times } = entry;
+  const coordinates = track.geometry.coordinates as LonLat[];
+  if (!times.length || times[0] > window.end || times[times.length - 1] < window.start) return undefined;
+  let first = 0;
+  while (first < times.length && times[first] < window.start) first++;
+  let last = times.length - 1;
+  while (last >= 0 && times[last] > window.end) last--;
+  const part: LonLat[] = [];
+  if (first > 0 && (first === times.length || times[first] > window.start)) part.push(positionAt(track, times, window.start)!);
+  for (let i = first; i <= last; i++) part.push(coordinates[i]);
+  if (last < times.length - 1 && (last < 0 || times[last] < window.end)) part.push(positionAt(track, times, window.end)!);
+  if (part.length < 2) return part.length === 1 && first <= last ? { coordinates: part, first, last } : undefined;
+  return first <= last ? { coordinates: part, first, last } : { coordinates: part };
 }
 
 // Annotation labels only where the shape is big enough on screen to carry one.
@@ -385,21 +556,8 @@ function placeLabels(): void {
 }
 map.on("zoomend", placeLabels);
 
-// --- Current time (shared state) ------------------------------------------------
-const timebar = document.getElementById("timebar")!;
-// Tell the host at most once a frame, however fast the slider moves.
-let pending = false;
-// A page hosting the map can show the time control itself (data-timebar="host").
-const timeControl = new TimeControl(timebar, (moved) => {
-  time = moved;
-  if (pending) return;
-  pending = true;
-  requestAnimationFrame(() => {
-    pending = false;
-    drawNow();
-    host.postMessage({ kind: "time_changed", time });
-  });
-});
+// --- Current time and the window (shared state) ------------------------------------
+// Set by the time controller beside the map; the map only shows them.
 const now = L.layerGroup().addTo(map);
 /** Each track with its fix times parsed once, and its marker at current time. */
 let tracks: { track: Track; times: number[]; marker?: L.Marker }[] = [];
@@ -459,14 +617,19 @@ function drawNow(): void {
   }
 }
 
+/** Current time and the window changed: move the markers, and draw the window again if it moved. */
+let timePending = false;
 function showTime(next: TimeState | undefined): void {
   time = next;
-  if (document.body.dataset.timebar !== "host") timeControl.show(time);
-  drawNow();
+  if (timePending) return;
+  timePending = true;
+  // At most once a frame, however fast the controller sends them.
+  requestAnimationFrame(() => {
+    timePending = false;
+    drawWindow();
+    drawNow();
+  });
 }
-
-L.DomEvent.disableClickPropagation(timebar);
-L.DomEvent.disableScrollPropagation(timebar);
 
 // --- Viewport (shared state) -----------------------------------------------------
 let reporting: ReturnType<typeof setTimeout> | undefined;
@@ -537,6 +700,7 @@ onMessage((message) => {
     shownPlot = plotId = sel.plot;
     selection = new Set(sel.feature_ids);
     showTime(message.time as TimeState | undefined);
+    contextMode = (message.context_tracks as ContextTracks | undefined) ?? "visible";
     draw(message.plot as DebriefFeatureCollection);
     showHidden(typeof message.hidden_count === "number" ? message.hidden_count : 0);
     if (firstShow) fit(plotBounds);
@@ -547,6 +711,9 @@ onMessage((message) => {
     showTime(message.time as TimeState);
   } else if (message.kind === "set_viewport") {
     showViewport((message.viewport as { bbox: number[] }).bbox);
+  } else if (message.kind === "set_context") {
+    contextMode = message.context_tracks as ContextTracks;
+    applyContext();
   }
 });
 host.postMessage({ kind: "ready" });

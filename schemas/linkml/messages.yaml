@@ -15,8 +15,8 @@ imports:
   - tools
 
 description: >-
-  Every message the VS Code extension host and its webviews (map, tool form,
-  results) send each other. They cross a process boundary, so they are
+  Every message the VS Code extension host and its webviews (map, time
+  controller, tool form, results) send each other. They cross a process boundary, so they are
   boundary types (CON-01, CON-08), validated on receipt. The same messages
   will serve the web build's host (CON-05). Which members each kind needs is
   checked by the receiver.
@@ -39,6 +39,10 @@ enums:
       form_busy: {description: "Host to form: the tool is running (message)."}
       form_error: {description: "Host to form: the run failed or a value was refused (message)."}
       show_results: {description: "Host to results: show a tool's result (tool, result_title, result)."}
+      show_time: {description: "Host to time controller: current time, its range being the time window shown (time), the plot's whole period (time_range), the window as saved in the plot (saved_window), how tracks outside the window are drawn (context_tracks) and whether the analyst's setting shows faint as visible (minimum_context_contrast); none when no plot is open."}
+      window_changed: {description: "Time controller to host: the analyst let go of the time window, or chose Keep; save it in the plot (time_range)."}
+      context_changed: {description: "Time controller to host: the analyst chose how tracks outside the window are drawn; save it in the plot (context_tracks)."}
+      set_context: {description: "Host to map: draw tracks outside the window this way (context_tracks), the analyst's setting already applied."}
 
 classes:
   WebviewMessage:
@@ -53,8 +57,25 @@ classes:
       selection: {range: Selection, inlined: true}
       viewport: {range: Viewport, inlined: true}
       time: {range: TimeState, inlined: true}
+      saved_window:
+        description: >-
+          The time window as saved in the plot, so the time controller can
+          say when the window shown differs from it (CAP-28).
+        range: TimeRange
+        inlined: true
+      context_tracks:
+        description: How tracks outside the time window are drawn (CAP-29).
+        range: ContextTracksEnum
+      minimum_context_contrast:
+        description: >-
+          The analyst's setting that shows faint context tracks as visible, so
+          the time controller can say so.
+        range: boolean
       time_range:
-        description: The plot's period, so times can be entered as the analyst reads them.
+        description: >-
+          The plot's period, so times can be entered as the analyst reads them
+          (show_form) and the time window set within it (show_time); or the
+          time window to save (window_changed).
         range: TimeRange
         inlined: true
       current_time:

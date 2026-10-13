@@ -49,6 +49,20 @@ export function headFile(store: KnownStore, itemId: string): string {
   return path.join(store.location, itemId, "history", "head.json");
 }
 
+/**
+ * The plot file itself, which also changes when anyone changes its time window
+ * (the island, SUB-22) without changing its history.
+ */
+export function plotFile(store: KnownStore, item: StacItem): string | undefined {
+  const asset = item.assets.plot;
+  if (!asset) return undefined;
+  try {
+    return assetPath(store, item, asset);
+  } catch {
+    return undefined;
+  }
+}
+
 /** Where the plot's history stands on disk now, or undefined if it cannot be read. */
 export function headOnDisk(store: KnownStore, itemId: string): { current: number; plot_hash: string } | undefined {
   try {

@@ -35,11 +35,11 @@ describe("what a tool needs, in the analyst's words", () => {
 });
 
 describe("webview messages are boundary types (CON-08)", () => {
-  it.each(["show-plot", "selection-changed", "run-tool", "ready", "time-changed", "set-viewport-across-antimeridian"])("accepts %s", (name) => {
+  it.each(["show-plot", "selection-changed", "run-tool", "ready", "time-changed", "set-viewport-across-antimeridian", "show-time", "show-time-no-plot", "window-changed"])("accepts %s", (name) => {
     const raw = JSON.parse(readFileSync(path.join(fixtures, "valid", `${name}.json`), "utf8"));
     expect(checkMessage(raw)).toEqual(raw);
   });
-  it.each(["run-tool-without-name", "ready-with-plot", "time-outside-range", "set-time-without-time"])("refuses %s, which Python refuses too", (name) => {
+  it.each(["run-tool-without-name", "ready-with-plot", "time-outside-range", "set-time-without-time", "window-changed-ends-before-it-starts", "window-changed-without-window"])("refuses %s, which Python refuses too", (name) => {
     const raw = JSON.parse(readFileSync(path.join(fixtures, "invalid", "semantic", `${name}.json`), "utf8"));
     expect(() => checkMessage(raw)).toThrow();
   });
@@ -346,12 +346,26 @@ describe("contributed menus", () => {
       manifest.contributes.menus["view/item/context"].find((e: { command: string }) => e.command === command).when as string;
     for (const command of ["debrief.setColour", "debrief.hide", "debrief.show"]) expect(when(command)).toContain("view == debrief.outline");
   });
+  it("offer context tracks in the Time view's title menu, the plot's choice checked (CAP-29)", () => {
+    const source = readFileSync(path.join(repo, "vscode", "src", "extension.ts"), "utf8");
+    for (const choice of ["visible", "faint", "hidden"]) {
+      const id = `debrief.contextTracks.${choice}`;
+      const entry = manifest.contributes.menus["view/title"].find((e: { command: string }) => e.command === id);
+      // In the "..." menu, not as an icon on the title bar; only with a plot open.
+      expect(entry.when).toBe("view == debrief.time && debrief.contextTracks");
+      expect(entry.group).not.toMatch(/^navigation/);
+      const definition = manifest.contributes.commands.find((c: { command: string }) => c.command === id);
+      expect(definition.title).toBe(`Context tracks: ${choice[0].toUpperCase()}${choice.slice(1)}`);
+      expect(definition.toggled).toEqual({ condition: `debrief.contextTracks == ${choice}` });
+    }
+    expect(source).toContain('command(`debrief.contextTracks.${choice}`, () => vscode.commands.executeCommand("debrief.setContextTracks", choice))');
+  });
 });
 
 describe("hiding and colour are the plot's own content (SUB-22)", () => {
   const plot = {
     type: "FeatureCollection",
-    schema_version: "0.0.9",
+    schema_version: "0.0.10",
     features: [
       { id: "a", properties: { kind: "track", name: "A", style: { colour: "#e01c3e" } } },
       { id: "b", properties: { kind: "annotation", name: "B", hidden: true } },

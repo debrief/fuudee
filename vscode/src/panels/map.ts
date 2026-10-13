@@ -1,7 +1,8 @@
 /**
- * The plot's map, in a webview beside the editor (SUB-30, SUB-03). It shows and
- * sets all three pieces of shared state: selection, current time (its time
- * control) and viewport (SUB-26, SUB-27).
+ * The plot's map, in a webview beside the editor (SUB-30, SUB-03). It shows all
+ * three pieces of shared state and sets selection and viewport (SUB-26,
+ * SUB-27). Current time and the time window are set in the time controller,
+ * at the top of the sidebar (panels/timeview.ts); the map draws the window.
  */
 import * as vscode from "vscode";
 import type { Session } from "../session.js";
@@ -16,6 +17,8 @@ export class MapPanel {
   showing?: string;
   /** How many hidden features the map last said there were. */
   hiddenCount?: number;
+  /** How the map was last told to draw tracks outside the window, for tests and agents. */
+  context?: string;
 
   constructor(
     private readonly extension: vscode.Uri,
@@ -30,6 +33,12 @@ export class MapPanel {
       if (origin === "map" || origin === "plot") return; // the map set it, or show_plot carries it
       if (change.time) this.post({ kind: "set_time", time: change.time });
       if (change.viewport) this.post({ kind: "set_viewport", viewport: change.viewport });
+    });
+    // How tracks outside the window are drawn: the plot's choice, the analyst's setting applied (CAP-29).
+    session.onView(() => {
+      if (!this.session.current || !this.panel || !this.ready) return;
+      this.context = this.session.contextShown();
+      this.post({ kind: "set_context", context_tracks: this.context });
     });
   }
 
@@ -93,11 +102,13 @@ export class MapPanel {
       plot_title: this.panel.title,
       selection: this.selectionMessage(this.session.selection),
       hidden_count: hidden,
+      context_tracks: this.session.contextShown(),
       ...(this.session.time && { time: this.session.time }),
     });
     if (this.ready) {
       this.showing = opened.item.id;
       this.hiddenCount = hidden;
+      this.context = this.session.contextShown();
     }
   }
 

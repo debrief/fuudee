@@ -6,6 +6,7 @@
 import { createServer } from "node:http";
 import { readFile } from "node:fs/promises";
 import { existsSync, readFileSync } from "node:fs";
+import { execFileSync } from "node:child_process";
 import path from "node:path";
 import assert from "node:assert/strict";
 import { chromium } from "playwright";
@@ -55,15 +56,16 @@ try {
   assert.match(await history(), /step 1/);
   await shot("play-01-ready");
 
-  // Current time is set at the top of the side column; the map shows no control of its own.
+  // The time controller is at the top of the side column; the map has no control of its own.
   const timeLabel = () => text("#timebar .time-label");
   assert.equal(await page.locator("#side section").first().getAttribute("id"), "panel-time");
-  assert.equal(await page.frameLocator(".frame-map").locator("#timebar").isHidden(), true);
+  assert.equal(await page.frameLocator(".frame-map").locator(".tc-window, .tc-current").count(), 0);
   const timeBefore = await timeLabel();
   const markers = () => page.frameLocator(".frame-map").locator(".now").count();
   await page.locator("#timebar .forward").click();
   await page.waitForFunction((was) => document.querySelector("#timebar .time-label")?.textContent !== was, timeBefore);
   assert.ok((await markers()) > 0, "tracks show where they were at current time");
+  await playTheTimeController();
 
   // The map: a click on BLUE ONE's first fix, inside the exercise area, selects BLUE ONE, not the area.
   const plot = JSON.parse(readFileSync(path.join(root, "sample/serial-1/plot.geojson"), "utf8"));
@@ -89,6 +91,20 @@ try {
   await page.keyboard.press("Enter");
   await page.waitForFunction(() => document.querySelectorAll("#outline li.selected").length === 1 && document.querySelectorAll("#outline li")[1].classList.contains("selected"));
 
+  // The window first ends at 09:00, before the closest approach of BLUE ONE and RED ONE (09:21).
+  const tc = (selector) => page.locator(`#timebar ${selector}`);
+  const at = (hhmm) => Date.parse(`2023-06-15T${hhmm}:00.000Z`);
+  const end = async () => Number(await tc(".tc-end").getAttribute("aria-valuenow"));
+  await tc(".tc-start").focus();
+  await page.keyboard.press("Home");
+  await tc(".tc-end").focus();
+  await page.keyboard.press("End");
+  for (const key of ["PageDown", "PageDown", "PageDown", ...Array(6).fill("ArrowLeft")]) await page.keyboard.press(key); // 5 min steps
+  assert.equal(await end(), at("09:00"));
+  await page.waitForTimeout(500);
+  const cue = () => text("#timebar .tc-cue-text");
+  assert.equal(await cue(), "");
+
   // Select BLUE ONE and RED ONE in the outline; Closest approach is offered.
   await page.locator(`#outline li[data-id="track-blue-one"]`).click();
   await page.locator(`#outline li[data-id="track-red-one"]`).click({ modifiers: ["Control"] });
@@ -102,6 +118,58 @@ try {
   await page.waitForFunction(() => document.getElementById("history")?.textContent?.includes("Closest approach"));
   console.log(`Closest approach, from Run to its result: ${Date.now() - started} ms`);
   await shot("play-03-closest-approach");
+
+  // Its moment is outside the saved window: the window shown widens to take it in, never saved,
+  // the widened part hatched, and a note with Keep and Revert stays until the reader chooses (CAP-28).
+  await page.locator(".toast", { hasText: "(outside your saved window)" }).waitFor();
+  await page.waitForFunction(() => document.querySelector("#timebar .tc-cue-text")?.textContent === "Showing beyond saved window");
+  assert.equal(await tc(".tc-cue").getAttribute("aria-live"), "polite");
+  assert.ok((await tc(".tc-cue").boundingBox()).height <= 26, "the note is one line, Keep and Revert inline");
+  assert.equal(await tc(".tc-cue-text").getAttribute("title"), "Showing beyond saved window");
+  assert.equal(await page.locator("#timebar .tc-beyond:visible").count(), 1);
+  assert.ok((await end()) > at("09:21") && (await end()) <= at("09:22"), "widened by the least amount");
+  const mapView = page.frameLocator(".frame-map");
+  const cpaLabel = mapView.locator(".annotation-label", { hasText: "Closest approach" });
+  await cpaLabel.first().waitFor(); // the map shows the widened window: the closest approach is drawn
+  await page.locator("#side").evaluate((side) => (side.scrollTop = 0));
+  await shot("time-06-beyond-saved-window");
+  // Stepping current time inside the window shown neither saves it nor clears the note.
+  await tc(".back").click();
+  assert.equal(await cue(), "Showing beyond saved window");
+  // Revert: the saved window again, current time at its nearest edge.
+  await tc(".tc-revert").click();
+  await page.waitForFunction(() => document.querySelector("#timebar .tc-cue-text")?.textContent === "");
+  assert.equal(await end(), at("09:00"));
+  assert.equal(Number(await tc(".tc-current").inputValue()), at("09:00"));
+  await cpaLabel.first().waitFor({ state: "detached" });
+
+  // A window of ten minutes: the moment is too far for widening (more than twice), so the window moves.
+  await tc(".tc-end").focus();
+  await page.keyboard.press("Home"); // a second after the start
+  await page.keyboard.press("ArrowRight");
+  await page.keyboard.press("ArrowRight");
+  await page.waitForTimeout(500);
+  const savedEnd = await end();
+  await page.locator("#tools button", { hasText: "Closest approach" }).click();
+  await form.getByRole("button", { name: "Run" }).click();
+  await page.waitForFunction(() => document.querySelector("#timebar .tc-cue-text")?.textContent === "Showing a different period from the saved window", null, { timeout: 60000 });
+  assert.ok((await end()) > at("09:21"), "moved to take the moment in");
+  await page.locator("#side").evaluate((side) => (side.scrollTop = 0));
+  await shot("time-07-different-period");
+  // Keep: saved through the normal path, as letting go is; no step in the history.
+  const stepsBeforeKeep = await history();
+  await tc(".tc-keep").click();
+  await page.waitForFunction(() => document.querySelector("#timebar .tc-cue-text")?.textContent === "");
+  await page.waitForTimeout(600);
+  assert.equal(await page.locator(".toast.warning").count(), 0, "kept, with no conflict");
+  assert.equal(await history(), stepsBeforeKeep);
+  assert.notEqual(await end(), savedEnd);
+  // Back to the whole plot.
+  await tc(".tc-start").focus();
+  await page.keyboard.press("Home");
+  await tc(".tc-end").focus();
+  await page.keyboard.press("End");
+  await page.waitForTimeout(500);
 
   // Ctrl+Z on the map undoes (forwarded from its frame), and closes results that no longer apply.
   await page.frameLocator(".frame-map").locator("#map").focus();
@@ -236,10 +304,235 @@ try {
   assert.notEqual(await text("#a"), a);
   await shot("play-09-geodesic");
 
+  await contextOnDark();
+  await vscodeTimeView();
   await cdnBlocked();
   if (site) await playFromThePost();
   assert.deepEqual(errors, []);
   console.log(`Playground played: map selection, keyboard, tools, undo, crash recovery, conflict, import, narrow, CDN blocked${site ? ", and from a blog post" : ""}.`);
+
+  /**
+   * The time controller (CAP-28): drag the window and the map shows only it, at
+   * once; it is saved when let go, and is no step in the history. The keys move
+   * the handles; Space plays; a colleague's window is shown and said.
+   */
+  async function playTheTimeController() {
+    const tc = (selector) => page.locator(`#timebar ${selector}`);
+    const mapFrame = page.frameLocator(".frame-map");
+    // Leaflet fades a label out over 200 ms, so a redrawn one can briefly have company.
+    const label = (name) => mapFrame.locator(".track-label", { hasText: name }).first();
+    // Tug 01's last fix is at 10:35; the whole plot runs 08:00 to 12:00.
+    await label("Tug 01").waitFor();
+    assert.equal(await tc(".tc-start").getAttribute("role"), "slider");
+    assert.match(await tc(".tc-start").getAttribute("aria-valuetext"), /08:00:00Z/);
+    const stepsBefore = await history();
+    const startBefore = await text("#timebar .tc-window-start");
+    await shot("time-01-controller");
+
+    // Drag the window's start most of the way along. The map follows before it is let go.
+    const rail = await tc(".tc-window").boundingBox();
+    const handle = await tc(".tc-start").boundingBox();
+    const [x, y] = [handle.x + handle.width / 2, handle.y + handle.height / 2];
+    await page.mouse.move(x, y);
+    await page.mouse.down();
+    for (let i = 1; i <= 10; i++) await page.mouse.move(x + i * rail.width * 0.07, y); // a hand's drag
+    await page.waitForFunction(async () => true); // let the frame draw
+    for (let i = 0; i < 50 && (await mapFrame.locator(".track-label", { hasText: "Tug 01" }).count()); i++) await page.waitForTimeout(100);
+    assert.equal(await mapFrame.locator(".track-label", { hasText: "Tug 01" }).count(), 0, "Tug 01 ended before the window");
+    await page.mouse.up();
+    assert.notEqual(await text("#timebar .tc-window-start"), startBefore);
+    assert.match(await text("#timebar .tc-window-start"), /15 Jun 2023 1[01]:\d\d:\d\dZ/);
+    // Current time is kept inside the window; the whole tracks stay, thin and visible (CAP-29).
+    const [start, current] = [Number(await tc(".tc-start").getAttribute("aria-valuenow")), Number(await tc(".tc-current").inputValue())];
+    assert.ok(current >= start, "current time is inside the window");
+    const contextLines = (opacity) => mapFrame.locator(`path[stroke-width="1.5"][stroke-opacity="${opacity}"]`).count();
+    assert.ok((await contextLines("0.6")) + (await contextLines("0.3")) >= 10, "every track's whole line, visible (or dimmed for the selection)");
+    // View state: saved in the plot, never a step in its history.
+    await page.waitForTimeout(500);
+    assert.equal(await history(), stepsBefore);
+    await shot("time-02-window-narrowed");
+
+    // Context tracks: visible, faint or hidden, for the plot; view state, so no step in its history.
+    await mapFrame.locator("#map").focus();
+    await page.keyboard.press("Escape"); // nothing selected: nothing dimmed
+    await page.waitForFunction(() => !document.querySelector("#outline li.selected"));
+    assert.equal(await tc(".tc-context").inputValue(), "visible");
+    await page.waitForFunction(async () => true);
+    for (let i = 0; i < 30 && (await contextLines("0.6")) < 10; i++) await page.waitForTimeout(100);
+    assert.ok((await contextLines("0.6")) >= 10, "visible: opacity 0.6, at least 3:1 against the map");
+    await shot("context-01-visible-light");
+    await tc(".tc-context").selectOption("faint");
+    for (let i = 0; i < 50 && (await contextLines("0.35")) < 10; i++) await page.waitForTimeout(100);
+    assert.ok((await contextLines("0.35")) >= 10, "faint");
+    await tc(".tc-context").selectOption("hidden");
+    for (let i = 0; i < 50 && (await contextLines("0.35")) > 0; i++) await page.waitForTimeout(100);
+    assert.equal((await contextLines("0.35")) + (await contextLines("0.6")), 0, "hidden: no context lines");
+    await tc(".tc-context").selectOption("visible");
+    for (let i = 0; i < 50 && (await contextLines("0.6")) < 10; i++) await page.waitForTimeout(100);
+    assert.ok((await contextLines("0.6")) >= 10, "visible again");
+    await page.waitForTimeout(500);
+    assert.equal(await history(), stepsBefore, "context tracks are view state: no step");
+    assert.equal(await page.locator(".toast.warning").count(), 0);
+
+    // Keys: an arrow moves a handle by a step (the plot's four hours: 5 min); End puts it back.
+    await tc(".tc-end").focus();
+    const end = Number(await tc(".tc-end").getAttribute("aria-valuenow"));
+    await page.keyboard.press("ArrowLeft");
+    assert.equal(Number(await tc(".tc-end").getAttribute("aria-valuenow")), end - 300000);
+    await page.keyboard.press("End");
+    assert.equal(Number(await tc(".tc-end").getAttribute("aria-valuenow")), end);
+    // With the end handle focused, drag the start handle: the other handle losing focus never stops the drag.
+    const startNow = Number(await tc(".tc-start").getAttribute("aria-valuenow"));
+    const grip = await tc(".tc-start").boundingBox();
+    await page.mouse.move(grip.x + grip.width / 2, grip.y + grip.height / 2);
+    await page.mouse.down();
+    for (let i = 1; i <= 5; i++) await page.mouse.move(grip.x + grip.width / 2 - i * 4, grip.y + grip.height / 2);
+    await page.mouse.up();
+    assert.ok(Number(await tc(".tc-start").getAttribute("aria-valuenow")) < startNow, "the start handle followed the pointer");
+
+    // Space plays from a slider, at the chosen speed; playing stops at the window's end.
+    await tc(".tc-current").focus();
+    await page.keyboard.press("Home");
+    const from = await timeLabel();
+    await page.keyboard.press("Space");
+    assert.equal(await tc(".tc-play").getAttribute("aria-label"), "Pause");
+    await page.waitForFunction((was) => document.querySelector("#timebar .time-label")?.textContent !== was, from);
+    await shot("time-03-playing");
+    await tc(".tc-speed").selectOption("3600");
+    await page.waitForFunction(() => document.querySelector("#timebar .tc-play")?.getAttribute("aria-label") === "Play", null, { timeout: 15000 });
+    assert.equal(await tc(".tc-current").inputValue(), await tc(".tc-end").getAttribute("aria-valuenow"));
+
+    // A window of one second (Home on the end handle: a second after the start; the handles never cross)
+    // is too short to play at 3600×: Play is off and says why. At 1× it plays.
+    const endWas = Number(await tc(".tc-end").getAttribute("aria-valuenow"));
+    await tc(".tc-end").focus();
+    await page.keyboard.press("Home");
+    assert.equal(Number(await tc(".tc-end").getAttribute("aria-valuenow")) - Number(await tc(".tc-start").getAttribute("aria-valuenow")), 1000);
+    assert.equal(await tc(".tc-play").getAttribute("aria-disabled"), "true");
+    assert.equal(await tc(".tc-play").getAttribute("title"), "Window too short to play at 3600×: widen it or slow down");
+    assert.equal(await tc(".tc-play").getAttribute("aria-description"), "Window too short to play at 3600×: widen it or slow down");
+    await tc(".tc-current").focus();
+    await page.keyboard.press("Space");
+    assert.equal(await tc(".tc-play").getAttribute("aria-label"), "Play", "not playing");
+    await tc(".tc-play").hover();
+    await shot("time-05-play-off-too-short");
+    await tc(".tc-speed").selectOption("1");
+    assert.equal(await tc(".tc-play").getAttribute("aria-disabled"), "false");
+    await tc(".tc-speed").selectOption("60");
+    await tc(".tc-end").focus();
+    await page.keyboard.press("End");
+    assert.ok(Number(await tc(".tc-end").getAttribute("aria-valuenow")) >= endWas);
+    await page.waitForTimeout(500);
+
+    // A colleague changes the window: Debrief shows theirs and says so; still no step.
+    const ours = await text("#timebar .tc-window-start");
+    await page.locator("#colleague-window").click();
+    await page.locator(".toast", { hasText: "time window of Serial 1 was changed elsewhere" }).waitFor();
+    assert.notEqual(await text("#timebar .tc-window-start"), ours);
+    assert.equal(await history(), stepsBefore);
+    await page.locator("#side").evaluate((side) => (side.scrollTop = 0)); // the controller in the picture
+    await shot("time-04-colleague-window");
+
+    // Home on the start handle: the whole plot again, saved over the colleague's (read since).
+    await tc(".tc-start").focus();
+    await page.keyboard.press("Home");
+    await label("Tug 01").waitFor();
+    assert.equal(await text("#timebar .tc-window-start"), startBefore);
+    await page.waitForTimeout(500);
+    assert.equal(await page.locator(".toast.warning").count(), 0, "saved, with no conflict");
+  }
+
+  /** Context tracks on a dark theme: visible, as the map draws them before Python starts. */
+  async function contextOnDark() {
+    const dark = await browser.newPage({ viewport: { width: 1400, height: 820 }, colorScheme: "dark" });
+    dark.on("pageerror", (e) => errors.push(String(e)));
+    await dark.goto(`${BASE}/index.html`);
+    const map = dark.frameLocator(".frame-map");
+    await map.locator(".track-label").first().waitFor({ timeout: 60000 });
+    await dark.locator("#timebar .tc-start").focus();
+    for (const key of ["PageUp", "PageUp", "PageUp"]) await dark.keyboard.press(key); // shown, not saved before Python
+    const visible = () => map.locator('path[stroke-width="1.5"][stroke-opacity="0.6"]').count();
+    for (let i = 0; i < 30 && (await visible()) < 10; i++) await dark.waitForTimeout(100);
+    assert.ok((await visible()) >= 10, "visible context tracks on a dark theme");
+    await shot("context-02-visible-dark", dark);
+    await dark.close();
+  }
+
+  /**
+   * VS Code's Time view page (dist/webview/time.js), at the size VS Code first gives the
+   * view at 1440×900 with the other Debrief views open (measured in the integration test's
+   * screenshots: about 297 × 136 px; a little less here). Everything shows without scrolling,
+   * the note and its Keep and Revert included, and the context choice is not in the view
+   * (it is in the view's title menu).
+   */
+  async function vscodeTimeView() {
+    const extension = path.resolve(import.meta.dirname, "..", "..");
+    const webview = path.join(extension, "dist", "webview");
+    execFileSync(process.execPath, ["scripts/build.mjs"], { cwd: extension, stdio: "inherit" }); // the page as it is now
+    const files = serve(webview);
+    const view = await browser.newPage({ viewport: { width: 290, height: 132 }, colorScheme: "dark" });
+    view.on("pageerror", (e) => errors.push(String(e)));
+    const posted = [];
+    await view.exposeFunction("tellTest", (message) => posted.push(message));
+    await view.route("**/time-view.html", (route) =>
+      route.fulfill({
+        contentType: "text/html",
+        body:
+          `<!doctype html><html lang="en-GB"><head><meta charset="utf-8"><link rel="stylesheet" href="time.css">` +
+          // VS Code's own fonts and sizes, and the theme tokens the page uses for its colours.
+          `<style>:root { --vscode-font-family: system-ui, Ubuntu, "Droid Sans", sans-serif; --vscode-font-size: 13px; --vscode-editor-font-family: "Droid Sans Mono", monospace; --vscode-foreground: #ccc; --vscode-descriptionForeground: #9d9d9d; --vscode-sideBar-background: #181818; --vscode-focusBorder: #0078d4; --vscode-button-background: #0078d4; --vscode-button-foreground: #fff; --vscode-button-secondaryBackground: #313131; --vscode-button-secondaryForeground: #ccc; --vscode-dropdown-background: #313131; --vscode-input-background: #313131; --vscode-inputValidation-warningBorder: #b89500; --vscode-inputValidation-warningBackground: #352a05; }</style>` +
+          `</head><body><div id="root"></div><script>window.acquireVsCodeApi = () => ({ postMessage: (m) => window.tellTest(m) });</script>` +
+          `<script src="time.js"></script></body></html>`,
+      }),
+    );
+    await view.goto(`http://127.0.0.1:${files.address().port}/time-view.html`);
+    await view.waitForFunction(() => document.getElementById("timebar"));
+    for (let i = 0; i < 50 && !posted.some((m) => m.kind === "ready"); i++) await view.waitForTimeout(100);
+    const period = { start: "2023-06-15T08:00:00.000Z", end: "2023-06-15T12:00:00.000Z" };
+    const showTime = (range, saved) =>
+      view.evaluate(([range, saved]) => window.postMessage({ kind: "show_time", time: { current: "2023-06-15T09:21:17.000Z", range }, time_range: { start: "2023-06-15T08:00:00.000Z", end: "2023-06-15T12:00:00.000Z" }, saved_window: saved, context_tracks: "faint" }, "*"), [range, saved]);
+    const allShown = async (state) => {
+      const box = await view.evaluate(() => {
+        const bottom = (selector) => document.querySelector(selector).getBoundingClientRect().bottom;
+        return {
+          scroll: document.documentElement.scrollHeight - innerHeight,
+          height: innerHeight,
+          bottoms: [".tc-play", ".tc-speed", ".time-label", ".tc-current", ".tc-step-label", ".tc-cue", ".tc-window-length"].map(bottom),
+        };
+      });
+      assert.ok(box.scroll <= 0, `${state}: the Time view scrolls by ${box.scroll}px`);
+      for (const b of box.bottoms) assert.ok(b <= box.height, `${state}: something ends at ${b}px, below the view's ${box.height}px`);
+    };
+    // A window as saved: no note.
+    const early = { start: period.start, end: "2023-06-15T09:00:00.000Z" };
+    await showTime(early, early);
+    await view.locator(".time-label", { hasText: "09:00:00Z" }).waitFor();
+    assert.equal(await view.locator(".tc-cue-text").innerText(), "");
+    await allShown("no note");
+    assert.equal(await view.locator(".tc-context").count(), 0, "the context choice is in the view's title menu, not the view");
+    await shot("vscode-time-view-saved", view);
+    // A tool showed a wider window: the note, on one line, the whole text on hover and to screen readers.
+    const widened = { start: period.start, end: "2023-06-15T09:22:00.000Z" };
+    await showTime(widened, early);
+    await view.locator(".tc-cue-text", { hasText: "Showing beyond saved window" }).waitFor();
+    await allShown("with the note");
+    assert.equal(await view.locator(".tc-cue").getAttribute("aria-live"), "polite");
+    assert.equal(await view.locator(".tc-cue-text").getAttribute("title"), "Showing beyond saved window");
+    const [cue, keep, revert] = await Promise.all([".tc-cue", ".tc-keep", ".tc-revert"].map((s) => view.locator(s).boundingBox()));
+    assert.ok(cue.height <= 26, "the note is one line");
+    assert.ok(keep.y >= cue.y && revert.y >= cue.y && revert.x + revert.width <= cue.x + cue.width + 1, "Keep and Revert inline in the note");
+    // Play, the steps and speed share a row with current time.
+    const row = await Promise.all([".back", ".tc-play", ".forward", ".tc-speed", ".time-label"].map((s) => view.locator(s).boundingBox()));
+    for (const box of row) assert.ok(Math.abs(box.y + box.height / 2 - (row[1].y + row[1].height / 2)) <= 3, "one row");
+    await shot("vscode-time-view-note", view);
+    // Keep, from the keyboard: the window is sent to be saved.
+    await view.locator(".tc-keep").focus();
+    await view.keyboard.press("Enter");
+    for (let i = 0; i < 20 && !posted.some((m) => m.kind === "window_changed"); i++) await view.waitForTimeout(50);
+    assert.deepEqual(posted.find((m) => m.kind === "window_changed")?.time_range, widened);
+    await view.close();
+    files.close();
+  }
 
   /** With the CDN blocked, the page says so plainly; the map still works. */
   async function cdnBlocked() {

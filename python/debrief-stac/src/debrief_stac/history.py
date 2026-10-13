@@ -270,7 +270,7 @@ def apply(
     ):
         # Deleted, or replaced by a feature of another kind: either way the plot
         # would lose its details, and the island with them.
-        raise HistoryError("The plot's own details (its whole-plot feature) cannot be deleted.")
+        raise HistoryError("The plot's own details cannot be deleted.")
     features = [modified.get(f.id, f) for f in plot.features if f.id not in deleted]
     features += changes.added
     if changes.order:
@@ -666,7 +666,7 @@ class History:
                 return expected_hash
             document = json.loads(text)
             if not set_view_in(document, view):
-                raise HistoryError("This plot has no whole-plot feature to keep its view in.")
+                raise HistoryError("This plot has nowhere to keep its time window.")
             new_text = dump_json(document)
             content = content_text(text)
             if content_text(new_text) != content:  # never: only the island moved

@@ -8,7 +8,8 @@
       "selection",
       "time?",
       "viewport?",
-      "hidden_count?"
+      "hidden_count?",
+      "context_tracks?"
     ],
     "set_selection": [
       "selection"
@@ -50,6 +51,22 @@
       "tool",
       "result_title",
       "result"
+    ],
+    "show_time": [
+      "time?",
+      "time_range?",
+      "saved_window?",
+      "context_tracks?",
+      "minimum_context_contrast?"
+    ],
+    "window_changed": [
+      "time_range"
+    ],
+    "context_changed": [
+      "context_tracks"
+    ],
+    "set_context": [
+      "context_tracks"
     ]
   }
 }

@@ -8,9 +8,10 @@
  * provenance (SUB-22).
  */
 import { EventEmitter } from "node:events";
-import type { SharedState, SharedStateChange, TimeState, Viewport } from "@debrief/schemas";
+import type { SharedState, SharedStateChange, TimeRange, TimeState, Viewport } from "@debrief/schemas";
 import type { OpenedPlot } from "./catalogue.js";
-import { isFeature, timeWindowOf, type PlotFeature } from "./hidden.js";
+import { contextShown, type ContextTracks } from "../webview/contrast.js";
+import { contextTracksOf, isFeature, timeWindowOf, type PlotFeature } from "./hidden.js";
 
 type Feature = PlotFeature;
 
@@ -64,6 +65,33 @@ export class Session {
     return () => this.events.off("selection", listener);
   }
 
+  /**
+   * The plot's view (its island) was saved or read again: the saved window or
+   * how context tracks are drawn may have changed, or the analyst's setting
+   * for the minimum contrast did.
+   */
+  onView(listener: () => void): () => void {
+    this.events.on("view", listener);
+    return () => this.events.off("view", listener);
+  }
+
+  viewChanged(): void {
+    this.emit("view");
+  }
+
+  /** The analyst's setting: faint context tracks are drawn as visible (debrief.map.minimumContextContrast). */
+  minimumContextContrast = false;
+
+  /** How the plot says tracks outside the window are drawn; visible if it doesn't say. */
+  contextTracks(): ContextTracks {
+    return (this.current && contextTracksOf(this.current.plot)) ?? "visible";
+  }
+
+  /** How the map draws them: the plot's choice, with the analyst's setting applied. */
+  contextShown(): ContextTracks {
+    return contextShown(this.contextTracks(), this.minimumContextContrast);
+  }
+
   /** Any change to shared state: selection, time or viewport. origin names who set it. */
   onState(listener: (change: SharedStateChange, origin: string) => void): () => void {
     this.events.on("state", listener);
@@ -80,29 +108,67 @@ export class Session {
     this.current = opened;
     const ids = new Set(opened?.plot.features.map((f) => f.id) ?? []);
     this.selection = same ? this.selection.filter((id) => ids.has(id)) : [];
-    this.time = opened ? this.timeFor(opened, same ? this.time : undefined) : undefined;
+    const window = opened ? this.windowOf(opened) : undefined;
+    this.time = opened ? this.timeFor(window, same ? this.time : undefined, same ? this.savedWindow : undefined) : undefined;
+    this.savedWindow = window;
     if (!same) this.viewport = undefined; // the map fits the new plot and reports it
     this.emit("plot", opened);
     this.emit("selection", this.selection, "plot");
     this.emit("state", { selection: this.selectionState(), ...(this.time && { time: this.time }) }, "plot");
   }
 
-  /**
-   * The plot's time window (its view, kept in the plot file, SUB-22), or else
-   * its period, keeping current time where it was. A range widened earlier
-   * (by a tool, say) is kept, so current time never jumps back.
-   */
-  private timeFor(opened: OpenedPlot, previous?: TimeState): TimeState | undefined {
+  /** The time window as the plot file last had it, or the plot's period if it has none. */
+  savedWindow?: TimeRange;
+
+  /** The plot's whole period, from its catalogue entry: where the time window can go. */
+  period(): TimeRange | undefined {
+    const props = this.current?.item.properties;
+    const start = props?.start_datetime ?? props?.datetime ?? undefined;
+    const end = props?.end_datetime ?? props?.datetime ?? undefined;
+    return start && end ? { start, end } : undefined;
+  }
+
+  /** The plot's time window (its island, SUB-22), or else its period. */
+  private windowOf(opened: OpenedPlot): TimeRange | undefined {
     const props = opened.item.properties;
     const window = timeWindowOf(opened.plot);
-    let start = window?.start ?? props.start_datetime ?? props.datetime ?? undefined;
-    let end = window?.end ?? props.end_datetime ?? props.datetime ?? undefined;
-    if (!start || !end) return previous;
-    if (!previous) return { current: start, range: { start, end } };
+    const start = window?.start ?? props.start_datetime ?? props.datetime ?? undefined;
+    const end = window?.end ?? props.end_datetime ?? props.datetime ?? undefined;
+    return start && end ? { start, end } : undefined;
+  }
+
+  /**
+   * Current time over a plot opened or read again. A plot opened afresh starts
+   * at its window's start. Read again with its window as it was, current time
+   * and the window shown stay where they were, a window a tool showed (widened
+   * or moved, never saved) included, so current time never jumps back. Read
+   * again with a window changed elsewhere, the new window is shown, with
+   * current time kept inside it.
+   */
+  private timeFor(window: TimeRange | undefined, previous?: TimeState, saved?: TimeRange): TimeState | undefined {
+    if (!window) return previous;
+    if (!previous) return { current: window.start, range: window };
     const ms = Date.parse;
-    if (ms(previous.range.start) < ms(start)) start = previous.range.start;
-    if (ms(previous.range.end) > ms(end)) end = previous.range.end;
-    return { current: previous.current, range: { start, end } };
+    if (!saved || saved.start !== window.start || saved.end !== window.end) {
+      const current = Math.min(ms(window.end), Math.max(ms(window.start), ms(previous.current)));
+      return { current: new Date(current).toISOString(), range: window };
+    }
+    return previous;
+  }
+
+  /**
+   * The time window was saved, or changed elsewhere (SUB-22): show it, keeping
+   * current time inside. origin names who changed it.
+   */
+  windowChanged(window: TimeRange | undefined, origin: string): void {
+    const opened = this.current;
+    if (!opened) return;
+    const shown = window ?? this.period();
+    const before = this.savedWindow;
+    this.savedWindow = shown;
+    if (!shown || (before && before.start === shown.start && before.end === shown.end && this.time?.range.start === shown.start && this.time?.range.end === shown.end)) return;
+    const time = this.timeFor(shown, this.time, undefined);
+    if (time) this.setTime(time, origin);
   }
 
   /** Set the selection. origin names the view that changed it, so it need not redraw. */

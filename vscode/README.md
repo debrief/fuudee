@@ -9,6 +9,7 @@ The Phase 1 tracer, as a VS Code extension (CON-05):
 - **Tools view.** Offers the tools that apply to the selection, and explains the rest (TL-08, TL-09, CON-10).
 - **Tool forms.** Generated from each tool's declaration (TL-07, CAP-24).
 - **Results.** Shown in a panel beside the map (TL-13).
+- **Time view.** At the top of the sidebar: the plot's time window, current time within it, and play (CAP-28, SUB-26). The window is saved in the plot file, outside its history. See the [time controller](../site/docs/guides/interaction-models/time-controller.md).
 
 How these behave is set out in the [interaction models](../site/docs/guides/interaction-models/index.md) and the [style guide](../site/docs/guides/style-guide/index.md).
 
@@ -57,7 +58,5 @@ CI runs it on every pull request and keeps the screenshots as an artifact.
 - **Removing a catalogue from the list.**
 - **Keyboard selection on the map** (NFR-13, Phase 3).
 - **Drawing bearings** (Phase 4).
-- **A time controller** (Phase 3).
-- **Undo** (Phase 2).
 - **Graphs.** These are shown as tables for now.
 - **Packaging as a VSIX** (Phase 3, DEP-01).

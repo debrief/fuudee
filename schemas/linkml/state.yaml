@@ -50,3 +50,10 @@ classes:
       time: {range: TimeState, inlined: true}
       selection: {range: Selection, inlined: true}
       viewport: {range: Viewport, inlined: true}
+      save_window:
+        description: >-
+          From a tool whose purpose is to set the time window: save time's
+          range as the plot's window. Honoured only when the analyst ran the
+          tool by hand on this plot; otherwise, and without it, a range
+          beyond the saved window is shown, never saved (CAP-28). Needs time.
+        range: boolean

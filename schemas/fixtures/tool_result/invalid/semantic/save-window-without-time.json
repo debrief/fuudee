@@ -1,0 +1,9 @@
+{
+  "state_change": {
+    "selection": {
+      "plot": "serial-1",
+      "feature_ids": []
+    },
+    "save_window": true
+  }
+}

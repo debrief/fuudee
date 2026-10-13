@@ -36,5 +36,6 @@ await build({
 for (const file of ["index.html", "geodesic.html", "frame-map.html", "frame-form.html", "frame-results.html", "theme.css", "host.css", "play.py"]) {
   cpSync(path.join("play", file), path.join(out, file));
 }
+cpSync("webview/timecontrol.css", path.join(out, "timecontrol.css"));
 cpSync("media/land.geojson", path.join(out, "land.geojson"));
 console.log(`Playground bundled into ${out}`);

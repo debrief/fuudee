@@ -18,6 +18,10 @@ Adapted from `DOMAIN_GLOSSARY.md` in debrief/debrief-future, itself adapted from
 
 **Time window.** The period of the plot being looked at, one for the whole plot. Sensor data is shown only within it (CAP-28, CAP-29). Saved with the plot, but not part of its history: changing it is never undone.
 
+**Saved window.** The time window as saved in the plot. A tool that moves current time outside it shows a wider or moved window instead, without saving it; the time controller says so, with **Keep** to save the window shown and **Revert** to show the saved window again (CAP-28).
+
+**Context tracks.** Each track's whole line outside the time window, drawn thin and quieter so the whole picture stays in view. A plot draws them visible (at least 3:1 against the map), faint or hidden (CAP-29).
+
 **Island** (in guides). View state saved inside the plot file, so it travels with the plot, but outside its history: never recorded, never undone. The time window is the first. Everything else in a plot, a track's colour and what is hidden included, is part of its history (SUB-22).
 
 **Feature.** Anything in a plot: a track, an annotation, or a set of sensor observations. Used where a statement covers all three, as in "Plot features" in the outline; otherwise name the kind.
@@ -64,7 +68,7 @@ Adapted from `DOMAIN_GLOSSARY.md` in debrief/debrief-future, itself adapted from
 
 **Current time.** The instant, within a time range, that every view follows. Shared state, with selection and viewport (SUB-26).
 
-**Display window.** A period around current time outside which a layer's sensor data is hidden, so that weeks of bearings stay legible (CAP-28, CAP-29).
+**Display window.** The earlier name for the [time window](#data), when each layer was to have its own. There is now one time window for the whole plot (CAP-28, decision 12 Oct 2026).
 
 **Storyboard.** A sequence of map views, each with a time and narrative comments, exported as offline HTML, a PowerPoint quad chart or video (CAP-13, CAP-14).
 

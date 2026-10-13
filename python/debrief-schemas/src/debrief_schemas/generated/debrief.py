@@ -32,7 +32,7 @@ from pydantic import (
 
 
 metamodel_version = "1.12.0"
-version = "0.0.9"
+version = "0.0.10"
 
 
 class ConfiguredBaseModel(BaseModel):
@@ -504,6 +504,24 @@ class PlotKindEnum(str, Enum):
     plot = "plot"
 
 
+class ContextTracksEnum(str, Enum):
+    """
+    How the map draws each track outside the time window: its context (CAP-29). An analyst's setting for the minimum contrast can show faint as visible, never hidden as anything else.
+    """
+    visible = "visible"
+    """
+    Easy to see on any theme: at least 3:1 against the map's background.
+    """
+    faint = "faint"
+    """
+    Fainter, for a busy plot. Not guaranteed to reach 3:1.
+    """
+    hidden = "hidden"
+    """
+    Not drawn: only what is in the time window shows.
+    """
+
+
 class TrackKindEnum(str, Enum):
     track = "track"
 
@@ -731,6 +749,22 @@ class WebviewMessageKindEnum(str, Enum):
     show_results = "show_results"
     """
     Host to results: show a tool's result (tool, result_title, result).
+    """
+    show_time = "show_time"
+    """
+    Host to time controller: current time, its range being the time window shown (time), the plot's whole period (time_range), the window as saved in the plot (saved_window), how tracks outside the window are drawn (context_tracks) and whether the analyst's setting shows faint as visible (minimum_context_contrast); none when no plot is open.
+    """
+    window_changed = "window_changed"
+    """
+    Time controller to host: the analyst let go of the time window, or chose Keep; save it in the plot (time_range).
+    """
+    context_changed = "context_changed"
+    """
+    Time controller to host: the analyst chose how tracks outside the window are drawn; save it in the plot (context_tracks).
+    """
+    set_context = "set_context"
+    """
+    Host to map: draw tracks outside the window this way (context_tracks), the analyst's setting already applied.
     """
 
 
@@ -1623,6 +1657,7 @@ class PlotView(ConfiguredBaseModel):
     linkml_meta: ClassVar[LinkMLMeta] = LinkMLMeta({'from_schema': 'https://debrief.info/schemas/debrief'})
 
     time_window: Optional[TimeRange] = Field(default=None, description="""The plot's time window: the period shown, one for the whole plot (CAP-28, CAP-29). Start shall not be after end.""", json_schema_extra = { "linkml_meta": {'domain_of': ['PlotView']} })
+    context_tracks: Optional[ContextTracksEnum] = Field(default=None, description="""How tracks outside the time window are drawn (CAP-29). Left out means visible.""", json_schema_extra = { "linkml_meta": {'domain_of': ['PlotView', 'WebviewMessage']} })
 
 
 class NamedSet(ConfiguredBaseModel):
@@ -2011,6 +2046,7 @@ class SharedStateChange(ConfiguredBaseModel):
                        'WebviewMessage']} })
     selection: Optional[Selection] = Field(default=None, json_schema_extra = { "linkml_meta": {'domain_of': ['SharedState', 'SharedStateChange', 'WebviewMessage']} })
     viewport: Optional[Viewport] = Field(default=None, json_schema_extra = { "linkml_meta": {'domain_of': ['SharedState', 'SharedStateChange', 'WebviewMessage']} })
+    save_window: Optional[bool] = Field(default=None, description="""From a tool whose purpose is to set the time window: save time's range as the plot's window. Honoured only when the analyst ran the tool by hand on this plot; otherwise, and without it, a range beyond the saved window is shown, never saved (CAP-28). Needs time.""", json_schema_extra = { "linkml_meta": {'domain_of': ['SharedStateChange']} })
 
 
 class ToolDeclaration(ConfiguredBaseModel):
@@ -2330,7 +2366,10 @@ class WebviewMessage(ConfiguredBaseModel):
                        'SharedState',
                        'SharedStateChange',
                        'WebviewMessage']} })
-    time_range: Optional[TimeRange] = Field(default=None, description="""The plot's period, so times can be entered as the analyst reads them.""", json_schema_extra = { "linkml_meta": {'domain_of': ['AnnotationProperties',
+    saved_window: Optional[TimeRange] = Field(default=None, description="""The time window as saved in the plot, so the time controller can say when the window shown differs from it (CAP-28).""", json_schema_extra = { "linkml_meta": {'domain_of': ['WebviewMessage']} })
+    context_tracks: Optional[ContextTracksEnum] = Field(default=None, description="""How tracks outside the time window are drawn (CAP-29).""", json_schema_extra = { "linkml_meta": {'domain_of': ['PlotView', 'WebviewMessage']} })
+    minimum_context_contrast: Optional[bool] = Field(default=None, description="""The analyst's setting that shows faint context tracks as visible, so the time controller can say so.""", json_schema_extra = { "linkml_meta": {'domain_of': ['WebviewMessage']} })
+    time_range: Optional[TimeRange] = Field(default=None, description="""The plot's period, so times can be entered as the analyst reads them (show_form) and the time window set within it (show_time); or the time window to save (window_changed).""", json_schema_extra = { "linkml_meta": {'domain_of': ['AnnotationProperties',
                        'SensorObservationsProperties',
                        'WebviewMessage']} })
     current_time: Optional[str] = Field(default=None, description="""Current time from shared state, which a tool form offers for its time fields.""", json_schema_extra = { "linkml_meta": {'domain_of': ['WebviewMessage']} })

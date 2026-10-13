@@ -53,3 +53,13 @@ export function describeChanges(result?: ToolResult): string {
   ];
   return parts.filter(Boolean).join(", ");
 }
+
+/**
+ * What to tell the analyst after a tool ran: what it did to the plot and,
+ * when it moved current time outside the saved window, that too (CAP-28).
+ * Nothing if there is nothing to say.
+ */
+export function describeToolRun(title: string, result: ToolResult | undefined, outsideSavedWindow: boolean): string | undefined {
+  const parts = [describeChanges(result), outsideSavedWindow ? "moved current time (outside your saved window)" : ""].filter(Boolean);
+  return parts.length ? `${title} ${parts.join(" and ")}.` : undefined;
+}

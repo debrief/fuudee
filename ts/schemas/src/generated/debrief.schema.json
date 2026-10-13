@@ -249,6 +249,16 @@
       "title": "CatalogTypeEnum",
       "type": "string"
     },
+    "ContextTracksEnum": {
+      "description": "How the map draws each track outside the time window: its context (CAP-29). An analyst's setting for the minimum contrast can show faint as visible, never hidden as anything else.",
+      "enum": [
+        "visible",
+        "faint",
+        "hidden"
+      ],
+      "title": "ContextTracksEnum",
+      "type": "string"
+    },
     "DebriefFeatureCollection": {
       "additionalProperties": false,
       "description": "The unit of analysis (SUB-05), stored as an asset of a STAC item.",
@@ -1139,6 +1149,17 @@
       "additionalProperties": false,
       "description": "View state saved in the plot file: not content, so not undoable and not recorded in provenance (SUB-22). Two people changing it at once are told, not silently overwritten (SUB-28). Later view state joins here.",
       "properties": {
+        "context_tracks": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/ContextTracksEnum"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": "How tracks outside the time window are drawn (CAP-29). Left out means visible."
+        },
         "time_window": {
           "anyOf": [
             {
@@ -1556,6 +1577,13 @@
       "additionalProperties": false,
       "description": "A change to some or all of shared state, as set by a view or returned by a tool (TL-10, TL-11).",
       "properties": {
+        "save_window": {
+          "description": "From a tool whose purpose is to set the time window: save time's range as the plot's window. Honoured only when the analyst ran the tool by hand on this plot; otherwise, and without it, a range beyond the saved window is shown, never saved (CAP-28). Needs time.",
+          "type": [
+            "boolean",
+            "null"
+          ]
+        },
         "selection": {
           "anyOf": [
             {
@@ -2432,6 +2460,17 @@
       "additionalProperties": false,
       "description": "",
       "properties": {
+        "context_tracks": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/ContextTracksEnum"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": "How tracks outside the time window are drawn (CAP-29)."
+        },
         "current_time": {
           "description": "Current time from shared state, which a tool form offers for its time fields.",
           "pattern": "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}\\.\\d{3}Z$",
@@ -2454,6 +2493,13 @@
         "message": {
           "type": [
             "string",
+            "null"
+          ]
+        },
+        "minimum_context_contrast": {
+          "description": "The analyst's setting that shows faint context tracks as visible, so the time controller can say so.",
+          "type": [
+            "boolean",
             "null"
           ]
         },
@@ -2498,6 +2544,17 @@
             "null"
           ]
         },
+        "saved_window": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/TimeRange"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": "The time window as saved in the plot, so the time controller can say when the window shown differs from it (CAP-28)."
+        },
         "selected_names": {
           "items": {
             "type": "string"
@@ -2536,7 +2593,7 @@
               "type": "null"
             }
           ],
-          "description": "The plot's period, so times can be entered as the analyst reads them."
+          "description": "The plot's period, so times can be entered as the analyst reads them (show_form) and the time window set within it (show_time); or the time window to save (window_changed)."
         },
         "tool": {
           "anyOf": [
@@ -2588,7 +2645,11 @@
         "cancel",
         "form_busy",
         "form_error",
-        "show_results"
+        "show_results",
+        "show_time",
+        "window_changed",
+        "context_changed",
+        "set_context"
       ],
       "title": "WebviewMessageKindEnum",
       "type": "string"
@@ -2650,5 +2711,5 @@
   ],
   "title": "debrief",
   "type": "object",
-  "version": "0.0.9"
+  "version": "0.0.10"
 }

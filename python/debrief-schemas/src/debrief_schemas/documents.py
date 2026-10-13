@@ -403,6 +403,8 @@ def _tool_result_problems(result: g.ToolResult, raw: dict[str, Any]) -> list[str
             problems.append(f"{where}: a number is one column with one value")
     if result.state_change is not None:
         problems += _state_problems(result.state_change)
+        if result.state_change.save_window and result.state_change.time is None:
+            problems.append("state_change: save_window needs a time, whose range is the window")
     return problems
 
 
@@ -455,7 +457,15 @@ def _user_config_problems(config: g.UserConfig, raw: dict[str, Any]) -> list[str
 # through schemas/vectors/webview-messages.json, which a test checks matches.
 MESSAGE_MEMBERS: dict[str, tuple[str, ...]] = {
     "ready": (),
-    "show_plot": ("plot", "plot_title", "selection", "time?", "viewport?", "hidden_count?"),
+    "show_plot": (
+        "plot",
+        "plot_title",
+        "selection",
+        "time?",
+        "viewport?",
+        "hidden_count?",
+        "context_tracks?",
+    ),
     "set_selection": ("selection",),
     "selection_changed": ("selection",),
     "set_time": ("time",),
@@ -469,6 +479,16 @@ MESSAGE_MEMBERS: dict[str, tuple[str, ...]] = {
     "form_busy": ("message",),
     "form_error": ("message",),
     "show_results": ("tool", "result_title", "result"),
+    "show_time": (
+        "time?",
+        "time_range?",
+        "saved_window?",
+        "context_tracks?",
+        "minimum_context_contrast?",
+    ),
+    "window_changed": ("time_range",),
+    "context_changed": ("context_tracks",),
+    "set_context": ("context_tracks",),
 }
 
 
@@ -482,6 +502,8 @@ def _webview_message_problems(message: g.WebviewMessage, raw: dict[str, Any]) ->
         f"{kind} does not carry {member}" for member in sorted(set(raw) - {"kind", *allowed})
     ]
     problems += _state_problems(message)  # time and viewport, where carried
+    problems += _time_range_problems("time_range", message.time_range)
+    problems += _time_range_problems("saved_window", message.saved_window)
     if message.plot is not None:
         problems += _plot_problems(message.plot, raw["plot"])
     if message.result is not None:

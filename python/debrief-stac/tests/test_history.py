@@ -261,7 +261,7 @@ def test_a_crash_during_the_first_baseline_is_finished(catalogue: Catalogue) -> 
 
 def test_a_half_written_delta_is_set_aside(catalogue: Catalogue) -> None:
     folder = catalogue.store.root / "p" / "history"
-    (folder / "000002.json").write_text('{"schema_version": "0.0.9", "seq": 2, "aft')
+    (folder / "000002.json").write_text('{"schema_version": "0.0.10", "seq": 2, "aft')
     notes = catalogue.history("p").recover()
     assert "interrupted before it was saved (step 2)" in notes[0]
     assert (folder / ".000002.partial").exists() and not (folder / "000002.json").exists()
@@ -366,7 +366,7 @@ def test_the_first_step_cannot_be_undone_by_any_route(catalogue: Catalogue) -> N
 def test_a_plot_created_with_content_but_no_record_gets_a_baseline(tmp_path: Path) -> None:
     catalogue = Catalogue.create(tmp_path / "c", "c", "C", "")
     plot = models.DebriefFeatureCollection(
-        type="FeatureCollection", schema_version="0.0.9", features=[note("a")], provenance=[]
+        type="FeatureCollection", schema_version="0.0.10", features=[note("a")], provenance=[]
     )
     catalogue.create_plot("p", "Plot", plot)
     assert catalogue.read_plot("p").provenance[0].agent.name == "debrief-stac"
