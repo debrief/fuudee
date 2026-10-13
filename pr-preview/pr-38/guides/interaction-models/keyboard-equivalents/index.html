@@ -71,7 +71,7 @@
     
     
     
-    <body dir="ltr" data-md-color-scheme="default" data-md-color-primary="indigo" data-md-color-accent="indigo"><div class="pr-preview-banner" style="background:#fff4ce;color:#3b2f00;border-bottom:1px solid #e0c060;padding:6px 16px;font:14px/1.4 system-ui,sans-serif;text-align:center">Preview of <a style="color:inherit;text-decoration:underline" href="https://github.com/debrief/fuudee/pull/38">pull request #38</a>: Track operations, part B2: jumps, smoothing and fix marks. Built from 64fdd16 on 2026-10-13 20:58 UTC. <a style="color:inherit;text-decoration:underline" href="https://debrief.github.io/fuudee/pr-preview/">All previews</a></div>
+    <body dir="ltr" data-md-color-scheme="default" data-md-color-primary="indigo" data-md-color-accent="indigo"><div class="pr-preview-banner" style="background:#fff4ce;color:#3b2f00;border-bottom:1px solid #e0c060;padding:6px 16px;font:14px/1.4 system-ui,sans-serif;text-align:center">Preview of <a style="color:inherit;text-decoration:underline" href="https://github.com/debrief/fuudee/pull/38">pull request #38</a>: Track operations, part B2: jumps, smoothing and fix marks. Built from 332e999 on 2026-10-13 21:55 UTC. <a style="color:inherit;text-decoration:underline" href="https://debrief.github.io/fuudee/pr-preview/">All previews</a></div>
   
     
     <input class="md-toggle" data-md-toggle="drawer" type="checkbox" id="__drawer" autocomplete="off">
@@ -1533,7 +1533,7 @@
 </tbody>
 </table>
 <h2 id="model">Model<a class="headerlink" href="#model" title="Permanent link">&para;</a></h2>
-<p><em>Written so far for annotations and for moving and rotating tracks; the rest of the map follows in Phase 3.</em></p>
+<p><em>Written so far for annotations and for moving, rotating, shearing and stretching tracks; the rest of the map follows in Phase 3.</em></p>
 <table>
 <thead>
 <tr>
@@ -1567,16 +1567,20 @@
 <td><code>Tab</code> to its rotate handle; <code>Right</code> and <code>Up</code> turn it 1° clockwise, <code>Left</code> and <code>Down</code> anticlockwise, 10° with <code>Shift</code>; one step for the run. The pivot handle moves with the arrow keys. Or <strong>Rotate track…</strong>, with the pivot and angle typed.</td>
 </tr>
 <tr>
+<td>Shear or stretch a track</td>
+<td><code>Tab</code> to a diamond beside the first or last fix. Shearing, the arrow keys move it 5 pixels (25 with <code>Shift</code>), the other end held; stretching (<em>Stretch</em> on the map), <code>Up</code> and <code>Right</code> make it 0.1 kn faster, <code>Down</code> and <code>Left</code> slower, 1 kn with <code>Shift</code>. One step for the run. Or <strong>Shear track…</strong> (course and speed made good) and <strong>Stretch track…</strong> (speed) (<a href="../track-operations/#shearing-and-stretching">track operations</a>).</td>
+</tr>
+<tr>
 <td>Split or merge tracks</td>
-<td><strong>Split track at current time…</strong> and <strong>Merge selected tracks</strong> on the outline's context menu (buttons under the outline in the playground); there is no map gesture for either.</td>
+<td><strong>Split track at current time…</strong> and <strong>Merge selected tracks</strong> on the outline's context menu (<strong>Split…</strong> and <strong>Merge</strong> under <em>Track</em>, below the outline, in the playground); there is no map gesture for either.</td>
 </tr>
 <tr>
 <td>Right-click a fix to colour, label or comment on it</td>
-<td><strong>Fixes: colour, label or comment…</strong> on the outline's context menu: the fix list, a list to type in (a time finds a fix), then the action. In the playground, <strong>Fixes…</strong>: <code>Up</code> and <code>Down</code> move along the list, <code>Enter</code> or <code>Space</code> chooses (<a href="../track-operations/">track operations</a>, item 16).</td>
+<td><strong>Fixes: colour, label or comment…</strong> on the outline's context menu: the fix list, a list to type in (a time finds a fix), then the action. In the playground, <strong>Fixes…</strong> under <em>Track</em>: <code>Up</code> and <code>Down</code> move along the list, <code>Enter</code> or <code>Space</code> chooses (<a href="../track-operations/#cleaning-tracks">track operations</a>, item 3).</td>
 </tr>
 <tr>
 <td>Check jumps on the map, or a smoothing preview</td>
-<td><strong>Find and remove jumps…</strong> lists each jump, ticked, in a list read by screen readers; <strong>Smooth track…</strong> says how many fixes would move and the most any would, in words, before Apply (<a href="../track-operations/">track operations</a>, items 14 and 15).</td>
+<td><strong>Find and remove jumps…</strong> lists each jump, ticked, in a list read by screen readers; <strong>Smooth track…</strong> says how many fixes would move and the most any would, in words, before Apply (<a href="../track-operations/#cleaning-tracks">track operations</a>, items 1 and 2).</td>
 </tr>
 <tr>
 <td>Clear the selection</td>
@@ -1589,7 +1593,7 @@
 </tbody>
 </table>
 <h2 id="reference-implementation">Reference implementation<a class="headerlink" href="#reference-implementation" title="Permanent link">&para;</a></h2>
-<p><code>vscode/webview/mapedit.ts</code> (keys while drawing and on handles) and <code>vscode/webview/drawing.ts</code>; <code>vscode/webview/trackmap.ts</code> and <code>vscode/webview/trackedit.ts</code> for a track's handles. The playground tests <code>vscode/test/play/drawing.mjs</code> and <code>vscode/test/play/tracks.mjs</code> place a marker, change an area, and move and rotate a track from the keyboard alone.</p>
+<p><code>vscode/webview/mapedit.ts</code> (keys while drawing and on handles) and <code>vscode/webview/drawing.ts</code>; <code>vscode/webview/trackmap.ts</code> and <code>vscode/webview/trackedit.ts</code> for a track's handles. The playground tests <code>vscode/test/play/drawing.mjs</code> and <code>vscode/test/play/tracks.mjs</code> place a marker, change an area, move and rotate a track, and <code>vscode/test/play/shear.mjs</code> shears and stretches one, from the keyboard alone.</p>
 
 
 

@@ -71,7 +71,7 @@
     
     
     
-    <body dir="ltr" data-md-color-scheme="default" data-md-color-primary="indigo" data-md-color-accent="indigo"><div class="pr-preview-banner" style="background:#fff4ce;color:#3b2f00;border-bottom:1px solid #e0c060;padding:6px 16px;font:14px/1.4 system-ui,sans-serif;text-align:center">Preview of <a style="color:inherit;text-decoration:underline" href="https://github.com/debrief/fuudee/pull/38">pull request #38</a>: Track operations, part B2: jumps, smoothing and fix marks. Built from 64fdd16 on 2026-10-13 20:58 UTC. <a style="color:inherit;text-decoration:underline" href="https://debrief.github.io/fuudee/pr-preview/">All previews</a></div>
+    <body dir="ltr" data-md-color-scheme="default" data-md-color-primary="indigo" data-md-color-accent="indigo"><div class="pr-preview-banner" style="background:#fff4ce;color:#3b2f00;border-bottom:1px solid #e0c060;padding:6px 16px;font:14px/1.4 system-ui,sans-serif;text-align:center">Preview of <a style="color:inherit;text-decoration:underline" href="https://github.com/debrief/fuudee/pull/38">pull request #38</a>: Track operations, part B2: jumps, smoothing and fix marks. Built from 332e999 on 2026-10-13 21:55 UTC. <a style="color:inherit;text-decoration:underline" href="https://debrief.github.io/fuudee/pr-preview/">All previews</a></div>
   
     
     <input class="md-toggle" data-md-toggle="drawer" type="checkbox" id="__drawer" autocomplete="off">
@@ -1289,6 +1289,17 @@
 </li>
       
         <li class="md-nav__item">
+  <a href="#shearing-and-stretching" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Shearing and stretching
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
   <a href="#cleaning-tracks" class="md-nav__link">
     <span class="md-ellipsis">
       
@@ -1495,6 +1506,17 @@
 </li>
       
         <li class="md-nav__item">
+  <a href="#shearing-and-stretching" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Shearing and stretching
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
   <a href="#cleaning-tracks" class="md-nav__link">
     <span class="md-ellipsis">
       
@@ -1537,7 +1559,7 @@
 
 
 <h1 id="track-operations">Track operations<a class="headerlink" href="#track-operations" title="Permanent link">&para;</a></h1>
-<p>How an analyst moves a track, or a period of it, rotates it about a point, splits it at a time and merges tracks into one; and how they clean it: removing jumps, smoothing it, and giving single fixes a colour, a label or a comment of their own. Part A: moving, rotating, splitting and merging (decision, product owner, 13 Oct 2026). <a href="#cleaning-tracks">Cleaning tracks</a> (part B2, 14 Oct 2026): jump removal, smoothing and marked fixes. Still to come: dragging single fixes, and the legacy OTG and DR import modes.</p>
+<p>How an analyst moves a track, or a period of it, rotates it about a point, shears or stretches it from one end, splits it at a time and merges tracks into one; and how they clean it: removing jumps, smoothing it, and giving single fixes a colour, a label or a comment of their own. Part A: moving, rotating, splitting and merging (decision, product owner, 13 Oct 2026). Part B1: shearing and stretching, shear first as the operation analysts use most with TMA legs (decision, product owner, 13 Oct 2026; see <a href="#shearing-and-stretching">Shearing and stretching</a>). <a href="#cleaning-tracks">Cleaning tracks</a> (part B2, 14 Oct 2026): jump removal, smoothing and marked fixes. Still to come: dragging single fixes, and the legacy OTG and DR import modes.</p>
 <h2 id="requirements-cited">Requirements cited<a class="headerlink" href="#requirements-cited" title="Permanent link">&para;</a></h2>
 <table>
 <thead>
@@ -1554,6 +1576,10 @@
 <tr>
 <td>CAP-02</td>
 <td>Track edits are destructive in the working plot, each recorded as a delta.</td>
+</tr>
+<tr>
+<td>CAP-21</td>
+<td>The TMA module's manual dragging of a solution: translate, rotate, stretch, shear.</td>
 </tr>
 <tr>
 <td>SUB-19, SUB-21</td>
@@ -1588,7 +1614,7 @@
 <h2 id="model">Model<a class="headerlink" href="#model" title="Permanent link">&para;</a></h2>
 <ol>
 <li>
-<p><strong>What moves: the whole track, or a period of it.</strong> Legacy Debrief dragged a whole track, or a selected time period of it, to line it up with a reference: that is kept (decision, 13 Oct 2026). On the map, a small control below the drawing toolbar, <em>Move or rotate</em>, says which: <strong>Whole track</strong> (the default) or <strong>Time window</strong>, the fixes in the time window shown. The forms offer the same choice. An agent may give any period. Fixes whose times fall in the period, ends included, move; the rest stay where they are.</p>
+<p><strong>What moves: the whole track, or a period of it.</strong> Legacy Debrief dragged a whole track, or a selected time period of it, to line it up with a reference: that is kept (decision, 13 Oct 2026). On the map, a small control below the drawing toolbar, <em>What changes</em>, says which (for moving, rotating, shearing and stretching alike): <strong>Whole track</strong> (the default) or <strong>Time window</strong>, the fixes in the time window shown. The forms offer the same choice. An agent may give any period. Fixes whose times fall in the period, ends included, move; the rest stay where they are.</p>
 </li>
 <li>
 <p><strong>The joins jump.</strong> Moving a period moves only its fixes, so the track jumps where they meet the rest: the track is not stretched or smoothed to keep it continuous. The map shows the jump while the analyst drags, and says so: <em>only the fixes in the time window move, so the track jumps where they meet the rest</em>. Jump removal (part B) will tidy a join an analyst does not want.</p>
@@ -1624,6 +1650,11 @@
 <td>Pivot</td>
 <td>a dotted ring, by default on the fix nearest current time</td>
 <td>drag it to choose where the track turns about</td>
+</tr>
+<tr>
+<td>Ends</td>
+<td>a diamond beside the first fix and one beside the last fix of what moves (a double edge when <em>Stretch</em> is chosen)</td>
+<td>drag one to shear the track, or stretch it, holding the other end (<a href="#shearing-and-stretching">below</a>)</td>
 </tr>
 </tbody>
 </table>
@@ -1665,6 +1696,16 @@
 <td><em>BLUE ONE and BLUE TWO merged</em> (or <em>3 tracks merged</em>)</td>
 <td><em>Into BLUE ONE</em>, and any series not kept</td>
 </tr>
+<tr>
+<td>Shear</td>
+<td><em>BLUE ONE sheared: 087.2°T 12.4 kn</em> (or <em>part sheared</em>)</td>
+<td><em>Held at the start, 09:30:00Z</em>, <em>Was 090.0°T 10.0 kn</em>, and the period</td>
+</tr>
+<tr>
+<td>Stretch</td>
+<td><em>BLUE ONE stretched: 12.4 kn</em> (or <em>part stretched</em>)</td>
+<td><em>Held at the end, 10:15:00Z</em>, <em>Was 10.0 kn</em>, and the period</td>
+</tr>
 </tbody>
 </table>
 <p>Each step's provenance record holds who made it, the track or tracks it chose (<code>selected</code>), and what was asked (<code>parameters</code>): the distance and bearing, or the angle and the pivot's latitude and longitude, the period's start and end, the time of a split and the names of its parts, or the merged track's name (SUB-24). Undo is replay to the step before, as for any step (SUB-21).</p>
@@ -1697,7 +1738,17 @@
 <td>Yes</td>
 </tr>
 <tr>
-<td>Move…, Rotate…, Split…, Merge</td>
+<td>Letting go of an end, to shear or stretch</td>
+<td>Yes, one</td>
+<td>Yes</td>
+</tr>
+<tr>
+<td>A run of arrow keys on an end</td>
+<td>Yes, one for the run</td>
+<td>Yes</td>
+</tr>
+<tr>
+<td>Move…, Rotate…, Shear…, Stretch…, Split…, Merge</td>
 <td>Yes, one each</td>
 <td>Yes</td>
 </tr>
@@ -1707,7 +1758,7 @@
 <td>No</td>
 </tr>
 <tr>
-<td>Choosing <em>Whole track</em> or <em>Time window</em></td>
+<td>Choosing <em>Whole track</em> or <em>Time window</em>, or <em>Shear</em> or <em>Stretch</em></td>
 <td>No</td>
 <td>No</td>
 </tr>
@@ -1720,22 +1771,23 @@
 </table>
 </li>
 <li>
-<p><strong>The keyboard.</strong> <code>Tab</code> to a handle. On the move handle the arrow keys move it 5 pixels, 25 with <code>Shift</code>; on the rotate handle <code>Right</code> and <code>Up</code> turn it 1° clockwise, <code>Left</code> and <code>Down</code> 1° anticlockwise, 10° with <code>Shift</code>; on the pivot the arrow keys move it 5 pixels (25 with <code>Shift</code>). A run of presses on the move or rotate handle is saved as one step once they stop (under a second), on <code>Enter</code>, or when the keyboard moves on; <code>Escape</code> first puts it back. Presses made while that step is being saved are not lost: they are made as the next step. <em>Whole track</em> and <em>Time window</em> are buttons on the map, reached with <code>Tab</code>.</p>
+<p><strong>The keyboard.</strong> <code>Tab</code> to a handle. On the move handle the arrow keys move it 5 pixels, 25 with <code>Shift</code>; on the rotate handle <code>Right</code> and <code>Up</code> turn it 1° clockwise, <code>Left</code> and <code>Down</code> 1° anticlockwise, 10° with <code>Shift</code>; on the pivot the arrow keys move it 5 pixels (25 with <code>Shift</code>). A run of presses on the move or rotate handle is saved as one step once they stop (under a second), on <code>Enter</code>, or when the keyboard moves on; <code>Escape</code> first puts it back. Presses made while that step is being saved are not lost: they are made as the next step. <em>Whole track</em> and <em>Time window</em> are buttons on the map, reached with <code>Tab</code>, as are <em>Shear</em> and <em>Stretch</em>. The ends are described <a href="#shearing-and-stretching">below</a>.</p>
 </li>
 <li>
 <p><strong>The forms.</strong> For an exact change, or without the map:</p>
 <ul>
-<li><strong>Move track…</strong> (the outline's context menu on a track; <strong>Move…</strong> under the outline in the playground): what moves (<em>Whole track</em> or <em>Current time window</em>, with how many fixes it holds), the distance (<code>1.2 nmi</code>, <code>2000 yd</code>, <code>3 km</code>, or a number in the analyst's unit) and the bearing in degrees true (<code>045</code>). Each field says what it understood (<em>Means 1.20 nmi</em>) or what is wrong.</li>
+<li><strong>Move track…</strong> (the outline's context menu on a track; <strong>Move…</strong> under <em>Track</em>, below the outline, in the playground): what moves (<em>Whole track</em> or <em>Current time window</em>, with how many fixes it holds), the distance (<code>1.2 nmi</code>, <code>2000 yd</code>, <code>3 km</code>, or a number in the analyst's unit) and the bearing in degrees true (<code>045</code>). Each field says what it understood (<em>Means 1.20 nmi</em>) or what is wrong.</li>
 <li><strong>Rotate track…</strong>: what turns; the pivot (<em>Fix nearest current time</em>, <em>First fix</em>, <em>Last fix</em>, or in VS Code a position typed in any notation Debrief reads); and the angle (<code>12</code>, <code>12 clockwise</code>, <code>-12</code> or <code>12 anticlockwise</code>).</li>
 <li><strong>Split track at current time…</strong>: the names of the two parts, offered as <em>X (1)</em> and <em>X (2)</em>.</li>
 <li><strong>Merge selected tracks</strong>: the merged track's name, offered as above; first, if speeds, courses or depths would not be kept, whether to merge anyway.</li>
+<li><strong>Shear track…</strong> and <strong>Stretch track…</strong>: <a href="#shearing-and-stretching">below</a>.</li>
 </ul>
 </li>
 <li>
 <p><strong>Shared state and conflicts.</strong> Moving, rotating, splitting and merging change neither current time nor the time window. The selection is kept, except that a split selects both parts and a merge the merged track. If the plot changes elsewhere during a drag (a colleague, an agent), the map shows the latest at once, drops the drag and says <em>The plot was changed elsewhere, so your change was not made. Debrief is showing the latest; try again if you still want to.</em> A change sent from a plot that has since moved on is refused the same way (SUB-28): track operations are never merged with a change made meanwhile. Context tracks follow the track: the whole moved track is drawn as context outside the window. A hidden track is not drawn, so it has no handles, but it can still be moved, rotated, split and merged from the outline.</p>
 </li>
 <li>
-<p><strong>For agents.</strong> The same steps through the tool service: <code>debrief/edit_track</code> (<code>feature</code>, <code>edit</code>: a <code>TrackEdit</code>, <code>{"action": "move", "distance": {"value": 1.2, "unit": "[nmi_i]"}, "bearing": {"value": 45, "unit": "deg"}}</code> or <code>{"action": "rotate", "angle": {"value": -10, "unit": "deg"}, "pivot": [-4.12, 50.33]}</code>, with a <code>period</code> to move or turn only that; for a rotation with no pivot, <code>current_time</code> chooses the default), <code>debrief/split_track</code> (<code>feature</code>, <code>at</code>, and <code>names</code> if wanted) and <code>debrief/merge_tracks</code> (<code>features</code>, and <code>name</code> if wanted), each with <code>base</code> as for any change. In VS Code the commands <code>debrief.moveTrack</code> and <code>debrief.rotateTrack</code> take the track and the edit, <code>debrief.splitTrack</code> the track and <code>{at, names}</code>, and <code>debrief.mergeTracks</code> the tracks' ids and <code>{name}</code>, instead of asking.</p>
+<p><strong>For agents.</strong> The same steps through the tool service: <code>debrief/edit_track</code> (<code>feature</code>, <code>edit</code>: a <code>TrackEdit</code>, <code>{"action": "move", "distance": {"value": 1.2, "unit": "[nmi_i]"}, "bearing": {"value": 45, "unit": "deg"}}</code> or <code>{"action": "rotate", "angle": {"value": -10, "unit": "deg"}, "pivot": [-4.12, 50.33]}</code>, with a <code>period</code> to move or turn only that; for a rotation with no pivot, <code>current_time</code> chooses the default), <code>debrief/split_track</code> (<code>feature</code>, <code>at</code>, and <code>names</code> if wanted) and <code>debrief/merge_tracks</code> (<code>features</code>, and <code>name</code> if wanted), each with <code>base</code> as for any change. Shears and stretches go through <code>debrief/edit_track</code> too (<a href="#shearing-and-stretching">below</a>). In VS Code the commands <code>debrief.moveTrack</code>, <code>debrief.rotateTrack</code>, <code>debrief.shearTrack</code> and <code>debrief.stretchTrack</code> take the track and the edit, <code>debrief.splitTrack</code> the track and <code>{at, names}</code>, and <code>debrief.mergeTracks</code> the tracks' ids and <code>{name}</code>, instead of asking.</p>
 </li>
 </ol>
 <pre class="mermaid"><code>sequenceDiagram
@@ -1774,11 +1826,75 @@
     else
         Service--&gt;&gt;Host: one step: "BLUE ONE (1) and BLUE ONE (2) merged"
     end</code></pre>
+<h2 id="shearing-and-stretching">Shearing and stretching<a class="headerlink" href="#shearing-and-stretching" title="Permanent link">&para;</a></h2>
+<p>Part B1 (decision, product owner, 13 Oct 2026): <strong>shear is the operation analysts use most when working with TMA legs</strong>, so it comes first, with stretch beside it. A target's leg is a straight line run at a steady speed; the analyst keeps one end where the bearings put it and changes the course and speed of the rest. Both are legacy Debrief's TMA drags (CAP-21), here on any track.</p>
+<ol>
+<li>
+<p><strong>One end is held.</strong> What changes is the whole track or only its fixes in the time window, chosen with the same <em>Whole track</em> and <em>Time window</em> control. One end of it, its first fix or its last, is <strong>held</strong> (the anchor) and does not move; the analyst drags the other end. Dragging the end at the start holds the end, and the other way round.</p>
+</li>
+<li>
+<p><strong>Shear: every fix moves in proportion to its time from the held end.</strong> Say the held fix is A, at time t<sub>A</sub>, and the dragged end E, at time t<sub>E</sub>, is dragged to E′. A fix at time t moves by the fraction f = (t − t<sub>A</sub>) / (t<sub>E</sub> − t<sub>A</sub>) of the end's move: not at all at the held end, the whole of it at the dragged end, half of it halfway in time. A straight leg at a steady speed stays a straight leg at a steady speed, with a new course and a new speed: they change together, as in legacy Debrief's TMA shear.</p>
+<p><svg viewBox="0 0 320 160" width="320" height="160" role="img" aria-label="A straight leg from A to E, held at A; E dragged to E-prime; each fix moves part of the way, in proportion to its time from A, so the leg is still straight" style="max-width: 100%">
+  <g fill="none" stroke="currentColor" stroke-width="1.5">
+    <line x1="30" y1="130" x2="290" y2="90" stroke-dasharray="5 4" opacity="0.6"/>
+    <line x1="30" y1="130" x2="290" y2="30"/>
+    <line x1="117" y1="117" x2="117" y2="97" stroke-dasharray="2 3"/>
+    <line x1="203" y1="103" x2="203" y2="63" stroke-dasharray="2 3"/>
+    <line x1="290" y1="90" x2="290" y2="36" stroke-dasharray="2 3"/>
+  </g>
+  <g fill="currentColor">
+    <circle cx="30" cy="130" r="4"/>
+    <circle cx="117" cy="117" r="2.5" opacity="0.6"/><circle cx="203" cy="103" r="2.5" opacity="0.6"/><circle cx="290" cy="90" r="2.5" opacity="0.6"/>
+    <circle cx="117" cy="97" r="3"/><circle cx="203" cy="63" r="3"/><circle cx="290" cy="30" r="3"/>
+    <text x="20" y="150" font-size="12">A, held</text>
+    <text x="296" y="94" font-size="12">E</text>
+    <text x="296" y="34" font-size="12">E′</text>
+    <text x="122" y="132" font-size="11">⅓ of the move</text>
+    <text x="150" y="58" font-size="11">⅔</text>
+  </g>
+</svg></p>
+<p><em>Dashed: the leg as it was. Solid: sheared. Each fix moves the part of E's move that its time is of the leg's.</em></p>
+</li>
+<li>
+<p><strong>Measured on the earth, from the held end.</strong> The move is taken in the frame centred on the held fix in which each position is placed by its range and true bearing from it (an azimuthal equidistant projection): there, a geodesic through the held fix is a straight line, and ranges from it are exact. So a straight leg through the held end (a geodesic, run at a steady speed) stays exactly straight after a shear, at any latitude and across the antimeridian. We considered moving each fix the fraction f of the end's range along the end's bearing, as a move does; but over a leg the meridians close in, the same bearing points slightly differently at each fix, and the sheared leg would bend (by tens of metres over a 10 nmi leg at 50° north). The tests check legs at 50°N, at 84°N and across the antimeridian.</p>
+</li>
+<li>
+<p><strong>Stretch: only the speed changes.</strong> With <em>Stretch</em> chosen, only how far the end is dragged along the line from the held end counts: the drag is taken onto that line. Every fix keeps its bearing from the held end and its range from it is multiplied by one factor, the new range of the dragged end over its old one. A straight leg stays on its line, at the new speed, on the same course; a track that turns keeps its shape, larger or smaller about the held end, and every speed changes by the same factor. A stretch never goes to nothing or past the held end: the slowest it offers is one step of speed (0.1 kn).</p>
+</li>
+<li>
+<p><strong>Recorded courses and speeds go with the fixes.</strong> Each fix's recorded course and speed are carried through the same change rather than worked out again from the new positions: Debrief follows the fix's recorded course and speed for ten seconds, changes that point as a fix at that time would be changed, and takes the new course and speed from the changed fix to it. So a shear adds the leg's change of velocity to each fix's own (a fix logged at 000 at 10 kn on a leg that gains 10 kn east is now 045 at 14.1 kn), and a stretch multiplies each speed by the factor and keeps each course. On a straight steady leg every fix's course and speed become exactly the leg's new ones; on a real track the detail recorded at each fix survives instead of being replaced by the jitter of the positions. A track that records courses but not speeds, or speeds but not courses, has the missing one taken from its positions for the purpose; what it does not record stays unrecorded.</p>
+</li>
+<li>
+<p><strong>Course and speed made good.</strong> What the map and the step say: the true bearing, at the first fix of what changes, of the geodesic from it to the last fix, and the range between them over the time between. For a straight steady leg these are its course and speed.</p>
+</li>
+<li>
+<p><strong>The ends on the map.</strong> A track selected on its own shows a diamond beside its first and last fixes of what changes, in the theme's focus colour, drawn to the left of the way the track goes so they are clear of the pivot (often on an end) and the rotate handle (beyond the far end, on the line of a straight leg). Beside <em>What changes</em>, so the control stays short on a short map, its <em>Drag the ends</em> says what dragging one does: <strong>Shear</strong> (the default) or <strong>Stretch</strong>, which gives the diamonds a double edge. Each is named for a screen reader: <em>BLUE ONE: shear from the end, holding the start; drag it, or use the arrow keys</em>; <em>BLUE ONE: stretch from the start, holding the end; drag it along the track, or use Up and Down to change speed</em>. We chose a switch on the map over a modifier key (<code>Shift</code>-drag), which nobody can see and which is awkward from the keyboard, and over separate stretch handles, which would put four diamonds on a short leg; legacy Debrief, too, chose the drag first and then dragged.</p>
+</li>
+<li>
+<p><strong>What the map says.</strong> Dragging an end draws the track changed as the pointer goes, the track as it was dashed beneath, and says <em>BLUE ONE: shearing to 087.2°T 12.4 kn; end moved 1.20 nmi 045.0°T</em>, or <em>BLUE ONE: stretching to 12.4 kn (was 10.0 kn)</em>; with <em>Time window</em>, it adds that the track jumps where the window's fixes meet the rest. Letting go is <strong>one step</strong>; <code>Escape</code> first puts it back. What is saved is what the map said: the end's move in the analyst's length unit and its bearing, or the speed, each to the decimals shown.</p>
+</li>
+<li>
+<p><strong>The step.</strong> <em>BLUE ONE sheared: 087.2°T 12.4 kn</em> or <em>BLUE ONE stretched: 12.4 kn</em> (<em>part sheared</em> for the fixes in a period), then <em>Held at the start, 09:30:00Z</em>, <em>Was 090.0°T 10.0 kn</em> (or <em>Was 10.0 kn</em>) and the period. Its provenance record holds the end held (<code>anchor</code>), the times of the held and dragged ends (<code>anchor_time</code>, <code>dragged_time</code>), how far and which way the dragged end went (<code>distance</code>, <code>bearing</code>), and the course and speed made good (<code>course</code>, <code>speed</code>): as asked where they were asked, worked out where they were not. Undo is replay to the step before, as for any step.</p>
+</li>
+<li>
+<p><strong>The keyboard.</strong> <code>Tab</code> to an end. Shearing, the arrow keys move it 5 pixels (25 with <code>Shift</code>), as the move handle. Stretching, <code>Up</code> and <code>Right</code> make it one step of speed faster (0.1 kn, or one step of the analyst's speed decimals), <code>Down</code> and <code>Left</code> one step slower, ten with <code>Shift</code>. A run of presses is one step, saved once they stop, on <code>Enter</code> or when the keyboard moves on; <code>Escape</code> puts it back; presses made while the last step is saved are kept for the next. <em>Shear</em> and <em>Stretch</em> are buttons on the map, reached with <code>Tab</code>.</p>
+</li>
+<li>
+<p><strong>The forms.</strong> <strong>Shear track…</strong> (the outline's context menu on a track; <strong>Shear…</strong> under <em>Track</em>, below the outline, in the playground) asks what changes, which end is held (<em>Hold the start</em> or <em>Hold the end</em>), and the course and speed it then makes good, offering what it makes good now; a speed may be typed <code>12.4</code>, <code>12.4 kn</code>, <code>6 m/s</code> or <code>20 km/h</code>, and each field says what it understood. Held at the start, the dragged end goes the speed times the period's length along the course; held at the end, Debrief finds the start from which the geodesic to the held end sets off on the course asked. <strong>Stretch track…</strong> asks what changes, which end is held, and the speed, which must be more than nothing.</p>
+</li>
+<li>
+<p><strong>What is refused, and why.</strong> A shear or a stretch of fixes all at one time: <em>BLUE ONE has fixes at only one time there, so it cannot be sheared or stretched: that needs fixes at two times.</em> A stretch of fixes that end where they start: <em>… so it cannot be stretched: shear it instead.</em> A stretch to no speed. A shear, holding the end, to a course and speed that no leg ending at the held fix makes good, as can happen near a pole: <em>… cannot make good 180.0°T at 25.0 kn and end where it does: no leg that long sets off on that course to its last fix. Hold the start instead.</em> A change sent from a plot that has since changed is refused, as for any change (SUB-28), and a drag under way when the plot changes elsewhere is dropped and the map says so.</p>
+</li>
+<li>
+<p><strong>For agents.</strong> <code>debrief/edit_track</code> with <code>{"action": "shear", "anchor": "start", "distance": {"value": 1.2, "unit": "[nmi_i]"}, "bearing": {"value": 45, "unit": "deg"}}</code> (the dragged end's move), <code>{"action": "shear", "anchor": "end", "course": {"value": 87.2, "unit": "deg"}, "speed": {"value": 12.4, "unit": "[kn_i]"}}</code> (the course and speed made good), or <code>{"action": "stretch", "anchor": "start", "speed": {"value": 12.4, "unit": "[kn_i]"}}</code>, each with a <code>period</code> to change only that. In VS Code, <code>debrief.shearTrack</code> and <code>debrief.stretchTrack</code> take the track and the edit, without <code>action</code>, instead of asking.</p>
+</li>
+</ol>
+<p><em>Not in this part:</em> live bearing residuals while dragging, and solutions rooted in a period of bearings (the TMA module, CAP-21); shearing one leg of a multi-leg solution apart from the others.</p>
 <h2 id="cleaning-tracks">Cleaning tracks<a class="headerlink" href="#cleaning-tracks" title="Permanent link">&para;</a></h2>
 <p>Part B2 (14 Oct 2026). Three ways to tidy a track an analyst has imported, each one recorded step, and none done without the analyst seeing what it would do first.</p>
 <ol>
 <li>
-<p><strong>Jumps: found, shown, then removed.</strong> A jump is a fix the platform could not have reached in time: a GPS glitch, a mistyped position. <strong>Find and remove jumps…</strong> (the outline's menu on a track; <strong>Jumps…</strong> under the outline in the playground) asks for a speed, offered as <strong>three times the track's median speed between fixes, and never less than 10 kn</strong>, which the analyst can change (<code>30</code>, <code>30 kn</code>, <code>15 m/s</code>). Three times the median fits the platform: a helicopter at 120 kn and a submarine at 5 kn each get a threshold far above the changes of speed they really make between fixes; the 10 kn floor stops position noise on a slow or stopped platform being called a jump. A fixed speed (60 kn, say) would miss every jump of a slow platform and flag a fast one's ordinary fixes.</p>
+<p><strong>Jumps: found, shown, then removed.</strong> A jump is a fix the platform could not have reached in time: a GPS glitch, a mistyped position. <strong>Find and remove jumps…</strong> (the outline's menu on a track; <strong>Jumps…</strong> under <em>Track</em>, below the outline, in the playground) asks for a speed, offered as <strong>three times the track's median speed between fixes, and never less than 10 kn</strong>, which the analyst can change (<code>30</code>, <code>30 kn</code>, <code>15 m/s</code>). Three times the median fits the platform: a helicopter at 120 kn and a submarine at 5 kn each get a threshold far above the changes of speed they really make between fixes; the 10 kn floor stops position noise on a slow or stopped platform being called a jump. A fixed speed (60 kn, say) would miss every jump of a slow platform and flag a fast one's ordinary fixes.</p>
 <p>A fix is a jump when reaching it from the <strong>last good fix before it</strong> needs more than that speed (range along the geodesic over elapsed time; two fixes at one time in different places need infinite speed). Comparing with the last good fix, not simply the fix before, finds a burst of bad fixes in a row; and after a jump a fix is only back on the track when the track goes on from it, so the second of two bad fixes is found even though it is reachable over the longer time since the last good one. A jump is off the track and back: a fix the track goes on from smoothly is not one, so a real burst of speed (a sprint between drifts, far above three times the median) is not offered. Up to 5 fixes in a row can be one jump. A track that goes off and stays off longer than that, or until it ends (a ship at anchor getting under way), is not a jump, since the platform may really be there; nothing is offered. The first fix is a jump when it is far from the next two and they agree; the last likewise.</p>
 <p>What is found is <strong>shown first, never removed silently</strong>: each jump is ringed on the map in the theme's warning colour, the note at the top of the map says <em>RED ONE: 3 jumps found, each faster than 30.0 kn to reach</em>, and a list gives each one's time, position and how fast it would have been reached (<em>09:20:00Z 37°08.456'N 075°26.932'W · 176.5 kn to reach from 09:19:00Z</em>), all ticked. The analyst unticks any that are real (its ring goes), and <strong>Remove</strong> takes out the rest as <strong>one step</strong>: <em>RED ONE: 3 jumps removed</em>, with notes saying when they were (<em>At 09:20:00Z, 09:21:00Z and 10:40:00Z</em>), the speed (<em>Each faster than 30.0 kn to reach</em>) and any marked fixes that went with them. Where the track has two fixes at a jump's time (two tracks merged where they meet, say), only the one found to be the jump goes; when which it is cannot be told, nothing is removed and Debrief says so. Cancel, or closing the list, removes nothing. With none found, Debrief says so: <em>RED ONE: no jumps found faster than 30.0 kn.</em></p>
 <p>Removing fixes keeps every series in step: positions, times, speeds, courses, depths and marked fixes lose the same fixes. A track keeps at least two fixes.</p>
@@ -1816,7 +1932,7 @@
 </tbody>
 </table>
 <p>A fix with only a label or a comment is a ring in the track's colour, so it can be pointed at. To mark a fix: <strong>right-click it on the map</strong>, or open the <strong>fix list</strong> (<strong>Fixes: colour, label or comment…</strong> on the outline's menu; <strong>Fixes…</strong> in the playground), which lists every fix of the track in time order with its time, position, course, speed and any mark, and choose one; then <strong>Colour…</strong> (the track colours, amber and yellow), <strong>Label…</strong> or <strong>Comment…</strong>. An empty label or comment, or <em>Track's colour</em>, takes it away. Each change is <strong>one step</strong>: <em>RED ONE fix at 09:31:00Z coloured yellow</em>, <em>… labelled 'Turn 1'</em>, <em>…: comment added</em> (or <em>changed</em>, <em>removed</em>); a long label is shortened in the step's name and kept whole.</p>
-<p>A mark is kept with the track, <strong>found by its fix's time</strong>, not its place in the track (see the schema's <code>FixMark</code>). So it stays with its fix whatever happens to the rest: jumps removed before it, the track moved, rotated, smoothed, split (each part keeps its own marks) or merged. Where two fixes share a time, the mark is the first's; merging two tracks that meet at a time where both have a marked fix keeps the earlier track's, and the step's notes say so. Only marked fixes are listed, so a track of 10,000 fixes with three marked carries three marks, and the plot is still plain GeoJSON to other tools.</p>
+<p>A mark is kept with the track, <strong>found by its fix's time</strong>, not its place in the track (see the schema's <code>FixMark</code>). So it stays with its fix whatever happens to the rest: jumps removed before it, the track moved, rotated, sheared, stretched, smoothed, split (each part keeps its own marks) or merged. Where two fixes share a time, the mark is the first's; merging two tracks that meet at a time where both have a marked fix keeps the earlier track's, and the step's notes say so. Only marked fixes are listed, so a track of 10,000 fixes with three marked carries three marks, and the plot is still plain GeoJSON to other tools.</p>
 <p><strong>From legacy plots.</strong> The .dpf import keeps each fix's own colour (where it differs from the track's), its label and its comment as marks. Legacy Debrief labels every fix with its time unless told otherwise; a label that only gives the fix's time (<code>0504</code>, <code>120500</code>) is not imported, and the import says how many, since Debrief shows fixes' times itself. A label hidden in the legacy plot is imported and shown, and the import says how many. Where on the fix a legacy label went, and fix symbols and arrows, are still listed as not imported (EXT-15).</p>
 </li>
 <li>
@@ -1859,7 +1975,7 @@
 </table>
 </li>
 <li>
-<p><strong>The keyboard.</strong> Everything here has a keyboard path: the commands and their input boxes and lists in VS Code; in the playground, the buttons under the outline, the form, the list of jumps (checkboxes) and the fix list (<code>Up</code> and <code>Down</code> move along it, <code>Enter</code> or <code>Space</code> chooses a fix). Right-clicking a fix on the map is a shortcut, never the only way.</p>
+<p><strong>The keyboard.</strong> Everything here has a keyboard path: the commands and their input boxes and lists in VS Code; in the playground, the buttons under <em>Track</em>, below the outline, the form, the list of jumps (checkboxes) and the fix list (<code>Up</code> and <code>Down</code> move along it, <code>Enter</code> or <code>Space</code> chooses a fix). Right-clicking a fix on the map is a shortcut, never the only way.</p>
 </li>
 <li>
 <p><strong>Shared state and conflicts.</strong> None of these changes current time, the time window or the selection (choosing a fix in the playground's fix list selects its track). A change sent from a plot that has since moved on is refused, as any change is (SUB-28), and Debrief shows the latest; jumps found or smoothing previewed on a plot that has changed must be found or previewed again.</p>
@@ -1889,15 +2005,15 @@
     Host-&gt;&gt;Map: show_fixes (nothing): the rings go</code></pre>
 <h2 id="reference-implementation">Reference implementation<a class="headerlink" href="#reference-implementation" title="Permanent link">&para;</a></h2>
 <ul>
-<li><strong>Schema (0.0.14):</strong> <code>TrackEdit</code> and <code>TrackEditActionEnum</code> in <code>schemas/linkml/features.yaml</code>; the message <code>edit_track</code> (<code>feature_id</code>, <code>track_edit</code>) in <code>schemas/linkml/messages.yaml</code>; the rules in <code>debrief_schemas.documents.track_edit_problems</code> and <code>vscode/src/messages.ts</code>; fixtures <code>webview_message/valid/edit-track-*.json</code> and the <code>edit-track-*</code> invalid ones.</li>
-<li><strong>Making and naming changes:</strong> <code>debrief_stac.tracks</code> (<code>moved</code>, <code>rotated</code>, <code>default_pivot</code>, <code>split</code>, <code>merge</code>, <code>overlaps</code>, the step names); <code>Catalogue.edit_track</code>, <code>split_track</code> and <code>merge_tracks</code>; the service methods in <code>debrief_tools.service</code>.</li>
+<li><strong>Schema (0.0.14; 0.0.15 adds shear and stretch):</strong> <code>TrackEdit</code>, <code>TrackEditActionEnum</code> and <code>TrackEditAnchorEnum</code> in <code>schemas/linkml/features.yaml</code>; the message <code>edit_track</code> (<code>feature_id</code>, <code>track_edit</code>) in <code>schemas/linkml/messages.yaml</code>; the rules in <code>debrief_schemas.documents.track_edit_problems</code> and <code>vscode/src/messages.ts</code>; fixtures <code>webview_message/valid/edit-track-*.json</code> and the <code>edit-track-*</code> invalid ones.</li>
+<li><strong>Making and naming changes:</strong> <code>debrief_stac.tracks</code> (<code>moved</code>, <code>rotated</code>, <code>default_pivot</code>, <code>AnchorFrame</code>, <code>sheared</code>, <code>stretched</code>, <code>shear_target</code>, <code>leg_of</code>, <code>split</code>, <code>merge</code>, <code>overlaps</code>, the step names); <code>Catalogue.edit_track</code>, <code>split_track</code> and <code>merge_tracks</code>; the service methods in <code>debrief_tools.service</code>.</li>
 <li><strong>The map:</strong> what a drag or an arrow key makes, the readouts, the handles' places and a run of presses in <code>vscode/webview/trackedit.ts</code> (free of Leaflet, unit-tested); the handles, preview and keyboard in <code>vscode/webview/trackmap.ts</code>; the host side in <code>vscode/src/panels/map.ts</code> (<code>receive</code>) and the command <code>debrief.editTrack</code>.</li>
-<li><strong>VS Code:</strong> the commands <code>debrief.moveTrack</code>, <code>debrief.rotateTrack</code>, <code>debrief.splitTrack</code> and <code>debrief.mergeTracks</code> in <code>vscode/src/extension.ts</code>, on the outline's context menu for a track.</li>
+<li><strong>VS Code:</strong> the commands <code>debrief.moveTrack</code>, <code>debrief.rotateTrack</code>, <code>debrief.shearTrack</code>, <code>debrief.stretchTrack</code>, <code>debrief.splitTrack</code> and <code>debrief.mergeTracks</code> in <code>vscode/src/extension.ts</code>, on the outline's context menu for a track.</li>
 <li><strong>The playground:</strong> <code>vscode/play/host.ts</code> (the buttons and the small forms) and <code>track</code> in <code>vscode/play/play.py</code>.</li>
-<li><strong>Tests:</strong> <code>python/debrief-stac/tests/test_tracks.py</code> (geodesic moves and rotations, far north and across the antimeridian; periods; split and merge invariants; undo; conflicts), the service test, <code>vscode/test/unit/trackedit.test.ts</code>, the playground test's <code>vscode/test/play/tracks.mjs</code> (drag, Escape, undo, rotate, keyboard runs, a period, a colleague's change during a drag, split, merge, an overlap refused, the forms), and the integration test's track steps.</li>
-<li><strong>Cleaning tracks (part B2):</strong> schema 0.0.15's <code>FixMark</code> and <code>fix_marks</code> in <code>schemas/linkml/features.yaml</code>, the messages <code>show_fixes</code> and <code>fix_chosen</code>, the rules in <code>debrief_schemas.documents</code>; <code>debrief_stac.fixes</code> (finding jumps, the default threshold, removing fixes with every series in step, smoothing, marks and the step names), marks carried through <code>split</code> and <code>merge</code> in <code>debrief_stac.tracks</code>; <code>Catalogue.find_jumps</code>, <code>remove_jumps</code>, <code>smoothing_preview</code>, <code>smooth_track</code> and <code>mark_fix</code>; the service's <code>debrief/find_jumps</code>, <code>debrief/remove_jumps</code>, <code>debrief/preview_smoothing</code>, <code>debrief/smooth_track</code> and <code>debrief/mark_fix</code>; the .dpf mapping in <code>debrief_io.dpf_import</code> (<code>_fix_marks</code>); <code>vscode/webview/fixes.ts</code> (free of Leaflet: the fix list's rows, reading a threshold and a window, the words); the map's marks, rings and preview in <code>vscode/webview/map.ts</code>; the commands <code>debrief.removeJumps</code>, <code>debrief.smoothTrack</code> and <code>debrief.markFix</code> in <code>vscode/src/extension.ts</code>; the Timeline's fix comments in <code>vscode/src/timeline.ts</code>; the playground's <strong>Jumps…</strong>, <strong>Smooth…</strong> and <strong>Fixes…</strong> (<code>vscode/play/host.ts</code>, <code>clean</code> and <code>glitches</code> in <code>play.py</code>). Tests: <code>python/debrief-stac/tests/test_fixes.py</code>, the service test, <code>python/debrief-io/tests/test_dpf_import.py</code>, <code>vscode/test/unit/fixes.test.ts</code>, the playground test's <code>vscode/test/play/cleaning.mjs</code>, and the integration test's cleaning steps.</li>
+<li><strong>Tests:</strong> <code>python/debrief-stac/tests/test_tracks.py</code> (geodesic moves and rotations, far north and across the antimeridian; periods; split and merge invariants; undo; conflicts), the service test, <code>vscode/test/unit/trackedit.test.ts</code>, the playground test's <code>vscode/test/play/tracks.mjs</code> (drag, Escape, undo, rotate, keyboard runs, a period, a colleague's change during a drag, split, merge, an overlap refused, the forms), the playground test's <code>vscode/test/play/shear.mjs</code> (a straight leg sheared and stretched by its ends, Escape, undo, the keyboard, the forms), and the integration test's track steps.</li>
+<li><strong>Cleaning tracks (part B2):</strong> schema 0.0.16's <code>FixMark</code> and <code>fix_marks</code> in <code>schemas/linkml/features.yaml</code>, the messages <code>show_fixes</code> and <code>fix_chosen</code>, the rules in <code>debrief_schemas.documents</code>; <code>debrief_stac.fixes</code> (finding jumps, the default threshold, removing fixes with every series in step, smoothing, marks and the step names), marks carried through <code>split</code> and <code>merge</code> in <code>debrief_stac.tracks</code>; <code>Catalogue.find_jumps</code>, <code>remove_jumps</code>, <code>smoothing_preview</code>, <code>smooth_track</code> and <code>mark_fix</code>; the service's <code>debrief/find_jumps</code>, <code>debrief/remove_jumps</code>, <code>debrief/preview_smoothing</code>, <code>debrief/smooth_track</code> and <code>debrief/mark_fix</code>; the .dpf mapping in <code>debrief_io.dpf_import</code> (<code>_fix_marks</code>); <code>vscode/webview/fixes.ts</code> (free of Leaflet: the fix list's rows, reading a threshold and a window, the words); the map's marks, rings and preview in <code>vscode/webview/map.ts</code>; the commands <code>debrief.removeJumps</code>, <code>debrief.smoothTrack</code> and <code>debrief.markFix</code> in <code>vscode/src/extension.ts</code>; the Timeline's fix comments in <code>vscode/src/timeline.ts</code>; the playground's <strong>Jumps…</strong>, <strong>Smooth…</strong> and <strong>Fixes…</strong> (<code>vscode/play/host.ts</code>, <code>clean</code> and <code>glitches</code> in <code>play.py</code>). Tests: <code>python/debrief-stac/tests/test_fixes.py</code>, the service test, <code>python/debrief-io/tests/test_dpf_import.py</code>, <code>vscode/test/unit/fixes.test.ts</code>, the playground test's <code>vscode/test/play/cleaning.mjs</code>, and the integration test's cleaning steps.</li>
 </ul>
-<p><em>Not yet (part B and later):</em> dragging single fixes; OTG and DR modes; simplifying a track (dropping fixes); where on a fix a label goes, and fix symbols and arrows; stretching and shearing (the TMA module's, CAP-21); choosing which track wins where merged tracks overlap; renaming a track on its own.</p>
+<p><em>Not yet (part B and later):</em> dragging single fixes; OTG and DR modes; simplifying a track (dropping fixes); where on a fix a label goes, and fix symbols and arrows; live bearing residuals while shearing or stretching (the TMA module, CAP-21); choosing which track wins where merged tracks overlap; renaming a track on its own.</p>
 
 
 

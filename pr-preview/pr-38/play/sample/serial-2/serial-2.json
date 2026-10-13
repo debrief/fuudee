@@ -39,7 +39,7 @@
     "start_datetime": "2023-06-15T12:00:00.000Z",
     "end_datetime": "2023-06-15T17:00:00.000Z",
     "title": "Serial 2",
-    "debrief:schema_version": "0.0.15",
+    "debrief:schema_version": "0.0.16",
     "datetime": null
   },
   "links": [
