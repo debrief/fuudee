@@ -32,7 +32,7 @@ from pydantic import (
 
 
 metamodel_version = "1.12.0"
-version = "0.0.15"
+version = "0.0.16"
 
 
 class ConfiguredBaseModel(BaseModel):
@@ -538,6 +538,28 @@ class TrackEditActionEnum(str, Enum):
     """
     Every fix in the period turns about the pivot by the angle, keeping its range from it.
     """
+    shear = "shear"
+    """
+    One end of the period is held; the other is dragged, and every fix moves in proportion to its time from the held end, so course and speed change together (TMA shear).
+    """
+    stretch = "stretch"
+    """
+    One end of the period is held; every fix's range from it is scaled, so speeds change and courses do not (TMA stretch).
+    """
+
+
+class TrackEditAnchorEnum(str, Enum):
+    """
+    Which end of the period a shear or a stretch holds fixed; the other end is the one dragged.
+    """
+    start = "start"
+    """
+    The period's first fix is held; its last is dragged.
+    """
+    end = "end"
+    """
+    The period's last fix is held; its first is dragged.
+    """
 
 
 class AnnotationKindEnum(str, Enum):
@@ -870,7 +892,7 @@ class WebviewMessageKindEnum(str, Enum):
     """
     edit_track = "edit_track"
     """
-    Map to host: the analyst let go of a track's move or rotate handle, or stopped nudging one (feature_id, track_edit); move or rotate it so, as one recorded step.
+    Map to host: the analyst let go of a track's move, rotate, shear or stretch handle, or stopped nudging one (feature_id, track_edit); change it so, as one recorded step.
     """
     show_fixes = "show_fixes"
     """
@@ -1461,7 +1483,7 @@ class TrackStyle(ConfiguredBaseModel):
 
 class FixMark(ConfiguredBaseModel):
     """
-    One fix of a track marked by the analyst, or by a legacy plot: drawn in a colour of its own, labelled on the map, or carrying a comment. Found by its time, not its place in the track, so a mark stays with its fix when fixes before it are removed, the track is split or merged, or it is moved or rotated. Where two fixes share a time, the mark is the first's.
+    One fix of a track marked by the analyst, or by a legacy plot: drawn in a colour of its own, labelled on the map, or carrying a comment. Found by its time, not its place in the track, so a mark stays with its fix when fixes before it are removed, the track is split or merged, or it is moved, rotated, sheared, stretched or smoothed. Where two fixes share a time, the mark is the first's.
     """
     linkml_meta: ClassVar[LinkMLMeta] = LinkMLMeta({'from_schema': 'https://debrief.info/schemas/debrief'})
 
@@ -1504,16 +1526,19 @@ class FixMark(ConfiguredBaseModel):
 
 class TrackEdit(ConfiguredBaseModel):
     """
-    A track moved or rotated by hand, as the map, a form or an agent describes it (CAP-01, CAP-02): one recorded, undoable step in the plot's history (SUB-19). Geodesic: a move takes every fix in the period the same range along the same bearing, each along its own geodesic; a rotation keeps each fix's range from the pivot and turns its bearing from the pivot by the angle. Fixes outside the period stay where they are, so the joins jump.
+    A track moved, rotated, sheared or stretched by hand, as the map, a form or an agent describes it (CAP-01, CAP-02, CAP-21): one recorded, undoable step in the plot's history (SUB-19). Geodesic: a move takes every fix in the period the same range along the same bearing, each along its own geodesic; a rotation keeps each fix's range from the pivot and turns its bearing from the pivot by the angle. A shear and a stretch hold one end of the period (the anchor) and work in the azimuthal equidistant frame about it, where a geodesic through the anchor is a straight line: a shear adds to each fix the dragged end's displacement times the fix's fraction of the time from the anchor to the dragged end; a stretch scales each fix's range from the anchor, keeping its bearing from it. Either way a straight, steady leg stays a straight, steady leg. Fixes outside the period stay where they are, so the joins jump.
     """
     linkml_meta: ClassVar[LinkMLMeta] = LinkMLMeta({'from_schema': 'https://debrief.info/schemas/debrief'})
 
     action: TrackEditActionEnum = Field(default=..., json_schema_extra = { "linkml_meta": {'domain_of': ['TrackEdit']} })
     period: Optional[TimeRange] = Field(default=None, description="""The fixes to change: those whose times fall in it, ends included. Left out, the whole track.""", json_schema_extra = { "linkml_meta": {'domain_of': ['TrackEdit']} })
-    distance: Optional[Length] = Field(default=None, description="""How far a move takes each fix.""", json_schema_extra = { "linkml_meta": {'domain_of': ['TrackEdit']} })
-    bearing: Optional[Angle] = Field(default=None, description="""Which way a move takes each fix, true, clockwise from north.""", json_schema_extra = { "linkml_meta": {'domain_of': ['TrackEdit']} })
+    distance: Optional[Length] = Field(default=None, description="""How far a move takes each fix, or how far a shear drags the end that is not held.""", json_schema_extra = { "linkml_meta": {'domain_of': ['TrackEdit']} })
+    bearing: Optional[Angle] = Field(default=None, description="""Which way a move takes each fix, or a shear drags the end that is not held, true, clockwise from north.""", json_schema_extra = { "linkml_meta": {'domain_of': ['TrackEdit']} })
     angle: Optional[Angle] = Field(default=None, description="""How far a rotation turns the fixes about the pivot; positive is clockwise.""", json_schema_extra = { "linkml_meta": {'domain_of': ['TrackEdit']} })
     pivot: Optional[list[float]] = Field(default=None, description="""[longitude, latitude] of the position a rotation turns about. Left out, the fix nearest current time in the period, or the period's first fix.""", min_length=2, max_length=2, json_schema_extra = { "linkml_meta": {'domain_of': ['TrackEdit']} })
+    anchor: Optional[TrackEditAnchorEnum] = Field(default=None, description="""The end of the period a shear or a stretch holds fixed.""", json_schema_extra = { "linkml_meta": {'domain_of': ['TrackEdit']} })
+    course: Optional[Angle] = Field(default=None, description="""The course made good a shear gives the period: the true bearing, at its first fix, of the geodesic from its first fix to its last. With speed, instead of a distance and a bearing for the dragged end.""", json_schema_extra = { "linkml_meta": {'domain_of': ['TrackEdit']} })
+    speed: Optional[Speed] = Field(default=None, description="""The speed made good a shear or a stretch gives the period: the geodesic range from its first fix to its last over the time between.""", json_schema_extra = { "linkml_meta": {'domain_of': ['TrackEdit']} })
 
 
 class AnnotationFeature(ConfiguredBaseModel):
@@ -2707,7 +2732,7 @@ class WebviewMessage(ConfiguredBaseModel):
     result: Optional[ToolResult] = Field(default=None, json_schema_extra = { "linkml_meta": {'domain_of': ['WebviewMessage']} })
     annotation: Optional[AnnotationSpec] = Field(default=None, description="""An annotation as the form describes it (show_annotation_form, save_annotation), as drawn on the map (annotation_drawn), or as changed on the map (edit_annotation).""", json_schema_extra = { "linkml_meta": {'domain_of': ['WebviewMessage']} })
     feature_id: Optional[str] = Field(default=None, description="""The annotation a form changes or deletes, the annotation or track the map asks to change, or the track whose fixes it rings or the analyst chose.""", json_schema_extra = { "linkml_meta": {'domain_of': ['WebviewMessage']} })
-    track_edit: Optional[TrackEdit] = Field(default=None, description="""How the analyst moved or rotated a track on the map (edit_track).""", json_schema_extra = { "linkml_meta": {'domain_of': ['WebviewMessage']} })
+    track_edit: Optional[TrackEdit] = Field(default=None, description="""How the analyst moved, rotated, sheared or stretched a track on the map (edit_track).""", json_schema_extra = { "linkml_meta": {'domain_of': ['WebviewMessage']} })
     fix_times: Optional[list[str]] = Field(default=None, description="""The times of the fixes the map rings (show_fixes).""", json_schema_extra = { "linkml_meta": {'domain_of': ['WebviewMessage']} })
     fix_time: Optional[str] = Field(default=None, description="""The time of the fix the analyst chose on the map (fix_chosen).""", json_schema_extra = { "linkml_meta": {'domain_of': ['WebviewMessage']} })
     preview: Optional[LineStringGeometry] = Field(default=None, description="""A track as a change would leave it, one position per fix, drawn beside it until the analyst applies or cancels the change (show_fixes).""", json_schema_extra = { "linkml_meta": {'domain_of': ['WebviewMessage']} })

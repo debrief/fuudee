@@ -758,6 +758,42 @@ def test_tracks_are_moved_rotated_split_and_merged_as_recorded_steps(client, cat
     assert "track-late" in {f.id for f in catalogue.read_plot("serial").features}
 
 
+def test_tracks_are_sheared_and_stretched_as_recorded_steps(client, catalogue) -> None:
+    where = {"store": "exercise", "item": "serial", "agent": AGENT}
+    base = rpc(client, "debrief/open", where).json()["result"]["base"]
+    shear = {
+        "action": "shear",
+        "anchor": "start",
+        "course": {"value": 80, "unit": "deg"},
+        "speed": {"value": 9, "unit": "[kn_i]"},
+    }
+    sheared = rpc(
+        client,
+        "debrief/edit_track",
+        {**where, "base": base, "feature": "track-nelson", "edit": shear},
+    ).json()["result"]
+    assert sheared == {**sheared, "changed": True, "feature": "track-nelson"}
+    stretch = {"action": "stretch", "anchor": "end", "speed": {"value": 12, "unit": "[kn_i]"}}
+    stretched = rpc(
+        client,
+        "debrief/edit_track",
+        {**where, "base": sheared["base"], "feature": "track-nelson", "edit": stretch},
+    ).json()["result"]
+    assert stretched["changed"]
+    steps = rpc(client, "debrief/history", where).json()["result"]["steps"]
+    assert [s["notes"][0] for s in steps[-2:]] == [
+        "NELSON sheared: 080.0°T 9.0 kn",
+        "NELSON stretched: 12.0 kn",
+    ]
+    assert steps[-2]["notes"][1] == "Held at the start, 05:00:00Z"
+    # A shear says which end it holds; a stale base is a conflict.
+    unheld = {**where, "feature": "track-nelson", "edit": {**shear, "anchor": None}}
+    bad = rpc(client, "debrief/edit_track", unheld).json()["error"]
+    assert bad["code"] == -32602 and "the end it holds" in bad["message"]
+    stale = {**where, "base": base, "feature": "track-nelson", "edit": stretch}
+    assert rpc(client, "debrief/edit_track", stale).json()["error"]["code"] == -32001
+
+
 def test_tracks_are_cleaned_what_would_change_shown_first(client, catalogue) -> None:
     where = {"store": "exercise", "item": "serial", "agent": AGENT}
     base = rpc(client, "debrief/open", where).json()["result"]["base"]

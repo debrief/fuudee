@@ -484,12 +484,15 @@ class ToolService:
         base: Base | None,
         allow: bool,
     ) -> dict[str, Any]:
-        """Move, rotate, split or merge tracks by hand: each one recorded, undoable
-        step, named like "BLUE ONE moved 1.20 nmi 045.0°T" (CAP-01, CAP-02).
+        """Move, rotate, shear, stretch, split or merge tracks by hand: each one
+        recorded, undoable step, named like "BLUE ONE moved 1.20 nmi 045.0°T" or
+        "BLUE ONE sheared: 087.2°T 12.4 kn" (CAP-01, CAP-02, CAP-21).
 
         edit_track takes the feature and the edit (a TrackEdit: move with distance and
-        bearing, or rotate with angle and perhaps pivot, either for a period or the
-        whole track) and, for a rotation's default pivot, current_time. split_track
+        bearing; rotate with angle and perhaps pivot; shear with anchor and either
+        distance and bearing for the dragged end or course and speed; stretch with
+        anchor and speed; each for a period or the whole track) and, for a
+        rotation's default pivot, current_time. split_track
         takes the feature, the time (at) and perhaps names for the two parts;
         merge_tracks the features and perhaps a name, and says in notes what was not
         kept (speeds, courses or depths some of the tracks had not).

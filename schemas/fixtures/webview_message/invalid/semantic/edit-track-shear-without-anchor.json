@@ -1,0 +1,15 @@
+{
+  "kind": "edit_track",
+  "feature_id": "track-blue-one",
+  "track_edit": {
+    "action": "shear",
+    "course": {
+      "value": 87.2,
+      "unit": "deg"
+    },
+    "speed": {
+      "value": 12.4,
+      "unit": "[kn_i]"
+    }
+  }
+}

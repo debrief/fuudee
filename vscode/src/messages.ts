@@ -33,20 +33,37 @@ export function checkMessage(raw: unknown): WebviewMessage {
   return message;
 }
 
-/** The rules on a track moved or rotated by hand that Python's validation applies too (debrief_schemas.documents.track_edit_problems). */
+/** The rules on a track changed by hand that Python's validation applies too (debrief_schemas.documents.track_edit_problems). */
 export function trackEditProblems(edit: TrackEdit, where = "track_edit"): string[] {
   const problems: string[] = [];
   const period = edit.period;
   if (period && !(Date.parse(period.start) <= Date.parse(period.end))) problems.push(`${where} period: time range starts after it ends`);
+  const given = new Set((["distance", "bearing", "angle", "pivot", "anchor", "course", "speed"] as const).filter((name) => edit[name] != null));
+  const any = (...names: string[]) => names.some((n) => given.has(n as never));
+  const all = (...names: string[]) => names.every((n) => given.has(n as never));
   if (edit.action === "move") {
     if (!edit.distance || !edit.bearing) problems.push(`${where}: a move needs a distance and a bearing`);
-    if (edit.distance && edit.distance.value < 0) problems.push(`${where}: a move's distance cannot be negative`);
-    if (edit.angle || edit.pivot) problems.push(`${where}: a move has no angle or pivot`);
-  } else {
+    if (any("angle", "pivot")) problems.push(`${where}: a move has no angle or pivot`);
+    if (any("anchor", "course", "speed")) problems.push(`${where}: a move has no anchor, course or speed`);
+  } else if (edit.action === "rotate") {
     if (!edit.angle) problems.push(`${where}: a rotation needs an angle`);
-    if (edit.distance || edit.bearing) problems.push(`${where}: a rotation has no distance or bearing`);
+    if (any("distance", "bearing")) problems.push(`${where}: a rotation has no distance or bearing`);
+    if (any("anchor", "course", "speed")) problems.push(`${where}: a rotation has no anchor, course or speed`);
     const pivot = edit.pivot;
     if (pivot && !(Math.abs(pivot[0]) <= 180 && Math.abs(pivot[1]) <= 90)) problems.push(`${where}: the pivot is not on the globe`);
+  } else if (edit.action === "shear") {
+    if (!edit.anchor) problems.push(`${where}: a shear needs the end it holds (anchor)`);
+    const byDrag = all("distance", "bearing") && !any("course", "speed");
+    const byLeg = all("course", "speed") && !any("distance", "bearing");
+    if (!(byDrag || byLeg)) problems.push(`${where}: a shear needs either a distance and a bearing, or a course and a speed`);
+    if (any("angle", "pivot")) problems.push(`${where}: a shear has no angle or pivot`);
+  } else {
+    if (!edit.anchor) problems.push(`${where}: a stretch needs the end it holds (anchor)`);
+    if (!edit.speed) problems.push(`${where}: a stretch needs a speed`);
+    else if (edit.speed.value <= 0) problems.push(`${where}: a stretch's speed must be more than nothing`);
+    if (any("distance", "bearing", "course", "angle", "pivot")) problems.push(`${where}: a stretch has only an anchor and a speed`);
   }
+  if (edit.distance && edit.distance.value < 0) problems.push(`${where}: the distance cannot be negative`);
+  if (edit.speed && edit.speed.value < 0) problems.push(`${where}: the speed cannot be negative`);
   return problems;
 }

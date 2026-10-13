@@ -19,7 +19,7 @@ How an analyst adds a line, area, circle, ellipse, label, marker or note to a pl
 
 ## Model
 
-1. **Seven kinds, one form.** **Add annotation…** (the **+** on the Outline view's title bar, or on the Timeline's; **Add annotation…** under the outline in the playground) opens the annotation form beside the map. Its **Kind** is one of:
+1. **Seven kinds, one form.** **Add annotation…** (the **+** on the Outline view's title bar, or on the Timeline's; **Add…** under *Annotation*, below the outline, in the playground) opens the annotation form beside the map. Its **Kind** is one of:
 
     | Kind | Is | Positions |
     | --- | --- | --- |

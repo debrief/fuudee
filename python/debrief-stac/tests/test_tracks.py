@@ -6,21 +6,27 @@ from pathlib import Path
 
 import pytest
 
-from debrief_kernel.geodesy import Position, range_bearing
+from debrief_kernel.geodesy import WGS84, Position, destination, range_bearing
 from debrief_kernel.time import format_utc, parse_utc
 from debrief_kernel.units import Quantity
 from debrief_schemas import DocumentKind, dump_document, load_document, models
 from debrief_stac import Catalogue, CatalogueError, Changes, Conflict
 from debrief_stac.tracks import (
+    AnchorFrame,
     TrackError,
     default_pivot,
+    describe_shear,
+    leg_of,
     merge,
     merged_name,
     moved,
     overlaps,
     period_indices,
     rotated,
+    shear_target,
+    sheared,
     split,
+    stretched,
 )
 
 AGENT = models.AgentRef(kind="person", name="analyst")
@@ -390,7 +396,7 @@ def test_track_changes_that_cannot_be_made_say_so_and_change_nothing(catalogue) 
             "p", "track-blue", {"action": "move", "distance": {"value": 1, "unit": "m"}}, AGENT
         )
     with pytest.raises(CatalogueError, match="Say how to change the track"):
-        catalogue.edit_track("p", "track-blue", {"action": "stretch"}, AGENT)
+        catalogue.edit_track("p", "track-blue", {"action": "skew"}, AGENT)
     with pytest.raises(CatalogueError, match="early bearings is not a track"):
         catalogue.edit_track(
             "p", "early", {"action": "rotate", "angle": {"value": 1, "unit": "deg"}}, AGENT
@@ -589,3 +595,348 @@ def test_a_move_too_small_for_the_decimals_shown_is_named_in_its_own_unit() -> N
 
     note = describe_move("BLUE ONE", Quantity(0.00054, "[nmi_i]"), Quantity(90, "deg"), False)
     assert note == "BLUE ONE moved 0.00054 nmi 090.0°T"
+
+
+# --- Shearing and stretching (TMA, CAP-21) ----------------------------------------------
+
+KNOT = 1852 / 3600
+
+
+def leg(
+    start: list[float], course: float, knots: float, n: int = 7, minutes: float = 10
+) -> models.TrackFeature:
+    """A straight leg at a steady speed: fixes along the geodesic from start at course,
+    each `minutes` apart, with the geodesic's own course recorded at each fix."""
+    line = WGS84.Line(start[1], start[0], course)
+    positions, courses = [], []
+    for i in range(n):
+        p = line.Position(knots * KNOT * minutes * 60 * i, WGS84.STANDARD | WGS84.LONG_UNROLL)
+        lon = (p["lon2"] + 540) % 360 - 180
+        positions.append([lon, p["lat2"]])
+        courses.append(p["azi2"] % 360)
+    t = track("track-leg", "LEG", positions)
+    props = t.properties.model_copy(
+        update={
+            "times": [at(minutes * i) for i in range(n)],
+            "speeds": t.properties.speeds.model_copy(update={"values": [knots] * n}),
+            "courses": t.properties.courses.model_copy(update={"values": courses}),
+        }
+    )
+    return t.model_copy(update={"properties": props})
+
+
+def on_leg(after: models.TrackFeature, start: Position, course: float, knots: float) -> None:
+    """Every fix where a straight leg at this course and speed from start puts it, its
+    recorded course the geodesic's there and its speed the leg's."""
+    line = WGS84.Line(start.latitude, start.longitude, course)
+    times = [parse_utc(t) for t in after.properties.times]
+    for i, (lon, lat) in enumerate(after.geometry.coordinates):
+        p = line.Position(knots * KNOT * (times[i] - times[0]) / 1000, WGS84.STANDARD)
+        assert range_bearing(Position(lon, lat), Position(p["lon2"], p["lat2"]))[0].value < 1e-3
+        assert (after.properties.courses.values[i] - p["azi2"] + 540) % 360 - 180 == (
+            pytest.approx(0, abs=1e-6)
+        )
+        assert after.properties.speeds.values[i] == pytest.approx(knots, abs=1e-6)
+
+
+LEGS = [
+    pytest.param([-4.0, 50.0], 90.0, id="mid-latitude"),
+    # Far north, across meridians closing fast.
+    pytest.param([20.0, 84.0], 60.0, id="far-north"),
+    # Across the antimeridian.
+    pytest.param([179.7, -30.0], 80.0, id="antimeridian"),
+]
+
+
+@pytest.mark.parametrize(("start", "course"), LEGS)
+def test_a_straight_steady_leg_sheared_from_its_start_stays_straight_and_steady(
+    start, course
+) -> None:
+    before = leg(start, course, 10)
+    indices = list(range(7))
+    to = shear_target(
+        before, indices, "start", Quantity(course + 40, "deg"), Quantity(14, "[kn_i]")
+    )
+    after = sheared(before, indices, "start", to)
+    # The start is held; the rest lie on the new leg, at its course and speed.
+    assert after.geometry.coordinates[0] == before.geometry.coordinates[0]
+    on_leg(after, Position(*start), course + 40, 14)
+    made = leg_of(after, indices)
+    assert made.course == pytest.approx((course + 40) % 360, abs=1e-6)
+    assert made.speed / KNOT == pytest.approx(14, abs=1e-6)
+
+
+@pytest.mark.parametrize(("start", "course"), LEGS)
+def test_a_straight_steady_leg_sheared_from_its_end_stays_straight_and_steady(
+    start, course
+) -> None:
+    before = leg(start, course, 10)
+    indices = list(range(7))
+    to = shear_target(before, indices, "end", Quantity(course - 25, "deg"), Quantity(7, "[kn_i]"))
+    after = sheared(before, indices, "end", to)
+    assert after.geometry.coordinates[-1] == before.geometry.coordinates[-1]
+    made = leg_of(after, indices)
+    # The course made good is the geodesic's at the new start, as asked.
+    assert made.course == pytest.approx((course - 25) % 360, abs=1e-6)
+    assert made.speed / KNOT == pytest.approx(7, abs=1e-6)
+    on_leg(after, Position(*after.geometry.coordinates[0]), made.course, 7)
+
+
+@pytest.mark.parametrize(
+    ("start", "course", "knots", "fixes", "minutes", "to_course", "to_knots"),
+    [
+        # Twelve hours at 30 kn far north: the meridians' convergence is large.
+        pytest.param([20.0, 84.0], 60.0, 30, 25, 30, 300, 30, id="long-far-north"),
+        # A day at 60 kn, turned well away.
+        pytest.param([0.0, 70.0], 90.0, 30, 25, 60, 10, 60, id="long-turned"),
+    ],
+)
+def test_held_at_the_end_a_long_leg_makes_good_exactly_the_course_asked(
+    start, course, knots, fixes, minutes, to_course, to_knots
+) -> None:
+    before = leg(start, course, knots, fixes, minutes)
+    indices = list(range(fixes))
+    to = shear_target(
+        before, indices, "end", Quantity(to_course, "deg"), Quantity(to_knots, "[kn_i]")
+    )
+    made = leg_of(sheared(before, indices, "end", to), indices)
+    assert made.course == pytest.approx(to_course, abs=1e-6)
+    assert made.speed / KNOT == pytest.approx(to_knots, abs=1e-6)
+
+
+def test_held_at_the_end_a_course_no_leg_can_make_good_is_refused() -> None:
+    """Twelve hours south at 25 kn cannot end 2° from the pole: the start would be past it.
+    Refused, rather than a leg on some other course recorded as the course asked."""
+    before = leg([0.0, 88.0], 0.0, 20, 13, 60)
+    indices = list(range(13))
+    with pytest.raises(TrackError, match="cannot make good 180.0°T at 25.0 kn"):
+        shear_target(before, indices, "end", Quantity(180, "deg"), Quantity(25, "[kn_i]"))
+    # Held at the start, there is always a leg.
+    to = shear_target(before, indices, "start", Quantity(180, "deg"), Quantity(25, "[kn_i]"))
+    assert leg_of(sheared(before, indices, "start", to), indices).course == pytest.approx(180)
+
+
+@pytest.mark.parametrize(("start", "course"), LEGS)
+def test_a_straight_steady_leg_stretched_keeps_its_line_and_courses(start, course) -> None:
+    """Stretched, a leg stays on its geodesic: each fix's course is the geodesic's where the
+    fix now is (on a curved earth not the same number everywhere along it)."""
+    before = leg(start, course, 10)
+    indices = list(range(7))
+    after = stretched(before, indices, "start", 1.5)
+    on_leg(after, Position(*start), course, 15)
+    # Held at the end: the end stays, the line is the same, the speed is the new one.
+    after = stretched(before, indices, "end", 0.5)
+    assert after.geometry.coordinates[-1] == before.geometry.coordinates[-1]
+    made = leg_of(after, indices)
+    assert made.speed / KNOT == pytest.approx(5, abs=1e-6)
+    end = Position(*before.geometry.coordinates[-1])
+    for old, new in zip(
+        before.geometry.coordinates[:-1], after.geometry.coordinates[:-1], strict=True
+    ):
+        r0, b0 = range_bearing(end, Position(*old))
+        r1, b1 = range_bearing(end, Position(*new))
+        assert b1.value == pytest.approx(b0.value, abs=1e-6)
+        assert r1.value == pytest.approx(r0.value * 0.5, rel=1e-9)
+
+
+def test_each_fix_moves_by_its_fraction_of_the_time_from_the_held_end() -> None:
+    """A track that turns and has fixes at uneven times: in the frame about the held end,
+    each fix moves by the dragged end's displacement times (t - t_held) / (t_end - t_held)."""
+    positions = [[-4.0, 50.0], [-3.95, 50.02], [-3.93, 50.06], [-3.97, 50.1], [-4.02, 50.11]]
+    t = track("t", "TURNING", positions)
+    minutes = [0, 7, 15, 40, 60]
+    t = t.model_copy(
+        update={"properties": t.properties.model_copy(update={"times": [at(m) for m in minutes]})}
+    )
+    indices = list(range(5))
+    end = Position(*positions[-1])
+    to = destination(end, Quantity(200, "deg"), Quantity(3, "km"))
+    after = sheared(t, indices, "start", to)
+    frame = AnchorFrame(Position(*positions[0]))
+    d = [b - a for a, b in zip(frame.xy(end), frame.xy(to), strict=True)]
+    for m, old, new in zip(minutes, positions, after.geometry.coordinates, strict=True):
+        moved = [
+            b - a for a, b in zip(frame.xy(Position(*old)), frame.xy(Position(*new)), strict=True)
+        ]
+        assert moved == pytest.approx([m / 60 * d[0], m / 60 * d[1]], abs=1e-6)
+    # Held at the end, the fraction runs the other way.
+    start = Position(*positions[0])
+    to = destination(start, Quantity(20, "deg"), Quantity(2, "km"))
+    after = sheared(t, indices, "end", to)
+    frame = AnchorFrame(end)
+    d = [b - a for a, b in zip(frame.xy(start), frame.xy(to), strict=True)]
+    for m, old, new in zip(minutes, positions, after.geometry.coordinates, strict=True):
+        moved = [
+            b - a for a, b in zip(frame.xy(Position(*old)), frame.xy(Position(*new)), strict=True)
+        ]
+        assert moved == pytest.approx([(60 - m) / 60 * d[0], (60 - m) / 60 * d[1]], abs=1e-6)
+
+
+def test_a_shear_adds_the_legs_change_of_velocity_to_each_fixs_own() -> None:
+    """Recorded courses and speeds are carried, not recomputed: a fix whose recorded
+    velocity differs from the leg's keeps its difference."""
+    before = leg([-4.0, 50.0], 90.0, 10)
+    courses = list(before.properties.courses.values)
+    courses[3] = 0.0  # say the log recorded 000 at 10 kn here
+    before = before.model_copy(
+        update={
+            "properties": before.properties.model_copy(
+                update={"courses": before.properties.courses.model_copy(update={"values": courses})}
+            )
+        }
+    )
+    indices = list(range(7))
+    to = shear_target(before, indices, "start", Quantity(90, "deg"), Quantity(20, "[kn_i]"))
+    after = sheared(before, indices, "start", to)
+    # The leg gained 10 kn east: 10 kn north plus 10 kn east is 14.1 kn on 045.
+    assert after.properties.courses.values[3] == pytest.approx(45, abs=0.2)
+    assert after.properties.speeds.values[3] == pytest.approx(10 * 2**0.5, abs=0.02)
+
+
+def test_shearing_or_stretching_a_period_leaves_the_rest_where_it_was() -> None:
+    before = leg([-4.0, 50.0], 90.0, 10)
+    indices = period_indices(before, (parse_utc(at(20)), parse_utc(at(40))))
+    assert indices == [2, 3, 4]
+    to = shear_target(before, indices, "start", Quantity(120, "deg"), Quantity(12, "[kn_i]"))
+    for after in (sheared(before, indices, "start", to), stretched(before, indices, "start", 2)):
+        coordinates = after.geometry.coordinates
+        unchanged = [i for i in range(7) if coordinates[i] == before.geometry.coordinates[i]]
+        assert unchanged == [0, 1, 2, 5, 6]
+        assert after.properties.speeds.values[0] == 10 and after.properties.speeds.values[6] == 10
+
+
+def test_shear_and_stretch_need_fixes_at_two_times() -> None:
+    before = leg([-4.0, 50.0], 90.0, 10)
+    with pytest.raises(TrackError, match="fixes at only one time"):
+        sheared(before, [3], "start", Position(-3.0, 50.0))
+    with pytest.raises(TrackError, match="which end"):
+        stretched(before, [0, 1], "middle", 2)
+    # Nothing moves: nothing to record.
+    assert sheared(before, [0, 1, 2], "start", Position(*before.geometry.coordinates[2])) is None
+    assert stretched(before, [0, 1, 2], "end", 1) is None
+
+
+def test_shearing_is_one_step_named_by_the_course_and_speed_it_makes_good(catalogue) -> None:
+    steps = len(catalogue.history("p").steps())
+    edit = {
+        "action": "shear",
+        "anchor": "start",
+        "distance": {"value": 1.2, "unit": "[nmi_i]"},
+        "bearing": {"value": 0, "unit": "deg"},
+    }
+    step = catalogue.edit_track("p", "track-blue", edit, AGENT)
+    assert step == steps + 1
+    after = feature(catalogue, "track-blue")
+    made = leg_of(after, list(range(6)))
+    record = last_record(catalogue)
+    note = record.notes[0]
+    assert note == describe_shear("BLUE ONE", made, False)
+    assert note.startswith("BLUE ONE sheared: 0") and note.endswith(" kn")
+    assert len(note) <= 48
+    assert record.notes[1:] == ["Held at the start, 09:00:00Z", "Was 089.9°T 11.6 kn"]
+    p = parameters(record)
+    assert p["anchor"] == "start" and p["anchor_time"] == at(0) and p["dragged_time"] == at(50)
+    assert p["distance"] == (1.2, "[nmi_i]") and p["bearing"] == (0.0, "deg")
+    assert p["course"] == (round(made.course, 2), "deg")
+    assert p["speed"][1] == "[kn_i]" and p["speed"][0] == pytest.approx(made.speed / KNOT, abs=1e-3)
+    # The held end stays; the dragged end went 1.2 nmi north.
+    assert after.geometry.coordinates[0] == BLUE.geometry.coordinates[0]
+    distance, bearing = range_bearing(
+        Position(*BLUE.geometry.coordinates[-1]), Position(*after.geometry.coordinates[-1])
+    )
+    assert distance.value == pytest.approx(1.2 * 1852, abs=1e-3)
+    assert bearing.value == pytest.approx(0, abs=1e-6)
+    valid(catalogue)
+    catalogue.history("p").undo()
+    assert feature(catalogue, "track-blue") == BLUE
+    catalogue.history("p").redo()
+    assert feature(catalogue, "track-blue").geometry == after.geometry
+
+
+def test_a_shear_by_course_and_speed_over_a_period(catalogue) -> None:
+    edit = {
+        "action": "shear",
+        "anchor": "end",
+        "course": {"value": 100, "unit": "deg"},
+        "speed": {"value": 9, "unit": "[kn_i]"},
+        "period": {"start": at(10), "end": at(40)},
+    }
+    catalogue.edit_track("p", "track-blue", edit, AGENT)
+    record = last_record(catalogue)
+    assert record.notes == [
+        "BLUE ONE part sheared: 100.0°T 9.0 kn",
+        "Held at the end, 09:40:00Z",
+        "Was 089.9°T 11.6 kn",
+        "Only the fixes from 09:10:00Z to 09:40:00Z",
+    ]
+    p = parameters(record)
+    assert p["course"] == (100, "deg") and p["speed"] == (9, "[kn_i]")
+    assert p["anchor_time"] == at(40) and p["dragged_time"] == at(10)
+    assert p["distance"][1] == "[nmi_i]" and p["period_start"] == at(10)
+    after = feature(catalogue, "track-blue").geometry.coordinates
+    assert [i for i in range(6) if after[i] != BLUE.geometry.coordinates[i]] == [1, 2, 3]
+    valid(catalogue)
+
+
+def test_stretching_is_one_step_named_by_its_new_speed(catalogue) -> None:
+    edit = {"action": "stretch", "anchor": "end", "speed": {"value": 15, "unit": "[kn_i]"}}
+    catalogue.edit_track("p", "track-blue", edit, AGENT)
+    record = last_record(catalogue)
+    assert record.notes == [
+        "BLUE ONE stretched: 15.0 kn",
+        "Held at the end, 09:50:00Z",
+        "Was 11.6 kn",
+    ]
+    p = parameters(record)
+    assert p["speed"] == (15, "[kn_i]") and p["anchor"] == "end"
+    after = feature(catalogue, "track-blue")
+    assert leg_of(after, list(range(6))).speed / KNOT == pytest.approx(15, abs=1e-9)
+    assert after.geometry.coordinates[-1] == BLUE.geometry.coordinates[-1]
+    # Its courses are kept (to within the meridians closing in: BLUE runs along a parallel,
+    # not a geodesic); its speeds go up by the same factor.
+    factor = 15 / (leg_of(BLUE, list(range(6))).speed / KNOT)
+    assert after.properties.courses.values == pytest.approx([90.0] * 6, abs=0.1)
+    assert after.properties.speeds.values == pytest.approx([12.0 * factor] * 6, rel=1e-6)
+    valid(catalogue)
+    catalogue.history("p").undo()
+    assert feature(catalogue, "track-blue") == BLUE
+
+
+def test_shears_and_stretches_that_cannot_be_made_say_so(catalogue) -> None:
+    steps = len(catalogue.history("p").steps())
+    stretch = {"action": "stretch", "anchor": "start", "speed": {"value": 0, "unit": "[kn_i]"}}
+    with pytest.raises(CatalogueError, match="more than nothing"):
+        catalogue.edit_track("p", "track-blue", stretch, AGENT)
+    shear = {"action": "shear", "course": {"value": 1, "unit": "deg"}}
+    with pytest.raises(CatalogueError, match="needs the end it holds"):
+        catalogue.edit_track("p", "track-blue", shear, AGENT)
+    one_fix = {
+        "action": "stretch",
+        "anchor": "start",
+        "speed": {"value": 5, "unit": "[kn_i]"},
+        "period": {"start": at(15), "end": at(25)},
+    }
+    with pytest.raises(CatalogueError, match="fixes at only one time"):
+        catalogue.edit_track("p", "track-blue", one_fix, AGENT)
+    assert len(catalogue.history("p").steps()) == steps
+
+
+def test_a_shear_over_a_change_made_elsewhere_is_refused(catalogue) -> None:
+    base = catalogue.history("p").base()
+    move = {
+        "action": "move",
+        "distance": {"value": 1, "unit": "km"},
+        "bearing": {"value": 0, "unit": "deg"},
+    }
+    catalogue.edit_track("p", "track-red", move, models.AgentRef(kind="person", name="a colleague"))
+    shear = {
+        "action": "shear",
+        "anchor": "start",
+        "course": {"value": 45, "unit": "deg"},
+        "speed": {"value": 10, "unit": "[kn_i]"},
+    }
+    with pytest.raises(Conflict):
+        catalogue.edit_track("p", "track-blue", shear, AGENT, base)
+    stretch = {"action": "stretch", "anchor": "start", "speed": {"value": 10, "unit": "[kn_i]"}}
+    with pytest.raises(Conflict):
+        catalogue.edit_track("p", "track-blue", stretch, AGENT, base)

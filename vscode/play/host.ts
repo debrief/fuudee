@@ -24,8 +24,8 @@ import { placeToolTime } from "../webview/timelogic.js";
 import { TRACK_COLOURS } from "../webview/palette.js";
 import { TimeControl } from "../webview/timecontrol.js";
 import { formatBearing } from "@debrief/kernel";
-import { defaultPivotIndex, describeDistance, describeTurn, mergedName, mergePlan, periodIndices, readBearing, readDistance, readTurn } from "../webview/trackedit.js";
-import { describeJump, describeMark, describeWindow, fixRows, jumpsFound, markAt, readSpeed, readWindow, smoothingNote, type Jump } from "../webview/fixes.js";
+import { defaultPivotIndex, describeDistance, describeSpeed, describeTurn, legNow, mergedName, mergePlan, periodIndices, readBearing, readDistance, readSpeed, readTurn } from "../webview/trackedit.js";
+import { describeJump, describeMark, describeWindow, fixRows, jumpsFound, markAt, readThreshold, readWindow, smoothingNote, type Jump } from "../webview/fixes.js";
 import { FIX_COLOURS } from "../webview/palette.js";
 import { formatQuantity } from "@debrief/kernel";
 
@@ -615,6 +615,8 @@ interface FormField {
   options?: { value: string; label: string }[];
   /** What the text means, or what is wrong with it. */
   read?: (text: string) => { means: string } | { problem: string };
+  /** The label and the value offered, from the choices made so far: worked out again when a choice changes, the value only while it is still the one offered. */
+  follow?: (values: Record<string, string>) => { label: string; value: string };
 }
 /** A small form in a dialog: each field says, beneath it, what it understood or what is wrong; nothing is sent until all are right. Resolves to the values, or undefined for Cancel. */
 function trackForm(title: string, action: string, fields: FormField[], warning?: string): Promise<Record<string, string> | undefined> {
@@ -628,10 +630,13 @@ function trackForm(title: string, action: string, fields: FormField[], warning?:
     form.append(heading);
     if (warning) form.append(Object.assign(document.createElement("p"), { className: "form-warning", textContent: warning }));
     const notes = new Map<string, HTMLElement>();
+    const following: (() => void)[] = [];
+    const chosen = () => Object.fromEntries(fields.map((f) => [f.id, (form.elements.namedItem(f.id) as HTMLInputElement | null)?.value ?? ""]));
     for (const field of fields) {
       const row = document.createElement("label");
       row.className = "form-row";
-      row.append(Object.assign(document.createElement("span"), { textContent: field.label }));
+      const label = Object.assign(document.createElement("span"), { textContent: field.label });
+      row.append(label);
       let input: HTMLInputElement | HTMLSelectElement;
       if (field.options) {
         input = document.createElement("select");
@@ -656,9 +661,22 @@ function trackForm(title: string, action: string, fields: FormField[], warning?:
       };
       input.addEventListener("input", say);
       if (input.value) say();
+      if (field.follow) {
+        const follow = field.follow;
+        let offered = input.value;
+        following.push(() => {
+          const now = follow(chosen());
+          label.textContent = now.label;
+          if (input.value === offered) input.value = now.value;
+          offered = now.value;
+          say();
+        });
+      }
+      if (field.options) input.addEventListener("change", () => following.forEach((f) => f()));
       row.append(input, note);
       form.append(row);
     }
+    following.forEach((f) => f());
     const buttons = document.createElement("div");
     buttons.className = "buttons";
     const go = Object.assign(document.createElement("button"), { type: "submit", className: "primary", textContent: action, value: "go" });
@@ -669,7 +687,7 @@ function trackForm(title: string, action: string, fields: FormField[], warning?:
     document.body.append(dialog);
     let values: Record<string, string> | undefined;
     form.addEventListener("submit", (event) => {
-      const data = Object.fromEntries(fields.map((f) => [f.id, (form.elements.namedItem(f.id) as HTMLInputElement | null)?.value ?? ""]));
+      const data = chosen();
       const wrong = fields.filter((f) => f.read && "problem" in f.read(data[f.id] ?? ""));
       if (wrong.length) {
         event.preventDefault();
@@ -741,6 +759,68 @@ $("rotate-track").onclick = async () => {
   const index =
     values.pivot === "first" ? indices[0] : values.pivot === "last" ? indices[indices.length - 1] : defaultPivotIndex(times, indices, time ? Date.parse(time.current) : undefined);
   const edit = { action: "rotate", angle: { value: readTurn(values.angle), unit: "deg" }, pivot: track.geometry.coordinates[index], ...(period && { period }) };
+  const problem = await changeTrack({ kind: "edit", feature: track.id, edit });
+  if (problem) toast(problem, "warning");
+};
+/** What the track, or its fixes in the time window, makes good now: as the form offers it when that is chosen. */
+function legChosen(track: NonNullable<ReturnType<typeof trackOf>>, extent: string): NonNullable<ReturnType<typeof legNow>> | undefined {
+  const times = track.properties.times.map(Date.parse);
+  const period = windowPeriod(extent);
+  return legNow(track.geometry.coordinates as [number, number][], times, periodIndices(times, period && { start: Date.parse(period.start), end: Date.parse(period.end) }));
+}
+/** What a shear or a stretch holds, and what the track makes good now; or say why it cannot be done. */
+function heldFields(track: NonNullable<ReturnType<typeof trackOf>>, verb: string): FormField[] | undefined {
+  if (!legChosen(track, "whole")) {
+    toast(`${track.properties.name} has fixes at only one time, so it cannot be ${verb}.`, "warning");
+    return undefined;
+  }
+  const anchor: FormField = {
+    id: "anchor",
+    label: "Which end stays where it is",
+    options: [
+      { value: "start", label: "Hold the start; the end moves" },
+      { value: "end", label: "Hold the end; the start moves" },
+    ],
+  };
+  return [extentField(), anchor];
+}
+/** The course or the speed made good, offered as it is now for what is chosen to change. */
+function madeGood(track: NonNullable<ReturnType<typeof trackOf>>, id: "course" | "speed", label: string, read: FormField["read"]): FormField {
+  return {
+    id,
+    label,
+    read,
+    follow: (values) => {
+      const now = legChosen(track, values.extent);
+      if (!now) return { label: `${label} (its fixes there are at only one time)`, value: "" };
+      const [course, ...speed] = now.said.split(" ");
+      return { label: `${label} (now ${id === "course" ? course : speed.join(" ")})`, value: now[id] };
+    },
+  };
+}
+const courseField = (track: NonNullable<ReturnType<typeof trackOf>>) =>
+  madeGood(track, "course", "Course made good, true", (t) => shown(readBearing(t), () => formatBearing({ value: readBearing(t) as number, unit: "deg" })));
+const speedField = (track: NonNullable<ReturnType<typeof trackOf>>, positive: boolean) =>
+  madeGood(track, "speed", "Speed made good", (t) => shown(readSpeed(t, undefined, positive), () => describeSpeed(readSpeed(t) as { value: number; unit: string })));
+$("shear-track").onclick = async () => {
+  const track = oneTrack("shear");
+  const held = track && heldFields(track, "sheared");
+  if (!track || !held) return;
+  const values = await trackForm(`Shear ${track.properties.name}`, "Shear", [...held, courseField(track), speedField(track, false)]);
+  if (!values) return;
+  const period = windowPeriod(values.extent);
+  const edit = { action: "shear", anchor: values.anchor, course: { value: readBearing(values.course), unit: "deg" }, speed: readSpeed(values.speed), ...(period && { period }) };
+  const problem = await changeTrack({ kind: "edit", feature: track.id, edit });
+  if (problem) toast(problem, "warning");
+};
+$("stretch-track").onclick = async () => {
+  const track = oneTrack("stretch");
+  const held = track && heldFields(track, "stretched");
+  if (!track || !held) return;
+  const values = await trackForm(`Stretch ${track.properties.name}`, "Stretch", [...held, speedField(track, true)]);
+  if (!values) return;
+  const period = windowPeriod(values.extent);
+  const edit = { action: "stretch", anchor: values.anchor, speed: readSpeed(values.speed, undefined, true), ...(period && { period }) };
   const problem = await changeTrack({ kind: "edit", feature: track.id, edit });
   if (problem) toast(problem, "warning");
 };
@@ -816,13 +896,13 @@ $("find-jumps").onclick = async () => {
       label: `A fix is a jump when reaching it needs more than this speed. ${median}`,
       value: formatQuantity(found.threshold),
       read: (t) => {
-        const read = readSpeed(t);
+        const read = readThreshold(t);
         return "problem" in read ? read : { means: `faster than ${formatQuantity(read)} to reach` };
       },
     },
   ]);
   if (!values) return;
-  const threshold = readSpeed(values.threshold) as { value: number; unit: string };
+  const threshold = readThreshold(values.threshold) as { value: number; unit: string };
   if (threshold.value !== found.threshold.value || threshold.unit !== found.threshold.unit) {
     found = await clean<Found>({ kind: "find_jumps", feature: track.id, threshold }, true);
     if (found.error) return toast(found.error, "warning");
@@ -1211,7 +1291,7 @@ for (const panel of OPTIONAL) $(`panel-${panel}`).hidden = !panels.has(panel);
 // The panels in the order the demo lists them, after the plot and its outline.
 for (const panel of panelOrder) if (OPTIONAL.includes(panel)) $("side").append($(`panel-${panel}`));
 /** History, Try and Import need Python: off until it is ready. */
-const NEEDS_PYTHON = ["undo", "redo", "move-track", "rotate-track", "split-track", "merge-tracks", "find-jumps", "smooth-track", "fix-list", "glitches", "crash", "colleague", "colleague-window", "colleague-during", "file", "colour", "hide", "show", "add-annotation", "edit-annotation", "delete-annotation", "north-arrow"];
+const NEEDS_PYTHON = ["undo", "redo", "move-track", "rotate-track", "shear-track", "stretch-track", "split-track", "merge-tracks", "find-jumps", "smooth-track", "fix-list", "glitches", "crash", "colleague", "colleague-window", "colleague-during", "file", "colour", "hide", "show", "add-annotation", "edit-annotation", "delete-annotation", "north-arrow"];
 function needsPython(on: boolean): void {
   for (const id of NEEDS_PYTHON) $<HTMLButtonElement | HTMLInputElement>(id).disabled = !on;
 }

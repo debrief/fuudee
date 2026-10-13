@@ -63,7 +63,7 @@ Agents get the same through the tool service: `debrief/find_jumps` and `debrief/
 
 ## Try it
 
-Select **RED ONE**, choose **Put GPS glitches into the selected track** under **Try** (the playground records that as a step of its own, so it's never mistaken for real data), then **Jumps…** under the outline. Then **Smooth…**, and **Fixes…**, or right-click a fix on the map:
+Select **RED ONE**, choose **Put GPS glitches into the selected track** under **Try** (the playground records that as a step of its own, so it's never mistaken for real data), then **Jumps…** under *Track*, below the outline. Then **Smooth…**, and **Fixes…**, or right-click a fix on the map:
 
 <div class="debrief-demo" data-demo="?panels=try,timeline,history" data-height="820px" data-caption="Select RED ONE, put GPS glitches into it under Try, then press Jumps…. Everything runs in your browser."></div>
 

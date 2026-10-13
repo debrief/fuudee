@@ -24,7 +24,7 @@ from debrief_stac.fixes import (
     smoothed,
     without_fixes,
 )
-from debrief_stac.tracks import TrackError, merge, moved, rotated, split
+from debrief_stac.tracks import TrackError, merge, moved, rotated, sheared, split, stretched
 
 AGENT = models.AgentRef(kind="person", name="analyst")
 COLLEAGUE = models.AgentRef(kind="person", name="a colleague")
@@ -540,12 +540,19 @@ MARKS = [
 ]
 
 
-def test_marks_survive_a_move_and_a_rotation() -> None:
+def test_marks_survive_a_move_a_rotation_a_shear_and_a_stretch() -> None:
     t = track(steady(9), marks=MARKS)
     after = moved(t, Quantity(1, "km"), Quantity(45, "deg"), list(range(9)))
     assert after.properties.fix_marks == t.properties.fix_marks
     after = rotated(t, Position(-4.0, 50.0), Quantity(30, "deg"), list(range(9)))
     assert after.properties.fix_marks == t.properties.fix_marks
+    end = Position(*t.geometry.coordinates[-1])
+    after = sheared(
+        t, list(range(9)), "start", destination(end, Quantity(0, "deg"), Quantity(1, "km"))
+    )
+    assert after is not None and after.properties.fix_marks == t.properties.fix_marks
+    after = stretched(t, list(range(9)), "end", 1.5)
+    assert after is not None and after.properties.fix_marks == t.properties.fix_marks
 
 
 def test_marks_go_with_their_fixes_when_a_track_is_split_and_merged() -> None:

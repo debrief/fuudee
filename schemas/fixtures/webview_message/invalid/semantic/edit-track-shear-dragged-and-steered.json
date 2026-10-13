@@ -1,0 +1,20 @@
+{
+  "kind": "edit_track",
+  "feature_id": "track-blue-one",
+  "track_edit": {
+    "action": "shear",
+    "anchor": "start",
+    "distance": {
+      "value": 1.2,
+      "unit": "[nmi_i]"
+    },
+    "bearing": {
+      "value": 45,
+      "unit": "deg"
+    },
+    "speed": {
+      "value": 12.4,
+      "unit": "[kn_i]"
+    }
+  }
+}

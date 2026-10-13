@@ -11,7 +11,7 @@ import { DEFAULT_SETTINGS } from "@debrief/kernel";
 import type { DebriefFeatureCollection } from "@debrief/schemas";
 import { checkMessage } from "../../src/messages.js";
 import { timelineEntries } from "../../src/timeline.js";
-import { describeFix, describeJump, describeMark, describeMetres, describeWindow, fixRows, jumpsFound, markAt, marksByIndex, readSpeed, readWindow, smoothingNote, type FixTrack } from "../../webview/fixes.js";
+import { describeFix, describeJump, describeMark, describeMetres, describeWindow, fixRows, jumpsFound, markAt, marksByIndex, readThreshold, readWindow, smoothingNote, type FixTrack } from "../../webview/fixes.js";
 import { FIX_COLOURS } from "../../webview/palette.js";
 
 const T = (minute: number) => `2026-10-11T09:${String(minute).padStart(2, "0")}:00.000Z`;
@@ -60,7 +60,7 @@ describe("marked fixes", () => {
   it("show their comments in the Timeline, at their fix's time, with the narrative", () => {
     const plot = {
       type: "FeatureCollection",
-      schema_version: "0.0.15",
+      schema_version: "0.0.16",
       provenance: [],
       features: [
         { type: "Feature", id: "note", geometry: null, properties: { kind: "annotation", style: "note", name: "Contact", time: T(1) } },
@@ -75,13 +75,13 @@ describe("marked fixes", () => {
 
 describe("finding jumps", () => {
   it("reads the threshold typed, in the analyst's unit or another", () => {
-    expect(readSpeed("30")).toEqual({ value: 30, unit: "[kn_i]" });
-    expect(readSpeed("30.5 kn")).toEqual({ value: 30.5, unit: "[kn_i]" });
-    expect(readSpeed("15 m/s")).toEqual({ value: 15, unit: "m/s" });
-    expect(readSpeed(" 40 km/h ")).toEqual({ value: 40, unit: "km/h" });
-    expect(readSpeed("fast")).toHaveProperty("problem");
-    expect(readSpeed("30 furlongs")).toHaveProperty("problem");
-    expect((readSpeed("0") as { problem: string }).problem).toMatch(/above zero/);
+    expect(readThreshold("30")).toEqual({ value: 30, unit: "[kn_i]" });
+    expect(readThreshold("30.5 kn")).toEqual({ value: 30.5, unit: "[kn_i]" });
+    expect(readThreshold("15 m/s")).toEqual({ value: 15, unit: "m/s" });
+    expect(readThreshold(" 40 km/h ")).toEqual({ value: 40, unit: "km/h" });
+    expect(readThreshold("fast")).toHaveProperty("problem");
+    expect(readThreshold("30 furlongs")).toHaveProperty("problem");
+    expect((readThreshold("0") as { problem: string }).problem).toMatch(/above zero/);
   });
 
   it("lists each jump with when, where and how fast", () => {

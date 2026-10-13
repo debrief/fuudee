@@ -111,8 +111,8 @@ export function jumpsFound(name: string, jumps: number, threshold: { value: numb
 const SPEEDS = ["[kn_i]", "m/s", "km/h"];
 const SPEED_UNITS: Record<string, string> = { kn: "[kn_i]", kt: "[kn_i]", kts: "[kn_i]", knots: "[kn_i]", "[kn_i]": "[kn_i]", "m/s": "m/s", "km/h": "km/h", kph: "km/h" };
 
-/** A speed as typed: "30", "30 kn", "15 m/s"; a bare number is in the analyst's speed unit. */
-export function readSpeed(text: string, settings: FormatSettings = DEFAULT_SETTINGS): { value: number; unit: string } | { problem: string } {
+/** A jump threshold, a speed as typed: "30", "30 kn", "15 m/s"; a bare number is in the analyst's speed unit. */
+export function readThreshold(text: string, settings: FormatSettings = DEFAULT_SETTINGS): { value: number; unit: string } | { problem: string } {
   const match = /^\s*(\d+(?:\.\d*)?|\.\d+)\s*([a-z/[\]_]*)\s*$/i.exec(text);
   const say = `Type a speed, such as 30 ${UNIT_LABELS[settings.speed_unit] ?? settings.speed_unit}; the units are ${SPEEDS.map((u) => UNIT_LABELS[u]).join(", ")}.`;
   if (!match) return { problem: say };

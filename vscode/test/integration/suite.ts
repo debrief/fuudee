@@ -600,6 +600,40 @@ export async function run(): Promise<void> {
   assert.equal(await vscode.commands.executeCommand("debrief.undo"), undefined);
   assert.ok(!(await vscode.commands.executeCommand<{ entries: string[] }>("debrief.timelineEntries")).entries.includes(`fix:track-red-one:${fixTime}`));
 
+  // --- Shear and stretch (CAP-21): an end let go of on the map, and the commands with values given ---
+  const shearBefore = (await steps()).length;
+  await vscode.commands.executeCommand("debrief.select", ["track-blue-one"]);
+  await sleep(1500);
+  const blueBefore = track("track-blue-one")!.geometry.coordinates;
+  await api.fromMap!({ kind: "edit_track", feature_id: "track-blue-one", track_edit: { action: "shear", anchor: "start", distance: { value: 1, unit: "[nmi_i]" }, bearing: { value: 0, unit: "deg" } } });
+  assert.match((await steps()).at(-1)?.notes?.[0] ?? "", /^BLUE ONE sheared: \d{3}\.\d°T \d+\.\d kn$/);
+  assert.deepEqual(track("track-blue-one")!.geometry.coordinates[0], blueBefore[0], "the start is held");
+  const sheared = await vscode.commands.executeCommand<TrackDone>("debrief.shearTrack", "track-blue-one", { anchor: "end", course: { value: 200, unit: "deg" }, speed: { value: 6, unit: "[kn_i]" } });
+  assert.equal(sheared.problem, undefined);
+  assert.equal((await steps()).at(-1)?.notes?.[0], "BLUE ONE sheared: 200.0°T 6.0 kn");
+  assert.match((await steps()).at(-1)?.notes?.[1] ?? "", /^Held at the end, \d\d:\d\d:\d\dZ$/);
+  const stretched = await vscode.commands.executeCommand<TrackDone>("debrief.stretchTrack", "track-blue-one", { anchor: "start", speed: { value: 9, unit: "[kn_i]" } });
+  assert.equal(stretched.problem, undefined);
+  assert.equal((await steps()).at(-1)?.notes?.[0], "BLUE ONE stretched: 9.0 kn");
+  const nothing = await vscode.commands.executeCommand<TrackDone>("debrief.stretchTrack", "track-blue-one", { anchor: "start", speed: { value: 0, unit: "[kn_i]" } });
+  assert.match(nothing.problem ?? "", /more than nothing/);
+  assert.equal((await steps()).length, shearBefore + 3);
+  await vscode.commands.executeCommand("debrief.outline.focus");
+  await sleep(2000);
+  await screenshot("27-track-sheared");
+  // The form: what changes, then which end is held, with what the track makes good now.
+  const asking = vscode.commands.executeCommand<TrackDone>("debrief.shearTrack", "track-blue-one");
+  await sleep(1500);
+  await vscode.commands.executeCommand("workbench.action.acceptSelectedQuickOpenItem");
+  await sleep(1500);
+  await screenshot("28-shear-form");
+  await vscode.commands.executeCommand("workbench.action.closeQuickOpen");
+  assert.deepEqual(await asking, {});
+  assert.equal((await steps()).length, shearBefore + 3, "nothing sent from a form put away");
+  // Undone like any step.
+  assert.equal(await vscode.commands.executeCommand("debrief.undo"), undefined);
+  assert.equal((await steps()).at(-1)?.status, "undone");
+
   // A legacy plot file: its circles, ellipses and styling come in as annotations.
   const dpf = path.resolve(__dirname, "../../python/debrief-io/tests/data/shapes.dpf");
   execFileSync(process.env.DEBRIEF_PYTHON!, [

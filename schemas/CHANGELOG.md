@@ -2,11 +2,17 @@
 
 The data-file schema is versioned independently of Debrief (SUB-12). Before 1.0.0 there is no migration guarantee (SUB-13).
 
-## 0.0.15 (14 Oct 2026)
+## 0.0.16 (14 Oct 2026)
 
-- Marked fixes (`fix_marks` on `TrackProperties`, a list of `FixMark`): a fix with a colour, a label or a comment of its own, as legacy plots carry and the .dpf import now keeps (CAP-01, EXT-14). Each mark is found by its fix's `time`, not its place in the track, so it stays with its fix when other fixes are removed, the track is split or merged, or it is moved, rotated or smoothed; most fixes have none, so only marked fixes are listed. `colour` (lower-case hex) draws the fix's marker and the line from it to the next fix; `label` is drawn beside the fix; `comment` is shown when the analyst points at the fix and in the Timeline. Rules: each mark's time is one of the track's times (where two fixes share a time, the mark is the first's); marks are in time order, one per time; each says something (a colour, a label or a comment), with no empty text. Changing a mark is a recorded, undoable step (SUB-22).
+- Marked fixes (`fix_marks` on `TrackProperties`, a list of `FixMark`): a fix with a colour, a label or a comment of its own, as legacy plots carry and the .dpf import now keeps (CAP-01, EXT-14). Each mark is found by its fix's `time`, not its place in the track, so it stays with its fix when other fixes are removed, the track is split or merged, or it is moved, rotated, sheared, stretched or smoothed; most fixes have none, so only marked fixes are listed. `colour` (lower-case hex) draws the fix's marker and the line from it to the next fix; `label` is drawn beside the fix; `comment` is shown when the analyst points at the fix and in the Timeline. Rules: each mark's time is one of the track's times (where two fixes share a time, the mark is the first's); marks are in time order, one per time; each says something (a colour, a label or a comment), with no empty text. Changing a mark is a recorded, undoable step (SUB-22).
 - Webview messages `show_fixes` (host to map: `feature_id`, `fix_times`, `preview`, a `LineStringGeometry` of the track as a change would leave it, and `message`; with no `feature_id`, take them away), which rings jumps found before the analyst confirms them and draws smoothing before it is applied; and `fix_chosen` (map to host: `feature_id`, `fix_time`), sent when the analyst right-clicks a fix to colour, label or comment on it.
 - Removing jumps and smoothing a track change ordinary track features (every parallel series and mark kept in step), recorded as edits; nothing else in plot files changes.
+- Before 1.0.0 only an exact version opens (SUB-13): plots written as 0.0.15 must be imported or built again.
+
+## 0.0.15 (14 Oct 2026)
+
+- `TrackEdit` shears and stretches a track (CAP-01, CAP-21): `action` may be `shear` or `stretch`, with `anchor` (`TrackEditAnchorEnum`: `start` or `end`), the end of the period (or the whole track) held fixed. A shear gives either `distance` and `bearing` (how far and which way the other end is dragged) or `course` (an `Angle`, true) and `speed` (a `Speed`), the course and speed made good from the period's first fix to its last; a stretch gives `speed`. Rules: a shear needs an anchor and exactly one of those pairs, and no angle or pivot; a stretch needs an anchor and a speed of more than nothing, and nothing else; a move or a rotation has no anchor, course or speed; distances and speeds are never negative.
+- The `edit_track` message carries shears and stretches, sent when the analyst lets go of a track's end or stops nudging one. Plot files are unchanged: a sheared or stretched track is an ordinary track feature, recorded as an edit.
 - Before 1.0.0 only an exact version opens (SUB-13): plots written as 0.0.14 must be imported or built again.
 
 ## 0.0.14 (14 Oct 2026)

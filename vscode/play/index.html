@@ -25,24 +25,26 @@
       <h2>Outline</h2>
       <div id="selected-count" class="detail"></div>
       <ul id="outline" class="list" role="listbox" aria-multiselectable="true" aria-label="Features in the plot"></ul>
-      <div class="outline-actions">
+      <div class="outline-actions" role="group" aria-label="The selected features">
         <select id="colour" aria-label="Colour the selected tracks"><option value="">Colour…</option></select>
         <button id="hide" title="Hide the selected features on the map">Hide</button>
         <button id="show" title="Show the selected features, or every hidden feature, on the map">Show</button>
       </div>
-      <div class="outline-actions" role="group" aria-label="Change the selected track">
+      <div class="action-group" role="group" aria-labelledby="track-actions">
+        <span id="track-actions" class="action-label">Track</span>
         <button id="move-track" title="Move the selected track, or its fixes in the time window, a distance along a bearing">Move…</button>
         <button id="rotate-track" title="Rotate the selected track, or its fixes in the time window, about a pivot">Rotate…</button>
-        <button id="split-track" title="Split the selected track into two at current time">Split at current time…</button>
+        <button id="shear-track" title="Shear the selected track: hold one end, and give the rest a new course and speed">Shear…</button>
+        <button id="stretch-track" title="Stretch the selected track: hold one end, and give the rest a new speed on the same course">Stretch…</button>
+        <button id="split-track" title="Split the selected track into two at current time">Split…</button>
         <button id="merge-tracks" title="Merge the selected tracks into one, in time order">Merge</button>
-      </div>
-      <div class="outline-actions" role="group" aria-label="Clean the selected track">
         <button id="find-jumps" title="Find fixes the selected track could not have reached in time, check them, and remove those you choose">Jumps…</button>
         <button id="smooth-track" title="Smooth the selected track, or its fixes in the time window, with a preview first">Smooth…</button>
         <button id="fix-list" title="List the selected track's fixes, to colour, label or comment on one">Fixes…</button>
       </div>
-      <div class="outline-actions">
-        <button id="add-annotation" title="Add a line, area, circle, ellipse, label, marker or note">Add annotation…</button>
+      <div class="action-group" role="group" aria-labelledby="annotation-actions">
+        <span id="annotation-actions" class="action-label">Annotation</span>
+        <button id="add-annotation" title="Add a line, area, circle, ellipse, label, marker or note">Add…</button>
         <button id="edit-annotation" title="Change the selected annotation: its position, size, time and style">Change…</button>
         <button id="delete-annotation" title="Delete the selected annotations; Undo brings them back">Delete</button>
         <button id="north-arrow" aria-pressed="false" title="Show or remove the north arrow on the map">North arrow</button>
