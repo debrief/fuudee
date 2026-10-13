@@ -1,0 +1,41 @@
+{
+ "shots": [
+  {
+   "source": "blog/posts/2026-10-11-nothing-lost.md",
+   "url": "blog/2026/10/11/nothing-lost/",
+   "title": "Nothing lost: undo, crashes, and a plot shared with others",
+   "file": "blog-posts-2026-10-11-nothing-lost.png"
+  },
+  {
+   "source": "blog/posts/2026-10-13-history-in-the-plot-file.md",
+   "url": "blog/2026/10/13/history-in-the-plot-file/",
+   "title": "One file, history included",
+   "file": "blog-posts-2026-10-13-history-in-the-plot-file.png"
+  },
+  {
+   "source": "guides/glossary.md",
+   "url": "guides/glossary/",
+   "title": "Glossary",
+   "file": "guides-glossary.png"
+  },
+  {
+   "source": "guides/interaction-models/conflicts.md",
+   "url": "guides/interaction-models/conflicts/",
+   "title": "Conflicts",
+   "file": "guides-interaction-models-conflicts.png"
+  },
+  {
+   "source": "guides/interaction-models/undo.md",
+   "url": "guides/interaction-models/undo/",
+   "title": "Undo",
+   "file": "guides-interaction-models-undo.png"
+  },
+  {
+   "source": "try.md",
+   "url": "try/",
+   "title": "Try Debrief",
+   "file": "try.png"
+  }
+ ],
+ "more": 0
+}
