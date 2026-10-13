@@ -682,6 +682,40 @@ def test_a_straight_steady_leg_sheared_from_its_end_stays_straight_and_steady(
     on_leg(after, Position(*after.geometry.coordinates[0]), made.course, 7)
 
 
+@pytest.mark.parametrize(
+    ("start", "course", "knots", "fixes", "minutes", "to_course", "to_knots"),
+    [
+        # Twelve hours at 30 kn far north: the meridians' convergence is large.
+        pytest.param([20.0, 84.0], 60.0, 30, 25, 30, 300, 30, id="long-far-north"),
+        # A day at 60 kn, turned well away.
+        pytest.param([0.0, 70.0], 90.0, 30, 25, 60, 10, 60, id="long-turned"),
+    ],
+)
+def test_held_at_the_end_a_long_leg_makes_good_exactly_the_course_asked(
+    start, course, knots, fixes, minutes, to_course, to_knots
+) -> None:
+    before = leg(start, course, knots, fixes, minutes)
+    indices = list(range(fixes))
+    to = shear_target(
+        before, indices, "end", Quantity(to_course, "deg"), Quantity(to_knots, "[kn_i]")
+    )
+    made = leg_of(sheared(before, indices, "end", to), indices)
+    assert made.course == pytest.approx(to_course, abs=1e-6)
+    assert made.speed / KNOT == pytest.approx(to_knots, abs=1e-6)
+
+
+def test_held_at_the_end_a_course_no_leg_can_make_good_is_refused() -> None:
+    """Twelve hours south at 25 kn cannot end 2° from the pole: the start would be past it.
+    Refused, rather than a leg on some other course recorded as the course asked."""
+    before = leg([0.0, 88.0], 0.0, 20, 13, 60)
+    indices = list(range(13))
+    with pytest.raises(TrackError, match="cannot make good 180.0°T at 25.0 kn"):
+        shear_target(before, indices, "end", Quantity(180, "deg"), Quantity(25, "[kn_i]"))
+    # Held at the start, there is always a leg.
+    to = shear_target(before, indices, "start", Quantity(180, "deg"), Quantity(25, "[kn_i]"))
+    assert leg_of(sheared(before, indices, "start", to), indices).course == pytest.approx(180)
+
+
 @pytest.mark.parametrize(("start", "course"), LEGS)
 def test_a_straight_steady_leg_stretched_keeps_its_line_and_courses(start, course) -> None:
     """Stretched, a leg stays on its geodesic: each fix's course is the geodesic's where the

@@ -289,8 +289,10 @@ def shear_target(
     """Where the dragged end goes for the period to make good this course and speed: from
     the period's first fix, the course is the geodesic's bearing there. Held at the end,
     the start is found by turning the bearing back from the anchor until the geodesic
-    from the new start sets off on the course (a few turns: only the meridians'
-    convergence separates the two)."""
+    from the new start sets off on the course (Newton's method on that bearing: a few
+    turns, as only the meridians' convergence separates the two). Refused when no
+    start does, as near a pole, where a leg that long on that course cannot end at the
+    held fix."""
     held, dragged = ends(track, indices, anchor)
     times = times_of(track)
     a = _position(track, held)
@@ -300,15 +302,24 @@ def shear_target(
         return a
     if anchor == "start":
         return destination(a, Quantity(want, "deg"), Quantity(metres, "m"))
-    back = want + 180.0
-    start = a
-    for _ in range(8):
-        start = destination(a, Quantity(back, "deg"), Quantity(metres, "m"))
-        error = (range_bearing(start, a)[1].value - want + 540.0) % 360.0 - 180.0
-        if abs(error) < 1e-9:
-            break
-        back -= error
-    return start
+    length = Quantity(metres, "m")
+
+    def error(back: float) -> tuple[float, Position]:
+        start = destination(a, Quantity(back, "deg"), length)
+        return (range_bearing(start, a)[1].value - want + 540.0) % 360.0 - 180.0, start
+
+    back, step = want + 180.0, 1e-6
+    for _ in range(50):
+        e, start = error(back)
+        if abs(e) < 1e-9:
+            return start
+        slope = (error(back + step)[0] - e) / step
+        back -= e / slope if abs(slope) > 1e-3 else e
+    raise TrackError(
+        f"{track.properties.name} cannot make good {format_bearing(course)} at "
+        f"{_speed_text(speed.to('m/s').value)} and end where it does: no leg that long sets off "
+        "on that course to its last fix. Hold the start instead."
+    )
 
 
 def _velocity(track: models.TrackFeature, i: int) -> tuple[float, float]:
