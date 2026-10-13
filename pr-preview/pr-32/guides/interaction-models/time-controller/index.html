@@ -71,7 +71,7 @@
     
     
     
-    <body dir="ltr" data-md-color-scheme="default" data-md-color-primary="indigo" data-md-color-accent="indigo"><div class="pr-preview-banner" style="background:#fff4ce;color:#3b2f00;border-bottom:1px solid #e0c060;padding:6px 16px;font:14px/1.4 system-ui,sans-serif;text-align:center">Preview of <a style="color:inherit;text-decoration:underline" href="https://github.com/debrief/fuudee/pull/32">pull request #32</a>: Time controller: one window for the whole plot, play and step, in the VS Code sidebar and the playground. Built from c5767bb on 2026-10-12 16:36 UTC. <a style="color:inherit;text-decoration:underline" href="https://debrief.github.io/fuudee/pr-preview/">All previews</a></div>
+    <body dir="ltr" data-md-color-scheme="default" data-md-color-primary="indigo" data-md-color-accent="indigo"><div class="pr-preview-banner" style="background:#fff4ce;color:#3b2f00;border-bottom:1px solid #e0c060;padding:6px 16px;font:14px/1.4 system-ui,sans-serif;text-align:center">Preview of <a style="color:inherit;text-decoration:underline" href="https://github.com/debrief/fuudee/pull/32">pull request #32</a>: Time controller: one window for the whole plot, play and step, in the VS Code sidebar and the playground. Built from a451019 on 2026-10-13 04:09 UTC. <a style="color:inherit;text-decoration:underline" href="https://debrief.github.io/fuudee/pr-preview/">All previews</a></div>
   
     
     <input class="md-toggle" data-md-toggle="drawer" type="checkbox" id="__drawer" autocomplete="off">
@@ -1573,7 +1573,7 @@
 </li>
 <li>
 <p><strong>What the map shows.</strong> Within the window, tracks are drawn in full: solid lines 2.5 px wide, direction ticks, a hollow dot at the first fix in the window and a filled, labelled dot at the last. Outside it, each whole track stays in view as a <strong>context track</strong>, so a deployment of weeks still reads as one picture (CAP-29): a solid line 1.5 px wide, with no ticks, dots or labels, in the track's hue made quieter (moved toward the theme's text colour). Annotations with a time or a period are drawn only while it falls in the window; annotations without one always are. Sensor data will be drawn only within the window (CAP-29); bearings are not drawn yet.</p>
-<p><strong>Context tracks</strong> are set for the plot and saved in its island like the window. In VS Code they are in the Time view's <strong>...</strong> menu, on its title bar: <strong>Context tracks: Clear</strong>, <strong>Faint</strong> and <strong>Off</strong>, the plot's choice checked (the commands <code>debrief.contextTracks.clear</code>, <code>.faint</code> and <code>.off</code>, which run <code>debrief.setContextTracks</code>). When the analyst's setting draws faint as clear, the view's title says so. The playground has no title menu: its <strong>Context</strong> list is beside the window's length.</p>
+<p><strong>Context tracks</strong> are set for the plot and saved in its island like the window. In VS Code they are in the Time view's <strong>...</strong> menu, on its title bar: <strong>Context tracks: Visible</strong>, <strong>Faint</strong> and <strong>Hidden</strong>, the plot's choice checked (the commands <code>debrief.contextTracks.visible</code>, <code>.faint</code> and <code>.hidden</code>, which run <code>debrief.setContextTracks</code>). When the analyst's setting draws faint as visible, the view's title says so. The playground has no title menu: its <strong>Context</strong> list is beside the window's length.</p>
 <table>
 <thead>
 <tr>
@@ -1583,7 +1583,7 @@
 </thead>
 <tbody>
 <tr>
-<td>Clear (the default)</td>
+<td>Visible (the default)</td>
 <td>At least 3:1 against the map's background on any theme, as drawn. Debrief works this out from the theme's editor background: opacity 0.6, and each colour's lightness moved away from the background only as far as it needs.</td>
 </tr>
 <tr>
@@ -1591,12 +1591,12 @@
 <td>Fainter (opacity 0.35), for a busy plot. No 3:1 promise.</td>
 </tr>
 <tr>
-<td>Off</td>
+<td>Hidden</td>
 <td>Not at all: only the window shows.</td>
 </tr>
 </tbody>
 </table>
-<p>An analyst who needs the contrast everywhere turns on the setting <strong>Debrief › Map: Minimum Context Contrast</strong> (<code>debrief.map.minimumContextContrast</code>): faint is then drawn clear on every plot they open, without changing the plot; off is still off. High-contrast themes draw context tracks in the track's own colour, opaque, 1 px wide. Selecting a feature dims the others, context tracks included, but never below opacity 0.3, and never on a high-contrast theme.
+<p>An analyst who needs the contrast everywhere turns on the setting <strong>Debrief › Map: Minimum Context Contrast</strong> (<code>debrief.map.minimumContextContrast</code>): faint is then drawn visible on every plot they open, without changing the plot; hidden is still hidden. High-contrast themes draw context tracks in the track's own colour, opaque, 1 px wide. Selecting a feature dims the others, context tracks included, but never below opacity 0.3, and never on a high-contrast theme.
 6. <strong>Moving shows; letting go saves.</strong> The map follows the window as it moves. The window is saved in the plot when the analyst lets go: the pointer is released, or the key is released. Holding an arrow key down saves once. Saving on every movement would rewrite the plot file many times a second and, on a shared folder, look to a colleague like a flood of changes.
 7. <strong>What is saved where.</strong></p>
 <table>
@@ -1705,7 +1705,7 @@
 <tr>
 <td>Context tracks (the playground's list)</td>
 <td>↑ ↓</td>
-<td>Clear, faint or off. In VS Code, the view's <strong>...</strong> menu, or the commands in the Command Palette</td>
+<td>Visible, faint or hidden. In VS Code, the view's <strong>...</strong> menu, or the commands in the Command Palette</td>
 </tr>
 </tbody>
 </table>
@@ -1738,7 +1738,7 @@
 <ul>
 <li><strong>The component:</strong> <code>vscode/webview/timecontrol.ts</code> and <code>timecontrol.css</code>; its rules, free of the page, in <code>vscode/webview/timelogic.ts</code> (window limits, steps, speeds, <code>Player</code>, <code>WindowGesture</code>, <code>windowForTime</code>, <code>placeToolTime</code>, <code>SavedWindow</code>), tested in <code>vscode/test/unit/timecontrol.test.ts</code> and <code>timewindow.test.ts</code>.</li>
 <li><strong>Context tracks:</strong> <code>vscode/webview/contrast.ts</code> (<code>contextStyle</code>: colour, opacity and width per theme), tested against every palette colour on Dark+ and Light+ in <code>vscode/test/unit/contrast.test.ts</code>; drawn by <code>applyContext</code> in <code>vscode/webview/map.ts</code>.</li>
-<li><strong>VS Code:</strong> the Time view, <code>vscode/src/panels/timeview.ts</code> and <code>vscode/webview/time.ts</code>; saving and noticing the island in <code>vscode/src/extension.ts</code> (<code>saveWindow</code>, <code>saveContext</code>, <code>saveView</code>, <code>applyToolState</code>, <code>refreshView</code>, <code>watch</code>); the window in shared state in <code>vscode/src/session.ts</code> (<code>windowChanged</code>, <code>onView</code>); what the map draws in <code>vscode/webview/map.ts</code> (<code>drawWindow</code>). The commands <code>debrief.setTimeWindow</code> and <code>debrief.setContextTracks</code> set them for agents and keyboard macros; the Time view's title menu runs <code>debrief.contextTracks.clear</code>, <code>.faint</code> and <code>.off</code>, checked through the context key <code>debrief.contextTracks</code>.</li>
+<li><strong>VS Code:</strong> the Time view, <code>vscode/src/panels/timeview.ts</code> and <code>vscode/webview/time.ts</code>; saving and noticing the island in <code>vscode/src/extension.ts</code> (<code>saveWindow</code>, <code>saveContext</code>, <code>saveView</code>, <code>applyToolState</code>, <code>refreshView</code>, <code>watch</code>); the window in shared state in <code>vscode/src/session.ts</code> (<code>windowChanged</code>, <code>onView</code>); what the map draws in <code>vscode/webview/map.ts</code> (<code>drawWindow</code>). The commands <code>debrief.setTimeWindow</code> and <code>debrief.setContextTracks</code> set them for agents and keyboard macros; the Time view's title menu runs <code>debrief.contextTracks.visible</code>, <code>.faint</code> and <code>.hidden</code>, checked through the context key <code>debrief.contextTracks</code>.</li>
 <li><strong>The playground:</strong> <code>vscode/play/host.ts</code> (<code>saveView</code>, <code>showToolTime</code>) and <code>set_view</code> in <code>vscode/play/play.py</code>. It has no settings: the minimum-contrast setting is always off there.</li>
 <li><strong>Messages:</strong> <code>show_time</code> (with <code>saved_window</code>, <code>context_tracks</code>, <code>minimum_context_contrast</code>), <code>window_changed</code>, <code>context_changed</code> and <code>set_context</code> (<code>WebviewMessage</code>). VS Code's Time view no longer sends <code>context_changed</code>, since the choice moved to its title menu; the kind stays in the schema.</li>
 <li><strong>The service:</strong> <code>debrief/set_view</code> and <code>debrief/open</code>; <code>Catalogue.write_view</code>. The island's <code>context_tracks</code> and a result's <code>save_window</code> are in the schema (0.0.10).</li>
