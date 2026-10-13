@@ -1507,7 +1507,7 @@
 
 
 <h1 id="annotations">Annotations<a class="headerlink" href="#annotations" title="Permanent link">&para;</a></h1>
-<p>How an analyst adds a line, area, circle, ellipse, label, marker or note to a plot, changes how it looks and when it is shown, deletes it, and finds notes by time. Part A: everything through forms. Drawing on the map comes later.</p>
+<p>How an analyst adds a line, area, circle, ellipse, label, marker or note to a plot, changes how it looks and when it is shown, deletes it, and finds notes by time. Part A: everything through forms. Part B: drawing annotations on the map, and changing them there by dragging handles or with the keyboard.</p>
 <h2 id="requirements-cited">Requirements cited<a class="headerlink" href="#requirements-cited" title="Permanent link">&para;</a></h2>
 <table>
 <thead>
@@ -1548,6 +1548,14 @@
 <tr>
 <td>EXT-14, EXT-15</td>
 <td>Legacy plots' annotations come in as far as the data model allows; what doesn't is listed.</td>
+</tr>
+<tr>
+<td>NFR-13</td>
+<td>Every map action, drawing an annotation included, has a keyboard or form-based equivalent.</td>
+</tr>
+<tr>
+<td>SUB-26, SUB-28</td>
+<td>Drawing changes neither current time, the window nor the selection; a change made elsewhere is never overwritten.</td>
 </tr>
 </tbody>
 </table>
@@ -1647,6 +1655,16 @@
 <td>Yes</td>
 </tr>
 <tr>
+<td>Drawing on the map: placing points, cancelling</td>
+<td>No: the step is <strong>Add</strong> on the form that follows</td>
+<td>No</td>
+</tr>
+<tr>
+<td>Letting go of a handle, or a run of arrow keys on one</td>
+<td>Yes, one each</td>
+<td>Yes</td>
+</tr>
+<tr>
 <td>Showing or removing the north arrow</td>
 <td>Yes</td>
 <td>Yes</td>
@@ -1665,9 +1683,117 @@
 </table>
 </li>
 <li>
+<p><strong>Drawing on the map.</strong> The map has a toolbar, <em>Draw an annotation</em>, below the zoom buttons: <strong>Line</strong>, <strong>Area</strong>, <strong>Circle</strong>, <strong>Ellipse</strong>, <strong>Label</strong>, <strong>Marker</strong> and <strong>Cancel</strong>. Choosing a kind starts drawing it: the button shows pressed, the map gets a focus outline and a cross for a pointer, and a note at the top of the map says what to do next and what has been drawn so far. Choosing the pressed kind again, <strong>Cancel</strong> (which leaves the keyboard on that kind) or <code>Escape</code> stops and keeps nothing; <code>Backspace</code> removes the last point placed.</p>
+<table>
+<thead>
+<tr>
+<th>Kind</th>
+<th>Draw it by</th>
+<th>The map says</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Line</td>
+<td>clicking each position; double-click or <code>Enter</code> finishes</td>
+<td>positions placed, the leg to the pointer, range and bearing from the start, length</td>
+</tr>
+<tr>
+<td>Area</td>
+<td>clicking each corner; double-click or <code>Enter</code> finishes</td>
+<td>corners placed, the leg, range and bearing from the start, the area</td>
+</tr>
+<tr>
+<td>Circle</td>
+<td>clicking the centre, then the radius; or dragging from the centre</td>
+<td>radius, its bearing, the area</td>
+</tr>
+<tr>
+<td>Ellipse</td>
+<td>clicking the centre, the end of the longer axis (which sets the orientation), then the side (the width); or dragging from the centre to the axis end</td>
+<td>semi-major, semi-minor, orientation, the area</td>
+</tr>
+<tr>
+<td>Label, marker</td>
+<td>one click</td>
+<td>the position</td>
+</tr>
+</tbody>
+</table>
+<p>Ranges and bearings are along geodesics and in the analyst's units and notation (<code>4.25 nmi 045.0°T</code>); an area is in the square of the length unit (<code>12.30 nmi²</code>). A double-click places one point, not two. A line needs two different positions and an area three; finishing too soon says so and keeps drawing. A circle's radius and an ellipse's axes are kept in the analyst's length unit, to the decimals the map showed, so what is saved is what was read; an ellipse's side can never make the shorter axis the longer. While drawing, a click on a track places a point there; <code>Ctrl</code> or <code>Cmd</code> click still selects. Drawing never changes current time, the window or the selection.</p>
+</li>
+<li>
+<p><strong>Finishing opens the form.</strong> A finished drawing opens the annotation form (<strong>Add annotation</strong>), with its kind, positions and size filled in, at the name. The analyst names it, gives it a time or a style if they want, and <strong>Add</strong> saves it as <strong>one step</strong> (<em>Area 'Patrol box' added</em>); <strong>Cancel</strong> (or closing the form) keeps nothing, and the dashed drawing leaves the map. Until then nothing is in the plot. <em>Why the form, rather than adding at once with a made-up name:</em> adding at once and then naming it would be two steps for one annotation, and Undo would take away only the name; a made-up name ("Area 1") would end up in plots. With the form, each finished annotation is one undoable step with the analyst's own name, and Cancel leaves no trace in the history.</p>
+</li>
+<li>
+<p><strong>Changing it on the map.</strong> An annotation selected on its own, and drawn on the map now, shows handles in the theme's focus colour, and the note at the top says how to use them (on a map narrower than 480 pixels the note gives way to the map; each handle's own name says it):</p>
+<table>
+<thead>
+<tr>
+<th>Kind</th>
+<th>Handles</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Line, area</td>
+<td>one at each position or corner; a smaller, dashed one between each pair (an area's closing side too); a filled one in the middle that moves it all</td>
+</tr>
+<tr>
+<td>Circle</td>
+<td>its centre (moves it); its radius</td>
+</tr>
+<tr>
+<td>Ellipse</td>
+<td>its centre (moves it); the end of its longer axis (length and orientation); its side (width)</td>
+</tr>
+<tr>
+<td>Label, marker</td>
+<td>its position</td>
+</tr>
+</tbody>
+</table>
+<p>Dragging a handle changes the annotation as the pointer moves, saying what it now measures; letting go saves the change as <strong>one step</strong>, named for what was done: <em>Circle 'Keep clear' moved</em>, <em>Circle 'Keep clear' resized</em>, <em>Area 'Patrol box' reshaped</em> (a corner moved, added or removed, or an ellipse's axes), <em>Area 'Patrol box' moved</em> (all of it). <code>Escape</code> during a drag puts it back, and nothing is recorded. Dragging a between-handle adds a corner (or position) there. Moving a whole line or area moves every corner by the same change of latitude and longitude, as a parallel rule would on a chart. Sizes keep their own units: a circle of 4 km stays in km.</p>
+</li>
+<li>
+<p><strong>The keyboard.</strong> Every drawing and every change can be made without a pointer:</p>
+<ul>
+<li><em>Drawing:</em> <code>Tab</code> to the toolbar and press <code>Enter</code> on a kind; the keyboard goes to the map, which shows a cross in its middle. The arrow keys pan the map under the cross (as they always do), <code>Space</code> places a point at the cross, <code>Enter</code> finishes, <code>Backspace</code> removes the last point, <code>Escape</code> cancels.</li>
+<li><em>Changing:</em> <code>Tab</code> to a handle (each is named for a screen reader: <em>Area 'Patrol box': corner 2 of 4; drag it, or use the arrow keys; Delete removes it</em>). The arrow keys move it 5 pixels, 25 with <code>Shift</code>; a run of presses is saved as one step once they stop (under a second), on <code>Enter</code>, or when the keyboard moves on; <code>Escape</code> first puts it back. Presses made while that step is still being saved are not lost: the map says so, and they are made as the next step once it is. Arrow keys on a between-handle add a corner there. <code>Delete</code> or <code>Backspace</code> on a corner removes it, unless that would leave an area fewer than three corners or a line fewer than two, which the map says.</li>
+<li><em>Exactly:</em> the properties form (item 7) changes any position or size by typing it, as before.</li>
+</ul>
+</li>
+<li>
+<p><strong>Shared state and conflicts.</strong> Drawing and editing change neither current time, the time window nor the selection; tracks stay selectable with <code>Ctrl</code> or <code>Cmd</code> click. If the plot changes elsewhere during a drag (a colleague, an agent), the map shows the latest at once, drops the drag and says <em>The plot was changed elsewhere, so your change was not made. Debrief is showing the latest; try again if you still want to.</em> A change sent from a plot that has since moved on is refused the same way (SUB-28). A change the service refuses for any other reason is said in a notification, and the map shows the annotation as it is.</p>
+</li>
+<li>
 <p><strong>For agents.</strong> The same steps through the tool service: <code>debrief/add_annotation</code> (<code>annotation</code>: the description the form sends, positions as numbers or text), <code>debrief/edit_annotation</code> (<code>feature</code>, and <code>annotation</code> with only what changes, so <code>{"appearance": {...}}</code> restyles; a member given as <code>null</code> is cleared, and a time given replaces a period, or a period a time; the north arrow has nothing to change), <code>debrief/delete_annotations</code> (<code>features</code>) and <code>debrief/set_north_arrow</code> (<code>shown</code>), each with <code>base</code> as for any change. In VS Code the commands <code>debrief.addAnnotation</code>, <code>debrief.editAnnotation</code>, <code>debrief.deleteAnnotation</code>, <code>debrief.toggleNorthArrow</code> and <code>debrief.goToTime</code> take the same arguments instead of opening the form.</p>
 </li>
 </ol>
+<pre class="mermaid"><code>sequenceDiagram
+    actor Analyst
+    participant Map
+    participant Form as Annotation form
+    participant Host as Extension host
+    participant Service as Tool service
+    Analyst-&gt;&gt;Map: Area; click each corner; double-click
+    Map-&gt;&gt;Map: sketch, with range, bearing and area as it goes
+    Map-&gt;&gt;Host: annotation_drawn (corners, name empty)
+    Host-&gt;&gt;Form: show_annotation_form (the drawing)
+    Analyst-&gt;&gt;Form: name it; Add
+    Form-&gt;&gt;Host: save_annotation
+    Host-&gt;&gt;Service: debrief/add_annotation (one step)
+    Host-&gt;&gt;Map: show_plot (it is selected: handles)
+    Analyst-&gt;&gt;Map: drag a corner, let go
+    Map-&gt;&gt;Host: edit_annotation (feature_id, the whole description, changed)
+    Host-&gt;&gt;Service: debrief/edit_annotation (base)
+    alt changed elsewhere since base
+        Service--&gt;&gt;Host: CONFLICT
+        Host-&gt;&gt;Map: show_plot (the latest); nothing was changed
+    else
+        Service--&gt;&gt;Host: one step: "Area 'Patrol box' reshaped"
+        Host-&gt;&gt;Map: show_plot
+    end</code></pre>
 <pre class="mermaid"><code>sequenceDiagram
     actor Analyst
     participant Form as Annotation form
@@ -1695,12 +1821,13 @@
 <li><strong>Schema (0.0.12):</strong> <code>AnnotationProperties</code> (<code>shape</code>, <code>centre</code>, <code>radius</code>, <code>semi_major</code>, <code>semi_minor</code>, <code>orientation</code>, <code>furniture</code>, <code>appearance</code>), <code>AnnotationAppearance</code> and <code>AnnotationSpec</code> in <code>schemas/linkml/features.yaml</code>; the rules in <code>debrief_schemas.documents</code> (<code>_annotation_problems</code>); fixtures <code>plot/valid/annotations-every-shape.json</code> and the <code>circle-*</code>, <code>ellipse-*</code>, <code>line-*</code>, <code>chart-furniture-*</code> and <code>annotation-*</code> invalid ones.</li>
 <li><strong>Kernel:</strong> <code>debrief_kernel.geodesy.circle_ring</code> and <code>ellipse_ring</code>; <code>debrief_kernel.formatting.parse_position</code> and its TypeScript twin <code>parsePosition</code> (<code>ts/kernel/src/positions.ts</code>).</li>
 <li><strong>Making and naming changes:</strong> <code>debrief_stac.annotations</code> (<code>build</code>, <code>spec_of</code>, <code>describe_change</code>); <code>Catalogue.add_annotation</code>, <code>edit_annotation</code>, <code>delete_annotations</code>, <code>set_north_arrow</code>; the service methods in <code>debrief_tools.service</code>.</li>
+<li><strong>Drawing and editing on the map:</strong> what each click, drag and key makes, the readouts and the handles in <code>vscode/webview/drawing.ts</code> (free of Leaflet, unit-tested); the toolbar, sketch, handles, dragging and nudging in <code>vscode/webview/mapedit.ts</code>; <code>rangeBearing</code>, <code>travel</code> and <code>geodesicArea</code> in <code>vscode/webview/geodesic.ts</code>; the messages <code>annotation_drawn</code> and <code>edit_annotation</code> with <code>annotation</code> (schema 0.0.13); the host side in <code>vscode/src/panels/map.ts</code> (<code>receive</code>) and the command <code>debrief.addDrawnAnnotation</code>; the step names in <code>debrief_stac.annotations.describe_change</code>.</li>
 <li><strong>VS Code:</strong> the form <code>vscode/webview/annotationform.tsx</code>, its reading of fields <code>vscode/webview/annotationdraft.ts</code>; the panel <code>vscode/src/panels/annotation.ts</code>; drawing <code>vscode/webview/annotationlook.ts</code> and <code>drawAnnotation</code> in <code>vscode/webview/map.ts</code>; the Timeline <code>vscode/src/timeline.ts</code> and <code>vscode/src/views/timeline.ts</code>; commands in <code>vscode/src/extension.ts</code>.</li>
 <li><strong>The playground:</strong> <code>vscode/play/host.ts</code> (the annotation form frame, the Timeline, the buttons) and <code>annotate</code> in <code>vscode/play/play.py</code>.</li>
 <li><strong>Legacy plots:</strong> <code>debrief_io.dpf</code> (<code>_read_look</code>) and <code>debrief_io.dpf_import</code> (<code>_curve</code>, <code>_appearance</code>, <code>_look_notes</code>).</li>
-<li><strong>Tests:</strong> <code>python/debrief-stac/tests/test_annotations.py</code>, the service test, <code>vscode/test/unit/annotations.test.ts</code>, the playground test's <code>vscode/test/play/annotations.mjs</code>, and the integration test's annotation steps.</li>
+<li><strong>Tests:</strong> <code>python/debrief-stac/tests/test_annotations.py</code>, the service test, <code>vscode/test/unit/annotations.test.ts</code> and <code>vscode/test/unit/drawing.test.ts</code>, the playground test's <code>vscode/test/play/annotations.mjs</code> and <code>vscode/test/play/drawing.mjs</code> (drawing by pointer and keyboard, dragging, nudging, a colleague's change during a drag), and the integration test's annotation and drawing steps.</li>
 </ul>
-<p><em>Not yet:</em> drawing and editing annotations on the map with the pointer (part B); arrowheads; label symbols; grids and other chart furniture; changing an annotation's kind.</p>
+<p><em>Not yet:</em> snapping to tracks, fixes or other annotations; rotating a whole line or area; arrowheads; label symbols; grids and other chart furniture; changing an annotation's kind.</p>
 
 
 

@@ -1503,9 +1503,43 @@
 </tbody>
 </table>
 <h2 id="model">Model<a class="headerlink" href="#model" title="Permanent link">&para;</a></h2>
-<p><em>Phase 3.</em></p>
+<p><em>Written so far for annotations; the rest of the map follows in Phase 3.</em></p>
+<table>
+<thead>
+<tr>
+<th>Map action</th>
+<th>Without a pointer</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Draw a line, area, circle, ellipse, label or marker</td>
+<td><code>Tab</code> to the map's <em>Draw an annotation</em> toolbar, <code>Enter</code> on a kind; the arrow keys pan the map under the cross in its middle, <code>Space</code> places a point there, <code>Enter</code> finishes, <code>Backspace</code> removes the last, <code>Escape</code> cancels. Or <strong>Add annotation…</strong> and type the positions (<a href="../annotations/">annotations</a>, items 1 to 6).</td>
+</tr>
+<tr>
+<td>Drag a corner, centre, radius, axis or label</td>
+<td><code>Tab</code> to its handle; the arrow keys move it 5 pixels (25 with <code>Shift</code>); the run of presses is one step when they stop, on <code>Enter</code>, or when the keyboard moves on (presses made while it is saved follow as the next step); <code>Escape</code> puts it back. Or type the change on its properties form.</td>
+</tr>
+<tr>
+<td>Add a corner between two</td>
+<td>Arrow keys on the handle between them.</td>
+</tr>
+<tr>
+<td>Remove a corner</td>
+<td><code>Delete</code> or <code>Backspace</code> on its handle.</td>
+</tr>
+<tr>
+<td>Clear the selection</td>
+<td><code>Escape</code> on the map; or the outline, a native tree.</td>
+</tr>
+<tr>
+<td>Pan, zoom</td>
+<td>Arrow keys, and <code>+</code> and <code>-</code>, with the map focused.</td>
+</tr>
+</tbody>
+</table>
 <h2 id="reference-implementation">Reference implementation<a class="headerlink" href="#reference-implementation" title="Permanent link">&para;</a></h2>
-<p><em>Phase 3.</em></p>
+<p><code>vscode/webview/mapedit.ts</code> (keys while drawing and on handles) and <code>vscode/webview/drawing.ts</code>; the playground test <code>vscode/test/play/drawing.mjs</code> places a marker and changes an area from the keyboard alone.</p>
 
 
 
