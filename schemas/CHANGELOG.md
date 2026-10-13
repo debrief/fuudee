@@ -2,6 +2,16 @@
 
 The data-file schema is versioned independently of Debrief (SUB-12). Before 1.0.0 there is no migration guarantee (SUB-13).
 
+## 0.0.12 (13 Oct 2026)
+
+- Annotations say how they are drawn (`shape` on `AnnotationProperties`: `line`, `area`, `circle`, `ellipse`, `label`, `marker` or `note`). Left out, it follows from the geometry, so earlier annotations need nothing new. A rule checks that a shape has its geometry: a line a line string, an area, circle or ellipse a polygon, a label or marker a point, a note none (CAP-03, CAP-04).
+- Circles and ellipses. GeoJSON has no curves, so a circle or an ellipse is a polygon approximating it (72 sides along geodesics, `debrief_kernel.geodesy.circle_ring` and `ellipse_ring`), so other GeoJSON tools see the area and a plot's extent includes it, with its exact `centre` ([longitude, latitude]) and `radius`, or `semi_major`, `semi_minor` (each a `Length` with its unit) and `orientation` (an `Angle`, true, of the longer axis). Debrief draws and edits it from these. Rules: a circle needs centre and radius, an ellipse centre, semi-axes and orientation, the semi-minor no longer than the semi-major, sizes more than zero, nothing else has them, and the polygon matches its centre and size (within 1%, checked on a sphere).
+- How an annotation looks (`appearance`, `AnnotationAppearance`): `colour`, `line_style` (`solid`, `dashed`, `dotted`), `line_width` (1 to 10 px), `fill_colour` and `fill_opacity` (only for areas, circles and ellipses, a rule), `label_size` (8 to 32 px) and `label_position` (`above`, `below`, `left`, `right`, `centre`, `none`). Any member left out takes Debrief's default. Appearance is content: changing it is a recorded, undoable step (SUB-22).
+- Chart furniture (`furniture`: `north_arrow`): an annotation of style `chart_furniture` with no geometry, which, alone among annotations without geometry, needs no time.
+- `AnnotationSpec`: an annotation as a form or an agent describes it (shape, name, text, positions, sizes, time or period, appearance), which the tool service makes into a feature (`debrief/add_annotation`, `debrief/edit_annotation`).
+- Webview messages for the annotation form: `show_annotation_form` (`annotation`, `feature_id`, `time_range`, `current_time`, all optional), `save_annotation` (`annotation`, and `feature_id` when changing one), `delete_annotation` (`feature_id`) and, from the map, `edit_annotation` (`feature_id`).
+- Before 1.0.0 only an exact version opens (SUB-13): plots written as 0.0.11 must be imported or built again.
+
 ## 0.0.11 (13 Oct 2026)
 
 - A plot file carries its whole history, as the top-level member `history` (`PlotHistory`): the current step, `head_hash`, and every step (`HistoryStep`: its operation's provenance records and its output, as a delta held, plus its `state`, applied, undone or abandoned, and its `step_hash`). Passing the one file passes undo, redo and provenance. The history is a GeoJSON foreign member, so the file is still plain GeoJSON to other tools (SUB-19, decision 13 Oct).

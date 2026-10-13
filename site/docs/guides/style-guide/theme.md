@@ -31,7 +31,8 @@ Data colours are separate from the theme and do not change with it (DEV-07). Tha
   - a filled, labelled dot at the latest fix, where analysts look for a track's name.
   
   Hovering a track shows the nearest fix: time, position, course, speed, and depth where known.
-- **Annotations.** One amber, `#c7820a`, until annotations carry their own colours. Every annotation is dashed and labelled, so nothing a tool draws can be mistaken for a track. That includes lines, areas and points, and everything tools draw. *Known clash:* the amber is close to legacy orange (`F`, `#ff9600`), so an orange track and an annotation line differ by dash alone.
+- **Annotations.** By default one amber, `#c7820a`, dashed and labelled, so nothing a tool draws can be mistaken for a track. That includes lines, areas and points, and everything tools draw; an area is tinted faintly (5%) so what lies inside stays clear. An analyst may give an annotation its own colour (the amber, a track colour by name, or any colour), a solid, dashed or dotted line and its width, a fill and its opacity, and its label's size and place (schema 0.0.12). An annotation drawn solid in a track's colour still has no direction ticks or end dots and is still labelled; the analyst chose it, and it is recorded. A legacy plot's annotations keep the colours and line styles legacy Debrief drew them in. *Known clash:* the amber is close to legacy orange (`F`, `#ff9600`), so an orange track and an annotation line differ by dash alone.
+- **Chart furniture.** The scale bar and the north arrow take the theme's text colour on the editor widget's background: they are interface, not data.
 - **Legend.** The map carries a legend for these conventions.
 - **Reference data.** Land is a neutral grey-green at 35% opacity. The graticule is neutral grey. Both are chosen to sit behind the data on any theme.
 

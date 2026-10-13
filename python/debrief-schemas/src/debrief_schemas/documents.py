@@ -22,6 +22,7 @@ from __future__ import annotations
 import copy
 import hashlib
 import json
+import math
 import re
 from collections import Counter
 from collections.abc import Callable, Iterable
@@ -300,6 +301,117 @@ def _unit_problems(where: str, quantity_kind: Any, unit: str | None) -> list[str
     return []
 
 
+# The geometry each annotation shape has (CAP-03); a note has none (CAP-04).
+SHAPE_GEOMETRY = {
+    "line": "LineString",
+    "area": "Polygon",
+    "circle": "Polygon",
+    "ellipse": "Polygon",
+    "label": "Point",
+    "marker": "Point",
+    "note": None,
+}
+CURVE_MEMBERS = ("centre", "radius", "semi_major", "semi_minor", "orientation")
+_CURVE_NEEDS = {
+    "circle": ("centre", "radius"),
+    "ellipse": ("centre", "semi_major", "semi_minor", "orientation"),
+}
+_METRES = {"m": 1.0, "km": 1000.0, "[nmi_i]": 1852.0, "[yd_i]": 0.9144, "[ft_i]": 0.3048}
+_EARTH_MEAN_RADIUS_M = 6_371_008.8
+# How far a circle's or an ellipse's polygon may stray from its own size. Checked on
+# a sphere, cheaply and without the kernel, so as to catch a polygon left behind
+# when its size changed, not to measure it: the kernel draws it on WGS84.
+_RING_TOLERANCE = 0.01
+
+
+def _metres(length: Any) -> float:
+    return length.value * _METRES[str(length.unit)]
+
+
+def _sphere_range_m(a: Iterable[float], b: Iterable[float]) -> float:
+    (lon1, lat1), (lon2, lat2) = ((math.radians(x) for x in p) for p in (a, b))
+    h = (
+        math.sin((lat2 - lat1) / 2) ** 2
+        + math.cos(lat1) * math.cos(lat2) * math.sin((lon2 - lon1) / 2) ** 2
+    )
+    return 2 * _EARTH_MEAN_RADIUS_M * math.asin(min(1.0, math.sqrt(h)))
+
+
+def _a(noun: str) -> str:
+    return f"{'an' if noun[0] in 'aeiou' else 'a'} {noun}"
+
+
+def _annotation_problems(where: str, feature: Any) -> list[str]:
+    """Rules for annotations: chart furniture, each shape's geometry, and curves (CAP-03)."""
+    props = feature.properties
+    geometry = feature.geometry
+    problems = []
+    if props.furniture is not None:
+        if geometry is not None:
+            problems.append(f"{where}: chart furniture has null geometry")
+        if str(props.style) != "chart_furniture":
+            problems.append(f"{where}: chart furniture has the style chart_furniture")
+    elif geometry is None and props.time is None and props.time_range is None:
+        problems.append(f"{where}: an annotation without geometry needs a time or time range")
+
+    shape = str(props.shape) if props.shape is not None else None
+    if shape is not None and (geometry.type if geometry else None) != SHAPE_GEOMETRY[shape]:
+        wanted = SHAPE_GEOMETRY[shape]
+        problems.append(
+            f"{where}: {_a(shape)} has {wanted + ' geometry' if wanted else 'no geometry'}"
+        )
+    given = [m for m in CURVE_MEMBERS if getattr(props, m) is not None]
+    if shape not in _CURVE_NEEDS:
+        if given:
+            problems.append(f"{where}: only circles and ellipses have {', '.join(given)}")
+    else:
+        needs = _CURVE_NEEDS[shape]
+        missing = [m for m in needs if getattr(props, m) is None]
+        extra = [m for m in given if m not in needs]
+        if missing:
+            problems.append(f"{where}: {_a(shape)} needs {', '.join(missing)}")
+        if extra:
+            problems.append(f"{where}: {_a(shape)} has no {', '.join(extra)}")
+        if not missing:
+            problems += _curve_problems(where, shape, props, geometry)
+
+    appearance = props.appearance
+    if appearance is not None and (geometry is None or geometry.type != "Polygon"):
+        filled = [m for m in ("fill_colour", "fill_opacity") if getattr(appearance, m) is not None]
+        if filled:
+            problems.append(f"{where}: only areas, circles and ellipses have {' or '.join(filled)}")
+    return problems
+
+
+def _curve_problems(where: str, shape: str, props: Any, geometry: Any) -> list[str]:
+    """A circle's or an ellipse's size, and its polygon agreeing with it."""
+    problems = []
+    longitude, latitude = props.centre
+    if not (-180 <= longitude <= 180 and -90 <= latitude <= 90):
+        problems.append(f"{where}: its centre is not a position")
+        return problems
+    if shape == "circle":
+        smallest = largest = _metres(props.radius)
+        if smallest <= 0:
+            problems.append(f"{where}: a circle's radius must be more than zero")
+    else:
+        smallest, largest = _metres(props.semi_minor), _metres(props.semi_major)
+        if smallest <= 0:
+            problems.append(f"{where}: an ellipse's semi-minor axis must be more than zero")
+        if smallest > largest:
+            problems.append(f"{where}: an ellipse's semi-minor axis is longer than its semi-major")
+    if problems or geometry is None or geometry.type != "Polygon":
+        return problems
+    if len(geometry.coordinates) != 1:
+        problems.append(f"{where}: a {shape}'s polygon has one ring")
+        return problems
+    low = smallest * (1 - _RING_TOLERANCE) - 1
+    high = largest * (1 + _RING_TOLERANCE) + 1
+    if any(not low <= _sphere_range_m(props.centre, p) <= high for p in geometry.coordinates[0]):
+        problems.append(f"{where}: its polygon does not match its centre and size")
+    return problems
+
+
 def _feature_problems(feature: Any, track_ids: set[str] | None) -> list[str]:
     """track_ids is None where the containing plot is not known, as in a tool result."""
     where = feature.id
@@ -321,8 +433,7 @@ def _feature_problems(feature: Any, track_ids: set[str] | None) -> list[str]:
             problems.append(f"{where}: times are not in order")
 
     elif props.kind == "annotation":
-        if feature.geometry is None and props.time is None and props.time_range is None:
-            problems.append(f"{where}: an annotation without geometry needs a time or time range")
+        problems += _annotation_problems(where, feature)
         problems += _time_range_problems(where, props.time_range)
 
     elif props.kind == "plot":
@@ -586,6 +697,10 @@ MESSAGE_MEMBERS: dict[str, tuple[str, ...]] = {
     "window_changed": ("time_range",),
     "context_changed": ("context_tracks",),
     "set_context": ("context_tracks",),
+    "show_annotation_form": ("annotation?", "feature_id?", "time_range?", "current_time?"),
+    "save_annotation": ("annotation", "feature_id?"),
+    "delete_annotation": ("feature_id",),
+    "edit_annotation": ("feature_id",),
 }
 
 

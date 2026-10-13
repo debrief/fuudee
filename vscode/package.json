@@ -23,6 +23,7 @@
         {"type": "webview", "id": "debrief.time", "name": "Time"},
         {"id": "debrief.catalogues", "name": "Catalogues"},
         {"id": "debrief.outline", "name": "Outline"},
+        {"id": "debrief.timeline", "name": "Timeline"},
         {"id": "debrief.tools", "name": "Tools"},
         {"id": "debrief.history", "name": "History"}
       ]
@@ -35,6 +36,10 @@
       {
         "view": "debrief.outline",
         "contents": "Open a plot from a catalogue to see its tracks, annotations and sensor data here."
+      },
+      {
+        "view": "debrief.timeline",
+        "contents": "Notes and periods with a time but no position appear here in time order. Choose one to move current time to it.\n[Add annotation](command:debrief.addAnnotation)"
       },
       {
         "view": "debrief.history",
@@ -57,6 +62,11 @@
       {"command": "debrief.redo", "title": "Redo change to plot", "category": "Debrief", "icon": "$(redo)", "enablement": "debrief.canRedo"},
       {"command": "debrief.setColour", "title": "Change colour…", "category": "Debrief", "icon": "$(symbol-color)"},
       {"command": "debrief.hide", "title": "Hide on map", "category": "Debrief", "icon": "$(eye-closed)"},
+      {"command": "debrief.addAnnotation", "title": "Add annotation…", "category": "Debrief", "icon": "$(add)", "enablement": "debrief.plotOpen"},
+      {"command": "debrief.editAnnotation", "title": "Change annotation…", "category": "Debrief", "icon": "$(edit)"},
+      {"command": "debrief.deleteAnnotation", "title": "Delete annotation", "category": "Debrief", "icon": "$(trash)"},
+      {"command": "debrief.toggleNorthArrow", "title": "North arrow", "category": "Debrief", "enablement": "debrief.plotOpen", "toggled": {"condition": "debrief.northArrow"}},
+      {"command": "debrief.goToTime", "title": "Go to this time", "category": "Debrief"},
       {"command": "debrief.show", "title": "Show on map", "category": "Debrief", "icon": "$(eye)"},
         {"command": "debrief.goToStep", "title": "Go back to this step", "category": "Debrief"},
       {"command": "debrief.redoToStep", "title": "Redo up to this step", "category": "Debrief"},
@@ -73,7 +83,10 @@
         {"command": "debrief.addPlotFile", "when": "view == debrief.catalogues", "group": "navigation@2"},
         {"command": "debrief.addCatalogue", "when": "view == debrief.catalogues", "group": "navigation@3"},
         {"command": "debrief.refresh", "when": "view == debrief.catalogues", "group": "navigation@4"},
+        {"command": "debrief.addAnnotation", "when": "view == debrief.outline", "group": "navigation@0"},
         {"command": "debrief.clearSelection", "when": "view == debrief.outline", "group": "navigation@1"},
+        {"command": "debrief.toggleNorthArrow", "when": "view == debrief.outline", "group": "2_furniture@1"},
+        {"command": "debrief.addAnnotation", "when": "view == debrief.timeline", "group": "navigation@1"},
         {"command": "debrief.undo", "when": "view == debrief.history", "group": "navigation@1"},
         {"command": "debrief.redo", "when": "view == debrief.history", "group": "navigation@2"}
       ],
@@ -83,6 +96,8 @@
         {"command": "debrief.setColour", "when": "view == debrief.outline && viewItem =~ /^feature-track/", "group": "1_presentation@1"},
         {"command": "debrief.hide", "when": "view == debrief.outline && viewItem =~ /^feature-/ && viewItem =~ /^(?!.*-hidden$)/", "group": "1_presentation@2"},
         {"command": "debrief.show", "when": "view == debrief.outline && viewItem =~ /-hidden$/", "group": "1_presentation@2"},
+        {"command": "debrief.editAnnotation", "when": "view == debrief.outline && viewItem =~ /^feature-annotation/", "group": "0_annotation@1"},
+        {"command": "debrief.deleteAnnotation", "when": "view == debrief.outline && viewItem =~ /^feature-annotation/", "group": "0_annotation@2"},
         {"command": "debrief.goToStep", "when": "view == debrief.history && viewItem == step-applied", "group": "1_history"},
         {"command": "debrief.redoToStep", "when": "view == debrief.history && viewItem == step-undone", "group": "1_history"}
       ],
@@ -91,6 +106,7 @@
         {"command": "debrief.select", "when": "false"},
         {"command": "debrief.showToolForm", "when": "false"},
         {"command": "debrief.runTool", "when": "false"},
+        {"command": "debrief.goToTime", "when": "false"},
         {"command": "debrief.goToStep", "when": "false"},
         {"command": "debrief.redoToStep", "when": "false"}
       ]

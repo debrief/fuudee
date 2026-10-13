@@ -12,9 +12,14 @@
  *   reads as one picture; fixes there are not marked. The plot says whether
  *   context is visible (at least 3:1 on any theme), faint or hidden; see
  *   contrast.ts. Hovering a track shows the nearest fix.
- * - Annotations, including everything tools draw, are dashed and labelled.
- *   One with a time or a period is drawn only while that falls in the window;
- *   one without a time always is.
+ * - Annotations, including everything tools draw, are dashed and labelled
+ *   unless the analyst gave them a style of their own (annotationlook.ts):
+ *   colour, line style and width, fill, label size and position. Circles and
+ *   ellipses are drawn from their centre and size, along geodesics, not from
+ *   the polygon their plot file holds for other tools. One with a time or a
+ *   period is drawn only while that falls in the window; one without a time
+ *   always is. Double-clicking one opens its properties form.
+ * - Chart furniture: the scale bar always, and a north arrow when the plot has one.
  * - Selected features get an outline in the theme's text colour, which can
  *   never be mistaken for a force colour; everything else is dimmed.
  * - Each track shows where it was at current time with a square marker.
@@ -32,7 +37,9 @@ import "./map.css";
 import geodesic from "geographiclib-geodesic";
 import { convert, DEFAULT_SETTINGS, formatBearing, formatPosition, formatQuantity, formatTime, UNIT_LABELS } from "@debrief/kernel";
 import type { DebriefFeatureCollection, TimeState } from "@debrief/schemas";
-import { densify, type LonLat } from "./geodesic.js";
+import type { AnnotationProperties } from "@debrief/schemas";
+import { labelPlacement, labelText, lookOf, shapeOf, type Look } from "./annotationlook.js";
+import { circleRing, densify, ellipseRing, type LonLat } from "./geodesic.js";
 import { CONTEXT_WEIGHT, contextStyle, parseColour, WINDOW_WEIGHT, type ContextStyle, type ContextTracks, type MapTheme, type Rgb } from "./contrast.js";
 import { DATA_COLOURS } from "./palette.js";
 import { host, onMessage } from "./vscode.js";
@@ -54,9 +61,10 @@ const css = (name: string) => getComputedStyle(document.body).getPropertyValue(n
 const toLatLng = ([lon, lat]: LonLat) => L.latLng(lat, lon);
 
 /** Text for Leaflet tooltips, as a text node so plot content can never be markup. */
-function text(content: string): HTMLElement {
+function text(content: string, size?: number): HTMLElement {
   const span = document.createElement("span");
   span.textContent = content;
+  if (size) span.style.fontSize = `${size}px`;
   return span;
 }
 
@@ -79,6 +87,23 @@ const ScaleBar = L.Control.extend({
   },
 });
 new ScaleBar({ position: "bottomright" }).addTo(map);
+
+// --- North arrow: chart furniture, shown when the plot has one (CAP-03) -----------
+// The map is Web Mercator, north up everywhere, so the arrow always points up.
+let northArrow: HTMLElement | undefined;
+const NorthArrow = L.Control.extend({
+  onAdd() {
+    const div = L.DomUtil.create("div", "north-arrow");
+    div.setAttribute("role", "img");
+    div.setAttribute("aria-label", "North arrow: north is up");
+    div.innerHTML =
+      '<svg viewBox="0 0 24 36" width="24" height="36" aria-hidden="true"><path d="M12 2 L20 26 L12 21 L4 26 Z" fill="currentColor"/><text x="12" y="35" text-anchor="middle" font-size="10" fill="currentColor">N</text></svg>'; // not user-facing
+    div.hidden = true;
+    northArrow = div;
+    return div;
+  },
+});
+new NorthArrow({ position: "topright" }).addTo(map);
 
 // --- Zoom buttons and legend -----------------------------------------------------
 let plotBounds = L.latLngBounds([]);
@@ -123,7 +148,7 @@ const Legend = L.Control.extend({
       ["first", "First fix in the window"],
       ["latest", "Last fix in the window, labelled"],
       ["now", "Position at current time"],
-      ["annotation", "Annotation, including what tools draw"],
+      ["annotation", "Annotation, including what tools draw: dashed unless given a style"],
       ["selected", "Selected"],
     ];
     for (const [kind, label] of rows) {
@@ -274,6 +299,7 @@ new MutationObserver(() => applyContext()).observe(document.documentElement, { a
 
 function colourOf(feature: Feature): string {
   if (feature.properties.kind === "track") return feature.properties.style?.colour ?? DATA_COLOURS.track;
+  if (feature.properties.kind === "annotation") return feature.properties.appearance?.colour ?? DATA_COLOURS.annotation;
   return DATA_COLOURS.annotation;
 }
 
@@ -374,6 +400,9 @@ function draw(plot: DebriefFeatureCollection): void {
   drawn.clear();
   sized.length = 0;
   plotBounds = L.latLngBounds([]);
+  if (northArrow) {
+    northArrow.hidden = !plot.features.some((f) => f.properties.kind === "annotation" && f.properties.furniture === "north_arrow");
+  }
   for (const feature of plot.features) {
     const colour = colourOf(feature);
     const geometry = feature.geometry;
@@ -385,7 +414,6 @@ function draw(plot: DebriefFeatureCollection): void {
       L.DomEvent.stopPropagation(event);
       select(feature.id, event.originalEvent.ctrlKey || event.originalEvent.metaKey);
     };
-    const name = feature.properties.name;
     const isTrack = feature.properties.kind === "track";
     if (geometry.type === "LineString") {
       const coordinates = geometry.coordinates as LonLat[];
@@ -403,38 +431,9 @@ function draw(plot: DebriefFeatureCollection): void {
         drawn.set(feature.id, { layers, paths, windowed: [], windowedPaths: [], context, colour });
         continue;
       }
-      const line = L.polyline(latlngs, { color: colour, weight: 2, dashArray: "6 5", baseWeight: 2 } as L.PolylineOptions);
-      line.on("click", click);
-      line.bindTooltip(text(name), { permanent: true, direction: "center", className: "annotation-label" });
-      paths.push(line);
-      latlngs.forEach((p) => plotBounds.extend(p));
-    } else if (geometry.type === "Polygon") {
-      const rings = (geometry.coordinates as LonLat[][]).map((ring) => densify(ring).map(toLatLng));
-      // An area is selected by its outline, never by a click inside it: what lies inside,
-      // such as a track in an exercise area, must stay clickable. Its fill takes no
-      // clicks, and a wide, invisible line along its edge takes them instead.
-      const polygon = L.polygon(rings, { color: colour, weight: 1.5, dashArray: "6 5", fillOpacity: 0.05, baseWeight: 1.5, interactive: false } as L.PolylineOptions);
-      const edge = L.polyline(
-        rings.map((ring) => [...ring, ring[0]]),
-        { color: colour, opacity: 0, weight: 10, className: "area-edge" },
-      );
-      edge.on("click", click);
-      paths.push(polygon);
-      layers.push(edge);
-      areas.push(polygon, edge);
-      // Label at the northernmost point, so nested rings each keep a readable label.
-      const top = rings[0].reduce((a, b) => (b.lat > a.lat ? b : a));
-      const label = L.marker(top, { icon: L.divIcon({ className: "annotation-anchor", iconSize: [0, 0] }), interactive: false, keyboard: false });
-      label.bindTooltip(text(name), { permanent: true, direction: "top", className: "annotation-label" });
-      layers.push(label);
-      sized.push({ label, bounds: L.latLngBounds(rings[0]) });
-      rings[0].forEach((p) => plotBounds.extend(p));
-    } else if (geometry.type === "Point") {
-      const point = toLatLng(geometry.coordinates as LonLat);
-      const marker = L.circleMarker(point, { radius: 4, color: colour, weight: 2, dashArray: "2 2", baseWeight: 2 } as L.CircleMarkerOptions);
-      marker.on("click", click).bindTooltip(text(name), { permanent: true, direction: "right", className: "annotation-label" });
-      paths.push(marker);
-      plotBounds.extend(point);
+    }
+    if (feature.properties.kind === "annotation") {
+      drawAnnotation(feature as Annotation, click, layers, paths);
     }
     [...paths, ...layers].forEach((layer) => layer.addTo(features));
     drawn.set(feature.id, { layers: [...paths, ...layers], paths, windowed: [], windowedPaths: [], when: timeOf(feature) });
@@ -449,6 +448,95 @@ function draw(plot: DebriefFeatureCollection): void {
   drawWindow();
   drawGraticule();
   placeLabels();
+}
+
+type Annotation = Extract<Feature, { properties: { kind: "annotation" } }>;
+
+/** Line options from an annotation's look. baseWeight is what selection adds to. */
+const lineOptions = (look: Look) => ({ color: look.colour, weight: look.weight, dashArray: look.dashArray, lineCap: look.lineCap, baseWeight: look.weight });
+
+/**
+ * Draw an annotation by its look (CAP-03): a line, an area, a circle or an
+ * ellipse (from its centre and size, along geodesics), a label or a marker.
+ * Its label goes where its look says; double-clicking it asks for its form.
+ */
+function drawAnnotation(feature: Annotation, click: (event: L.LeafletMouseEvent) => void, layers: L.Layer[], paths: L.Path[]): void {
+  const geometry = feature.geometry!;
+  const props = feature.properties as AnnotationProperties;
+  const shape = shapeOf(props, geometry.type);
+  const look = lookOf(shape, props.appearance);
+  const placement = labelPlacement(look.labelPosition);
+  const label = labelText(shape, props);
+  const edit = (event: L.LeafletMouseEvent) => {
+    L.DomEvent.stopPropagation(event);
+    host.postMessage({ kind: "edit_annotation", feature_id: feature.id });
+  };
+  const tooltip = (layer: L.Layer, direction = placement?.direction, offset = placement?.offset) => {
+    if (placement) layer.bindTooltip(text(label, look.labelSize), { permanent: true, direction, offset, className: "annotation-label" });
+  };
+  if (geometry.type === "LineString") {
+    const latlngs = densify(geometry.coordinates as LonLat[]).map(toLatLng);
+    const line = L.polyline(latlngs, lineOptions(look) as L.PolylineOptions);
+    line.on("click", click).on("dblclick", edit);
+    tooltip(line);
+    paths.push(line);
+    latlngs.forEach((p) => plotBounds.extend(p));
+  } else if (geometry.type === "Polygon") {
+    const centre = props.centre as LonLat | undefined;
+    const metres = (q: { value: number; unit: string }) => convert(q, "m").value;
+    const rings =
+      shape === "circle" && centre && props.radius
+        ? [circleRing(centre, metres(props.radius)).map(toLatLng)]
+        : shape === "ellipse" && centre && props.semi_major && props.semi_minor
+          ? [ellipseRing(centre, metres(props.semi_major), metres(props.semi_minor), convert(props.orientation ?? { value: 0, unit: "deg" }, "deg").value).map(toLatLng)]
+          : (geometry.coordinates as LonLat[][]).map((ring) => densify(ring).map(toLatLng));
+    // An area is selected by its outline, never by a click inside it: what lies inside,
+    // such as a track in an exercise area, must stay clickable. Its fill takes no
+    // clicks, and a wide, invisible line along its edge takes them instead.
+    const polygon = L.polygon(rings, { ...lineOptions(look), fillColor: look.fillColour, fillOpacity: look.fillOpacity, interactive: false } as L.PolylineOptions);
+    const edge = L.polyline(
+      rings.map((ring) => [...ring, ring[0]]),
+      { color: look.colour, opacity: 0, weight: 10, className: "area-edge" },
+    );
+    edge.on("click", click).on("dblclick", edit);
+    paths.push(polygon);
+    layers.push(edge);
+    areas.push(polygon, edge);
+    if (placement) {
+      // The label at the edge its position names, so nested rings each keep a readable label.
+      const outer = rings[0];
+      const pick = (better: (a: L.LatLng, b: L.LatLng) => boolean) => outer.reduce((a, b) => (better(b, a) ? b : a));
+      const anchor =
+        look.labelPosition === "below"
+          ? pick((a, b) => a.lat < b.lat)
+          : look.labelPosition === "left"
+            ? pick((a, b) => a.lng < b.lng)
+            : look.labelPosition === "right"
+              ? pick((a, b) => a.lng > b.lng)
+              : look.labelPosition === "centre"
+                ? L.latLngBounds(outer).getCenter()
+                : pick((a, b) => a.lat > b.lat);
+      const marker = L.marker(anchor, { icon: L.divIcon({ className: "annotation-anchor", iconSize: [0, 0] }), interactive: false, keyboard: false });
+      tooltip(marker);
+      layers.push(marker);
+      // Hidden while the shape is too small on screen to carry it: a label Debrief placed
+      // needs room around it; one whose place the analyst chose stays down to a small mark.
+      sized.push({ label: marker, bounds: L.latLngBounds(outer), least: props.appearance?.label_position ? CHOSEN_LABEL_ROOM : LABEL_ROOM });
+    }
+    rings[0].forEach((p) => plotBounds.extend(p));
+  } else if (geometry.type === "Point") {
+    const point = toLatLng(geometry.coordinates as LonLat);
+    // A label is its text, at a small dot; a marker is a ring with its name beside it.
+    const dashArray = props.appearance?.line_style ? look.dashArray : shape === "label" ? undefined : "2 2";
+    const marker =
+      shape === "label"
+        ? L.circleMarker(point, { radius: 2.5, color: look.colour, fillColor: look.colour, fillOpacity: 1, weight: 1, baseWeight: 1 } as L.CircleMarkerOptions)
+        : L.circleMarker(point, { radius: 5, color: look.colour, weight: look.weight, dashArray, fillColor: look.colour, fillOpacity: 0.25, baseWeight: look.weight } as L.CircleMarkerOptions);
+    marker.on("click", click).on("dblclick", edit);
+    tooltip(marker);
+    paths.push(marker);
+    plotBounds.extend(point);
+  }
 }
 
 /** An annotation's time or period, if it has one: it is drawn only while that is in the window. */
@@ -545,13 +633,16 @@ function partIn(entry: { track: Track; times: number[] }, window: { start: numbe
   return first <= last ? { coordinates: part, first, last } : { coordinates: part };
 }
 
-// Annotation labels only where the shape is big enough on screen to carry one.
-const sized: { label: L.Layer & { getTooltip(): L.Tooltip | undefined }; bounds: L.LatLngBounds }[] = [];
+// Annotation labels only where the shape is big enough on screen to carry one: its
+// diagonal in pixels, at least LABEL_ROOM, or CHOSEN_LABEL_ROOM where the analyst placed the label.
+const LABEL_ROOM = 70;
+const CHOSEN_LABEL_ROOM = 24;
+const sized: { label: L.Layer & { getTooltip(): L.Tooltip | undefined }; bounds: L.LatLngBounds; least: number }[] = [];
 function placeLabels(): void {
-  for (const { label, bounds } of sized) {
+  for (const { label, bounds, least } of sized) {
     const size = map.latLngToContainerPoint(bounds.getNorthEast()).distanceTo(map.latLngToContainerPoint(bounds.getSouthWest()));
     const element = label.getTooltip()?.getElement();
-    if (element) element.style.visibility = size >= 70 ? "visible" : "hidden";
+    if (element) element.style.visibility = size >= least ? "visible" : "hidden";
   }
 }
 map.on("zoomend", placeLabels);

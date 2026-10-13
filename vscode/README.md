@@ -9,6 +9,8 @@ The Phase 1 tracer, as a VS Code extension (CON-05):
 - **Tools view.** Offers the tools that apply to the selection, and explains the rest (TL-08, TL-09, CON-10).
 - **Tool forms.** Generated from each tool's declaration (TL-07, CAP-24).
 - **Results.** Shown in a panel beside the map (TL-13).
+- **Annotations.** **Add annotation…** on the Outline view opens a form for a line, area, circle, ellipse, label, marker or note: positions in the analyst's notation, sizes with their units, a time or period, and a style. Change or delete one from the outline's menu, or double-click it on the map. Each is one step in the plot's history; **North arrow** on the Outline view's menu shows the chart's north arrow (CAP-03, CAP-04). See [annotations](../site/docs/guides/interaction-models/annotations.md).
+- **Timeline view.** The plot's notes and periods in time order; choosing one moves current time to it (CAP-05).
 - **Time view.** At the top of the sidebar: the plot's time window, current time within it, and play (CAP-28, SUB-26). The window is saved in the plot file, outside its history. See the [time controller](../site/docs/guides/interaction-models/time-controller.md).
 
 How these behave is set out in the [interaction models](../site/docs/guides/interaction-models/index.md) and the [style guide](../site/docs/guides/style-guide/index.md).
@@ -19,7 +21,7 @@ How these behave is set out in the [interaction models](../site/docs/guides/inte
 | --- | --- | --- |
 | Extension host | `src/` | Reads catalogues to display them (`catalogue.ts`). Anything that changes data goes through the Python tool service (`service.ts`), where domain logic lives (PRN-03). |
 | Tool service | `python/debrief-tools` | Started by the extension with a fresh token for each session, on `127.0.0.1` only (SEC-06 to SEC-08). |
-| Webviews | `webview/` | The map (Leaflet), the tool form and results (React with vscrui, behind `ui.tsx`). Every message to and from a webview is validated against `WebviewMessage` (CON-08). |
+| Webviews | `webview/` | The map (Leaflet), the tool form, the annotation form and results (React with vscrui, behind `ui.tsx`). Every message to and from a webview is validated against `WebviewMessage` (CON-08). |
 | Colours | `webview/palette.ts` | The only place with hard-coded colours, all of them data colours. Interface colours are `--vscode-*` tokens (DEV-07). |
 
 ## Running it
@@ -49,7 +51,8 @@ The integration test:
 2. opens serial 1;
 3. selects tracks and opens a tool form;
 4. runs range rings, closest approach and track summary;
-5. checks that each run was recorded in the plot's history.
+5. checks that each run was recorded in the plot's history;
+6. adds, restyles, undoes and deletes annotations, shows the north arrow, moves current time from the Timeline, and imports a legacy plot with styled circles and ellipses.
 
 CI runs it on every pull request and keeps the screenshots as an artifact.
 

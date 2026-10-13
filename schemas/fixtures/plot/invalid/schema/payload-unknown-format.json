@@ -1,6 +1,6 @@
 {
   "type": "FeatureCollection",
-  "schema_version": "0.0.11",
+  "schema_version": "0.0.12",
   "features": [
     {
       "type": "Feature",

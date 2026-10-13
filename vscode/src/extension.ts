@@ -6,24 +6,27 @@
  */
 import { userInfo } from "node:os";
 import * as vscode from "vscode";
-import type { ContextTracksEnum, ParameterValue, PlotView, SharedState, SharedStateChange, TimeRange, ToolDeclaration } from "@debrief/schemas";
+import type { AnnotationSpec, ContextTracksEnum, ParameterValue, PlotView, SharedState, SharedStateChange, TimeRange, ToolDeclaration } from "@debrief/schemas";
 import { changedSince, historyOnDisk, knownStores, openPlot, plotFile, type OpenedPlot } from "./catalogue.js";
 import { statSync, unwatchFile, watchFile } from "node:fs";
 import { count, describeToolRun } from "./format.js";
 import { placeToolTime } from "../webview/timelogic.js";
 import { resolveTimes } from "./timeinput.js";
+import { AnnotationPanel } from "./panels/annotation.js";
 import { FormPanel } from "./panels/form.js";
 import { MapPanel } from "./panels/map.js";
 import { ResultsPanel } from "./panels/results.js";
 import { TIME_VIEW, TimeView } from "./panels/timeview.js";
-import { CONFLICT, NEWER_SCHEMA, ServiceError, ToolService, type Agent, type CallOutcome, type OpenedView, type ToolListing } from "./service.js";
+import { CONFLICT, NEWER_SCHEMA, ServiceError, ToolService, type Agent, type AnnotationChange, type CallOutcome, type OpenedView, type ToolListing } from "./service.js";
 import { HistoryProvider } from "./views/history.js";
 import { DiagnosticLog, hashed, logKey, serviceLine, toolRunLine, type ToolOutcome } from "./diagnostics.js";
-import { hiddenIds, hiddenNotice, isFeature, setViewOf, timeWindowOf, viewOf } from "./hidden.js";
+import { hiddenIds, hiddenNotice, isFeature, setViewOf, timeWindowOf, viewOf, type PlotFeature } from "./hidden.js";
+import { specOfFeature } from "../webview/annotationlook.js";
 import { TRACK_COLOURS } from "../webview/palette.js";
 import { Session, timeProblem } from "./session.js";
 import { CataloguesProvider } from "./views/catalogues.js";
 import { featureIdsOf, OutlineProvider } from "./views/outline.js";
+import { TimelineProvider } from "./views/timeline.js";
 import { ToolsProvider } from "./views/tools.js";
 
 /** What the integration tests and agents can inspect. */
@@ -73,10 +76,18 @@ export function activate(context: vscode.ExtensionContext): DebriefApi {
   const tools = new ToolsProvider(session);
   const history = new HistoryProvider((name) => listing?.tools.find((t) => t.name === name)?.title);
   const outlineView = vscode.window.createTreeView("debrief.outline", { treeDataProvider: outline, canSelectMany: true });
+  const timeline = new TimelineProvider(session);
+  // What the menus need to know of the open plot: whether there is one, and whether it has a north arrow.
+  session.onPlot((opened) => {
+    void vscode.commands.executeCommand("setContext", "debrief.plotOpen", !!opened);
+    const arrow = !!opened?.plot.features.some((f) => f.properties.kind === "annotation" && f.properties.furniture === "north_arrow");
+    void vscode.commands.executeCommand("setContext", "debrief.northArrow", arrow);
+  });
   context.subscriptions.push(
     output,
     vscode.window.registerTreeDataProvider("debrief.catalogues", catalogues),
     outlineView,
+    (timeline.view = vscode.window.createTreeView("debrief.timeline", { treeDataProvider: timeline })),
     vscode.window.registerTreeDataProvider("debrief.tools", tools),
     vscode.window.registerTreeDataProvider("debrief.history", history),
   );
@@ -302,7 +313,7 @@ export function activate(context: vscode.ExtensionContext): DebriefApi {
     }
     const result = outcome.result;
     // A tool sets shared state by returning it, after the plot has its new features.
-    const outside = result?.state_change ? applyToolState(result.state_change, tool, byHand && session.current?.item.id === opened.item.id && session.current.store.id === opened.store.id) : false;
+    const outside = result?.state_change ? applyToolState(result.state_change, `tool:${tool.name}`, byHand && session.current?.item.id === opened.item.id && session.current.store.id === opened.store.id) : false;
     if (result?.non_spatial?.length) results.show(tool, result);
     const said = describeToolRun(tool.title, result, outside);
     if (said) void vscode.window.showInformationMessage(said);
@@ -316,12 +327,12 @@ export function activate(context: vscode.ExtensionContext): DebriefApi {
    * only when the analyst ran it by hand on this plot. True if current time
    * is outside the saved window.
    */
-  function applyToolState(change: SharedStateChange, tool: ToolDeclaration, byHandHere: boolean): boolean {
+  function applyToolState(change: SharedStateChange, origin: string, byHandHere: boolean): boolean {
     const { save_window: saveWindowAsked, ...state } = change;
     const shown = session.time?.range;
     const saved = session.savedWindow ?? shown;
     if (!state.time || !shown || !saved) {
-      session.apply(state, `tool:${tool.name}`);
+      session.apply(state, origin);
       return false;
     }
     const span = (r: TimeRange) => ({ start: Date.parse(r.start), end: Date.parse(r.end) });
@@ -336,7 +347,7 @@ export function activate(context: vscode.ExtensionContext): DebriefApi {
       samePlot: byHandHere,
     });
     const window = range(placed.window);
-    session.apply({ ...state, time: { current: state.time.current, range: window } }, `tool:${tool.name}`);
+    session.apply({ ...state, time: { current: state.time.current, range: window } }, origin);
     if (placed.save) void saveWindow(window).then(report);
     return placed.outside;
   }
@@ -381,6 +392,68 @@ export function activate(context: vscode.ExtensionContext): DebriefApi {
         return reloadPlot(true);
       }),
     );
+
+  // --- Annotations: made, changed and deleted by hand (CAP-03 to CAP-05) ---------------
+  /**
+   * Add, change or delete annotations, or show or remove the north arrow: one step in
+   * the plot's history each, named by its note ("Circle 'Exclusion zone' added"), and
+   * undone by Ctrl+Z like any other. A change made elsewhere since the plot was opened
+   * is never overwritten (SUB-28). Returns the problem, if any, and the feature added.
+   */
+  const annotate = (change: AnnotationChange) =>
+    serially(() =>
+      ourChange(async (): Promise<{ problem?: string; feature?: string }> => {
+        const opened = session.current;
+        if (!opened) return { problem: "Open a plot first." };
+        if (!service || !opened.base) return { problem: "Changing annotations needs Debrief's tool service. Run 'Debrief: Restart tool service'." };
+        const save = (allow = false) => service!.annotate(opened.store.id, opened.item.id, opened.base!, agent, change, allow);
+        let answer;
+        try {
+          try {
+            answer = await save();
+          } catch (error) {
+            if ((error as ServiceError).code !== NEWER_SCHEMA) throw error;
+            if (!(await confirmNewerSchema((error as Error).message))) return { problem: "Nothing was changed." };
+            answer = await save(true);
+          }
+        } catch (error) {
+          if ((error as ServiceError).code === CONFLICT) {
+            await reloadPlot(true);
+            return { problem: "The plot was changed elsewhere, so nothing was changed. Debrief is showing the latest; try again if you still want to." };
+          }
+          return { problem: (error as Error).message };
+        }
+        const problem = await reloadPlot(true);
+        return { problem, feature: answer.feature };
+      }),
+    );
+
+  const annotationForm = new AnnotationPanel(
+    context.extensionUri,
+    {
+      save: async (spec, featureId) => {
+        const done = await annotate(featureId ? { kind: "edit", feature: featureId, annotation: spec } : { kind: "add", annotation: spec });
+        if (!done.problem && done.feature && !featureId) session.select([done.feature], "command");
+        return done.problem;
+      },
+      remove: async (featureId) => (await annotate({ kind: "delete", features: [featureId] })).problem,
+    },
+    log,
+  );
+
+  type Annotation = Extract<PlotFeature, { properties: { kind: "annotation" } }>;
+  const annotationById = (id: string | undefined) => {
+    const feature = id ? session.current?.plot.features.find((f) => f.id === id) : undefined;
+    return feature && feature.properties.kind === "annotation" && !feature.properties.furniture ? (feature as Annotation) : undefined;
+  };
+  /** The middle of the map, where a new annotation starts. */
+  const mapCentre = (): [number, number] | undefined => {
+    const bbox = session.viewport?.bbox ?? session.current?.item.bbox;
+    if (!bbox || bbox.length !== 4) return undefined;
+    const [west, south, east, north] = bbox as number[];
+    const lon = east >= west ? (west + east) / 2 : ((west + east + 360) / 2 + 180) % 360 - 180;
+    return [lon, (south + north) / 2];
+  };
 
   // --- The time window: view state, in the plot file outside its history (SUB-22) -----
   /**
@@ -755,6 +828,65 @@ export function activate(context: vscode.ExtensionContext): DebriefApi {
     const ids = opened ? hiddenIds(opened.plot) : [];
     return ids.length ? vscode.commands.executeCommand("debrief.show", { ids }) : undefined;
   });
+
+  // Annotations (CAP-03 to CAP-05). Each command takes what agents and tests give it
+  // instead of asking, and returns what happened: { problem } or { feature }.
+  const timeRangeOfPlot = () => session.period();
+  command("debrief.addAnnotation", async (spec?: AnnotationSpec) => {
+    if (!session.current) return { problem: report("Open a plot first.") };
+    if (spec && typeof spec === "object" && "shape" in spec) {
+      const done = await annotate({ kind: "add", annotation: spec });
+      report(done.problem);
+      return done;
+    }
+    const centre = mapCentre();
+    annotationForm.show({
+      spec: centre ? { shape: "circle", name: "", positions: [centre] } : undefined,
+      timeRange: timeRangeOfPlot(),
+      currentTime: session.time?.current,
+    });
+    return {};
+  });
+  // From the outline's menu (a node), the map (an id), or the selection; with changes, without the form.
+  command("debrief.editAnnotation", async (target?: string | Target, changes?: Partial<AnnotationSpec>) => {
+    const id = typeof target === "string" ? target : targets(target ?? undefined).find((i) => annotationById(i));
+    const feature = annotationById(id);
+    if (!feature) return { problem: report("Select an annotation to change.") };
+    if (changes) {
+      const done = await annotate({ kind: "edit", feature: feature.id, annotation: changes });
+      report(done.problem);
+      return done;
+    }
+    annotationForm.show({ spec: specOfFeature(feature), featureId: feature.id, timeRange: timeRangeOfPlot(), currentTime: session.time?.current });
+    return {};
+  });
+  command("debrief.deleteAnnotation", async (target?: string | Target) => {
+    const ids = (typeof target === "string" ? [target] : targets(target ?? undefined)).filter((i) => annotationById(i));
+    if (!ids.length) return { problem: report("Select the annotations to delete.") };
+    const done = await annotate({ kind: "delete", features: ids });
+    return { problem: report(done.problem) };
+  });
+  // Chart furniture: the north arrow is content, so showing or removing it is a step (CAP-03).
+  command("debrief.toggleNorthArrow", async (shown?: boolean) => {
+    if (!session.current) return { problem: report("Open a plot first.") };
+    const has = session.current.plot.features.some((f) => f.properties.kind === "annotation" && f.properties.furniture === "north_arrow");
+    const done = await annotate({ kind: "north_arrow", shown: shown ?? !has });
+    return { problem: report(done.problem) };
+  });
+  // The Timeline: choosing an entry moves current time to it. Outside the window shown, the
+  // window widens or moves to take it in, shown but never saved, as for a tool's time (CAP-28).
+  command("debrief.goToTime", (id?: string) => {
+    const entry = timeline.entries.find((e) => e.id === id);
+    const range = session.time?.range;
+    if (!entry || !range) return report("Choose an entry in the Timeline.");
+    const at = new Date(entry.start).toISOString();
+    const within = entry.start >= Date.parse(range.start) && entry.start <= Date.parse(range.end);
+    const time = { current: at, range: within ? range : { start: at < range.start ? at : range.start, end: at > range.end ? at : range.end } };
+    applyToolState({ time }, "timeline", false);
+    return undefined;
+  });
+  command("debrief.timelineEntries", () => ({ entries: timeline.entries.map((e) => e.id), current: timeline.currentId }));
+  command("debrief.annotationFormOpen", () => annotationForm.open);
 
   // The time window, for agents, keyboard macros and tests: saved as when the analyst lets go of it.
   command("debrief.setTimeWindow", async (window?: TimeRange) => {

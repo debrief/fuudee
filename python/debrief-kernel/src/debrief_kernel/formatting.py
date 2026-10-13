@@ -11,6 +11,7 @@ true bearings, degrees and decimal minutes, and Zulu time.
 from __future__ import annotations
 
 import math
+import re
 from datetime import datetime
 from decimal import ROUND_HALF_UP, Decimal
 from zoneinfo import ZoneInfo
@@ -175,7 +176,113 @@ def format_time(epoch_ms: int, settings: FormatSettings = DEFAULT_SETTINGS) -> s
     return f"{clock}{zone}"
 
 
+# --- Reading positions the analyst types ------------------------------------------
+#
+# The inverse of format_position: a position typed in any of the notations
+# Debrief writes (decimal degrees, degrees and decimal minutes, degrees,
+# minutes and seconds), with or without the symbols, with the hemisphere
+# letter before or after each half; or two signed decimal numbers, latitude
+# first. The TypeScript twin in ts/kernel is held to the same vectors
+# (schemas/vectors/positions.json).
+
+_SYMBOLS = str.maketrans({c: " " for c in "°º˚'′’\"″”,;"})
+_TOKEN = re.compile(r"[NSEW]|[+-]?\d+(?:\.\d+)?|[+-]?\.\d+")
+
+
+class PositionError(ValueError):
+    """A position that cannot be read, with what to type instead."""
+
+
+POSITION_EXAMPLE = "50°20.120'N 004°07.210'W"
+
+
+def parse_position(text: str) -> Position:
+    """A position typed by the analyst, read as format_position writes it, and more.
+
+    Raises PositionError, in plain words, if it cannot be read.
+    """
+    normal = text.upper().translate(_SYMBOLS)
+    tokens = _TOKEN.findall(normal)
+    if "".join(tokens) != re.sub(r"\s+", "", normal) or not tokens:
+        raise PositionError(f"Not a position Debrief understands; type one like {POSITION_EXAMPLE}")
+    letters = [t for t in tokens if t in "NSEW"]
+    if not letters:
+        if len(tokens) != 2:
+            raise PositionError(
+                f"Give latitude and longitude, such as {POSITION_EXAMPLE} or 50.335, -4.120"
+            )
+        latitude, longitude = (float(t) for t in tokens)
+        return _checked_position(latitude, longitude)
+    if len(letters) != 2:
+        raise PositionError(f"Give one hemisphere letter for each half, as in {POSITION_EXAMPLE}")
+    halves = _halves(tokens)
+    values = {}
+    for letter, numbers in halves:
+        if any(n.startswith(("+", "-")) for n in numbers):
+            raise PositionError("Use N, S, E or W, not a sign, with degrees and minutes")
+        axis = "lat" if letter in "NS" else "lon"
+        if axis in values:
+            raise PositionError("Give one latitude (N or S) and one longitude (E or W)")
+        magnitude = _degrees(numbers)
+        values[axis] = -magnitude if letter in "SW" else magnitude
+    return _checked_position(values["lat"], values["lon"])
+
+
+def _halves(tokens: list[str]) -> list[tuple[str, list[str]]]:
+    """Split tokens into two (letter, numbers) halves. Letters lead or trail, consistently."""
+    leading = tokens[0] in "NSEW"
+    halves: list[tuple[str, list[str]]] = []
+    numbers: list[str] = []
+    letter = None
+    for token in tokens:
+        if token in "NSEW":
+            if leading:
+                if letter is not None:
+                    halves.append((letter, numbers))
+                letter, numbers = token, []
+            else:
+                halves.append((token, numbers))
+                numbers = []
+        else:
+            numbers.append(token)
+    if leading and letter is not None:
+        halves.append((letter, numbers))
+    elif numbers:
+        raise PositionError(
+            f"Put each hemisphere letter after its numbers, as in {POSITION_EXAMPLE}"
+        )
+    if len(halves) != 2 or any(not 1 <= len(n) <= 3 for _, n in halves):
+        raise PositionError(f"Not a position Debrief understands; type one like {POSITION_EXAMPLE}")
+    return halves
+
+
+def _degrees(numbers: list[str]) -> float:
+    parts = [float(n) for n in numbers]
+    if any("." in n for n in numbers[:-1]):
+        raise PositionError("Only the last number of each half may have decimals")
+    for value in parts[1:]:
+        if value >= 60:
+            raise PositionError("Minutes and seconds must be less than 60")
+    degrees = parts[0]
+    if len(parts) > 1:
+        degrees += parts[1] / 60
+    if len(parts) > 2:
+        degrees += parts[2] / 3600
+    return degrees
+
+
+def _checked_position(latitude: float, longitude: float) -> Position:
+    if not -90 <= latitude <= 90:
+        raise PositionError("Latitude must be within 90° of the equator")
+    if not -180 <= longitude <= 180:
+        raise PositionError("Longitude must be within 180° of Greenwich")
+    return Position(longitude, latitude)
+
+
 __all__ = [
+    "POSITION_EXAMPLE",
+    "PositionError",
+    "parse_position",
     "DEFAULT_SETTINGS",
     "FormatSettings",
     "fixed",

@@ -10,6 +10,7 @@ import { copyFileSync, mkdtempSync, readdirSync, readFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import * as vscode from "vscode";
+import type { AnnotationProperties } from "@debrief/schemas";
 import type { DebriefApi } from "../../src/extension.js";
 
 const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
@@ -354,4 +355,104 @@ export async function run(): Promise<void> {
   // The original is untouched.
   await vscode.commands.executeCommand("debrief.openPlot", current.store.id, current.item.id);
   await waitFor("the original", async () => (await steps()).length === 7 || undefined);
+
+  // --- Annotations: shapes, labels and notes, each a step (CAP-03 to CAP-05) ------------
+  type Done = { problem?: string; feature?: string };
+  const annotation = (id: string) => {
+    const found = api.session.current!.plot.features.find((f) => f.id === id);
+    return found?.properties.kind === "annotation" ? (found as { properties: AnnotationProperties }) : undefined;
+  };
+  // The results of earlier tools are not needed here: more room for the map.
+  for (const group of vscode.window.tabGroups.all) {
+    for (const tab of group.tabs) if (tab.label.startsWith("Results")) await vscode.window.tabGroups.close(tab);
+  }
+  // The form opens beside the map, a circle in the middle of the map.
+  await vscode.commands.executeCommand("debrief.addAnnotation");
+  await waitFor("the annotation form", async () => (await vscode.commands.executeCommand<string | undefined>("debrief.annotationFormOpen")) === "" || undefined);
+  await sleep(2500);
+  await screenshot("13-add-annotation-form");
+  await vscode.commands.executeCommand("workbench.action.closeActiveEditor");
+  // What the form sends, as an agent would: positions in the analyst's notation.
+  const circle = await vscode.commands.executeCommand<Done>("debrief.addAnnotation", {
+    shape: "circle",
+    name: "Exclusion zone",
+    positions: [[-75.5, 37.0]],
+    radius: { value: 4, unit: "km" },
+  });
+  assert.equal(circle.problem, undefined);
+  assert.equal(circle.feature, "annotation-exclusion-zone");
+  assert.deepEqual((await steps()).at(-1)?.notes, ["Circle 'Exclusion zone' added"]);
+  const restyled = await vscode.commands.executeCommand<Done>("debrief.editAnnotation", "annotation-exclusion-zone", {
+    appearance: { colour: "#e01c3e", line_style: "solid", line_width: 3, fill_colour: "#e01c3e", fill_opacity: 0.2 },
+  });
+  assert.equal(restyled.problem, undefined);
+  assert.deepEqual((await steps()).at(-1)?.notes, ["Style of Circle 'Exclusion zone' changed"]);
+  // Ctrl+Z takes the style back, as any change; redo brings it again.
+  assert.equal(await vscode.commands.executeCommand("debrief.undo"), undefined);
+  assert.equal(annotation("annotation-exclusion-zone")?.properties.appearance ?? undefined, undefined);
+  assert.equal(await vscode.commands.executeCommand("debrief.redo"), undefined);
+  assert.equal(annotation("annotation-exclusion-zone")?.properties.appearance?.line_style, "solid");
+  for (const spec of [
+    { shape: "ellipse", name: "Search area", positions: ["36°52.200'N 075°40.800'W"], semi_major: { value: 5, unit: "[nmi_i]" }, semi_minor: { value: 2, unit: "[nmi_i]" }, orientation: { value: 60, unit: "deg" }, appearance: { colour: "#0064bd", line_style: "dotted", line_width: 2 } },
+    { shape: "area", name: "Transit lane", positions: [[-75.8, 37.05], [-75.55, 37.1], [-75.45, 37.02], [-75.75, 36.97]], appearance: { colour: "#00a000", fill_colour: "#00a000", fill_opacity: 0.1, label_position: "below" } },
+    { shape: "label", name: "Datum buoy", text: "Datum buoy D7", positions: ["N36 52.2 W75 21.0"], appearance: { label_size: 15 } },
+    { shape: "note", name: "Contact gained", text: "Contact gained on the towed array.", time: "2023-06-15T10:15:00.000Z" },
+  ]) {
+    const done = await vscode.commands.executeCommand<Done>("debrief.addAnnotation", spec);
+    assert.equal(done.problem, undefined, spec.name);
+  }
+  // Chart furniture: the north arrow, one more step.
+  assert.equal((await vscode.commands.executeCommand<Done>("debrief.toggleNorthArrow")).problem, undefined);
+  assert.deepEqual((await steps()).at(-1)?.notes, ["North arrow added"]);
+  // A description that cannot be made is refused, in plain words, and nothing changes.
+  const stepsBefore = (await steps()).length;
+  const noSize = await vscode.commands.executeCommand<Done>("debrief.addAnnotation", { shape: "circle", name: "No size", positions: [[-75.5, 37]] });
+  assert.match(noSize.problem ?? "", /radius/);
+  assert.equal((await steps()).length, stepsBefore);
+  await vscode.commands.executeCommand("debrief.outline.focus");
+  await sleep(2000);
+  await screenshot("14-annotations-on-the-map");
+
+  // The Timeline: time-only annotations in time order; choosing one moves current time to it.
+  type Entries = { entries: string[]; current?: string };
+  const listed = await vscode.commands.executeCommand<Entries>("debrief.timelineEntries");
+  assert.ok(listed.entries.includes("annotation-contact-gained"));
+  await vscode.commands.executeCommand("debrief.timeline.focus");
+  assert.equal(await vscode.commands.executeCommand("debrief.goToTime", "annotation-contact-gained"), undefined);
+  assert.equal(api.session.time?.current, "2023-06-15T10:15:00.000Z");
+  assert.equal((await vscode.commands.executeCommand<Entries>("debrief.timelineEntries")).current, "annotation-contact-gained");
+  await vscode.commands.executeCommand("debrief.timeline.focus");
+  await sleep(2000);
+  await screenshot("15-timeline");
+
+  // The properties form of the circle, as the map's double-click or the outline opens it.
+  await vscode.commands.executeCommand("debrief.editAnnotation", "annotation-exclusion-zone");
+  await waitFor("the circle's form", async () => (await vscode.commands.executeCommand<string | undefined>("debrief.annotationFormOpen")) === "annotation-exclusion-zone" || undefined);
+  await sleep(2500);
+  await screenshot("16-annotation-properties");
+  await vscode.commands.executeCommand("workbench.action.closeActiveEditor");
+  // Delete is one step; undo brings it back.
+  assert.equal((await vscode.commands.executeCommand<Done>("debrief.deleteAnnotation", "annotation-datum-buoy")).problem, undefined);
+  assert.deepEqual((await steps()).at(-1)?.notes, ["Label 'Datum buoy' deleted"]);
+  assert.equal(await vscode.commands.executeCommand("debrief.undo"), undefined);
+  assert.ok(annotation("annotation-datum-buoy"));
+
+  // A legacy plot file: its circles, ellipses and styling come in as annotations.
+  const dpf = path.resolve(__dirname, "../../python/debrief-io/tests/data/shapes.dpf");
+  execFileSync(process.env.DEBRIEF_PYTHON!, [
+    "-c",
+    "import sys; from pathlib import Path; from debrief_io import import_dpf; from debrief_stac import Catalogue; " +
+      "import_dpf(Catalogue.open(Path(sys.argv[1])), Path(sys.argv[2]))",
+    current.store.location,
+    dpf,
+  ]);
+  await vscode.commands.executeCommand("debrief.refresh");
+  await vscode.commands.executeCommand("debrief.openPlot", current.store.id, "shapes");
+  await waitFor("the legacy plot", () => api.session.current?.item.id === "shapes" || undefined);
+  const shapes = api.session.current!.plot.features.filter((f) => f.properties.kind === "annotation");
+  assert.ok(shapes.some((f) => f.properties.kind === "annotation" && f.properties.shape === "ellipse" && !!(f.properties as { appearance?: { colour?: string } }).appearance?.colour));
+  await waitFor("the map to draw it", () => api.mapShowing() === "shapes" || undefined);
+  await vscode.commands.executeCommand("debrief.outline.focus");
+  await sleep(2000);
+  await screenshot("17-imported-dpf");
 }

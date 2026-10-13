@@ -8,6 +8,7 @@ import type { OpenedPlot } from "../catalogue.js";
 import type { Session } from "../session.js";
 import { isFeature, isHidden, type PlotFeature } from "../hidden.js";
 import { describeTimes } from "../format.js";
+import { shapeOf } from "../../webview/annotationlook.js";
 
 type Feature = PlotFeature;
 export type Node =
@@ -16,6 +17,17 @@ export type Node =
   | { kind: "feature"; feature: Feature; parent: Node }
   | { kind: "file"; title: string; fileKind: string; href: string; parent: Node }
   | { kind: "empty"; text: string; parent: Node };
+
+/** Codicons for each kind of annotation (CAP-03). */
+const ANNOTATION_ICONS: Record<string, string> = {
+  line: "dash",
+  area: "primitive-square",
+  circle: "circle-large-outline",
+  ellipse: "circle-large",
+  label: "symbol-text",
+  marker: "location",
+  note: "note",
+};
 
 const GROUPS: { id: string; label: string; kind: string }[] = [
   { id: "tracks", label: "Tracks", kind: "track" },
@@ -113,11 +125,17 @@ export class OutlineProvider implements vscode.TreeDataProvider<Node> {
         const selected = this.session.selection.includes(feature.id);
         const item = new vscode.TreeItem(feature.properties.name);
         item.id = `feature:${feature.id}`;
-        item.iconPath = new vscode.ThemeIcon(
-          { track: "pulse", annotation: "symbol-misc", sensor_observations: "radio-tower" }[feature.properties.kind] ??
-            "circle",
-          selected ? new vscode.ThemeColor("list.highlightForeground") : undefined,
-        );
+        const icon =
+          feature.properties.kind === "annotation"
+            ? feature.properties.furniture
+              ? "compass"
+              : ANNOTATION_ICONS[shapeOf(feature.properties, feature.geometry?.type)]
+            : { track: "pulse", sensor_observations: "radio-tower" }[feature.properties.kind];
+        item.iconPath = new vscode.ThemeIcon(icon ?? "circle", selected ? new vscode.ThemeColor("list.highlightForeground") : undefined);
+        // Double-click is the map's way in; here it is Enter on the menu's "Change annotation…".
+        if (feature.properties.kind === "annotation" && !feature.properties.furniture) {
+          item.tooltip = `${feature.properties.name}: right-click to change or delete it`;
+        }
         const props = feature.properties as { times?: string[]; time?: string; time_range?: { start: string; end: string } };
         const when = props.times
           ? describeTimes(props.times[0], props.times.at(-1))
@@ -126,7 +144,9 @@ export class OutlineProvider implements vscode.TreeDataProvider<Node> {
             : describeTimes(props.time);
         const hidden = isHidden(feature);
         item.description = [selected ? "selected" : "", hidden ? "hidden on map" : "", when].filter(Boolean).join(" · ");
-        item.contextValue = `feature-${feature.properties.kind}${hidden ? "-hidden" : ""}`;
+        // Chart furniture is shown or removed with the North arrow command, not changed through a form.
+        const kind = feature.properties.kind === "annotation" && feature.properties.furniture ? "furniture" : feature.properties.kind;
+        item.contextValue = `feature-${kind}${hidden ? "-hidden" : ""}`;
         return item;
       }
     }

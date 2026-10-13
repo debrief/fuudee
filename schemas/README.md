@@ -9,7 +9,7 @@ Every type that crosses a process or language boundary is defined here in LinkML
 | `core.yaml` | Timestamps, schema version, content hash; quantities with units; time ranges; parameter values | SUB-01, SUB-02, SUB-11, SUB-12 |
 | `geojson.yaml` | Point, LineString and Polygon geometries | SUB-05, CON-04 |
 | `prov.yaml` | Provenance records, tools, agents, sources | SUB-18 to SUB-20, SUB-24 |
-| `features.yaml` | Plot features (tracks, annotations, sensor observations), payload envelopes, named sets, the plot itself | SUB-05, CAP-03, CAP-04, CAP-22, CON-02, TL-11 |
+| `features.yaml` | Plot features (tracks, annotations with their shapes and appearance, sensor observations), payload envelopes, named sets, the plot itself; an annotation as a form describes it (`AnnotationSpec`) | SUB-05, CAP-03, CAP-04, CAP-22, CON-02, TL-11 |
 | `stac.yaml` | Catalogues, items, assets, links | SUB-06, SUB-15 to SUB-17, SUB-23, SUB-35 |
 | `state.yaml` | Current time, selection and viewport | SUB-26, SUB-27, TL-10 |
 | `tools.yaml` | Tool declarations, parameter declarations, tool results | TL-04 to TL-13, CAP-24 |
@@ -21,7 +21,7 @@ Every type that crosses a process or language boundary is defined here in LinkML
 
 | Standard | Classification | Notes |
 | --- | --- | --- |
-| GeoJSON (RFC 7946) | Imported | Point, LineString and Polygon only. Features are Debrief's own classes; `properties.kind` names the feature type. |
+| GeoJSON (RFC 7946) | Imported | Point, LineString and Polygon only. Features are Debrief's own classes; `properties.kind` names the feature type. GeoJSON has no curves: a circle or an ellipse is a polygon approximating it, with its exact centre and size as properties. |
 | STAC 1.1 | Imported, Debrief subset | Catalogue, item, asset and link. Item properties and assets accept and preserve extension fields; everything else is strict. Debrief's own fields use the `debrief:` prefix. |
 | PROV | Imported, Debrief subset | An activity record per operation, with agent and used entities. Serialised as Debrief's PROV array, not PROV-JSON. |
 | Arrow, Parquet | Trusted as external | Payload formats only (CON-02). The payload's columns are described by `PayloadRef`, its inner schema by name and version. |
@@ -38,7 +38,7 @@ Every type that crosses a process or language boundary is defined here in LinkML
 
 1. **Schema version** (files only): a file with a different version is refused before it is read (SUB-14). Before 1.0.0 there is no migration, so only an exact match opens.
 2. **Structure**: the generated JSON Schema, run identically in Python and TypeScript.
-3. **Rules** LinkML cannot express, in Python only (PRN-03). Examples: parallel arrays match the geometry, track times are in order, polygon rings are closed, a time-only annotation has a time, a parameter's default matches its kind, a plot's history is an unbroken hash chain whose current step matches its content.
+3. **Rules** LinkML cannot express, in Python only (PRN-03). Examples: parallel arrays match the geometry, track times are in order, polygon rings are closed, a time-only annotation has a time, an annotation's shape has its geometry, a circle's polygon matches its centre and radius, a parameter's default matches its kind, a plot's history is an unbroken hash chain whose current step matches its content.
 
 ## Fixtures
 

@@ -19,6 +19,20 @@ export type AngleUnitEnum = "deg" | "rad";
  */
 export type AngularRateUnitEnum = "deg/min" | "deg/s" | "rad/s";
 /**
+ * Where an annotation's label is drawn, relative to it.
+ *
+ * This interface was referenced by `DebriefSchemaDefinitions`'s JSON-Schema
+ * via the `definition` "LabelPositionEnum".
+ */
+export type LabelPositionEnum = "above" | "below" | "left" | "right" | "centre" | "none";
+/**
+ * How an annotation's line is drawn.
+ *
+ * This interface was referenced by `DebriefSchemaDefinitions`'s JSON-Schema
+ * via the `definition` "LineStyleEnum".
+ */
+export type LineStyleEnum = "solid" | "dashed" | "dotted";
+/**
  * This interface was referenced by `DebriefSchemaDefinitions`'s JSON-Schema
  * via the `definition` "PointTypeEnum".
  */
@@ -33,6 +47,13 @@ export type LineStringTypeEnum = "LineString";
  * via the `definition` "PolygonTypeEnum".
  */
 export type PolygonTypeEnum = "Polygon";
+/**
+ * Chart furniture a plot can carry (CAP-03). The scale bar is always drawn.
+ *
+ * This interface was referenced by `DebriefSchemaDefinitions`'s JSON-Schema
+ * via the `definition` "ChartFurnitureEnum".
+ */
+export type ChartFurnitureEnum = "north_arrow";
 /**
  * This interface was referenced by `DebriefSchemaDefinitions`'s JSON-Schema
  * via the `definition` "AnnotationKindEnum".
@@ -64,6 +85,13 @@ export type SpeedUnitEnum = "m/s" | "[kn_i]" | "km/h";
  * via the `definition` "DurationUnitEnum".
  */
 export type DurationUnitEnum = "ms" | "s" | "min" | "h";
+/**
+ * How an annotation is drawn (CAP-03). Left out, it follows from the geometry: a line string is a line, a polygon an area, a point a label (style label) or a marker, and no geometry a note. Circles and ellipses must say so, since GeoJSON has no curves: their geometry is a polygon that approximates them, for other tools, and their own properties (centre, radius or semi-axes and orientation) say exactly what they are.
+ *
+ * This interface was referenced by `DebriefSchemaDefinitions`'s JSON-Schema
+ * via the `definition` "AnnotationShapeEnum".
+ */
+export type AnnotationShapeEnum = "line" | "area" | "circle" | "ellipse" | "label" | "marker" | "note";
 /**
  * What an annotation depicts (CAP-03, CAP-04).
  *
@@ -219,7 +247,11 @@ export type WebviewMessageKindEnum =
   | "show_time"
   | "window_changed"
   | "context_changed"
-  | "set_context";
+  | "set_context"
+  | "show_annotation_form"
+  | "save_annotation"
+  | "delete_annotation"
+  | "edit_annotation";
 
 export interface DebriefSchemaDefinitions {}
 /**
@@ -258,7 +290,37 @@ export interface AngularRate {
   value: number;
 }
 /**
- * Shapes, labels and chart furniture as ordinary GeoJSON (CAP-03). An annotation with only a time has null geometry and shall give a time or a time range (CAP-04).
+ * How an annotation is drawn: its line, its fill and its label. Data colours do not change with the theme (DEV-07). Widths and sizes are in screen pixels, so they are the same at every zoom.
+ *
+ * This interface was referenced by `DebriefSchemaDefinitions`'s JSON-Schema
+ * via the `definition` "AnnotationAppearance".
+ */
+export interface AnnotationAppearance {
+  /**
+   * Its line's colour, and a label's or a marker's dot. Lower-case hex RGB, for example "#c7820a". Label text is drawn in the theme's text colour, so it stays readable on any map.
+   */
+  colour?: string | null;
+  /**
+   * Colour inside an area, circle or ellipse. Lower-case hex RGB. Left out, the line's colour.
+   */
+  fill_colour?: string | null;
+  /**
+   * How opaque the fill of an area, circle or ellipse is, from 0 (none) to 1 (solid). Left out, 0.25 with a fill colour, or else a faint tint of 0.05, so what lies inside stays clear.
+   */
+  fill_opacity?: number | null;
+  label_position?: LabelPositionEnum | null;
+  /**
+   * Height of its label's text in screen pixels.
+   */
+  label_size?: number | null;
+  line_style?: LineStyleEnum | null;
+  /**
+   * Width of its line in screen pixels.
+   */
+  line_width?: number | null;
+}
+/**
+ * Shapes, labels and chart furniture as ordinary GeoJSON (CAP-03). An annotation with only a time has null geometry and shall give a time or a time range (CAP-04); chart furniture has null geometry and needs neither. A circle or an ellipse is a polygon approximating it, for other tools, with its centre and size as properties, which Debrief draws from.
  *
  * This interface was referenced by `DebriefSchemaDefinitions`'s JSON-Schema
  * via the `definition` "AnnotationFeature".
@@ -314,12 +376,45 @@ export interface PolygonGeometry {
  */
 export interface AnnotationProperties {
   /**
+   * How it is drawn on the map. Left out, or any member of it left out, means Debrief's default for annotations. Content, like a track's colour: changing it is a recorded, undoable change (SUB-22).
+   */
+  appearance?: AnnotationAppearance | null;
+  /**
+   * @minItems 2
+   * @maxItems 2
+   */
+  centre?: [number, number];
+  /**
+   * What chart furniture it is. Chart furniture has no geometry and needs no time.
+   */
+  furniture?: ChartFurnitureEnum | null;
+  /**
    * Not drawn on the map. Still listed, and still selectable, in the outline. Content: hiding is a recorded, undoable change (SUB-22).
    */
   hidden?: boolean | null;
   kind: AnnotationKindEnum;
   name: string;
+  /**
+   * The direction of an ellipse's longer axis from its centre, true north, clockwise.
+   */
+  orientation?: Angle | null;
   provenance?: ProvRecord[] | null;
+  /**
+   * A circle's radius, along geodesics from its centre.
+   */
+  radius?: Length | null;
+  /**
+   * Half an ellipse's longer axis, along the geodesic from its centre.
+   */
+  semi_major?: Length | null;
+  /**
+   * Half an ellipse's shorter axis, along the geodesic from its centre.
+   */
+  semi_minor?: Length | null;
+  /**
+   * How it is drawn. Required for circles and ellipses; otherwise it may be left out and follows from the geometry.
+   */
+  shape?: AnnotationShapeEnum | null;
   style: AnnotationStyleEnum;
   text?: string | null;
   time?: string | null;
@@ -419,6 +514,28 @@ export interface SourceRef {
 export interface TimeRange {
   end: string;
   start: string;
+}
+/**
+ * An annotation as the analyst describes it in a form, or an agent in a request: what is made into an annotation feature, recorded as one step in the plot's history (CAP-03, SUB-19). Positions are numbers here; forms read them in the analyst's notation and say what they mean.
+ *
+ * This interface was referenced by `DebriefSchemaDefinitions`'s JSON-Schema
+ * via the `definition` "AnnotationSpec".
+ */
+export interface AnnotationSpec {
+  appearance?: AnnotationAppearance | null;
+  name: string;
+  orientation?: Angle | null;
+  /**
+   * @minItems 1
+   */
+  positions?: [[number, number], ...[number, number][]];
+  radius?: Length | null;
+  semi_major?: Length | null;
+  semi_minor?: Length | null;
+  shape: AnnotationShapeEnum;
+  text?: string | null;
+  time?: string | null;
+  time_range?: TimeRange | null;
 }
 /**
  * The unit of analysis (SUB-05), stored as an asset of a STAC item.
@@ -1140,6 +1257,10 @@ export interface UserConfig {
  */
 export interface WebviewMessage {
   /**
+   * An annotation as the form describes it (show_annotation_form, save_annotation).
+   */
+  annotation?: AnnotationSpec | null;
+  /**
    * How tracks outside the time window are drawn (CAP-29).
    */
   context_tracks?: ContextTracksEnum | null;
@@ -1147,6 +1268,10 @@ export interface WebviewMessage {
    * Current time from shared state, which a tool form offers for its time fields.
    */
   current_time?: string | null;
+  /**
+   * The annotation a form changes or deletes, or the map asks to change.
+   */
+  feature_id?: string | null;
   /**
    * How many of the plot's features are hidden on the map (SUB-22), so the map can say so.
    */

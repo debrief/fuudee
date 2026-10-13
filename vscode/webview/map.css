@@ -39,3 +39,7 @@ body { background: var(--vscode-editor-background); color: var(--vscode-foregrou
 .hidden-control button { background: var(--vscode-button-secondaryBackground); color: var(--vscode-button-secondaryForeground); border: none; padding: 2px 8px; cursor: pointer; font: inherit; }
 .hidden-control button:hover { background: var(--vscode-button-secondaryHoverBackground); }
 .hidden-control button:focus-visible { outline: 1px solid var(--vscode-focusBorder); }
+/* Chart furniture: the north arrow, in the theme's text colour (CAP-03). */
+.north-arrow { color: var(--vscode-editor-foreground); background: var(--vscode-editorWidget-background); border: 1px solid var(--vscode-editorWidget-border, transparent); padding: 4px 6px 2px; line-height: 0; }
+.north-arrow[hidden] { display: none; }
+.north-arrow text { font-family: var(--vscode-font-family); font-weight: 600; }

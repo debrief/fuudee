@@ -67,6 +67,22 @@
     ],
     "set_context": [
       "context_tracks"
+    ],
+    "show_annotation_form": [
+      "annotation?",
+      "feature_id?",
+      "time_range?",
+      "current_time?"
+    ],
+    "save_annotation": [
+      "annotation",
+      "feature_id?"
+    ],
+    "delete_annotation": [
+      "feature_id"
+    ],
+    "edit_annotation": [
+      "feature_id"
     ]
   }
 }

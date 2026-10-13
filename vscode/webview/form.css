@@ -15,3 +15,13 @@ h1 { font-size: 1.4em; font-weight: 600; margin: 0 0 8px; }
 .actions { display: flex; gap: 8px; margin-top: 18px; }
 .field vscode-textfield, .field input, .field > div:not(.field-explanation):not(.field-problem) { width: 100%; max-width: 26rem; box-sizing: border-box; }
 .field-echo { color: var(--vscode-descriptionForeground); font-size: 0.92em; margin-top: 4px; font-style: italic; }
+.annotation-form h2 { font-size: 1.05em; font-weight: 600; margin: 18px 0 8px; padding-top: 10px; border-top: 1px solid var(--vscode-widget-border, var(--vscode-panel-border)); }
+.annotation-form .quantity { align-items: flex-start; flex-wrap: wrap; }
+.annotation-form .quantity > .field { flex: 1 1 8rem; min-width: 8rem; }
+.annotation-form .field-problem { color: var(--vscode-errorForeground); font-size: 0.92em; margin-top: 4px; }
+.annotation-form textarea { min-height: 4.5em; font-family: var(--vscode-editor-font-family); }
+.colour-row { display: flex; gap: 8px; align-items: center; }
+.colour-row > .choice { flex: 1; max-width: 26rem; }
+.colour-row > .choice > div { width: 100%; }
+/* A data colour, shown as the map draws it; its border is the theme's. */
+.swatch { width: 22px; height: 22px; flex: none; border: 1px solid var(--vscode-editor-foreground); border-radius: 2px; }

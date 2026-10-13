@@ -13,9 +13,14 @@ What becomes what:
   courses, speeds, depths and the track's colour. When legs overlap in
   time, joining them would zig-zag between them, so each leg becomes a
   track of its own instead, named "<track> (<leg>)".
-- Text labels: label annotations. Circles, rectangles, lines, polygons,
-  ellipses and vectors: shape annotations. Circles and ellipses become
-  polygons of 72 sides, since GeoJSON has no curves.
+- Text labels: label annotations. Rectangles and closed polygons: areas.
+  Lines, open polygons and vectors: lines. Circles and ellipses: circles and
+  ellipses, with their exact centre and size, and a polygon of 72 sides as
+  their geometry so other GeoJSON tools see the area (GeoJSON has no curves).
+  How each was drawn comes too: its colour, line style and width, fill, label
+  size and label position. What v4 cannot draw (label symbols, fonts other
+  than plain Arial, label colours of their own, arrowheads, and dash patterns
+  v4 does not have) is listed.
 - Narrative entries: time-only note annotations, as the sample data holds
   its narrative.
 - Layers: v4 has no layers yet. A layer's annotations, and the narrative's
@@ -25,7 +30,6 @@ What becomes what:
 
 from __future__ import annotations
 
-import math
 import re
 from collections import Counter
 from importlib.metadata import version
@@ -34,7 +38,7 @@ from pathlib import Path
 from debrief_io.dpf import DpfError, DpfFile, DpfFix, DpfShape, DpfTrack, parse_dpf
 from debrief_io.importer import Clock, ImportReport, store_import, wall_clock
 from debrief_io.rep import DEFAULT_COLOUR
-from debrief_kernel.geodesy import Position, destination
+from debrief_kernel.geodesy import Position, circle_ring, destination, ellipse_ring
 from debrief_kernel.time import format_utc
 from debrief_kernel.units import angle, length
 from debrief_schemas import SCHEMA_VERSION, DebriefFeatureCollection, models
@@ -43,8 +47,9 @@ from debrief_stac import Catalogue
 IMPORTER = "debrief-io.dpf"
 MEDIA_TYPE = "application/xml"
 
-# Sides of the polygon that stands in for a circle or an ellipse.
-CURVE_SIDES = 72
+# The colour v4 gives an annotation with none of its own (vscode/webview/palette.ts),
+# used for a legacy fill whose shape has the default colour.
+ANNOTATION_COLOUR = "#c7820a"
 
 # The largest plot file imported. The whole file is read into memory, and its
 # tree with it; legacy plot files are rarely more than a few megabytes.
@@ -215,68 +220,110 @@ def _track_notes(track: DpfTrack, joined: bool) -> list[str]:
 
 # --- Annotations -------------------------------------------------------------------
 
+# Legacy line styles (CanvasType) as v4 draws them; the dash patterns v4 does not
+# have are drawn as the nearest it does, and said so.
+LINE_STYLES = {0: "solid", 1: "dashed", 2: "dotted", 3: "dashed", 4: "dashed", 5: "dotted"}
+LINE_STYLE_NAMES = {1: "long dashes", 3: "dot-dash", 4: "short dashes", 5: "unconnected points"}
+LABEL_POSITIONS = {
+    "Left": "left",
+    "Right": "right",
+    "Top": "above",
+    "Bottom": "below",
+    "Centre": "centre",
+    "Center": "centre",
+}
+# Opacity of a legacy fill: semi-transparent, or solid. Legacy Debrief drew a
+# semi-transparent fill with alpha 160 of 255 (PlainShape.TRANSPARENCY_SHADE).
+SEMI_TRANSPARENT = round(160 / 255, 2)
 
-def _ring(centre: tuple[float, float], radius_at) -> list[list[float]]:
-    """A closed ring of CURVE_SIDES positions, at radius_at(bearing) metres from centre."""
-    origin = Position(*centre)
-    ring = []
-    for i in range(CURVE_SIDES):
-        bearing, distance = radius_at(360.0 * i / CURVE_SIDES)
-        point = destination(origin, angle(bearing), length(distance))
-        ring.append([point.longitude, point.latitude])
-    ring.append(ring[0])
-    return ring
+
+def _line(coordinates: list[list[float]]) -> models.LineStringGeometry:
+    return models.LineStringGeometry(type="LineString", coordinates=coordinates)
 
 
-def _ellipse_radius(shape: DpfShape):
-    """Bearing and distance to the ellipse's edge at each step of the parametric angle."""
-    major, minor = shape.radius_m, shape.minor_m
+def _area(ring: list[list[float]]) -> models.PolygonGeometry:
+    return models.PolygonGeometry(type="Polygon", coordinates=[ring])
 
-    def at(t_deg: float) -> tuple[float, float]:
-        t = math.radians(t_deg)
-        x, y = major * math.cos(t), minor * math.sin(t)
-        return (shape.orientation_deg + math.degrees(math.atan2(y, x))) % 360, math.hypot(x, y)
 
-    return at
+def _curve(shape: DpfShape) -> tuple[models.PolygonGeometry, dict]:
+    """A circle or an ellipse: its exact centre and size, and the polygon other tools see."""
+    centre = Position(*shape.centre)
+    extra: dict = {"centre": list(shape.centre)}
+    if shape.kind == "circle":
+        radius = round(shape.radius_m, 3)  # to the millimetre
+        extra["radius"] = models.Length(value=radius, unit="m")
+        ring = circle_ring(centre, length(radius))
+    else:
+        major, minor = sorted((round(shape.radius_m, 3), round(shape.minor_m, 3)), reverse=True)
+        orientation = shape.orientation_deg % 360.0
+        if shape.minor_m > shape.radius_m:  # legacy allowed it: the longer axis is the other way
+            orientation = (orientation + 90.0) % 360.0
+        extra["semi_major"] = models.Length(value=major, unit="m")
+        extra["semi_minor"] = models.Length(value=minor, unit="m")
+        extra["orientation"] = models.Angle(value=orientation, unit="deg")
+        ring = ellipse_ring(centre, length(major), length(minor), angle(orientation))
+    return _area([[p.longitude, p.latitude] for p in ring]), extra
 
 
 def _geometry(shape: DpfShape):
-    """The shape's GeoJSON geometry, or None with the reason it has none."""
+    """The shape as v4 has it (its shape, GeoJSON geometry and own properties), or
+    None with the reason it has none."""
     if shape.kind == "textlabel":
-        return models.PointGeometry(type="Point", coordinates=list(shape.points[0])), None
-    if shape.kind == "circle":
-        ring = _ring(shape.centre, lambda b: (b, shape.radius_m))
-        return models.PolygonGeometry(type="Polygon", coordinates=[ring]), None
-    if shape.kind == "ellipse":
-        ring = _ring(shape.centre, _ellipse_radius(shape))
-        return models.PolygonGeometry(type="Polygon", coordinates=[ring]), None
+        point = models.PointGeometry(type="Point", coordinates=list(shape.points[0]))
+        return ("label", point, {}), None
+    if shape.kind in ("circle", "ellipse"):
+        if not (shape.radius_m and shape.radius_m > 0) or (
+            shape.kind == "ellipse" and not (shape.minor_m and shape.minor_m > 0)
+        ):
+            return None, "it has no size"
+        geometry, extra = _curve(shape)
+        return (shape.kind, geometry, extra), None
     if shape.kind == "rectangle":
         (west, north), (east, south) = shape.points
         ring = [[west, north], [east, north], [east, south], [west, south], [west, north]]
-        return models.PolygonGeometry(type="Polygon", coordinates=[ring]), None
+        return ("area", _area(ring), {}), None
     if shape.kind == "line":
-        return models.LineStringGeometry(
-            type="LineString", coordinates=[list(p) for p in shape.points]
-        ), None
+        return ("line", _line([list(p) for p in shape.points]), {}), None
     if shape.kind == "vector":
         start = Position(*shape.points[0])
         end = destination(start, angle(shape.orientation_deg % 360), length(shape.radius_m))
-        coordinates = [list(shape.points[0]), [end.longitude, end.latitude]]
-        return models.LineStringGeometry(type="LineString", coordinates=coordinates), None
+        return ("line", _line([list(shape.points[0]), [end.longitude, end.latitude]]), {}), None
     if shape.kind == "polygon":
         points = [list(p) for p in shape.points]
         distinct = len(set(shape.points))
         if shape.closed and distinct >= 3:
             if points[0] != points[-1]:
                 points.append(points[0])
-            return models.PolygonGeometry(type="Polygon", coordinates=[points]), None
+            return ("area", _area(points), {}), None
         if distinct >= 2:
-            return models.LineStringGeometry(type="LineString", coordinates=points), None
+            return ("line", _line(points), {}), None
         return None, f"it has {_plural(distinct, 'distinct point')}, too few to draw"
     return None, "this shape is not yet supported"
 
 
-def _annotation(feature_id: str, shape: DpfShape, geometry) -> models.AnnotationFeature:
+def _appearance(shape: DpfShape, v4_shape: str) -> models.AnnotationAppearance | None:
+    """How legacy Debrief drew it, as far as v4 can: colour, line, fill and label."""
+    look: dict = {}
+    if shape.colour:
+        look["colour"] = shape.colour
+    if v4_shape != "label":
+        look["line_style"] = LINE_STYLES.get(shape.line_style or 0, "solid")
+        if shape.line_thickness is not None:
+            look["line_width"] = min(10, max(1, shape.line_thickness))
+    if shape.filled and v4_shape in ("area", "circle", "ellipse"):
+        look["fill_colour"] = shape.colour or ANNOTATION_COLOUR
+        look["fill_opacity"] = SEMI_TRANSPARENT if shape.semi_transparent else 1.0
+    if shape.font_size is not None:
+        look["label_size"] = min(32, max(8, round(shape.font_size)))
+    if not shape.label_visible:
+        look["label_position"] = "none"
+    elif shape.label_location in LABEL_POSITIONS:
+        look["label_position"] = LABEL_POSITIONS[shape.label_location]
+    return models.AnnotationAppearance(**look) if look else None
+
+
+def _annotation(feature_id: str, shape: DpfShape, made) -> models.AnnotationFeature:
+    v4_shape, geometry, extra = made
     label = shape.label.strip()
     name = " ".join(label.split()) or f"{shape.kind} in {shape.layer}"
     time = time_range = None
@@ -293,12 +340,59 @@ def _annotation(feature_id: str, shape: DpfShape, geometry) -> models.Annotation
         properties=models.AnnotationProperties(
             kind="annotation",
             style="label" if shape.kind == "textlabel" else "shape",
+            shape=v4_shape,
             name=name,
             text=label if "\n" in label else None,
             time=time,
             time_range=time_range,
+            appearance=_appearance(shape, v4_shape),
+            **extra,
         ),
     )
+
+
+def _look_notes(shapes: list[DpfShape]) -> list[str]:
+    """What of the way annotations were drawn v4 does not keep: counted, with examples."""
+    notes = []
+
+    def named(items: list[DpfShape]) -> str:
+        names = [repr(s.label.strip()) for s in items if s.label.strip()][:3]
+        return f" (such as {', '.join(names)})" if names else ""
+
+    symbols = [s for s in shapes if s.kind == "textlabel" and s.symbol]
+    if symbols:
+        kinds = ", ".join(repr(k) for k, _ in Counter(s.symbol for s in symbols).most_common(5))
+        notes.append(
+            f"{_plural(len(symbols), 'text label')} drawn with a symbol ({kinds}): "
+            "v4 marks a label's position with a dot, so the symbols are not imported."
+        )
+    for style, words in sorted(LINE_STYLE_NAMES.items()):
+        drawn = [s for s in shapes if s.line_style == style and s.kind != "textlabel"]
+        if drawn:
+            notes.append(
+                f"{_plural(len(drawn), 'annotation')} drawn with {words}{named(drawn)}: "
+                f"drawn {LINE_STYLES[style]}, the nearest line style v4 has."
+            )
+    fonts = [s for s in shapes if s.font_styled]
+    if fonts:
+        notes.append(
+            f"{_plural(len(fonts), 'annotation')} with a font other than plain Arial"
+            f"{named(fonts)}: the size is kept; the family, bold and italic are not."
+        )
+    coloured = [s for s in shapes if s.font_colour and s.font_colour != s.colour]
+    if coloured:
+        notes.append(
+            f"{_plural(len(coloured), 'annotation')} with a label colour of its own"
+            f"{named(coloured)}: v4 draws every label in the theme's text colour, so it "
+            "stays readable on any map."
+        )
+    arrows = [s for s in shapes if s.arrow_at_end]
+    if arrows:
+        notes.append(
+            f"{_plural(len(arrows), 'line')} with an arrowhead{named(arrows)}: "
+            "drawn without it, since v4 lines have none yet."
+        )
+    return notes
 
 
 # --- The plot ----------------------------------------------------------------------
@@ -368,25 +462,20 @@ def build_plot_from_dpf(
 
     # Annotations, grouped by layer.
     members: dict[str, list[str]] = {}
-    drawn_as_polygons: Counter[str] = Counter()
+    imported: list[DpfShape] = []
     for shape in parsed.shapes:
-        geometry, reason = _geometry(shape)
-        if geometry is None:
+        made, reason = _geometry(shape)
+        if made is None:
             entity = _entity(shape.kind, shape.label.strip() or None, shape.layer)
             notes.append(f"{entity} not imported: {reason}.")
             continue
         feature_id = _unique_id("annotation", shape.label or shape.kind, taken)
-        features.append(_annotation(feature_id, shape, geometry))
+        features.append(_annotation(feature_id, shape, made))
         members.setdefault(shape.layer, []).append(feature_id)
         report.annotations += 1
         hidden += not shape.visible
-        if shape.kind in ("circle", "ellipse"):
-            drawn_as_polygons[shape.kind] += 1
-    for kind, count in sorted(drawn_as_polygons.items()):
-        notes.append(
-            f"{_plural(count, kind)} drawn as {'a polygon' if count == 1 else 'polygons'} "
-            f"of {CURVE_SIDES} sides, since a plot holds no curves."
-        )
+        imported.append(shape)
+    notes += _look_notes(imported)
 
     # Narrative.
     types: Counter[str] = Counter()
@@ -448,7 +537,6 @@ def build_plot_from_dpf(
     display = [
         "fix labels, symbols and arrows",
         "track symbols, fonts and line styles",
-        "colours, fonts, fills and line styles of annotations",
     ]
     notes.append(
         "Display settings not imported: "

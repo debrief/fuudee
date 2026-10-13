@@ -23,3 +23,6 @@ export const TRACK_COLOURS: { name: string; colour: string }[] = [
   { name: "Teal", colour: "#00a3a3" },
   { name: "Grey", colour: "#8a8a8a" },
 ];
+
+/** Colours an analyst can give an annotation by name: the annotation colour, then the track colours. Any other may be typed. */
+export const ANNOTATION_COLOURS: { name: string; colour: string }[] = [{ name: "Amber", colour: DATA_COLOURS.annotation }, ...TRACK_COLOURS];

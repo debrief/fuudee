@@ -86,6 +86,9 @@ export class MapPanel {
         this.session.setViewport(message.viewport!, "map");
       } else if (message.kind === "show_hidden") {
         void vscode.commands.executeCommand("debrief.showAllHidden");
+      } else if (message.kind === "edit_annotation") {
+        // Double-clicked on the map: its properties form (CAP-03).
+        void vscode.commands.executeCommand("debrief.editAnnotation", message.feature_id);
       }
     });
   }

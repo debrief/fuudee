@@ -464,6 +464,61 @@ def test_colour_and_hiding_are_recorded_steps_undone_like_any_other(client, cata
     assert bad.json()["error"]["code"] == -32602
 
 
+def test_annotations_are_added_restyled_and_deleted_as_recorded_steps(client, catalogue) -> None:
+    where = {"store": "exercise", "item": "serial", "agent": AGENT}
+    base = rpc(client, "debrief/open", where).json()["result"]["base"]
+    circle = {
+        "shape": "circle",
+        "name": "Exclusion zone",
+        # Positions in the analyst's notation, as an agent may give them.
+        "positions": ["50°19.800'N 004°07.200'W"],
+        "radius": {"value": 2, "unit": "[nmi_i]"},
+    }
+    added = rpc(
+        client, "debrief/add_annotation", {**where, "base": base, "annotation": circle}
+    ).json()["result"]
+    assert added["feature"] == "annotation-exclusion-zone" and added["changed"]
+    restyled = rpc(
+        client,
+        "debrief/edit_annotation",
+        {
+            **where,
+            "base": added["base"],
+            "feature": added["feature"],
+            "annotation": {"appearance": {"colour": "#0064bd", "line_style": "solid"}},
+        },
+    ).json()["result"]
+    assert restyled["changed"]
+    arrow = rpc(
+        client, "debrief/set_north_arrow", {**where, "base": restyled["base"], "shown": True}
+    ).json()["result"]
+    deleted = rpc(
+        client,
+        "debrief/delete_annotations",
+        {**where, "base": arrow["base"], "features": [added["feature"]]},
+    ).json()["result"]
+    steps = rpc(client, "debrief/history", where).json()["result"]["steps"]
+    assert [s["notes"][0] for s in steps[-4:]] == [
+        "Circle 'Exclusion zone' added",
+        "Style of Circle 'Exclusion zone' changed",
+        "North arrow added",
+        "Circle 'Exclusion zone' deleted",
+    ]
+    # Undo, as for any step, brings it back with its style.
+    rpc(client, "debrief/undo", {**where, "base": deleted["base"]})
+    zone = next(f for f in catalogue.read_plot("serial").features if f.id == added["feature"])
+    assert zone.properties.appearance.colour == "#0064bd"
+    # A description that cannot be made is refused plainly, and nothing changes.
+    refused = rpc(
+        client, "debrief/add_annotation", {**where, "annotation": {**circle, "radius": None}}
+    ).json()["error"]
+    assert refused["code"] == -32602 and "radius" in refused["message"]
+    stale = rpc(
+        client, "debrief/add_annotation", {**where, "base": base, "annotation": circle}
+    ).json()["error"]
+    assert stale["code"] == -32001
+
+
 def test_the_view_is_set_with_its_hash_and_never_recorded(client, catalogue) -> None:
     where = {"store": "exercise", "item": "serial", "agent": AGENT}
     opened = rpc(client, "debrief/open", where).json()["result"]

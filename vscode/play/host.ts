@@ -10,9 +10,11 @@
  *
  * Query parameters choose what an embedded demo shows:
  *   plot=serial-1         the sample serial to open
- *   panels=tools,history,try,import   the side panels, in this order (all by default)
+ *   panels=timeline,tools,history,try,import   the side panels, in this order (all by default)
  */
-import type { DebriefFeatureCollection, ParameterValue, PlotView, SharedStateChange, StacItem, TimeRange, TimeState, ToolDeclaration, ToolResult } from "@debrief/schemas";
+import type { AnnotationSpec, DebriefFeatureCollection, ParameterValue, PlotView, SharedStateChange, StacItem, TimeRange, TimeState, ToolDeclaration, ToolResult } from "@debrief/schemas";
+import { specOfFeature } from "../webview/annotationlook.js";
+import { currentEntry, timelineEntries, type TimelineEntry } from "../src/timeline.js";
 import { count, describePeriod, describeTimes, describeToolRun } from "../src/format.js";
 import { resolveTimes } from "../src/timeinput.js";
 import { describeStep, needs } from "../src/wording.js";
@@ -44,7 +46,7 @@ interface Opened {
 }
 
 const params = new URLSearchParams(location.search);
-const panelOrder = (params.get("panels") ?? "tools,history,try,import").split(",");
+const panelOrder = (params.get("panels") ?? "timeline,tools,history,try,import").split(",");
 const panels = new Set(panelOrder);
 const startPlot = params.get("plot") ?? "serial-1";
 const theme = matchMedia("(prefers-color-scheme: light)").matches || params.get("theme") === "light" ? "light" : "dark";
@@ -72,10 +74,10 @@ const pythonJson = async <T>(call: string, ...args: unknown[]) => JSON.parse(awa
 let pythonReady = false;
 
 // --- The webviews, in frames -------------------------------------------------------
-function frame(name: "map" | "form" | "results"): HTMLIFrameElement {
+function frame(name: "map" | "form" | "results" | "annotation"): HTMLIFrameElement {
   const element = document.createElement("iframe");
   element.src = `frame-${name}.html?frame=${name}&theme=${theme}`;
-  element.title = { map: "Plot map", form: "Tool form", results: "Tool results" }[name];
+  element.title = { map: "Plot map", form: "Tool form", results: "Tool results", annotation: "Annotation form" }[name];
   element.className = `frame frame-${name}`;
   return element;
 }
@@ -83,6 +85,7 @@ const map = frame("map");
 $("main").prepend(map);
 let form: HTMLIFrameElement | undefined;
 let results: HTMLIFrameElement | undefined;
+let annotationFrame: HTMLIFrameElement | undefined;
 const ready = new Set<string>();
 const post = (target: HTMLIFrameElement | undefined, message: unknown) => {
   const name = target?.className.match(/frame-(\w+)/)?.[1];
@@ -124,6 +127,7 @@ const contextOf = (): ContextTracks => (opened && contextTracksOf(opened.plot)) 
 function showTime(next: TimeState | undefined): void {
   time = next;
   timeControl.show(time, opened && periodOf(opened.item), { saved: savedWindow, context: contextOf(), minimumContrast: false });
+  markTimeline();
 }
 let tools: ToolDeclaration[] = [];
 let offered: string[] = [];
@@ -230,6 +234,7 @@ async function openPlot(item: string, keep = false): Promise<void> {
     post(map, { kind: "set_context", context_tracks: contextShown(contextOf(), false) });
   }
   renderOutline();
+  renderTimeline();
   renderHistory();
   await refreshOffered();
   if (opened.recovered.length) toast(opened.recovered.join(" "), "warning");
@@ -252,13 +257,33 @@ window.addEventListener("message", (event) => {
     ready.add(name);
     if (name === "map") showPlot();
     if (name === "form") sendForm();
+    if (name === "annotation") sendAnnotationForm();
     if (name === "results") pendingResults?.();
     return;
   }
   if (name === "map") {
     if (message.kind === "selection_changed") void select((message.selection as { feature_ids: string[] }).feature_ids, true);
     if (message.kind === "time_changed") showTime(message.time as TimeState);
+    if (message.kind === "viewport_changed") viewport = (message.viewport as { bbox: number[] }).bbox;
     if (message.kind === "show_hidden" && opened) void restyle(hiddenIds(opened.plot), { hidden: false });
+    if (message.kind === "edit_annotation") editAnnotation(message.feature_id as string);
+  } else if (name === "annotation") {
+    if (message.kind === "cancel") closeSide();
+    if (message.kind === "save_annotation" || message.kind === "delete_annotation") {
+      if ((message.feature_id as string | undefined) !== annotationShowing?.featureId) return;
+      post(annotationFrame, { kind: "form_busy", message: "Saving…" });
+      const id = message.feature_id as string | undefined;
+      const change =
+        message.kind === "delete_annotation"
+          ? { kind: "delete", features: [id] }
+          : id
+            ? { kind: "edit", feature: id, annotation: message.annotation }
+            : { kind: "add", annotation: message.annotation };
+      void annotate(change).then((problem) => {
+        if (problem) post(annotationFrame, { kind: "form_error", message: problem });
+        else closeSide();
+      });
+    }
   } else if (name === "form") {
     if (message.kind === "cancel") closeForm();
     if (message.kind === "run_tool" && formTool && message.tool_name === formTool.name) {
@@ -300,8 +325,11 @@ function closeSide(): void {
   formTool = undefined;
   form = undefined;
   results = undefined;
+  annotationFrame = undefined;
+  annotationShowing = undefined;
   ready.delete("form");
   ready.delete("results");
+  ready.delete("annotation");
   $("side-frame").replaceChildren();
   $("side-frame").hidden = true;
 }
@@ -403,13 +431,13 @@ async function runTool(tool: ToolDeclaration, parameters: ParameterValue[], onCo
  * (here, always from its form) on the plot still open. True if current time
  * is outside the saved window.
  */
-function showToolTime(change: SharedStateChange, ranOn: string): boolean {
+function showToolTime(change: SharedStateChange, ranOn: string, byHand = true): boolean {
   if (!change.time || !opened) return false;
   const span = (r: TimeRange) => ({ start: Date.parse(r.start), end: Date.parse(r.end) });
   const range = (s: { start: number; end: number }) => ({ start: new Date(s.start).toISOString(), end: new Date(s.end).toISOString() });
   const shown = time?.range ?? change.time.range;
   const period = periodOf(opened.item);
-  const here = opened.item.id === ranOn;
+  const here = byHand && opened.item.id === ranOn;
   const placed = placeToolTime(Date.parse(change.time.current), span(change.time.range), {
     saved: span(savedWindow ?? shown),
     shown: span(shown),
@@ -445,6 +473,115 @@ $<HTMLSelectElement>("colour").onchange = (e) => {
 $("hide").onclick = () => (selection.length ? void restyle(selection, { hidden: true }) : toast("Select what to hide.", "warning"));
 // With nothing selected, Show shows everything hidden, as the map's "Show all" does.
 $("show").onclick = () => opened && void restyle(selection.length ? selection : hiddenIds(opened.plot), { hidden: false });
+
+// --- Annotations: made, changed and deleted by hand, each a step (CAP-03 to CAP-05) ----
+/** What the annotation form shows: a new annotation (no featureId), or the one being changed. */
+let annotationShowing: { spec?: AnnotationSpec; featureId?: string } | undefined;
+type Annotation = Extract<Feature, { properties: { kind: "annotation" } }>;
+const annotationById = (id: string | undefined) => {
+  const feature = features().find((f) => f.id === id);
+  return feature && feature.properties.kind === "annotation" && !feature.properties.furniture ? (feature as Annotation) : undefined;
+};
+const selectedAnnotations = () => selection.filter((id) => annotationById(id));
+
+function openAnnotationForm(showing: { spec?: AnnotationSpec; featureId?: string }): void {
+  if (!pythonReady) return toast("Annotations can be added once Python is ready.", "warning");
+  annotationShowing = showing;
+  if (!annotationFrame) {
+    const shown = frame("annotation");
+    showSide(showing.featureId ? "Annotation" : "Add annotation", shown);
+    annotationFrame = shown;
+    annotationShowing = showing; // showSide closed whatever was beside the map
+  }
+  sendAnnotationForm();
+}
+function sendAnnotationForm(): void {
+  if (!annotationShowing) return;
+  const { spec, featureId } = annotationShowing;
+  const period = opened && periodOf(opened.item);
+  post(annotationFrame, {
+    kind: "show_annotation_form",
+    ...(spec && { annotation: spec }),
+    ...(featureId && { feature_id: featureId }),
+    ...(period && { time_range: period }),
+    ...(time && { current_time: time.current }),
+  });
+}
+/** The area the map shows, as it last said: a new annotation starts in its middle. */
+let viewport: number[] | undefined;
+/** A new annotation starts as a circle, in the middle of the map. */
+function addAnnotation(): void {
+  const bbox = viewport ?? opened?.item.bbox;
+  const centre: [number, number] | undefined = bbox?.length === 4 ? [(bbox[0] + bbox[2]) / 2, (bbox[1] + bbox[3]) / 2] : undefined;
+  openAnnotationForm({ spec: centre ? { shape: "circle", name: "", positions: [centre] } : undefined });
+}
+function editAnnotation(id = selectedAnnotations()[0]): void {
+  const feature = annotationById(id);
+  if (!feature) return toast("Select an annotation to change.", "warning");
+  void select([feature.id]);
+  openAnnotationForm({ spec: specOfFeature(feature), featureId: feature.id });
+}
+/** Add, change or delete annotations, or show or remove the north arrow, as debrief/add_annotation and the rest do. */
+async function annotate(change: Record<string, unknown>): Promise<string | undefined> {
+  if (!opened || !pythonReady) return "Open a plot first.";
+  const outcome = await pythonJson<{ error?: string; feature?: string }>("annotate", opened.item.id, JSON.stringify({ base: opened.base, change }));
+  if (outcome.error) return outcome.error;
+  await openPlot(opened.item.id, true);
+  if (outcome.feature) await select([outcome.feature]);
+  return undefined;
+}
+const hasNorthArrow = () => !!opened?.plot.features.some((f) => f.properties.kind === "annotation" && f.properties.furniture === "north_arrow");
+$("add-annotation").onclick = () => addAnnotation();
+$("edit-annotation").onclick = () => editAnnotation();
+$("delete-annotation").onclick = () => {
+  const ids = selectedAnnotations();
+  if (!ids.length) return toast("Select the annotations to delete.", "warning");
+  void annotate({ kind: "delete", features: ids }).then((problem) => problem && toast(problem, "warning"));
+};
+$("north-arrow").onclick = () => void annotate({ kind: "north_arrow", shown: !hasNorthArrow() }).then((problem) => problem && toast(problem, "warning"));
+
+// --- The Timeline: time-only annotations in time order (CAP-05) ----------------------
+let timeline: TimelineEntry[] = [];
+function renderTimeline(): void {
+  timeline = opened ? timelineEntries(opened.plot) : [];
+  const list = $("timeline");
+  if (!timeline.length) {
+    list.replaceChildren(Object.assign(document.createElement("li"), { className: "detail", textContent: "No notes or periods with a time yet." }));
+    return;
+  }
+  list.replaceChildren(
+    ...timeline.map((entry) => {
+      const row = document.createElement("li");
+      row.dataset.id = entry.id;
+      const button = document.createElement("button");
+      button.innerHTML = `<span class="when"></span><span class="name"></span> <span class="detail"></span>`;
+      button.querySelector(".when")!.textContent = entry.when;
+      button.querySelector(".name")!.textContent = entry.name;
+      button.querySelector(".detail")!.textContent = [entry.text, entry.hidden ? "hidden on map" : ""].filter(Boolean).join(" · ");
+      button.title = "Move current time here";
+      button.onclick = () => goToTime(entry);
+      row.append(button);
+      return row;
+    }),
+  );
+  markTimeline();
+}
+/** Mark the entry current time is at, as the Timeline view in VS Code does. */
+function markTimeline(): void {
+  const at = time ? currentEntry(timeline, Date.parse(time.current)) : -1;
+  $("timeline").querySelectorAll<HTMLElement>("li[data-id]").forEach((row, i) => {
+    row.classList.toggle("current", i === at);
+    row.querySelector("button")?.setAttribute("aria-current", i === at ? "time" : "false");
+  });
+}
+/** Move current time to an entry: outside the window shown, the window widens or moves, shown but not saved (CAP-28). */
+function goToTime(entry: TimelineEntry): void {
+  if (!time || !opened) return;
+  const at = new Date(entry.start).toISOString();
+  const range = time.range;
+  const span = { start: at < range.start ? at : range.start, end: at > range.end ? at : range.end };
+  showToolTime({ time: { current: at, range: span } }, opened.item.id, false);
+}
 
 // --- History ----------------------------------------------------------------------
 async function move(how: "undo" | "redo" | "goto", step?: number): Promise<void> {
@@ -506,6 +643,7 @@ function renderOutline(): void {
       }),
   );
   if (focused) list.querySelector<HTMLElement>(`[data-id="${CSS.escape(focused)}"]`)?.focus();
+  $("north-arrow").setAttribute("aria-pressed", String(hasNorthArrow()));
   $("selected-count").textContent = selection.length ? `${count(selection.length, "feature")} selected · Ctrl-click to add` : "Click to select · Ctrl-click to add";
 }
 
@@ -604,11 +742,12 @@ function ask(question: string, choices: string[]): Promise<string | undefined> {
 }
 
 // --- Wiring -----------------------------------------------------------------------
-for (const panel of ["tools", "history", "try", "import"]) $(`panel-${panel}`).hidden = !panels.has(panel);
+const OPTIONAL = ["timeline", "tools", "history", "try", "import"];
+for (const panel of OPTIONAL) $(`panel-${panel}`).hidden = !panels.has(panel);
 // The panels in the order the demo lists them, after the plot and its outline.
-for (const panel of panelOrder) if (["tools", "history", "try", "import"].includes(panel)) $("side").append($(`panel-${panel}`));
+for (const panel of panelOrder) if (OPTIONAL.includes(panel)) $("side").append($(`panel-${panel}`));
 /** History, Try and Import need Python: off until it is ready. */
-const NEEDS_PYTHON = ["undo", "redo", "crash", "colleague", "colleague-window", "colleague-during", "file", "colour", "hide", "show"];
+const NEEDS_PYTHON = ["undo", "redo", "crash", "colleague", "colleague-window", "colleague-during", "file", "colour", "hide", "show", "add-annotation", "edit-annotation", "delete-annotation", "north-arrow"];
 function needsPython(on: boolean): void {
   for (const id of NEEDS_PYTHON) $<HTMLButtonElement | HTMLInputElement>(id).disabled = !on;
 }
@@ -697,6 +836,7 @@ async function preview(item: string): Promise<void> {
     $("plot-title").textContent = stac.properties.title ?? item;
     showPlot();
     renderOutline();
+    renderTimeline();
   } catch {
     // the map fills in when Python is ready
   }

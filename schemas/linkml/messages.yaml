@@ -43,6 +43,10 @@ enums:
       window_changed: {description: "Time controller to host: the analyst let go of the time window, or chose Keep; save it in the plot (time_range)."}
       context_changed: {description: "Time controller to host: the analyst chose how tracks outside the window are drawn; save it in the plot (context_tracks)."}
       set_context: {description: "Host to map: draw tracks outside the window this way (context_tracks), the analyst's setting already applied."}
+      show_annotation_form: {description: "Host to annotation form: add an annotation, or change the one given (annotation and feature_id); the plot's period (time_range) and current time if known."}
+      save_annotation: {description: "Annotation form to host: add this annotation, or change the one named (annotation, and feature_id when changing one)."}
+      delete_annotation: {description: "Annotation form to host: delete this annotation (feature_id)."}
+      edit_annotation: {description: "Map to host: the analyst asked to change this annotation, by double-clicking it (feature_id)."}
 
 classes:
   WebviewMessage:
@@ -91,3 +95,9 @@ classes:
       message: {}
       result_title: {}
       result: {range: ToolResult, inlined: true}
+      annotation:
+        description: An annotation as the form describes it (show_annotation_form, save_annotation).
+        range: AnnotationSpec
+        inlined: true
+      feature_id:
+        description: The annotation a form changes or deletes, or the map asks to change.
