@@ -66,7 +66,7 @@ export interface TimeView {
   /** The window as saved in the plot; without it, the window shown is taken as saved. */
   saved?: TimeRange;
   context?: ContextTracks;
-  /** The analyst's setting shows faint context tracks as clear. */
+  /** The analyst's setting shows faint context tracks as visible. */
   minimumContrast?: boolean;
 }
 
@@ -106,7 +106,7 @@ export class TimeControl {
     const context = this.contextInView
       ? `<label class="tc-context-row" title="How tracks outside the time window are drawn, for everyone who opens this plot"><span>Context</span>` +
         `<select class="tc-context" aria-label="Context tracks">` +
-        `<option value="clear">Clear</option><option value="faint">Faint</option><option value="off">Off</option></select>` +
+        `<option value="visible">Visible</option><option value="faint">Faint</option><option value="hidden">Hidden</option></select>` +
         `<span class="tc-context-note"></span></label>`
       : "";
     element.innerHTML =
@@ -235,9 +235,9 @@ export class TimeControl {
     this.current = clamp(Date.parse(time.current), this.window.start, this.window.end);
     if (this.contextInView) {
       const context = this.part<HTMLSelectElement>(".tc-context");
-      context.value = view.context ?? "clear";
+      context.value = view.context ?? "visible";
       const floor = !!view.minimumContrast && context.value === "faint";
-      this.part(".tc-context-note").textContent = floor ? "shown as clear by your setting" : "";
+      this.part(".tc-context-note").textContent = floor ? "shown as visible by your setting" : "";
     }
     this.render();
   }

@@ -10,9 +10,9 @@
  * it can say when a tool shows another.
  *
  * How context tracks are drawn (CAP-29) is chosen from the view's title menu
- * ("Context tracks: Clear", "Faint", "Off"), the plot's choice checked through
+ * ("Context tracks: Visible", "Faint", "Hidden"), the plot's choice checked through
  * the context key debrief.contextTracks; the view's description says when the
- * analyst's setting draws faint as clear. That keeps the view short enough to
+ * analyst's setting draws faint as visible. That keeps the view short enough to
  * show whole at its first height.
  */
 import * as vscode from "vscode";
@@ -103,6 +103,6 @@ export class TimeView implements vscode.WebviewViewProvider {
     void vscode.commands.executeCommand("setContext", CONTEXT_TRACKS_KEY, context);
     if (!this.view) return;
     const floor = context === "faint" && this.session.minimumContextContrast;
-    this.view.description = floor ? "context tracks: faint shown as clear by your setting" : undefined;
+    this.view.description = floor ? "context tracks: faint shown as visible by your setting" : undefined;
   }
 }

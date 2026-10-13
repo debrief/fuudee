@@ -223,19 +223,19 @@ describe("a window a tool showed survives the plot being read again, and goes wi
     expect(session.time?.range).toEqual(moved);
     expect(session.savedWindow).toEqual(narrow); // never saved
   });
-  it("tells the views when the plot's view changes, and draws faint as clear for an analyst who asks", () => {
+  it("tells the views when the plot's view changes, and draws faint as visible for an analyst who asks", () => {
     const session = new Session();
     session.setPlot(opened(narrow));
     let told = 0;
     session.onView(() => told++);
     session.viewChanged();
     expect(told).toBe(1);
-    expect(session.contextTracks()).toBe("clear");
+    expect(session.contextTracks()).toBe("visible");
     (session.current!.plot.features[0].properties as { view: { context_tracks?: string } }).view.context_tracks = "faint";
     expect(session.contextShown()).toBe("faint");
     session.minimumContextContrast = true;
-    expect(session.contextShown()).toBe("clear");
-    (session.current!.plot.features[0].properties as { view: { context_tracks?: string } }).view.context_tracks = "off";
-    expect(session.contextShown()).toBe("off");
+    expect(session.contextShown()).toBe("visible");
+    (session.current!.plot.features[0].properties as { view: { context_tracks?: string } }).view.context_tracks = "hidden";
+    expect(session.contextShown()).toBe("hidden");
   });
 });

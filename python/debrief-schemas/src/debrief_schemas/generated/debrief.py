@@ -506,9 +506,9 @@ class PlotKindEnum(str, Enum):
 
 class ContextTracksEnum(str, Enum):
     """
-    How the map draws each track outside the time window: its context (CAP-29). An analyst's setting for the minimum contrast can show faint as clear, never off as anything else.
+    How the map draws each track outside the time window: its context (CAP-29). An analyst's setting for the minimum contrast can show faint as visible, never hidden as anything else.
     """
-    clear = "clear"
+    visible = "visible"
     """
     Easy to see on any theme: at least 3:1 against the map's background.
     """
@@ -516,7 +516,7 @@ class ContextTracksEnum(str, Enum):
     """
     Fainter, for a busy plot. Not guaranteed to reach 3:1.
     """
-    off = "off"
+    hidden = "hidden"
     """
     Not drawn: only what is in the time window shows.
     """
@@ -752,7 +752,7 @@ class WebviewMessageKindEnum(str, Enum):
     """
     show_time = "show_time"
     """
-    Host to time controller: current time, its range being the time window shown (time), the plot's whole period (time_range), the window as saved in the plot (saved_window), how tracks outside the window are drawn (context_tracks) and whether the analyst's setting shows faint as clear (minimum_context_contrast); none when no plot is open.
+    Host to time controller: current time, its range being the time window shown (time), the plot's whole period (time_range), the window as saved in the plot (saved_window), how tracks outside the window are drawn (context_tracks) and whether the analyst's setting shows faint as visible (minimum_context_contrast); none when no plot is open.
     """
     window_changed = "window_changed"
     """
@@ -1657,7 +1657,7 @@ class PlotView(ConfiguredBaseModel):
     linkml_meta: ClassVar[LinkMLMeta] = LinkMLMeta({'from_schema': 'https://debrief.info/schemas/debrief'})
 
     time_window: Optional[TimeRange] = Field(default=None, description="""The plot's time window: the period shown, one for the whole plot (CAP-28, CAP-29). Start shall not be after end.""", json_schema_extra = { "linkml_meta": {'domain_of': ['PlotView']} })
-    context_tracks: Optional[ContextTracksEnum] = Field(default=None, description="""How tracks outside the time window are drawn (CAP-29). Left out means clear.""", json_schema_extra = { "linkml_meta": {'domain_of': ['PlotView', 'WebviewMessage']} })
+    context_tracks: Optional[ContextTracksEnum] = Field(default=None, description="""How tracks outside the time window are drawn (CAP-29). Left out means visible.""", json_schema_extra = { "linkml_meta": {'domain_of': ['PlotView', 'WebviewMessage']} })
 
 
 class NamedSet(ConfiguredBaseModel):
@@ -2368,7 +2368,7 @@ class WebviewMessage(ConfiguredBaseModel):
                        'WebviewMessage']} })
     saved_window: Optional[TimeRange] = Field(default=None, description="""The time window as saved in the plot, so the time controller can say when the window shown differs from it (CAP-28).""", json_schema_extra = { "linkml_meta": {'domain_of': ['WebviewMessage']} })
     context_tracks: Optional[ContextTracksEnum] = Field(default=None, description="""How tracks outside the time window are drawn (CAP-29).""", json_schema_extra = { "linkml_meta": {'domain_of': ['PlotView', 'WebviewMessage']} })
-    minimum_context_contrast: Optional[bool] = Field(default=None, description="""The analyst's setting that shows faint context tracks as clear, so the time controller can say so.""", json_schema_extra = { "linkml_meta": {'domain_of': ['WebviewMessage']} })
+    minimum_context_contrast: Optional[bool] = Field(default=None, description="""The analyst's setting that shows faint context tracks as visible, so the time controller can say so.""", json_schema_extra = { "linkml_meta": {'domain_of': ['WebviewMessage']} })
     time_range: Optional[TimeRange] = Field(default=None, description="""The plot's period, so times can be entered as the analyst reads them (show_form) and the time window set within it (show_time); or the time window to save (window_changed).""", json_schema_extra = { "linkml_meta": {'domain_of': ['AnnotationProperties',
                        'SensorObservationsProperties',
                        'WebviewMessage']} })

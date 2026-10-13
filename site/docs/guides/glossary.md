@@ -20,7 +20,7 @@ Adapted from `DOMAIN_GLOSSARY.md` in debrief/debrief-future, itself adapted from
 
 **Saved window.** The time window as saved in the plot. A tool that moves current time outside it shows a wider or moved window instead, without saving it; the time controller says so, with **Keep** to save the window shown and **Revert** to show the saved window again (CAP-28).
 
-**Context tracks.** Each track's whole line outside the time window, drawn thin and quieter so the whole picture stays in view. A plot draws them clear (at least 3:1 against the map), faint or not at all (CAP-29).
+**Context tracks.** Each track's whole line outside the time window, drawn thin and quieter so the whole picture stays in view. A plot draws them visible (at least 3:1 against the map), faint or hidden (CAP-29).
 
 **Island** (in guides). View state saved inside the plot file, so it travels with the plot, but outside its history: never recorded, never undone. The time window is the first. Everything else in a plot, a track's colour and what is hidden included, is part of its history (SUB-22).
 

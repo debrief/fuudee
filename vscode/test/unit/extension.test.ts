@@ -348,7 +348,7 @@ describe("contributed menus", () => {
   });
   it("offer context tracks in the Time view's title menu, the plot's choice checked (CAP-29)", () => {
     const source = readFileSync(path.join(repo, "vscode", "src", "extension.ts"), "utf8");
-    for (const choice of ["clear", "faint", "off"]) {
+    for (const choice of ["visible", "faint", "hidden"]) {
       const id = `debrief.contextTracks.${choice}`;
       const entry = manifest.contributes.menus["view/title"].find((e: { command: string }) => e.command === id);
       // In the "..." menu, not as an icon on the title bar; only with a plot open.

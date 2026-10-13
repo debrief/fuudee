@@ -89,12 +89,12 @@ export type AssetKindEnum = "plot" | "source" | "supporting_file" | "payload" | 
  */
 export type CatalogTypeEnum = "Catalog";
 /**
- * How the map draws each track outside the time window: its context (CAP-29). An analyst's setting for the minimum contrast can show faint as clear, never off as anything else.
+ * How the map draws each track outside the time window: its context (CAP-29). An analyst's setting for the minimum contrast can show faint as visible, never hidden as anything else.
  *
  * This interface was referenced by `DebriefSchemaDefinitions`'s JSON-Schema
  * via the `definition` "ContextTracksEnum".
  */
-export type ContextTracksEnum = "clear" | "faint" | "off";
+export type ContextTracksEnum = "visible" | "faint" | "hidden";
 /**
  * This interface was referenced by `DebriefSchemaDefinitions`'s JSON-Schema
  * via the `definition` "TrackKindEnum".
@@ -623,7 +623,7 @@ export interface PlotProperties {
  */
 export interface PlotView {
   /**
-   * How tracks outside the time window are drawn (CAP-29). Left out means clear.
+   * How tracks outside the time window are drawn (CAP-29). Left out means visible.
    */
   context_tracks?: ContextTracksEnum | null;
   /**
@@ -1073,7 +1073,7 @@ export interface WebviewMessage {
   kind: WebviewMessageKindEnum;
   message?: string | null;
   /**
-   * The analyst's setting that shows faint context tracks as clear, so the time controller can say so.
+   * The analyst's setting that shows faint context tracks as visible, so the time controller can say so.
    */
   minimum_context_contrast?: boolean | null;
   parameters?: ParameterValue[] | null;

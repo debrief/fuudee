@@ -250,11 +250,11 @@
       "type": "string"
     },
     "ContextTracksEnum": {
-      "description": "How the map draws each track outside the time window: its context (CAP-29). An analyst's setting for the minimum contrast can show faint as clear, never off as anything else.",
+      "description": "How the map draws each track outside the time window: its context (CAP-29). An analyst's setting for the minimum contrast can show faint as visible, never hidden as anything else.",
       "enum": [
-        "clear",
+        "visible",
         "faint",
-        "off"
+        "hidden"
       ],
       "title": "ContextTracksEnum",
       "type": "string"
@@ -1158,7 +1158,7 @@
               "type": "null"
             }
           ],
-          "description": "How tracks outside the time window are drawn (CAP-29). Left out means clear."
+          "description": "How tracks outside the time window are drawn (CAP-29). Left out means visible."
         },
         "time_window": {
           "anyOf": [
@@ -2497,7 +2497,7 @@
           ]
         },
         "minimum_context_contrast": {
-          "description": "The analyst's setting that shows faint context tracks as clear, so the time controller can say so.",
+          "description": "The analyst's setting that shows faint context tracks as visible, so the time controller can say so.",
           "type": [
             "boolean",
             "null"

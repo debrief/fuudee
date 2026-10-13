@@ -79,12 +79,12 @@ export class Session {
     this.emit("view");
   }
 
-  /** The analyst's setting: faint context tracks are drawn as clear (debrief.map.minimumContextContrast). */
+  /** The analyst's setting: faint context tracks are drawn as visible (debrief.map.minimumContextContrast). */
   minimumContextContrast = false;
 
-  /** How the plot says tracks outside the window are drawn; clear if it doesn't say. */
+  /** How the plot says tracks outside the window are drawn; visible if it doesn't say. */
   contextTracks(): ContextTracks {
-    return (this.current && contextTracksOf(this.current.plot)) ?? "clear";
+    return (this.current && contextTracksOf(this.current.plot)) ?? "visible";
   }
 
   /** How the map draws them: the plot's choice, with the analyst's setting applied. */

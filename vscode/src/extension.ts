@@ -100,7 +100,7 @@ export function activate(context: vscode.ExtensionContext): DebriefApi {
   let listing: ToolListing | undefined;
   let starting: Promise<void> | undefined;
   const settings = () => vscode.workspace.getConfiguration("debrief");
-  // An analyst who needs it can have faint context tracks drawn clear on every plot (CAP-29).
+  // An analyst who needs it can have faint context tracks drawn visible on every plot (CAP-29).
   const readContrastSetting = () => (session.minimumContextContrast = settings().get<boolean>("map.minimumContextContrast") === true);
   readContrastSetting();
   context.subscriptions.push(
@@ -762,11 +762,11 @@ export function activate(context: vscode.ExtensionContext): DebriefApi {
   // How tracks outside the window are drawn, for agents, keyboard macros and tests: saved as from the time controller.
   command("debrief.setContextTracks", async (contextTracks?: ContextTracksEnum) => {
     if (!session.current) return report("Open a plot first.");
-    if (!contextTracks || !["clear", "faint", "off"].includes(contextTracks)) return report("Choose clear, faint or off.");
+    if (!contextTracks || !["visible", "faint", "hidden"].includes(contextTracks)) return report("Choose visible, faint or hidden.");
     return report(resync(await saveContext(contextTracks)));
   });
   // The Time view's title menu: the same choice, the plot's current one checked.
-  for (const choice of ["clear", "faint", "off"] as const) {
+  for (const choice of ["visible", "faint", "hidden"] as const) {
     command(`debrief.contextTracks.${choice}`, () => vscode.commands.executeCommand("debrief.setContextTracks", choice));
   }
   command("debrief.select", (ids: string[]) => session.select(ids ?? [], "command"));

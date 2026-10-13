@@ -179,19 +179,19 @@ export async function run(): Promise<void> {
   assert.equal(island().context_tracks, "faint");
   await waitFor("the map to draw context faint", () => api.mapContext() === "faint" || undefined);
   assert.deepEqual(api.session.current!.base, baseNow, "no step in the history");
-  // The analyst's setting draws faint as clear on every plot; off stays off.
+  // The analyst's setting draws faint as visible on every plot; hidden stays hidden.
   const config = vscode.workspace.getConfiguration("debrief");
   await config.update("map.minimumContextContrast", true, vscode.ConfigurationTarget.Global);
-  await waitFor("the setting to draw faint as clear", () => api.mapContext() === "clear" || undefined);
+  await waitFor("the setting to draw faint as visible", () => api.mapContext() === "visible" || undefined);
   // The Time view's description says so, beside its title.
   await sleep(1500);
   await screenshot("03b-context-tracks-setting");
-  assert.equal(await vscode.commands.executeCommand("debrief.contextTracks.off"), undefined);
-  await waitFor("context off", () => api.mapContext() === "off" || undefined);
+  assert.equal(await vscode.commands.executeCommand("debrief.contextTracks.hidden"), undefined);
+  await waitFor("context hidden", () => api.mapContext() === "hidden" || undefined);
   await config.update("map.minimumContextContrast", undefined, vscode.ConfigurationTarget.Global);
-  assert.equal(await vscode.commands.executeCommand("debrief.contextTracks.clear"), undefined);
-  await waitFor("context clear", () => api.mapContext() === "clear" || undefined);
-  assert.equal(island().context_tracks, "clear");
+  assert.equal(await vscode.commands.executeCommand("debrief.contextTracks.visible"), undefined);
+  await waitFor("context visible", () => api.mapContext() === "visible" || undefined);
+  assert.equal(island().context_tracks, "visible");
   assert.equal(await vscode.commands.executeCommand("debrief.setTimeWindow", period), undefined);
 
   const tracks = api.session.current!.plot.features.filter((f) => f.properties.kind === "track").map((f) => f.id);

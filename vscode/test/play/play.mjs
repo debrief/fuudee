@@ -342,34 +342,34 @@ try {
     await page.mouse.up();
     assert.notEqual(await text("#timebar .tc-window-start"), startBefore);
     assert.match(await text("#timebar .tc-window-start"), /15 Jun 2023 1[01]:\d\d:\d\dZ/);
-    // Current time is kept inside the window; the whole tracks stay, thin and clear (CAP-29).
+    // Current time is kept inside the window; the whole tracks stay, thin and visible (CAP-29).
     const [start, current] = [Number(await tc(".tc-start").getAttribute("aria-valuenow")), Number(await tc(".tc-current").inputValue())];
     assert.ok(current >= start, "current time is inside the window");
     const contextLines = (opacity) => mapFrame.locator(`path[stroke-width="1.5"][stroke-opacity="${opacity}"]`).count();
-    assert.ok((await contextLines("0.6")) + (await contextLines("0.3")) >= 10, "every track's whole line, clear (or dimmed for the selection)");
+    assert.ok((await contextLines("0.6")) + (await contextLines("0.3")) >= 10, "every track's whole line, visible (or dimmed for the selection)");
     // View state: saved in the plot, never a step in its history.
     await page.waitForTimeout(500);
     assert.equal(await history(), stepsBefore);
     await shot("time-02-window-narrowed");
 
-    // Context tracks: clear, faint or off, for the plot; view state, so no step in its history.
+    // Context tracks: visible, faint or hidden, for the plot; view state, so no step in its history.
     await mapFrame.locator("#map").focus();
     await page.keyboard.press("Escape"); // nothing selected: nothing dimmed
     await page.waitForFunction(() => !document.querySelector("#outline li.selected"));
-    assert.equal(await tc(".tc-context").inputValue(), "clear");
+    assert.equal(await tc(".tc-context").inputValue(), "visible");
     await page.waitForFunction(async () => true);
     for (let i = 0; i < 30 && (await contextLines("0.6")) < 10; i++) await page.waitForTimeout(100);
-    assert.ok((await contextLines("0.6")) >= 10, "clear: opacity 0.6, at least 3:1 against the map");
-    await shot("context-01-clear-light");
+    assert.ok((await contextLines("0.6")) >= 10, "visible: opacity 0.6, at least 3:1 against the map");
+    await shot("context-01-visible-light");
     await tc(".tc-context").selectOption("faint");
     for (let i = 0; i < 50 && (await contextLines("0.35")) < 10; i++) await page.waitForTimeout(100);
     assert.ok((await contextLines("0.35")) >= 10, "faint");
-    await tc(".tc-context").selectOption("off");
+    await tc(".tc-context").selectOption("hidden");
     for (let i = 0; i < 50 && (await contextLines("0.35")) > 0; i++) await page.waitForTimeout(100);
-    assert.equal((await contextLines("0.35")) + (await contextLines("0.6")), 0, "off: no context lines");
-    await tc(".tc-context").selectOption("clear");
+    assert.equal((await contextLines("0.35")) + (await contextLines("0.6")), 0, "hidden: no context lines");
+    await tc(".tc-context").selectOption("visible");
     for (let i = 0; i < 50 && (await contextLines("0.6")) < 10; i++) await page.waitForTimeout(100);
-    assert.ok((await contextLines("0.6")) >= 10, "clear again");
+    assert.ok((await contextLines("0.6")) >= 10, "visible again");
     await page.waitForTimeout(500);
     assert.equal(await history(), stepsBefore, "context tracks are view state: no step");
     assert.equal(await page.locator(".toast.warning").count(), 0);
@@ -442,7 +442,7 @@ try {
     assert.equal(await page.locator(".toast.warning").count(), 0, "saved, with no conflict");
   }
 
-  /** Context tracks on a dark theme: clear, as the map draws them before Python starts. */
+  /** Context tracks on a dark theme: visible, as the map draws them before Python starts. */
   async function contextOnDark() {
     const dark = await browser.newPage({ viewport: { width: 1400, height: 820 }, colorScheme: "dark" });
     dark.on("pageerror", (e) => errors.push(String(e)));
@@ -451,10 +451,10 @@ try {
     await map.locator(".track-label").first().waitFor({ timeout: 60000 });
     await dark.locator("#timebar .tc-start").focus();
     for (const key of ["PageUp", "PageUp", "PageUp"]) await dark.keyboard.press(key); // shown, not saved before Python
-    const clear = () => map.locator('path[stroke-width="1.5"][stroke-opacity="0.6"]').count();
-    for (let i = 0; i < 30 && (await clear()) < 10; i++) await dark.waitForTimeout(100);
-    assert.ok((await clear()) >= 10, "clear context tracks on a dark theme");
-    await shot("context-02-clear-dark", dark);
+    const visible = () => map.locator('path[stroke-width="1.5"][stroke-opacity="0.6"]').count();
+    for (let i = 0; i < 30 && (await visible()) < 10; i++) await dark.waitForTimeout(100);
+    assert.ok((await visible()) >= 10, "visible context tracks on a dark theme");
+    await shot("context-02-visible-dark", dark);
     await dark.close();
   }
 

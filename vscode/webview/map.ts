@@ -10,7 +10,7 @@
  *   Outside it, each whole track stays as a thin, solid line in a quieter
  *   version of its colour (its context), so a deployment of weeks still
  *   reads as one picture; fixes there are not marked. The plot says whether
- *   context is clear (at least 3:1 on any theme), faint or off; see
+ *   context is visible (at least 3:1 on any theme), faint or hidden; see
  *   contrast.ts. Hovering a track shows the nearest fix.
  * - Annotations, including everything tools draw, are dashed and labelled.
  *   One with a time or a period is drawn only while that falls in the window;
@@ -211,7 +211,7 @@ interface Drawn {
   windowed: L.Layer[];
   windowedPaths: L.Path[];
   context?: L.Polyline;
-  /** How the context line is drawn now; none when context tracks are off. */
+  /** How the context line is drawn now; none when context tracks are hidden. */
   contextStyle?: ContextStyle;
   /** The track's own colour. */
   colour?: string;
@@ -222,7 +222,7 @@ const drawn = new Map<string, Drawn>();
 
 // --- Context tracks: each track outside the window (CAP-29, expert panel 12 Oct) ----
 /** How tracks outside the window are drawn: the plot's choice, the analyst's setting applied by the host. */
-let contextMode: ContextTracks = "clear";
+let contextMode: ContextTracks = "visible";
 /** The theme the map is drawn on, read from VS Code's variables each time it is needed. */
 function mapTheme(): MapTheme {
   const classes = document.body.classList;
@@ -257,7 +257,7 @@ function applyContext(): void {
   showContextKey(theme);
   restyle();
 }
-/** The key's context row: drawn as a track of the default colour would be, or gone when off. */
+/** The key's context row: drawn as a track of the default colour would be, or gone when hidden. */
 function showContextKey(theme: MapTheme): void {
   const swatch = document.querySelector<HTMLElement>(".swatch-context");
   if (!swatch) return;
@@ -700,7 +700,7 @@ onMessage((message) => {
     shownPlot = plotId = sel.plot;
     selection = new Set(sel.feature_ids);
     showTime(message.time as TimeState | undefined);
-    contextMode = (message.context_tracks as ContextTracks | undefined) ?? "clear";
+    contextMode = (message.context_tracks as ContextTracks | undefined) ?? "visible";
     draw(message.plot as DebriefFeatureCollection);
     showHidden(typeof message.hidden_count === "number" ? message.hidden_count : 0);
     if (firstShow) fit(plotBounds);

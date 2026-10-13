@@ -1,9 +1,9 @@
 // Context tracks (CAP-29, expert panel 12 Oct): every colour in the data palette
 // reaches 3:1 against the map's background on VS Code's default themes, as drawn
-// (desaturated, at its opacity), when context tracks are clear.
+// (desaturated, at its opacity), when context tracks are visible.
 import { describe, expect, it } from "vitest";
 import {
-  CLEAR_OPACITY,
+  VISIBLE_OPACITY,
   contextShown,
   contextStyle,
   contrast,
@@ -27,7 +27,7 @@ const THEMES: Record<string, MapTheme> = {
 const PALETTE = [...new Set([...Object.values(DATA_COLOURS), ...TRACK_COLOURS.map((c) => c.colour)])];
 
 /** The contrast a context line reaches as drawn: its colour at its opacity over the background. */
-function drawnContrast(colour: string, theme: MapTheme, mode: "clear" | "faint" = "clear"): number {
+function drawnContrast(colour: string, theme: MapTheme, mode: "visible" | "faint" = "visible"): number {
   const style = contextStyle(colour, mode, theme)!;
   return contrast(over(parseColour(style.colour)!, style.opacity, theme.background), theme.background);
 }
@@ -47,20 +47,20 @@ describe("colour arithmetic", () => {
   });
 });
 
-describe("clear context tracks reach 3:1 against the map, as drawn", () => {
+describe("visible context tracks reach 3:1 against the map, as drawn", () => {
   for (const [name, theme] of Object.entries(THEMES)) {
     it.each(PALETTE)(`${name}: %s`, (colour) => {
-      const style = contextStyle(colour, "clear", theme)!;
+      const style = contextStyle(colour, "visible", theme)!;
       expect(drawnContrast(colour, theme)).toBeGreaterThanOrEqual(3);
       expect(style.weight).toBe(1.5);
-      expect(style.opacity).toBeGreaterThanOrEqual(CLEAR_OPACITY);
+      expect(style.opacity).toBeGreaterThanOrEqual(VISIBLE_OPACITY);
       expect(style.opacity).toBeLessThanOrEqual(1);
     });
   }
   it("keeps each track's hue, quieter than its own colour", () => {
     const theme = THEMES["Dark+"];
-    const red = parseColour(contextStyle("#e01c3e", "clear", theme)!.colour)!;
-    const blue = parseColour(contextStyle("#0064bd", "clear", theme)!.colour)!;
+    const red = parseColour(contextStyle("#e01c3e", "visible", theme)!.colour)!;
+    const blue = parseColour(contextStyle("#0064bd", "visible", theme)!.colour)!;
     expect(red[0]).toBeGreaterThan(red[2]); // still red
     expect(blue[2]).toBeGreaterThan(blue[0]); // still blue
     const chroma = (c: Rgb) => Math.max(...c) - Math.min(...c);
@@ -73,15 +73,15 @@ describe("clear context tracks reach 3:1 against the map, as drawn", () => {
   });
 });
 
-describe("faint, off, dimmed and high contrast", () => {
-  it("draws faint fainter, with no 3:1 promise, and off not at all", () => {
+describe("faint, hidden, dimmed and high contrast", () => {
+  it("draws faint fainter, with no 3:1 promise, and hidden not at all", () => {
     const theme = THEMES["Dark+"];
     expect(contextStyle("#0064bd", "faint", theme)!.opacity).toBe(FAINT_OPACITY);
-    expect(drawnContrast("#0064bd", theme, "faint")).toBeLessThan(drawnContrast("#0064bd", theme, "clear"));
-    expect(contextStyle("#0064bd", "off", theme)).toBeUndefined();
+    expect(drawnContrast("#0064bd", theme, "faint")).toBeLessThan(drawnContrast("#0064bd", theme, "visible"));
+    expect(contextStyle("#0064bd", "hidden", theme)).toBeUndefined();
   });
   it("dims for a selection elsewhere, never below 0.3", () => {
-    for (const mode of ["clear", "faint"] as const) {
+    for (const mode of ["visible", "faint"] as const) {
       const style = contextStyle("#00a000", mode, THEMES["Light+"])!;
       expect(style.dimmed).toBeGreaterThanOrEqual(DIMMED_FLOOR);
       expect(style.dimmed).toBeLessThanOrEqual(style.opacity);
@@ -89,15 +89,15 @@ describe("faint, off, dimmed and high contrast", () => {
   });
   it("on a high-contrast theme: the track's own colour, opaque, 1 px, never dimmed", () => {
     const hc: MapTheme = { background: [0, 0, 0], foreground: [1, 1, 1], highContrast: true };
-    for (const mode of ["clear", "faint"] as const) {
+    for (const mode of ["visible", "faint"] as const) {
       expect(contextStyle("#e01c3e", mode, hc)).toEqual({ colour: "#e01c3e", opacity: 1, weight: 1, dimmed: 1 });
     }
-    expect(contextStyle("#e01c3e", "off", hc)).toBeUndefined();
+    expect(contextStyle("#e01c3e", "hidden", hc)).toBeUndefined();
   });
-  it("the analyst's minimum-contrast setting shows faint as clear, and leaves off alone", () => {
-    expect(contextShown(undefined, false)).toBe("clear");
+  it("the analyst's minimum-contrast setting shows faint as visible, and leaves hidden alone", () => {
+    expect(contextShown(undefined, false)).toBe("visible");
     expect(contextShown("faint", false)).toBe("faint");
-    expect(contextShown("faint", true)).toBe("clear");
-    expect(contextShown("off", true)).toBe("off");
+    expect(contextShown("faint", true)).toBe("visible");
+    expect(contextShown("hidden", true)).toBe("hidden");
   });
 });

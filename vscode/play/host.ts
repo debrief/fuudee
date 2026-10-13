@@ -119,7 +119,7 @@ const periodOf = (item: StacItem): TimeRange | undefined => {
   return start && end ? { start, end } : undefined;
 };
 /** How the plot says tracks outside the window are drawn. The playground has no settings: the minimum-contrast setting is off. */
-const contextOf = (): ContextTracks => (opened && contextTracksOf(opened.plot)) ?? "clear";
+const contextOf = (): ContextTracks => (opened && contextTracksOf(opened.plot)) ?? "visible";
 /** Current time as set by opening a plot or by a tool, with the window as saved. */
 function showTime(next: TimeState | undefined): void {
   time = next;

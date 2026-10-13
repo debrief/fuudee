@@ -2,7 +2,7 @@
  * How tracks outside the time window are drawn: their context (CAP-29,
  * expert panel 12 Oct). Kept free of the page so it can be tested.
  *
- * - Clear: a solid, thin line in the track's hue, desaturated toward the
+ * - Visible: a solid, thin line in the track's hue, desaturated toward the
  *   theme's text colour, at an opacity that keeps it behind the part in the
  *   window. Every colour reaches at least 3:1 against the map's background
  *   (the theme's editor background) as drawn, opacity included. Where a
@@ -10,19 +10,19 @@
  *   background until it doesn't; only if that is not enough does the
  *   opacity rise.
  * - Faint: the same colour, fainter, for a busy plot. No 3:1 promise.
- * - Off: not drawn.
+ * - Hidden: not drawn.
  * - High-contrast themes: the track's own colour, fully opaque, 1 px; never
  *   dimmed, not even for a selection elsewhere.
  *
  * Colours are sRGB triples from 0 to 1.
  */
 export type Rgb = [number, number, number];
-export type ContextTracks = "clear" | "faint" | "off";
+export type ContextTracks = "visible" | "faint" | "hidden";
 
-/** The contrast every context track reaches on a clear setting. */
+/** The contrast every context track reaches when visible. */
 export const MINIMUM_CONTRAST = 3;
-/** Opacity of a clear context track, before any rise a theme needs. */
-export const CLEAR_OPACITY = 0.6;
+/** Opacity of a visible context track, before any rise a theme needs. */
+export const VISIBLE_OPACITY = 0.6;
 export const FAINT_OPACITY = 0.35;
 export const CONTEXT_WEIGHT = 1.5;
 export const WINDOW_WEIGHT = 2.5;
@@ -118,21 +118,21 @@ export function desaturate(colour: Rgb, foreground: Rgb): [number, number, numbe
 
 /**
  * How a track's context line is drawn on a theme; undefined when context
- * tracks are off. Opacity and lightness are chosen so that a clear line
+ * tracks are hidden. Opacity and lightness are chosen so that a visible line
  * reaches 3:1 against the background as drawn.
  */
 export function contextStyle(trackColour: string, mode: ContextTracks, theme: MapTheme): ContextStyle | undefined {
-  if (mode === "off") return undefined;
+  if (mode === "hidden") return undefined;
   const own = parseColour(trackColour);
   if (theme.highContrast || !own) {
-    const opacity = theme.highContrast ? 1 : mode === "clear" ? CLEAR_OPACITY : FAINT_OPACITY;
+    const opacity = theme.highContrast ? 1 : mode === "visible" ? VISIBLE_OPACITY : FAINT_OPACITY;
     return { colour: trackColour, opacity, weight: theme.highContrast ? 1 : CONTEXT_WEIGHT, dimmed: theme.highContrast ? 1 : dim(opacity) };
   }
   let [L, C, h] = desaturate(own, theme.foreground);
   if (mode === "faint") return { colour: toHex(fromOklch([L, C, h])), opacity: FAINT_OPACITY, weight: CONTEXT_WEIGHT, dimmed: dim(FAINT_OPACITY) };
   // Lighter on a dark background, darker on a light one, until it reaches 3:1.
   const away = luminance(theme.background) < 0.18 ? 0.01 : -0.01;
-  let opacity = CLEAR_OPACITY;
+  let opacity = VISIBLE_OPACITY;
   const reaches = () => contrast(over(fromOklch([L, C, h]), opacity, theme.background), theme.background) >= MINIMUM_CONTRAST;
   while (!reaches() && L + away >= 0 && L + away <= 1) L += away;
   while (!reaches() && opacity < 1) opacity = Math.min(1, opacity + 0.05);
@@ -146,10 +146,10 @@ function dim(opacity: number): number {
 
 /**
  * The mode drawn: the plot's choice, with the analyst's setting for the
- * minimum contrast showing faint as clear. Off stays off: it hides nothing
+ * minimum contrast showing faint as visible. Hidden stays hidden: it hides nothing
  * the analyst could mistake for absent data, since nothing is drawn.
  */
 export function contextShown(plot: ContextTracks | undefined, minimumContrast: boolean): ContextTracks {
-  const mode = plot ?? "clear";
-  return minimumContrast && mode === "faint" ? "clear" : mode;
+  const mode = plot ?? "visible";
+  return minimumContrast && mode === "faint" ? "visible" : mode;
 }

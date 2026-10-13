@@ -59,15 +59,15 @@
       {"command": "debrief.show", "title": "Show on map", "category": "Debrief", "icon": "$(eye)"},
         {"command": "debrief.goToStep", "title": "Go back to this step", "category": "Debrief"},
       {"command": "debrief.redoToStep", "title": "Redo up to this step", "category": "Debrief"},
-      {"command": "debrief.contextTracks.clear", "title": "Context tracks: Clear", "category": "Debrief", "enablement": "debrief.contextTracks", "toggled": {"condition": "debrief.contextTracks == clear"}},
+      {"command": "debrief.contextTracks.visible", "title": "Context tracks: Visible", "category": "Debrief", "enablement": "debrief.contextTracks", "toggled": {"condition": "debrief.contextTracks == visible"}},
       {"command": "debrief.contextTracks.faint", "title": "Context tracks: Faint", "category": "Debrief", "enablement": "debrief.contextTracks", "toggled": {"condition": "debrief.contextTracks == faint"}},
-      {"command": "debrief.contextTracks.off", "title": "Context tracks: Off", "category": "Debrief", "enablement": "debrief.contextTracks", "toggled": {"condition": "debrief.contextTracks == off"}}
+      {"command": "debrief.contextTracks.hidden", "title": "Context tracks: Hidden", "category": "Debrief", "enablement": "debrief.contextTracks", "toggled": {"condition": "debrief.contextTracks == hidden"}}
     ],
     "menus": {
       "view/title": [
-        {"command": "debrief.contextTracks.clear", "when": "view == debrief.time && debrief.contextTracks", "group": "1_context@1"},
+        {"command": "debrief.contextTracks.visible", "when": "view == debrief.time && debrief.contextTracks", "group": "1_context@1"},
         {"command": "debrief.contextTracks.faint", "when": "view == debrief.time && debrief.contextTracks", "group": "1_context@2"},
-        {"command": "debrief.contextTracks.off", "when": "view == debrief.time && debrief.contextTracks", "group": "1_context@3"},
+        {"command": "debrief.contextTracks.hidden", "when": "view == debrief.time && debrief.contextTracks", "group": "1_context@3"},
         {"command": "debrief.importRep", "when": "view == debrief.catalogues", "group": "navigation@1"},
         {"command": "debrief.addCatalogue", "when": "view == debrief.catalogues", "group": "navigation@2"},
         {"command": "debrief.refresh", "when": "view == debrief.catalogues", "group": "navigation@3"},
@@ -114,7 +114,7 @@
         "debrief.map.minimumContextContrast": {
           "type": "boolean",
           "default": false,
-          "markdownDescription": "Always draw tracks outside the time window clearly enough to see (at least 3:1 against the map), even on a plot set to draw them faint. A plot set to hide them still hides them."
+          "markdownDescription": "Draw tracks outside the time window as Visible (at least 3:1 against the map) even on a plot set to Faint: a plot can never show context fainter than Visible. A plot set to Hidden still hides them."
         }
       }
     }
