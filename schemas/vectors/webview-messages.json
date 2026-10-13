@@ -87,6 +87,10 @@
     ],
     "annotation_drawn": [
       "annotation"
+    ],
+    "edit_track": [
+      "feature_id",
+      "track_edit"
     ]
   }
 }

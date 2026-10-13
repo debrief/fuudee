@@ -6,10 +6,12 @@
  */
 import { userInfo } from "node:os";
 import * as vscode from "vscode";
-import type { AnnotationSpec, ContextTracksEnum, ParameterValue, PlotView, SharedState, SharedStateChange, TimeRange, ToolDeclaration } from "@debrief/schemas";
+import type { AnnotationSpec, ContextTracksEnum, ParameterValue, PlotView, SharedState, SharedStateChange, TimeRange, ToolDeclaration, TrackEdit } from "@debrief/schemas";
+import { formatBearing, formatPosition, parsePosition, POSITION_EXAMPLE, UNIT_LABELS } from "@debrief/kernel";
+import { defaultPivotIndex, describeDistance, describeTurn, mergedName, mergePlan, periodIndices, readBearing, readDistance, readTurn } from "../webview/trackedit.js";
 import { changedSince, historyOnDisk, knownStores, openPlot, plotFile, type OpenedPlot } from "./catalogue.js";
 import { statSync, unwatchFile, watchFile } from "node:fs";
-import { count, describeToolRun } from "./format.js";
+import { count, describeTimes, describeToolRun, settings as displaySettings } from "./format.js";
 import { placeToolTime } from "../webview/timelogic.js";
 import { resolveTimes } from "./timeinput.js";
 import { AnnotationPanel } from "./panels/annotation.js";
@@ -17,7 +19,7 @@ import { FormPanel } from "./panels/form.js";
 import { MapPanel } from "./panels/map.js";
 import { ResultsPanel } from "./panels/results.js";
 import { TIME_VIEW, TimeView } from "./panels/timeview.js";
-import { CONFLICT, NEWER_SCHEMA, ServiceError, ToolService, type Agent, type AnnotationChange, type CallOutcome, type OpenedView, type ToolListing } from "./service.js";
+import { CONFLICT, NEWER_SCHEMA, ServiceError, ToolService, type Agent, type AnnotationChange, type CallOutcome, type OpenedView, type ToolListing, type TrackChange } from "./service.js";
 import { HistoryProvider } from "./views/history.js";
 import { DiagnosticLog, hashed, logKey, serviceLine, toolRunLine, type ToolOutcome } from "./diagnostics.js";
 import { hiddenIds, hiddenNotice, isFeature, setViewOf, timeWindowOf, viewOf, type PlotFeature } from "./hidden.js";
@@ -431,6 +433,41 @@ export function activate(context: vscode.ExtensionContext): DebriefApi {
         }
         const problem = await reloadPlot(true);
         return { problem, feature: answer.feature };
+      }),
+    );
+
+  // --- Tracks: moved, rotated, split and merged by hand (CAP-01, CAP-02) ----------------
+  /**
+   * Move, rotate, split or merge tracks: one step in the plot's history each, named by
+   * its note ("BLUE ONE moved 1.20 nmi 045.0°T"), and undone by Ctrl+Z like any other.
+   * A change made elsewhere since the plot was opened is never overwritten (SUB-28).
+   * Returns the problem, if any, and the tracks the change made.
+   */
+  const changeTrack = (change: TrackChange) =>
+    serially(() =>
+      ourChange(async (): Promise<{ problem?: string; feature?: string; features?: string[]; notes?: string[] }> => {
+        const opened = session.current;
+        if (!opened) return { problem: "Open a plot first." };
+        if (!service || !opened.base) return { problem: "Changing tracks needs Debrief's tool service. Run 'Debrief: Restart tool service'." };
+        const save = (allow = false) => service!.changeTrack(opened.store.id, opened.item.id, opened.base!, agent, change, allow);
+        let answer;
+        try {
+          try {
+            answer = await save();
+          } catch (error) {
+            if ((error as ServiceError).code !== NEWER_SCHEMA) throw error;
+            if (!(await confirmNewerSchema((error as Error).message))) return { problem: "Nothing was changed." };
+            answer = await save(true);
+          }
+        } catch (error) {
+          if ((error as ServiceError).code === CONFLICT) {
+            await reloadPlot(true);
+            return { problem: "The plot was changed elsewhere, so nothing was changed. Debrief is showing the latest; try again if you still want to." };
+          }
+          return { problem: (error as Error).message };
+        }
+        const problem = await reloadPlot(true);
+        return { problem, feature: answer.feature, features: answer.features, ...(answer.notes?.length && { notes: answer.notes }) };
       }),
     );
 
@@ -889,6 +926,203 @@ export function activate(context: vscode.ExtensionContext): DebriefApi {
     const done = await annotate({ kind: "north_arrow", shown: shown ?? !has });
     return { problem: report(done.problem) };
   });
+  // Tracks (CAP-01, CAP-02): moved, rotated, split and merged, each one step. Each command takes
+  // what agents and tests give it instead of asking, and returns what happened: { problem } or
+  // { feature } / { features }.
+  type TrackFeature = Extract<PlotFeature, { properties: { kind: "track" } }>;
+  const trackById = (id?: string) => {
+    const feature = id ? session.current?.plot.features.find((f) => f.id === id) : undefined;
+    return feature?.properties.kind === "track" ? (feature as TrackFeature) : undefined;
+  };
+  /** The one track a command acts on: the outline node it was run on, an id given, or the one track selected. */
+  const trackTarget = (target?: string | Target) => {
+    const found = (typeof target === "string" ? [target] : targets(target ?? undefined)).map(trackById).filter((t): t is TrackFeature => !!t);
+    return found.length === 1 ? found[0] : undefined;
+  };
+  const trackDone = (done: { problem?: string }) => {
+    report(done.problem);
+    return done;
+  };
+  /** What a move or rotation changes: the whole track, or only its fixes in the time window shown. */
+  async function chooseExtent(track: TrackFeature, verb: string): Promise<{ period?: TimeRange } | undefined> {
+    const window = session.time?.range;
+    const { times } = track.properties;
+    const whole = { label: "Whole track", description: describeTimes(times[0], times.at(-1)), period: undefined as TimeRange | undefined };
+    if (!window) return {};
+    const inWindow = periodIndices(times.map(Date.parse), { start: Date.parse(window.start), end: Date.parse(window.end) }).length;
+    const items = [
+      whole,
+      {
+        label: "Current time window",
+        description: `${describeTimes(window.start, window.end)} · ${count(inWindow, "fix", "fixes")}`,
+        detail: "Only the fixes in the window change; the track jumps where they meet the rest.",
+        period: window,
+      },
+    ];
+    const picked = await vscode.window.showQuickPick(items, { title: `${verb} ${track.properties.name}`, placeHolder: `What of ${track.properties.name} to ${verb.toLowerCase()}?` });
+    return picked && { period: picked.period };
+  }
+  /** The input box's note on what was typed: what it means, or what is wrong. */
+  const meaning = (read: { problem: string } | unknown, means: () => string): vscode.InputBoxValidationMessage => {
+    if (read && typeof read === "object" && "problem" in read) return { message: (read as { problem: string }).problem, severity: vscode.InputBoxValidationSeverity.Error };
+    return { message: `Means ${means()}`, severity: vscode.InputBoxValidationSeverity.Info };
+  };
+
+  // From the map: a handle let go of, or a run of arrow keys on one.
+  command("debrief.editTrack", async (featureId?: string, edit?: TrackEdit) => {
+    if (!trackById(featureId) || !edit) return { problem: report("Select a track to move or rotate.") };
+    return trackDone(await changeTrack({ kind: "edit", feature: featureId!, edit }));
+  });
+  // "Move track…": what moves, the distance and the bearing. With a change given, no questions.
+  command("debrief.moveTrack", async (target?: string | Target, given?: Omit<TrackEdit, "action">) => {
+    const track = trackTarget(target);
+    if (!track) return { problem: report("Select one track to move.") };
+    const name = track.properties.name;
+    if (given && typeof given === "object") return trackDone(await changeTrack({ kind: "edit", feature: track.id, edit: { ...given, action: "move" } }));
+    const extent = await chooseExtent(track, "Move");
+    if (!extent) return {};
+    const distanceText = await vscode.window.showInputBox({
+      title: `Move ${name}`,
+      prompt: "How far: each fix moves this far along the bearing, along its own geodesic",
+      placeHolder: `such as 1.2 ${UNIT_LABELS[displaySettings.length_unit]}`,
+      validateInput: (text) => {
+        const read = readDistance(text, displaySettings);
+        return meaning(read, () => describeDistance(read as { value: number; unit: string }, displaySettings));
+      },
+    });
+    const distance = distanceText === undefined ? undefined : readDistance(distanceText, displaySettings);
+    if (!distance || "problem" in distance) return {};
+    const bearingText = await vscode.window.showInputBox({
+      title: `Move ${name} ${describeDistance(distance, displaySettings)}`,
+      prompt: "Which way: a bearing in degrees true",
+      placeHolder: "such as 045",
+      validateInput: (text) => {
+        const read = readBearing(text);
+        return meaning(read, () => formatBearing({ value: read as number, unit: "deg" }, displaySettings));
+      },
+    });
+    const bearing = bearingText === undefined ? undefined : readBearing(bearingText);
+    if (bearing === undefined || typeof bearing !== "number") return {};
+    const edit: TrackEdit = { action: "move", distance: distance as never, bearing: { value: bearing, unit: "deg" }, ...(extent.period && { period: extent.period }) };
+    return trackDone(await changeTrack({ kind: "edit", feature: track.id, edit }));
+  });
+  // "Rotate track…": what turns, about which pivot, and by how much. With a change given, no questions.
+  command("debrief.rotateTrack", async (target?: string | Target, given?: Omit<TrackEdit, "action">) => {
+    const track = trackTarget(target);
+    if (!track) return { problem: report("Select one track to rotate.") };
+    const name = track.properties.name;
+    const current = session.time?.current;
+    if (given && typeof given === "object") {
+      const edit: TrackEdit = { ...given, action: "rotate" };
+      return trackDone(await changeTrack({ kind: "edit", feature: track.id, edit, ...(current && !edit.pivot && { current_time: current }) }));
+    }
+    const extent = await chooseExtent(track, "Rotate");
+    if (!extent) return {};
+    const times = track.properties.times.map(Date.parse);
+    const positions = track.geometry.coordinates as [number, number][];
+    const span = extent.period && { start: Date.parse(extent.period.start), end: Date.parse(extent.period.end) };
+    const indices = periodIndices(times, span);
+    if (!indices.length) return { problem: report(`${name} has no fixes in the time window, so nothing was rotated.`) };
+    const at = (i: number) => formatPosition({ longitude: positions[i][0], latitude: positions[i][1] }, displaySettings);
+    const nearest = defaultPivotIndex(times, indices, current ? Date.parse(current) : undefined);
+    const fix = (i: number) => `${at(i)} at ${describeTimes(track.properties.times[i])}`;
+    const pivots = [
+      { label: current && nearest !== indices[0] ? "Fix nearest current time" : "First fix", description: fix(nearest), pivot: positions[nearest] },
+      ...(nearest !== indices[0] ? [{ label: "First fix", description: fix(indices[0]), pivot: positions[indices[0]] }] : []),
+      { label: "Last fix", description: fix(indices[indices.length - 1]), pivot: positions[indices[indices.length - 1]] },
+      { label: "A position I type…", description: "", pivot: undefined as [number, number] | undefined },
+    ];
+    const chosen = await vscode.window.showQuickPick(pivots, { title: `Rotate ${name}`, placeHolder: "Rotate about which position? Each fix keeps its range from it." });
+    if (!chosen) return {};
+    let pivot = chosen.pivot;
+    if (!pivot) {
+      const typed = await vscode.window.showInputBox({
+        title: `Rotate ${name}`,
+        prompt: "Rotate about this position",
+        placeHolder: POSITION_EXAMPLE,
+        validateInput: (text) => {
+          try {
+            const p = parsePosition(text);
+            return { message: `Means ${formatPosition(p, displaySettings)}`, severity: vscode.InputBoxValidationSeverity.Info };
+          } catch (error) {
+            return { message: (error as Error).message, severity: vscode.InputBoxValidationSeverity.Error };
+          }
+        },
+      });
+      if (typed === undefined) return {};
+      const p = parsePosition(typed);
+      pivot = [p.longitude, p.latitude];
+    }
+    const angleText = await vscode.window.showInputBox({
+      title: `Rotate ${name} about ${formatPosition({ longitude: pivot[0], latitude: pivot[1] }, displaySettings)}`,
+      prompt: "By how much: degrees, positive or 'clockwise' turns clockwise, negative or 'anticlockwise' the other way",
+      placeHolder: "such as 10, or 10 anticlockwise",
+      validateInput: (text) => {
+        const read = readTurn(text);
+        return meaning(read, () => describeTurn(read as number, displaySettings));
+      },
+    });
+    const angle = angleText === undefined ? undefined : readTurn(angleText);
+    if (angle === undefined || typeof angle !== "number") return {};
+    const edit: TrackEdit = { action: "rotate", angle: { value: angle, unit: "deg" }, pivot, ...(extent.period && { period: extent.period }) };
+    return trackDone(await changeTrack({ kind: "edit", feature: track.id, edit }));
+  });
+  // "Split track at current time…": the two parts' names, offered as "X (1)" and "X (2)". With options given, no questions.
+  command("debrief.splitTrack", async (target?: string | Target, options?: { at?: string; names?: [string, string] }) => {
+    const track = trackTarget(target);
+    if (!track) return { problem: report("Select one track to split.") };
+    const at = options?.at ?? session.time?.current;
+    if (!at) return { problem: report("Set current time first: the track is split there.") };
+    const name = track.properties.name;
+    let names = options?.names;
+    if (!options) {
+      const when = describeTimes(at);
+      const ask = (part: string, value: string) =>
+        vscode.window.showInputBox({ title: `Split ${name} at ${when}`, prompt: `Name for the part ${part}`, value, validateInput: (text) => (text.trim() ? undefined : "Give the part a name.") });
+      const first = await ask(`before ${when}`, `${name} (1)`);
+      if (first === undefined) return {};
+      const second = await ask(`from ${when} on`, `${name} (2)`);
+      if (second === undefined) return {};
+      names = [first.trim(), second.trim()];
+    }
+    const done = await changeTrack({ kind: "split", feature: track.id, at, ...(names && { names }) });
+    if (!done.problem && done.features) session.select(done.features, "command");
+    return trackDone(done);
+  });
+  // "Merge selected tracks": the tracks selected, or the ids given, joined in time order. Asked for
+  // the merged track's name, and, if speeds, courses or depths would not be kept, asked first
+  // whether to merge anyway. With the ids given (agents, tests), no questions; what was not kept comes back.
+  command("debrief.mergeTracks", async (target?: string[] | Target, others?: readonly unknown[] | { name?: string }) => {
+    const nodes = Array.isArray(others) ? featureIdsOf(others as never) : [];
+    const ids = Array.isArray(target) ? target : nodes.length ? nodes : session.selection;
+    const tracks = ids.map(trackById).filter((t): t is TrackFeature => !!t);
+    if (tracks.length < 2) return { problem: report("Select two or more tracks to merge.") };
+    let name = others && !Array.isArray(others) ? (others as { name?: string }).name : undefined;
+    if (!Array.isArray(target)) {
+      const { ordered, lost } = mergePlan(tracks);
+      if (lost.length) {
+        const go = "Merge anyway";
+        const answer = await vscode.window.showWarningMessage(
+          `Merging ${ordered.map((t) => t.properties.name).join(", ")} keeps only what every track has.`,
+          { modal: true, detail: `${lost.join(". ")}. Undo puts them back.` },
+          go,
+        );
+        if (answer !== go) return {};
+      }
+      name = await vscode.window.showInputBox({
+        title: `Merge ${count(ordered.length, "track", "tracks")}`,
+        prompt: "Name for the merged track",
+        value: mergedName(ordered.map((t) => t.properties.name)),
+        validateInput: (text) => (text.trim() ? undefined : "Give the merged track a name."),
+      });
+      if (name === undefined) return {};
+      name = name.trim();
+    }
+    const done = await changeTrack({ kind: "merge", features: tracks.map((t) => t.id), ...(name && { name }) });
+    if (!done.problem && done.feature) session.select([done.feature], "command");
+    return trackDone(done);
+  });
+
   // The Timeline: choosing an entry moves current time to it. Outside the window shown, the
   // window widens or moves to take it in, shown but never saved, as for a tool's time (CAP-28).
   command("debrief.goToTime", (id?: string) => {

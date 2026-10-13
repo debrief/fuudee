@@ -32,7 +32,7 @@ from pydantic import (
 
 
 metamodel_version = "1.12.0"
-version = "0.0.13"
+version = "0.0.14"
 
 
 class ConfiguredBaseModel(BaseModel):
@@ -526,6 +526,20 @@ class TrackKindEnum(str, Enum):
     track = "track"
 
 
+class TrackEditActionEnum(str, Enum):
+    """
+    What a track edit does (CAP-01).
+    """
+    move = "move"
+    """
+    Every fix in the period goes the same range along the same bearing.
+    """
+    rotate = "rotate"
+    """
+    Every fix in the period turns about the pivot by the angle, keeping its range from it.
+    """
+
+
 class AnnotationKindEnum(str, Enum):
     annotation = "annotation"
 
@@ -853,6 +867,10 @@ class WebviewMessageKindEnum(str, Enum):
     annotation_drawn = "annotation_drawn"
     """
     Map to host: the analyst finished drawing an annotation on the map (annotation, its name empty); open the annotation form with it, to name it and add it as one step.
+    """
+    edit_track = "edit_track"
+    """
+    Map to host: the analyst let go of a track's move or rotate handle, or stopped nudging one (feature_id, track_edit); move or rotate it so, as one recorded step.
     """
 
 
@@ -1430,6 +1448,20 @@ class TrackStyle(ConfiguredBaseModel):
             err_msg = f"Invalid colour format: {v}"
             raise ValueError(err_msg)
         return v
+
+
+class TrackEdit(ConfiguredBaseModel):
+    """
+    A track moved or rotated by hand, as the map, a form or an agent describes it (CAP-01, CAP-02): one recorded, undoable step in the plot's history (SUB-19). Geodesic: a move takes every fix in the period the same range along the same bearing, each along its own geodesic; a rotation keeps each fix's range from the pivot and turns its bearing from the pivot by the angle. Fixes outside the period stay where they are, so the joins jump.
+    """
+    linkml_meta: ClassVar[LinkMLMeta] = LinkMLMeta({'from_schema': 'https://debrief.info/schemas/debrief'})
+
+    action: TrackEditActionEnum = Field(default=..., json_schema_extra = { "linkml_meta": {'domain_of': ['TrackEdit']} })
+    period: Optional[TimeRange] = Field(default=None, description="""The fixes to change: those whose times fall in it, ends included. Left out, the whole track.""", json_schema_extra = { "linkml_meta": {'domain_of': ['TrackEdit']} })
+    distance: Optional[Length] = Field(default=None, description="""How far a move takes each fix.""", json_schema_extra = { "linkml_meta": {'domain_of': ['TrackEdit']} })
+    bearing: Optional[Angle] = Field(default=None, description="""Which way a move takes each fix, true, clockwise from north.""", json_schema_extra = { "linkml_meta": {'domain_of': ['TrackEdit']} })
+    angle: Optional[Angle] = Field(default=None, description="""How far a rotation turns the fixes about the pivot; positive is clockwise.""", json_schema_extra = { "linkml_meta": {'domain_of': ['TrackEdit']} })
+    pivot: Optional[list[float]] = Field(default=None, description="""[longitude, latitude] of the position a rotation turns about. Left out, the fix nearest current time in the period, or the period's first fix.""", min_length=2, max_length=2, json_schema_extra = { "linkml_meta": {'domain_of': ['TrackEdit']} })
 
 
 class AnnotationFeature(ConfiguredBaseModel):
@@ -2617,7 +2649,8 @@ class WebviewMessage(ConfiguredBaseModel):
     result_title: Optional[str] = Field(default=None, json_schema_extra = { "linkml_meta": {'domain_of': ['WebviewMessage']} })
     result: Optional[ToolResult] = Field(default=None, json_schema_extra = { "linkml_meta": {'domain_of': ['WebviewMessage']} })
     annotation: Optional[AnnotationSpec] = Field(default=None, description="""An annotation as the form describes it (show_annotation_form, save_annotation), as drawn on the map (annotation_drawn), or as changed on the map (edit_annotation).""", json_schema_extra = { "linkml_meta": {'domain_of': ['WebviewMessage']} })
-    feature_id: Optional[str] = Field(default=None, description="""The annotation a form changes or deletes, or the map asks to change.""", json_schema_extra = { "linkml_meta": {'domain_of': ['WebviewMessage']} })
+    feature_id: Optional[str] = Field(default=None, description="""The annotation a form changes or deletes, or the annotation or track the map asks to change.""", json_schema_extra = { "linkml_meta": {'domain_of': ['WebviewMessage']} })
+    track_edit: Optional[TrackEdit] = Field(default=None, description="""How the analyst moved or rotated a track on the map (edit_track).""", json_schema_extra = { "linkml_meta": {'domain_of': ['WebviewMessage']} })
 
     @field_validator('current_time')
     def pattern_current_time(cls, v):
@@ -2831,6 +2864,7 @@ SourceRef.model_rebuild()
 TrackFeature.model_rebuild()
 TrackProperties.model_rebuild()
 TrackStyle.model_rebuild()
+TrackEdit.model_rebuild()
 AnnotationFeature.model_rebuild()
 AnnotationProperties.model_rebuild()
 AnnotationAppearance.model_rebuild()

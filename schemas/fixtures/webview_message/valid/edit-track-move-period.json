@@ -1,0 +1,19 @@
+{
+  "kind": "edit_track",
+  "feature_id": "track-blue-one",
+  "track_edit": {
+    "action": "move",
+    "distance": {
+      "value": 1.2,
+      "unit": "[nmi_i]"
+    },
+    "bearing": {
+      "value": 45,
+      "unit": "deg"
+    },
+    "period": {
+      "start": "2026-10-11T09:30:00.000Z",
+      "end": "2026-10-11T10:15:00.000Z"
+    }
+  }
+}

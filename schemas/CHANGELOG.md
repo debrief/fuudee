@@ -2,6 +2,12 @@
 
 The data-file schema is versioned independently of Debrief (SUB-12). Before 1.0.0 there is no migration guarantee (SUB-13).
 
+## 0.0.14 (14 Oct 2026)
+
+- `TrackEdit`: a track moved or rotated by hand, as the map, a form or an agent describes it (CAP-01, CAP-02). `action` is `move` (with `distance`, a `Length`, and `bearing`, an `Angle`, true) or `rotate` (with `angle`, an `Angle`, positive clockwise, and perhaps `pivot`, [longitude, latitude]); `period` (a `TimeRange`) limits it to the fixes in that period, ends included, and left out means the whole track. Rules: a move needs a distance (not negative) and a bearing and has no angle or pivot; a rotation needs an angle and has no distance or bearing; a pivot is on the globe; a period does not end before it starts.
+- Webview message `edit_track` (`feature_id`, `track_edit`), sent by the map when the analyst lets go of a track's move or rotate handle, or stops nudging one, so the host moves or rotates the track so, as one recorded step. Plot files are unchanged: moving, rotating, splitting and merging tracks change ordinary track features, recorded as edits.
+- Before 1.0.0 only an exact version opens (SUB-13): plots written as 0.0.13 must be imported or built again.
+
 ## 0.0.13 (13 Oct 2026)
 
 - Webview messages for drawing and editing annotations on the map: `annotation_drawn` (`annotation`, its name empty), sent when the analyst finishes drawing one, so the host opens the annotation form with it; and `annotation` on `edit_annotation`, sent when the analyst lets go of a handle or stops nudging one, so the host changes the annotation so, as one recorded step, without the form. Plot files are unchanged.

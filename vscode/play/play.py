@@ -202,6 +202,38 @@ def annotate(item: str, request_json: str) -> str:
     return json.dumps({"ok": True, "feature": feature})
 
 
+def track(item: str, request_json: str) -> str:
+    """Move, rotate, split or merge tracks: each a recorded, undoable step (CAP-01,
+    CAP-02), as debrief/edit_track, debrief/split_track and debrief/merge_tracks do."""
+    request = json.loads(request_json)
+    base = Base(**request["base"]) if request.get("base") else None
+    change = request["change"]
+    out: dict[str, Any] = {"ok": True}
+    try:
+        if change["kind"] == "edit":
+            _cat().edit_track(
+                item,
+                change["feature"],
+                change["edit"],
+                YOU,
+                base,
+                current_time=change.get("current_time"),
+            )
+        elif change["kind"] == "split":
+            _, out["features"] = _cat().split_track(
+                item, change["feature"], change["at"], YOU, base, names=change.get("names")
+            )
+        else:
+            _, out["feature"], out["notes"] = _cat().merge_tracks(
+                item, change["features"], YOU, base, name=change.get("name")
+            )
+    except Conflict:
+        return json.dumps({"error": "The plot was changed elsewhere, so nothing was changed."})
+    except (CatalogueError, HistoryError) as error:
+        return json.dumps({"error": str(error)})
+    return json.dumps(out)
+
+
 def set_view(item: str, request_json: str) -> str:
     """Save the plot's view (its island), as debrief/set_view does: never recorded,
     never undone (SUB-22). A view changed since hash was read is refused (SUB-28)."""

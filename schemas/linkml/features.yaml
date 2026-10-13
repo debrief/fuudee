@@ -51,6 +51,11 @@ enums:
       faint: {description: "Fainter, for a busy plot. Not guaranteed to reach 3:1."}
       hidden: {description: "Not drawn: only what is in the time window shows."}
   TrackKindEnum: {permissible_values: {track: {}}}
+  TrackEditActionEnum:
+    description: What a track edit does (CAP-01).
+    permissible_values:
+      move: {description: "Every fix in the period goes the same range along the same bearing."}
+      rotate: {description: "Every fix in the period turns about the pivot by the angle, keeping its range from it."}
   AnnotationKindEnum: {permissible_values: {annotation: {}}}
   SensorObservationsKindEnum: {permissible_values: {sensor_observations: {}}}
   AnnotationStyleEnum:
@@ -164,6 +169,45 @@ classes:
         pattern: "^#[0-9a-f]{6}$"
       legacy_symbology:
         description: The REP symbology code the colour came from, such as "@C", kept for export.
+
+  TrackEdit:
+    description: >-
+      A track moved or rotated by hand, as the map, a form or an agent
+      describes it (CAP-01, CAP-02): one recorded, undoable step in the
+      plot's history (SUB-19). Geodesic: a move takes every fix in the period
+      the same range along the same bearing, each along its own geodesic; a
+      rotation keeps each fix's range from the pivot and turns its bearing
+      from the pivot by the angle. Fixes outside the period stay where they
+      are, so the joins jump.
+    attributes:
+      action: {range: TrackEditActionEnum, required: true}
+      period:
+        description: >-
+          The fixes to change: those whose times fall in it, ends included.
+          Left out, the whole track.
+        range: TimeRange
+        inlined: true
+      distance:
+        description: How far a move takes each fix.
+        range: Length
+        inlined: true
+      bearing:
+        description: Which way a move takes each fix, true, clockwise from north.
+        range: Angle
+        inlined: true
+      angle:
+        description: How far a rotation turns the fixes about the pivot; positive is clockwise.
+        range: Angle
+        inlined: true
+      pivot:
+        description: >-
+          [longitude, latitude] of the position a rotation turns about. Left
+          out, the fix nearest current time in the period, or the period's
+          first fix.
+        range: float
+        multivalued: true
+        minimum_cardinality: 2
+        maximum_cardinality: 2
 
   # --- Annotations ----------------------------------------------------------
   AnnotationFeature:

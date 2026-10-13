@@ -1,0 +1,11 @@
+{
+  "kind": "edit_track",
+  "feature_id": "track-blue-one",
+  "track_edit": {
+    "action": "move",
+    "distance": {
+      "value": 1.2,
+      "unit": "[nmi_i]"
+    }
+  }
+}

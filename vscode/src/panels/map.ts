@@ -97,6 +97,10 @@ export class MapPanel {
     } else if (message.kind === "edit_annotation") {
       // Double-clicked on the map: its properties form (CAP-03).
       void vscode.commands.executeCommand("debrief.editAnnotation", message.feature_id);
+    } else if (message.kind === "edit_track") {
+      // A track's move or rotate handle let go of, or nudged: changed so, as one step. Refused, the map shows it as it is.
+      const done = await vscode.commands.executeCommand<{ problem?: string } | undefined>("debrief.editTrack", message.feature_id, message.track_edit);
+      if (done?.problem) this.refresh();
     } else if (message.kind === "annotation_drawn") {
       // Drawn on the map: the form, to name it and add it as one step.
       await vscode.commands.executeCommand("debrief.addDrawnAnnotation", message.annotation);

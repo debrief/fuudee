@@ -1,0 +1,15 @@
+{
+  "kind": "edit_track",
+  "feature_id": "track-blue-one",
+  "track_edit": {
+    "action": "rotate",
+    "angle": {
+      "value": -12.5,
+      "unit": "deg"
+    },
+    "pivot": [
+      -4.12,
+      50.33
+    ]
+  }
+}

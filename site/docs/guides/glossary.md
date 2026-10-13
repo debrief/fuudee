@@ -40,7 +40,11 @@ Adapted from `DOMAIN_GLOSSARY.md` in debrief/debrief-future, itself adapted from
 
 **Circle, ellipse** (annotations). Every position at one range from a centre; or an ellipse about a centre, its longer axis along a true bearing. Ranges are measured along geodesics. Kept in the plot file with their exact centre and size, and a polygon approximating them so other GeoJSON tools see the area (CAP-03).
 
-**Handle.** A small square or circle on an annotation selected on the map, dragged (or moved with the arrow keys) to change it: a corner, the point between two corners, a centre, a radius, an ellipse's axis end or side. Letting go is one step.
+**Handle.** A small square or circle on an annotation or a track selected on the map, dragged (or moved with the arrow keys) to change it: a corner, the point between two corners, a centre, a radius, an ellipse's axis end or side; a track's move and rotate handles, and its pivot. Letting go is one step.
+
+**Pivot.** The position a track is rotated about. Each fix keeps its range from the pivot; its bearing from the pivot turns. Unless the analyst chooses, the fix nearest current time (CAP-01).
+
+**Split, merge** (tracks). Splitting a track at a time makes two tracks, the fixes before it and the fixes from it on; merging joins tracks into one in time order, and is refused where they overlap in time. Each is one step (CAP-01).
 
 **Chart furniture.** What a chart carries besides its data: the scale bar, always drawn, and the north arrow, which a plot shows or not.
 

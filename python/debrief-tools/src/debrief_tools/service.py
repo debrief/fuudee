@@ -11,7 +11,8 @@ so undo is the same for the extension and an agent (SUB-21); colour and hiding,
 recorded in that history like any change (debrief/set_colour, debrief/set_hidden);
 annotations added, changed and deleted by hand, and the north arrow, recorded the
 same way (debrief/add_annotation, debrief/edit_annotation, debrief/delete_annotations,
-debrief/set_north_arrow);
+debrief/set_north_arrow); tracks moved, rotated, split and merged by hand, recorded the
+same way (debrief/edit_track, debrief/split_track, debrief/merge_tracks);
 and the plot's view, its island, kept in the plot file outside its history
 (debrief/set_view; debrief/open returns it) (SUB-22, decision 12 Oct).
 
@@ -96,22 +97,19 @@ class RpcError(Exception):
 INVALID_REQUEST, METHOD_NOT_FOUND, INVALID_PARAMS, INTERNAL = -32600, -32601, -32602, -32603
 CONFLICT = -32001  # the plot changed since the caller's base: open it again (SUB-28)
 NEWER_SCHEMA = -32002  # would write a newer schema into the catalogue: ask, then allow (SUB-35)
-HISTORY_METHODS = (
-    "debrief/open",
-    "debrief/history",
-    "debrief/undo",
-    "debrief/redo",
-    "debrief/goto",
-    "debrief/set_colour",
-    "debrief/set_hidden",
-    "debrief/set_view",
+# Named groups, not slices of one list: a method added to one group cannot shift another.
+READING_METHODS = ("debrief/open", "debrief/history")
+STEP_METHODS = ("debrief/undo", "debrief/redo", "debrief/goto")
+PRESENTATION_METHODS = ("debrief/set_colour", "debrief/set_hidden", "debrief/set_view")
+ANNOTATION_METHODS = (
     "debrief/add_annotation",
     "debrief/edit_annotation",
     "debrief/delete_annotations",
     "debrief/set_north_arrow",
 )
-ANNOTATION_METHODS = HISTORY_METHODS[-4:]
-WRITING_METHODS = HISTORY_METHODS[2:]
+TRACK_METHODS = ("debrief/edit_track", "debrief/split_track", "debrief/merge_tracks")
+WRITING_METHODS = STEP_METHODS + PRESENTATION_METHODS + ANNOTATION_METHODS + TRACK_METHODS
+HISTORY_METHODS = READING_METHODS + WRITING_METHODS
 KNOWN_METHODS = frozenset(
     (
         "initialize",
@@ -346,6 +344,8 @@ class ToolService:
                 out["changed"] = self._restyle(catalogue, item, method, params, expected, allow)
             elif method in ANNOTATION_METHODS:
                 out.update(self._annotate(catalogue, item, method, params, expected, allow))
+            elif method in TRACK_METHODS:
+                out.update(self._track(catalogue, item, method, params, expected, allow))
             elif method == "debrief/set_view":
                 view, given = params.get("view"), params.get("hash")
                 if not isinstance(given, str) or not (view is None or isinstance(view, dict)):
@@ -461,6 +461,61 @@ class ToolService:
             raise RpcError(INVALID_PARAMS, "set_north_arrow needs shown, true or false")
         step = catalogue.set_north_arrow(item, shown, agent, base, allow_newer_schema=allow)
         return {"changed": step is not None}
+
+    def _track(
+        self,
+        catalogue: Catalogue,
+        item: str,
+        method: str,
+        params: dict[str, Any],
+        base: Base | None,
+        allow: bool,
+    ) -> dict[str, Any]:
+        """Move, rotate, split or merge tracks by hand: each one recorded, undoable
+        step, named like "BLUE ONE moved 1.20 nmi 045.0°T" (CAP-01, CAP-02).
+
+        edit_track takes the feature and the edit (a TrackEdit: move with distance and
+        bearing, or rotate with angle and perhaps pivot, either for a period or the
+        whole track) and, for a rotation's default pivot, current_time. split_track
+        takes the feature, the time (at) and perhaps names for the two parts;
+        merge_tracks the features and perhaps a name, and says in notes what was not
+        kept (speeds, courses or depths some of the tracks had not).
+        """
+        agent = _agent(params)
+        if method == "debrief/edit_track":
+            feature, edit = params.get("feature"), params.get("edit")
+            current = params.get("current_time")
+            if not isinstance(feature, str) or not isinstance(edit, dict):
+                raise RpcError(INVALID_PARAMS, "edit_track needs the feature and the edit")
+            if current is not None and not isinstance(current, str):
+                raise RpcError(INVALID_PARAMS, "current_time must be a UTC time")
+            step = catalogue.edit_track(
+                item, feature, edit, agent, base, current_time=current, allow_newer_schema=allow
+            )
+            return {"changed": step is not None, "feature": feature}
+        if method == "debrief/split_track":
+            feature, at, names = params.get("feature"), params.get("at"), params.get("names")
+            if not isinstance(feature, str) or not isinstance(at, str):
+                raise RpcError(INVALID_PARAMS, "split_track needs the feature and the time (at)")
+            if names is not None and not (
+                isinstance(names, list)
+                and len(names) == 2
+                and all(isinstance(n, str) for n in names)
+            ):
+                raise RpcError(INVALID_PARAMS, "names must be two names, one for each part")
+            _, parts = catalogue.split_track(
+                item, feature, at, agent, base, names=names, allow_newer_schema=allow
+            )
+            return {"changed": True, "features": parts}
+        features, name = params.get("features"), params.get("name")
+        if not isinstance(features, list) or not all(isinstance(f, str) for f in features):
+            raise RpcError(INVALID_PARAMS, "merge_tracks needs the tracks to merge")
+        if name is not None and not isinstance(name, str):
+            raise RpcError(INVALID_PARAMS, "name must be text")
+        _, merged, lost = catalogue.merge_tracks(
+            item, features, agent, base, name=name, allow_newer_schema=allow
+        )
+        return {"changed": True, "feature": merged, "notes": lost}
 
     def _import(self, params: dict[str, Any]) -> dict[str, Any]:
         """Import a REP file (EXT-01) or a legacy plot file, .dpf (EXT-14, EXT-15), as a

@@ -12,6 +12,7 @@ import assert from "node:assert/strict";
 import { chromium } from "playwright";
 import { playAnnotations } from "./annotations.mjs";
 import { playDrawing } from "./drawing.mjs";
+import { playTracks } from "./tracks.mjs";
 
 const root = path.resolve(process.argv[2] ?? "../site/docs/play");
 const site = process.argv[3] ? path.resolve(process.argv[3]) : undefined;
@@ -265,6 +266,8 @@ try {
   // Drawing and editing them on the map: by pointer and by keyboard, each finished
   // annotation and each release one step; a colleague's change during a drag (CAP-03, NFR-13).
   await playDrawing(page, shot);
+  // Moving, rotating, splitting and merging tracks: by pointer, keyboard and form, each one step (CAP-01, CAP-02).
+  await playTracks(page, shot);
 
   // Import a legacy plot file.
   const dpf = path.resolve("../python/debrief-io/tests/data/shapes.dpf");
@@ -344,7 +347,7 @@ try {
   await cdnBlocked();
   if (site) await playFromThePost();
   assert.deepEqual(errors, []);
-  console.log(`Playground played: map selection, keyboard, tools, undo, crash recovery, conflict, import, narrow, CDN blocked${site ? ", and from a blog post" : ""}.`);
+  console.log(`Playground played: map selection, keyboard, tools, undo, crash recovery, conflict, annotations, drawing, tracks, import, narrow, CDN blocked${site ? ", and from a blog post" : ""}.`);
 
   /**
    * The time controller (CAP-28): drag the window and the map shows only it, at
@@ -628,6 +631,15 @@ try {
     assert.notEqual(await named.inputValue(), "");
     await post.locator(".debrief-demo").first().scrollIntoViewIfNeeded();
     await shot("draw-07-in-the-post", post);
+    // The tracks post's demo: select a track, and its move and rotate handles appear.
+    await post.goto(`http://127.0.0.1:${siteServer.address().port}/blog/2026/10/14/moving-and-splitting-tracks/`);
+    await post.locator(".debrief-demo").first().getByRole("button", { name: "Start the demo" }).click();
+    const moving = post.frameLocator(".debrief-demo-frame");
+    await moving.locator("#status", { hasText: "Ready" }).waitFor({ timeout: 240000 });
+    await moving.locator(`#outline li[data-id="track-blue-one"]`).click();
+    await moving.frameLocator(".frame-map").locator(".track-handle-rotate").waitFor();
+    await post.locator(".debrief-demo").first().scrollIntoViewIfNeeded();
+    await shot("tracks-09-in-the-post", post);
     siteServer.close();
   }
 } catch (error) {

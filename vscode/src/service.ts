@@ -10,7 +10,7 @@ import { randomBytes } from "node:crypto";
 import { request as httpRequest } from "node:http";
 import { tmpdir } from "node:os";
 import { createInterface } from "node:readline";
-import type { AnnotationSpec, DebriefFeatureCollection, PlotView, SharedState, ToolDeclaration, ToolResult } from "@debrief/schemas";
+import type { AnnotationSpec, DebriefFeatureCollection, PlotView, SharedState, ToolDeclaration, ToolResult, TrackEdit } from "@debrief/schemas";
 import type { ToolOutcome } from "./diagnostics.js";
 
 export interface Unavailable {
@@ -106,6 +106,12 @@ export type AnnotationChange =
   | { kind: "edit"; feature: string; annotation: Partial<AnnotationSpec> }
   | { kind: "delete"; features: string[] }
   | { kind: "north_arrow"; shown: boolean };
+
+/** A change to the plot's tracks, made by hand or by an agent (CAP-01). */
+export type TrackChange =
+  | { kind: "edit"; feature: string; edit: TrackEdit; current_time?: string }
+  | { kind: "split"; feature: string; at: string; names?: [string, string] }
+  | { kind: "merge"; features: string[]; name?: string };
 
 export interface Agent {
   kind: "person" | "software_agent";
@@ -401,6 +407,28 @@ export class ToolService {
           : change.kind === "delete"
             ? ["debrief/delete_annotations", { features: change.features }]
             : ["debrief/set_north_arrow", { shown: change.shown }];
+    return this.request(method, { store, item, base, agent, ...params, ...(allowNewerSchema && { allow_newer_schema: true }) });
+  }
+
+  /**
+   * Move, rotate, split or merge tracks: each a recorded, undoable step named like
+   * "BLUE ONE moved 1.20 nmi 045.0°T" (CAP-01, CAP-02). Fails with CONFLICT if the
+   * plot changed since base. A merge's notes say what it did not keep.
+   */
+  changeTrack(
+    store: string,
+    item: string,
+    base: Base,
+    agent: Agent,
+    change: TrackChange,
+    allowNewerSchema = false,
+  ): Promise<Opened & { changed: boolean; feature?: string; features?: string[]; notes?: string[] }> {
+    const [method, params] =
+      change.kind === "edit"
+        ? ["debrief/edit_track", { feature: change.feature, edit: change.edit, ...(change.current_time && { current_time: change.current_time }) }]
+        : change.kind === "split"
+          ? ["debrief/split_track", { feature: change.feature, at: change.at, ...(change.names && { names: change.names }) }]
+          : ["debrief/merge_tracks", { features: change.features, ...(change.name && { name: change.name }) }];
     return this.request(method, { store, item, base, agent, ...params, ...(allowNewerSchema && { allow_newer_schema: true }) });
   }
 
