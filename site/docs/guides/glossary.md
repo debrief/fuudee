@@ -40,9 +40,15 @@ Adapted from `DOMAIN_GLOSSARY.md` in debrief/debrief-future, itself adapted from
 
 **Circle, ellipse** (annotations). Every position at one range from a centre; or an ellipse about a centre, its longer axis along a true bearing. Ranges are measured along geodesics. Kept in the plot file with their exact centre and size, and a polygon approximating them so other GeoJSON tools see the area (CAP-03).
 
-**Handle.** A small square or circle on an annotation or a track selected on the map, dragged (or moved with the arrow keys) to change it: a corner, the point between two corners, a centre, a radius, an ellipse's axis end or side; a track's move and rotate handles, and its pivot. Letting go is one step.
+**Handle.** A small square or circle on an annotation or a track selected on the map, dragged (or moved with the arrow keys) to change it: a corner, the point between two corners, a centre, a radius, an ellipse's axis end or side; a track's move and rotate handles, its pivot, and the diamonds at its ends, to shear or stretch it. Letting go is one step.
 
 **Pivot.** The position a track is rotated about. Each fix keeps its range from the pivot; its bearing from the pivot turns. Unless the analyst chooses, the fix nearest current time (CAP-01).
+
+**Shear** (tracks). Holding one end of a track, or of its fixes in the time window, and dragging the other: every fix moves in proportion to its time from the held end, so a straight leg at a steady speed stays one, with a new course and speed. The drag analysts use most with TMA legs. One step (CAP-01, CAP-21).
+
+**Stretch** (tracks). Holding one end and dragging the other along the track: every fix keeps its bearing from the held end and its range from it is scaled, so speeds change and courses do not. One step (CAP-01, CAP-21).
+
+**Course made good, speed made good.** The course and speed of a period of a track taken from its first fix to its last: what a shear or a stretch reports and is given.
 
 **Split, merge** (tracks). Splitting a track at a time makes two tracks, the fixes before it and the fixes from it on; merging joins tracks into one in time order, and is refused where they overlap in time. Each is one step (CAP-01).
 

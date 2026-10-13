@@ -8,7 +8,7 @@ import { userInfo } from "node:os";
 import * as vscode from "vscode";
 import type { AnnotationSpec, ContextTracksEnum, ParameterValue, PlotView, SharedState, SharedStateChange, TimeRange, ToolDeclaration, TrackEdit } from "@debrief/schemas";
 import { formatBearing, formatPosition, parsePosition, POSITION_EXAMPLE, UNIT_LABELS } from "@debrief/kernel";
-import { defaultPivotIndex, describeDistance, describeTurn, mergedName, mergePlan, periodIndices, readBearing, readDistance, readTurn } from "../webview/trackedit.js";
+import { defaultPivotIndex, describeDistance, describeSpeed, describeTurn, legNow, mergedName, mergePlan, periodIndices, readBearing, readDistance, readSpeed, readTurn, type Anchor } from "../webview/trackedit.js";
 import { changedSince, historyOnDisk, knownStores, openPlot, plotFile, type OpenedPlot } from "./catalogue.js";
 import { statSync, unwatchFile, watchFile } from "node:fs";
 import { count, describeTimes, describeToolRun, settings as displaySettings } from "./format.js";
@@ -1065,6 +1065,85 @@ export function activate(context: vscode.ExtensionContext): DebriefApi {
     const angle = angleText === undefined ? undefined : readTurn(angleText);
     if (angle === undefined || typeof angle !== "number") return {};
     const edit: TrackEdit = { action: "rotate", angle: { value: angle, unit: "deg" }, pivot, ...(extent.period && { period: extent.period }) };
+    return trackDone(await changeTrack({ kind: "edit", feature: track.id, edit }));
+  });
+  /** Which end of what changes a shear or a stretch holds: the other end is the one that moves. Undefined for Escape, or a problem when it cannot be done. */
+  async function chooseAnchor(track: TrackFeature, verb: string, period?: TimeRange): Promise<{ anchor: Anchor; now: NonNullable<ReturnType<typeof legNow>> } | { problem: string } | undefined> {
+    const times = track.properties.times.map(Date.parse);
+    const span = period && { start: Date.parse(period.start), end: Date.parse(period.end) };
+    const indices = periodIndices(times, span);
+    const name = track.properties.name;
+    const now = legNow(track.geometry.coordinates as [number, number][], times, indices, displaySettings);
+    if (!now) return { problem: `${name} has fixes at only one time there, so it cannot be ${verb === "Shear" ? "sheared" : "stretched"}: that needs fixes at two times.` };
+    const at = (i: number) => describeTimes(track.properties.times[i]);
+    const [first, last] = [indices[0], indices[indices.length - 1]];
+    const picked = await vscode.window.showQuickPick(
+      [
+        { label: "Hold the start", description: `${at(first)}; the end moves`, anchor: "start" as Anchor },
+        { label: "Hold the end", description: `${at(last)}; the start moves`, anchor: "end" as Anchor },
+      ],
+      { title: `${verb} ${name}: now ${now.said}`, placeHolder: "Which end stays where it is?" },
+    );
+    return picked && { anchor: picked.anchor, now };
+  }
+  const speedMeaning = (positive: boolean) => (text: string) => {
+    const read = readSpeed(text, displaySettings, positive);
+    return meaning(read, () => describeSpeed(read as { value: number; unit: string }, displaySettings));
+  };
+  // "Shear track…": what changes, which end is held, and the course and speed the rest then makes good. With a change given, no questions.
+  command("debrief.shearTrack", async (target?: string | Target, given?: Omit<TrackEdit, "action">) => {
+    const track = trackTarget(target);
+    if (!track) return { problem: report("Select one track to shear.") };
+    const name = track.properties.name;
+    if (given && typeof given === "object") return trackDone(await changeTrack({ kind: "edit", feature: track.id, edit: { ...given, action: "shear" } }));
+    const extent = await chooseExtent(track, "Shear");
+    if (!extent) return {};
+    const held = await chooseAnchor(track, "Shear", extent.period);
+    if (!held) return {};
+    if ("problem" in held) return { problem: report(held.problem) };
+    const courseText = await vscode.window.showInputBox({
+      title: `Shear ${name}, holding the ${held.anchor}`,
+      prompt: `The course it then makes good, from its first fix to its last, in degrees true (now ${held.now.said})`,
+      value: held.now.course,
+      validateInput: (text) => {
+        const read = readBearing(text);
+        return meaning(read, () => formatBearing({ value: read as number, unit: "deg" }, displaySettings));
+      },
+    });
+    const course = courseText === undefined ? undefined : readBearing(courseText);
+    if (course === undefined || typeof course !== "number") return {};
+    const speedText = await vscode.window.showInputBox({
+      title: `Shear ${name} to ${formatBearing({ value: course, unit: "deg" }, displaySettings)}`,
+      prompt: `The speed it then makes good (now ${held.now.said})`,
+      value: held.now.speed,
+      validateInput: speedMeaning(false),
+    });
+    const speed = speedText === undefined ? undefined : readSpeed(speedText, displaySettings);
+    if (!speed || "problem" in speed) return {};
+    const edit: TrackEdit = { action: "shear", anchor: held.anchor, course: { value: course, unit: "deg" }, speed: speed as never, ...(extent.period && { period: extent.period }) };
+    return trackDone(await changeTrack({ kind: "edit", feature: track.id, edit }));
+  });
+  // "Stretch track…": what changes, which end is held, and the speed the rest then makes good, on the same course. With a change given, no questions.
+  command("debrief.stretchTrack", async (target?: string | Target, given?: Omit<TrackEdit, "action">) => {
+    const track = trackTarget(target);
+    if (!track) return { problem: report("Select one track to stretch.") };
+    const name = track.properties.name;
+    if (given && typeof given === "object") return trackDone(await changeTrack({ kind: "edit", feature: track.id, edit: { ...given, action: "stretch" } }));
+    const extent = await chooseExtent(track, "Stretch");
+    if (!extent) return {};
+    const held = await chooseAnchor(track, "Stretch", extent.period);
+    if (!held) return {};
+    if ("problem" in held) return { problem: report(held.problem) };
+    if (!held.now.moves) return { problem: report(`${name} ends where it starts there, so it cannot be stretched: shear it instead.`) };
+    const speedText = await vscode.window.showInputBox({
+      title: `Stretch ${name}, holding the ${held.anchor}`,
+      prompt: `The speed it then makes good, on the same course (now ${held.now.said})`,
+      value: held.now.speed,
+      validateInput: speedMeaning(true),
+    });
+    const speed = speedText === undefined ? undefined : readSpeed(speedText, displaySettings, true);
+    if (!speed || "problem" in speed) return {};
+    const edit: TrackEdit = { action: "stretch", anchor: held.anchor, speed: speed as never, ...(extent.period && { period: extent.period }) };
     return trackDone(await changeTrack({ kind: "edit", feature: track.id, edit }));
   });
   // "Split track at current time…": the two parts' names, offered as "X (1)" and "X (2)". With options given, no questions.

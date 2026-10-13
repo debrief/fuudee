@@ -728,26 +728,60 @@ def _webview_message_problems(message: g.WebviewMessage, raw: dict[str, Any]) ->
 
 
 def track_edit_problems(edit: g.TrackEdit, where: str = "track_edit") -> list[str]:
-    """Rules for a track moved or rotated by hand that JSON Schema cannot express:
-    a move gives a distance and a bearing and nothing of a rotation; a rotation
-    gives an angle, and perhaps a pivot, and nothing of a move."""
+    """Rules for a track changed by hand that JSON Schema cannot express: a move gives
+    a distance and a bearing; a rotation an angle, and perhaps a pivot; a shear the
+    end it holds (anchor) and either a distance and a bearing for the dragged end or
+    a course and a speed for the period; a stretch the end it holds and a speed. None
+    gives what belongs to another."""
     problems = _time_range_problems(f"{where} period", edit.period)
-    if str(edit.action) == "move":
+    action = str(edit.action)
+    given = {
+        name
+        for name in ("distance", "bearing", "angle", "pivot", "anchor", "course", "speed")
+        if getattr(edit, name) is not None
+    }
+    if action == "move":
         if edit.distance is None or edit.bearing is None:
             problems.append(f"{where}: a move needs a distance and a bearing")
-        if edit.distance is not None and edit.distance.value < 0:
-            problems.append(f"{where}: a move's distance cannot be negative")
-        if edit.angle is not None or edit.pivot is not None:
+        if given & {"angle", "pivot"}:
             problems.append(f"{where}: a move has no angle or pivot")
-    else:
+        if given & {"anchor", "course", "speed"}:
+            problems.append(f"{where}: a move has no anchor, course or speed")
+    elif action == "rotate":
         if edit.angle is None:
             problems.append(f"{where}: a rotation needs an angle")
-        if edit.distance is not None or edit.bearing is not None:
+        if given & {"distance", "bearing"}:
             problems.append(f"{where}: a rotation has no distance or bearing")
+        if given & {"anchor", "course", "speed"}:
+            problems.append(f"{where}: a rotation has no anchor, course or speed")
         if edit.pivot is not None and not (
             -180 <= edit.pivot[0] <= 180 and -90 <= edit.pivot[1] <= 90
         ):
             problems.append(f"{where}: the pivot is not on the globe")
+    elif action == "shear":
+        if edit.anchor is None:
+            problems.append(f"{where}: a shear needs the end it holds (anchor)")
+        by_drag = given >= {"distance", "bearing"} and not given & {"course", "speed"}
+        by_leg = given >= {"course", "speed"} and not given & {"distance", "bearing"}
+        if not (by_drag or by_leg):
+            problems.append(
+                f"{where}: a shear needs either a distance and a bearing, or a course and a speed"
+            )
+        if given & {"angle", "pivot"}:
+            problems.append(f"{where}: a shear has no angle or pivot")
+    else:
+        if edit.anchor is None:
+            problems.append(f"{where}: a stretch needs the end it holds (anchor)")
+        if edit.speed is None:
+            problems.append(f"{where}: a stretch needs a speed")
+        elif edit.speed.value <= 0:
+            problems.append(f"{where}: a stretch's speed must be more than nothing")
+        if given & {"distance", "bearing", "course", "angle", "pivot"}:
+            problems.append(f"{where}: a stretch has only an anchor and a speed")
+    if edit.distance is not None and edit.distance.value < 0:
+        problems.append(f"{where}: the distance cannot be negative")
+    if edit.speed is not None and edit.speed.value < 0:
+        problems.append(f"{where}: the speed cannot be negative")
     return problems
 
 

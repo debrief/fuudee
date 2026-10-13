@@ -1,17 +1,20 @@
 /**
- * Moving and rotating a track on the map, and reading the values the analyst
- * types for it (CAP-01, CAP-02, NFR-13), kept free of Leaflet so it can be
- * tested. The map's handles (trackmap.ts) and the "Move track…" and "Rotate
- * track…" forms in VS Code and the playground all describe a change as a
- * TrackEdit; the tool service makes it, as one recorded step.
+ * Moving, rotating, shearing and stretching a track on the map, and reading the
+ * values the analyst types for it (CAP-01, CAP-02, CAP-21, NFR-13), kept free of
+ * Leaflet so it can be tested. The map's handles (trackmap.ts) and the "Move
+ * track…", "Rotate track…", "Shear track…" and "Stretch track…" forms in VS Code
+ * and the playground all describe a change as a TrackEdit; the tool service
+ * makes it, as one recorded step.
  *
  * Geodesic, as debrief_stac.tracks does it (SUB-03): a move takes each fix in
  * the period the same range along the same true bearing; a rotation keeps each
- * fix's range from the pivot and turns its bearing from the pivot. What the
+ * fix's range from the pivot and turns its bearing from the pivot; a shear and a
+ * stretch hold one end of the period and work in the azimuthal equidistant frame
+ * about it (see sheared and stretched). What the
  * map shows while the analyst drags is worked out the same way, so what is
  * drawn is what is saved. Fixes outside the period stay put: the joins jump.
  */
-import { DEFAULT_SETTINGS, fixed, formatBearing, formatPosition, formatQuantity, formatTime, UNIT_LABELS, type FormatSettings } from "@debrief/kernel";
+import { convert, DEFAULT_SETTINGS, fixed, formatBearing, formatPosition, formatQuantity, formatTime, UNIT_LABELS, type FormatSettings } from "@debrief/kernel";
 import type { TrackEdit } from "@debrief/schemas";
 import { lengthIn, onTheGlobe } from "./drawing.js";
 import { rangeBearing, travel, type LonLat } from "./geodesic.js";
@@ -113,10 +116,143 @@ export function rotateEdit(degrees: number, pivot: LonLat, period?: { start: str
   return { action: "rotate", angle: { value: angleIn(degrees, settings), unit: "deg" }, pivot: onTheGlobe(pivot), ...(period && { period }) };
 }
 
-/** Whether a change would move nothing, once rounded as it is saved. */
+/** Whether a change would move nothing, once rounded as it is saved. A stretch to the speed the period already makes, as shown, is said by the gesture (unchanged). */
 export function changesNothing(edit: TrackEdit): boolean {
-  if (edit.action === "move") return !edit.distance?.value;
+  if (edit.action === "move" || edit.action === "shear") return edit.distance ? !edit.distance.value : false;
+  if (edit.action === "stretch") return false;
   return !(edit.angle?.value ?? 0) || (edit.angle?.value ?? 0) % 360 === 0;
+}
+
+// --- Shearing and stretching (TMA, CAP-21) --------------------------------------------
+
+/** Which end of the period a shear or a stretch holds fixed; the other end is dragged. */
+export type Anchor = "start" | "end";
+/** What dragging an end of the period does: shear (course and speed change together) or stretch (speed only). */
+export type EndMode = "shear" | "stretch";
+
+/** A position as x east and y north, in metres, in the azimuthal equidistant frame about anchor: its geodesic range and bearing from it. As debrief_stac.tracks.AnchorFrame. */
+export function frameXY(anchor: LonLat, p: LonLat): [number, number] {
+  const { metres, bearing } = rangeBearing(anchor, p);
+  const b = (bearing * Math.PI) / 180;
+  return [metres * Math.sin(b), metres * Math.cos(b)];
+}
+
+/** The position at x east and y north, in metres, in the frame about anchor. */
+export function fromFrame(anchor: LonLat, [x, y]: [number, number]): LonLat {
+  const r = Math.hypot(x, y);
+  return r ? travel(anchor, (Math.atan2(x, y) * 180) / Math.PI, r) : [anchor[0], anchor[1]];
+}
+
+/** The fix a shear or a stretch holds and the fix it drags: undefined when the period's fixes are all at one time. */
+export function endsOf(times: number[], indices: number[], anchor: Anchor): [number, number] | undefined {
+  const first = indices[0];
+  const last = indices[indices.length - 1];
+  if (!(times[last] > times[first])) return undefined;
+  return anchor === "start" ? [first, last] : [last, first];
+}
+
+/** What a period makes good: the true bearing, at its first fix, of the geodesic to its last; the range; the seconds; and the speed, in metres a second. */
+export interface Leg {
+  course: number;
+  metres: number;
+  seconds: number;
+  speed: number;
+}
+
+export function legOf(positions: LonLat[], times: number[], indices: number[]): Leg {
+  const first = indices[0];
+  const last = indices[indices.length - 1];
+  const { metres, bearing } = rangeBearing(positions[first], positions[last]);
+  const seconds = (times[last] - times[first]) / 1000;
+  return { course: bearing, metres, seconds, speed: seconds > 0 ? metres / seconds : 0 };
+}
+
+/**
+ * The positions sheared, as debrief_stac.tracks.sheared: the anchor held, the other
+ * end dragged to `to`, and each fix at indices moved by that displacement (in the
+ * anchor's frame) times its fraction of the time from the anchor to the dragged end.
+ */
+export function sheared(positions: LonLat[], times: number[], indices: number[], anchor: Anchor, to: LonLat): LonLat[] {
+  const out = positions.map((p) => [p[0], p[1]] as LonLat);
+  const ends = endsOf(times, indices, anchor);
+  if (!ends) return out;
+  const [held, dragged] = ends;
+  const a = positions[held];
+  const e = frameXY(a, positions[dragged]);
+  const t = frameXY(a, to);
+  const [dx, dy] = [t[0] - e[0], t[1] - e[1]];
+  if (Math.hypot(dx, dy) < 1e-6) return out;
+  const span = times[dragged] - times[held];
+  for (const i of indices) {
+    const f = (times[i] - times[held]) / span;
+    const [x, y] = frameXY(a, positions[i]);
+    out[i] = fromFrame(a, [x + f * dx, y + f * dy]);
+  }
+  return out;
+}
+
+/** The positions stretched, as debrief_stac.tracks.stretched: the anchor held, and each fix at indices taken along its bearing from it to factor times its range. */
+export function stretched(positions: LonLat[], times: number[], indices: number[], anchor: Anchor, factor: number): LonLat[] {
+  const out = positions.map((p) => [p[0], p[1]] as LonLat);
+  const ends = endsOf(times, indices, anchor);
+  if (!ends || factor <= 0 || factor === 1) return out;
+  const a = positions[ends[0]];
+  for (const i of indices) {
+    const [x, y] = frameXY(a, positions[i]);
+    out[i] = fromFrame(a, [x * factor, y * factor]);
+  }
+  return out;
+}
+
+/** How far a drag takes a stretch: the drag of the end projected on to the line from the anchor to the end, as the factor ranges from the anchor are scaled by. */
+export function stretchFactor(anchor: LonLat, end: LonLat, to: LonLat): number {
+  const e = frameXY(anchor, end);
+  const t = frameXY(anchor, to);
+  const ee = e[0] * e[0] + e[1] * e[1];
+  return ee ? (e[0] * t[0] + e[1] * t[1]) / ee : 1;
+}
+
+/** A speed in metres a second in the analyst's unit, to the decimals shown. */
+export function speedIn(metresPerSecond: number, settings: FormatSettings = DEFAULT_SETTINGS): number {
+  return Number(fixed(convert({ value: metresPerSecond, unit: "m/s" }, settings.speed_unit).value, settings.speed_decimals));
+}
+
+/** The smallest change of speed shown: one step of the arrow keys on a stretch handle (ten with Shift). */
+export const speedStep = (settings: FormatSettings = DEFAULT_SETTINGS) => 10 ** -settings.speed_decimals;
+
+const toMetresPerSecond = (speed: number, settings: FormatSettings) => convert({ value: speed, unit: settings.speed_unit }, "m/s").value;
+const speedText = (metresPerSecond: number, settings: FormatSettings) => formatQuantity({ value: metresPerSecond, unit: "m/s" }, settings);
+const courseSpeed = (leg: Leg, settings: FormatSettings) => `${formatBearing({ value: leg.course, unit: "deg" }, settings)} ${speedText(leg.speed, settings)}`;
+
+/** The shear to save from a drag: the end's displacement in the analyst's length unit and its bearing, each to the decimals the map showed. */
+export function shearEdit(anchor: Anchor, metres: number, bearing: number, period?: { start: string; end: string }, settings: FormatSettings = DEFAULT_SETTINGS): TrackEdit {
+  const { distance, bearing: b } = moveEdit(metres, bearing, undefined, settings);
+  return { action: "shear", anchor, distance, bearing: b, ...(period && { period }) };
+}
+
+/** The stretch to save: the speed made good, in the analyst's unit, to the decimals shown. */
+export function stretchEdit(anchor: Anchor, speed: number, period?: { start: string; end: string }, settings: FormatSettings = DEFAULT_SETTINGS): TrackEdit {
+  return { action: "stretch", anchor, speed: { value: Number(fixed(speed, settings.speed_decimals)), unit: settings.speed_unit as never }, ...(period && { period }) };
+}
+
+const PART_CHANGES = "only the fixes in the time window change, so the track jumps where they meet the rest";
+
+/** What the map says while an end is sheared: "BLUE ONE: shearing to 087.2°T 12.4 kn; end moved 1.20 nmi 045.0°T". */
+export function shearReadout(name: string, leg: Leg, end: Anchor, edit: TrackEdit, part: boolean, settings: FormatSettings = DEFAULT_SETTINGS): string {
+  const text = `${name}: shearing to ${courseSpeed(leg, settings)}; ${end} moved ${formatQuantity(edit.distance!, settings)} ${formatBearing(edit.bearing!, settings)}`;
+  return part ? `${text}; ${PART_CHANGES}` : text;
+}
+
+/** What the map says while an end is stretched: "BLUE ONE: stretching to 12.4 kn (was 11.6 kn)". */
+export function stretchReadout(name: string, metresPerSecond: number, wasMetresPerSecond: number, part: boolean, settings: FormatSettings = DEFAULT_SETTINGS): string {
+  const text = `${name}: stretching to ${speedText(metresPerSecond, settings)} (was ${speedText(wasMetresPerSecond, settings)})`;
+  return part ? `${text}; ${PART_CHANGES}` : text;
+}
+
+/** Where a shear's or a stretch's handles go: on the period's first and last fixes, when they are at different times. */
+export function endPlaces(positions: LonLat[], times: number[], indices: number[]): { start?: LonLat; end?: LonLat } {
+  if (!endsOf(times, indices, "start")) return {};
+  return { start: positions[indices[0]], end: positions[indices[indices.length - 1]] };
 }
 
 /** An angle as the map and the step say it: "12.0° clockwise". */
@@ -153,8 +289,11 @@ export function describeSpan(span: Span, settings: FormatSettings = DEFAULT_SETT
 
 // --- Gestures: a drag, or a run of arrow keys, on a handle ----------------------------
 
-/** The handles on a selected track: move it, rotate it, or choose the pivot it rotates about. */
-export type TrackRole = "move" | "rotate" | "pivot";
+/** The handles on a selected track: move it, rotate it, choose the pivot it rotates about, or shear or stretch it from the start or the end of the period. */
+export type TrackRole = "move" | "rotate" | "pivot" | Anchor;
+
+/** Whether a handle is on an end of the period (shear or stretch). */
+export const isEnd = (role: TrackRole): role is Anchor => role === "start" || role === "end";
 
 /** Pixels an arrow key moves the move handle or the pivot; with Shift, five times as far. As for an annotation's handles. */
 export const NUDGE_PX = 5;
@@ -170,15 +309,19 @@ export interface Gesture {
   at: LonLat;
   /** How far the rotate handle has turned, clockwise positive. */
   degrees: number;
+  /** On an end of the period: shear or stretch. */
+  mode?: EndMode;
+  /** A stretch made with the arrow keys: the speed made good asked for, in the analyst's unit. */
+  speed?: number;
 }
 
-export function startGesture(role: TrackRole, origin: LonLat): Gesture {
-  return { role, origin, at: origin, degrees: 0 };
+export function startGesture(role: TrackRole, origin: LonLat, mode?: EndMode): Gesture {
+  return { role, origin, at: origin, degrees: 0, ...(isEnd(role) && { mode: mode ?? "shear" }) };
 }
 
-/** The gesture with the handle dragged to `to`: the move handle and the pivot go there; the rotate handle turns as seen from the pivot. */
+/** The gesture with the handle dragged to `to`: the move handle, the pivot and an end go there (a stretch takes only how far along the leg); the rotate handle turns as seen from the pivot. */
 export function dragGesture(g: Gesture, to: LonLat, pivot: LonLat): Gesture {
-  return g.role === "rotate" ? { ...g, degrees: turnBetween(pivot, g.origin, to) } : { ...g, at: to };
+  return g.role === "rotate" ? { ...g, degrees: turnBetween(pivot, g.origin, to) } : { ...g, at: to, speed: undefined };
 }
 
 /** Screen positions for a map position, and back: so an arrow key moves a handle by pixels, as on the map. */
@@ -187,8 +330,19 @@ export interface Screen {
   toLonLat(p: [number, number]): LonLat;
 }
 
-/** The gesture after one more arrow key. Right and Up turn the rotate handle clockwise. Other keys change nothing. */
-export function pressKey(g: Gesture, key: string, shift: boolean, screen: Screen): Gesture {
+/**
+ * The gesture after one more arrow key. Right and Up turn the rotate handle clockwise; on a
+ * stretch handle, Up and Right are faster by one step of speed, Down and Left slower, from
+ * `speed` (the speed the period makes good, for the first press). Other keys change nothing.
+ */
+export function pressKey(g: Gesture, key: string, shift: boolean, screen: Screen, speed?: number, settings: FormatSettings = DEFAULT_SETTINGS): Gesture {
+  if (g.mode === "stretch") {
+    const sense = key === "ArrowRight" || key === "ArrowUp" ? 1 : key === "ArrowLeft" || key === "ArrowDown" ? -1 : 0;
+    const from = g.speed ?? speed;
+    if (!sense || from === undefined) return g;
+    const step = speedStep(settings);
+    return { ...g, speed: Math.max(step, Number(fixed(from + sense * step * (shift ? 10 : 1), settings.speed_decimals))) };
+  }
   if (g.role === "rotate") {
     const sense = key === "ArrowRight" || key === "ArrowUp" ? 1 : key === "ArrowLeft" || key === "ArrowDown" ? -1 : 0;
     return { ...g, degrees: g.degrees + sense * TURN_STEP * (shift ? 10 : 1) };
@@ -204,6 +358,8 @@ export function pressKey(g: Gesture, key: string, shift: boolean, screen: Screen
 export interface Target {
   name: string;
   positions: LonLat[];
+  /** The fixes' times, in milliseconds. */
+  times: number[];
   /** The fixes that change. */
   indices: number[];
   /** Whether that is fewer than all of them. */
@@ -213,8 +369,18 @@ export interface Target {
   period?: { start: string; end: string };
 }
 
-/** What a gesture does to the track: its positions now, the change to save and what the map says. None for the pivot, which records nothing. */
-export function gestureChange(g: Gesture, t: Target, settings: FormatSettings = DEFAULT_SETTINGS): { positions: LonLat[]; edit: TrackEdit; readout: string } | undefined {
+/** What a gesture changes: the positions now, the change to save, what the map says, where the handle in use is drawn, and whether it would change nothing as shown. */
+export interface GestureChange {
+  positions: LonLat[];
+  edit: TrackEdit;
+  readout: string;
+  handle?: LonLat;
+  unchanged?: boolean;
+}
+
+/** What a gesture does to the track. None for the pivot, which records nothing, or an end when the period's fixes are all at one time. */
+export function gestureChange(g: Gesture, t: Target, settings: FormatSettings = DEFAULT_SETTINGS): GestureChange | undefined {
+  if (isEnd(g.role)) return endChange(g, g.role, t, settings);
   if (g.role === "move") {
     const { metres, bearing } = rangeBearing(g.origin, g.at);
     return { positions: shifted(t.positions, t.indices, metres, bearing), edit: moveEdit(metres, bearing, t.period, settings), readout: moveReadout(t.name, metres, bearing, t.part, settings) };
@@ -223,6 +389,31 @@ export function gestureChange(g: Gesture, t: Target, settings: FormatSettings = 
     return { positions: turned(t.positions, t.indices, t.pivot, g.degrees), edit: rotateEdit(g.degrees, t.pivot, t.period, settings), readout: rotateReadout(t.name, g.degrees, t.pivot, t.part, settings) };
   }
   return undefined;
+}
+
+/** A shear or a stretch from dragging (or nudging) an end of the period. The change is worked out from the values as saved (rounded as shown), so what the map draws is what the step makes. */
+function endChange(g: Gesture, end: Anchor, t: Target, settings: FormatSettings): GestureChange | undefined {
+  const anchor: Anchor = end === "start" ? "end" : "start";
+  const ends = endsOf(t.times, t.indices, anchor);
+  if (!ends) return undefined;
+  const [held, dragged] = ends;
+  const before = legOf(t.positions, t.times, t.indices);
+  if (g.mode === "stretch") {
+    const was = speedIn(before.speed, settings);
+    const asked = g.speed ?? speedIn(stretchFactor(t.positions[held], t.positions[dragged], g.at) * before.speed, settings);
+    const speed = Math.max(speedStep(settings), asked);
+    const edit = stretchEdit(anchor, speed, t.period, settings);
+    const factor = before.speed > 0 ? toMetresPerSecond(edit.speed!.value, settings) / before.speed : 1;
+    const positions = stretched(t.positions, t.times, t.indices, anchor, factor);
+    const readout = before.metres > 0 ? stretchReadout(t.name, before.speed * factor, before.speed, t.part, settings) : `${t.name} ends where it starts, so it cannot be stretched: shear it instead.`;
+    return { positions, edit, readout, handle: positions[dragged], unchanged: before.metres === 0 || edit.speed!.value === was };
+  }
+  const { metres, bearing } = rangeBearing(t.positions[dragged], g.at);
+  const edit = shearEdit(anchor, metres, bearing, t.period, settings);
+  const to = travel(t.positions[dragged], edit.bearing!.value, convert(edit.distance!, "m").value);
+  const positions = sheared(t.positions, t.times, t.indices, anchor, to);
+  const readout = shearReadout(t.name, legOf(positions, t.times, t.indices), end, edit, t.part, settings);
+  return { positions, edit, readout, handle: positions[dragged] };
 }
 
 /** How long after the last arrow key a run of presses is sent as one change, as for an annotation's handles. */
@@ -308,6 +499,40 @@ export function readBearing(text: string): number | { problem: string } {
   const value = Number(match[1]);
   if (value > 360) return { problem: "A bearing is from 000 to 360 degrees true." };
   return value % 360;
+}
+
+/** The units a speed may be typed in, and what the analyst types for each. */
+const SPEEDS = ["[kn_i]", "m/s", "km/h"];
+const SPEED_UNITS: Record<string, string> = { kt: "[kn_i]", kts: "[kn_i]", knots: "[kn_i]", ...Object.fromEntries(SPEEDS.flatMap((unit) => [[UNIT_LABELS[unit], unit], [unit, unit]])) };
+
+/** A speed as typed: "12.4", "12.4 kn", "6 m/s", "20 km/h"; a number alone is in the analyst's unit. More than nothing when `positive`. */
+export function readSpeed(text: string, settings: FormatSettings = DEFAULT_SETTINGS, positive = false): { value: number; unit: string } | { problem: string } {
+  const match = /^\s*(\d+(?:\.\d*)?|\.\d+)\s*([a-z/[\]_]*)\s*$/i.exec(text);
+  const say = `Type a speed, such as 12.4 ${UNIT_LABELS[settings.speed_unit] ?? settings.speed_unit}; the units are ${SPEEDS.map((u) => UNIT_LABELS[u]).join(", ")}.`;
+  if (!match) return { problem: say };
+  const unit = match[2] ? SPEED_UNITS[match[2].toLowerCase()] : settings.speed_unit;
+  if (!unit) return { problem: say };
+  const value = Number(match[1]);
+  if (positive && !value) return { problem: "A stretch needs a speed of more than nothing." };
+  return { value, unit };
+}
+
+/** What a speed typed means, for the form to say beneath it: "12.4 kn". */
+export function describeSpeed(speed: { value: number; unit: string }, settings: FormatSettings = DEFAULT_SETTINGS): string {
+  return formatQuantity(speed, settings);
+}
+
+/** What the period of a track makes good, as the forms offer it: its course and speed, in the analyst's notation ("090.0°T", "11.6"), and how it is said ("090.0°T 11.6 kn"). Undefined when its fixes are all at one time. */
+export function legNow(
+  positions: LonLat[],
+  times: number[],
+  indices: number[],
+  settings: FormatSettings = DEFAULT_SETTINGS,
+): { course: string; speed: string; said: string; moves: boolean } | undefined {
+  if (!indices.length || !endsOf(times, indices, "start")) return undefined;
+  const leg = legOf(positions, times, indices);
+  const course = fixed(leg.course, settings.angle_decimals).padStart(3 + (settings.angle_decimals ? settings.angle_decimals + 1 : 0), "0");
+  return { course, speed: fixed(convert({ value: leg.speed, unit: "m/s" }, settings.speed_unit).value, settings.speed_decimals), said: courseSpeed(leg, settings), moves: leg.metres > 0 };
 }
 
 /** An angle to rotate by, as typed: "12" or "12 clockwise", "-12" or "12 anticlockwise". */

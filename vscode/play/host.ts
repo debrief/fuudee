@@ -24,7 +24,7 @@ import { placeToolTime } from "../webview/timelogic.js";
 import { TRACK_COLOURS } from "../webview/palette.js";
 import { TimeControl } from "../webview/timecontrol.js";
 import { formatBearing } from "@debrief/kernel";
-import { defaultPivotIndex, describeDistance, describeTurn, mergedName, mergePlan, periodIndices, readBearing, readDistance, readTurn } from "../webview/trackedit.js";
+import { defaultPivotIndex, describeDistance, describeSpeed, describeTurn, legNow, mergedName, mergePlan, periodIndices, readBearing, readDistance, readSpeed, readTurn } from "../webview/trackedit.js";
 
 type Feature = PlotFeature;
 interface Step {
@@ -739,6 +739,56 @@ $("rotate-track").onclick = async () => {
   const problem = await changeTrack({ kind: "edit", feature: track.id, edit });
   if (problem) toast(problem, "warning");
 };
+/** What a shear or a stretch holds, and what the track makes good now; or say why it cannot be done. */
+function heldFields(track: NonNullable<ReturnType<typeof trackOf>>, verb: string): { fields: FormField[]; now: NonNullable<ReturnType<typeof legNow>> } | undefined {
+  const times = track.properties.times.map(Date.parse);
+  const now = legNow(track.geometry.coordinates as [number, number][], times, periodIndices(times));
+  if (!now) {
+    toast(`${track.properties.name} has fixes at only one time, so it cannot be ${verb}.`, "warning");
+    return undefined;
+  }
+  const anchor: FormField = {
+    id: "anchor",
+    label: "Which end stays where it is",
+    options: [
+      { value: "start", label: "Hold the start; the end moves" },
+      { value: "end", label: "Hold the end; the start moves" },
+    ],
+  };
+  return { fields: [extentField(), anchor], now };
+}
+const speedField = (value: string, positive: boolean, now: string): FormField => ({
+  id: "speed",
+  label: `Speed made good (now ${now.split(" ").slice(1).join(" ")})`,
+  value,
+  read: (t) => shown(readSpeed(t, undefined, positive), () => describeSpeed(readSpeed(t) as { value: number; unit: string })),
+});
+$("shear-track").onclick = async () => {
+  const track = oneTrack("shear");
+  const held = track && heldFields(track, "sheared");
+  if (!track || !held) return;
+  const values = await trackForm(
+    `Shear ${track.properties.name}`,
+    "Shear",
+    [...held.fields, { id: "course", label: `Course made good, true (now ${held.now.said.split(" ")[0]})`, value: held.now.course, read: (t) => shown(readBearing(t), () => formatBearing({ value: readBearing(t) as number, unit: "deg" })) }, speedField(held.now.speed, false, held.now.said)],
+  );
+  if (!values) return;
+  const period = windowPeriod(values.extent);
+  const edit = { action: "shear", anchor: values.anchor, course: { value: readBearing(values.course), unit: "deg" }, speed: readSpeed(values.speed), ...(period && { period }) };
+  const problem = await changeTrack({ kind: "edit", feature: track.id, edit });
+  if (problem) toast(problem, "warning");
+};
+$("stretch-track").onclick = async () => {
+  const track = oneTrack("stretch");
+  const held = track && heldFields(track, "stretched");
+  if (!track || !held) return;
+  const values = await trackForm(`Stretch ${track.properties.name}`, "Stretch", [...held.fields, speedField(held.now.speed, true, held.now.said)]);
+  if (!values) return;
+  const period = windowPeriod(values.extent);
+  const edit = { action: "stretch", anchor: values.anchor, speed: readSpeed(values.speed, undefined, true), ...(period && { period }) };
+  const problem = await changeTrack({ kind: "edit", feature: track.id, edit });
+  if (problem) toast(problem, "warning");
+};
 $("split-track").onclick = async () => {
   const track = oneTrack("split");
   if (!track || !time) return;
@@ -977,7 +1027,7 @@ for (const panel of OPTIONAL) $(`panel-${panel}`).hidden = !panels.has(panel);
 // The panels in the order the demo lists them, after the plot and its outline.
 for (const panel of panelOrder) if (OPTIONAL.includes(panel)) $("side").append($(`panel-${panel}`));
 /** History, Try and Import need Python: off until it is ready. */
-const NEEDS_PYTHON = ["undo", "redo", "move-track", "rotate-track", "split-track", "merge-tracks", "crash", "colleague", "colleague-window", "colleague-during", "file", "colour", "hide", "show", "add-annotation", "edit-annotation", "delete-annotation", "north-arrow"];
+const NEEDS_PYTHON = ["undo", "redo", "move-track", "rotate-track", "shear-track", "stretch-track", "split-track", "merge-tracks", "crash", "colleague", "colleague-window", "colleague-during", "file", "colour", "hide", "show", "add-annotation", "edit-annotation", "delete-annotation", "north-arrow"];
 function needsPython(on: boolean): void {
   for (const id of NEEDS_PYTHON) $<HTMLButtonElement | HTMLInputElement>(id).disabled = !on;
 }

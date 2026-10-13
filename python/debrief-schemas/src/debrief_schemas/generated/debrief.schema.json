@@ -2752,10 +2752,21 @@
     },
     "TrackEdit": {
       "additionalProperties": false,
-      "description": "A track moved or rotated by hand, as the map, a form or an agent describes it (CAP-01, CAP-02): one recorded, undoable step in the plot's history (SUB-19). Geodesic: a move takes every fix in the period the same range along the same bearing, each along its own geodesic; a rotation keeps each fix's range from the pivot and turns its bearing from the pivot by the angle. Fixes outside the period stay where they are, so the joins jump.",
+      "description": "A track moved, rotated, sheared or stretched by hand, as the map, a form or an agent describes it (CAP-01, CAP-02, CAP-21): one recorded, undoable step in the plot's history (SUB-19). Geodesic: a move takes every fix in the period the same range along the same bearing, each along its own geodesic; a rotation keeps each fix's range from the pivot and turns its bearing from the pivot by the angle. A shear and a stretch hold one end of the period (the anchor) and work in the azimuthal equidistant frame about it, where a geodesic through the anchor is a straight line: a shear adds to each fix the dragged end's displacement times the fix's fraction of the time from the anchor to the dragged end; a stretch scales each fix's range from the anchor, keeping its bearing from it. Either way a straight, steady leg stays a straight, steady leg. Fixes outside the period stay where they are, so the joins jump.",
       "properties": {
         "action": {
           "$ref": "#/$defs/TrackEditActionEnum"
+        },
+        "anchor": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/TrackEditAnchorEnum"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": "The end of the period a shear or a stretch holds fixed."
         },
         "angle": {
           "anyOf": [
@@ -2777,7 +2788,18 @@
               "type": "null"
             }
           ],
-          "description": "Which way a move takes each fix, true, clockwise from north."
+          "description": "Which way a move takes each fix, or a shear drags the end that is not held, true, clockwise from north."
+        },
+        "course": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/Angle"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": "The course made good a shear gives the period: the true bearing, at its first fix, of the geodesic from its first fix to its last. With speed, instead of a distance and a bearing for the dragged end."
         },
         "distance": {
           "anyOf": [
@@ -2788,7 +2810,7 @@
               "type": "null"
             }
           ],
-          "description": "How far a move takes each fix."
+          "description": "How far a move takes each fix, or how far a shear drags the end that is not held."
         },
         "period": {
           "anyOf": [
@@ -2812,6 +2834,17 @@
             "array",
             "null"
           ]
+        },
+        "speed": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/Speed"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": "The speed made good a shear or a stretch gives the period: the geodesic range from its first fix to its last over the time between."
         }
       },
       "required": [
@@ -2824,9 +2857,20 @@
       "description": "What a track edit does (CAP-01).",
       "enum": [
         "move",
-        "rotate"
+        "rotate",
+        "shear",
+        "stretch"
       ],
       "title": "TrackEditActionEnum",
+      "type": "string"
+    },
+    "TrackEditAnchorEnum": {
+      "description": "Which end of the period a shear or a stretch holds fixed; the other end is the one dragged.",
+      "enum": [
+        "start",
+        "end"
+      ],
+      "title": "TrackEditAnchorEnum",
       "type": "string"
     },
     "TrackFeature": {
@@ -3205,7 +3249,7 @@
               "type": "null"
             }
           ],
-          "description": "How the analyst moved or rotated a track on the map (edit_track)."
+          "description": "How the analyst moved, rotated, sheared or stretched a track on the map (edit_track)."
         },
         "viewport": {
           "anyOf": [
@@ -3324,5 +3368,5 @@
   ],
   "title": "debrief",
   "type": "object",
-  "version": "0.0.14"
+  "version": "0.0.15"
 }

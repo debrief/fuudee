@@ -230,7 +230,14 @@ export type ToolOutputKindEnum =
  * This interface was referenced by `DebriefSchemaDefinitions`'s JSON-Schema
  * via the `definition` "TrackEditActionEnum".
  */
-export type TrackEditActionEnum = "move" | "rotate";
+export type TrackEditActionEnum = "move" | "rotate" | "shear" | "stretch";
+/**
+ * Which end of the period a shear or a stretch holds fixed; the other end is the one dragged.
+ *
+ * This interface was referenced by `DebriefSchemaDefinitions`'s JSON-Schema
+ * via the `definition` "TrackEditAnchorEnum".
+ */
+export type TrackEditAnchorEnum = "start" | "end";
 /**
  * This interface was referenced by `DebriefSchemaDefinitions`'s JSON-Schema
  * via the `definition` "WebviewMessageKindEnum".
@@ -1247,7 +1254,7 @@ export interface ToolResult {
   state_change?: SharedStateChange | null;
 }
 /**
- * A track moved or rotated by hand, as the map, a form or an agent describes it (CAP-01, CAP-02): one recorded, undoable step in the plot's history (SUB-19). Geodesic: a move takes every fix in the period the same range along the same bearing, each along its own geodesic; a rotation keeps each fix's range from the pivot and turns its bearing from the pivot by the angle. Fixes outside the period stay where they are, so the joins jump.
+ * A track moved, rotated, sheared or stretched by hand, as the map, a form or an agent describes it (CAP-01, CAP-02, CAP-21): one recorded, undoable step in the plot's history (SUB-19). Geodesic: a move takes every fix in the period the same range along the same bearing, each along its own geodesic; a rotation keeps each fix's range from the pivot and turns its bearing from the pivot by the angle. A shear and a stretch hold one end of the period (the anchor) and work in the azimuthal equidistant frame about it, where a geodesic through the anchor is a straight line: a shear adds to each fix the dragged end's displacement times the fix's fraction of the time from the anchor to the dragged end; a stretch scales each fix's range from the anchor, keeping its bearing from it. Either way a straight, steady leg stays a straight, steady leg. Fixes outside the period stay where they are, so the joins jump.
  *
  * This interface was referenced by `DebriefSchemaDefinitions`'s JSON-Schema
  * via the `definition` "TrackEdit".
@@ -1255,15 +1262,23 @@ export interface ToolResult {
 export interface TrackEdit {
   action: TrackEditActionEnum;
   /**
+   * The end of the period a shear or a stretch holds fixed.
+   */
+  anchor?: TrackEditAnchorEnum | null;
+  /**
    * How far a rotation turns the fixes about the pivot; positive is clockwise.
    */
   angle?: Angle | null;
   /**
-   * Which way a move takes each fix, true, clockwise from north.
+   * Which way a move takes each fix, or a shear drags the end that is not held, true, clockwise from north.
    */
   bearing?: Angle | null;
   /**
-   * How far a move takes each fix.
+   * The course made good a shear gives the period: the true bearing, at its first fix, of the geodesic from its first fix to its last. With speed, instead of a distance and a bearing for the dragged end.
+   */
+  course?: Angle | null;
+  /**
+   * How far a move takes each fix, or how far a shear drags the end that is not held.
    */
   distance?: Length | null;
   /**
@@ -1277,6 +1292,10 @@ export interface TrackEdit {
    * @maxItems 2
    */
   pivot?: [number, number] | null;
+  /**
+   * The speed made good a shear or a stretch gives the period: the geodesic range from its first fix to its last over the time between.
+   */
+  speed?: Speed | null;
 }
 /**
  * This interface was referenced by `DebriefSchemaDefinitions`'s JSON-Schema
@@ -1342,7 +1361,7 @@ export interface WebviewMessage {
   tool?: ToolDeclaration | null;
   tool_name?: string | null;
   /**
-   * How the analyst moved or rotated a track on the map (edit_track).
+   * How the analyst moved, rotated, sheared or stretched a track on the map (edit_track).
    */
   track_edit?: TrackEdit | null;
   viewport?: Viewport | null;

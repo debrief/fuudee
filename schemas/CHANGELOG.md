@@ -2,6 +2,12 @@
 
 The data-file schema is versioned independently of Debrief (SUB-12). Before 1.0.0 there is no migration guarantee (SUB-13).
 
+## 0.0.15 (14 Oct 2026)
+
+- `TrackEdit` shears and stretches a track (CAP-01, CAP-21): `action` may be `shear` or `stretch`, with `anchor` (`TrackEditAnchorEnum`: `start` or `end`), the end of the period (or the whole track) held fixed. A shear gives either `distance` and `bearing` (how far and which way the other end is dragged) or `course` (an `Angle`, true) and `speed` (a `Speed`), the course and speed made good from the period's first fix to its last; a stretch gives `speed`. Rules: a shear needs an anchor and exactly one of those pairs, and no angle or pivot; a stretch needs an anchor and a speed of more than nothing, and nothing else; a move or a rotation has no anchor, course or speed; distances and speeds are never negative.
+- The `edit_track` message carries shears and stretches, sent when the analyst lets go of a track's end or stops nudging one. Plot files are unchanged: a sheared or stretched track is an ordinary track feature, recorded as an edit.
+- Before 1.0.0 only an exact version opens (SUB-13): plots written as 0.0.14 must be imported or built again.
+
 ## 0.0.14 (14 Oct 2026)
 
 - `TrackEdit`: a track moved or rotated by hand, as the map, a form or an agent describes it (CAP-01, CAP-02). `action` is `move` (with `distance`, a `Length`, and `bearing`, an `Angle`, true) or `rotate` (with `angle`, an `Angle`, positive clockwise, and perhaps `pivot`, [longitude, latitude]); `period` (a `TimeRange`) limits it to the fixes in that period, ends included, and left out means the whole track. Rules: a move needs a distance (not negative) and a bearing and has no angle or pivot; a rotation needs an angle and has no distance or bearing; a pivot is on the globe; a period does not end before it starts.

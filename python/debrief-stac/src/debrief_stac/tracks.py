@@ -1,4 +1,5 @@
-"""Tracks moved, rotated, split and merged by hand (CAP-01, CAP-02).
+"""Tracks moved, rotated, sheared, stretched, split and merged by hand (CAP-01,
+CAP-02, CAP-21).
 
 Each operation here makes new track features from old ones; the catalogue
 records the result as one step in the plot's history, named in the words the
@@ -16,7 +17,22 @@ Geodesic throughout (SUB-03), never a change of latitude and longitude:
 - A rotation keeps each fix's range from the pivot and turns its bearing from
   the pivot by the angle (the inverse problem, then the forward one).
 
-A period limits either to the fixes whose times fall in it, ends included.
+- A shear or a stretch holds one end of the period (the anchor) and works in
+  the azimuthal equidistant frame about it (AnchorFrame): each fix is placed
+  by its geodesic range and bearing from the anchor, so a geodesic through the
+  anchor is a straight line through the frame's origin. A shear adds to each
+  fix the dragged end's displacement in that frame times the fix's fraction f
+  of the time from the anchor to the dragged end (0 at the anchor, 1 at the
+  dragged end): a time-proportional translation, legacy Debrief's TMA shear.
+  A stretch multiplies each fix's range from the anchor by one factor, keeping
+  its bearing from it. A straight leg at a steady speed through the anchor
+  stays one, exactly: sheared, with the new course and speed; stretched, on
+  the same line with the new speed. Recorded courses and speeds are carried
+  through the same change (see _carried), not worked out again from the
+  positions, so the detail a track records survives and a straight leg's
+  courses and speeds become exactly its new ones.
+
+A period limits any of them to the fixes whose times fall in it, ends included.
 The fixes outside it stay where they are, so the joins jump: the track is not
 made continuous, and the map shows the jump while the analyst drags.
 
@@ -29,8 +45,9 @@ message says where they overlap.
 
 from __future__ import annotations
 
+import math
 import re
-from collections.abc import Sequence
+from collections.abc import Callable, Sequence
 from dataclasses import dataclass
 
 from debrief_kernel.formatting import (
@@ -185,6 +202,247 @@ def describe_rotation(name: str, angle: Quantity, part: bool) -> str:
     sense = "clockwise" if turn > 0 else "anticlockwise"
     what = f"{name} part" if part else name
     return f"{what} rotated {fixed(abs(turn), DEFAULT_SETTINGS.angle_decimals)}° {sense}"
+
+
+# --- Shearing and stretching (TMA, CAP-21) ---------------------------------------------
+
+ANCHORS = ("start", "end")
+# Seconds a fix's recorded velocity is followed for, to carry it through a shear or a
+# stretch (see _carried): short against any leg, long against rounding.
+VELOCITY_STEP_S = 10.0
+
+
+class AnchorFrame:
+    """The azimuthal equidistant frame about a position: each position as x east and y
+    north, in metres, from its geodesic range and initial bearing from the anchor. A
+    geodesic through the anchor is a straight line through the origin, and ranges from
+    the anchor are exact; it is not used near the anchor's antipode."""
+
+    def __init__(self, anchor: Position):
+        self.anchor = anchor
+
+    def xy(self, p: Position) -> tuple[float, float]:
+        distance, bearing = range_bearing(self.anchor, p)
+        r, b = distance.value, math.radians(bearing.value)
+        return r * math.sin(b), r * math.cos(b)
+
+    def position(self, xy: tuple[float, float]) -> Position:
+        r = math.hypot(*xy)
+        if r == 0:
+            return self.anchor
+        bearing = math.degrees(math.atan2(xy[0], xy[1]))
+        return destination(self.anchor, Quantity(bearing, "deg"), Quantity(r, "m"))
+
+
+@dataclass(frozen=True)
+class Leg:
+    """What a period makes good: the true bearing, at its first fix, of the geodesic from
+    its first fix to its last; the range between them; and the seconds between their
+    times. For a straight leg at a steady speed, its course and speed."""
+
+    course: float
+    metres: float
+    seconds: float
+
+    @property
+    def speed(self) -> float:
+        """Metres a second."""
+        return self.metres / self.seconds
+
+
+def _position(track: models.TrackFeature, i: int) -> Position:
+    lon, lat = track.geometry.coordinates[i]
+    return Position(lon, lat)
+
+
+def ends(track: models.TrackFeature, indices: Sequence[int], anchor: str) -> tuple[int, int]:
+    """The fix a shear or a stretch holds (the anchor: the period's first or last) and
+    the fix at the other end, which is dragged. Refused when the period has fixes at
+    only one time."""
+    if anchor not in ANCHORS:
+        raise TrackError("Say which end of the period is held: the start or the end.")
+    times = times_of(track)
+    first, last = indices[0], indices[-1]
+    if times[first] == times[last]:
+        raise TrackError(
+            f"{track.properties.name} has fixes at only one time there, so it cannot be "
+            "sheared or stretched: that needs fixes at two times."
+        )
+    return (first, last) if anchor == "start" else (last, first)
+
+
+def leg_of(track: models.TrackFeature, indices: Sequence[int]) -> Leg:
+    """What the fixes at indices make good, from the first to the last."""
+    times = times_of(track)
+    first, last = indices[0], indices[-1]
+    distance, bearing = range_bearing(_position(track, first), _position(track, last))
+    return Leg(bearing.value, distance.value, (times[last] - times[first]) / 1000)
+
+
+def shear_target(
+    track: models.TrackFeature,
+    indices: Sequence[int],
+    anchor: str,
+    course: Quantity,
+    speed: Quantity,
+) -> Position:
+    """Where the dragged end goes for the period to make good this course and speed: from
+    the period's first fix, the course is the geodesic's bearing there. Held at the end,
+    the start is found by turning the bearing back from the anchor until the geodesic
+    from the new start sets off on the course (a few turns: only the meridians'
+    convergence separates the two)."""
+    held, dragged = ends(track, indices, anchor)
+    times = times_of(track)
+    a = _position(track, held)
+    metres = speed.to("m/s").value * abs(times[dragged] - times[held]) / 1000
+    want = course.to("deg").value
+    if metres == 0:
+        return a
+    if anchor == "start":
+        return destination(a, Quantity(want, "deg"), Quantity(metres, "m"))
+    back = want + 180.0
+    start = a
+    for _ in range(8):
+        start = destination(a, Quantity(back, "deg"), Quantity(metres, "m"))
+        error = (range_bearing(start, a)[1].value - want + 540.0) % 360.0 - 180.0
+        if abs(error) < 1e-9:
+            break
+        back -= error
+    return start
+
+
+def _velocity(track: models.TrackFeature, i: int) -> tuple[float, float]:
+    """The fix's course (degrees true) and speed (metres a second): as recorded, or, for
+    whichever is not, as the positions say, from the fix before to the fix after."""
+    props = track.properties
+    course = speed = None
+    if props.courses is not None:
+        course = Quantity(props.courses.values[i], str(props.courses.unit)).to("deg").value
+    if props.speeds is not None:
+        speed = Quantity(props.speeds.values[i], str(props.speeds.unit)).to("m/s").value
+    if course is None or speed is None:
+        times = times_of(track)
+        a, b = max(0, i - 1), min(len(times) - 1, i + 1)
+        distance, bearing = range_bearing(_position(track, a), _position(track, b))
+        seconds = (times[b] - times[a]) / 1000
+        if course is None:
+            course = bearing.value
+        if speed is None:
+            speed = distance.value / seconds if seconds > 0 else 0.0
+    return course, speed
+
+
+Change = Callable[[tuple[float, float], float], tuple[float, float]]
+
+
+def _carried(
+    track: models.TrackFeature, indices: Sequence[int], frame: AnchorFrame, change: Change
+) -> models.TrackFeature:
+    """The track with each fix at indices changed in the anchor's frame (change takes a
+    fix's place in the frame and its time, in milliseconds), and its recorded course
+    and speed carried through the same change: the position the recorded velocity
+    reaches VELOCITY_STEP_S later is changed as a fix at that time would be, and the
+    new course and speed are from the changed fix to it. So a shear adds the leg's
+    change of velocity to each fix's own, and a stretch scales each speed and keeps
+    each course; on a straight, steady leg they become exactly the leg's new ones.
+    Courses and speeds the track does not record stay unrecorded."""
+    props = track.properties
+    times = times_of(track)
+    positions = [list(p) for p in track.geometry.coordinates]
+    courses = list(props.courses.values) if props.courses is not None else None
+    speeds = list(props.speeds.values) if props.speeds is not None else None
+    for i in indices:
+        p = _position(track, i)
+        to = frame.position(change(frame.xy(p), times[i]))
+        positions[i] = [to.longitude, to.latitude]
+        if courses is None and speeds is None:
+            continue
+        course, speed = _velocity(track, i)
+        ahead = destination(p, Quantity(course, "deg"), Quantity(speed * VELOCITY_STEP_S, "m"))
+        ahead_to = frame.position(change(frame.xy(ahead), times[i] + VELOCITY_STEP_S * 1000))
+        distance, bearing = range_bearing(to, ahead_to)
+        if courses is not None and distance.value > 0:
+            courses[i] = Quantity(bearing.value, "deg").to(str(props.courses.unit)).value
+        if speeds is not None:
+            speed_after = Quantity(distance.value / VELOCITY_STEP_S, "m/s")
+            speeds[i] = speed_after.to(str(props.speeds.unit)).value
+    after = _with_positions(track, positions, courses)
+    if speeds is None:
+        return after
+    series = props.speeds.model_copy(update={"values": speeds})
+    return after.model_copy(
+        update={"properties": after.properties.model_copy(update={"speeds": series})}
+    )
+
+
+def sheared(
+    track: models.TrackFeature, indices: Sequence[int], anchor: str, to: Position
+) -> models.TrackFeature | None:
+    """The track sheared: the anchor held, the period's other end dragged to `to`, and
+    each fix at indices moved by that displacement (in the anchor's frame) times its
+    fraction of the time from the anchor to the dragged end. None if the end does not
+    move."""
+    held, dragged = ends(track, indices, anchor)
+    times = times_of(track)
+    frame = AnchorFrame(_position(track, held))
+    ex, ey = frame.xy(_position(track, dragged))
+    tx, ty = frame.xy(to)
+    dx, dy = tx - ex, ty - ey
+    if math.hypot(dx, dy) < 1e-6:
+        return None
+    t0, span = times[held], times[dragged] - times[held]
+
+    def change(xy: tuple[float, float], t: float) -> tuple[float, float]:
+        f = (t - t0) / span
+        return xy[0] + f * dx, xy[1] + f * dy
+
+    return _carried(track, indices, frame, change)
+
+
+def stretched(
+    track: models.TrackFeature, indices: Sequence[int], anchor: str, factor: float
+) -> models.TrackFeature | None:
+    """The track stretched: the anchor held, and each fix at indices taken along its
+    bearing from the anchor to factor times its range from it. Speeds are multiplied
+    by the factor; courses kept. None if the factor is 1."""
+    if factor <= 0:
+        raise TrackError("A stretch needs a speed of more than nothing.")
+    held, _ = ends(track, indices, anchor)
+    if abs(factor - 1) < 1e-12:
+        return None
+    frame = AnchorFrame(_position(track, held))
+    return _carried(track, indices, frame, lambda xy, _t: (xy[0] * factor, xy[1] * factor))
+
+
+def _speed_text(metres_per_second: float) -> str:
+    return format_quantity(Quantity(metres_per_second, "m/s").to(DEFAULT_SETTINGS.speed_unit))
+
+
+def _course_speed(leg: Leg) -> str:
+    return f"{format_bearing(Quantity(leg.course, 'deg'))} {_speed_text(leg.speed)}"
+
+
+def describe_shear(name: str, leg: Leg, part: bool) -> str:
+    """What the History view calls a shear: "BLUE ONE sheared: 087.2°T 12.4 kn", the
+    course and speed the period now makes good."""
+    what = f"{name} part" if part else name
+    return f"{what} sheared: {_course_speed(leg)}"
+
+
+def describe_stretch(name: str, leg: Leg, part: bool) -> str:
+    """What the History view calls a stretch: "BLUE ONE stretched: 12.4 kn"."""
+    what = f"{name} part" if part else name
+    return f"{what} stretched: {_speed_text(leg.speed)}"
+
+
+def describe_anchor(anchor: str, at_ms: int) -> str:
+    """A shear's or a stretch's second note: "Held at the start, 09:30:00Z"."""
+    return f"Held at the {anchor}, {_when(at_ms)}"
+
+
+def describe_was(leg: Leg, speed_only: bool) -> str:
+    """What the period made good before: "Was 090.0°T 10.0 kn", or "Was 10.0 kn"."""
+    return f"Was {_speed_text(leg.speed) if speed_only else _course_speed(leg)}"
 
 
 def describe_period(period: tuple[int, int] | None) -> str | None:
@@ -359,12 +617,21 @@ def merge(
 
 
 __all__ = [
+    "ANCHORS",
+    "AnchorFrame",
+    "Leg",
     "TrackError",
     "default_pivot",
+    "describe_anchor",
     "describe_move",
     "describe_period",
     "describe_pivot",
     "describe_rotation",
+    "describe_shear",
+    "describe_stretch",
+    "describe_was",
+    "ends",
+    "leg_of",
     "merge",
     "merged_name",
     "moved",
@@ -372,6 +639,9 @@ __all__ = [
     "overlaps",
     "period_indices",
     "rotated",
+    "shear_target",
+    "sheared",
     "split",
+    "stretched",
     "times_of",
 ]

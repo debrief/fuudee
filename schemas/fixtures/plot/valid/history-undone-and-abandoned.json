@@ -1,6 +1,6 @@
 {
   "type": "FeatureCollection",
-  "schema_version": "0.0.14",
+  "schema_version": "0.0.15",
   "features": [
     {
       "type": "Feature",
@@ -100,7 +100,7 @@
   ],
   "history": {
     "current": 4,
-    "head_hash": "sha256:c78e347fc5dcc5714dd88492e2eee6b33043c059d47f0b81ed5c1db57a15b6b7",
+    "head_hash": "sha256:e38a344f6042f0d51308c0891d7a6bc80dbd2a67e2e20ea1134f1247c4839525",
     "steps": [
       {
         "seq": 1,
@@ -282,8 +282,8 @@
             }
           }
         ],
-        "result_hash": "sha256:0e2e8b0dfcbbc32561e66afd8297975177148d41999cb1b9ac5b469ea4963b5c",
-        "step_hash": "sha256:e4154b7f9138d669c4665f60b3856d0738df4039dd23ca40dada616b17d993da"
+        "result_hash": "sha256:ec05e935cabbda77df74fc2f1a6785f93aa35b08bc146ba66cb9064248b6eca5",
+        "step_hash": "sha256:fc99d457f2cfe2930e0c4393be795e3d9b6575e4c954f584d6bcb99f4d394597"
       },
       {
         "seq": 5,
@@ -308,7 +308,7 @@
           "note-1"
         ],
         "result_hash": "sha256:02b010813a01a70939c048733141370872240c5778ad4fe5237dd815459b9dde",
-        "step_hash": "sha256:c78e347fc5dcc5714dd88492e2eee6b33043c059d47f0b81ed5c1db57a15b6b7"
+        "step_hash": "sha256:e38a344f6042f0d51308c0891d7a6bc80dbd2a67e2e20ea1134f1247c4839525"
       }
     ]
   }

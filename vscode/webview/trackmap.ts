@@ -1,7 +1,8 @@
 /**
- * Moving and rotating a track on the map (CAP-01, CAP-02, NFR-13): handles on
- * a track selected alone, the live preview while one is dragged, and the
- * keyboard. What each gesture makes is in trackedit.ts, free of Leaflet.
+ * Moving, rotating, shearing and stretching a track on the map (CAP-01, CAP-02,
+ * CAP-21, NFR-13): handles on a track selected alone, the live preview while one
+ * is dragged, and the keyboard. What each gesture makes is in trackedit.ts, free
+ * of Leaflet.
  *
  * - A track selected on its own shows three handles in the theme's focus
  *   colour: one to move it (on a fix in the middle of what moves), one to
@@ -16,6 +17,15 @@
  *   fixes in the window shows the joins jumping, as they will.
  * - Dragging the pivot, or moving it with the arrow keys, chooses where the
  *   next rotation turns about; it records nothing.
+ * - Two diamonds, beside the first and last fixes of what changes, are
+ *   its ends. Dragging one shears the track (the other end held, every fix
+ *   moved in proportion to its time from it: course and speed change
+ *   together, "BLUE ONE: shearing to 087.2°T 12.4 kn; end moved ...") or, with
+ *   Stretch chosen in the control, stretches it (only how far along the leg
+ *   counts: speed changes, course does not). On the keyboard, the arrow keys
+ *   move a shear handle as the move handle; on a stretch handle Up and Right
+ *   are faster by one step of speed (0.1 kn), Down and Left slower, ten steps
+ *   with Shift.
  * - From the keyboard: Tab to a handle. The arrow keys move the move handle 5
  *   pixels (25 with Shift) and turn the rotate handle 1° (10° with Shift),
  *   Right and Up clockwise; the change is sent when the analyst stops (or
@@ -32,14 +42,19 @@ import {
   changesNothing,
   defaultPivotIndex,
   dragGesture,
+  endPlaces,
   gestureChange,
   handlePlaces,
+  isEnd,
   KeyRun,
+  legOf,
   periodIndices,
   pivotReadout,
   pressKey,
+  speedIn,
   startGesture,
   turned,
+  type EndMode,
   type Gesture,
   type Screen,
   type Span,
@@ -50,6 +65,9 @@ import {
 type Feature = DebriefFeatureCollection["features"][number];
 type Track = Extract<Feature, { properties: { kind: "track" } }>;
 const DRAG_PX = 4;
+/** How far beyond its fix an end's handle is drawn, in pixels, so it is clear of the move handle and the pivot. */
+const END_OFFSET_PX = 18;
+const END_SIZE = 14;
 /** The most fixes marked one by one while a track is moved. */
 const MARKED_FIXES = 120;
 const settings = DEFAULT_SETTINGS;
@@ -90,6 +108,8 @@ export class TrackEditor {
   private selection: string[] = [];
   private selected?: Selected;
   private extent: Extent = "whole";
+  /** What dragging an end of the period does. */
+  private mode: EndMode = "shear";
   /** A pivot the analyst chose, by dragging it; otherwise the default. */
   private chosenPivot?: LonLat;
   private readonly preview = L.layerGroup();
@@ -103,7 +123,7 @@ export class TrackEditor {
   private readonly run = new KeyRun<{ role: TrackRole; key: string; shift: boolean }>(() => this.commitNudge());
   private frame?: number;
   private rebuilding = false;
-  private control?: { box: HTMLElement; whole: HTMLButtonElement; window: HTMLButtonElement };
+  private control?: { box: HTMLElement; whole: HTMLButtonElement; window: HTMLButtonElement; shear: HTMLButtonElement; stretch: HTMLButtonElement };
   private readonly screen: Screen;
 
   constructor(private readonly host: TrackHost) {
@@ -153,10 +173,29 @@ export class TrackEditor {
         };
         const whole = button("whole", "Whole track", "Move or rotate every fix of the track");
         const inWindow = button("window", "Time window", "Move or rotate only the fixes in the time window; the track jumps where they meet the rest");
+        // What dragging an end of the period does: shear (most used with TMA legs) or stretch.
+        const ends = L.DomUtil.create("div", "track-ends", box);
+        ends.setAttribute("role", "group");
+        ends.setAttribute("aria-label", "What dragging an end of the selected track does");
+        L.DomUtil.create("span", "track-extent-label", ends).textContent = "Drag the ends";
+        const modeButton = (mode: EndMode, text: string, title: string) => {
+          const b = L.DomUtil.create("button", "track-extent-button", ends) as HTMLButtonElement;
+          b.type = "button";
+          b.textContent = text;
+          b.title = title;
+          b.dataset.mode = mode;
+          b.addEventListener("click", (e) => {
+            e.preventDefault();
+            editor.setMode(mode);
+          });
+          return b;
+        };
+        const shear = modeButton("shear", "Shear", "Drag an end: the other end stays, and course and speed change together");
+        const stretch = modeButton("stretch", "Stretch", "Drag an end along the track: the other end stays, and only the speed changes");
         L.DomEvent.disableClickPropagation(box);
         L.DomEvent.disableScrollPropagation(box);
         box.hidden = true;
-        editor.control = { box, whole, window: inWindow };
+        editor.control = { box, whole, window: inWindow, shear, stretch };
         return box;
       },
     });
@@ -167,6 +206,13 @@ export class TrackEditor {
   setExtent(extent: Extent): void {
     if (this.drag || this.nudge || this.run.saving) return;
     this.extent = extent;
+    this.render(true);
+  }
+
+  /** Dragging an end shears the track, or stretches it. */
+  setMode(mode: EndMode): void {
+    if (this.drag || this.nudge || this.run.saving) return;
+    this.mode = mode;
     this.render(true);
   }
 
@@ -225,6 +271,7 @@ export class TrackEditor {
     return {
       name: s.name,
       positions: s.positions,
+      times: s.times,
       indices,
       part: indices.length < s.times.length,
       pivot: this.chosenPivot ?? s.positions[index!],
@@ -245,6 +292,8 @@ export class TrackEditor {
       box.hidden = false;
       this.control.whole.setAttribute("aria-pressed", String(this.extent === "whole"));
       this.control.window.setAttribute("aria-pressed", String(this.extent === "window"));
+      this.control.shear.setAttribute("aria-pressed", String(this.mode === "shear"));
+      this.control.stretch.setAttribute("aria-pressed", String(this.mode === "stretch"));
     }
     const t = this.target();
     if (!t) {
@@ -255,9 +304,12 @@ export class TrackEditor {
     }
     const pivotIndex = this.chosenPivot ? undefined : s.positions.indexOf(t.pivot);
     const places = handlePlaces(s.positions, t.indices, t.pivot, pivotIndex);
-    this.placeHandles({ move: places.move, rotate: places.rotate, pivot: t.pivot });
+    const ends = endPlaces(s.positions, s.times, t.indices);
+    this.placeHandles({ move: places.move, rotate: places.rotate, pivot: t.pivot, ...ends });
     if (announce || (!this.drag && this.host.noting() !== "other")) {
-      this.host.say(`${this.what(s.name)}: drag the move or rotate handle, or Tab to one and use the arrow keys.`, undefined, "selection");
+      const verb = this.mode === "stretch" ? "stretch" : "shear";
+      const toEnds = ends.start ? `, or an end to ${verb} it` : "";
+      this.host.say(`${this.what(s.name)}: drag the move or rotate handle${toEnds}; or Tab to one and use the arrow keys.`, undefined, "selection");
     }
   }
 
@@ -275,7 +327,7 @@ export class TrackEditor {
 
   private placeHandles(places: Partial<Record<TrackRole, LonLat>>): void {
     const s = this.selected!;
-    const wanted = (["pivot", "move", "rotate"] as TrackRole[]).filter((role) => places[role]);
+    const wanted = (["pivot", "move", "rotate", "start", "end"] as TrackRole[]).filter((role) => places[role]);
     const same = wanted.length === this.handles.size && wanted.every((role) => this.handles.has(role));
     if (!same) {
       const focused = [...this.handles].find(([, m]) => m.getElement() === document.activeElement)?.[0];
@@ -294,6 +346,10 @@ export class TrackEditor {
       if (element) {
         element.setAttribute("aria-label", this.label(role, s.name));
         element.title = this.label(role, s.name);
+        if (isEnd(role)) {
+          element.classList.toggle("track-handle-stretch", this.mode === "stretch");
+          this.offsetEnd(element, role, places[role]!);
+        }
       }
     }
     if (places.pivot && places.rotate) {
@@ -306,14 +362,40 @@ export class TrackEditor {
     }
   }
 
+  /**
+   * Draw an end's handle beside its fix, to the left of the way the track goes there, so it is
+   * clear of the pivot (which may be on the fix), the move handle and the rotate handle (which
+   * lies beyond the far end, on the line of a straight leg). The handle's position is still the fix.
+   */
+  private offsetEnd(element: HTMLElement, role: TrackRole, at: LonLat): void {
+    const t = this.target();
+    let [ux, uy] = [1, 0]; // the way the track goes at this end, on the screen
+    if (t && t.indices.length > 1) {
+      const zoom = this.host.map.getZoom();
+      const other = this.host.map.project(toLatLng(t.positions[role === "start" ? t.indices[1] : t.indices[t.indices.length - 2]]), zoom);
+      const here = this.host.map.project(toLatLng(at), zoom);
+      const [dx, dy] = role === "start" ? [other.x - here.x, other.y - here.y] : [here.x - other.x, here.y - other.y];
+      const length = Math.hypot(dx, dy);
+      if (length > 0) [ux, uy] = [dx / length, dy / length];
+    }
+    // Left of the way it goes (the screen's y is down).
+    element.style.marginLeft = `${-END_SIZE / 2 + uy * END_OFFSET_PX}px`;
+    element.style.marginTop = `${-END_SIZE / 2 - ux * END_OFFSET_PX}px`;
+  }
+
   private label(role: TrackRole, name: string): string {
+    if (isEnd(role)) {
+      const other = role === "start" ? "end" : "start";
+      if (this.mode === "stretch") return `${this.what(name)}: stretch from the ${role}, holding the ${other}; drag it along the track, or use Up and Down to change speed`;
+      return `${this.what(name)}: shear from the ${role}, holding the ${other}; drag it, or use the arrow keys`;
+    }
     if (role === "move") return `${this.what(name)}: move; drag it, or use the arrow keys`;
     if (role === "rotate") return `${this.what(name)}: rotate about the pivot; drag it round, or use the arrow keys (Right turns clockwise)`;
     return `${name}: pivot for rotating; drag it, or use the arrow keys, to choose where it turns about`;
   }
 
   private makeHandle(role: TrackRole, at: LonLat): L.Marker {
-    const size = role === "pivot" ? 12 : 16;
+    const size = role === "pivot" ? 12 : isEnd(role) ? END_SIZE : 16;
     const icon = L.divIcon({ className: `track-handle track-handle-${role}`, iconSize: [size, size] });
     const marker = L.marker(toLatLng(at), { icon, keyboard: false, interactive: true, bubblingMouseEvents: false, zIndexOffset: 1000 });
     marker.on("add", () => {
@@ -363,7 +445,8 @@ export class TrackEditor {
     }
     // The handle in use goes with the track.
     const marker = this.handles.get(g.role);
-    if (g.role === "move") marker?.setLatLng(toLatLng(g.at));
+    if (change.handle) marker?.setLatLng(toLatLng(change.handle));
+    else if (g.role === "move") marker?.setLatLng(toLatLng(g.at));
     else {
       const to = turned([g.origin], [0], t.pivot, g.degrees)[0];
       marker?.setLatLng(toLatLng(to));
@@ -385,7 +468,7 @@ export class TrackEditor {
     const t = this.target();
     const change = s && t && gestureChange(g, t, settings);
     if (!s || !change) return;
-    if (changesNothing(change.edit)) {
+    if (change.unchanged || changesNothing(change.edit)) {
       this.unshow();
       this.host.say("Not changed.");
       return;
@@ -405,7 +488,7 @@ export class TrackEditor {
     element.focus({ preventScroll: true }); // so Escape can put it back
     element.setPointerCapture?.(event.pointerId);
     const start = this.host.map.mouseEventToContainerPoint(event as unknown as MouseEvent);
-    this.drag = { ...startGesture(role, origin), start, moved: false, pointer: event.pointerId, element };
+    this.drag = { ...startGesture(role, origin, this.mode), start, moved: false, pointer: event.pointerId, element };
   }
 
   private moveDrag(event: PointerEvent): void {
@@ -415,7 +498,11 @@ export class TrackEditor {
     if (!drag.moved && point.distanceTo(drag.start) < DRAG_PX) return;
     drag.moved = true;
     const pivot = this.target()?.pivot ?? drag.origin;
-    Object.assign(drag, dragGesture(drag, lonLat(this.host.map.containerPointToLatLng(point)), pivot));
+    // An end goes as far as the pointer has, from wherever on the handle it was grabbed.
+    const to = isEnd(drag.role)
+      ? this.screen.toLonLat([this.screen.toPoint(drag.origin)[0] + point.x - drag.start.x, this.screen.toPoint(drag.origin)[1] + point.y - drag.start.y])
+      : lonLat(this.host.map.containerPointToLatLng(point));
+    Object.assign(drag, dragGesture(drag, to, pivot));
     // At most once a frame: a long track takes a moment to move.
     if (this.frame === undefined) {
       this.frame = requestAnimationFrame(() => {
@@ -488,8 +575,11 @@ export class TrackEditor {
     const origin = this.handleAt(role);
     if (!origin) return;
     if (this.nudge && this.nudge.role !== role) this.commitNudge();
-    const before = role === "pivot" ? startGesture(role, origin) : (this.nudge ?? startGesture(role, origin));
-    const g = pressKey(before, key, shift, this.screen);
+    const before = role === "pivot" ? startGesture(role, origin) : (this.nudge ?? startGesture(role, origin, this.mode));
+    const t = this.target();
+    // A stretch's first press starts from the speed the period makes good, as shown.
+    const speed = before.mode === "stretch" && t ? speedIn(legOf(t.positions, t.times, t.indices).speed, settings) : undefined;
+    const g = pressKey(before, key, shift, this.screen, speed, settings);
     this.show(g);
     if (role === "pivot") return; // the pivot records nothing: each press puts it where it now is
     this.nudge = g;
