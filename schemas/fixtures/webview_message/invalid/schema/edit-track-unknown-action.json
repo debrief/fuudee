@@ -1,0 +1,11 @@
+{
+  "kind": "edit_track",
+  "feature_id": "track-blue-one",
+  "track_edit": {
+    "action": "stretch",
+    "angle": {
+      "value": 10,
+      "unit": "deg"
+    }
+  }
+}

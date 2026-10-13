@@ -693,3 +693,64 @@ def test_a_plot_file_from_a_colleague_is_added_with_its_history(
     error = rpc(client, "debrief/add_plot_file", params).json()["error"]
     assert error["code"] == -32602
     assert "history has been changed outside Debrief" in error["message"]
+
+
+def test_tracks_are_moved_rotated_split_and_merged_as_recorded_steps(client, catalogue) -> None:
+    where = {"store": "exercise", "item": "serial", "agent": AGENT}
+    base = rpc(client, "debrief/open", where).json()["result"]["base"]
+    move = {
+        "action": "move",
+        "distance": {"value": 1.2, "unit": "[nmi_i]"},
+        "bearing": {"value": 45, "unit": "deg"},
+    }
+    moved = rpc(
+        client,
+        "debrief/edit_track",
+        {**where, "base": base, "feature": "track-nelson", "edit": move},
+    ).json()["result"]
+    assert moved["changed"]
+    rotate = {"action": "rotate", "angle": {"value": 10, "unit": "deg"}}
+    rotated = rpc(
+        client,
+        "debrief/edit_track",
+        {
+            **where,
+            "base": moved["base"],
+            "feature": "track-nelson",
+            "edit": rotate,
+            "current_time": "1995-12-12T05:10:00.000Z",
+        },
+    ).json()["result"]
+    late = {"feature": "track-late", "at": "1995-12-12T07:05:00.000Z"}
+    split = rpc(client, "debrief/split_track", {**where, "base": rotated["base"], **late}).json()
+    # LATE has two fixes: neither part would have the two a track needs.
+    assert split["error"]["code"] == -32602
+    assert "each part needs at least 2" in split["error"]["message"]
+    together = {"features": ["track-late", "track-nelson"], "name": "NELSON"}
+    merged = rpc(
+        client, "debrief/merge_tracks", {**where, "base": rotated["base"], **together}
+    ).json()["result"]
+    assert merged["feature"] == "track-nelson"
+    steps = rpc(client, "debrief/history", where).json()["result"]["steps"]
+    assert [s["notes"][0] for s in steps[-3:]] == [
+        "NELSON moved 1.20 nmi 045.0°T",
+        "NELSON rotated 10.0° clockwise",
+        "NELSON and LATE merged",
+    ]
+    assert steps[-2]["notes"][1].startswith("About 50°")
+    # Overlapping tracks are refused, saying where; a stale base is a conflict.
+    both = {"features": ["track-nelson", "track-blue"]}
+    overlap = rpc(client, "debrief/merge_tracks", {**where, "base": merged["base"], **both}).json()[
+        "error"
+    ]
+    assert overlap["code"] == -32602
+    assert "from 05:00:00Z to 05:20:00Z" in overlap["message"]
+    stale = rpc(
+        client, "debrief/edit_track", {**where, "base": base, "feature": "track-blue", "edit": move}
+    ).json()["error"]
+    assert stale["code"] == -32001
+    incomplete = {"feature": "track-blue", "edit": {"action": "move"}}
+    bad = rpc(client, "debrief/edit_track", {**where, **incomplete}).json()["error"]
+    assert bad["code"] == -32602 and "distance and a bearing" in bad["message"]
+    rpc(client, "debrief/undo", {**where, "base": merged["base"]})
+    assert "track-late" in {f.id for f in catalogue.read_plot("serial").features}

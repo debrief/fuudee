@@ -225,6 +225,13 @@ export type StepStateEnum1 = "applied" | "undone" | "abandoned";
 export type ToolOutputKindEnum =
   "new_features" | "modified_features" | "deleted_features" | "non_spatial" | "named_sets" | "state_change";
 /**
+ * What a track edit does (CAP-01).
+ *
+ * This interface was referenced by `DebriefSchemaDefinitions`'s JSON-Schema
+ * via the `definition` "TrackEditActionEnum".
+ */
+export type TrackEditActionEnum = "move" | "rotate";
+/**
  * This interface was referenced by `DebriefSchemaDefinitions`'s JSON-Schema
  * via the `definition` "WebviewMessageKindEnum".
  */
@@ -252,7 +259,8 @@ export type WebviewMessageKindEnum =
   | "save_annotation"
   | "delete_annotation"
   | "edit_annotation"
-  | "annotation_drawn";
+  | "annotation_drawn"
+  | "edit_track";
 
 export interface DebriefSchemaDefinitions {}
 /**
@@ -1239,6 +1247,38 @@ export interface ToolResult {
   state_change?: SharedStateChange | null;
 }
 /**
+ * A track moved or rotated by hand, as the map, a form or an agent describes it (CAP-01, CAP-02): one recorded, undoable step in the plot's history (SUB-19). Geodesic: a move takes every fix in the period the same range along the same bearing, each along its own geodesic; a rotation keeps each fix's range from the pivot and turns its bearing from the pivot by the angle. Fixes outside the period stay where they are, so the joins jump.
+ *
+ * This interface was referenced by `DebriefSchemaDefinitions`'s JSON-Schema
+ * via the `definition` "TrackEdit".
+ */
+export interface TrackEdit {
+  action: TrackEditActionEnum;
+  /**
+   * How far a rotation turns the fixes about the pivot; positive is clockwise.
+   */
+  angle?: Angle | null;
+  /**
+   * Which way a move takes each fix, true, clockwise from north.
+   */
+  bearing?: Angle | null;
+  /**
+   * How far a move takes each fix.
+   */
+  distance?: Length | null;
+  /**
+   * The fixes to change: those whose times fall in it, ends included. Left out, the whole track.
+   */
+  period?: TimeRange | null;
+  /**
+   * [longitude, latitude] of the position a rotation turns about. Left out, the fix nearest current time in the period, or the period's first fix.
+   *
+   * @minItems 2
+   * @maxItems 2
+   */
+  pivot?: [number, number] | null;
+}
+/**
  * This interface was referenced by `DebriefSchemaDefinitions`'s JSON-Schema
  * via the `definition` "UserConfig".
  */
@@ -1270,7 +1310,7 @@ export interface WebviewMessage {
    */
   current_time?: string | null;
   /**
-   * The annotation a form changes or deletes, or the map asks to change.
+   * The annotation a form changes or deletes, or the annotation or track the map asks to change.
    */
   feature_id?: string | null;
   /**
@@ -1301,5 +1341,9 @@ export interface WebviewMessage {
   time_range?: TimeRange | null;
   tool?: ToolDeclaration | null;
   tool_name?: string | null;
+  /**
+   * How the analyst moved or rotated a track on the map (edit_track).
+   */
+  track_edit?: TrackEdit | null;
   viewport?: Viewport | null;
 }

@@ -77,6 +77,7 @@ nav:
           - Check overrides: guides/interaction-models/check-overrides.md
           - Time controller: guides/interaction-models/time-controller.md
           - Annotations: guides/interaction-models/annotations.md
+          - Track operations: guides/interaction-models/track-operations.md
           - Keyboard equivalents: guides/interaction-models/keyboard-equivalents.md
       - Tool-author guide: guides/tool-author/index.md
       - Sample data: guides/sample-data.md

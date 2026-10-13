@@ -237,7 +237,7 @@ Capabilities are replaceable and are where feature requests land. Each shall be 
 
 ### 7.1 Track operations
 
-- **CAP-01** Debrief shall support dragging, splitting, merging, jump removal and smoothing of tracks, and the legacy OTG and DR import modes.
+- **CAP-01** Debrief shall support dragging, splitting, merging, jump removal and smoothing of tracks, and the legacy OTG and DR import modes. Dragging moves the whole track, or a selected time period of it, as legacy Debrief does: translated (every fix the same range along the same bearing, along geodesics) or rotated about a pivot (each fix keeping its range from it); the joins of a period moved are not smoothed. Dragging single fixes comes later. Merging tracks that overlap in time is refused, saying where (decision, product owner, 13 Oct 2026).
 - **CAP-02** Track edits shall be destructive in the working plot. Each shall be recorded as a delta under SUB-19.
 
 ### 7.2 Annotation and temporal view

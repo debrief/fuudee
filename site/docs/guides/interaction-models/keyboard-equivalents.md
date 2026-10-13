@@ -12,7 +12,7 @@ How every map action can be done without a mouse.
 
 ## Model
 
-*Written so far for annotations; the rest of the map follows in Phase 3.*
+*Written so far for annotations and for moving and rotating tracks; the rest of the map follows in Phase 3.*
 
 | Map action | Without a pointer |
 | --- | --- |
@@ -20,9 +20,12 @@ How every map action can be done without a mouse.
 | Drag a corner, centre, radius, axis or label | `Tab` to its handle; the arrow keys move it 5 pixels (25 with `Shift`); the run of presses is one step when they stop, on `Enter`, or when the keyboard moves on (presses made while it is saved follow as the next step); `Escape` puts it back. Or type the change on its properties form. |
 | Add a corner between two | Arrow keys on the handle between them. |
 | Remove a corner | `Delete` or `Backspace` on its handle. |
+| Drag a track, or its fixes in the time window | `Tab` to the selected track's move handle; the arrow keys move it 5 pixels (25 with `Shift`), and the run of presses is one step, as for an annotation's handle. *Whole track* and *Time window* are buttons on the map. Or **Move track…** and type the distance and bearing ([track operations](track-operations.md), item 11). |
+| Rotate a track | `Tab` to its rotate handle; `Right` and `Up` turn it 1° clockwise, `Left` and `Down` anticlockwise, 10° with `Shift`; one step for the run. The pivot handle moves with the arrow keys. Or **Rotate track…**, with the pivot and angle typed. |
+| Split or merge tracks | **Split track at current time…** and **Merge selected tracks** on the outline's context menu (buttons under the outline in the playground); there is no map gesture for either. |
 | Clear the selection | `Escape` on the map; or the outline, a native tree. |
 | Pan, zoom | Arrow keys, and `+` and `-`, with the map focused. |
 
 ## Reference implementation
 
-`vscode/webview/mapedit.ts` (keys while drawing and on handles) and `vscode/webview/drawing.ts`; the playground test `vscode/test/play/drawing.mjs` places a marker and changes an area from the keyboard alone.
+`vscode/webview/mapedit.ts` (keys while drawing and on handles) and `vscode/webview/drawing.ts`; `vscode/webview/trackmap.ts` and `vscode/webview/trackedit.ts` for a track's handles. The playground tests `vscode/test/play/drawing.mjs` and `vscode/test/play/tracks.mjs` place a marker, change an area, and move and rotate a track from the keyboard alone.

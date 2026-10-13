@@ -75,6 +75,8 @@ export interface EditorHost {
   annotation(id: string): AnnotationSpec | undefined;
   /** Draw or stop drawing a feature's own layers, while its changed form is shown instead. */
   setShown(id: string, shown: boolean): void;
+  /** Drawing began or ended: a track's handles keep out of its way meanwhile. */
+  drawingChanged?(): void;
 }
 
 interface Drag {
@@ -120,6 +122,11 @@ export class MapEditor {
   private rebuilding = false;
   /** What the map is saying: how to change the selected annotation, or something else, which that does not replace. */
   private saying?: "selection" | "other";
+
+  /** What the note at the top of the map is saying: how to change the selection, something else, or nothing. */
+  get noting(): "selection" | "other" | undefined {
+    return this.saying;
+  }
 
   constructor(private readonly host: EditorHost) {
     const { map } = host;
@@ -249,6 +256,7 @@ export class MapEditor {
     this.dragMode();
     this.showHandles();
     this.showButtons();
+    this.host.drawingChanged?.();
     this.say(hint(this.drawing), "");
     // The keyboard goes to the map, where Space places a point at the cross.
     this.host.element.focus();
@@ -257,8 +265,8 @@ export class MapEditor {
   /** Stop drawing and keep nothing. */
   cancel(): void {
     if (!this.drawing) return;
-    this.endDrawing();
     this.say("");
+    this.endDrawing(); // after: a selected track's note comes back
   }
 
   private endDrawing(): void {
@@ -270,6 +278,7 @@ export class MapEditor {
     this.dragMode();
     this.showButtons();
     this.showHandles();
+    this.host.drawingChanged?.();
   }
 
   /** Before a circle's or an ellipse's centre is placed, a drag on the map draws it rather than panning. */
@@ -663,7 +672,8 @@ export class MapEditor {
     }
   }
 
-  private say(text: string, readoutText?: string, saying: "selection" | "other" = "other"): void {
+  /** Say something in the note at the top of the map, with a readout beneath it; the track editor says its own here too. */
+  say(text: string, readoutText?: string, saying: "selection" | "other" = "other"): void {
     this.saying = text ? saying : undefined;
     // How to change a selection is not read out each time one is made: its handles say it.
     this.statusHint.setAttribute("aria-live", this.saying === "selection" ? "off" : "polite");

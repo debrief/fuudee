@@ -23,6 +23,8 @@ import { contextShown, type ContextTracks } from "../webview/contrast.js";
 import { placeToolTime } from "../webview/timelogic.js";
 import { TRACK_COLOURS } from "../webview/palette.js";
 import { TimeControl } from "../webview/timecontrol.js";
+import { formatBearing } from "@debrief/kernel";
+import { defaultPivotIndex, describeDistance, describeTurn, periodIndices, readBearing, readDistance, readTurn } from "../webview/trackedit.js";
 
 type Feature = PlotFeature;
 interface Step {
@@ -276,6 +278,19 @@ window.addEventListener("message", (event) => {
         showPlot();
       });
     } else if (message.kind === "edit_annotation") editAnnotation(message.feature_id as string);
+    if (message.kind === "edit_track") {
+      // A track's move or rotate handle let go of, or nudged: changed so, as one step. Refused, the map shows the latest.
+      const change = { kind: "edit", feature: message.feature_id, edit: message.track_edit };
+      const before = opened?.base.plot_hash;
+      void changeTrack(change).then(async (problem) => {
+        if (!opened) return;
+        // Nothing changed after all: the map still waits for the plot to come back.
+        if (!problem) return void (opened.base.plot_hash === before && showPlot());
+        toast(problem.includes("changed elsewhere") ? `${problem} Debrief is showing the latest; try again if you still want to.` : problem, "warning");
+        await openPlot(opened.item.id, true);
+        showPlot();
+      });
+    }
     if (message.kind === "annotation_drawn") {
       // Drawn on the map: the form, filled in with what was drawn, to name it and add it as one step.
       openAnnotationForm({ spec: { ...(message.annotation as AnnotationSpec), name: "" } });
@@ -563,6 +578,187 @@ $("delete-annotation").onclick = () => {
 };
 $("north-arrow").onclick = () => void annotate({ kind: "north_arrow", shown: !hasNorthArrow() }).then((problem) => problem && toast(problem, "warning"));
 
+// --- Tracks: moved, rotated, split and merged, each a step (CAP-01, CAP-02) -----------
+/** Move, rotate, split or merge tracks, as debrief/edit_track and the rest do; then show the plot, the new tracks selected. */
+async function changeTrack(change: Record<string, unknown>): Promise<string | undefined> {
+  if (!opened || !pythonReady) return "Open a plot first.";
+  const outcome = await pythonJson<{ error?: string; feature?: string; features?: string[] }>("track", opened.item.id, JSON.stringify({ base: opened.base, change }));
+  if (outcome.error) return outcome.error;
+  await openPlot(opened.item.id, true);
+  if (outcome.features) await select(outcome.features);
+  else if (outcome.feature) await select([outcome.feature]);
+  return undefined;
+}
+const trackOf = (id: string | undefined) => {
+  const feature = features().find((f) => f.id === id);
+  return feature?.properties.kind === "track" ? (feature as Extract<Feature, { properties: { kind: "track" } }>) : undefined;
+};
+/** The one track selected, or say why there isn't one. */
+function oneTrack(verb: string): ReturnType<typeof trackOf> {
+  const ids = tracksSelected();
+  if (ids.length !== 1) {
+    toast(`Select one track to ${verb}.`, "warning");
+    return undefined;
+  }
+  return trackOf(ids[0]);
+}
+
+interface FormField {
+  id: string;
+  label: string;
+  value?: string;
+  options?: { value: string; label: string }[];
+  /** What the text means, or what is wrong with it. */
+  read?: (text: string) => { means: string } | { problem: string };
+}
+/** A small form in a dialog: each field says, beneath it, what it understood or what is wrong; nothing is sent until all are right. Resolves to the values, or undefined for Cancel. */
+function trackForm(title: string, action: string, fields: FormField[]): Promise<Record<string, string> | undefined> {
+  return new Promise((resolve) => {
+    const dialog = document.createElement("dialog");
+    dialog.className = "track-form";
+    dialog.setAttribute("aria-label", title);
+    const form = document.createElement("form");
+    form.method = "dialog";
+    const heading = Object.assign(document.createElement("h2"), { textContent: title });
+    form.append(heading);
+    const notes = new Map<string, HTMLElement>();
+    for (const field of fields) {
+      const row = document.createElement("label");
+      row.className = "form-row";
+      row.append(Object.assign(document.createElement("span"), { textContent: field.label }));
+      let input: HTMLInputElement | HTMLSelectElement;
+      if (field.options) {
+        input = document.createElement("select");
+        input.append(...field.options.map((o) => new Option(o.label, o.value)));
+      } else {
+        input = Object.assign(document.createElement("input"), { type: "text", autocomplete: "off" });
+      }
+      input.name = field.id;
+      input.id = `track-form-${field.id}`;
+      if (field.value !== undefined) input.value = field.value;
+      const note = Object.assign(document.createElement("span"), { className: "detail form-note" });
+      note.id = `${input.id}-note`;
+      note.setAttribute("aria-live", "polite");
+      input.setAttribute("aria-describedby", note.id);
+      notes.set(field.id, note);
+      const say = () => {
+        if (!field.read) return true;
+        const read = field.read(input.value);
+        note.textContent = "means" in read ? `Means ${read.means}` : read.problem;
+        note.classList.toggle("problem", "problem" in read);
+        return "means" in read;
+      };
+      input.addEventListener("input", say);
+      if (input.value) say();
+      row.append(input, note);
+      form.append(row);
+    }
+    const buttons = document.createElement("div");
+    buttons.className = "buttons";
+    const go = Object.assign(document.createElement("button"), { type: "submit", className: "primary", textContent: action, value: "go" });
+    const cancel = Object.assign(document.createElement("button"), { type: "button", textContent: "Cancel" });
+    buttons.append(go, cancel);
+    form.append(buttons);
+    dialog.append(form);
+    document.body.append(dialog);
+    let values: Record<string, string> | undefined;
+    form.addEventListener("submit", (event) => {
+      const data = Object.fromEntries(fields.map((f) => [f.id, (form.elements.namedItem(f.id) as HTMLInputElement | null)?.value ?? ""]));
+      const wrong = fields.filter((f) => f.read && "problem" in f.read(data[f.id] ?? ""));
+      if (wrong.length) {
+        event.preventDefault();
+        for (const f of wrong) {
+          const read = f.read!(data[f.id] ?? "");
+          notes.get(f.id)!.textContent = "problem" in read ? read.problem : "";
+          notes.get(f.id)!.classList.add("problem");
+        }
+        (form.elements.namedItem(wrong[0].id) as HTMLElement | null)?.focus();
+        return;
+      }
+      values = data;
+    });
+    cancel.onclick = () => dialog.close();
+    dialog.onclose = () => {
+      dialog.remove();
+      resolve(values);
+    };
+    dialog.showModal();
+  });
+}
+const shown = (read: { problem: string } | number | { value: number; unit: string }, means: () => string) => (typeof read === "object" && "problem" in read ? read : { means: means() });
+/** The choice of what moves or turns: the whole track, or its fixes in the time window. */
+function extentField(): FormField {
+  const window = time?.range;
+  return {
+    id: "extent",
+    label: "What changes",
+    options: [{ value: "whole", label: "Whole track" }, ...(window ? [{ value: "window", label: `Fixes in the time window, ${describeTimes(window.start, window.end)}` }] : [])],
+  };
+}
+const windowPeriod = (extent: string) => (extent === "window" && time ? time.range : undefined);
+
+$("move-track").onclick = async () => {
+  const track = oneTrack("move");
+  if (!track) return;
+  const values = await trackForm(`Move ${track.properties.name}`, "Move", [
+    extentField(),
+    { id: "distance", label: "Distance", value: "", read: (t) => shown(readDistance(t), () => describeDistance(readDistance(t) as { value: number; unit: string })) },
+    { id: "bearing", label: "Bearing, true", value: "", read: (t) => shown(readBearing(t), () => formatBearing({ value: readBearing(t) as number, unit: "deg" })) },
+  ]);
+  if (!values) return;
+  const period = windowPeriod(values.extent);
+  const edit = { action: "move", distance: readDistance(values.distance), bearing: { value: readBearing(values.bearing), unit: "deg" }, ...(period && { period }) };
+  const problem = await changeTrack({ kind: "edit", feature: track.id, edit });
+  if (problem) toast(problem, "warning");
+};
+$("rotate-track").onclick = async () => {
+  const track = oneTrack("rotate");
+  if (!track) return;
+  const values = await trackForm(`Rotate ${track.properties.name}`, "Rotate", [
+    extentField(),
+    {
+      id: "pivot",
+      label: "About",
+      options: [
+        { value: "default", label: "The fix nearest current time (or the first fix)" },
+        { value: "first", label: "The first fix" },
+        { value: "last", label: "The last fix" },
+      ],
+    },
+    { id: "angle", label: "Angle, degrees (positive is clockwise)", value: "", read: (t) => shown(readTurn(t), () => describeTurn(readTurn(t) as number)) },
+  ]);
+  if (!values) return;
+  const period = windowPeriod(values.extent);
+  const times = track.properties.times.map(Date.parse);
+  const indices = periodIndices(times, period && { start: Date.parse(period.start), end: Date.parse(period.end) });
+  if (!indices.length) return toast(`${track.properties.name} has no fixes in the time window, so nothing was rotated.`, "warning");
+  const index =
+    values.pivot === "first" ? indices[0] : values.pivot === "last" ? indices[indices.length - 1] : defaultPivotIndex(times, indices, time ? Date.parse(time.current) : undefined);
+  const edit = { action: "rotate", angle: { value: readTurn(values.angle), unit: "deg" }, pivot: track.geometry.coordinates[index], ...(period && { period }) };
+  const problem = await changeTrack({ kind: "edit", feature: track.id, edit });
+  if (problem) toast(problem, "warning");
+};
+$("split-track").onclick = async () => {
+  const track = oneTrack("split");
+  if (!track || !time) return;
+  const at = time.current;
+  const name = track.properties.name;
+  const named = (t: string) => (t.trim() ? { means: `named ${t.trim()}` } : { problem: "Give the part a name." });
+  const values = await trackForm(`Split ${name} at ${describeTimes(at)}`, "Split", [
+    { id: "first", label: `Part before ${describeTimes(at)}`, value: `${name} (1)`, read: named },
+    { id: "second", label: `Part from ${describeTimes(at)} on`, value: `${name} (2)`, read: named },
+  ]);
+  if (!values) return;
+  const problem = await changeTrack({ kind: "split", feature: track.id, at, names: [values.first.trim(), values.second.trim()] });
+  if (problem) toast(problem, "warning");
+};
+$("merge-tracks").onclick = async () => {
+  const ids = tracksSelected();
+  if (ids.length < 2) return toast("Select two or more tracks to merge: Ctrl-click to add one.", "warning");
+  const problem = await changeTrack({ kind: "merge", features: ids });
+  if (problem) toast(problem, "warning");
+};
+
 // --- The Timeline: time-only annotations in time order (CAP-05) ----------------------
 let timeline: TimelineEntry[] = [];
 function renderTimeline(): void {
@@ -770,7 +966,7 @@ for (const panel of OPTIONAL) $(`panel-${panel}`).hidden = !panels.has(panel);
 // The panels in the order the demo lists them, after the plot and its outline.
 for (const panel of panelOrder) if (OPTIONAL.includes(panel)) $("side").append($(`panel-${panel}`));
 /** History, Try and Import need Python: off until it is ready. */
-const NEEDS_PYTHON = ["undo", "redo", "crash", "colleague", "colleague-window", "colleague-during", "file", "colour", "hide", "show", "add-annotation", "edit-annotation", "delete-annotation", "north-arrow"];
+const NEEDS_PYTHON = ["undo", "redo", "move-track", "rotate-track", "split-track", "merge-tracks", "crash", "colleague", "colleague-window", "colleague-during", "file", "colour", "hide", "show", "add-annotation", "edit-annotation", "delete-annotation", "north-arrow"];
 function needsPython(on: boolean): void {
   for (const id of NEEDS_PYTHON) $<HTMLButtonElement | HTMLInputElement>(id).disabled = !on;
 }

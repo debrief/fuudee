@@ -76,3 +76,9 @@ dialog::backdrop { background: #0006; }
 .timeline li.current button { background: var(--vscode-list-inactiveSelectionBackground); }
 .timeline li.current .when::before { content: "▶ "; color: var(--vscode-list-highlightForeground); }
 #north-arrow[aria-pressed="true"] { background: var(--vscode-button-background); color: var(--vscode-button-foreground); }
+/* The small forms for moving, rotating and splitting a track. */
+.track-form h2 { margin: 0 0 8px; font-size: 13px; text-transform: none; letter-spacing: 0; }
+.track-form .form-row { display: grid; gap: 2px; margin-bottom: 8px; }
+.track-form input, .track-form select { font: inherit; background: var(--vscode-input-background); color: var(--vscode-input-foreground); border: 1px solid var(--vscode-input-border, var(--vscode-widget-border)); padding: 3px 4px; }
+.track-form input:focus, .track-form select:focus { outline: 1px solid var(--vscode-focusBorder); }
+.track-form .form-note.problem { color: var(--vscode-errorForeground); }

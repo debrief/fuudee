@@ -24,6 +24,10 @@
  *   names and adds as one step; handles on an annotation selected alone, to
  *   drag or nudge, each release one step. Neither changes current time, the
  *   window or the selection.
+ * - Moving and rotating tracks (trackmap.ts): a track selected alone shows a
+ *   move handle, a rotate handle and the pivot it turns about; dragging one
+ *   shows the track moved or turned, along geodesics, and letting go is one
+ *   step. The whole track moves, or only its fixes in the time window.
  * - Chart furniture: the scale bar always, and a north arrow when the plot has one.
  * - Selected features get an outline in the theme's text colour, which can
  *   never be mistaken for a force colour; everything else is dimmed.
@@ -47,6 +51,7 @@ import { labelPlacement, labelText, lookOf, shapeOf, specOfFeature, type Look } 
 import { circleRing, densify, ellipseRing, type LonLat } from "./geodesic.js";
 import { CONTEXT_WEIGHT, contextStyle, parseColour, WINDOW_WEIGHT, type ContextStyle, type ContextTracks, type MapTheme, type Rgb } from "./contrast.js";
 import { MapEditor } from "./mapedit.js";
+import { TrackEditor } from "./trackmap.js";
 import { DATA_COLOURS } from "./palette.js";
 import { host, onMessage } from "./vscode.js";
 
@@ -318,6 +323,7 @@ function select(id: string | undefined, add: boolean): void {
   selection = next;
   restyle();
   editor.setSelection([...selection]);
+  trackEditor.setSelection([...selection]);
   host.postMessage({ kind: "selection_changed", selection: { plot: plotId, feature_ids: [...selection] } });
 }
 
@@ -625,6 +631,7 @@ function drawWindow(): void {
   restyle();
   drawNow();
   editor.refresh(); // an annotation with handles may have come into the window, or left it
+  trackEditor.refresh(); // what moves, if only the fixes in the window
 }
 
 /**
@@ -735,6 +742,7 @@ function showTime(next: TimeState | undefined): void {
     timePending = false;
     drawWindow();
     drawNow();
+    trackEditor.refresh(); // the default pivot is the fix nearest current time
   });
 }
 
@@ -792,6 +800,7 @@ new ResizeObserver(() => {
 }).observe(mapElement);
 
 map.on("click", (event: L.LeafletMouseEvent) => {
+  if (trackEditor.endingDrag(event)) return;
   if (!editor.active && !editor.endingDrag(event)) select(undefined, false);
 });
 mapElement.addEventListener("keydown", (event) => {
@@ -825,6 +834,37 @@ const editor = new MapEditor({
     }
     restyle();
   },
+  drawingChanged: () => trackEditor.refresh(),
+});
+
+// --- Moving and rotating tracks (trackmap.ts) -------------------------------------
+const trackEditor = new TrackEditor({
+  map,
+  element: mapElement,
+  post: (message) => host.postMessage(message),
+  track: (id) => {
+    const entry = tracks.find((t) => t.track.id === id);
+    return entry && drawn.has(id) ? { feature: entry.track, times: entry.times, colour: colourOf(entry.track) } : undefined;
+  },
+  time: () => (time ? { current: Date.parse(time.current), window: { start: Date.parse(time.range.start), end: Date.parse(time.range.end) }, range: time.range } : undefined),
+  setShown: (id, shown) => {
+    const entry = drawn.get(id);
+    if (!entry) return;
+    if (shown) editing.delete(id);
+    else editing.add(id);
+    // The track's whole line, its part in the window, and where it is at current time.
+    const marker = tracks.find((t) => t.track.id === id)?.marker;
+    for (const layer of [...entry.layers, ...entry.windowed, ...(entry.context ? [entry.context] : []), ...(marker ? [marker] : [])]) {
+      const group = layer === marker ? now : features;
+      if (shown) group.addLayer(layer);
+      else group.removeLayer(layer);
+    }
+    if (shown && entry.context && !entry.contextStyle) features.removeLayer(entry.context); // context tracks hidden
+    restyle();
+  },
+  say: (text, readout, saying) => editor.say(text, readout, saying),
+  noting: () => editor.noting,
+  drawing: () => editor.active,
 });
 
 let shownPlot = "";
@@ -839,12 +879,14 @@ onMessage((message) => {
     draw(message.plot as DebriefFeatureCollection);
     editing.clear();
     editor.plotDrawn();
+    trackEditor.plotDrawn([...selection]);
     showHidden(typeof message.hidden_count === "number" ? message.hidden_count : 0);
     if (firstShow) fit(plotBounds);
   } else if (message.kind === "set_selection") {
     selection = new Set((message.selection as { feature_ids: string[] }).feature_ids);
     restyle();
     editor.setSelection([...selection]);
+    trackEditor.setSelection([...selection]);
   } else if (message.kind === "set_time") {
     showTime(message.time as TimeState);
   } else if (message.kind === "set_viewport") {

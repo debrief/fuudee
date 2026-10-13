@@ -28,7 +28,10 @@ from collections.abc import Iterator
 from dataclasses import dataclass, field
 from pathlib import Path, PurePosixPath
 
+from debrief_kernel.formatting import DEFAULT_SETTINGS, format_time
+from debrief_kernel.geodesy import Position
 from debrief_kernel.time import format_utc, parse_utc
+from debrief_kernel.units import Quantity
 from debrief_schemas import (
     SCHEMA_VERSION,
     DebriefFeatureCollection,
@@ -37,8 +40,9 @@ from debrief_schemas import (
     load_document,
     models,
 )
+from debrief_schemas.documents import track_edit_problems
 from debrief_schemas.island import PLOT_FEATURE_ID, plot_feature
-from debrief_stac import annotations
+from debrief_stac import annotations, tracks
 from debrief_stac.hashing import content_hash
 from debrief_stac.history import (
     LOCK,
@@ -845,6 +849,198 @@ class Catalogue:
         result = self._change(item_id, change, agent, base, allow_newer_schema)
         return None if result is None else result[0]
 
+    # --- Tracks: moved, rotated, split and merged by hand (CAP-01, CAP-02) ------
+
+    def edit_track(
+        self,
+        item_id: str,
+        feature_id: str,
+        edit: models.TrackEdit | dict,
+        agent: models.AgentRef,
+        base: Base | None = None,
+        *,
+        current_time: str | None = None,
+        allow_newer_schema: bool = False,
+    ) -> int | None:
+        """Move or rotate a track, or the fixes of one period of it, as one recorded,
+        undoable step: "BLUE ONE moved 1.20 nmi 045.0°T", "BLUE ONE part rotated 12.0°
+        clockwise". Geodesic (see debrief_stac.tracks). A rotation with no pivot turns
+        about the fix nearest current_time in the period, or else its first fix. The
+        record holds what was asked: distance and bearing, or angle and pivot, and the
+        period. None if nothing would move."""
+        try:
+            if not isinstance(edit, models.TrackEdit):
+                edit = models.TrackEdit(**edit)
+        except (TypeError, ValueError):
+            raise CatalogueError(
+                "Say how to change the track: move, with a distance and a bearing, "
+                "or rotate, with an angle."
+            ) from None
+        problems = track_edit_problems(edit, "The track change")
+        if problems:
+            raise CatalogueError(problems[0])
+        period = (parse_utc(edit.period.start), parse_utc(edit.period.end)) if edit.period else None
+        current = parse_utc(current_time) if current_time else None
+
+        def change(plot: DebriefFeatureCollection):
+            track = self._track(plot, feature_id)
+            indices = tracks.period_indices(track, period)
+            part = len(indices) < len(track.properties.times)
+            name = track.properties.name
+            notes: list[str] = []
+            if str(edit.action) == "move":
+                distance = Quantity.from_model(edit.distance)
+                bearing = Quantity.from_model(edit.bearing)
+                after = tracks.moved(track, distance, bearing, indices)
+                note = tracks.describe_move(name, distance, bearing, part)
+                parameters = [
+                    models.ParameterValue(name="distance", value=edit.distance),
+                    models.ParameterValue(name="bearing", value=edit.bearing),
+                ]
+            else:
+                angle = Quantity.from_model(edit.angle)
+                pivot = (
+                    Position(*edit.pivot)
+                    if edit.pivot
+                    else tracks.default_pivot(track, indices, current)
+                )
+                after = tracks.rotated(track, pivot, angle, indices)
+                note = tracks.describe_rotation(name, angle, part)
+                notes.append(tracks.describe_pivot(pivot))
+                parameters = [
+                    models.ParameterValue(name="angle", value=edit.angle),
+                    models.ParameterValue(name="pivot_longitude", value=pivot.longitude),
+                    models.ParameterValue(name="pivot_latitude", value=pivot.latitude),
+                ]
+            if after is None:
+                return None
+            if edit.period:
+                notes.append(tracks.describe_period(period))
+                parameters += [
+                    models.ParameterValue(name="period_start", value=edit.period.start),
+                    models.ParameterValue(name="period_end", value=edit.period.end),
+                ]
+            record = {"notes": notes, "parameters": parameters, "selected": [feature_id]}
+            return Changes(modified=[after]), note, None, record
+
+        result = self._change(item_id, change, agent, base, allow_newer_schema)
+        return None if result is None else result[0]
+
+    def split_track(
+        self,
+        item_id: str,
+        feature_id: str,
+        at: str,
+        agent: models.AgentRef,
+        base: Base | None = None,
+        *,
+        names: tuple[str, str] | list[str] | None = None,
+        allow_newer_schema: bool = False,
+    ) -> tuple[int, list[str]]:
+        """Split a track at a time into two tracks, as one step: "BLUE ONE split at
+        09:30:00Z". The fixes before the time keep the track's id; those from it on
+        are a new track, listed straight after it. Each part keeps the track's style,
+        hiding and provenance, and is named as given, or "BLUE ONE (1)" and "BLUE ONE
+        (2)". Sensor observations that start at or after the time move to the second
+        part; named sets holding the track hold both. Returns the step and the two
+        parts' ids."""
+        at_ms = parse_utc(at)
+
+        def change(plot: DebriefFeatureCollection):
+            track = self._track(plot, feature_id)
+            name = track.properties.name
+            chosen = tuple(names) if names else (f"{name} (1)", f"{name} (2)")
+            if len(chosen) != 2:
+                raise tracks.TrackError("Give the two parts of the split track a name each.")
+            second_id = tracks.new_track_id(chosen[1], {f.id for f in plot.features})
+            first, second = tracks.split(track, at_ms, chosen, second_id)
+            modified: list = [first]
+            for feature in plot.features:
+                props = feature.properties
+                if (
+                    props.kind == "sensor_observations"
+                    and props.host_track_id == feature_id
+                    and parse_utc(props.time_range.start) >= at_ms
+                ):
+                    hosted = props.model_copy(update={"host_track_id": second_id})
+                    modified.append(feature.model_copy(update={"properties": hosted}))
+            sets = [
+                s.model_copy(update={"feature_ids": _after(s.feature_ids, feature_id, second_id)})
+                for s in plot.named_sets or []
+                if feature_id in s.feature_ids
+            ]
+            # The second part goes straight after the first, not at the end of the plot.
+            order = _after([f.id for f in plot.features], feature_id, second_id)
+            note = f"{name} split at {format_time(at_ms, DEFAULT_SETTINGS)}"
+            record = {
+                "notes": [f"Into {first.properties.name} and {second.properties.name}"],
+                "parameters": [
+                    models.ParameterValue(name="at", value=at),
+                    models.ParameterValue(name="first_name", value=first.properties.name),
+                    models.ParameterValue(name="second_name", value=second.properties.name),
+                ],
+                "selected": [feature_id],
+            }
+            changes = Changes(added=[second], modified=modified, named_sets=sets, order=order)
+            return changes, note, [feature_id, second_id], record
+
+        return self._change(item_id, change, agent, base, allow_newer_schema)
+
+    def merge_tracks(
+        self,
+        item_id: str,
+        feature_ids: list[str],
+        agent: models.AgentRef,
+        base: Base | None = None,
+        *,
+        name: str | None = None,
+        allow_newer_schema: bool = False,
+    ) -> tuple[int, str]:
+        """Merge two or more tracks into one, in time order, as one step: "BLUE ONE and
+        BLUE TWO merged". The merged track keeps the earliest's id, style and name
+        (unless one is given); the others go. Tracks that overlap in time are not
+        merged, and the message says where they overlap. Sensor observations and
+        named sets that referred to the others refer to the merged track. Returns
+        the step and the merged track's id."""
+        chosen = list(dict.fromkeys(feature_ids))
+
+        def change(plot: DebriefFeatureCollection):
+            members = [self._track(plot, i) for i in chosen]
+            merged, lost = tracks.merge(members, name)
+            gone = [t.id for t in members if t.id != merged.id]
+            modified: list = [merged]
+            for feature in plot.features:
+                props = feature.properties
+                if props.kind == "sensor_observations" and props.host_track_id in gone:
+                    hosted = props.model_copy(update={"host_track_id": merged.id})
+                    modified.append(feature.model_copy(update={"properties": hosted}))
+            sets = []
+            for s in plot.named_sets or []:
+                if set(gone) & set(s.feature_ids):
+                    ids = [merged.id if i in gone else i for i in s.feature_ids]
+                    sets.append(s.model_copy(update={"feature_ids": list(dict.fromkeys(ids))}))
+            in_order = sorted(members, key=lambda t: tracks.times_of(t)[0])
+            names = [t.properties.name for t in in_order]
+            note = f"{_who(names) if len(names) < 3 else f'{len(names)} tracks'} merged"
+            record = {
+                "notes": [f"Into {merged.properties.name}", *lost],
+                "parameters": [models.ParameterValue(name="name", value=merged.properties.name)],
+                "selected": chosen,
+            }
+            changes = Changes(modified=modified, deleted_ids=gone, named_sets=sets)
+            return changes, note, merged.id, record
+
+        return self._change(item_id, change, agent, base, allow_newer_schema)
+
+    @staticmethod
+    def _track(plot: DebriefFeatureCollection, feature_id: str) -> models.TrackFeature:
+        feature = next((f for f in plot.features if f.id == feature_id), None)
+        if feature is None:
+            raise CatalogueError(f"The plot has no feature {feature_id!r}.")
+        if feature.properties.kind != "track":
+            raise CatalogueError(f"{feature.properties.name} is not a track.")
+        return feature
+
     @staticmethod
     def _annotation(plot: DebriefFeatureCollection, feature_id: str) -> models.AnnotationFeature:
         feature = next((f for f in plot.features if f.id == feature_id), None)
@@ -867,14 +1063,15 @@ class Catalogue:
             plot = history.replay(base.current)
         try:
             made = change(plot)
-        except annotations.AnnotationError as error:
+        except (annotations.AnnotationError, tracks.TrackError) as error:
             raise CatalogueError(str(error)) from None
         if made is None:
             return None
-        changes, note, value = made
+        # A change may say more for its record: further notes, its parameters, what it chose.
+        changes, note, value, *more = made
         step = self.commit(
             item_id,
-            [_edit_record(agent, note)],
+            [_edit_record(agent, note, **(more[0] if more else {}))],
             changes,
             base,
             allow_newer_schema=allow_newer_schema,
@@ -1057,8 +1254,17 @@ def diff(before: DebriefFeatureCollection, after: DebriefFeatureCollection) -> C
     return changes
 
 
-def _edit_record(agent: models.AgentRef, note: str) -> models.ProvRecord:
-    """The record of an edit made by hand, such as a colour change. The note names it."""
+def _edit_record(
+    agent: models.AgentRef,
+    note: str,
+    *,
+    notes: list[str] | None = None,
+    parameters: list[models.ParameterValue] | None = None,
+    selected: list[str] | None = None,
+) -> models.ProvRecord:
+    """The record of an edit made by hand, such as a colour change. The first note
+    names it; further notes, the parameters and the features it chose say exactly
+    what was asked, so a track moved by hand is as traceable as a tool's run (SUB-24)."""
     now = format_utc(int(clock.time() * 1000))
     return models.ProvRecord(
         id=f"edit-{uuid.uuid4()}",
@@ -1066,8 +1272,15 @@ def _edit_record(agent: models.AgentRef, note: str) -> models.ProvRecord:
         started_at=now,
         ended_at=now,
         agent=agent,
-        notes=[note],
+        notes=[note, *(notes or [])],
+        parameters=parameters or None,
+        selected=selected or None,
     )
+
+
+def _after(ids: list[str], existing: str, added: str) -> list[str]:
+    """ids with added straight after existing."""
+    return [i for x in ids for i in ([x, added] if x == existing else [x])]
 
 
 def _title_in(text: str) -> str | None:

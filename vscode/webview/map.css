@@ -72,3 +72,18 @@ body { background: var(--vscode-editor-background); color: var(--vscode-foregrou
 .edit-handle:focus { outline: 2px solid var(--vscode-editor-foreground); outline-offset: 2px; }
 /* On a narrow map the note on how to change a selection would cover it; the handles say it themselves. */
 @media (max-width: 480px) { .drawing-status.selection-note { display: none; } }
+/* Handles on a selected track: move it, rotate it about its pivot, or move the pivot. */
+.track-handle { box-sizing: border-box; background: var(--vscode-editor-background); border: 2px solid var(--vscode-focusBorder); touch-action: none; }
+.track-handle-move { background: var(--vscode-focusBorder); border-radius: 2px; cursor: move; }
+.track-handle-rotate { border-radius: 50%; border-width: 3px; cursor: grab; }
+.track-handle-pivot { border-radius: 50%; border-style: dotted; cursor: crosshair; }
+.track-handle:focus { outline: 2px solid var(--vscode-editor-foreground); outline-offset: 2px; }
+.track-arm { stroke: var(--vscode-focusBorder); }
+/* What moving or rotating the selected track changes: the whole track, or its fixes in the window. */
+.track-extent { display: flex; flex-direction: column; background: var(--vscode-editorWidget-background); color: var(--vscode-editorWidget-foreground); font-size: 11px; }
+.track-extent[hidden] { display: none; }
+.track-extent-label { padding: 3px 8px 2px; color: var(--vscode-descriptionForeground); }
+.track-extent .track-extent-button { display: block; min-width: 62px; padding: 3px 8px; border: none; border-top: 1px solid var(--vscode-widget-border, transparent); background: var(--vscode-button-secondaryBackground); color: var(--vscode-button-secondaryForeground); font: inherit; text-align: left; cursor: pointer; }
+.track-extent .track-extent-button:hover { background: var(--vscode-button-secondaryHoverBackground); }
+.track-extent .track-extent-button[aria-pressed="true"] { background: var(--vscode-button-background); color: var(--vscode-button-foreground); font-weight: 600; }
+.track-extent .track-extent-button:focus-visible { outline: 1px solid var(--vscode-focusBorder); outline-offset: -1px; }

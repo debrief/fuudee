@@ -472,6 +472,60 @@ export async function run(): Promise<void> {
   // None of it moved current time or the window.
   assert.deepEqual(api.getState()!.time, timeBefore);
 
+  // --- Tracks: moved, rotated, split and merged, each one step (CAP-01, CAP-02) ----------
+  type TrackDone = { problem?: string; feature?: string; features?: string[] };
+  const track = (id: string) => api.session.current!.plot.features.find((f) => f.id === id) as unknown as { geometry: { coordinates: number[][] }; properties: { name: string; times: string[]; style?: { colour: string } } } | undefined;
+  const tracksBefore = (await steps()).length;
+  // A track selected alone shows its move and rotate handles and its pivot on the map.
+  await vscode.commands.executeCommand("debrief.select", ["track-blue-one"]);
+  await vscode.commands.executeCommand("debrief.outline.focus");
+  await sleep(2000);
+  await screenshot("20-track-handles");
+  // Letting go of the move handle: the map sends the move, one step named by its range and bearing.
+  const blueFixes = track("track-blue-one")!.geometry.coordinates;
+  await api.fromMap!({ kind: "edit_track", feature_id: "track-blue-one", track_edit: { action: "move", distance: { value: 1.2, unit: "[nmi_i]" }, bearing: { value: 45, unit: "deg" } } });
+  assert.deepEqual((await steps()).at(-1)?.notes, ["BLUE ONE moved 1.20 nmi 045.0°T"]);
+  assert.notDeepEqual(track("track-blue-one")!.geometry.coordinates, blueFixes);
+  // "Rotate track…" with the change given, as an agent would: about the fix nearest current time.
+  const rotated = await vscode.commands.executeCommand<TrackDone>("debrief.rotateTrack", "track-blue-one", { angle: { value: -10, unit: "deg" } });
+  assert.equal(rotated.problem, undefined);
+  assert.equal((await steps()).at(-1)?.notes?.[0], "BLUE ONE rotated 10.0° anticlockwise");
+  // Only RED ONE's fixes in a period move: "part moved".
+  const red = track("track-red-one")!;
+  const redPeriod = { start: red.properties.times[Math.floor(red.properties.times.length / 3)], end: red.properties.times[Math.floor((2 * red.properties.times.length) / 3)] };
+  const moved = await vscode.commands.executeCommand<TrackDone>("debrief.moveTrack", "track-red-one", { distance: { value: 2, unit: "km" }, bearing: { value: 90, unit: "deg" }, period: redPeriod });
+  assert.equal(moved.problem, undefined);
+  assert.match((await steps()).at(-1)?.notes?.[0] ?? "", /^RED ONE part moved 1\.08 nmi 090\.0°T$/);
+  await vscode.commands.executeCommand("debrief.select", ["track-red-one"]);
+  await sleep(2000);
+  await screenshot("21-track-part-moved");
+  // Split at a time: two tracks, one step; the parts selected.
+  const at = red.properties.times[Math.floor(red.properties.times.length / 2)];
+  const split = await vscode.commands.executeCommand<TrackDone>("debrief.splitTrack", "track-red-one", { at });
+  assert.equal(split.problem, undefined);
+  assert.deepEqual(split.features, ["track-red-one", "track-red-one-2"]);
+  assert.deepEqual([track("track-red-one")!.properties.name, track("track-red-one-2")!.properties.name], ["RED ONE (1)", "RED ONE (2)"]);
+  assert.equal(track("track-red-one-2")!.properties.style?.colour, red.properties.style?.colour);
+  assert.deepEqual(api.session.selection, ["track-red-one", "track-red-one-2"]);
+  await sleep(2000);
+  await screenshot("22-track-split");
+  // Merge: overlapping tracks are refused, saying where; the two parts join again, one step.
+  const overlapping = await vscode.commands.executeCommand<TrackDone>("debrief.mergeTracks", ["track-blue-one", "track-red-one"]);
+  assert.match(overlapping.problem ?? "", /overlap in time \(.* from .* to .*\)/);
+  const merged = await vscode.commands.executeCommand<TrackDone>("debrief.mergeTracks", ["track-red-one", "track-red-one-2"], { name: "RED ONE" });
+  assert.equal(merged.problem, undefined);
+  assert.equal(merged.feature, "track-red-one");
+  assert.deepEqual((await steps()).at(-1)?.notes?.[0], "RED ONE (1) and RED ONE (2) merged");
+  assert.equal(track("track-red-one")!.properties.times.length, red.properties.times.length);
+  assert.equal(track("track-red-one-2"), undefined);
+  await sleep(2000);
+  await screenshot("23-tracks-merged");
+  assert.equal((await steps()).length, tracksBefore + 5);
+  // Each is undone like any step: undoing the merge brings the two parts back.
+  assert.equal(await vscode.commands.executeCommand("debrief.undo"), undefined);
+  assert.ok(track("track-red-one-2"));
+  assert.deepEqual(api.getState()!.time.current, timeBefore.current);
+
   // A legacy plot file: its circles, ellipses and styling come in as annotations.
   const dpf = path.resolve(__dirname, "../../python/debrief-io/tests/data/shapes.dpf");
   execFileSync(process.env.DEBRIEF_PYTHON!, [
