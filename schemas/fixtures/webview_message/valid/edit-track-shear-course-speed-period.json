@@ -1,0 +1,20 @@
+{
+  "kind": "edit_track",
+  "feature_id": "track-blue-one",
+  "track_edit": {
+    "action": "shear",
+    "anchor": "end",
+    "course": {
+      "value": 87.2,
+      "unit": "deg"
+    },
+    "speed": {
+      "value": 12.4,
+      "unit": "[kn_i]"
+    },
+    "period": {
+      "start": "2026-10-11T09:30:00.000Z",
+      "end": "2026-10-11T10:15:00.000Z"
+    }
+  }
+}

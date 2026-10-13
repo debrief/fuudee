@@ -29,7 +29,7 @@ from dataclasses import dataclass, field
 from pathlib import Path, PurePosixPath
 
 from debrief_kernel.formatting import DEFAULT_SETTINGS, format_time
-from debrief_kernel.geodesy import Position
+from debrief_kernel.geodesy import Position, destination, range_bearing
 from debrief_kernel.time import format_utc, parse_utc
 from debrief_kernel.units import Quantity
 from debrief_schemas import (
@@ -862,19 +862,26 @@ class Catalogue:
         current_time: str | None = None,
         allow_newer_schema: bool = False,
     ) -> int | None:
-        """Move or rotate a track, or the fixes of one period of it, as one recorded,
-        undoable step: "BLUE ONE moved 1.20 nmi 045.0°T", "BLUE ONE part rotated 12.0°
-        clockwise". Geodesic (see debrief_stac.tracks). A rotation with no pivot turns
-        about the fix nearest current_time in the period, or else its first fix. The
-        record holds what was asked: distance and bearing, or angle and pivot, and the
-        period. None if nothing would move."""
+        """Move, rotate, shear or stretch a track, or the fixes of one period of it, as
+        one recorded, undoable step: "BLUE ONE moved 1.20 nmi 045.0°T", "BLUE ONE part
+        rotated 12.0° clockwise", "BLUE ONE sheared: 087.2°T 12.4 kn", "BLUE ONE
+        stretched: 12.4 kn". Geodesic (see debrief_stac.tracks). A rotation with no
+        pivot turns about the fix nearest current_time in the period, or else its first
+        fix. A shear holds one end of the period (anchor) and drags the other a distance
+        along a bearing, or to where the period makes good a course and a speed; a
+        stretch holds one end and gives the period a speed made good, keeping its
+        courses. The record holds what was asked, and for a shear or a stretch what it
+        made: the held end and its time, the dragged end's time and displacement, and
+        the course and speed made good. None if nothing would move."""
         try:
             if not isinstance(edit, models.TrackEdit):
                 edit = models.TrackEdit(**edit)
         except (TypeError, ValueError):
             raise CatalogueError(
-                "Say how to change the track: move, with a distance and a bearing, "
-                "or rotate, with an angle."
+                "Say how to change the track: move, with a distance and a bearing; "
+                "rotate, with an angle; shear, holding the start or the end, with a "
+                "distance and a bearing or a course and a speed; or stretch, holding "
+                "the start or the end, with a speed."
             ) from None
         problems = track_edit_problems(edit, "The track change")
         if problems:
@@ -897,6 +904,12 @@ class Catalogue:
                     models.ParameterValue(name="distance", value=edit.distance),
                     models.ParameterValue(name="bearing", value=edit.bearing),
                 ]
+            elif str(edit.action) in ("shear", "stretch"):
+                result = self._shear_or_stretch(track, indices, edit, part)
+                if result is None:
+                    return None
+                after, note, more, parameters = result
+                notes += more
             else:
                 angle = Quantity.from_model(edit.angle)
                 pivot = (
@@ -925,6 +938,81 @@ class Catalogue:
 
         result = self._change(item_id, change, agent, base, allow_newer_schema)
         return None if result is None else result[0]
+
+    @staticmethod
+    def _shear_or_stretch(
+        track: models.TrackFeature, indices: list[int], edit: models.TrackEdit, part: bool
+    ) -> tuple[models.TrackFeature, str, list[str], list[models.ParameterValue]] | None:
+        """A shear or a stretch of the fixes at indices, its step's name, further notes
+        and parameters; None if nothing would move."""
+        anchor = str(edit.anchor)
+        held, dragged = tracks.ends(track, indices, anchor)
+        before = tracks.leg_of(track, indices)
+        times = track.properties.times
+        end = Position(*track.geometry.coordinates[dragged])
+        if str(edit.action) == "shear":
+            if edit.distance is not None:
+                distance = Quantity.from_model(edit.distance)
+                bearing = Quantity.from_model(edit.bearing)
+                to = destination(end, bearing, distance)
+            else:
+                course, speed = Quantity.from_model(edit.course), Quantity.from_model(edit.speed)
+                to = tracks.shear_target(track, indices, anchor, course, speed)
+            after = tracks.sheared(track, indices, anchor, to)
+        else:
+            speed = Quantity.from_model(edit.speed)
+            if before.metres == 0:
+                raise tracks.TrackError(
+                    f"{track.properties.name} ends where it starts there, so it cannot be "
+                    "stretched: shear it instead."
+                )
+            after = tracks.stretched(track, indices, anchor, speed.to("m/s").value / before.speed)
+        if after is None:
+            return None
+        made = tracks.leg_of(after, indices)
+        moved_end = Position(*after.geometry.coordinates[dragged])
+        shift, towards = range_bearing(end, moved_end)
+        shear = str(edit.action) == "shear"
+        name = track.properties.name
+        note = (tracks.describe_shear if shear else tracks.describe_stretch)(name, made, part)
+        held_at = tracks.times_of(track)[held]
+        notes = [tracks.describe_anchor(anchor, held_at), tracks.describe_was(before, not shear)]
+        speed_unit = str(edit.speed.unit) if edit.speed is not None else DEFAULT_SETTINGS.speed_unit
+        length_unit = (
+            str(edit.distance.unit) if edit.distance is not None else DEFAULT_SETTINGS.length_unit
+        )
+        parameters = [
+            models.ParameterValue(name="anchor", value=anchor),
+            models.ParameterValue(name="anchor_time", value=times[held]),
+            models.ParameterValue(name="dragged_time", value=times[dragged]),
+            *(
+                [
+                    models.ParameterValue(name="distance", value=edit.distance),
+                    models.ParameterValue(name="bearing", value=edit.bearing),
+                ]
+                if edit.distance is not None
+                else [
+                    models.ParameterValue(
+                        name="distance",
+                        value=_quantity(shift.to(length_unit), 3),
+                    ),
+                    models.ParameterValue(name="bearing", value=_quantity(towards, 2)),
+                ]
+            ),
+            models.ParameterValue(
+                name="course",
+                value=edit.course
+                if edit.course is not None
+                else _quantity(Quantity(made.course, "deg"), 2),
+            ),
+            models.ParameterValue(
+                name="speed",
+                value=edit.speed
+                if edit.speed is not None
+                else _quantity(Quantity(made.speed, "m/s").to(speed_unit), 3),
+            ),
+        ]
+        return after, note, notes, parameters
 
     def split_track(
         self,
@@ -1289,6 +1377,11 @@ def _edit_record(
         parameters=parameters or None,
         selected=selected or None,
     )
+
+
+def _quantity(quantity: Quantity, decimals: int):
+    """A quantity worked out, as a step's parameters record it: rounded, with its unit."""
+    return Quantity(round(quantity.value, decimals), quantity.unit).to_model()
 
 
 def _after(ids: list[str], existing: str, added: str) -> list[str]:
