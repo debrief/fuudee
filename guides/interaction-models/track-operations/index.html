@@ -1,0 +1,1823 @@
+
+<!doctype html>
+<html lang="en" class="no-js">
+  <head>
+    
+      <meta charset="utf-8">
+      <meta name="viewport" content="width=device-width,initial-scale=1">
+      
+        <meta name="description" content="Development blog and guides for Debrief v4">
+      
+      
+      
+        <link rel="canonical" href="https://debrief.github.io/fuudee/guides/interaction-models/track-operations/">
+      
+      
+        <link rel="prev" href="../annotations/">
+      
+      
+        <link rel="next" href="../keyboard-equivalents/">
+      
+      
+        
+      
+      
+      <link rel="icon" href="../../../assets/images/favicon.png">
+      <meta name="generator" content="mkdocs-1.6.1, mkdocs-material-9.7.7">
+    
+    
+      
+        <title>Track operations - Debrief v4</title>
+      
+    
+    
+      <link rel="stylesheet" href="../../../assets/stylesheets/main.ec1eaa64.min.css">
+      
+        
+        <link rel="stylesheet" href="../../../assets/stylesheets/palette.ab4e12ef.min.css">
+      
+      
+
+
+    
+    
+      
+    
+    
+      
+        
+        
+        <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+        <link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Roboto:300,300i,400,400i,700,700i%7CRoboto+Mono:400,400i,700,700i&display=fallback">
+        <style>:root{--md-text-font:"Roboto";--md-code-font:"Roboto Mono"}</style>
+      
+    
+    
+      <link rel="stylesheet" href="../../../stylesheets/demo.css">
+    
+    <script>__md_scope=new URL("../../..",location),__md_hash=e=>[...e].reduce(((e,_)=>(e<<5)-e+_.charCodeAt(0)),0),__md_get=(e,_=localStorage,t=__md_scope)=>JSON.parse(_.getItem(t.pathname+"."+e)),__md_set=(e,_,t=localStorage,a=__md_scope)=>{try{t.setItem(a.pathname+"."+e,JSON.stringify(_))}catch(e){}}</script>
+    
+      
+
+    
+    
+  </head>
+  
+  
+    
+    
+      
+    
+    
+    
+    
+    <body dir="ltr" data-md-color-scheme="default" data-md-color-primary="indigo" data-md-color-accent="indigo">
+  
+    
+    <input class="md-toggle" data-md-toggle="drawer" type="checkbox" id="__drawer" autocomplete="off">
+    <input class="md-toggle" data-md-toggle="search" type="checkbox" id="__search" autocomplete="off">
+    <label class="md-overlay" for="__drawer"></label>
+    <div data-md-component="skip">
+      
+        
+        <a href="#track-operations" class="md-skip">
+          Skip to content
+        </a>
+      
+    </div>
+    <div data-md-component="announce">
+      
+    </div>
+    
+    
+      
+
+<header class="md-header" data-md-component="header">
+  <nav class="md-header__inner md-grid" aria-label="Header">
+    <a href="../../.." title="Debrief v4" class="md-header__button md-logo" aria-label="Debrief v4" data-md-component="logo">
+      
+  
+  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 8a3 3 0 0 0 3-3 3 3 0 0 0-3-3 3 3 0 0 0-3 3 3 3 0 0 0 3 3m0 3.54C9.64 9.35 6.5 8 3 8v11c3.5 0 6.64 1.35 9 3.54 2.36-2.19 5.5-3.54 9-3.54V8c-3.5 0-6.64 1.35-9 3.54"/></svg>
+
+    </a>
+    <label class="md-header__button md-icon" for="__drawer">
+      
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M3 6h18v2H3zm0 5h18v2H3zm0 5h18v2H3z"/></svg>
+    </label>
+    <div class="md-header__title" data-md-component="header-title">
+      <div class="md-header__ellipsis">
+        <div class="md-header__topic">
+          <span class="md-ellipsis">
+            Debrief v4
+          </span>
+        </div>
+        <div class="md-header__topic" data-md-component="header-topic">
+          <span class="md-ellipsis">
+            
+              Track operations
+            
+          </span>
+        </div>
+      </div>
+    </div>
+    
+      
+        <form class="md-header__option" data-md-component="palette">
+  
+    
+    
+    
+    <input class="md-option" data-md-color-media="(prefers-color-scheme: light)" data-md-color-scheme="default" data-md-color-primary="indigo" data-md-color-accent="indigo"  aria-label="Dark"  type="radio" name="__palette" id="__palette_0">
+    
+      <label class="md-header__button md-icon" title="Dark" for="__palette_1" hidden>
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="m17.75 4.09-2.53 1.94.91 3.06-2.63-1.81-2.63 1.81.91-3.06-2.53-1.94L12.44 4l1.06-3 1.06 3zm3.5 6.91-1.64 1.25.59 1.98-1.7-1.17-1.7 1.17.59-1.98L15.75 11l2.06-.05L18.5 9l.69 1.95zm-2.28 4.95c.83-.08 1.72 1.1 1.19 1.85-.32.45-.66.87-1.08 1.27C15.17 23 8.84 23 4.94 19.07c-3.91-3.9-3.91-10.24 0-14.14.4-.4.82-.76 1.27-1.08.75-.53 1.93.36 1.85 1.19-.27 2.86.69 5.83 2.89 8.02a9.96 9.96 0 0 0 8.02 2.89m-1.64 2.02a12.08 12.08 0 0 1-7.8-3.47c-2.17-2.19-3.33-5-3.49-7.82-2.81 3.14-2.7 7.96.31 10.98 3.02 3.01 7.84 3.12 10.98.31"/></svg>
+      </label>
+    
+  
+    
+    
+    
+    <input class="md-option" data-md-color-media="(prefers-color-scheme: dark)" data-md-color-scheme="slate" data-md-color-primary="indigo" data-md-color-accent="indigo"  aria-label="Light"  type="radio" name="__palette" id="__palette_1">
+    
+      <label class="md-header__button md-icon" title="Light" for="__palette_0" hidden>
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 7a5 5 0 0 1 5 5 5 5 0 0 1-5 5 5 5 0 0 1-5-5 5 5 0 0 1 5-5m0 2a3 3 0 0 0-3 3 3 3 0 0 0 3 3 3 3 0 0 0 3-3 3 3 0 0 0-3-3m0-7 2.39 3.42C13.65 5.15 12.84 5 12 5s-1.65.15-2.39.42zM3.34 7l4.16-.35A7.2 7.2 0 0 0 5.94 8.5c-.44.74-.69 1.5-.83 2.29zm.02 10 1.76-3.77a7.131 7.131 0 0 0 2.38 4.14zM20.65 7l-1.77 3.79a7.02 7.02 0 0 0-2.38-4.15zm-.01 10-4.14.36c.59-.51 1.12-1.14 1.54-1.86.42-.73.69-1.5.83-2.29zM12 22l-2.41-3.44c.74.27 1.55.44 2.41.44.82 0 1.63-.17 2.37-.44z"/></svg>
+      </label>
+    
+  
+</form>
+      
+    
+    
+      <script>var palette=__md_get("__palette");if(palette&&palette.color){if("(prefers-color-scheme)"===palette.color.media){var media=matchMedia("(prefers-color-scheme: light)"),input=document.querySelector(media.matches?"[data-md-color-media='(prefers-color-scheme: light)']":"[data-md-color-media='(prefers-color-scheme: dark)']");palette.color.media=input.getAttribute("data-md-color-media"),palette.color.scheme=input.getAttribute("data-md-color-scheme"),palette.color.primary=input.getAttribute("data-md-color-primary"),palette.color.accent=input.getAttribute("data-md-color-accent")}for(var[key,value]of Object.entries(palette.color))document.body.setAttribute("data-md-color-"+key,value)}</script>
+    
+    
+    
+      
+      
+        <label class="md-header__button md-icon" for="__search">
+          
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M9.5 3A6.5 6.5 0 0 1 16 9.5c0 1.61-.59 3.09-1.56 4.23l.27.27h.79l5 5-1.5 1.5-5-5v-.79l-.27-.27A6.52 6.52 0 0 1 9.5 16 6.5 6.5 0 0 1 3 9.5 6.5 6.5 0 0 1 9.5 3m0 2C7 5 5 7 5 9.5S7 14 9.5 14 14 12 14 9.5 12 5 9.5 5"/></svg>
+        </label>
+        <div class="md-search" data-md-component="search" role="dialog">
+  <label class="md-search__overlay" for="__search"></label>
+  <div class="md-search__inner" role="search">
+    <form class="md-search__form" name="search">
+      <input type="text" class="md-search__input" name="query" aria-label="Search" placeholder="Search" autocapitalize="off" autocorrect="off" autocomplete="off" spellcheck="false" data-md-component="search-query" required>
+      <label class="md-search__icon md-icon" for="__search">
+        
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M9.5 3A6.5 6.5 0 0 1 16 9.5c0 1.61-.59 3.09-1.56 4.23l.27.27h.79l5 5-1.5 1.5-5-5v-.79l-.27-.27A6.52 6.52 0 0 1 9.5 16 6.5 6.5 0 0 1 3 9.5 6.5 6.5 0 0 1 9.5 3m0 2C7 5 5 7 5 9.5S7 14 9.5 14 14 12 14 9.5 12 5 9.5 5"/></svg>
+        
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M20 11v2H8l5.5 5.5-1.42 1.42L4.16 12l7.92-7.92L13.5 5.5 8 11z"/></svg>
+      </label>
+      <nav class="md-search__options" aria-label="Search">
+        
+        <button type="reset" class="md-search__icon md-icon" title="Clear" aria-label="Clear" tabindex="-1">
+          
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M19 6.41 17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/></svg>
+        </button>
+      </nav>
+      
+    </form>
+    <div class="md-search__output">
+      <div class="md-search__scrollwrap" tabindex="0" data-md-scrollfix>
+        <div class="md-search-result" data-md-component="search-result">
+          <div class="md-search-result__meta">
+            Initializing search
+          </div>
+          <ol class="md-search-result__list" role="presentation"></ol>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+      
+    
+    
+      <div class="md-header__source">
+        <a href="https://github.com/debrief/fuudee" title="Go to repository" class="md-source" data-md-component="source">
+  <div class="md-source__icon md-icon">
+    
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 448 512"><!--! Font Awesome Free 7.1.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2025 Fonticons, Inc.--><path d="M439.6 236.1 244 40.5c-5.4-5.5-12.8-8.5-20.4-8.5s-15 3-20.4 8.4L162.5 81l51.5 51.5c27.1-9.1 52.7 16.8 43.4 43.7l49.7 49.7c34.2-11.8 61.2 31 35.5 56.7-26.5 26.5-70.2-2.9-56-37.3L240.3 199v121.9c25.3 12.5 22.3 41.8 9.1 55-6.4 6.4-15.2 10.1-24.3 10.1s-17.8-3.6-24.3-10.1c-17.6-17.6-11.1-46.9 11.2-56v-123c-20.8-8.5-24.6-30.7-18.6-45L142.6 101 8.5 235.1C3 240.6 0 247.9 0 255.5s3 15 8.5 20.4l195.6 195.7c5.4 5.4 12.7 8.4 20.4 8.4s15-3 20.4-8.4l194.7-194.7c5.4-5.4 8.4-12.8 8.4-20.4s-3-15-8.4-20.4"/></svg>
+  </div>
+  <div class="md-source__repository">
+    debrief/fuudee
+  </div>
+</a>
+      </div>
+    
+  </nav>
+  
+</header>
+    
+    <div class="md-container" data-md-component="container">
+      
+      
+        
+          
+            
+<nav class="md-tabs" aria-label="Tabs" data-md-component="tabs">
+  <div class="md-grid">
+    <ul class="md-tabs__list">
+      
+        
+  
+  
+  
+  
+    <li class="md-tabs__item">
+      <a href="../../.." class="md-tabs__link">
+        
+  
+  
+    
+  
+  Home
+
+      </a>
+    </li>
+  
+
+      
+        
+  
+  
+  
+  
+    <li class="md-tabs__item">
+      <a href="../../../try/" class="md-tabs__link">
+        
+  
+  
+    
+  
+  Try Debrief
+
+      </a>
+    </li>
+  
+
+      
+        
+  
+  
+  
+  
+    
+    
+      <li class="md-tabs__item">
+        <a href="../../../blog/" class="md-tabs__link">
+          
+  
+  
+    
+  
+  Blog
+
+        </a>
+      </li>
+    
+  
+
+      
+        
+  
+  
+  
+    
+  
+  
+    
+    
+      <li class="md-tabs__item md-tabs__item--active">
+        <a href="../../" class="md-tabs__link">
+          
+  
+  
+    
+  
+  Guides
+
+        </a>
+      </li>
+    
+  
+
+      
+    </ul>
+  </div>
+</nav>
+          
+        
+      
+      <main class="md-main" data-md-component="main">
+        <div class="md-main__inner md-grid">
+          
+            
+              
+              <div class="md-sidebar md-sidebar--primary" data-md-component="sidebar" data-md-type="navigation" >
+                <div class="md-sidebar__scrollwrap">
+                  <div class="md-sidebar__inner">
+                    
+
+
+  
+
+
+<nav class="md-nav md-nav--primary md-nav--lifted" aria-label="Navigation" data-md-level="0">
+  <label class="md-nav__title" for="__drawer">
+    <a href="../../.." title="Debrief v4" class="md-nav__button md-logo" aria-label="Debrief v4" data-md-component="logo">
+      
+  
+  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 8a3 3 0 0 0 3-3 3 3 0 0 0-3-3 3 3 0 0 0-3 3 3 3 0 0 0 3 3m0 3.54C9.64 9.35 6.5 8 3 8v11c3.5 0 6.64 1.35 9 3.54 2.36-2.19 5.5-3.54 9-3.54V8c-3.5 0-6.64 1.35-9 3.54"/></svg>
+
+    </a>
+    Debrief v4
+  </label>
+  
+    <div class="md-nav__source">
+      <a href="https://github.com/debrief/fuudee" title="Go to repository" class="md-source" data-md-component="source">
+  <div class="md-source__icon md-icon">
+    
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 448 512"><!--! Font Awesome Free 7.1.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2025 Fonticons, Inc.--><path d="M439.6 236.1 244 40.5c-5.4-5.5-12.8-8.5-20.4-8.5s-15 3-20.4 8.4L162.5 81l51.5 51.5c27.1-9.1 52.7 16.8 43.4 43.7l49.7 49.7c34.2-11.8 61.2 31 35.5 56.7-26.5 26.5-70.2-2.9-56-37.3L240.3 199v121.9c25.3 12.5 22.3 41.8 9.1 55-6.4 6.4-15.2 10.1-24.3 10.1s-17.8-3.6-24.3-10.1c-17.6-17.6-11.1-46.9 11.2-56v-123c-20.8-8.5-24.6-30.7-18.6-45L142.6 101 8.5 235.1C3 240.6 0 247.9 0 255.5s3 15 8.5 20.4l195.6 195.7c5.4 5.4 12.7 8.4 20.4 8.4s15-3 20.4-8.4l194.7-194.7c5.4-5.4 8.4-12.8 8.4-20.4s-3-15-8.4-20.4"/></svg>
+  </div>
+  <div class="md-source__repository">
+    debrief/fuudee
+  </div>
+</a>
+    </div>
+  
+  <ul class="md-nav__list" data-md-scrollfix>
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../.." class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Home
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../try/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Try Debrief
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+      
+        
+          
+        
+      
+        
+      
+    
+    
+    
+      
+      
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_3" >
+        
+          
+          <div class="md-nav__link md-nav__container">
+            <a href="../../../blog/" class="md-nav__link ">
+              
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Blog
+  
+
+    
+  </span>
+  
+  
+
+            </a>
+            
+              
+              <label class="md-nav__link " for="__nav_3" id="__nav_3_label" tabindex="0">
+                <span class="md-nav__icon md-icon"></span>
+              </label>
+            
+          </div>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_3_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_3">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Blog
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+            
+              
+                
+  
+  
+  
+  
+    
+    
+      
+        
+      
+        
+      
+    
+    
+    
+      
+      
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_3_2" >
+        
+          
+          <label class="md-nav__link" for="__nav_3_2" id="__nav_3_2_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Categories
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="2" aria-labelledby="__nav_3_2_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_3_2">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Categories
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+    
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../blog/category/architecture/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Architecture
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+    
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../blog/category/capability/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Capability
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+    
+  
+  
+  
+    
+    
+      
+        
+          
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+    
+    
+    
+      
+        
+        
+      
+      
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--active md-nav__item--section md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_4" checked>
+        
+          
+          <div class="md-nav__link md-nav__container">
+            <a href="../../" class="md-nav__link ">
+              
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Guides
+  
+
+    
+  </span>
+  
+  
+
+            </a>
+            
+              
+              <label class="md-nav__link " for="__nav_4" id="__nav_4_label" tabindex="">
+                <span class="md-nav__icon md-icon"></span>
+              </label>
+            
+          </div>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_4_label" aria-expanded="true">
+          <label class="md-nav__title" for="__nav_4">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Guides
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+            
+              
+                
+  
+  
+  
+  
+    
+    
+      
+        
+          
+        
+      
+        
+      
+        
+      
+        
+      
+    
+    
+    
+      
+      
+        
+          
+          
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--section md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_4_2" >
+        
+          
+          <div class="md-nav__link md-nav__container">
+            <a href="../../style-guide/" class="md-nav__link ">
+              
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Style guide
+  
+
+    
+  </span>
+  
+  
+
+            </a>
+            
+              
+              <label class="md-nav__link " for="__nav_4_2" id="__nav_4_2_label" tabindex="">
+                <span class="md-nav__icon md-icon"></span>
+              </label>
+            
+          </div>
+        
+        <nav class="md-nav" data-md-level="2" aria-labelledby="__nav_4_2_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_4_2">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Style guide
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../style-guide/language/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Language
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../style-guide/theme/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Theme
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../style-guide/ui/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    User interface
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+    
+  
+  
+  
+    
+    
+      
+        
+          
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+    
+    
+    
+      
+      
+        
+          
+          
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--active md-nav__item--section md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_4_3" checked>
+        
+          
+          <div class="md-nav__link md-nav__container">
+            <a href="../" class="md-nav__link ">
+              
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Interaction models
+  
+
+    
+  </span>
+  
+  
+
+            </a>
+            
+              
+              <label class="md-nav__link " for="__nav_4_3" id="__nav_4_3_label" tabindex="">
+                <span class="md-nav__icon md-icon"></span>
+              </label>
+            
+          </div>
+        
+        <nav class="md-nav" data-md-level="2" aria-labelledby="__nav_4_3_label" aria-expanded="true">
+          <label class="md-nav__title" for="__nav_4_3">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Interaction models
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../selection/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Selection and tool offering
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../tool-invocation/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Tool invocation and forms
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../unavailable-capabilities/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Unavailable capabilities
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../undo/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Undo
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../conflicts/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Conflicts
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../long-running-operations/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Long-running operations
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../check-overrides/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Check overrides
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../time-controller/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Time controller
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../annotations/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Annotations
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+    
+  
+  
+  
+    <li class="md-nav__item md-nav__item--active">
+      
+      <input class="md-nav__toggle md-toggle" type="checkbox" id="__toc">
+      
+      
+        
+      
+      
+        <label class="md-nav__link md-nav__link--active" for="__toc">
+          
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Track operations
+  
+
+    
+  </span>
+  
+  
+
+          <span class="md-nav__icon md-icon"></span>
+        </label>
+      
+      <a href="./" class="md-nav__link md-nav__link--active">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Track operations
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+      
+        
+
+<nav class="md-nav md-nav--secondary" aria-label="Table of contents">
+  
+  
+  
+    
+  
+  
+    <label class="md-nav__title" for="__toc">
+      <span class="md-nav__icon md-icon"></span>
+      Table of contents
+    </label>
+    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#requirements-cited" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Requirements cited
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#model" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Model
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#reference-implementation" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Reference implementation
+      
+    </span>
+  </a>
+  
+</li>
+      
+    </ul>
+  
+</nav>
+      
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../keyboard-equivalents/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Keyboard equivalents
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../tool-author/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Tool-author guide
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../sample-data/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Sample data
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../glossary/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Glossary
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+  </ul>
+</nav>
+                  </div>
+                </div>
+              </div>
+            
+            
+              
+              <div class="md-sidebar md-sidebar--secondary" data-md-component="sidebar" data-md-type="toc" >
+                <div class="md-sidebar__scrollwrap">
+                  <div class="md-sidebar__inner">
+                    
+
+<nav class="md-nav md-nav--secondary" aria-label="Table of contents">
+  
+  
+  
+    
+  
+  
+    <label class="md-nav__title" for="__toc">
+      <span class="md-nav__icon md-icon"></span>
+      Table of contents
+    </label>
+    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#requirements-cited" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Requirements cited
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#model" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Model
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#reference-implementation" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Reference implementation
+      
+    </span>
+  </a>
+  
+</li>
+      
+    </ul>
+  
+</nav>
+                  </div>
+                </div>
+              </div>
+            
+          
+          
+            <div class="md-content" data-md-component="content">
+              
+              <article class="md-content__inner md-typeset">
+                
+                  
+
+
+  
+  
+
+
+<h1 id="track-operations">Track operations<a class="headerlink" href="#track-operations" title="Permanent link">&para;</a></h1>
+<p>How an analyst moves a track, or a period of it, rotates it about a point, splits it at a time and merges tracks into one. Part A: moving, rotating, splitting and merging (decision, product owner, 13 Oct 2026). Part B, still to come: jump removal, smoothing, dragging single fixes, and the legacy OTG and DR import modes.</p>
+<h2 id="requirements-cited">Requirements cited<a class="headerlink" href="#requirements-cited" title="Permanent link">&para;</a></h2>
+<table>
+<thead>
+<tr>
+<th>SRD</th>
+<th>Requirement</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>CAP-01</td>
+<td>Dragging, splitting, merging, jump removal and smoothing of tracks.</td>
+</tr>
+<tr>
+<td>CAP-02</td>
+<td>Track edits are destructive in the working plot, each recorded as a delta.</td>
+</tr>
+<tr>
+<td>SUB-19, SUB-21</td>
+<td>Every change is a recorded step; undo is replay to a point, never an inverse operation.</td>
+</tr>
+<tr>
+<td>SUB-24</td>
+<td>Provenance records who made each change, and what they asked for.</td>
+</tr>
+<tr>
+<td>SUB-03, SUB-04</td>
+<td>Measured along geodesics; read and shown in the analyst's units and notation.</td>
+</tr>
+<tr>
+<td>SUB-26, SUB-28</td>
+<td>Moving a track changes neither current time, the window nor the selection; a change made elsewhere is never overwritten.</td>
+</tr>
+<tr>
+<td>NFR-13</td>
+<td>Dragging a track has a keyboard and a form-based equivalent.</td>
+</tr>
+<tr>
+<td>PRN-08</td>
+<td>The analyst owns the data: a track is moved where the analyst says, without second-guessing.</td>
+</tr>
+</tbody>
+</table>
+<h2 id="model">Model<a class="headerlink" href="#model" title="Permanent link">&para;</a></h2>
+<ol>
+<li>
+<p><strong>What moves: the whole track, or a period of it.</strong> Legacy Debrief dragged a whole track, or a selected time period of it, to line it up with a reference: that is kept (decision, 13 Oct 2026). On the map, a small control below the drawing toolbar, <em>Move or rotate</em>, says which: <strong>Whole track</strong> (the default) or <strong>Time window</strong>, the fixes in the time window shown. The forms offer the same choice. An agent may give any period. Fixes whose times fall in the period, ends included, move; the rest stay where they are.</p>
+</li>
+<li>
+<p><strong>The joins jump.</strong> Moving a period moves only its fixes, so the track jumps where they meet the rest: the track is not stretched or smoothed to keep it continuous. The map shows the jump while the analyst drags, and says so: <em>only the fixes in the time window move, so the track jumps where they meet the rest</em>. Jump removal (part B) will tidy a join an analyst does not want.</p>
+</li>
+<li>
+<p><strong>Moving is geodesic.</strong> A move takes every fix the same range along the same true bearing, each along its own geodesic, as legacy Debrief offset each fix: not a change of latitude and longitude, as an annotation's whole-shape move is. Courses and speeds over ground are kept as they were. On a curved earth no move of every fix by the same range and bearing keeps a track's shape exactly: as meridians converge, a track far north moved north is squeezed east-west a little, and one moved east turns a little. For the moves an analyst makes the difference is small (a track at 60°N moved 5 nmi north is 0.25% shorter; at 70°N moved 20 nmi, 1.6% shorter; a track steering 000 at 70°N moved 20 nmi east then steers 000.9), so the recorded speeds and courses are kept rather than worked out again from the moved positions.</p>
+</li>
+<li>
+<p><strong>Rotating is geodesic.</strong> A rotation keeps each fix's range from the pivot and turns its bearing from the pivot by the angle; clockwise is positive. Courses over ground of the fixes turned turn with the track: by the angle, near the pivot; far from it, or far north, by a little more or less, as the meridians converge, so that each course is still the track's direction as drawn (turned about the North Pole, a ship steering 090 still steers 090). The pivot is, unless the analyst chooses, the fix nearest current time, when current time is within what moves; otherwise the first fix of what moves. On the map the pivot is a handle of its own: drag it (or move it with the arrow keys) to turn about somewhere else. Moving the pivot records nothing; it says where the next rotation turns about.</p>
+</li>
+<li>
+<p><strong>Handles.</strong> A track selected on its own, and drawn on the map, shows three handles in the theme's focus colour, each named for a screen reader:</p>
+<table>
+<thead>
+<tr>
+<th>Handle</th>
+<th>Looks like</th>
+<th>Does</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Move</td>
+<td>a filled square on a fix in the middle of what moves</td>
+<td>drag it, and the track follows it</td>
+</tr>
+<tr>
+<td>Rotate</td>
+<td>a ring beyond the fix farthest from the pivot, on a dashed arm from it</td>
+<td>drag it round the pivot, and the track turns with it</td>
+</tr>
+<tr>
+<td>Pivot</td>
+<td>a dotted ring, by default on the fix nearest current time</td>
+<td>drag it to choose where the track turns about</td>
+</tr>
+</tbody>
+</table>
+<p>Dragging the move or rotate handle draws the track moved or turned as the pointer goes, the track as it was dashed beneath it, and the note at the top of the map says by how much: <em>BLUE ONE: moving 1.20 nmi 045.0°T</em>, <em>BLUE ONE: rotating 12.0° clockwise about 50°20.120'N 004°07.210'W</em>. Letting go saves it as <strong>one step</strong>. <code>Escape</code> before letting go puts it back, and nothing is recorded. What is saved is what the note said: the distance in the analyst's length unit and the bearing or angle, each to the decimals shown.</p>
+</li>
+<li>
+<p><strong>Steps, named for what was done.</strong> Each operation is one step in the History view, its first note naming it and later notes saying the rest:</p>
+<table>
+<thead>
+<tr>
+<th>Operation</th>
+<th>Named</th>
+<th>Further notes</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Move the whole track</td>
+<td><em>BLUE ONE moved 1.20 nmi 045.0°T</em></td>
+<td></td>
+</tr>
+<tr>
+<td>Move a period</td>
+<td><em>BLUE ONE part moved 1.20 nmi 045.0°T</em></td>
+<td><em>Only the fixes from 09:30:00Z to 10:15:00Z</em></td>
+</tr>
+<tr>
+<td>Rotate</td>
+<td><em>BLUE ONE rotated 12.0° clockwise</em> (or <em>part rotated</em>)</td>
+<td><em>About 50°20.120'N 004°07.210'W</em>, and the period</td>
+</tr>
+<tr>
+<td>Split</td>
+<td><em>BLUE ONE split at 09:30:00Z</em></td>
+<td><em>Into BLUE ONE (1) and BLUE ONE (2)</em></td>
+</tr>
+<tr>
+<td>Merge</td>
+<td><em>BLUE ONE and BLUE TWO merged</em> (or <em>3 tracks merged</em>)</td>
+<td><em>Into BLUE ONE</em>, and any series not kept</td>
+</tr>
+</tbody>
+</table>
+<p>Each step's provenance record holds who made it, the track or tracks it chose (<code>selected</code>), and what was asked (<code>parameters</code>): the distance and bearing, or the angle and the pivot's latitude and longitude, the period's start and end, the time of a split and the names of its parts, or the merged track's name (SUB-24). Undo is replay to the step before, as for any step (SUB-21).</p>
+</li>
+<li>
+<p><strong>Splitting at a time.</strong> <strong>Split track at current time…</strong> splits the selected track at current time into two: the fixes before it, and the fixes from it on (a fix exactly at the time starts the second part). The parts are offered as <em>BLUE ONE (1)</em> and <em>BLUE ONE (2)</em>, which the analyst may change. Each keeps the track's colour, platform class, hiding and provenance. The first keeps the track's identity, so a named set or a tool result that refers to the track still does; the second is a new track, listed straight after it, and named sets that held the track hold both. Sensor observations that start at or after the time go with the second part. Observations that run across the time are not cut in two: they stay with the first part, and the step's notes say so (<em>2087 bearings runs past the split and stays with BLUE ONE (1)</em>), since those after the time now have a host track that has ended. Each part needs at least two fixes, or nothing is split and the message says how many each side has. Both parts are selected afterwards.</p>
+</li>
+<li>
+<p><strong>Merging.</strong> <strong>Merge selected tracks</strong> joins two or more selected tracks into one, in time order, whatever order they were selected in. The merged track keeps the earliest's identity, colour and platform class, and is named as the analyst says: offered the earliest's name, or, for the parts of one split track (<em>BLUE ONE (1)</em> and <em>BLUE ONE (2)</em>), the track's own (<em>BLUE ONE</em>); the others go, and sensor observations and named sets that referred to them refer to it. Tracks that overlap in time are <strong>not merged</strong>, and the message says where: <em>The tracks were not merged: they overlap in time (BLUE ONE and RED ONE from 09:00:00Z to 09:40:00Z). Split or move one so they no longer overlap, then merge them.</em> (Choosing which track wins where they overlap was considered and left out, to keep merging predictable.) Tracks that only meet, one ending as the next starts, merge. Speeds, courses or depths are kept only if every track has them. Before merging tracks where some have none, Debrief asks (<em>Merging BLUE ONE, BLUE TWO keeps only what every track has. Courses not kept: BLUE TWO had none. Undo puts them back.</em>, with <strong>Merge anyway</strong>); the step's notes say which were not kept, and why, and the tool service returns the same in <code>notes</code>. The merged track is selected afterwards.</p>
+</li>
+<li>
+<p><strong>What is a step, and what isn't.</strong></p>
+<table>
+<thead>
+<tr>
+<th></th>
+<th>Step in the history</th>
+<th>Undone by <code>Ctrl+Z</code></th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Letting go of the move or rotate handle</td>
+<td>Yes, one</td>
+<td>Yes</td>
+</tr>
+<tr>
+<td>A run of arrow keys on the move or rotate handle</td>
+<td>Yes, one for the run</td>
+<td>Yes</td>
+</tr>
+<tr>
+<td>Move…, Rotate…, Split…, Merge</td>
+<td>Yes, one each</td>
+<td>Yes</td>
+</tr>
+<tr>
+<td>Dragging or nudging the pivot</td>
+<td>No</td>
+<td>No</td>
+</tr>
+<tr>
+<td>Choosing <em>Whole track</em> or <em>Time window</em></td>
+<td>No</td>
+<td>No</td>
+</tr>
+<tr>
+<td><code>Escape</code> during a drag; a move of nothing</td>
+<td>No</td>
+<td>No</td>
+</tr>
+</tbody>
+</table>
+</li>
+<li>
+<p><strong>The keyboard.</strong> <code>Tab</code> to a handle. On the move handle the arrow keys move it 5 pixels, 25 with <code>Shift</code>; on the rotate handle <code>Right</code> and <code>Up</code> turn it 1° clockwise, <code>Left</code> and <code>Down</code> 1° anticlockwise, 10° with <code>Shift</code>; on the pivot the arrow keys move it 5 pixels (25 with <code>Shift</code>). A run of presses on the move or rotate handle is saved as one step once they stop (under a second), on <code>Enter</code>, or when the keyboard moves on; <code>Escape</code> first puts it back. Presses made while that step is being saved are not lost: they are made as the next step. <em>Whole track</em> and <em>Time window</em> are buttons on the map, reached with <code>Tab</code>.</p>
+</li>
+<li>
+<p><strong>The forms.</strong> For an exact change, or without the map:</p>
+<ul>
+<li><strong>Move track…</strong> (the outline's context menu on a track; <strong>Move…</strong> under the outline in the playground): what moves (<em>Whole track</em> or <em>Current time window</em>, with how many fixes it holds), the distance (<code>1.2 nmi</code>, <code>2000 yd</code>, <code>3 km</code>, or a number in the analyst's unit) and the bearing in degrees true (<code>045</code>). Each field says what it understood (<em>Means 1.20 nmi</em>) or what is wrong.</li>
+<li><strong>Rotate track…</strong>: what turns; the pivot (<em>Fix nearest current time</em>, <em>First fix</em>, <em>Last fix</em>, or in VS Code a position typed in any notation Debrief reads); and the angle (<code>12</code>, <code>12 clockwise</code>, <code>-12</code> or <code>12 anticlockwise</code>).</li>
+<li><strong>Split track at current time…</strong>: the names of the two parts, offered as <em>X (1)</em> and <em>X (2)</em>.</li>
+<li><strong>Merge selected tracks</strong>: the merged track's name, offered as above; first, if speeds, courses or depths would not be kept, whether to merge anyway.</li>
+</ul>
+</li>
+<li>
+<p><strong>Shared state and conflicts.</strong> Moving, rotating, splitting and merging change neither current time nor the time window. The selection is kept, except that a split selects both parts and a merge the merged track. If the plot changes elsewhere during a drag (a colleague, an agent), the map shows the latest at once, drops the drag and says <em>The plot was changed elsewhere, so your change was not made. Debrief is showing the latest; try again if you still want to.</em> A change sent from a plot that has since moved on is refused the same way (SUB-28): track operations are never merged with a change made meanwhile. Context tracks follow the track: the whole moved track is drawn as context outside the window. A hidden track is not drawn, so it has no handles, but it can still be moved, rotated, split and merged from the outline.</p>
+</li>
+<li>
+<p><strong>For agents.</strong> The same steps through the tool service: <code>debrief/edit_track</code> (<code>feature</code>, <code>edit</code>: a <code>TrackEdit</code>, <code>{"action": "move", "distance": {"value": 1.2, "unit": "[nmi_i]"}, "bearing": {"value": 45, "unit": "deg"}}</code> or <code>{"action": "rotate", "angle": {"value": -10, "unit": "deg"}, "pivot": [-4.12, 50.33]}</code>, with a <code>period</code> to move or turn only that; for a rotation with no pivot, <code>current_time</code> chooses the default), <code>debrief/split_track</code> (<code>feature</code>, <code>at</code>, and <code>names</code> if wanted) and <code>debrief/merge_tracks</code> (<code>features</code>, and <code>name</code> if wanted), each with <code>base</code> as for any change. In VS Code the commands <code>debrief.moveTrack</code> and <code>debrief.rotateTrack</code> take the track and the edit, <code>debrief.splitTrack</code> the track and <code>{at, names}</code>, and <code>debrief.mergeTracks</code> the tracks' ids and <code>{name}</code>, instead of asking.</p>
+</li>
+</ol>
+<pre class="mermaid"><code>sequenceDiagram
+    actor Analyst
+    participant Map
+    participant Host as Extension host
+    participant Service as Tool service
+    participant Plot as Plot file
+    Analyst-&gt;&gt;Map: select BLUE ONE
+    Map-&gt;&gt;Map: move, rotate and pivot handles
+    Analyst-&gt;&gt;Map: drag the move handle
+    Map-&gt;&gt;Map: draw the track moved (geodesic), the old one dashed; "moving 1.20 nmi 045.0°T"
+    Analyst-&gt;&gt;Map: let go
+    Map-&gt;&gt;Host: edit_track (feature_id, track_edit: move, distance, bearing, period?)
+    Host-&gt;&gt;Service: debrief/edit_track (edit, base)
+    alt changed elsewhere since base
+        Service--&gt;&gt;Host: CONFLICT
+        Host-&gt;&gt;Map: show_plot (the latest); nothing was changed
+    else
+        Service-&gt;&gt;Plot: one step: "BLUE ONE moved 1.20 nmi 045.0°T", with its parameters
+        Service--&gt;&gt;Host: new base
+        Host-&gt;&gt;Map: show_plot (handles where the track now is)
+    end</code></pre>
+<pre class="mermaid"><code>sequenceDiagram
+    actor Analyst
+    participant Host as Extension host
+    participant Service as Tool service
+    Analyst-&gt;&gt;Host: Split track at current time… (names offered)
+    Host-&gt;&gt;Service: debrief/split_track (feature, at, names, base)
+    Service--&gt;&gt;Host: one step: "BLUE ONE split at 09:30:00Z"; the two parts
+    Host-&gt;&gt;Host: reload; select both parts
+    Analyst-&gt;&gt;Host: Merge selected tracks (name offered: BLUE ONE)
+    Host-&gt;&gt;Service: debrief/merge_tracks (features, name, base)
+    alt the tracks overlap in time
+        Service--&gt;&gt;Host: refused, saying where they overlap; nothing changed
+    else
+        Service--&gt;&gt;Host: one step: "BLUE ONE (1) and BLUE ONE (2) merged"
+    end</code></pre>
+<h2 id="reference-implementation">Reference implementation<a class="headerlink" href="#reference-implementation" title="Permanent link">&para;</a></h2>
+<ul>
+<li><strong>Schema (0.0.14):</strong> <code>TrackEdit</code> and <code>TrackEditActionEnum</code> in <code>schemas/linkml/features.yaml</code>; the message <code>edit_track</code> (<code>feature_id</code>, <code>track_edit</code>) in <code>schemas/linkml/messages.yaml</code>; the rules in <code>debrief_schemas.documents.track_edit_problems</code> and <code>vscode/src/messages.ts</code>; fixtures <code>webview_message/valid/edit-track-*.json</code> and the <code>edit-track-*</code> invalid ones.</li>
+<li><strong>Making and naming changes:</strong> <code>debrief_stac.tracks</code> (<code>moved</code>, <code>rotated</code>, <code>default_pivot</code>, <code>split</code>, <code>merge</code>, <code>overlaps</code>, the step names); <code>Catalogue.edit_track</code>, <code>split_track</code> and <code>merge_tracks</code>; the service methods in <code>debrief_tools.service</code>.</li>
+<li><strong>The map:</strong> what a drag or an arrow key makes, the readouts, the handles' places and a run of presses in <code>vscode/webview/trackedit.ts</code> (free of Leaflet, unit-tested); the handles, preview and keyboard in <code>vscode/webview/trackmap.ts</code>; the host side in <code>vscode/src/panels/map.ts</code> (<code>receive</code>) and the command <code>debrief.editTrack</code>.</li>
+<li><strong>VS Code:</strong> the commands <code>debrief.moveTrack</code>, <code>debrief.rotateTrack</code>, <code>debrief.splitTrack</code> and <code>debrief.mergeTracks</code> in <code>vscode/src/extension.ts</code>, on the outline's context menu for a track.</li>
+<li><strong>The playground:</strong> <code>vscode/play/host.ts</code> (the buttons and the small forms) and <code>track</code> in <code>vscode/play/play.py</code>.</li>
+<li><strong>Tests:</strong> <code>python/debrief-stac/tests/test_tracks.py</code> (geodesic moves and rotations, far north and across the antimeridian; periods; split and merge invariants; undo; conflicts), the service test, <code>vscode/test/unit/trackedit.test.ts</code>, the playground test's <code>vscode/test/play/tracks.mjs</code> (drag, Escape, undo, rotate, keyboard runs, a period, a colleague's change during a drag, split, merge, an overlap refused, the forms), and the integration test's track steps.</li>
+</ul>
+<p><em>Not yet (part B and later):</em> dragging single fixes; jump removal; smoothing; OTG and DR modes; stretching and shearing (the TMA module's, CAP-21); choosing which track wins where merged tracks overlap; renaming a track on its own.</p>
+
+
+
+
+
+
+
+
+
+
+
+
+                
+              </article>
+            </div>
+          
+          
+<script>var target=document.getElementById(location.hash.slice(1));target&&target.name&&(target.checked=target.name.startsWith("__tabbed_"))</script>
+        </div>
+        
+      </main>
+      
+        <footer class="md-footer">
+  
+  <div class="md-footer-meta md-typeset">
+    <div class="md-footer-meta__inner md-grid">
+      <div class="md-copyright">
+  
+    <div class="md-copyright__highlight">
+      Debrief is open source under the Eclipse Public License 2.0.
+    </div>
+  
+  
+    Made with
+    <a href="https://squidfunk.github.io/mkdocs-material/" target="_blank" rel="noopener">
+      Material for MkDocs
+    </a>
+  
+</div>
+      
+    </div>
+  </div>
+</footer>
+      
+    </div>
+    <div class="md-dialog" data-md-component="dialog">
+      <div class="md-dialog__inner md-typeset"></div>
+    </div>
+    
+    
+    
+      
+      
+      <script id="__config" type="application/json">{"annotate": null, "base": "../../..", "features": ["navigation.tabs", "navigation.sections", "navigation.indexes", "content.code.copy"], "search": "../../../assets/javascripts/workers/search.2c215733.min.js", "tags": null, "translations": {"clipboard.copied": "Copied to clipboard", "clipboard.copy": "Copy to clipboard", "search.result.more.one": "1 more on this page", "search.result.more.other": "# more on this page", "search.result.none": "No matching documents", "search.result.one": "1 matching document", "search.result.other": "# matching documents", "search.result.placeholder": "Type to start searching", "search.result.term.missing": "Missing", "select.version": "Select version"}, "version": null}</script>
+    
+    
+      <script src="../../../assets/javascripts/bundle.d7400e89.min.js"></script>
+      
+        <script src="../../../javascripts/demo.js"></script>
+      
+    
+  </body>
+</html>

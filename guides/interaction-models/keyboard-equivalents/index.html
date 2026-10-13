@@ -13,7 +13,7 @@
         <link rel="canonical" href="https://debrief.github.io/fuudee/guides/interaction-models/keyboard-equivalents/">
       
       
-        <link rel="prev" href="../annotations/">
+        <link rel="prev" href="../track-operations/">
       
       
         <link rel="next" href="../../tool-author/">
@@ -889,6 +889,8 @@
       
         
       
+        
+      
     
     
     
@@ -1185,6 +1187,34 @@
     
   
     Annotations
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../track-operations/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Track operations
   
 
     
@@ -1503,7 +1533,7 @@
 </tbody>
 </table>
 <h2 id="model">Model<a class="headerlink" href="#model" title="Permanent link">&para;</a></h2>
-<p><em>Written so far for annotations; the rest of the map follows in Phase 3.</em></p>
+<p><em>Written so far for annotations and for moving and rotating tracks; the rest of the map follows in Phase 3.</em></p>
 <table>
 <thead>
 <tr>
@@ -1529,6 +1559,18 @@
 <td><code>Delete</code> or <code>Backspace</code> on its handle.</td>
 </tr>
 <tr>
+<td>Drag a track, or its fixes in the time window</td>
+<td><code>Tab</code> to the selected track's move handle; the arrow keys move it 5 pixels (25 with <code>Shift</code>), and the run of presses is one step, as for an annotation's handle. <em>Whole track</em> and <em>Time window</em> are buttons on the map. Or <strong>Move track…</strong> and type the distance and bearing (<a href="../track-operations/">track operations</a>, item 11).</td>
+</tr>
+<tr>
+<td>Rotate a track</td>
+<td><code>Tab</code> to its rotate handle; <code>Right</code> and <code>Up</code> turn it 1° clockwise, <code>Left</code> and <code>Down</code> anticlockwise, 10° with <code>Shift</code>; one step for the run. The pivot handle moves with the arrow keys. Or <strong>Rotate track…</strong>, with the pivot and angle typed.</td>
+</tr>
+<tr>
+<td>Split or merge tracks</td>
+<td><strong>Split track at current time…</strong> and <strong>Merge selected tracks</strong> on the outline's context menu (buttons under the outline in the playground); there is no map gesture for either.</td>
+</tr>
+<tr>
 <td>Clear the selection</td>
 <td><code>Escape</code> on the map; or the outline, a native tree.</td>
 </tr>
@@ -1539,7 +1581,7 @@
 </tbody>
 </table>
 <h2 id="reference-implementation">Reference implementation<a class="headerlink" href="#reference-implementation" title="Permanent link">&para;</a></h2>
-<p><code>vscode/webview/mapedit.ts</code> (keys while drawing and on handles) and <code>vscode/webview/drawing.ts</code>; the playground test <code>vscode/test/play/drawing.mjs</code> places a marker and changes an area from the keyboard alone.</p>
+<p><code>vscode/webview/mapedit.ts</code> (keys while drawing and on handles) and <code>vscode/webview/drawing.ts</code>; <code>vscode/webview/trackmap.ts</code> and <code>vscode/webview/trackedit.ts</code> for a track's handles. The playground tests <code>vscode/test/play/drawing.mjs</code> and <code>vscode/test/play/tracks.mjs</code> place a marker, change an area, and move and rotate a track from the keyboard alone.</p>
 
 
 
