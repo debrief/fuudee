@@ -49,6 +49,8 @@ enums:
       edit_annotation: {description: "Map to host: the analyst asked to change this annotation (feature_id): by double-clicking it, which opens its form; or, with annotation, by dragging or nudging it on the map, which changes it so as one recorded step."}
       annotation_drawn: {description: "Map to host: the analyst finished drawing an annotation on the map (annotation, its name empty); open the annotation form with it, to name it and add it as one step."}
       edit_track: {description: "Map to host: the analyst let go of a track's move or rotate handle, or stopped nudging one (feature_id, track_edit); move or rotate it so, as one recorded step."}
+      show_fixes: {description: "Host to map: ring these fixes of a track for the analyst to check (feature_id, fix_times), such as jumps found before they are removed, and perhaps draw the track as a change would leave it (preview), with a note (message); with no feature_id, take them away."}
+      fix_chosen: {description: "Map to host: the analyst asked to colour, label or comment on a fix (feature_id, fix_time), by right-clicking it or pressing Enter on a fix chosen with the keyboard."}
 
 classes:
   WebviewMessage:
@@ -105,8 +107,22 @@ classes:
         range: AnnotationSpec
         inlined: true
       feature_id:
-        description: The annotation a form changes or deletes, or the annotation or track the map asks to change.
+        description: The annotation a form changes or deletes, the annotation or track the map asks to change, or the track whose fixes it rings or the analyst chose.
       track_edit:
         description: How the analyst moved or rotated a track on the map (edit_track).
         range: TrackEdit
+        inlined: true
+      fix_times:
+        description: The times of the fixes the map rings (show_fixes).
+        range: UtcTimestamp
+        multivalued: true
+      fix_time:
+        description: The time of the fix the analyst chose on the map (fix_chosen).
+        range: UtcTimestamp
+      preview:
+        description: >-
+          A track as a change would leave it, one position per fix, drawn
+          beside it until the analyst applies or cancels the change
+          (show_fixes).
+        range: LineStringGeometry
         inlined: true

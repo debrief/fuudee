@@ -12,7 +12,10 @@ recorded in that history like any change (debrief/set_colour, debrief/set_hidden
 annotations added, changed and deleted by hand, and the north arrow, recorded the
 same way (debrief/add_annotation, debrief/edit_annotation, debrief/delete_annotations,
 debrief/set_north_arrow); tracks moved, rotated, split and merged by hand, recorded the
-same way (debrief/edit_track, debrief/split_track, debrief/merge_tracks);
+same way (debrief/edit_track, debrief/split_track, debrief/merge_tracks); tracks cleaned,
+what would change shown first (debrief/find_jumps, debrief/preview_smoothing) and then
+changed, recorded the same way (debrief/remove_jumps, debrief/smooth_track), and fixes
+given a colour, label or comment of their own (debrief/mark_fix);
 and the plot's view, its island, kept in the plot file outside its history
 (debrief/set_view; debrief/open returns it) (SUB-22, decision 12 Oct).
 
@@ -34,6 +37,7 @@ from __future__ import annotations
 import hmac
 import json
 import logging
+import math
 import os
 import re
 import socket
@@ -51,6 +55,7 @@ from starlette.routing import Route
 
 from debrief_config import ConfigError, add_store, load_config, update_config
 from debrief_io import import_dpf, import_rep
+from debrief_kernel.units import IncompatibleUnitsError, Quantity
 from debrief_schemas import DocumentKind, dump_document, load_document, models
 from debrief_stac import (
     Base,
@@ -60,6 +65,7 @@ from debrief_stac import (
     HistoryError,
     NewerSchemaError,
 )
+from debrief_stac.fixes import describe_largest
 from debrief_tools import diagnostics
 from debrief_tools.registry import applies
 from debrief_tools.worker import ToolWorker
@@ -108,8 +114,13 @@ ANNOTATION_METHODS = (
     "debrief/set_north_arrow",
 )
 TRACK_METHODS = ("debrief/edit_track", "debrief/split_track", "debrief/merge_tracks")
-WRITING_METHODS = STEP_METHODS + PRESENTATION_METHODS + ANNOTATION_METHODS + TRACK_METHODS
-HISTORY_METHODS = READING_METHODS + WRITING_METHODS
+# Cleaning tracks: what would change is shown first (read), then changed as one step (write).
+CHECKING_METHODS = ("debrief/find_jumps", "debrief/preview_smoothing")
+CLEANING_METHODS = ("debrief/remove_jumps", "debrief/smooth_track", "debrief/mark_fix")
+WRITING_METHODS = (
+    STEP_METHODS + PRESENTATION_METHODS + ANNOTATION_METHODS + TRACK_METHODS + CLEANING_METHODS
+)
+HISTORY_METHODS = READING_METHODS + CHECKING_METHODS + WRITING_METHODS
 KNOWN_METHODS = frozenset(
     (
         "initialize",
@@ -346,6 +357,8 @@ class ToolService:
                 out.update(self._annotate(catalogue, item, method, params, expected, allow))
             elif method in TRACK_METHODS:
                 out.update(self._track(catalogue, item, method, params, expected, allow))
+            elif method in CHECKING_METHODS + CLEANING_METHODS:
+                out.update(self._clean(catalogue, item, method, params, expected, allow))
             elif method == "debrief/set_view":
                 view, given = params.get("view"), params.get("hash")
                 if not isinstance(given, str) or not (view is None or isinstance(view, dict)):
@@ -517,6 +530,98 @@ class ToolService:
         )
         return {"changed": True, "feature": merged, "notes": lost}
 
+    def _clean(
+        self,
+        catalogue: Catalogue,
+        item: str,
+        method: str,
+        params: dict[str, Any],
+        base: Base | None,
+        allow: bool,
+    ) -> dict[str, Any]:
+        """Clean a track: find its jumps and show them, then remove those the analyst
+        confirms; preview smoothing, then apply it; colour, label or comment on a fix.
+        Finding and previewing change nothing; each change is one recorded, undoable step
+        (CAP-01, EXT-14).
+
+        Each takes the feature (a track). find_jumps takes a threshold (a speed, such as
+        {"value": 30, "unit": "[kn_i]"}; left out, three times the track's median speed,
+        at least 10 kn) and a period ({start, end}); remove_jumps the times to remove and
+        the threshold they were found at, for the record. preview_smoothing and
+        smooth_track take the window (an odd number of fixes) and a period. mark_fix takes
+        the time of the fix and changes ({colour, label, comment}; null or "" takes one
+        away), and colour_name for the step's name.
+        """
+        feature = params.get("feature")
+        if not isinstance(feature, str):
+            raise RpcError(INVALID_PARAMS, f"{method} needs the track (feature)")
+        period = _period(params.get("period"))
+        agent = _agent(params) if method in CLEANING_METHODS else None
+        if method == "debrief/find_jumps":
+            threshold = _speed(params.get("threshold"))
+            used, median, jumps = catalogue.find_jumps(
+                item, feature, threshold=threshold, period=period, base=base
+            )
+            return {
+                "feature": feature,
+                "threshold": _quantity(used),
+                "median_speed": _quantity(median) if median else None,
+                "jumps": [
+                    {
+                        "time": j.time,
+                        "position": list(j.position),
+                        # None when it is at the same time as the fix before, somewhere else.
+                        "speed": None
+                        if math.isinf(j.speed_kn)
+                        else {"value": j.speed_kn, "unit": "[kn_i]"},
+                        "since": j.since,
+                    }
+                    for j in jumps
+                ],
+            }
+        if method == "debrief/remove_jumps":
+            times = params.get("times")
+            if not isinstance(times, list) or not all(isinstance(t, str) for t in times):
+                raise RpcError(
+                    INVALID_PARAMS, "remove_jumps needs the times of the fixes to remove"
+                )
+            threshold = _speed(params.get("threshold"))
+            catalogue.remove_jumps(
+                item, feature, times, agent, base, threshold=threshold, allow_newer_schema=allow
+            )
+            return {"changed": True, "feature": feature}
+        if method in ("debrief/preview_smoothing", "debrief/smooth_track"):
+            window = params.get("window")
+            if type(window) is not int:
+                raise RpcError(INVALID_PARAMS, f"{method} needs the window: an odd number of fixes")
+            if method == "debrief/preview_smoothing":
+                after, smoothing = catalogue.smoothing_preview(
+                    item, feature, window, period=period, base=base
+                )
+                return {
+                    "feature": feature,
+                    "preview": after.geometry.model_dump(mode="json"),
+                    **_smoothing(smoothing),
+                }
+            done = catalogue.smooth_track(
+                item, feature, window, agent, base, period=period, allow_newer_schema=allow
+            )
+            return {
+                "changed": done is not None,
+                "feature": feature,
+                **(_smoothing(done[1]) if done else {}),
+            }
+        time, changes = params.get("time"), params.get("changes")
+        name = params.get("colour_name")
+        if not isinstance(time, str) or not isinstance(changes, dict):
+            raise RpcError(INVALID_PARAMS, "mark_fix needs the time of the fix and its changes")
+        if name is not None and not isinstance(name, str):
+            raise RpcError(INVALID_PARAMS, "colour_name must be text")
+        step = catalogue.mark_fix(
+            item, feature, time, changes, agent, base, colour_name=name, allow_newer_schema=allow
+        )
+        return {"changed": step is not None, "feature": feature}
+
     def _import(self, params: dict[str, Any]) -> dict[str, Any]:
         """Import a REP file (EXT-01) or a legacy plot file, .dpf (EXT-14, EXT-15), as a
         new plot. Nothing in the file is dropped silently: what is not imported is listed."""
@@ -672,6 +777,47 @@ def _argument_problem(arguments: dict[str, Any]) -> str | None:
     if arguments.get("on_conflict", "refuse") not in ("refuse", "merge", "new_plot"):
         return "on_conflict must be refuse, merge or new_plot"
     return None
+
+
+def _period(value: Any) -> tuple[str, str] | None:
+    """A period given as {start, end}, UTC times; None if not given."""
+    if value is None:
+        return None
+    if not (
+        isinstance(value, dict)
+        and isinstance(value.get("start"), str)
+        and isinstance(value.get("end"), str)
+    ):
+        raise RpcError(INVALID_PARAMS, "period must be {start, end}, each a UTC time")
+    return value["start"], value["end"]
+
+
+def _speed(value: Any) -> Quantity | None:
+    """A speed given as {value, unit}; None if not given."""
+    if value is None:
+        return None
+    try:
+        quantity = Quantity(float(value["value"]), str(value["unit"]))
+        quantity.to("m/s")
+    except (KeyError, TypeError, ValueError, IncompatibleUnitsError):
+        raise RpcError(
+            INVALID_PARAMS, 'threshold must be a speed, such as {"value": 30, "unit": "[kn_i]"}'
+        ) from None
+    return quantity
+
+
+def _quantity(quantity: Quantity) -> dict[str, Any]:
+    return {"value": quantity.value, "unit": quantity.unit}
+
+
+def _smoothing(smoothing: Any) -> dict[str, Any]:
+    """What smoothing did, or would do, and the words that say it."""
+    return {
+        "moved": smoothing.moved,
+        "largest": {"value": smoothing.largest_m, "unit": "m"},
+        "largest_time": smoothing.largest_time,
+        "summary": describe_largest(smoothing),
+    }
 
 
 def _agent(params: dict[str, Any]) -> models.AgentRef:

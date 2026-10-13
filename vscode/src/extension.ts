@@ -7,7 +7,7 @@
 import { userInfo } from "node:os";
 import * as vscode from "vscode";
 import type { AnnotationSpec, ContextTracksEnum, ParameterValue, PlotView, SharedState, SharedStateChange, TimeRange, ToolDeclaration, TrackEdit } from "@debrief/schemas";
-import { formatBearing, formatPosition, parsePosition, POSITION_EXAMPLE, UNIT_LABELS } from "@debrief/kernel";
+import { formatBearing, formatPosition, formatQuantity, parsePosition, POSITION_EXAMPLE, UNIT_LABELS } from "@debrief/kernel";
 import { defaultPivotIndex, describeDistance, describeTurn, mergedName, mergePlan, periodIndices, readBearing, readDistance, readTurn } from "../webview/trackedit.js";
 import { changedSince, historyOnDisk, knownStores, openPlot, plotFile, type OpenedPlot } from "./catalogue.js";
 import { statSync, unwatchFile, watchFile } from "node:fs";
@@ -20,11 +20,13 @@ import { MapPanel } from "./panels/map.js";
 import { ResultsPanel } from "./panels/results.js";
 import { TIME_VIEW, TimeView } from "./panels/timeview.js";
 import { CONFLICT, NEWER_SCHEMA, ServiceError, ToolService, type Agent, type AnnotationChange, type CallOutcome, type OpenedView, type ToolListing, type TrackChange } from "./service.js";
+import type { CleanChange } from "./service.js";
+import { describeJump, describeMark, describeWindow, fixRows, jumpsFound, markAt, readSpeed, readWindow, smoothingNote } from "../webview/fixes.js";
 import { HistoryProvider } from "./views/history.js";
 import { DiagnosticLog, hashed, logKey, serviceLine, toolRunLine, type ToolOutcome } from "./diagnostics.js";
 import { hiddenIds, hiddenNotice, isFeature, setViewOf, timeWindowOf, viewOf, type PlotFeature } from "./hidden.js";
 import { specOfFeature } from "../webview/annotationlook.js";
-import { TRACK_COLOURS } from "../webview/palette.js";
+import { FIX_COLOURS, TRACK_COLOURS } from "../webview/palette.js";
 import { Session, timeProblem } from "./session.js";
 import { CataloguesProvider } from "./views/catalogues.js";
 import { featureIdsOf, OutlineProvider } from "./views/outline.js";
@@ -468,6 +470,40 @@ export function activate(context: vscode.ExtensionContext): DebriefApi {
         }
         const problem = await reloadPlot(true);
         return { problem, feature: answer.feature, features: answer.features, ...(answer.notes?.length && { notes: answer.notes }) };
+      }),
+    );
+
+  // --- Cleaning tracks: jumps, smoothing and marked fixes (CAP-01, EXT-14) ---------------
+  /**
+   * Remove jumps the analyst confirmed, smooth a track, or colour, label or comment on a
+   * fix: one step in the plot's history each ("BLUE ONE: 3 jumps removed"), undone by
+   * Ctrl+Z like any other, and never made over a change made elsewhere (SUB-28).
+   */
+  const cleanTrack = (change: CleanChange) =>
+    serially(() =>
+      ourChange(async (): Promise<{ problem?: string; summary?: string }> => {
+        const opened = session.current;
+        if (!opened) return { problem: "Open a plot first." };
+        if (!service || !opened.base) return { problem: "Changing tracks needs Debrief's tool service. Run 'Debrief: Restart tool service'." };
+        const save = (allow = false) => service!.cleanTrack(opened.store.id, opened.item.id, opened.base!, agent, change, allow);
+        let answer;
+        try {
+          try {
+            answer = await save();
+          } catch (error) {
+            if ((error as ServiceError).code !== NEWER_SCHEMA) throw error;
+            if (!(await confirmNewerSchema((error as Error).message))) return { problem: "Nothing was changed." };
+            answer = await save(true);
+          }
+        } catch (error) {
+          if ((error as ServiceError).code === CONFLICT) {
+            await reloadPlot(true);
+            return { problem: "The plot was changed elsewhere, so nothing was changed. Debrief is showing the latest; try again if you still want to." };
+          }
+          return { problem: (error as Error).message };
+        }
+        const problem = await reloadPlot(true);
+        return { problem, ...(answer.summary && { summary: answer.summary }) };
       }),
     );
 
@@ -1122,6 +1158,215 @@ export function activate(context: vscode.ExtensionContext): DebriefApi {
     if (!done.problem && done.feature) session.select([done.feature], "command");
     return trackDone(done);
   });
+
+  // Cleaning tracks (CAP-01, EXT-14): what would change is shown first, on the map and in a
+  // list, and changed only when the analyst says, as one step. Each command takes what agents
+  // and tests give it instead of asking, and returns what happened.
+  /** Ring fixes on the map for the analyst to check, or draw a change previewed; nothing to take them away. */
+  const showFixes = (shown?: { feature_id: string; fix_times?: string[]; preview?: { type: "LineString"; coordinates: number[][] }; message?: string }) => map.showFixes(shown);
+  const colourName = (colour: string) => FIX_COLOURS.find((c) => c.colour === colour)?.name.toLowerCase();
+
+  // "Find and remove jumps…": the threshold (offered as the track's default), then the jumps found,
+  // ringed on the map and listed, all ticked; those left ticked are removed as one step. Given
+  // options, no questions: the times to remove ("all" found), or none, to find them and ring them.
+  command("debrief.removeJumps", async (target?: string | Target, given?: { threshold?: { value: number; unit: string }; times?: string[] | "all" }) => {
+    const track = trackTarget(target);
+    const opened = session.current;
+    if (!track || !opened) return { problem: report("Select one track to find its jumps.") };
+    if (!service || !opened.base) return { problem: report("Finding jumps needs Debrief's tool service. Run 'Debrief: Restart tool service'.") };
+    const name = track.properties.name;
+    const find = (threshold?: { value: number; unit: string }) => service!.findJumps(opened.store.id, opened.item.id, opened.base!, track.id, threshold);
+    let found;
+    try {
+      found = await find(given?.threshold);
+      if (!given) {
+        const median = found.median_speed ? `three times its median speed of ${formatQuantity(found.median_speed, displaySettings)}, at least 10 kn` : "at least 10 kn";
+        const typed = await vscode.window.showInputBox({
+          title: `Find jumps in ${name}`,
+          prompt: `A fix is a jump when reaching it from the fix before needs more than this speed. Offered: ${median}.`,
+          value: formatQuantity(found.threshold, displaySettings),
+          validateInput: (text) => {
+            const read = readSpeed(text, displaySettings);
+            return meaning(read, () => `faster than ${formatQuantity(read as { value: number; unit: string }, displaySettings)} to reach`);
+          },
+        });
+        if (typed === undefined) return {};
+        const threshold = readSpeed(typed, displaySettings);
+        if ("problem" in threshold) return {};
+        if (threshold.value !== found.threshold.value || threshold.unit !== found.threshold.unit) found = await find(threshold);
+      }
+    } catch (error) {
+      return { problem: report((error as Error).message) };
+    }
+    const times = found.jumps.map((j) => j.time);
+    const said = jumpsFound(name, times.length, found.threshold, displaySettings);
+    if (!times.length) {
+      showFixes(undefined);
+      if (!given) void vscode.window.showInformationMessage(said);
+      return { found: [], threshold: found.threshold };
+    }
+    showFixes({ feature_id: track.id, fix_times: times, message: said });
+    let chosen: string[] | undefined;
+    if (given?.times) chosen = given.times === "all" ? times : given.times;
+    else if (given) return { found: times, threshold: found.threshold }; // asked only to find them: they stay ringed on the map
+    else {
+      const items = found.jumps.map((jump) => ({ ...describeJump(jump, displaySettings), time: jump.time }));
+      const list = vscode.window.createQuickPick<(typeof items)[number]>();
+      list.title = said.split(". ")[0];
+      list.placeholder = "Untick any that are real; those ticked are removed as one step. Each is ringed on the map.";
+      list.canSelectMany = true;
+      list.ignoreFocusOut = true;
+      list.items = items;
+      list.selectedItems = items;
+      // An unticked jump's ring goes from the map, so the map shows what will be removed.
+      list.onDidChangeSelection((ticked) => showFixes({ feature_id: track.id, fix_times: ticked.map((t) => t.time), message: said }));
+      chosen = await new Promise<string[] | undefined>((resolve) => {
+        list.onDidAccept(() => resolve(list.selectedItems.map((t) => t.time)));
+        list.onDidHide(() => resolve(undefined));
+        list.show();
+      });
+      list.dispose();
+    }
+    if (!chosen?.length) {
+      showFixes(undefined);
+      return { found: times, threshold: found.threshold };
+    }
+    const done = await cleanTrack({ kind: "remove_jumps", feature: track.id, times: chosen, threshold: found.threshold });
+    showFixes(undefined);
+    report(done.problem);
+    return { ...done, found: times, removed: done.problem ? 0 : chosen.length, threshold: found.threshold };
+  });
+
+  // "Smooth track…": what to smooth, over how many fixes, then the track drawn as it would be,
+  // with how far fixes would move; Apply makes it one step. Given a window, it is applied, unless
+  // apply is false: then the preview stays on the map.
+  command("debrief.smoothTrack", async (target?: string | Target, given?: { window: number; period?: TimeRange; apply?: boolean }) => {
+    const track = trackTarget(target);
+    const opened = session.current;
+    if (!track || !opened) return { problem: report("Select one track to smooth.") };
+    if (!service || !opened.base) return { problem: report("Smoothing needs Debrief's tool service. Run 'Debrief: Restart tool service'.") };
+    const name = track.properties.name;
+    let window = given?.window;
+    let period = given?.period;
+    if (!given) {
+      // What to smooth: the whole track, or its fixes in the time window, whose first and last stay put.
+      const shown = session.time?.range;
+      const { times } = track.properties;
+      const extents = [
+        { label: "Whole track", description: describeTimes(times[0], times.at(-1)), period: undefined as TimeRange | undefined },
+        ...(shown
+          ? [{ label: "Current time window", description: `${describeTimes(shown.start, shown.end)} · ${count(periodIndices(times.map(Date.parse), { start: Date.parse(shown.start), end: Date.parse(shown.end) }).length, "fix", "fixes")}`, detail: "Only the fixes in the window are smoothed; its first and last fixes stay where they are.", period: shown }]
+          : []),
+      ];
+      const extent = extents.length > 1 ? await vscode.window.showQuickPick(extents, { title: `Smooth ${name}`, placeHolder: `What of ${name} to smooth?` }) : extents[0];
+      if (!extent) return {};
+      period = extent.period;
+      const typed = await vscode.window.showInputBox({
+        title: `Smooth ${name}`,
+        prompt: "Over how many fixes: an odd number; the first and last fixes of what is smoothed stay where they are",
+        value: "5",
+        validateInput: (text) => {
+          const read = readWindow(text);
+          return meaning(read, () => describeWindow(read as number));
+        },
+      });
+      const read = typed === undefined ? undefined : readWindow(typed);
+      if (typeof read !== "number") return {};
+      window = read;
+    }
+    let preview;
+    try {
+      preview = await service.previewSmoothing(opened.store.id, opened.item.id, opened.base, track.id, window!, period);
+    } catch (error) {
+      return { problem: report((error as Error).message) };
+    }
+    const note = smoothingNote(name, window!, preview.summary);
+    if (!preview.moved) {
+      if (!given) void vscode.window.showInformationMessage(`${name}: no fix would move, so there is nothing to smooth.`);
+      return { summary: preview.summary, moved: 0 };
+    }
+    showFixes({ feature_id: track.id, fix_times: [], preview: preview.preview, message: note });
+    // Asked only to preview: it stays on the map until the next change or debrief.showFixes.
+    if (given?.apply === false) return { summary: preview.summary, moved: preview.moved };
+    const apply = given ? true : (await vscode.window.showInformationMessage(note, { detail: "The dashed line shows the track as smoothing would leave it." }, "Apply", "Cancel")) === "Apply";
+    if (!apply) {
+      showFixes(undefined);
+      return { summary: preview.summary, moved: preview.moved };
+    }
+    const done = await cleanTrack({ kind: "smooth", feature: track.id, window: window!, ...(period && { period }) });
+    showFixes(undefined);
+    report(done.problem);
+    return { ...done, moved: preview.moved };
+  });
+
+  // "Fixes…": the fix list of a track, to choose one; then its colour, label or comment, each one step.
+  // From the map (a right-click on a fix), the fix is given. With a change given, no questions.
+  type MarkChanges = { colour?: string | null; label?: string | null; comment?: string | null; colour_name?: string };
+  command("debrief.markFix", async (target?: string | Target, time?: string, change?: MarkChanges) => {
+    const track = trackTarget(target);
+    if (!track) return { problem: report("Select one track to mark one of its fixes.") };
+    const name = track.properties.name;
+    let at = time;
+    if (!at) {
+      const rows = fixRows(track, displaySettings, colourName).map((row) => ({ label: row.label, description: row.description, detail: row.mark || undefined, time: row.time }));
+      const current = session.time ? Date.parse(session.time.current) : undefined;
+      const near = current === undefined ? 0 : rows.reduce((best, row, i) => (Math.abs(Date.parse(row.time) - current) < Math.abs(Date.parse(rows[best].time) - current) ? i : best), 0);
+      const quick = vscode.window.createQuickPick<(typeof rows)[number]>();
+      quick.title = `Fixes of ${name}`;
+      quick.placeholder = "Choose a fix to colour, label or comment on; type a time to find one";
+      quick.items = rows;
+      quick.matchOnDescription = true;
+      quick.matchOnDetail = true;
+      quick.activeItems = rows[near] ? [rows[near]] : [];
+      at = await new Promise<string | undefined>((resolve) => {
+        quick.onDidAccept(() => resolve(quick.selectedItems[0]?.time ?? quick.activeItems[0]?.time));
+        quick.onDidHide(() => resolve(undefined));
+        quick.show();
+      });
+      quick.dispose();
+      if (!at) return {};
+    }
+    let changes = change;
+    if (!changes) {
+      // The fix chosen, ringed on the map while the analyst says what to do to it.
+      showFixes({ feature_id: track.id, fix_times: [at] });
+      changes = await askMarkChange(track, at);
+      showFixes(undefined);
+      if (!changes) return {};
+    }
+    const { colour_name, ...members } = changes;
+    const done = await cleanTrack({ kind: "mark", feature: track.id, time: at, changes: members, ...(colour_name && { colour_name }) });
+    report(done.problem);
+    return done;
+  });
+  /** What to do to a fix: its colour, label or comment, asked in VS Code's lists and input boxes. */
+  async function askMarkChange(track: TrackFeature, at: string): Promise<MarkChanges | undefined> {
+    const name = track.properties.name;
+    const mark = markAt(track, at);
+    const when = describeTimes(at);
+    const actions = [
+      { label: "Colour…", description: mark?.colour ? `now ${colourName(mark.colour) ?? mark.colour}` : "", act: "colour" },
+      { label: "Label…", description: mark?.label ? `now '${mark.label}'` : "", act: "label" },
+      { label: "Comment…", description: mark?.comment ? `now: ${mark.comment.split("\n")[0]}` : "", act: "comment" },
+      ...(mark?.colour ? [{ label: "Remove its own colour", description: "drawn in the track's colour again", act: "uncolour" }] : []),
+    ];
+    const action = await vscode.window.showQuickPick(actions, { title: `Fix of ${name} at ${when}`, placeHolder: describeMark(mark, colourName) || "Give this fix a colour, a label or a comment of its own" });
+    if (!action) return undefined;
+    if (action.act === "uncolour") return { colour: null };
+    if (action.act === "colour") {
+      const picked = await vscode.window.showQuickPick(FIX_COLOURS.map((c) => ({ label: c.name, colour: c.colour })), { title: `Colour for the fix of ${name} at ${when}` });
+      return picked && { colour: picked.colour, colour_name: picked.label.toLowerCase() };
+    }
+    const typed = await vscode.window.showInputBox({
+      title: `${action.act === "label" ? "Label" : "Comment"} for the fix of ${name} at ${when}`,
+      prompt: action.act === "label" ? "Drawn on the map beside the fix. Leave empty to remove it." : "Shown when you point at the fix, and in the Timeline. Leave empty to remove it.",
+      value: (action.act === "label" ? mark?.label : mark?.comment) ?? "",
+    });
+    return typed === undefined ? undefined : { [action.act]: typed.trim() || null };
+  }
+  // What the map rings or previews, for agents and tests; debrief.showFixes with nothing takes it away.
+  command("debrief.fixesOnMap", () => map.fixesShown);
+  command("debrief.showFixes", (shown?: Parameters<typeof showFixes>[0]) => showFixes(shown));
 
   // The Timeline: choosing an entry moves current time to it. Outside the window shown, the
   // window widens or moves to take it in, shown but never saved, as for a tool's time (CAP-28).

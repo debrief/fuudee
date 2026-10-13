@@ -113,6 +113,28 @@ export type TrackChange =
   | { kind: "split"; feature: string; at: string; names?: [string, string] }
   | { kind: "merge"; features: string[]; name?: string };
 
+/** A track cleaned, or a fix marked, by hand or by an agent (CAP-01, EXT-14): each one step. */
+export type CleanChange =
+  | { kind: "remove_jumps"; feature: string; times: string[]; threshold?: { value: number; unit: string } }
+  | { kind: "smooth"; feature: string; window: number; period?: { start: string; end: string } }
+  | { kind: "mark"; feature: string; time: string; changes: { colour?: string | null; label?: string | null; comment?: string | null }; colour_name?: string };
+
+/** What smoothing did, or would do: how many fixes moved, the most any moved (metres) and when, and the words for it. */
+export interface SmoothingSummary {
+  moved: number;
+  largest: { value: number; unit: string };
+  largest_time: string | null;
+  summary: string;
+}
+
+/** What finding a track's jumps says: the threshold used, the track's median speed, and the jumps. */
+export interface JumpsFound {
+  feature: string;
+  threshold: { value: number; unit: string };
+  median_speed: { value: number; unit: string } | null;
+  jumps: { time: string; position: number[]; speed: { value: number; unit: string } | null; since: string }[];
+}
+
 export interface Agent {
   kind: "person" | "software_agent";
   name: string;
@@ -429,6 +451,34 @@ export class ToolService {
         : change.kind === "split"
           ? ["debrief/split_track", { feature: change.feature, at: change.at, ...(change.names && { names: change.names }) }]
           : ["debrief/merge_tracks", { features: change.features, ...(change.name && { name: change.name }) }];
+    return this.request(method, { store, item, base, agent, ...params, ...(allowNewerSchema && { allow_newer_schema: true }) });
+  }
+
+  /** A track's jumps, to show the analyst before any is removed: changes nothing (CAP-01). threshold left out: three times its median speed, at least 10 kn. */
+  findJumps(store: string, item: string, base: Base, feature: string, threshold?: { value: number; unit: string }, period?: { start: string; end: string }): Promise<Opened & JumpsFound> {
+    return this.request("debrief/find_jumps", { store, item, base, feature, ...(threshold && { threshold }), ...(period && { period }) });
+  }
+
+  /** The track as smoothing would leave it, and how far fixes would move: changes nothing (CAP-01). */
+  previewSmoothing(
+    store: string,
+    item: string,
+    base: Base,
+    feature: string,
+    window: number,
+    period?: { start: string; end: string },
+  ): Promise<Opened & SmoothingSummary & { preview: { type: "LineString"; coordinates: number[][] } }> {
+    return this.request("debrief/preview_smoothing", { store, item, base, feature, window, ...(period && { period }) });
+  }
+
+  /**
+   * Remove jumps the analyst confirmed, smooth a track, or colour, label or comment on a
+   * fix: each a recorded, undoable step ("BLUE ONE: 3 jumps removed"). Fails with CONFLICT
+   * if the plot changed since base.
+   */
+  cleanTrack(store: string, item: string, base: Base, agent: Agent, change: CleanChange, allowNewerSchema = false): Promise<Opened & { changed: boolean; feature?: string } & Partial<SmoothingSummary>> {
+    const { kind, ...params } = change;
+    const method = { remove_jumps: "debrief/remove_jumps", smooth: "debrief/smooth_track", mark: "debrief/mark_fix" }[kind];
     return this.request(method, { store, item, base, agent, ...params, ...(allowNewerSchema && { allow_newer_schema: true }) });
   }
 

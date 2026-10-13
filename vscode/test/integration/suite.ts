@@ -526,6 +526,80 @@ export async function run(): Promise<void> {
   assert.ok(track("track-red-one-2"));
   assert.deepEqual(api.getState()!.time.current, timeBefore.current);
 
+  // --- Cleaning tracks: jumps, smoothing and marked fixes, each one step (CAP-01, EXT-14) ----
+  type Shown = { feature_id: string; fix_times?: string[]; preview?: { coordinates: number[][] }; message?: string } | undefined;
+  const cleanBefore = (await steps()).length;
+  // GPS glitches in BLUE ONE, as a colleague's change on another computer would bring them.
+  const blueTrack = track("track-blue-one")!;
+  const glitched = [Math.floor(blueTrack.properties.times.length / 3), Math.floor(blueTrack.properties.times.length / 3) + 1];
+  execFileSync(process.env.DEBRIEF_PYTHON!, [
+    "-c",
+    "import sys; from pathlib import Path; from debrief_stac import Catalogue, Changes; from debrief_schemas import models; " +
+      "c = Catalogue.open(Path(sys.argv[1])); t = next(f for f in c.read_plot(sys.argv[2]).features if f.id == 'track-blue-one'); " +
+      "xy = [list(p) for p in t.geometry.coordinates]\n" +
+      "for i in map(int, sys.argv[3:]): xy[i][1] += 0.05\n" +
+      "t = t.model_copy(update={'geometry': t.geometry.model_copy(update={'coordinates': xy})}); " +
+      "r = models.ProvRecord(id='edit-glitch', kind='edit', started_at='2026-10-14T09:00:00.000Z', agent=models.AgentRef(kind='person', name='a colleague'), notes=['GPS glitches put into BLUE ONE']); " +
+      "c.commit(sys.argv[2], [r], Changes(modified=[t]))",
+    current.store.location,
+    current.item.id,
+    ...glitched.map(String),
+  ]);
+  await vscode.commands.executeCommand("debrief.refresh");
+  await waitFor("the colleague's glitches", async () => (await steps()).length === cleanBefore + 1 || undefined);
+  // Found first, ringed on the map, nothing changed; then removed, one step named for them.
+  type JumpsDone = { problem?: string; found?: string[]; removed?: number; threshold?: { value: number; unit: string } };
+  await vscode.commands.executeCommand("debrief.select", []); // the rings, not the selection's outline, in the picture
+  const found = await vscode.commands.executeCommand<JumpsDone>("debrief.removeJumps", "track-blue-one", { threshold: { value: 30, unit: "[kn_i]" } });
+  const glitchTimes = glitched.map((i) => blueTrack.properties.times[i]);
+  assert.deepEqual(found.found, glitchTimes);
+  assert.equal((await steps()).length, cleanBefore + 1, "finding changes nothing");
+  const ringed = await vscode.commands.executeCommand<Shown>("debrief.fixesOnMap");
+  assert.deepEqual(ringed?.fix_times, glitchTimes);
+  assert.match(ringed?.message ?? "", /^BLUE ONE: 2 jumps found, each faster than 30\.0 kn to reach/);
+  await sleep(2000);
+  await screenshot("24-jumps-found");
+  const removed = await vscode.commands.executeCommand<JumpsDone>("debrief.removeJumps", "track-blue-one", { threshold: { value: 30, unit: "[kn_i]" }, times: "all" });
+  assert.equal(removed.problem, undefined);
+  assert.equal(removed.removed, 2);
+  assert.deepEqual((await steps()).at(-1)?.notes?.slice(0, 1), ["BLUE ONE: 2 jumps removed"]);
+  assert.equal(track("track-blue-one")!.properties.times.length, blueTrack.properties.times.length - 2);
+  assert.equal(await vscode.commands.executeCommand<Shown>("debrief.fixesOnMap"), undefined, "the rings go");
+  // Smoothing previewed (it stays on the map), then applied: one step.
+  const previewed = await vscode.commands.executeCommand<{ summary?: string; moved?: number }>("debrief.smoothTrack", "track-red-one", { window: 5, apply: false });
+  assert.match(previewed.summary ?? "", /^\d+ fix(es)? moved; the most a fix moved: /);
+  assert.ok((await vscode.commands.executeCommand<Shown>("debrief.fixesOnMap"))?.preview?.coordinates.length);
+  await sleep(2000);
+  await screenshot("25-smoothing-preview");
+  const smoothed = await vscode.commands.executeCommand<{ problem?: string; summary?: string }>("debrief.smoothTrack", "track-red-one", { window: 5 });
+  assert.equal(smoothed.problem, undefined);
+  const redName = track("track-red-one")!.properties.name; // RED ONE (1): the merge before was undone
+  assert.equal((await steps()).at(-1)?.notes?.[0], `${redName} smoothed over 5 fixes`);
+  assert.equal(await vscode.commands.executeCommand<Shown>("debrief.fixesOnMap"), undefined);
+  // A fix coloured, labelled and commented on, each one step; the comment in the Timeline.
+  const fixTime = track("track-red-one")!.properties.times[Math.floor(track("track-red-one")!.properties.times.length / 4)];
+  for (const change of [{ colour: "#ffd700", colour_name: "yellow" }, { label: "Turn 1" }, { comment: "Wheel over for the second leg" }]) {
+    const done = await vscode.commands.executeCommand<{ problem?: string }>("debrief.markFix", "track-red-one", fixTime, change);
+    assert.equal(done.problem, undefined);
+  }
+  const when = new Date(fixTime).toISOString().slice(11, 19);
+  assert.deepEqual((await steps()).slice(-3).map((s) => s.notes?.[0]), [`${redName} fix at ${when}Z coloured yellow`, `${redName} fix at ${when}Z labelled 'Turn 1'`, `${redName} fix at ${when}Z: comment added`]);
+  const timeline = await vscode.commands.executeCommand<{ entries: string[] }>("debrief.timelineEntries");
+  assert.ok(timeline.entries.includes(`fix:track-red-one:${fixTime}`));
+  // The map asks for a fix by right-click; a refused change (no such fix) says why.
+  const wrong = await vscode.commands.executeCommand<{ problem?: string }>("debrief.markFix", "track-red-one", "2001-01-01T00:00:00.000Z", { label: "x" });
+  assert.match(wrong.problem ?? "", /has no fix at/);
+  // Choosing the comment in the Timeline moves current time to its fix, as for any entry.
+  await vscode.commands.executeCommand("debrief.goToTime", `fix:track-red-one:${fixTime}`);
+  assert.equal(api.getState()!.time.current, fixTime);
+  await vscode.commands.executeCommand("debrief.timeline.focus");
+  await sleep(2000);
+  await screenshot("26-marked-fix");
+  assert.equal((await steps()).length, cleanBefore + 6);
+  // Undone like any step: the comment goes from the Timeline.
+  assert.equal(await vscode.commands.executeCommand("debrief.undo"), undefined);
+  assert.ok(!(await vscode.commands.executeCommand<{ entries: string[] }>("debrief.timelineEntries")).entries.includes(`fix:track-red-one:${fixTime}`));
+
   // A legacy plot file: its circles, ellipses and styling come in as annotations.
   const dpf = path.resolve(__dirname, "../../python/debrief-io/tests/data/shapes.dpf");
   execFileSync(process.env.DEBRIEF_PYTHON!, [
@@ -541,6 +615,10 @@ export async function run(): Promise<void> {
   const shapes = api.session.current!.plot.features.filter((f) => f.properties.kind === "annotation");
   assert.ok(shapes.some((f) => f.properties.kind === "annotation" && f.properties.shape === "ellipse" && !!(f.properties as { appearance?: { colour?: string } }).appearance?.colour));
   await waitFor("the map to draw it", () => api.mapShowing() === "shapes" || undefined);
+  // Its fixes' own colours, labels and comments come in as marked fixes (EXT-14).
+  const nel = api.session.current!.plot.features.find((f) => (f.properties as { name?: string }).name === "NEL_STYLE") as unknown as { properties: { fix_marks?: { label?: string; comment?: string; colour?: string }[] } };
+  assert.ok(nel.properties.fix_marks?.some((m) => m.label === "Override label 1" && m.colour));
+  assert.ok(nel.properties.fix_marks?.some((m) => m.comment === "comment 3"));
   await vscode.commands.executeCommand("debrief.outline.focus");
   await sleep(2000);
   await screenshot("17-imported-dpf");

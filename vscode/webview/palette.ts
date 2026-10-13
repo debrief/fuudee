@@ -24,5 +24,8 @@ export const TRACK_COLOURS: { name: string; colour: string }[] = [
   { name: "Grey", colour: "#8a8a8a" },
 ];
 
+/** Colours an analyst can give one fix of a track (EXT-14): the track colours, then amber and yellow, which stand out on any of them. */
+export const FIX_COLOURS: { name: string; colour: string }[] = [...TRACK_COLOURS, { name: "Amber", colour: DATA_COLOURS.annotation }, { name: "Yellow", colour: "#ffd700" }];
+
 /** Colours an analyst can give an annotation by name: the annotation colour, then the track colours. Any other may be typed. */
 export const ANNOTATION_COLOURS: { name: string; colour: string }[] = [{ name: "Amber", colour: DATA_COLOURS.annotation }, ...TRACK_COLOURS];

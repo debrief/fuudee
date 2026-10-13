@@ -1,0 +1,8 @@
+{
+  "kind": "show_fixes",
+  "feature_id": "track-blue-one",
+  "selection": {
+    "plot": "serial-1",
+    "feature_ids": []
+  }
+}

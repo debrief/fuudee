@@ -46,6 +46,14 @@ Adapted from `DOMAIN_GLOSSARY.md` in debrief/debrief-future, itself adapted from
 
 **Split, merge** (tracks). Splitting a track at a time makes two tracks, the fixes before it and the fixes from it on; merging joins tracks into one in time order, and is refused where they overlap in time. Each is one step (CAP-01).
 
+**Jump.** A fix the platform could not have reached in time from the last good fix before it: faster than a threshold speed, unless the analyst says three times the track's median speed, at least 10 kn. Jumps are found and shown first; those the analyst confirms are removed as one step (CAP-01).
+
+**Smoothing.** Moving each fix of a track, or of a period of it, to the average position of itself and the same number of fixes either side, the first and last fixes staying where they are. Previewed first; applied as one step (CAP-01).
+
+**Marked fix.** A fix with a colour, a label or a comment of its own, as legacy plots carry. Found by its time, so the mark stays with its fix whatever else changes. Each change is one step (CAP-01, EXT-14).
+
+**Fix list.** A track's fixes in time order, each with its time, position, course, speed and any mark, for choosing one fix to colour, label or comment on.
+
 **Chart furniture.** What a chart carries besides its data: the scale bar, always drawn, and the north arrow, which a plot shows or not.
 
 **Timeline.** The view listing a plot's time-only annotations, such as narrative notes and periods of interest, in time order. Choosing an entry moves current time to it (CAP-05). The SRD calls it the temporal view.

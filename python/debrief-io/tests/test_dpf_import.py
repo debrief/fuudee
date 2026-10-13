@@ -143,7 +143,7 @@ def test_provenance_names_source_and_every_omission(catalogue: Catalogue) -> Non
         "sensor 'Plain' (sensor, 1 cut) not imported",
         "sensor 'SENSOR' (sensor, 4 cuts) not imported",
         "TMA solution set 'TARGET' (tma, 4 solutions) not imported",
-        "Track 'NEL_STYLE': 2 fix comments not imported.",
+        "Track 'NEL_STYLE': 3 fix labels hidden in the legacy plot are imported and will be shown.",
         "14 text labels drawn with a symbol ('Carrier', 'Square'",
         "1 annotation drawn with dot-dash (such as 'dot-dash 2px semi-transparent'): drawn dashed",
         "1 annotation drawn with unconnected points (such as 'unconnected 4px semi transparent'): "
@@ -152,8 +152,8 @@ def test_provenance_names_source_and_every_omission(catalogue: Catalogue) -> Non
         "Narrative entry types not imported: 'GenComment2' (1).",
         "Layer 'Annotations' (layer, shown): its settings are not imported",
         "kept as the named set 'Annotations'",
-        "Display settings not imported: fix labels, symbols and arrows; track symbols, fonts "
-        "and line styles.",
+        "Display settings not imported: where fix labels go, fix symbols and arrows; track "
+        "symbols, fonts and line styles.",
         "View settings not imported: the map projection",
     ]:
         assert expected in notes, expected
@@ -323,9 +323,65 @@ def test_fix_labels_hidden_fixes_and_unknown_leg_content_are_reported(
     )
     report = import_dpf(catalogue, source)
     notes = "\n".join(report.omitted)
-    assert "Track 'T': 2 fix labels not imported." in notes
+    assert "Track 'T': 1 fix label that only gives the fix's time is not imported" in notes
+    assert (
+        "Track 'T': 1 fix label hidden in the legacy plot is imported and will be shown." in notes
+    )
     assert "Track 'T': 1 fix hidden in the legacy plot is imported and will be shown." in notes
     assert "waypoint 'W1' not imported: in track 'T', leg 'one'" in notes
+    assert "fix comment" not in notes and "colour of their own" not in notes
+    (track,) = [f for f in catalogue.read_plot("made").features if f.properties.kind == "track"]
+    (mark,) = track.properties.fix_marks
+    assert (mark.time, mark.label) == ("1995-12-12T05:00:00.000Z", "Turn here")
+
+
+def test_fix_colours_labels_and_comments_become_marked_fixes(catalogue: Catalogue) -> None:
+    """The .dpf gap closed (EXT-14): each fix's own colour, label and comment, found by time."""
+    report = import_dpf(catalogue, DATA / "shapes.dpf")
+    plot = catalogue.read_plot("shapes")
+    track = next(f for f in plot.features if f.properties.name == "NEL_STYLE")
+    marks = {m.time[11:19]: m for m in track.properties.fix_marks}
+    assert set(track.properties.times) >= {f"1995-12-12T{t}.000Z" for t in marks}
+    own = track.properties.style.colour
+    assert marks["05:01:00"].label == "Override label 1"
+    assert marks["05:01:00"].colour == "#ffd700"  # YELLOW
+    assert marks["05:03:00"].comment == "comment 3"
+    assert marks["05:03:00"].label == "Override label 3"
+    assert marks["05:04:00"].comment == "comment 4"
+    assert marks["05:04:00"].label is None, "0504 only gives the fix's time"
+    assert all(m.colour != own for m in marks.values())
+    assert "05:00:00" not in marks  # labelled "120500", its own time, in the track's colour
+    notes = "\n".join(report.omitted)
+    assert "fix comment" not in notes
+    assert "a v4 track has one colour" not in notes
+    assert "that only give the fix's time are not imported" in notes
+
+
+def test_a_time_label_is_told_from_a_label_of_numbers(catalogue: Catalogue, tmp_path: Path) -> None:
+    time_only = _fix("050000", extra=' Label="12 0500.00"')
+    numbers = _fix("050100", "-3.9", extra=' Label="1234" LabelShowing="true"')
+    source = _plot_file(
+        tmp_path,
+        f'<track Name="T"><TrackSegment Name="one">{time_only}{numbers}</TrackSegment></track>',
+    )
+    report = import_dpf(catalogue, source)
+    (track,) = [f for f in catalogue.read_plot("made").features if f.properties.kind == "track"]
+    assert [(m.time[11:19], m.label) for m in track.properties.fix_marks] == [("05:01:00", "1234")]
+    notes = "\n".join(report.omitted)
+    assert "hidden in the legacy plot" not in notes  # shown in the legacy plot: shown here
+
+
+def test_fixes_sharing_a_time_keep_the_first_mark(catalogue: Catalogue, tmp_path: Path) -> None:
+    first = _fix("050000", extra=' Comment="first"')
+    second = _fix("050000", "-3.9", extra=' Comment="second"')
+    last = _fix("050100", "-3.8")
+    source = _plot_file(
+        tmp_path, f'<track Name="T"><TrackSegment>{first}{second}{last}</TrackSegment></track>'
+    )
+    report = import_dpf(catalogue, source)
+    (track,) = [f for f in catalogue.read_plot("made").features if f.properties.kind == "track"]
+    assert [m.comment for m in track.properties.fix_marks] == ["first"]
+    assert any("share a time with the fix before; only the first" in n for n in report.omitted)
 
 
 def test_overlapping_legs_become_separate_tracks(catalogue: Catalogue, tmp_path: Path) -> None:

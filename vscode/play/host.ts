@@ -25,6 +25,9 @@ import { TRACK_COLOURS } from "../webview/palette.js";
 import { TimeControl } from "../webview/timecontrol.js";
 import { formatBearing } from "@debrief/kernel";
 import { defaultPivotIndex, describeDistance, describeTurn, mergedName, mergePlan, periodIndices, readBearing, readDistance, readTurn } from "../webview/trackedit.js";
+import { describeJump, describeMark, describeWindow, fixRows, jumpsFound, markAt, readSpeed, readWindow, smoothingNote, type Jump } from "../webview/fixes.js";
+import { FIX_COLOURS } from "../webview/palette.js";
+import { formatQuantity } from "@debrief/kernel";
 
 type Feature = PlotFeature;
 interface Step {
@@ -291,6 +294,7 @@ window.addEventListener("message", (event) => {
         showPlot();
       });
     }
+    if (message.kind === "fix_chosen") void openFixes(message.feature_id as string, message.fix_time as string);
     if (message.kind === "annotation_drawn") {
       // Drawn on the map: the form, filled in with what was drawn, to name it and add it as one step.
       openAnnotationForm({ spec: { ...(message.annotation as AnnotationSpec), name: "" } });
@@ -360,6 +364,7 @@ function closeSide(): void {
     drawnUnsaved = false;
     showPlot();
   }
+  if (fixesShown) showFixesOnMap(undefined); // what the panel had ringed or previewed on the map goes with it
   formTool = undefined;
   form = undefined;
   results = undefined;
@@ -770,6 +775,235 @@ $("merge-tracks").onclick = async () => {
   if (problem) toast(problem, "warning");
 };
 
+// --- Cleaning tracks: jumps, smoothing and marked fixes (CAP-01, EXT-14) -------------
+/** Find jumps or preview smoothing (nothing changes), or remove jumps, smooth or mark a fix (one step each), as the tool service does. */
+async function clean<T = Record<string, unknown>>(change: Record<string, unknown>, reading = false): Promise<T & { error?: string }> {
+  if (!opened || !pythonReady) return { error: "Open a plot first." } as T & { error?: string };
+  const outcome = await pythonJson<T & { error?: string }>("clean", opened.item.id, JSON.stringify({ base: opened.base, change }));
+  if (!outcome.error && !reading) await openPlot(opened.item.id, true);
+  return outcome;
+}
+/** Whether the map has fixes ringed, or a change previewed, for the panel beside it. */
+let fixesShown = false;
+function showFixesOnMap(shown?: { feature_id: string; fix_times?: string[]; preview?: unknown; message?: string }): void {
+  fixesShown = !!shown;
+  post(map, shown ? { kind: "show_fixes", ...shown } : { kind: "show_fixes" });
+}
+/** A panel beside the map: a line of text, then what follows. */
+function panel(lead: string, ...content: HTMLElement[]): HTMLElement {
+  const box = document.createElement("div");
+  box.className = "omitted-panel clean-panel";
+  const p = Object.assign(document.createElement("p"), { textContent: lead });
+  p.setAttribute("role", "status");
+  box.append(p, ...content);
+  return box;
+}
+const button = (text: string, primary = false) => Object.assign(document.createElement("button"), { type: "button", textContent: text, className: primary ? "primary" : "" });
+
+// "Jumps…": the threshold, offered as the track's default; then the jumps found, ringed on the map and listed
+// beside it, all ticked; Remove takes out those still ticked, as one step. Nothing is ever removed unseen.
+$("find-jumps").onclick = async () => {
+  const track = oneTrack("find jumps in");
+  if (!track) return;
+  const name = track.properties.name;
+  type Found = { threshold: { value: number; unit: string }; median_speed: { value: number; unit: string } | null; jumps: Jump[] };
+  let found = await clean<Found>({ kind: "find_jumps", feature: track.id }, true);
+  if (found.error) return toast(found.error, "warning");
+  const median = found.median_speed ? `Offered: three times ${name}'s median speed of ${formatQuantity(found.median_speed)}, at least 10 kn.` : "Offered: at least 10 kn.";
+  const values = await trackForm(`Find jumps in ${name}`, "Find", [
+    {
+      id: "threshold",
+      label: `A fix is a jump when reaching it needs more than this speed. ${median}`,
+      value: formatQuantity(found.threshold),
+      read: (t) => {
+        const read = readSpeed(t);
+        return "problem" in read ? read : { means: `faster than ${formatQuantity(read)} to reach` };
+      },
+    },
+  ]);
+  if (!values) return;
+  const threshold = readSpeed(values.threshold) as { value: number; unit: string };
+  if (threshold.value !== found.threshold.value || threshold.unit !== found.threshold.unit) {
+    found = await clean<Found>({ kind: "find_jumps", feature: track.id, threshold }, true);
+    if (found.error) return toast(found.error, "warning");
+  }
+  const said = jumpsFound(name, found.jumps.length, found.threshold);
+  if (!found.jumps.length) return toast(said);
+  const list = document.createElement("ul");
+  list.className = "jump-list";
+  list.setAttribute("aria-label", `Jumps found in ${name}: untick any that are real`);
+  const boxes = found.jumps.map((jump) => {
+    const { label, description } = describeJump(jump);
+    const row = document.createElement("li");
+    const box = Object.assign(document.createElement("input"), { type: "checkbox", checked: true, value: jump.time });
+    const text = Object.assign(document.createElement("label"), { textContent: ` ${label} ` });
+    text.prepend(box);
+    text.append(Object.assign(document.createElement("span"), { className: "detail", textContent: description }));
+    row.append(text);
+    list.append(row);
+    return box;
+  });
+  const remove = button("", true);
+  const cancel = button("Cancel");
+  const ticked = () => boxes.filter((b) => b.checked).map((b) => b.value);
+  const say = () => {
+    const n = ticked().length;
+    remove.textContent = n ? `Remove ${n} jump${n === 1 ? "" : "s"}` : "Remove";
+    remove.disabled = !n;
+    showFixesOnMap({ feature_id: track.id, fix_times: ticked(), message: said });
+  };
+  boxes.forEach((b) => (b.onchange = say));
+  const actions = document.createElement("div");
+  actions.className = "buttons";
+  actions.append(remove, cancel);
+  showSide("Jumps", panel(`${said} Untick any that are real; Remove takes out the rest as one step, and Undo puts them back.`, list, actions));
+  say();
+  cancel.onclick = closeSide;
+  remove.onclick = async () => {
+    remove.disabled = true;
+    const outcome = await clean({ kind: "remove_jumps", feature: track.id, times: ticked(), threshold: found.threshold });
+    if (outcome.error) {
+      remove.disabled = false;
+      return toast(outcome.error, "warning");
+    }
+    closeSide();
+  };
+};
+
+// "Smooth…": what to smooth and over how many fixes; then the track as smoothing would leave it, dashed on
+// the map, with how far fixes would move; Apply makes it one step.
+$("smooth-track").onclick = async () => {
+  const track = oneTrack("smooth");
+  if (!track) return;
+  const name = track.properties.name;
+  const values = await trackForm(`Smooth ${name}`, "Preview", [
+    extentField(),
+    {
+      id: "window",
+      label: "Over how many fixes (an odd number). The first and last fixes of what is smoothed stay where they are; times never change.",
+      value: "5",
+      read: (t) => {
+        const read = readWindow(t);
+        return typeof read === "number" ? { means: describeWindow(read) } : read;
+      },
+    },
+  ]);
+  if (!values) return;
+  const window = readWindow(values.window) as number;
+  const period = windowPeriod(values.extent);
+  const change = { feature: track.id, window, ...(period && { period }) };
+  const preview = await clean<{ preview: { coordinates: number[][] }; moved: number; summary: string }>({ kind: "preview_smoothing", ...change }, true);
+  if (preview.error) return toast(preview.error, "warning");
+  if (!preview.moved) return toast(`${name}: no fix would move, so there is nothing to smooth.`);
+  const note = smoothingNote(name, window, preview.summary);
+  const apply = button("Apply", true);
+  const cancel = button("Cancel");
+  const actions = document.createElement("div");
+  actions.className = "buttons";
+  actions.append(apply, cancel);
+  showSide("Smoothing", panel(`${note} The dashed line on the map shows the track as smoothing would leave it. Apply makes it one step; Undo puts it back.`, actions));
+  showFixesOnMap({ feature_id: track.id, fix_times: [], preview: { type: "LineString", coordinates: preview.preview.coordinates }, message: note });
+  cancel.onclick = closeSide;
+  apply.onclick = async () => {
+    apply.disabled = true;
+    const outcome = await clean({ kind: "smooth", ...change });
+    if (outcome.error) {
+      apply.disabled = false;
+      return toast(outcome.error, "warning");
+    }
+    closeSide();
+  };
+};
+
+// "Fixes…": the selected track's fixes, in time order; choose one (it is ringed on the map), then
+// colour, label or comment on it, each one step. A right-click on a fix on the map opens it here.
+const colourName = (colour: string) => FIX_COLOURS.find((c) => c.colour === colour)?.name.toLowerCase();
+$("fix-list").onclick = () => {
+  const track = oneTrack("list the fixes of");
+  if (track) void openFixes(track.id);
+};
+async function openFixes(trackId: string, time?: string): Promise<void> {
+  const track = trackOf(trackId);
+  if (!track) return;
+  if (!selection.includes(trackId) || selection.length !== 1) await select([trackId]);
+  const name = track.properties.name;
+  const rows = fixRows(track, undefined, colourName);
+  let chosen = time ?? rows[0]?.time;
+  const list = document.createElement("ul");
+  list.className = "list fix-list";
+  list.setAttribute("role", "listbox");
+  list.setAttribute("aria-label", `Fixes of ${name}`);
+  const actions = document.createElement("div");
+  actions.className = "fix-actions";
+  const render = () => {
+    list.querySelectorAll("li").forEach((li) => {
+      const on = li.dataset.time === chosen;
+      li.classList.toggle("selected", on);
+      li.setAttribute("aria-selected", String(on));
+    });
+    const mark = chosen ? markAt(track, chosen) : undefined;
+    const when = chosen ? describeTimes(chosen) : "";
+    const colour = document.createElement("select");
+    colour.setAttribute("aria-label", `Colour of the fix at ${when}`);
+    colour.append(new Option(mark?.colour ? `Colour: ${colourName(mark.colour) ?? mark.colour}` : "Colour…", ""), ...FIX_COLOURS.map((c) => new Option(c.name, c.colour)));
+    if (mark?.colour) colour.append(new Option("Track's colour", "none"));
+    colour.onchange = () => {
+      const picked = colour.value;
+      if (!picked) return;
+      const named = FIX_COLOURS.find((c) => c.colour === picked);
+      void markFix(track.id, chosen!, picked === "none" ? { colour: null } : { colour: picked }, named?.name.toLowerCase());
+    };
+    const text = (member: "label" | "comment") => {
+      const b = button(member === "label" ? "Label…" : "Comment…");
+      b.onclick = async () => {
+        const values = await trackForm(`${member === "label" ? "Label" : "Comment"} for the fix of ${name} at ${when}`, "Save", [
+          { id: "text", label: member === "label" ? "Drawn on the map beside the fix; empty removes it" : "Shown when you point at the fix, and in the Timeline; empty removes it", value: mark?.[member] ?? "" },
+        ]);
+        if (values) void markFix(track.id, chosen!, { [member]: values.text.trim() || null });
+      };
+      return b;
+    };
+    const said = Object.assign(document.createElement("div"), { className: "detail", textContent: describeMark(mark, colourName) || "No colour, label or comment of its own." });
+    actions.replaceChildren(Object.assign(document.createElement("div"), { className: "fix-chosen", textContent: `Fix at ${when}` }), said, colour, text("label"), text("comment"));
+    if (chosen) showFixesOnMap({ feature_id: track.id, fix_times: [chosen] });
+  };
+  list.replaceChildren(
+    ...rows.map((row) => {
+      const li = document.createElement("li");
+      li.dataset.time = row.time;
+      li.tabIndex = 0;
+      li.setAttribute("role", "option");
+      li.innerHTML = `<span class="name"></span> <span class="detail"></span>`;
+      li.querySelector(".name")!.textContent = row.label;
+      li.querySelector(".detail")!.textContent = [row.description, row.mark].filter(Boolean).join(" · ");
+      const choose = () => {
+        chosen = row.time;
+        render();
+      };
+      li.onclick = choose;
+      li.onkeydown = (e) => {
+        if (e.key === "Enter" || e.key === " ") {
+          e.preventDefault();
+          choose();
+        } else if (e.key === "ArrowDown" || e.key === "ArrowUp") {
+          e.preventDefault();
+          const next = (e.key === "ArrowDown" ? li.nextElementSibling : li.previousElementSibling) as HTMLElement | null;
+          next?.focus();
+        }
+      };
+      return li;
+    }),
+  );
+  showSide(`Fixes of ${name}`, panel("Choose a fix to colour, label or comment on: each change is one step. Right-click a fix on the map to choose it there.", actions, list));
+  render();
+  list.querySelector<HTMLElement>(`li[data-time="${CSS.escape(chosen ?? "")}"]`)?.scrollIntoView({ block: "nearest" });
+}
+async function markFix(trackId: string, time: string, changes: Record<string, string | null>, colourName?: string): Promise<void> {
+  const outcome = await clean({ kind: "mark", feature: trackId, time, changes, ...(colourName && { colour_name: colourName }) });
+  if (outcome.error) toast(outcome.error, "warning");
+  await openFixes(trackId, time); // the list again, saying the fix's new mark
+}
+
 // --- The Timeline: time-only annotations in time order (CAP-05) ----------------------
 let timeline: TimelineEntry[] = [];
 function renderTimeline(): void {
@@ -977,7 +1211,7 @@ for (const panel of OPTIONAL) $(`panel-${panel}`).hidden = !panels.has(panel);
 // The panels in the order the demo lists them, after the plot and its outline.
 for (const panel of panelOrder) if (OPTIONAL.includes(panel)) $("side").append($(`panel-${panel}`));
 /** History, Try and Import need Python: off until it is ready. */
-const NEEDS_PYTHON = ["undo", "redo", "move-track", "rotate-track", "split-track", "merge-tracks", "crash", "colleague", "colleague-window", "colleague-during", "file", "colour", "hide", "show", "add-annotation", "edit-annotation", "delete-annotation", "north-arrow"];
+const NEEDS_PYTHON = ["undo", "redo", "move-track", "rotate-track", "split-track", "merge-tracks", "find-jumps", "smooth-track", "fix-list", "glitches", "crash", "colleague", "colleague-window", "colleague-during", "file", "colour", "hide", "show", "add-annotation", "edit-annotation", "delete-annotation", "north-arrow"];
 function needsPython(on: boolean): void {
   for (const id of NEEDS_PYTHON) $<HTMLButtonElement | HTMLInputElement>(id).disabled = !on;
 }
@@ -1001,6 +1235,14 @@ $("colleague").onclick = async () => {
   // As the extension does when the plot changes on disk: show the latest, and say so.
   await openPlot(opened.item.id, true);
   toast(`${opened.item.properties.title} was changed elsewhere. Debrief is showing the latest.`);
+};
+$("glitches").onclick = async () => {
+  const ids = tracksSelected();
+  if (!opened || ids.length !== 1) return toast("Select one track to put GPS glitches into.", "warning");
+  const outcome = await pythonJson<{ error?: string }>("glitches", opened.item.id, ids[0]);
+  if (outcome.error) return toast(outcome.error, "warning");
+  await openPlot(opened.item.id, true);
+  toast("Three GPS glitches were put into the track, as a step of their own. Try Jumps… on it.");
 };
 $("colleague-window").onclick = async () => {
   if (!opened) return;

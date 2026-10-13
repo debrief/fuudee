@@ -1,6 +1,6 @@
 # Track operations
 
-How an analyst moves a track, or a period of it, rotates it about a point, splits it at a time and merges tracks into one. Part A: moving, rotating, splitting and merging (decision, product owner, 13 Oct 2026). Part B, still to come: jump removal, smoothing, dragging single fixes, and the legacy OTG and DR import modes.
+How an analyst moves a track, or a period of it, rotates it about a point, splits it at a time and merges tracks into one; and how they clean it: removing jumps, smoothing it, and giving single fixes a colour, a label or a comment of their own. Part A: moving, rotating, splitting and merging (decision, product owner, 13 Oct 2026). [Cleaning tracks](#cleaning-tracks) (part B2, 14 Oct 2026): jump removal, smoothing and marked fixes. Still to come: dragging single fixes, and the legacy OTG and DR import modes.
 
 ## Requirements cited
 
@@ -13,7 +13,8 @@ How an analyst moves a track, or a period of it, rotates it about a point, split
 | SUB-03, SUB-04 | Measured along geodesics; read and shown in the analyst's units and notation. |
 | SUB-26, SUB-28 | Moving a track changes neither current time, the window nor the selection; a change made elsewhere is never overwritten. |
 | NFR-13 | Dragging a track has a keyboard and a form-based equivalent. |
-| PRN-08 | The analyst owns the data: a track is moved where the analyst says, without second-guessing. |
+| PRN-08 | The analyst owns the data: a track is moved where the analyst says, without second-guessing; nothing is removed or moved without the analyst seeing it first. |
+| EXT-14, EXT-15 | A legacy plot's per-fix colours, labels and comments are imported, not listed as left out. |
 
 ## Model
 
@@ -117,6 +118,74 @@ sequenceDiagram
     end
 ```
 
+## Cleaning tracks
+
+Part B2 (14 Oct 2026). Three ways to tidy a track an analyst has imported, each one recorded step, and none done without the analyst seeing what it would do first.
+
+14. **Jumps: found, shown, then removed.** A jump is a fix the platform could not have reached in time: a GPS glitch, a mistyped position. **Find and remove jumps…** (the outline's menu on a track; **Jumps…** under the outline in the playground) asks for a speed, offered as **three times the track's median speed between fixes, and never less than 10 kn**, which the analyst can change (`30`, `30 kn`, `15 m/s`). Three times the median fits the platform: a helicopter at 120 kn and a submarine at 5 kn each get a threshold far above the changes of speed they really make between fixes; the 10 kn floor stops position noise on a slow or stopped platform being called a jump. A fixed speed (60 kn, say) would miss every jump of a slow platform and flag a fast one's ordinary fixes.
+
+    A fix is a jump when reaching it from the **last good fix before it** needs more than that speed (range along the geodesic over elapsed time; two fixes at one time in different places need infinite speed). Comparing with the last good fix, not simply the fix before, finds a burst of bad fixes in a row; and after a jump a fix is only back on the track when the track goes on from it, so the second of two bad fixes is found even though it is reachable over the longer time since the last good one. Up to 5 fixes in a row can be one jump. A track that goes off and stays off longer than that, or until it ends (a ship at anchor getting under way), is not a jump, since the platform may really be there; nothing is offered. The first fix is a jump when it is far from the next two and they agree; the last likewise.
+
+    What is found is **shown first, never removed silently**: each jump is ringed on the map in the theme's warning colour, the note at the top of the map says *RED ONE: 3 jumps found, each faster than 30.0 kn to reach*, and a list gives each one's time, position and how fast it would have been reached (*09:20:00Z 37°08.456'N 075°26.932'W · 176.5 kn to reach from 09:19:00Z*), all ticked. The analyst unticks any that are real (its ring goes), and **Remove** takes out the rest as **one step**: *RED ONE: 3 jumps removed*, with notes saying when they were (*At 09:20:00Z, 09:21:00Z and 10:40:00Z*), the speed (*Each faster than 30.0 kn to reach*) and any marked fixes that went with them. Cancel, or closing the list, removes nothing. With none found, Debrief says so: *RED ONE: no jumps found faster than 30.0 kn.*
+
+    Removing fixes keeps every series in step: positions, times, speeds, courses, depths and marked fixes lose the same fixes. A track keeps at least two fixes.
+
+15. **Smoothing: previewed, then applied.** **Smooth track…** (**Smooth…** in the playground) asks what to smooth (the whole track, or its fixes in the time window, as for a move) and over how many fixes: an odd number, 5 unless the analyst says, *each fix averaged with the 2 either side of it*. One method, a moving average, chosen because an analyst can say exactly what it did: each fix moves to the average position of itself and the same number of fixes either side, worked out in a flat frame centred on that fix (ranges and bearings from it, along geodesics), so it is right far north and across the antimeridian. Near the ends of what is smoothed the window narrows evenly, so **the first and last fixes never move** and nothing is pulled sideways; fixes outside the period stay where they are. **Times never change**, so the fixes stay in time order. Recorded courses and speeds are averaged over the same fixes (courses as directions, so 350° and 010° average to 000°), so they stay in step with the positions; depths are kept. Simplifying a track (dropping fixes, as Douglas-Peucker does) is a different operation, not offered: it loses fixes rather than moving them.
+
+    Before anything changes, the track as smoothing would leave it is drawn dashed in the theme's focus colour over the track as it is, and the note says what it would do: *RED ONE smoothed over 5 fixes, if applied: 236 fixes moved; the most a fix moved: 0.06 nmi, at 09:22:00Z.* **Apply** makes it **one step**, *RED ONE smoothed over 5 fixes* (or *RED ONE part smoothed…*), its notes saying how many fixes moved and the most any moved, and the period. Cancel changes nothing. A track smoothing would not move (a straight, steady one) says so and records nothing.
+
+16. **Marked fixes: a colour, a label or a comment of their own.** Legacy plots let an analyst colour single fixes, label them and comment on them, and the .dpf import used to list those as not imported. Now a fix can carry any of the three:
+
+    | | On the map | Elsewhere |
+    | --- | --- | --- |
+    | Colour | a dot at the fix in that colour, and the line from it to the next fix drawn in it | the fix list |
+    | Label | the text beside the fix, as a track's name is | the fix list |
+    | Comment | shown when pointing at the fix, with its time, position, course and speed | the fix list, and the **Timeline**, at the fix's time, as *RED ONE fix* |
+
+    A fix with only a label or a comment is a ring in the track's colour, so it can be pointed at. To mark a fix: **right-click it on the map**, or open the **fix list** (**Fixes: colour, label or comment…** on the outline's menu; **Fixes…** in the playground), which lists every fix of the track in time order with its time, position, course, speed and any mark, and choose one; then **Colour…** (the track colours, amber and yellow), **Label…** or **Comment…**. An empty label or comment, or *Track's colour*, takes it away. Each change is **one step**: *RED ONE fix at 09:31:00Z coloured yellow*, *… labelled 'Turn 1'*, *…: comment added* (or *changed*, *removed*); a long label is shortened in the step's name and kept whole.
+
+    A mark is kept with the track, **found by its fix's time**, not its place in the track (see the schema's `FixMark`). So it stays with its fix whatever happens to the rest: jumps removed before it, the track moved, rotated, smoothed, split (each part keeps its own marks) or merged. Where two fixes share a time, the mark is the first's; merging two tracks that meet at a time where both have a marked fix keeps the earlier track's, and the step's notes say so. Only marked fixes are listed, so a track of 10,000 fixes with three marked carries three marks, and the plot is still plain GeoJSON to other tools.
+
+    **From legacy plots.** The .dpf import keeps each fix's own colour (where it differs from the track's), its label and its comment as marks. Legacy Debrief labels every fix with its time unless told otherwise; a label that only gives the fix's time (`0504`, `120500`) is not imported, and the import says how many, since Debrief shows fixes' times itself. A label hidden in the legacy plot is imported and shown, and the import says how many. Where on the fix a legacy label went, and fix symbols and arrows, are still listed as not imported (EXT-15).
+
+17. **What is a step, and what isn't.**
+
+    | | Step in the history | Undone by `Ctrl+Z` |
+    | --- | --- | --- |
+    | Remove the jumps ticked | Yes, one for all of them | Yes |
+    | Apply smoothing | Yes, one | Yes |
+    | A fix coloured, labelled or commented on | Yes, one each | Yes |
+    | Finding jumps; unticking one; a smoothing preview; Cancel | No | No |
+    | Choosing a fix in the fix list | No | No |
+
+18. **The keyboard.** Everything here has a keyboard path: the commands and their input boxes and lists in VS Code; in the playground, the buttons under the outline, the form, the list of jumps (checkboxes) and the fix list (`Up` and `Down` move along it, `Enter` or `Space` chooses a fix). Right-clicking a fix on the map is a shortcut, never the only way.
+
+19. **Shared state and conflicts.** None of these changes current time, the time window or the selection (choosing a fix in the playground's fix list selects its track). A change sent from a plot that has since moved on is refused, as any change is (SUB-28), and Debrief shows the latest; jumps found or smoothing previewed on a plot that has changed must be found or previewed again.
+
+20. **For agents.** The same through the tool service: `debrief/find_jumps` (`feature`; `threshold`, a speed such as `{"value": 30, "unit": "[kn_i]"}`, and `period`, if wanted) returns the threshold used, the track's median speed and the jumps (time, position, speed to reach, the fix it was reached from) and changes nothing; `debrief/remove_jumps` (`feature`, `times`, and the `threshold` for the record) removes them as one step. `debrief/preview_smoothing` (`feature`, `window`, `period`) returns the track as it would be and how far fixes would move, and changes nothing; `debrief/smooth_track` applies it. `debrief/mark_fix` (`feature`, `time`, `changes`: any of `colour`, `label`, `comment`, null or empty taking one away; `colour_name` for the step's name). Each change takes `base` as for any change. In VS Code, `debrief.removeJumps` takes the track and `{threshold, times}` (`times: "all"` removes every jump found; no `times` only finds them and rings them on the map), `debrief.smoothTrack` the track and `{window, period, apply}` (`apply: false` leaves the preview on the map), and `debrief.markFix` the track, the fix's time and the changes, instead of asking.
+
+```mermaid
+sequenceDiagram
+    actor Analyst
+    participant Host as Extension host
+    participant Map
+    participant Service as Tool service
+    Analyst->>Host: Find and remove jumps… (threshold offered: 3 × median, at least 10 kn)
+    Host->>Service: debrief/find_jumps (feature, threshold, base)
+    Service-->>Host: the jumps; nothing changed
+    Host->>Map: show_fixes (feature_id, fix_times, message)
+    Map->>Map: ring each jump; "RED ONE: 3 jumps found…"
+    Host->>Analyst: the list, all ticked
+    Analyst->>Host: untick one; Remove
+    Host->>Service: debrief/remove_jumps (feature, times, threshold, base)
+    alt changed elsewhere since base
+        Service-->>Host: CONFLICT; nothing changed
+    else
+        Service-->>Host: one step: "RED ONE: 2 jumps removed"
+    end
+    Host->>Map: show_fixes (nothing): the rings go
+```
+
 ## Reference implementation
 
 - **Schema (0.0.14):** `TrackEdit` and `TrackEditActionEnum` in `schemas/linkml/features.yaml`; the message `edit_track` (`feature_id`, `track_edit`) in `schemas/linkml/messages.yaml`; the rules in `debrief_schemas.documents.track_edit_problems` and `vscode/src/messages.ts`; fixtures `webview_message/valid/edit-track-*.json` and the `edit-track-*` invalid ones.
@@ -125,5 +194,6 @@ sequenceDiagram
 - **VS Code:** the commands `debrief.moveTrack`, `debrief.rotateTrack`, `debrief.splitTrack` and `debrief.mergeTracks` in `vscode/src/extension.ts`, on the outline's context menu for a track.
 - **The playground:** `vscode/play/host.ts` (the buttons and the small forms) and `track` in `vscode/play/play.py`.
 - **Tests:** `python/debrief-stac/tests/test_tracks.py` (geodesic moves and rotations, far north and across the antimeridian; periods; split and merge invariants; undo; conflicts), the service test, `vscode/test/unit/trackedit.test.ts`, the playground test's `vscode/test/play/tracks.mjs` (drag, Escape, undo, rotate, keyboard runs, a period, a colleague's change during a drag, split, merge, an overlap refused, the forms), and the integration test's track steps.
+- **Cleaning tracks (part B2):** schema 0.0.15's `FixMark` and `fix_marks` in `schemas/linkml/features.yaml`, the messages `show_fixes` and `fix_chosen`, the rules in `debrief_schemas.documents`; `debrief_stac.fixes` (finding jumps, the default threshold, removing fixes with every series in step, smoothing, marks and the step names), marks carried through `split` and `merge` in `debrief_stac.tracks`; `Catalogue.find_jumps`, `remove_jumps`, `smoothing_preview`, `smooth_track` and `mark_fix`; the service's `debrief/find_jumps`, `debrief/remove_jumps`, `debrief/preview_smoothing`, `debrief/smooth_track` and `debrief/mark_fix`; the .dpf mapping in `debrief_io.dpf_import` (`_fix_marks`); `vscode/webview/fixes.ts` (free of Leaflet: the fix list's rows, reading a threshold and a window, the words); the map's marks, rings and preview in `vscode/webview/map.ts`; the commands `debrief.removeJumps`, `debrief.smoothTrack` and `debrief.markFix` in `vscode/src/extension.ts`; the Timeline's fix comments in `vscode/src/timeline.ts`; the playground's **Jumps…**, **Smooth…** and **Fixes…** (`vscode/play/host.ts`, `clean` and `glitches` in `play.py`). Tests: `python/debrief-stac/tests/test_fixes.py`, the service test, `python/debrief-io/tests/test_dpf_import.py`, `vscode/test/unit/fixes.test.ts`, the playground test's `vscode/test/play/cleaning.mjs`, and the integration test's cleaning steps.
 
-*Not yet (part B and later):* dragging single fixes; jump removal; smoothing; OTG and DR modes; stretching and shearing (the TMA module's, CAP-21); choosing which track wins where merged tracks overlap; renaming a track on its own.
+*Not yet (part B and later):* dragging single fixes; OTG and DR modes; simplifying a track (dropping fixes); where on a fix a label goes, and fix symbols and arrows; stretching and shearing (the TMA module's, CAP-21); choosing which track wins where merged tracks overlap; renaming a track on its own.

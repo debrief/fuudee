@@ -260,7 +260,9 @@ export type WebviewMessageKindEnum =
   | "delete_annotation"
   | "edit_annotation"
   | "annotation_drawn"
-  | "edit_track";
+  | "edit_track"
+  | "show_fixes"
+  | "fix_chosen";
 
 export interface DebriefSchemaDefinitions {}
 /**
@@ -589,6 +591,10 @@ export interface TrackProperties {
    */
   depths?: LengthSeries | null;
   /**
+   * Fixes with a colour, a label or a comment of their own, in time order, each found by its time (CAP-01, EXT-14). Most fixes have none, so only marked fixes are listed. Content: each change is a recorded, undoable step (SUB-22).
+   */
+  fix_marks?: FixMark[] | null;
+  /**
    * Not drawn on the map. Still listed, and still selectable, in the outline. Content: hiding is a recorded, undoable change (SUB-22).
    */
   hidden?: boolean | null;
@@ -616,6 +622,30 @@ export interface TrackProperties {
 export interface LengthSeries {
   unit: LengthUnitEnum;
   values: number[];
+}
+/**
+ * One fix of a track marked by the analyst, or by a legacy plot: drawn in a colour of its own, labelled on the map, or carrying a comment. Found by its time, not its place in the track, so a mark stays with its fix when fixes before it are removed, the track is split or merged, or it is moved or rotated. Where two fixes share a time, the mark is the first's.
+ *
+ * This interface was referenced by `DebriefSchemaDefinitions`'s JSON-Schema
+ * via the `definition` "FixMark".
+ */
+export interface FixMark {
+  /**
+   * The fix's own colour, lower-case hex RGB: its marker and the line from it to the next fix are drawn in it.
+   */
+  colour?: string | null;
+  /**
+   * Free text about the fix, shown when the analyst points at it and in the Timeline.
+   */
+  comment?: string | null;
+  /**
+   * Text drawn on the map beside the fix.
+   */
+  label?: string | null;
+  /**
+   * The time of the fix marked; one of the track's times.
+   */
+  time: string;
 }
 /**
  * This interface was referenced by `DebriefSchemaDefinitions`'s JSON-Schema
@@ -1310,9 +1340,17 @@ export interface WebviewMessage {
    */
   current_time?: string | null;
   /**
-   * The annotation a form changes or deletes, or the annotation or track the map asks to change.
+   * The annotation a form changes or deletes, the annotation or track the map asks to change, or the track whose fixes it rings or the analyst chose.
    */
   feature_id?: string | null;
+  /**
+   * The time of the fix the analyst chose on the map (fix_chosen).
+   */
+  fix_time?: string | null;
+  /**
+   * The times of the fixes the map rings (show_fixes).
+   */
+  fix_times?: string[] | null;
   /**
    * How many of the plot's features are hidden on the map (SUB-22), so the map can say so.
    */
@@ -1326,6 +1364,10 @@ export interface WebviewMessage {
   parameters?: ParameterValue[] | null;
   plot?: DebriefFeatureCollection | null;
   plot_title?: string | null;
+  /**
+   * A track as a change would leave it, one position per fix, drawn beside it until the analyst applies or cancels the change (show_fixes).
+   */
+  preview?: LineStringGeometry | null;
   result?: ToolResult | null;
   result_title?: string | null;
   /**

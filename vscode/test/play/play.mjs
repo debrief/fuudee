@@ -13,6 +13,7 @@ import { chromium } from "playwright";
 import { playAnnotations } from "./annotations.mjs";
 import { playDrawing } from "./drawing.mjs";
 import { playTracks } from "./tracks.mjs";
+import { playCleaning } from "./cleaning.mjs";
 
 const root = path.resolve(process.argv[2] ?? "../site/docs/play");
 const site = process.argv[3] ? path.resolve(process.argv[3]) : undefined;
@@ -268,6 +269,9 @@ try {
   await playDrawing(page, shot);
   // Moving, rotating, splitting and merging tracks: by pointer, keyboard and form, each one step (CAP-01, CAP-02).
   await playTracks(page, shot);
+  // Cleaning tracks: jumps found, shown and removed; smoothing previewed and applied; a fix
+  // coloured, labelled and commented on, each one step (CAP-01, EXT-14).
+  await playCleaning(page, shot);
 
   // Import a legacy plot file.
   const dpf = path.resolve("../python/debrief-io/tests/data/shapes.dpf");
@@ -276,6 +280,8 @@ try {
     await page.locator(".omitted-panel li").first().waitFor({ timeout: 60000 });
     assert.equal(await page.locator("#plots").inputValue(), "shapes");
     await shot("play-07-imported");
+    // Fixes' own colours, labels and comments are imported, so not listed as left out (EXT-14).
+    assert.doesNotMatch(await text(".omitted-panel"), /fix comment|a v4 track has one colour/);
     // Its circles and ellipses are circles and ellipses, drawn as legacy Debrief drew them.
     assert.ok(!(await text(".omitted-panel")).includes("polygons of 72 sides"));
     await page.locator(".side-bar button", { hasText: "Close" }).click();
@@ -290,6 +296,26 @@ try {
     // circle, where one Debrief placed would wait for more room.
     await mapFrame.locator(".annotation-label", { hasText: "solid hairwidth solid fill" }).waitFor({ state: "visible" });
     await shot("annot-05-imported-dpf");
+    // Its fixes' own colours, labels and comments came in as marked fixes (EXT-14).
+    await page.locator(`#outline li[data-id="track-nel-style"]`).click();
+    await mapFrame.getByRole("button", { name: "Zoom to the selection" }).click();
+    await page.locator(`#outline li[data-id="track-nel-style"]`).click({ modifiers: ["Control"] }); // the selection's outline off the picture
+    await mapFrame.locator(".fix-label", { hasText: "Override label 1" }).last().waitFor({ state: "visible" });
+    assert.ok((await mapFrame.locator("path.fix-mark").count()) >= 4, "the fixes in their own colours");
+    // Closer, on the labelled fixes at the track's start: drag them to the middle, then zoom in there.
+    const labelled = await mapFrame.locator(".fix-label", { hasText: "Override label 2" }).last().boundingBox();
+    const mapBox = await page.locator(".frame-map").boundingBox();
+    const middle = { x: mapBox.x + mapBox.width / 2, y: mapBox.y + mapBox.height / 2 };
+    await page.mouse.move(labelled.x, labelled.y + 120);
+    await page.mouse.down();
+    await page.mouse.move(middle.x, middle.y + 120, { steps: 10 });
+    await page.mouse.up();
+    await page.waitForTimeout(500);
+    await page.mouse.move(middle.x, middle.y);
+    await page.mouse.wheel(0, -120);
+    await page.waitForTimeout(800);
+    await page.mouse.move(2, 2);
+    await shot("clean-04-imported-dpf-marks");
   }
   // A Debrief plot file, as a colleague would send it: one file, its history included.
   const sent = path.resolve(root, "sample", "serial-1", "plot.geojson");
@@ -640,6 +666,19 @@ try {
     await moving.frameLocator(".frame-map").locator(".track-handle-rotate").waitFor();
     await post.locator(".debrief-demo").first().scrollIntoViewIfNeeded();
     await shot("tracks-09-in-the-post", post);
+    // The cleaning post's demo: glitches put into RED ONE, and Jumps… finds and rings them.
+    await post.goto(`http://127.0.0.1:${siteServer.address().port}/blog/2026/10/14/cleaning-tracks/`);
+    await post.locator(".debrief-demo").first().getByRole("button", { name: "Start the demo" }).click();
+    const cleaning = post.frameLocator(".debrief-demo-frame");
+    await cleaning.locator("#status", { hasText: "Ready" }).waitFor({ timeout: 240000 });
+    await cleaning.locator(`#outline li[data-id="track-red-one"]`).click();
+    await cleaning.locator("#glitches").click();
+    await cleaning.locator("#history li", { hasText: "GPS glitches put into RED ONE" }).waitFor();
+    await cleaning.locator("#find-jumps").click();
+    await cleaning.getByRole("button", { name: "Find" }).click();
+    await cleaning.frameLocator(".frame-map").locator("path.fix-check").nth(2).waitFor();
+    await post.locator(".debrief-demo").first().scrollIntoViewIfNeeded();
+    await shot("clean-05-in-the-post", post);
     siteServer.close();
   }
 } catch (error) {

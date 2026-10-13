@@ -2,6 +2,13 @@
 
 The data-file schema is versioned independently of Debrief (SUB-12). Before 1.0.0 there is no migration guarantee (SUB-13).
 
+## 0.0.15 (14 Oct 2026)
+
+- Marked fixes (`fix_marks` on `TrackProperties`, a list of `FixMark`): a fix with a colour, a label or a comment of its own, as legacy plots carry and the .dpf import now keeps (CAP-01, EXT-14). Each mark is found by its fix's `time`, not its place in the track, so it stays with its fix when other fixes are removed, the track is split or merged, or it is moved, rotated or smoothed; most fixes have none, so only marked fixes are listed. `colour` (lower-case hex) draws the fix's marker and the line from it to the next fix; `label` is drawn beside the fix; `comment` is shown when the analyst points at the fix and in the Timeline. Rules: each mark's time is one of the track's times (where two fixes share a time, the mark is the first's); marks are in time order, one per time; each says something (a colour, a label or a comment), with no empty text. Changing a mark is a recorded, undoable step (SUB-22).
+- Webview messages `show_fixes` (host to map: `feature_id`, `fix_times`, `preview`, a `LineStringGeometry` of the track as a change would leave it, and `message`; with no `feature_id`, take them away), which rings jumps found before the analyst confirms them and draws smoothing before it is applied; and `fix_chosen` (map to host: `feature_id`, `fix_time`), sent when the analyst right-clicks a fix to colour, label or comment on it.
+- Removing jumps and smoothing a track change ordinary track features (every parallel series and mark kept in step), recorded as edits; nothing else in plot files changes.
+- Before 1.0.0 only an exact version opens (SUB-13): plots written as 0.0.14 must be imported or built again.
+
 ## 0.0.14 (14 Oct 2026)
 
 - `TrackEdit`: a track moved or rotated by hand, as the map, a form or an agent describes it (CAP-01, CAP-02). `action` is `move` (with `distance`, a `Length`, and `bearing`, an `Angle`, true) or `rotate` (with `angle`, an `Angle`, positive clockwise, and perhaps `pivot`, [longitude, latitude]); `period` (a `TimeRange`) limits it to the fixes in that period, ends included, and left out means the whole track. Rules: a move needs a distance (not negative) and a bearing and has no angle or pivot; a rotation needs an angle and has no distance or bearing; a pivot is on the globe; a period does not end before it starts.

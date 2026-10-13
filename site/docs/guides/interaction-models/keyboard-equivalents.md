@@ -23,6 +23,8 @@ How every map action can be done without a mouse.
 | Drag a track, or its fixes in the time window | `Tab` to the selected track's move handle; the arrow keys move it 5 pixels (25 with `Shift`), and the run of presses is one step, as for an annotation's handle. *Whole track* and *Time window* are buttons on the map. Or **Move track…** and type the distance and bearing ([track operations](track-operations.md), item 11). |
 | Rotate a track | `Tab` to its rotate handle; `Right` and `Up` turn it 1° clockwise, `Left` and `Down` anticlockwise, 10° with `Shift`; one step for the run. The pivot handle moves with the arrow keys. Or **Rotate track…**, with the pivot and angle typed. |
 | Split or merge tracks | **Split track at current time…** and **Merge selected tracks** on the outline's context menu (buttons under the outline in the playground); there is no map gesture for either. |
+| Right-click a fix to colour, label or comment on it | **Fixes: colour, label or comment…** on the outline's context menu: the fix list, a list to type in (a time finds a fix), then the action. In the playground, **Fixes…**: `Up` and `Down` move along the list, `Enter` or `Space` chooses ([track operations](track-operations.md), item 16). |
+| Check jumps on the map, or a smoothing preview | **Find and remove jumps…** lists each jump, ticked, in a list read by screen readers; **Smooth track…** says how many fixes would move and the most any would, in words, before Apply ([track operations](track-operations.md), items 14 and 15). |
 | Clear the selection | `Escape` on the map; or the outline, a native tree. |
 | Pan, zoom | Arrow keys, and `+` and `-`, with the map focused. |
 

@@ -13,6 +13,12 @@ body { background: var(--vscode-editor-background); color: var(--vscode-foregrou
 .leaflet-control-scale-line { background: var(--vscode-editorWidget-background); color: var(--vscode-editorWidget-foreground); border-color: var(--vscode-editorWidget-foreground); }
 .annotation-label { background: transparent; border: none; box-shadow: none; color: var(--vscode-editor-foreground); font-size: 11px; padding: 0; opacity: 0.85; text-shadow: 0 0 3px var(--vscode-editor-background), 0 0 3px var(--vscode-editor-background); }
 .annotation-label::before { display: none; }
+/* Marked fixes: a label beside its fix, as a track's name is; a fix's details, line by line. */
+.fix-label { background: transparent; border: none; box-shadow: none; color: var(--vscode-editor-foreground); font-size: 11px; font-weight: 600; padding: 0; text-shadow: 0 0 3px var(--vscode-editor-background), 0 0 3px var(--vscode-editor-background); }
+.fix-label::before { display: none; }
+.fix-tooltip { white-space: pre-line; width: max-content; max-width: 320px; }
+.swatch-marked { width: 8px; height: 8px; border-radius: 50%; border: 2px solid var(--vscode-editor-foreground); background: var(--vscode-editor-foreground); margin: 0 5px; }
+.swatch-check { width: 12px; height: 12px; border-radius: 50%; border: 2px solid var(--vscode-editorWarning-foreground, var(--vscode-focusBorder)); margin: 0 3px; }
 /* Direction of travel: a chevron in the track's colour, rotated to its course. */
 .tick { width: 12px; height: 12px; }
 .tick::after { content: ""; position: absolute; left: 4px; top: 4px; width: 4px; height: 4px; opacity: 0.8; border-top: 2px solid var(--tick-colour); border-right: 2px solid var(--tick-colour); transform: rotate(calc(var(--tick-rotation) - 45deg)); }

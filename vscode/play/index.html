@@ -36,6 +36,11 @@
         <button id="split-track" title="Split the selected track into two at current time">Split at current time…</button>
         <button id="merge-tracks" title="Merge the selected tracks into one, in time order">Merge</button>
       </div>
+      <div class="outline-actions" role="group" aria-label="Clean the selected track">
+        <button id="find-jumps" title="Find fixes the selected track could not have reached in time, check them, and remove those you choose">Jumps…</button>
+        <button id="smooth-track" title="Smooth the selected track, or its fixes in the time window, with a preview first">Smooth…</button>
+        <button id="fix-list" title="List the selected track's fixes, to colour, label or comment on one">Fixes…</button>
+      </div>
       <div class="outline-actions">
         <button id="add-annotation" title="Add a line, area, circle, ellipse, label, marker or note">Add annotation…</button>
         <button id="edit-annotation" title="Change the selected annotation: its position, size, time and style">Change…</button>
@@ -59,6 +64,7 @@
       <h2>Try</h2>
       <button id="crash">Crash part-way through a save</button>
       <button id="reopen" class="primary" hidden>Reopen the plot</button>
+      <button id="glitches">Put GPS glitches into the selected track</button>
       <button id="colleague">A colleague changes the plot</button>
       <button id="colleague-window">A colleague changes the time window</button>
       <button id="colleague-during">A colleague changes it while your next tool runs</button>

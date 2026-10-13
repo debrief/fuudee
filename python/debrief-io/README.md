@@ -42,7 +42,7 @@ The provenance record is timed by a `clock` (epoch milliseconds), the wall clock
 
 Checked against every REP file in legacy Debrief's sample data: 85 files and 173,548 fixes. The only line that failed is in `BAD_boat2.rep`, a file broken on purpose. A 28,000-fix file imports in about 1.5 s.
 
-Not yet: sensor and narrative lines (Phases 3 and 4), per-fix labels, and the legacy OTG and DR modes (CAP-01).
+Not yet: sensor and narrative lines (Phases 3 and 4), REP per-fix labels, and the legacy OTG and DR modes (CAP-01).
 
 ## Legacy plot files (.dpf)
 
@@ -61,7 +61,7 @@ What becomes what:
 
 | Legacy | v4 |
 | --- | --- |
-| Track, all its legs | One track: fixes joined in time order, with courses, speeds, depths and the track's colour. TMA solution legs and dynamic infills are imported as their saved fixes; the solution behind them is not. When legs overlap in time, each leg becomes a track of its own, named `<track> (<leg>)`, since joining them would zig-zag. Fixes that share a time are kept and reported. A colour that cannot be read is replaced by the default, with a note. |
+| Track, all its legs | One track: fixes joined in time order, with courses, speeds, depths and the track's colour. TMA solution legs and dynamic infills are imported as their saved fixes; the solution behind them is not. When legs overlap in time, each leg becomes a track of its own, named `<track> (<leg>)`, since joining them would zig-zag. Fixes that share a time are kept and reported. A colour that cannot be read is replaced by the default, with a note. Each fix's own colour (where it differs from the track's), label and comment become the track's marked fixes (`fix_marks`), found by the fix's time. |
 | Text label | Label annotation (a point). |
 | Circle, ellipse | Circle or ellipse annotation: its exact centre and radius, or semi-axes and orientation, with a polygon of 72 sides as its geometry so other GeoJSON tools see the area (schema 0.0.12). An ellipse saved with its axes the wrong way round is turned a quarter, so the same ellipse is drawn. |
 | Rectangle, polygon | Area annotation. An open polygon is a line. |
@@ -77,9 +77,9 @@ Not imported, each named in the report and in provenance:
 - planned (composite) tracks, SATC solutions, external chart files;
 - arcs, wheels and other shapes without a v4 equivalent;
 - chart features: grids, scales, coastlines, chart libraries, time displays;
-- tracks with fewer than two fixes, fix labels and comments, fixes drawn in their own colour, hidden fixes (imported and shown), and depths that could not be read (imported as zero, listed by line);
+- tracks with fewer than two fixes, fix labels that only give the fix's time (legacy Debrief labels every fix so; v4 shows fixes' times itself), fix labels hidden in the legacy plot (imported and shown), hidden fixes (imported and shown), and depths that could not be read (imported as zero, listed by line);
 - anything inside a track or one of its legs that is not a fix or a part of the track this importer knows;
-- display settings: fix labels and symbols, track fonts and line styles, and visibility, so hidden items are shown;
+- display settings: where fix labels go, fix symbols and arrows, track fonts and line styles, and visibility, so hidden items are shown;
 - how annotations were drawn, where v4 cannot draw it: a text label's symbol (such as `Carrier`), counted with the symbols named; fonts other than plain Arial (the size is kept); a label colour of its own; arrowheads; and dash patterns v4 does not have, each counted with examples;
 - view settings: the tote, the time stepper, the background and the projection;
 - elements that could not be read, with their line numbers, and any element this importer does not know, by element name and name.

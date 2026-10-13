@@ -758,6 +758,123 @@ def test_tracks_are_moved_rotated_split_and_merged_as_recorded_steps(client, cat
     assert "track-late" in {f.id for f in catalogue.read_plot("serial").features}
 
 
+def test_tracks_are_cleaned_what_would_change_shown_first(client, catalogue) -> None:
+    where = {"store": "exercise", "item": "serial", "agent": AGENT}
+    base = rpc(client, "debrief/open", where).json()["result"]["base"]
+    steps = len(rpc(client, "debrief/history", where).json()["result"]["steps"])
+    # Finding jumps changes nothing, and says the threshold it used.
+    found = rpc(
+        client,
+        "debrief/find_jumps",
+        {**where, "base": base, "feature": "track-nelson"},
+    ).json()["result"]
+    assert found["jumps"] == []
+    assert found["threshold"]["value"] == pytest.approx(36, abs=0.5)
+    assert found["threshold"]["unit"] == "[kn_i]"
+    assert found["median_speed"]["value"] == pytest.approx(12, abs=0.1)
+    assert found["base"] == base
+    slow = {"value": 5, "unit": "[kn_i]"}
+    found = rpc(
+        client,
+        "debrief/find_jumps",
+        {**where, "feature": "track-nelson", "threshold": slow, "period": None},
+    ).json()["result"]
+    assert found["threshold"] == slow
+    # Removing what the analyst confirmed is one step, with the threshold for the record.
+    removed = rpc(
+        client,
+        "debrief/remove_jumps",
+        {
+            **where,
+            "base": base,
+            "feature": "track-nelson",
+            "times": ["1995-12-12T05:10:00.000Z"],
+            "threshold": slow,
+        },
+    ).json()["result"]
+    assert removed["changed"]
+    # Smoothing previewed (nothing changes), then applied.
+    preview = rpc(
+        client,
+        "debrief/preview_smoothing",
+        {**where, "base": removed["base"], "feature": "track-blue", "window": 3},
+    ).json()["result"]
+    assert preview["preview"]["type"] == "LineString"
+    assert len(preview["preview"]["coordinates"]) == 3
+    assert preview["moved"] == 1 and preview["largest"]["unit"] == "m"
+    assert preview["summary"].startswith("1 fix moved; the most a fix moved: ")
+    assert preview["base"] == removed["base"]
+    smoothed = rpc(
+        client,
+        "debrief/smooth_track",
+        {**where, "base": removed["base"], "feature": "track-blue", "window": 3},
+    ).json()["result"]
+    assert smoothed["changed"] and smoothed["summary"] == preview["summary"]
+    # A fix labelled, coloured and commented, each a step.
+    base = smoothed["base"]
+    for changes, name in (
+        ({"label": "Turn"}, None),
+        ({"colour": "#e01c3e"}, "red"),
+        ({"comment": "Wheel over"}, None),
+    ):
+        marked = rpc(
+            client,
+            "debrief/mark_fix",
+            {
+                **where,
+                "base": base,
+                "feature": "track-blue",
+                "time": "1995-12-12T05:10:00.000Z",
+                "changes": changes,
+                **({"colour_name": name} if name else {}),
+            },
+        ).json()["result"]
+        assert marked["changed"]
+        base = marked["base"]
+    history = rpc(client, "debrief/history", where).json()["result"]["steps"]
+    notes = [(s["notes"] or [""])[0] for s in history]
+    assert notes[steps:] == [
+        "NELSON: 1 jump removed",
+        "BLUE smoothed over 3 fixes",
+        "BLUE fix at 05:10:00Z labelled 'Turn'",
+        "BLUE fix at 05:10:00Z coloured red",
+        "BLUE fix at 05:10:00Z: comment added",
+    ]
+    blue = next(f for f in catalogue.read_plot("serial").features if f.id == "track-blue")
+    (mark,) = blue.properties.fix_marks
+    assert (mark.label, mark.colour, mark.comment) == ("Turn", "#e01c3e", "Wheel over")
+    # Refusals say why; a stale base is a conflict.
+    stale = rpc(
+        client,
+        "debrief/mark_fix",
+        {
+            **where,
+            "base": removed["base"],
+            "feature": "track-blue",
+            "time": mark.time,
+            "changes": {"label": "x"},
+        },
+    ).json()["error"]
+    assert stale["code"] == -32001
+    for method, extra, says in (
+        ("debrief/find_jumps", {"threshold": {"value": 5, "unit": "deg"}}, "must be a speed"),
+        ("debrief/find_jumps", {"period": "today"}, "period must be"),
+        ("debrief/preview_smoothing", {"window": 4}, "odd number of fixes"),
+        ("debrief/smooth_track", {"window": "5"}, "needs the window"),
+        ("debrief/remove_jumps", {"times": "05:10"}, "needs the times"),
+        ("debrief/mark_fix", {"time": mark.time, "changes": {"colour": "red"}}, "not a colour"),
+        (
+            "debrief/mark_fix",
+            {"time": "1995-12-12T05:11:00.000Z", "changes": {"label": "x"}},
+            "no fix at 05:11:00Z",
+        ),
+    ):
+        error = rpc(client, method, {**where, "feature": "track-blue", **extra}).json()["error"]
+        assert error["code"] == -32602 and says in error["message"], (method, error)
+    nothing = rpc(client, "debrief/find_jumps", {**where}).json()["error"]
+    assert "needs the track" in nothing["message"]
+
+
 def test_every_method_that_writes_is_known_and_reading_ones_do_not_write() -> None:
     from debrief_tools import service
 
@@ -766,9 +883,12 @@ def test_every_method_that_writes_is_known_and_reading_ones_do_not_write() -> No
         service.PRESENTATION_METHODS,
         service.ANNOTATION_METHODS,
         service.TRACK_METHODS,
+        service.CLEANING_METHODS,
     )
     assert set(service.WRITING_METHODS) == {m for g in groups for m in g}
     assert set(service.HISTORY_METHODS) <= service.KNOWN_METHODS
     assert not set(service.READING_METHODS) & set(service.WRITING_METHODS)
+    assert not set(service.CHECKING_METHODS) & set(service.WRITING_METHODS)
+    assert "debrief/mark_fix" in service.CLEANING_METHODS
     assert "debrief/merge_tracks" in service.TRACK_METHODS
     assert "debrief/set_north_arrow" in service.ANNOTATION_METHODS

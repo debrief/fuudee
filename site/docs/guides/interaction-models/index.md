@@ -15,7 +15,7 @@ Worked patterns applied the same way across hosts, tools and agents (DEV-08). Ea
 | [Check overrides](check-overrides.md) | Phase 2 | Requirements gathered |
 | [Time controller](time-controller.md) | Phase 3 | Written |
 | [Annotations](annotations.md) | Phase 3 | Written (forms; drawing and editing on the map) |
-| [Track operations](track-operations.md) | Phase 3 | Written (part A: move, rotate, split, merge) |
+| [Track operations](track-operations.md) | Phase 3 | Written (part A: move, rotate, split, merge; part B2: jumps, smoothing, marked fixes) |
 | [Keyboard equivalents](keyboard-equivalents.md) | Phase 3 | Partly written (annotations, tracks) |
 
 Analysts review the Phase 1 models before they are built.

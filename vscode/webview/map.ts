@@ -28,6 +28,12 @@
  *   move handle, a rotate handle and the pivot it turns about; dragging one
  *   shows the track moved or turned, along geodesics, and letting go is one
  *   step. The whole track moves, or only its fixes in the time window.
+ * - Marked fixes (fixes.ts): a fix with a colour of its own is a dot in it, and
+ *   the line from it to the next fix is drawn in it; a label is drawn beside
+ *   its fix; a comment shows when the analyst points at the fix. Right-click a
+ *   fix to colour, label or comment on it. The host may ring fixes for the
+ *   analyst to check (jumps found, before they are removed) and draw a track as
+ *   a change would leave it (smoothing, before it is applied): show_fixes.
  * - Chart furniture: the scale bar always, and a north arrow when the plot has one.
  * - Selected features get an outline in the theme's text colour, which can
  *   never be mistaken for a force colour; everything else is dimmed.
@@ -44,7 +50,7 @@ import L from "leaflet";
 import "leaflet/dist/leaflet.css";
 import "./map.css";
 import geodesic from "geographiclib-geodesic";
-import { convert, DEFAULT_SETTINGS, formatBearing, formatPosition, formatQuantity, formatTime, UNIT_LABELS } from "@debrief/kernel";
+import { convert, DEFAULT_SETTINGS, formatPosition, formatQuantity, UNIT_LABELS } from "@debrief/kernel";
 import type { DebriefFeatureCollection, TimeState } from "@debrief/schemas";
 import type { AnnotationProperties } from "@debrief/schemas";
 import { labelPlacement, labelText, lookOf, shapeOf, specOfFeature, type Look } from "./annotationlook.js";
@@ -52,6 +58,7 @@ import { circleRing, densify, ellipseRing, type LonLat } from "./geodesic.js";
 import { CONTEXT_WEIGHT, contextStyle, parseColour, WINDOW_WEIGHT, type ContextStyle, type ContextTracks, type MapTheme, type Rgb } from "./contrast.js";
 import { MapEditor } from "./mapedit.js";
 import { TrackEditor } from "./trackmap.js";
+import { describeFix as describeFixOnly, marksByIndex } from "./fixes.js";
 import { DATA_COLOURS } from "./palette.js";
 import { host, onMessage } from "./vscode.js";
 
@@ -159,6 +166,8 @@ const Legend = L.Control.extend({
       ["first", "First fix in the window"],
       ["latest", "Last fix in the window, labelled"],
       ["now", "Position at current time"],
+      ["marked", "Marked fix: its own colour, a label or a comment; right-click a fix to mark it"],
+      ["check", "Fix to check, such as a jump found"],
       ["annotation", "Annotation, including what tools draw: dashed unless given a style"],
       ["selected", "Selected"],
     ];
@@ -367,20 +376,14 @@ function nearestFix(track: Track, at: L.LatLng): number {
 }
 
 function describeFix(track: Track, index: number): string {
-  const [lon, lat] = track.geometry.coordinates[index] as LonLat;
   const props = track.properties;
-  const parts = [
-    props.name,
-    formatTime(Date.parse(props.times[index]), settings),
-    formatPosition({ latitude: lat, longitude: lon }, settings),
-  ];
-  const course = props.courses?.values[index];
-  if (course !== undefined && props.courses) parts.push(formatBearing({ value: course, unit: props.courses.unit }, settings));
-  const speed = props.speeds?.values[index];
-  if (speed !== undefined && props.speeds) parts.push(formatQuantity({ value: speed, unit: props.speeds.unit }, settings));
+  const parts = [props.name, describeFixOnly(track, index, settings)];
   const depth = props.depths?.values[index];
   if (depth !== undefined && props.depths) parts.push(`depth ${formatQuantity({ value: depth, unit: props.depths.unit }, settings)}`);
-  return parts.join("  ·  ");
+  // A marked fix says its label and comment too (EXT-14).
+  const mark = props.fix_marks?.find((m) => m.time === props.times[index]);
+  const said = [parts.join("  ·  "), mark?.label ? `Label: ${mark.label}` : "", mark?.comment ? `Comment: ${mark.comment}` : ""];
+  return said.filter(Boolean).join("\n");
 }
 
 function directionTicks(coordinates: LonLat[], colour: string): L.Marker[] {
@@ -566,12 +569,87 @@ function timeOf(feature: Feature): { start: number; end: number } | undefined {
   return time ? { start: Date.parse(time), end: Date.parse(time) } : undefined;
 }
 
-/** Hovering a track line shows its nearest fix. */
+/** Hovering a track line shows its nearest fix; right-clicking it asks to colour, label or comment on that fix. */
 function hoverFixes(line: L.Polyline, track: Track): void {
-  line.bindTooltip(text(track.properties.name), { sticky: true });
+  line.bindTooltip(text(track.properties.name), { sticky: true, className: "fix-tooltip" });
   line.on("mousemove", (event: L.LeafletMouseEvent) => {
     line.setTooltipContent(text(describeFix(track, nearestFix(track, event.latlng))));
   });
+  line.on("contextmenu", (event: L.LeafletMouseEvent) => chooseFix(event, track, nearestFix(track, event.latlng)));
+}
+
+/** The analyst asked to colour, label or comment on a fix: the host asks which. Never while drawing. */
+function chooseFix(event: L.LeafletMouseEvent, track: Track, index: number): void {
+  L.DomEvent.stop(event);
+  if (editor.active) return;
+  host.postMessage({ kind: "fix_chosen", feature_id: track.id, fix_time: track.properties.times[index] });
+}
+
+/**
+ * The marked fixes of a track's part in the window (EXT-14): a fix with a colour of its own
+ * is a dot in it, and the line from it to the next fix is drawn in it; any other marked fix
+ * is a ring in the track's colour. A label is drawn beside its fix; pointing at the fix shows
+ * its comment. Each takes a click as the track does, and a right-click as its fix.
+ */
+function drawMarks(track: Track, first: number, last: number, colour: string, click: (event: L.LeafletMouseEvent) => void): { paths: L.Path[]; labels: L.Layer[] } {
+  const marks = marksByIndex(track);
+  const paths: L.Path[] = [];
+  const labels: L.Layer[] = [];
+  if (!marks.size) return { paths, labels };
+  const coordinates = track.geometry.coordinates as LonLat[];
+  for (const [i, mark] of marks) {
+    if (i < first || i > last) continue;
+    const own = mark.colour ?? colour;
+    if (mark.colour && i + 1 < coordinates.length) {
+      const leg = L.polyline(densify([coordinates[i], coordinates[i + 1]]).map(toLatLng), { color: mark.colour, weight: WINDOW_WEIGHT, baseWeight: WINDOW_WEIGHT, className: "fix-leg" } as L.PolylineOptions);
+      leg.on("click", click);
+      hoverFixes(leg, track); // which also takes a right-click, as the fix nearest it
+      paths.push(leg);
+    }
+    const dot = L.circleMarker(toLatLng(coordinates[i]), { radius: 4.5, color: own, weight: 2, fillColor: own, fillOpacity: mark.colour ? 1 : 0, baseWeight: 2, className: "fix-mark" } as L.CircleMarkerOptions);
+    dot.bindTooltip(text(describeFix(track, i)), { className: "fix-tooltip" });
+    dot.on("click", click).on("contextmenu", (event: L.LeafletMouseEvent) => chooseFix(event, track, i));
+    paths.push(dot);
+    if (mark.label) {
+      const anchor = L.marker(toLatLng(coordinates[i]), { icon: L.divIcon({ className: "annotation-anchor", iconSize: [0, 0] }), interactive: false, keyboard: false });
+      anchor.bindTooltip(text(mark.label), { permanent: true, direction: "right", offset: [7, 0], className: "fix-label" });
+      labels.push(anchor);
+    }
+  }
+  return { paths, labels };
+}
+
+// --- Fixes the host rings for the analyst to check, and a change previewed (show_fixes) ----
+const checks = L.layerGroup().addTo(map);
+/** What the note at the top of the map says for show_fixes, so taking them away clears only that. */
+let checkNote = "";
+function showFixes(message: { feature_id?: string; fix_times?: string[]; preview?: { coordinates: number[][] }; message?: string }): void {
+  checks.clearLayers();
+  const entry = tracks.find((t) => t.track.id === message.feature_id);
+  if (!entry) {
+    if (checkNote) editor.say("");
+    checkNote = "";
+    return;
+  }
+  const { track } = entry;
+  const ring = css("--vscode-editorWarning-foreground") || css("--vscode-focusBorder");
+  if (message.preview) {
+    // The track as the change would leave it, over the track as it is.
+    const coordinates = message.preview.coordinates as LonLat[];
+    L.polyline(densify(coordinates).map(toLatLng), { color: css("--vscode-focusBorder"), weight: 2.5, dashArray: "6 4", interactive: false, className: "fix-preview" }).addTo(checks);
+  }
+  const wanted = new Set(message.fix_times ?? []);
+  track.properties.times.forEach((time, i) => {
+    if (!wanted.has(time)) return;
+    wanted.delete(time); // the first fix at a time
+    const at = toLatLng(track.geometry.coordinates[i] as LonLat);
+    const marker = L.circleMarker(at, { radius: 9, color: ring, weight: 2.5, fill: false, className: "fix-check" });
+    marker.bindTooltip(text(`To check: ${describeFix(track, i)}`), { className: "fix-tooltip" });
+    marker.addTo(checks);
+  });
+  checkNote = message.message ?? "";
+  if (checkNote) editor.say(checkNote);
+  else editor.say("");
 }
 
 // --- The time window (CAP-28, CAP-29) ----------------------------------------------
@@ -616,7 +694,9 @@ function drawWindow(): void {
       last.on("click", click);
       shown.windowedPaths.push(first, last);
     }
-    shown.windowed = [...shown.windowedPaths, ...directionTicks(part.coordinates, colour)];
+    const marked = part.first !== undefined && part.last !== undefined ? drawMarks(track, part.first, part.last, colour, click) : { paths: [], labels: [] };
+    shown.windowedPaths.push(...marked.paths);
+    shown.windowed = [...shown.windowedPaths, ...marked.labels, ...directionTicks(part.coordinates, colour)];
     shown.windowed.forEach((layer) => layer.addTo(features));
   }
   for (const shown of drawn.values()) {
@@ -904,6 +984,8 @@ onMessage((message) => {
   } else if (message.kind === "set_context") {
     contextMode = message.context_tracks as ContextTracks;
     applyContext();
+  } else if (message.kind === "show_fixes") {
+    showFixes(message as Parameters<typeof showFixes>[0]);
   }
 });
 host.postMessage({ kind: "ready" });

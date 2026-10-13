@@ -91,6 +91,16 @@
     "edit_track": [
       "feature_id",
       "track_edit"
+    ],
+    "show_fixes": [
+      "feature_id?",
+      "fix_times?",
+      "preview?",
+      "message?"
+    ],
+    "fix_chosen": [
+      "feature_id",
+      "fix_time"
     ]
   }
 }

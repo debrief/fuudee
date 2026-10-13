@@ -180,7 +180,7 @@ describe("current time and the time window in shared state (SUB-22, SUB-26)", ()
       item: { id: "serial", bbox: [0, 0, 1, 1], properties: { start_datetime: range.start, end_datetime: range.end } },
       plot: {
         type: "FeatureCollection",
-        schema_version: "0.0.14",
+        schema_version: "0.0.15",
         provenance: [],
         features: [{ type: "Feature", id: "plot", geometry: null, properties: { kind: "plot", title: "P", ...(window && { view: { time_window: window } }) } }],
       },
@@ -222,7 +222,7 @@ describe("the view in memory follows what the service read (SUB-22)", () => {
     const window = { start: "2023-06-15T09:00:00.000Z", end: "2023-06-15T10:00:00.000Z" };
     const plot = {
       type: "FeatureCollection",
-      schema_version: "0.0.14",
+      schema_version: "0.0.15",
       provenance: [],
       features: [{ type: "Feature", id: "plot", geometry: null, properties: { kind: "plot", title: "P" } }],
     } as unknown as Parameters<typeof viewOf>[0];
