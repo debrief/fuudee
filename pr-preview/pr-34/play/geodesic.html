@@ -1,0 +1,46 @@
+<!doctype html>
+<html lang="en-GB">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="color-scheme" content="dark light">
+<title>Range and bearing: v4 and legacy</title>
+<link rel="stylesheet" href="theme.css">
+<link rel="stylesheet" href="geodesic.css">
+<style>
+  html, body { height: 100%; margin: 0; background: var(--vscode-editor-background); color: var(--vscode-foreground); font-family: var(--vscode-font-family); font-size: 13px; }
+  [hidden] { display: none !important; }
+  .app { display: grid; grid-template-rows: 1fr auto; height: 100%; }
+  #map { background: var(--vscode-editor-background); }
+  .panel { padding: 8px 12px; background: var(--vscode-editorWidget-background); border-top: 1px solid var(--vscode-panel-border); }
+  table { border-collapse: collapse; width: 100%; max-width: 640px; }
+  th, td { text-align: left; padding: 2px 10px 2px 0; }
+  td { font-family: var(--vscode-editor-font-family); }
+  th { font-weight: 600; color: var(--vscode-descriptionForeground); }
+  .hint { color: var(--vscode-descriptionForeground); margin: 0 0 4px; }
+  .swatch { display: inline-block; width: 22px; vertical-align: middle; margin-right: 4px; }
+  .solid { border-top: 3px solid var(--debrief-track); }
+  .dashed { border-top: 2px dashed var(--debrief-annotation); }
+  .pin:focus-visible { outline: 2px solid var(--vscode-focusBorder); outline-offset: 2px; }
+  .pin { width: 18px; height: 18px; border-radius: 50%; background: var(--vscode-editor-foreground); border: 3px solid var(--vscode-editor-background); box-sizing: border-box; cursor: grab; }
+  .pin-label { background: transparent; border: none; box-shadow: none; color: var(--vscode-editor-foreground); font-weight: 600; }
+  .pin-label::before { display: none; }
+</style>
+</head>
+<body>
+<div class="app">
+  <div id="map"></div>
+  <div class="panel">
+    <p class="hint">Drag A or B, or Tab to one and use the arrow keys. <span class="swatch solid"></span>the geodesic Debrief v4 measures along; <span class="swatch dashed"></span>a straight line on this Mercator chart (not how either measures).</p>
+    <table>
+      <tr><th></th><th>Range</th><th>Bearing A to B</th></tr>
+      <tr><th>Debrief v4 (WGS84, as GPS)</th><td id="v4-range"></td><td id="v4-bearing"></td></tr>
+      <tr><th>Legacy (flat, 1° = 60 nmi)</th><td id="old-range"></td><td id="old-bearing"></td></tr>
+      <tr><th>Difference</th><td id="diff-range"></td><td id="diff-bearing"></td></tr>
+    </table>
+    <p class="hint">A <span id="a"></span> · B <span id="b"></span></p>
+  </div>
+</div>
+<script src="geodesic.js"></script>
+</body>
+</html>

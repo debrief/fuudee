@@ -1,0 +1,75 @@
+<!doctype html>
+<html lang="en-GB">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="color-scheme" content="dark light">
+<title>Debrief in your browser</title>
+<link rel="stylesheet" href="theme.css">
+<link rel="stylesheet" href="timecontrol.css">
+<link rel="stylesheet" href="host.css">
+</head>
+<body>
+<div class="app">
+  <aside id="side" class="side">
+    <section id="panel-time">
+      <h2>Time</h2>
+      <div id="timebar"></div>
+    </section>
+    <section>
+      <h2>Plot</h2>
+      <select id="plots" aria-label="Plot" disabled><option>Loading…</option></select>
+      <div id="plot-title" class="detail"></div>
+    </section>
+    <section>
+      <h2>Outline</h2>
+      <div id="selected-count" class="detail"></div>
+      <ul id="outline" class="list" role="listbox" aria-multiselectable="true" aria-label="Features in the plot"></ul>
+      <div class="outline-actions">
+        <select id="colour" aria-label="Colour the selected tracks"><option value="">Colour…</option></select>
+        <button id="hide" title="Hide the selected features on the map">Hide</button>
+        <button id="show" title="Show the selected features, or every hidden feature, on the map">Show</button>
+      </div>
+      <div class="outline-actions">
+        <button id="add-annotation" title="Add a line, area, circle, ellipse, label, marker or note">Add annotation…</button>
+        <button id="edit-annotation" title="Change the selected annotation: its position, size, time and style">Change…</button>
+        <button id="delete-annotation" title="Delete the selected annotations; Undo brings them back">Delete</button>
+        <button id="north-arrow" aria-pressed="false" title="Show or remove the north arrow on the map">North arrow</button>
+      </div>
+    </section>
+    <section id="panel-timeline">
+      <h2>Timeline</h2>
+      <ul id="timeline" class="list timeline" aria-label="Notes and periods, in time order: choose one to move current time to it"></ul>
+    </section>
+    <section id="panel-tools">
+      <h2>Tools</h2>
+      <ul id="tools" class="list tools"></ul>
+    </section>
+    <section id="panel-history">
+      <h2>History <span class="actions"><button id="undo" title="Undo (replay to the step before)">Undo</button><button id="redo" title="Redo">Redo</button></span></h2>
+      <ul id="history" class="list"></ul>
+    </section>
+    <section id="panel-try">
+      <h2>Try</h2>
+      <button id="crash">Crash part-way through a save</button>
+      <button id="reopen" class="primary" hidden>Reopen the plot</button>
+      <button id="colleague">A colleague changes the plot</button>
+      <button id="colleague-window">A colleague changes the time window</button>
+      <button id="colleague-during">A colleague changes it while your next tool runs</button>
+    </section>
+    <section id="panel-import">
+      <h2>Import your own</h2>
+      <label class="file">REP, legacy .dpf, or a Debrief plot file <input id="file" type="file" accept=".rep,.REP,.dpf,.DPF,.xml,.geojson,.json"></label>
+      <div class="detail">Read and imported in your browser; never uploaded.</div>
+    </section>
+  </aside>
+  <main id="main">
+    <div id="side-frame" class="side-frame" hidden></div>
+  </main>
+  <footer><span id="status" class="status"></span></footer>
+</div>
+<div id="toasts" class="toasts" aria-live="polite"></div>
+<dialog id="ask"><p id="ask-text"></p><div id="ask-buttons" class="buttons"></div></dialog>
+<script type="module" src="host.js"></script>
+</body>
+</html>
