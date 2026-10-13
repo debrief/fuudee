@@ -28,13 +28,16 @@ export function describeStep(
   step: { kind: string; tool: string | null; status: string; notes?: string[] },
   toolTitle: (name: string) => string | undefined,
 ): { label: string; status: string } {
-  // An edit made without a tool is named by its note, when it has a short one.
-  const note = step.kind === "edit" && !step.tool ? step.notes?.[0] : undefined;
+  // An edit made without a tool is named by its note, when it has a short one; so is
+  // a plot file added to a catalogue, with its history ("Added from the plot file ...").
+  const note = (step.kind === "edit" || step.kind === "import") && !step.tool ? step.notes?.[0] : undefined;
   const label =
     note && note.length <= 48
       ? note
       : step.kind === "import"
-        ? "Imported"
+        ? step.tool
+          ? "Imported"
+          : "Added from a plot file"
         : step.tool
           ? (toolTitle(step.tool) ?? `Made by ${step.tool}`) // not a tool installed here
           : step.kind === "edit"

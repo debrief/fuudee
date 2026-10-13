@@ -173,11 +173,20 @@ def _history() -> dict:
         undone = history.undo()
         after_undo = [f.id for f in catalogue.read_plot("p").features]
         history.redo()
+        # One file, history included: the plot file alone, added to another catalogue.
+        plot_file = Path(folder) / "cat" / "p" / "plot.geojson"
+        load_document(DocumentKind.PLOT, plot_file.read_text())  # the hash chain checked
+        other = Catalogue.create(Path(folder) / "other", "other", "Other", "")
+        added = other.add_plot_file(plot_file, models.AgentRef(kind="person", name="smoke"))
+        other.history(added).goto(1)
         return {
             "steps": [s.status for s in history.steps()],
             "undone_to": undone,
             "after_undo": after_undo,
             "after_redo": [f.id for f in catalogue.read_plot("p").features],
+            "history_in_file": sorted(json.loads(plot_file.read_text())["history"]),
+            "received_steps": [s.status for s in other.history(added).steps()],
+            "received_at_step_1": [f.id for f in other.read_plot(added).features],
         }
 
 

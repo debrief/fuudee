@@ -55,10 +55,19 @@ export interface HistoryStep {
   records: number;
   /** The first record's notes: they name an edit made without a tool. */
   notes?: string[];
+  /** The step it was made after: what undoing it goes back to. */
+  after?: number;
+  /**
+   * It changes nothing on the plot, only its records, as the step recording that a
+   * plot file was added does: Ctrl+Z takes it with the step before it.
+   */
+  records_only?: boolean;
 }
 
 export interface Opened {
   base: Base;
+  /** How many steps the plot's history holds. */
+  latest?: number;
   /** What opening had to repair after a crash, for the analyst (NFR-10). */
   recovered: string[];
 }
@@ -72,6 +81,14 @@ export interface OpenedView extends Opened {
   migrated?: boolean;
   /** The plot with a retired presentation.json applied in memory, where it could not be migrated. */
   plot?: DebriefFeatureCollection;
+}
+
+/** What adding a plot file received from a colleague says. */
+export interface AddedPlotFile {
+  item: string;
+  title: string;
+  /** How many steps of history came with it, the step recording its arrival included. */
+  steps: number;
 }
 
 export interface ImportReport {
@@ -359,6 +376,14 @@ export class ToolService {
   /** Change the plot's view (its island): never recorded or undone. Fails with CONFLICT if it changed since hash was read. */
   setView(store: string, item: string, view: PlotView | null, hash: string, agent: Agent, allowNewerSchema = false): Promise<OpenedView> {
     return this.request("debrief/set_view", { store, item, view, hash, agent, ...(allowNewerSchema && { allow_newer_schema: true }) });
+  }
+
+  /**
+   * Add a plot file received from a colleague (.geojson) with its whole history, so
+   * undo, redo and provenance come with it. Refused if its history's checksums fail.
+   */
+  addPlotFile(store: string, path: string, agent: Agent, allowNewerSchema = false): Promise<AddedPlotFile> {
+    return this.request("debrief/add_plot_file", { store, path, agent, ...(allowNewerSchema && { allow_newer_schema: true }) });
   }
 
   /** Import a REP file or a legacy plot file (.dpf) as a new plot. */

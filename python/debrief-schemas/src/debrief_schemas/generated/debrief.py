@@ -32,7 +32,7 @@ from pydantic import (
 
 
 metamodel_version = "1.12.0"
-version = "0.0.10"
+version = "0.0.11"
 
 
 class ConfiguredBaseModel(BaseModel):
@@ -765,6 +765,24 @@ class WebviewMessageKindEnum(str, Enum):
     set_context = "set_context"
     """
     Host to map: draw tracks outside the window this way (context_tracks), the analyst's setting already applied.
+    """
+
+
+class StepStateEnum(str, Enum):
+    """
+    Where a step stands, as the after links and the current step say.
+    """
+    applied = "applied"
+    """
+    On the chain to the current step: in the plot now.
+    """
+    undone = "undone"
+    """
+    After the current step on the chain to the latest: can be redone.
+    """
+    abandoned = "abandoned"
+    """
+    Undone, then replaced by a later change: kept on record, never replayed.
     """
 
 
@@ -1714,11 +1732,15 @@ class DebriefFeatureCollection(ConfiguredBaseModel):
                     {'range': 'SensorObservationsFeature'},
                     {'range': 'PlotFeature'}],
          'domain_of': ['DebriefFeatureCollection']} })
-    named_sets: Optional[list[NamedSet]] = Field(default=None, json_schema_extra = { "linkml_meta": {'domain_of': ['DebriefFeatureCollection', 'ToolResult', 'Delta']} })
+    named_sets: Optional[list[NamedSet]] = Field(default=None, json_schema_extra = { "linkml_meta": {'domain_of': ['DebriefFeatureCollection',
+                       'ToolResult',
+                       'HistoryStep',
+                       'Delta']} })
     provenance: list[ProvRecord] = Field(default=..., json_schema_extra = { "linkml_meta": {'domain_of': ['TrackProperties',
                        'AnnotationProperties',
                        'SensorObservationsProperties',
                        'DebriefFeatureCollection']} })
+    history: Optional[PlotHistory] = Field(default=None, description="""The plot's whole history: every step, with its provenance and whether it is applied, undone or abandoned, and the current step (SUB-19, SUB-21, decision 13 Oct). A GeoJSON foreign member, so other tools still read the file as GeoJSON. Not content: left out of every content hash. Last in the file. A plot sent to a view or a tool never carries it.""", json_schema_extra = { "linkml_meta": {'domain_of': ['DebriefFeatureCollection']} })
 
     @field_validator('schema_version')
     def pattern_schema_version(cls, v):
@@ -1991,7 +2013,7 @@ class StacCatalog(ConfiguredBaseModel):
 class TimeState(ConfiguredBaseModel):
     linkml_meta: ClassVar[LinkMLMeta] = LinkMLMeta({'from_schema': 'https://debrief.info/schemas/debrief'})
 
-    current: str = Field(default=..., json_schema_extra = { "linkml_meta": {'domain_of': ['TimeState', 'HistoryHead']} })
+    current: str = Field(default=..., json_schema_extra = { "linkml_meta": {'domain_of': ['TimeState', 'PlotHistory', 'HistoryHead']} })
     range: TimeRange = Field(default=..., json_schema_extra = { "linkml_meta": {'domain_of': ['TimeState']} })
 
     @field_validator('current')
@@ -2192,7 +2214,10 @@ class ToolResult(ConfiguredBaseModel):
          'domain_of': ['ToolResult']} })
     deleted_feature_ids: Optional[list[str]] = Field(default=None, json_schema_extra = { "linkml_meta": {'domain_of': ['ToolResult']} })
     non_spatial: Optional[list[NonSpatialResult]] = Field(default=None, json_schema_extra = { "linkml_meta": {'domain_of': ['ToolResult']} })
-    named_sets: Optional[list[NamedSet]] = Field(default=None, json_schema_extra = { "linkml_meta": {'domain_of': ['DebriefFeatureCollection', 'ToolResult', 'Delta']} })
+    named_sets: Optional[list[NamedSet]] = Field(default=None, json_schema_extra = { "linkml_meta": {'domain_of': ['DebriefFeatureCollection',
+                       'ToolResult',
+                       'HistoryStep',
+                       'Delta']} })
     state_change: Optional[SharedStateChange] = Field(default=None, json_schema_extra = { "linkml_meta": {'domain_of': ['ToolResult']} })
 
 
@@ -2395,31 +2420,115 @@ class WebviewMessage(ConfiguredBaseModel):
         return v
 
 
-class Delta(ConfiguredBaseModel):
+class PlotHistory(ConfiguredBaseModel):
     """
-    One recorded change to a plot.
+    A plot's whole history, kept in its plot file as the top-level member history (decision 13 Oct). Steps are numbered from 1 with no gaps, in the order they were made.
     """
     linkml_meta: ClassVar[LinkMLMeta] = LinkMLMeta({'from_schema': 'https://debrief.info/schemas/debrief'})
 
-    schema_version: str = Field(default=..., json_schema_extra = { "linkml_meta": {'domain_of': ['DebriefFeatureCollection', 'Delta', 'HistoryHead']} })
-    seq: int = Field(default=..., description="""Position in the plot's history, from 1, with no gaps.""", ge=1, json_schema_extra = { "linkml_meta": {'domain_of': ['Delta']} })
-    after: int = Field(default=..., description="""The delta this one was applied on top of (0 for the first). Replay follows these links, and recovery uses them to finish a change that was written but not completed.""", ge=0, json_schema_extra = { "linkml_meta": {'domain_of': ['Delta']} })
-    records: list[ProvRecord] = Field(default=..., description="""The operation that made the change. Usually one; a baseline delta, taken when a plot made before history existed is first changed, carries all the plot's earlier records.""", min_length=1, json_schema_extra = { "linkml_meta": {'domain_of': ['Delta']} })
+    current: int = Field(default=..., description="""The step the plot's content reflects; 0 for none (an empty plot). Never an abandoned step.""", ge=0, json_schema_extra = { "linkml_meta": {'domain_of': ['TimeState', 'PlotHistory', 'HistoryHead']} })
+    head_hash: str = Field(default=..., description="""The last step's step_hash, or the starting value for a history with no steps, so a step removed from the end is noticed.""", json_schema_extra = { "linkml_meta": {'domain_of': ['PlotHistory']} })
+    steps: list[HistoryStep] = Field(default=..., json_schema_extra = { "linkml_meta": {'domain_of': ['PlotHistory']} })
+
+    @field_validator('head_hash')
+    def pattern_head_hash(cls, v):
+        pattern=re.compile(r"^sha256:[0-9a-f]{64}$")
+        if isinstance(v, list):
+            for element in v:
+                if isinstance(element, str) and not pattern.search(element):
+                    err_msg = f"Invalid head_hash format: {element}"
+                    raise ValueError(err_msg)
+        elif isinstance(v, str) and not pattern.search(v):
+            err_msg = f"Invalid head_hash format: {v}"
+            raise ValueError(err_msg)
+        return v
+
+
+class HistoryStep(ConfiguredBaseModel):
+    """
+    One recorded change to a plot, in its plot file's history.
+    """
+    linkml_meta: ClassVar[LinkMLMeta] = LinkMLMeta({'from_schema': 'https://debrief.info/schemas/debrief'})
+
+    seq: int = Field(default=..., description="""Position in the plot's history, from 1, with no gaps.""", ge=1, json_schema_extra = { "linkml_meta": {'domain_of': ['HistoryStep', 'Delta']} })
+    state: StepStateEnum = Field(default=..., description="""Applied, undone or abandoned: what the after links and the history's current step say. Not part of step_hash, since undo changes it.""", json_schema_extra = { "linkml_meta": {'domain_of': ['HistoryStep']} })
+    after: int = Field(default=..., description="""The step this one was applied on top of (0 for the first). Replay follows these links back from a step to the first.""", ge=0, json_schema_extra = { "linkml_meta": {'domain_of': ['HistoryStep', 'Delta']} })
+    records: list[ProvRecord] = Field(default=..., description="""The operation that made the change. Usually one; a baseline step, taken when a plot made outside Debrief is first opened, carries all the plot's earlier records.""", min_length=1, json_schema_extra = { "linkml_meta": {'domain_of': ['HistoryStep', 'Delta']} })
     added: Optional[list[Union[AnnotationFeature, PlotFeature, SensorObservationsFeature, TrackFeature]]] = Field(default=None, description="""Features added. A whole-plot feature here never carries its view: the island is not content (SUB-22).""", json_schema_extra = { "linkml_meta": {'any_of': [{'range': 'TrackFeature'},
                     {'range': 'AnnotationFeature'},
                     {'range': 'SensorObservationsFeature'},
                     {'range': 'PlotFeature'}],
-         'domain_of': ['Delta']} })
+         'domain_of': ['HistoryStep', 'Delta']} })
     modified: Optional[list[Union[AnnotationFeature, PlotFeature, SensorObservationsFeature, TrackFeature]]] = Field(default=None, description="""Features changed, in full, replacing those with the same id.""", json_schema_extra = { "linkml_meta": {'any_of': [{'range': 'TrackFeature'},
                     {'range': 'AnnotationFeature'},
                     {'range': 'SensorObservationsFeature'},
                     {'range': 'PlotFeature'}],
-         'domain_of': ['Delta']} })
-    deleted_ids: Optional[list[str]] = Field(default=None, json_schema_extra = { "linkml_meta": {'domain_of': ['Delta']} })
-    named_sets: Optional[list[NamedSet]] = Field(default=None, description="""Named sets added or replaced, by id.""", json_schema_extra = { "linkml_meta": {'domain_of': ['DebriefFeatureCollection', 'ToolResult', 'Delta']} })
-    deleted_named_set_ids: Optional[list[str]] = Field(default=None, json_schema_extra = { "linkml_meta": {'domain_of': ['Delta']} })
-    order: Optional[list[str]] = Field(default=None, description="""Feature ids in the order the plot holds them after this change, when that is not the natural order (features kept in place, added ones last).""", json_schema_extra = { "linkml_meta": {'domain_of': ['Delta']} })
-    result_hash: str = Field(default=..., description="""Content hash of the plot file after this delta, to check replay, taken with the island (the whole-plot feature's view) left out, so a change of view never looks like a change of content (SUB-22).""", json_schema_extra = { "linkml_meta": {'domain_of': ['Delta']} })
+         'domain_of': ['HistoryStep', 'Delta']} })
+    deleted_ids: Optional[list[str]] = Field(default=None, json_schema_extra = { "linkml_meta": {'domain_of': ['HistoryStep', 'Delta']} })
+    named_sets: Optional[list[NamedSet]] = Field(default=None, description="""Named sets added or replaced, by id.""", json_schema_extra = { "linkml_meta": {'domain_of': ['DebriefFeatureCollection',
+                       'ToolResult',
+                       'HistoryStep',
+                       'Delta']} })
+    deleted_named_set_ids: Optional[list[str]] = Field(default=None, json_schema_extra = { "linkml_meta": {'domain_of': ['HistoryStep', 'Delta']} })
+    order: Optional[list[str]] = Field(default=None, description="""Feature ids in the order the plot holds them after this change, when that is not the natural order (features kept in place, added ones last).""", json_schema_extra = { "linkml_meta": {'domain_of': ['HistoryStep', 'Delta']} })
+    result_hash: str = Field(default=..., description="""Hash of the plot's content after this step: the plot file with its island and its history left out, as Debrief writes it (SUB-22).""", json_schema_extra = { "linkml_meta": {'domain_of': ['HistoryStep', 'Delta']} })
+    step_hash: str = Field(default=..., description="""SHA-256 of this step's canonical JSON, without step_hash and state, followed by the previous step's step_hash (see the module description).""", json_schema_extra = { "linkml_meta": {'domain_of': ['HistoryStep']} })
+
+    @field_validator('result_hash')
+    def pattern_result_hash(cls, v):
+        pattern=re.compile(r"^sha256:[0-9a-f]{64}$")
+        if isinstance(v, list):
+            for element in v:
+                if isinstance(element, str) and not pattern.search(element):
+                    err_msg = f"Invalid result_hash format: {element}"
+                    raise ValueError(err_msg)
+        elif isinstance(v, str) and not pattern.search(v):
+            err_msg = f"Invalid result_hash format: {v}"
+            raise ValueError(err_msg)
+        return v
+
+    @field_validator('step_hash')
+    def pattern_step_hash(cls, v):
+        pattern=re.compile(r"^sha256:[0-9a-f]{64}$")
+        if isinstance(v, list):
+            for element in v:
+                if isinstance(element, str) and not pattern.search(element):
+                    err_msg = f"Invalid step_hash format: {element}"
+                    raise ValueError(err_msg)
+        elif isinstance(v, str) and not pattern.search(v):
+            err_msg = f"Invalid step_hash format: {v}"
+            raise ValueError(err_msg)
+        return v
+
+
+class Delta(ConfiguredBaseModel):
+    """
+    One recorded change, in the earlier layout: a file of its own in the plot's history folder. Read only to move a history into its plot file.
+    """
+    linkml_meta: ClassVar[LinkMLMeta] = LinkMLMeta({'from_schema': 'https://debrief.info/schemas/debrief'})
+
+    schema_version: str = Field(default=..., json_schema_extra = { "linkml_meta": {'domain_of': ['DebriefFeatureCollection', 'Delta', 'HistoryHead']} })
+    seq: int = Field(default=..., description="""Position in the plot's history, from 1, with no gaps.""", ge=1, json_schema_extra = { "linkml_meta": {'domain_of': ['HistoryStep', 'Delta']} })
+    after: int = Field(default=..., description="""The delta this one was applied on top of (0 for the first).""", ge=0, json_schema_extra = { "linkml_meta": {'domain_of': ['HistoryStep', 'Delta']} })
+    records: list[ProvRecord] = Field(default=..., description="""The operation that made the change.""", min_length=1, json_schema_extra = { "linkml_meta": {'domain_of': ['HistoryStep', 'Delta']} })
+    added: Optional[list[Union[AnnotationFeature, PlotFeature, SensorObservationsFeature, TrackFeature]]] = Field(default=None, description="""Features added, never with the whole-plot feature's view.""", json_schema_extra = { "linkml_meta": {'any_of': [{'range': 'TrackFeature'},
+                    {'range': 'AnnotationFeature'},
+                    {'range': 'SensorObservationsFeature'},
+                    {'range': 'PlotFeature'}],
+         'domain_of': ['HistoryStep', 'Delta']} })
+    modified: Optional[list[Union[AnnotationFeature, PlotFeature, SensorObservationsFeature, TrackFeature]]] = Field(default=None, description="""Features changed, in full, replacing those with the same id.""", json_schema_extra = { "linkml_meta": {'any_of': [{'range': 'TrackFeature'},
+                    {'range': 'AnnotationFeature'},
+                    {'range': 'SensorObservationsFeature'},
+                    {'range': 'PlotFeature'}],
+         'domain_of': ['HistoryStep', 'Delta']} })
+    deleted_ids: Optional[list[str]] = Field(default=None, json_schema_extra = { "linkml_meta": {'domain_of': ['HistoryStep', 'Delta']} })
+    named_sets: Optional[list[NamedSet]] = Field(default=None, description="""Named sets added or replaced, by id.""", json_schema_extra = { "linkml_meta": {'domain_of': ['DebriefFeatureCollection',
+                       'ToolResult',
+                       'HistoryStep',
+                       'Delta']} })
+    deleted_named_set_ids: Optional[list[str]] = Field(default=None, json_schema_extra = { "linkml_meta": {'domain_of': ['HistoryStep', 'Delta']} })
+    order: Optional[list[str]] = Field(default=None, description="""Feature ids in the order the plot holds them after this change.""", json_schema_extra = { "linkml_meta": {'domain_of': ['HistoryStep', 'Delta']} })
+    result_hash: str = Field(default=..., description="""Content hash of the plot file after this delta, island left out.""", json_schema_extra = { "linkml_meta": {'domain_of': ['HistoryStep', 'Delta']} })
 
     @field_validator('schema_version')
     def pattern_schema_version(cls, v):
@@ -2450,14 +2559,14 @@ class Delta(ConfiguredBaseModel):
 
 class HistoryHead(ConfiguredBaseModel):
     """
-    Where a plot's history stands. Written after each delta, before the plot.
+    Where a plot's history stood, in the earlier layout (history/head.json). Read only to move a history into its plot file.
     """
     linkml_meta: ClassVar[LinkMLMeta] = LinkMLMeta({'from_schema': 'https://debrief.info/schemas/debrief'})
 
     schema_version: str = Field(default=..., json_schema_extra = { "linkml_meta": {'domain_of': ['DebriefFeatureCollection', 'Delta', 'HistoryHead']} })
-    current: int = Field(default=..., description="""Sequence number of the last delta the plot reflects; 0 for none.""", ge=0, json_schema_extra = { "linkml_meta": {'domain_of': ['TimeState', 'HistoryHead']} })
+    current: int = Field(default=..., description="""Sequence number of the last delta the plot reflects; 0 for none.""", ge=0, json_schema_extra = { "linkml_meta": {'domain_of': ['TimeState', 'PlotHistory', 'HistoryHead']} })
     latest: int = Field(default=..., description="""Highest sequence number written.""", ge=0, json_schema_extra = { "linkml_meta": {'domain_of': ['HistoryHead']} })
-    abandoned: Optional[list[int]] = Field(default=None, description="""Deltas undone and then superseded by a new change (SUB-19): those off the chain to the latest delta, so a lost head can be rebuilt.""", json_schema_extra = { "linkml_meta": {'domain_of': ['HistoryHead']} })
+    abandoned: Optional[list[int]] = Field(default=None, description="""Deltas undone and then superseded by a new change.""", json_schema_extra = { "linkml_meta": {'domain_of': ['HistoryHead']} })
     plot_hash: str = Field(default=..., description="""Content hash the plot file has when it reflects current, island left out.""", json_schema_extra = { "linkml_meta": {'domain_of': ['HistoryHead']} })
 
     @field_validator('schema_version')
@@ -2540,6 +2649,8 @@ FormatSettings.model_rebuild()
 UserConfig.model_rebuild()
 KnownStore.model_rebuild()
 WebviewMessage.model_rebuild()
+PlotHistory.model_rebuild()
+HistoryStep.model_rebuild()
 Delta.model_rebuild()
 HistoryHead.model_rebuild()
 

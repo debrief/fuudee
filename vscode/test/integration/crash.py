@@ -1,7 +1,9 @@
-"""A Debrief process that dies part-way through saving a change (NFR-10).
+"""A Debrief process that dies part-way through saving a change (NFR-10, NFR-11).
 
-It writes the change's delta, then is killed before it can record the change
-as current. The extension must finish the change when the plot is next opened.
+It writes the whole new plot file under a temporary name, then is killed
+before it can rename it over the plot file. The plot file is the one from
+before the save, whole; the extension says, when the plot is next opened,
+that a save was interrupted, and clears what it left.
 Arguments: catalogue folder, plot id.
 """
 
@@ -9,20 +11,17 @@ import os
 import sys
 from pathlib import Path
 
+import debrief_stac.store as store
 from debrief_schemas import models
 from debrief_stac import Catalogue, Changes
 
+
+def die_before_the_rename(temporary, target) -> None:
+    os._exit(9)  # killed: no clean-up, no exception handlers
+
+
 catalogue = Catalogue.open(Path(sys.argv[1]))
-real = catalogue.store.write_text_atomic
-
-
-def die_before_the_head(path: str, text: str) -> None:
-    if path.endswith("head.json"):
-        os._exit(9)  # killed: no clean-up, no exception handlers
-    real(path, text)
-
-
-catalogue.store.write_text_atomic = die_before_the_head
+store._replace = die_before_the_rename
 note = models.AnnotationFeature(
     type="Feature",
     id="note-before-the-crash",
@@ -39,6 +38,6 @@ record = models.ProvRecord(
     kind="edit",
     started_at="2023-06-15T09:00:00.000Z",
     agent=models.AgentRef(kind="person", name="analyst"),
-    notes=["Note added just before a crash"],  # what the History view calls the step
+    notes=["Note added just before a crash"],  # what the History view would call the step
 )
 catalogue.commit(sys.argv[2], [record], Changes(added=[note]))

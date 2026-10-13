@@ -11,6 +11,7 @@ import path from "node:path";
 import { loadConfig, type ConfigError } from "@debrief/config";
 import {
   parseDocument,
+  validateDocument,
   type DebriefFeatureCollection,
   type KnownStore,
   type StacItem,
@@ -40,18 +41,16 @@ export interface OpenedPlot {
   files: { key: string; title: string; kind: string; href: string }[];
   /** Where the plot's history stood when it was read, from the tool service (SUB-28). */
   base?: { current: number; plot_hash: string };
+  /** How many steps its history held when it was read, from the tool service. */
+  latest?: number;
   /** The hash of the plot's view (its island, SUB-22) when it was read, to pass back when changing it. */
   viewHash?: string;
 }
 
-/** The file that changes whenever anyone changes the plot's history. */
-export function headFile(store: KnownStore, itemId: string): string {
-  return path.join(store.location, itemId, "history", "head.json");
-}
-
 /**
- * The plot file itself, which also changes when anyone changes its time window
- * (the island, SUB-22) without changing its history.
+ * The plot file: one file holding the plot's content, its island (view state,
+ * SUB-22) and its whole history (decision 13 Oct). It changes whenever anyone
+ * changes any of them.
  */
 export function plotFile(store: KnownStore, item: StacItem): string | undefined {
   const asset = item.assets.plot;
@@ -63,14 +62,60 @@ export function plotFile(store: KnownStore, item: StacItem): string | undefined 
   }
 }
 
-/** Where the plot's history stands on disk now, or undefined if it cannot be read. */
-export function headOnDisk(store: KnownStore, itemId: string): { current: number; plot_hash: string } | undefined {
+/** Where a plot's history stands, as its plot file says. */
+export interface HistoryOnDisk {
+  current: number;
+  latest: number;
+  /** The current step's result_hash: the hash of the plot's content (none before the first step). */
+  plot_hash?: string;
+}
+
+/**
+ * Where the plot's history stands in a plot file's text, or undefined if it
+ * has none that can be read. Only the pointers are read here: the Python
+ * service checks the history's checksums when the plot is opened.
+ */
+export function historyIn(text: string): HistoryOnDisk | undefined {
   try {
-    const head = parseDocument("history_head", readFileSync(headFile(store, itemId), "utf8"));
-    return { current: head.current, plot_hash: head.plot_hash };
+    const history = (JSON.parse(text) as { history?: { current?: unknown; steps?: { result_hash?: unknown }[] } }).history;
+    if (!history || typeof history.current !== "number" || !Array.isArray(history.steps)) return undefined;
+    const hash = history.current > 0 ? history.steps[history.current - 1]?.result_hash : undefined;
+    return { current: history.current, latest: history.steps.length, plot_hash: typeof hash === "string" ? hash : undefined };
   } catch {
     return undefined;
   }
+}
+
+/** Where the plot's history stands on disk now, or undefined if it cannot be read. */
+export function historyOnDisk(file: string): HistoryOnDisk | undefined {
+  try {
+    return historyIn(readFileSync(file, "utf8"));
+  } catch {
+    return undefined;
+  }
+}
+
+/**
+ * Whether the plot on disk is no longer the one opened: a step made, undone or
+ * redone elsewhere (SUB-28). A change to its view alone leaves all three the same.
+ */
+export function changedSince(onDisk: HistoryOnDisk | undefined, opened: Pick<OpenedPlot, "base" | "latest">): boolean {
+  if (!onDisk || !opened.base) return false;
+  return (
+    onDisk.current !== opened.base.current ||
+    (opened.latest !== undefined && onDisk.latest !== opened.latest) ||
+    (onDisk.plot_hash !== undefined && onDisk.plot_hash !== opened.base.plot_hash)
+  );
+}
+
+/**
+ * A plot file's content, for the map and the outline: its history left out.
+ * The history can be as large as the plot again, and nothing on screen reads it.
+ */
+export function plotContent(text: string): DebriefFeatureCollection {
+  const raw = JSON.parse(text) as Record<string, unknown>;
+  delete raw.history;
+  return validateDocument("plot", raw);
 }
 
 export function knownStores(configFile?: string): { stores: KnownStore[]; problem?: string } {
@@ -141,7 +186,7 @@ export function openPlot(store: KnownStore, itemId: string): OpenedPlot {
   );
   const plotAsset = item.assets.plot;
   if (!plotAsset) throw new Error(`${itemId} has no plot`);
-  const plot = parseDocument("plot", readFileSync(assetPath(store, item, plotAsset), "utf8"));
+  const plot = plotContent(readFileSync(assetPath(store, item, plotAsset), "utf8"));
   const files = Object.entries(item.assets)
     .filter(([key]) => key !== "plot")
     .map(([key, asset]) => ({

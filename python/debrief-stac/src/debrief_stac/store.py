@@ -55,6 +55,12 @@ class Store(Protocol):
 
     def size_and_mtime(self, path: str) -> tuple[int, int]: ...
 
+    def version(self, path: str) -> tuple[int, ...]: ...
+
+    def leftovers(self, path: str) -> list[str]: ...
+
+    def discard_leftovers(self, path: str) -> int: ...
+
 
 LOCK_WAIT_S = 10.0
 LOCK_STALE_S = 30.0
@@ -63,6 +69,34 @@ REPLACE_WAIT_S = 2.0
 
 class StoreBusy(StoreError):
     """Another process holds the lock for longer than we wait. Try again."""
+
+
+def _umask() -> int:
+    try:
+        mask = os.umask(0)
+        os.umask(mask)
+        return mask
+    except (AttributeError, OSError):  # not everywhere (CON-09)
+        return 0o022
+
+
+# What a file made with open() would get. mkstemp makes its files private to their
+# owner, and a rename keeps that: a plot saved that way could not be read by a
+# colleague sharing the folder (SUB-29).
+_NEW_FILE_MODE = 0o666 & ~_umask()
+
+
+def _shareable(temporary: str, target: Path) -> None:
+    """Give a temporary file the permissions the file it becomes should have: the
+    target's own if it exists, otherwise those of a new file."""
+    try:
+        mode = stat.S_IMODE(target.stat().st_mode)
+    except OSError:
+        mode = _NEW_FILE_MODE
+    try:
+        os.chmod(temporary, mode)
+    except OSError:  # some network filesystems refuse; the file is still written
+        pass
 
 
 def _sync_folder(folder: Path) -> None:
@@ -140,6 +174,7 @@ class FileStore:
             dir=target.parent, prefix=f".{target.name}.", suffix=".tmp"
         )
         try:
+            _shareable(temporary, target)
             with os.fdopen(handle, "w", encoding="utf-8", newline="\n") as stream:
                 stream.write(text)
                 stream.flush()
@@ -164,6 +199,7 @@ class FileStore:
             dir=target.parent, prefix=f".{target.name}.", suffix=".tmp"
         )
         try:
+            _shareable(temporary, target)
             with os.fdopen(handle, "w", encoding="utf-8", newline="\n") as stream:
                 stream.write(text)
                 stream.flush()
@@ -276,3 +312,27 @@ class FileStore:
     def size_and_mtime(self, path: str) -> tuple[int, int]:
         info = self._resolve(path).stat()
         return info.st_size, info.st_mtime_ns
+
+    def version(self, path: str) -> tuple[int, ...]:
+        """What tells one version of a file from another without reading it: its size,
+        modification time and file number. A file replaced by an atomic write is a new
+        file, so where modification times are coarse (some network shares, FAT) two
+        writes in the same second still differ, wherever the filesystem numbers files."""
+        info = self._resolve(path).stat()
+        return info.st_size, info.st_mtime_ns, info.st_ino
+
+    def leftovers(self, path: str) -> list[str]:
+        """Temporary files beside a file from atomic writes of it: one in progress, or
+        one whose process died before the rename (NFR-11)."""
+        target = self._resolve(path)
+        return sorted(p.name for p in target.parent.glob(f".{target.name}.*.tmp"))
+
+    def discard_leftovers(self, path: str) -> int:
+        """Remove what an atomic write of this file left when its process died before
+        the rename. Only while holding the file's lock, so that no write in progress
+        is mistaken for one. Returns how many there were."""
+        target = self._resolve(path)
+        found = list(target.parent.glob(f".{target.name}.*.tmp"))
+        for leftover in found:
+            leftover.unlink(missing_ok=True)
+        return len(found)

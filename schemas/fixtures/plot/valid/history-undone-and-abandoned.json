@@ -1,0 +1,315 @@
+{
+  "type": "FeatureCollection",
+  "schema_version": "0.0.11",
+  "features": [
+    {
+      "type": "Feature",
+      "id": "plot",
+      "properties": {
+        "kind": "plot",
+        "title": "Serial 1",
+        "view": {
+          "time_window": {
+            "start": "2026-10-11T09:30:00.000Z",
+            "end": "2026-10-11T09:31:00.000Z"
+          }
+        }
+      },
+      "geometry": null
+    },
+    {
+      "type": "Feature",
+      "id": "track-nelson",
+      "geometry": {
+        "type": "LineString",
+        "coordinates": [
+          [
+            -4.1201,
+            50.3502
+          ],
+          [
+            -4.1155,
+            50.3471
+          ]
+        ]
+      },
+      "properties": {
+        "kind": "track",
+        "name": "NELSON",
+        "times": [
+          "2026-10-11T09:30:00.000Z",
+          "2026-10-11T09:31:00.000Z"
+        ],
+        "style": {
+          "colour": "#e01c3e"
+        }
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "note-1",
+      "properties": {
+        "kind": "annotation",
+        "style": "note",
+        "name": "Turn",
+        "time": "2026-10-11T09:30:30.000Z"
+      },
+      "geometry": null
+    }
+  ],
+  "provenance": [
+    {
+      "id": "op-1",
+      "kind": "import",
+      "started_at": "2026-10-11T10:01:00.000Z",
+      "ended_at": "2026-10-11T10:01:01.000Z",
+      "agent": {
+        "kind": "person",
+        "name": "analyst"
+      },
+      "notes": [
+        "Imported from serial-1.rep"
+      ]
+    },
+    {
+      "id": "op-2",
+      "kind": "edit",
+      "started_at": "2026-10-11T10:02:00.000Z",
+      "ended_at": "2026-10-11T10:02:01.000Z",
+      "agent": {
+        "kind": "person",
+        "name": "analyst"
+      },
+      "notes": [
+        "Note added"
+      ]
+    },
+    {
+      "id": "edit-70f8dde3-dab8-4fb6-a0e3-ee5105d4db8e",
+      "kind": "edit",
+      "started_at": "2026-10-13T05:08:48.306Z",
+      "ended_at": "2026-10-13T05:08:48.306Z",
+      "agent": {
+        "kind": "person",
+        "name": "analyst"
+      },
+      "notes": [
+        "Colour of NELSON set to red"
+      ]
+    }
+  ],
+  "history": {
+    "current": 4,
+    "head_hash": "sha256:125c402cbd571ba20059d1cda98f81bd6df08da94791a3307e1333b550d01ccc",
+    "steps": [
+      {
+        "seq": 1,
+        "state": "applied",
+        "after": 0,
+        "records": [
+          {
+            "id": "op-1",
+            "kind": "import",
+            "started_at": "2026-10-11T10:01:00.000Z",
+            "ended_at": "2026-10-11T10:01:01.000Z",
+            "agent": {
+              "kind": "person",
+              "name": "analyst"
+            },
+            "notes": [
+              "Imported from serial-1.rep"
+            ]
+          }
+        ],
+        "added": [
+          {
+            "type": "Feature",
+            "id": "plot",
+            "properties": {
+              "kind": "plot",
+              "title": "Serial 1"
+            },
+            "geometry": null
+          },
+          {
+            "type": "Feature",
+            "id": "track-nelson",
+            "geometry": {
+              "type": "LineString",
+              "coordinates": [
+                [
+                  -4.1201,
+                  50.3502
+                ],
+                [
+                  -4.1155,
+                  50.3471
+                ]
+              ]
+            },
+            "properties": {
+              "kind": "track",
+              "name": "NELSON",
+              "times": [
+                "2026-10-11T09:30:00.000Z",
+                "2026-10-11T09:31:00.000Z"
+              ],
+              "style": {
+                "colour": "#0064bd"
+              }
+            }
+          }
+        ],
+        "result_hash": "sha256:c36f30fb7093b59b72aeb0271e58ef3cf10b585c8f082a1a97ccf34741ec8647",
+        "step_hash": "sha256:b980840e11c66d91a735370104efac17a8e326f889d0350078c8146b4d6465a0"
+      },
+      {
+        "seq": 2,
+        "state": "applied",
+        "after": 1,
+        "records": [
+          {
+            "id": "op-2",
+            "kind": "edit",
+            "started_at": "2026-10-11T10:02:00.000Z",
+            "ended_at": "2026-10-11T10:02:01.000Z",
+            "agent": {
+              "kind": "person",
+              "name": "analyst"
+            },
+            "notes": [
+              "Note added"
+            ]
+          }
+        ],
+        "added": [
+          {
+            "type": "Feature",
+            "id": "note-1",
+            "properties": {
+              "kind": "annotation",
+              "style": "note",
+              "name": "Turn",
+              "time": "2026-10-11T09:30:30.000Z"
+            },
+            "geometry": null
+          }
+        ],
+        "result_hash": "sha256:9318bbce7ffa01dd19e4bf71ec66f95a4a8dcb1734f6733a2dd603f1d4511779",
+        "step_hash": "sha256:0f8335aa3ceecd4d6a2b1f9beb361917d029226be35bfdc3cbc7a5d0e28a06a6"
+      },
+      {
+        "seq": 3,
+        "state": "abandoned",
+        "after": 2,
+        "records": [
+          {
+            "id": "op-3",
+            "kind": "edit",
+            "started_at": "2026-10-11T10:03:00.000Z",
+            "ended_at": "2026-10-11T10:03:01.000Z",
+            "agent": {
+              "kind": "person",
+              "name": "analyst"
+            },
+            "notes": [
+              "Note added"
+            ]
+          }
+        ],
+        "added": [
+          {
+            "type": "Feature",
+            "id": "note-2",
+            "properties": {
+              "kind": "annotation",
+              "style": "note",
+              "name": "Dived",
+              "time": "2026-10-11T09:30:30.000Z"
+            },
+            "geometry": null
+          }
+        ],
+        "result_hash": "sha256:8211521992b9e761ae42c2c297b0bbbdfca801d9eaf4baa6b78ee5044d1c6ed8",
+        "step_hash": "sha256:327e8982fcaa3bb576675aa2fbc21abc15c87ccc3fd1b9efaeeb48e2f45feacd"
+      },
+      {
+        "seq": 4,
+        "state": "applied",
+        "after": 2,
+        "records": [
+          {
+            "id": "edit-70f8dde3-dab8-4fb6-a0e3-ee5105d4db8e",
+            "kind": "edit",
+            "started_at": "2026-10-13T05:08:48.306Z",
+            "ended_at": "2026-10-13T05:08:48.306Z",
+            "agent": {
+              "kind": "person",
+              "name": "analyst"
+            },
+            "notes": [
+              "Colour of NELSON set to red"
+            ]
+          }
+        ],
+        "modified": [
+          {
+            "type": "Feature",
+            "id": "track-nelson",
+            "geometry": {
+              "type": "LineString",
+              "coordinates": [
+                [
+                  -4.1201,
+                  50.3502
+                ],
+                [
+                  -4.1155,
+                  50.3471
+                ]
+              ]
+            },
+            "properties": {
+              "kind": "track",
+              "name": "NELSON",
+              "times": [
+                "2026-10-11T09:30:00.000Z",
+                "2026-10-11T09:31:00.000Z"
+              ],
+              "style": {
+                "colour": "#e01c3e"
+              }
+            }
+          }
+        ],
+        "result_hash": "sha256:616ac4a72da75e04d8996b572fa3f76ce980d21541caab0f44835ed089a3a221",
+        "step_hash": "sha256:623e6aaa34ea12a92954fa66870f8b318838f6defe1ccda8ffd24f58ff28f722"
+      },
+      {
+        "seq": 5,
+        "state": "undone",
+        "after": 4,
+        "records": [
+          {
+            "id": "op-5",
+            "kind": "edit",
+            "started_at": "2026-10-11T10:05:00.000Z",
+            "ended_at": "2026-10-11T10:05:01.000Z",
+            "agent": {
+              "kind": "person",
+              "name": "analyst"
+            },
+            "notes": [
+              "Note deleted"
+            ]
+          }
+        ],
+        "deleted_ids": [
+          "note-1"
+        ],
+        "result_hash": "sha256:7b014f094cada59e8619dae73b45944b54ae7cf50aa35a2f715728c06e873ba1",
+        "step_hash": "sha256:125c402cbd571ba20059d1cda98f81bd6df08da94791a3307e1333b550d01ccc"
+      }
+    ]
+  }
+}

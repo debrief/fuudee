@@ -1,6 +1,6 @@
 id: https://debrief.info/schemas/debrief/history
 name: debrief_history
-title: "Plot history: deltas, replay and undo (SUB-19 to SUB-21, NFR-10)"
+title: "Plot history, kept in the plot file: steps, replay, undo and integrity (SUB-19 to SUB-21, NFR-10, NFR-11)"
 license: EPL-2.0
 prefixes:
   linkml: https://w3id.org/linkml/
@@ -14,42 +14,98 @@ imports:
   - features
 
 description: >-
-  Every change to a plot is recorded as a delta in the plot's history folder,
-  before the plot file is rewritten (write-ahead), so the plot can always be
-  rebuilt by replaying deltas from the start (SUB-19, NFR-10). A delta holds
-  both the operation that made the change (its provenance record: tool,
+  A plot carries its whole history inside its plot file, as the top-level
+  member history, so passing the one file passes undo, redo, going back to
+  a step and every provenance record (decision 13 Oct). Each step holds
+  both the operation that made the change (its provenance records: tool,
   version, agent, selection, parameters, seed) and the change itself, so
-  replay applies recorded outputs and survives tool upgrades; re-running the
-  operations is a separate check of determinism (SUB-20, decision 11 Oct).
-  Undo moves the head back to an earlier delta; a change made after undoing
-  marks the undone deltas abandoned, kept on record but no longer replayed
-  (SUB-21, decision 11 Oct). The plot's island, its view state, is never in
-  a delta and never in a hash: undo and replay leave it as it is (SUB-22,
-  decision 12 Oct).
+  replay applies recorded outputs and never needs the tool or the source
+  files: the first import of a source is itself a step whose output is
+  Debrief GeoJSON (SUB-19, SUB-20, decision 11 Oct). Undo moves the current
+  step back; a change made after undoing marks the undone steps abandoned,
+  kept on record but no longer replayed (SUB-21). All history is kept,
+  always.
+
+  The history is protected by a hash chain. Each step's step_hash is the
+  SHA-256 of the step's canonical JSON (its members other than step_hash
+  and state, keys sorted, no spaces, UTF-8) followed by the previous
+  step's step_hash (for step 1, "sha256:" and sixty-four zeros), and the
+  history records the last step's hash as head_hash. A step altered,
+  removed or reordered breaks the chain. Each step's result_hash is the
+  hash of the plot's content after it, so the current step's result_hash
+  must equal the hash of the content in the file. Content is the plot file
+  without its island (the whole-plot feature's view) and without its
+  history: neither can be in a content hash, the history because it
+  records content hashes, the island because it is view state (SUB-22).
+  The island is outside every checksum. A step's state and the history's
+  current step are pointers, not records: they are checked against the
+  after links instead.
+
+  Delta and HistoryHead are the earlier layout, a history folder beside
+  the plot file with one file per change and a head. They are read only to
+  move such a plot's history into its plot file.
+
+enums:
+  StepStateEnum:
+    description: Where a step stands, as the after links and the current step say.
+    permissible_values:
+      applied: {description: "On the chain to the current step: in the plot now."}
+      undone: {description: "After the current step on the chain to the latest: can be redone."}
+      abandoned: {description: "Undone, then replaced by a later change: kept on record, never replayed."}
 
 classes:
-  Delta:
-    description: One recorded change to a plot.
+  PlotHistory:
+    description: >-
+      A plot's whole history, kept in its plot file as the top-level member
+      history (decision 13 Oct). Steps are numbered from 1 with no gaps, in
+      the order they were made.
     attributes:
-      schema_version: {range: SchemaVersion, required: true}
+      current:
+        description: >-
+          The step the plot's content reflects; 0 for none (an empty plot).
+          Never an abandoned step.
+        range: integer
+        required: true
+        minimum_value: 0
+      head_hash:
+        description: >-
+          The last step's step_hash, or the starting value for a history with
+          no steps, so a step removed from the end is noticed.
+        range: ContentHash
+        required: true
+      steps:
+        range: HistoryStep
+        multivalued: true
+        inlined_as_list: true
+        required: true
+
+  HistoryStep:
+    description: One recorded change to a plot, in its plot file's history.
+    attributes:
       seq:
         description: Position in the plot's history, from 1, with no gaps.
         range: integer
         required: true
         minimum_value: 1
+      state:
+        description: >-
+          Applied, undone or abandoned: what the after links and the
+          history's current step say. Not part of step_hash, since undo
+          changes it.
+        range: StepStateEnum
+        required: true
       after:
         description: >-
-          The delta this one was applied on top of (0 for the first). Replay
-          follows these links, and recovery uses them to finish a change that
-          was written but not completed.
+          The step this one was applied on top of (0 for the first). Replay
+          follows these links back from a step to the first.
         range: integer
         required: true
         minimum_value: 0
       records:
         description: >-
-          The operation that made the change. Usually one; a baseline delta,
-          taken when a plot made before history existed is first changed,
-          carries all the plot's earlier records.
+          The operation that made the change. Usually one; a baseline step,
+          taken when a plot made outside Debrief is first opened, carries
+          all the plot's earlier records.
         range: ProvRecord
         multivalued: true
         inlined_as_list: true
@@ -89,14 +145,78 @@ classes:
         multivalued: true
       result_hash:
         description: >-
-          Content hash of the plot file after this delta, to check replay,
-          taken with the island (the whole-plot feature's view) left out, so
-          a change of view never looks like a change of content (SUB-22).
+          Hash of the plot's content after this step: the plot file with its
+          island and its history left out, as Debrief writes it (SUB-22).
+        range: ContentHash
+        required: true
+      step_hash:
+        description: >-
+          SHA-256 of this step's canonical JSON, without step_hash and state,
+          followed by the previous step's step_hash (see the module
+          description).
+        range: ContentHash
+        required: true
+
+  Delta:
+    description: >-
+      One recorded change, in the earlier layout: a file of its own in the
+      plot's history folder. Read only to move a history into its plot file.
+    attributes:
+      schema_version: {range: SchemaVersion, required: true}
+      seq:
+        description: Position in the plot's history, from 1, with no gaps.
+        range: integer
+        required: true
+        minimum_value: 1
+      after:
+        description: The delta this one was applied on top of (0 for the first).
+        range: integer
+        required: true
+        minimum_value: 0
+      records:
+        description: The operation that made the change.
+        range: ProvRecord
+        multivalued: true
+        inlined_as_list: true
+        required: true
+        minimum_cardinality: 1
+      added:
+        description: Features added, never with the whole-plot feature's view.
+        multivalued: true
+        inlined_as_list: true
+        any_of:
+          - range: TrackFeature
+          - range: AnnotationFeature
+          - range: SensorObservationsFeature
+          - range: PlotFeature
+      modified:
+        description: Features changed, in full, replacing those with the same id.
+        multivalued: true
+        inlined_as_list: true
+        any_of:
+          - range: TrackFeature
+          - range: AnnotationFeature
+          - range: SensorObservationsFeature
+          - range: PlotFeature
+      deleted_ids: {multivalued: true}
+      named_sets:
+        description: Named sets added or replaced, by id.
+        range: NamedSet
+        multivalued: true
+        inlined_as_list: true
+      deleted_named_set_ids: {multivalued: true}
+      order:
+        description: Feature ids in the order the plot holds them after this change.
+        multivalued: true
+      result_hash:
+        description: Content hash of the plot file after this delta, island left out.
         range: ContentHash
         required: true
 
   HistoryHead:
-    description: Where a plot's history stands. Written after each delta, before the plot.
+    description: >-
+      Where a plot's history stood, in the earlier layout (history/head.json).
+      Read only to move a history into its plot file.
     attributes:
       schema_version: {range: SchemaVersion, required: true}
       current:
@@ -110,9 +230,7 @@ classes:
         required: true
         minimum_value: 0
       abandoned:
-        description: >-
-          Deltas undone and then superseded by a new change (SUB-19): those off
-          the chain to the latest delta, so a lost head can be rebuilt.
+        description: Deltas undone and then superseded by a new change.
         range: integer
         multivalued: true
       plot_hash:

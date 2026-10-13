@@ -10,7 +10,11 @@ Validation runs in three layers, in order:
 
 Text that has passed layers 2 and 3 once is remembered by its hash, so the
 same text read again, or a document written out just as it was read, is not
-checked against them a second time: the answer could only be the same.
+checked against them a second time: the answer could only be the same. So is
+each feature that has passed layer 2, in a plot or in a step of its history:
+a feature's check depends on nothing but the feature, so a plot changed by one
+note has only that note checked against JSON Schema. Layer 3 always runs on
+the whole document, since its rules span features.
 """
 
 from __future__ import annotations
@@ -19,6 +23,7 @@ import copy
 import hashlib
 import json
 import re
+from collections import Counter
 from collections.abc import Callable, Iterable
 from enum import StrEnum
 from functools import cache
@@ -29,6 +34,13 @@ from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 from jsonschema import Draft201909Validator
 from pydantic import BaseModel
 
+from debrief_schemas.chain import (
+    HISTORY_MEMBER,
+    chain_problem,
+    content_text_of,
+    pointer_problems,
+    text_hash,
+)
 from debrief_schemas.generated import debrief as g
 from debrief_schemas.generated.schema_version import SCHEMA_VERSION
 from debrief_schemas.island import dump_json
@@ -125,6 +137,67 @@ def _class_validator(name: str) -> Draft201909Validator:
 
 def _validator(kind: DocumentKind) -> Draft201909Validator:
     return _class_validator(_MODELS[kind].__name__)
+
+
+# Classes whose feature lists are checked one feature at a time, and those lists.
+# A feature's validity against JSON Schema depends on that feature alone (the
+# lists have no constraints across items), so a feature that passed once, in a
+# plot or in a step, passes again: a plot of tens of megabytes changed by one
+# note has only that note checked, not every fix of every track (decision 13 Oct).
+_FEATURE_LISTS = {
+    "DebriefFeatureCollection": ("features",),
+    "HistoryStep": ("added", "modified"),
+    "Delta": ("added", "modified"),
+}
+
+# Hashes of features (as JSON) that passed JSON Schema. Bounded: when full it is
+# emptied, so a long session only ever checks some features again.
+_FEATURES_PASSED: set[bytes] = set()
+_FEATURES_PASSED_MAX = 200_000
+
+
+@cache
+def _item_validator(name: str, member: str) -> Draft201909Validator:
+    schema = _json_schema()
+    items = schema["$defs"][name]["properties"][member]["items"]
+    return Draft201909Validator({"$schema": schema["$schema"], "$defs": schema["$defs"], **items})
+
+
+def _schema_errors(
+    name: str, document: Any, validator: Draft201909Validator | None = None
+) -> list[str]:
+    """JSON Schema problems with a document of a class, as 'path: message', in path order.
+
+    The same problems as checking the document whole, but a class's feature lists
+    are checked one feature at a time, and a feature that has passed before is not
+    checked again.
+    """
+    lists = _FEATURE_LISTS.get(name, ())
+    found: list[tuple[list[Any], str]] = []
+    if lists and isinstance(document, dict):
+        rest = {k: v for k, v in document.items() if not (k in lists and isinstance(v, list))}
+        for member in lists:
+            items = document.get(member)
+            if not isinstance(items, list):
+                continue
+            # An empty list stands in for the features, so the list itself is still checked.
+            rest[member] = []
+            check = _item_validator(name, member)
+            for index, item in enumerate(items):
+                key = hashlib.sha256(json.dumps(item, separators=(",", ":")).encode()).digest()
+                if key in _FEATURES_PASSED:
+                    continue
+                errors = list(check.iter_errors(item))
+                found += [([member, index, *e.path], e.message) for e in errors]
+                if not errors:
+                    if len(_FEATURES_PASSED) >= _FEATURES_PASSED_MAX:
+                        _FEATURES_PASSED.clear()
+                    _FEATURES_PASSED.add(key)
+        document = rest
+    validator = validator or _class_validator(name)
+    found += [(list(e.path), e.message) for e in validator.iter_errors(document)]
+    found.sort(key=lambda error: error[0])
+    return [f"{'/'.join(map(str, path)) or '<root>'}: {message}" for path, message in found]
 
 
 # --- Layer 1: schema version ---------------------------------------------------
@@ -284,7 +357,7 @@ def _raw_feature_problems(raw_features: Any, label: str) -> list[str]:
 def _plot_problems(plot: g.DebriefFeatureCollection, raw: dict[str, Any]) -> list[str]:
     problems = _raw_feature_problems(raw.get("features"), "feature")
     ids = [f.id for f in plot.features]
-    duplicates = sorted({i for i in ids if ids.count(i) > 1})
+    duplicates = sorted(i for i, n in Counter(ids).items() if n > 1)
     problems += [f"feature id {i!r} is used more than once" for i in duplicates]
     track_ids = {f.id for f in plot.features if f.properties.kind == "track"}
     if sum(f.properties.kind == "plot" for f in plot.features) > 1:
@@ -296,6 +369,32 @@ def _plot_problems(plot: g.DebriefFeatureCollection, raw: dict[str, Any]) -> lis
         missing = [i for i in named_set.feature_ids if i not in known]
         if missing:
             problems.append(f"named set {named_set.id}: unknown features {missing}")
+    if plot.history is not None:
+        problems += history_problems(plot.history, raw)
+    return problems
+
+
+def history_problems(history: g.PlotHistory, raw: dict[str, Any]) -> list[str]:
+    """Rules for a plot file's history (decision 13 Oct): each step's own rules, the
+    numbering and pointers, the hash chain, and the current step's result_hash
+    matching the file's content (island and history left out)."""
+    raw_steps = raw[HISTORY_MEMBER]["steps"]
+    problems = []
+    for step, raw_step in zip(history.steps, raw_steps, strict=True):
+        problems += [f"history step {step.seq}: {p}" for p in step_problems(step, raw_step)]
+    pointers, _ = pointer_problems(
+        [(s.seq, s.after, str(s.state)) for s in history.steps], history.current
+    )
+    problems += [f"history: {p}" for p in pointers]
+    broken = chain_problem(raw_steps, history.head_hash)
+    if broken:
+        problems.append(f"history: {broken}")
+    if not pointers:
+        content = text_hash(content_text_of(raw))
+        if history.current and history.steps[history.current - 1].result_hash != content:
+            problems.append("history: the current step's result_hash is not the content's hash")
+        if not history.current and (raw.get("features") or raw.get("provenance")):
+            problems.append("history: a plot with content has no current step")
     return problems
 
 
@@ -341,11 +440,9 @@ def _tool_declaration_problems(tool: g.ToolDeclaration, raw: dict[str, Any]) -> 
     problems = []
     if tool.max_selected is not None and tool.max_selected < (tool.min_selected or 0):
         problems.append("max_selected is below min_selected")
-    names = [p.name for p in tool.parameters or []]
+    names = Counter(p.name for p in tool.parameters or [])
     problems += [
-        f"parameter {n!r} is declared more than once"
-        for n in sorted(set(names))
-        if names.count(n) > 1
+        f"parameter {n!r} is declared more than once" for n in sorted(names) if names[n] > 1
     ]
     for param in tool.parameters or []:
         where = f"parameter {param.name}"
@@ -536,7 +633,46 @@ def load_view(source: dict[str, Any] | None) -> g.PlotView | None:
     return view
 
 
-def _delta_problems(delta: g.Delta, raw: dict[str, Any]) -> list[str]:
+def step_problems(step: g.HistoryStep | g.Delta, raw: dict[str, Any]) -> list[str]:
+    """Rules for one change, a history step or a delta of the earlier layout."""
+    return _delta_problems(step, raw)
+
+
+def load_history_step(raw: dict[str, Any]) -> g.HistoryStep:
+    """Validate one step of a plot file's history on its own: JSON Schema and the
+    step's rules. The history checks only steps it has not checked before, rather
+    than the whole history each time the file changes. Raises DocumentValidationError."""
+    errors = _schema_errors("HistoryStep", raw)
+    if errors:
+        raise DocumentValidationError(errors)
+    step = g.HistoryStep.model_validate(raw)
+    problems = _delta_problems(step, raw)
+    if problems:
+        raise DocumentValidationError(problems)
+    return step
+
+
+def dump_history_step(step: g.HistoryStep) -> dict[str, Any]:
+    """A step as JSON, as it is written in the plot file. Validated: JSON Schema, where
+    features already checked (as part of the content the step makes) are not checked
+    again, and all the step's rules."""
+    document = step.model_dump(mode="json", by_alias=True, exclude_none=True)
+    _feature_geometry(document, ("added", "modified"))
+    problems = _schema_errors("HistoryStep", document)
+    problems += _delta_problems(step, document)
+    if problems:
+        raise DocumentValidationError(problems)
+    return document
+
+
+def _feature_geometry(document: dict[str, Any], names: Iterable[str]) -> None:
+    for name in names:
+        for feature in document.get(name, []):
+            for member in _NULLABLE_REQUIRED_FEATURE_MEMBERS:
+                feature.setdefault(member, None)
+
+
+def _delta_problems(delta: g.Delta | g.HistoryStep, raw: dict[str, Any]) -> list[str]:
     problems = ["after must come before seq"] if delta.after >= delta.seq else []
     problems += _raw_feature_problems(raw.get("added"), "added feature")
     problems += _raw_feature_problems(raw.get("modified"), "modified feature")
@@ -548,11 +684,9 @@ def _delta_problems(delta: g.Delta, raw: dict[str, Any]) -> list[str]:
         for f in features
         if f.properties.kind == "plot" and f.properties.view is not None
     ]
-    ids = [f.id for f in features] + list(delta.deleted_ids or [])
+    ids = Counter([f.id for f in features] + list(delta.deleted_ids or []))
     problems += [
-        f"feature {i!r} appears more than once in the delta"
-        for i in sorted(set(ids))
-        if ids.count(i) > 1
+        f"feature {i!r} appears more than once in the delta" for i in sorted(ids) if ids[i] > 1
     ]
     return problems
 
@@ -609,10 +743,10 @@ def _to_json_shape(kind: DocumentKind, document: dict[str, Any]) -> dict[str, An
         DocumentKind.TOOL_RESULT: ("new_features", "modified_features"),
         DocumentKind.DELTA: ("added", "modified"),
     }.get(kind, ())
-    for name in feature_lists:
-        for feature in document.get(name, []):
-            for member in _NULLABLE_REQUIRED_FEATURE_MEMBERS:
-                feature.setdefault(member, None)
+    _feature_geometry(document, feature_lists)
+    if kind is DocumentKind.PLOT and isinstance(document.get(HISTORY_MEMBER), dict):
+        for step in document[HISTORY_MEMBER].get("steps", []):
+            _feature_geometry(step, ("added", "modified"))
     return document
 
 
@@ -625,8 +759,20 @@ _PASSED: set[tuple[DocumentKind, bytes]] = set()
 _PASSED_MAX = 512
 
 
-def _validate(kind: DocumentKind, document: Any, text: str | bytes | None, build: bool) -> Any:
-    """Check a document, unless its text has passed before. Returns its model if build is set."""
+def _validate(
+    kind: DocumentKind,
+    document: Any,
+    text: str | bytes | None,
+    build: bool,
+    model: BaseModel | None = None,
+) -> Any:
+    """Check a document, unless its text has passed before. Returns its model if build is set.
+
+    model, when given, is the model the document was dumped from: the rules run on
+    it rather than on a model built again from the document, which for a large plot
+    takes longer than every other check together. The JSON Schema check still runs
+    on the document, so whatever the model holds is checked as it would be written.
+    """
     _check_version(kind, document)
     key = None
     if text is not None:
@@ -635,13 +781,12 @@ def _validate(kind: DocumentKind, document: Any, text: str | bytes | None, build
         if key in _PASSED:
             return _MODELS[kind].model_validate(_to_model_shape(kind, document)) if build else None
 
-    errors = sorted(_validator(kind).iter_errors(document), key=lambda e: list(e.path))
+    errors = _schema_errors(_MODELS[kind].__name__, document, _validator(kind))
     if errors:
-        raise DocumentValidationError(
-            [f"{'/'.join(map(str, e.path)) or '<root>'}: {e.message}" for e in errors]
-        )
+        raise DocumentValidationError(errors)
 
-    model = _MODELS[kind].model_validate(_to_model_shape(kind, document))
+    if model is None:
+        model = _MODELS[kind].model_validate(_to_model_shape(kind, document))
     problems = _RULES[kind](model, document)
     if problems:
         raise DocumentValidationError(problems)
@@ -661,11 +806,19 @@ def load_document(kind: DocumentKind | str, source: str | bytes | dict[str, Any]
 
 
 def dump_document(kind: DocumentKind | str, model: BaseModel) -> str:
-    """Serialise a document, validating it first so an invalid file is never written."""
+    """Serialise a document, validating it first so an invalid file is never written.
+
+    Every layer runs, but features that have passed JSON Schema before (in the plot
+    as read, or in a step of its history) are not checked against it again, so a
+    large plot changed by one note, or rebuilt by replaying its steps, is quick to
+    write.
+    """
     kind = DocumentKind(kind)
     document = _to_json_shape(kind, model.model_dump(mode="json", by_alias=True, exclude_none=True))
     text = dump_json(document)
-    _validate(kind, document, text, build=False)
+    # The rules run on the model given when it is of the kind's own class.
+    given = model if type(model) is _MODELS[kind] else None
+    _validate(kind, document, text, build=False, model=given)
     return text
 
 

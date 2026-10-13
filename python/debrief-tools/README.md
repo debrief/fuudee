@@ -31,12 +31,13 @@ It prints `{"port": N, "tools": M}` once it is listening. The VS Code extension:
 
 - `debrief/tools_for_selection` (`{"kinds": ["track", "track"]}`), which returns the names of the tools on offer;
 - `debrief/stores`, `debrief/create_catalogue` and `debrief/import` (`{"store", "path"}`: a REP file, or a legacy `.dpf` plot; returns the new item and what was not imported, `omitted`). `debrief/import_rep` is the same method under its old name;
+- `debrief/add_plot_file` (`{"store", "path", "agent"}`): adds a Debrief plot file received from a colleague, with its whole history, after checking the history's checksums; returns the new `item`, its `title` and how many `steps` came with it;
 - a plot's history (SUB-21), each taking `{"store", "item"}`:
-  - `debrief/open` finishes any change interrupted by a crash and says what it did (`recovered`);
+  - `debrief/open` makes the plot whole (a save a crash interrupted, a history folder to move into the plot file, content edited outside Debrief) and says what it did, or what is wrong with it, in `recovered`;
   - `debrief/history` lists the steps: `seq`, `status` (applied, undone or abandoned), `kind`, `tool`, `agent`, `at`;
   - `debrief/undo`, `debrief/redo` and `debrief/goto` (`"step": n`) move through them.
 
-  Each returns `base` (`{"current", "plot_hash"}`). Pass it back as `base` with the next undo, redo or goto: if the plot was changed elsewhere meanwhile the call fails with code -32001 and nothing changes (SUB-28).
+  Each returns `base` (`{"current", "plot_hash"}`) and `latest`, how many steps the history holds. Pass it back as `base` with the next undo, redo or goto: if the plot was changed elsewhere meanwhile the call fails with code -32001 and nothing changes (SUB-28).
 
 `tools/list` carries each tool's full declaration in `_meta["debrief/declaration"]`. Libraries and tools that are unavailable are listed in the result's `_meta["debrief/unavailable"]`.
 

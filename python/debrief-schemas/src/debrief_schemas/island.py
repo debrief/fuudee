@@ -90,8 +90,9 @@ def set_view_in(document: Any, view: dict[str, Any] | None) -> bool:
 
 
 def dump_json(document: Any) -> str:
-    """JSON text exactly as dump_document writes it."""
-    return json.dumps(document, indent=2, ensure_ascii=False) + "\n"
+    """JSON text exactly as dump_document writes it. Never NaN or Infinity, which
+    Python would write but are not JSON: a value that holds one is refused."""
+    return json.dumps(document, indent=2, ensure_ascii=False, allow_nan=False) + "\n"
 
 
 def view_hash_text(view: dict[str, Any] | None) -> str:

@@ -4,15 +4,18 @@ Layout on disk:
 
     catalog.json                    the catalogue (StacCatalog)
     <item>/<item>.json              one STAC item per plot
-    <item>/plot.geojson             the plot (SUB-05), as of its history's head, with
-                                    its island (view state, outside the history)
-    <item>/history/                 every change to the plot as a delta (SUB-19)
-    <item>/sources/<file>           immutable imported sources (SUB-10)
+    <item>/plot.geojson             the plot (SUB-05): its content, its island (view
+                                    state) and its whole history (SUB-19); the one
+                                    file an analyst passes to a colleague
+    <item>/sources/<file>           immutable imported sources, kept for audit (SUB-10);
+                                    nothing in the plot file needs them
     <item>/media/<file>             supporting files (SUB-06)
     <item>/payloads/<file>          opaque observation payloads (CON-02)
 
 Items are found by walking the folders and checking each item's parent link;
 the catalogue's child links are written as a hint but never trusted (SUB-23).
+The item is catalogue metadata derived from the plot (title, period, bbox):
+the plot file alone is enough to make it again (add_plot_file).
 """
 
 from __future__ import annotations
@@ -40,8 +43,8 @@ from debrief_stac.history import (
     LOCK,
     Base,
     Changes,
-    Conflict,
     History,
+    NoPlotDetails,
     apply,
     baseline_record,
     empty_plot,
@@ -411,8 +414,9 @@ class Catalogue:
     ) -> str:
         """Save a change that conflicts as a new plot (SUB-29). Returns the new item's id.
 
-        The new plot has the history the change was made against, the same
-        sources and files, and then the change. The original is untouched.
+        The new plot has the history the change was made against (every step
+        up to it, unchanged, checksums and all), the same sources and files,
+        and then the change. The original is untouched.
         """
         item = self.read_item(item_id)
         old = self.history(item_id)
@@ -441,9 +445,7 @@ class Catalogue:
                 new_item.assets[key] = asset.model_copy()
             self._write_item(new_item)
             new = self.history(new_id)
-            for seq in old.chain(base.current):
-                delta = old.delta(seq)
-                new.commit(list(delta.records), Changes.of(delta))
+            old.fork_into(new, base.current)
             new.commit(records, changes)
             view, _ = old.view()  # view state goes with the copy, outside its history
             if view is not None and plot_feature(new.plot()) is not None:
@@ -453,6 +455,76 @@ class Catalogue:
             self.discard_plot(new_id)
             raise
         return new_id
+
+    def add_plot_file(
+        self,
+        path: Path,
+        agent: models.AgentRef,
+        *,
+        item_id: str | None = None,
+        allow_newer_schema: bool = False,
+    ) -> str:
+        """Add a plot file received from a colleague, with its whole history (decision 13 Oct).
+
+        The file is one plot.geojson: content, island and history. Its history's
+        checksums are checked first, and a file whose history does not match is
+        refused. Every step comes across unchanged, so undo, redo and going back
+        to a step work as they did for the sender, and every provenance record
+        comes with them; one more step records that the plot was added from the
+        file, and by whom. Sources are not needed: replay uses the recorded
+        outputs. Returns the new item's id.
+        """
+        self._check_schema(allow_newer_schema)
+        path = Path(path)
+        try:
+            text = path.read_text(encoding="utf-8")
+        except UnicodeDecodeError:
+            raise CatalogueError(f"{path.name} was not added: it is not a plot file.") from None
+        stem = re.sub(r"[^A-Za-z0-9._-]+", "-", path.stem).strip("-.") or "plot"
+        if stem == "plot":  # a plot file as a catalogue keeps it: named after its title
+            stem = _slug(_title_in(text)) or stem
+        taken, n = set(self.item_ids()), 2
+        item_id = item_id or stem
+        base_id = item_id
+        while item_id in taken or self.store.exists(item_id):
+            item_id, n = f"{base_id}-{n}", n + 1
+        now = format_utc(int(clock.time() * 1000))
+        record = models.ProvRecord(
+            id=f"added-{uuid.uuid4()}",
+            kind="import",
+            started_at=now,
+            ended_at=now,
+            agent=agent,
+            notes=[
+                f"Added from the plot file {path.name}",
+                f"Added to the catalogue {self.model.title or self.id}",
+            ],
+        )
+        self.create_plot(item_id, path.stem, allow_newer_schema=allow_newer_schema)
+        try:
+            self.history(item_id).adopt(text, [record], path.name)
+            details = plot_feature(self.read_plot(item_id))
+            title = (details.properties.title if details is not None else None) or path.stem
+            # The same plot added twice, or a plot already here sent back with changes:
+            # two plots listed under one title could not be told apart.
+            titles = {s.title for s in self.summaries() if s.item_id != item_id}
+            if title in titles:
+                origin = f"{title} (from {path.name}"
+                title, n = f"{origin})", 2
+                while title in titles:
+                    title, n = f"{origin}, {n})", n + 1
+            if title != path.stem:
+                item = self.read_item(item_id)
+                item.properties.title = title
+                self._write_item(item)
+                for link in self.model.links:
+                    if link.href == f"./{self._item_path(item_id)}":
+                        link.title = title
+                self._save_catalogue()
+        except BaseException:
+            self.discard_plot(item_id)
+            raise
+        return item_id
 
     def discard_plot(self, item_id: str) -> None:
         """Remove a plot this process has just created and could not finish.
@@ -660,12 +732,9 @@ class Catalogue:
         """
         self._check_schema(allow_newer_schema)
         history = self.history(item_id)
-        if view is not None and plot_feature(history.plot()) is None:
-            if expected_hash != view_hash(None):
-                raise Conflict(
-                    "The plot's view was changed elsewhere. Debrief is showing the latest.",
-                    mergeable=False,
-                )
+        try:
+            return history.write_view(view, expected_hash)
+        except NoPlotDetails:  # only once the view is known not to have changed meanwhile
             self._add_plot_feature(item_id, agent)
         return history.write_view(view, expected_hash)
 
@@ -723,17 +792,14 @@ class Catalogue:
         if entries is None:
             return False
         history = self.history(item_id)
-        with self.store.locked(f"{item_id}/history/{LOCK}"):
+        with self.store.locked(f"{item_id}/{LOCK}"):
             if self.legacy_presentation(item_id) is None:  # migrated meanwhile
                 return False
-            history._repair()
-            head = history._read_head()
-            assert head is not None
-            plot = history._current_plot(head)
-            changes = presentation_changes(plot, entries)
+            file = history._writable()
+            changes = presentation_changes(history._content(file), entries)
             if changes.touched():
                 record = _edit_record(agent, _migration_note(entries))
-                history._append(head, plot, [record], changes, history._disk_view())
+                history._commit_locked(file, [record], changes)
             self.store.delete(f"{item_id}/{LEGACY_PRESENTATION_FILE}")
         return True
 
@@ -829,6 +895,25 @@ def _edit_record(agent: models.AgentRef, note: str) -> models.ProvRecord:
         agent=agent,
         notes=[note],
     )
+
+
+def _title_in(text: str) -> str | None:
+    """The title in a plot file's whole-plot feature, if it has one."""
+    try:
+        document = json.loads(text)
+    except (ValueError, RecursionError):
+        return None
+    features = document.get("features") if isinstance(document, dict) else None
+    for feature in features if isinstance(features, list) else []:
+        properties = feature.get("properties") if isinstance(feature, dict) else None
+        if isinstance(properties, dict) and properties.get("kind") == "plot":
+            title = properties.get("title")
+            return title if isinstance(title, str) else None
+    return None
+
+
+def _slug(title: str | None) -> str:
+    return re.sub(r"[^a-z0-9]+", "-", (title or "").lower()).strip("-")
 
 
 def _who(names: list[str]) -> str:

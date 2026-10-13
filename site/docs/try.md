@@ -12,7 +12,8 @@ This is Debrief v4 running in your browser: the same map, tool forms and results
 - **Play.** Press **▶**, or Space on any of the sliders. Choose a speed: at 60× a minute of the exercise passes each second. Playing stops at the end of the window.
 - **A colleague changes the window.** **A colleague changes the time window**, under **Try**, changes it as if from another computer: Debrief shows theirs and says so.
 - **Undo.** Every change is a step in **History**. **Undo** replays the plot to the step before. Nothing is deleted: the undone step stays listed, and **Redo** brings it back.
-- **Crash part-way through a save.** This stops a save after the step is written but before it's made current, as a power cut would. **Reopen the plot**: Debrief finishes the change and says so.
+- **Crash part-way through a save.** This stops a save after the new plot file is written but before it replaces the old one, as a power cut would. **Reopen the plot**: it is exactly as it was before that save, and Debrief says a save was interrupted.
+- **Add a plot file.** Under **Import your own**, choose a Debrief plot file (`.geojson`), such as one a colleague sent you. Its whole history comes with it: undo, redo and going back to a step work on what they did.
 - **Work alongside a colleague.** **A colleague changes the plot** shows what happens when someone else saves a change: Debrief shows the latest and tells you. **…while your next tool runs**, then run a tool: Debrief asks whether to combine the changes or save yours as a new plot. It never overwrites theirs.
 - **Import your own file.** Choose a REP file or a legacy Debrief `.dpf` plot. It's read and imported in your browser, and everything that couldn't be imported is listed.
 

@@ -6,7 +6,8 @@
  */
 import assert from "node:assert/strict";
 import { execFileSync } from "node:child_process";
-import { readFileSync } from "node:fs";
+import { copyFileSync, mkdtempSync, readdirSync, readFileSync } from "node:fs";
+import { tmpdir } from "node:os";
 import path from "node:path";
 import * as vscode from "vscode";
 import type { DebriefApi } from "../../src/extension.js";
@@ -233,15 +234,36 @@ export async function run(): Promise<void> {
     }
   })();
   assert.equal(crashed, 9);
-  // Reopening finishes the interrupted change: nothing is lost (NFR-10). The
-  // undone closest approach is now replaced by it, kept on record.
+  // It died before its new plot file replaced the old one: the plot file is the old one,
+  // whole, so only the change in progress is lost (NFR-10, NFR-11). Reopening says so,
+  // and clears what the dead process left beside it.
+  const folder = path.join(current.store.location, current.item.id);
+  assert.ok(readdirSync(folder).some((name) => name.startsWith(".plot.geojson.") && name.endsWith(".tmp")));
   await vscode.commands.executeCommand("debrief.openPlot", current.store.id, current.item.id);
-  await waitFor("the recovered note", () => api.session.current?.plot.features.some((f) => f.id === "note-before-the-crash") || undefined);
-  assert.deepEqual((await steps()).map((s) => s.status), ["applied", "applied", "abandoned", "applied"]);
-  // An edit made without a tool is named by its note, as in the playground.
-  assert.deepEqual((await steps()).at(-1)?.notes, ["Note added just before a crash"]);
+  await waitFor("the history after the crash", async () => (await steps()).length === 3 || undefined);
+  assert.ok(!api.session.current?.plot.features.some((f) => f.id === "note-before-the-crash"));
+  assert.deepEqual((await steps()).map((s) => s.status), ["applied", "applied", "undone"]);
+  assert.ok(!readdirSync(folder).some((name) => name.endsWith(".tmp")));
   await sleep(1500);
   await screenshot("07-recovered", true);
+
+  // A colleague changes the plot from another process: one plot file, history included,
+  // so the watcher sees the history move on and Debrief shows the latest (SUB-28).
+  execFileSync(python, [
+    "-c",
+    "import sys; from pathlib import Path; from debrief_stac import Catalogue, Changes; from debrief_schemas import models; " +
+      "c = Catalogue.open(Path(sys.argv[1])); who = models.AgentRef(kind='person', name='a colleague'); " +
+      "note = models.AnnotationFeature(type='Feature', id='note-colleague', geometry=None, properties=models.AnnotationProperties(" +
+      "kind='annotation', style='note', name='A colleague was here', time='2023-06-15T09:00:00.000Z')); " +
+      "c.commit(sys.argv[2], [models.ProvRecord(id='edit-colleague', kind='edit', started_at='2023-06-15T09:00:00.000Z', agent=who, " +
+      "notes=['Note added by a colleague'])], Changes(added=[note]))",
+    current.store.location,
+    current.item.id,
+  ]);
+  await waitFor("the colleague's note", () => api.session.current?.plot.features.some((f) => f.id === "note-colleague") || undefined);
+  await waitFor("the colleague's step", async () => (await steps()).length === 4 || undefined);
+  assert.deepEqual((await steps()).map((s) => s.status), ["applied", "applied", "abandoned", "applied"]);
+  assert.deepEqual((await steps()).at(-1)?.notes, ["Note added by a colleague"]);
 
   // --- Colour and hiding (SUB-22): content, so steps in the plot's history ----------
   const feature = (id: string) => ({ feature: { id } });
@@ -253,7 +275,7 @@ export async function run(): Promise<void> {
   // BLUE ONE turns out to be hostile: the analyst colours it red.
   assert.equal(await vscode.commands.executeCommand("debrief.setColour", feature("track-blue-one"), "Red"), undefined);
   assert.notEqual(colourOf("track-blue-one"), blue);
-  assert.equal((await steps()).length, 5); // recorded, like any change
+  assert.equal((await steps()).length, 5); // recorded, like any change (the colleague's note is step 4)
   assert.deepEqual((await steps()).at(-1)?.notes, ["Colour of BLUE ONE set to red"]);
   type Row = { kind: string; current: boolean; nextToUndo: boolean; step: { seq: number } };
   const rows = () => vscode.commands.executeCommand<Row[]>("debrief.historyRows");
@@ -288,4 +310,48 @@ export async function run(): Promise<void> {
   await vscode.commands.executeCommand("debrief.showAllHidden");
   await waitFor("nothing hidden", () => api.hiddenOnMap() === 0 || undefined);
   assert.equal((await steps()).length, 7);
+
+  // --- One file, history included (decision 13 Oct) ---------------------------------
+  // The analyst sends serial 1 to a colleague: the plot file alone, no sources beside it.
+  const outbox = mkdtempSync(path.join(tmpdir(), "debrief-outbox-"));
+  const sent = path.join(outbox, "serial-1-from-ian.geojson");
+  copyFileSync(path.join(folder, "plot.geojson"), sent);
+  // The colleague adds it to their catalogue (here, the same one): every step comes with it.
+  const added = await vscode.commands.executeCommand<{ item?: string; problem?: string }>(
+    "debrief.addPlotFile",
+    { view: { store: { id: current.store.id } } },
+    sent,
+  );
+  assert.equal(added?.problem, undefined);
+  assert.equal(added?.item, "serial-1-from-ian");
+  await vscode.commands.executeCommand("debrief.openPlot", current.store.id, added!.item);
+  await waitFor("the received plot", () => api.session.current?.item.id === added!.item || undefined);
+  await waitFor("its history", async () => (await steps()).length === 8 || undefined);
+  const received = await steps();
+  assert.deepEqual(received.map((s) => s.tool).slice(0, 3), ["debrief-sample", "core.range_rings", "core.closest_approach"]);
+  assert.equal(received.at(-1)?.notes?.[0], "Added from the plot file serial-1-from-ian.geojson");
+  assert.match(received.at(-1)?.notes?.[1] ?? "", /^Added to the catalogue /);
+  assert.equal(api.hiddenOnMap(), 0);
+  // Listed under a title of its own: the plot it came from is in this catalogue too.
+  assert.match(api.session.current?.item.properties.title ?? "", / \(from serial-1-from-ian\.geojson\)$/);
+  // Ctrl+Z would take back the arrival, which shows nothing, with the sender's last step.
+  assert.deepEqual(
+    (await rows()).filter((r) => r.nextToUndo).map((r) => r.step.seq),
+    [8, 7],
+  );
+  await vscode.commands.executeCommand("debrief.history.focus");
+  await sleep(1500);
+  await screenshot("11-received-plot-file", true);
+  // ...and undoes a step the sender made with one Ctrl+Z: the sender's "Show all", taken
+  // back with the step recording the arrival, so the track the sender had hidden is
+  // hidden again.
+  assert.equal(await vscode.commands.executeCommand("debrief.undo"), undefined);
+  await waitFor("the sender's hidden track", () => api.hiddenOnMap() === 1 || undefined);
+  assert.deepEqual((await steps()).slice(-2).map((s) => s.status), ["undone", "undone"]);
+  await vscode.commands.executeCommand("debrief.history.focus");
+  await sleep(1500);
+  await screenshot("12-undid-a-senders-step");
+  // The original is untouched.
+  await vscode.commands.executeCommand("debrief.openPlot", current.store.id, current.item.id);
+  await waitFor("the original", async () => (await steps()).length === 7 || undefined);
 }

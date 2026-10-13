@@ -4,7 +4,8 @@ The protocol is MCP's Streamable HTTP transport (JSON-RPC 2.0, one POST per
 request, JSON responses), so the VS Code extension and any MCP-capable agent
 use the same tools (TL-01, TL-17). Debrief adds methods of its own, named
 debrief/...: debrief/tools_for_selection, so the offering rule lives in
-Python (TL-08); stores, catalogues and import (REP and legacy .dpf); a plot's history
+Python (TL-08); stores, catalogues and import (REP and legacy .dpf); adding a plot
+file received from a colleague, with its whole history (debrief/add_plot_file); a plot's history
 (debrief/open, debrief/history, debrief/undo, debrief/redo, debrief/goto),
 so undo is the same for the extension and an agent (SUB-21); colour and hiding,
 recorded in that history like any change (debrief/set_colour, debrief/set_hidden);
@@ -113,6 +114,7 @@ KNOWN_METHODS = frozenset(
         "debrief/stores",
         "debrief/create_catalogue",
         "debrief/import_rep",
+        "debrief/add_plot_file",
         *HISTORY_METHODS,
     )
 )
@@ -249,6 +251,8 @@ class ToolService:
             return self._create_catalogue(params)
         if method in ("debrief/import", "debrief/import_rep"):
             return self._import(params)
+        if method == "debrief/add_plot_file":
+            return self._add_plot_file(params)
         if method in HISTORY_METHODS:
             return self._history(method, params)
         raise RpcError(METHOD_NOT_FOUND, f"Unknown method {method}")
@@ -345,6 +349,9 @@ class ToolService:
                 out["view_hash"] = view_hash
             head = history.head()
             out["base"] = {"current": head.current, "plot_hash": head.plot_hash}
+            # How many steps the history holds: with base, what tells the extension that
+            # someone else changed the plot, read from the plot file alone (SUB-28).
+            out["latest"] = head.latest
             if method == "debrief/history":
                 out["steps"] = [_step(s) for s in history.steps()]
             return out
@@ -435,6 +442,32 @@ class ToolService:
             "narrative_entries": report.narrative_entries,
             "omitted": report.omitted,
         }
+
+    def _add_plot_file(self, params: dict[str, Any]) -> dict[str, Any]:
+        """Add a plot file received from a colleague (a .geojson plot) to a catalogue,
+        with its whole history, so undo, redo and provenance come with it (decision
+        13 Oct). A file whose history does not match its checksums is refused."""
+        path = params.get("path")
+        store = self._store(params.get("store"), writing=True)
+        if not isinstance(path, str) or not Path(path).is_file():
+            raise RpcError(INVALID_PARAMS, f"{path} is not a file.")
+        try:
+            catalogue = Catalogue.open(Path(store.location))
+            item = catalogue.add_plot_file(
+                Path(path),
+                _agent(params),
+                allow_newer_schema=params.get("allow_newer_schema") is True,
+            )
+            steps = len(catalogue.history(item).steps())
+            title = catalogue.read_item(item).properties.title or item
+        except NewerSchemaError as error:
+            raise RpcError(NEWER_SCHEMA, str(error)) from None
+        except (CatalogueError, HistoryError, OSError, ValueError) as error:
+            message = str(error)
+            if not message.startswith(Path(path).name):
+                message = f"{Path(path).name} could not be added: {message}"
+            raise RpcError(INVALID_PARAMS, message) from None
+        return {"item": item, "title": title, "steps": steps}
 
     def _log_run(
         self, name: str, arguments: dict[str, Any], outcome: dict[str, Any], seconds: float
@@ -559,6 +592,9 @@ def _step(step: Any) -> dict[str, Any]:
         "at": first.ended_at or first.started_at,
         "records": len(step.records),
         "notes": list(first.notes or []),
+        # What undoing it goes back to, and whether undo takes it with the step before.
+        "after": step.after,
+        "records_only": step.records_only,
     }
 
 

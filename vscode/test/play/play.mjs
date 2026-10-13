@@ -190,12 +190,14 @@ try {
   await page.waitForFunction(() => document.getElementById("history")?.textContent?.includes("undone"));
   await shot("play-04-undone");
 
-  // Crash part-way through a save, then reopen: the change is finished.
+  // Crash part-way through a save, then reopen: the plot is whole, as it was before that save,
+  // and only the change in progress is lost (NFR-10, NFR-11).
+  const beforeCrash = await history();
   await page.locator("#crash").click();
   await page.locator("#reopen").click();
-  await page.locator(".toast", { hasText: "Finished saving a change that was interrupted" }).waitFor();
-  assert.match(await history(), /replaced/);
-  assert.match(await history(), /Note added just before a crash/);
+  await page.locator(".toast", { hasText: "A save was interrupted before it finished" }).waitFor();
+  assert.equal(await history(), beforeCrash);
+  assert.doesNotMatch(await history(), /Note added just before a crash/);
   await shot("play-05-recovered");
 
   // A colleague's change while a tool runs: Debrief asks. Escape is Cancel.
@@ -263,6 +265,16 @@ try {
     assert.equal(await page.locator("#plots").inputValue(), "shapes");
     await shot("play-07-imported");
   }
+  // A Debrief plot file, as a colleague would send it: one file, its history included.
+  const sent = path.resolve(root, "sample", "serial-1", "plot.geojson");
+  await page.locator("#file").setInputFiles(sent);
+  await page.locator(".toast", { hasText: "with its history" }).waitFor({ timeout: 60000 });
+  assert.equal(await page.locator("#plots").inputValue(), "serial-1-2");
+  assert.match(await history(), /Added from the plot file plot\.geojson/);
+  assert.match(await history(), /step 1/);
+  await shot("play-07b-plot-file-added");
+  // Back to the plot open before, so what follows starts as it did.
+  if (existsSync(dpf)) await page.selectOption("#plots", "shapes");
   // A REP file with no tracks is refused, quoting what it couldn't read.
   await page.locator("#file").setInputFiles({ name: "junk.rep", mimeType: "text/plain", buffer: Buffer.from("this is junk\n") });
   await page.locator(".toast", { hasText: "no tracks could be read" }).waitFor({ timeout: 60000 });
