@@ -55,7 +55,7 @@ classes:
         description: Its name in full, for hover text and screen readers.
         required: true
       label:
-        description: Its column heading, short enough for a narrow view.
+        description: Its row heading in the Tote, before the unit, short enough for a narrow view.
         required: true
       subject: {range: MeasureSubjectEnum, required: true}
       quantity_kind: {range: QuantityKindEnum, required: true}

@@ -1267,7 +1267,7 @@
           "type": "string"
         },
         "label": {
-          "description": "Its column heading, short enough for a narrow view.",
+          "description": "Its row heading in the Tote, before the unit, short enough for a narrow view.",
           "type": "string"
         },
         "quantity_kind": {

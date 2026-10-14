@@ -1099,7 +1099,7 @@ export interface MeasureDefinition {
    */
   id: string;
   /**
-   * Its column heading, short enough for a narrow view.
+   * Its row heading in the Tote, before the unit, short enough for a narrow view.
    */
   label: string;
   quantity_kind: QuantityKindEnum;

@@ -2903,7 +2903,7 @@ class MeasureDefinition(ConfiguredBaseModel):
                        'MeasureDefinition',
                        'MeasureGroup',
                        'KnownStore']} })
-    label: str = Field(default=..., description="""Its column heading, short enough for a narrow view.""", json_schema_extra = { "linkml_meta": {'domain_of': ['FixMark', 'MeasureDefinition']} })
+    label: str = Field(default=..., description="""Its row heading in the Tote, before the unit, short enough for a narrow view.""", json_schema_extra = { "linkml_meta": {'domain_of': ['FixMark', 'MeasureDefinition']} })
     subject: MeasureSubjectEnum = Field(default=..., json_schema_extra = { "linkml_meta": {'domain_of': ['MeasureDefinition']} })
     quantity_kind: QuantityKindEnum = Field(default=..., json_schema_extra = { "linkml_meta": {'domain_of': ['PayloadColumn',
                        'ParameterDeclaration',

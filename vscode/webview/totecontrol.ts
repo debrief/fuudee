@@ -7,49 +7,52 @@
  * Python for the values at each time (debrief/tote) and shows them here; this
  * only formats them (SUB-04) and lets the analyst choose the tracks.
  *
- * - The primary is chosen from a list above the table, and its own measures (course,
- *   speed, depth) are written under it, each with its label. Secondaries are added from a
- *   list below the table; each has a remove button (×) in the table's last column. Every
+ * - Legacy Debrief's table (decision, 14 Oct 2026): a row a measure, a column a track.
+ *   The first column holds the row headings, each a measure's short name with the unit
+ *   its values are in ("Range nmi", "Brg °T"); the cells hold figures only. A value in
+ *   another unit keeps its own: a close range, "1070 yd". Then the primary's column (its
+ *   name in bold; blank where a measure is between tracks), then one column a secondary,
+ *   its colour, name (onto two lines where room is short; cut short beyond, in full on
+ *   hover) and remove button (×) in the heading.
+ * - One layout at every width: where the columns do not fit (a sidebar, a phone), the
+ *   row headings stay put and the tracks scroll sideways inside the table, never the page.
+ * - A track with no data at current time has a column of dashes, and says why under the
+ *   table ("Cargo 01 Starts 08:00:01Z").
+ * - The primary is chosen from a list above the table, secondaries are added from a list
+ *   below it, and a box turns the map's lines (primary to each secondary) on or off. Every
  *   choice is saved in the plot's island at once (view state: never a step, never undone).
- * - The table has one row of headings and a line for each secondary. Narrow, as in a
- *   sidebar: the track's name across the table, then its range, bearing and relative
- *   bearing under their headings, then its angle on the bow, bearing rate and own
- *   measures, each labelled as the primary's are. Wide (600 px): one line a track, every
- *   measure under its heading. Long names are cut short (in full on hover); nothing
- *   scrolls sideways down to about 200 px. A track with no data at current time says
- *   when it has.
- * - A box under the lists turns the map's lines (primary to each secondary at current
- *   time) on or off; saved in the island with the rest of the choice.
- * - Keyboard: Tab reaches the lists, each secondary and its remove button; Delete or
- *   Backspace on a secondary removes it. Every value has its measure's full name on
- *   hover and for screen readers.
+ * - Keyboard: Tab reaches the lists, each secondary's remove button and the box; Enter,
+ *   Space, Delete or Backspace on a remove button removes that secondary. Values change in
+ *   place many times a second while playing, so the keyboard stays where it is.
  */
 import { DEFAULT_SETTINGS, type FormatSettings } from "@debrief/kernel";
-import type { MeasureDefinition, ToteResult, ToteTrack, ToteView } from "@debrief/schemas";
-import { mapLinesOn, toteLines, withMapLines, withoutSecondary, withPrimary, withSecondaries, type ToteLine } from "./totelogic.js";
+import type { ToteResult, ToteTrack, ToteView } from "@debrief/schemas";
+import { mapLinesOn, toteHeadings, toteLines, withMapLines, withoutSecondary, withPrimary, withSecondaries, type ToteHeading, type ToteLine } from "./totelogic.js";
 
 export interface ToteControlHost {
   /** The analyst changed the choice of tracks: save it in the plot's island. */
   changed(view: ToteView): void;
 }
 
-/** Where the Tote is this wide, in CSS pixels, each track's values fit on one line. */
-const WIDE_PX = 600;
-/** Otherwise, the first three measures between tracks under their headings (range, bearing, relative bearing); the rest labelled. */
-const NARROW_COLUMNS = 3;
+/** A cell's hover: why a track has no value now, or a value in full where the cell shows its figures alone ("Range from the primary" is the row's). */
+const cellTitle = (line: ToteLine, value: { text: string; shown: string }) =>
+  !line.ok ? (line.note ?? "No data at current time") : value.text && value.text !== value.shown ? value.text : "";
 
 const escape = (text: string) => text.replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[c]!);
-
 
 export class ToteControl {
   private tracks: ToteTrack[] = [];
   private view: ToteView = {};
   private result?: ToteResult;
-  private wide = false;
+  /** What the table was last built from, less its values: the same again, and only values change. */
+  private shape = "";
+  private whyShown = "";
   private readonly primary: HTMLSelectElement;
   private readonly add: HTMLSelectElement;
+  private readonly scroll: HTMLElement;
   private readonly table: HTMLTableElement;
-  private readonly primaryOwn: HTMLElement;
+  private readonly why: HTMLElement;
+  private readonly hint: HTMLElement;
   private readonly note: HTMLElement;
   private readonly status: HTMLElement;
   private readonly mapLines: HTMLInputElement;
@@ -65,16 +68,19 @@ export class ToteControl {
     element.setAttribute("aria-label", "Tote");
     element.innerHTML =
       `<label class="tote-pick"><span>Primary</span><select class="tote-primary" aria-label="Tote primary track"></select></label>` +
-      `<div class="tote-own tote-primary-own" role="group" hidden></div>` +
-      `<div class="tote-scroll"><table class="tote-table" aria-label="Tote: secondaries at current time, measured from the primary"><thead></thead></table></div>` +
+      `<div class="tote-scroll" hidden><table class="tote-table" aria-label="Tote"><thead></thead><tbody></tbody></table></div>` +
+      `<ul class="tote-whys" hidden></ul>` +
+      `<p class="tote-hint" hidden></p>` +
       `<p class="tote-note" hidden></p>` +
       `<label class="tote-pick"><span>Add</span><select class="tote-add" aria-label="Add a secondary track to the Tote"></select></label>` +
       `<label class="tote-check"><input type="checkbox" class="tote-lines"> Lines on the map</label>` +
       `<p class="tote-status" aria-live="polite"></p>`;
     this.primary = element.querySelector(".tote-primary")!;
     this.add = element.querySelector(".tote-add")!;
+    this.scroll = element.querySelector(".tote-scroll")!;
     this.table = element.querySelector(".tote-table")!;
-    this.primaryOwn = element.querySelector(".tote-primary-own")!;
+    this.why = element.querySelector(".tote-whys")!;
+    this.hint = element.querySelector(".tote-hint")!;
     this.note = element.querySelector(".tote-note")!;
     this.status = element.querySelector(".tote-status")!;
     this.mapLines = element.querySelector(".tote-lines")!;
@@ -93,21 +99,11 @@ export class ToteControl {
       if (button) this.remove(button.dataset.track!);
     });
     this.table.addEventListener("keydown", (event) => {
-      const line = (event.target as HTMLElement).closest<HTMLElement>("tbody[data-track][tabindex]");
-      if (!line || (event.key !== "Delete" && event.key !== "Backspace")) return;
+      const button = (event.target as HTMLElement).closest<HTMLButtonElement>("button.tote-remove");
+      if (!button || (event.key !== "Delete" && event.key !== "Backspace")) return;
       event.preventDefault();
-      this.remove(line.dataset.track!);
+      this.remove(button.dataset.track!);
     });
-    // One line per track where there is room for it, two where there is not.
-    if (typeof ResizeObserver !== "undefined") {
-      new ResizeObserver(() => {
-        const wide = element.clientWidth >= WIDE_PX;
-        if (wide === this.wide) return;
-        this.wide = wide;
-        element.classList.toggle("tote-wide", wide);
-        this.renderTable();
-      }).observe(element);
-    }
     this.render();
   }
 
@@ -148,15 +144,15 @@ export class ToteControl {
     this.host.changed(view);
   }
 
-  private lines(): HTMLElement[] {
-    return Array.from(this.table.querySelectorAll<HTMLElement>("tbody[data-track][tabindex]"));
+  private buttons(): HTMLButtonElement[] {
+    return Array.from(this.table.querySelectorAll<HTMLButtonElement>("button.tote-remove"));
   }
 
   private remove(id: string): void {
-    const at = this.lines().findIndex((l) => l.dataset.track === id);
+    const at = this.buttons().findIndex((b) => b.dataset.track === id);
     this.choose(withoutSecondary(this.view, id), `${this.nameOf(id)} removed from the Tote.`);
-    // Keep the keyboard where it was: the next track, else the one before, else the list to add from.
-    const rest = this.lines();
+    // Keep the keyboard where it was: the next track's ×, else the one before, else the list to add from.
+    const rest = this.buttons();
     (rest[Math.min(at, rest.length - 1)] ?? this.add).focus();
   }
 
@@ -178,62 +174,70 @@ export class ToteControl {
     this.renderTable();
   }
 
+  /** The columns in order: the primary, then the secondaries as chosen; a track just chosen shows its name until its values arrive. */
+  private columns(): { line: ToteLine; primary: boolean }[] {
+    const lines = this.result ? toteLines(this.result, this.settings) : { secondaries: [] as ToteLine[] };
+    const byTrack = new Map(lines.secondaries.map((l) => [l.track, l]));
+    const primary = this.view.primary;
+    return [
+      ...(primary ? [{ line: lines.primary?.track === primary ? lines.primary : this.waiting(primary), primary: true }] : []),
+      ...(this.view.secondaries ?? []).map((id) => ({ line: byTrack.get(id) ?? this.waiting(id), primary: false })),
+    ];
+  }
+
   private renderTable(): void {
     const result = this.result;
-    const measures: MeasureDefinition[] = result?.measures ?? [];
-    const head = this.table.tHead!;
-    const secondaries = this.view.secondaries ?? [];
-    this.note.hidden = true;
-    // Values arrive many times a second while playing: the keyboard stays where it was.
-    const active = document.activeElement as HTMLElement | null;
-    const focused = active && this.table.contains(active) ? active.closest<HTMLElement>("tbody[data-track]")?.dataset.track : undefined;
-    const onButton = !!active?.classList.contains("tote-remove");
-    for (const body of Array.from(this.table.tBodies)) body.remove();
-    const lines = result ? toteLines(result, this.settings) : { secondaries: [] as ToteLine[] };
-    const relative = measures.filter((m) => m.subject === "relative");
-    // Narrow, the first few measures between tracks have columns; the rest are labelled, before the track's own.
-    const columned = this.wide ? relative : relative.slice(0, NARROW_COLUMNS);
-    const labelled = measures.filter((m) => !columned.includes(m));
-    const own = measures.filter((m) => m.subject !== "relative");
-    // The primary: its own measures under the list it is chosen from, each labelled.
+    const headings = toteHeadings(result?.measures ?? [], this.settings);
+    const columns = this.columns();
     const primary = this.view.primary;
-    this.primaryOwn.hidden = !primary;
-    if (primary) {
-      const line = lines.primary?.track === primary ? lines.primary : this.waiting(primary);
-      this.primaryOwn.dataset.track = primary;
-      this.primaryOwn.setAttribute("aria-label", `${line.name}, the primary, at current time`);
-      this.primaryOwn.innerHTML = this.swatch(line) + (line.ok ? this.pairs(line, own) : `<span class="tote-why">${escape(line.note ?? "No data at current time")}</span>`);
-    }
-    if (!secondaries.length) {
-      head.innerHTML = "";
-      const hint = !this.tracks.length
-        ? ""
-        : primary
-          ? "Add the tracks to measure from the primary; or right-click a track in the outline (press and hold on a touch screen)."
-          : "Choose a primary track, then add the tracks to measure from it; or right-click a track in the outline (press and hold on a touch screen).";
-      if (hint) this.table.insertAdjacentHTML("beforeend", `<tbody><tr><td class="tote-hint">${escape(hint)}</td></tr></tbody>`);
-      return;
-    }
-    // One row of headings: wide, every measure; narrow, the first three between tracks.
-    const heading = (m: MeasureDefinition) => `<th scope="col" title="${escape(m.title)}" abbr="${escape(m.title)}">${escape(m.label)}</th>`;
-    const act = `<th scope="col" class="tote-act"><span class="tote-sr">Remove</span></th>`;
-    const bands = this.wide ? [[...relative, ...own]] : [columned];
-    const width = Math.max(1, ...bands.map((b) => b.length));
-    const pad = (n: number) => (n > 0 ? `<td colspan="${n}" class="tote-pad"></td>` : "");
-    // Narrow, each × sits at the end of its track's name, over the last column: no column of its own to make room for.
-    head.innerHTML = this.wide
-      ? `<tr><th scope="col" class="tote-track">Track</th>${bands[0].map(heading).join("")}${act}</tr>`
-      : bands.map((band) => `<tr>${band.map(heading).join("")}${pad(width - band.length)}</tr>`).join("") || `<tr>${pad(1)}</tr>`;
-    const byTrack = new Map(lines.secondaries.map((l) => [l.track, l]));
-    // In the order chosen; a track just added shows its name until its values arrive.
-    this.table.insertAdjacentHTML("beforeend", secondaries.map((id) => this.line(byTrack.get(id) ?? this.waiting(id), bands, labelled, width)).join(""));
-    if (focused) {
-      const again = this.table.querySelector<HTMLElement>(`tbody[data-track="${CSS.escape(focused)}"]`);
-      (onButton ? again?.querySelector<HTMLElement>("button.tote-remove") : again)?.focus();
-    }
-    if (result?.note) {
-      this.note.textContent = result.note;
-      this.note.hidden = false;
+    const secondaries = this.view.secondaries ?? [];
+
+    const hint = !this.tracks.length || secondaries.length
+      ? ""
+      : primary
+        ? "Add the tracks to measure from the primary; or right-click a track in the outline (press and hold on a touch screen)."
+        : "Choose a primary track, then add the tracks to measure from it; or right-click a track in the outline (press and hold on a touch screen).";
+    this.hint.textContent = hint;
+    this.hint.hidden = !hint;
+    this.note.textContent = result?.note ?? "";
+    this.note.hidden = !result?.note || !columns.length;
+    this.scroll.hidden = !columns.length;
+
+    // Why a track has no values now, under the table, where a phone can read it.
+    const whys = columns.filter((c) => !c.line.ok);
+    this.why.hidden = !whys.length;
+    const why = whys
+      .map(({ line }) => `<li data-track="${escape(line.track)}"><span class="tote-why-name">${escape(line.name)}</span> <span class="tote-why">${escape(line.note ?? "No data at current time")}</span></li>`)
+      .join("");
+    if (why !== this.whyShown) this.why.innerHTML = this.whyShown = why;
+
+    const shape = JSON.stringify([headings, columns.map(({ line, primary }) => [line.track, line.name, line.colour, line.ok, line.note, primary])]);
+    if (shape === this.shape) return this.refresh(columns);
+    this.shape = shape;
+    // Rebuilt: the keyboard goes back to the remove button it was on.
+    const active = document.activeElement as HTMLElement | null;
+    const focused = active && this.table.contains(active) ? active.dataset.track : undefined;
+    this.table.tHead!.innerHTML = columns.length ? `<tr><td class="tote-corner"></td>${columns.map((c) => this.heading(c.line, c.primary)).join("")}</tr>` : "";
+    this.table.tBodies[0].innerHTML = headings.map((h, row) => this.row(h, row, headings, columns)).join("");
+    if (focused) this.table.querySelector<HTMLElement>(`button.tote-remove[data-track="${CSS.escape(focused)}"]`)?.focus();
+  }
+
+  /** Values alone changed: written into the cells already there, so nothing moves and focus stays. */
+  private refresh(columns: { line: ToteLine }[]): void {
+    const rows = this.table.tBodies[0].rows;
+    for (let r = 0; r < rows.length; r++) {
+      const cells = rows[r].cells;
+      columns.forEach(({ line }, c) => {
+        const cell = cells[c + 1];
+        const value = line.cells[r];
+        if (!cell || !value) return;
+        if (cell.textContent !== value.shown) cell.textContent = value.shown;
+        const title = cellTitle(line, value);
+        if ((cell.getAttribute("title") ?? "") !== title) {
+          if (title) cell.setAttribute("title", title);
+          else cell.removeAttribute("title");
+        }
+      });
     }
   }
 
@@ -241,48 +245,38 @@ export class ToteControl {
     return line.colour ? `<span class="tote-swatch" style="background:${escape(line.colour)}" aria-hidden="true"></span>` : "";
   }
 
-  /** A track's own measures, each with its label: "Crse 225.0°T", read aloud as "Course 225.0°T". */
-  private pairs(line: ToteLine, measures: MeasureDefinition[]): string {
-    return measures
-      .map((m) => {
-        const text = line.cells.find((c) => c.measure === m.id)?.text ?? "";
-        return (
-          `<span class="tote-pair" title="${escape(m.title)}"><span class="tote-label" aria-hidden="true">${escape(m.label)}</span>` +
-          `<span class="tote-sr">${escape(m.title)} </span><span class="tote-value" data-measure="${escape(m.id)}">${escape(text)}</span></span>`
-        );
+  /** A track's column heading: its colour and name; a secondary's remove button; the primary's name in bold. */
+  private heading(line: ToteLine, primary: boolean): string {
+    const label = `Remove ${escape(line.name)} from the Tote`;
+    const button = primary
+      ? ""
+      : `<button type="button" class="tote-remove" data-track="${escape(line.track)}" title="${label}" aria-label="${label}" aria-keyshortcuts="Delete">×</button>`;
+    const title = primary ? `${line.name}, the primary` : line.name;
+    const why = line.ok ? "" : `: ${line.note ?? "No data at current time"}`;
+    const classes = ["tote-col", primary ? "tote-col-primary" : "", line.ok ? "" : "tote-no-data"].filter(Boolean).join(" ");
+    return (
+      `<th scope="col" class="${classes}" data-track="${escape(line.track)}" title="${escape(title + why)}">` +
+      `<span class="tote-who">${this.swatch(line)}<span class="tote-name">${escape(line.name)}</span>${primary ? `<span class="tote-sr">, the primary</span>` : ""}${button}</span></th>`
+    );
+  }
+
+  /** One measure's row: its heading with the unit, then a value for each track. */
+  private row(heading: ToteHeading, row: number, headings: ToteHeading[], columns: { line: ToteLine; primary: boolean }[]): string {
+    // A quiet rule where the measures between tracks give way to each track's own.
+    const first = row > 0 && heading.subject !== headings[row - 1].subject ? ` class="tote-group"` : "";
+    const unit = heading.unit ? ` <span class="tote-unit">${escape(heading.unit)}</span>` : "";
+    const cells = columns
+      .map(({ line, primary }) => {
+        const value = line.cells[row] ?? { text: "", shown: "" };
+        const title = cellTitle(line, value);
+        const classes = [primary ? "tote-col-primary" : "", line.ok ? "" : "tote-no-data"].filter(Boolean).join(" ");
+        return `<td data-track="${escape(line.track)}" data-measure="${escape(heading.measure)}"${classes ? ` class="${classes}"` : ""}${title ? ` title="${escape(title)}"` : ""}>${escape(value.shown)}</td>`;
       })
       .join("");
+    return `<tr${first} data-measure="${escape(heading.measure)}"><th scope="row" title="${escape(heading.title)}">${escape(heading.label)}${unit}</th>${cells}</tr>`;
   }
 
   private waiting(id: string): ToteLine {
     return { track: id, name: this.nameOf(id), ok: true, cells: [] };
-  }
-
-  /** One secondary: a tbody of its own, its remove button at the end of its first line. */
-  private line(line: ToteLine, bands: MeasureDefinition[][], labelled: MeasureDefinition[], width: number): string {
-    const label = `Remove ${escape(line.name)} from the Tote`;
-    const button = `<button class="tote-remove" data-track="${escape(line.track)}" title="${label}" aria-label="${label}">×</button>`;
-    const remove = `<td class="tote-act">${button}</td>`;
-    const who = `<span class="tote-who">${this.swatch(line)}<span class="tote-name" title="${escape(line.name)}">${escape(line.name)}</span></span>`;
-    const value = (m: MeasureDefinition) => `<td data-measure="${escape(m.id)}" title="${escape(m.title)}">${escape(line.cells.find((c) => c.measure === m.id)?.text ?? "")}</td>`;
-    const pad = (n: number) => (n > 0 ? `<td colspan="${n}" class="tote-pad"></td>` : "");
-    const why = (span: number) => `<td class="tote-why" colspan="${span}">${escape(line.note ?? "No data at current time")}</td>`;
-    const rows: string[] = [];
-    if (this.wide) {
-      rows.push(`<tr><th scope="row" class="tote-track">${who}</th>${line.ok ? bands[0].map(value).join("") : why(width)}${remove}</tr>`);
-    } else {
-      rows.push(
-        width > 1
-          ? `<tr class="tote-name-row"><th scope="rowgroup" class="tote-track" colspan="${width - 1}">${who}</th>${remove}</tr>`
-          : `<tr class="tote-name-row"><th scope="rowgroup" class="tote-track">${who}${button}</th></tr>`,
-      );
-      if (!line.ok) rows.push(`<tr>${why(width)}</tr>`);
-      else {
-        for (const band of bands) rows.push(`<tr>${band.map(value).join("")}${pad(width - band.length)}</tr>`);
-        if (labelled.length) rows.push(`<tr><td class="tote-own-cell" colspan="${width}"><div class="tote-own">${this.pairs(line, labelled)}</div></td></tr>`);
-      }
-    }
-    const classes = ["tote-line", line.ok ? "" : "tote-no-data"].filter(Boolean).join(" ");
-    return `<tbody class="${classes}" data-track="${escape(line.track)}" tabindex="0" aria-keyshortcuts="Delete" title="Delete removes ${escape(line.name)} from the Tote">${rows.join("")}</tbody>`;
   }
 }

@@ -16,7 +16,7 @@ import { playShear } from "./shear.mjs";
 import { playTracks } from "./tracks.mjs";
 import { playCleaning } from "./cleaning.mjs";
 import { playFixDrag } from "./fixdrag.mjs";
-import { playTote } from "./tote.mjs";
+import { playTote, stickyHeadings } from "./tote.mjs";
 
 const root = path.resolve(process.argv[2] ?? "../site/docs/play");
 const site = process.argv[3] ? path.resolve(process.argv[3]) : undefined;
@@ -611,8 +611,9 @@ try {
 
   /**
    * VS Code's Tote view page (dist/webview/tote.js), at a sidebar's usual width: the values
-   * of a show_tote message fit without scrolling sideways, two lines of three to a track;
-   * Delete on a secondary asks the host to remove it, and the primary list to change it.
+   * of a show_tote message in legacy Debrief's table, a row a measure and a column a track;
+   * the page never scrolls sideways, the tracks scroll inside the table under row headings
+   * that stay put; Delete on a secondary's × asks the host to remove it.
    */
   async function vscodeToteView() {
     const extension = path.resolve(import.meta.dirname, "..", "..");
@@ -635,30 +636,44 @@ try {
     for (let i = 0; i < 50 && !posted.some((m) => m.kind === "ready"); i++) await view.waitForTimeout(100);
     const fixture = JSON.parse(readFileSync(path.resolve(extension, "..", "schemas/fixtures/webview_message/valid/show-tote.json"), "utf8"));
     await view.evaluate((message) => window.postMessage(message, "*"), fixture);
-    await view.locator("#tote tbody[data-track]").first().waitFor();
+    await view.locator('#tote td[data-track="track-red-one"]').first().waitFor();
     assert.equal(await view.locator(".empty").isHidden(), true);
-    assert.ok(await view.evaluate(() => document.documentElement.scrollWidth <= innerWidth), "the Tote view scrolls sideways");
-    assert.equal(await view.locator('#tote td[data-measure="relative_bearing"]').first().innerText(), "R024.5°");
+    // A row a measure, its unit in its heading; a column a track, the primary first.
+    assert.deepEqual(await view.locator('#tote tbody th[scope="row"]').allInnerTexts(), ["Range nmi", "Brg °T", "Rel °", "AOB °", "Brg rate °/min", "Crse °T", "Spd kn", "Depth m"]);
+    assert.deepEqual(await view.locator('#tote thead th[scope="col"] .tote-name').allInnerTexts(), ["BLUE ONE", "RED ONE", "Tug 01", "track-gone"]);
+    assert.equal(await view.locator("#tote .tote-table").getAttribute("aria-label"), "Tote");
+    // Figures only; a close range keeps its yards.
+    assert.deepEqual(await view.locator('#tote td[data-track="track-red-one"]').allInnerTexts(), ["1350 yd", "200.5", "R024.5", "G135.0", "-0.8", "230.0", "6.0", "20.0"]);
+    assert.deepEqual(await view.locator('#tote td[data-track="track-blue-one"]').allInnerTexts(), ["", "", "", "", "", "225.0", "12.0", "—"]);
+    // No data: a column of dashes, and why under the table.
+    assert.deepEqual([...new Set(await view.locator('#tote td[data-track="track-tug-01"]').allInnerTexts())], ["—"]);
     assert.equal(await view.locator("#tote .tote-why").first().innerText(), "Ended 10:35:00Z");
-    // The primary on its own, labelled; one row of headings over the table; the × in its own column.
-    assert.deepEqual(await view.locator("#tote .tote-primary-own [data-measure]").allInnerTexts(), ["225.0°T", "12.0 kn", "—"]);
-    assert.deepEqual(await view.locator("#tote thead th:not(.tote-act)").allInnerTexts(), ["Range", "Brg", "Rel"]);
+    assert.equal(await view.locator("#tote .tote-whys li").nth(1).innerText(), "track-gone No longer in the plot");
+    // The × in each secondary's heading, named for screen readers.
+    assert.deepEqual(await view.locator("#tote thead button.tote-remove").evaluateAll((bs) => bs.map((b) => b.getAttribute("aria-label"))), [
+      "Remove RED ONE from the Tote",
+      "Remove Tug 01 from the Tote",
+      "Remove track-gone from the Tote",
+    ]);
+    // Never the page sideways; the table inside itself, its row headings staying put.
+    const pageSideways = () => view.evaluate(() => document.documentElement.scrollWidth > innerWidth);
+    const scroll = view.locator("#tote .tote-scroll");
+    assert.equal(await pageSideways(), false, "at 290 px, the page does not scroll sideways");
+    await stickyHeadings(scroll, "at 290 px");
     await shot("tote-vscode-view", view);
-    // Narrower still, as the side column of a demo in a blog post: nothing scrolls sideways.
-    const sideways = () => view.evaluate(() => [document.documentElement, document.querySelector(".tote-scroll")].some((e) => e.scrollWidth > e.clientWidth));
+    // Narrower still, as the side column of a demo in a blog post.
     await view.setViewportSize({ width: 210, height: 300 });
     await view.waitForTimeout(100);
-    assert.equal(await sideways(), false, "at 210 px, the Tote fits");
-    // Wide: a line a track, every measure under its heading.
+    assert.equal(await pageSideways(), false, "at 210 px, the page does not scroll sideways");
+    await stickyHeadings(scroll, "at 210 px");
+    // Wide: every track in view, nothing to scroll.
     await view.setViewportSize({ width: 680, height: 300 });
-    await view.waitForFunction(() => document.querySelector("#tote")?.classList.contains("tote-wide"));
-    assert.deepEqual(await view.locator("#tote thead th:not(.tote-act)").allInnerTexts(), ["Track", "Range", "Brg", "Rel", "AOB", "Brg rate", "Crse", "Spd", "Depth"]);
-    assert.equal(await view.locator('#tote tbody[data-track="track-red-one"] tr').count(), 1);
-    assert.equal(await sideways(), false, "wide, the Tote fits");
+    await view.waitForTimeout(100);
+    assert.equal(await pageSideways(), false, "at 680 px, the page does not scroll sideways");
+    assert.ok(await scroll.evaluate((s) => s.scrollWidth <= s.clientWidth), "at 680 px, the table fits");
     await view.setViewportSize({ width: 290, height: 300 });
-    await view.waitForFunction(() => !document.querySelector("#tote")?.classList.contains("tote-wide"));
-    // Delete on RED ONE: the host is asked to save the Tote without it.
-    await view.locator('#tote tbody[data-track="track-red-one"]').focus();
+    // Delete on RED ONE's ×: the host is asked to save the Tote without it.
+    await view.locator('#tote button.tote-remove[data-track="track-red-one"]').focus();
     await view.keyboard.press("Delete");
     for (let i = 0; i < 20 && !posted.some((m) => m.kind === "tote_changed"); i++) await view.waitForTimeout(50);
     assert.deepEqual(posted.find((m) => m.kind === "tote_changed")?.tote_view, { primary: "track-blue-one", secondaries: ["track-tug-01", "track-gone"] });
@@ -783,10 +798,13 @@ try {
     assert.equal(await toting.locator("#panel-tote").isVisible(), true);
     await toting.locator("#tote .tote-primary").selectOption({ label: "BLUE ONE" });
     await toting.locator("#tote .tote-add").selectOption({ label: "RED ONE" });
-    await toting.locator('#tote td[data-measure="range"]', { hasText: / (nmi|yd)$/ }).waitFor();
-    // The demo's side column is narrow: the Tote fits it without scrolling sideways.
-    const fit = await toting.locator("#tote .tote-scroll").evaluate((e) => ({ needs: e.scrollWidth, has: e.clientWidth, cells: [...e.querySelectorAll("tr")].map((r) => [...r.cells].map((c) => `${c.className}:${Math.round(c.getBoundingClientRect().width)}:${c.textContent}`).join("|")) }));
-    assert.ok(fit.needs <= fit.has, `the Tote fits the demo's side column: ${JSON.stringify(fit)}`);
+    await toting.locator('#tote td[data-track="track-red-one"][data-measure="range"]', { hasText: /^(\d+\.\d\d|\d+ yd)$/ }).waitFor();
+    // The demo's side column is narrow: the demo's page never scrolls sideways; where the
+    // tracks need more room, they scroll inside the table under row headings that stay put.
+    assert.ok(await toting.locator("html").evaluate((e) => e.scrollWidth <= e.clientWidth), "the demo's page does not scroll sideways");
+    assert.ok(await toting.locator("#panel-tote").evaluate((e) => e.scrollWidth <= e.clientWidth), "the Tote does not widen the demo's side column");
+    const scroll = toting.locator("#tote .tote-scroll");
+    if (await scroll.evaluate((e) => e.scrollWidth > e.clientWidth)) await stickyHeadings(scroll, "in the post's demo");
     await post.locator(".debrief-demo").first().scrollIntoViewIfNeeded();
     await shot("tote-06-in-the-post", post);
     siteServer.close();

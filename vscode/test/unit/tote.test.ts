@@ -18,6 +18,9 @@ import {
   toteMapLines,
   toteOf,
   ToteRequests,
+  cellText,
+  splitUnit,
+  toteHeadings,
   toteTracks,
   withMapLines,
   withoutSecondary,
@@ -148,12 +151,32 @@ describe("the Tote's values, written with the analyst's settings (SUB-04)", () =
     expect(formatMeasure(definition("bearing"), { value: 200.5, unit: "deg" }, settings)).toBe("201°T");
     expect(formatMeasure(definition("depth"), { value: 20, unit: "m" }, settings)).toBe("65.6 ft");
   });
+  it("heads each row with its measure and the unit its values are in, as the analyst has set units (decision, 14 Oct 2026)", () => {
+    const heads = (settings = DEFAULT_SETTINGS) => toteHeadings(shown.measures, settings).map((h) => `${h.label} ${h.unit}`.trim());
+    expect(heads()).toEqual(["Range nmi", "Brg °T", "Rel °", "AOB °", "Brg rate °/min", "Crse °T", "Spd kn", "Depth m"]);
+    const imperial = { ...DEFAULT_SETTINGS, length_unit: "[yd_i]" as const, speed_unit: "m/s" as const };
+    expect(heads(imperial)).toEqual(["Range yd", "Brg °T", "Rel °", "AOB °", "Brg rate °/min", "Crse °T", "Spd m/s", "Depth ft"]);
+    expect(heads({ ...DEFAULT_SETTINGS, length_unit: "km" as const, speed_unit: "km/h" as const })).toEqual([
+      "Range km", "Brg °T", "Rel °", "AOB °", "Brg rate °/min", "Crse °T", "Spd km/h", "Depth m",
+    ]);
+  });
+  it("shows figures alone under the heading's unit; a close range keeps its yards", () => {
+    expect(splitUnit("R024.5°")).toEqual({ figures: "R024.5", unit: "°" });
+    expect(splitUnit("-0.8°/min")).toEqual({ figures: "-0.8", unit: "°/min" });
+    expect(splitUnit("—")).toEqual({ figures: "—", unit: "" });
+    expect(cellText("1.35 nmi", "nmi")).toBe("1.35");
+    expect(cellText("1070 yd", "nmi")).toBe("1070 yd");
+    expect(cellText("000.0°", "°")).toBe("000.0");
+    expect(cellText("—", "m")).toBe("—");
+    expect(cellText("", "m")).toBe("");
+  });
   it("lays out the primary with its own measures, then each secondary, saying why one has none", () => {
     const { primary, secondaries } = toteLines(shown);
-    expect(primary!.cells.map((c) => c.text)).toEqual(["", "", "", "", "", "225.0°T", "12.0 kn", "—"]);
+    expect(primary!.cells.map((c) => c.shown)).toEqual(["", "", "", "", "", "225.0", "12.0", "—"]);
     expect(secondaries[0].cells.map((c) => c.text)).toEqual(["1350 yd", "200.5°T", "R024.5°", "G135.0°", "-0.8°/min", "230.0°T", "6.0 kn", "20.0 m"]);
+    expect(secondaries[0].cells.map((c) => c.shown)).toEqual(["1350 yd", "200.5", "R024.5", "G135.0", "-0.8", "230.0", "6.0", "20.0"]);
     expect(secondaries[1]).toMatchObject({ track: "track-tug-01", ok: false, note: "Ended 10:35:00Z" });
-    expect(secondaries[1].cells.every((c) => c.text === "")).toBe(true);
+    expect(secondaries[1].cells.every((c) => c.shown === "—")).toBe(true);
     expect(secondaries[2]).toMatchObject({ name: "track-gone", ok: false, note: "No longer in the plot" });
   });
 });

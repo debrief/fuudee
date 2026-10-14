@@ -18,27 +18,46 @@ How an analyst compares one primary track with several secondaries at current ti
 ## Model
 
 1. **One component, every host.** VS Code shows the Tote as a view in the Debrief sidebar, below **Time**, folded until it is first used: the commands that choose its tracks open it. The playground shows the same component under the time controller, in a panel that folds away by its heading, as every panel in the playground's side column does (decision, product owner, 14 Oct 2026): the heading stays a heading for screen readers, with a button in it that says whether the panel is open, and which panels are folded is remembered in that browser (an embedded demo starts with its panels open). The map draws a thin, muted, dashed line from the primary's square to each secondary's at current time (see 9).
-2. **One primary, several secondaries.** The primary is the track the others are measured from: usually ownship. Choose it from **Primary** at the top of the Tote. Add secondaries from **Add** below the table, in the order they should be listed. A track is never both: choosing a secondary as the primary takes it out of the secondaries. Each secondary has **×** at the end of its name, in the table's last column, to remove it; `Delete` or `Backspace` on a secondary does the same.
+2. **One primary, several secondaries.** The primary is the track the others are measured from: usually ownship. Choose it from **Primary** at the top of the Tote. Add secondaries from **Add** below the table, in the order they should be listed. A track is never both: choosing a secondary as the primary takes it out of the secondaries. Each secondary has **×** in its column's heading, after its name, to remove it; `Delete` or `Backspace` on the **×** does the same.
 
     From the outline, a track's menu (right-click; press and hold on a touch screen; `Shift+F10` or the menu key from the keyboard) has **Set as Tote primary**, **Add to Tote** and **Remove from Tote**. In VS Code these act on every selected track, so several can be added at once.
 3. **The core measures.** The Tote is a view onto a measure group (CAP-07). The only group so far is **core**, the measures legacy Debrief's Tote showed, its optional angle on the bow and bearing rate included (decision, product owner, 14 Oct 2026), in this order:
 
-    | Measure | Heading | Of | Worked out as |
+    | Measure | Row heading (default units) | Of | Worked out as |
     | --- | --- | --- | --- |
-    | Range | Range | primary to secondary | Geodesic distance on WGS84; where the analyst's lengths are nautical miles, under 1 nmi in whole yards, `60 yd`, and from 1 nmi in nautical miles, `1.00 nmi` |
-    | Bearing | Brg | primary to secondary | True bearing along the geodesic, three figures: `304.0°T`; a dash where the two are in one place |
-    | Relative bearing | Rel | primary to secondary | The bearing less the primary's course: red to port, green to starboard, `R045.0°`, `G120.0°`; dead ahead `000.0°`, dead astern `180.0°`; a dash where the primary has no course, or the two are in one place |
-    | Angle on the bow | AOB | primary to secondary | The bearing from the secondary to the primary less the secondary's course: the secondary's aspect as the primary sees it, written as relative bearing is, `R030.0°` (the primary on its port bow, so its port side is seen), `G135.0°`; `000.0°` bows on, `180.0°` stern on; a dash where the secondary has no course |
-    | Bearing rate | Brg rate | primary to secondary | How fast the true bearing from the primary changes, from both tracks' courses and speeds at that instant (each moved a second either way along its course, on the geodesic): positive drawing right (clockwise), negative drawing left, in degrees per minute (the angular-rate kind, `0.5°/min`, to the analyst's angle decimals); a dash without both courses and speeds |
-    | Course | Crse | each track | Recorded course at the fixes either side, interpolated the shorter way round through 360°; where they are opposite (within 0.5°), a reversal with no shorter way round, the nearer fix's course, not one half way that the track never steered (half way, the later fix's); a track with no recorded courses, the geodesic's direction there |
-    | Speed | Spd | each track | Recorded speed, interpolated; else the leg's length over its duration |
-    | Depth | Depth | each track | Recorded depth, interpolated; a dash where none is recorded |
+    | Range | Range nmi | primary to secondary | Geodesic distance on WGS84; where the analyst's lengths are nautical miles, under 1 nmi in whole yards, `60 yd`, and from 1 nmi in nautical miles, `1.00 nmi` |
+    | Bearing | Brg °T | primary to secondary | True bearing along the geodesic, three figures: `304.0°T`; a dash where the two are in one place |
+    | Relative bearing | Rel ° | primary to secondary | The bearing less the primary's course: red to port, green to starboard, `R045.0°`, `G120.0°`; dead ahead `000.0°`, dead astern `180.0°`; a dash where the primary has no course, or the two are in one place |
+    | Angle on the bow | AOB ° | primary to secondary | The bearing from the secondary to the primary less the secondary's course: the secondary's aspect as the primary sees it, written as relative bearing is, `R030.0°` (the primary on its port bow, so its port side is seen), `G135.0°`; `000.0°` bows on, `180.0°` stern on; a dash where the secondary has no course |
+    | Bearing rate | Brg rate °/min | primary to secondary | How fast the true bearing from the primary changes, from both tracks' courses and speeds at that instant (each moved a second either way along its course, on the geodesic): positive drawing right (clockwise), negative drawing left, in degrees per minute (the angular-rate kind, `0.5°/min`, to the analyst's angle decimals); a dash without both courses and speeds |
+    | Course | Crse °T | each track | Recorded course at the fixes either side, interpolated the shorter way round through 360°; where they are opposite (within 0.5°), a reversal with no shorter way round, the nearer fix's course, not one half way that the track never steered (half way, the later fix's); a track with no recorded courses, the geodesic's direction there |
+    | Speed | Spd kn | each track | Recorded speed, interpolated; else the leg's length over its duration |
+    | Depth | Depth m | each track | Recorded depth, interpolated; a dash where none is recorded |
 
     Units and decimals are the analyst's display settings (SUB-04): ranges in their length unit, speeds in theirs, angles to their decimals, bearing rate included (`0.5°/min` at the default one decimal). Close ranges are in yards, as analysts call them: where lengths are in nautical miles, a range under 1 nmi is in whole yards (`60 yd`, `1350 yd`), from 1 nmi in nautical miles to the analyst's decimals; any other length unit is used as it is (decisions, product owner, 14 Oct 2026). Only the Tote's range does this: other distances on the map, such as a move's readout, stay in the analyst's length unit. Depths are in metres, or feet where lengths are in feet or yards, to one decimal: there is no depth setting yet. Relative bearing uses the primary's course as its head, as legacy Debrief did; a heading separate from course would change it only for a platform crabbing across a current.
 
-4. **What each line shows.** The primary's own measures (course, speed, depth) are under **Primary**, each with its label: *Crse 214.5°T Spd 9.9 kn Depth 0.0 m*. The table below has one row of headings and a line for each secondary. In a narrow view, such as VS Code's sidebar at its usual width or a demo's side column, each secondary takes three short lines: its name, with **×** at the end; its range, bearing and relative bearing under their headings; then its angle on the bow, bearing rate and own measures, each labelled as the primary's are: *AOB G135.0° Brg rate -0.8°/min Crse 230.0°T Spd 6.0 kn Depth 20.0 m*. Where the view is wide enough (about 600 px), one line a secondary, every measure under its heading. A long name is cut short, in full on hover; nothing scrolls sideways down to about 200 px. Every value has its measure's full name on hover and for screen readers, and the swatch beside a name is the track's colour on the map.
+4. **The table: a row a measure, a column a track.** Legacy Debrief's Tote, as the product owner chose it (decision, 14 Oct 2026; it replaced a layout of labelled values, which read badly on a phone).
+
+    | | ● **BLUE ONE** | ● RED ONE × | ● Cargo 01 × |
+    | --- | ---: | ---: | ---: |
+    | Range nmi | | 4.04 | 30.91 |
+    | Brg °T | | 283.5 | 230.7 |
+    | Rel ° | | R012.2 | R065.0 |
+    | AOB ° | | R121.2 | G176.2 |
+    | Brg rate °/min | | -1.5 | -0.3 |
+    | Crse °T | 295.7 | 224.6 | 234.2 |
+    | Spd kn | 10.0 | 5.1 | 0.3 |
+    | Depth m | 0.0 | 20.0 | — |
+
+    - **Row headings** name each measure with the unit its values are in, as the analyst's settings write it (`Range km`, `Spd m/s`, `Depth ft` with other settings). The unit is taken from the formatting service itself, so a heading and its values cannot disagree. Hover a heading for the measure's full name.
+    - **Cells** hold figures only, right-aligned in tabular figures; hover one for the value with its unit. A value in another unit than its heading's keeps its own: a close range is `1070 yd` in the row headed `nmi`, the only cell where a unit appears.
+    - **The primary's column** comes first, its name in bold; it is blank for the measures between tracks (its range from itself), and gives its own course, speed and depth.
+    - **A column a secondary**, in the order added, headed by its colour on the map, its name and its **×**. Where room is short, a name breaks at its spaces onto a second line (*Cargo* over *01*), so a column is no wider than its values; a longer one is cut short, in full on hover.
+    - A quiet rule divides the measures between tracks from each track's own.
+    - **One layout at every width.** Where the columns do not fit, as in VS Code's sidebar, the playground's side column, a demo in a blog post or on a phone, the row headings stay put and the tracks scroll sideways inside the table; the page never scrolls sideways.
+    - It is a real table for screen readers: named *Tote*, each value read with its measure's heading and its track's name.
 5. **Where tracks are at current time.** Exactly where the map draws each track's square at current time: along the geodesic between the fixes either side, in proportion to time. The Tote and the map are held to the same shared test vectors (`schemas/vectors/track-positions.json`), so the range read off the Tote is the range between the two squares.
-6. **No data at current time.** A track that has not started, or has ended, says so in place of its values: *Starts 08:28:48Z* or *Ended 10:35:17Z*. Without the primary at current time, only each secondary's own measures show. A track chosen that the plot no longer has (merged or deleted since) says *No longer in the plot*; remove it, or undo the change that removed it.
+6. **No data at current time.** A track that has not started, or has ended, has a column of dashes, its name greyed, and says why under the table: *Cargo 04 Starts 08:28:48Z* or *Tug 01 Ended 10:35:17Z* (and on hover, over its column). Without the primary at current time, only each secondary's own measures show. A track chosen that the plot no longer has (merged or deleted since) says *No longer in the plot*; remove it, or undo the change that removed it.
 7. **Values follow current time.** Dragging current time, stepping it, playing or a tool moving it all update the Tote. It asks Python once for each time: one request at a time, and when the answer comes, one more for the latest time if current time has moved on. Times passed over meanwhile are never asked for, so playing never builds a queue, and the Tote is never more than one answer behind (decision 11 Oct, from the Phase 0 spike). Only a Tote that is showing asks.
 8. **What is saved where.**
 
@@ -57,15 +76,15 @@ How an analyst compares one primary track with several secondaries at current ti
 | Where | Key or gesture | Does |
 | --- | --- | --- |
 | **Primary**, **Add** | `↑` `↓` (or `Alt+↓` to open the list) | Choose the primary; add a secondary |
-| A secondary in the table | `Tab` | Reaches it, then its **×** |
-| A secondary | `Delete`, `Backspace` | Removes it from the Tote; the keyboard moves to the next |
-| **×** | `Enter`, `Space` | Removes that secondary |
+| The table | `Tab` | Reaches each secondary's **×**, in its column's heading, named for screen readers (*Remove Cargo 01 from the Tote*) |
+| **×** | `Enter`, `Space`, `Delete`, `Backspace` | Removes that secondary; the keyboard moves to the next one's **×**, else the one before, else **Add** |
+| The table, too wide for its place | Scroll sideways (trackpad, `Shift`+wheel, swipe) | Moves the tracks under the row headings; `Tab` to a **×** brings its column into view |
 | A track in the outline | `Shift+F10`, menu key | Its menu: **Set as Tote primary**, **Add to Tote** or **Remove from Tote**; `↑` `↓` move, `Enter` chooses, `Escape` closes |
 | A track in the outline (touch) | Press and hold | The same menu |
 | **Lines on the map** | `Space` | Turns the map's lines from the primary off, and on |
 | The playground's **Tote** heading | `Enter`, `Space` | Folds the panel away, and back |
 
-Values arriving many times a second while playing never move the keyboard: the secondary or button that had it keeps it.
+Values arriving many times a second while playing never move the keyboard: they are written into the cells already there, so the **×** that had it keeps it, and nothing shifts.
 
 ```mermaid
 sequenceDiagram
@@ -114,7 +133,7 @@ Part B needs: a study catalogue item holding the study's groups, written by its 
 - **Measures:** `python/debrief-kernel/src/debrief_kernel/measures.py` (`TrackMotion`, `measure`, `CORE_GROUP`), positions from `geodesy.TrackPath`, tested in `tests/test_measures.py` (geodesic range and bearing, relative bearing across 360°, angle on the bow, bearing rate against crossing speed over range, far north, the antimeridian, missing data, interpolation). Formatting: `format_range`, `format_relative_bearing` and `format_depth` in `debrief_kernel.formatting` and `formatRange`, `formatRelativeBearing`, `formatDepth` in `ts/kernel`, held to `schemas/vectors/formatting.json`. Course across a reversal: `TrackMotion` and the course samples in `schemas/vectors/track-positions.json`. The playground's folding panels: `vscode/play/fold.ts`, played in `vscode/test/play/tote.mjs`.
 - **Over a plot:** `python/debrief-stac/src/debrief_stac/tote.py` (`tote`, `tote_tracks`, `measure_groups`): tracks prepared once and kept while the plot file is unchanged, or only its island; tested in `tests/test_tote.py`.
 - **The service:** `debrief/tote` and `debrief/measure_groups`; the choice through `debrief/set_view`.
-- **The component:** `vscode/webview/totecontrol.ts` and `tote.css`; its rules, free of the page, in `vscode/webview/totelogic.ts` (`withPrimary`, `withSecondaries`, `withoutSecondary`, `withMapLines`, `toteMapLines`, `formatMeasure`, `toteLines`, `ToteRequests`), tested in `vscode/test/unit/tote.test.ts`, with the map's `positionAt` (`vscode/webview/geodesic.ts`) held to the shared position vectors.
+- **The component:** `vscode/webview/totecontrol.ts` and `tote.css`; its rules, free of the page, in `vscode/webview/totelogic.ts` (`withPrimary`, `withSecondaries`, `withoutSecondary`, `withMapLines`, `toteMapLines`, `formatMeasure`, `toteHeadings` and `measureUnit` for the row headings' units, `cellText` for figures alone, `toteLines`, `ToteRequests`), tested in `vscode/test/unit/tote.test.ts`, with the map's `positionAt` (`vscode/webview/geodesic.ts`) held to the shared position vectors.
 - **The map:** `drawToteLines` in `vscode/webview/map.ts`, from the island on `show_plot` and from `set_tote` when the choice changes.
 - **VS Code:** the Tote view, `vscode/src/panels/toteview.ts` and `vscode/webview/tote.ts`; saving the choice in `vscode/src/extension.ts` (`saveTote`, through `saveView`). Commands `debrief.tote.setPrimary`, `debrief.tote.add`, `debrief.tote.remove` (the outline's menu) and `debrief.setTote` (agents and keyboard macros).
 - **The playground:** `vscode/play/host.ts` (`refreshTote`, `chooseTote`, `trackMenu`) and `tote` in `vscode/play/play.py`.

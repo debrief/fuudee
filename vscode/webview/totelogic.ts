@@ -106,9 +106,57 @@ export function formatMeasure(definition: MeasureDefinition, value: { value?: nu
   }
 }
 
+/** A measure's value split into its figures and what follows them (its unit): "R024.5°" is "R024.5" and "°". */
+export function splitUnit(text: string): { figures: string; unit: string } {
+  const m = /^([RG]?-?\d[\d.]*)\s?(.*)$/.exec(text);
+  return m ? { figures: m[1], unit: m[2] } : { figures: text, unit: "" };
+}
+
+/** A value of each kind, in units Python works in, to ask the formatter which unit it writes that kind in. */
+const SAMPLE_UNIT: Record<string, string> = { length: "m", angle: "deg", speed: "m/s", angular_rate: "deg/min", duration: "s" };
+
+/**
+ * The unit a measure's values are written in with the analyst's settings, for its row
+ * heading: "nmi", "°T", "°", "°/min", "kn", "m" (or "km", "ft", "m/s"... as set). Taken
+ * from the formatter itself, so a heading and the values under it cannot disagree. A long
+ * range stands for a range's usual unit; a close range in yards says so in its own cell.
+ */
+export function measureUnit(definition: MeasureDefinition, settings: FormatSettings = DEFAULT_SETTINGS): string {
+  const unit = SAMPLE_UNIT[definition.quantity_kind];
+  return unit ? splitUnit(formatMeasure(definition, { value: 1e5, unit }, settings)).unit : "";
+}
+
+/**
+ * A value as the Tote's table shows it, under a row heading that carries the unit
+ * (decision, 14 Oct 2026): the figures alone, "214.5"; a value in another unit than the
+ * heading's keeps its own, "1070 yd" (a close range); a dash stays a dash.
+ */
+export function cellText(text: string, unit: string): string {
+  if (!text || text === "—") return text;
+  const { figures, unit: own } = splitUnit(text);
+  return own === unit ? figures : text;
+}
+
 export interface ToteCell {
   measure: string;
+  /** In full, with its unit: "1.35 nmi", "R024.5°"; for hover and for screen readers. */
   text: string;
+  /** As the table shows it, under a heading with the unit: "1.35", "R024.5"; "1350 yd" where the unit differs. */
+  shown: string;
+}
+
+/** A row heading of the Tote: one measure, with the unit its values are in. */
+export interface ToteHeading {
+  measure: string;
+  label: string;
+  unit: string;
+  title: string;
+  subject: string;
+}
+
+/** The Tote's row headings: one a measure, in the group's order, each with its unit as the analyst has set units. */
+export function toteHeadings(measures: MeasureDefinition[], settings: FormatSettings = DEFAULT_SETTINGS): ToteHeading[] {
+  return measures.map((m) => ({ measure: m.id, label: m.label, unit: measureUnit(m, settings), title: m.title, subject: m.subject }));
 }
 
 export interface ToteLine {
@@ -122,7 +170,10 @@ export interface ToteLine {
   cells: ToteCell[];
 }
 
-/** One track's line in the Tote: a cell per measure of the group, blank where a measure is not its. */
+/**
+ * One track's column in the Tote: a cell per measure of the group; blank where a measure
+ * is not the track's (the primary's range from itself), a dash where it has no value now.
+ */
 export function toteLine(row: ToteRow, measures: MeasureDefinition[], settings: FormatSettings = DEFAULT_SETTINGS, own = false): ToteLine {
   const values = new Map((row.values ?? []).map((v) => [v.measure, v]));
   return {
@@ -131,10 +182,12 @@ export function toteLine(row: ToteRow, measures: MeasureDefinition[], settings: 
     ...(row.colour && { colour: row.colour }),
     ok: row.status === "ok",
     ...(row.note && { note: row.note }),
-    cells: measures.map((m) => ({
-      measure: m.id,
-      text: row.status !== "ok" || (own && m.subject !== "own") ? "" : formatMeasure(m, values.get(m.id) as { value?: number; unit?: string } | undefined, settings),
-    })),
+    cells: measures.map((m) => {
+      if (own && m.subject !== "own") return { measure: m.id, text: "", shown: "" };
+      if (row.status !== "ok") return { measure: m.id, text: "—", shown: "—" };
+      const text = formatMeasure(m, values.get(m.id) as { value?: number; unit?: string } | undefined, settings);
+      return { measure: m.id, text, shown: cellText(text, measureUnit(m, settings)) };
+    }),
   };
 }
 
