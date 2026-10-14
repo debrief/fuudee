@@ -4,8 +4,8 @@
 // back. Smooth… previews the track dashed on the map with how far fixes would move, and Apply is
 // one step. Fixes… lists RED ONE's fixes: one is coloured, labelled and commented on, each one
 // step; the label is drawn on the map, the comment shows when pointing at the fix and in the
-// Timeline; a right-click on a fix on the map chooses it in the list; the list works from the
-// keyboard.
+// Timeline; a right-click on a fix on the map chooses it in the list, and so, on a touch screen,
+// does pressing and holding it (a tap or a moving finger does not); the list works from the keyboard.
 import assert from "node:assert/strict";
 
 export async function playCleaning(page, shot) {
@@ -161,13 +161,17 @@ export async function playCleaning(page, shot) {
   // A right-click on a fix on the map chooses it in the list.
   await side.locator(".side-bar button", { hasText: "Close" }).click();
   // The map widens as the panel closes, and the fix moves with it: right-click where it is once it stays put.
-  let here = await dot.boundingBox();
-  for (let settled = 0; settled < 3; ) {
-    await page.waitForTimeout(150);
-    const now = await dot.boundingBox();
-    settled = now && here && Math.abs(now.x - here.x) < 0.5 && Math.abs(now.y - here.y) < 0.5 ? settled + 1 : 0;
-    here = now;
-  }
+  const settledDot = async () => {
+    let here = await dot.boundingBox();
+    for (let settled = 0; settled < 3; ) {
+      await page.waitForTimeout(150);
+      const now = await dot.boundingBox();
+      settled = now && here && Math.abs(now.x - here.x) < 0.5 && Math.abs(now.y - here.y) < 0.5 ? settled + 1 : 0;
+      here = now;
+    }
+    return here;
+  };
+  let here = await settledDot();
   await page.mouse.click(here.x + here.width / 2, here.y + here.height / 2, { button: "right" });
   await side.locator(".fix-list li.selected", { hasText: when }).waitFor();
   // From the keyboard: Down moves along the list, Enter chooses.
@@ -175,6 +179,37 @@ export async function playCleaning(page, shot) {
   await page.keyboard.press("ArrowDown");
   await page.keyboard.press("Enter");
   await page.waitForFunction((w) => document.querySelector("#side-frame .fix-list li.selected .name")?.textContent !== w, when);
+  await side.locator(".side-bar button", { hasText: "Close" }).click();
+  // On a touch screen, with no right button: pressing and holding the fix chooses it, as a
+  // right-click does. A tap is not a hold, nor is a finger that moves (a pan).
+  const cdp = await page.context().newCDPSession(page);
+  const touch = (type, points) => cdp.send("Input.dispatchTouchEvent", { type, touchPoints: points.map(([x, y]) => ({ x, y, radiusX: 4, radiusY: 4, force: 1 })) });
+  const sidePanel = () => page.evaluate(() => !document.getElementById("side-frame")?.hidden && !!document.querySelector("#side-frame .fix-list"));
+  here = await settledDot();
+  let [x, y] = [here.x + here.width / 2, here.y + here.height / 2];
+  n = await steps();
+  await touch("touchStart", [[x, y]]);
+  await page.waitForTimeout(150);
+  await touch("touchEnd", []);
+  await page.waitForTimeout(1200);
+  assert.equal(await sidePanel(), false, "a tap on a fix does not open the fix list");
+  await touch("touchStart", [[x, y]]);
+  for (let i = 1; i <= 5; i++) {
+    await touch("touchMove", [[x + 6 * i, y]]);
+    await page.waitForTimeout(40);
+  }
+  await page.waitForTimeout(900);
+  await touch("touchEnd", []);
+  await page.waitForTimeout(1200);
+  assert.equal(await sidePanel(), false, "a finger held after moving is a pan, not a hold");
+  here = await settledDot(); // the map may have moved with the finger
+  [x, y] = [here.x + here.width / 2, here.y + here.height / 2];
+  await touch("touchStart", [[x, y]]);
+  await side.locator(".fix-list li.selected", { hasText: when }).waitFor({ timeout: 5000 }); // while the finger is still down
+  await touch("touchEnd", []);
+  await page.waitForTimeout(500);
+  assert.equal(await side.locator(".fix-list li.selected", { hasText: when }).count(), 1);
+  assert.equal(await steps(), n, "choosing a fix changes nothing");
   await side.locator(".side-bar button", { hasText: "Close" }).click();
   // Undo three times: the comment, the label and the colour go, one step each.
   const undone = () => page.evaluate(() => (document.getElementById("history")?.textContent?.match(/undone/g) ?? []).length);

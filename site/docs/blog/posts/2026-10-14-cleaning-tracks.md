@@ -39,7 +39,7 @@ Before anything changes, the smoothed track is drawn dashed over the track as it
 
 ## A colour, a label or a comment for one fix
 
-Legacy Debrief let you colour one fix red, label it *Turn 1*, or note that the navigator doubted it. Our .dpf import has, until now, had to say *fix comments not imported*. Now a fix can carry any of the three. Right-click a fix on the map, or open the **fix list** (every fix of the track, with its time, position, course, speed and any mark) and choose one; then **Colour…**, **Label…** or **Comment…**.
+Legacy Debrief let you colour one fix red, label it *Turn 1*, or note that the navigator doubted it. Our .dpf import has, until now, had to say *fix comments not imported*. Now a fix can carry any of the three. Right-click a fix on the map (on a touch screen, press and hold it), or open the **fix list** (every fix of the track, with its time, position, course, speed and any mark) and choose one; then **Colour…**, **Label…** or **Comment…**.
 
 On the map, a coloured fix is a dot in its colour, and the line from it to the next fix is drawn in it too, as legacy Debrief drew it. A label sits beside its fix. A comment shows when you point at the fix, and it's in the **Timeline**, at the fix's time, alongside the narrative. Each change is one step: *RED ONE fix at 08:40:00Z labelled 'Turn 1'*.
 
@@ -63,7 +63,7 @@ Agents get the same through the tool service: `debrief/find_jumps` and `debrief/
 
 ## Try it
 
-Select **RED ONE**, choose **Put GPS glitches into the selected track** under **Try** (the playground records that as a step of its own, so it's never mistaken for real data), then **Jumps…** under *Track*, below the outline. Then **Smooth…**, and **Fixes…**, or right-click a fix on the map:
+Select **RED ONE**, choose **Put GPS glitches into the selected track** under **Try** (the playground records that as a step of its own, so it's never mistaken for real data), then **Jumps…** under *Track*, below the outline. Then **Smooth…**, and **Fixes…**, or right-click a fix on the map (press and hold it on a touch screen):
 
 <div class="debrief-demo" data-demo="?panels=try,timeline,history" data-height="820px" data-caption="Select RED ONE, put GPS glitches into it under Try, then press Jumps…. Everything runs in your browser."></div>
 

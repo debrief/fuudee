@@ -31,7 +31,8 @@
  * - Marked fixes (fixes.ts): a fix with a colour of its own is a dot in it, and
  *   the line from it to the next fix is drawn in it; a label is drawn beside
  *   its fix; a comment shows when the analyst points at the fix. Right-click a
- *   fix to colour, label or comment on it. The host may ring fixes for the
+ *   fix, or press and hold it on a touch screen (presshold.ts), to colour,
+ *   label or comment on it. The host may ring fixes for the
  *   analyst to check (jumps found, before they are removed) and draw a track as
  *   a change would leave it (smoothing, before it is applied): show_fixes.
  * - Chart furniture: the scale bar always, and a north arrow when the plot has one.
@@ -57,6 +58,7 @@ import { labelPlacement, labelText, lookOf, shapeOf, specOfFeature, type Look } 
 import { circleRing, densify, ellipseRing, type LonLat } from "./geodesic.js";
 import { CONTEXT_WEIGHT, contextStyle, parseColour, WINDOW_WEIGHT, type ContextStyle, type ContextTracks, type MapTheme, type Rgb } from "./contrast.js";
 import { MapEditor } from "./mapedit.js";
+import { PressHold } from "./presshold.js";
 import { TrackEditor } from "./trackmap.js";
 import { describeFix as describeFixOnly, marksByIndex } from "./fixes.js";
 import { DATA_COLOURS } from "./palette.js";
@@ -72,7 +74,9 @@ root.innerHTML = `<div id="map" tabindex="0" aria-label="Plot map"></div><div id
 const status = document.getElementById("status")!;
 const mapElement = document.getElementById("map")!;
 
-const map = L.map(mapElement, { zoomControl: true, attributionControl: false, worldCopyJump: true, zoomSnap: 0.25, zoomDelta: 0.5 });
+// Leaflet's own press and hold (tapHold) is off: it is on only for mobile Safari, which iPadOS
+// often does not claim to be, and alongside presshold.ts it would open a fix's menu twice.
+const map = L.map(mapElement, { zoomControl: true, attributionControl: false, worldCopyJump: true, zoomSnap: 0.25, zoomDelta: 0.5, tapHold: false });
 map.setView([50, -4], 6);
 
 const css = (name: string) => getComputedStyle(document.body).getPropertyValue(name).trim();
@@ -569,8 +573,9 @@ function timeOf(feature: Feature): { start: number; end: number } | undefined {
   return time ? { start: Date.parse(time), end: Date.parse(time) } : undefined;
 }
 
-/** Hovering a track line shows its nearest fix; right-clicking it asks to colour, label or comment on that fix. */
+/** Hovering a track line shows its nearest fix; right-clicking it (or pressing and holding it) asks to colour, label or comment on that fix. */
 function hoverFixes(line: L.Polyline, track: Track): void {
+  holdable(line);
   line.bindTooltip(text(track.properties.name), { sticky: true, className: "fix-tooltip" });
   line.on("mousemove", (event: L.LeafletMouseEvent) => {
     line.setTooltipContent(text(describeFix(track, nearestFix(track, event.latlng))));
@@ -589,7 +594,7 @@ function chooseFix(event: L.LeafletMouseEvent, track: Track, index: number): voi
  * The marked fixes of a track's part in the window (EXT-14): a fix with a colour of its own
  * is a dot in it, and the line from it to the next fix is drawn in it; any other marked fix
  * is a ring in the track's colour. A label is drawn beside its fix; pointing at the fix shows
- * its comment. Each takes a click as the track does, and a right-click as its fix.
+ * its comment. Each takes a click as the track does, and a right-click (or a press and hold) as its fix.
  */
 function drawMarks(track: Track, first: number, last: number, colour: string, click: (event: L.LeafletMouseEvent) => void): { paths: L.Path[]; labels: L.Layer[] } {
   const marks = marksByIndex(track);
@@ -603,12 +608,13 @@ function drawMarks(track: Track, first: number, last: number, colour: string, cl
     if (mark.colour && i + 1 < coordinates.length) {
       const leg = L.polyline(densify([coordinates[i], coordinates[i + 1]]).map(toLatLng), { color: mark.colour, weight: WINDOW_WEIGHT, baseWeight: WINDOW_WEIGHT, className: "fix-leg" } as L.PolylineOptions);
       leg.on("click", click);
-      hoverFixes(leg, track); // which also takes a right-click, as the fix nearest it
+      hoverFixes(leg, track); // which also takes a right-click or a hold, as the fix nearest it
       paths.push(leg);
     }
     const dot = L.circleMarker(toLatLng(coordinates[i]), { radius: 4.5, color: own, weight: 2, fillColor: own, fillOpacity: mark.colour ? 1 : 0, baseWeight: 2, className: "fix-mark" } as L.CircleMarkerOptions);
     dot.bindTooltip(text(describeFix(track, i)), { className: "fix-tooltip" });
     dot.on("click", click).on("contextmenu", (event: L.LeafletMouseEvent) => chooseFix(event, track, i));
+    holdable(dot);
     paths.push(dot);
     if (mark.label) {
       const anchor = L.marker(toLatLng(coordinates[i]), { icon: L.divIcon({ className: "annotation-anchor", iconSize: [0, 0] }), interactive: false, keyboard: false });
@@ -618,6 +624,67 @@ function drawMarks(track: Track, first: number, last: number, colour: string, cl
   }
   return { paths, labels };
 }
+
+// --- Press and hold on a touch screen: a right-click (presshold.ts) --------------------
+// A finger or pen held still on a track or a marked fix opens that fix's menu, as a
+// right-click does: a tablet has no right button. The hold is sent on as a right-click
+// at that place, so it goes where a right-click would. A tap still selects; a finger that
+// moves pans the map or drags a handle; two fingers zoom. A right-click the browser makes
+// of the same hold (Android does) is the same gesture, so only one opens the menu.
+const HOLDABLE = "fix-hold";
+/** Pressing and holding this track line or fix opens its fix's menu. */
+function holdable(layer: L.Path): void {
+  layer.on("add", () => layer.getElement()?.classList.add(HOLDABLE));
+}
+let holding = false; // sending the hold on as a right-click
+const pressHold = new PressHold((x, y) => {
+  if (editor.active) return; // drawing: a hold is not a choice of fix
+  const target = document.elementFromPoint(x, y)?.closest(`.${HOLDABLE}`);
+  if (!target || !mapElement.contains(target)) return;
+  holding = true;
+  try {
+    target.dispatchEvent(new MouseEvent("contextmenu", { bubbles: true, cancelable: true, clientX: x, clientY: y, button: 2, buttons: 0 }));
+  } finally {
+    holding = false;
+  }
+});
+const touchy = (event: PointerEvent) => event.pointerType === "touch" || event.pointerType === "pen";
+mapElement.addEventListener(
+  "pointerdown",
+  (event) => {
+    if (!touchy(event)) return pressHold.reset();
+    if (event.isPrimary) pressHold.reset(); // a new gesture: a finger whose lifting was missed is gone
+    pressHold.press(event.pointerId, event.clientX, event.clientY);
+  },
+  true,
+);
+mapElement.addEventListener("pointermove", (event) => touchy(event) && pressHold.move(event.pointerId, event.clientX, event.clientY), true);
+for (const type of ["pointerup", "pointercancel"] as const) {
+  window.addEventListener(type, (event) => touchy(event) && pressHold.release(event.pointerId), true);
+}
+mapElement.addEventListener(
+  "contextmenu",
+  (event) => {
+    if (holding) return;
+    if (pressHold.fired) {
+      L.DomEvent.stop(event); // the browser's own right-click for a hold already sent on
+    } else if (pressHold.pressing) {
+      pressHold.cancel(); // the browser's right-click came first: it is the one
+    }
+  },
+  true,
+);
+mapElement.addEventListener(
+  "click",
+  (event) => {
+    if (pressHold.fired && !pressHold.pressing) {
+      L.DomEvent.stop(event); // the tap that ends a hold is not a click: it would select
+      pressHold.reset();
+    }
+  },
+  true,
+);
+map.on("movestart zoomstart dragstart", () => pressHold.cancel());
 
 // --- Fixes the host rings for the analyst to check, and a change previewed (show_fixes) ----
 const checks = L.layerGroup().addTo(map);
