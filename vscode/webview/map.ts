@@ -391,9 +391,13 @@ function directionTicks(coordinates: LonLat[], colour: string): L.Marker[] {
     const i = Math.min(coordinates.length - 2, Math.floor((k * (coordinates.length - 1)) / (count + 1)));
     const [lon1, lat1] = coordinates[i];
     const [lon2, lat2] = coordinates[i + 1];
-    const azimuth = WGS84.Inverse(lat1, lon1, lat2, lon2).azi1 ?? 0;
-    const icon = L.divIcon({ className: "tick", html: "", iconSize: [12, 12] });
-    const marker = L.marker(toLatLng(coordinates[i]), { icon, interactive: false, keyboard: false });
+    // Drawn halfway along the leg, pointing along it there, so it sits on the line however long the leg.
+    const leg = WGS84.Inverse(lat1, lon1, lat2, lon2);
+    const half = WGS84.Direct(lat1, lon1, leg.azi1 ?? 0, (leg.s12 ?? 0) / 2);
+    const azimuth = half.azi2 ?? leg.azi1 ?? 0;
+    const icon = L.divIcon({ className: "tick", html: TICK_SVG, iconSize: [TICK_SIZE, TICK_SIZE], iconAnchor: [TICK_SIZE / 2, TICK_SIZE / 2] });
+    const lon = lon1 + ((((half.lon2 ?? lon1) - lon1 + 540) % 360) - 180); // beside the leg, across 180° too
+    const marker = L.marker([half.lat2 ?? lat1, lon], { icon, interactive: false, keyboard: false });
     marker.on("add", () => {
       const element = marker.getElement();
       if (element) {
@@ -405,6 +409,12 @@ function directionTicks(coordinates: LonLat[], colour: string): L.Marker[] {
   }
   return ticks;
 }
+
+/** A chevron pointing up (north), centred in its box: rotated to the course, its middle is on the line. */
+const TICK_SIZE = 20;
+const TICK_SVG =
+  `<svg viewBox="0 0 16 16" width="${TICK_SIZE}" height="${TICK_SIZE}" aria-hidden="true">` +
+  `<path class="tick-halo" d="M3 11 L8 5 L13 11"/><path class="tick-mark" d="M3 11 L8 5 L13 11"/></svg>`;
 
 /** Areas, kept underneath everything else, so a track crossing an area's edge is on top. */
 let areas: L.Path[] = [];
