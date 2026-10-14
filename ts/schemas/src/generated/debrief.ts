@@ -210,7 +210,7 @@ export type StoreKindEnum = "file";
  * This interface was referenced by `DebriefSchemaDefinitions`'s JSON-Schema
  * via the `definition` "MeasureDisplayEnum".
  */
-export type MeasureDisplayEnum = "quantity" | "bearing" | "relative_bearing" | "depth";
+export type MeasureDisplayEnum = "quantity" | "range" | "bearing" | "relative_bearing" | "depth";
 /**
  * What a measure is of.
  *

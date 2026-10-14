@@ -14,6 +14,7 @@ from debrief_kernel.formatting import (
     format_depth,
     format_position,
     format_quantity,
+    format_range,
     format_relative_bearing,
     format_time,
     parse_position,
@@ -37,6 +38,8 @@ def test_shared_vector(case: dict) -> None:
     given = case["input"]
     if case["op"] == "quantity":
         result = format_quantity(Quantity(given["value"], given["unit"]), settings)
+    elif case["op"] == "range":
+        result = format_range(Quantity(given["value"], given["unit"]), settings)
     elif case["op"] == "bearing":
         result = format_bearing(Quantity(given["value"], given["unit"]), settings)
     elif case["op"] == "relative_bearing":
@@ -53,6 +56,7 @@ def test_shared_vector(case: dict) -> None:
 def test_vectors_cover_every_operation_and_notation() -> None:
     assert {c["op"] for c in CASES} == {
         "quantity",
+        "range",
         "bearing",
         "relative_bearing",
         "depth",

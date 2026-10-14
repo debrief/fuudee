@@ -98,7 +98,7 @@ Adapted from `DOMAIN_GLOSSARY.md` in debrief/debrief-future, itself adapted from
 
 **Angle on the bow (AOB).** A track's aspect as another sees it: the bearing from the track to the observer less the track's course, red to port and green to starboard: `R030.0°` means the observer sees its port side. `000.0°` is bows on. In the Tote, the secondary's angle on the bow as the primary sees it.
 
-**Bearing rate.** How fast a bearing changes, in degrees per minute: positive drawing right (clockwise), negative drawing left. Steady (zero) with both on a steady course and speed means a constant bearing, as on a collision course.
+**Bearing rate.** How fast a bearing changes, in degrees per minute, to the analyst's angle decimals: positive drawing right (clockwise), negative drawing left. Steady (zero) with both on a steady course and speed means a constant bearing, as on a collision course.
 
 **Tote.** The table of relative geometry between one primary and several secondary tracks at current time: range, bearing and the other measures of a measure group (CAP-06). Which tracks it compares is saved in the plot's island, so it travels with the plot but is never a step in its history. See [Tote](interaction-models/tote.md).
 
@@ -107,6 +107,10 @@ Adapted from `DOMAIN_GLOSSARY.md` in debrief/debrief-future, itself adapted from
 **Measure group.** A named, reusable set of measures for a mode of analysis, defined by a study's lead analyst. The Tote is a view onto one (CAP-07). Every group extends **core**: range, bearing, relative bearing, angle on the bow and bearing rate from the primary, and each track's course, speed and depth.
 
 **Measure.** One quantity the Tote shows: between the primary and a secondary (range, bearing, relative bearing, angle on the bow, bearing rate) or of one track (course, speed, depth). Worked out in Python at current time, where the map places each track.
+
+**Close range** (the Tote). A range under 1 nmi. Where the analyst's lengths are in nautical miles, the Tote writes it in whole yards, `60 yd`, as analysts call close ranges; from 1 nmi, in nautical miles.
+
+**Reversal** (course). Recorded courses at two fixes that are opposite, within half a degree. There is no shorter way round between them, so the Tote does not interpolate: it takes the course of the fix nearer in time.
 
 **CPA** (closest point of approach). The time and range at which two platforms are nearest.
 

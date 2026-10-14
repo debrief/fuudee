@@ -1296,6 +1296,7 @@
       "description": "How a measure's value is written for people, by the formatting service (SUB-04).",
       "enum": [
         "quantity",
+        "range",
         "bearing",
         "relative_bearing",
         "depth"

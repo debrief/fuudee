@@ -783,7 +783,7 @@ try {
     assert.equal(await toting.locator("#panel-tote").isVisible(), true);
     await toting.locator("#tote .tote-primary").selectOption({ label: "BLUE ONE" });
     await toting.locator("#tote .tote-add").selectOption({ label: "RED ONE" });
-    await toting.locator('#tote td[data-measure="range"]', { hasText: "nmi" }).waitFor();
+    await toting.locator('#tote td[data-measure="range"]', { hasText: / (nmi|yd)$/ }).waitFor();
     // The demo's side column is narrow: the Tote fits it without scrolling sideways.
     const fit = await toting.locator("#tote .tote-scroll").evaluate((e) => ({ needs: e.scrollWidth, has: e.clientWidth, cells: [...e.querySelectorAll("tr")].map((r) => [...r.cells].map((c) => `${c.className}:${Math.round(c.getBoundingClientRect().width)}:${c.textContent}`).join("|")) }));
     assert.ok(fit.needs <= fit.has, `the Tote fits the demo's side column: ${JSON.stringify(fit)}`);

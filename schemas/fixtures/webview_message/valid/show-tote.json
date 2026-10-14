@@ -48,7 +48,7 @@
         "label": "Range",
         "subject": "relative",
         "quantity_kind": "length",
-        "display": "quantity",
+        "display": "range",
         "explanation": "The geodesic distance from the primary to the track (WGS84)."
       },
       {

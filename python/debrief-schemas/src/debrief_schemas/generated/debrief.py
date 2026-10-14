@@ -827,6 +827,10 @@ class MeasureDisplayEnum(str, Enum):
     """
     In the analyst's unit for its kind, such as 1.25 nmi or 12.0 kn.
     """
+    range = "range"
+    """
+    A range, in the analyst's length unit; where that is nautical miles, a range under 1 nmi is in whole yards, such as 60 yd (decision, 14 Oct 2026).
+    """
     bearing = "bearing"
     """
     Three figures, true: 045.0°T.

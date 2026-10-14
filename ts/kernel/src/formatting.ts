@@ -74,6 +74,18 @@ export function formatQuantity(quantity: Quantity, settings: FormatSettings = DE
   return `${fixed(convert(quantity, unit).value, decimals)} ${UNIT_LABELS[unit]}`;
 }
 
+/**
+ * A range between two vessels: as formatQuantity, except that where the analyst's lengths
+ * are in nautical miles, a range under 1 nmi is in whole yards, "60 yd", as analysts call
+ * close ranges (decision, 14 Oct 2026); from 1 nmi, nautical miles.
+ */
+export function formatRange(distance: Quantity, settings: FormatSettings = DEFAULT_SETTINGS): string {
+  if (settings.length_unit === "[nmi_i]" && convert(distance, "[nmi_i]").value < 1.0) {
+    return `${fixed(convert(distance, "[yd_i]").value, 0)} ${UNIT_LABELS["[yd_i]"]}`;
+  }
+  return formatQuantity(distance, settings);
+}
+
 export function formatBearing(bearing: Quantity, settings: FormatSettings = DEFAULT_SETTINGS): string {
   const decimals = settings.angle_decimals;
   let text = fixed(normaliseBearing(convert(bearing, "deg").value), decimals);

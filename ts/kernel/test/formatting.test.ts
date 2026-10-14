@@ -8,6 +8,7 @@ import {
   formatDepth,
   formatPosition,
   formatQuantity,
+  formatRange,
   formatRelativeBearing,
   formatTime,
   type FormatSettings,
@@ -31,6 +32,7 @@ describe("shared formatting vectors", () => {
     const quantity = { value: input.value as number, unit: input.unit as string };
     const formats: Record<string, () => string> = {
       quantity: () => formatQuantity(quantity, settings),
+      range: () => formatRange(quantity, settings),
       bearing: () => formatBearing(quantity, settings),
       relative_bearing: () => formatRelativeBearing(quantity, settings),
       depth: () => formatDepth(quantity, settings),

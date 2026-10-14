@@ -7,7 +7,7 @@
  * tracks are compared is view state in the plot's island, like the time window
  * (decision, 14 Oct 2026): every change is saved there, never a step in the history.
  */
-import { DEFAULT_SETTINGS, formatBearing, formatDepth, formatQuantity, formatRelativeBearing, type FormatSettings } from "@debrief/kernel";
+import { DEFAULT_SETTINGS, formatBearing, formatDepth, formatQuantity, formatRange, formatRelativeBearing, type FormatSettings } from "@debrief/kernel";
 import type { DebriefFeatureCollection, MeasureDefinition, ToteResult, ToteRow, ToteTrack, ToteView } from "@debrief/schemas";
 
 /** The tracks the analyst can put in the Tote, in plot order. */
@@ -93,6 +93,8 @@ export function formatMeasure(definition: MeasureDefinition, value: { value?: nu
   if (!value || value.value === undefined || value.value === null || !value.unit) return "—";
   const quantity = { value: value.value, unit: value.unit };
   switch (definition.display) {
+    case "range":
+      return formatRange(quantity, settings);
     case "bearing":
       return formatBearing(quantity, settings);
     case "relative_bearing":

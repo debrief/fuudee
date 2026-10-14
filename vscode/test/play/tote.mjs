@@ -20,7 +20,7 @@ export async function playTote(page, shot) {
   const primaryValues = () => tote(".tote-primary-own [data-measure]").allInnerTexts();
   const showsValues = (name) =>
     page.waitForFunction(
-      (n) => [...document.querySelectorAll("#tote tbody[data-track]")].some((r) => r.querySelector(".tote-name")?.textContent === n && /nmi/.test(r.querySelector('td[data-measure="range"]')?.textContent ?? "")),
+      (n) => [...document.querySelectorAll("#tote tbody[data-track]")].some((r) => r.querySelector(".tote-name")?.textContent === n && / (nmi|yd)$/.test(r.querySelector('td[data-measure="range"]')?.textContent ?? "")),
       name,
       { timeout: 30000 },
     );
@@ -35,8 +35,9 @@ export async function playTote(page, shot) {
   await page.waitForTimeout(500);
 
   // A panel of its own that folds away, open at first; nothing chosen yet, and it says how.
-  assert.equal(await panel.evaluate((d) => d.tagName), "DETAILS");
-  assert.equal(await panel.getAttribute("open"), "");
+  const fold = panel.locator("h2 button.fold");
+  assert.equal(await fold.getAttribute("aria-expanded"), "true");
+  assert.equal(await page.locator("#body-tote").isVisible(), true);
   await tote(".tote-hint").waitFor();
   assert.match(await tote(".tote-hint").innerText(), /Choose a primary track/);
   const before = await steps();
@@ -58,7 +59,8 @@ export async function playTote(page, shot) {
   // green, bearing rate, course, speed, depth.
   const red = await valuesOf("RED ONE");
   assert.equal(red.length, 8);
-  assert.match(red[0], /^\d+\.\d\d nmi$/);
+  // Range in nautical miles, or under 1 nmi in whole yards (decision, 14 Oct 2026).
+  assert.match(red[0], /^(\d+\.\d\d nmi|\d+ yd)$/);
   assert.match(red[1], /^\d{3}\.\d°T$/);
   assert.match(red[2], /^([RG]\d{3}\.\d|000\.0|180\.0)°$/);
   assert.match(red[3], /^([RG]\d{3}\.\d|000\.0|180\.0)°$/, "angle on the bow");
@@ -190,23 +192,104 @@ export async function playTote(page, shot) {
   await page.selectOption("#plots", "serial-2");
   await page.waitForFunction(() => document.getElementById("plot-title")?.textContent?.includes("2"));
   await tote(".tote-hint").waitFor();
+  // Close in, a range is in whole yards (decision, 14 Oct 2026): in serial 2, Towing 01 passes
+  // BLUE ONE at 0.53 nmi; the Timeline's note of it moves current time there.
+  await tote(".tote-primary").selectOption({ label: "BLUE ONE" });
+  await tote(".tote-add").selectOption({ label: "Towing 01" });
+  await page.locator("#timeline li[data-id]", { hasText: "Towing 01 passed clear" }).locator("button").click();
+  await page.waitForFunction(() => /^\d+ yd$/.test(document.querySelector('#tote td[data-measure="range"]')?.textContent ?? ""), null, { timeout: 30000 });
+  const close = Number((await cell("Towing 01", "range").innerText()).replace(" yd", ""));
+  assert.ok(close > 900 && close < 1100, `Towing 01 at ${close} yd, about 0.53 nmi`);
+  await page.locator("#side").evaluate((side) => (side.scrollTop = 0));
+  await page.mouse.move(2, 400);
+  await shot("tote-close-range");
+  // Nothing chosen in serial 2 again.
+  await line("Towing 01").getByRole("button", { name: "Remove Towing 01 from the Tote" }).click();
+  await tote(".tote-primary").selectOption({ value: "" });
+  await tote(".tote-hint").waitFor();
   await page.selectOption("#plots", "serial-1");
   await line("Cargo 04").waitFor();
   assert.equal(await tote(".tote-primary").inputValue(), "track-red-one");
   assert.match((await tote(".tote-primary-own").getAttribute("aria-label")) ?? "", /^RED ONE, the primary/);
   assert.deepEqual(await secondaries(), ["Cargo 04"]);
-  // The panel folds away: a summary the keyboard reaches, Enter toggles it.
-  await page.locator("#panel-tote > summary").focus();
+  // The panel folds away by its heading's button, which the keyboard reaches: Enter toggles it.
+  // Folded, the Tote asks for nothing; opened again, it is up to date.
+  await fold.focus();
   await page.keyboard.press("Enter");
-  assert.equal(await panel.getAttribute("open"), null);
+  assert.equal(await fold.getAttribute("aria-expanded"), "false");
+  assert.equal(await page.locator("#tote").isVisible(), false);
   await page.keyboard.press("Enter");
-  assert.equal(await panel.getAttribute("open"), "");
+  assert.equal(await fold.getAttribute("aria-expanded"), "true");
+  await line("Cargo 04").waitFor();
+  await playFolding(page);
   // Nothing chosen again, so what follows starts with the side column as it was.
   await line("Cargo 04").getByRole("button", { name: "Remove Cargo 04 from the Tote" }).click();
   await tote(".tote-primary").selectOption({ value: "" });
   await tote(".tote-hint").waitFor();
   await page.waitForTimeout(500);
   return latency;
+}
+
+const PANELS = { time: "Time", tote: "Tote", plot: "Plot", outline: "Outline", timeline: "Timeline", tools: "Tools", history: "History", try: "Try", import: "Import your own" };
+
+/**
+ * Every side panel folds away as the Tote does (decision, 14 Oct 2026): each heading is still a
+ * heading a screen reader lists, holding a button that says whether its panel is open. Which are
+ * folded is remembered in this browser; where storage is refused, they fold all the same.
+ */
+// The stylesheet writes headings in capitals, which a browser may pass on to a screen reader.
+const named = (name) => new RegExp(`^${name}$`, "i");
+
+export async function playFolding(page) {
+  const side = page.locator("#side");
+  const folded = () => page.evaluate(() => JSON.parse(localStorage.getItem("debrief.play.folded") ?? "[]"));
+  for (const [id, name] of Object.entries(PANELS)) {
+    const heading = side.getByRole("heading", { level: 2, name: named(name) });
+    assert.equal(await heading.count(), 1, `${name} is a heading`);
+    const button = heading.getByRole("button", { name: named(name) });
+    assert.equal(await button.getAttribute("aria-expanded"), "true", name);
+    assert.equal(await button.getAttribute("aria-controls"), `body-${id}`);
+    await button.click();
+    assert.equal(await button.getAttribute("aria-expanded"), "false", name);
+    assert.equal(await page.locator(`#body-${id}`).isHidden(), true, `${name} folded away`);
+    assert.equal(await heading.isVisible(), true, `${name}'s heading stays`);
+  }
+  // History's Undo and Redo stay beside its heading, folded or not.
+  assert.equal(await page.locator("#undo").isVisible(), true);
+  await page.locator("#side").evaluate((s) => (s.scrollTop = 0));
+  assert.deepEqual(await folded(), Object.keys(PANELS).map((id) => `panel-${id}`).sort());
+
+  // Remembered: the playground opened again in this browser has them folded.
+  // (A second window on the same storage: the browser's state carried over.)
+  const browser = page.context().browser();
+  const later = await browser.newContext({ storageState: await page.context().storageState(), viewport: { width: 1400, height: 820 } });
+  const again = await later.newPage();
+  await again.goto(page.url());
+  await again.locator("#panel-outline.folded").waitFor();
+  for (const id of Object.keys(PANELS)) assert.equal(await again.locator(`#body-${id}`).isHidden(), true, `panel-${id} remembered`);
+  await later.close();
+
+  // A browser that refuses storage: every panel starts open and still folds.
+  const refusing = await browser.newPage({ viewport: { width: 1400, height: 820 } });
+  const errors = [];
+  refusing.on("pageerror", (e) => errors.push(String(e)));
+  await refusing.addInitScript(() => Object.defineProperty(window, "localStorage", { get: () => { throw new DOMException("refused", "SecurityError"); } }));
+  await refusing.goto(page.url());
+  const toteFold = refusing.locator("#panel-tote h2 button.fold");
+  await toteFold.waitFor();
+  assert.equal(await toteFold.getAttribute("aria-expanded"), "true");
+  await toteFold.click();
+  assert.equal(await refusing.locator("#body-tote").isHidden(), true);
+  assert.deepEqual(errors, [], "no errors without storage");
+  await refusing.close();
+
+  // Open again from the keyboard, and the column is as it was.
+  for (const name of Object.values(PANELS)) {
+    await side.getByRole("heading", { level: 2, name: named(name) }).getByRole("button").focus();
+    await page.keyboard.press("Enter");
+  }
+  assert.deepEqual(await folded(), []);
+  for (const id of Object.keys(PANELS)) assert.equal(await page.locator(`#body-${id}`).evaluate((body) => body.hidden), false, `panel-${id} open`);
 }
 
 /** A finger held on an element, as a tablet sends it: touch pointer events, held still past the hold time. */

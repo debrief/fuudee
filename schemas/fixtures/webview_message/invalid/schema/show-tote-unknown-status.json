@@ -21,7 +21,7 @@
         "label": "Range",
         "subject": "relative",
         "quantity_kind": "length",
-        "display": "quantity"
+        "display": "range"
       },
       {
         "id": "bearing",

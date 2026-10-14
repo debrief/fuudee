@@ -19,7 +19,9 @@ A track's state at a time is worked out as the map places its marker at
 current time: its position along the geodesic between the fixes either side,
 in proportion to time (geodesy.TrackPath, the twin of the map's positionAt).
 Course, speed and depth are the track's recorded values interpolated the same
-way, course the shorter way round through 360°; a track that recorded no
+way, course the shorter way round through 360°, except across a reversal (courses
+either side opposite, within 0.5°), where it is the nearer fix's (decision, 14 Oct
+2026); a track that recorded no
 courses or speeds has them from its positions: the geodesic's direction at
 that point, and the leg's length over its duration.
 
@@ -58,7 +60,7 @@ class MeasureDefinition:
     label: str
     subject: str  # relative or own
     quantity_kind: str
-    display: str  # quantity, bearing, relative_bearing or depth
+    display: str  # quantity, range, bearing, relative_bearing or depth
     unit: str  # the unit its values are worked out in
     explanation: str
 
@@ -81,7 +83,7 @@ CORE_MEASURES: tuple[MeasureDefinition, ...] = (
         "Range",
         "relative",
         "length",
-        "quantity",
+        "range",
         "m",
         "The geodesic distance from the primary to the track (WGS84).",
     ),
@@ -138,7 +140,8 @@ CORE_MEASURES: tuple[MeasureDefinition, ...] = (
         "bearing",
         "deg",
         "The course recorded at the fixes either side, interpolated the shorter way round; "
-        "else the direction of the track there.",
+        "where they are opposite (within 0.5°), the nearer fix's course; else the direction "
+        "of the track there.",
     ),
     MeasureDefinition(
         "speed",
@@ -166,6 +169,10 @@ CORE_MEASURES: tuple[MeasureDefinition, ...] = (
 MEASURES: dict[str, MeasureDefinition] = {m.id: m for m in CORE_MEASURES}
 
 CORE_GROUP_ID = "core"
+
+# Recorded courses either side this close to opposite are a reversal (decision, 14 Oct
+# 2026): the course is not interpolated across it, but the nearer fix's.
+REVERSAL_TOLERANCE_DEG = 0.5
 
 # Closer than this, two tracks are in one place: the range is zero and there is no bearing
 # (geodesy would give 180°, which reads as a real direction).
@@ -290,7 +297,12 @@ class TrackMotion:
     def _course(self, index: int, fraction: float, line, point) -> float | None:
         if self.courses is not None:
             a, b = self.courses[index], self.courses[index + 1]
-            return normalise_bearing(a + fraction * bearing_difference(b, a))
+            turn = bearing_difference(b, a)
+            if abs(turn) >= 180.0 - REVERSAL_TOLERANCE_DEG:
+                # A reversal: no shorter way round, and a course half way is one neither
+                # fix had. The nearer fix's course; half way, the later one's.
+                return normalise_bearing(a if fraction < 0.5 else b)
+            return normalise_bearing(a + fraction * turn)
         if line.s13 <= 0.0:  # no movement on this leg: no direction to give
             return None
         return normalise_bearing(point["azi2"])

@@ -95,6 +95,20 @@ def format_quantity(quantity: Quantity, settings: FormatSettings = DEFAULT_SETTI
     return f"{fixed(quantity.to(unit).value, decimals)} {UNIT_LABELS[unit]}"
 
 
+# Close range in yards (decision, 14 Oct 2026): where lengths are in nautical miles, a range
+# under one is in whole yards, as analysts call close ranges; from 1 nmi, nautical miles.
+_NAUTICAL_MILE = "[nmi_i]"
+_YARD = "[yd_i]"
+
+
+def format_range(distance: Quantity, settings: FormatSettings = DEFAULT_SETTINGS) -> str:
+    """A range between two vessels: as format_quantity, except that where the analyst's
+    lengths are in nautical miles, a range under 1 nmi is in whole yards, "60 yd"."""
+    if str(settings.length_unit) == _NAUTICAL_MILE and distance.to(_NAUTICAL_MILE).value < 1.0:
+        return f"{fixed(distance.to(_YARD).value, 0)} {UNIT_LABELS[_YARD]}"
+    return format_quantity(distance, settings)
+
+
 def format_bearing(bearing: Quantity, settings: FormatSettings = DEFAULT_SETTINGS) -> str:
     """A true bearing as three figures, for example "045.0°T"."""
     decimals = settings.angle_decimals

@@ -586,6 +586,93 @@
         "unit": "m"
       },
       "expected": "65.6 ft"
+    },
+    {
+      "name": "close range in whole yards",
+      "settings": {},
+      "op": "range",
+      "input": {
+        "value": 54.864,
+        "unit": "m"
+      },
+      "expected": "60 yd"
+    },
+    {
+      "name": "range just under a nautical mile, in yards",
+      "settings": {},
+      "op": "range",
+      "input": {
+        "value": 1851.5,
+        "unit": "m"
+      },
+      "expected": "2025 yd"
+    },
+    {
+      "name": "range of no distance, in yards",
+      "settings": {},
+      "op": "range",
+      "input": {
+        "value": 0,
+        "unit": "m"
+      },
+      "expected": "0 yd"
+    },
+    {
+      "name": "range of a nautical mile stays in nautical miles",
+      "settings": {},
+      "op": "range",
+      "input": {
+        "value": 1852,
+        "unit": "m"
+      },
+      "expected": "1.00 nmi"
+    },
+    {
+      "name": "long range in nautical miles",
+      "settings": {},
+      "op": "range",
+      "input": {
+        "value": 2.5,
+        "unit": "[nmi_i]"
+      },
+      "expected": "2.50 nmi"
+    },
+    {
+      "name": "close range in kilometres is unchanged",
+      "settings": {
+        "length_unit": "km"
+      },
+      "op": "range",
+      "input": {
+        "value": 500,
+        "unit": "m"
+      },
+      "expected": "0.50 km"
+    },
+    {
+      "name": "close range in metres is unchanged",
+      "settings": {
+        "length_unit": "m",
+        "length_decimals": 0
+      },
+      "op": "range",
+      "input": {
+        "value": 54.864,
+        "unit": "m"
+      },
+      "expected": "55 m"
+    },
+    {
+      "name": "close range in yards keeps the analyst's decimals",
+      "settings": {
+        "length_unit": "[yd_i]"
+      },
+      "op": "range",
+      "input": {
+        "value": 54.864,
+        "unit": "m"
+      },
+      "expected": "60.00 yd"
     }
   ]
 }

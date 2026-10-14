@@ -1,5 +1,5 @@
 {
-  "description": "Shared vectors for a track's position at a time (SUB-03, CAP-06): along the geodesic between the fixes either side, in proportion to time. The Tote's measures (debrief_kernel.measures, through geodesy.TrackPath) and the map's marker at current time (positionAt in vscode/webview/geodesic.ts) must both give expected, [longitude, latitude], to within 1e-9 degrees; null outside the track's span. Where fixes share a time, the later one.",
+  "description": "Shared vectors for a track's position at a time (SUB-03, CAP-06): along the geodesic between the fixes either side, in proportion to time. The Tote's measures (debrief_kernel.measures, through geodesy.TrackPath) and the map's marker at current time (positionAt in vscode/webview/geodesic.ts) must both give expected, [longitude, latitude], to within 1e-9 degrees; null outside the track's span. Where fixes share a time, the later one. A case with recorded courses (degrees true, one per fix) gives each sample's course too, to within 1e-9 degrees, as the Tote shows it (the map shows no course): interpolated the shorter way round, except across a reversal, courses either side opposite within 0.5 degrees, where it is the nearer fix's, the later one's half way (decision, 14 Oct 2026).",
   "cases": [
     {
       "name": "east along the equator",
@@ -280,6 +280,277 @@
             0.2,
             0
           ]
+        }
+      ]
+    },
+    {
+      "name": "courses interpolated the shorter way round",
+      "coordinates": [
+        [
+          0,
+          0
+        ],
+        [
+          0,
+          0.2
+        ]
+      ],
+      "times": [
+        "2023-06-15T08:00:00.000Z",
+        "2023-06-15T09:00:00.000Z"
+      ],
+      "courses": [
+        350.0,
+        10.0
+      ],
+      "samples": [
+        {
+          "at": "2023-06-15T08:00:00.000Z",
+          "expected": [
+            0,
+            0
+          ],
+          "course": 350.0
+        },
+        {
+          "at": "2023-06-15T08:15:00.000Z",
+          "expected": [
+            0.0,
+            0.05000000191176838
+          ],
+          "course": 355.0
+        },
+        {
+          "at": "2023-06-15T08:30:00.000Z",
+          "expected": [
+            0.0,
+            0.10000000305882797
+          ],
+          "course": 0.0
+        },
+        {
+          "at": "2023-06-15T08:45:00.000Z",
+          "expected": [
+            0.0,
+            0.15000000267647243
+          ],
+          "course": 5.0
+        },
+        {
+          "at": "2023-06-15T09:00:00.000Z",
+          "expected": [
+            0,
+            0.2
+          ],
+          "course": 10.0
+        }
+      ]
+    },
+    {
+      "name": "a reversal: the nearer fix's course",
+      "coordinates": [
+        [
+          0,
+          0
+        ],
+        [
+          0,
+          0.2
+        ],
+        [
+          0,
+          0.1
+        ]
+      ],
+      "times": [
+        "2023-06-15T08:00:00.000Z",
+        "2023-06-15T09:00:00.000Z",
+        "2023-06-15T10:00:00.000Z"
+      ],
+      "courses": [
+        0.0,
+        0.0,
+        180.0
+      ],
+      "samples": [
+        {
+          "at": "2023-06-15T09:00:00.000Z",
+          "expected": [
+            0,
+            0.2
+          ],
+          "course": 0.0
+        },
+        {
+          "at": "2023-06-15T09:20:00.000Z",
+          "expected": [
+            0.0,
+            0.16666666772403704
+          ],
+          "course": 0.0
+        },
+        {
+          "at": "2023-06-15T09:29:00.000Z",
+          "expected": [
+            0.0,
+            0.15166666781669422
+          ],
+          "course": 0.0
+        },
+        {
+          "at": "2023-06-15T09:30:00.000Z",
+          "expected": [
+            0.0,
+            0.15000000114705847
+          ],
+          "course": 180.0
+        },
+        {
+          "at": "2023-06-15T09:40:00.000Z",
+          "expected": [
+            0.0,
+            0.13333333431517788
+          ],
+          "course": 180.0
+        },
+        {
+          "at": "2023-06-15T10:00:00.000Z",
+          "expected": [
+            0,
+            0.1
+          ],
+          "course": 180.0
+        }
+      ]
+    },
+    {
+      "name": "a reversal within half a degree",
+      "coordinates": [
+        [
+          0,
+          0
+        ],
+        [
+          0.2,
+          0
+        ],
+        [
+          0.1,
+          0
+        ]
+      ],
+      "times": [
+        "2023-06-15T08:00:00.000Z",
+        "2023-06-15T09:00:00.000Z",
+        "2023-06-15T10:00:00.000Z"
+      ],
+      "courses": [
+        90.0,
+        90.0,
+        270.4
+      ],
+      "samples": [
+        {
+          "at": "2023-06-15T09:15:00.000Z",
+          "expected": [
+            0.17500000000001137,
+            0.0
+          ],
+          "course": 90.0
+        },
+        {
+          "at": "2023-06-15T09:45:00.000Z",
+          "expected": [
+            0.125,
+            0.0
+          ],
+          "course": 270.4
+        }
+      ]
+    },
+    {
+      "name": "a turn of 179 degrees: still interpolated",
+      "coordinates": [
+        [
+          0,
+          0
+        ],
+        [
+          0,
+          0.2
+        ]
+      ],
+      "times": [
+        "2023-06-15T08:00:00.000Z",
+        "2023-06-15T09:00:00.000Z"
+      ],
+      "courses": [
+        10.0,
+        189.0
+      ],
+      "samples": [
+        {
+          "at": "2023-06-15T08:00:00.000Z",
+          "expected": [
+            0,
+            0
+          ],
+          "course": 10.0
+        },
+        {
+          "at": "2023-06-15T08:30:00.000Z",
+          "expected": [
+            0.0,
+            0.10000000305882797
+          ],
+          "course": 99.5
+        },
+        {
+          "at": "2023-06-15T09:00:00.000Z",
+          "expected": [
+            0,
+            0.2
+          ],
+          "course": 189.0
+        }
+      ]
+    },
+    {
+      "name": "a reversal at the far side of north",
+      "coordinates": [
+        [
+          0,
+          0
+        ],
+        [
+          0,
+          0.2
+        ]
+      ],
+      "times": [
+        "2023-06-15T08:00:00.000Z",
+        "2023-06-15T09:00:00.000Z"
+      ],
+      "courses": [
+        359.8,
+        179.9
+      ],
+      "samples": [
+        {
+          "at": "2023-06-15T08:20:00.000Z",
+          "expected": [
+            0.0,
+            0.06666666908351926
+          ],
+          "course": 359.8
+        },
+        {
+          "at": "2023-06-15T08:40:00.000Z",
+          "expected": [
+            0.0,
+            0.13333333635439654
+          ],
+          "course": 179.9
         }
       ]
     }

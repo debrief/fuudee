@@ -12,6 +12,10 @@
  *   plot=serial-1         the sample serial to open
  *   panels=tote,timeline,tools,history,try,import   the side panels, in this order (all by default;
  *                         the Tote, when listed, is always under the time controller)
+ *
+ * Every side panel folds away by its heading (fold.ts). The playground remembers which are
+ * folded in this browser; a demo that chooses its panels starts with them all open, and
+ * folding there is not remembered, so a post's demo always shows what the post describes.
  */
 import type { AnnotationSpec, DebriefFeatureCollection, ParameterValue, PlotView, SharedStateChange, StacItem, TimeRange, TimeState, ToolDeclaration, ToolResult, ToteResult, ToteView } from "@debrief/schemas";
 import { specOfFeature } from "../webview/annotationlook.js";
@@ -27,6 +31,7 @@ import { TimeControl } from "../webview/timecontrol.js";
 import { ToteControl } from "../webview/totecontrol.js";
 import { latencySummary, sameTote, toteOf, ToteRequests, toteTracks, withoutSecondary, withPrimary, withSecondaries } from "../webview/totelogic.js";
 import { PressHold } from "../webview/presshold.js";
+import { Folds } from "./fold.js";
 import { formatBearing, formatPosition, parsePosition } from "@debrief/kernel";
 import { defaultPivotIndex, describeDistance, describeSpeed, describeTurn, FIX_PROMPT, FIX_PROMPT_DR, fixIndexAt, fixMeans, fixToEdit, jumpSpeed, legNow, mergedName, mergePlan, periodIndices, readBearing, readDistance, readSpeed, readTurn, reckoningOf } from "../webview/trackedit.js";
 import { chooseModes, MODE_LABELS, modeChoices, modeQuestion, REMEMBER_LABEL, REMEMBERED_IN_PLAYGROUND, type PlottingMode } from "../src/importmode.js";
@@ -59,6 +64,8 @@ const params = new URLSearchParams(location.search);
 const panelOrder = (params.get("panels") ?? "tote,timeline,tools,history,try,import").split(",");
 const panels = new Set(panelOrder);
 const startPlot = params.get("plot") ?? "serial-1";
+/** Every side panel folds by its heading; remembered in this browser, except in a demo that chooses its panels. */
+const folds = new Folds(Array.from(document.querySelectorAll<HTMLElement>("#side > section.panel")), !params.has("panels"));
 const theme = matchMedia("(prefers-color-scheme: light)").matches || params.get("theme") === "light" ? "light" : "dark";
 if (theme === "light") document.documentElement.classList.add("light");
 const $ = <T extends HTMLElement>(id: string) => document.getElementById(id) as T;
@@ -146,7 +153,7 @@ function showTime(next: TimeState | undefined): void {
 /** A choice the reader made that is being saved: shown at once, before the save returns. */
 let toteChoosing: ToteView | undefined;
 const toteChoice = (): ToteView => toteChoosing ?? toteOf(opened?.plot);
-const totePanel = $<HTMLDetailsElement>("panel-tote");
+const totePanel = $("panel-tote");
 const toteControl = new ToteControl($("tote"), { changed: (view) => void chooseTote(view) });
 /** How long Python took to work each answer out, for the latency check (NFR-04). */
 const toteCompute: number[] = [];
@@ -168,7 +175,7 @@ const toteRequests = new ToteRequests<{ item: string; time: string; tote: ToteVi
 (window as unknown as { debriefToteLatency: () => unknown }).debriefToteLatency = () => ({ shown: latencySummary(toteRequests.timings), compute: latencySummary(toteCompute) });
 /** Ask for the Tote at current time, while it is showing and has tracks to compare. */
 function refreshTote(): void {
-  if (!opened || !time || !pythonReady || !panels.has("tote") || !totePanel.open) return;
+  if (!opened || !time || !pythonReady || !panels.has("tote") || !folds.isOpen(totePanel.id)) return;
   const tote = toteChoice();
   if (!tote.primary && !tote.secondaries?.length) return;
   toteRequests.request({ item: opened.item.id, time: time.current, tote });
@@ -197,7 +204,7 @@ async function chooseTote(view: ToteView): Promise<void> {
   toteChoosing = undefined;
   showTote();
 }
-totePanel.addEventListener("toggle", () => totePanel.open && refreshTote());
+totePanel.addEventListener("fold", () => folds.isOpen(totePanel.id) && refreshTote());
 let tools: ToolDeclaration[] = [];
 let offered: string[] = [];
 let formTool: ToolDeclaration | undefined;
@@ -1378,7 +1385,7 @@ function trackMenu(id: string, x: number, y: number, from: HTMLElement): void {
     button.tabIndex = -1;
     button.onclick = () => {
       closeMenu();
-      totePanel.open = true;
+      folds.setOpen(totePanel.id, true);
       void chooseTote(change());
     };
     return button;

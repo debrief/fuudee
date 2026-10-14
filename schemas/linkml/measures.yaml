@@ -30,6 +30,7 @@ enums:
     description: How a measure's value is written for people, by the formatting service (SUB-04).
     permissible_values:
       quantity: {description: "In the analyst's unit for its kind, such as 1.25 nmi or 12.0 kn."}
+      range: {description: "A range, in the analyst's length unit; where that is nautical miles, a range under 1 nmi is in whole yards, such as 60 yd (decision, 14 Oct 2026)."}
       bearing: {description: "Three figures, true: 045.0°T."}
       relative_bearing: {description: "From the primary's head, port red and starboard green: R045.0° or G045.0°."}
       depth: {description: "A depth, in metres, or feet where the analyst's lengths are imperial."}

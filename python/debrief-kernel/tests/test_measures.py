@@ -12,6 +12,7 @@ from debrief_kernel.measures import (
     CORE_GROUP,
     CORE_MEASURES,
     MEASURES,
+    REVERSAL_TOLERANCE_DEG,
     TrackMotion,
     TrackState,
     group_measures,
@@ -19,7 +20,7 @@ from debrief_kernel.measures import (
     relative_bearing,
 )
 from debrief_kernel.time import parse_utc
-from debrief_kernel.units import Quantity
+from debrief_kernel.units import Quantity, bearing_difference
 from debrief_schemas import load_plot
 
 VECTORS = Path(__file__).resolve().parents[3] / "schemas" / "vectors"
@@ -57,6 +58,7 @@ def test_core_follows_legacy_totes_measures_in_order() -> None:
     assert MEASURES["bearing_rate"].quantity_kind == "angular_rate"
     assert MEASURES["bearing_rate"].unit == "deg/min"
     assert MEASURES["aob"].display == "relative_bearing"
+    assert MEASURES["range"].display == "range"  # close range in yards (decision, 14 Oct 2026)
 
 
 def test_core_group_and_measures_are_valid_schema_documents() -> None:
@@ -254,7 +256,9 @@ def test_position_is_where_the_map_puts_the_marker() -> None:
     for case in cases:
         times = [parse_utc(t) for t in case["times"]]
         positions = [Position(lon, lat) for lon, lat in case["coordinates"]]
-        motion, path = TrackMotion(times, positions), TrackPath(times, positions)
+        courses = case.get("courses")
+        motion = TrackMotion(times, positions, courses_deg=courses)
+        path = TrackPath(times, positions)
         for sample in case["samples"]:
             t = parse_utc(sample["at"])
             expected = sample["expected"]
@@ -265,6 +269,10 @@ def test_position_is_where_the_map_puts_the_marker() -> None:
                 assert found.position.longitude == pytest.approx(expected[0], abs=1e-9)
                 assert found.position.latitude == pytest.approx(expected[1], abs=1e-9)
                 assert path.position_at(t) == found.position
+            if courses is not None and expected is not None:
+                # The Tote's course; the same bearing either side of north is one course.
+                turn = bearing_difference(found.course_deg, sample["course"])
+                assert abs(turn) < 1e-9, (case["name"], sample["at"], found.course_deg)
 
 
 def test_recorded_course_speed_and_depth_are_interpolated() -> None:
@@ -281,6 +289,34 @@ def test_recorded_course_speed_and_depth_are_interpolated() -> None:
     assert quarter.depth_m == pytest.approx(22.5)
     half = motion.state_at(HOUR // 2)
     assert half.course_deg == pytest.approx(0.0, abs=1e-9)
+
+
+@pytest.mark.parametrize(
+    ("courses", "at_minutes", "expected"),
+    [
+        ([0.0, 180.0], 10, 0.0),  # nearer the first fix: its course
+        ([0.0, 180.0], 50, 180.0),  # nearer the second: its course
+        ([0.0, 180.0], 30, 180.0),  # half way: the later fix's
+        ([45.0, 225.0], 29, 45.0),
+        ([270.0, 90.0], 31, 90.0),
+        ([90.0, 270.4], 20, 90.0),  # within half a degree of opposite: still a reversal
+        ([90.0, 269.6], 40, 269.6),
+    ],
+)
+def test_no_course_is_made_up_across_a_reversal(
+    courses: list[float], at_minutes: int, expected: float
+) -> None:
+    # Courses either side exactly opposite have no shorter way round, and a course half way
+    # is one the track never steered (decision, 14 Oct 2026): the nearer fix's course.
+    motion = TrackMotion([0, HOUR], [Position(0, 0), Position(0, 0.1)], courses_deg=courses)
+    assert motion.state_at(at_minutes * 60_000).course_deg == pytest.approx(expected)
+
+
+def test_a_turn_short_of_a_reversal_is_interpolated() -> None:
+    # 179° is a turn with a shorter way round, beyond the half-degree tolerance.
+    motion = TrackMotion([0, HOUR], [Position(0, 0), Position(0, 0.1)], courses_deg=[10.0, 189.0])
+    assert motion.state_at(HOUR // 2).course_deg == pytest.approx(99.5)
+    assert REVERSAL_TOLERANCE_DEG == 0.5
 
 
 def test_at_a_fix_its_own_values() -> None:

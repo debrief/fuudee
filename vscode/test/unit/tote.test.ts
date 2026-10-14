@@ -126,6 +126,9 @@ describe("the Tote's values, written with the analyst's settings (SUB-04)", () =
   const definition = (id: string) => shown.measures.find((m) => m.id === id)!;
   it("writes each measure as it says it is shown", () => {
     expect(formatMeasure(definition("range"), { value: 1852, unit: "m" })).toBe("1.00 nmi");
+    // Close range in yards, where lengths are in nautical miles (decision, 14 Oct 2026).
+    expect(formatMeasure(definition("range"), { value: 54.864, unit: "m" })).toBe("60 yd");
+    expect(formatMeasure(definition("range"), { value: 1851, unit: "m" })).toBe("2024 yd");
     expect(formatMeasure(definition("bearing"), { value: 200.5, unit: "deg" })).toBe("200.5°T");
     expect(formatMeasure(definition("relative_bearing"), { value: -24.5, unit: "deg" })).toBe("R024.5°");
     expect(formatMeasure(definition("relative_bearing"), { value: 24.5, unit: "deg" })).toBe("G024.5°");
@@ -141,13 +144,14 @@ describe("the Tote's values, written with the analyst's settings (SUB-04)", () =
   it("follows the analyst's units and decimals", () => {
     const settings = { ...DEFAULT_SETTINGS, length_unit: "[yd_i]" as const, length_decimals: 0, angle_decimals: 0 };
     expect(formatMeasure(definition("range"), { value: 1852, unit: "m" }, settings)).toBe("2025 yd");
+    expect(formatMeasure(definition("range"), { value: 500, unit: "m" }, { ...DEFAULT_SETTINGS, length_unit: "km" })).toBe("0.50 km");
     expect(formatMeasure(definition("bearing"), { value: 200.5, unit: "deg" }, settings)).toBe("201°T");
     expect(formatMeasure(definition("depth"), { value: 20, unit: "m" }, settings)).toBe("65.6 ft");
   });
   it("lays out the primary with its own measures, then each secondary, saying why one has none", () => {
     const { primary, secondaries } = toteLines(shown);
     expect(primary!.cells.map((c) => c.text)).toEqual(["", "", "", "", "", "225.0°T", "12.0 kn", "—"]);
-    expect(secondaries[0].cells.map((c) => c.text)).toEqual(["0.67 nmi", "200.5°T", "R024.5°", "G135.0°", "-0.8°/min", "230.0°T", "6.0 kn", "20.0 m"]);
+    expect(secondaries[0].cells.map((c) => c.text)).toEqual(["1350 yd", "200.5°T", "R024.5°", "G135.0°", "-0.8°/min", "230.0°T", "6.0 kn", "20.0 m"]);
     expect(secondaries[1]).toMatchObject({ track: "track-tug-01", ok: false, note: "Ended 10:35:00Z" });
     expect(secondaries[1].cells.every((c) => c.text === "")).toBe(true);
     expect(secondaries[2]).toMatchObject({ name: "track-gone", ok: false, note: "No longer in the plot" });
