@@ -766,6 +766,8 @@ async function playTheTote(api: DebriefApi, island: () => { tote?: unknown }, pe
   await waitFor("the Tote view", () => api.toteShowing() || undefined);
   assert.deepEqual(island().tote, { primary: "track-blue-one", secondaries: ["track-red-one", "track-ais-cargo-04", "track-ais-tug-01"] });
   assert.deepEqual(api.session.current!.base, base, "choosing the Tote's tracks is no step in the history");
+  // The map is told, for its thin lines from the primary to each secondary.
+  await waitFor("the map's Tote lines", () => (api.mapTote()?.secondaries?.length === 3 ? true : undefined));
   // At the window's start Cargo 04 has no data yet; RED ONE has every measure.
   const at = (time: string) => api.setState({ time: { current: time, range: period } });
   at(period.start);
@@ -774,7 +776,7 @@ async function playTheTote(api: DebriefApi, island: () => { tote?: unknown }, pe
   assert.equal(red.status, "ok");
   assert.deepEqual(
     red.values!.map((v) => v.measure),
-    ["range", "bearing", "relative_bearing", "course", "speed", "depth"],
+    ["range", "bearing", "relative_bearing", "aob", "bearing_rate", "course", "speed", "depth"],
   );
   assert.ok(red.values!.every((v) => typeof v.value === "number"));
   assert.deepEqual([cargo.status, cargo.note], ["no_data", "Starts 08:28:48Z"]);
@@ -807,6 +809,14 @@ async function playTheTote(api: DebriefApi, island: () => { tote?: unknown }, pe
   console.log(`Tote latency in VS Code (tool service), from asking to showing: p50 ${latency.p50} ms, p95 ${latency.p95} ms, max ${latency.max} ms over ${latency.count} answers (budget 100 ms).`);
   // Generous: the report says precisely what was seen; this catches only a gross regression.
   assert.ok(latency.p95 < 300, `Tote p95 ${latency.p95} ms`);
+  // The map's lines off and on again, as the Tote's box does: island state, never a step.
+  const chosen = island().tote as { primary: string; secondaries: string[] };
+  assert.equal(await vscode.commands.executeCommand("debrief.setTote", { ...chosen, map_lines: false }), undefined);
+  assert.deepEqual(island().tote, { ...chosen, map_lines: false });
+  await waitFor("the map's lines off", () => (api.mapTote()?.map_lines === false ? true : undefined));
+  assert.equal(await vscode.commands.executeCommand("debrief.setTote", chosen), undefined);
+  assert.deepEqual(island().tote, chosen);
+  assert.deepEqual(api.session.current!.base, base, "the map's lines are no step either");
   // Removing tracks, as from the outline's menu.
   assert.equal(await vscode.commands.executeCommand("debrief.tote.remove", ["track-ais-cargo-04", "track-ais-tug-01"]), undefined);
   assert.deepEqual(island().tote, { primary: "track-blue-one", secondaries: ["track-red-one"] });

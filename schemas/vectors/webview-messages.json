@@ -109,6 +109,9 @@
     ],
     "tote_changed": [
       "tote_view"
+    ],
+    "set_tote": [
+      "tote_view?"
     ]
   }
 }

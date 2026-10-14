@@ -91,11 +91,17 @@ def test_a_row_per_secondary_in_the_order_chosen(catalogue) -> None:
     assert got["course"] == pytest.approx(0.0, abs=1e-9)  # halfway from 350 to 010
     assert got["speed"] == pytest.approx(10 * 1852 / 3600)
     assert got["depth"] == pytest.approx(25.0)
+    # RED ONE lies due east, both heading north at 10 knots: BLUE ONE is on its port beam,
+    # and the bearing holds.
+    assert got["aob"] == pytest.approx(-90.0, abs=0.1)
+    assert got["bearing_rate"] == pytest.approx(0.0, abs=1e-3)
     units = {v["measure"]: v["unit"] for v in red["values"]}
     assert units == {
         "range": "m",
         "bearing": "deg",
         "relative_bearing": "deg",
+        "aob": "deg",
+        "bearing_rate": "deg/min",
         "course": "deg",
         "speed": "m/s",
         "depth": "m",
@@ -147,6 +153,17 @@ def test_the_choice_is_read_from_the_island_and_saving_it_is_no_step(catalogue) 
     result = tote(catalogue, "p", T.format(3))
     assert result["primary"]["track"] == "blue"
     assert [r["track"] for r in result["rows"]] == ["red", "late", "gone"]
+
+
+def test_the_maps_lines_are_island_state_too(catalogue) -> None:
+    # Turning the map's lines off is saved with the choice, never a step (decision, 14 Oct 2026).
+    head = catalogue.history("p").head()
+    _, view_hash = catalogue.read_view("p")
+    catalogue.write_view("p", {"tote": {**VIEW, "map_lines": False}}, view_hash)
+    island, _ = catalogue.read_view("p")
+    assert island.tote.map_lines is False
+    assert catalogue.history("p").head() == head
+    assert tote(catalogue, "p", T.format(3))["primary"]["track"] == "blue"
 
 
 def test_the_island_refuses_a_primary_that_is_also_a_secondary(catalogue) -> None:

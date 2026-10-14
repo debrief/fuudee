@@ -43,4 +43,8 @@
 .tote-remove:focus-visible { outline: 1px solid var(--vscode-focusBorder); }
 .tote-note { margin: 2px 0; padding: 2px 6px; border-left: 3px solid var(--vscode-inputValidation-warningBorder, var(--vscode-focusBorder)); color: var(--vscode-foreground); }
 .tote-note[hidden], .tote-status:empty { display: none; }
+/* The map's lines from the primary, on or off. */
+.tote-check { display: flex; align-items: center; gap: 6px; color: var(--vscode-descriptionForeground); }
+.tote-check input { margin: 0; accent-color: var(--vscode-focusBorder); }
+.tote-check input:focus-visible { outline: 1px solid var(--vscode-focusBorder); outline-offset: 1px; }
 .tote-status { margin: 0; color: var(--vscode-descriptionForeground); font-size: 11px; }

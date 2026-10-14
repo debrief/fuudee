@@ -96,6 +96,11 @@ classes:
         multivalued: true
       measure_group:
         description: The measure group shown; left out means core.
+      map_lines:
+        description: >-
+          Whether the map draws a thin line from the primary to each secondary
+          at current time; left out means it does (decision, 14 Oct 2026).
+        range: boolean
   MeasureValue:
     description: One measure's value at current time; value left out where it cannot be worked out (no depth recorded, say).
     attributes:

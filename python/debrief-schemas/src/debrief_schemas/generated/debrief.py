@@ -998,7 +998,11 @@ class WebviewMessageKindEnum(str, Enum):
     """
     tote_changed = "tote_changed"
     """
-    Tote to host: the analyst chose a primary, added or removed a secondary, or chose a measure group; save it in the plot (tote_view).
+    Tote to host: the analyst chose a primary, added or removed a secondary, chose a measure group, or turned the map's lines on or off; save it in the plot (tote_view).
+    """
+    set_tote = "set_tote"
+    """
+    Host to map: which tracks the Tote compares (tote_view), for a thin line from the primary to each secondary at current time unless its map_lines is false; none when nothing is chosen.
     """
     fix_chosen = "fix_chosen"
     """
@@ -2977,6 +2981,7 @@ class ToteView(ConfiguredBaseModel):
     primary: Optional[str] = Field(default=None, description="""The track the others are measured from; left out until one is chosen.""", json_schema_extra = { "linkml_meta": {'domain_of': ['ToteView', 'ToteResult']} })
     secondaries: Optional[list[str]] = Field(default=None, description="""The tracks measured from the primary, in the order shown.""", json_schema_extra = { "linkml_meta": {'domain_of': ['ToteView']} })
     measure_group: Optional[str] = Field(default=None, description="""The measure group shown; left out means core.""", json_schema_extra = { "linkml_meta": {'domain_of': ['ToteView']} })
+    map_lines: Optional[bool] = Field(default=None, description="""Whether the map draws a thin line from the primary to each secondary at current time; left out means it does (decision, 14 Oct 2026).""", json_schema_extra = { "linkml_meta": {'domain_of': ['ToteView']} })
 
 
 class MeasureValue(ConfiguredBaseModel):
@@ -3256,7 +3261,7 @@ class WebviewMessage(ConfiguredBaseModel):
     fix_time: Optional[str] = Field(default=None, description="""The time of the fix the analyst chose on the map (fix_chosen).""", json_schema_extra = { "linkml_meta": {'domain_of': ['TrackEdit', 'WebviewMessage']} })
     preview: Optional[LineStringGeometry] = Field(default=None, description="""A track as a change would leave it, one position per fix, drawn beside it until the analyst applies or cancels the change (show_fixes).""", json_schema_extra = { "linkml_meta": {'domain_of': ['WebviewMessage']} })
     tote: Optional[ToteResult] = Field(default=None, description="""The Tote's values at current time (show_tote).""", json_schema_extra = { "linkml_meta": {'domain_of': ['PlotView', 'WebviewMessage']} })
-    tote_view: Optional[ToteView] = Field(default=None, description="""Which tracks the Tote compares, as saved in the plot (show_tote) or as the analyst chose (tote_changed).""", json_schema_extra = { "linkml_meta": {'domain_of': ['WebviewMessage']} })
+    tote_view: Optional[ToteView] = Field(default=None, description="""Which tracks the Tote compares, as saved in the plot (show_tote, set_tote) or as the analyst chose (tote_changed).""", json_schema_extra = { "linkml_meta": {'domain_of': ['WebviewMessage']} })
     tote_tracks: Optional[list[ToteTrack]] = Field(default=None, description="""The plot's tracks, which the analyst can choose from for the Tote (show_tote).""", json_schema_extra = { "linkml_meta": {'domain_of': ['WebviewMessage']} })
 
     @field_validator('current_time')

@@ -22,7 +22,7 @@ import { MapPanel } from "./panels/map.js";
 import { ResultsPanel } from "./panels/results.js";
 import { TIME_VIEW, TimeView } from "./panels/timeview.js";
 import { TOTE_VIEW, ToteView } from "./panels/toteview.js";
-import { withPrimary, withSecondaries, withoutSecondary } from "../webview/totelogic.js";
+import { withMapLines, withPrimary, withSecondaries, withoutSecondary } from "../webview/totelogic.js";
 import { CONFLICT, NEEDS_CONFIRMATION, NEWER_SCHEMA, ServiceError, ToolService, type Agent, type AnnotationChange, type CallOutcome, type OpenedView, type ToolListing, type TrackChange } from "./service.js";
 import type { CleanChange } from "./service.js";
 import { describeJump, describeMark, describeWindow, fixRows, isDeadReckoned, jumpsFound, markAt, readThreshold, readWindow, smoothingNote, trackLabel } from "../webview/fixes.js";
@@ -66,6 +66,8 @@ export interface DebriefApi {
   timeControllerShowing: () => boolean;
   /** How the map was last told to draw tracks outside the window, for tests and agents. */
   mapContext: () => string | undefined;
+  /** The Tote's choice the map was last told of, for its lines from the primary to each secondary, for tests and agents. */
+  mapTote: () => ToteChoice | undefined;
   /** How many times the plot's view has been read again after a change on disk, for tests. */
   viewChecks: () => number;
   /** Whether the Tote view in the sidebar has loaded, for tests and agents. */
@@ -1618,7 +1620,7 @@ export function activate(context: vscode.ExtensionContext): DebriefApi {
   // The whole choice at once, for agents, keyboard macros and tests: saved as from the Tote view.
   command("debrief.setTote", async (tote?: ToteChoice) => {
     if (!tote || typeof tote !== "object") return report("Give the Tote's primary and secondaries.");
-    const choice = withSecondaries(withPrimary({ measure_group: tote.measure_group }, tote.primary ?? undefined), tote.secondaries ?? []);
+    const choice = withMapLines(withSecondaries(withPrimary({ measure_group: tote.measure_group }, tote.primary ?? undefined), tote.secondaries ?? []), tote.map_lines !== false);
     return chooseTote(() => choice);
   });
 
@@ -1924,6 +1926,7 @@ export function activate(context: vscode.ExtensionContext): DebriefApi {
     tote: () => toteView.last,
     toteLatency: () => toteView.latency(),
     mapContext: () => map.context,
+    mapTote: () => map.tote,
     viewChecks: () => viewChecks,
     ...(context.extensionMode === vscode.ExtensionMode.Test && { fromMap: (message: unknown) => map.receive(message) }),
   };

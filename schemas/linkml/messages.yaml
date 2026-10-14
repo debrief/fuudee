@@ -52,7 +52,8 @@ enums:
       edit_track: {description: "Map to host: the analyst let go of a track's move, rotate, shear or stretch handle or one of its fixes, or stopped nudging one (feature_id, track_edit); change it so, as one recorded step."}
       show_fixes: {description: "Host to map: ring these fixes of a track for the analyst to check (feature_id, fix_times), such as jumps found before they are removed, and perhaps draw the track as a change would leave it (preview), with a note (message); with no feature_id, take them away."}
       show_tote: {description: "Host to Tote: the tracks that can be chosen (tote_tracks), which are chosen (tote_view) and the values at current time (tote), any of them; none when no plot is open."}
-      tote_changed: {description: "Tote to host: the analyst chose a primary, added or removed a secondary, or chose a measure group; save it in the plot (tote_view)."}
+      tote_changed: {description: "Tote to host: the analyst chose a primary, added or removed a secondary, chose a measure group, or turned the map's lines on or off; save it in the plot (tote_view)."}
+      set_tote: {description: "Host to map: which tracks the Tote compares (tote_view), for a thin line from the primary to each secondary at current time unless its map_lines is false; none when nothing is chosen."}
       fix_chosen: {description: "Map to host: the analyst asked to colour, label or comment on a fix (feature_id, fix_time), by right-clicking it or pressing Enter on a fix chosen with the keyboard."}
 
 classes:
@@ -134,7 +135,7 @@ classes:
         range: ToteResult
         inlined: true
       tote_view:
-        description: Which tracks the Tote compares, as saved in the plot (show_tote) or as the analyst chose (tote_changed).
+        description: Which tracks the Tote compares, as saved in the plot (show_tote, set_tote) or as the analyst chose (tote_changed).
         range: ToteView
         inlined: true
       tote_tracks:

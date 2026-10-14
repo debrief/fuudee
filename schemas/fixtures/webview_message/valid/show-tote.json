@@ -29,10 +29,13 @@
     "group": {
       "id": "core",
       "title": "Core",
+      "description": "Relative geometry every mode of analysis shares, as legacy Debrief's Tote showed it.",
       "measures": [
         "range",
         "bearing",
         "relative_bearing",
+        "aob",
+        "bearing_rate",
         "course",
         "speed",
         "depth"
@@ -45,7 +48,8 @@
         "label": "Range",
         "subject": "relative",
         "quantity_kind": "length",
-        "display": "quantity"
+        "display": "quantity",
+        "explanation": "The geodesic distance from the primary to the track (WGS84)."
       },
       {
         "id": "bearing",
@@ -53,15 +57,35 @@
         "label": "Brg",
         "subject": "relative",
         "quantity_kind": "angle",
-        "display": "bearing"
+        "display": "bearing",
+        "explanation": "The direction from the primary to the track, true, along the geodesic."
       },
       {
         "id": "relative_bearing",
-        "title": "Bearing from the primary's head",
+        "title": "Relative bearing: from the primary's head, red to port, green to starboard",
         "label": "Rel",
         "subject": "relative",
         "quantity_kind": "angle",
-        "display": "relative_bearing"
+        "display": "relative_bearing",
+        "explanation": "The bearing less the primary's course: negative (red) to port, positive (green) to starboard."
+      },
+      {
+        "id": "aob",
+        "title": "Angle on the bow: the primary's bearing from the track's head, red to port, green to starboard",
+        "label": "AOB",
+        "subject": "relative",
+        "quantity_kind": "angle",
+        "display": "relative_bearing",
+        "explanation": "The bearing from the track to the primary less the track's course: the track's aspect as the primary sees it, negative (red) to port, positive (green) to starboard."
+      },
+      {
+        "id": "bearing_rate",
+        "title": "Bearing rate: how fast the bearing from the primary changes, right positive",
+        "label": "Brg rate",
+        "subject": "relative",
+        "quantity_kind": "angular_rate",
+        "display": "quantity",
+        "explanation": "The rate of change of the true bearing from the primary, from both tracks' courses and speeds: positive drawing right (clockwise), negative drawing left."
       },
       {
         "id": "course",
@@ -69,7 +93,8 @@
         "label": "Crse",
         "subject": "own",
         "quantity_kind": "angle",
-        "display": "bearing"
+        "display": "bearing",
+        "explanation": "The course recorded at the fixes either side, interpolated the shorter way round; else the direction of the track there."
       },
       {
         "id": "speed",
@@ -77,7 +102,8 @@
         "label": "Spd",
         "subject": "own",
         "quantity_kind": "speed",
-        "display": "quantity"
+        "display": "quantity",
+        "explanation": "The speed recorded at the fixes either side, interpolated; else the leg's length over its duration."
       },
       {
         "id": "depth",
@@ -85,7 +111,8 @@
         "label": "Depth",
         "subject": "own",
         "quantity_kind": "length",
-        "display": "depth"
+        "display": "depth",
+        "explanation": "The depth recorded at the fixes either side, interpolated; none where none is recorded."
       }
     ],
     "primary": {
@@ -130,6 +157,16 @@
             "measure": "relative_bearing",
             "value": -24.5,
             "unit": "deg"
+          },
+          {
+            "measure": "aob",
+            "value": 135.0,
+            "unit": "deg"
+          },
+          {
+            "measure": "bearing_rate",
+            "value": -0.75,
+            "unit": "deg/min"
           },
           {
             "measure": "course",

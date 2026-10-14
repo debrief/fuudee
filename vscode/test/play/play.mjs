@@ -650,9 +650,9 @@ try {
     await view.waitForTimeout(100);
     assert.equal(await sideways(), false, "at 210 px, the Tote fits");
     // Wide: a line a track, every measure under its heading.
-    await view.setViewportSize({ width: 600, height: 300 });
+    await view.setViewportSize({ width: 680, height: 300 });
     await view.waitForFunction(() => document.querySelector("#tote")?.classList.contains("tote-wide"));
-    assert.deepEqual(await view.locator("#tote thead th:not(.tote-act)").allInnerTexts(), ["Track", "Range", "Brg", "Rel", "Crse", "Spd", "Depth"]);
+    assert.deepEqual(await view.locator("#tote thead th:not(.tote-act)").allInnerTexts(), ["Track", "Range", "Brg", "Rel", "AOB", "Brg rate", "Crse", "Spd", "Depth"]);
     assert.equal(await view.locator('#tote tbody[data-track="track-red-one"] tr').count(), 1);
     assert.equal(await sideways(), false, "wide, the Tote fits");
     await view.setViewportSize({ width: 290, height: 300 });
@@ -662,6 +662,11 @@ try {
     await view.keyboard.press("Delete");
     for (let i = 0; i < 20 && !posted.some((m) => m.kind === "tote_changed"); i++) await view.waitForTimeout(50);
     assert.deepEqual(posted.find((m) => m.kind === "tote_changed")?.tote_view, { primary: "track-blue-one", secondaries: ["track-tug-01", "track-gone"] });
+    // The map's lines off, from the keyboard: saved with the choice.
+    await view.locator("#tote .tote-lines").focus();
+    await view.keyboard.press("Space");
+    for (let i = 0; i < 20 && posted.filter((m) => m.kind === "tote_changed").length < 2; i++) await view.waitForTimeout(50);
+    assert.deepEqual(posted.filter((m) => m.kind === "tote_changed")[1]?.tote_view, { primary: "track-blue-one", secondaries: ["track-tug-01", "track-gone"], map_lines: false });
     // No plot: it says how to start.
     await view.evaluate(() => window.postMessage({ kind: "show_tote" }, "*"));
     await view.locator(".empty", { hasText: "Open a plot" }).waitFor();

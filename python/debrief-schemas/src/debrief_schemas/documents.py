@@ -755,6 +755,7 @@ MESSAGE_MEMBERS: dict[str, tuple[str, ...]] = {
     "fix_chosen": ("feature_id", "fix_time"),
     "show_tote": ("tote_tracks?", "tote_view?", "tote?"),
     "tote_changed": ("tote_view",),
+    "set_tote": ("tote_view?",),
 }
 
 

@@ -27,7 +27,13 @@ export function toteOf(plot: DebriefFeatureCollection | undefined): ToteView {
 
 const tidy = (view: ToteView): ToteView => {
   const secondaries = [...new Set(view.secondaries ?? [])].filter((id) => id !== view.primary);
-  return { ...(view.primary && { primary: view.primary }), ...(secondaries.length && { secondaries }), ...(view.measure_group && { measure_group: view.measure_group }) };
+  return {
+    ...(view.primary && { primary: view.primary }),
+    ...(secondaries.length && { secondaries }),
+    ...(view.measure_group && { measure_group: view.measure_group }),
+    // Left out means the map draws them: only off is saved.
+    ...(view.map_lines === false && { map_lines: false }),
+  };
 };
 
 /** The primary changed: the old one is not kept anywhere, and the new one is no longer a secondary. */
@@ -44,11 +50,42 @@ export function withoutSecondary(view: ToteView, id: string): ToteView {
   return tidy({ ...view, secondaries: (view.secondaries ?? []).filter((s) => s !== id) });
 }
 
-/** The same choice: tracks in the same order and the same group. */
+/** The map's lines from the primary to each secondary, on or off (decision, 14 Oct 2026). */
+export function withMapLines(view: ToteView, on: boolean): ToteView {
+  return tidy({ ...view, map_lines: on });
+}
+
+/** Whether the map draws a line from the primary to each secondary: on unless turned off. */
+export function mapLinesOn(view: ToteView): boolean {
+  return view.map_lines !== false;
+}
+
+/** The same choice: tracks in the same order, the same group, and the map's lines the same. */
 export function sameTote(a: ToteView, b: ToteView): boolean {
   const x = tidy(a);
   const y = tidy(b);
-  return x.primary === y.primary && (x.measure_group ?? "core") === (y.measure_group ?? "core") && JSON.stringify(x.secondaries ?? []) === JSON.stringify(y.secondaries ?? []);
+  return (
+    x.primary === y.primary &&
+    (x.measure_group ?? "core") === (y.measure_group ?? "core") &&
+    JSON.stringify(x.secondaries ?? []) === JSON.stringify(y.secondaries ?? []) &&
+    mapLinesOn(x) === mapLinesOn(y)
+  );
+}
+
+/**
+ * The map's lines at an instant: from the primary's position to each secondary's, for
+ * those with a position then (positionAt gives none outside a track's span). None when
+ * the lines are off or there is no primary there.
+ */
+export function toteMapLines<P>(view: ToteView, positionOf: (id: string) => P | undefined): { track: string; from: P; to: P }[] {
+  if (!mapLinesOn(view) || !view.primary) return [];
+  const from = positionOf(view.primary);
+  if (from === undefined) return [];
+  return (view.secondaries ?? []).flatMap((track) => {
+    if (track === view.primary) return [];
+    const to = positionOf(track);
+    return to === undefined ? [] : [{ track, from, to }];
+  });
 }
 
 /** A measure's value written for people, as the measure says it is shown; a dash where there is none. */

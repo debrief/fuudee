@@ -249,8 +249,8 @@ Capabilities are replaceable and are where feature requests land. Each shall be 
 
 ### 7.3 Tote and measures
 
-- **CAP-06** The Tote shall show relative geometry between one primary and several secondaries, updated with current time. Which tracks it compares, and through which measure group, is view state in the plot's island (SUB-22), like the time window: it travels with the plot file but is never a step in its history (decision, 14 Oct 2026). Each track is placed at current time as the map places it.
-- **CAP-07** The Tote shall be a view onto a measure group: a named, reusable set of measures tied to a mode of analysis. A measure group may extend a shared core with study-specific measures. A measure group shall be defined by a study's lead analyst and stored as an item in the study catalogue, shared by every plot in the study. The shared core is legacy Debrief's Tote: range, bearing (true) and relative bearing from the primary to each secondary, and each track's course, speed and depth (decision, 14 Oct 2026).
+- **CAP-06** The Tote shall show relative geometry between one primary and several secondaries, updated with current time. Which tracks it compares, and through which measure group, is view state in the plot's island (SUB-22), like the time window: it travels with the plot file but is never a step in its history (decision, 14 Oct 2026). Each track is placed at current time as the map places it. The map shows the Tote with a thin line from the primary to each secondary at current time, which the analyst can turn off (island state; decision, product owner, 14 Oct 2026).
+- **CAP-07** The Tote shall be a view onto a measure group: a named, reusable set of measures tied to a mode of analysis. A measure group may extend a shared core with study-specific measures. A measure group shall be defined by a study's lead analyst and stored as an item in the study catalogue, shared by every plot in the study. The shared core is legacy Debrief's Tote: range, bearing (true), relative bearing, angle on the bow and bearing rate from the primary to each secondary, and each track's course, speed and depth (decisions, 14 Oct 2026).
 
 ### 7.4 Catalogue browser and collation
 
@@ -448,7 +448,7 @@ None. T was characterised by proxy on 11 October 2026 (section 3); OUT-03 joins 
 
 **Milestone criteria.** These are not open requirements. Each is confirmed by the milestone named, and the delivery plan owns them.
 
-- [x] Prototype: measure per-call REST against the 100 ms Tote budget (NFR-04). Phase 0 spike, 11 Oct; measured again in the built Tote, 14 Oct: p95 9 ms in VS Code, 15 to 33 ms in the playground.
+- [x] Prototype: measure per-call REST against the 100 ms Tote budget (NFR-04). Phase 0 spike, 11 Oct; measured again in the built Tote, 14 Oct: p95 9 ms in VS Code, 15 to 33 ms in the playground; with angle on the bow and bearing rate in core, 10 ms and 15 to 20 ms.
 - [ ] Importer port: confirm the REP and DSF formats carry an optional bearing error field (CAP-22); if not, agree the field with the acoustic replay application's owners.
 - [ ] Archive exporter port: verify the recipient's ingest tolerates a GUID comment line (EXT-07).
 - [ ] Overnight storyboard: measure a real O multi-platform serial against the track-heavy profile (NFR-06).

@@ -176,13 +176,19 @@ function refreshTote(): void {
 /** The tracks and the choice, on opening a plot and when its view changes; then the values. */
 function showTote(): void {
   toteControl.show(opened ? { tracks: toteTracks(opened.plot), view: toteChoice() } : undefined);
+  toteToMap();
   refreshTote();
+}
+/** The map draws a thin line from the primary to each secondary, unless the Tote turned them off. */
+function toteToMap(): void {
+  if (opened) post(map, { kind: "set_tote", tote_view: toteChoice() });
 }
 /** The reader chose tracks for the Tote: shown at once, then saved in the island like the window. */
 async function chooseTote(view: ToteView): Promise<void> {
   if (!opened) return;
   toteChoosing = view;
   toteControl.show({ view });
+  toteToMap();
   refreshTote();
   await saveView({ tote: view });
   // Saved (the island has it now) or not (what is saved is shown again); unless the reader

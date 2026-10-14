@@ -9,7 +9,21 @@ import { describe, expect, it } from "vitest";
 import { DEFAULT_SETTINGS } from "@debrief/kernel";
 import type { DebriefFeatureCollection, ToteResult } from "@debrief/schemas";
 import { positionAt, type LonLat } from "../../webview/geodesic.js";
-import { formatMeasure, latencySummary, sameTote, toteLines, toteOf, ToteRequests, toteTracks, withoutSecondary, withPrimary, withSecondaries } from "../../webview/totelogic.js";
+import {
+  formatMeasure,
+  latencySummary,
+  mapLinesOn,
+  sameTote,
+  toteLines,
+  toteMapLines,
+  toteOf,
+  ToteRequests,
+  toteTracks,
+  withMapLines,
+  withoutSecondary,
+  withPrimary,
+  withSecondaries,
+} from "../../webview/totelogic.js";
 import { checkMessage, toteViewProblems } from "../../src/messages.js";
 
 const repo = path.resolve(__dirname, "../../..");
@@ -73,10 +87,32 @@ describe("choosing the Tote's tracks: view state in the island", () => {
     const refused = read("schemas/fixtures/webview_message/invalid/semantic/tote-changed-primary-also-secondary.json");
     expect(() => checkMessage(refused)).toThrow(/also a secondary/);
     expect(() => checkMessage(read("schemas/fixtures/webview_message/invalid/semantic/tote-changed-without-view.json"))).toThrow();
-    for (const name of ["show-tote", "show-tote-no-plot", "tote-changed"]) {
+    for (const name of ["show-tote", "show-tote-no-plot", "tote-changed", "set-tote"]) {
       const raw = read(`schemas/fixtures/webview_message/valid/${name}.json`);
       expect(checkMessage(raw)).toEqual(raw);
     }
+  });
+  it("keeps the map's lines on unless turned off, and saves only off (decision, 14 Oct 2026)", () => {
+    const view = { primary: "blue", secondaries: ["red"] };
+    expect(mapLinesOn(view)).toBe(true);
+    const off = withMapLines(view, false);
+    expect(off).toEqual({ primary: "blue", secondaries: ["red"], map_lines: false });
+    expect(mapLinesOn(off)).toBe(false);
+    expect(withMapLines(off, true)).toEqual(view);
+    expect(withSecondaries(off, ["green"]).map_lines).toBe(false); // kept through other choices
+    expect(sameTote(view, off)).toBe(false);
+    expect(sameTote(view, { ...view, map_lines: true })).toBe(true);
+  });
+  it("draws a line from the primary to each secondary placed at that time, none when off", () => {
+    const at: Record<string, [number, number]> = { blue: [0, 0], red: [0, 1], green: [1, 1] };
+    const view = { primary: "blue", secondaries: ["red", "late", "green"] };
+    expect(toteMapLines(view, (id) => at[id])).toEqual([
+      { track: "red", from: [0, 0], to: [0, 1] },
+      { track: "green", from: [0, 0], to: [1, 1] },
+    ]);
+    expect(toteMapLines(withMapLines(view, false), (id) => at[id])).toEqual([]);
+    expect(toteMapLines({ secondaries: ["red"] }, (id) => at[id])).toEqual([]); // no primary
+    expect(toteMapLines({ primary: "late", secondaries: ["red"] }, (id) => at[id])).toEqual([]); // primary not there now
   });
   it("tells one choice from another, the group left out meaning core", () => {
     expect(sameTote({ primary: "a", secondaries: ["b"] }, { primary: "a", secondaries: ["b"], measure_group: "core" })).toBe(true);
@@ -95,6 +131,10 @@ describe("the Tote's values, written with the analyst's settings (SUB-04)", () =
     expect(formatMeasure(definition("relative_bearing"), { value: 24.5, unit: "deg" })).toBe("G024.5°");
     expect(formatMeasure(definition("speed"), { value: 5.144444, unit: "m/s" })).toBe("10.0 kn");
     expect(formatMeasure(definition("depth"), { value: 20, unit: "m" })).toBe("20.0 m");
+    expect(formatMeasure(definition("aob"), { value: 135, unit: "deg" })).toBe("G135.0°");
+    expect(formatMeasure(definition("aob"), { value: -30, unit: "deg" })).toBe("R030.0°");
+    expect(formatMeasure(definition("bearing_rate"), { value: -0.75, unit: "deg/min" })).toBe("-0.8°/min");
+    expect(formatMeasure(definition("bearing_rate"), { value: 2.5, unit: "deg/min" })).toBe("2.5°/min");
     expect(formatMeasure(definition("depth"), undefined)).toBe("—");
     expect(formatMeasure(definition("depth"), { value: null, unit: null } as never)).toBe("—");
   });
@@ -106,8 +146,8 @@ describe("the Tote's values, written with the analyst's settings (SUB-04)", () =
   });
   it("lays out the primary with its own measures, then each secondary, saying why one has none", () => {
     const { primary, secondaries } = toteLines(shown);
-    expect(primary!.cells.map((c) => c.text)).toEqual(["", "", "", "225.0°T", "12.0 kn", "—"]);
-    expect(secondaries[0].cells.map((c) => c.text)).toEqual(["0.67 nmi", "200.5°T", "R024.5°", "230.0°T", "6.0 kn", "20.0 m"]);
+    expect(primary!.cells.map((c) => c.text)).toEqual(["", "", "", "", "", "225.0°T", "12.0 kn", "—"]);
+    expect(secondaries[0].cells.map((c) => c.text)).toEqual(["0.67 nmi", "200.5°T", "R024.5°", "G135.0°", "-0.8°/min", "230.0°T", "6.0 kn", "20.0 m"]);
     expect(secondaries[1]).toMatchObject({ track: "track-tug-01", ok: false, note: "Ended 10:35:00Z" });
     expect(secondaries[1].cells.every((c) => c.text === "")).toBe(true);
     expect(secondaries[2]).toMatchObject({ name: "track-gone", ok: false, note: "No longer in the plot" });

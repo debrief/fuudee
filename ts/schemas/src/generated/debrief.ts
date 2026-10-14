@@ -306,6 +306,7 @@ export type WebviewMessageKindEnum =
   | "show_fixes"
   | "show_tote"
   | "tote_changed"
+  | "set_tote"
   | "fix_chosen";
 
 export interface DebriefSchemaDefinitions {}
@@ -873,6 +874,10 @@ export interface PlotView {
  * via the `definition` "ToteView".
  */
 export interface ToteView {
+  /**
+   * Whether the map draws a thin line from the primary to each secondary at current time; left out means it does (decision, 14 Oct 2026).
+   */
+  map_lines?: boolean | null;
   /**
    * The measure group shown; left out means core.
    */
@@ -1631,7 +1636,7 @@ export interface WebviewMessage {
    */
   tote_tracks?: ToteTrack[] | null;
   /**
-   * Which tracks the Tote compares, as saved in the plot (show_tote) or as the analyst chose (tote_changed).
+   * Which tracks the Tote compares, as saved in the plot (show_tote, set_tote) or as the analyst chose (tote_changed).
    */
   tote_view?: ToteView | null;
   /**

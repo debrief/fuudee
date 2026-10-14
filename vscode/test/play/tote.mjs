@@ -54,15 +54,18 @@ export async function playTote(page, shot) {
   // Choosing tracks is view state in the plot's island: never a step in the history.
   assert.equal(await steps(), before, "choosing Tote tracks is no step");
 
-  // The values: range, bearing true, relative bearing red or green, course, speed, depth.
+  // The values: range, bearing true, relative bearing red or green, angle on the bow red or
+  // green, bearing rate, course, speed, depth.
   const red = await valuesOf("RED ONE");
-  assert.equal(red.length, 6);
+  assert.equal(red.length, 8);
   assert.match(red[0], /^\d+\.\d\d nmi$/);
   assert.match(red[1], /^\d{3}\.\d°T$/);
   assert.match(red[2], /^([RG]\d{3}\.\d|000\.0|180\.0)°$/);
-  assert.match(red[3], /^\d{3}\.\d°T$/);
-  assert.match(red[4], /^\d+\.\d kn$/);
-  assert.match(red[5], /^\d+\.\d m$/, "RED ONE has depths");
+  assert.match(red[3], /^([RG]\d{3}\.\d|000\.0|180\.0)°$/, "angle on the bow");
+  assert.match(red[4], /^-?\d+\.\d°\/min$/, "bearing rate");
+  assert.match(red[5], /^\d{3}\.\d°T$/);
+  assert.match(red[6], /^\d+\.\d kn$/);
+  assert.match(red[7], /^\d+\.\d m$/, "RED ONE has depths");
   // The primary shows only its own measures: course, speed and depth, each with its label.
   const blue = await primaryValues();
   assert.equal(blue.length, 3);
@@ -74,7 +77,18 @@ export async function playTote(page, shot) {
   assert.deepEqual(await tote("thead th:not(.tote-act)").allInnerTexts(), ["Range", "Brg", "Rel"]);
   assert.equal(await tote("thead tr").count(), 1);
   assert.ok(await line("RED ONE").locator("td.tote-act button.tote-remove").isVisible());
-  assert.deepEqual(await line("RED ONE").locator(".tote-own .tote-label").allInnerTexts(), ["Crse", "Spd", "Depth"]);
+  assert.deepEqual(await line("RED ONE").locator(".tote-own .tote-label").allInnerTexts(), ["AOB", "Brg rate", "Crse", "Spd", "Depth"]);
+  // On the map, a thin line from BLUE ONE to RED ONE; off and on again from the Tote, never a step.
+  const mapLines = () => page.frameLocator(".frame-map").locator("path.tote-map-line").count();
+  await page.waitForFunction(() => document.querySelector(".frame-map")?.contentDocument?.querySelectorAll("path.tote-map-line").length === 1);
+  const toggle = tote(".tote-lines");
+  assert.equal(await toggle.isChecked(), true);
+  await toggle.focus();
+  await page.keyboard.press("Space");
+  await page.waitForFunction(() => document.querySelector(".frame-map")?.contentDocument?.querySelectorAll("path.tote-map-line").length === 0);
+  await toggle.click();
+  await page.waitForFunction(() => document.querySelector(".frame-map")?.contentDocument?.querySelectorAll("path.tote-map-line").length === 1);
+  assert.equal(await steps(), before, "the map's lines are view state too");
 
   // From the outline's menu: right-click Cargo 01 and add it.
   await page.locator(`#outline li[data-id="track-ais-cargo-01"]`).click({ button: "right" });
@@ -124,6 +138,8 @@ export async function playTote(page, shot) {
   await showsValues("Cargo 01");
   await showsValues("Tug 01");
   assert.equal(await cell("Tug 01", "depth").innerText(), "—", "no depth recorded: a dash, not zero");
+  // A line to each secondary with a position now: RED ONE, Cargo 01 and Tug 01, not Cargo 04 yet.
+  assert.equal(await mapLines(), 3);
 
   // Play: the values keep changing as current time moves; latency reported (NFR-04).
   const latencyBefore = await page.evaluate(() => window.debriefToteLatency());

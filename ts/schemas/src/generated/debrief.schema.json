@@ -3081,6 +3081,13 @@
       "additionalProperties": false,
       "description": "Which tracks the Tote compares, and through which measure group: view state in the plot's island, like the time window, so it travels with the plot file but is never a step in its history and never undone (SUB-22; decision, 14 Oct 2026). Ids of tracks no longer in the plot are shown as missing, not refused, because a change to content never changes the island.",
       "properties": {
+        "map_lines": {
+          "description": "Whether the map draws a thin line from the primary to each secondary at current time; left out means it does (decision, 14 Oct 2026).",
+          "type": [
+            "boolean",
+            "null"
+          ]
+        },
         "measure_group": {
           "description": "The measure group shown; left out means core.",
           "type": [
@@ -3774,7 +3781,7 @@
               "type": "null"
             }
           ],
-          "description": "Which tracks the Tote compares, as saved in the plot (show_tote) or as the analyst chose (tote_changed)."
+          "description": "Which tracks the Tote compares, as saved in the plot (show_tote, set_tote) or as the analyst chose (tote_changed)."
         },
         "track_edit": {
           "anyOf": [
@@ -3835,6 +3842,7 @@
         "show_fixes",
         "show_tote",
         "tote_changed",
+        "set_tote",
         "fix_chosen"
       ],
       "title": "WebviewMessageKindEnum",

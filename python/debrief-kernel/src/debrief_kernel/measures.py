@@ -2,8 +2,18 @@
 
 A measure is relative (between the primary and a secondary, such as range)
 or own (of one track, such as its course). The core measures follow legacy
-Debrief's Tote: range, bearing (true), relative bearing, and each track's
-course, speed and depth. Every measure group extends this core (CAP-07).
+Debrief's Tote: range, bearing (true), relative bearing, angle on the bow and
+bearing rate, and each track's course, speed and depth (decisions, 14 Oct
+2026). Every measure group extends this core (CAP-07).
+
+Angle on the bow is the primary's bearing from the secondary, less the
+secondary's course: the secondary's aspect as the primary sees it, red to port
+and green to starboard as relative bearing is. Bearing rate is how fast the
+true bearing from the primary changes, from both tracks' courses and speeds at
+that instant: each is moved a second either way along its course (geodesic),
+and the bearing between them measured again. Positive is drawing right
+(clockwise), negative drawing left, in degrees per minute (the angular-rate
+kind).
 
 A track's state at a time is worked out as the map places its marker at
 current time: its position along the geodesic between the fixes either side,
@@ -25,7 +35,7 @@ from dataclasses import dataclass
 
 from geographiclib.geodesic import Geodesic
 
-from debrief_kernel.geodesy import Position, TrackPath, range_bearing
+from debrief_kernel.geodesy import WGS84, Position, TrackPath, range_bearing
 from debrief_kernel.time import parse_utc
 from debrief_kernel.units import (
     FACTORS,
@@ -95,6 +105,29 @@ CORE_MEASURES: tuple[MeasureDefinition, ...] = (
         "deg",
         "The bearing less the primary's course: negative (red) to port, positive (green) to "
         "starboard.",
+    ),
+    MeasureDefinition(
+        "aob",
+        "Angle on the bow: the primary's bearing from the track's head, red to port, green to "
+        "starboard",
+        "AOB",
+        "relative",
+        "angle",
+        "relative_bearing",
+        "deg",
+        "The bearing from the track to the primary less the track's course: the track's aspect "
+        "as the primary sees it, negative (red) to port, positive (green) to starboard.",
+    ),
+    MeasureDefinition(
+        "bearing_rate",
+        "Bearing rate: how fast the bearing from the primary changes, right positive",
+        "Brg rate",
+        "relative",
+        "angular_rate",
+        "quantity",
+        "deg/min",
+        "The rate of change of the true bearing from the primary, from both tracks' courses and "
+        "speeds: positive drawing right (clockwise), negative drawing left.",
     ),
     MeasureDefinition(
         "course",
@@ -318,6 +351,13 @@ def measure(
         if primary.course_deg is None:
             return None
         return relative_bearing(brg.value, primary.course_deg)
+    if kind == "aob":
+        if track.course_deg is None:
+            return None
+        _, back = range_bearing(track.position, primary.position)
+        return relative_bearing(back.value, track.course_deg)
+    if kind == "bearing_rate":
+        return bearing_rate(primary, track)
     raise KeyError(f"There is no measure {kind!r}.")
 
 
@@ -325,6 +365,32 @@ def relative_bearing(bearing_deg: float, heading_deg: float) -> float:
     """A bearing from a heading, in (-180, 180]: negative to port (red), positive to
     starboard (green), 180 dead astern."""
     return bearing_difference(bearing_deg, heading_deg)
+
+
+# How far either side of the instant each track is moved to measure bearing rate.
+_RATE_STEP_S = 1.0
+
+
+def _moved(state: TrackState, seconds: float) -> Position:
+    """Where a track would be after so many seconds (before, if negative) on its course and
+    speed at the instant, along the geodesic."""
+    assert state.course_deg is not None and state.speed_ms is not None
+    p = state.position
+    out = WGS84.Direct(p.latitude, p.longitude, state.course_deg, state.speed_ms * seconds, _POINT)
+    return Position(_wrap(out["lon2"]), out["lat2"])
+
+
+def bearing_rate(primary: TrackState, track: TrackState) -> float | None:
+    """How fast the true bearing from the primary to the track changes, in degrees per
+    minute, positive clockwise (drawing right); None without both tracks' courses and
+    speeds, or with the two in one place."""
+    states = (primary, track)
+    if any(s.course_deg is None or s.speed_ms is None for s in states):
+        return None
+    step = _RATE_STEP_S
+    _, before = range_bearing(_moved(primary, -step), _moved(track, -step))
+    _, after = range_bearing(_moved(primary, step), _moved(track, step))
+    return bearing_difference(after.value, before.value) / (2 * step) * 60.0
 
 
 def group_measures(group: MeasureGroup) -> list[MeasureDefinition]:

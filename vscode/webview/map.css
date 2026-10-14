@@ -108,3 +108,5 @@ body { background: var(--vscode-editor-background); color: var(--vscode-foregrou
 .track-extent .track-extent-button:hover { background: var(--vscode-button-secondaryHoverBackground); }
 .track-extent .track-extent-button[aria-pressed="true"] { background: var(--vscode-button-background); color: var(--vscode-button-foreground); font-weight: 600; }
 .track-extent .track-extent-button:focus-visible { outline: 1px solid var(--vscode-focusBorder); outline-offset: -1px; }
+/* The Tote's lines from the primary to each secondary at current time: thin and muted, never in the way. */
+.leaflet-overlay-pane path.tote-map-line { stroke: var(--vscode-descriptionForeground); pointer-events: none; }

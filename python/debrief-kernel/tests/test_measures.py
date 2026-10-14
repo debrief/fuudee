@@ -2,11 +2,12 @@
 course, speed and depth, interpolated as the map places tracks at current time."""
 
 import json
+import math
 from pathlib import Path
 
 import pytest
 
-from debrief_kernel.geodesy import Position, TrackPath, range_bearing
+from debrief_kernel.geodesy import Position, TrackPath, destination, range_bearing
 from debrief_kernel.measures import (
     CORE_GROUP,
     CORE_MEASURES,
@@ -18,6 +19,7 @@ from debrief_kernel.measures import (
     relative_bearing,
 )
 from debrief_kernel.time import parse_utc
+from debrief_kernel.units import Quantity
 from debrief_schemas import load_plot
 
 VECTORS = Path(__file__).resolve().parents[3] / "schemas" / "vectors"
@@ -43,13 +45,18 @@ def test_core_follows_legacy_totes_measures_in_order() -> None:
         "range",
         "bearing",
         "relative_bearing",
+        "aob",
+        "bearing_rate",
         "course",
         "speed",
         "depth",
     ]
     assert [m.id for m in group_measures(CORE_GROUP)] == list(CORE_GROUP.measures)
     relative = {m.id for m in CORE_MEASURES if m.subject == "relative"}
-    assert relative == {"range", "bearing", "relative_bearing"}
+    assert relative == {"range", "bearing", "relative_bearing", "aob", "bearing_rate"}
+    assert MEASURES["bearing_rate"].quantity_kind == "angular_rate"
+    assert MEASURES["bearing_rate"].unit == "deg/min"
+    assert MEASURES["aob"].display == "relative_bearing"
 
 
 def test_core_group_and_measures_are_valid_schema_documents() -> None:
@@ -121,6 +128,87 @@ def test_relative_bearing_needs_the_primarys_course() -> None:
     assert at(state(0, 0), state(1, 1), "relative_bearing") is None
 
 
+# --- Angle on the bow and bearing rate (decision, 14 Oct 2026) ---------------------------
+
+NMI = 1852.0
+KNOT = NMI / 3600.0
+
+
+@pytest.mark.parametrize(
+    ("course", "expected"),
+    [
+        (180.0, 0.0),  # bows on: heading straight for the primary
+        (0.0, 180.0),  # stern on
+        (90.0, 90.0),  # heading east, the primary to the south: on its starboard side
+        (270.0, -90.0),  # heading west: the primary on its port side
+        (135.0, 45.0),
+    ],
+)
+def test_angle_on_the_bow_is_the_primarys_bearing_from_the_tracks_head(course, expected) -> None:
+    primary = state(-4.0, 50.0, course=0.0, speed=5.0)
+    secondary = state(-4.0, 50.1, course=course, speed=5.0)  # due north of the primary
+    assert at(primary, secondary, "aob") == pytest.approx(expected, abs=1e-6)
+
+
+def test_angle_on_the_bow_needs_the_tracks_course_not_the_primarys() -> None:
+    assert at(state(-4.0, 50.0), state(-4.0, 50.1, course=180.0), "aob") == pytest.approx(0.0)
+    assert at(state(-4.0, 50.0, course=0.0), state(-4.0, 50.1), "aob") is None
+
+
+def test_bearing_rate_is_crossing_speed_over_range() -> None:
+    # A secondary a mile north of a primary lying still, crossing east at 10 knots: the
+    # bearing draws right at v / r radians a second.
+    primary = state(0.0, 0.0, course=0.0, speed=0.0)
+    north = Position(0.0, 0.0)
+
+    north = destination(north, Quantity(0.0, "deg"), Quantity(NMI, "m"))
+    secondary = TrackState(north, 90.0, 10 * KNOT, None)
+    expected = 10 * KNOT / NMI * 180.0 / math.pi * 60.0  # about 9.55 °/min
+    assert at(primary, secondary, "bearing_rate") == pytest.approx(expected, rel=1e-3)
+    # Crossing west draws left: negative.
+    west = TrackState(north, 270.0, 10 * KNOT, None)
+    assert at(primary, west, "bearing_rate") == pytest.approx(-expected, rel=1e-3)
+
+
+def test_bearing_rate_is_zero_on_a_steady_bearing() -> None:
+    # Both on the same course and speed: the bearing holds (a collision course has it too).
+    primary = state(-4.0, 50.0, course=45.0, speed=6.0)
+    secondary = state(-3.9, 50.05, course=45.0, speed=6.0)
+    assert at(primary, secondary, "bearing_rate") == pytest.approx(0.0, abs=1e-3)
+    # Closing head on along the line of sight: no change of bearing either.
+    ahead = state(0.0, 0.1, course=180.0, speed=8.0)
+    assert at(state(0.0, 0.0, course=0.0, speed=8.0), ahead, "bearing_rate") == pytest.approx(
+        0.0, abs=1e-6
+    )
+
+
+def test_bearing_rate_relative_motion_is_what_counts() -> None:
+    # The primary crossing west under a still secondary to its north draws the bearing right.
+
+    north = destination(Position(0.0, 0.0), Quantity(0.0, "deg"), Quantity(NMI, "m"))
+    primary = state(0.0, 0.0, course=270.0, speed=10 * KNOT)
+    secondary = TrackState(north, 0.0, 0.0, None)
+    assert at(primary, secondary, "bearing_rate") == pytest.approx(9.55, abs=0.01)
+
+
+def test_bearing_rate_far_north_and_across_the_antimeridian() -> None:
+    primary = state(179.99, 0.0, course=90.0, speed=10.0)
+    secondary = state(-179.99, 0.01, course=90.0, speed=10.0)
+    assert at(primary, secondary, "bearing_rate") == pytest.approx(0.0, abs=1e-3)
+    polar = at(
+        state(0.0, 89.9, course=0.0, speed=0.0),
+        state(180.0, 89.9, course=90.0, speed=5.0),
+        "bearing_rate",
+    )
+    assert polar is not None and math.isfinite(polar)
+
+
+def test_bearing_rate_needs_both_courses_and_speeds() -> None:
+    moving = state(-4.0, 50.0, course=0.0, speed=5.0)
+    assert at(state(-4.0, 50.1, course=0.0), moving, "bearing_rate") is None
+    assert at(moving, state(-4.0, 50.1, speed=5.0), "bearing_rate") is None
+
+
 def test_tracks_in_one_place_have_no_bearing() -> None:
     # Geodesy gives 180° between coincident points: a direction that is not there.
     primary = state(-4.0, 50.0, course=90.0)
@@ -128,6 +216,7 @@ def test_tracks_in_one_place_have_no_bearing() -> None:
         assert at(primary, secondary, "range") == pytest.approx(0.0, abs=1e-3)
         assert at(primary, secondary, "bearing") is None
         assert at(primary, secondary, "relative_bearing") is None
+        assert at(primary, secondary, "aob") is None
     assert at(primary, state(-4.0, 50.0001), "bearing") == pytest.approx(0.0, abs=1e-6)
 
 

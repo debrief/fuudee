@@ -13,17 +13,20 @@
  *   choice is saved in the plot's island at once (view state: never a step, never undone).
  * - The table has one row of headings and a line for each secondary. Narrow, as in a
  *   sidebar: the track's name across the table, then its range, bearing and relative
- *   bearing under their headings, then its own measures, labelled as the primary's are.
- *   Wide: one line a track, every measure under its heading. Long names are cut short
- *   (in full on hover); nothing scrolls sideways down to about 200 px. A track with no
- *   data at current time says when it has.
+ *   bearing under their headings, then its angle on the bow, bearing rate and own
+ *   measures, each labelled as the primary's are. Wide (600 px): one line a track, every
+ *   measure under its heading. Long names are cut short (in full on hover); nothing
+ *   scrolls sideways down to about 200 px. A track with no data at current time says
+ *   when it has.
+ * - A box under the lists turns the map's lines (primary to each secondary at current
+ *   time) on or off; saved in the island with the rest of the choice.
  * - Keyboard: Tab reaches the lists, each secondary and its remove button; Delete or
  *   Backspace on a secondary removes it. Every value has its measure's full name on
  *   hover and for screen readers.
  */
 import { DEFAULT_SETTINGS, type FormatSettings } from "@debrief/kernel";
 import type { MeasureDefinition, ToteResult, ToteTrack, ToteView } from "@debrief/schemas";
-import { toteLines, withoutSecondary, withPrimary, withSecondaries, type ToteLine } from "./totelogic.js";
+import { mapLinesOn, toteLines, withMapLines, withoutSecondary, withPrimary, withSecondaries, type ToteLine } from "./totelogic.js";
 
 export interface ToteControlHost {
   /** The analyst changed the choice of tracks: save it in the plot's island. */
@@ -31,17 +34,12 @@ export interface ToteControlHost {
 }
 
 /** Where the Tote is this wide, in CSS pixels, each track's values fit on one line. */
-const WIDE_PX = 440;
-/** Otherwise, the measures between tracks three to a line under their headings; then the track's own, labelled. */
+const WIDE_PX = 600;
+/** Otherwise, the first three measures between tracks under their headings (range, bearing, relative bearing); the rest labelled. */
 const NARROW_COLUMNS = 3;
 
 const escape = (text: string) => text.replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[c]!);
 
-function chunks<T>(items: T[], size: number): T[][] {
-  const out: T[][] = [];
-  for (let i = 0; i < items.length; i += size) out.push(items.slice(i, i + size));
-  return out;
-}
 
 export class ToteControl {
   private tracks: ToteTrack[] = [];
@@ -54,6 +52,7 @@ export class ToteControl {
   private readonly primaryOwn: HTMLElement;
   private readonly note: HTMLElement;
   private readonly status: HTMLElement;
+  private readonly mapLines: HTMLInputElement;
   private said?: ReturnType<typeof setTimeout>;
 
   constructor(
@@ -70,6 +69,7 @@ export class ToteControl {
       `<div class="tote-scroll"><table class="tote-table" aria-label="Tote: secondaries at current time, measured from the primary"><thead></thead></table></div>` +
       `<p class="tote-note" hidden></p>` +
       `<label class="tote-pick"><span>Add</span><select class="tote-add" aria-label="Add a secondary track to the Tote"></select></label>` +
+      `<label class="tote-check"><input type="checkbox" class="tote-lines"> Lines on the map</label>` +
       `<p class="tote-status" aria-live="polite"></p>`;
     this.primary = element.querySelector(".tote-primary")!;
     this.add = element.querySelector(".tote-add")!;
@@ -77,6 +77,10 @@ export class ToteControl {
     this.primaryOwn = element.querySelector(".tote-primary-own")!;
     this.note = element.querySelector(".tote-note")!;
     this.status = element.querySelector(".tote-status")!;
+    this.mapLines = element.querySelector(".tote-lines")!;
+    this.mapLines.addEventListener("change", () =>
+      this.choose(withMapLines(this.view, this.mapLines.checked), this.mapLines.checked ? "Tote lines shown on the map." : "Tote lines taken off the map."),
+    );
     this.primary.addEventListener("change", () => this.choose(withPrimary(this.view, this.primary.value || undefined)));
     this.add.addEventListener("change", () => {
       const id = this.add.value;
@@ -169,6 +173,8 @@ export class ToteControl {
     this.add.innerHTML = options(free, free.length ? "Add a secondary…" : opened ? "Every track is in the Tote" : "Open a plot first");
     this.add.value = "";
     this.add.disabled = !free.length;
+    this.mapLines.checked = mapLinesOn(this.view);
+    this.mapLines.disabled = !this.view.primary || !this.view.secondaries?.length;
     this.renderTable();
   }
 
@@ -184,8 +190,11 @@ export class ToteControl {
     const onButton = !!active?.classList.contains("tote-remove");
     for (const body of Array.from(this.table.tBodies)) body.remove();
     const lines = result ? toteLines(result, this.settings) : { secondaries: [] as ToteLine[] };
-    const own = measures.filter((m) => m.subject !== "relative");
     const relative = measures.filter((m) => m.subject === "relative");
+    // Narrow, the first few measures between tracks have columns; the rest are labelled, before the track's own.
+    const columned = this.wide ? relative : relative.slice(0, NARROW_COLUMNS);
+    const labelled = measures.filter((m) => !columned.includes(m));
+    const own = measures.filter((m) => m.subject !== "relative");
     // The primary: its own measures under the list it is chosen from, each labelled.
     const primary = this.view.primary;
     this.primaryOwn.hidden = !primary;
@@ -205,10 +214,10 @@ export class ToteControl {
       if (hint) this.table.insertAdjacentHTML("beforeend", `<tbody><tr><td class="tote-hint">${escape(hint)}</td></tr></tbody>`);
       return;
     }
-    // One row of headings: wide, every measure; narrow, those between tracks (three to a row, should a group have more).
+    // One row of headings: wide, every measure; narrow, the first three between tracks.
     const heading = (m: MeasureDefinition) => `<th scope="col" title="${escape(m.title)}" abbr="${escape(m.title)}">${escape(m.label)}</th>`;
     const act = `<th scope="col" class="tote-act"><span class="tote-sr">Remove</span></th>`;
-    const bands = this.wide ? [[...relative, ...own]] : chunks(relative, NARROW_COLUMNS);
+    const bands = this.wide ? [[...relative, ...own]] : [columned];
     const width = Math.max(1, ...bands.map((b) => b.length));
     const pad = (n: number) => (n > 0 ? `<td colspan="${n}" class="tote-pad"></td>` : "");
     // Narrow, each × sits at the end of its track's name, over the last column: no column of its own to make room for.
@@ -217,7 +226,7 @@ export class ToteControl {
       : bands.map((band) => `<tr>${band.map(heading).join("")}${pad(width - band.length)}</tr>`).join("") || `<tr>${pad(1)}</tr>`;
     const byTrack = new Map(lines.secondaries.map((l) => [l.track, l]));
     // In the order chosen; a track just added shows its name until its values arrive.
-    this.table.insertAdjacentHTML("beforeend", secondaries.map((id) => this.line(byTrack.get(id) ?? this.waiting(id), bands, own, width)).join(""));
+    this.table.insertAdjacentHTML("beforeend", secondaries.map((id) => this.line(byTrack.get(id) ?? this.waiting(id), bands, labelled, width)).join(""));
     if (focused) {
       const again = this.table.querySelector<HTMLElement>(`tbody[data-track="${CSS.escape(focused)}"]`);
       (onButton ? again?.querySelector<HTMLElement>("button.tote-remove") : again)?.focus();
@@ -250,7 +259,7 @@ export class ToteControl {
   }
 
   /** One secondary: a tbody of its own, its remove button at the end of its first line. */
-  private line(line: ToteLine, bands: MeasureDefinition[][], own: MeasureDefinition[], width: number): string {
+  private line(line: ToteLine, bands: MeasureDefinition[][], labelled: MeasureDefinition[], width: number): string {
     const label = `Remove ${escape(line.name)} from the Tote`;
     const button = `<button class="tote-remove" data-track="${escape(line.track)}" title="${label}" aria-label="${label}">×</button>`;
     const remove = `<td class="tote-act">${button}</td>`;
@@ -270,7 +279,7 @@ export class ToteControl {
       if (!line.ok) rows.push(`<tr>${why(width)}</tr>`);
       else {
         for (const band of bands) rows.push(`<tr>${band.map(value).join("")}${pad(width - band.length)}</tr>`);
-        if (own.length) rows.push(`<tr><td class="tote-own-cell" colspan="${width}"><div class="tote-own">${this.pairs(line, own)}</div></td></tr>`);
+        if (labelled.length) rows.push(`<tr><td class="tote-own-cell" colspan="${width}"><div class="tote-own">${this.pairs(line, labelled)}</div></td></tr>`);
       }
     }
     const classes = ["tote-line", line.ok ? "" : "tote-no-data"].filter(Boolean).join(" ");
