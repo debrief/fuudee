@@ -1,6 +1,7 @@
 {
  "blog/category/architecture.md": "blog/category/architecture/",
  "blog/category/capability.md": "blog/category/capability/",
+ "blog/category/capability/page/2.md": "blog/category/capability/page/2/",
  "blog/index.md": "blog/",
  "blog/page/2/index.md": "blog/page/2/",
  "blog/posts/2026-10-11-architecture.md": "blog/2026/10/11/architecture/",
@@ -15,6 +16,7 @@
  "blog/posts/2026-10-13-annotations.md": "blog/2026/10/13/annotations/",
  "blog/posts/2026-10-13-drawing-on-the-map.md": "blog/2026/10/13/drawing-on-the-map/",
  "blog/posts/2026-10-13-history-in-the-plot-file.md": "blog/2026/10/13/history-in-the-plot-file/",
+ "blog/posts/2026-10-14-cleaning-tracks.md": "blog/2026/10/14/cleaning-tracks/",
  "blog/posts/2026-10-14-moving-and-splitting-tracks.md": "blog/2026/10/14/moving-and-splitting-tracks/",
  "blog/posts/2026-10-14-shear-and-stretch.md": "blog/2026/10/14/shear-and-stretch/",
  "guides/glossary.md": "guides/glossary/",

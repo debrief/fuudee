@@ -10,15 +10,20 @@ crash happens there and is gone when the page is closed.
 from __future__ import annotations
 
 import json
+import math
 import shutil
+import time
 from pathlib import Path
 from typing import Any
 
 import debrief_stac.store as store_module
 from debrief_io import import_dpf, import_rep
+from debrief_kernel.geodesy import Position, destination
 from debrief_kernel.time import format_utc, parse_utc
+from debrief_kernel.units import Quantity
 from debrief_schemas import DocumentKind, dump_document, models
 from debrief_stac import Base, Catalogue, CatalogueError, Changes, Conflict, History, HistoryError
+from debrief_stac.fixes import describe_largest
 from debrief_tools import Registry
 from debrief_tools.registry import applies
 from debrief_tools.run import ToolRunConflict, ToolRunError, run_tool
@@ -26,6 +31,7 @@ from debrief_tools.run import ToolRunConflict, ToolRunError, run_tool
 ROOT = Path("/play/catalogue")
 YOU = models.AgentRef(kind="person", name="you, in the browser")
 COLLEAGUE = models.AgentRef(kind="person", name="a colleague")
+PLAYGROUND = models.AgentRef(kind="software_agent", name="the playground")
 
 registry = Registry.discover()
 if not registry.tools:  # no entry points in this install: load the core library by name
@@ -232,6 +238,108 @@ def track(item: str, request_json: str) -> str:
     except (CatalogueError, HistoryError) as error:
         return json.dumps({"error": str(error)})
     return json.dumps(out)
+
+
+def clean(item: str, request_json: str) -> str:
+    """Find a track's jumps and remove those confirmed, preview smoothing and apply it, or
+    colour, label or comment on a fix (CAP-01, EXT-14): finding and previewing change
+    nothing; each change is one recorded, undoable step, as debrief/find_jumps,
+    debrief/remove_jumps, debrief/preview_smoothing, debrief/smooth_track and
+    debrief/mark_fix do."""
+    request = json.loads(request_json)
+    base = Base(**request["base"]) if request.get("base") else None
+    change = request["change"]
+    kind, feature = change["kind"], change["feature"]
+    period = (change["period"]["start"], change["period"]["end"]) if change.get("period") else None
+    threshold = change.get("threshold")
+    speed = Quantity(float(threshold["value"]), threshold["unit"]) if threshold else None
+    out: dict[str, Any] = {"ok": True}
+    try:
+        if kind == "find_jumps":
+            used, median, jumps = _cat().find_jumps(
+                item, feature, threshold=speed, period=period, base=base
+            )
+            out["threshold"] = {"value": used.value, "unit": used.unit}
+            out["median_speed"] = {"value": median.value, "unit": median.unit} if median else None
+            out["jumps"] = [
+                {
+                    "time": j.time,
+                    "position": list(j.position),
+                    "speed": None
+                    if math.isinf(j.speed_kn)
+                    else {"value": j.speed_kn, "unit": "[kn_i]"},
+                    "since": j.since,
+                }
+                for j in jumps
+            ]
+        elif kind == "remove_jumps":
+            _cat().remove_jumps(item, feature, change["times"], YOU, base, threshold=speed)
+        elif kind in ("preview_smoothing", "smooth"):
+            if kind == "smooth":
+                done = _cat().smooth_track(
+                    item, feature, int(change["window"]), YOU, base, period=period
+                )
+                smoothing = done[1] if done else None
+            else:
+                after, smoothing = _cat().smoothing_preview(
+                    item, feature, int(change["window"]), period=period, base=base
+                )
+                out["preview"] = after.geometry.model_dump(mode="json")
+            if smoothing is not None:
+                out["moved"] = smoothing.moved
+                out["summary"] = describe_largest(smoothing)
+        else:
+            _cat().mark_fix(
+                item,
+                feature,
+                change["time"],
+                change["changes"],
+                YOU,
+                base,
+                colour_name=change.get("colour_name"),
+            )
+    except Conflict:
+        return json.dumps({"error": "The plot was changed elsewhere, so nothing was changed."})
+    except (CatalogueError, HistoryError) as error:
+        return json.dumps({"error": str(error)})
+    return json.dumps(out)
+
+
+def glitches(item: str, feature: str) -> str:
+    """Put three GPS glitches into a track, to try jump removal on: two fixes in a row
+    three miles off to the north, and one four miles off to the south. Recorded as a step
+    of its own, by the playground, so it is never mistaken for real data and Undo takes
+    it out."""
+    plot = _cat().read_plot(item)
+    track = next((f for f in plot.features if f.id == feature), None)
+    if track is None or track.properties.kind != "track" or len(track.properties.times) < 12:
+        return json.dumps({"error": "Select a track of at least 12 fixes to put glitches in."})
+    n = len(track.properties.times)
+    positions = [list(p) for p in track.geometry.coordinates]
+    for index, bearing, metres in (
+        (n // 3, 0, 3 * 1852),
+        (n // 3 + 1, 0, 3 * 1852),
+        (2 * n // 3, 180, 4 * 1852),
+    ):
+        lon, lat = positions[index]
+        to = destination(Position(lon, lat), Quantity(bearing, "deg"), Quantity(metres, "m"))
+        positions[index] = [to.longitude, to.latitude]
+    glitched = track.model_copy(
+        update={"geometry": track.geometry.model_copy(update={"coordinates": positions})}
+    )
+    at = format_utc(int(time.time() * 1000))
+    record = models.ProvRecord(
+        id=f"edit-glitches-{at}",
+        kind="edit",
+        started_at=at,
+        agent=PLAYGROUND,
+        notes=[
+            f"GPS glitches put into {track.properties.name}",
+            "Three fixes moved off the track, to try jump removal on",
+        ],
+    )
+    _cat().commit(item, [record], Changes(modified=[glitched]))
+    return json.dumps({"ok": True})
 
 
 def set_view(item: str, request_json: str) -> str:
