@@ -45,21 +45,27 @@ We considered a single ring that follows the pointer to the nearest fix instead.
 
 Legacy Debrief could plot a track two ways. **Over the ground** (OTG) puts each fix where it was logged. **Dead reckoning** (DR) starts from the first fix and places each one after it by the course and speed logged at the fix before, the way a navigator plots a DR track. As each track came in, legacy asked which you wanted, with a checkbox: *Use this choice for future track imports*. The product owner told us that worked well, because a community tends to stick with one or the other, so we've done the same.
 
-Import a REP file and Debrief asks, track by track: *How is NELSON plotted? (1 of 3)*. Choose over the ground or dead reckoning, or either of them *and use this choice for future imports*, and Debrief stops asking. The import's notes say how each track was plotted, and, when your remembered choice was used, how to change it.
+Import a REP file and Debrief asks, track by track: *How is NELSON plotted? (1 of 3)*. Choose over the ground or dead reckoning and, as in legacy, tick *Use this choice for future track imports* if you'd like Debrief to stop asking. The import's notes say how each track was plotted, and, when your remembered choice was used, how to change it.
 
-![The playground asking, as a REP file is imported, how its first track, NELSON, is plotted: over the ground or by dead reckoning, or either for future imports too](images/phase-3/fixdrag-import-asks.png)
+![The playground asking, as a REP file is imported, how its first track, NELSON, is plotted: over the ground or by dead reckoning, with a box to tick to use the choice for future track imports](images/phase-3/fixdrag-import-asks.png)
 
-![VS Code asking the same, in a list: over the ground or dead reckoning, for this track, or for this and future imports](images/phase-3/fixdrag-vscode-import-asks.png)
+VS Code asks in a list. A VS Code list has no check box, so the box is the list's last line, an empty or a ticked circle that says *off* or *on*: choose it to tick it, and the list stays open for your answer. That's one question per track, the same with the keyboard, the mouse or a screen reader, rather than a second question after each.
+
+![VS Code asking the same, in a list: over the ground or dead reckoning, and below them the line to tick to use this choice for future track imports](images/phase-3/fixdrag-vscode-import-asks.png)
 
 Where that remembered choice lives matters. It's yours, not the plot's: a colleague you send a plot to shouldn't inherit it, and it mustn't change what's in a catalogue. So it is kept with your own Debrief settings (the same file VS Code and the Python services both read), never in a catalogue or a plot file. In VS Code it's an ordinary setting, **Debrief: Track import mode** (ask, OTG or DR), and **Debrief: Ask again whether imported tracks are OTG or DR** puts it back to asking; in the playground, **Ask again** sits under *Import*. The importer itself is simply told the answer, which is also how an agent says which it wants.
 
-What *is* the plot's is how each track is plotted: the mode is kept on the track, like its colour, and changing it later (**Plot over the ground or by dead reckoning…**) is one step. A track plotted by dead reckoning keeps its positions as logged beside the dead-reckoned ones, so switching back puts them back exactly; and the track's line is always the positions as plotted, so any other GeoJSON tool draws what Debrief draws.
+What *is* the plot's is how each track is plotted: the mode is kept on the track, like its colour, and changing it later (**Plot over the ground or by dead reckoning…**) is one step. A track plotted by dead reckoning keeps its positions as logged beside the dead-reckoned ones, so switching back puts them back exactly; and the track's line is always the positions as plotted, so any other GeoJSON tool draws what Debrief draws. It's tagged **DR** beside its name, in the outline and in its label on the map; its line is drawn as any track's.
+
+Switching back does lose something, though: if you've moved the track, or dragged a fix, while it was plotted by dead reckoning, its fixes go back where they were logged and those changes go. So Debrief asks first, saying which fix moved furthest and by how much; it's still one step, and `Ctrl+Z` brings the changes back.
+
+![The playground asking before RED ONE, moved while plotted by dead reckoning, is plotted over the ground again: the changes made while plotted by dead reckoning would be lost](images/phase-3/fixdrag-dr-changes-lost.png)
 
 We checked our dead reckoning against legacy's. Legacy plot files save a DR leg's worked-out positions, and placing each fix from the one before, by that fix's course and speed, along the geodesic, puts every fix of the legacy sample plots back within 0.1 m of them. Those plots aren't asked about at all: they say how each leg was plotted, and come in that way, with a note saying so.
 
 ## For agents
 
-The same through the tool service: `debrief/edit_track` with `{"action": "move_fix", "fix_time": …, "distance": …, "bearing": …}` (or a `position`), and `{"action": "set_plotting_mode", "plotting_mode": "dr"}`, each one step with what was asked in its record; and `debrief/import_rep` takes the mode for each track.
+The same through the tool service: `debrief/edit_track` with `{"action": "move_fix", "fix_time": …, "distance": …, "bearing": …}` (or a `position`), and `{"action": "set_plotting_mode", "plotting_mode": "dr"}`, each one step with what was asked in its record (back over the ground after a change made while plotted by dead reckoning is refused, saying why, unless the change says `"discard_dr_changes": true`); and `debrief/import_rep` takes the mode for each track.
 
 ## Try it
 
@@ -71,4 +77,3 @@ Select **RED ONE**, zoom in until its fixes have rings, and drag one. Then try `
 
 - **How often fixes are labelled, given a symbol and a direction arrow**, set for several tracks at once, every second to every 24 hours: a new requirement from the product owner, planned but not yet scheduled.
 - **A ring on the fix nearest the pointer** when zoomed out.
-- **A track plotted by dead reckoning shown so** on the map.
