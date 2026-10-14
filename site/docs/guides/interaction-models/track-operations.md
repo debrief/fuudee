@@ -1,12 +1,12 @@
 # Track operations
 
-How an analyst moves a track, or a period of it, rotates it about a point, shears or stretches it from one end, splits it at a time and merges tracks into one; and how they clean it: removing jumps, smoothing it, and giving single fixes a colour, a label or a comment of their own. Part A: moving, rotating, splitting and merging (decision, product owner, 13 Oct 2026). Part B1: shearing and stretching, shear first as the operation analysts use most with TMA legs (decision, product owner, 13 Oct 2026; see [Shearing and stretching](#shearing-and-stretching)). [Cleaning tracks](#cleaning-tracks) (part B2, 14 Oct 2026): jump removal, smoothing and marked fixes. Still to come: dragging single fixes, and the legacy OTG and DR import modes.
+How an analyst moves a track, or a period of it, rotates it about a point, shears or stretches it from one end, splits it at a time and merges tracks into one; and how they clean it: removing jumps, smoothing it, and giving single fixes a colour, a label or a comment of their own. Part A: moving, rotating, splitting and merging (decision, product owner, 13 Oct 2026). Part B1: shearing and stretching, shear first as the operation analysts use most with TMA legs (decision, product owner, 13 Oct 2026; see [Shearing and stretching](#shearing-and-stretching)). [Cleaning tracks](#cleaning-tracks) (part B2, 14 Oct 2026): jump removal, smoothing and marked fixes. [Single fixes, and dead reckoning](#single-fixes-and-dead-reckoning) (part B3, 14 Oct 2026): one fix dragged on its own, and the legacy OTG and DR modes.
 
 ## Requirements cited
 
 | SRD | Requirement |
 | --- | --- |
-| CAP-01 | Dragging, splitting, merging, jump removal and smoothing of tracks. |
+| CAP-01 | Dragging, splitting, merging, jump removal and smoothing of tracks; single fixes dragged on their own; the legacy OTG and DR modes. |
 | CAP-02 | Track edits are destructive in the working plot, each recorded as a delta. |
 | CAP-21 | The TMA module's manual dragging of a solution: translate, rotate, stretch, shear. |
 | SUB-19, SUB-21 | Every change is a recorded step; undo is replay to a point, never an inverse operation. |
@@ -15,7 +15,7 @@ How an analyst moves a track, or a period of it, rotates it about a point, shear
 | SUB-26, SUB-28 | Moving a track changes neither current time, the window nor the selection; a change made elsewhere is never overwritten. |
 | NFR-13 | Dragging a track has a keyboard and a form-based equivalent. |
 | PRN-08 | The analyst owns the data: a track is moved where the analyst says, without second-guessing; nothing is removed or moved without the analyst seeing it first. |
-| EXT-14, EXT-15 | A legacy plot's per-fix colours, labels and comments are imported, not listed as left out. |
+| EXT-14, EXT-15 | A legacy plot's per-fix colours, labels and comments are imported, not listed as left out; a leg it plotted by dead reckoning is said to be. |
 
 ## Model
 
@@ -249,6 +249,76 @@ sequenceDiagram
     Host->>Map: show_fixes (nothing): the rings go
 ```
 
+## Single fixes, and dead reckoning
+
+Part B3 (14 Oct 2026), the last of part B. One fix moved on its own, as legacy Debrief lets an analyst drag one fix; and the legacy OTG and DR modes.
+
+1. **Only that fix moves.** As in legacy Debrief: the fix goes where the analyst puts it, along the geodesic from where it was; **its time is unchanged**, and the fixes either side stay where they are. Its mark (a colour, label or comment of its own) stays with it, found by its time.
+
+2. **Its recorded course and speed are kept.** A fix's course and speed are what the platform logged (its compass and log, or a GPS's velocity), not something worked out from the positions plotted, and a fix plotted in the wrong place does not change what the platform was doing. So, as for a move of the whole track, they are kept rather than worked out again. What the new position implies is said instead: the **speed to reach the fix** from the fix before, and the **speed to go on** to the fix after, each the geodesic range over the time between, so the analyst sees at once whether moving it has tidied a jump or made one. Debrief does not otherwise derive courses and speeds from positions, except where a track records none, so there is nothing else to keep in step.
+
+3. **Picking the fix.** A track selected on its own shows its move, rotate and pivot handles and its ends, as for the other operations. **Zoomed in far enough** that its fixes are apart on the screen (at most 60 in view, and at least 14 pixels between neighbours), each fix in view has a **small ring** of its own in the theme's focus colour, named for a screen reader: *RED ONE: fix at 09:31:00Z; drag it, or use the arrow keys, to move this fix alone*. Zoomed out, there are no rings and the note at the top of the map says *Zoom in to move a single fix*. The rings sit beneath the track's other handles, so where one shares a fix (the move handle, the pivot) that handle takes the pointer: drag the pivot off it, or `Tab` to the fix. We chose rings when zoomed in over a ring on the fix nearest the pointer: rings work the same by touch, where there is no pointer to hover, and from the keyboard; and showing them only when the fixes are apart keeps a long track from being covered in rings, or one being grabbed for its neighbour.
+
+4. **Dragging.** Drag a ring with the mouse, a finger or a pen. The track is drawn with the fix where it is being put, the track as it was dashed beneath, and the note says *RED ONE fix at 09:31:00Z: moving 0.42 nmi 045.0°T; 37.2 kn from 09:30:00Z, 13.2 kn on to 09:32:00Z*, adding *faster than 15.0 kn, as a jump would be* when either speed is above the jump threshold's default (three times the track's median speed between fixes, at least 10 kn). Letting go is **one step**: *RED ONE fix at 09:31:00Z moved 0.42 nmi 045.0°T*. `Escape` before letting go puts it back, and nothing is recorded. What is saved is what the note said: the distance in the analyst's length unit and the bearing, each to the decimals shown.
+
+    <svg viewBox="0 0 320 120" width="320" height="120" role="img" aria-label="A track of five fixes; the middle one dragged off the line; its neighbours stay, and the speed to reach it and to go on from it are said" style="max-width: 100%">
+      <g fill="none" stroke="currentColor" stroke-width="1.5">
+        <line x1="20" y1="90" x2="300" y2="40" stroke-dasharray="5 4" opacity="0.6"/>
+        <polyline points="20,90 90,77.5 180,20 230,52.5 300,40"/>
+        <circle cx="160" cy="65" r="4" stroke-dasharray="2 2" opacity="0.6"/>
+        <circle cx="180" cy="20" r="5"/>
+      </g>
+      <g fill="currentColor">
+        <circle cx="20" cy="90" r="2.5"/><circle cx="90" cy="77.5" r="2.5"/><circle cx="230" cy="52.5" r="2.5"/><circle cx="300" cy="40" r="2.5"/>
+        <text x="190" y="18" font-size="11">09:31, moved</text>
+        <text x="60" y="105" font-size="11">from 09:30: faster</text>
+        <text x="215" y="80" font-size="11">on to 09:32</text>
+      </g>
+    </svg>
+
+    *Dashed: the track as it was. Only the fix at 09:31 moves; the speeds to reach it and to go on from it are said.*
+
+5. **The keyboard.** `Tab` reaches each ring, after the track's other handles. The arrow keys move the fix 5 pixels, 25 with `Shift`; the note says the same as while dragging. A run of presses is one step, saved once they stop (under a second), on `Enter` or when the keyboard moves on; `Escape` first puts it back; presses made while the last step is saved are made as the next.
+
+6. **The form.** **Move a fix…** (the outline's menu on a track in VS Code; in the playground, **Move…** in the fix list, **Fixes…** under *Track*) lists the track's fixes, nearest current time first, and asks where the chosen fix goes, offering where it is now. The position may be typed in any notation Debrief reads (`37°08.456'N 075°26.932'W`, `37.141 -75.449`), and the field says what it read, how far and which way that moves the fix, and the speeds it would imply: *Means 37°08.556'N 075°26.932'W. RED ONE fix at 09:31:00Z: moves 0.10 nmi 000.0°T; 5.9 kn from 09:30:00Z, 4.1 kn on to 09:32:00Z*. Right-clicking a ring, or pressing and holding it on a touch screen, opens the fix's menu, as on the track: colour, label, comment, and **Move…**.
+
+7. **The step.** Named for the fix and the move: *RED ONE fix at 09:31:00Z moved 0.42 nmi 045.0°T*, then *Now at 37°08.700'N 075°26.640'W*, *Speed to reach it from 09:30:00Z: 37.2 kn (was 12.0 kn)*, *Speed on to 09:32:00Z: 13.2 kn (was 12.0 kn)* and *Its recorded course and speed are kept*. Its provenance record holds the fix's time (`fix_time`), the distance and bearing (as asked, or worked out from a position typed) and the new position (`longitude`, `latitude`). Undo is replay to the step before, as for any step.
+
+8. **OTG and DR.** Legacy Debrief plotted a track either **over the ground** (OTG: each fix where it was logged) or by **dead reckoning** (DR: from a start, each fix placed by the course and speed logged, as a navigator plots a DR track), chosen as each REP file was imported, and kept on each leg of a .dpf plot. Here every import plots a track over the ground. **Plot as dead reckoning…** (the outline's menu on a track; **DR…** under *Track* in the playground) asks what changes (the whole track, or its fixes in the time window) and says what it will do; then, as **one step**, the first fix stays and each fix after it is placed from the one before by **that fix's** recorded course and speed over the time between, along the geodesic. That is the rule legacy Debrief used: legacy saves a DR leg's worked-out positions in its plot files, and on its sample plots this puts every fix back within 0.1 m of them. The step is named *RED ONE plotted by dead reckoning* (or *part plotted*), with *From its fix at 09:30:00Z, by each fix's recorded course and speed* and the most a fix moved. A track that does not record both courses and speeds cannot be plotted so, and Debrief says why.
+
+    We made DR a step after import, not a choice at import as legacy did, because an import cannot be undone and a step can: an analyst can see both, and go back. No plotting mode is kept on the track: the plot stays plain GeoJSON, its positions where they are drawn, for any other tool. A legacy .dpf leg saved as DR (`PlotRelative="true"`) is imported with the positions legacy worked out, and the import now says so (it said nothing before): v4 does not work them out again when the track later changes, as legacy did; **Plot as dead reckoning…** does that, when asked.
+
+9. **What is a step, and what isn't.**
+
+    | | Step in the history | Undone by `Ctrl+Z` |
+    | --- | --- | --- |
+    | Letting go of a fix's ring | Yes, one | Yes |
+    | A run of arrow keys on a fix's ring | Yes, one for the run | Yes |
+    | Move a fix… (a position typed) | Yes, one | Yes |
+    | Plot as dead reckoning… | Yes, one | Yes |
+    | Zooming in until the rings show; `Escape` during a drag; a fix put where it is | No | No |
+
+10. **Shared state and conflicts.** Moving a fix and plotting by dead reckoning change neither current time, the time window nor the selection. If the plot changes elsewhere during a drag, the drag is dropped and the map says so; a change sent from a plot that has since moved on is refused (SUB-28), as for every track operation.
+
+11. **For agents.** `debrief/edit_track` with `{"action": "move_fix", "fix_time": "2023-06-15T09:31:00.000Z", "distance": {"value": 0.42, "unit": "[nmi_i]"}, "bearing": {"value": 45, "unit": "deg"}}`, or with `"position": [-75.45, 37.14]` instead of the distance and bearing; and `{"action": "dead_reckon"}`, with a `period` to plot only that. In VS Code, `debrief.moveFix` takes the track, the fix's time and `{position}` or `{distance, bearing}`, and `debrief.deadReckonTrack` the track and `{period}`, instead of asking.
+
+```mermaid
+sequenceDiagram
+    actor Analyst
+    participant Map
+    participant Host as Extension host
+    participant Service as Tool service
+    Analyst->>Map: select RED ONE; zoom in
+    Map->>Map: a ring on each fix in view
+    Analyst->>Map: drag the ring of the fix at 09:31
+    Map->>Map: only that fix moves; "moving 0.42 nmi 045.0°T; 37.2 kn from 09:30:00Z, ..."
+    Analyst->>Map: let go
+    Map->>Host: edit_track (feature_id, track_edit: move_fix, fix_time, distance, bearing)
+    Host->>Service: debrief/edit_track (edit, base)
+    Service-->>Host: one step: "RED ONE fix at 09:31:00Z moved 0.42 nmi 045.0°T"
+    Host->>Map: show_plot (the ring where the fix now is)
+```
+
 ## Reference implementation
 
 - **Schema (0.0.14; 0.0.15 adds shear and stretch):** `TrackEdit`, `TrackEditActionEnum` and `TrackEditAnchorEnum` in `schemas/linkml/features.yaml`; the message `edit_track` (`feature_id`, `track_edit`) in `schemas/linkml/messages.yaml`; the rules in `debrief_schemas.documents.track_edit_problems` and `vscode/src/messages.ts`; fixtures `webview_message/valid/edit-track-*.json` and the `edit-track-*` invalid ones.
@@ -258,5 +328,6 @@ sequenceDiagram
 - **The playground:** `vscode/play/host.ts` (the buttons and the small forms) and `track` in `vscode/play/play.py`.
 - **Tests:** `python/debrief-stac/tests/test_tracks.py` (geodesic moves and rotations, far north and across the antimeridian; periods; split and merge invariants; undo; conflicts), the service test, `vscode/test/unit/trackedit.test.ts`, the playground test's `vscode/test/play/tracks.mjs` (drag, Escape, undo, rotate, keyboard runs, a period, a colleague's change during a drag, split, merge, an overlap refused, the forms), the playground test's `vscode/test/play/shear.mjs` (a straight leg sheared and stretched by its ends, Escape, undo, the keyboard, the forms), and the integration test's track steps.
 - **Cleaning tracks (part B2):** schema 0.0.16's `FixMark` and `fix_marks` in `schemas/linkml/features.yaml`, the messages `show_fixes` and `fix_chosen`, the rules in `debrief_schemas.documents`; `debrief_stac.fixes` (finding jumps, the default threshold, removing fixes with every series in step, smoothing, marks and the step names), marks carried through `split` and `merge` in `debrief_stac.tracks`; `Catalogue.find_jumps`, `remove_jumps`, `smoothing_preview`, `smooth_track` and `mark_fix`; the service's `debrief/find_jumps`, `debrief/remove_jumps`, `debrief/preview_smoothing`, `debrief/smooth_track` and `debrief/mark_fix`; the .dpf mapping in `debrief_io.dpf_import` (`_fix_marks`); `vscode/webview/fixes.ts` (free of Leaflet: the fix list's rows, reading a threshold and a window, the words); the map's marks, rings and preview in `vscode/webview/map.ts`; the commands `debrief.removeJumps`, `debrief.smoothTrack` and `debrief.markFix` in `vscode/src/extension.ts`; the Timeline's fix comments in `vscode/src/timeline.ts`; the playground's **Jumps…**, **Smooth…** and **Fixes…** (`vscode/play/host.ts`, `clean` and `glitches` in `play.py`). Tests: `python/debrief-stac/tests/test_fixes.py`, the service test, `python/debrief-io/tests/test_dpf_import.py`, `vscode/test/unit/fixes.test.ts`, the playground test's `vscode/test/play/cleaning.mjs`, and the integration test's cleaning steps.
+- **Single fixes and dead reckoning (part B3):** schema 0.0.17's `move_fix` and `dead_reckon` actions of `TrackEdit`, with `fix_time` and `position`, and their rules in `debrief_schemas.documents` and `vscode/src/messages.ts`; `debrief_stac.tracks` (`fix_index`, `fix_moved`, `implied_speeds`, `dead_reckoned` and the step names) and `Catalogue.edit_track`; the .dpf mapping of `PlotRelative` in `debrief_io.dpf` and `dpf_import`; `vscode/webview/trackedit.ts` (free of Leaflet: which fixes get rings, a fix's gesture, the readout with the speeds in and out, the jump speed, dead reckoning) and the rings, their drag, keyboard and menu in `vscode/webview/trackmap.ts`; the commands `debrief.moveFix` and `debrief.deadReckonTrack` and **Move…** in a fix's menu in `vscode/src/extension.ts`; the playground's **Move…** in the fix list and **DR…** (`vscode/play/host.ts`). Tests: `python/debrief-stac/tests/test_fix_drag.py` (geodesic moves far north and across the antimeridian, the speeds implied, marks kept, undo, conflicts; dead reckoning of straight legs at any latitude, a period, refusals), the service test, `python/debrief-io/tests/test_dpf_import.py`, `vscode/test/unit/fixdrag.test.ts`, the playground test's `vscode/test/play/fixdrag.mjs` (zoom in for rings, a mouse drag, `Escape`, undo, a run of arrow keys, a finger's drag, the form, DR), and the integration test's single-fix steps.
 
-*Not yet (part B and later):* dragging single fixes; OTG and DR modes; simplifying a track (dropping fixes); where on a fix a label goes, and fix symbols and arrows; live bearing residuals while shearing or stretching (the TMA module, CAP-21); choosing which track wins where merged tracks overlap; renaming a track on its own.
+*Not yet (after part B):* how often fixes are labelled, marked with a symbol and given a direction arrow, set for one or more tracks at once, every 1 second to every 24 hours (CAP-32, planned, not yet scheduled); a ring on the fix nearest the pointer when zoomed out; a DR track's positions worked out again when the track later changes, as legacy did; simplifying a track (dropping fixes); where on a fix a label goes, and fix symbols and arrows; live bearing residuals while shearing or stretching (the TMA module, CAP-21); choosing which track wins where merged tracks overlap; renaming a track on its own.
