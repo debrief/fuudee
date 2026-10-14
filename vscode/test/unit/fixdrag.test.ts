@@ -110,7 +110,7 @@ describe("what the map says, and what it sends", () => {
     expect(edit).toEqual({ action: "move_fix", fix_time: FIX_TIMES[1], distance: { value: 0.42, unit: "[nmi_i]" }, bearing: { value: 45, unit: "deg" } });
     expect(changesNothing(fixEdit(FIX_TIMES[1], 0, 45))).toBe(true);
     expect(changesNothing(edit)).toBe(false);
-    for (const e of [edit, fixToEdit(FIX_TIMES[1], [-75.4, 37.2]), { action: "dead_reckon" as const }]) {
+    for (const e of [edit, fixToEdit(FIX_TIMES[1], [-75.4, 37.2]), { action: "set_plotting_mode" as const, plotting_mode: "dr" as const }]) {
       expect(() => checkMessage({ kind: "edit_track", feature_id: "track-red", track_edit: e })).not.toThrow();
     }
     const fixtures = path.resolve(__dirname, "../../../schemas/fixtures/webview_message");
@@ -120,12 +120,14 @@ describe("what the map says, and what it sends", () => {
       "edit-track-move-fix-with-period",
       "edit-track-move-fix-off-the-globe",
       "edit-track-move-with-fix-time",
-      "edit-track-dead-reckon-with-speed",
+      "edit-track-plotting-mode-missing",
+      "edit-track-plotting-mode-with-period",
+      "edit-track-move-with-plotting-mode",
     ]) {
       const raw = JSON.parse(readFileSync(path.join(fixtures, "invalid", "semantic", `${name}.json`), "utf8"));
       expect(() => checkMessage(raw), name).toThrow();
     }
-    for (const name of ["edit-track-move-fix", "edit-track-move-fix-to-position", "edit-track-dead-reckon"]) {
+    for (const name of ["edit-track-move-fix", "edit-track-move-fix-to-position", "edit-track-plot-as-dr"]) {
       const raw = JSON.parse(readFileSync(path.join(fixtures, "valid", `${name}.json`), "utf8"));
       expect(() => checkMessage(raw), name).not.toThrow();
     }
@@ -179,7 +181,7 @@ describe("which fixes get a handle of their own", () => {
   });
 });
 
-describe("dead reckoning, as the tool service does it", () => {
+describe("dead reckoning, as the tool service does it (debrief_stac.tracks.dead_reckoned_positions)", () => {
   it("puts each fix where the course and speed at the fix before take it", () => {
     // The geodesic's own course at each fix, as a leg's log records it.
     const courses = RED.map((p, i) => (i < 5 ? rangeBearing(p, RED[i + 1]).bearing : 45));
@@ -187,9 +189,5 @@ describe("dead reckoning, as the tool service does it", () => {
     const noisy = RED.map((p, i) => (i ? ([p[0], p[1] + 0.001] as LonLat) : p));
     const dr = deadReckoned(noisy, TIMES, [0, 1, 2, 3, 4, 5], courses, speeds);
     for (let i = 0; i < 6; i++) expect(rangeBearing(dr[i], RED[i]).metres).toBeLessThan(0.01);
-    // Only a period: the rest stays.
-    const part = deadReckoned(noisy, TIMES, [2, 3], courses, speeds);
-    expect(part[4]).toEqual(noisy[4]);
-    expect(part[2]).toEqual(noisy[2]);
   });
 });

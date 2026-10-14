@@ -41,7 +41,7 @@
         <button id="find-jumps" title="Find fixes the selected track could not have reached in time, check them, and remove those you choose">Jumps…</button>
         <button id="smooth-track" title="Smooth the selected track, or its fixes in the time window, with a preview first">Smooth…</button>
         <button id="fix-list" title="List the selected track's fixes, to colour, label, comment on or move one. Or right-click a fix on the map; on a touch screen, press and hold it">Fixes…</button>
-        <button id="dead-reckon" title="Plot the selected track, or its fixes in the time window, by dead reckoning: from its first fix by each fix's recorded course and speed">DR…</button>
+        <button id="plotting-mode" title="Plot the selected track over the ground (OTG), as logged, or by dead reckoning (DR), from its first fix by each fix's recorded course and speed">OTG/DR…</button>
       </div>
       <div class="action-group" role="group" aria-labelledby="annotation-actions">
         <span id="annotation-actions" class="action-label">Annotation</span>
@@ -76,6 +76,7 @@
       <h2>Import your own</h2>
       <label class="file">REP, legacy .dpf, or a Debrief plot file <input id="file" type="file" accept=".rep,.REP,.dpf,.DPF,.xml,.geojson,.json"></label>
       <div class="detail">Read and imported in your browser; never uploaded.</div>
+      <div id="import-mode" class="detail import-mode"><span id="import-mode-text">Debrief asks, for each track of a REP file, whether it is plotted over the ground (OTG) or by dead reckoning (DR).</span> <button id="ask-again" hidden title="Forget the choice you made for future imports, and be asked for each track again">Ask again</button></div>
     </section>
   </aside>
   <main id="main">

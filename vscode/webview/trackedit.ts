@@ -119,7 +119,7 @@ export function rotateEdit(degrees: number, pivot: LonLat, period?: { start: str
 /** Whether a change would move nothing, once rounded as it is saved. A stretch to the speed the period already makes, as shown, is said by the gesture (unchanged). */
 export function changesNothing(edit: TrackEdit): boolean {
   if (edit.action === "move" || edit.action === "shear" || edit.action === "move_fix") return edit.distance ? !edit.distance.value : false;
-  if (edit.action === "dead_reckon") return false;
+  if (edit.action === "set_plotting_mode") return false;
   if (edit.action === "stretch") return false;
   return !(edit.angle?.value ?? 0) || (edit.angle?.value ?? 0) % 360 === 0;
 }
@@ -414,7 +414,7 @@ export function fixHandleIndices(points: [number, number][], size: [number, numb
   return median >= FIX_SPACING_PX ? { indices } : { indices: [], zoomIn: true };
 }
 
-/** The fixes at indices plotted by dead reckoning, as debrief_stac.tracks.dead_reckoned: the first stays; each after it is placed from the one before by that fix's course (degrees true) and speed (metres a second) over the time between, along the geodesic. */
+/** The fixes at indices plotted by dead reckoning, as debrief_stac.tracks.dead_reckoned_positions: the first stays; each after it is placed from the one before by that fix's course (degrees true) and speed (metres a second) over the time between, along the geodesic. */
 export function deadReckoned(positions: LonLat[], times: number[], indices: number[], courses: number[], speeds: number[]): LonLat[] {
   const out = positions.map((p) => [p[0], p[1]] as LonLat);
   for (let k = 1; k < indices.length; k++) {

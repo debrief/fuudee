@@ -10,6 +10,8 @@ import type { AnnotationSpec, ContextTracksEnum, ParameterValue, PlotView, Share
 import { formatBearing, formatPosition, formatQuantity, parsePosition, POSITION_EXAMPLE, UNIT_LABELS } from "@debrief/kernel";
 import { defaultPivotIndex, describeDistance, describeSpeed, describeTurn, fixIndexAt, fixMoved, fixReadout, fixToEdit, impliedSpeeds, jumpSpeed, legNow, mergedName, mergePlan, periodIndices, readBearing, readDistance, readSpeed, readTurn, type Anchor } from "../webview/trackedit.js";
 import { rangeBearing } from "../webview/geodesic.js";
+import { chooseModes, MODE_LABELS, modeChoices, modeQuestion, REMEMBERED_IN_VSCODE, type PlottingMode } from "./importmode.js";
+import { loadConfig, trackImportMode, updateConfig, withTrackImportMode, type TrackImportMode } from "@debrief/config";
 import { changedSince, historyOnDisk, knownStores, openPlot, plotFile, type OpenedPlot } from "./catalogue.js";
 import { statSync, unwatchFile, watchFile } from "node:fs";
 import { count, describeTimes, describeToolRun, settings as displaySettings } from "./format.js";
@@ -1488,23 +1490,24 @@ export function activate(context: vscode.ExtensionContext): DebriefApi {
     const p = parsePosition(typed);
     return trackDone(await changeTrack({ kind: "edit", feature: track.id, edit: fixToEdit(track.properties.times[index], [p.longitude, p.latitude]) }));
   });
-  // "Plot as dead reckoning…": legacy's DR mode, as one step. What changes, then a plain warning: the
-  // positions as logged are replaced by those worked out from the first fix by course and speed.
-  command("debrief.deadReckonTrack", async (target?: string | Target, given?: { period?: TimeRange }) => {
+  // "Plot over the ground or by dead reckoning…": the track's plotting mode, chosen as it was
+  // imported, changed as one step. With the mode given ("otg" or "dr"), no questions.
+  command("debrief.plottingMode", async (target?: string | Target, given?: PlottingMode) => {
     const track = trackTarget(target);
-    if (!track) return { problem: report("Select one track to plot by dead reckoning.") };
+    if (!track) return { problem: report("Select one track to plot over the ground or by dead reckoning.") };
     const name = track.properties.name;
-    if (!track.properties.courses || !track.properties.speeds) return { problem: report(`${name} does not record both courses and speeds, so it cannot be plotted by dead reckoning.`) };
-    if (given && typeof given === "object") return trackDone(await changeTrack({ kind: "edit", feature: track.id, edit: { action: "dead_reckon", ...(given.period && { period: given.period }) } }));
-    const extent = await chooseExtent(track, "Plot as dead reckoning");
-    if (!extent) return {};
-    const go = await vscode.window.showWarningMessage(
-      `Plot ${name}${extent.period ? " in the time window" : ""} by dead reckoning?`,
-      { modal: true, detail: "Its first fix stays; each fix after it is placed from the one before by that fix's recorded course and speed, as legacy Debrief plotted a track imported as DR. The positions as logged are replaced. Undo puts them back." },
-      "Plot as dead reckoning",
-    );
-    if (!go) return {};
-    return trackDone(await changeTrack({ kind: "edit", feature: track.id, edit: { action: "dead_reckon", ...(extent.period && { period: extent.period }) } }));
+    const now: PlottingMode = (track.properties.plotting_mode as PlottingMode | undefined) ?? "otg";
+    let mode = given;
+    if (!mode) {
+      const items = (["otg", "dr"] as const).map((m) => ({ label: MODE_LABELS[m], description: m === now ? "as it is plotted now" : "", mode: m }));
+      const picked = await vscode.window.showQuickPick(items, {
+        title: `How is ${name} plotted?`,
+        placeHolder: "By dead reckoning, each fix after the first is placed by the course and speed at the fix before; its positions as logged are kept.",
+      });
+      if (!picked || picked.mode === now) return {};
+      mode = picked.mode;
+    }
+    return trackDone(await changeTrack({ kind: "edit", feature: track.id, edit: { action: "set_plotting_mode", plotting_mode: mode } }));
   });
   // What the map rings or previews, for agents and tests; debrief.showFixes with nothing takes it away.
   command("debrief.fixesOnMap", () => map.fixesShown);
@@ -1597,14 +1600,57 @@ export function activate(context: vscode.ExtensionContext): DebriefApi {
   });
   command("debrief.createCatalogue", () => vscode.commands.executeCommand("debrief.addCatalogue"));
 
-  command("debrief.importRep", async (node?: { view?: { store: { id: string } } }) => {
+  // The remembered choice of how imported tracks are plotted: kept in the analyst's configuration
+  // (debrief-config), shown in Settings as debrief.trackImportMode; never in a catalogue or a plot.
+  const rememberedMode = (): TrackImportMode => {
+    try {
+      return trackImportMode(loadConfig(configFile));
+    } catch {
+      return "ask";
+    }
+  };
+  const rememberMode = async (mode: TrackImportMode) => {
+    updateConfig((c) => withTrackImportMode(c, mode), configFile);
+    const setting = vscode.workspace.getConfiguration("debrief");
+    if (setting.get<string>("trackImportMode") !== mode) await setting.update("trackImportMode", mode, vscode.ConfigurationTarget.Global);
+  };
+  // Settings and the configuration agree: what the configuration holds is shown in Settings, and a change in Settings is kept there.
+  void (async () => {
+    const setting = vscode.workspace.getConfiguration("debrief");
+    const held = rememberedMode();
+    if (setting.get<string>("trackImportMode", "ask") !== held) await setting.update("trackImportMode", held, vscode.ConfigurationTarget.Global);
+  })();
+  context.subscriptions.push(
+    vscode.workspace.onDidChangeConfiguration((event) => {
+      if (!event.affectsConfiguration("debrief.trackImportMode")) return;
+      const mode = vscode.workspace.getConfiguration("debrief").get<TrackImportMode>("trackImportMode", "ask");
+      if (["ask", "otg", "dr"].includes(mode) && mode !== rememberedMode()) updateConfig((c) => withTrackImportMode(c, mode), configFile);
+    }),
+  );
+  command("debrief.askTrackImportMode", async () => {
+    await rememberMode("ask");
+    void vscode.window.showInformationMessage("Debrief will ask, for each track imported, whether it is plotted over the ground (OTG) or by dead reckoning (DR).");
+  });
+  command("debrief.trackImportMode", () => rememberedMode());
+  /** How each track of a REP file is plotted: asked, one track at a time, unless a choice is remembered. Undefined if the analyst stopped. */
+  async function askModes(file: string): Promise<{ modes: Record<string, PlottingMode>; remembered: boolean } | undefined> {
+    const tracks = (await service!.repTracks(file)).tracks;
+    return chooseModes(
+      tracks,
+      rememberedMode(),
+      (track, index, count) => vscode.window.showQuickPick(modeChoices(), { title: modeQuestion(track, index, count), placeHolder: "Over the ground, as logged, or dead reckoned from course and speed", ignoreFocusOut: true }),
+      (mode) => rememberMode(mode),
+    );
+  }
+  // Import a REP or .dpf file. Given { store, path, modes } (agents and tests), it asks nothing.
+  command("debrief.importRep", async (node?: { view?: { store: { id: string } } }, given?: { store?: string; path?: string; modes?: string | Record<string, PlottingMode> }) => {
     if (!needService()) return;
     const writable = knownStores(configFile).stores.filter((s) => !s.read_only);
     if (!writable.length) {
       void vscode.window.showWarningMessage("Add or create a catalogue first; imported plots go into a catalogue.");
       return;
     }
-    let storeId = node?.view?.store.id;
+    let storeId = given?.store ?? node?.view?.store.id;
     if (!storeId) {
       const picked =
         writable.length === 1
@@ -1616,26 +1662,46 @@ export function activate(context: vscode.ExtensionContext): DebriefApi {
       storeId = picked?.id;
     }
     if (!storeId) return;
-    const files = await vscode.window.showOpenDialog({
-      canSelectMany: false,
-      filters: { "Plot files": ["rep", "REP", "dpf", "DPF"], "REP files": ["rep", "REP"], "Legacy plot files": ["dpf", "DPF"] },
-    });
+    const files = given?.path
+      ? [vscode.Uri.file(given.path)]
+      : await vscode.window.showOpenDialog({
+          canSelectMany: false,
+          filters: { "Plot files": ["rep", "REP", "dpf", "DPF"], "REP files": ["rep", "REP"], "Legacy plot files": ["dpf", "DPF"] },
+        });
     if (!files?.length) return;
     try {
+      // How each track is plotted (CAP-01): a legacy plot says; a REP file's tracks are asked about.
+      let options: { modes?: string | Record<string, PlottingMode>; remembered?: string } = {};
+      if (given?.modes) options = { modes: given.modes };
+      else if (!/\.dpf$/i.test(files[0].fsPath)) {
+        const asked = await askModes(files[0].fsPath);
+        if (!asked) {
+          void vscode.window.showInformationMessage("Nothing was imported.");
+          return;
+        }
+        options = { modes: asked.modes, ...(asked.remembered && { remembered: REMEMBERED_IN_VSCODE }) };
+      }
       let report;
       try {
-        report = await service!.importFile(storeId, files[0].fsPath, agent);
+        report = await service!.importFile(storeId, files[0].fsPath, agent, false, options);
       } catch (error) {
         if ((error as ServiceError).code !== NEWER_SCHEMA) throw error;
         if (!(await confirmNewerSchema((error as Error).message))) return;
-        report = await service!.importFile(storeId, files[0].fsPath, agent, true);
+        report = await service!.importFile(storeId, files[0].fsPath, agent, true, options);
       }
       catalogues.refresh();
       const parts = [count(report.tracks.length, "track"), count(report.fixes, "fix", "fixes")];
       if (report.annotations) parts.push(count(report.annotations, "annotation"));
       if (report.narrative_entries) parts.push(count(report.narrative_entries, "narrative note"));
-      const summary = `Imported ${parts.join(", ")}.`;
+      // A remembered choice is said, with how to change it (CAP-01).
+      const remembered = options.remembered ? ` ${report.notes?.at(-1) ?? ""}` : "";
+      const summary = `Imported ${parts.join(", ")}.${remembered}`;
       // Nothing is dropped silently (EXT-14): say what was not imported.
+      if (given) {
+        // Agents and tests: said, not asked about, and what happened returned.
+        void vscode.window.showInformationMessage(summary);
+        return { item: report.item, notes: report.notes ?? [], omitted: report.omitted };
+      }
       if (report.omitted.length) {
         const choice = await vscode.window.showWarningMessage(
           `${summary} Some content was not imported.`,

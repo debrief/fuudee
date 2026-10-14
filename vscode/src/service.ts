@@ -98,6 +98,8 @@ export interface ImportReport {
   annotations?: number;
   narrative_entries?: number;
   omitted: string[];
+  /** How each track is plotted, and how to change a remembered choice. */
+  notes?: string[];
 }
 
 /** A change to the plot's annotations, made by hand or by an agent (CAP-03). */
@@ -496,7 +498,13 @@ export class ToolService {
   }
 
   /** Import a REP file or a legacy plot file (.dpf) as a new plot. */
-  importFile(store: string, path: string, agent: Agent, allowNewerSchema = false): Promise<ImportReport> {
-    return this.request("debrief/import", { store, path, agent, ...(allowNewerSchema && { allow_newer_schema: true }) });
+  /** Import a REP or .dpf file; for a REP file, modes says how each track is plotted (otg or dr), and remembered how to change a remembered choice. */
+  importFile(store: string, path: string, agent: Agent, allowNewerSchema = false, options: { modes?: string | Record<string, string>; remembered?: string } = {}): Promise<ImportReport> {
+    return this.request("debrief/import", { store, path, agent, ...(allowNewerSchema && { allow_newer_schema: true }), ...options });
+  }
+
+  /** The tracks a REP file would import, to ask how each is plotted. */
+  repTracks(path: string): Promise<{ tracks: string[] }> {
+    return this.request("debrief/rep_tracks", { path });
   }
 }

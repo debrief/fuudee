@@ -206,15 +206,59 @@ export async function playFixDrag(page, shot) {
   assert.match(await latest(), /^RED ONE fix at \d\d:\d\d:\d\dZ moved 0\.10 nmi (00\d|35\d)\.\d°T$/);
   await side.locator(".side-bar button", { hasText: "Close" }).click();
 
-  // Plot as dead reckoning (DR…): one step, its positions worked out from its first fix by course and speed; undone.
+  // OTG/DR…: the track plotted by dead reckoning, one step; over the ground again puts the positions as logged back.
   n = await steps();
-  await page.locator("#dead-reckon").click();
+  await page.locator("#plotting-mode").click();
   await dialog.waitFor();
-  await dialog.getByText("Undo puts them back").waitFor();
-  await dialog.getByRole("button", { name: "Plot as DR" }).click();
+  await dialog.getByText("Undo takes it back").waitFor();
+  await page.locator("#track-form-mode").selectOption("dr");
+  await shot("fixdrag-05-plot-as-dr");
+  await dialog.getByRole("button", { name: "Plot" }).click();
   await stepAdded(n);
   assert.equal(await latest(), "RED ONE plotted by dead reckoning");
+  n = await steps();
+  await page.locator("#plotting-mode").click();
+  await dialog.waitFor();
+  assert.equal(await page.locator("#track-form-mode option:checked").innerText(), "Dead reckoning (DR), as now");
+  await page.locator("#track-form-mode").selectOption("otg");
+  await dialog.getByRole("button", { name: "Plot" }).click();
+  await stepAdded(n);
+  assert.equal(await latest(), "RED ONE plotted over the ground");
   await page.locator("#selected-count").click();
   await page.keyboard.press("Control+z");
+  await page.keyboard.press("Control+z");
   await page.waitForFunction(() => /RED ONE plotted by dead reckoning[^]*undone/.test(document.getElementById("history")?.textContent ?? ""));
+
+  // Importing a REP file asks how each track is plotted, as legacy Debrief did; "use this choice for
+  // future imports" is the reader's own setting (not the plot's), said in the import's notes and cleared by Ask again.
+  const rep = new URL("../integration/demo.rep", import.meta.url).pathname;
+  await page.locator("#file").setInputFiles(rep);
+  await dialog.waitFor();
+  assert.equal(await dialog.locator("h2").innerText(), "How is NELSON plotted? (1 of 3)");
+  await page.locator("#track-form-mode").selectOption({ label: "Dead reckoning (DR)" });
+  await shot("fixdrag-07-import-asks");
+  await dialog.getByRole("button", { name: "Import" }).click();
+  await page.waitForFunction(() => document.querySelector("dialog.track-form h2")?.textContent === "How is BLUE plotted? (2 of 3)");
+  await page.locator("#track-form-mode").selectOption({ label: "Over the ground (OTG), and use this choice for future imports" });
+  await dialog.getByRole("button", { name: "Import" }).click();
+  const notes = page.locator(".omitted-panel .import-notes");
+  await notes.getByText("Track 'NELSON' plotted by dead reckoning (DR).").waitFor({ timeout: 60000 });
+  await notes.getByText("Track 'BLUE' plotted over the ground (OTG).").waitFor();
+  await notes.getByText(/^Track '"?TRAWLER.*plotted over the ground \(OTG\)\.$/).waitFor();
+  await page.locator("#import-mode-text", { hasText: "plotted over the ground (OTG), as you chose for future imports" }).waitFor();
+  assert.equal(await page.locator("#ask-again").isVisible(), true);
+  // Remembered: the next import asks nothing, and its notes say how to be asked again.
+  await page.locator(".side-bar button", { hasText: "Close" }).click();
+  await page.locator("#file").setInputFiles(rep);
+  await notes.getByText("Tracks were plotted over the ground (OTG) as you chose for future imports. To be asked again for each track, choose Ask again under Import.").waitFor({ timeout: 60000 });
+  assert.equal(await dialog.count(), 0, "not asked");
+  await page.locator(".side-bar button", { hasText: "Close" }).click();
+  await page.locator("#ask-again").click();
+  await page.locator("#ask-again").waitFor({ state: "hidden" });
+  assert.match(await page.locator("#import-mode-text").innerText(), /^Debrief asks, for each track/);
+  // Asked again, and stopping imports nothing.
+  await page.locator("#file").setInputFiles(rep);
+  await dialog.waitFor();
+  await dialog.getByRole("button", { name: "Cancel" }).click();
+  await page.locator(".toast", { hasText: "Nothing was imported." }).waitFor();
 }

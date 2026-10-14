@@ -7,7 +7,7 @@ slug: dragging-a-fix
 
 # Dragging a fix, and dead reckoning
 
-The last of the track operations has arrived. Zoom in on a track and each fix has a small ring of its own: **drag one, and only that fix moves**. Its time stays, its neighbours stay, and the map tells you, as you drag, how fast the platform would now have to go to reach it and to carry on. And the legacy **DR** mode is back: **Plot as dead reckoning** rebuilds a track from its first fix using the courses and speeds it logged. Each is one step, and `Ctrl+Z` takes it back.
+The last of the track operations has arrived. Zoom in on a track and each fix has a small ring of its own: **drag one, and only that fix moves**. Its time stays, its neighbours stay, and the map tells you, as you drag, how fast the platform would now have to go to reach it and to carry on. And the legacy **OTG and DR** modes are back, the legacy way: import a REP file and Debrief asks, for each track, whether it is plotted over the ground or dead reckoned from its courses and speeds, and you can tell it to use that choice for future imports. Each change to a plot is one step, and `Ctrl+Z` takes it back.
 
 <!-- more -->
 
@@ -43,24 +43,32 @@ We considered a single ring that follows the pointer to the nearest fix instead.
 
 ## Over the ground, or dead reckoned
 
-Legacy Debrief could plot a track two ways. **Over the ground** (OTG) puts each fix where it was logged. **Dead reckoning** (DR) starts from the first fix and places each one after it by the course and speed logged at the fix before, the way a navigator plots a DR track. Legacy asked which you wanted as each REP file came in, and kept the choice on each leg of a .dpf plot.
+Legacy Debrief could plot a track two ways. **Over the ground** (OTG) puts each fix where it was logged. **Dead reckoning** (DR) starts from the first fix and places each one after it by the course and speed logged at the fix before, the way a navigator plots a DR track. As each track came in, legacy asked which you wanted, with a checkbox: *Use this choice for future track imports*. The product owner told us that worked well, because a community tends to stick with one or the other, so we've done the same.
 
-We looked at what legacy actually did. Its plot files save a DR leg's worked-out positions, so we could check: placing each fix from the one before, by that fix's course and speed, along the geodesic, puts every fix of the legacy sample plots back within 0.1 m of what legacy saved.
+Import a REP file and Debrief asks, track by track: *How is NELSON plotted? (1 of 3)*. Choose over the ground or dead reckoning, or either of them *and use this choice for future imports*, and Debrief stops asking. The import's notes say how each track was plotted, and, when your remembered choice was used, how to change it.
 
-In v4, every import plots a track over the ground. **Plot as dead reckoning…** does DR, for the whole track or its fixes in the time window, as **one step**: *RED ONE plotted by dead reckoning*. We made it a step after import, rather than a question at import, because an import can't be undone and a step can: you can look at both and go back. The plot stays plain GeoJSON, with its positions where they're drawn. A legacy .dpf leg saved as DR comes in with the positions legacy worked out, and the import now says so; it used to say nothing.
+![The playground asking, as a REP file is imported, how its first track, NELSON, is plotted: over the ground or by dead reckoning, or either for future imports too](images/phase-3/fixdrag-import-asks.png)
+
+![VS Code asking the same, in a list: over the ground or dead reckoning, for this track, or for this and future imports](images/phase-3/fixdrag-vscode-import-asks.png)
+
+Where that remembered choice lives matters. It's yours, not the plot's: a colleague you send a plot to shouldn't inherit it, and it mustn't change what's in a catalogue. So it is kept with your own Debrief settings (the same file VS Code and the Python services both read), never in a catalogue or a plot file. In VS Code it's an ordinary setting, **Debrief: Track import mode** (ask, OTG or DR), and **Debrief: Ask again whether imported tracks are OTG or DR** puts it back to asking; in the playground, **Ask again** sits under *Import*. The importer itself is simply told the answer, which is also how an agent says which it wants.
+
+What *is* the plot's is how each track is plotted: the mode is kept on the track, like its colour, and changing it later (**Plot over the ground or by dead reckoning…**) is one step. A track plotted by dead reckoning keeps its positions as logged beside the dead-reckoned ones, so switching back puts them back exactly; and the track's line is always the positions as plotted, so any other GeoJSON tool draws what Debrief draws.
+
+We checked our dead reckoning against legacy's. Legacy plot files save a DR leg's worked-out positions, and placing each fix from the one before, by that fix's course and speed, along the geodesic, puts every fix of the legacy sample plots back within 0.1 m of them. Those plots aren't asked about at all: they say how each leg was plotted, and come in that way, with a note saying so.
 
 ## For agents
 
-The same through the tool service: `debrief/edit_track` with `{"action": "move_fix", "fix_time": …, "distance": …, "bearing": …}` (or a `position`), and `{"action": "dead_reckon"}`, each one step with what was asked in its record.
+The same through the tool service: `debrief/edit_track` with `{"action": "move_fix", "fix_time": …, "distance": …, "bearing": …}` (or a `position`), and `{"action": "set_plotting_mode", "plotting_mode": "dr"}`, each one step with what was asked in its record; and `debrief/import_rep` takes the mode for each track.
 
 ## Try it
 
-Select **RED ONE**, zoom in until its fixes have rings, and drag one. Then try `Tab` and the arrow keys, **Move…** in **Fixes…**, or **DR…** under *Track*, below the outline:
+Select **RED ONE**, zoom in until its fixes have rings, and drag one. Then try `Tab` and the arrow keys, **Move…** in **Fixes…**, or **OTG/DR…** under *Track*, below the outline; and import a REP file of your own to be asked how its tracks are plotted:
 
-<div class="debrief-demo" data-demo="?panels=history" data-height="820px" data-caption="Select RED ONE, zoom in until each fix has a ring, and drag one. Everything runs in your browser."></div>
+<div class="debrief-demo" data-demo="?panels=history,import" data-height="820px" data-caption="Select RED ONE, zoom in until each fix has a ring, and drag one. Everything runs in your browser."></div>
 
 ## Not yet
 
 - **How often fixes are labelled, given a symbol and a direction arrow**, set for several tracks at once, every second to every 24 hours: a new requirement from the product owner, planned but not yet scheduled.
 - **A ring on the fix nearest the pointer** when zoomed out.
-- **A DR track worked out again** when it later changes, as legacy did.
+- **A track plotted by dead reckoning shown so** on the map.

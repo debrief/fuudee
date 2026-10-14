@@ -26,6 +26,7 @@ import { TimeControl } from "../webview/timecontrol.js";
 import { formatBearing, formatPosition, parsePosition } from "@debrief/kernel";
 import { defaultPivotIndex, describeDistance, describeSpeed, describeTurn, fixIndexAt, fixMoved, fixReadout, fixToEdit, impliedSpeeds, jumpSpeed, legNow, mergedName, mergePlan, periodIndices, readBearing, readDistance, readSpeed, readTurn } from "../webview/trackedit.js";
 import { rangeBearing } from "../webview/geodesic.js";
+import { chooseModes, MODE_LABELS, modeChoices, modeQuestion, REMEMBERED_IN_PLAYGROUND, type PlottingMode } from "../src/importmode.js";
 import { describeJump, describeMark, describeWindow, fixRows, jumpsFound, markAt, readThreshold, readWindow, smoothingNote, type Jump } from "../webview/fixes.js";
 import { FIX_COLOURS } from "../webview/palette.js";
 import { formatQuantity } from "@debrief/kernel";
@@ -825,20 +826,19 @@ $("stretch-track").onclick = async () => {
   const problem = await changeTrack({ kind: "edit", feature: track.id, edit });
   if (problem) toast(problem, "warning");
 };
-$("dead-reckon").onclick = async () => {
-  const track = oneTrack("plot by dead reckoning");
+$("plotting-mode").onclick = async () => {
+  const track = oneTrack("plot over the ground or by dead reckoning");
   if (!track) return;
   const name = track.properties.name;
-  if (!track.properties.courses || !track.properties.speeds) return toast(`${name} does not record both courses and speeds, so it cannot be plotted by dead reckoning.`, "warning");
+  const now = (track.properties.plotting_mode as PlottingMode | undefined) ?? "otg";
   const values = await trackForm(
-    `Plot ${name} by dead reckoning`,
-    "Plot as DR",
-    [extentField()],
-    "Its first fix stays; each fix after it is placed from the one before by that fix's recorded course and speed, as legacy Debrief plotted a track imported as DR. The positions as logged are replaced; Undo puts them back.",
+    `How is ${name} plotted?`,
+    "Plot",
+    [{ id: "mode", label: "Plotted", value: now, options: (["otg", "dr"] as const).map((m) => ({ value: m, label: `${MODE_LABELS[m]}${m === now ? ", as now" : ""}` })) }],
+    "By dead reckoning, the first fix stays and each fix after it is placed from the one before by that fix's recorded course and speed; its positions as logged are kept, and over the ground puts them back. One step; Undo takes it back.",
   );
-  if (!values) return;
-  const period = windowPeriod(values.extent);
-  const problem = await changeTrack({ kind: "edit", feature: track.id, edit: { action: "dead_reckon", ...(period && { period }) } });
+  if (!values || values.mode === now) return;
+  const problem = await changeTrack({ kind: "edit", feature: track.id, edit: { action: "set_plotting_mode", plotting_mode: values.mode } });
   if (problem) toast(problem, "warning");
 };
 $("split-track").onclick = async () => {
@@ -1342,7 +1342,7 @@ for (const panel of OPTIONAL) $(`panel-${panel}`).hidden = !panels.has(panel);
 // The panels in the order the demo lists them, after the plot and its outline.
 for (const panel of panelOrder) if (OPTIONAL.includes(panel)) $("side").append($(`panel-${panel}`));
 /** History, Try and Import need Python: off until it is ready. */
-const NEEDS_PYTHON = ["undo", "redo", "move-track", "rotate-track", "shear-track", "stretch-track", "split-track", "merge-tracks", "find-jumps", "smooth-track", "fix-list", "dead-reckon", "glitches", "crash", "colleague", "colleague-window", "colleague-during", "file", "colour", "hide", "show", "add-annotation", "edit-annotation", "delete-annotation", "north-arrow"];
+const NEEDS_PYTHON = ["undo", "redo", "move-track", "rotate-track", "shear-track", "stretch-track", "split-track", "merge-tracks", "find-jumps", "smooth-track", "fix-list", "plotting-mode", "ask-again", "glitches", "crash", "colleague", "colleague-window", "colleague-during", "file", "colour", "hide", "show", "add-annotation", "edit-annotation", "delete-annotation", "north-arrow"];
 function needsPython(on: boolean): void {
   for (const id of NEEDS_PYTHON) $<HTMLButtonElement | HTMLInputElement>(id).disabled = !on;
 }
@@ -1386,9 +1386,50 @@ $("colleague-during").onclick = (e) => {
   colleagueDuringNextRun = true;
   (e.target as HTMLButtonElement).textContent = "Armed: run a tool to see what happens";
 };
+// How tracks imported are plotted (CAP-01): asked of each track of a REP file, as legacy Debrief
+// asked, unless the reader chose a mode for future imports. That choice is the reader's own
+// setting, kept in the page's settings file (as debrief-config keeps an analyst's), never in the
+// catalogue or a plot; "Ask again" clears it.
+async function showImportMode(): Promise<void> {
+  const mode = (await python("import_mode")) as "ask" | PlottingMode;
+  $("import-mode-text").textContent =
+    mode === "ask"
+      ? "Debrief asks, for each track of a REP file, whether it is plotted over the ground (OTG) or by dead reckoning (DR)."
+      : `Tracks imported are plotted ${mode === "dr" ? "by dead reckoning (DR)" : "over the ground (OTG)"}, as you chose for future imports.`;
+  $("ask-again").hidden = mode === "ask";
+}
+$("ask-again").onclick = async () => {
+  await python("set_import_mode", "ask");
+  await showImportMode();
+  toast("Debrief will ask how each track you import is plotted.");
+};
+/** How each track of a REP file is plotted: asked, one track at a time, unless a choice is remembered. Undefined if the reader stopped. */
+async function askModes(name: string, data: Uint8Array): Promise<{ modes: Record<string, PlottingMode>; remembered: boolean } | undefined> {
+  const tracks = await pythonJson<string[]>("rep_tracks", name, data);
+  const remembered = (await python("import_mode")) as "ask" | PlottingMode;
+  const choices = modeChoices();
+  return chooseModes(
+    tracks,
+    remembered,
+    async (track, index, count) => {
+      const values = await trackForm(modeQuestion(track, index, count), "Import", [
+        { id: "mode", label: "Plotted", options: choices.map((c, i) => ({ value: String(i), label: c.label })) },
+      ], "Over the ground, each fix is where it was logged; by dead reckoning, from the first fix by each fix's course and speed. Choose one '…and use this choice for future imports' to be asked no more; Ask again, under Import, asks again.");
+      return values ? choices[Number(values.mode)] : undefined;
+    },
+    async (mode) => {
+      await python("set_import_mode", mode);
+      await showImportMode();
+    },
+  );
+}
 $<HTMLInputElement>("file").onchange = async (e) => {
   const file = (e.target as HTMLInputElement).files?.[0];
   if (!file) return;
+  const data = new Uint8Array(await file.arrayBuffer());
+  (e.target as HTMLInputElement).value = ""; // so the same file can be chosen again
+  const asked = await askModes(file.name, data);
+  if (!asked) return toast("Nothing was imported.");
   status(`Importing ${file.name}…`, true);
   const report = await pythonJson<{
     item?: string;
@@ -1396,10 +1437,11 @@ $<HTMLInputElement>("file").onchange = async (e) => {
     fixes: number;
     annotations: number;
     omitted: string[];
+    notes?: string[];
     error?: string;
     plot_file?: boolean;
     steps?: number;
-  }>("import_file", file.name, new Uint8Array(await file.arrayBuffer()));
+  }>("import_file", file.name, data, Object.keys(asked.modes).length ? JSON.stringify(asked.modes) : null, asked.remembered ? REMEMBERED_IN_PLAYGROUND : null);
   status("Ready. Everything runs in your browser; nothing is sent anywhere.");
   if (report.error || !report.item) return toast(report.error ?? "The file could not be imported.", "warning");
   await refreshPlots();
@@ -1421,7 +1463,11 @@ $<HTMLInputElement>("file").onchange = async (e) => {
     : "Everything in the file was imported.";
   const list = document.createElement("ul");
   list.replaceChildren(...report.omitted.map((line) => Object.assign(document.createElement("li"), { textContent: line })));
-  panel.append(heading, lead, list);
+  // How each track is plotted, and how to change a remembered choice.
+  const modes = document.createElement("ul");
+  modes.className = "import-notes";
+  modes.replaceChildren(...(report.notes ?? []).map((line) => Object.assign(document.createElement("li"), { textContent: line })));
+  panel.append(heading, modes, lead, list);
   showSide("Import", panel);
 };
 
@@ -1467,6 +1513,7 @@ function withoutPython(why: string): void {
     // keep: anything the reader selected on the preview stays selected.
     await openPlot(startPlot, true);
     pythonReady = true;
+    await showImportMode();
     needsPython(true);
     status("Ready. Everything runs in your browser; nothing is sent anywhere.");
   } catch (error) {

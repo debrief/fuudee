@@ -667,13 +667,42 @@ export async function run(): Promise<void> {
   await screenshot("30-move-fix-form");
   await vscode.commands.executeCommand("workbench.action.closeQuickOpen");
   assert.deepEqual(await askingFix, {});
-  // Plot as dead reckoning, with no questions: one step; then undone.
-  const reckoned = await vscode.commands.executeCommand<TrackDone>("debrief.deadReckonTrack", "track-red-one", {});
+  // Plotted by dead reckoning, with no questions: one step; over the ground again puts back the positions as logged.
+  const loggedRed = track("track-red-one")!.geometry.coordinates;
+  const reckoned = await vscode.commands.executeCommand<TrackDone>("debrief.plottingMode", "track-red-one", "dr");
   assert.equal(reckoned.problem, undefined);
   assert.equal((await steps()).at(-1)?.notes?.[0], `${redName} plotted by dead reckoning`);
-  assert.equal((await steps()).length, fixBefore + 3);
+  const overGround = await vscode.commands.executeCommand<TrackDone>("debrief.plottingMode", "track-red-one", "otg");
+  assert.equal(overGround.problem, undefined);
+  assert.equal((await steps()).at(-1)?.notes?.[0], `${redName} plotted over the ground`);
+  assert.deepEqual(track("track-red-one")!.geometry.coordinates, loggedRed);
+  assert.equal((await steps()).length, fixBefore + 4);
   assert.equal(await vscode.commands.executeCommand("debrief.undo"), undefined);
   assert.equal((await steps()).at(-1)?.status, "undone");
+
+  // Importing a REP file: each track plotted as asked (OTG or DR); "use this choice for future imports" is the
+  // analyst's own setting, in their Debrief configuration and VS Code's Settings, never in the plot; cleared to ask again.
+  type Imported = { item?: string; notes?: string[] };
+  const demoRep = path.resolve(__dirname, "../test/integration/demo.rep");
+  const asked = await vscode.commands.executeCommand<Imported>("debrief.importRep", undefined, { store: current.store.id, path: demoRep, modes: { NELSON: "dr", BLUE: "otg", "TRAWLER 7": "otg" } });
+  assert.equal(asked.notes?.[0], "Track 'NELSON' plotted by dead reckoning (DR).");
+  const settings = vscode.workspace.getConfiguration("debrief");
+  assert.equal(settings.get("trackImportMode"), "ask");
+  await settings.update("trackImportMode", "dr", vscode.ConfigurationTarget.Global);
+  await waitFor("the remembered choice in the configuration", async () => (await vscode.commands.executeCommand<string>("debrief.trackImportMode")) === "dr" || undefined);
+  const remembered = await vscode.commands.executeCommand<Imported>("debrief.importRep", undefined, { store: current.store.id, path: demoRep });
+  assert.match(remembered.notes?.at(-1) ?? "", /^Tracks were plotted by dead reckoning \(DR\) as you chose for future imports\. To change it, set Debrief: Track import mode in Settings; to be asked again for each track, run Debrief: Ask again whether imported tracks are OTG or DR\.$/);
+  await vscode.commands.executeCommand("debrief.askTrackImportMode");
+  assert.equal(await vscode.commands.executeCommand<string>("debrief.trackImportMode"), "ask");
+  await waitFor("Settings to say ask", () => vscode.workspace.getConfiguration("debrief").get("trackImportMode") === "ask" || undefined);
+  // Asked again: one question for each track, as legacy Debrief asked; put away, nothing is imported.
+  const prompting = vscode.commands.executeCommand<Imported | undefined>("debrief.importRep", undefined, { store: current.store.id, path: demoRep });
+  await sleep(2500);
+  await screenshot("31-import-asks");
+  await vscode.commands.executeCommand("workbench.action.closeQuickOpen");
+  assert.equal(await prompting, undefined);
+  await vscode.commands.executeCommand("debrief.openPlot", current.store.id, "serial-1");
+  await waitFor("serial 1 again", () => api.session.current?.item.id === "serial-1" || undefined);
 
   // A legacy plot file: its circles, ellipses and styling come in as annotations.
   const dpf = path.resolve(__dirname, "../../python/debrief-io/tests/data/shapes.dpf");
