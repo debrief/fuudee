@@ -485,8 +485,12 @@ def _sliced(track: models.TrackFeature, part: slice, **update) -> models.TrackFe
         for name in ("speeds", "courses", "depths")
         if getattr(props, name) is not None
     }
+    times = props.times[part]
+    # Marked fixes go with their fixes: found by time, so each part keeps its own.
+    kept = set(times)
+    marks = [m for m in props.fix_marks or [] if m.time in kept] or None
     properties = props.model_copy(
-        update={"times": props.times[part], **series, **update.pop("properties", {})}
+        update={"times": times, "fix_marks": marks, **series, **update.pop("properties", {})}
     )
     geometry = track.geometry.model_copy(update={"coordinates": track.geometry.coordinates[part]})
     return track.model_copy(update={"geometry": geometry, "properties": properties, **update})
@@ -611,9 +615,22 @@ def merge(
     platform = next(
         (t.properties.platform_class for t in ordered if t.properties.platform_class), None
     )
+    # Marked fixes come with their tracks. Where two tracks meet at one time, a mark is
+    # the first fix's at that time: the later track's mark there is not kept, and said so.
+    marks: dict[str, models.FixMark] = {}
+    for t in ordered:
+        for mark in t.properties.fix_marks or []:
+            if mark.time in marks:
+                notes.append(
+                    f"The mark on {t.properties.name}'s fix at {_when(parse_utc(mark.time))} "
+                    "not kept: the earlier track's fix then has a mark of its own"
+                )
+            else:
+                marks[mark.time] = mark
     properties = props.model_copy(
         update={
             "name": name,
+            "fix_marks": [marks[k] for k in sorted(marks)] or None,
             "times": [time for t in ordered for time in t.properties.times],
             "style": style,
             "platform_class": platform,

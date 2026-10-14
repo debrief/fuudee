@@ -431,6 +431,7 @@ def _feature_problems(feature: Any, track_ids: set[str] | None) -> list[str]:
                 problems.append(f"{where}: {name} has {len(values)} entries for {count} positions")
         if any(a > b for a, b in zip(props.times, props.times[1:], strict=False)):
             problems.append(f"{where}: times are not in order")
+        problems += _fix_mark_problems(where, props)
 
     elif props.kind == "annotation":
         problems += _annotation_problems(where, feature)
@@ -452,6 +453,27 @@ def _feature_problems(feature: Any, track_ids: set[str] | None) -> list[str]:
                 f"{where} column {column.name}", column.quantity_kind, column.unit
             )
 
+    return problems
+
+
+def _fix_mark_problems(where: str, props: Any) -> list[str]:
+    """Rules for marked fixes JSON Schema cannot express: each is one of the track's
+    fixes, found by its time; they are in time order, one per time; and each says
+    something (a colour, a label or a comment), with no empty text."""
+    marks = props.fix_marks or []
+    problems = []
+    times = set(props.times)
+    for mark in marks:
+        if mark.time not in times:
+            problems.append(f"{where}: a fix mark at {mark.time} is not at one of its fixes")
+        if mark.colour is None and mark.label is None and mark.comment is None:
+            problems.append(f"{where}: the fix mark at {mark.time} has no colour, label or comment")
+        if (mark.label is not None and not mark.label.strip()) or (
+            mark.comment is not None and not mark.comment.strip()
+        ):
+            problems.append(f"{where}: the fix mark at {mark.time} has an empty label or comment")
+    if any(a.time >= b.time for a, b in zip(marks, marks[1:], strict=False)):
+        problems.append(f"{where}: fix marks are not in time order, one per time")
     return problems
 
 
@@ -703,6 +725,8 @@ MESSAGE_MEMBERS: dict[str, tuple[str, ...]] = {
     "edit_annotation": ("feature_id", "annotation?"),
     "annotation_drawn": ("annotation",),
     "edit_track": ("feature_id", "track_edit"),
+    "show_fixes": ("feature_id?", "fix_times?", "preview?", "message?"),
+    "fix_chosen": ("feature_id", "fix_time"),
 }
 
 

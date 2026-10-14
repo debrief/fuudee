@@ -19,6 +19,8 @@ export class MapPanel {
   hiddenCount?: number;
   /** How the map was last told to draw tracks outside the window, for tests and agents. */
   context?: string;
+  /** The fixes the map last ringed for the analyst to check, and any change previewed, for tests and agents. */
+  fixesShown?: { feature_id: string; fix_times?: string[]; preview?: { type: "LineString"; coordinates: number[][] }; message?: string };
 
   constructor(
     private readonly extension: vscode.Uri,
@@ -101,10 +103,19 @@ export class MapPanel {
       // A track's move or rotate handle let go of, or nudged: changed so, as one step. Refused, the map shows it as it is.
       const done = await vscode.commands.executeCommand<{ problem?: string } | undefined>("debrief.editTrack", message.feature_id, message.track_edit);
       if (done?.problem) this.refresh();
+    } else if (message.kind === "fix_chosen") {
+      // Right-clicked on the map: colour, label or comment on that fix (EXT-14).
+      await vscode.commands.executeCommand("debrief.markFix", message.feature_id, message.fix_time);
     } else if (message.kind === "annotation_drawn") {
       // Drawn on the map: the form, to name it and add it as one step.
       await vscode.commands.executeCommand("debrief.addDrawnAnnotation", message.annotation);
     }
+  }
+
+  /** Ring fixes of a track for the analyst to check, with any change previewed and a note; nothing takes them away. */
+  showFixes(shown?: MapPanel["fixesShown"]): void {
+    this.fixesShown = shown;
+    this.post(shown ? { kind: "show_fixes", ...shown } : { kind: "show_fixes" });
   }
 
   /** Draw the plot again as it is: after a change on the map was refused, or a drawing's form closed unsaved. */

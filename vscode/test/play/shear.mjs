@@ -66,12 +66,13 @@ export async function playShear(page, shot) {
   assert.equal(await mapFrame.locator('[role="group"]:has(button[data-mode])').count(), 1, "Shear and Stretch are not inside the other choice");
   const tops = await mapFrame.locator('.track-extent [role="group"]').evaluateAll((all) => all.map((g) => Math.round(g.getBoundingClientRect().top)));
   assert.deepEqual(tops, [tops[0], tops[0]], "side by side, so the control is short enough for a short map");
-  // Under the outline, the track's actions and the annotations' are labelled groups, each in at most two rows.
-  for (const [group, count] of [["Track", 6], ["Annotation", 4]]) {
+  // Under the outline, the track's actions and the annotations' are labelled groups, compact: the track's
+  // nine (changing it, then cleaning it) in at most three rows, the annotations' four in at most two.
+  for (const [group, count, most] of [["Track", 9, 3], ["Annotation", 4, 2]]) {
     const buttons = page.getByRole("group", { name: group, exact: true }).getByRole("button");
     assert.equal(await buttons.count(), count, group);
     const rows = new Set(await buttons.evaluateAll((all) => all.map((b) => Math.round(b.getBoundingClientRect().top))));
-    assert.ok(rows.size <= 2, `${group}: ${rows.size} rows`);
+    assert.ok(rows.size <= most, `${group}: ${rows.size} rows`);
   }
   // Five handles: move, rotate, pivot, and the two ends, each named for a screen reader.
   assert.equal(await mapFrame.locator(".track-handle").count(), 5);

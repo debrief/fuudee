@@ -1,0 +1,9 @@
+{
+  "kind": "show_fixes",
+  "feature_id": "track-blue-one",
+  "fix_times": [
+    "2023-06-15T09:31:00.000Z",
+    "2023-06-15T09:47:00.000Z"
+  ],
+  "message": "BLUE ONE: 2 jumps found, faster than 18.0 kn"
+}

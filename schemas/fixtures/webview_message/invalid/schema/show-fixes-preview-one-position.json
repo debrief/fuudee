@@ -1,0 +1,13 @@
+{
+  "kind": "show_fixes",
+  "feature_id": "track-nelson",
+  "preview": {
+    "type": "LineString",
+    "coordinates": [
+      [
+        -4.1201,
+        50.3502
+      ]
+    ]
+  }
+}

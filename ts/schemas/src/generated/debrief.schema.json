@@ -790,6 +790,44 @@
       "title": "FeatureTypeEnum",
       "type": "string"
     },
+    "FixMark": {
+      "additionalProperties": false,
+      "description": "One fix of a track marked by the analyst, or by a legacy plot: drawn in a colour of its own, labelled on the map, or carrying a comment. Found by its time, not its place in the track, so a mark stays with its fix when fixes before it are removed, the track is split or merged, or it is moved, rotated, sheared, stretched or smoothed. Where two fixes share a time, the mark is the first's.",
+      "properties": {
+        "colour": {
+          "description": "The fix's own colour, lower-case hex RGB: its marker and the line from it to the next fix are drawn in it.",
+          "pattern": "^#[0-9a-f]{6}$",
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "comment": {
+          "description": "Free text about the fix, shown when the analyst points at it and in the Timeline.",
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "label": {
+          "description": "Text drawn on the map beside the fix.",
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "time": {
+          "description": "The time of the fix marked; one of the track's times.",
+          "pattern": "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}\\.\\d{3}Z$",
+          "type": "string"
+        }
+      },
+      "required": [
+        "time"
+      ],
+      "title": "FixMark",
+      "type": "object"
+    },
     "FormatSettings": {
       "additionalProperties": false,
       "description": "",
@@ -2933,6 +2971,16 @@
           ],
           "description": "Depth below the sea surface at each position, positive down. Absent where depth is not known."
         },
+        "fix_marks": {
+          "description": "Fixes with a colour, a label or a comment of their own, in time order, each found by its time (CAP-01, EXT-14). Most fixes have none, so only marked fixes are listed. Content: each change is a recorded, undoable step (SUB-22).",
+          "items": {
+            "$ref": "#/$defs/FixMark"
+          },
+          "type": [
+            "array",
+            "null"
+          ]
+        },
         "hidden": {
           "description": "Not drawn on the map. Still listed, and still selectable, in the outline. Content: hiding is a recorded, undoable change (SUB-22).",
           "type": [
@@ -3102,9 +3150,28 @@
           ]
         },
         "feature_id": {
-          "description": "The annotation a form changes or deletes, or the annotation or track the map asks to change.",
+          "description": "The annotation a form changes or deletes, the annotation or track the map asks to change, or the track whose fixes it rings or the analyst chose.",
           "type": [
             "string",
+            "null"
+          ]
+        },
+        "fix_time": {
+          "description": "The time of the fix the analyst chose on the map (fix_chosen).",
+          "pattern": "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}\\.\\d{3}Z$",
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "fix_times": {
+          "description": "The times of the fixes the map rings (show_fixes).",
+          "items": {
+            "pattern": "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}\\.\\d{3}Z$",
+            "type": "string"
+          },
+          "type": [
+            "array",
             "null"
           ]
         },
@@ -3156,6 +3223,17 @@
             "string",
             "null"
           ]
+        },
+        "preview": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/LineStringGeometry"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": "A track as a change would leave it, one position per fix, drawn beside it until the analyst applies or cancels the change (show_fixes)."
         },
         "result": {
           "anyOf": [
@@ -3295,7 +3373,9 @@
         "delete_annotation",
         "edit_annotation",
         "annotation_drawn",
-        "edit_track"
+        "edit_track",
+        "show_fixes",
+        "fix_chosen"
       ],
       "title": "WebviewMessageKindEnum",
       "type": "string"
@@ -3368,5 +3448,5 @@
   ],
   "title": "debrief",
   "type": "object",
-  "version": "0.0.15"
+  "version": "0.0.16"
 }

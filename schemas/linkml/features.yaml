@@ -154,6 +154,15 @@ classes:
         range: LengthSeries
         inlined: true
       style: {range: TrackStyle, inlined: true}
+      fix_marks:
+        description: >-
+          Fixes with a colour, a label or a comment of their own, in time
+          order, each found by its time (CAP-01, EXT-14). Most fixes have
+          none, so only marked fixes are listed. Content: each change is a
+          recorded, undoable step (SUB-22).
+        range: FixMark
+        multivalued: true
+        inlined_as_list: true
       hidden:
         description: >-
           Not drawn on the map. Still listed, and still selectable, in the
@@ -176,6 +185,28 @@ classes:
         pattern: "^#[0-9a-f]{6}$"
       legacy_symbology:
         description: The REP symbology code the colour came from, such as "@C", kept for export.
+  FixMark:
+    description: >-
+      One fix of a track marked by the analyst, or by a legacy plot: drawn in
+      a colour of its own, labelled on the map, or carrying a comment. Found
+      by its time, not its place in the track, so a mark stays with its fix
+      when fixes before it are removed, the track is split or merged, or it
+      is moved, rotated, sheared, stretched or smoothed. Where two fixes
+      share a time, the mark is the first's.
+    attributes:
+      time:
+        description: The time of the fix marked; one of the track's times.
+        range: UtcTimestamp
+        required: true
+      colour:
+        description: >-
+          The fix's own colour, lower-case hex RGB: its marker and the line
+          from it to the next fix are drawn in it.
+        pattern: "^#[0-9a-f]{6}$"
+      label:
+        description: Text drawn on the map beside the fix.
+      comment:
+        description: Free text about the fix, shown when the analyst points at it and in the Timeline.
 
   TrackEdit:
     description: >-

@@ -1,0 +1,23 @@
+{
+  "kind": "show_fixes",
+  "feature_id": "track-nelson",
+  "fix_times": [],
+  "preview": {
+    "type": "LineString",
+    "coordinates": [
+      [
+        -4.1201,
+        50.3502
+      ],
+      [
+        -4.115,
+        50.3473
+      ],
+      [
+        -4.1098,
+        50.344
+      ]
+    ]
+  },
+  "message": "NELSON smoothed over 3 fixes: the most a fix moves is 0.02 nmi"
+}

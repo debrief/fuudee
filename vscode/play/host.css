@@ -37,7 +37,7 @@ button:focus-visible, li:focus-visible { outline: 1px solid var(--vscode-focusBo
 .omitted-panel h2 { font-size: 15px; margin: 4px 0 8px; }
 .omitted-panel ul { padding-left: 18px; }
 .omitted-panel li { margin: 2px 0; }
-main { grid-row: 1; display: flex; min-width: 0; position: relative; }
+main { grid-row: 1; display: flex; min-width: 0; min-height: 0; position: relative; }
 .frame { border: 0; display: block; }
 .frame-map { flex: 1; min-width: 0; height: 100%; }
 .side-frame { width: clamp(260px, 34vw, 380px); border-left: 1px solid var(--vscode-panel-border); display: flex; flex-direction: column; min-height: 0; }
@@ -81,6 +81,22 @@ dialog::backdrop { background: #0006; }
 .timeline li.current button { background: var(--vscode-list-inactiveSelectionBackground); }
 .timeline li.current .when::before { content: "▶ "; color: var(--vscode-list-highlightForeground); }
 #north-arrow[aria-pressed="true"] { background: var(--vscode-button-background); color: var(--vscode-button-foreground); }
+/* Cleaning tracks: the jumps found, the fix list and what to do to the fix chosen. */
+/* The panel keeps its height beside the map; a long fix list scrolls inside it. */
+.side-frame .clean-panel { display: flex; flex-direction: column; min-height: 0; }
+.clean-panel p { margin: 4px 0 10px; }
+.jump-list { list-style: none; padding: 0; margin: 0 0 10px; }
+.jump-list li { margin: 4px 0; }
+.jump-list label { cursor: pointer; }
+.fix-list { max-height: none; flex: 1; min-height: 0; overflow-y: auto; }
+.fix-list li { cursor: pointer; }
+.fix-list li:hover { background: var(--vscode-list-hoverBackground); }
+.fix-list li.selected { background: var(--vscode-list-activeSelectionBackground); color: var(--vscode-list-activeSelectionForeground); }
+.fix-list li.selected .detail { color: inherit; }
+.fix-actions { display: flex; flex-wrap: wrap; gap: 4px; align-items: center; margin: 0 0 8px; padding-bottom: 8px; border-bottom: 1px solid var(--vscode-panel-border); }
+.fix-actions .fix-chosen { flex-basis: 100%; font-weight: 600; }
+.fix-actions .detail { flex-basis: 100%; }
+.fix-actions select { font: inherit; background: var(--vscode-dropdown-background); color: var(--vscode-foreground); border: 1px solid var(--vscode-dropdown-border); padding: 2px; }
 /* The small forms for moving, rotating and splitting a track. */
 .track-form h2 { margin: 0 0 8px; font-size: 13px; text-transform: none; letter-spacing: 0; }
 .track-form .form-row { display: grid; gap: 2px; margin-bottom: 8px; }

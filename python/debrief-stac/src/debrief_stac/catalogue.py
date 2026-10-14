@@ -42,7 +42,7 @@ from debrief_schemas import (
 )
 from debrief_schemas.documents import track_edit_problems
 from debrief_schemas.island import PLOT_FEATURE_ID, plot_feature
-from debrief_stac import annotations, tracks
+from debrief_stac import annotations, fixes, tracks
 from debrief_stac.hashing import content_hash
 from debrief_stac.history import (
     LOCK,
@@ -1132,6 +1132,163 @@ class Catalogue:
 
         step, (merged_id, lost) = self._change(item_id, change, agent, base, allow_newer_schema)
         return step, merged_id, lost
+
+    # --- Cleaning tracks: jumps, smoothing and marked fixes (CAP-01, EXT-14) ------
+
+    def _plot_at(self, item_id: str, base: Base | None) -> DebriefFeatureCollection:
+        """The plot as the analyst sees it: at base, if given, else as it is now."""
+        history = self.history(item_id)
+        if base is None:
+            return history.plot()
+        history.check_base(base)
+        return history.replay(base.current)
+
+    def find_jumps(
+        self,
+        item_id: str,
+        feature_id: str,
+        *,
+        threshold: Quantity | None = None,
+        period: tuple[str, str] | None = None,
+        base: Base | None = None,
+    ) -> tuple[Quantity, Quantity | None, list[fixes.Jump]]:
+        """The fixes of a track that are jumps (see debrief_stac.fixes), to show the
+        analyst before anything is removed: the threshold used (the default one unless
+        given), the track's median speed between fixes, and the jumps. Changes nothing."""
+        track = self._track(self._plot_at(item_id, base), feature_id)
+        span = (parse_utc(period[0]), parse_utc(period[1])) if period else None
+        try:
+            used, jumps = fixes.find_jumps(track, threshold, span)
+        except tracks.TrackError as error:
+            raise CatalogueError(str(error)) from None
+        return used, fixes.median_speed(track), jumps
+
+    def remove_jumps(
+        self,
+        item_id: str,
+        feature_id: str,
+        times: list[str],
+        agent: models.AgentRef,
+        base: Base | None = None,
+        *,
+        threshold: Quantity | None = None,
+        allow_newer_schema: bool = False,
+    ) -> int:
+        """Remove the fixes at times, the jumps the analyst confirmed, as one recorded,
+        undoable step: "BLUE ONE: 3 jumps removed". Every series and marked fix stays in
+        step with the fixes kept. The record holds the times and the threshold they were
+        found at; its notes say when they were, and any marked fixes that went too."""
+        if not times:
+            raise CatalogueError("Choose the jumps to remove.")
+
+        def change(plot: DebriefFeatureCollection):
+            track = self._track(plot, feature_id)
+            exact = sorted({fixes.fix_at(track, t) for t in times})
+            after, lost = fixes.without_fixes(track, exact, threshold)
+            notes = [f"At {fixes.describe_times(exact)}"]
+            parameters = [models.ParameterValue(name="fix_times", value=" ".join(exact))]
+            if threshold is not None:
+                knots = threshold.to("[kn_i]").value
+                notes.append(f"Each faster than {fixes.describe_speed(knots)} to reach")
+                parameters.append(
+                    models.ParameterValue(name="threshold", value=threshold.to_model())
+                )
+            if lost:
+                notes.append(f"{lost} marked fix{'' if lost == 1 else 'es'} removed with them")
+            record = {"notes": notes, "parameters": parameters, "selected": [feature_id]}
+            note = fixes.describe_jumps(track.properties.name, len(exact))
+            return Changes(modified=[after]), note, None, record
+
+        return self._change(item_id, change, agent, base, allow_newer_schema)[0]
+
+    def smoothing_preview(
+        self,
+        item_id: str,
+        feature_id: str,
+        window: int,
+        *,
+        period: tuple[str, str] | None = None,
+        base: Base | None = None,
+    ) -> tuple[models.TrackFeature, fixes.Smoothing]:
+        """The track as smoothing would leave it, and how far it would move the fixes,
+        to show the analyst before it is applied. Changes nothing."""
+        track = self._track(self._plot_at(item_id, base), feature_id)
+        span = (parse_utc(period[0]), parse_utc(period[1])) if period else None
+        try:
+            return fixes.smoothed(track, window, tracks.period_indices(track, span))
+        except tracks.TrackError as error:
+            raise CatalogueError(str(error)) from None
+
+    def smooth_track(
+        self,
+        item_id: str,
+        feature_id: str,
+        window: int,
+        agent: models.AgentRef,
+        base: Base | None = None,
+        *,
+        period: tuple[str, str] | None = None,
+        allow_newer_schema: bool = False,
+    ) -> tuple[int, fixes.Smoothing] | None:
+        """Smooth a track, or the fixes of one period of it, by a moving average over
+        window fixes, as one recorded, undoable step: "BLUE ONE smoothed over 5 fixes".
+        The period's first and last fixes stay where they are. Its notes say how many
+        fixes moved and the most any moved. None if no fix would move."""
+        span = (parse_utc(period[0]), parse_utc(period[1])) if period else None
+
+        def change(plot: DebriefFeatureCollection):
+            track = self._track(plot, feature_id)
+            indices = tracks.period_indices(track, span)
+            after, smoothing = fixes.smoothed(track, window, indices)
+            if not smoothing.moved:
+                return None
+            part = len(indices) < len(track.properties.times)
+            notes = [fixes.describe_largest(smoothing)]
+            parameters = [models.ParameterValue(name="window", value=float(window))]
+            if period:
+                notes.append(tracks.describe_period(span))
+                parameters += [
+                    models.ParameterValue(name="period_start", value=period[0]),
+                    models.ParameterValue(name="period_end", value=period[1]),
+                ]
+            record = {"notes": notes, "parameters": parameters, "selected": [feature_id]}
+            note = fixes.describe_smoothing(track.properties.name, window, part)
+            return Changes(modified=[after]), note, smoothing, record
+
+        return self._change(item_id, change, agent, base, allow_newer_schema)
+
+    def mark_fix(
+        self,
+        item_id: str,
+        feature_id: str,
+        time: str,
+        changes: dict,
+        agent: models.AgentRef,
+        base: Base | None = None,
+        *,
+        colour_name: str | None = None,
+        allow_newer_schema: bool = False,
+    ) -> int | None:
+        """Give one fix of a track a colour, a label or a comment of its own, or take
+        one away (a member given as None or empty), as one recorded, undoable step:
+        "BLUE ONE fix at 09:31:00Z labelled 'Turn'". None if nothing changes."""
+
+        def change(plot: DebriefFeatureCollection):
+            track = self._track(plot, feature_id)
+            made = fixes.marked(track, time, changes, colour_name)
+            if made is None:
+                return None
+            after, note = made
+            parameters = [models.ParameterValue(name="fix_time", value=fixes.fix_at(track, time))]
+            parameters += [
+                models.ParameterValue(name=member, value=value or "")
+                for member, value in changes.items()
+            ]
+            record = {"parameters": parameters, "selected": [feature_id]}
+            return Changes(modified=[after]), note, None, record
+
+        result = self._change(item_id, change, agent, base, allow_newer_schema)
+        return None if result is None else result[0]
 
     @staticmethod
     def _track(plot: DebriefFeatureCollection, feature_id: str) -> models.TrackFeature:

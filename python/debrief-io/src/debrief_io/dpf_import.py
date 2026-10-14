@@ -12,7 +12,10 @@ What becomes what:
 - Tracks: every leg's fixes, joined into one track in time order, with
   courses, speeds, depths and the track's colour. When legs overlap in
   time, joining them would zig-zag between them, so each leg becomes a
-  track of its own instead, named "<track> (<leg>)".
+  track of its own instead, named "<track> (<leg>)". A fix's own colour,
+  label and comment become the track's marked fixes (fix_marks); a label
+  that only gives the fix's time, as legacy Debrief labels every fix, is
+  listed rather than kept, since Debrief shows fixes' times itself.
 - Text labels: label annotations. Rectangles and closed polygons: areas.
   Lines, open polygons and vectors: lines. Circles and ellipses: circles and
   ellipses, with their exact centre and size, and a polygon of 72 sides as
@@ -96,8 +99,73 @@ def _entity(element: str, name: str | None, layer: str | None) -> str:
 # --- Tracks ------------------------------------------------------------------------
 
 
+def _time_label(fix: DpfFix) -> bool:
+    """Whether a fix's label only gives its time, as legacy Debrief labels every fix
+    unless told otherwise ("0504", "120500", "05:04"): its figures appear, in order,
+    in the fix's year, month, day, hour, minute and second."""
+    label = (fix.label or "").strip()
+    figures = re.sub(r"[\s.:/Z]", "", label)
+    if len(figures) < 4 or not figures.isdigit():
+        return False
+    stamp = format_utc(fix.time_ms)  # 2023-06-15T09:31:00.000Z
+    return figures in re.sub(r"\D", "", stamp[2:19])
+
+
+def _fix_marks(
+    name: str, track: DpfTrack, fixes: list[DpfFix]
+) -> tuple[list[models.FixMark] | None, list[str]]:
+    """Each fix's own colour, label and comment, as the track's marked fixes, and notes
+    on what was not kept as it was. Fixes in time order; a mark is found by its time, so
+    of fixes sharing a time only the first's is kept."""
+    colour = track.colour or DEFAULT_COLOUR
+    marks: dict[str, models.FixMark] = {}
+    time_labels = hidden_labels = clashes = 0
+    for fix in fixes:
+        own = {}
+        if fix.colour and fix.colour != colour:
+            own["colour"] = fix.colour
+        if fix.label and fix.label.strip():
+            if _time_label(fix):
+                time_labels += 1
+            else:
+                own["label"] = fix.label.strip()
+                hidden_labels += not fix.label_showing
+        if fix.comment and fix.comment.strip():
+            own["comment"] = fix.comment.strip()
+        if not own:
+            continue
+        at = format_utc(fix.time_ms)
+        if at in marks:
+            clashes += 1
+            continue
+        marks[at] = models.FixMark(time=at, **own)
+    notes = []
+    if time_labels:
+        notes.append(
+            f"Track {name!r}: {_plural(time_labels, 'fix label')} that only "
+            f"{'gives' if time_labels == 1 else 'give'} the fix's time "
+            f"{_are(time_labels)} not imported; Debrief shows fixes' times itself."
+        )
+    if hidden_labels:
+        notes.append(
+            f"Track {name!r}: {_plural(hidden_labels, 'fix label')} hidden in the legacy plot "
+            f"{_are(hidden_labels)} imported and will be shown."
+        )
+    if clashes:
+        notes.append(
+            f"Track {name!r}: {_plural(clashes, 'fix', 'fixes')} with a colour, label or "
+            "comment of their own share a time with the fix before; only the first fix's "
+            "is imported."
+        )
+    return [marks[t] for t in sorted(marks)] or None, notes
+
+
 def _track_feature(
-    feature_id: str, name: str, track: DpfTrack, fixes: list[DpfFix]
+    feature_id: str,
+    name: str,
+    track: DpfTrack,
+    fixes: list[DpfFix],
+    marks: list[models.FixMark] | None = None,
 ) -> models.TrackFeature:
     return models.TrackFeature(
         type="Feature",
@@ -113,6 +181,7 @@ def _track_feature(
             courses=models.AngleSeries(unit="deg", values=[f.course_deg for f in fixes]),
             depths=models.LengthSeries(unit="m", values=[f.depth_m for f in fixes]),
             style=models.TrackStyle(colour=track.colour or DEFAULT_COLOUR),
+            fix_marks=marks,
         ),
     )
 
@@ -188,19 +257,8 @@ def _track_notes(track: DpfTrack, joined: bool) -> list[str]:
             f"Track {name!r}: {label} ({item.kind}, {_plural(item.count, unit)}) "
             f"not imported: {reason}."
         )
+    # Each fix's own colour, label and comment are imported as marked fixes (_fix_marks).
     fixes = [f for leg in track.legs for f in leg.fixes]
-    comments = sum(1 for f in fixes if f.comment)
-    if comments:
-        notes.append(f"Track {name!r}: {_plural(comments, 'fix comment')} not imported.")
-    labels = sum(1 for f in fixes if f.label)
-    if labels:
-        notes.append(f"Track {name!r}: {_plural(labels, 'fix label')} not imported.")
-    coloured = sum(1 for f in fixes if f.colour and f.colour != track.colour)
-    if coloured:
-        notes.append(
-            f"Track {name!r}: {_plural(coloured, 'fix', 'fixes')} drawn in a colour of their own; "
-            "a v4 track has one colour, so these take the track's."
-        )
     hidden = sum(1 for f in fixes if not f.visible)
     if hidden:
         notes.append(
@@ -450,7 +508,10 @@ def build_plot_from_dpf(
                 )
                 continue
             fixes = _in_time_order(fixes)
-            features.append(_track_feature(_unique_id("track", name, taken), name, track, fixes))
+            marks, mark_notes = _fix_marks(name, track, fixes)
+            notes += mark_notes
+            feature_id = _unique_id("track", name, taken)
+            features.append(_track_feature(feature_id, name, track, fixes, marks))
             report.tracks.append(name)
             report.fixes += len(fixes)
             hidden += not track.visible
@@ -535,7 +596,7 @@ def build_plot_from_dpf(
 
     # Display settings, which v4 does not yet hold.
     display = [
-        "fix labels, symbols and arrows",
+        "where fix labels go, fix symbols and arrows",
         "track symbols, fonts and line styles",
     ]
     notes.append(

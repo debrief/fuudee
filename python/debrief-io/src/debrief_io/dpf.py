@@ -323,6 +323,7 @@ class DpfFix:
     comment: str | None = None
     colour: str | None = None
     visible: bool = True
+    label_showing: bool = False
     line: int = 0
     # The depth as written, when it could not be read and zero was used instead.
     bad_depth: str | None = None
@@ -723,7 +724,7 @@ def read_fix(node: Node) -> tuple[DpfFix, bool]:
     try:
         colour = read_colour(node.child("colour"))
     except DpfError:
-        colour = None  # a fix's own colour is not imported; the track's is used
+        colour = None  # a fix's own colour that cannot be read: the track's is used
     fix = DpfFix(
         time_ms=when[0],
         latitude=location.latitude,
@@ -735,6 +736,7 @@ def read_fix(node: Node) -> tuple[DpfFix, bool]:
         comment=from_xml(a["Comment"]) if a.get("Comment") else None,
         colour=colour,
         visible=read_bool(a.get("Visible"), True),
+        label_showing=read_bool(a.get("LabelShowing"), False),
         line=node.line,
         bad_depth=location.bad_depth,
     )
