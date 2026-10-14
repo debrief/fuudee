@@ -69,7 +69,7 @@
     
     
     
-    <body dir="ltr" data-md-color-scheme="default" data-md-color-primary="indigo" data-md-color-accent="indigo"><div class="pr-preview-banner" style="background:#fff4ce;color:#3b2f00;border-bottom:1px solid #e0c060;padding:6px 16px;font:14px/1.4 system-ui,sans-serif;text-align:center">Preview of <a style="color:inherit;text-decoration:underline" href="https://github.com/debrief/fuudee/pull/41">pull request #41</a>: Tote, part A: primary and secondaries, core measures, lines on the map. Built from 3cd3014 on 2026-10-14 15:00 UTC. <a style="color:inherit;text-decoration:underline" href="https://debrief.github.io/fuudee/pr-preview/">All previews</a></div>
+    <body dir="ltr" data-md-color-scheme="default" data-md-color-primary="indigo" data-md-color-accent="indigo"><div class="pr-preview-banner" style="background:#fff4ce;color:#3b2f00;border-bottom:1px solid #e0c060;padding:6px 16px;font:14px/1.4 system-ui,sans-serif;text-align:center">Preview of <a style="color:inherit;text-decoration:underline" href="https://github.com/debrief/fuudee/pull/41">pull request #41</a>: Tote, part A: primary and secondaries, core measures, lines on the map. Built from 460617e on 2026-10-14 15:49 UTC. <a style="color:inherit;text-decoration:underline" href="https://debrief.github.io/fuudee/pr-preview/">All previews</a></div>
   
     
     <input class="md-toggle" data-md-toggle="drawer" type="checkbox" id="__drawer" autocomplete="off">
@@ -1607,7 +1607,7 @@
                           <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 20a8 8 0 0 0 8-8 8 8 0 0 0-8-8 8 8 0 0 0-8 8 8 8 0 0 0 8 8m0-18a10 10 0 0 1 10 10 10 10 0 0 1-10 10C6.47 22 2 17.5 2 12A10 10 0 0 1 12 2m.5 5v5.25l4.5 2.67-.75 1.23L11 13V7z"/></svg>
                           <span class="md-ellipsis">
                             
-                              6 min read
+                              7 min read
                             
                           </span>
                         </div>
@@ -1635,7 +1635,7 @@
 
 
 <h1 id="the-tote">The Tote<a class="headerlink" href="#the-tote" title="Permanent link">&para;</a></h1>
-<p>The Tote is back. Choose a <strong>primary</strong> track, usually your own ship, and add the <strong>secondaries</strong> you want to watch: for each one the Tote gives the range, the true bearing, the relative bearing, the angle on the bow and the bearing rate from the primary, and its own course, speed and depth, at current time. On the map, a thin line joins the primary to each secondary. Drag current time, step it or press play, and the values keep pace. It's in VS Code's sidebar under <strong>Time</strong>, and in the playground under the time controller.</p>
+<p>The Tote is back. Choose a <strong>primary</strong> track, usually your own ship, and add the <strong>secondaries</strong> you want to watch: for each one the Tote gives the range, the true bearing, the relative bearing, the angle on the bow and the bearing rate from the primary, and its own course, speed and depth, at current time. On the map, a thin line joins the primary to each secondary. Drag current time, step it or press play, and the values keep pace. It's in VS Code's sidebar under <strong>Time</strong>, and in the playground under the time controller. In the playground every panel down the side now folds away by its heading, as the Tote's does, and your browser remembers which you folded.</p>
 <!-- more -->
 
 <p><em>The playground pictures come from the playground test, which plays the demo below in a browser with the mouse, a finger and the keyboard. The VS Code pictures come from the integration test, which drives the real VS Code with the real Python tool service.</em></p>
@@ -1653,7 +1653,7 @@
 <tr>
 <td>Range</td>
 <td>primary to secondary</td>
-<td>in your length unit: <code>3.49 nmi</code></td>
+<td>in your length unit: <code>3.49 nmi</code>; close in, in yards: <code>1070 yd</code></td>
 </tr>
 <tr>
 <td>Bearing</td>
@@ -1682,12 +1682,13 @@
 </tr>
 </tbody>
 </table>
-<p>The primary's own course, speed and depth are just under its name, each labelled; then a line for each secondary. Units and decimals are your display settings, the same as everywhere else in Debrief. A track with no depth recorded shows a dash, not a zero.</p>
+<p>The primary's own course, speed and depth are just under its name, each labelled; then a line for each secondary. Units and decimals are your display settings, the same as everywhere else in Debrief, with one exception the product owner asked for: if your lengths are in nautical miles, a range under a mile is in whole yards, <code>60 yd</code> rather than <code>0.03 nmi</code>, as analysts call close ranges, and back to <code>1.00 nmi</code> from a mile out. Bearing rate keeps your angle decimals, one by default. A track with no depth recorded shows a dash, not a zero.</p>
+<p><img alt="Serial 2 of the sample at 16:36:51, when Towing 01 passes BLUE ONE: the Tote gives its range as 1070 yd, with its bearing 107.0°T, relative bearing R133.6° and a bearing rate of -22.5°/min" src="../../../../images/phase-3/tote-close-range.png" /></p>
 <p><img alt="The playground: the Tote under the time controller, BLUE ONE the primary and four secondaries, RED ONE with its range, bearing, relative bearing, course, speed and depth; Cargo 01, Cargo 04 and Tug 01 each saying when their data starts" src="../../../../images/phase-3/tote-chosen.png" /></p>
 <p>In a sidebar there isn't room for six columns, so each secondary takes three short lines: its name, with its <strong>×</strong> at the end; its range, bearing and relative bearing, under their headings; then its angle on the bow, bearing rate, course, speed and depth, each labelled as the primary's are. Long names are cut short, in full on hover, so nothing scrolls sideways, even in the narrow side column of the demo below. Widen the view and each secondary fits on one line, every measure under its heading.</p>
 <h2 id="where-a-track-is-now">Where a track is, now<a class="headerlink" href="#where-a-track-is-now" title="Permanent link">&para;</a></h2>
 <p>A Tote is only useful if its numbers agree with the map. Each track's square on the map at current time sits on the geodesic between the fixes either side, in proportion to time; the Tote places each track in exactly the same way, and a shared set of test cases holds the map's code and the Python to the same positions, in the Arctic and across the antimeridian included. The range you read is the range between the two squares.</p>
-<p>Course, speed and depth are what the platform recorded at the fixes either side, interpolated the same way, with course going the shorter way round through north (from 350° to 010° passes 000°, not 180°). A track with no recorded courses, such as a sketched one, gets its course and speed from its positions instead.</p>
+<p>Course, speed and depth are what the platform recorded at the fixes either side, interpolated the same way, with course going the shorter way round through north (from 350° to 010° passes 000°, not 180°). A reversal has no shorter way round: between fixes at 000° and 180°, half way is neither 090° nor 270°, and the ship never steered either, so the Tote gives the course of whichever fix is nearer in time. A track with no recorded courses, such as a sketched one, gets its course and speed from its positions instead.</p>
 <p><img alt="The playground playing at 600×: the Tote's ranges and bearings changing as the squares move along the tracks, a thin dashed line on the map from BLUE ONE to each secondary that has a position" src="../../../../images/phase-3/tote-playing.png" /></p>
 <p>When a track has no data at current time, the Tote says why rather than leaving a blank: <em>Starts 08:28:48Z</em>, or <em>Ended 10:35:17Z</em>.</p>
 <p><img alt="Current time at the end of the window: Tug 01, whose last fix was at 10:35:17, says it has ended" src="../../../../images/phase-3/tote-no-data.png" /></p>

@@ -71,7 +71,7 @@
     
     
     
-    <body dir="ltr" data-md-color-scheme="default" data-md-color-primary="indigo" data-md-color-accent="indigo"><div class="pr-preview-banner" style="background:#fff4ce;color:#3b2f00;border-bottom:1px solid #e0c060;padding:6px 16px;font:14px/1.4 system-ui,sans-serif;text-align:center">Preview of <a style="color:inherit;text-decoration:underline" href="https://github.com/debrief/fuudee/pull/41">pull request #41</a>: Tote, part A: primary and secondaries, core measures, lines on the map. Built from 3cd3014 on 2026-10-14 15:00 UTC. <a style="color:inherit;text-decoration:underline" href="https://debrief.github.io/fuudee/pr-preview/">All previews</a></div>
+    <body dir="ltr" data-md-color-scheme="default" data-md-color-primary="indigo" data-md-color-accent="indigo"><div class="pr-preview-banner" style="background:#fff4ce;color:#3b2f00;border-bottom:1px solid #e0c060;padding:6px 16px;font:14px/1.4 system-ui,sans-serif;text-align:center">Preview of <a style="color:inherit;text-decoration:underline" href="https://github.com/debrief/fuudee/pull/41">pull request #41</a>: Tote, part A: primary and secondaries, core measures, lines on the map. Built from 460617e on 2026-10-14 15:49 UTC. <a style="color:inherit;text-decoration:underline" href="https://debrief.github.io/fuudee/pr-preview/">All previews</a></div>
   
     
     <input class="md-toggle" data-md-toggle="drawer" type="checkbox" id="__drawer" autocomplete="off">
@@ -1669,7 +1669,7 @@
 </table>
 <h2 id="model">Model<a class="headerlink" href="#model" title="Permanent link">&para;</a></h2>
 <ol>
-<li><strong>One component, every host.</strong> VS Code shows the Tote as a view in the Debrief sidebar, below <strong>Time</strong>, folded until it is first used: the commands that choose its tracks open it. The playground shows the same component under the time controller, in a panel that folds away. The map draws a thin, muted, dashed line from the primary's square to each secondary's at current time (see 9).</li>
+<li><strong>One component, every host.</strong> VS Code shows the Tote as a view in the Debrief sidebar, below <strong>Time</strong>, folded until it is first used: the commands that choose its tracks open it. The playground shows the same component under the time controller, in a panel that folds away by its heading, as every panel in the playground's side column does (decision, product owner, 14 Oct 2026): the heading stays a heading for screen readers, with a button in it that says whether the panel is open, and which panels are folded is remembered in that browser (an embedded demo starts with its panels open). The map draws a thin, muted, dashed line from the primary's square to each secondary's at current time (see 9).</li>
 <li>
 <p><strong>One primary, several secondaries.</strong> The primary is the track the others are measured from: usually ownship. Choose it from <strong>Primary</strong> at the top of the Tote. Add secondaries from <strong>Add</strong> below the table, in the order they should be listed. A track is never both: choosing a secondary as the primary takes it out of the secondaries. Each secondary has <strong>×</strong> at the end of its name, in the table's last column, to remove it; <code>Delete</code> or <code>Backspace</code> on a secondary does the same.</p>
 <p>From the outline, a track's menu (right-click; press and hold on a touch screen; <code>Shift+F10</code> or the menu key from the keyboard) has <strong>Set as Tote primary</strong>, <strong>Add to Tote</strong> and <strong>Remove from Tote</strong>. In VS Code these act on every selected track, so several can be added at once.
@@ -1688,7 +1688,7 @@
 <td>Range</td>
 <td>Range</td>
 <td>primary to secondary</td>
-<td>Geodesic distance on WGS84</td>
+<td>Geodesic distance on WGS84; where the analyst's lengths are nautical miles, under 1 nmi in whole yards, <code>60 yd</code>, and from 1 nmi in nautical miles, <code>1.00 nmi</code></td>
 </tr>
 <tr>
 <td>Bearing</td>
@@ -1718,7 +1718,7 @@
 <td>Course</td>
 <td>Crse</td>
 <td>each track</td>
-<td>Recorded course at the fixes either side, interpolated the shorter way round through 360°; a track with no recorded courses, the geodesic's direction there</td>
+<td>Recorded course at the fixes either side, interpolated the shorter way round through 360°; where they are opposite (within 0.5°), a reversal with no shorter way round, the nearer fix's course, not one half way that the track never steered (half way, the later fix's); a track with no recorded courses, the geodesic's direction there</td>
 </tr>
 <tr>
 <td>Speed</td>
@@ -1734,7 +1734,7 @@
 </tr>
 </tbody>
 </table>
-<p>Units and decimals are the analyst's display settings (SUB-04): ranges in their length unit, speeds in theirs, angles to their decimals. Depths are in metres, or feet where lengths are in feet or yards, to one decimal: there is no depth setting yet. Relative bearing uses the primary's course as its head, as legacy Debrief did; a heading separate from course would change it only for a platform crabbing across a current.</p>
+<p>Units and decimals are the analyst's display settings (SUB-04): ranges in their length unit, speeds in theirs, angles to their decimals, bearing rate included (<code>0.5°/min</code> at the default one decimal). Close ranges are in yards, as analysts call them: where lengths are in nautical miles, a range under 1 nmi is in whole yards (<code>60 yd</code>, <code>1350 yd</code>), from 1 nmi in nautical miles to the analyst's decimals; any other length unit is used as it is (decisions, product owner, 14 Oct 2026). Only the Tote's range does this: other distances on the map, such as a move's readout, stay in the analyst's length unit. Depths are in metres, or feet where lengths are in feet or yards, to one decimal: there is no depth setting yet. Relative bearing uses the primary's course as its head, as legacy Debrief did; a heading separate from course would change it only for a platform crabbing across a current.</p>
 </li>
 <li>
 <p><strong>What each line shows.</strong> The primary's own measures (course, speed, depth) are under <strong>Primary</strong>, each with its label: <em>Crse 214.5°T Spd 9.9 kn Depth 0.0 m</em>. The table below has one row of headings and a line for each secondary. In a narrow view, such as VS Code's sidebar at its usual width or a demo's side column, each secondary takes three short lines: its name, with <strong>×</strong> at the end; its range, bearing and relative bearing under their headings; then its angle on the bow, bearing rate and own measures, each labelled as the primary's are: <em>AOB G135.0° Brg rate -0.8°/min Crse 230.0°T Spd 6.0 kn Depth 20.0 m</em>. Where the view is wide enough (about 600 px), one line a secondary, every measure under its heading. A long name is cut short, in full on hover; nothing scrolls sideways down to about 200 px. Every value has its measure's full name on hover and for screen readers, and the swatch beside a name is the track's colour on the map.</p>
@@ -1909,7 +1909,7 @@
 <p>Part B needs: a study catalogue item holding the study's groups, written by its lead analyst and read by every plot in the study (CAP-07); measures beyond core declared by Python tool libraries, as tools are, and evaluated by <code>debrief_stac.tote</code>; a choice of group in the Tote; and rules for a group whose measure a library no longer provides.</p>
 <h2 id="reference-implementation">Reference implementation<a class="headerlink" href="#reference-implementation" title="Permanent link">&para;</a></h2>
 <ul>
-<li><strong>Measures:</strong> <code>python/debrief-kernel/src/debrief_kernel/measures.py</code> (<code>TrackMotion</code>, <code>measure</code>, <code>CORE_GROUP</code>), positions from <code>geodesy.TrackPath</code>, tested in <code>tests/test_measures.py</code> (geodesic range and bearing, relative bearing across 360°, angle on the bow, bearing rate against crossing speed over range, far north, the antimeridian, missing data, interpolation). Formatting: <code>format_relative_bearing</code> and <code>format_depth</code> in <code>debrief_kernel.formatting</code> and <code>formatRelativeBearing</code>, <code>formatDepth</code> in <code>ts/kernel</code>, held to <code>schemas/vectors/formatting.json</code>.</li>
+<li><strong>Measures:</strong> <code>python/debrief-kernel/src/debrief_kernel/measures.py</code> (<code>TrackMotion</code>, <code>measure</code>, <code>CORE_GROUP</code>), positions from <code>geodesy.TrackPath</code>, tested in <code>tests/test_measures.py</code> (geodesic range and bearing, relative bearing across 360°, angle on the bow, bearing rate against crossing speed over range, far north, the antimeridian, missing data, interpolation). Formatting: <code>format_range</code>, <code>format_relative_bearing</code> and <code>format_depth</code> in <code>debrief_kernel.formatting</code> and <code>formatRange</code>, <code>formatRelativeBearing</code>, <code>formatDepth</code> in <code>ts/kernel</code>, held to <code>schemas/vectors/formatting.json</code>. Course across a reversal: <code>TrackMotion</code> and the course samples in <code>schemas/vectors/track-positions.json</code>. The playground's folding panels: <code>vscode/play/fold.ts</code>, played in <code>vscode/test/play/tote.mjs</code>.</li>
 <li><strong>Over a plot:</strong> <code>python/debrief-stac/src/debrief_stac/tote.py</code> (<code>tote</code>, <code>tote_tracks</code>, <code>measure_groups</code>): tracks prepared once and kept while the plot file is unchanged, or only its island; tested in <code>tests/test_tote.py</code>.</li>
 <li><strong>The service:</strong> <code>debrief/tote</code> and <code>debrief/measure_groups</code>; the choice through <code>debrief/set_view</code>.</li>
 <li><strong>The component:</strong> <code>vscode/webview/totecontrol.ts</code> and <code>tote.css</code>; its rules, free of the page, in <code>vscode/webview/totelogic.ts</code> (<code>withPrimary</code>, <code>withSecondaries</code>, <code>withoutSecondary</code>, <code>withMapLines</code>, <code>toteMapLines</code>, <code>formatMeasure</code>, <code>toteLines</code>, <code>ToteRequests</code>), tested in <code>vscode/test/unit/tote.test.ts</code>, with the map's <code>positionAt</code> (<code>vscode/webview/geodesic.ts</code>) held to the shared position vectors.</li>

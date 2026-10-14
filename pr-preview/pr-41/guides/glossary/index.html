@@ -69,7 +69,7 @@
     
     
     
-    <body dir="ltr" data-md-color-scheme="default" data-md-color-primary="indigo" data-md-color-accent="indigo"><div class="pr-preview-banner" style="background:#fff4ce;color:#3b2f00;border-bottom:1px solid #e0c060;padding:6px 16px;font:14px/1.4 system-ui,sans-serif;text-align:center">Preview of <a style="color:inherit;text-decoration:underline" href="https://github.com/debrief/fuudee/pull/41">pull request #41</a>: Tote, part A: primary and secondaries, core measures, lines on the map. Built from 3cd3014 on 2026-10-14 15:00 UTC. <a style="color:inherit;text-decoration:underline" href="https://debrief.github.io/fuudee/pr-preview/">All previews</a></div>
+    <body dir="ltr" data-md-color-scheme="default" data-md-color-primary="indigo" data-md-color-accent="indigo"><div class="pr-preview-banner" style="background:#fff4ce;color:#3b2f00;border-bottom:1px solid #e0c060;padding:6px 16px;font:14px/1.4 system-ui,sans-serif;text-align:center">Preview of <a style="color:inherit;text-decoration:underline" href="https://github.com/debrief/fuudee/pull/41">pull request #41</a>: Tote, part A: primary and secondaries, core measures, lines on the map. Built from 460617e on 2026-10-14 15:49 UTC. <a style="color:inherit;text-decoration:underline" href="https://debrief.github.io/fuudee/pr-preview/">All previews</a></div>
   
     
     <input class="md-toggle" data-md-toggle="drawer" type="checkbox" id="__drawer" autocomplete="off">
@@ -1634,11 +1634,13 @@
 <p><strong>SATC</strong> (semi-automatic track construction). Generating a TMA solution automatically from bearings. Lower priority than manual TMA (CAP-21).</p>
 <h2 id="analysis">Analysis<a class="headerlink" href="#analysis" title="Permanent link">&para;</a></h2>
 <p><strong>Angle on the bow (AOB).</strong> A track's aspect as another sees it: the bearing from the track to the observer less the track's course, red to port and green to starboard: <code>R030.0°</code> means the observer sees its port side. <code>000.0°</code> is bows on. In the Tote, the secondary's angle on the bow as the primary sees it.</p>
-<p><strong>Bearing rate.</strong> How fast a bearing changes, in degrees per minute: positive drawing right (clockwise), negative drawing left. Steady (zero) with both on a steady course and speed means a constant bearing, as on a collision course.</p>
+<p><strong>Bearing rate.</strong> How fast a bearing changes, in degrees per minute, to the analyst's angle decimals: positive drawing right (clockwise), negative drawing left. Steady (zero) with both on a steady course and speed means a constant bearing, as on a collision course.</p>
 <p><strong>Tote.</strong> The table of relative geometry between one primary and several secondary tracks at current time: range, bearing and the other measures of a measure group (CAP-06). Which tracks it compares is saved in the plot's island, so it travels with the plot but is never a step in its history. See <a href="../interaction-models/tote/">Tote</a>.</p>
 <p><strong>Primary, secondary</strong> (the Tote). The primary is the track the others are measured from, usually ownship; each secondary is measured from it. A track is never both.</p>
 <p><strong>Measure group.</strong> A named, reusable set of measures for a mode of analysis, defined by a study's lead analyst. The Tote is a view onto one (CAP-07). Every group extends <strong>core</strong>: range, bearing, relative bearing, angle on the bow and bearing rate from the primary, and each track's course, speed and depth.</p>
 <p><strong>Measure.</strong> One quantity the Tote shows: between the primary and a secondary (range, bearing, relative bearing, angle on the bow, bearing rate) or of one track (course, speed, depth). Worked out in Python at current time, where the map places each track.</p>
+<p><strong>Close range</strong> (the Tote). A range under 1 nmi. Where the analyst's lengths are in nautical miles, the Tote writes it in whole yards, <code>60 yd</code>, as analysts call close ranges; from 1 nmi, in nautical miles.</p>
+<p><strong>Reversal</strong> (course). Recorded courses at two fixes that are opposite, within half a degree. There is no shorter way round between them, so the Tote does not interpolate: it takes the course of the fix nearer in time.</p>
 <p><strong>CPA</strong> (closest point of approach). The time and range at which two platforms are nearest.</p>
 <p><strong>Current time.</strong> The instant, within a time range, that every view follows. Shared state, with selection and viewport (SUB-26).</p>
 <p><strong>Display window.</strong> The earlier name for the <a href="#data">time window</a>, when each layer was to have its own. There is now one time window for the whole plot (CAP-28, decision 12 Oct 2026).</p>
