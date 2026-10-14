@@ -265,3 +265,20 @@ export function removeStore(config: UserConfig, id: string): UserConfig {
   if (!config.stores.some((s) => s.id === id)) throw new ConfigError(`No store with id "${id}"`);
   return { ...config, stores: config.stores.filter((s) => s.id !== id) };
 }
+
+/** How tracks imported are plotted (CAP-01): ask for each track, or the one choice remembered for future imports. User state, kept here, never in a catalogue or a plot file. */
+export type TrackImportMode = "ask" | "otg" | "dr";
+export const TRACK_IMPORT_MODES: readonly TrackImportMode[] = ["ask", "otg", "dr"];
+
+/** "ask" (the default, also when not set), "otg" or "dr". As debrief_config.track_import_mode. */
+export function trackImportMode(config: UserConfig): TrackImportMode {
+  return (config.track_import_mode as TrackImportMode | undefined | null) ?? "ask";
+}
+
+/** A copy of the configuration remembering mode for future imports; "ask" clears it. As debrief_config.with_track_import_mode. */
+export function withTrackImportMode(config: UserConfig, mode: TrackImportMode): UserConfig {
+  if (!TRACK_IMPORT_MODES.includes(mode)) throw new ConfigError(`"${mode}" is not a track import mode: ask, otg or dr`);
+  const rest = { ...config };
+  delete rest.track_import_mode;
+  return mode === "ask" ? rest : { ...rest, track_import_mode: mode as UserConfig["track_import_mode"] };
+}

@@ -1,0 +1,16 @@
+{
+  "kind": "edit_track",
+  "feature_id": "track-red-one",
+  "track_edit": {
+    "action": "move",
+    "plotting_mode": "dr",
+    "distance": {
+      "value": 1,
+      "unit": "km"
+    },
+    "bearing": {
+      "value": 0,
+      "unit": "deg"
+    }
+  }
+}

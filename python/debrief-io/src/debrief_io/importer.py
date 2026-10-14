@@ -14,7 +14,7 @@ import io
 import re
 import time
 from collections import defaultdict
-from collections.abc import Callable
+from collections.abc import Callable, Mapping
 from dataclasses import dataclass, field
 from importlib.metadata import version
 from pathlib import Path
@@ -22,7 +22,7 @@ from pathlib import Path
 from debrief_io.rep import RepFix, colour_for, parse_rep
 from debrief_kernel.time import format_utc
 from debrief_schemas import SCHEMA_VERSION, DebriefFeatureCollection, dump_plot, models
-from debrief_stac import Catalogue, period_view, with_plot_details
+from debrief_stac import Catalogue, period_view, tracks, with_plot_details
 from debrief_stac.hashing import content_hash
 from debrief_stac.history import view_hash
 
@@ -45,6 +45,63 @@ class ImportReport:
     narrative_entries: int = 0
     # Everything not imported, in words an analyst can act on.
     omitted: list[str] = field(default_factory=list)
+    # What the analyst should know that is not an omission: how each track is plotted.
+    notes: list[str] = field(default_factory=list)
+
+
+# How each track is plotted (CAP-01): over the ground or by dead reckoning, as the host
+# says, having asked the analyst or used the choice they remembered. User state stays with
+# the host (debrief-config); the importer only takes the answer. Without one, over the ground.
+Modes = str | Mapping[str, str] | None
+MODE_SAID = {"otg": "over the ground (OTG)", "dr": "by dead reckoning (DR)"}
+
+
+def mode_for(modes: Modes, name: str) -> str | None:
+    """The mode asked for a track: one for every track, or by its name; None if not said."""
+    mode = modes if isinstance(modes, str) or modes is None else modes.get(name)
+    if mode is not None and mode not in MODE_SAID:
+        raise ValueError(f"{mode!r} is not a way to plot a track: otg or dr")
+    return mode
+
+
+def plotted(feature: models.TrackFeature, mode: str | None) -> models.TrackFeature:
+    """The track as imported, plotted as asked: by dead reckoning, from its first fix by
+    each fix's course and speed, its positions as logged kept beside them."""
+    if mode is None:
+        return feature
+    if mode == "dr":
+        return tracks.plotted_as(feature, "dr")
+    return feature.model_copy(
+        update={"properties": feature.properties.model_copy(update={"plotting_mode": "otg"})}
+    )
+
+
+def mode_notes(chosen: dict[str, str], remembered: str | None) -> list[str]:
+    """What the import says of how its tracks are plotted, and, when it used the
+    analyst's remembered choice, how to change it or be asked again."""
+    notes = [f"Track {name!r} plotted {MODE_SAID[mode]}." for name, mode in chosen.items()]
+    if remembered is not None and chosen:
+        mode = next(iter(chosen.values()))
+        notes.append(
+            f"Tracks were plotted {MODE_SAID[mode]} as you chose for future imports. {remembered}"
+        )
+    return notes
+
+
+def rep_track_names(path: Path) -> list[str]:
+    """The tracks a REP file holds that would be imported (two fixes or more), in the
+    order they first appear: so the host can ask how each is plotted before importing."""
+    counts: dict[str, int] = {}
+    for fix in parse_rep(_rep_text(Path(path).read_bytes())).fixes:
+        counts[fix.track] = counts.get(fix.track, 0) + 1
+    return [name for name, n in counts.items() if n >= 2]
+
+
+def _rep_text(raw: bytes) -> str:
+    try:
+        return raw.decode("utf-8")
+    except UnicodeDecodeError:
+        return raw.decode("latin-1")  # legacy files are often Latin-1; every byte decodes
 
 
 def _track_id(name: str, taken: set[str]) -> str:
@@ -86,12 +143,21 @@ def _track(feature_id: str, name: str, fixes: list[RepFix]) -> models.TrackFeatu
 
 
 def build_plot(
-    text: str, source: models.SourceRef, agent: models.AgentRef, *, clock: Clock = wall_clock
+    text: str,
+    source: models.SourceRef,
+    agent: models.AgentRef,
+    *,
+    clock: Clock = wall_clock,
+    modes: Modes = None,
+    remembered: str | None = None,
 ) -> tuple[DebriefFeatureCollection, ImportReport]:
     """Parse REP text into a plot and a report of what was and was not imported.
 
     The clock times the provenance record. A builder that must produce the
-    same plot every run, such as the sample data, passes a fixed clock.
+    same plot every run, such as the sample data, passes a fixed clock. modes
+    says how each track is plotted (otg or dr: one for all, or by track name);
+    remembered, when the host used the analyst's remembered choice, says how to
+    change it, and the notes say so.
     """
     started = format_utc(clock())
     parsed = parse_rep(text)
@@ -103,6 +169,7 @@ def build_plot(
 
     features: list[models.TrackFeature] = []
     taken: set[str] = set()
+    chosen: dict[str, str] = {}
     for name, fixes in by_track.items():
         fixes.sort(key=lambda f: f.time_ms)  # stable: equal times keep file order
         if len(fixes) < 2:
@@ -110,7 +177,10 @@ def build_plot(
                 f"Track {name!r} has only one fix, so it was not imported as a track."
             )
             continue
-        features.append(_track(_track_id(name, taken), name, fixes))
+        mode = mode_for(modes, name)
+        features.append(plotted(_track(_track_id(name, taken), name, fixes), mode))
+        if mode is not None:
+            chosen[name] = mode
         report.tracks.append(name)
         report.fixes += len(fixes)
 
@@ -137,6 +207,7 @@ def build_plot(
         )
     for number, problem in parsed.errors:
         report.omitted.append(f"Line {number} could not be read: {problem}.")
+    report.notes = mode_notes(chosen, remembered)
 
     record = models.ProvRecord(
         id=f"import-{started}",
@@ -146,7 +217,7 @@ def build_plot(
         tool=models.ToolRef(name=IMPORTER, version=version("debrief-io")),
         agent=agent,
         used=[source],
-        notes=report.omitted or None,
+        notes=[*report.notes, *report.omitted] or None,
     )
     plot = DebriefFeatureCollection(
         type="FeatureCollection",
@@ -220,8 +291,11 @@ def import_rep(
     agent: models.AgentRef | None = None,
     allow_newer_schema: bool = False,
     clock: Clock = wall_clock,
+    modes: Modes = None,
+    remembered: str | None = None,
 ) -> ImportReport:
-    """Import a REP file as a new plot in the catalogue.
+    """Import a REP file as a new plot in the catalogue, each track plotted over the
+    ground or by dead reckoning as modes says (see build_plot).
 
     The plot is built and validated before anything is written; a failed
     import leaves the catalogue unchanged.
@@ -230,10 +304,7 @@ def import_rep(
     item_id = item_id or re.sub(r"[^A-Za-z0-9._-]+", "-", path.stem).strip("-.") or "plot"
     agent = agent or models.AgentRef(kind="person", name="analyst")
     raw = path.read_bytes()
-    try:
-        text = raw.decode("utf-8")
-    except UnicodeDecodeError:
-        text = raw.decode("latin-1")  # legacy files are often Latin-1; every byte decodes
+    text = _rep_text(raw)
     return store_import(
         catalogue,
         path,
@@ -241,7 +312,9 @@ def import_rep(
         item_id,
         title or path.stem,
         "text/plain",
-        lambda source: _with_tracks(build_plot(text, source, agent, clock=clock)),
+        lambda source: _with_tracks(
+            build_plot(text, source, agent, clock=clock, modes=modes, remembered=remembered)
+        ),
         allow_newer_schema=allow_newer_schema,
     )
 

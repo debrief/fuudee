@@ -561,24 +561,35 @@ def describe_implied(
     return notes
 
 
-# --- Dead reckoning: the legacy DR plotting mode (CAP-01, EXT-14) -----------------------
+# --- Over the ground or dead reckoning: the legacy plotting modes (CAP-01, EXT-14) -----
 #
-# Legacy Debrief plotted a track either over the ground (OTG: each fix where it was
-# logged) or by dead reckoning (DR: from a start, each fix placed by the course and speed
-# logged, as a navigator plots a DR track), chosen as REP files were imported and kept on
-# each leg of a .dpf plot (TrackSegment's PlotRelative). In v4 a track is plotted where
-# its positions are, so OTG is every track as imported; DR is this change, made to the
-# positions as one recorded step, so the plot stays plain GeoJSON that other tools read
-# the same way, and undo puts the positions back.
+# Legacy Debrief plotted each track either over the ground (OTG: each fix where it was
+# logged) or by dead reckoning (DR: from the first fix, each fix placed by the course and
+# speed logged, as a navigator plots a DR track), asking which as each track was imported
+# (decision, product owner, 14 Oct 2026: the same here). The mode is kept on the track
+# (plotting_mode), content like its colour. The geometry is always the positions as
+# plotted, so the plot stays plain GeoJSON that other tools draw as Debrief does; a track
+# plotted by dead reckoning keeps its positions as logged beside them (logged_positions),
+# so plotting it over the ground again puts them back. Changing the mode is one step.
+
+PLOTTING_MODES = ("otg", "dr")
+MODE_NAMES = {"otg": "over the ground", "dr": "by dead reckoning"}
 
 
-def dead_reckoned(track: models.TrackFeature, indices: Sequence[int]) -> models.TrackFeature | None:
-    """The track with the fixes at indices plotted by dead reckoning: the first stays,
-    and each after it is placed from the one before by that fix's recorded course and
-    speed over the time between them, along the geodesic (the course held, and the speed
-    made, until the next fix). Fixes outside the indices stay, so the join after them
-    jumps. Refused when the track does not record both courses and speeds. None if
-    nothing would move."""
+def plotting_mode(track: models.TrackFeature) -> str:
+    """ "otg" or "dr": over the ground unless the track says otherwise."""
+    mode = track.properties.plotting_mode
+    return str(getattr(mode, "value", mode)) if mode is not None else "otg"
+
+
+def dead_reckoned_positions(
+    track: models.TrackFeature, positions: Sequence[Sequence[float]] | None = None
+) -> list[list[float]]:
+    """The track's positions by dead reckoning from its first fix (of positions, its own
+    unless given): each fix after it placed from the one before by that fix's recorded
+    course and speed over the time between, along the geodesic (the course held, and the
+    speed made, until the next fix), as legacy Debrief did. Refused when the track does
+    not record both courses and speeds."""
     props = track.properties
     if props.courses is None or props.speeds is None:
         raise TrackError(
@@ -586,29 +597,60 @@ def dead_reckoned(track: models.TrackFeature, indices: Sequence[int]) -> models.
             "plotted by dead reckoning."
         )
     times = times_of(track)
-    positions = [list(p) for p in track.geometry.coordinates]
+    out = [list(p) for p in (positions if positions is not None else track.geometry.coordinates)]
     course_unit, speed_unit = str(props.courses.unit), str(props.speeds.unit)
-    for previous, i in zip(indices, indices[1:], strict=False):
-        course = Quantity(props.courses.values[previous], course_unit).to("deg")
-        speed = Quantity(props.speeds.values[previous], speed_unit).to("m/s").value
-        seconds = (times[i] - times[previous]) / 1000
-        start = Position(*positions[previous])
-        to = destination(start, course, Quantity(speed * seconds, "m"))
-        positions[i] = [to.longitude, to.latitude]
-    if all(
-        range_bearing(_position(track, i), Position(*positions[i]))[0].value < 1e-6 for i in indices
-    ):
+    for i in range(1, len(times)):
+        course = Quantity(props.courses.values[i - 1], course_unit).to("deg")
+        speed = Quantity(props.speeds.values[i - 1], speed_unit).to("m/s").value
+        seconds = (times[i] - times[i - 1]) / 1000
+        to = destination(Position(*out[i - 1]), course, Quantity(speed * seconds, "m"))
+        out[i] = [to.longitude, to.latitude]
+    return out
+
+
+def plotted_as(track: models.TrackFeature, mode: str) -> models.TrackFeature | None:
+    """The track plotted over the ground ("otg") or by dead reckoning ("dr"); None if
+    it already is. By dead reckoning, its positions now are kept as logged and the fixes
+    placed from its first fix by course and speed; over the ground again, the positions
+    as logged come back. Refused, plainly, where that cannot be done."""
+    if mode not in PLOTTING_MODES:
+        raise TrackError(
+            "Say how to plot the track: over the ground (otg) or by dead reckoning (dr)."
+        )
+    if plotting_mode(track) == mode:
         return None
-    return _with_positions(track, positions)
+    props = track.properties
+    if mode == "dr":
+        logged = track.geometry
+        positions = dead_reckoned_positions(track)
+        update = {"plotting_mode": "dr", "logged_positions": logged}
+    else:
+        if props.logged_positions is None:
+            raise TrackError(
+                f"{props.name}'s positions as logged are not in the plot: the legacy plot it "
+                "came from saved only the positions dead reckoning worked out, so it cannot be "
+                "plotted over the ground."
+            )
+        positions = [list(p) for p in props.logged_positions.coordinates]
+        update = {"plotting_mode": "otg", "logged_positions": None}
+    geometry = track.geometry.model_copy(update={"coordinates": positions})
+    return track.model_copy(
+        update={"geometry": geometry, "properties": props.model_copy(update=update)}
+    )
 
 
-def describe_dead_reckoning(name: str, part: bool) -> str:
+def describe_plotting(name: str, mode: str) -> str:
     """What the History view calls it: "RED ONE plotted by dead reckoning"."""
-    return f"{name} part plotted by dead reckoning" if part else f"{name} plotted by dead reckoning"
+    return f"{name} plotted {MODE_NAMES[mode]}"
 
 
-def describe_dead_reckoning_from(at_ms: int) -> str:
-    return f"From its fix at {_when(at_ms)}, by each fix's recorded course and speed"
+def describe_plotting_how(track: models.TrackFeature, mode: str) -> str:
+    if mode == "dr":
+        return (
+            f"From its first fix, at {_when(times_of(track)[0])}, by each fix's recorded course "
+            "and speed; its positions as logged are kept"
+        )
+    return "Each fix where it was logged"
 
 
 def largest_shift(
@@ -652,6 +694,11 @@ def _sliced(track: models.TrackFeature, part: slice, **update) -> models.TrackFe
         if getattr(props, name) is not None
     }
     times = props.times[part]
+    if props.logged_positions is not None:
+        logged = props.logged_positions
+        series["logged_positions"] = logged.model_copy(
+            update={"coordinates": logged.coordinates[part]}
+        )
     # Marked fixes go with their fixes: found by time, so each part keeps its own.
     kept = set(times)
     marks = [m for m in props.fix_marks or [] if m.time in kept] or None
@@ -746,6 +793,13 @@ def merge(
             f"The tracks were not merged: they overlap in time ({where}). "
             "Split or move one so they no longer overlap, then merge them."
         )
+    modes = {plotting_mode(t) for t in tracks}
+    if len(modes) > 1:
+        said = ", ".join(f"{t.properties.name} {MODE_NAMES[plotting_mode(t)]}" for t in tracks)
+        raise TrackError(
+            f"The tracks were not merged: they are plotted differently ({said}). "
+            "Plot them the same way, then merge them."
+        )
     ordered = sorted(tracks, key=lambda t: (times_of(t)[0], times_of(t)[-1]))
     earliest = ordered[0]
     props = earliest.properties
@@ -793,6 +847,14 @@ def merge(
                 )
             else:
                 marks[mark.time] = mark
+    logged = [t.properties.logged_positions for t in ordered]
+    if all(g is not None for g in logged):
+        series["logged_positions"] = logged[0].model_copy(
+            update={"coordinates": [list(p) for g in logged for p in g.coordinates]}
+        )
+    elif any(g is not None for g in logged):
+        series["logged_positions"] = None
+        notes.append("Positions as logged not kept: not every track had them")
     properties = props.model_copy(
         update={
             "name": name,
@@ -816,11 +878,13 @@ __all__ = [
     "Implied",
     "Leg",
     "TrackError",
-    "dead_reckoned",
+    "MODE_NAMES",
+    "PLOTTING_MODES",
+    "dead_reckoned_positions",
     "default_pivot",
     "describe_anchor",
-    "describe_dead_reckoning",
-    "describe_dead_reckoning_from",
+    "describe_plotting",
+    "describe_plotting_how",
     "describe_fix_move",
     "describe_implied",
     "describe_largest_shift",
@@ -842,6 +906,8 @@ __all__ = [
     "moved",
     "new_track_id",
     "overlaps",
+    "plotted_as",
+    "plotting_mode",
     "period_indices",
     "rotated",
     "shear_target",

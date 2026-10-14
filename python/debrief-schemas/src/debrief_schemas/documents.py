@@ -431,6 +431,17 @@ def _feature_problems(feature: Any, track_ids: set[str] | None) -> list[str]:
                 problems.append(f"{where}: {name} has {len(values)} entries for {count} positions")
         if any(a > b for a, b in zip(props.times, props.times[1:], strict=False)):
             problems.append(f"{where}: times are not in order")
+        logged = props.logged_positions
+        if logged is not None:
+            if str(props.plotting_mode) != "dr":
+                problems.append(
+                    f"{where}: only a track plotted by dead reckoning keeps its positions as logged"
+                )
+            if len(logged.coordinates) != count:
+                problems.append(
+                    f"{where}: logged_positions has {len(logged.coordinates)} positions "
+                    f"for {count} fixes"
+                )
         problems += _fix_mark_problems(where, props)
 
     elif props.kind == "annotation":
@@ -756,8 +767,9 @@ def track_edit_problems(edit: g.TrackEdit, where: str = "track_edit") -> list[st
     a distance and a bearing; a rotation an angle, and perhaps a pivot; a shear the
     end it holds (anchor) and either a distance and a bearing for the dragged end or
     a course and a speed for the period; a stretch the end it holds and a speed; a
-    single fix moved its time and either a distance and a bearing or a position; dead
-    reckoning nothing but perhaps a period. None gives what belongs to another."""
+    single fix moved its time and either a distance and a bearing or a position; a
+    change of plotting mode the mode, and nothing else. None gives what belongs to
+    another."""
     problems = _time_range_problems(f"{where} period", edit.period)
     action = str(edit.action)
     given = {
@@ -772,9 +784,12 @@ def track_edit_problems(edit: g.TrackEdit, where: str = "track_edit") -> list[st
             "speed",
             "fix_time",
             "position",
+            "plotting_mode",
         )
         if getattr(edit, name) is not None
     }
+    if action != "set_plotting_mode" and "plotting_mode" in given:
+        problems.append(f"{where}: only a change of plotting mode has a plotting mode")
     if action != "move_fix" and given & {"fix_time", "position"}:
         problems.append(f"{where}: only a single fix moved has a fix time or a position")
     if action == "move_fix":
@@ -792,9 +807,11 @@ def track_edit_problems(edit: g.TrackEdit, where: str = "track_edit") -> list[st
             -180 <= edit.position[0] <= 180 and -90 <= edit.position[1] <= 90
         ):
             problems.append(f"{where}: the position is not on the globe")
-    elif action == "dead_reckon":
-        if given:
-            problems.append(f"{where}: dead reckoning takes nothing but a period")
+    elif action == "set_plotting_mode":
+        if edit.plotting_mode is None:
+            problems.append(f"{where}: a change of plotting mode needs the mode: otg or dr")
+        if given - {"plotting_mode"} or edit.period is not None:
+            problems.append(f"{where}: a change of plotting mode has only the mode")
     elif action == "move":
         if edit.distance is None or edit.bearing is None:
             problems.append(f"{where}: a move needs a distance and a bearing")

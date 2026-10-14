@@ -249,6 +249,11 @@ def _kept(track: models.TrackFeature, keep: list[int], **update) -> models.Track
         if getattr(props, name) is not None
     }
     times = [props.times[i] for i in keep]
+    if props.logged_positions is not None:
+        logged = props.logged_positions
+        series["logged_positions"] = logged.model_copy(
+            update={"coordinates": [list(logged.coordinates[i]) for i in keep]}
+        )
     marks = marks_within(props.fix_marks, times)
     properties = props.model_copy(
         update={"times": times, "fix_marks": marks, **series, **update.pop("properties", {})}

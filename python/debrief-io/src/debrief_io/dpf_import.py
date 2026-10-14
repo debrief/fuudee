@@ -169,6 +169,7 @@ def _track_feature(
     track: DpfTrack,
     fixes: list[DpfFix],
     marks: list[models.FixMark] | None = None,
+    mode: str = "otg",
 ) -> models.TrackFeature:
     return models.TrackFeature(
         type="Feature",
@@ -185,6 +186,7 @@ def _track_feature(
             depths=models.LengthSeries(unit="m", values=[f.depth_m for f in fixes]),
             style=models.TrackStyle(colour=track.colour or DEFAULT_COLOUR),
             fix_marks=marks,
+            plotting_mode=mode,
         ),
     )
 
@@ -250,8 +252,8 @@ def _track_notes(track: DpfTrack, joined: bool) -> list[str]:
                 f"Track {name!r}: {leg_name} is plotted by dead reckoning (DR) in the legacy "
                 f"plot. Its {_plural(len(leg.fixes), 'fix', 'fixes')} {_are(len(leg.fixes))} "
                 "imported where legacy Debrief plotted them, from the leg's first fix by each "
-                "fix's course and speed; they are not worked out again when the track is "
-                "changed: use Plot as dead reckoning to do so."
+                "fix's course and speed; the legacy plot does not hold its positions as "
+                "logged, so it cannot be plotted over the ground."
             )
         if leg.kind in TMA_LEGS:
             notes.append(
@@ -514,8 +516,22 @@ def build_plot_from_dpf(
             )
         else:
             parts = [(track.name, [f for leg in track.legs for f in leg.fixes])]
+        # How each is plotted, as the legacy plot says (no need to ask): by dead reckoning
+        # where every leg of it is (PlotRelative), else over the ground.
+        legs_dr = [leg.dead_reckoned and leg.kind not in TMA_LEGS for leg in track.legs]
+        modes = (
+            ["dr" if dr else "otg" for dr in legs_dr]
+            if len(parts) == len(track.legs) and len(parts) > 1
+            else ["dr" if legs_dr and all(legs_dr) else "otg"]
+        )
+        if len(modes) == 1 and any(legs_dr) and not all(legs_dr):
+            notes.append(
+                f"Track {track.name!r} has legs plotted by dead reckoning and legs plotted over "
+                "the ground; it is imported as legacy Debrief plotted each, as one track plotted "
+                "over the ground."
+            )
         imported = False
-        for name, fixes in parts:
+        for (name, fixes), mode in zip(parts, modes, strict=True):
             if len(fixes) < 2:
                 notes.append(
                     f"Track {name!r} has {_plural(len(fixes), 'fix', 'fixes')}, "
@@ -526,7 +542,7 @@ def build_plot_from_dpf(
             marks, mark_notes = _fix_marks(name, track, fixes)
             notes += mark_notes
             feature_id = _unique_id("track", name, taken)
-            features.append(_track_feature(feature_id, name, track, fixes, marks))
+            features.append(_track_feature(feature_id, name, track, fixes, marks, mode))
             report.tracks.append(name)
             report.fixes += len(fixes)
             hidden += not track.visible

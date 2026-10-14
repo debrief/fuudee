@@ -12,7 +12,9 @@ import {
   removeStore,
   sameLocation,
   timing,
+  trackImportMode,
   updateConfig,
+  withTrackImportMode,
 } from "../src/index.js";
 
 const vectors = join(__dirname, "../../../schemas/vectors");
@@ -127,5 +129,18 @@ describe("reading and changing", () => {
     const config = loadConfig(fixture);
     updateConfig(() => config, file);
     expect(readFileSync(file, "utf8")).toBe(readFileSync(fixture, "utf8"));
+  });
+});
+
+describe("the track import mode", () => {
+  it("is ask until remembered, and clearing it asks again, as in Python", () => {
+    const file = join(mkdtempSync(join(tmpdir(), "debrief-mode-")), "config.json");
+    expect(trackImportMode(loadConfig(file))).toBe("ask");
+    updateConfig((c) => withTrackImportMode(c, "otg"), file);
+    expect(trackImportMode(loadConfig(file))).toBe("otg");
+    updateConfig((c) => withTrackImportMode(c, "ask"), file);
+    expect(trackImportMode(loadConfig(file))).toBe("ask");
+    expect(JSON.parse(readFileSync(file, "utf8"))).not.toHaveProperty("track_import_mode");
+    expect(() => withTrackImportMode(loadConfig(file), "sideways" as never)).toThrow(ConfigError);
   });
 });

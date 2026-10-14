@@ -14,10 +14,13 @@ from debrief_schemas import DocumentKind, dump_document, load_document, models
 from debrief_stac import Catalogue, CatalogueError, Changes, Conflict
 from debrief_stac.tracks import (
     TrackError,
-    dead_reckoned,
     fix_index,
     fix_moved,
     implied_speeds,
+    merge,
+    plotted_as,
+    plotting_mode,
+    split,
 )
 
 AGENT = models.AgentRef(kind="person", name="analyst")
@@ -231,29 +234,41 @@ def test_a_fix_moved_over_a_change_made_elsewhere_is_refused(catalogue) -> None:
         catalogue.edit_track("p", "track-red", {**edit, "fix_time": at(3)}, AGENT, base)
 
 
-# --- Dead reckoning -------------------------------------------------------------------
+# --- Over the ground, or dead reckoning ----------------------------------------------
+
+
+def spoiled(track: models.TrackFeature) -> models.TrackFeature:
+    """The track as logged, its fixes after the first a little off the leg its courses and
+    speeds make."""
+    noisy = [track.geometry.coordinates[0]] + [
+        [lon, lat + 0.001 * (-1) ** i]
+        for i, (lon, lat) in enumerate(track.geometry.coordinates[1:])
+    ]
+    return track.model_copy(
+        update={"geometry": track.geometry.model_copy(update={"coordinates": noisy})}
+    )
 
 
 @pytest.mark.parametrize(("start", "course"), PLACES)
 def test_a_straight_leg_plotted_by_dead_reckoning_is_the_same_leg(start, course) -> None:
-    """A leg whose recorded courses and speeds are its own: dead reckoning from its
-    first fix puts every fix back where it was, at any latitude and across the
-    antimeridian, so it is the course held along the geodesic, exactly."""
+    """A leg whose recorded courses and speeds are its own: dead reckoning from its first
+    fix puts every fix back on it, at any latitude and across the antimeridian, so it is
+    the course held along the geodesic, exactly; over the ground again puts back the
+    positions as logged."""
     before = leg(start, course, 12.0, minutes=10)
-    # Spoil the positions after the first; dead reckoning puts them back.
-    noisy = [before.geometry.coordinates[0]] + [
-        [lon, lat + 0.001 * (-1) ** i]
-        for i, (lon, lat) in enumerate(before.geometry.coordinates[1:])
-    ]
-    spoiled = before.model_copy(
-        update={"geometry": before.geometry.model_copy(update={"coordinates": noisy})}
-    )
-    after = dead_reckoned(spoiled, list(range(6)))
+    logged = spoiled(before)
+    after = plotted_as(logged, "dr")
     for old, new in zip(before.geometry.coordinates, after.geometry.coordinates, strict=True):
         assert range_bearing(Position(*old), Position(*new))[0].value < 1e-3
         assert -180 <= new[0] <= 180
+    assert plotting_mode(after) == "dr"
+    assert after.properties.logged_positions.coordinates == logged.geometry.coordinates
     assert after.properties.courses == before.properties.courses
-    assert after.properties.speeds == before.properties.speeds
+    back = plotted_as(after, "otg")
+    assert back.geometry.coordinates == logged.geometry.coordinates
+    assert plotting_mode(back) == "otg"
+    assert back.properties.logged_positions is None
+    assert plotted_as(back, "otg") is None
 
 
 def test_each_fix_is_placed_by_the_course_and_speed_at_the_fix_before() -> None:
@@ -265,8 +280,7 @@ def test_each_fix_is_placed_by_the_course_and_speed_at_the_fix_before() -> None:
             "speeds": models.SpeedSeries(unit="[kn_i]", values=[6.0, 12.0, 12.0]),
         }
     )
-    t = t.model_copy(update={"properties": props})
-    after = dead_reckoned(t, [0, 1, 2])
+    after = plotted_as(t.model_copy(update={"properties": props}), "dr")
     p0, p1, p2 = (Position(*c) for c in after.geometry.coordinates)
     d, b = range_bearing(p0, p1)
     assert d.value == pytest.approx(1852, abs=1e-6) and b.value == pytest.approx(0, abs=1e-9)
@@ -274,45 +288,66 @@ def test_each_fix_is_placed_by_the_course_and_speed_at_the_fix_before() -> None:
     assert d.value == pytest.approx(2 * 1852, abs=1e-6) and b.value == pytest.approx(90)
 
 
-def test_dead_reckoning_needs_courses_and_speeds() -> None:
+def test_what_cannot_be_plotted_so_is_refused_plainly() -> None:
     t = RED.model_copy(update={"properties": RED.properties.model_copy(update={"courses": None})})
     with pytest.raises(TrackError, match="does not record both courses and speeds"):
-        dead_reckoned(t, list(range(6)))
+        plotted_as(t, "dr")
+    # A legacy plot's DR leg saved only the positions dead reckoning worked out.
+    legacy = RED.model_copy(
+        update={"properties": RED.properties.model_copy(update={"plotting_mode": "dr"})}
+    )
+    with pytest.raises(TrackError, match="positions as logged are not in the plot"):
+        plotted_as(legacy, "otg")
 
 
-def test_dead_reckoning_is_one_step_and_a_period_leaves_the_rest(catalogue) -> None:
-    # The track as logged runs north of where its courses and speeds take it.
-    drifted = [[lon, lat + 0.0005 * i] for i, (lon, lat) in enumerate(RED.geometry.coordinates)]
+def test_split_and_merge_keep_the_mode_and_the_positions_as_logged() -> None:
+    dr = plotted_as(spoiled(RED), "dr")
+    first, second = split(dr, parse_utc(at(3)), ("RED ONE (1)", "RED ONE (2)"), "track-red-2")
+    assert (
+        first.properties.logged_positions.coordinates
+        == dr.properties.logged_positions.coordinates[:3]
+    )
+    assert plotting_mode(second) == "dr"
+    merged, _ = merge([first, second], "RED ONE")
+    assert merged.properties.logged_positions == dr.properties.logged_positions
+    with pytest.raises(TrackError, match="plotted differently"):
+        merge([first, plotted_as(second, "otg")])
+
+
+def test_changing_the_mode_is_one_step_undone_like_any(catalogue) -> None:
     catalogue.commit(
         "p",
         [models.ProvRecord(id="op-2", kind="edit", started_at=at(9), agent=AGENT)],
-        Changes(
-            modified=[
-                RED.model_copy(
-                    update={"geometry": RED.geometry.model_copy(update={"coordinates": drifted})}
-                )
-            ]
-        ),
+        Changes(modified=[spoiled(RED)]),
     )
-    edit = {"action": "dead_reckon", "period": {"start": at(2), "end": at(4)}}
+    logged = red(catalogue).geometry.coordinates
+    edit = {"action": "set_plotting_mode", "plotting_mode": "dr"}
     catalogue.edit_track("p", "track-red", edit, AGENT)
     record = last_record(catalogue)
     assert record.notes[:2] == [
-        "RED ONE part plotted by dead reckoning",
-        "From its fix at 09:32:00Z, by each fix's recorded course and speed",
+        "RED ONE plotted by dead reckoning",
+        "From its first fix, at 09:30:00Z, by each fix's recorded course and speed; "
+        "its positions as logged are kept",
     ]
     assert record.notes[2].startswith("The most a fix moved: ")
-    assert record.notes[2].endswith(", at 09:34:00Z")
-    assert record.notes[3] == "Only the fixes from 09:32:00Z to 09:34:00Z"
-    after = red(catalogue).geometry.coordinates
-    assert [i for i in range(6) if after[i] != drifted[i]] == [3, 4]
-    valid(catalogue)
-    catalogue.history("p").undo()
-    assert red(catalogue).geometry.coordinates == drifted
-    # The whole track: back on the leg its courses and speeds make.
-    catalogue.edit_track("p", "track-red", {"action": "dead_reckon"}, AGENT)
-    assert last_record(catalogue).notes[0] == "RED ONE plotted by dead reckoning"
+    assert parameters(record) == {"plotting_mode": "dr"}
     for old, new in zip(RED.geometry.coordinates, red(catalogue).geometry.coordinates, strict=True):
         assert range_bearing(Position(*old), Position(*new))[0].value < 1e-3
-    # Already as dead reckoning plots it: nothing recorded.
-    assert catalogue.edit_track("p", "track-red", {"action": "dead_reckon"}, AGENT) is None
+    valid(catalogue)
+    # Already so: nothing recorded. Over the ground again: the positions as logged.
+    assert catalogue.edit_track("p", "track-red", edit, AGENT) is None
+    catalogue.edit_track("p", "track-red", {**edit, "plotting_mode": "otg"}, AGENT)
+    assert last_record(catalogue).notes[:2] == [
+        "RED ONE plotted over the ground",
+        "Each fix where it was logged",
+    ]
+    assert red(catalogue).geometry.coordinates == logged
+    catalogue.history("p").undo()
+    assert plotting_mode(red(catalogue)) == "dr"
+    catalogue.history("p").undo()
+    assert red(catalogue).geometry.coordinates == logged
+    assert red(catalogue).properties.plotting_mode is None
+    with pytest.raises(CatalogueError, match="a change of plotting mode has only the mode"):
+        catalogue.edit_track(
+            "p", "track-red", {**edit, "period": {"start": at(1), "end": at(2)}}, AGENT
+        )

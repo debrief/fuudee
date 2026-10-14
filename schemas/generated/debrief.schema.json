@@ -1691,6 +1691,15 @@
       "title": "PlotView",
       "type": "object"
     },
+    "PlottingModeEnum": {
+      "description": "How a track is plotted, as legacy Debrief asked of each track imported (CAP-01, decision, product owner, 14 Oct 2026).",
+      "enum": [
+        "otg",
+        "dr"
+      ],
+      "title": "PlottingModeEnum",
+      "type": "string"
+    },
     "PointGeometry": {
       "additionalProperties": false,
       "description": "",
@@ -2790,7 +2799,7 @@
     },
     "TrackEdit": {
       "additionalProperties": false,
-      "description": "A track moved, rotated, sheared or stretched by hand, as the map, a form or an agent describes it (CAP-01, CAP-02, CAP-21): one recorded, undoable step in the plot's history (SUB-19). Geodesic: a move takes every fix in the period the same range along the same bearing, each along its own geodesic; a rotation keeps each fix's range from the pivot and turns its bearing from the pivot by the angle. A shear and a stretch hold one end of the period (the anchor) and work in the azimuthal equidistant frame about it, where a geodesic through the anchor is a straight line: a shear adds to each fix the dragged end's displacement times the fix's fraction of the time from the anchor to the dragged end; a stretch scales each fix's range from the anchor, keeping its bearing from it. Either way a straight, steady leg stays a straight, steady leg. Fixes outside the period stay where they are, so the joins jump. A single fix moved (move_fix) goes where it is told, alone: its neighbours, its time and its recorded course and speed stay. Dead reckoning (dead_reckon) places each fix of the period from the one before by that fix's recorded course and speed, from the period's first fix.",
+      "description": "A track moved, rotated, sheared or stretched by hand, as the map, a form or an agent describes it (CAP-01, CAP-02, CAP-21): one recorded, undoable step in the plot's history (SUB-19). Geodesic: a move takes every fix in the period the same range along the same bearing, each along its own geodesic; a rotation keeps each fix's range from the pivot and turns its bearing from the pivot by the angle. A shear and a stretch hold one end of the period (the anchor) and work in the azimuthal equidistant frame about it, where a geodesic through the anchor is a straight line: a shear adds to each fix the dragged end's displacement times the fix's fraction of the time from the anchor to the dragged end; a stretch scales each fix's range from the anchor, keeping its bearing from it. Either way a straight, steady leg stays a straight, steady leg. Fixes outside the period stay where they are, so the joins jump. A single fix moved (move_fix) goes where it is told, alone: its neighbours, its time and its recorded course and speed stay. Dead reckoning (dead_reckon) places each fix of the period from the one before by that fix's recorded course and speed, from the track's first fix; set_plotting_mode with plotting_mode otg puts the fixes back where they were logged.",
       "properties": {
         "action": {
           "$ref": "#/$defs/TrackEditActionEnum"
@@ -2881,6 +2890,17 @@
             "null"
           ]
         },
+        "plotting_mode": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/PlottingModeEnum"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": "How set_plotting_mode plots the track, over the ground or by dead reckoning."
+        },
         "position": {
           "description": "[longitude, latitude] a move_fix puts the fix at, instead of a distance and a bearing from where it is.",
           "items": {
@@ -2919,7 +2939,7 @@
         "shear",
         "stretch",
         "move_fix",
-        "dead_reckon"
+        "set_plotting_mode"
       ],
       "title": "TrackEditActionEnum",
       "type": "string"
@@ -2958,6 +2978,16 @@
       ],
       "title": "TrackFeature",
       "type": "object"
+    },
+    "TrackImportModeEnum": {
+      "description": "How tracks imported are plotted: ask for each track (the default), or one choice the analyst said to use for future imports. User state, kept here and never in a catalogue or a plot file.",
+      "enum": [
+        "ask",
+        "otg",
+        "dr"
+      ],
+      "title": "TrackImportModeEnum",
+      "type": "string"
     },
     "TrackKindEnum": {
       "description": "",
@@ -3013,6 +3043,17 @@
         "kind": {
           "$ref": "#/$defs/TrackKindEnum"
         },
+        "logged_positions": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/LineStringGeometry"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": "A track plotted by dead reckoning: its positions as logged, over the ground, one per fix, so plotting it over the ground again puts them back. Left out for a legacy plot's DR leg, which saved only the positions it worked out."
+        },
         "name": {
           "type": "string"
         },
@@ -3021,6 +3062,17 @@
             "string",
             "null"
           ]
+        },
+        "plotting_mode": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/PlottingModeEnum"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": "How the track is plotted: over the ground (otg, as logged; also when left out) or by dead reckoning (dr), chosen as it was imported and changed as a recorded, undoable step (CAP-01, SUB-22). The geometry is always the positions as plotted, so other GeoJSON tools draw what Debrief draws."
         },
         "provenance": {
           "description": "Feature-level provenance where needed (SUB-18).",
@@ -3108,6 +3160,17 @@
             "$ref": "#/$defs/KnownStore"
           },
           "type": "array"
+        },
+        "track_import_mode": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/TrackImportModeEnum"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": "How tracks imported are plotted, over the ground or by dead reckoning: ask (the default, also when left out), or otg or dr once the analyst chose \"Use this choice for future imports\" (CAP-01). The analyst may clear it, to be asked again."
         }
       },
       "required": [

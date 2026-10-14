@@ -863,7 +863,8 @@ class Catalogue:
         allow_newer_schema: bool = False,
     ) -> int | None:
         """Move, rotate, shear or stretch a track, or the fixes of one period of it;
-        move one fix; or plot it by dead reckoning, as one recorded, undoable step:
+        move one fix; or plot it over the ground or by dead reckoning, as one recorded,
+        undoable step:
         "BLUE ONE moved 1.20 nmi 045.0°T", "BLUE ONE part rotated 12.0° clockwise",
         "BLUE ONE sheared: 087.2°T 12.4 kn", "BLUE ONE stretched: 12.4 kn", "RED ONE
         fix at 09:31:00Z moved 0.42 nmi 045.0°T", "RED ONE plotted by dead reckoning".
@@ -884,7 +885,7 @@ class Catalogue:
                 "rotate, with an angle; shear, holding the start or the end, with a "
                 "distance and a bearing or a course and a speed; or stretch, holding "
                 "the start or the end, with a speed; move_fix, with the fix's time and a "
-                "distance and a bearing or a position; or dead_reckon."
+                "distance and a bearing or a position; or set_plotting_mode, otg or dr."
             ) from None
         problems = track_edit_problems(edit, "The track change")
         if problems:
@@ -913,17 +914,18 @@ class Catalogue:
                     return None
                 after, note, more, parameters = result
                 notes += more
-            elif str(edit.action) == "dead_reckon":
-                after = tracks.dead_reckoned(track, indices)
+            elif str(edit.action) == "set_plotting_mode":
+                mode = str(getattr(edit.plotting_mode, "value", edit.plotting_mode))
+                after = tracks.plotted_as(track, mode)
                 if after is None:
                     return None
-                note = tracks.describe_dead_reckoning(name, part)
+                note = tracks.describe_plotting(name, mode)
                 index, metres = tracks.largest_shift(track, after, indices)
                 notes += [
-                    tracks.describe_dead_reckoning_from(tracks.times_of(track)[indices[0]]),
+                    tracks.describe_plotting_how(track, mode),
                     tracks.describe_largest_shift(track, index, metres),
                 ]
-                parameters = []
+                parameters = [models.ParameterValue(name="plotting_mode", value=mode)]
             elif str(edit.action) in ("shear", "stretch"):
                 result = self._shear_or_stretch(track, indices, edit, part)
                 if result is None:

@@ -56,6 +56,7 @@ from starlette.routing import Route
 
 from debrief_config import ConfigError, add_store, load_config, update_config
 from debrief_io import import_dpf, import_rep
+from debrief_io.importer import rep_track_names
 from debrief_kernel.units import IncompatibleUnitsError, Quantity
 from debrief_schemas import DocumentKind, dump_document, load_document, models
 from debrief_stac import (
@@ -132,6 +133,7 @@ KNOWN_METHODS = frozenset(
         "debrief/stores",
         "debrief/create_catalogue",
         "debrief/import_rep",
+        "debrief/rep_tracks",
         "debrief/add_plot_file",
         *HISTORY_METHODS,
     )
@@ -271,6 +273,8 @@ class ToolService:
             return self._import(params)
         if method == "debrief/add_plot_file":
             return self._add_plot_file(params)
+        if method == "debrief/rep_tracks":
+            return self._rep_tracks(params)
         if method in HISTORY_METHODS:
             return self._history(method, params)
         raise RpcError(METHOD_NOT_FOUND, f"Unknown method {method}")
@@ -626,10 +630,35 @@ class ToolService:
         )
         return {"changed": step is not None, "feature": feature}
 
+    def _rep_tracks(self, params: dict[str, Any]) -> dict[str, Any]:
+        """The tracks a REP file would import, so the host can ask the analyst how each is
+        plotted, over the ground or by dead reckoning, before importing it (CAP-01). A
+        legacy plot file says for itself: none are listed. Changes nothing."""
+        path = params.get("path")
+        if not isinstance(path, str) or not Path(path).is_file():
+            raise RpcError(INVALID_PARAMS, f"{path} is not a file.")
+        if _is_plot_file(Path(path)):
+            return {"tracks": []}
+        try:
+            return {"tracks": rep_track_names(Path(path))}
+        except (OSError, ValueError) as error:
+            raise RpcError(
+                INVALID_PARAMS, f"{Path(path).name} could not be read: {error}"
+            ) from None
+
     def _import(self, params: dict[str, Any]) -> dict[str, Any]:
         """Import a REP file (EXT-01) or a legacy plot file, .dpf (EXT-14, EXT-15), as a
-        new plot. Nothing in the file is dropped silently: what is not imported is listed."""
+        new plot. Nothing in the file is dropped silently: what is not imported is listed.
+        For a REP file, modes says how each track is plotted (otg or dr, one for all or by
+        track name), as the host asked the analyst or remembered for them; remembered, the
+        words saying how to change that choice. The service never reads that choice itself."""
         path = params.get("path")
+        modes = params.get("modes")
+        remembered = params.get("remembered")
+        if not (modes is None or isinstance(modes, (str, dict))) or not (
+            remembered is None or isinstance(remembered, str)
+        ):
+            raise RpcError(INVALID_PARAMS, "modes is otg or dr, or one of them for each track.")
         store = self._store(params.get("store"), writing=True)
         if not isinstance(path, str) or not Path(path).is_file():
             raise RpcError(INVALID_PARAMS, f"{path} is not a file.")
@@ -639,14 +668,17 @@ class ToolService:
             taken, item_id, n = set(catalogue.item_ids()), stem, 2
             while item_id in taken:
                 item_id, n = f"{stem}-{n}", n + 1
-            importer = import_dpf if _is_plot_file(Path(path)) else import_rep
-            report = importer(
-                catalogue,
-                Path(path),
-                item_id=item_id,
-                agent=_agent(params),
-                allow_newer_schema=params.get("allow_newer_schema") is True,
-            )
+            options = {
+                "item_id": item_id,
+                "agent": _agent(params),
+                "allow_newer_schema": params.get("allow_newer_schema") is True,
+            }
+            if _is_plot_file(Path(path)):
+                report = import_dpf(catalogue, Path(path), **options)
+            else:
+                report = import_rep(
+                    catalogue, Path(path), modes=modes, remembered=remembered, **options
+                )
         except NewerSchemaError as error:
             raise RpcError(NEWER_SCHEMA, str(error)) from None
         except (CatalogueError, OSError, ValueError) as error:
@@ -660,6 +692,7 @@ class ToolService:
             "annotations": report.annotations,
             "narrative_entries": report.narrative_entries,
             "omitted": report.omitted,
+            "notes": report.notes,
         }
 
     def _add_plot_file(self, params: dict[str, Any]) -> dict[str, Any]:

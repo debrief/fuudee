@@ -129,6 +129,13 @@ export type ContextTracksEnum = "visible" | "faint" | "hidden";
  */
 export type TrackKindEnum = "track";
 /**
+ * How a track is plotted, as legacy Debrief asked of each track imported (CAP-01, decision, product owner, 14 Oct 2026).
+ *
+ * This interface was referenced by `DebriefSchemaDefinitions`'s JSON-Schema
+ * via the `definition` "PlottingModeEnum".
+ */
+export type PlottingModeEnum = "otg" | "dr";
+/**
  * This interface was referenced by `DebriefSchemaDefinitions`'s JSON-Schema
  * via the `definition` "SensorObservationsKindEnum".
  */
@@ -230,7 +237,7 @@ export type ToolOutputKindEnum =
  * This interface was referenced by `DebriefSchemaDefinitions`'s JSON-Schema
  * via the `definition` "TrackEditActionEnum".
  */
-export type TrackEditActionEnum = "move" | "rotate" | "shear" | "stretch" | "move_fix" | "dead_reckon";
+export type TrackEditActionEnum = "move" | "rotate" | "shear" | "stretch" | "move_fix" | "set_plotting_mode";
 /**
  * Which end of the period a shear or a stretch holds fixed; the other end is the one dragged.
  *
@@ -238,6 +245,13 @@ export type TrackEditActionEnum = "move" | "rotate" | "shear" | "stretch" | "mov
  * via the `definition` "TrackEditAnchorEnum".
  */
 export type TrackEditAnchorEnum = "start" | "end";
+/**
+ * How tracks imported are plotted: ask for each track (the default), or one choice the analyst said to use for future imports. User state, kept here and never in a catalogue or a plot file.
+ *
+ * This interface was referenced by `DebriefSchemaDefinitions`'s JSON-Schema
+ * via the `definition` "TrackImportModeEnum".
+ */
+export type TrackImportModeEnum = "ask" | "otg" | "dr";
 /**
  * This interface was referenced by `DebriefSchemaDefinitions`'s JSON-Schema
  * via the `definition` "WebviewMessageKindEnum".
@@ -606,8 +620,16 @@ export interface TrackProperties {
    */
   hidden?: boolean | null;
   kind: TrackKindEnum;
+  /**
+   * A track plotted by dead reckoning: its positions as logged, over the ground, one per fix, so plotting it over the ground again puts them back. Left out for a legacy plot's DR leg, which saved only the positions it worked out.
+   */
+  logged_positions?: LineStringGeometry | null;
   name: string;
   platform_class?: string | null;
+  /**
+   * How the track is plotted: over the ground (otg, as logged; also when left out) or by dead reckoning (dr), chosen as it was imported and changed as a recorded, undoable step (CAP-01, SUB-22). The geometry is always the positions as plotted, so other GeoJSON tools draw what Debrief draws.
+   */
+  plotting_mode?: PlottingModeEnum | null;
   /**
    * Feature-level provenance where needed (SUB-18).
    */
@@ -1284,7 +1306,7 @@ export interface ToolResult {
   state_change?: SharedStateChange | null;
 }
 /**
- * A track moved, rotated, sheared or stretched by hand, as the map, a form or an agent describes it (CAP-01, CAP-02, CAP-21): one recorded, undoable step in the plot's history (SUB-19). Geodesic: a move takes every fix in the period the same range along the same bearing, each along its own geodesic; a rotation keeps each fix's range from the pivot and turns its bearing from the pivot by the angle. A shear and a stretch hold one end of the period (the anchor) and work in the azimuthal equidistant frame about it, where a geodesic through the anchor is a straight line: a shear adds to each fix the dragged end's displacement times the fix's fraction of the time from the anchor to the dragged end; a stretch scales each fix's range from the anchor, keeping its bearing from it. Either way a straight, steady leg stays a straight, steady leg. Fixes outside the period stay where they are, so the joins jump. A single fix moved (move_fix) goes where it is told, alone: its neighbours, its time and its recorded course and speed stay. Dead reckoning (dead_reckon) places each fix of the period from the one before by that fix's recorded course and speed, from the period's first fix.
+ * A track moved, rotated, sheared or stretched by hand, as the map, a form or an agent describes it (CAP-01, CAP-02, CAP-21): one recorded, undoable step in the plot's history (SUB-19). Geodesic: a move takes every fix in the period the same range along the same bearing, each along its own geodesic; a rotation keeps each fix's range from the pivot and turns its bearing from the pivot by the angle. A shear and a stretch hold one end of the period (the anchor) and work in the azimuthal equidistant frame about it, where a geodesic through the anchor is a straight line: a shear adds to each fix the dragged end's displacement times the fix's fraction of the time from the anchor to the dragged end; a stretch scales each fix's range from the anchor, keeping its bearing from it. Either way a straight, steady leg stays a straight, steady leg. Fixes outside the period stay where they are, so the joins jump. A single fix moved (move_fix) goes where it is told, alone: its neighbours, its time and its recorded course and speed stay. Dead reckoning (dead_reckon) places each fix of the period from the one before by that fix's recorded course and speed, from the track's first fix; set_plotting_mode with plotting_mode otg puts the fixes back where they were logged.
  *
  * This interface was referenced by `DebriefSchemaDefinitions`'s JSON-Schema
  * via the `definition` "TrackEdit".
@@ -1327,6 +1349,10 @@ export interface TrackEdit {
    */
   pivot?: [number, number] | null;
   /**
+   * How set_plotting_mode plots the track, over the ground or by dead reckoning.
+   */
+  plotting_mode?: PlottingModeEnum | null;
+  /**
    * [longitude, latitude] a move_fix puts the fix at, instead of a distance and a bearing from where it is.
    *
    * @minItems 2
@@ -1351,6 +1377,10 @@ export interface UserConfig {
    * Known stores, in the order the analyst sees them (SUB-17).
    */
   stores: KnownStore[];
+  /**
+   * How tracks imported are plotted, over the ground or by dead reckoning: ask (the default, also when left out), or otg or dr once the analyst chose "Use this choice for future imports" (CAP-01). The analyst may clear it, to be asked again.
+   */
+  track_import_mode?: TrackImportModeEnum | null;
 }
 /**
  * This interface was referenced by `DebriefSchemaDefinitions`'s JSON-Schema

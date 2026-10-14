@@ -262,3 +262,24 @@ def remove_store(config: models.UserConfig, store_id: str) -> models.UserConfig:
     if not any(s.id == store_id for s in config.stores):
         raise ConfigError(f"No store with id {store_id!r}")
     return config.model_copy(update={"stores": [s for s in config.stores if s.id != store_id]})
+
+
+# How tracks imported are plotted (CAP-01, decision, product owner, 14 Oct 2026): ask for
+# each track, or the one choice the analyst said to use for future imports. User state,
+# kept here and never in a catalogue or a plot file; importers take the mode as given.
+TRACK_IMPORT_MODES = ("ask", "otg", "dr")
+
+
+def track_import_mode(config: models.UserConfig) -> str:
+    """ "ask" (the default, also when not set), "otg" or "dr"."""
+    mode = config.track_import_mode
+    if mode is None:
+        return "ask"
+    return str(getattr(mode, "value", mode))
+
+
+def with_track_import_mode(config: models.UserConfig, mode: str) -> models.UserConfig:
+    """A copy of the configuration remembering mode for future imports; "ask" clears it."""
+    if mode not in TRACK_IMPORT_MODES:
+        raise ConfigError(f"{mode!r} is not a track import mode: ask, otg or dr")
+    return config.model_copy(update={"track_import_mode": None if mode == "ask" else mode})

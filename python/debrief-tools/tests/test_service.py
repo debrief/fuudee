@@ -272,6 +272,17 @@ def test_create_catalogue_then_import(client, tmp_path) -> None:
     again = rpc(client, "debrief/import_rep", params).json()["result"]
     assert (first["item"], again["item"]) == ("serial", "serial-2")
     assert first["tracks"] == ["NELSON", "BLUE", "LATE"] and first["fixes"] == 8
+    # How each track is plotted: the host asks, given the tracks the file holds, and says.
+    listed = rpc(client, "debrief/rep_tracks", {"path": str(source)}).json()["result"]
+    assert listed == {"tracks": ["NELSON", "BLUE", "LATE"]}
+    modes = {"NELSON": "dr", "BLUE": "otg", "LATE": "otg"}
+    asked = rpc(client, "debrief/import_rep", {**params, "modes": modes}).json()["result"]
+    assert asked["notes"][0] == "Track 'NELSON' plotted by dead reckoning (DR)."
+    remembered = {**params, "modes": "dr", "remembered": "Clear it to be asked again."}
+    said = rpc(client, "debrief/import_rep", remembered).json()["result"]["notes"]
+    assert said[-1].endswith("as you chose for future imports. Clear it to be asked again.")
+    bad = rpc(client, "debrief/import_rep", {**params, "modes": 3}).json()["error"]
+    assert bad["code"] == -32602
 
 
 def test_create_catalogue_refuses_a_folder_with_other_files(client, tmp_path) -> None:
@@ -818,7 +829,7 @@ def test_a_fix_is_moved_and_a_track_dead_reckoned_as_recorded_steps(client, cata
             **where,
             "base": moved["base"],
             "feature": "track-nelson",
-            "edit": {"action": "dead_reckon"},
+            "edit": {"action": "set_plotting_mode", "plotting_mode": "dr"},
         },
     ).json()["result"]
     assert reckoned["changed"]

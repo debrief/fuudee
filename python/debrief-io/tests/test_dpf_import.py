@@ -353,12 +353,17 @@ def test_a_leg_plotted_by_dead_reckoning_is_imported_as_plotted_and_said_so(
     assert (
         "Track 'T': leg 'Positions' is plotted by dead reckoning (DR) in the legacy plot. "
         "Its 3 fixes are imported where legacy Debrief plotted them, from the leg's first fix "
-        "by each fix's course and speed; they are not worked out again when the track is "
-        "changed: use Plot as dead reckoning to do so." in notes
+        "by each fix's course and speed; the legacy plot does not hold its positions as "
+        "logged, so it cannot be plotted over the ground." in notes
     )
     assert "Track 'U'" not in notes
-    t = next(f for f in catalogue.read_plot("made").features if f.properties.name == "T")
+    plotted = catalogue.read_plot("made").features
+    by_name = {f.properties.name: f for f in plotted if f.properties.kind == "track"}
+    t = by_name["T"]
     assert t.geometry.coordinates == [[-4.0, 50.0], [-3.9, 50.0], [-3.8, 50.0]]
+    # The mode is kept on the track: no need to ask, the legacy plot says.
+    assert t.properties.plotting_mode == "dr" and t.properties.logged_positions is None
+    assert by_name["U"].properties.plotting_mode == "otg"
 
 
 def test_fix_colours_labels_and_comments_become_marked_fixes(catalogue: Catalogue) -> None:
