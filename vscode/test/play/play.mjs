@@ -640,7 +640,23 @@ try {
     assert.ok(await view.evaluate(() => document.documentElement.scrollWidth <= innerWidth), "the Tote view scrolls sideways");
     assert.equal(await view.locator('#tote td[data-measure="relative_bearing"]').first().innerText(), "R024.5°");
     assert.equal(await view.locator("#tote .tote-why").first().innerText(), "Ended 10:35:00Z");
+    // The primary on its own, labelled; one row of headings over the table; the × in its own column.
+    assert.deepEqual(await view.locator("#tote .tote-primary-own [data-measure]").allInnerTexts(), ["225.0°T", "12.0 kn", "—"]);
+    assert.deepEqual(await view.locator("#tote thead th:not(.tote-act)").allInnerTexts(), ["Range", "Brg", "Rel"]);
     await shot("tote-vscode-view", view);
+    // Narrower still, as the side column of a demo in a blog post: nothing scrolls sideways.
+    const sideways = () => view.evaluate(() => [document.documentElement, document.querySelector(".tote-scroll")].some((e) => e.scrollWidth > e.clientWidth));
+    await view.setViewportSize({ width: 210, height: 300 });
+    await view.waitForTimeout(100);
+    assert.equal(await sideways(), false, "at 210 px, the Tote fits");
+    // Wide: a line a track, every measure under its heading.
+    await view.setViewportSize({ width: 600, height: 300 });
+    await view.waitForFunction(() => document.querySelector("#tote")?.classList.contains("tote-wide"));
+    assert.deepEqual(await view.locator("#tote thead th:not(.tote-act)").allInnerTexts(), ["Track", "Range", "Brg", "Rel", "Crse", "Spd", "Depth"]);
+    assert.equal(await view.locator('#tote tbody[data-track="track-red-one"] tr').count(), 1);
+    assert.equal(await sideways(), false, "wide, the Tote fits");
+    await view.setViewportSize({ width: 290, height: 300 });
+    await view.waitForFunction(() => !document.querySelector("#tote")?.classList.contains("tote-wide"));
     // Delete on RED ONE: the host is asked to save the Tote without it.
     await view.locator('#tote tbody[data-track="track-red-one"]').focus();
     await view.keyboard.press("Delete");
@@ -763,6 +779,9 @@ try {
     await toting.locator("#tote .tote-primary").selectOption({ label: "BLUE ONE" });
     await toting.locator("#tote .tote-add").selectOption({ label: "RED ONE" });
     await toting.locator('#tote td[data-measure="range"]', { hasText: "nmi" }).waitFor();
+    // The demo's side column is narrow: the Tote fits it without scrolling sideways.
+    const fit = await toting.locator("#tote .tote-scroll").evaluate((e) => ({ needs: e.scrollWidth, has: e.clientWidth, cells: [...e.querySelectorAll("tr")].map((r) => [...r.cells].map((c) => `${c.className}:${Math.round(c.getBoundingClientRect().width)}:${c.textContent}`).join("|")) }));
+    assert.ok(fit.needs <= fit.has, `the Tote fits the demo's side column: ${JSON.stringify(fit)}`);
     await post.locator(".debrief-demo").first().scrollIntoViewIfNeeded();
     await shot("tote-06-in-the-post", post);
     siteServer.close();

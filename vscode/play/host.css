@@ -112,9 +112,10 @@ dialog::backdrop { background: #0006; }
 .track-form .form-check .form-note { grid-column: 1 / -1; }
 /* A side panel that folds away, to keep the column short: the Tote. Its heading looks like the others'. */
 .side details.panel { padding: 6px 10px 10px; border-bottom: 1px solid var(--vscode-sideBarSectionHeader-border); }
-.side details.panel > summary { list-style: none; cursor: pointer; display: flex; align-items: center; gap: 4px; }
+.side details.panel > summary { position: relative; list-style: none; cursor: pointer; display: flex; align-items: center; }
 .side details.panel > summary::-webkit-details-marker { display: none; }
-.side details.panel > summary::before { content: "▾"; font-size: 10px; color: var(--vscode-sideBarSectionHeader-foreground); width: 10px; }
+/* Its arrow sits in the margin, so its heading lines up with every other panel's. */
+.side details.panel > summary::before { content: "▾"; position: absolute; left: -10px; width: 10px; text-align: center; font-size: 10px; color: var(--vscode-sideBarSectionHeader-foreground); }
 .side details.panel:not([open]) > summary::before { content: "▸"; }
 .side details.panel > summary h2 { flex: 1; margin: 4px 0; }
 .side details.panel > summary:focus-visible { outline: 1px solid var(--vscode-focusBorder); }

@@ -14,9 +14,10 @@ export async function playTote(page, shot) {
   const steps = () => page.locator("#history li").count();
   const timeLabel = () => page.locator("#timebar .time-label").innerText();
   const line = (name) => tote(`tbody:has(.tote-name:text-is("${name}"))`);
-  const cell = (name, measure) => line(name).locator(`td[data-measure="${measure}"]`);
+  const cell = (name, measure) => line(name).locator(`[data-measure="${measure}"]`);
   const secondaries = () => page.$$eval("#tote tbody[data-track][tabindex] .tote-name", (names) => names.map((n) => n.textContent));
-  const valuesOf = (name) => line(name).locator("td[data-measure]").allInnerTexts();
+  const valuesOf = (name) => line(name).locator("[data-measure]").allInnerTexts();
+  const primaryValues = () => tote(".tote-primary-own [data-measure]").allInnerTexts();
   const showsValues = (name) =>
     page.waitForFunction(
       (n) => [...document.querySelectorAll("#tote tbody[data-track]")].some((r) => r.querySelector(".tote-name")?.textContent === n && /nmi/.test(r.querySelector('td[data-measure="range"]')?.textContent ?? "")),
@@ -42,8 +43,9 @@ export async function playTote(page, shot) {
 
   // The primary, from its list (a pointer's choice).
   await tote(".tote-primary").selectOption({ label: "BLUE ONE" });
-  await line("BLUE ONE").waitFor();
-  assert.match(await line("BLUE ONE").locator(".tote-role").innerText(), /primary/);
+  // Shown on its own under the list, not as a line of the table: its own measures, each labelled.
+  await page.waitForFunction(() => document.querySelector("#tote .tote-primary-own")?.getAttribute("aria-label")?.startsWith("BLUE ONE"));
+  assert.equal(await line("BLUE ONE").count(), 0);
   // A secondary, from the keyboard: Tab to the list to add from, and choose with the arrow keys.
   await tote(".tote-add").focus();
   await page.keyboard.press("ArrowDown"); // "Add a secondary…" → RED ONE, the first not chosen
@@ -61,11 +63,18 @@ export async function playTote(page, shot) {
   assert.match(red[3], /^\d{3}\.\d°T$/);
   assert.match(red[4], /^\d+\.\d kn$/);
   assert.match(red[5], /^\d+\.\d m$/, "RED ONE has depths");
-  // The primary shows only its own measures: course, speed and depth.
-  const blue = await valuesOf("BLUE ONE");
+  // The primary shows only its own measures: course, speed and depth, each with its label.
+  const blue = await primaryValues();
   assert.equal(blue.length, 3);
   assert.match(blue[0], /°T$/);
   assert.match(blue[1], / kn$/);
+  assert.match(blue[2], /^\d+\.\d m$/, "BLUE ONE's recorded depths (0 m, a surface ship)");
+  assert.deepEqual(await tote(".tote-primary-own .tote-label").allInnerTexts(), ["Crse", "Spd", "Depth"]);
+  // One row of headings, each over values of one measure; the remove buttons in a column of their own.
+  assert.deepEqual(await tote("thead th:not(.tote-act)").allInnerTexts(), ["Range", "Brg", "Rel"]);
+  assert.equal(await tote("thead tr").count(), 1);
+  assert.ok(await line("RED ONE").locator("td.tote-act button.tote-remove").isVisible());
+  assert.deepEqual(await line("RED ONE").locator(".tote-own .tote-label").allInnerTexts(), ["Crse", "Spd", "Depth"]);
 
   // From the outline's menu: right-click Cargo 01 and add it.
   await page.locator(`#outline li[data-id="track-ais-cargo-01"]`).click({ button: "right" });
@@ -102,6 +111,8 @@ export async function playTote(page, shot) {
   await line("Cargo 04").locator(".tote-why").waitFor();
   assert.equal(await line("Cargo 04").locator(".tote-why").innerText(), "Starts 08:28:48Z");
   await page.locator("#side").evaluate((side) => (side.scrollTop = 0));
+  // The picture without the time controller's last note, which goes by itself after 8 s.
+  await page.locator(".toast", { hasText: "changed elsewhere" }).waitFor({ state: "detached", timeout: 10000 });
   await shot("tote-chosen");
 
   // Step current time forward: the values follow, and Cargo 01 and Tug 01 have theirs.
@@ -164,8 +175,9 @@ export async function playTote(page, shot) {
   await page.waitForFunction(() => document.getElementById("plot-title")?.textContent?.includes("2"));
   await tote(".tote-hint").waitFor();
   await page.selectOption("#plots", "serial-1");
-  await line("RED ONE").waitFor();
+  await line("Cargo 04").waitFor();
   assert.equal(await tote(".tote-primary").inputValue(), "track-red-one");
+  assert.match((await tote(".tote-primary-own").getAttribute("aria-label")) ?? "", /^RED ONE, the primary/);
   assert.deepEqual(await secondaries(), ["Cargo 04"]);
   // The panel folds away: a summary the keyboard reaches, Enter toggles it.
   await page.locator("#panel-tote > summary").focus();

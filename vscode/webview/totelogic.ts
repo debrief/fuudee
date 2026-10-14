@@ -99,7 +99,7 @@ export function toteLine(row: ToteRow, measures: MeasureDefinition[], settings: 
   };
 }
 
-/** The whole table: the primary first (its own measures only), then each secondary. */
+/** The whole Tote: the primary (its own measures only), then each secondary. */
 export function toteLines(result: ToteResult, settings: FormatSettings = DEFAULT_SETTINGS): { primary?: ToteLine; secondaries: ToteLine[] } {
   return {
     ...(result.primary && { primary: toteLine(result.primary, result.measures, settings, true) }),
