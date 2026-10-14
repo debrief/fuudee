@@ -55,6 +55,18 @@ The full matrix, including 1-hour ranges at 1 s, comes from `run.sh`.
 - **TMA residuals:** per-call REST on each drag event, computed with vectorised geodesics. Add a vectorised geodesy API to the kernel (pyproj and numpy, both in Pyodide 314.0.7), keeping `geographiclib` for single-point calls. pyproj becomes a kernel dependency.
 - **Request coalescing:** the client sends the next request only when the previous one returns, always for the latest slider or drag position. This bounds staleness to one round trip and never queues.
 
+## Measured in the built Tote (14 Oct)
+
+The Tote was built on this architecture (CAP-06; see the [Tote interaction model](../../site/docs/guides/interaction-models/tote.md)): one `debrief/tote` request per change of current time, the next sent only when the last returns, for the latest time. Three checks report the numbers on every run, asserting only generously:
+
+| Host | Measured from | p50 | p95 | max |
+| --- | --- | --- | --- | --- |
+| Tool service in process, 9 secondaries, 400 slider positions (`test_tote_latency.py`) | request to reply | 4.8 ms | 6.5 ms | 16 ms |
+| VS Code with the real service, 3 secondaries, current time moved 60 times a second (integration test) | asking to showing | 5.0 ms | 8.6 ms | 25 ms |
+| Playground, Pyodide in Chromium, 4 secondaries, playing (`tote.mjs`) | asking to showing | 5.3 ms | 15 ms | 31 ms |
+
+The plot's tracks are prepared once and kept while the plot file is unchanged, so a request reads no plot. The dense-sampling fallback remains unbuilt.
+
 ## Caveats
 
 - Measured on a development container, not an analyst laptop. Windows laptops may be two to three times slower. That leaves the Tote and residuals at 2,160 bearings comfortably inside budget. Residuals at 21,600 bearings may approach 100 ms, which NFR-04 permits during a drag provided values are exact when it ends.

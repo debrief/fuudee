@@ -28,7 +28,7 @@ Adapted from `DOMAIN_GLOSSARY.md` in debrief/debrief-future, itself adapted from
 
 **Context tracks.** Each track's whole line outside the time window, drawn thin and quieter so the whole picture stays in view. A plot draws them visible (at least 3:1 against the map), faint or hidden (CAP-29).
 
-**Island** (in guides). View state saved inside the plot file, so it travels with the plot, but outside its history: never recorded, never undone. The time window is the first. Everything else in a plot, a track's colour and what is hidden included, is part of its history (SUB-22).
+**Island** (in guides). View state saved inside the plot file, so it travels with the plot, but outside its history: never recorded, never undone. The time window is the first, and the Tote's choice of tracks another. Everything else in a plot, a track's colour and what is hidden included, is part of its history (SUB-22).
 
 **Feature.** Anything in a plot: a track, an annotation, or a set of sensor observations. Used where a statement covers all three, as in "Plot features" in the outline; otherwise name the kind.
 
@@ -80,7 +80,7 @@ Adapted from `DOMAIN_GLOSSARY.md` in debrief/debrief-future, itself adapted from
 
 **Sensor observations** (**contacts**, **cuts**). Measurements from a sensor, in Debrief usually bearings. Weeks of them may be held as one set (CON-02).
 
-**Bearing.** The direction from one position to another, measured clockwise from true north. A **relative bearing** is measured from the platform's own heading. Debrief displays true bearings as three figures: `045.0°T`.
+**Bearing.** The direction from one position to another, measured clockwise from true north. A **relative bearing** is measured from the platform's own heading; the Tote takes the primary's course as its heading, and writes relative bearings red to port and green to starboard: `R045.0°`, `G120.0°`. Debrief displays true bearings as three figures: `045.0°T`.
 
 **Ambiguous bearing.** A towed-array bearing that could be on either side of the array: two candidate bearings mirrored about the array's axis. The analyst resolves each to one side (CAP-22).
 
@@ -96,9 +96,13 @@ Adapted from `DOMAIN_GLOSSARY.md` in debrief/debrief-future, itself adapted from
 
 ## Analysis
 
-**Tote.** The table of relative geometry between one primary and several secondary platforms at current time: range, bearing and other measures (CAP-06).
+**Tote.** The table of relative geometry between one primary and several secondary tracks at current time: range, bearing and the other measures of a measure group (CAP-06). Which tracks it compares is saved in the plot's island, so it travels with the plot but is never a step in its history. See [Tote](interaction-models/tote.md).
 
-**Measure group.** A named, reusable set of measures for a mode of analysis, defined by a study's lead analyst. The Tote is a view onto one (CAP-07).
+**Primary, secondary** (the Tote). The primary is the track the others are measured from, usually ownship; each secondary is measured from it. A track is never both.
+
+**Measure group.** A named, reusable set of measures for a mode of analysis, defined by a study's lead analyst. The Tote is a view onto one (CAP-07). Every group extends **core**: range, bearing and relative bearing from the primary, and each track's course, speed and depth.
+
+**Measure.** One quantity the Tote shows: between the primary and a secondary (range, bearing, relative bearing) or of one track (course, speed, depth). Worked out in Python at current time, where the map places each track.
 
 **CPA** (closest point of approach). The time and range at which two platforms are nearest.
 
