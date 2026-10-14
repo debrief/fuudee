@@ -1,0 +1,33 @@
+{
+  "type": "Catalog",
+  "stac_version": "1.1.0",
+  "id": "debrief-sample",
+  "title": "Debrief sample exercise, 15 Jun 2023",
+  "description": "Unclassified sample data for demonstrations, walkthroughs and blog posts (DEP-08). Real open AIS traffic east of the entrance to Chesapeake Bay, with an invented exercise on top: a blue ownship, a red submarine, the ownship's sonar bearings and a scripted narrative, over three serials. Every plot here is unclassified (SEC-02).",
+  "links": [
+    {
+      "rel": "root",
+      "href": "./catalog.json",
+      "type": "application/json"
+    },
+    {
+      "rel": "child",
+      "href": "./serial-1/serial-1.json",
+      "type": "application/json",
+      "title": "Serial 1"
+    },
+    {
+      "rel": "child",
+      "href": "./serial-2/serial-2.json",
+      "type": "application/json",
+      "title": "Serial 2"
+    },
+    {
+      "rel": "child",
+      "href": "./serial-3/serial-3.json",
+      "type": "application/json",
+      "title": "Serial 3"
+    }
+  ],
+  "debrief:schema_version": "0.0.18"
+}

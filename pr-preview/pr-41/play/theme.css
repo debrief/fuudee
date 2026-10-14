@@ -1,0 +1,111 @@
+/*
+ * VS Code's theme variables, for Debrief's webviews outside VS Code: Dark
+ * Modern by default, Light Modern with class="light". Inside VS Code the
+ * editor supplies these; here the playground does, so the webviews run unchanged.
+ */
+:root {
+  color-scheme: dark; /* scrollbars, form controls and the page behind them match */
+  --vscode-font-family: system-ui, -apple-system, "Segoe UI", Ubuntu, sans-serif;
+  --vscode-font-size: 13px;
+  --vscode-editor-font-family: ui-monospace, Menlo, Consolas, "DejaVu Sans Mono", monospace;
+  --vscode-foreground: #cccccc;
+  --vscode-descriptionForeground: #9d9d9d;
+  --vscode-errorForeground: #f85149;
+  --vscode-editorWarning-foreground: #cca700;
+  --vscode-focusBorder: #0078d4;
+  --vscode-icon-foreground: #cccccc;
+  --vscode-contrastActiveBorder: transparent;
+  --vscode-widget-border: #313131;
+  --vscode-editor-background: #1f1f1f;
+  --vscode-editor-foreground: #cccccc;
+  --vscode-editorWidget-background: #202020;
+  --vscode-editorWidget-foreground: #cccccc;
+  --vscode-editorWidget-border: #313131;
+  --vscode-editorHoverWidget-background: #202020;
+  --vscode-editorHoverWidget-foreground: #cccccc;
+  --vscode-editorHoverWidget-border: #454545;
+  --vscode-button-background: #0078d4;
+  --vscode-button-foreground: #ffffff;
+  --vscode-button-hoverBackground: #026ec1;
+  --vscode-button-border: #ffffff12;
+  --vscode-button-secondaryBackground: #313131;
+  --vscode-button-secondaryForeground: #cccccc;
+  --vscode-button-secondaryHoverBackground: #3c3c3c;
+  --vscode-badge-background: #616161;
+  --vscode-badge-foreground: #f8f8f8;
+  --vscode-activityBarBadge-background: #0078d4;
+  --vscode-input-background: #313131;
+  --vscode-input-foreground: #cccccc;
+  --vscode-inputValidation-errorBackground: #5a1d1d;
+  --vscode-inputValidation-errorBorder: #be1100;
+  --vscode-dropdown-background: #313131;
+  --vscode-dropdown-border: #3c3c3c;
+  --vscode-settings-dropdownListBorder: #454545;
+  --vscode-checkbox-background: #313131;
+  --vscode-checkbox-border: #3c3c3c;
+  --vscode-checkbox-foreground: #cccccc;
+  --vscode-list-activeSelectionBackground: #04395e;
+  --vscode-list-activeSelectionForeground: #ffffff;
+  --vscode-list-hoverBackground: #2a2d2e;
+  --vscode-list-focusOutline: #0078d4;
+  --vscode-list-highlightForeground: #2aaaff;
+  --vscode-textBlockQuote-background: #2b2b2b;
+  --vscode-textBlockQuote-border: #616161;
+  --vscode-toolbar-hoverBackground: #5a5d5e50;
+  --vscode-panel-border: #2b2b2b;
+  --vscode-panelTitle-activeForeground: #cccccc;
+  --vscode-panelTitle-inactiveForeground: #9d9d9d;
+  --vscode-panelTitle-activeBorder: #0078d4;
+  --vscode-sideBar-background: #181818;
+  --vscode-sideBarSectionHeader-background: #181818;
+  --vscode-sideBarSectionHeader-foreground: #cccccc;
+  --vscode-sideBarSectionHeader-border: #2b2b2b;
+  --vscode-keybindingTable-rowsBackground: #ffffff0a;
+  --vscode-notifications-background: #202020;
+  --vscode-disabledForeground: #cccccc80;
+}
+:root.light {
+  color-scheme: light;
+  --vscode-foreground: #3b3b3b;
+  --vscode-descriptionForeground: #6b6b6b;
+  --vscode-errorForeground: #f85149;
+  --vscode-editorWarning-foreground: #bf8803;
+  --vscode-icon-foreground: #3b3b3b;
+  --vscode-widget-border: #e5e5e5;
+  --vscode-editor-background: #ffffff;
+  --vscode-editor-foreground: #3b3b3b;
+  --vscode-editorWidget-background: #f8f8f8;
+  --vscode-editorWidget-foreground: #3b3b3b;
+  --vscode-editorWidget-border: #e5e5e5;
+  --vscode-editorHoverWidget-background: #f8f8f8;
+  --vscode-editorHoverWidget-foreground: #3b3b3b;
+  --vscode-editorHoverWidget-border: #c8c8c8;
+  --vscode-button-border: #0000001a;
+  --vscode-button-secondaryBackground: #e5e5e5;
+  --vscode-button-secondaryForeground: #3b3b3b;
+  --vscode-button-secondaryHoverBackground: #cccccc;
+  --vscode-input-background: #ffffff;
+  --vscode-input-foreground: #3b3b3b;
+  --vscode-inputValidation-errorBackground: #f2dede;
+  --vscode-dropdown-background: #ffffff;
+  --vscode-dropdown-border: #cecece;
+  --vscode-settings-dropdownListBorder: #cecece;
+  --vscode-checkbox-background: #f8f8f8;
+  --vscode-checkbox-border: #cecece;
+  --vscode-checkbox-foreground: #3b3b3b;
+  --vscode-list-activeSelectionBackground: #e8e8e8;
+  --vscode-list-activeSelectionForeground: #000000;
+  --vscode-list-hoverBackground: #f2f2f2;
+  --vscode-list-highlightForeground: #0066bf;
+  --vscode-textBlockQuote-background: #f8f8f8;
+  --vscode-textBlockQuote-border: #e5e5e5;
+  --vscode-panel-border: #e5e5e5;
+  --vscode-panelTitle-activeForeground: #3b3b3b;
+  --vscode-panelTitle-inactiveForeground: #6b6b6b;
+  --vscode-sideBar-background: #f8f8f8;
+  --vscode-sideBarSectionHeader-background: #f8f8f8;
+  --vscode-sideBarSectionHeader-foreground: #3b3b3b;
+  --vscode-sideBarSectionHeader-border: #e5e5e5;
+  --vscode-notifications-background: #ffffff;
+  --vscode-disabledForeground: #61616180;
+}

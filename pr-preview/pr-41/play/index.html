@@ -1,0 +1,96 @@
+<!doctype html>
+<html lang="en-GB">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="color-scheme" content="dark light">
+<title>Debrief in your browser</title>
+<link rel="stylesheet" href="theme.css">
+<link rel="stylesheet" href="timecontrol.css">
+<link rel="stylesheet" href="tote.css">
+<link rel="stylesheet" href="host.css">
+</head>
+<body>
+<div class="app">
+  <aside id="side" class="side">
+    <section id="panel-time">
+      <h2>Time</h2>
+      <div id="timebar"></div>
+    </section>
+    <details id="panel-tote" class="panel" open>
+      <summary><h2>Tote</h2></summary>
+      <div id="tote"></div>
+    </details>
+    <section>
+      <h2>Plot</h2>
+      <select id="plots" aria-label="Plot" disabled><option>Loading…</option></select>
+      <div id="plot-title" class="detail"></div>
+    </section>
+    <section>
+      <h2>Outline</h2>
+      <div id="selected-count" class="detail"></div>
+      <ul id="outline" class="list" role="listbox" aria-multiselectable="true" aria-label="Features in the plot"></ul>
+      <div class="outline-actions" role="group" aria-label="The selected features">
+        <select id="colour" aria-label="Colour the selected tracks"><option value="">Colour…</option></select>
+        <button id="hide" title="Hide the selected features on the map">Hide</button>
+        <button id="show" title="Show the selected features, or every hidden feature, on the map">Show</button>
+      </div>
+      <div class="action-group" role="group" aria-labelledby="track-actions">
+        <span id="track-actions" class="action-label">Track</span>
+        <button id="move-track" title="Move the selected track, or its fixes in the time window, a distance along a bearing">Move…</button>
+        <button id="rotate-track" title="Rotate the selected track, or its fixes in the time window, about a pivot">Rotate…</button>
+        <button id="shear-track" title="Shear the selected track: hold one end, and give the rest a new course and speed">Shear…</button>
+        <button id="stretch-track" title="Stretch the selected track: hold one end, and give the rest a new speed on the same course">Stretch…</button>
+        <button id="split-track" title="Split the selected track into two at current time">Split…</button>
+        <button id="merge-tracks" title="Merge the selected tracks into one, in time order">Merge</button>
+        <button id="find-jumps" title="Find fixes the selected track could not have reached in time, check them, and remove those you choose">Jumps…</button>
+        <button id="smooth-track" title="Smooth the selected track, or its fixes in the time window, with a preview first">Smooth…</button>
+        <button id="fix-list" title="List the selected track's fixes, to colour, label, comment on or move one. Or right-click a fix on the map; on a touch screen, press and hold it">Fixes…</button>
+        <button id="plotting-mode" title="Plot the selected track over the ground (OTG), as logged, or by dead reckoning (DR), from its first fix by each fix's recorded course and speed">OTG/DR…</button>
+      </div>
+      <div class="action-group" role="group" aria-labelledby="annotation-actions">
+        <span id="annotation-actions" class="action-label">Annotation</span>
+        <button id="add-annotation" title="Add a line, area, circle, ellipse, label, marker or note">Add…</button>
+        <button id="edit-annotation" title="Change the selected annotation: its position, size, time and style">Change…</button>
+        <button id="delete-annotation" title="Delete the selected annotations; Undo brings them back">Delete</button>
+        <button id="north-arrow" aria-pressed="false" title="Show or remove the north arrow on the map">North arrow</button>
+      </div>
+    </section>
+    <section id="panel-timeline">
+      <h2>Timeline</h2>
+      <ul id="timeline" class="list timeline" aria-label="Notes and periods, in time order: choose one to move current time to it"></ul>
+    </section>
+    <section id="panel-tools">
+      <h2>Tools</h2>
+      <ul id="tools" class="list tools"></ul>
+    </section>
+    <section id="panel-history">
+      <h2>History <span class="actions"><button id="undo" title="Undo (replay to the step before)">Undo</button><button id="redo" title="Redo">Redo</button></span></h2>
+      <ul id="history" class="list"></ul>
+    </section>
+    <section id="panel-try">
+      <h2>Try</h2>
+      <button id="crash">Crash part-way through a save</button>
+      <button id="reopen" class="primary" hidden>Reopen the plot</button>
+      <button id="glitches">Put GPS glitches into the selected track</button>
+      <button id="colleague">A colleague changes the plot</button>
+      <button id="colleague-window">A colleague changes the time window</button>
+      <button id="colleague-during">A colleague changes it while your next tool runs</button>
+    </section>
+    <section id="panel-import">
+      <h2>Import your own</h2>
+      <label class="file">REP, legacy .dpf, or a Debrief plot file <input id="file" type="file" accept=".rep,.REP,.dpf,.DPF,.xml,.geojson,.json"></label>
+      <div class="detail">Read and imported in your browser; never uploaded.</div>
+      <div id="import-mode" class="detail import-mode"><span id="import-mode-text">Debrief asks, for each track of a REP file, whether it is plotted over the ground (OTG) or by dead reckoning (DR).</span> <button id="ask-again" hidden title="Forget the choice you made for future imports, and be asked for each track again">Ask again</button></div>
+    </section>
+  </aside>
+  <main id="main">
+    <div id="side-frame" class="side-frame" hidden></div>
+  </main>
+  <footer><span id="status" class="status"></span></footer>
+</div>
+<div id="toasts" class="toasts" aria-live="polite"></div>
+<dialog id="ask"><p id="ask-text"></p><div id="ask-buttons" class="buttons"></div></dialog>
+<script type="module" src="host.js"></script>
+</body>
+</html>
