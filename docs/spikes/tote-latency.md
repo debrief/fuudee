@@ -63,7 +63,7 @@ The Tote was built on this architecture (CAP-06; see the [Tote interaction model
 | --- | --- | --- | --- | --- |
 | Tool service in process, 9 secondaries, 400 slider positions (`test_tote_latency.py`) | request to reply | 4.8 ms | 6.5 ms | 16 ms |
 | VS Code with the real service, 3 secondaries, current time moved 60 times a second (integration test) | asking to showing | 5.0 ms | 8.6 ms | 25 ms |
-| Playground, Pyodide in Chromium, 4 secondaries, playing (`tote.mjs`) | asking to showing | 5.3 ms | 15 ms | 31 ms |
+| Playground, Pyodide in Chromium, 4 secondaries, playing (`tote.mjs`) | asking to showing | 4.4 to 5.3 ms | 15 to 33 ms (three runs) | 31 to 70 ms |
 
 The plot's tracks are prepared once and kept while the plot file is unchanged, so a request reads no plot. The dense-sampling fallback remains unbuilt.
 

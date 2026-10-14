@@ -448,7 +448,7 @@ None. T was characterised by proxy on 11 October 2026 (section 3); OUT-03 joins 
 
 **Milestone criteria.** These are not open requirements. Each is confirmed by the milestone named, and the delivery plan owns them.
 
-- [x] Prototype: measure per-call REST against the 100 ms Tote budget (NFR-04). Phase 0 spike, 11 Oct; measured again in the built Tote, 14 Oct: p95 9 ms in VS Code, 15 ms in the playground.
+- [x] Prototype: measure per-call REST against the 100 ms Tote budget (NFR-04). Phase 0 spike, 11 Oct; measured again in the built Tote, 14 Oct: p95 9 ms in VS Code, 15 to 33 ms in the playground.
 - [ ] Importer port: confirm the REP and DSF formats carry an optional bearing error field (CAP-22); if not, agree the field with the acoustic replay application's owners.
 - [ ] Archive exporter port: verify the recipient's ingest tolerates a GUID comment line (EXT-07).
 - [ ] Overnight storyboard: measure a real O multi-platform serial against the track-heavy profile (NFR-06).

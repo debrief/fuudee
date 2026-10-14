@@ -91,7 +91,7 @@ Measured on the development container on 14 Oct 2026, serial 1 of the sample exe
 | Tool service, in process (pytest, 9 secondaries, 400 slider positions) | request to reply | 4.8 ms | 6.5 ms | 16 ms |
 | Python alone, the same | call to return | 1.7 ms | 2.1 ms | 5.3 ms |
 | VS Code, real service (integration test, 3 secondaries, 300 times at 60 a second) | asking to showing | 5.0 ms | 8.6 ms | 25 ms |
-| Playground, Pyodide in Chromium (playground test, 4 secondaries, playing) | asking to showing | 5.3 ms | 15 ms | 31 ms |
+| Playground, Pyodide in Chromium (playground test, 4 secondaries, playing) | asking to showing | 4.4 to 5.3 ms | 15 to 33 ms (three runs) | 31 to 70 ms |
 | Pyodide in Node (`spikes/pyodide/run.sh`, 2 secondaries) | Python alone, mean | 1.1 ms | | |
 
 Every measurement is well inside 100 ms, so the Tote stays on the architecture the Phase 0 spike chose: one request per time. The dense-sampling fallback is not built. Each check reports its numbers and asserts generously (three times the budget at p95), so a slow CI machine does not fail it: `python/debrief-tools/tests/test_tote_latency.py`, the integration test's Tote steps and `vscode/test/play/tote.mjs`.
