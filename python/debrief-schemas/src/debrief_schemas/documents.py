@@ -755,16 +755,47 @@ def track_edit_problems(edit: g.TrackEdit, where: str = "track_edit") -> list[st
     """Rules for a track changed by hand that JSON Schema cannot express: a move gives
     a distance and a bearing; a rotation an angle, and perhaps a pivot; a shear the
     end it holds (anchor) and either a distance and a bearing for the dragged end or
-    a course and a speed for the period; a stretch the end it holds and a speed. None
-    gives what belongs to another."""
+    a course and a speed for the period; a stretch the end it holds and a speed; a
+    single fix moved its time and either a distance and a bearing or a position; dead
+    reckoning nothing but perhaps a period. None gives what belongs to another."""
     problems = _time_range_problems(f"{where} period", edit.period)
     action = str(edit.action)
     given = {
         name
-        for name in ("distance", "bearing", "angle", "pivot", "anchor", "course", "speed")
+        for name in (
+            "distance",
+            "bearing",
+            "angle",
+            "pivot",
+            "anchor",
+            "course",
+            "speed",
+            "fix_time",
+            "position",
+        )
         if getattr(edit, name) is not None
     }
-    if action == "move":
+    if action != "move_fix" and given & {"fix_time", "position"}:
+        problems.append(f"{where}: only a single fix moved has a fix time or a position")
+    if action == "move_fix":
+        if edit.fix_time is None:
+            problems.append(f"{where}: moving a fix needs the fix's time")
+        by_drag = given >= {"distance", "bearing"} and "position" not in given
+        by_place = "position" in given and not given & {"distance", "bearing"}
+        if not (by_drag or by_place):
+            problems.append(
+                f"{where}: moving a fix needs either a distance and a bearing, or a position"
+            )
+        if given & {"angle", "pivot", "anchor", "course", "speed"} or edit.period is not None:
+            problems.append(f"{where}: moving a fix has no period, angle, pivot, anchor or speed")
+        if edit.position is not None and not (
+            -180 <= edit.position[0] <= 180 and -90 <= edit.position[1] <= 90
+        ):
+            problems.append(f"{where}: the position is not on the globe")
+    elif action == "dead_reckon":
+        if given:
+            problems.append(f"{where}: dead reckoning takes nothing but a period")
+    elif action == "move":
         if edit.distance is None or edit.bearing is None:
             problems.append(f"{where}: a move needs a distance and a bearing")
         if given & {"angle", "pivot"}:

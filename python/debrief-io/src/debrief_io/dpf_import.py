@@ -15,7 +15,10 @@ What becomes what:
   track of its own instead, named "<track> (<leg>)". A fix's own colour,
   label and comment become the track's marked fixes (fix_marks); a label
   that only gives the fix's time, as legacy Debrief labels every fix, is
-  listed rather than kept, since Debrief shows fixes' times itself.
+  listed rather than kept, since Debrief shows fixes' times itself. A leg
+  legacy Debrief plotted by dead reckoning (DR, PlotRelative) comes with the
+  positions legacy worked out and saved, and the import says so: v4 does not
+  work them out again when the track changes.
 - Text labels: label annotations. Rectangles and closed polygons: areas.
   Lines, open polygons and vectors: lines. Circles and ellipses: circles and
   ellipses, with their exact centre and size, and a polygon of 72 sides as
@@ -238,6 +241,18 @@ def _track_notes(track: DpfTrack, joined: bool) -> list[str]:
             "in time order, and their names and line styles are not imported."
         )
     for leg in track.legs:
+        if leg.dead_reckoned and leg.kind not in TMA_LEGS:
+            # Legacy Debrief plotted this leg by dead reckoning (DR) and saved the positions
+            # it worked out; v4 keeps them, but does not work them out again when the track
+            # changes, as legacy did. "Plot as dead reckoning" does that, as a step.
+            leg_name = f"leg {leg.name!r}" if leg.name else "a leg"
+            notes.append(
+                f"Track {name!r}: {leg_name} is plotted by dead reckoning (DR) in the legacy "
+                f"plot. Its {_plural(len(leg.fixes), 'fix', 'fixes')} {_are(len(leg.fixes))} "
+                "imported where legacy Debrief plotted them, from the leg's first fix by each "
+                "fix's course and speed; they are not worked out again when the track is "
+                "changed: use Plot as dead reckoning to do so."
+            )
         if leg.kind in TMA_LEGS:
             notes.append(
                 f"Track {name!r}: leg {leg.name or 'unnamed'!r} ({leg.kind}) is "

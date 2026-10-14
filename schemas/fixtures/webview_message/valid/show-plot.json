@@ -2,7 +2,7 @@
   "kind": "show_plot",
   "plot": {
     "type": "FeatureCollection",
-    "schema_version": "0.0.16",
+    "schema_version": "0.0.17",
     "features": [
       {
         "type": "Feature",

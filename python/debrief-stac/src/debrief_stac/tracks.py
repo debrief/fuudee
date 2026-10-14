@@ -466,6 +466,172 @@ def describe_pivot(pivot: Position) -> str:
     return f"About {format_position(pivot)}"
 
 
+# --- A single fix moved (CAP-01) ------------------------------------------------------
+#
+# As legacy Debrief dragged one fix: only that fix moves, along the geodesic from where it
+# was; its time is unchanged and its neighbours stay. Its recorded course and speed are
+# kept, not worked out again from the new positions: in a plot they are what the platform
+# logged (its own compass and log, or a GPS's velocity), not a derivative of the plotted
+# positions, and moving a fix that was mis-positioned does not change what the platform
+# was doing. So, as for a move of the whole track, recorded values are kept; what the
+# positions now imply (the speed to reach the fix from the one before, and on to the one
+# after) is worked out and said, on the map while dragging and in the step's notes, so the
+# analyst sees whether the fix has become a jump.
+
+
+def fix_index(track: models.TrackFeature, time: str) -> int:
+    """The fix at a time: where two fixes share it, the first, as
+    for a mark. Refused, plainly, when the track has no fix then."""
+    try:
+        at = parse_utc(time)
+    except ValueError:
+        raise TrackError(f"{time!r} is not a time, such as 2026-10-11T09:30:00.000Z.") from None
+    for i, t in enumerate(times_of(track)):
+        if t == at:
+            return i
+    raise TrackError(f"{track.properties.name} has no fix at {_when(at)}.")
+
+
+def fix_moved(track: models.TrackFeature, index: int, to: Position) -> models.TrackFeature | None:
+    """The track with its fix at index put at `to`: only that fix moves; its time, its
+    recorded course and speed, its mark and every other fix stay. None if it would not
+    move."""
+    lon, lat = track.geometry.coordinates[index]
+    if range_bearing(Position(lon, lat), to)[0].value < 1e-6:
+        return None
+    positions = [list(p) for p in track.geometry.coordinates]
+    positions[index] = [to.longitude, to.latitude]
+    return _with_positions(track, positions)
+
+
+@dataclass(frozen=True)
+class Implied:
+    """The speed, in metres a second, the positions imply from one fix to another: None
+    for two fixes at one time (no time to get there)."""
+
+    other: int
+    speed: float | None
+
+
+def implied_speeds(track: models.TrackFeature, index: int) -> tuple[Implied | None, Implied | None]:
+    """The speeds the positions imply to reach the fix at index from the fix before it,
+    and from it to the fix after: geodesic range over elapsed time. None at an end."""
+    times = times_of(track)
+
+    def between(a: int, b: int) -> Implied:
+        metres = range_bearing(_position(track, a), _position(track, b))[0].value
+        seconds = abs(times[b] - times[a]) / 1000
+        return Implied(b if b != index else a, metres / seconds if seconds > 0 else None)
+
+    before = between(index - 1, index) if index > 0 else None
+    after = between(index, index + 1) if index + 1 < len(times) else None
+    return before, after
+
+
+def describe_fix_move(name: str, at_ms: int, distance: Quantity, bearing: Quantity) -> str:
+    """What the History view calls a fix moved: "RED ONE fix at 09:31:00Z moved 0.42 nmi
+    045.0°T"."""
+    moved_text = describe_move(name, distance, bearing, False).removeprefix(f"{name} moved ")
+    return f"{name} fix at {_when(at_ms)} moved {moved_text}"
+
+
+def _implied_text(implied: Implied | None) -> str:
+    if implied is None or implied.speed is None:
+        return "no time at all" if implied else "-"
+    return _speed_text(implied.speed)
+
+
+def describe_implied(
+    track: models.TrackFeature,
+    before: tuple[Implied | None, Implied | None],
+    after: tuple[Implied | None, Implied | None],
+) -> list[str]:
+    """The step's notes on speeds: "Speed to reach it from 09:30:00Z: 12.4 kn (was 11.9
+    kn)", "Speed on to 09:32:00Z: 12.1 kn (was 11.9 kn)"."""
+    times = times_of(track)
+    notes = []
+    if after[0] is not None:
+        when = _when(times[after[0].other])
+        was = _implied_text(before[0])
+        notes.append(f"Speed to reach it from {when}: {_implied_text(after[0])} (was {was})")
+    if after[1] is not None:
+        when = _when(times[after[1].other])
+        was = _implied_text(before[1])
+        notes.append(f"Speed on to {when}: {_implied_text(after[1])} (was {was})")
+    return notes
+
+
+# --- Dead reckoning: the legacy DR plotting mode (CAP-01, EXT-14) -----------------------
+#
+# Legacy Debrief plotted a track either over the ground (OTG: each fix where it was
+# logged) or by dead reckoning (DR: from a start, each fix placed by the course and speed
+# logged, as a navigator plots a DR track), chosen as REP files were imported and kept on
+# each leg of a .dpf plot (TrackSegment's PlotRelative). In v4 a track is plotted where
+# its positions are, so OTG is every track as imported; DR is this change, made to the
+# positions as one recorded step, so the plot stays plain GeoJSON that other tools read
+# the same way, and undo puts the positions back.
+
+
+def dead_reckoned(track: models.TrackFeature, indices: Sequence[int]) -> models.TrackFeature | None:
+    """The track with the fixes at indices plotted by dead reckoning: the first stays,
+    and each after it is placed from the one before by that fix's recorded course and
+    speed over the time between them, along the geodesic (the course held, and the speed
+    made, until the next fix). Fixes outside the indices stay, so the join after them
+    jumps. Refused when the track does not record both courses and speeds. None if
+    nothing would move."""
+    props = track.properties
+    if props.courses is None or props.speeds is None:
+        raise TrackError(
+            f"{props.name} does not record both courses and speeds, so it cannot be "
+            "plotted by dead reckoning."
+        )
+    times = times_of(track)
+    positions = [list(p) for p in track.geometry.coordinates]
+    course_unit, speed_unit = str(props.courses.unit), str(props.speeds.unit)
+    for previous, i in zip(indices, indices[1:], strict=False):
+        course = Quantity(props.courses.values[previous], course_unit).to("deg")
+        speed = Quantity(props.speeds.values[previous], speed_unit).to("m/s").value
+        seconds = (times[i] - times[previous]) / 1000
+        start = Position(*positions[previous])
+        to = destination(start, course, Quantity(speed * seconds, "m"))
+        positions[i] = [to.longitude, to.latitude]
+    if all(
+        range_bearing(_position(track, i), Position(*positions[i]))[0].value < 1e-6 for i in indices
+    ):
+        return None
+    return _with_positions(track, positions)
+
+
+def describe_dead_reckoning(name: str, part: bool) -> str:
+    """What the History view calls it: "RED ONE plotted by dead reckoning"."""
+    return f"{name} part plotted by dead reckoning" if part else f"{name} plotted by dead reckoning"
+
+
+def describe_dead_reckoning_from(at_ms: int) -> str:
+    return f"From its fix at {_when(at_ms)}, by each fix's recorded course and speed"
+
+
+def largest_shift(
+    before: models.TrackFeature, after: models.TrackFeature, indices: Sequence[int]
+) -> tuple[int, float]:
+    """The fix at indices that moved furthest, and how far, in metres."""
+    best, most = indices[0], 0.0
+    for i in indices:
+        metres = range_bearing(_position(before, i), _position(after, i))[0].value
+        if metres > most:
+            best, most = i, metres
+    return best, most
+
+
+def describe_largest_shift(track: models.TrackFeature, index: int, metres: float) -> str:
+    """ "The most a fix moved: 1.23 nmi, at 10:15:00Z"."""
+    distance = Quantity(metres, "m").to(DEFAULT_SETTINGS.length_unit)
+    text = format_quantity(distance)
+    if not any(c in "123456789" for c in text.split(" ")[0]):
+        text = f"{round(metres)} m"
+    return f"The most a fix moved: {text}, at {_when(times_of(track)[index])}"
+
+
 # --- Splitting and merging -----------------------------------------------------------
 
 
@@ -647,10 +813,17 @@ def merge(
 __all__ = [
     "ANCHORS",
     "AnchorFrame",
+    "Implied",
     "Leg",
     "TrackError",
+    "dead_reckoned",
     "default_pivot",
     "describe_anchor",
+    "describe_dead_reckoning",
+    "describe_dead_reckoning_from",
+    "describe_fix_move",
+    "describe_implied",
+    "describe_largest_shift",
     "describe_move",
     "describe_period",
     "describe_pivot",
@@ -659,6 +832,10 @@ __all__ = [
     "describe_stretch",
     "describe_was",
     "ends",
+    "fix_index",
+    "fix_moved",
+    "implied_speeds",
+    "largest_shift",
     "leg_of",
     "merge",
     "merged_name",

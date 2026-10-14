@@ -794,6 +794,48 @@ def test_tracks_are_sheared_and_stretched_as_recorded_steps(client, catalogue) -
     assert rpc(client, "debrief/edit_track", stale).json()["error"]["code"] == -32001
 
 
+def test_a_fix_is_moved_and_a_track_dead_reckoned_as_recorded_steps(client, catalogue) -> None:
+    where = {"store": "exercise", "item": "serial", "agent": AGENT}
+    base = rpc(client, "debrief/open", where).json()["result"]["base"]
+    nelson = next(f for f in catalogue.read_plot("serial").features if f.id == "track-nelson")
+    second = nelson.properties.times[1]
+    move_fix = {
+        "action": "move_fix",
+        "fix_time": second,
+        "distance": {"value": 0.42, "unit": "[nmi_i]"},
+        "bearing": {"value": 45, "unit": "deg"},
+    }
+    moved = rpc(
+        client,
+        "debrief/edit_track",
+        {**where, "base": base, "feature": "track-nelson", "edit": move_fix},
+    ).json()["result"]
+    assert moved == {**moved, "changed": True, "feature": "track-nelson"}
+    reckoned = rpc(
+        client,
+        "debrief/edit_track",
+        {
+            **where,
+            "base": moved["base"],
+            "feature": "track-nelson",
+            "edit": {"action": "dead_reckon"},
+        },
+    ).json()["result"]
+    assert reckoned["changed"]
+    steps = rpc(client, "debrief/history", where).json()["result"]["steps"]
+    assert steps[-2]["notes"][0].startswith("NELSON fix at ")
+    assert steps[-2]["notes"][0].endswith(" moved 0.42 nmi 045.0°T")
+    assert steps[-1]["notes"][0] == "NELSON plotted by dead reckoning"
+    # A fix the track does not have; a stale base is a conflict.
+    missing = {**move_fix, "fix_time": "2001-01-01T00:00:00.000Z"}
+    bad = rpc(
+        client, "debrief/edit_track", {**where, "feature": "track-nelson", "edit": missing}
+    ).json()["error"]
+    assert bad["code"] == -32602 and "NELSON has no fix at" in bad["message"]
+    stale = {**where, "base": base, "feature": "track-nelson", "edit": move_fix}
+    assert rpc(client, "debrief/edit_track", stale).json()["error"]["code"] == -32001
+
+
 def test_tracks_are_cleaned_what_would_change_shown_first(client, catalogue) -> None:
     where = {"store": "exercise", "item": "serial", "agent": AGENT}
     base = rpc(client, "debrief/open", where).json()["result"]["base"]

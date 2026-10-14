@@ -11,7 +11,8 @@ so undo is the same for the extension and an agent (SUB-21); colour and hiding,
 recorded in that history like any change (debrief/set_colour, debrief/set_hidden);
 annotations added, changed and deleted by hand, and the north arrow, recorded the
 same way (debrief/add_annotation, debrief/edit_annotation, debrief/delete_annotations,
-debrief/set_north_arrow); tracks moved, rotated, split and merged by hand, recorded the
+debrief/set_north_arrow); tracks moved, rotated, sheared, stretched, split and merged by hand,
+single fixes moved and tracks plotted by dead reckoning (move_fix and dead_reckon), recorded the
 same way (debrief/edit_track, debrief/split_track, debrief/merge_tracks); tracks cleaned,
 what would change shown first (debrief/find_jumps, debrief/preview_smoothing) and then
 changed, recorded the same way (debrief/remove_jumps, debrief/smooth_track), and fixes

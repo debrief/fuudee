@@ -2,6 +2,12 @@
 
 The data-file schema is versioned independently of Debrief (SUB-12). Before 1.0.0 there is no migration guarantee (SUB-13).
 
+## 0.0.17 (14 Oct 2026)
+
+- `TrackEdit` moves a single fix and plots a track by dead reckoning (CAP-01): `action` may be `move_fix`, with `fix_time` (the fix, found by its time; of fixes sharing a time, the first, as for a mark) and either `distance` and `bearing` (how far and which way it goes, along the geodesic) or `position` ([longitude, latitude], where it goes); or `dead_reckon`, perhaps with a `period`, which places each fix of the period after its first from the one before by that fix's recorded course and speed, along the geodesic, as legacy Debrief plotted a track imported as DR. Rules: a fix moved needs its time and exactly one of a distance and a bearing or a position, on the globe, and no period, angle, pivot, anchor, course or speed; dead reckoning takes nothing but a period; only a fix moved has a fix time or a position.
+- The `edit_track` message carries a fix moved, sent when the analyst lets go of a fix's own handle or stops nudging one. Plot files are unchanged: a fix moved or a track dead-reckoned is an ordinary track feature, recorded as an edit; a fix's time, recorded course and speed, and mark are kept.
+- Before 1.0.0 only an exact version opens (SUB-13): plots written as 0.0.16 must be imported or built again.
+
 ## 0.0.16 (14 Oct 2026)
 
 - Marked fixes (`fix_marks` on `TrackProperties`, a list of `FixMark`): a fix with a colour, a label or a comment of its own, as legacy plots carry and the .dpf import now keeps (CAP-01, EXT-14). Each mark is found by its fix's `time`, not its place in the track, so it stays with its fix when other fixes are removed, the track is split or merged, or it is moved, rotated, sheared, stretched or smoothed; most fixes have none, so only marked fixes are listed. `colour` (lower-case hex) draws the fix's marker and the line from it to the next fix; `label` is drawn beside the fix; `comment` is shown when the analyst points at the fix and in the Timeline. Rules: each mark's time is one of the track's times (where two fixes share a time, the mark is the first's); marks are in time order, one per time; each says something (a colour, a label or a comment), with no empty text. Changing a mark is a recorded, undoable step (SUB-22).

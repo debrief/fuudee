@@ -58,6 +58,8 @@ enums:
       rotate: {description: "Every fix in the period turns about the pivot by the angle, keeping its range from it."}
       shear: {description: "One end of the period is held; the other is dragged, and every fix moves in proportion to its time from the held end, so course and speed change together (TMA shear)."}
       stretch: {description: "One end of the period is held; every fix's range from it is scaled, so speeds change and courses do not (TMA stretch)."}
+      move_fix: {description: "One fix, found by its time (fix_time), goes to a new place: a distance along a bearing, or a position. Its time, its recorded course and speed, its mark and every other fix stay as they were."}
+      dead_reckon: {description: "The period's fixes plotted by dead reckoning (DR): its first fix stays, and each fix after it is placed from the one before by that fix's recorded course and speed over the time between, along the geodesic, as legacy Debrief plotted a track imported as DR."}
   TrackEditAnchorEnum:
     description: Which end of the period a shear or a stretch holds fixed; the other end is the one dragged.
     permissible_values:
@@ -223,7 +225,11 @@ classes:
       the dragged end; a stretch scales each fix's range from the anchor,
       keeping its bearing from it. Either way a straight, steady leg stays a
       straight, steady leg. Fixes outside the period stay where they are, so
-      the joins jump.
+      the joins jump. A single fix moved (move_fix) goes where it is told,
+      alone: its neighbours, its time and its recorded course and speed
+      stay. Dead reckoning (dead_reckon) places each fix of the period from
+      the one before by that fix's recorded course and speed, from the
+      period's first fix.
     attributes:
       action: {range: TrackEditActionEnum, required: true}
       period:
@@ -233,11 +239,11 @@ classes:
         range: TimeRange
         inlined: true
       distance:
-        description: How far a move takes each fix, or how far a shear drags the end that is not held.
+        description: How far a move takes each fix, a shear drags the end that is not held, or a single fix is moved.
         range: Length
         inlined: true
       bearing:
-        description: Which way a move takes each fix, or a shear drags the end that is not held, true, clockwise from north.
+        description: Which way a move takes each fix, a shear drags the end that is not held, or a single fix is moved, true, clockwise from north.
         range: Angle
         inlined: true
       angle:
@@ -269,6 +275,19 @@ classes:
           geodesic range from its first fix to its last over the time between.
         range: Speed
         inlined: true
+      fix_time:
+        description: >-
+          The time of the one fix a move_fix moves: the fix is found by its
+          time, as a mark is (where two fixes share a time, the first).
+        range: UtcTimestamp
+      position:
+        description: >-
+          [longitude, latitude] a move_fix puts the fix at, instead of a
+          distance and a bearing from where it is.
+        range: float
+        multivalued: true
+        minimum_cardinality: 2
+        maximum_cardinality: 2
 
   # --- Annotations ----------------------------------------------------------
   AnnotationFeature:

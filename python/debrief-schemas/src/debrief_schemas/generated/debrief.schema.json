@@ -2790,7 +2790,7 @@
     },
     "TrackEdit": {
       "additionalProperties": false,
-      "description": "A track moved, rotated, sheared or stretched by hand, as the map, a form or an agent describes it (CAP-01, CAP-02, CAP-21): one recorded, undoable step in the plot's history (SUB-19). Geodesic: a move takes every fix in the period the same range along the same bearing, each along its own geodesic; a rotation keeps each fix's range from the pivot and turns its bearing from the pivot by the angle. A shear and a stretch hold one end of the period (the anchor) and work in the azimuthal equidistant frame about it, where a geodesic through the anchor is a straight line: a shear adds to each fix the dragged end's displacement times the fix's fraction of the time from the anchor to the dragged end; a stretch scales each fix's range from the anchor, keeping its bearing from it. Either way a straight, steady leg stays a straight, steady leg. Fixes outside the period stay where they are, so the joins jump.",
+      "description": "A track moved, rotated, sheared or stretched by hand, as the map, a form or an agent describes it (CAP-01, CAP-02, CAP-21): one recorded, undoable step in the plot's history (SUB-19). Geodesic: a move takes every fix in the period the same range along the same bearing, each along its own geodesic; a rotation keeps each fix's range from the pivot and turns its bearing from the pivot by the angle. A shear and a stretch hold one end of the period (the anchor) and work in the azimuthal equidistant frame about it, where a geodesic through the anchor is a straight line: a shear adds to each fix the dragged end's displacement times the fix's fraction of the time from the anchor to the dragged end; a stretch scales each fix's range from the anchor, keeping its bearing from it. Either way a straight, steady leg stays a straight, steady leg. Fixes outside the period stay where they are, so the joins jump. A single fix moved (move_fix) goes where it is told, alone: its neighbours, its time and its recorded course and speed stay. Dead reckoning (dead_reckon) places each fix of the period from the one before by that fix's recorded course and speed, from the period's first fix.",
       "properties": {
         "action": {
           "$ref": "#/$defs/TrackEditActionEnum"
@@ -2826,7 +2826,7 @@
               "type": "null"
             }
           ],
-          "description": "Which way a move takes each fix, or a shear drags the end that is not held, true, clockwise from north."
+          "description": "Which way a move takes each fix, a shear drags the end that is not held, or a single fix is moved, true, clockwise from north."
         },
         "course": {
           "anyOf": [
@@ -2848,7 +2848,15 @@
               "type": "null"
             }
           ],
-          "description": "How far a move takes each fix, or how far a shear drags the end that is not held."
+          "description": "How far a move takes each fix, a shear drags the end that is not held, or a single fix is moved."
+        },
+        "fix_time": {
+          "description": "The time of the one fix a move_fix moves: the fix is found by its time, as a mark is (where two fixes share a time, the first).",
+          "pattern": "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}\\.\\d{3}Z$",
+          "type": [
+            "string",
+            "null"
+          ]
         },
         "period": {
           "anyOf": [
@@ -2863,6 +2871,18 @@
         },
         "pivot": {
           "description": "[longitude, latitude] of the position a rotation turns about. Left out, the fix nearest current time in the period, or the period's first fix.",
+          "items": {
+            "type": "number"
+          },
+          "maxItems": 2,
+          "minItems": 2,
+          "type": [
+            "array",
+            "null"
+          ]
+        },
+        "position": {
+          "description": "[longitude, latitude] a move_fix puts the fix at, instead of a distance and a bearing from where it is.",
           "items": {
             "type": "number"
           },
@@ -2897,7 +2917,9 @@
         "move",
         "rotate",
         "shear",
-        "stretch"
+        "stretch",
+        "move_fix",
+        "dead_reckon"
       ],
       "title": "TrackEditActionEnum",
       "type": "string"
@@ -3327,7 +3349,7 @@
               "type": "null"
             }
           ],
-          "description": "How the analyst moved, rotated, sheared or stretched a track on the map (edit_track)."
+          "description": "How the analyst moved, rotated, sheared or stretched a track, or moved one of its fixes, on the map (edit_track)."
         },
         "viewport": {
           "anyOf": [
@@ -3448,5 +3470,5 @@
   ],
   "title": "debrief",
   "type": "object",
-  "version": "0.0.16"
+  "version": "0.0.17"
 }

@@ -28,7 +28,7 @@ from collections.abc import Iterator
 from dataclasses import dataclass, field
 from pathlib import Path, PurePosixPath
 
-from debrief_kernel.formatting import DEFAULT_SETTINGS, format_time
+from debrief_kernel.formatting import DEFAULT_SETTINGS, format_position, format_time
 from debrief_kernel.geodesy import Position, destination, range_bearing
 from debrief_kernel.time import format_utc, parse_utc
 from debrief_kernel.units import Quantity
@@ -862,10 +862,12 @@ class Catalogue:
         current_time: str | None = None,
         allow_newer_schema: bool = False,
     ) -> int | None:
-        """Move, rotate, shear or stretch a track, or the fixes of one period of it, as
-        one recorded, undoable step: "BLUE ONE moved 1.20 nmi 045.0°T", "BLUE ONE part
-        rotated 12.0° clockwise", "BLUE ONE sheared: 087.2°T 12.4 kn", "BLUE ONE
-        stretched: 12.4 kn". Geodesic (see debrief_stac.tracks). A rotation with no
+        """Move, rotate, shear or stretch a track, or the fixes of one period of it;
+        move one fix; or plot it by dead reckoning, as one recorded, undoable step:
+        "BLUE ONE moved 1.20 nmi 045.0°T", "BLUE ONE part rotated 12.0° clockwise",
+        "BLUE ONE sheared: 087.2°T 12.4 kn", "BLUE ONE stretched: 12.4 kn", "RED ONE
+        fix at 09:31:00Z moved 0.42 nmi 045.0°T", "RED ONE plotted by dead reckoning".
+        Geodesic (see debrief_stac.tracks). A rotation with no
         pivot turns about the fix nearest current_time in the period, or else its first
         fix. A shear holds one end of the period (anchor) and drags the other a distance
         along a bearing, or to where the period makes good a course and a speed; a
@@ -881,7 +883,8 @@ class Catalogue:
                 "Say how to change the track: move, with a distance and a bearing; "
                 "rotate, with an angle; shear, holding the start or the end, with a "
                 "distance and a bearing or a course and a speed; or stretch, holding "
-                "the start or the end, with a speed."
+                "the start or the end, with a speed; move_fix, with the fix's time and a "
+                "distance and a bearing or a position; or dead_reckon."
             ) from None
         problems = track_edit_problems(edit, "The track change")
         if problems:
@@ -904,6 +907,23 @@ class Catalogue:
                     models.ParameterValue(name="distance", value=edit.distance),
                     models.ParameterValue(name="bearing", value=edit.bearing),
                 ]
+            elif str(edit.action) == "move_fix":
+                result = self._fix_move(track, edit)
+                if result is None:
+                    return None
+                after, note, more, parameters = result
+                notes += more
+            elif str(edit.action) == "dead_reckon":
+                after = tracks.dead_reckoned(track, indices)
+                if after is None:
+                    return None
+                note = tracks.describe_dead_reckoning(name, part)
+                index, metres = tracks.largest_shift(track, after, indices)
+                notes += [
+                    tracks.describe_dead_reckoning_from(tracks.times_of(track)[indices[0]]),
+                    tracks.describe_largest_shift(track, index, metres),
+                ]
+                parameters = []
             elif str(edit.action) in ("shear", "stretch"):
                 result = self._shear_or_stretch(track, indices, edit, part)
                 if result is None:
@@ -938,6 +958,55 @@ class Catalogue:
 
         result = self._change(item_id, change, agent, base, allow_newer_schema)
         return None if result is None else result[0]
+
+    @staticmethod
+    def _fix_move(
+        track: models.TrackFeature, edit: models.TrackEdit
+    ) -> tuple[models.TrackFeature, str, list[str], list[models.ParameterValue]] | None:
+        """One fix moved, by a distance and a bearing or to a position: the track, its
+        step's name ("RED ONE fix at 09:31:00Z moved 0.42 nmi 045.0°T"), notes saying
+        where it now is and the speeds the positions now imply to reach it and to go on
+        from it (and what they were), and the parameters; None if it would not move.
+        Its recorded course and speed are kept (see debrief_stac.tracks)."""
+        index = tracks.fix_index(track, edit.fix_time)
+        at = tracks.times_of(track)[index]
+        here = Position(*track.geometry.coordinates[index])
+        if edit.position is not None:
+            to = Position(*edit.position)
+            shift, towards = range_bearing(here, to)
+            distance = shift.to(DEFAULT_SETTINGS.length_unit)
+            bearing = towards
+            asked = [
+                models.ParameterValue(name="distance", value=_quantity(distance, 3)),
+                models.ParameterValue(name="bearing", value=_quantity(bearing, 2)),
+            ]
+        else:
+            distance = Quantity.from_model(edit.distance)
+            bearing = Quantity.from_model(edit.bearing)
+            to = destination(here, bearing, distance)
+            asked = [
+                models.ParameterValue(name="distance", value=edit.distance),
+                models.ParameterValue(name="bearing", value=edit.bearing),
+            ]
+        after = tracks.fix_moved(track, index, to)
+        if after is None:
+            return None
+        name = track.properties.name
+        note = tracks.describe_fix_move(name, at, distance, bearing)
+        notes = [
+            f"Now at {format_position(to)}",
+            *tracks.describe_implied(
+                track, tracks.implied_speeds(track, index), tracks.implied_speeds(after, index)
+            ),
+            "Its recorded course and speed are kept",
+        ]
+        parameters = [
+            models.ParameterValue(name="fix_time", value=track.properties.times[index]),
+            *asked,
+            models.ParameterValue(name="longitude", value=to.longitude),
+            models.ParameterValue(name="latitude", value=to.latitude),
+        ]
+        return after, note, notes, parameters
 
     @staticmethod
     def _shear_or_stretch(

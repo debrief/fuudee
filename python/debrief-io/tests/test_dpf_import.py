@@ -335,6 +335,32 @@ def test_fix_labels_hidden_fixes_and_unknown_leg_content_are_reported(
     assert (mark.time, mark.label) == ("1995-12-12T05:00:00.000Z", "Turn here")
 
 
+def test_a_leg_plotted_by_dead_reckoning_is_imported_as_plotted_and_said_so(
+    catalogue: Catalogue, tmp_path: Path
+) -> None:
+    """Legacy Debrief saves a DR leg's worked-out positions (PlotRelative="true"): they are
+    imported as saved, and the import says the leg was DR and is not worked out again."""
+    fixes = _fix("050000") + _fix("050100", "-3.9") + _fix("050200", "-3.8")
+    source = _plot_file(
+        tmp_path,
+        f'<track Name="T"><TrackSegment Name="Positions" PlotRelative="true">{fixes}'
+        "</TrackSegment></track>"
+        f'<track Name="U"><TrackSegment Name="Over" PlotRelative="false">{fixes}'
+        "</TrackSegment></track>",
+    )
+    report = import_dpf(catalogue, source)
+    notes = "\n".join(report.omitted)
+    assert (
+        "Track 'T': leg 'Positions' is plotted by dead reckoning (DR) in the legacy plot. "
+        "Its 3 fixes are imported where legacy Debrief plotted them, from the leg's first fix "
+        "by each fix's course and speed; they are not worked out again when the track is "
+        "changed: use Plot as dead reckoning to do so." in notes
+    )
+    assert "Track 'U'" not in notes
+    t = next(f for f in catalogue.read_plot("made").features if f.properties.name == "T")
+    assert t.geometry.coordinates == [[-4.0, 50.0], [-3.9, 50.0], [-3.8, 50.0]]
+
+
 def test_fix_colours_labels_and_comments_become_marked_fixes(catalogue: Catalogue) -> None:
     """The .dpf gap closed (EXT-14): each fix's own colour, label and comment, found by time."""
     report = import_dpf(catalogue, DATA / "shapes.dpf")

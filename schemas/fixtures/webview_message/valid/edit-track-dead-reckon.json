@@ -1,0 +1,11 @@
+{
+  "kind": "edit_track",
+  "feature_id": "track-red-one",
+  "track_edit": {
+    "action": "dead_reckon",
+    "period": {
+      "start": "2026-10-11T09:30:00.000Z",
+      "end": "2026-10-11T10:00:00.000Z"
+    }
+  }
+}
