@@ -17,12 +17,23 @@ from pathlib import Path
 from typing import Any
 
 import debrief_stac.store as store_module
+from debrief_config import load_config, track_import_mode, update_config, with_track_import_mode
 from debrief_io import import_dpf, import_rep
+from debrief_io.importer import rep_track_names
 from debrief_kernel.geodesy import Position, destination
 from debrief_kernel.time import format_utc, parse_utc
 from debrief_kernel.units import Quantity
 from debrief_schemas import DocumentKind, dump_document, models
-from debrief_stac import Base, Catalogue, CatalogueError, Changes, Conflict, History, HistoryError
+from debrief_stac import (
+    Base,
+    Catalogue,
+    CatalogueError,
+    Changes,
+    ConfirmationNeeded,
+    Conflict,
+    History,
+    HistoryError,
+)
 from debrief_stac.fixes import describe_largest
 from debrief_tools import Registry
 from debrief_tools.registry import applies
@@ -209,8 +220,9 @@ def annotate(item: str, request_json: str) -> str:
 
 
 def track(item: str, request_json: str) -> str:
-    """Move, rotate, split or merge tracks: each a recorded, undoable step (CAP-01,
-    CAP-02), as debrief/edit_track, debrief/split_track and debrief/merge_tracks do."""
+    """Move, rotate, shear, stretch, split or merge tracks, move a single fix or plot a
+    track by dead reckoning: each a recorded, undoable step (CAP-01, CAP-02), as
+    debrief/edit_track, debrief/split_track and debrief/merge_tracks do."""
     request = json.loads(request_json)
     base = Base(**request["base"]) if request.get("base") else None
     change = request["change"]
@@ -235,6 +247,9 @@ def track(item: str, request_json: str) -> str:
             )
     except Conflict:
         return json.dumps({"error": "The plot was changed elsewhere, so nothing was changed."})
+    except ConfirmationNeeded as error:
+        # Would lose what the reader made: they confirm, and it is sent again confirming.
+        return json.dumps({"error": str(error), "confirm": True})
     except (CatalogueError, HistoryError) as error:
         return json.dumps({"error": str(error)})
     return json.dumps(out)
@@ -440,13 +455,49 @@ def colleague(item: str, at: str, when: str | None = None) -> str:
     return json.dumps({"ok": True})
 
 
-def import_file(name: str, data: bytes) -> str:
-    """Import a REP or legacy .dpf file the reader dropped in, as a new plot; or add a
-    Debrief plot file (.geojson) with its whole history, as a colleague would."""
+# The reader's own settings, as debrief-config keeps an analyst's: here, how tracks imported
+# are plotted once they chose "Use this choice for future imports". User state, held in the
+# page's settings file, never in the catalogue or a plot; the importer is given the answer.
+SETTINGS = Path("/play/settings/config.json")
+
+
+def import_mode() -> str:
+    """ask, otg or dr: how tracks imported are plotted, remembered or not."""
+    return track_import_mode(load_config(SETTINGS))
+
+
+def set_import_mode(mode: str) -> str:
+    """Remember a choice for future imports, or, with ask, clear it."""
+    SETTINGS.parent.mkdir(parents=True, exist_ok=True)
+    return track_import_mode(update_config(lambda c: with_track_import_mode(c, mode), SETTINGS))
+
+
+def _upload(name: str, data: bytes) -> Path:
     work = Path("/play/uploads")
     work.mkdir(parents=True, exist_ok=True)
     path = work / Path(name).name
     path.write_bytes(bytes(data))
+    return path
+
+
+def rep_tracks(name: str, data: bytes) -> str:
+    """The tracks a REP file would import, to ask how each is plotted; none for others."""
+    path = _upload(name, data)
+    if path.suffix.lower() in (".dpf", ".xml", ".geojson", ".json"):
+        return json.dumps([])
+    try:
+        return json.dumps(rep_track_names(path))
+    except Exception:  # noqa: BLE001 - the import says what is wrong with the file
+        return json.dumps([])
+
+
+def import_file(
+    name: str, data: bytes, modes_json: str | None = None, remembered: str | None = None
+) -> str:
+    """Import a REP or legacy .dpf file the reader dropped in, as a new plot, each REP
+    track plotted as modes_json says (asked, or the reader's remembered choice); or add a
+    Debrief plot file (.geojson) with its whole history, as a colleague would."""
+    path = _upload(name, data)
     stem = "".join(c if c.isalnum() or c in "-_." else "-" for c in path.stem).strip("-.") or "plot"
     taken, item_id, n = set(_cat().item_ids()), stem, 2
     while item_id in taken:
@@ -458,9 +509,14 @@ def import_file(name: str, data: bytes) -> str:
             return json.dumps({"error": f"{path.name} could not be added: {error}"})
         steps = len(_cat().history(added).steps())
         return json.dumps({"item": added, "plot_file": True, "steps": steps})
-    importer = import_dpf if path.suffix.lower() in (".dpf", ".xml") else import_rep
+    modes = json.loads(modes_json) if modes_json else None
     try:
-        report = importer(_cat(), path, item_id=item_id, agent=YOU)
+        if path.suffix.lower() in (".dpf", ".xml"):
+            report = import_dpf(_cat(), path, item_id=item_id, agent=YOU)
+        else:
+            report = import_rep(
+                _cat(), path, item_id=item_id, agent=YOU, modes=modes, remembered=remembered
+            )
     except Exception as error:  # noqa: BLE001 - shown to the reader as the import's failure
         return json.dumps({"error": f"{path.name} could not be imported: {error}"})
     return json.dumps(
@@ -471,5 +527,6 @@ def import_file(name: str, data: bytes) -> str:
             "annotations": getattr(report, "annotations", 0),
             "narrative_entries": getattr(report, "narrative_entries", 0),
             "omitted": report.omitted,
+            "notes": report.notes,
         }
     )

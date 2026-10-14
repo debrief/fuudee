@@ -1579,6 +1579,14 @@
 <td><strong>Fixes: colour, label or comment…</strong> on the outline's context menu: the fix list, a list to type in (a time finds a fix), then the action. In the playground, <strong>Fixes…</strong> under <em>Track</em>: <code>Up</code> and <code>Down</code> move along the list, <code>Enter</code> or <code>Space</code> chooses (<a href="../track-operations/#cleaning-tracks">track operations</a>, item 3).</td>
 </tr>
 <tr>
+<td>Move a single fix</td>
+<td>Zoomed in far enough that its fixes have rings, <code>Tab</code> to a fix's ring; the arrow keys move it 5 pixels (25 with <code>Shift</code>), one step for the run. Or <strong>Move a fix…</strong> and type the position (<a href="../track-operations/#single-fixes-and-dead-reckoning">track operations</a>, items 5 and 6).</td>
+</tr>
+<tr>
+<td>Plot a track over the ground or by dead reckoning</td>
+<td>Choosing as it is imported, from a list; afterwards <strong>Plot over the ground or by dead reckoning…</strong> on the outline's menu (<strong>OTG/DR…</strong> in the playground); there is no map gesture.</td>
+</tr>
+<tr>
 <td>Check jumps on the map, or a smoothing preview</td>
 <td><strong>Find and remove jumps…</strong> lists each jump, ticked, in a list read by screen readers; <strong>Smooth track…</strong> says how many fixes would move and the most any would, in words, before Apply (<a href="../track-operations/#cleaning-tracks">track operations</a>, items 1 and 2).</td>
 </tr>
@@ -1593,7 +1601,7 @@
 </tbody>
 </table>
 <h2 id="reference-implementation">Reference implementation<a class="headerlink" href="#reference-implementation" title="Permanent link">&para;</a></h2>
-<p><code>vscode/webview/mapedit.ts</code> (keys while drawing and on handles) and <code>vscode/webview/drawing.ts</code>; <code>vscode/webview/trackmap.ts</code> and <code>vscode/webview/trackedit.ts</code> for a track's handles. The playground tests <code>vscode/test/play/drawing.mjs</code> and <code>vscode/test/play/tracks.mjs</code> place a marker, change an area, move and rotate a track, and <code>vscode/test/play/shear.mjs</code> shears and stretches one, from the keyboard alone.</p>
+<p><code>vscode/webview/mapedit.ts</code> (keys while drawing and on handles) and <code>vscode/webview/drawing.ts</code>; <code>vscode/webview/trackmap.ts</code> and <code>vscode/webview/trackedit.ts</code> for a track's handles. The playground tests <code>vscode/test/play/drawing.mjs</code> and <code>vscode/test/play/tracks.mjs</code> place a marker, change an area, move and rotate a track, <code>vscode/test/play/shear.mjs</code> shears and stretches one, and <code>vscode/test/play/fixdrag.mjs</code> moves a single fix, from the keyboard alone.</p>
 
 
 
