@@ -71,7 +71,7 @@
     
     
     
-    <body dir="ltr" data-md-color-scheme="default" data-md-color-primary="indigo" data-md-color-accent="indigo"><div class="pr-preview-banner" style="background:#fff4ce;color:#3b2f00;border-bottom:1px solid #e0c060;padding:6px 16px;font:14px/1.4 system-ui,sans-serif;text-align:center">Preview of <a style="color:inherit;text-decoration:underline" href="https://github.com/debrief/fuudee/pull/40">pull request #40</a>: Track operations, part B3: drag a single fix; OTG and DR plotting. Built from 3d71c5f on 2026-10-14 09:04 UTC. <a style="color:inherit;text-decoration:underline" href="https://debrief.github.io/fuudee/pr-preview/">All previews</a></div>
+    <body dir="ltr" data-md-color-scheme="default" data-md-color-primary="indigo" data-md-color-accent="indigo"><div class="pr-preview-banner" style="background:#fff4ce;color:#3b2f00;border-bottom:1px solid #e0c060;padding:6px 16px;font:14px/1.4 system-ui,sans-serif;text-align:center">Preview of <a style="color:inherit;text-decoration:underline" href="https://github.com/debrief/fuudee/pull/40">pull request #40</a>: Track operations, part B3: drag a single fix; OTG and DR plotting. Built from b4f7ace on 2026-10-14 10:46 UTC. <a style="color:inherit;text-decoration:underline" href="https://debrief.github.io/fuudee/pr-preview/">All previews</a></div>
   
     
     <input class="md-toggle" data-md-toggle="drawer" type="checkbox" id="__drawer" autocomplete="off">
@@ -1322,6 +1322,17 @@
 </li>
       
         <li class="md-nav__item">
+  <a href="#editing-a-track-plotted-by-dead-reckoning" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Editing a track plotted by dead reckoning
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
   <a href="#reference-implementation" class="md-nav__link">
     <span class="md-ellipsis">
       
@@ -1550,6 +1561,17 @@
 </li>
       
         <li class="md-nav__item">
+  <a href="#editing-a-track-plotted-by-dead-reckoning" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Editing a track plotted by dead reckoning
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
   <a href="#reference-implementation" class="md-nav__link">
     <span class="md-ellipsis">
       
@@ -1581,7 +1603,7 @@
 
 
 <h1 id="track-operations">Track operations<a class="headerlink" href="#track-operations" title="Permanent link">&para;</a></h1>
-<p>How an analyst moves a track, or a period of it, rotates it about a point, shears or stretches it from one end, splits it at a time and merges tracks into one; and how they clean it: removing jumps, smoothing it, and giving single fixes a colour, a label or a comment of their own. Part A: moving, rotating, splitting and merging (decision, product owner, 13 Oct 2026). Part B1: shearing and stretching, shear first as the operation analysts use most with TMA legs (decision, product owner, 13 Oct 2026; see <a href="#shearing-and-stretching">Shearing and stretching</a>). <a href="#cleaning-tracks">Cleaning tracks</a> (part B2, 14 Oct 2026): jump removal, smoothing and marked fixes. <a href="#single-fixes-and-dead-reckoning">Single fixes, and dead reckoning</a> (part B3, 14 Oct 2026): one fix dragged on its own, and the legacy OTG and DR modes, asked of each track imported.</p>
+<p>How an analyst moves a track, or a period of it, rotates it about a point, shears or stretches it from one end, splits it at a time and merges tracks into one; and how they clean it: removing jumps, smoothing it, and giving single fixes a colour, a label or a comment of their own. Part A: moving, rotating, splitting and merging (decision, product owner, 13 Oct 2026). Part B1: shearing and stretching, shear first as the operation analysts use most with TMA legs (decision, product owner, 13 Oct 2026; see <a href="#shearing-and-stretching">Shearing and stretching</a>). <a href="#cleaning-tracks">Cleaning tracks</a> (part B2, 14 Oct 2026): jump removal, smoothing and marked fixes. <a href="#single-fixes-and-dead-reckoning">Single fixes, and dead reckoning</a> (part B3, 14 Oct 2026): one fix dragged on its own, and the legacy OTG and DR modes, asked of each track imported. <a href="#editing-a-track-plotted-by-dead-reckoning">Editing a track plotted by dead reckoning</a> (decision, product owner, 14 Oct 2026): every operation on a DR track changes where it starts, or its courses and speeds, and the positions are worked out again.</p>
 <h2 id="requirements-cited">Requirements cited<a class="headerlink" href="#requirements-cited" title="Permanent link">&para;</a></h2>
 <table>
 <thead>
@@ -1639,7 +1661,7 @@
 <p><strong>What moves: the whole track, or a period of it.</strong> Legacy Debrief dragged a whole track, or a selected time period of it, to line it up with a reference: that is kept (decision, 13 Oct 2026). On the map, a small control below the drawing toolbar, <em>What changes</em>, says which (for moving, rotating, shearing and stretching alike): <strong>Whole track</strong> (the default) or <strong>Time window</strong>, the fixes in the time window shown. The forms offer the same choice. An agent may give any period. Fixes whose times fall in the period, ends included, move; the rest stay where they are.</p>
 </li>
 <li>
-<p><strong>The joins jump.</strong> Moving a period moves only its fixes, so the track jumps where they meet the rest: the track is not stretched or smoothed to keep it continuous. The map shows the jump while the analyst drags, and says so: <em>only the fixes in the time window move, so the track jumps where they meet the rest</em>. Jump removal (part B) will tidy a join an analyst does not want.</p>
+<p><strong>The joins jump.</strong> Moving a period moves only its fixes, so the track jumps where they meet the rest: the track is not stretched or smoothed to keep it continuous. (That is over the ground. On a track plotted by dead reckoning the fixes after follow on, with no jump: see <a href="#editing-a-track-plotted-by-dead-reckoning">Editing a track plotted by dead reckoning</a>.) The map shows the jump while the analyst drags, and says so: <em>only the fixes in the time window move, so the track jumps where they meet the rest</em>. Jump removal (part B) will tidy a join an analyst does not want.</p>
 </li>
 <li>
 <p><strong>Moving is geodesic.</strong> A move takes every fix the same range along the same true bearing, each along its own geodesic, as legacy Debrief offset each fix: not a change of latitude and longitude, as an annotation's whole-shape move is. Courses and speeds over ground are kept as they were. On a curved earth no move of every fix by the same range and bearing keeps a track's shape exactly: as meridians converge, a track far north moved north is squeezed east-west a little, and one moved east turns a little. For the moves an analyst makes the difference is small (a track at 60°N moved 5 nmi north is 0.25% shorter; at 70°N moved 20 nmi, 1.6% shorter; a track steering 000 at 70°N moved 20 nmi east then steers 000.9), so the recorded speeds and courses are kept rather than worked out again from the moved positions.</p>
@@ -2030,7 +2052,7 @@
 <p>Part B3 (14 Oct 2026), the last of part B. One fix moved on its own, as legacy Debrief lets an analyst drag one fix; and the legacy OTG and DR modes.</p>
 <ol>
 <li>
-<p><strong>Only that fix moves.</strong> As in legacy Debrief: the fix goes where the analyst puts it, along the geodesic from where it was; <strong>its time is unchanged</strong>, and the fixes either side stay where they are. Its mark (a colour, label or comment of its own) stays with it, found by its time.</p>
+<p><strong>Only that fix moves</strong> (over the ground; on a track plotted by dead reckoning the leg into it changes and the fixes after follow, <a href="#editing-a-track-plotted-by-dead-reckoning">below</a>). As in legacy Debrief: the fix goes where the analyst puts it, along the geodesic from where it was; <strong>its time is unchanged</strong>, and the fixes either side stay where they are. Its mark (a colour, label or comment of its own) stays with it, found by its time.</p>
 </li>
 <li>
 <p><strong>Its recorded course and speed are kept.</strong> A fix's course and speed are what the platform logged (its compass and log, or a GPS's velocity), not something worked out from the positions plotted, and a fix plotted in the wrong place does not change what the platform was doing. So, as for a move of the whole track, they are kept rather than worked out again. What the new position implies is said instead: the <strong>speed to reach the fix</strong> from the fix before, and the <strong>speed to go on</strong> to the fix after, each the geodesic range over the time between, so the analyst sees at once whether moving it has tidied a jump or made one. Debrief does not otherwise derive courses and speeds from positions, except where a track records none, so there is nothing else to keep in step.</p>
@@ -2071,8 +2093,8 @@
 <li><strong>Importing a REP file asks, for each track,</strong> <em>How is RED ONE plotted? (1 of 3)</em>, offering <strong>Over the ground (OTG)</strong> or <strong>Dead reckoning (DR)</strong> and, apart from that choice, as legacy had it, a box to tick: <em>Use this choice for future track imports</em>. In the playground that is a small form with the two choices and a check box. A VS Code list (Quick Pick) has no check box, so the box is the list's last line, showing a ticked or an empty circle and saying <em>on</em> or <em>off</em>: choosing it ticks or clears it and the list stays open, and choosing OTG or DR answers. That keeps one question per track, used the same way by keyboard, mouse or screen reader, rather than a second question after each (decision, panel review, 14 Oct 2026). Ticked, the choice applies to the file's remaining tracks and to every import after, without asking. <code>Escape</code>, or <strong>Cancel</strong>, imports nothing. A REP track is asked about once, whole, even where its legs were plotted differently in legacy (decision, product owner, 14 Oct 2026).</li>
 <li><strong>The import's notes say how each track is plotted</strong> (<em>Track 'RED ONE' plotted by dead reckoning (DR).</em>), and, when the remembered choice was used, how to change it or be asked again. They are in the plot's provenance too.</li>
 <li><strong>The remembered choice is the analyst's own setting, and can be cleared.</strong> It is three-way: <em>ask</em> (the default), <em>otg</em> or <em>dr</em>. In VS Code it is the setting <strong>Debrief: Track import mode</strong> (<code>debrief.trackImportMode</code>), and <strong>Debrief: Ask again whether imported tracks are OTG or DR</strong> sets it back to ask; in the playground, the line under <em>Import</em> says what is remembered, and <strong>Ask again</strong> clears it.</li>
-<li><strong>The mode is kept on the track</strong> (its <code>plotting_mode</code>), as content like its colour; the track's line on the map is always the positions as plotted, so other GeoJSON tools draw what Debrief draws. A track plotted by dead reckoning keeps its <strong>positions as logged</strong> beside them. <strong>Plot over the ground or by dead reckoning…</strong> (the outline's menu on a track; <strong>OTG/DR…</strong> under <em>Track</em> in the playground) changes it as <strong>one step</strong>: <em>RED ONE plotted by dead reckoning</em>, with <em>From its first fix, at 09:30:00Z, by each fix's recorded course and speed; its positions as logged are kept</em> and the most a fix moved; or <em>RED ONE plotted over the ground</em>, <em>Each fix where it was logged</em>, the positions as logged put back. A track that does not record both courses and speeds cannot be plotted by dead reckoning, and Debrief says why. Other changes to a track plotted by dead reckoning (a move, a fix dragged) change the positions as plotted; its positions as logged stay as logged, and go with their fixes when fixes are removed or the track is split or merged (tracks plotted differently are not merged, and the message says so).</li>
-<li><strong>Over the ground again, after a change made while plotted by dead reckoning, asks first</strong> (decision, product owner, 14 Oct 2026). The positions as logged come back, so that change is lost; when a fix is more than a metre from where dead reckoning from the positions as logged puts it, Debrief says so before doing anything: <em>RED ONE was changed while plotted by dead reckoning (its fix at 09:34:00Z is 2.00 nmi from where dead reckoning puts it). Plotted over the ground, each fix goes back where it was logged, and the changes made while plotted by dead reckoning are lost; its courses and speeds stay as they are now. Undo takes it back.</em> VS Code asks in a dialog (<strong>Plot over the ground</strong>, or <strong>Cancel</strong>); the playground asks in its small form. Confirmed, it is still one step, its notes saying <em>Changes made while plotted by dead reckoning discarded</em>. An agent sends <code>discard_dr_changes: true</code> with the change; without it the service refuses (error -32003), saying why and how to go ahead.</li>
+<li><strong>The mode is kept on the track</strong> (its <code>plotting_mode</code>), as content like its colour; the track's line on the map is always the positions as plotted, so other GeoJSON tools draw what Debrief draws. A track plotted by dead reckoning keeps its <strong>positions as logged</strong> beside them. <strong>Plot over the ground or by dead reckoning…</strong> (the outline's menu on a track; <strong>OTG/DR…</strong> under <em>Track</em> in the playground) changes it as <strong>one step</strong>: <em>RED ONE plotted by dead reckoning</em>, with <em>From its first fix, at 09:30:00Z, by each fix's recorded course and speed; its positions, courses and speeds as logged are kept</em> and the most a fix moved; or <em>RED ONE plotted over the ground</em>, <em>Each fix where it was logged, with its course and speed as logged</em>, the positions, courses and speeds as logged put back. A track that does not record both courses and speeds cannot be plotted by dead reckoning, and Debrief says why. Other changes to a track plotted by dead reckoning change where it starts, or its courses and speeds, and its positions are worked out again (<a href="#editing-a-track-plotted-by-dead-reckoning">below</a>); its positions, courses and speeds as logged stay as logged, and go with their fixes when fixes are removed or the track is split or merged (tracks plotted differently are not merged, and the message says so).</li>
+<li><strong>Over the ground again, after a change made while plotted by dead reckoning, asks first</strong> (decision, product owner, 14 Oct 2026). The positions, courses and speeds as logged come back, so that change is lost; when its first fix is more than a metre from where it was logged, or a course or a speed is not as logged, Debrief says so before doing anything: <em>RED ONE was changed while plotted by dead reckoning (its course and speed at 09:34:00Z are 055.0°T 12.0 kn, logged 045.0°T 12.0 kn). Plotted over the ground, each fix goes back where it was logged, with its course and speed as logged, and the changes made while plotted by dead reckoning are lost. Undo takes it back.</em> (or <em>(its first fix is 1.00 nmi from where it was logged)</em>). Comparing courses and speeds, not positions, catches a rotation too, which keeps every fix where dead reckoning by the turned courses puts it (panel finding, 14 Oct 2026). VS Code asks in a dialog (<strong>Plot over the ground</strong>, or <strong>Cancel</strong>); the playground asks in its small form. Confirmed, it is still one step, its notes saying <em>Changes made while plotted by dead reckoning discarded</em>. An agent sends <code>discard_dr_changes: true</code> with the change; without it the service refuses (error -32003), saying why and how to go ahead.</li>
 <li><strong>A track plotted by dead reckoning is tagged DR</strong> beside its name: in the outline (VS Code's description, <em>DR · …</em>; a small <em>DR</em> in the playground's outline), and on the map, in its label and tooltips (<em>RED ONE (DR)</em>). Its line is drawn as any track's (decision, product owner, 14 Oct 2026).</li>
 <li><strong>Dead reckoning places each fix from the one before by that fix's recorded course and speed over the time between, along the geodesic.</strong> That is the rule legacy Debrief used: legacy saves a DR leg's worked-out positions in its plot files, and on its sample plots this puts every fix back within 0.1 m of them.</li>
 <li><strong>A legacy .dpf plot is not asked about:</strong> it says how each leg was plotted (<code>PlotRelative</code>). A track whose legs were all plotted by dead reckoning is imported so, with the positions legacy worked out; the plot does not hold its positions as logged, so it cannot be plotted over the ground, and the import says so (it used to say nothing).</li>
@@ -2144,6 +2166,91 @@
     Host-&gt;&gt;Service: debrief/edit_track (edit, base)
     Service--&gt;&gt;Host: one step: "RED ONE fix at 09:31:00Z moved 0.42 nmi 045.0°T"
     Host-&gt;&gt;Map: show_plot (the ring where the fix now is)</code></pre>
+<h2 id="editing-a-track-plotted-by-dead-reckoning">Editing a track plotted by dead reckoning<a class="headerlink" href="#editing-a-track-plotted-by-dead-reckoning" title="Permanent link">&para;</a></h2>
+<p>Decision, product owner, 14 Oct 2026. On a track plotted by dead reckoning the truth is its <strong>origin</strong>, where its first fix is, and each fix's <strong>course and speed</strong>: the leg from that fix to the next. Its positions are always worked out from them, each fix from the one before by that fix's course and speed over the time between, along the geodesic (<a href="#single-fixes-and-dead-reckoning">above</a>). So an edit never moves a DR track's positions on their own: it moves the origin, or it changes courses and speeds, and the positions are worked out again. A track plotted over the ground is edited as the sections above say.</p>
+<ol>
+<li>
+<p><strong>What each operation changes.</strong> The same handles, keys, forms and tool-service edits as over the ground; what they change:</p>
+<table>
+<thead>
+<tr>
+<th>Operation</th>
+<th>On a track plotted by dead reckoning</th>
+<th>The step</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Move the whole track (drag, keys, <strong>Move track…</strong>)</td>
+<td>The origin: every fix follows, its course and speed kept</td>
+<td><em>RED ONE (DR) moved 1.20 nmi 045.0°T</em>, <em>Dead reckoning now starts from …</em></td>
+</tr>
+<tr>
+<td>Move the fixes in the time window</td>
+<td>The leg into the window's first fix (the course and speed of the fix before), so that fix lands where it was moved; it and every fix after follow. A window from the first fix moves the origin.</td>
+<td><em>RED ONE (DR) part moved …</em>, <em>Leg into 09:30:00Z now 056.5°T 12.1 kn (was 045.0°T 12.0 kn)</em></td>
+</tr>
+<tr>
+<td>Drag a single fix (keys, <strong>Move a fix…</strong>, <code>move_fix</code>)</td>
+<td>The leg into it, so dead reckoning puts it where it was dropped; every later fix shifts with it. The first fix dragged moves the origin.</td>
+<td><em>RED ONE (DR) leg into 09:43:00Z now 056.5°T 12.1 kn</em>, <em>Fix at 09:43:00Z moved 0.42 nmi 045.0°T, to …</em>, <em>Was 045.0°T 12.0 kn</em></td>
+</tr>
+<tr>
+<td>Rotate</td>
+<td>The angle added to the course of each fix in what turns. The whole track, or a window from its first fix, turns about the pivot: the origin turns about it too. A window that starts later turns about its own first fix, which dead reckoning places from the fix before; the pivot sits there.</td>
+<td><em>RED ONE (DR) rotated 12.0° clockwise</em>, <em>Every course turned 12.0° clockwise</em></td>
+</tr>
+<tr>
+<td>Stretch</td>
+<td>Each speed in what changes multiplied by one factor</td>
+<td><em>RED ONE (DR) stretched: 12.4 kn</em>, <em>Every speed multiplied by 1.073</em></td>
+</tr>
+<tr>
+<td>Shear</td>
+<td>One velocity (a set and drift) added to the course and speed of each fix in what changes, found so the dragged end lands where it was dragged. On a straight leg at a steady speed every course and speed becomes the course and speed made good that the map shows; a period that turns keeps its turns, as a navigator's DR corrected for a tidal stream does.</td>
+<td><em>RED ONE (DR) sheared: 087.2°T 12.4 kn</em>, <em>Every course and speed changed by the same 0.6 kn toward 180.0°T (a set and drift)</em></td>
+</tr>
+<tr>
+<td>Shear or stretch, held at the end</td>
+<td>As above, the start moved (the origin, or the leg into it) and the change found so the end stays where it is</td>
+<td>as above</td>
+</tr>
+<tr>
+<td>Smooth</td>
+<td>The courses (as directions) and speeds averaged over the window, as over the ground; not the positions</td>
+<td><em>RED ONE (DR) smoothed over 5 fixes</em>, <em>Courses and speeds averaged, not positions</em></td>
+</tr>
+<tr>
+<td>Remove jumps</td>
+<td>Fixes with a wild logged speed (4, below)</td>
+<td><em>RED ONE (DR): 2 jumps removed</em></td>
+</tr>
+</tbody>
+</table>
+<p>An operation on the time window changes the course and speed of each fix in it, ends included: each is the leg that starts at that fix, so the leg out of the window's last fix changes too. A legacy .dpf DR leg that records no courses or speeds is edited by its positions, as over the ground.</p>
+</li>
+<li>
+<p><strong>The fixes after follow on.</strong> Over the ground, changing the fixes in the time window leaves the rest where they are, so the track jumps where they meet. On a DR track each fix is placed from the one before, so the fixes after the window follow on, with no jump: that is the nature of dead reckoning. The map and the step say so: <em>the fixes after follow on, by dead reckoning</em>.</p>
+</li>
+<li>
+<p><strong>What the map shows.</strong> While dragging, the map draws the track as dead reckoning will leave it: the later fixes, marked, and their rings follow the pointer, the track as it was dashed beneath. The note says what changes in dead-reckoning terms: <em>RED ONE (DR) fix at 09:43:00Z: moving 0.42 nmi 045.0°T; leg into it now 056.5°T 12.1 kn (was 045.0°T 12.0 kn); the fixes after follow</em>, adding <em>faster than 15.0 kn, as a jump would be</em> when the new leg is; <em>RED ONE (DR): rotating 3.0° clockwise about …; the courses in the time window turn, and the fixes after follow on, by dead reckoning</em>; <em>RED ONE (DR): stretching to 12.4 kn (was 11.6 kn); every speed is scaled</em>; <em>RED ONE (DR): shearing to 087.2°T 12.4 kn; end moved 1.20 nmi 045.0°T; one set and drift is added to every leg</em>. <strong>Move a fix…</strong> says the same of a position typed. What the map draws is what the tool service makes: both work it out the same way, and shared test vectors check that they agree, at mid-latitude, far north and across the antimeridian.</p>
+</li>
+<li>
+<p><strong>Jumps on a DR track.</strong> On a DR track positions jump only where a logged speed is wild, so <strong>Find and remove jumps…</strong> offers the fixes whose <strong>logged speed</strong> is faster than the threshold (the same default: three times the track's median speed, at least 10 kn), in runs of at most 5 with ordinary speeds either side; a longer run, or one reaching the track's end, may be the platform really going fast, and is not offered. Each is listed as <em>09:20:00Z 37°08.456'N 075°26.932'W · logged 176.5 kn on to 09:21:00Z</em>, and the note says <em>RED ONE (DR): 1 jump found, each logged faster than 30.0 kn, so dead reckoning takes the leg from it too far</em>. Removing one joins the legs either side of it: the fix before carries on, by its own course and speed, to the fix after. The first fix is never offered or removed (dead reckoning starts there, and removing it would start the track where its wild leg ended: drag the fix after it instead, which changes that leg), nor is the last (its speed places no fix). A wild course is not found this way, since the speed is ordinary: the track is offset from that fix on, and dragging the fix after it puts the leg right. We chose this over refusing jump removal on a DR track: a REP file's speed glitch is exactly what an analyst plotting DR needs to tidy.</p>
+</li>
+<li>
+<p><strong>What is kept as logged.</strong> Edits never change the positions, courses and speeds as logged, kept beside the track since it was plotted by dead reckoning (<code>logged_positions</code>, <code>logged_courses</code>, <code>logged_speeds</code>). Courses and speeds changed while plotted so are content, recorded in history like any change, and undone by replay. Whether the track was changed while plotted so is told by comparing its origin, courses and speeds with those logged, so a rotation, a stretch or smoothing is noticed as well as a move; plotted over the ground again, after the warning, all three come back. Fixes removed as jumps go from the logged series too, so removing jumps alone loses nothing over the ground.</p>
+</li>
+<li>
+<p><strong>Plotted by dead reckoning from the track as it is.</strong> Plotting a track by dead reckoning starts from its positions, courses and speeds as they are (over the ground, those it was logged with, or as an edit over the ground left them), keeps them as logged, and works the positions out from its first fix. We chose this over going back to older logged data: over the ground, the track's data <em>is</em> what was logged, so DR, then over the ground, then DR again comes back to the same track.</p>
+</li>
+<li>
+<p><strong>Split and merge.</strong> Splitting keeps each part's courses, speeds and logged series; each part starts where its first fix already was, so nothing moves. Merging tracks plotted by dead reckoning makes one track with one origin: each later track follows on, by dead reckoning, from the end of the one before, so that a later edit cannot move it unseen; if that moves its fixes, the step's notes say so (<em>By dead reckoning, BLUE TWO now follows on from BLUE ONE: the most a fix moved: 2.10 nmi, at 10:00:00Z</em>). Tracks plotted differently are not merged, as before.</p>
+</li>
+<li>
+<p><strong>For agents.</strong> The same <code>debrief/edit_track</code> edits; the tool service works out the dead-reckoning result, and the record of a fix dragged holds the new leg's <code>course</code> and <code>speed</code> beside what was asked. <code>debrief/find_jumps</code> marks a DR track's jumps <code>"logged": true</code>, their <code>speed</code> the logged speed and <code>since</code> the time of the fix their leg runs to.</p>
+</li>
+</ol>
 <h2 id="reference-implementation">Reference implementation<a class="headerlink" href="#reference-implementation" title="Permanent link">&para;</a></h2>
 <ul>
 <li><strong>Schema (0.0.14; 0.0.15 adds shear and stretch):</strong> <code>TrackEdit</code>, <code>TrackEditActionEnum</code> and <code>TrackEditAnchorEnum</code> in <code>schemas/linkml/features.yaml</code>; the message <code>edit_track</code> (<code>feature_id</code>, <code>track_edit</code>) in <code>schemas/linkml/messages.yaml</code>; the rules in <code>debrief_schemas.documents.track_edit_problems</code> and <code>vscode/src/messages.ts</code>; fixtures <code>webview_message/valid/edit-track-*.json</code> and the <code>edit-track-*</code> invalid ones.</li>
@@ -2154,8 +2261,9 @@
 <li><strong>Tests:</strong> <code>python/debrief-stac/tests/test_tracks.py</code> (geodesic moves and rotations, far north and across the antimeridian; periods; split and merge invariants; undo; conflicts), the service test, <code>vscode/test/unit/trackedit.test.ts</code>, the playground test's <code>vscode/test/play/tracks.mjs</code> (drag, Escape, undo, rotate, keyboard runs, a period, a colleague's change during a drag, split, merge, an overlap refused, the forms), the playground test's <code>vscode/test/play/shear.mjs</code> (a straight leg sheared and stretched by its ends, Escape, undo, the keyboard, the forms), and the integration test's track steps.</li>
 <li><strong>Cleaning tracks (part B2):</strong> schema 0.0.16's <code>FixMark</code> and <code>fix_marks</code> in <code>schemas/linkml/features.yaml</code>, the messages <code>show_fixes</code> and <code>fix_chosen</code>, the rules in <code>debrief_schemas.documents</code>; <code>debrief_stac.fixes</code> (finding jumps, the default threshold, removing fixes with every series in step, smoothing, marks and the step names), marks carried through <code>split</code> and <code>merge</code> in <code>debrief_stac.tracks</code>; <code>Catalogue.find_jumps</code>, <code>remove_jumps</code>, <code>smoothing_preview</code>, <code>smooth_track</code> and <code>mark_fix</code>; the service's <code>debrief/find_jumps</code>, <code>debrief/remove_jumps</code>, <code>debrief/preview_smoothing</code>, <code>debrief/smooth_track</code> and <code>debrief/mark_fix</code>; the .dpf mapping in <code>debrief_io.dpf_import</code> (<code>_fix_marks</code>); <code>vscode/webview/fixes.ts</code> (free of Leaflet: the fix list's rows, reading a threshold and a window, the words); the map's marks, rings and preview in <code>vscode/webview/map.ts</code>; the commands <code>debrief.removeJumps</code>, <code>debrief.smoothTrack</code> and <code>debrief.markFix</code> in <code>vscode/src/extension.ts</code>; the Timeline's fix comments in <code>vscode/src/timeline.ts</code>; the playground's <strong>Jumps…</strong>, <strong>Smooth…</strong> and <strong>Fixes…</strong> (<code>vscode/play/host.ts</code>, <code>clean</code> and <code>glitches</code> in <code>play.py</code>). Tests: <code>python/debrief-stac/tests/test_fixes.py</code>, the service test, <code>python/debrief-io/tests/test_dpf_import.py</code>, <code>vscode/test/unit/fixes.test.ts</code>, the playground test's <code>vscode/test/play/cleaning.mjs</code>, and the integration test's cleaning steps.</li>
 <li><strong>Single fixes and dead reckoning (part B3):</strong> schema 0.0.17's <code>move_fix</code> and <code>set_plotting_mode</code> actions of <code>TrackEdit</code>, with <code>fix_time</code>, <code>position</code>, <code>plotting_mode</code> and <code>discard_dr_changes</code>; <code>plotting_mode</code> and <code>logged_positions</code> on a track; <code>track_import_mode</code> in the analyst's configuration (<code>debrief_config.track_import_mode</code> and <code>with_track_import_mode</code>, and their TypeScript twins); and their rules in <code>debrief_schemas.documents</code> and <code>vscode/src/messages.ts</code>; <code>debrief_stac.tracks</code> (<code>fix_index</code>, <code>fix_moved</code>, <code>implied_speeds</code>, <code>plotted_as</code>, <code>dead_reckoned_positions</code>, <code>changed_while_dr</code> and the step names) and <code>Catalogue.edit_track</code> (refusing with <code>ConfirmationNeeded</code>, the service's error -32003, until confirmed); the DR tag (<code>trackLabel</code> and <code>DR_TAG</code> in <code>vscode/webview/fixes.ts</code>, the outline and the map); the modes given to <code>debrief_io.import_rep</code> (<code>modes</code>, <code>remembered</code>, <code>rep_track_names</code>) and the .dpf mapping of <code>PlotRelative</code> in <code>debrief_io.dpf</code> and <code>dpf_import</code>; the service's <code>debrief/rep_tracks</code>; asking for each track in <code>vscode/src/importmode.ts</code>; <code>vscode/webview/trackedit.ts</code> (free of Leaflet: which fixes get rings, a fix's gesture, the readout with the speeds in and out, the jump speed, dead reckoning) and the rings, their drag, keyboard and menu in <code>vscode/webview/trackmap.ts</code>; the commands <code>debrief.moveFix</code>, <code>debrief.plottingMode</code> and <code>debrief.askTrackImportMode</code>, the setting <code>debrief.trackImportMode</code>, the questions in <code>debrief.importRep</code>, and <strong>Move…</strong> in a fix's menu in <code>vscode/src/extension.ts</code>; the playground's <strong>Move…</strong> in the fix list, <strong>OTG/DR…</strong>, the questions on import and <strong>Ask again</strong> (<code>vscode/play/host.ts</code>, and <code>import_mode</code> and <code>rep_tracks</code> in <code>play.py</code>). Tests: <code>python/debrief-stac/tests/test_fix_drag.py</code> (geodesic moves far north and across the antimeridian, the speeds implied, marks kept, undo, conflicts; dead reckoning of straight legs at any latitude and back over the ground, split and merge, refusals), <code>python/debrief-io/tests/test_importer.py</code> and <code>test_dpf_import.py</code> (modes given, notes, a .dpf DR leg), <code>python/debrief-config/tests/test_config.py</code> and <code>ts/config/test/config.test.ts</code> (the setting, cleared), the service test, <code>vscode/test/unit/fixdrag.test.ts</code> and <code>importmode.test.ts</code>, the playground test's <code>vscode/test/play/fixdrag.mjs</code> (zoom in for rings, a mouse drag, <code>Escape</code>, undo, a run of arrow keys, a finger's drag, the form, OTG/DR, an import asking for each track, remembered, then asked again), and the integration test's single-fix and import steps.</li>
+<li><strong>Editing a track plotted by dead reckoning (decision, product owner, 14 Oct 2026):</strong> <code>debrief_stac.reckoning</code> (the origin, courses and speeds, <code>Reckoning</code>; <code>dr_moved</code>, <code>dr_fix_moved</code>, <code>dr_rotated</code>, <code>dr_stretched</code>, <code>dr_sheared</code>, <code>dr_smoothed</code>, <code>find_dr_jumps</code>, <code>dr_without_fixes</code> and the words); <code>changed_while_dr</code> and <code>plotted_as</code> in <code>debrief_stac.tracks</code>, with <code>logged_courses</code> and <code>logged_speeds</code> on a track (schema 0.0.17); <code>Catalogue.edit_track</code>, <code>find_jumps</code>, <code>remove_jumps</code>, <code>smoothing_preview</code> and <code>smooth_track</code> choosing them for a DR track; the map's preview in <code>vscode/webview/trackedit.ts</code> (<code>reckon</code>, <code>drFixMoved</code>, <code>drMoved</code>, <code>drTurned</code>, <code>drStretched</code>, <code>drSheared</code>, <code>drFixReadout</code>, <code>fixMeans</code>) and <code>trackmap.ts</code> (rings following, the pivot of a window). Tests: <code>python/debrief-stac/tests/test_dr_editing.py</code> (each operation, periods, far north, across the antimeridian, undo and redo with the hash chain, jumps, split and merge, over the ground again), the shared vectors <code>schemas/vectors/dead-reckoning.json</code> checked by it and by <code>vscode/test/unit/fixdrag.test.ts</code>, the playground test's DR fix drag and rotation in <code>vscode/test/play/fixdrag.mjs</code>, and the integration test's DR fix moved.</li>
 </ul>
-<p><em>Not yet (after part B):</em> a REP track whose legs legacy plotted differently (its symbology's new-segment marks) asked about leg by leg; how often fixes are labelled, marked with a symbol and given a direction arrow, set for one or more tracks at once, every 1 second to every 24 hours (CAP-32, planned, not yet scheduled); a ring on the fix nearest the pointer when zoomed out; a DR track's positions worked out again when the track later changes, as legacy did; simplifying a track (dropping fixes); where on a fix a label goes, and fix symbols and arrows; live bearing residuals while shearing or stretching (the TMA module, CAP-21); choosing which track wins where merged tracks overlap; renaming a track on its own.</p>
+<p><em>Not yet (after part B):</em> a REP track whose legs legacy plotted differently (its symbology's new-segment marks) asked about leg by leg; how often fixes are labelled, marked with a symbol and given a direction arrow, set for one or more tracks at once, every 1 second to every 24 hours (CAP-32, planned, not yet scheduled); a ring on the fix nearest the pointer when zoomed out; simplifying a track (dropping fixes); where on a fix a label goes, and fix symbols and arrows; live bearing residuals while shearing or stretching (the TMA module, CAP-21); choosing which track wins where merged tracks overlap; renaming a track on its own.</p>
 
 
 

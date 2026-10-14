@@ -69,7 +69,7 @@
     
     
     
-    <body dir="ltr" data-md-color-scheme="default" data-md-color-primary="indigo" data-md-color-accent="indigo"><div class="pr-preview-banner" style="background:#fff4ce;color:#3b2f00;border-bottom:1px solid #e0c060;padding:6px 16px;font:14px/1.4 system-ui,sans-serif;text-align:center">Preview of <a style="color:inherit;text-decoration:underline" href="https://github.com/debrief/fuudee/pull/40">pull request #40</a>: Track operations, part B3: drag a single fix; OTG and DR plotting. Built from 3d71c5f on 2026-10-14 09:04 UTC. <a style="color:inherit;text-decoration:underline" href="https://debrief.github.io/fuudee/pr-preview/">All previews</a></div>
+    <body dir="ltr" data-md-color-scheme="default" data-md-color-primary="indigo" data-md-color-accent="indigo"><div class="pr-preview-banner" style="background:#fff4ce;color:#3b2f00;border-bottom:1px solid #e0c060;padding:6px 16px;font:14px/1.4 system-ui,sans-serif;text-align:center">Preview of <a style="color:inherit;text-decoration:underline" href="https://github.com/debrief/fuudee/pull/40">pull request #40</a>: Track operations, part B3: drag a single fix; OTG and DR plotting. Built from b4f7ace on 2026-10-14 10:46 UTC. <a style="color:inherit;text-decoration:underline" href="https://debrief.github.io/fuudee/pr-preview/">All previews</a></div>
   
     
     <input class="md-toggle" data-md-toggle="drawer" type="checkbox" id="__drawer" autocomplete="off">
@@ -1423,6 +1423,17 @@
 </li>
       
         <li class="md-nav__item">
+  <a href="#editing-a-dead-reckoned-track" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Editing a dead-reckoned track
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
   <a href="#for-agents" class="md-nav__link">
     <span class="md-ellipsis">
       
@@ -1533,7 +1544,7 @@
                           <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 20a8 8 0 0 0 8-8 8 8 0 0 0-8-8 8 8 0 0 0-8 8 8 8 0 0 0 8 8m0-18a10 10 0 0 1 10 10 10 10 0 0 1-10 10C6.47 22 2 17.5 2 12A10 10 0 0 1 12 2m.5 5v5.25l4.5 2.67-.75 1.23L11 13V7z"/></svg>
                           <span class="md-ellipsis">
                             
-                              7 min read
+                              9 min read
                             
                           </span>
                         </div>
@@ -1587,13 +1598,18 @@
 <p><img alt="VS Code asking the same, in a list: over the ground or dead reckoning, and below them the line to tick to use this choice for future track imports" src="../../../../images/phase-3/fixdrag-vscode-import-asks.png" /></p>
 <p>Where that remembered choice lives matters. It's yours, not the plot's: a colleague you send a plot to shouldn't inherit it, and it mustn't change what's in a catalogue. So it is kept with your own Debrief settings (the same file VS Code and the Python services both read), never in a catalogue or a plot file. In VS Code it's an ordinary setting, <strong>Debrief: Track import mode</strong> (ask, OTG or DR), and <strong>Debrief: Ask again whether imported tracks are OTG or DR</strong> puts it back to asking; in the playground, <strong>Ask again</strong> sits under <em>Import</em>. The importer itself is simply told the answer, which is also how an agent says which it wants.</p>
 <p>What <em>is</em> the plot's is how each track is plotted: the mode is kept on the track, like its colour, and changing it later (<strong>Plot over the ground or by dead reckoning…</strong>) is one step. A track plotted by dead reckoning keeps its positions as logged beside the dead-reckoned ones, so switching back puts them back exactly; and the track's line is always the positions as plotted, so any other GeoJSON tool draws what Debrief draws. It's tagged <strong>DR</strong> beside its name, in the outline and in its label on the map; its line is drawn as any track's.</p>
-<p>Switching back does lose something, though: if you've moved the track, or dragged a fix, while it was plotted by dead reckoning, its fixes go back where they were logged and those changes go. So Debrief asks first, saying which fix moved furthest and by how much; it's still one step, and <code>Ctrl+Z</code> brings the changes back.</p>
+<h2 id="editing-a-dead-reckoned-track">Editing a dead-reckoned track<a class="headerlink" href="#editing-a-dead-reckoned-track" title="Permanent link">&para;</a></h2>
+<p>What does dragging a fix <em>mean</em> on a track plotted by dead reckoning? Its positions aren't data in their own right: they're worked out from where the track starts and each fix's course and speed. The product owner decided that's where edits go. Move the whole track and you move where it starts. Do anything else and you change courses and speeds, and the positions are worked out again: a rotation turns the courses, a stretch scales the speeds, a shear adds one set and drift to every leg (so a straight leg steers exactly the course and speed the map shows, and a leg with a turn in it keeps its turn), and smoothing averages courses and speeds rather than positions.</p>
+<p>Drag a single fix and Debrief changes the course and speed of the leg <em>into</em> it, so dead reckoning puts it where you let go, and every fix after it follows, as it must on a DR plot. The map shows that as you drag, the later fixes and their rings moving with the pointer, and says what the leg has become: <em>RED ONE (DR) fix at 11:38:00Z: moving 0.35 nmi 056.5°T; leg into it now 068.8°T 18.3 kn</em>. Let go and the step is named the same way: <em>RED ONE (DR) leg into 11:38:00Z now 068.8°T 18.3 kn</em>. Over the ground nothing changes: only the fix you grab moves.</p>
+<p><img alt="The playground: RED ONE plotted by dead reckoning, one fix being dragged up and to the right; every later fix, ring and all, follows it, the track as it was dashed beneath, and the note at the top gives the new course and speed of the leg into the fix" src="../../../../images/phase-3/dr-fix-dragging.png" /></p>
+<p>The same thinking settles jump removal. On a DR track a position can only jump if a logged speed is wild, so Debrief offers the fixes whose <em>logged</em> speed is implausible, and removing one lets the leg before it carry on to the fix after. And the positions, courses and speeds as logged are all kept beside the track, untouched by any edit.</p>
+<p>Switching back does lose something, though: if you've moved the track, dragged a fix or turned it while it was plotted by dead reckoning, its fixes, courses and speeds go back to those logged and those changes go. So Debrief asks first, saying what changed (where it starts, or the first course and speed that isn't as logged; comparing courses and speeds is what catches a rotation); it's still one step, and <code>Ctrl+Z</code> brings the changes back.</p>
 <p><img alt="The playground asking before RED ONE, moved while plotted by dead reckoning, is plotted over the ground again: the changes made while plotted by dead reckoning would be lost" src="../../../../images/phase-3/fixdrag-dr-changes-lost.png" /></p>
 <p>We checked our dead reckoning against legacy's. Legacy plot files save a DR leg's worked-out positions, and placing each fix from the one before, by that fix's course and speed, along the geodesic, puts every fix of the legacy sample plots back within 0.1 m of them. Those plots aren't asked about at all: they say how each leg was plotted, and come in that way, with a note saying so.</p>
 <h2 id="for-agents">For agents<a class="headerlink" href="#for-agents" title="Permanent link">&para;</a></h2>
 <p>The same through the tool service: <code>debrief/edit_track</code> with <code>{"action": "move_fix", "fix_time": …, "distance": …, "bearing": …}</code> (or a <code>position</code>), and <code>{"action": "set_plotting_mode", "plotting_mode": "dr"}</code>, each one step with what was asked in its record (back over the ground after a change made while plotted by dead reckoning is refused, saying why, unless the change says <code>"discard_dr_changes": true</code>); and <code>debrief/import_rep</code> takes the mode for each track.</p>
 <h2 id="try-it">Try it<a class="headerlink" href="#try-it" title="Permanent link">&para;</a></h2>
-<p>Select <strong>RED ONE</strong>, zoom in until its fixes have rings, and drag one. Then try <code>Tab</code> and the arrow keys, <strong>Move…</strong> in <strong>Fixes…</strong>, or <strong>OTG/DR…</strong> under <em>Track</em>, below the outline; and import a REP file of your own to be asked how its tracks are plotted:</p>
+<p>Select <strong>RED ONE</strong>, zoom in until its fixes have rings, and drag one. Then try <code>Tab</code> and the arrow keys, <strong>Move…</strong> in <strong>Fixes…</strong>, or <strong>OTG/DR…</strong> under <em>Track</em>, below the outline, and drag a fix again to see the fixes after it follow; and import a REP file of your own to be asked how its tracks are plotted:</p>
 <div class="debrief-demo" data-demo="?panels=history,import" data-height="820px" data-caption="Select RED ONE, zoom in until each fix has a ring, and drag one. Everything runs in your browser."></div>
 
 <h2 id="not-yet">Not yet<a class="headerlink" href="#not-yet" title="Permanent link">&para;</a></h2>
