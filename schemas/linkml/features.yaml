@@ -188,6 +188,22 @@ classes:
           the positions it worked out.
         range: LineStringGeometry
         inlined: true
+      logged_courses:
+        description: >-
+          A track plotted by dead reckoning: its courses as logged, one per
+          fix, as they were when it was plotted so. On a DR track the
+          courses and speeds are what edits change (decision, product
+          owner, 14 Oct 2026), so these tell what was changed while plotted
+          by dead reckoning, and plotting it over the ground again puts them
+          back.
+        range: AngleSeries
+        inlined: true
+      logged_speeds:
+        description: >-
+          A track plotted by dead reckoning: its speeds as logged, one per
+          fix, as they were when it was plotted so; see logged_courses.
+        range: SpeedSeries
+        inlined: true
       hidden:
         description: >-
           Not drawn on the map. Still listed, and still selectable, in the

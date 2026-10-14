@@ -66,6 +66,9 @@ from debrief_schemas import models
 
 # A part of a split track, as a LineString, needs at least two fixes.
 FEWEST_FIXES = 2
+# The values a track keeps one of per fix, beside its positions and times: kept in step
+# with the fixes when they are split, merged or removed.
+SERIES = ("speeds", "courses", "depths", "logged_courses", "logged_speeds")
 
 
 class TrackError(ValueError):
@@ -621,9 +624,15 @@ def plotted_as(track: models.TrackFeature, mode: str) -> models.TrackFeature | N
         return None
     props = track.properties
     if mode == "dr":
-        logged = track.geometry
+        # From the track as it is: over the ground, its positions, courses and speeds are
+        # those logged (or as an edit over the ground left them), and they are kept so.
         positions = dead_reckoned_positions(track)
-        update = {"plotting_mode": "dr", "logged_positions": logged}
+        update = {
+            "plotting_mode": "dr",
+            "logged_positions": track.geometry,
+            "logged_courses": props.courses,
+            "logged_speeds": props.speeds,
+        }
     else:
         if props.logged_positions is None:
             raise TrackError(
@@ -632,7 +641,18 @@ def plotted_as(track: models.TrackFeature, mode: str) -> models.TrackFeature | N
                 "plotted over the ground."
             )
         positions = [list(p) for p in props.logged_positions.coordinates]
-        update = {"plotting_mode": "otg", "logged_positions": None}
+        update = {
+            "plotting_mode": "otg",
+            "logged_positions": None,
+            "logged_courses": None,
+            "logged_speeds": None,
+        }
+        # The courses and speeds as logged come back with the positions: on a DR track the
+        # edits were made to the courses and speeds, and they are lost with the positions.
+        if props.logged_courses is not None:
+            update["courses"] = props.logged_courses
+        if props.logged_speeds is not None:
+            update["speeds"] = props.logged_speeds
     geometry = track.geometry.model_copy(update={"coordinates": positions})
     return track.model_copy(
         update={"geometry": geometry, "properties": props.model_copy(update=update)}
@@ -640,21 +660,69 @@ def plotted_as(track: models.TrackFeature, mode: str) -> models.TrackFeature | N
 
 
 # Over the ground again after a change made while plotted by dead reckoning (decision,
-# product owner, 14 Oct 2026): the positions as logged come back, so that change is lost;
-# the analyst is warned first and confirms. A track is taken to have been changed while
-# plotted so when a fix is further than this from where dead reckoning from its positions
-# as logged, by its courses and speeds as they now are, puts it.
+# product owner, 14 Oct 2026): the positions, courses and speeds as logged come back, so
+# that change is lost; the analyst is warned first and confirms. On a DR track an edit
+# changes its origin, or its courses and speeds (debrief_stac.reckoning), so a track is
+# taken to have been changed while plotted so when its first fix is further than
+# DR_CHANGED_M from where it was logged, or a course or a speed is not as logged.
 DR_CHANGED_M = 1.0
+# A course (degrees) or a speed (metres a second) further than this from the one logged
+# was changed: far below what any edit makes, far above a unit's rounding.
+DR_CHANGED_VALUE = 1e-6
 
 
-def changed_while_dr(track: models.TrackFeature) -> tuple[int, float] | None:
+def changed_while_dr(track: models.TrackFeature) -> str | None:
     """Whether a track plotted by dead reckoning was changed since (moved, rotated, a fix
-    moved, smoothed and so on): the fix furthest from where dead reckoning from its
-    positions as logged puts it, and how far in metres; None if none is, or it cannot tell
-    (not plotted so, or no positions as logged, courses or speeds)."""
+    moved, smoothed and so on), said as the warning says it: "its first fix is 2.00 nmi
+    from where it was logged", or "its course and speed at 09:34:00Z are 056.5°T 12.1 kn,
+    logged 045.0°T 12.0 kn". None if not, or it cannot tell (not plotted so, or no
+    positions as logged). A plot from before the courses and speeds as logged were kept
+    is told by where dead reckoning from its positions as logged puts each fix."""
     props = track.properties
     if plotting_mode(track) != "dr" or props.logged_positions is None:
         return None
+    if props.logged_courses is None or props.logged_speeds is None:
+        return _changed_positions(track)
+    origin = Position(*track.geometry.coordinates[0])
+    logged_origin = Position(*props.logged_positions.coordinates[0])
+    metres = range_bearing(logged_origin, origin)[0].value
+    if metres > DR_CHANGED_M:
+        return f"its first fix is {_distance_text(metres)} from where it was logged"
+    if props.courses is None or props.speeds is None:
+        return None
+    pairs = (
+        (props.courses, props.logged_courses, "deg"),
+        (props.speeds, props.logged_speeds, "m/s"),
+    )
+    for i in range(len(props.times)):
+        for now, logged, unit in pairs:
+            a = Quantity(now.values[i], str(now.unit)).to(unit).value
+            b = Quantity(logged.values[i], str(logged.unit)).to(unit).value
+            gap = abs((a - b + 180.0) % 360.0 - 180.0) if unit == "deg" else abs(a - b)
+            if gap > DR_CHANGED_VALUE:
+                return (
+                    f"its course and speed at {_when(times_of(track)[i])} are "
+                    f"{_series_course_speed(props.courses, props.speeds, i)}, logged "
+                    f"{_series_course_speed(props.logged_courses, props.logged_speeds, i)}"
+                )
+    return None
+
+
+def _series_course_speed(courses, speeds, i: int) -> str:
+    course = Quantity(courses.values[i], str(courses.unit)).to("deg")
+    speed = Quantity(speeds.values[i], str(speeds.unit)).to("m/s").value
+    return f"{format_bearing(course)} {_speed_text(speed)}"
+
+
+def _distance_text(metres: float) -> str:
+    text = format_quantity(Quantity(metres, "m").to(DEFAULT_SETTINGS.length_unit))
+    if not any(c in "123456789" for c in text.split(" ")[0]):
+        text = f"{round(metres)} m"
+    return text
+
+
+def _changed_positions(track: models.TrackFeature) -> str | None:
+    props = track.properties
     try:
         expected = dead_reckoned_positions(track, props.logged_positions.coordinates)
     except TrackError:
@@ -664,25 +732,23 @@ def changed_while_dr(track: models.TrackFeature) -> tuple[int, float] | None:
         metres = range_bearing(Position(*a), Position(*b))[0].value
         if metres > most:
             best, most = i, metres
-    return (best, most) if most > DR_CHANGED_M else None
-
-
-def describe_dr_changes(track: models.TrackFeature, index: int, metres: float) -> str:
-    """The warning before such a change is lost: "RED ONE was changed while plotted by dead
-    reckoning (its fix at 09:34:00Z is 2.00 nmi from where dead reckoning puts it). Over the
-    ground, each fix goes
-    back where it was logged, and that change is lost; ..."."""
-    distance, when = (
-        describe_largest_shift(track, index, metres)
-        .removeprefix("The most a fix moved: ")
-        .split(", at ")
-    )
+    if most <= DR_CHANGED_M:
+        return None
     return (
-        f"{track.properties.name} was changed while plotted by dead reckoning (its fix at "
-        f"{when} is {distance} from where dead reckoning puts it). Plotted over the ground, "
-        "each fix goes "
-        "back where it was logged, and the changes made while plotted by dead reckoning are "
-        "lost; its courses and speeds stay as they are now. Undo takes it back."
+        f"its fix at {_when(times_of(track)[best])} is {_distance_text(most)} from where dead "
+        "reckoning puts it"
+    )
+
+
+def describe_dr_changes(track: models.TrackFeature, said: str) -> str:
+    """The warning before such a change is lost: "RED ONE was changed while plotted by dead
+    reckoning (its course and speed at 09:34:00Z are 056.5°T 12.1 kn, logged 045.0°T 12.0
+    kn). Plotted over the ground, each fix goes back where it was logged, ..."."""
+    return (
+        f"{track.properties.name} was changed while plotted by dead reckoning ({said}). "
+        "Plotted over the ground, each fix goes back where it was logged, with its course and "
+        "speed as logged, and the changes made while plotted by dead reckoning are lost. "
+        "Undo takes it back."
     )
 
 
@@ -695,8 +761,10 @@ def describe_plotting_how(track: models.TrackFeature, mode: str) -> str:
     if mode == "dr":
         return (
             f"From its first fix, at {_when(times_of(track)[0])}, by each fix's recorded course "
-            "and speed; its positions as logged are kept"
+            "and speed; its positions, courses and speeds as logged are kept"
         )
+    if track.properties.logged_courses is not None:
+        return "Each fix where it was logged, with its course and speed as logged"
     return "Each fix where it was logged"
 
 
@@ -737,7 +805,7 @@ def _sliced(track: models.TrackFeature, part: slice, **update) -> models.TrackFe
     props = track.properties
     series = {
         name: getattr(props, name).model_copy(update={"values": getattr(props, name).values[part]})
-        for name in ("speeds", "courses", "depths")
+        for name in SERIES
         if getattr(props, name) is not None
     }
     times = props.times[part]
@@ -902,6 +970,16 @@ def merge(
     elif any(g is not None for g in logged):
         series["logged_positions"] = None
         notes.append("Positions as logged not kept: not every track had them")
+    for member in ("logged_courses", "logged_speeds"):
+        present = [getattr(t.properties, member) for t in ordered]
+        if all(s is not None for s in present):
+            unit = str(present[0].unit)
+            values = [Quantity(v, str(s.unit)).to(unit).value for s in present for v in s.values]
+            series[member] = present[0].model_copy(update={"values": values})
+        elif any(s is not None for s in present):
+            series[member] = None
+            if member == "logged_courses":
+                notes.append("Courses and speeds as logged not kept: not every track had them")
     properties = props.model_copy(
         update={
             "name": name,
@@ -916,7 +994,30 @@ def merge(
     geometry = earliest.geometry.model_copy(
         update={"coordinates": [list(p) for t in ordered for p in t.geometry.coordinates]}
     )
-    return earliest.model_copy(update={"geometry": geometry, "properties": properties}), notes
+    merged = earliest.model_copy(update={"geometry": geometry, "properties": properties})
+    if modes == {"dr"} and properties.courses is not None and properties.speeds is not None:
+        # One DR track has one origin: each later track now follows on, by dead reckoning,
+        # from the end of the one before, so a later edit does not move it unseen.
+        positions = dead_reckoned_positions(merged)
+        index, metres = largest_shift(
+            merged,
+            merged.model_copy(
+                update={"geometry": geometry.model_copy(update={"coordinates": positions})}
+            ),
+            range(len(positions)),
+        )
+        merged = merged.model_copy(
+            update={"geometry": geometry.model_copy(update={"coordinates": positions})}
+        )
+        if metres > DR_CHANGED_M:
+            later = ", ".join(t.properties.name for t in ordered[1:])
+            verb = "follows" if len(ordered) == 2 else "follow"
+            shift = describe_largest_shift(merged, index, metres)
+            notes.append(
+                f"By dead reckoning, {later} now {verb} on from {ordered[0].properties.name}: "
+                f"{shift[0].lower()}{shift[1:]}"
+            )
+    return merged, notes
 
 
 __all__ = [

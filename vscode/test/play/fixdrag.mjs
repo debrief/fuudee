@@ -4,7 +4,9 @@
 // saying how far, which way and the speeds it now implies; letting go is one step, and Undo
 // puts it back. Escape puts a drag back. The same from the keyboard (Tab to the ring, a run of
 // arrow keys one step), by touch (a finger dragging the ring), and through the fix list's
-// Move… form, with the position typed. Then Plot as dead reckoning (DR…), one step, undone.
+// Move… form, with the position typed. Then Plot as dead reckoning (DR…), one step; on the DR track
+// a fix dragged changes the leg into it and every later fix follows, and a rotation turns its
+// courses (product owner, 14 Oct 2026); over the ground again asks first; all undone.
 import assert from "node:assert/strict";
 
 export async function playFixDrag(page, shot) {
@@ -222,6 +224,58 @@ export async function playFixDrag(page, shot) {
   assert.equal(await latest(), "RED ONE plotted by dead reckoning");
   assert.equal(await tag.innerText(), "DR");
   await mapFrame.locator(".track-label", { hasText: "RED ONE (DR)" }).waitFor();
+  await page.waitForTimeout(500);
+
+  // On the DR track a fix dragged changes the leg into it, so dead reckoning puts it where it is let go,
+  // and every later fix follows, its ring with it, while the fixes before stay (product owner, 14 Oct 2026).
+  const drTime = await clearRing();
+  const order = await rings.evaluateAll((list) => list.map((r) => r.dataset.time));
+  const k = order.indexOf(drTime);
+  const [earlierTime, laterTime] = [order[k - 1], order[k + 2] ?? order[k + 1]];
+  assert.ok(earlierTime && laterTime, "rings either side of the one dragged");
+  const [drFrom, earlierFrom, laterFrom] = [await where(drTime), await where(earlierTime), await where(laterTime)];
+  n = await steps();
+  await page.mouse.move(drFrom.x, drFrom.y);
+  await page.mouse.down();
+  await page.mouse.move(drFrom.x + 60, drFrom.y - 40, { steps: 8 });
+  await page.waitForTimeout(150);
+  const drSaid = await status.innerText();
+  const [, drWhen, drLeg] = drSaid.match(/^RED ONE \(DR\) fix at (\d\d:\d\d:\d\dZ): moving \d+\.\d\d nmi \d{3}\.\d°T; leg into it now (\d{3}\.\d°T \d+\.\d kn) \(was \d{3}\.\d°T \d+\.\d kn\); the fixes after follow/) ?? [];
+  assert.ok(drWhen, drSaid);
+  const laterNow = await where(laterTime);
+  assert.ok(Math.hypot(laterNow.x - laterFrom.x - 60, laterNow.y - laterFrom.y + 40) < 4, "a later fix follows while dragging, as dead reckoning puts it");
+  assert.ok((await mapFrame.locator("path.track-moved-fix").count()) > 2, "the fixes that follow are marked");
+  await shot("dr-01-fix-dragging");
+  await page.mouse.up();
+  await stepAdded(n);
+  assert.equal(await latest(), `RED ONE (DR) leg into ${drWhen} now ${drLeg}`);
+  assert.equal(await steps(), n + 1, "one step for one release");
+  await page.waitForTimeout(500);
+  const [drTo, earlierTo, laterTo] = [await where(drTime), await where(earlierTime), await where(laterTime)];
+  assert.ok(Math.hypot(drTo.x - drFrom.x - 60, drTo.y - drFrom.y + 40) < 3, "the fix is where it was let go");
+  assert.ok(Math.hypot(earlierTo.x - earlierFrom.x, earlierTo.y - earlierFrom.y) < 1, "the fix before stays");
+  assert.ok(Math.hypot(laterTo.x - laterFrom.x - 60, laterTo.y - laterFrom.y + 40) < 4, "a later fix followed");
+  await page.mouse.move(2, 2);
+  await noToasts();
+  await shot("dr-02-fix-dragged");
+
+  // A rotation turns the DR track's courses; from the keyboard, a run of presses is one step.
+  n = await steps();
+  await handle("rotate").focus();
+  for (let i = 0; i < 3; i++) await page.keyboard.press("ArrowRight");
+  await status.getByText(/^RED ONE \(DR\): rotating 3\.0° clockwise about /).waitFor();
+  await stepAdded(n);
+  assert.equal(await latest(), "RED ONE (DR) rotated 3.0° clockwise");
+  await page.waitForTimeout(500);
+  // Plotted over the ground again would lose that rotation: Debrief asks first (panel finding 7).
+  await page.locator("#plotting-mode").click();
+  await dialog.waitFor();
+  await page.locator("#track-form-mode").selectOption("otg");
+  await dialog.getByRole("button", { name: "Plot" }).click();
+  await dialog.locator(".form-warning", { hasText: /^RED ONE was changed while plotted by dead reckoning \((its first fix is [\d.]+ nmi from where it was logged|its course and speed at \d\d:\d\d:\d\dZ are [^)]*)\)/ }).waitFor();
+  await dialog.getByRole("button", { name: "Cancel" }).click();
+  await dialog.waitFor({ state: "detached" });
+
   // Changed while plotted by dead reckoning: moved 1 nmi east.
   n = await steps();
   await page.locator("#move-track").click();
@@ -230,7 +284,7 @@ export async function playFixDrag(page, shot) {
   await page.locator("#track-form-bearing").fill("090");
   await dialog.getByRole("button", { name: "Move" }).click();
   await stepAdded(n);
-  assert.equal(await latest(), "RED ONE moved 1.00 nmi 090.0°T");
+  assert.equal(await latest(), "RED ONE (DR) moved 1.00 nmi 090.0°T");
   // Over the ground again loses that change: the reader is warned and confirms first (product owner, 14 Oct 2026).
   const toOtg = async () => {
     await page.locator("#plotting-mode").click();
@@ -239,7 +293,7 @@ export async function playFixDrag(page, shot) {
     await page.locator("#track-form-mode").selectOption("otg");
     await dialog.getByRole("button", { name: "Plot" }).click();
     await page.waitForFunction(() => document.querySelector("dialog.track-form h2")?.textContent === "Plot RED ONE over the ground?");
-    await dialog.locator(".form-warning", { hasText: /^RED ONE was changed while plotted by dead reckoning \(its fix at \d\d:\d\d:\d\dZ is \d+\.\d\d nmi from where dead reckoning puts it\)\. Plotted over the ground, each fix goes back where it was logged, and the changes made while plotted by dead reckoning are lost/ }).waitFor();
+    await dialog.locator(".form-warning", { hasText: /^RED ONE was changed while plotted by dead reckoning \(its first fix is \d+\.\d\d nmi from where it was logged\)\. Plotted over the ground, each fix goes back where it was logged, with its course and speed as logged, and the changes made while plotted by dead reckoning are lost/ }).waitFor();
   };
   n = await steps();
   await toOtg();
@@ -257,9 +311,7 @@ export async function playFixDrag(page, shot) {
   assert.equal(await steps(), n + 1, "one step");
   assert.equal(await tag.count(), 0);
   await page.locator("#selected-count").click();
-  await page.keyboard.press("Control+z");
-  await page.keyboard.press("Control+z");
-  await page.keyboard.press("Control+z");
+  for (let i = 0; i < 5; i++) await page.keyboard.press("Control+z");
   await page.waitForFunction(() => /RED ONE plotted by dead reckoning[^]*undone/.test(document.getElementById("history")?.textContent ?? ""));
 
   // Importing a REP file asks how each track is plotted, as legacy Debrief did; "use this choice for

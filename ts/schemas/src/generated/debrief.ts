@@ -621,9 +621,17 @@ export interface TrackProperties {
   hidden?: boolean | null;
   kind: TrackKindEnum;
   /**
+   * A track plotted by dead reckoning: its courses as logged, one per fix, as they were when it was plotted so. On a DR track the courses and speeds are what edits change (decision, product owner, 14 Oct 2026), so these tell what was changed while plotted by dead reckoning, and plotting it over the ground again puts them back.
+   */
+  logged_courses?: AngleSeries | null;
+  /**
    * A track plotted by dead reckoning: its positions as logged, over the ground, one per fix, so plotting it over the ground again puts them back. Left out for a legacy plot's DR leg, which saved only the positions it worked out.
    */
   logged_positions?: LineStringGeometry | null;
+  /**
+   * A track plotted by dead reckoning: its speeds as logged, one per fix, as they were when it was plotted so; see logged_courses.
+   */
+  logged_speeds?: SpeedSeries | null;
   name: string;
   platform_class?: string | null;
   /**

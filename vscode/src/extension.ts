@@ -8,8 +8,7 @@ import { userInfo } from "node:os";
 import * as vscode from "vscode";
 import type { AnnotationSpec, ContextTracksEnum, ParameterValue, PlotView, SharedState, SharedStateChange, TimeRange, ToolDeclaration, TrackEdit } from "@debrief/schemas";
 import { formatBearing, formatPosition, formatQuantity, parsePosition, POSITION_EXAMPLE, UNIT_LABELS } from "@debrief/kernel";
-import { defaultPivotIndex, describeDistance, describeSpeed, describeTurn, fixIndexAt, fixMoved, fixReadout, fixToEdit, impliedSpeeds, jumpSpeed, legNow, mergedName, mergePlan, periodIndices, readBearing, readDistance, readSpeed, readTurn, type Anchor } from "../webview/trackedit.js";
-import { rangeBearing } from "../webview/geodesic.js";
+import { defaultPivotIndex, describeDistance, describeSpeed, describeTurn, FIX_PROMPT, FIX_PROMPT_DR, fixIndexAt, fixMeans, fixToEdit, jumpSpeed, legNow, mergedName, mergePlan, periodIndices, readBearing, readDistance, readSpeed, readTurn, reckoningOf, type Anchor } from "../webview/trackedit.js";
 import { chooseModes, MODE_LABELS, modeChoices, modeQuestion, REMEMBERED_IN_VSCODE, rememberItem, type ModeChoice, type PlottingMode } from "./importmode.js";
 import { loadConfig, trackImportMode, updateConfig, withTrackImportMode, type TrackImportMode } from "@debrief/config";
 import { changedSince, historyOnDisk, knownStores, openPlot, plotFile, type OpenedPlot } from "./catalogue.js";
@@ -24,7 +23,7 @@ import { ResultsPanel } from "./panels/results.js";
 import { TIME_VIEW, TimeView } from "./panels/timeview.js";
 import { CONFLICT, NEEDS_CONFIRMATION, NEWER_SCHEMA, ServiceError, ToolService, type Agent, type AnnotationChange, type CallOutcome, type OpenedView, type ToolListing, type TrackChange } from "./service.js";
 import type { CleanChange } from "./service.js";
-import { describeJump, describeMark, describeWindow, fixRows, jumpsFound, markAt, readThreshold, readWindow, smoothingNote } from "../webview/fixes.js";
+import { describeJump, describeMark, describeWindow, fixRows, isDeadReckoned, jumpsFound, markAt, readThreshold, readWindow, smoothingNote, trackLabel } from "../webview/fixes.js";
 import { HistoryProvider } from "./views/history.js";
 import { DiagnosticLog, hashed, logKey, serviceLine, toolRunLine, type ToolOutcome } from "./diagnostics.js";
 import { hiddenIds, hiddenNotice, isFeature, setViewOf, timeWindowOf, viewOf, type PlotFeature } from "./hidden.js";
@@ -1291,7 +1290,8 @@ export function activate(context: vscode.ExtensionContext): DebriefApi {
       return { problem: report((error as Error).message) };
     }
     const times = found.jumps.map((j) => j.time);
-    const said = jumpsFound(name, times.length, found.threshold, displaySettings);
+    const dr = isDeadReckoned(track.properties);
+    const said = jumpsFound(dr ? trackLabel(track.properties) : name, times.length, found.threshold, displaySettings, dr);
     if (!times.length) {
       showFixes(undefined);
       if (!given) void vscode.window.showInformationMessage(said);
@@ -1480,15 +1480,14 @@ export function activate(context: vscode.ExtensionContext): DebriefApi {
     showFixes({ feature_id: track.id, fix_times: [track.properties.times[index]] });
     const typed = await vscode.window.showInputBox({
       title: `Move the fix of ${name} at ${describeTimes(at)}`,
-      prompt: "Where it goes: only this fix moves; its time, recorded course and speed stay",
+      prompt: reckoningOf(track.properties) ? FIX_PROMPT_DR : FIX_PROMPT,
       value: formatPosition({ longitude: here[0], latitude: here[1] }, displaySettings),
       placeHolder: POSITION_EXAMPLE,
       validateInput: (text) => {
         try {
           const p = parsePosition(text);
           const to: [number, number] = [p.longitude, p.latitude];
-          const { metres, bearing } = rangeBearing(here, to);
-          const said = fixReadout(name, times[index], metres, bearing, impliedSpeeds(fixMoved(positions, index, to), times, index), jump, displaySettings, "moves");
+          const said = fixMeans(name, positions, times, index, to, jump, reckoningOf(track.properties), displaySettings);
           return { message: `Means ${formatPosition(p, displaySettings)}. ${said}`, severity: vscode.InputBoxValidationSeverity.Info };
         } catch (error) {
           return { message: (error as Error).message, severity: vscode.InputBoxValidationSeverity.Error };

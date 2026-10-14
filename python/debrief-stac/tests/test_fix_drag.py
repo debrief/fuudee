@@ -328,7 +328,7 @@ def test_changing_the_mode_is_one_step_undone_like_any(catalogue) -> None:
     assert record.notes[:2] == [
         "RED ONE plotted by dead reckoning",
         "From its first fix, at 09:30:00Z, by each fix's recorded course and speed; "
-        "its positions as logged are kept",
+        "its positions, courses and speeds as logged are kept",
     ]
     assert record.notes[2].startswith("The most a fix moved: ")
     assert parameters(record) == {"plotting_mode": "dr"}
@@ -340,7 +340,7 @@ def test_changing_the_mode_is_one_step_undone_like_any(catalogue) -> None:
     catalogue.edit_track("p", "track-red", {**edit, "plotting_mode": "otg"}, AGENT)
     assert last_record(catalogue).notes[:2] == [
         "RED ONE plotted over the ground",
-        "Each fix where it was logged",
+        "Each fix where it was logged, with its course and speed as logged",
     ]
     assert red(catalogue).geometry.coordinates == logged
     catalogue.history("p").undo()
@@ -391,6 +391,21 @@ AS_OTG = {"action": "set_plotting_mode", "plotting_mode": "otg"}
             },
             id="the-first-fix-moved",
         ),
+        # Panel finding 7: a rotation keeps every fix where dead reckoning from the positions
+        # as logged would put it, by the courses as turned, so it was missed when positions
+        # were compared; the courses are compared now.
+        pytest.param(
+            {"action": "rotate", "angle": {"value": 10, "unit": "deg"}},
+            id="rotated",
+        ),
+        pytest.param(
+            {
+                "action": "stretch",
+                "anchor": "start",
+                "speed": {"value": 14, "unit": "[kn_i]"},
+            },
+            id="stretched",
+        ),
     ],
 )
 def test_over_the_ground_after_a_change_made_while_dr_is_confirmed_first(catalogue, change) -> None:
@@ -401,7 +416,7 @@ def test_over_the_ground_after_a_change_made_while_dr_is_confirmed_first(catalog
     with pytest.raises(ConfirmationNeeded) as refused:
         catalogue.edit_track("p", "track-red", AS_OTG, AGENT)
     said = str(refused.value)
-    assert said.startswith("RED ONE was changed while plotted by dead reckoning (its fix at ")
+    assert said.startswith("RED ONE was changed while plotted by dead reckoning (its ")
     assert "the changes made while plotted by dead reckoning are lost" in said
     assert len(catalogue.history("p").steps()) == count
     assert red(catalogue) == changed
@@ -413,6 +428,8 @@ def test_over_the_ground_after_a_change_made_while_dr_is_confirmed_first(catalog
         "Changes made while plotted by dead reckoning discarded",
     ]
     assert red(catalogue).geometry.coordinates == RED.geometry.coordinates
+    assert red(catalogue).properties.courses == RED.properties.courses
+    assert red(catalogue).properties.speeds == RED.properties.speeds
     catalogue.history("p").undo()
     assert red(catalogue) == changed
 
@@ -423,6 +440,8 @@ def test_over_the_ground_unchanged_while_dr_asks_nothing(catalogue) -> None:
     catalogue.edit_track("p", "track-red", AS_DR, AGENT)
     assert changed_while_dr(red(catalogue)) is None
     catalogue.edit_track("p", "track-red", AS_OTG, AGENT)
-    assert last_record(catalogue).notes[1] == "Each fix where it was logged"
+    assert last_record(catalogue).notes[1] == (
+        "Each fix where it was logged, with its course and speed as logged"
+    )
     with pytest.raises(CatalogueError, match="only plotting a track over the ground discards"):
         catalogue.edit_track("p", "track-red", {**AS_DR, "discard_dr_changes": True}, AGENT)

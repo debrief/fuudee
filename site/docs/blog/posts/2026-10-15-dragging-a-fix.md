@@ -57,7 +57,17 @@ Where that remembered choice lives matters. It's yours, not the plot's: a collea
 
 What *is* the plot's is how each track is plotted: the mode is kept on the track, like its colour, and changing it later (**Plot over the ground or by dead reckoning…**) is one step. A track plotted by dead reckoning keeps its positions as logged beside the dead-reckoned ones, so switching back puts them back exactly; and the track's line is always the positions as plotted, so any other GeoJSON tool draws what Debrief draws. It's tagged **DR** beside its name, in the outline and in its label on the map; its line is drawn as any track's.
 
-Switching back does lose something, though: if you've moved the track, or dragged a fix, while it was plotted by dead reckoning, its fixes go back where they were logged and those changes go. So Debrief asks first, saying which fix moved furthest and by how much; it's still one step, and `Ctrl+Z` brings the changes back.
+## Editing a dead-reckoned track
+
+What does dragging a fix *mean* on a track plotted by dead reckoning? Its positions aren't data in their own right: they're worked out from where the track starts and each fix's course and speed. The product owner decided that's where edits go. Move the whole track and you move where it starts. Do anything else and you change courses and speeds, and the positions are worked out again: a rotation turns the courses, a stretch scales the speeds, a shear adds one set and drift to every leg (so a straight leg steers exactly the course and speed the map shows, and a leg with a turn in it keeps its turn), and smoothing averages courses and speeds rather than positions.
+
+Drag a single fix and Debrief changes the course and speed of the leg *into* it, so dead reckoning puts it where you let go, and every fix after it follows, as it must on a DR plot. The map shows that as you drag, the later fixes and their rings moving with the pointer, and says what the leg has become: *RED ONE (DR) fix at 11:38:00Z: moving 0.35 nmi 056.5°T; leg into it now 068.8°T 18.3 kn*. Let go and the step is named the same way: *RED ONE (DR) leg into 11:38:00Z now 068.8°T 18.3 kn*. Over the ground nothing changes: only the fix you grab moves.
+
+![The playground: RED ONE plotted by dead reckoning, one fix being dragged up and to the right; every later fix, ring and all, follows it, the track as it was dashed beneath, and the note at the top gives the new course and speed of the leg into the fix](images/phase-3/dr-fix-dragging.png)
+
+The same thinking settles jump removal. On a DR track a position can only jump if a logged speed is wild, so Debrief offers the fixes whose *logged* speed is implausible, and removing one lets the leg before it carry on to the fix after. And the positions, courses and speeds as logged are all kept beside the track, untouched by any edit.
+
+Switching back does lose something, though: if you've moved the track, dragged a fix or turned it while it was plotted by dead reckoning, its fixes, courses and speeds go back to those logged and those changes go. So Debrief asks first, saying what changed (where it starts, or the first course and speed that isn't as logged; comparing courses and speeds is what catches a rotation); it's still one step, and `Ctrl+Z` brings the changes back.
 
 ![The playground asking before RED ONE, moved while plotted by dead reckoning, is plotted over the ground again: the changes made while plotted by dead reckoning would be lost](images/phase-3/fixdrag-dr-changes-lost.png)
 
@@ -69,7 +79,7 @@ The same through the tool service: `debrief/edit_track` with `{"action": "move_f
 
 ## Try it
 
-Select **RED ONE**, zoom in until its fixes have rings, and drag one. Then try `Tab` and the arrow keys, **Move…** in **Fixes…**, or **OTG/DR…** under *Track*, below the outline; and import a REP file of your own to be asked how its tracks are plotted:
+Select **RED ONE**, zoom in until its fixes have rings, and drag one. Then try `Tab` and the arrow keys, **Move…** in **Fixes…**, or **OTG/DR…** under *Track*, below the outline, and drag a fix again to see the fixes after it follow; and import a REP file of your own to be asked how its tracks are plotted:
 
 <div class="debrief-demo" data-demo="?panels=history,import" data-height="820px" data-caption="Select RED ONE, zoom in until each fix has a ring, and drag one. Everything runs in your browser."></div>
 

@@ -24,8 +24,7 @@ import { placeToolTime } from "../webview/timelogic.js";
 import { TRACK_COLOURS } from "../webview/palette.js";
 import { TimeControl } from "../webview/timecontrol.js";
 import { formatBearing, formatPosition, parsePosition } from "@debrief/kernel";
-import { defaultPivotIndex, describeDistance, describeSpeed, describeTurn, fixIndexAt, fixMoved, fixReadout, fixToEdit, impliedSpeeds, jumpSpeed, legNow, mergedName, mergePlan, periodIndices, readBearing, readDistance, readSpeed, readTurn } from "../webview/trackedit.js";
-import { rangeBearing } from "../webview/geodesic.js";
+import { defaultPivotIndex, describeDistance, describeSpeed, describeTurn, FIX_PROMPT, FIX_PROMPT_DR, fixIndexAt, fixMeans, fixToEdit, jumpSpeed, legNow, mergedName, mergePlan, periodIndices, readBearing, readDistance, readSpeed, readTurn, reckoningOf } from "../webview/trackedit.js";
 import { chooseModes, MODE_LABELS, modeChoices, modeQuestion, REMEMBER_LABEL, REMEMBERED_IN_PLAYGROUND, type PlottingMode } from "../src/importmode.js";
 import { describeJump, describeMark, describeWindow, DR_TAG, fixRows, isDeadReckoned, jumpsFound, markAt, readThreshold, readWindow, smoothingNote, type Jump } from "../webview/fixes.js";
 import { FIX_COLOURS } from "../webview/palette.js";
@@ -944,7 +943,8 @@ $("find-jumps").onclick = async () => {
     found = await clean<Found>({ kind: "find_jumps", feature: track.id, threshold }, true);
     if (found.error) return toast(found.error, "warning");
   }
-  const said = jumpsFound(name, found.jumps.length, found.threshold);
+  const dr = isDeadReckoned(track.properties);
+  const said = jumpsFound(dr ? `${name} (${DR_TAG})` : name, found.jumps.length, found.threshold, undefined, dr);
   if (!found.jumps.length) return toast(said);
   const list = document.createElement("ul");
   list.className = "jump-list";
@@ -1134,14 +1134,13 @@ async function moveFix(trackId: string, time: string): Promise<void> {
     try {
       const p = parsePosition(text);
       const to: [number, number] = [p.longitude, p.latitude];
-      const { metres, bearing } = rangeBearing(here, to);
-      return { means: `${formatPosition(p)}. ${fixReadout(name, times[index], metres, bearing, impliedSpeeds(fixMoved(positions, index, to), times, index), jump, undefined, "moves")}` };
+      return { means: `${formatPosition(p)}. ${fixMeans(name, positions, times, index, to, jump, reckoningOf(track.properties))}` };
     } catch (error) {
       return { problem: (error as Error).message };
     }
   };
   const values = await trackForm(`Move the fix of ${name} at ${describeTimes(time)}`, "Move", [
-    { id: "position", label: "Where it goes: only this fix moves; its time, recorded course and speed stay", value: formatPosition({ longitude: here[0], latitude: here[1] }), read },
+    { id: "position", label: reckoningOf(track.properties) ? FIX_PROMPT_DR : FIX_PROMPT, value: formatPosition({ longitude: here[0], latitude: here[1] }), read },
   ]);
   if (!values) return;
   const p = parsePosition(values.position);

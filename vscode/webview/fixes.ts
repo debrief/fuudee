@@ -96,22 +96,32 @@ export interface Jump {
   position: number[];
   speed: { value: number; unit: string } | null;
   since: string;
+  /** Plotted by dead reckoning: speed is the fix's logged speed, and since the time of the fix its leg runs to. */
+  logged?: boolean;
 }
 
 /** A jump as one row of the list the analyst confirms: when, where, and how fast the track would have gone. */
 export function describeJump(jump: Jump, settings: FormatSettings = DEFAULT_SETTINGS): { label: string; description: string } {
   const [lon, lat] = jump.position;
-  const how = jump.speed
-    ? `${formatQuantity(convert(jump.speed, settings.speed_unit), settings)} to reach from ${formatTime(Date.parse(jump.since), settings)}`
-    : `at the same time as the fix before, somewhere else`;
+  const speed = jump.speed && formatQuantity(convert(jump.speed, settings.speed_unit), settings);
+  const how = !speed
+    ? `at the same time as the fix before, somewhere else`
+    : jump.logged
+      ? `logged ${speed} on to ${formatTime(Date.parse(jump.since), settings)}`
+      : `${speed} to reach from ${formatTime(Date.parse(jump.since), settings)}`;
   return { label: formatTime(Date.parse(jump.time), settings), description: `${formatPosition({ latitude: lat, longitude: lon }, settings)} · ${how}` };
 }
 
-/** What was found, in a line: "BLUE ONE: 3 jumps found, each faster than 30.0 kn to reach". */
-export function jumpsFound(name: string, jumps: number, threshold: { value: number; unit: string }, settings: FormatSettings = DEFAULT_SETTINGS): string {
+/**
+ * What was found, in a line: "BLUE ONE: 3 jumps found, each faster than 30.0 kn to reach". Plotted
+ * by dead reckoning (`logged`), positions jump only where a logged speed is wild: "RED ONE (DR): 1
+ * jump found, each logged faster than 30.0 kn".
+ */
+export function jumpsFound(name: string, jumps: number, threshold: { value: number; unit: string }, settings: FormatSettings = DEFAULT_SETTINGS, logged = false): string {
   const speed = formatQuantity(convert(threshold, settings.speed_unit), settings);
-  if (!jumps) return `${name}: no jumps found faster than ${speed}.`;
-  return `${name}: ${jumps} jump${jumps === 1 ? "" : "s"} found, each faster than ${speed} to reach. Check them on the map and in the list.`;
+  if (!jumps) return logged ? `${name}: no logged speeds found faster than ${speed}.` : `${name}: no jumps found faster than ${speed}.`;
+  const each = logged ? `each logged faster than ${speed}, so dead reckoning takes the leg from it too far` : `each faster than ${speed} to reach`;
+  return `${name}: ${jumps} jump${jumps === 1 ? "" : "s"} found, ${each}. Check them on the map and in the list.`;
 }
 
 const SPEEDS = ["[kn_i]", "m/s", "km/h"];

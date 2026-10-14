@@ -683,7 +683,15 @@ export async function run(): Promise<void> {
   // Changed while plotted by dead reckoning, over the ground again loses that change (product owner, 14 Oct 2026):
   // given, refused, saying why, until confirmed; confirmed, one step, the positions as logged back.
   await vscode.commands.executeCommand<TrackDone>("debrief.plottingMode", "track-red-one", "dr");
+  const drBefore = track("track-red-one")!;
   await api.fromMap!({ kind: "edit_track", feature_id: "track-red-one", track_edit: { action: "move_fix", fix_time: movedTime, distance: { value: 0.3, unit: "[nmi_i]" }, bearing: { value: 90, unit: "deg" } } });
+  // On a DR track the leg into the fix changes and every later fix follows (product owner, 14 Oct 2026).
+  const drFix = (await steps()).at(-1)?.notes ?? [];
+  assert.match(drFix[0] ?? "", new RegExp(`^${redName.replace(/[()]/g, "\\$&")} \\(DR\\) leg into ${movedWhen} now \\d{3}\\.\\d°T \\d+\\.\\d kn$`));
+  assert.equal(drFix.at(-1), "The fixes after it follow, by dead reckoning");
+  const drAfter = track("track-red-one")!;
+  assert.deepEqual(drAfter.geometry.coordinates[fixIndex - 1], drBefore.geometry.coordinates[fixIndex - 1], "the fix before stays");
+  assert.notDeepEqual(drAfter.geometry.coordinates[fixIndex + 1], drBefore.geometry.coordinates[fixIndex + 1], "the fix after follows");
   const drRefused = await vscode.commands.executeCommand<TrackDone>("debrief.plottingMode", "track-red-one", "otg");
   assert.match(drRefused.problem ?? "", /was changed while plotted by dead reckoning .* Nothing was changed\. To go ahead/);
   assert.equal((await steps()).length, fixBefore + 6);

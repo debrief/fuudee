@@ -63,6 +63,22 @@
               50.3436
             ]
           ]
+        },
+        "logged_courses": {
+          "unit": "deg",
+          "values": [
+            135.0,
+            135.0,
+            135.0
+          ]
+        },
+        "logged_speeds": {
+          "unit": "[kn_i]",
+          "values": [
+            12.0,
+            12.0,
+            12.0
+          ]
         }
       }
     }

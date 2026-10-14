@@ -23,6 +23,9 @@ export function needs(tool: ToolDeclaration): string {
 }
 
 
+/** The longest note a step is named by: long enough for "RED ONE (DR) leg into 09:43:00Z now 056.5°T 12.1 kn" with a track name of up to 19 characters. */
+export const STEP_NAME_LENGTH = 64;
+
 /** A step in a plot's history, as the History view names it. */
 export function describeStep(
   step: { kind: string; tool: string | null; status: string; notes?: string[] },
@@ -32,7 +35,7 @@ export function describeStep(
   // a plot file added to a catalogue, with its history ("Added from the plot file ...").
   const note = (step.kind === "edit" || step.kind === "import") && !step.tool ? step.notes?.[0] : undefined;
   const label =
-    note && note.length <= 48
+    note && note.length <= STEP_NAME_LENGTH
       ? note
       : step.kind === "import"
         ? step.tool

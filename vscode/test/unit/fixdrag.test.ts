@@ -8,16 +8,22 @@ import { readFileSync } from "node:fs";
 import path from "node:path";
 import { describe, expect, it } from "vitest";
 import { checkMessage, trackEditProblems } from "../../src/messages.js";
-import { trackLabel } from "../../webview/fixes.js";
+import { describeJump, jumpsFound, trackLabel } from "../../webview/fixes.js";
 import { rangeBearing, travel, type LonLat } from "../../webview/geodesic.js";
 import {
   changesNothing,
   deadReckoned,
   dragGesture,
+  drFixMoved,
+  drMoved,
+  drSheared,
+  drStretched,
+  drTurned,
   FIX_SPACING_PX,
   fixEdit,
   fixHandleIndices,
   fixIndexAt,
+  fixMeans,
   fixMoved,
   fixReadout,
   fixTarget,
@@ -28,6 +34,7 @@ import {
   MOST_FIX_HANDLES,
   NUDGE_PX,
   pressKey,
+  reckoningOf,
   startGesture,
   type Screen,
   type Target,
@@ -205,5 +212,130 @@ describe("a track plotted by dead reckoning", () => {
     expect(trackEditProblems({ action: "set_plotting_mode", plotting_mode: "dr", discard_dr_changes: true })).toEqual([
       "track_edit: only plotting a track over the ground discards changes made while it was plotted by dead reckoning",
     ]);
+  });
+});
+
+// --- Editing a track plotted by dead reckoning (decision, product owner, 14 Oct 2026) ---------
+
+interface Vector {
+  place: string;
+  op: "fix" | "move" | "rotate" | "stretch" | "shear";
+  positions: LonLat[];
+  times: number[];
+  courses: number[];
+  speeds: number[];
+  index?: number;
+  indices?: number[];
+  to?: LonLat;
+  metres?: number;
+  bearing?: number;
+  pivot?: LonLat;
+  degrees?: number;
+  anchor?: "start" | "end";
+  factor?: number;
+  expected: { positions: LonLat[]; courses: number[]; speeds: number[] };
+}
+
+const VECTORS = (JSON.parse(readFileSync(path.resolve(__dirname, "../../../schemas/vectors/dead-reckoning.json"), "utf8")) as { cases: Vector[] }).cases;
+
+function runVector(v: Vector) {
+  const r = { courses: v.courses, speeds: v.speeds };
+  if (v.op === "fix") return drFixMoved(v.positions, v.times, r, v.index!, v.to!);
+  if (v.op === "move") return drMoved(v.positions, v.times, r, v.indices!, v.metres!, v.bearing!);
+  if (v.op === "rotate") return drTurned(v.positions, v.times, r, v.indices!, v.pivot!, v.degrees!);
+  if (v.op === "stretch") return drStretched(v.positions, v.times, r, v.indices!, v.anchor!, v.factor!);
+  return drSheared(v.positions, v.times, r, v.indices!, v.anchor!, v.to!);
+}
+
+describe("a DR track edited by its origin, courses and speeds, as the tool service does it (debrief_stac.reckoning)", () => {
+  it.each(VECTORS.map((v) => [`${v.op} ${v.anchor ?? ""} of ${v.indices?.length ?? `fix ${v.index}`} at ${v.place}`, v] as const))("%s: the shared vectors", (_, v) => {
+    const made = runVector(v)!;
+    v.expected.positions.forEach((p, i) => expect(rangeBearing(p, made.positions[i]).metres).toBeLessThan(1e-3));
+    v.expected.courses.forEach((c, i) => expect(Math.abs(((made.courses[i] - c + 540) % 360) - 180)).toBeLessThan(1e-6));
+    v.expected.speeds.forEach((s, i) => expect(made.speeds[i]).toBeCloseTo(s, 6));
+  });
+
+  // RED ONE plotted by dead reckoning: 12 kn on 045, the geodesic's own course at each fix.
+  const COURSES = RED.map((p, i) => (i < 5 ? rangeBearing(p, RED[i + 1]).bearing : 45));
+  const DR = { courses: COURSES, speeds: COURSES.map(() => 12 * KNOT) };
+  const drTarget = (over: Partial<Target> = {}) => target({ reckoning: DR, ...over });
+
+  it("a fix dragged changes the leg into it, and the fixes after follow", () => {
+    const to: LonLat = [RED[2][0] + 0.004, RED[2][1] + 0.003];
+    const g = dragGesture(startGesture("fix", RED[2], undefined, FIX_TIMES[2]), to, RED[0]);
+    const change = gestureChange(g, drTarget())!;
+    const { metres, bearing } = rangeBearing(RED[2], to);
+    expect(change.edit).toEqual(fixEdit(FIX_TIMES[2], metres, bearing));
+    expect(rangeBearing(change.positions[2], fixTarget(RED[2], change.edit)).metres).toBeLessThan(1e-6);
+    expect(change.handle).toEqual(change.positions[2]);
+    expect(rangeBearing(change.positions[1], RED[1]).metres).toBeLessThan(1e-6);
+    // Each later leg as it was: the fixes after it follow.
+    for (const i of [3, 4, 5]) {
+      const was = rangeBearing(RED[i - 1], RED[i]);
+      const now = rangeBearing(change.positions[i - 1], change.positions[i]);
+      expect(now.metres).toBeCloseTo(was.metres, 6);
+      expect(now.bearing).toBeCloseTo(was.bearing, 2);
+    }
+    expect(change.readout).toMatch(/^RED ONE \(DR\) fix at 09:32:00Z: moving 0\.\d\d nmi \d{3}\.\d°T; leg into it now \d{3}\.\d°T [\d.]+ kn \(was 045\.0°T 12\.0 kn\); the fixes after follow/);
+  });
+
+  it("the first fix dragged moves where dead reckoning starts", () => {
+    const g = dragGesture(startGesture("fix", RED[0], undefined, FIX_TIMES[0]), [RED[0][0], RED[0][1] + 0.002], RED[0]);
+    const change = gestureChange(g, drTarget())!;
+    expect(change.readout).toBe("RED ONE (DR) fix at 09:30:00Z: moving 0.12 nmi 000.0°T; dead reckoning starts here, so every fix follows");
+    expect(rangeBearing(change.positions[5], RED[5]).metres).toBeCloseTo(0.12 * 1852, 0);
+  });
+
+  it("a move of the whole track moves its origin; of a window, the leg into it", () => {
+    const g = dragGesture(startGesture("move", RED[2]), travel(RED[2], 90, 1852), RED[0]);
+    const whole = gestureChange(g, drTarget())!;
+    expect(whole.readout).toBe("RED ONE (DR): moving 1.00 nmi 090.0°T");
+    expect(rangeBearing(RED[0], whole.positions[0]).metres).toBeCloseTo(1852, 3);
+    const part = gestureChange(g, drTarget({ indices: [2, 3], part: true }))!;
+    expect(part.readout).toMatch(/^RED ONE \(DR\): moving 1\.00 nmi 090\.0°T; leg into 09:32:00Z now \d{3}\.\d°T [\d.]+ kn; it and the fixes after follow, by dead reckoning$/);
+    expect(rangeBearing(part.positions[1], RED[1]).metres).toBeLessThan(1e-6);
+    expect(rangeBearing(part.positions[5], travel(RED[5], 90, 1852)).metres).toBeLessThan(5);
+  });
+
+  it("a rotation turns the courses: of a window, about its first fix, and the fixes after follow on", () => {
+    const g = { ...startGesture("rotate", RED[5]), degrees: 10 };
+    const part = gestureChange(g, drTarget({ indices: [2, 3], part: true, pivot: RED[0] }))!;
+    expect(part.readout).toMatch(/^RED ONE \(DR\): rotating 10\.0° clockwise about .*; the courses in the time window turn, and the fixes after follow on, by dead reckoning$/);
+    expect(part.edit).toMatchObject({ action: "rotate", angle: { value: 10, unit: "deg" }, pivot: RED[2] });
+    expect(rangeBearing(part.positions[2], RED[2]).metres).toBeLessThan(1e-6);
+    expect(rangeBearing(part.positions[2], part.positions[3]).bearing).toBeCloseTo(COURSES[2] + 10, 6);
+  });
+
+  it("a shear adds one set to every leg; a stretch scales every speed; each says so", () => {
+    const shear = gestureChange(dragGesture(startGesture("end", RED[5], "shear"), travel(RED[5], 135, 500), RED[0]), drTarget())!;
+    expect(shear.readout).toMatch(/^RED ONE \(DR\): shearing to \d{3}\.\d°T [\d.]+ kn; end moved 0\.27 nmi 135\.0°T; one set and drift is added to every leg$/);
+    const to = travel(RED[5], shear.edit.bearing!.value, shear.edit.distance!.value * 1852);
+    expect(rangeBearing(shear.handle!, to).metres).toBeLessThan(1e-3);
+    const stretch = gestureChange({ ...startGesture("end", RED[3], "stretch"), speed: 15 }, drTarget({ indices: [1, 2, 3], part: true }))!;
+    expect(stretch.readout).toBe("RED ONE (DR): stretching to 15.0 kn (was 12.0 kn); every speed in the time window is scaled, and the fixes after follow on, by dead reckoning");
+  });
+
+  it("the form says the leg into the fix, plotted by dead reckoning", () => {
+    const to = travel(RED[3], 0, 185.2);
+    expect(fixMeans("RED ONE", RED, TIMES, 3, to, jumpSpeed(RED, TIMES), DR)).toMatch(/^RED ONE \(DR\) fix at 09:33:00Z: moves 0\.10 nmi 000\.0°T; leg into it now \d{3}\.\d°T [\d.]+ kn \(was 045\.0°T 12\.0 kn\); the fixes after follow$/);
+    expect(fixMeans("RED ONE", RED, TIMES, 3, to, jumpSpeed(RED, TIMES))).toMatch(/^RED ONE fix at 09:33:00Z: moves 0\.10 nmi 000\.0°T; [\d.]+ kn from 09:32:00Z/);
+    // A fix at the time of the one before cannot be put anywhere else.
+    const same = [TIMES[0], TIMES[1], TIMES[1], TIMES[3], TIMES[4], TIMES[5]];
+    expect(drFixMoved(RED, same, DR, 2, to)).toBeUndefined();
+  });
+
+  it("reads a DR track's courses and speeds in degrees and metres a second; none over the ground", () => {
+    const props = { plotting_mode: "dr", courses: { unit: "deg", values: [45, 90] }, speeds: { unit: "[kn_i]", values: [12, 6] } };
+    expect(reckoningOf(props)).toEqual({ courses: [45, 90], speeds: [expect.closeTo(12 * KNOT, 9), expect.closeTo(6 * KNOT, 9)] });
+    expect(reckoningOf({ ...props, plotting_mode: "otg" })).toBeUndefined();
+    expect(reckoningOf({ ...props, speeds: null })).toBeUndefined();
+  });
+
+  it("a jump on a DR track is a wild logged speed, said so", () => {
+    const jump = { time: FIX_TIMES[3], position: RED[3], speed: { value: 180, unit: "[kn_i]" }, since: FIX_TIMES[4], logged: true };
+    expect(describeJump(jump).description).toMatch(/· logged 180\.0 kn on to 09:34:00Z$/);
+    expect(jumpsFound("RED ONE (DR)", 1, { value: 36, unit: "[kn_i]" }, undefined, true)).toBe(
+      "RED ONE (DR): 1 jump found, each logged faster than 36.0 kn, so dead reckoning takes the leg from it too far. Check them on the map and in the list.",
+    );
   });
 });

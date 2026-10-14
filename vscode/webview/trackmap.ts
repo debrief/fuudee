@@ -41,6 +41,11 @@
  *   back. Tab reaches each ring (after the track's other handles); the arrow
  *   keys nudge it 5 pixels (25 with Shift), one step for the run. Right-click
  *   it, or press and hold it on a touch screen, for the fix's menu.
+ * - A track plotted by dead reckoning (decision, product owner, 14 Oct 2026) is
+ *   previewed as dead reckoning makes it: a move of the whole track moves where it
+ *   starts; every other gesture changes courses and speeds (a fix dragged, the leg
+ *   into it), and the fixes after follow on, their rings with them. A time window
+ *   that starts after the first fix turns about its own first fix.
  * - Nothing here changes current time, the window or the selection. If the
  *   plot changes elsewhere during a drag, the drag is dropped and the map says so.
  */
@@ -63,11 +68,13 @@ import {
   periodIndices,
   pivotReadout,
   pressKey,
+  reckoningOf,
   speedIn,
   startGesture,
   turned,
   type EndMode,
   type Gesture,
+  type Reckoning,
   type Screen,
   type Span,
   type Target,
@@ -117,6 +124,8 @@ interface Selected {
   colour: string;
   /** Above this speed (metres a second), a fix moved is as fast as a jump. */
   jump: number;
+  /** Plotted by dead reckoning: its courses and speeds, which the gestures change. */
+  reckoning?: Reckoning;
 }
 
 /** A press of an arrow key on a handle: on a fix's own handle, which fix. */
@@ -274,7 +283,8 @@ export class TrackEditor {
     if (id !== before) this.chosenPivot = undefined;
     if (shown && id) {
       const positions = shown.feature.geometry.coordinates as LonLat[];
-      this.selected = { id, name: shown.feature.properties.name, positions, times: shown.times, fixTimes: shown.feature.properties.times, colour: shown.colour, jump: jumpSpeed(positions, shown.times) };
+      const reckoning = reckoningOf(shown.feature.properties);
+      this.selected = { id, name: shown.feature.properties.name, positions, times: shown.times, fixTimes: shown.feature.properties.times, colour: shown.colour, jump: jumpSpeed(positions, shown.times), ...(reckoning && { reckoning }) };
     } else this.selected = undefined;
     this.render(before !== id);
   }
@@ -314,18 +324,26 @@ export class TrackEditor {
     const inWindow = this.extent === "window" && time;
     const indices = periodIndices(s.times, inWindow ? time.window : undefined);
     if (!indices.length) return undefined;
-    const index = this.chosenPivot ? undefined : defaultPivotIndex(s.times, indices, time?.current);
+    // Plotted by dead reckoning, fixes in a window that starts after the first turn about the window's first fix.
+    const fixed = this.pivotFixed(indices);
+    const index = fixed ? indices[0] : this.chosenPivot ? undefined : defaultPivotIndex(s.times, indices, time?.current);
     return {
       name: s.name,
       positions: s.positions,
       times: s.times,
       indices,
       part: indices.length < s.times.length,
-      pivot: this.chosenPivot ?? s.positions[index!],
+      pivot: fixed ? s.positions[index!] : (this.chosenPivot ?? s.positions[index!]),
       ...(inWindow && { period: time.range }),
       fixTimes: s.fixTimes,
       jump: s.jump,
+      ...(s.reckoning && { reckoning: s.reckoning }),
     };
+  }
+
+  /** Whether the pivot is the first fix of what changes, whatever the analyst chose: on a DR track, a window that starts after the first fix turns about its own first fix, which dead reckoning places from the fix before. */
+  private pivotFixed(indices: number[]): boolean {
+    return !!this.selected?.reckoning && indices[0] > 0;
   }
 
   /** Put the handles where they now are, and say how to use them. */
@@ -353,7 +371,7 @@ export class TrackEditor {
       this.host.say(`${s.name} has no fixes in the time window: choose Whole track to move or rotate all of it.`, undefined, "selection");
       return;
     }
-    const pivotIndex = this.chosenPivot ? undefined : s.positions.indexOf(t.pivot);
+    const pivotIndex = this.chosenPivot && !this.pivotFixed(t.indices) ? undefined : s.positions.indexOf(t.pivot);
     const places = handlePlaces(s.positions, t.indices, t.pivot, pivotIndex);
     const ends = endPlaces(s.positions, s.times, t.indices);
     this.placeHandles({ move: places.move, rotate: places.rotate, pivot: t.pivot, ...ends });
@@ -548,6 +566,12 @@ export class TrackEditor {
     const s = this.selected;
     if (!s) return;
     if (g.role === "pivot") {
+      const indices = this.target()?.indices;
+      if (indices && this.pivotFixed(indices)) {
+        this.render(false);
+        this.host.say(`${s.name} (DR): the time window turns about its first fix, which dead reckoning places from the fix before; choose Whole track to turn about somewhere else.`);
+        return;
+      }
       this.chosenPivot = g.at;
       this.render(false);
       this.host.say(pivotReadout(s.name, g.at, settings));
@@ -560,8 +584,18 @@ export class TrackEditor {
     this.preview.clearLayers();
     L.polyline(densify(s.positions).map(toLatLng), { color: s.colour, weight: 1.5, opacity: 0.6, dashArray: "4 4", interactive: false, className: "track-before" }).addTo(this.preview);
     L.polyline(densify(change.positions).map(toLatLng), { color: s.colour, weight: 3, interactive: false, className: "track-moved" }).addTo(this.preview);
-    // The fixes that move, marked while there are few enough to tell apart; a long track is its line.
-    const moving = g.role === "fix" ? [] : t.indices.length <= MARKED_FIXES ? t.indices : [];
+    // The fixes that move, marked while there are few enough to tell apart; a long track is its line. Plotted by dead
+    // reckoning, the fixes after follow: those that move are marked, and their rings go with them.
+    const shifted = (p: LonLat, q: LonLat) => Math.abs(((p[0] - q[0] + 540) % 360) - 180) > 1e-7 || Math.abs(p[1] - q[1]) > 1e-7;
+    const followed = t.reckoning ? change.positions.flatMap((p, i) => (shifted(p, s.positions[i]) ? [i] : [])) : [];
+    // A fix dragged on a long DR track: those nearest it, which are those in view when zoomed in far enough to grab it.
+    const moving = t.reckoning ? (g.role === "fix" ? followed.slice(0, MARKED_FIXES) : followed.length <= MARKED_FIXES ? followed : []) : g.role === "fix" ? [] : t.indices.length <= MARKED_FIXES ? t.indices : [];
+    if (t.reckoning) {
+      for (const [time, ring] of this.fixHandles) {
+        const i = s.fixTimes.indexOf(time);
+        if (i >= 0 && time !== g.fixTime) ring.setLatLng(toLatLng(change.positions[i]));
+      }
+    }
     for (const i of moving) {
       L.circleMarker(toLatLng(change.positions[i]), { radius: 2.5, color: s.colour, fillColor: s.colour, fillOpacity: 1, weight: 1, interactive: false, className: "track-moved-fix" }).addTo(this.preview);
     }

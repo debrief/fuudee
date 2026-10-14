@@ -861,6 +861,10 @@ def test_over_the_ground_after_a_change_made_while_dr_needs_confirming(client) -
         "bearing": {"value": 90, "unit": "deg"},
     }
     rpc(client, "debrief/edit_track", {**edit, "edit": moved})
+    # On a DR track a move of the whole track moves where dead reckoning starts.
+    last = rpc(client, "debrief/history", where).json()["result"]["steps"][-1]
+    assert last["notes"][0] == "NELSON (DR) moved 2.00 nmi 090.0°T"
+    assert last["notes"][1].startswith("Dead reckoning now starts from ")
     count = len(rpc(client, "debrief/history", where).json()["result"]["steps"])
     as_otg = {"action": "set_plotting_mode", "plotting_mode": "otg"}
     refused = rpc(client, "debrief/edit_track", {**edit, "edit": as_otg}).json()["error"]

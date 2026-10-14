@@ -134,7 +134,7 @@ export interface JumpsFound {
   feature: string;
   threshold: { value: number; unit: string };
   median_speed: { value: number; unit: string } | null;
-  jumps: { time: string; position: number[]; speed: { value: number; unit: string } | null; since: string }[];
+  jumps: { time: string; position: number[]; speed: { value: number; unit: string } | null; since: string; logged?: boolean }[];
 }
 
 export interface Agent {

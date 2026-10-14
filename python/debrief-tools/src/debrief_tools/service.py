@@ -594,6 +594,8 @@ class ToolService:
                         if math.isinf(j.speed_kn)
                         else {"value": j.speed_kn, "unit": "[kn_i]"},
                         "since": j.since,
+                        # A DR track's jump: its logged speed, on to the fix at since.
+                        **({"logged": True} if j.logged else {}),
                     }
                     for j in jumps
                 ],

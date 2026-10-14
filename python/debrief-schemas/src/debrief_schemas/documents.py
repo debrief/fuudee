@@ -442,6 +442,19 @@ def _feature_problems(feature: Any, track_ids: set[str] | None) -> list[str]:
                     f"{where}: logged_positions has {len(logged.coordinates)} positions "
                     f"for {count} fixes"
                 )
+        for name in ("logged_courses", "logged_speeds"):
+            series_logged = getattr(props, name)
+            if series_logged is None:
+                continue
+            if str(props.plotting_mode) != "dr":
+                problems.append(
+                    f"{where}: only a track plotted by dead reckoning keeps its {name[7:]} "
+                    "as logged"
+                )
+            if len(series_logged.values) != count:
+                problems.append(
+                    f"{where}: {name} has {len(series_logged.values)} entries for {count} fixes"
+                )
         problems += _fix_mark_problems(where, props)
 
     elif props.kind == "annotation":
