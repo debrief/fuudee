@@ -67,11 +67,12 @@ dialog::backdrop { background: #0006; }
 /* Phone-sized: one column, the page scrolls; the map first, then the panels. */
 @media (max-width: 600px) {
   html, body { height: auto; }
-  .app { grid-template-columns: 1fr; grid-template-rows: auto auto auto; height: auto; min-height: 100vh; }
+  /* minmax(0, ...): a wide Tote scrolls inside itself; it never widens the page. */
+  .app { grid-template-columns: minmax(0, 1fr); grid-template-rows: auto auto auto; height: auto; min-height: 100vh; }
   main { grid-row: 1; }
   .frame-map { flex: none; height: 55vh; }
   .side-frame { height: 460px; }
-  .side { grid-row: 2; border-right: 0; overflow: visible; }
+  .side { grid-row: 2; border-right: 0; overflow: visible; min-width: 0; }
   footer { grid-column: 1; position: sticky; bottom: 0; }
 }
 /* The Timeline: time-only annotations in time order; choosing one moves current time to it (CAP-05). */

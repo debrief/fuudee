@@ -1,48 +1,58 @@
 /* The Tote (totecontrol.ts): interface colours only from the theme (CON-06, DEV-07);
-   the swatch beside each track is the track's own data colour. */
+   the swatch beside each track is the track's own data colour.
+   Legacy Debrief's table (decision, 14 Oct 2026): a row a measure, a column a track. */
 .tote { display: flex; flex-direction: column; gap: 4px; font-size: 12px; color: var(--vscode-foreground); min-width: 0; }
 .tote-pick { display: flex; align-items: center; gap: 6px; }
 .tote-pick > span { min-width: 4.2em; color: var(--vscode-descriptionForeground); }
 .tote-pick select { flex: 1; min-width: 0; height: 22px; background: var(--vscode-dropdown-background); color: var(--vscode-dropdown-foreground, var(--vscode-foreground)); border: 1px solid var(--vscode-dropdown-border, transparent); font: inherit; }
 .tote-pick select:focus-visible { outline: 1px solid var(--vscode-focusBorder); outline-offset: 1px; }
-/* Read aloud, not shown: a measure's full name beside its short label. */
+/* Read aloud, not shown. */
 .tote-sr { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
-/* A track's own measures, each with its label: the primary's under its list, a secondary's under its values. */
-.tote-own { display: flex; flex-wrap: wrap; align-items: baseline; gap: 0 10px; }
-.tote-primary-own { padding: 1px 3px 3px; border-bottom: 2px solid var(--vscode-widget-border, var(--vscode-panel-border, transparent)); }
-.tote-primary-own[hidden] { display: none; }
-.tote-pair { white-space: nowrap; }
-.tote-label { margin-right: 4px; color: var(--vscode-descriptionForeground); font-size: 11px; }
-.tote-value { font-family: var(--vscode-editor-font-family); font-size: 11px; font-variant-numeric: tabular-nums; }
-.tote-own .tote-why { color: var(--vscode-descriptionForeground); font-style: italic; }
-/* Only as a last resort, far narrower than a sidebar, does the table scroll sideways. */
-.tote-scroll { overflow-x: auto; max-width: 100%; }
-.tote-table { border-collapse: collapse; width: 100%; font-variant-numeric: tabular-nums; }
-.tote-table th, .tote-table td { padding: 1px 2px; text-align: right; white-space: nowrap; }
-.tote-table thead th { font-weight: 600; color: var(--vscode-descriptionForeground); font-size: 11px; }
-.tote-table thead tr:last-child > * { border-bottom: 1px solid var(--vscode-widget-border, var(--vscode-panel-border, transparent)); }
-/* Each secondary: its name, its values, a rule beneath. */
-.tote-line > tr:last-child > * { border-bottom: 1px solid var(--vscode-widget-border, var(--vscode-panel-border, transparent)); }
-.tote-table th.tote-track { text-align: left; font-weight: normal; color: var(--vscode-foreground); }
-.tote-table thead th.tote-track { color: var(--vscode-descriptionForeground); font-weight: 600; }
-.tote-name-row > th { padding-top: 3px; }
-.tote-who { display: inline-flex; align-items: center; max-width: 100%; vertical-align: bottom; }
-/* A long name is cut short, in full on hover. */
-.tote-name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 14em; }
-.tote-wide .tote-name { max-width: 11em; }
-.tote-table td { font-family: var(--vscode-editor-font-family); font-size: 11px; padding-left: 4px; }
-.tote-table td.tote-own-cell { font-family: var(--vscode-font-family); font-size: 12px; text-align: left; white-space: normal; padding-left: 3px; }
-.tote-table .tote-act { width: 1px; padding: 0 0 0 2px; text-align: right; }
-.tote-line:focus-visible { outline: 1px solid var(--vscode-focusBorder); outline-offset: -1px; }
-.tote-line:hover { background: var(--vscode-list-hoverBackground); }
-.tote-swatch { flex: none; display: inline-block; width: 8px; height: 8px; border-radius: 50%; margin-right: 4px; }
-.tote-table td.tote-why { text-align: left; font-family: var(--vscode-font-family); color: var(--vscode-descriptionForeground); font-style: italic; white-space: normal; }
-.tote-table td.tote-hint { text-align: left; white-space: normal; color: var(--vscode-descriptionForeground); padding: 4px 0; font-family: var(--vscode-font-family); font-size: 12px; }
-.tote-remove { min-width: 18px; height: 18px; margin: 0; padding: 0 3px; line-height: 1; background: transparent; color: var(--vscode-descriptionForeground); border: 1px solid transparent; border-radius: 2px; cursor: pointer; font: inherit; }
-.tote-remove:hover { background: var(--vscode-toolbar-hoverBackground, var(--vscode-list-hoverBackground)); color: var(--vscode-foreground); }
-.tote-remove:focus-visible { outline: 1px solid var(--vscode-focusBorder); }
+
+/* One layout at every width: where the tracks do not fit, they scroll sideways inside the
+   table, under row headings that stay put; the page itself never scrolls sideways. */
+.tote-scroll { overflow-x: auto; max-width: 100%; overscroll-behavior-x: contain; scroll-padding-left: 8em; scrollbar-width: thin; }
+.tote-scroll[hidden] { display: none; }
+.tote-table { border-collapse: separate; border-spacing: 0; font-variant-numeric: tabular-nums; font-size: 11px; }
+.tote-table th, .tote-table td { padding: 1px 0 1px 8px; white-space: nowrap; line-height: 16px; }
+/* Values: figures only, right-aligned, in the editor's font. */
+.tote-table td { text-align: right; font-family: var(--vscode-editor-font-family); }
+.tote-table td.tote-no-data { color: var(--vscode-descriptionForeground); }
+/* Row headings: the measure, then its unit, quieter; they stay put while the tracks scroll. */
+.tote-table th[scope="row"], .tote-corner {
+  position: sticky; left: 0; z-index: 1; padding-left: 0; padding-right: 6px; text-align: left; font-weight: normal;
+  color: var(--vscode-descriptionForeground); background: var(--vscode-sideBar-background, var(--vscode-editor-background));
+}
+.tote-unit { margin-left: 2px; opacity: .75; }
+/* Track headings: colour, name and the remove button. Where the room is short, a name
+   breaks at its spaces onto a second line ("Cargo / 01") so a column is no wider than its
+   values; longer still, it is cut short, in full on hover. */
+.tote-table thead th { text-align: right; vertical-align: bottom; font-weight: normal; padding-bottom: 2px; border-bottom: 1px solid var(--vscode-widget-border, var(--vscode-panel-border, transparent)); }
+.tote-table thead .tote-corner { border-bottom: 1px solid var(--vscode-widget-border, var(--vscode-panel-border, transparent)); }
+.tote-who { display: inline-flex; align-items: flex-start; justify-content: flex-end; max-width: 9em; vertical-align: bottom; }
+.tote-name {
+  display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; overflow: hidden; min-width: 0;
+  white-space: normal; overflow-wrap: normal; line-height: 14px; text-align: right;
+}
+.tote-table th.tote-col-primary .tote-name { font-weight: 600; }
+.tote-table th.tote-no-data .tote-name { color: var(--vscode-descriptionForeground); }
+.tote-swatch { flex: none; display: inline-block; width: 7px; height: 7px; border-radius: 50%; margin: 4px 3px 0 0; }
+/* Where the measures between tracks give way to each track's own, a quiet rule. */
+.tote-table tr.tote-group > * { padding-top: 4px; border-top: 1px solid var(--vscode-widget-border, var(--vscode-panel-border, transparent)); }
+.tote-table tr:first-child > * { padding-top: 3px; }
+.tote-table tbody tr:hover > td { background: var(--vscode-list-hoverBackground); }
+.tote-remove { flex: none; width: 14px; height: 14px; margin: 0 0 0 1px; padding: 0; line-height: 12px; background: transparent; color: var(--vscode-descriptionForeground); border: 1px solid transparent; border-radius: 2px; cursor: pointer; font: inherit; font-size: 13px; }
+.tote .tote-remove:hover { background: var(--vscode-toolbar-hoverBackground, var(--vscode-list-hoverBackground)); color: var(--vscode-foreground); }
+.tote-remove:focus-visible { outline: 1px solid var(--vscode-focusBorder); outline-offset: -1px; }
+
+/* Why a track has no values now, under the table. */
+.tote-whys { margin: 0; padding: 0; list-style: none; font-size: 11px; }
+.tote-whys[hidden] { display: none; }
+.tote-why-name { color: var(--vscode-foreground); }
+.tote-why { color: var(--vscode-descriptionForeground); font-style: italic; }
+.tote-hint { margin: 2px 0; color: var(--vscode-descriptionForeground); }
 .tote-note { margin: 2px 0; padding: 2px 6px; border-left: 3px solid var(--vscode-inputValidation-warningBorder, var(--vscode-focusBorder)); color: var(--vscode-foreground); }
-.tote-note[hidden], .tote-status:empty { display: none; }
+.tote-hint[hidden], .tote-note[hidden], .tote-status:empty { display: none; }
 /* The map's lines from the primary, on or off. */
 .tote-check { display: flex; align-items: center; gap: 6px; color: var(--vscode-descriptionForeground); }
 .tote-check input { margin: 0; accent-color: var(--vscode-focusBorder); }
