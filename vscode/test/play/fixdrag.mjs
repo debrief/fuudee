@@ -68,15 +68,21 @@ export async function playFixDrag(page, shot) {
       const rings = [...doc.querySelectorAll(".track-handle-fix")];
       const free = rings.filter((ring) => {
         const [x, y] = centre(ring);
-        if (skipped.includes(ring.dataset.time) || x < 80 || y < 80 || x > w - 80 || y > h - 80) return false;
+        if (skipped.includes(ring.dataset.time) || x < 10 || y < 80 || x > w - 80 || y > h - 80) return false;
         // Nothing over it, and room to drag it without touching another handle.
         return doc.elementFromPoint(x, y) === ring && others.every(([ox, oy]) => Math.hypot(ox - x, oy - y) > 40);
       });
       free.sort((a, b) => Math.abs(rings.indexOf(a) - rings.length / 2) - Math.abs(rings.indexOf(b) - rings.length / 2));
       return free[0]?.dataset.time;
     }, skip);
-    assert.ok(time, "a ring clear of the other handles and the map's controls");
-    return time;
+    if (time) return time;
+    const why = await page.locator(".frame-map").evaluate((frame) => {
+      const doc = frame.contentDocument;
+      const box = doc.getElementById("map");
+      const r = [...doc.querySelectorAll(".track-handle-fix")].map((e) => e.getBoundingClientRect()).map((b) => `${Math.round(b.x)},${Math.round(b.y)}`);
+      return `scroll ${box.scrollLeft},${box.scrollTop}; rings at ${r.join(" ")}`;
+    });
+    assert.fail(`no ring clear of the other handles and the map's controls (${why})`);
   };
 
   // Drag a fix's ring: that fix alone goes, the map saying how far, which way and the speeds it now implies.
@@ -119,7 +125,7 @@ export async function playFixDrag(page, shot) {
   const again = await where(time);
   await page.mouse.move(again.x, again.y);
   await page.mouse.down();
-  await page.mouse.move(again.x - 30, again.y + 30, { steps: 6 });
+  await page.mouse.move(again.x + 30, again.y + 30, { steps: 6 });
   await page.keyboard.press("Escape");
   await page.mouse.up();
   await status.getByText("Not changed.").waitFor();
@@ -167,7 +173,7 @@ export async function playFixDrag(page, shot) {
   n = await steps();
   await touch("touchStart", [[t0.x, t0.y]]);
   for (let i = 1; i <= 8; i++) {
-    await touch("touchMove", [[t0.x - 5 * i, t0.y - 3 * i]]);
+    await touch("touchMove", [[t0.x + 5 * i, t0.y - 3 * i]]);
     await page.waitForTimeout(30);
   }
   await status.getByText(READOUT).waitFor();
@@ -175,7 +181,7 @@ export async function playFixDrag(page, shot) {
   await stepAdded(n);
   assert.match(await latest(), /^RED ONE fix at \d\d:\d\d:\d\dZ moved \d+\.\d\d nmi \d{3}\.\d°T$/);
   const t1 = await where(touched);
-  assert.ok(Math.hypot(t1.x - t0.x + 40, t1.y - t0.y + 24) < 4, "the fix went where the finger took it");
+  assert.ok(Math.hypot(t1.x - t0.x - 40, t1.y - t0.y + 24) < 4, "the fix went where the finger took it");
 
   // The form: right-click a fix's ring for its menu (the fix list), then Move…, the position typed.
   const formed = await clearRing([keyed, touched]);

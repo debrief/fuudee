@@ -146,6 +146,8 @@ export class TrackEditor {
   private fixHandles = new Map<string, L.Marker>();
   /** Whether fixes in view are too close together for handles of their own: the note says to zoom in. */
   private fixesTooClose = false;
+  /** When a handle was last pressed with the pointer. */
+  private pressedAt = 0;
   private arm?: L.Polyline;
   private drag?: Gesture & { start: L.Point; moved: boolean; pointer: number; element: HTMLElement };
   private dragEnded?: { at: L.Point; time: number };
@@ -163,6 +165,12 @@ export class TrackEditor {
     this.handleLayer.addTo(host.map);
     // Zooming or panning changes which fixes are in view, and whether they are far enough apart for handles.
     host.map.on("zoomend moveend resize", () => this.refresh());
+    // A handle reached with Tab off the map's edge makes the browser scroll the map's own box to show
+    // it, which leaves the map drawn out of line with where it is: put that back (the focus pans the map).
+    const box = host.map.getContainer();
+    box.addEventListener("scroll", () => {
+      if (box.scrollLeft || box.scrollTop) box.scrollLeft = box.scrollTop = 0;
+    });
     this.screen = {
       toPoint: (p) => {
         const point = host.map.latLngToContainerPoint(toLatLng(p));
@@ -392,8 +400,9 @@ export class TrackEditor {
       this.fixLayer.clearLayers();
       this.fixHandles.clear();
       for (const [time, i] of byTime) this.fixHandles.set(time, this.makeHandle("fix", s!.positions[i], time).addTo(this.fixLayer));
-      this.rebuilding = false;
+      // Focus kept on the handle rebuilt, while still rebuilding: that is not a move to it, so the map does not pan.
       if (focused) (this.fixHandles.get(focused)?.getElement() ?? this.host.element).focus({ preventScroll: true });
+      this.rebuilding = false;
     }
     for (const [time, i] of byTime) {
       const marker = this.fixHandles.get(time)!;
@@ -425,8 +434,9 @@ export class TrackEditor {
       this.handles.clear();
       this.arm = undefined;
       for (const role of wanted) this.handles.set(role, this.makeHandle(role, places[role]!).addTo(this.handleLayer));
-      this.rebuilding = false;
+      // Focus kept on the handle rebuilt, while still rebuilding: that is not a move to it, so the map does not pan.
       if (focused) (this.handles.get(focused)?.getElement() ?? this.host.element).focus({ preventScroll: true });
+      this.rebuilding = false;
     }
     for (const role of wanted) {
       const marker = this.handles.get(role)!;
@@ -496,7 +506,10 @@ export class TrackEditor {
       element.dataset.role = role;
       if (fixTime !== undefined) element.dataset.time = fixTime;
       L.DomEvent.disableClickPropagation(element);
-      element.addEventListener("pointerdown", (event) => this.beginDrag(event, role, element, fixTime));
+      element.addEventListener("pointerdown", (event) => {
+        this.pressedAt = Date.now();
+        this.beginDrag(event, role, element, fixTime);
+      });
       element.addEventListener("pointermove", (event) => this.moveDrag(event));
       element.addEventListener("pointerup", (event) => this.endDrag(event));
       element.addEventListener("pointercancel", () => this.cancelDrag());
@@ -504,6 +517,11 @@ export class TrackEditor {
       if (role === "fix") element.addEventListener("contextmenu", (event) => this.chooseFix(event, fixTime!));
       element.addEventListener("blur", () => {
         if (!this.rebuilding && this.nudge) this.commitNudge();
+      });
+      // A handle reached with Tab near or off the map's edge: pan the map to show it. Not when the
+      // pointer put it there: a handle grabbed near the edge stays under the pointer.
+      element.addEventListener("focus", () => {
+        if (!this.rebuilding && !this.drag && !this.nudge && Date.now() - this.pressedAt > 500) this.host.map.panInside(marker.getLatLng(), { padding: [40, 40] });
       });
     });
     return marker;
