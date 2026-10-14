@@ -28,7 +28,7 @@ from collections.abc import Iterator
 from dataclasses import dataclass, field
 from pathlib import Path, PurePosixPath
 
-from debrief_kernel.formatting import DEFAULT_SETTINGS, format_time
+from debrief_kernel.formatting import DEFAULT_SETTINGS, format_position, format_time
 from debrief_kernel.geodesy import Position, destination, range_bearing
 from debrief_kernel.time import format_utc, parse_utc
 from debrief_kernel.units import Quantity
@@ -42,7 +42,7 @@ from debrief_schemas import (
 )
 from debrief_schemas.documents import track_edit_problems
 from debrief_schemas.island import PLOT_FEATURE_ID, plot_feature
-from debrief_stac import annotations, fixes, tracks
+from debrief_stac import annotations, fixes, reckoning, tracks
 from debrief_stac.hashing import content_hash
 from debrief_stac.history import (
     LOCK,
@@ -77,6 +77,12 @@ class CatalogueError(Exception):
 
 class NewerSchemaError(CatalogueError):
     """Writing would put a newer-schema file where other users may not open it (SUB-35)."""
+
+
+class ConfirmationNeeded(CatalogueError):
+    """The change would lose something the analyst made, so it waits for them to confirm:
+    a track changed while plotted by dead reckoning, plotted over the ground again
+    (discard_dr_changes). The message says what would be lost."""
 
 
 def _version(text: str) -> tuple[int, ...]:
@@ -862,10 +868,13 @@ class Catalogue:
         current_time: str | None = None,
         allow_newer_schema: bool = False,
     ) -> int | None:
-        """Move, rotate, shear or stretch a track, or the fixes of one period of it, as
-        one recorded, undoable step: "BLUE ONE moved 1.20 nmi 045.0°T", "BLUE ONE part
-        rotated 12.0° clockwise", "BLUE ONE sheared: 087.2°T 12.4 kn", "BLUE ONE
-        stretched: 12.4 kn". Geodesic (see debrief_stac.tracks). A rotation with no
+        """Move, rotate, shear or stretch a track, or the fixes of one period of it;
+        move one fix; or plot it over the ground or by dead reckoning, as one recorded,
+        undoable step:
+        "BLUE ONE moved 1.20 nmi 045.0°T", "BLUE ONE part rotated 12.0° clockwise",
+        "BLUE ONE sheared: 087.2°T 12.4 kn", "BLUE ONE stretched: 12.4 kn", "RED ONE
+        fix at 09:31:00Z moved 0.42 nmi 045.0°T", "RED ONE plotted by dead reckoning".
+        Geodesic (see debrief_stac.tracks). A rotation with no
         pivot turns about the fix nearest current_time in the period, or else its first
         fix. A shear holds one end of the period (anchor) and drags the other a distance
         along a bearing, or to where the period makes good a course and a speed; a
@@ -881,7 +890,8 @@ class Catalogue:
                 "Say how to change the track: move, with a distance and a bearing; "
                 "rotate, with an angle; shear, holding the start or the end, with a "
                 "distance and a bearing or a course and a speed; or stretch, holding "
-                "the start or the end, with a speed."
+                "the start or the end, with a speed; move_fix, with the fix's time and a "
+                "distance and a bearing or a position; or set_plotting_mode, otg or dr."
             ) from None
         problems = track_edit_problems(edit, "The track change")
         if problems:
@@ -894,18 +904,53 @@ class Catalogue:
             indices = tracks.period_indices(track, period)
             part = len(indices) < len(track.properties.times)
             name = track.properties.name
+            # A track plotted by dead reckoning is edited by its origin, courses and speeds,
+            # its positions worked out from them (debrief_stac.reckoning).
+            dr = reckoning.reckoned(track)
+            label = reckoning.dr_name(name) if dr else name
             notes: list[str] = []
             if str(edit.action) == "move":
                 distance = Quantity.from_model(edit.distance)
                 bearing = Quantity.from_model(edit.bearing)
-                after = tracks.moved(track, distance, bearing, indices)
-                note = tracks.describe_move(name, distance, bearing, part)
+                if dr:
+                    made = reckoning.dr_moved(track, distance, bearing, indices)
+                    after = made[0] if made else None
+                    if made:
+                        notes += _dr_moved_notes(made[0], made[1], indices)
+                else:
+                    after = tracks.moved(track, distance, bearing, indices)
+                note = tracks.describe_move(label, distance, bearing, part)
                 parameters = [
                     models.ParameterValue(name="distance", value=edit.distance),
                     models.ParameterValue(name="bearing", value=edit.bearing),
                 ]
+            elif str(edit.action) == "move_fix":
+                result = self._fix_move(track, edit)
+                if result is None:
+                    return None
+                after, note, more, parameters = result
+                notes += more
+            elif str(edit.action) == "set_plotting_mode":
+                mode = str(getattr(edit.plotting_mode, "value", edit.plotting_mode))
+                # Over the ground again loses a change made while plotted by dead reckoning:
+                # refused, saying so, until the analyst confirms (product owner, 14 Oct 2026).
+                lost = tracks.changed_while_dr(track) if mode == "otg" else None
+                if lost and not edit.discard_dr_changes:
+                    raise ConfirmationNeeded(tracks.describe_dr_changes(track, lost))
+                after = tracks.plotted_as(track, mode)
+                if after is None:
+                    return None
+                if lost:
+                    notes.append("Changes made while plotted by dead reckoning discarded")
+                note = tracks.describe_plotting(name, mode)
+                index, metres = tracks.largest_shift(track, after, indices)
+                notes += [
+                    tracks.describe_plotting_how(track, mode),
+                    tracks.describe_largest_shift(track, index, metres),
+                ]
+                parameters = [models.ParameterValue(name="plotting_mode", value=mode)]
             elif str(edit.action) in ("shear", "stretch"):
-                result = self._shear_or_stretch(track, indices, edit, part)
+                result = self._shear_or_stretch(track, indices, edit, part, dr)
                 if result is None:
                     return None
                 after, note, more, parameters = result
@@ -917,9 +962,19 @@ class Catalogue:
                     if edit.pivot
                     else tracks.default_pivot(track, indices, current)
                 )
-                after = tracks.rotated(track, pivot, angle, indices)
-                note = tracks.describe_rotation(name, angle, part)
+                if dr:
+                    pivot = reckoning.dr_pivot(track, indices, pivot)
+                    after = reckoning.dr_rotated(track, pivot, angle, indices)
+                else:
+                    after = tracks.rotated(track, pivot, angle, indices)
+                note = tracks.describe_rotation(label, angle, part)
                 notes.append(tracks.describe_pivot(pivot))
+                if dr:
+                    notes.append(reckoning.describe_courses_turned(angle, part))
+                    if indices[0] > 0:
+                        notes.append(reckoning.START_TURNS)
+                    if indices[-1] < len(track.properties.times) - 1:
+                        notes.append(reckoning.FOLLOW_ON)
                 parameters = [
                     models.ParameterValue(name="angle", value=edit.angle),
                     models.ParameterValue(name="pivot_longitude", value=pivot.longitude),
@@ -940,8 +995,87 @@ class Catalogue:
         return None if result is None else result[0]
 
     @staticmethod
+    def _fix_move(
+        track: models.TrackFeature, edit: models.TrackEdit
+    ) -> tuple[models.TrackFeature, str, list[str], list[models.ParameterValue]] | None:
+        """One fix moved, by a distance and a bearing or to a position: the track, its
+        step's name ("RED ONE fix at 09:31:00Z moved 0.42 nmi 045.0°T"), notes saying
+        where it now is and the speeds the positions now imply to reach it and to go on
+        from it (and what they were), and the parameters; None if it would not move.
+        Its recorded course and speed are kept (see debrief_stac.tracks)."""
+        index = tracks.fix_index(track, edit.fix_time)
+        at = tracks.times_of(track)[index]
+        here = Position(*track.geometry.coordinates[index])
+        if edit.position is not None:
+            to = Position(*edit.position)
+            shift, towards = range_bearing(here, to)
+            distance = shift.to(DEFAULT_SETTINGS.length_unit)
+            bearing = towards
+            asked = [
+                models.ParameterValue(name="distance", value=_quantity(distance, 3)),
+                models.ParameterValue(name="bearing", value=_quantity(bearing, 2)),
+            ]
+        else:
+            distance = Quantity.from_model(edit.distance)
+            bearing = Quantity.from_model(edit.bearing)
+            to = destination(here, bearing, distance)
+            asked = [
+                models.ParameterValue(name="distance", value=edit.distance),
+                models.ParameterValue(name="bearing", value=edit.bearing),
+            ]
+        name = track.properties.name
+        parameters = [
+            models.ParameterValue(name="fix_time", value=track.properties.times[index]),
+            *asked,
+            models.ParameterValue(name="longitude", value=to.longitude),
+            models.ParameterValue(name="latitude", value=to.latitude),
+        ]
+        if reckoning.reckoned(track):
+            # On a DR track the leg into the fix changes, so dead reckoning puts it where it
+            # was dropped; every later fix follows (decision, product owner, 14 Oct 2026).
+            made = reckoning.dr_fix_moved(track, index, to)
+            if made is None:
+                return None
+            after, leg = made
+            moved = tracks.describe_fix_move(name, at, distance, bearing).removeprefix(f"{name} ")
+            if leg is None:
+                note = f"{reckoning.dr_name(name)} {moved}"
+                notes = [f"Now at {format_position(to)}", reckoning.ORIGIN_FIX]
+            else:
+                note = reckoning.describe_leg(name, leg, at)
+                notes = [
+                    f"{moved[0].upper()}{moved[1:]}, to {format_position(to)}",
+                    reckoning.describe_leg_was(leg),
+                    reckoning.FOLLOW,
+                ]
+                speed = Quantity(leg.speed, "m/s").to(DEFAULT_SETTINGS.speed_unit)
+                parameters += [
+                    models.ParameterValue(
+                        name="course", value=_quantity(Quantity(leg.course, "deg"), 2)
+                    ),
+                    models.ParameterValue(name="speed", value=_quantity(speed, 3)),
+                ]
+            return after, note, notes, parameters
+        after = tracks.fix_moved(track, index, to)
+        if after is None:
+            return None
+        note = tracks.describe_fix_move(name, at, distance, bearing)
+        notes = [
+            f"Now at {format_position(to)}",
+            *tracks.describe_implied(
+                track, tracks.implied_speeds(track, index), tracks.implied_speeds(after, index)
+            ),
+            "Its recorded course and speed are kept",
+        ]
+        return after, note, notes, parameters
+
+    @staticmethod
     def _shear_or_stretch(
-        track: models.TrackFeature, indices: list[int], edit: models.TrackEdit, part: bool
+        track: models.TrackFeature,
+        indices: list[int],
+        edit: models.TrackEdit,
+        part: bool,
+        dr: bool = False,
     ) -> tuple[models.TrackFeature, str, list[str], list[models.ParameterValue]] | None:
         """A shear or a stretch of the fixes at indices, its step's name, further notes
         and parameters; None if nothing would move."""
@@ -958,7 +1092,12 @@ class Catalogue:
             else:
                 course, speed = Quantity.from_model(edit.course), Quantity.from_model(edit.speed)
                 to = tracks.shear_target(track, indices, anchor, course, speed)
-            after = tracks.sheared(track, indices, anchor, to)
+            if dr:
+                made_dr = reckoning.dr_sheared(track, indices, anchor, to)
+                after = made_dr[0] if made_dr else None
+                how = reckoning.describe_set(made_dr[1], part) if made_dr else ""
+            else:
+                after = tracks.sheared(track, indices, anchor, to)
         else:
             speed = Quantity.from_model(edit.speed)
             if before.metres == 0:
@@ -966,17 +1105,26 @@ class Catalogue:
                     f"{track.properties.name} ends where it starts there, so it cannot be "
                     "stretched: shear it instead."
                 )
-            after = tracks.stretched(track, indices, anchor, speed.to("m/s").value / before.speed)
+            factor = speed.to("m/s").value / before.speed
+            if dr:
+                after = reckoning.dr_stretched(track, indices, anchor, factor)
+                how = reckoning.describe_speeds_scaled(factor, part)
+            else:
+                after = tracks.stretched(track, indices, anchor, factor)
         if after is None:
             return None
         made = tracks.leg_of(after, indices)
         moved_end = Position(*after.geometry.coordinates[dragged])
         shift, towards = range_bearing(end, moved_end)
         shear = str(edit.action) == "shear"
-        name = track.properties.name
+        name = reckoning.dr_name(track.properties.name) if dr else track.properties.name
         note = (tracks.describe_shear if shear else tracks.describe_stretch)(name, made, part)
         held_at = tracks.times_of(track)[held]
         notes = [tracks.describe_anchor(anchor, held_at), tracks.describe_was(before, not shear)]
+        if dr:
+            notes.append(how)
+            if indices[-1] < len(times) - 1:
+                notes.append(reckoning.FOLLOW_ON)
         speed_unit = str(edit.speed.unit) if edit.speed is not None else DEFAULT_SETTINGS.speed_unit
         length_unit = (
             str(edit.distance.unit) if edit.distance is not None else DEFAULT_SETTINGS.length_unit
@@ -1157,8 +1305,9 @@ class Catalogue:
         given), the track's median speed between fixes, and the jumps. Changes nothing."""
         track = self._track(self._plot_at(item_id, base), feature_id)
         span = (parse_utc(period[0]), parse_utc(period[1])) if period else None
+        find = reckoning.find_dr_jumps if reckoning.reckoned(track) else fixes.find_jumps
         try:
-            used, jumps = fixes.find_jumps(track, threshold, span)
+            used, jumps = find(track, threshold, span)
         except tracks.TrackError as error:
             raise CatalogueError(str(error)) from None
         return used, fixes.median_speed(track), jumps
@@ -1184,19 +1333,27 @@ class Catalogue:
         def change(plot: DebriefFeatureCollection):
             track = self._track(plot, feature_id)
             exact = sorted({fixes.fix_at(track, t) for t in times})
-            after, lost = fixes.without_fixes(track, exact, threshold)
+            dr = reckoning.reckoned(track)
+            remove = reckoning.dr_without_fixes if dr else fixes.without_fixes
+            after, lost = remove(track, exact, threshold)
             notes = [f"At {fixes.describe_times(exact)}"]
             parameters = [models.ParameterValue(name="fix_times", value=" ".join(exact))]
+            if dr:
+                notes.append(reckoning.JUMPS_JOINED)
             if threshold is not None:
                 knots = threshold.to("[kn_i]").value
-                notes.append(f"Each faster than {fixes.describe_speed(knots)} to reach")
+                said = fixes.describe_speed(knots)
+                notes.append(
+                    f"Each logged faster than {said}" if dr else f"Each faster than {said} to reach"
+                )
                 parameters.append(
                     models.ParameterValue(name="threshold", value=threshold.to_model())
                 )
             if lost:
                 notes.append(f"{lost} marked fix{'' if lost == 1 else 'es'} removed with them")
             record = {"notes": notes, "parameters": parameters, "selected": [feature_id]}
-            note = fixes.describe_jumps(track.properties.name, len(exact))
+            name = reckoning.dr_name(track.properties.name) if dr else track.properties.name
+            note = fixes.describe_jumps(name, len(exact))
             return Changes(modified=[after]), note, None, record
 
         return self._change(item_id, change, agent, base, allow_newer_schema)[0]
@@ -1214,8 +1371,9 @@ class Catalogue:
         to show the analyst before it is applied. Changes nothing."""
         track = self._track(self._plot_at(item_id, base), feature_id)
         span = (parse_utc(period[0]), parse_utc(period[1])) if period else None
+        smooth = reckoning.dr_smoothed if reckoning.reckoned(track) else fixes.smoothed
         try:
-            return fixes.smoothed(track, window, tracks.period_indices(track, span))
+            return smooth(track, window, tracks.period_indices(track, span))
         except tracks.TrackError as error:
             raise CatalogueError(str(error)) from None
 
@@ -1239,11 +1397,16 @@ class Catalogue:
         def change(plot: DebriefFeatureCollection):
             track = self._track(plot, feature_id)
             indices = tracks.period_indices(track, span)
-            after, smoothing = fixes.smoothed(track, window, indices)
+            dr = reckoning.reckoned(track)
+            after, smoothing = (reckoning.dr_smoothed if dr else fixes.smoothed)(
+                track, window, indices
+            )
             if not smoothing.moved:
                 return None
             part = len(indices) < len(track.properties.times)
             notes = [fixes.describe_largest(smoothing)]
+            if dr:
+                notes.insert(0, reckoning.DR_SMOOTHING)
             parameters = [models.ParameterValue(name="window", value=float(window))]
             if period:
                 notes.append(tracks.describe_period(span))
@@ -1252,7 +1415,8 @@ class Catalogue:
                     models.ParameterValue(name="period_end", value=period[1]),
                 ]
             record = {"notes": notes, "parameters": parameters, "selected": [feature_id]}
-            note = fixes.describe_smoothing(track.properties.name, window, part)
+            name = reckoning.dr_name(track.properties.name) if dr else track.properties.name
+            note = fixes.describe_smoothing(name, window, part)
             return Changes(modified=[after]), note, smoothing, record
 
         return self._change(item_id, change, agent, base, allow_newer_schema)
@@ -1534,6 +1698,17 @@ def _edit_record(
         parameters=parameters or None,
         selected=selected or None,
     )
+
+
+def _dr_moved_notes(
+    after: models.TrackFeature, leg: reckoning.LegChange | None, indices: list[int]
+) -> list[str]:
+    """What a move of a DR track says: where dead reckoning now starts, or the leg into the
+    period's first fix as it now is, and that the fixes after follow."""
+    if leg is None:
+        return [reckoning.describe_origin(after.geometry.coordinates[0])]
+    at = tracks.times_of(after)[indices[0]]
+    return [reckoning.describe_leg_into(leg, at), reckoning.FOLLOW_FROM]
 
 
 def _quantity(quantity: Quantity, decimals: int):

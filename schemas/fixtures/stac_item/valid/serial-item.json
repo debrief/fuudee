@@ -41,7 +41,7 @@
     "start_datetime": "2026-10-11T09:30:00.000Z",
     "end_datetime": "2026-10-11T09:32:00.000Z",
     "title": "Serial 1",
-    "debrief:schema_version": "0.0.16",
+    "debrief:schema_version": "0.0.17",
     "debrief:participants": [
       "NELSON"
     ],

@@ -162,3 +162,50 @@ def test_a_failed_write_removes_the_new_item(setup, monkeypatch) -> None:
     assert not (catalogue.store.root / "serial-01").exists()
     reopened = Catalogue.open(catalogue.store.root)
     assert not [link for link in reopened.model.links if link.rel == "child"]
+
+
+def _by_name(catalogue: Catalogue, item: str) -> dict:
+    return {
+        f.properties.name: f
+        for f in catalogue.read_plot(item).features
+        if f.properties.kind == "track"
+    }
+
+
+def test_each_track_is_plotted_as_the_host_says_and_the_notes_say_so(setup) -> None:
+    """OTG or DR for each track (decision, product owner, 14 Oct 2026): the host asks the
+    analyst, or uses their remembered choice, and passes the answer; the importer never
+    reads user settings itself. The mode is kept on the track."""
+    from debrief_io.importer import rep_track_names
+
+    catalogue, source = setup
+    names = rep_track_names(source)
+    assert names == ["NELSON", "HMS BLUE"]
+    report = import_rep(catalogue, source, item_id="asked", modes={names[0]: "dr", names[1]: "otg"})
+    assert report.notes == [
+        f"Track {names[0]!r} plotted by dead reckoning (DR).",
+        f"Track {names[1]!r} plotted over the ground (OTG).",
+    ]
+    tracks = _by_name(catalogue, "asked")
+    dr, otg = tracks[names[0]], tracks[names[1]]
+    assert dr.properties.plotting_mode == "dr"
+    assert dr.properties.logged_positions is not None
+    assert otg.properties.plotting_mode == "otg" and otg.properties.logged_positions is None
+    assert dr.geometry.coordinates[0] == dr.properties.logged_positions.coordinates[0]
+    # In the provenance too, so the choice travels with the plot.
+    record = catalogue.read_plot("asked").provenance[0]
+    assert record.notes[:2] == report.notes
+    # The remembered choice: the notes say it was used, and how to change it.
+    remembered = import_rep(
+        catalogue, source, item_id="remembered", modes="dr", remembered="Clear it to be asked."
+    )
+    assert remembered.notes[-1] == (
+        "Tracks were plotted by dead reckoning (DR) as you chose for future imports. "
+        "Clear it to be asked."
+    )
+    # No mode given (an agent, the sample data): over the ground, as logged, and unsaid.
+    plain = import_rep(catalogue, source, item_id="plain")
+    assert plain.notes == []
+    assert all(t.properties.plotting_mode is None for t in _by_name(catalogue, "plain").values())
+    with pytest.raises(ValueError, match="not a way to plot a track"):
+        import_rep(catalogue, source, item_id="bad", modes="sideways")

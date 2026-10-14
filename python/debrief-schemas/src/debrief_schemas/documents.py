@@ -431,6 +431,30 @@ def _feature_problems(feature: Any, track_ids: set[str] | None) -> list[str]:
                 problems.append(f"{where}: {name} has {len(values)} entries for {count} positions")
         if any(a > b for a, b in zip(props.times, props.times[1:], strict=False)):
             problems.append(f"{where}: times are not in order")
+        logged = props.logged_positions
+        if logged is not None:
+            if str(props.plotting_mode) != "dr":
+                problems.append(
+                    f"{where}: only a track plotted by dead reckoning keeps its positions as logged"
+                )
+            if len(logged.coordinates) != count:
+                problems.append(
+                    f"{where}: logged_positions has {len(logged.coordinates)} positions "
+                    f"for {count} fixes"
+                )
+        for name in ("logged_courses", "logged_speeds"):
+            series_logged = getattr(props, name)
+            if series_logged is None:
+                continue
+            if str(props.plotting_mode) != "dr":
+                problems.append(
+                    f"{where}: only a track plotted by dead reckoning keeps its {name[7:]} "
+                    "as logged"
+                )
+            if len(series_logged.values) != count:
+                problems.append(
+                    f"{where}: {name} has {len(series_logged.values)} entries for {count} fixes"
+                )
         problems += _fix_mark_problems(where, props)
 
     elif props.kind == "annotation":
@@ -663,8 +687,10 @@ def _format_settings_problems(settings: g.FormatSettings, raw: dict[str, Any]) -
     return problems
 
 
-# The newest per-user configuration layout this build understands.
-CONFIG_VERSION = 1
+# The newest per-user configuration layout this build understands: 1, the stores; 2, also
+# the choice of how tracks imported are plotted (track_import_mode), which an earlier
+# Debrief cannot read, so a file holding it says 2 and an earlier Debrief says to update.
+CONFIG_VERSION = 2
 
 
 def _user_config_problems(config: g.UserConfig, raw: dict[str, Any]) -> list[str]:
@@ -755,16 +781,60 @@ def track_edit_problems(edit: g.TrackEdit, where: str = "track_edit") -> list[st
     """Rules for a track changed by hand that JSON Schema cannot express: a move gives
     a distance and a bearing; a rotation an angle, and perhaps a pivot; a shear the
     end it holds (anchor) and either a distance and a bearing for the dragged end or
-    a course and a speed for the period; a stretch the end it holds and a speed. None
-    gives what belongs to another."""
+    a course and a speed for the period; a stretch the end it holds and a speed; a
+    single fix moved its time and either a distance and a bearing or a position; a
+    change of plotting mode the mode, and nothing else. None gives what belongs to
+    another."""
     problems = _time_range_problems(f"{where} period", edit.period)
     action = str(edit.action)
     given = {
         name
-        for name in ("distance", "bearing", "angle", "pivot", "anchor", "course", "speed")
+        for name in (
+            "distance",
+            "bearing",
+            "angle",
+            "pivot",
+            "anchor",
+            "course",
+            "speed",
+            "fix_time",
+            "position",
+            "plotting_mode",
+        )
         if getattr(edit, name) is not None
     }
-    if action == "move":
+    if action != "set_plotting_mode" and "plotting_mode" in given:
+        problems.append(f"{where}: only a change of plotting mode has a plotting mode")
+    if action != "move_fix" and given & {"fix_time", "position"}:
+        problems.append(f"{where}: only a single fix moved has a fix time or a position")
+    if edit.discard_dr_changes is not None and not (
+        action == "set_plotting_mode" and str(edit.plotting_mode) == "otg"
+    ):
+        problems.append(
+            f"{where}: only plotting a track over the ground discards changes made while it "
+            "was plotted by dead reckoning"
+        )
+    if action == "move_fix":
+        if edit.fix_time is None:
+            problems.append(f"{where}: moving a fix needs the fix's time")
+        by_drag = given >= {"distance", "bearing"} and "position" not in given
+        by_place = "position" in given and not given & {"distance", "bearing"}
+        if not (by_drag or by_place):
+            problems.append(
+                f"{where}: moving a fix needs either a distance and a bearing, or a position"
+            )
+        if given & {"angle", "pivot", "anchor", "course", "speed"} or edit.period is not None:
+            problems.append(f"{where}: moving a fix has no period, angle, pivot, anchor or speed")
+        if edit.position is not None and not (
+            -180 <= edit.position[0] <= 180 and -90 <= edit.position[1] <= 90
+        ):
+            problems.append(f"{where}: the position is not on the globe")
+    elif action == "set_plotting_mode":
+        if edit.plotting_mode is None:
+            problems.append(f"{where}: a change of plotting mode needs the mode: otg or dr")
+        if given - {"plotting_mode"} or edit.period is not None:
+            problems.append(f"{where}: a change of plotting mode has only the mode")
+    elif action == "move":
         if edit.distance is None or edit.bearing is None:
             problems.append(f"{where}: a move needs a distance and a bearing")
         if given & {"angle", "pivot"}:

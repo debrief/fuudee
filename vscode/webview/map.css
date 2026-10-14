@@ -95,6 +95,9 @@ body { background: var(--vscode-editor-background); color: var(--vscode-foregrou
 .track-handle-stretch::before { border: 4px double var(--vscode-focusBorder); }
 .track-handle-start:focus, .track-handle-end:focus { outline-offset: 4px; }
 .track-arm { stroke: var(--vscode-focusBorder); }
+/* A fix's own handle, when zoomed in far enough: a small ring, beneath the track's other handles. */
+.track-handle-fix { border-radius: 50%; border-width: 2px; background: transparent; cursor: move; }
+.track-handle-fix:hover { background: var(--vscode-editor-background); }
 /* What the selected track's handles change: the whole track, or its fixes in the window; and, beside it so the control stays short on a short map, what dragging an end does. */
 .track-extent { display: flex; flex-direction: row; background: var(--vscode-editorWidget-background); color: var(--vscode-editorWidget-foreground); font-size: 11px; }
 .track-extent[hidden] { display: none; }

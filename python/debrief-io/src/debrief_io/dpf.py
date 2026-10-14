@@ -336,6 +336,10 @@ class DpfLeg:
     kind: str  # the element name, such as "TrackSegment"
     name: str | None
     fixes: list[DpfFix] = field(default_factory=list)
+    # PlotRelative: the leg is plotted by dead reckoning (DR), not over the ground (OTG).
+    # Legacy Debrief saves the positions it worked out, from the leg's first fix by
+    # each fix's course and speed, so they are read as saved.
+    dead_reckoned: bool = False
 
 
 @dataclass
@@ -631,13 +635,21 @@ def _read_track(node: Node, result: DpfFile) -> None:
     loose = DpfLeg("fix", None)  # fixes held directly by the track
     for child in node.children:
         if child.tag in TRACK_LEGS:
-            leg = DpfLeg(child.tag, child.attrs.get("Name"))
+            leg = DpfLeg(
+                child.tag,
+                child.attrs.get("Name"),
+                dead_reckoned=read_bool(child.attrs.get("PlotRelative"), False),
+            )
             leg.fixes = _read_fixes(child, track.name, result)
             track.legs.append(leg)
         elif child.tag == "SegmentList":
             for inner in child.children:
                 if inner.tag in TRACK_LEGS:
-                    leg = DpfLeg(inner.tag, inner.attrs.get("Name"))
+                    leg = DpfLeg(
+                        inner.tag,
+                        inner.attrs.get("Name"),
+                        dead_reckoned=read_bool(inner.attrs.get("PlotRelative"), False),
+                    )
                     leg.fixes = _read_fixes(inner, track.name, result)
                     track.legs.append(leg)
                 else:

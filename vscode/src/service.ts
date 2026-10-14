@@ -98,6 +98,8 @@ export interface ImportReport {
   annotations?: number;
   narrative_entries?: number;
   omitted: string[];
+  /** How each track is plotted, and how to change a remembered choice. */
+  notes?: string[];
 }
 
 /** A change to the plot's annotations, made by hand or by an agent (CAP-03). */
@@ -132,7 +134,7 @@ export interface JumpsFound {
   feature: string;
   threshold: { value: number; unit: string };
   median_speed: { value: number; unit: string } | null;
-  jumps: { time: string; position: number[]; speed: { value: number; unit: string } | null; since: string }[];
+  jumps: { time: string; position: number[]; speed: { value: number; unit: string } | null; since: string; logged?: boolean }[];
 }
 
 export interface Agent {
@@ -153,6 +155,8 @@ export class ServiceError extends Error {
 export const CONFLICT = -32001;
 /** The JSON-RPC error for a write that would put a newer schema into the catalogue (SUB-35). */
 export const NEWER_SCHEMA = -32002;
+/** The JSON-RPC error for a change that would lose what the analyst made, until they confirm: a track changed while plotted by dead reckoning, plotted over the ground (discard_dr_changes). */
+export const NEEDS_CONFIRMATION = -32003;
 
 export interface ServiceOptions {
   python: string;
@@ -496,7 +500,13 @@ export class ToolService {
   }
 
   /** Import a REP file or a legacy plot file (.dpf) as a new plot. */
-  importFile(store: string, path: string, agent: Agent, allowNewerSchema = false): Promise<ImportReport> {
-    return this.request("debrief/import", { store, path, agent, ...(allowNewerSchema && { allow_newer_schema: true }) });
+  /** Import a REP or .dpf file; for a REP file, modes says how each track is plotted (otg or dr), and remembered how to change a remembered choice. */
+  importFile(store: string, path: string, agent: Agent, allowNewerSchema = false, options: { modes?: string | Record<string, string>; remembered?: string } = {}): Promise<ImportReport> {
+    return this.request("debrief/import", { store, path, agent, ...(allowNewerSchema && { allow_newer_schema: true }), ...options });
+  }
+
+  /** The tracks a REP file would import, to ask how each is plotted. */
+  repTracks(path: string): Promise<{ tracks: string[] }> {
+    return this.request("debrief/rep_tracks", { path });
   }
 }

@@ -1,0 +1,9 @@
+{
+  "kind": "edit_track",
+  "feature_id": "track-red-one",
+  "track_edit": {
+    "action": "set_plotting_mode",
+    "plotting_mode": "dr",
+    "discard_dr_changes": true
+  }
+}

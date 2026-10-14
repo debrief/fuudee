@@ -23,9 +23,10 @@ import { contextShown, type ContextTracks } from "../webview/contrast.js";
 import { placeToolTime } from "../webview/timelogic.js";
 import { TRACK_COLOURS } from "../webview/palette.js";
 import { TimeControl } from "../webview/timecontrol.js";
-import { formatBearing } from "@debrief/kernel";
-import { defaultPivotIndex, describeDistance, describeSpeed, describeTurn, legNow, mergedName, mergePlan, periodIndices, readBearing, readDistance, readSpeed, readTurn } from "../webview/trackedit.js";
-import { describeJump, describeMark, describeWindow, fixRows, jumpsFound, markAt, readThreshold, readWindow, smoothingNote, type Jump } from "../webview/fixes.js";
+import { formatBearing, formatPosition, parsePosition } from "@debrief/kernel";
+import { defaultPivotIndex, describeDistance, describeSpeed, describeTurn, FIX_PROMPT, FIX_PROMPT_DR, fixIndexAt, fixMeans, fixToEdit, jumpSpeed, legNow, mergedName, mergePlan, periodIndices, readBearing, readDistance, readSpeed, readTurn, reckoningOf } from "../webview/trackedit.js";
+import { chooseModes, MODE_LABELS, modeChoices, modeQuestion, REMEMBER_LABEL, REMEMBERED_IN_PLAYGROUND, type PlottingMode } from "../src/importmode.js";
+import { describeJump, describeMark, describeWindow, DR_TAG, fixRows, isDeadReckoned, jumpsFound, markAt, readThreshold, readWindow, smoothingNote, type Jump } from "../webview/fixes.js";
 import { FIX_COLOURS } from "../webview/palette.js";
 import { formatQuantity } from "@debrief/kernel";
 
@@ -282,7 +283,7 @@ window.addEventListener("message", (event) => {
       });
     } else if (message.kind === "edit_annotation") editAnnotation(message.feature_id as string);
     if (message.kind === "edit_track") {
-      // A track's move or rotate handle let go of, or nudged: changed so, as one step. Refused, the map shows the latest.
+      // A track's handle or a fix's let go of, or nudged: changed so, as one step. Refused, the map shows the latest.
       const change = { kind: "edit", feature: message.feature_id, edit: message.track_edit };
       const before = opened?.base.plot_hash;
       void changeTrack(change).then(async (problem) => {
@@ -585,9 +586,15 @@ $("north-arrow").onclick = () => void annotate({ kind: "north_arrow", shown: !ha
 
 // --- Tracks: moved, rotated, split and merged, each a step (CAP-01, CAP-02) -----------
 /** Move, rotate, split or merge tracks, as debrief/edit_track and the rest do; then show the plot, the new tracks selected. */
-async function changeTrack(change: Record<string, unknown>): Promise<string | undefined> {
+async function changeTrack(change: Record<string, unknown>, confirm?: (message: string) => Promise<boolean>): Promise<string | undefined> {
   if (!opened || !pythonReady) return "Open a plot first.";
-  const outcome = await pythonJson<{ error?: string; feature?: string; features?: string[] }>("track", opened.item.id, JSON.stringify({ base: opened.base, change }));
+  const send = (sent: Record<string, unknown>) => pythonJson<{ error?: string; confirm?: boolean; feature?: string; features?: string[] }>("track", opened!.item.id, JSON.stringify({ base: opened!.base, change: sent }));
+  let outcome = await send(change);
+  // A change that would lose what the reader made: with confirm, asked, and sent again confirming.
+  if (outcome.confirm && confirm && outcome.error) {
+    if (!(await confirm(outcome.error))) return undefined;
+    outcome = await send({ ...change, edit: { ...(change.edit as object), discard_dr_changes: true } });
+  }
   if (outcome.error) return outcome.error;
   await openPlot(opened.item.id, true);
   if (outcome.features) await select(outcome.features);
@@ -617,9 +624,14 @@ interface FormField {
   read?: (text: string) => { means: string } | { problem: string };
   /** The label and the value offered, from the choices made so far: worked out again when a choice changes, the value only while it is still the one offered. */
   follow?: (values: Record<string, string>) => { label: string; value: string };
+  /** A box to tick, beside its label: its value is "yes" when ticked, else "". */
+  check?: boolean;
 }
-/** A small form in a dialog: each field says, beneath it, what it understood or what is wrong; nothing is sent until all are right. Resolves to the values, or undefined for Cancel. */
-function trackForm(title: string, action: string, fields: FormField[], warning?: string): Promise<Record<string, string> | undefined> {
+/**
+ * A small form in a dialog: each field says, beneath it, what it understood or what is wrong; nothing is sent until all are right. Resolves to the values, or undefined for Cancel.
+ * warning, above the fields, is a warning (a red bar); { info } only explains (the neutral bar an information toast has).
+ */
+function trackForm(title: string, action: string, fields: FormField[], warning?: string | { info: string }): Promise<Record<string, string> | undefined> {
   return new Promise((resolve) => {
     const dialog = document.createElement("dialog");
     dialog.className = "track-form";
@@ -628,17 +640,22 @@ function trackForm(title: string, action: string, fields: FormField[], warning?:
     form.method = "dialog";
     const heading = Object.assign(document.createElement("h2"), { textContent: title });
     form.append(heading);
-    if (warning) form.append(Object.assign(document.createElement("p"), { className: "form-warning", textContent: warning }));
+    if (typeof warning === "string") form.append(Object.assign(document.createElement("p"), { className: "form-warning", textContent: warning }));
+    else if (warning) form.append(Object.assign(document.createElement("p"), { className: "form-info", textContent: warning.info }));
     const notes = new Map<string, HTMLElement>();
     const following: (() => void)[] = [];
-    const chosen = () => Object.fromEntries(fields.map((f) => [f.id, (form.elements.namedItem(f.id) as HTMLInputElement | null)?.value ?? ""]));
+    const valueOf = (element: HTMLInputElement | null) => (element?.type === "checkbox" ? (element.checked ? "yes" : "") : (element?.value ?? ""));
+    const chosen = () => Object.fromEntries(fields.map((f) => [f.id, valueOf(form.elements.namedItem(f.id) as HTMLInputElement | null)]));
     for (const field of fields) {
       const row = document.createElement("label");
-      row.className = "form-row";
+      row.className = field.check ? "form-row form-check" : "form-row";
       const label = Object.assign(document.createElement("span"), { textContent: field.label });
-      row.append(label);
+      if (!field.check) row.append(label);
       let input: HTMLInputElement | HTMLSelectElement;
-      if (field.options) {
+      if (field.check) {
+        input = Object.assign(document.createElement("input"), { type: "checkbox", checked: field.value === "yes" });
+        row.append(input, label);
+      } else if (field.options) {
         input = document.createElement("select");
         input.append(...field.options.map((o) => new Option(o.label, o.value)));
       } else {
@@ -646,7 +663,7 @@ function trackForm(title: string, action: string, fields: FormField[], warning?:
       }
       input.name = field.id;
       input.id = `track-form-${field.id}`;
-      if (field.value !== undefined) input.value = field.value;
+      if (field.value !== undefined && !field.check) input.value = field.value;
       const note = Object.assign(document.createElement("span"), { className: "detail form-note" });
       note.id = `${input.id}-note`;
       note.setAttribute("aria-live", "polite");
@@ -673,7 +690,8 @@ function trackForm(title: string, action: string, fields: FormField[], warning?:
         });
       }
       if (field.options) input.addEventListener("change", () => following.forEach((f) => f()));
-      row.append(input, note);
+      if (field.check) row.append(note);
+      else row.append(input, note);
       form.append(row);
     }
     following.forEach((f) => f());
@@ -824,6 +842,24 @@ $("stretch-track").onclick = async () => {
   const problem = await changeTrack({ kind: "edit", feature: track.id, edit });
   if (problem) toast(problem, "warning");
 };
+$("plotting-mode").onclick = async () => {
+  const track = oneTrack("plot over the ground or by dead reckoning");
+  if (!track) return;
+  const name = track.properties.name;
+  const now = (track.properties.plotting_mode as PlottingMode | undefined) ?? "otg";
+  const values = await trackForm(
+    `How is ${name} plotted?`,
+    "Plot",
+    [{ id: "mode", label: "Plotted", value: now, options: (["otg", "dr"] as const).map((m) => ({ value: m, label: `${MODE_LABELS[m]}${m === now ? ", as now" : ""}` })) }],
+    { info: "By dead reckoning, the first fix stays and each fix after it is placed from the one before by that fix's recorded course and speed; its positions as logged are kept, and over the ground puts them back. One step; Undo takes it back." },
+  );
+  if (!values || values.mode === now) return;
+  // Over the ground after a change made while plotted by dead reckoning loses that change (decision, product
+  // owner, 14 Oct 2026): the form says so, and the reader confirms first.
+  const confirmLoss = async (message: string) => !!(await trackForm(`Plot ${name} over the ground?`, "Plot over the ground", [], message));
+  const problem = await changeTrack({ kind: "edit", feature: track.id, edit: { action: "set_plotting_mode", plotting_mode: values.mode } }, confirmLoss);
+  if (problem) toast(problem, "warning");
+};
 $("split-track").onclick = async () => {
   const track = oneTrack("split");
   if (!track || !time) return;
@@ -907,7 +943,8 @@ $("find-jumps").onclick = async () => {
     found = await clean<Found>({ kind: "find_jumps", feature: track.id, threshold }, true);
     if (found.error) return toast(found.error, "warning");
   }
-  const said = jumpsFound(name, found.jumps.length, found.threshold);
+  const dr = isDeadReckoned(track.properties);
+  const said = jumpsFound(dr ? `${name} (${DR_TAG})` : name, found.jumps.length, found.threshold, undefined, dr);
   if (!found.jumps.length) return toast(said);
   const list = document.createElement("ul");
   list.className = "jump-list";
@@ -1044,7 +1081,11 @@ async function openFixes(trackId: string, time?: string): Promise<void> {
       return b;
     };
     const said = Object.assign(document.createElement("div"), { className: "detail", textContent: describeMark(mark, colourName) || "No colour, label or comment of its own." });
-    actions.replaceChildren(Object.assign(document.createElement("div"), { className: "fix-chosen", textContent: `Fix at ${when}` }), said, colour, text("label"), text("comment"));
+    const move = button("Move…");
+    move.id = "move-fix";
+    move.title = "Move this fix alone to a position you type; or drag its ring on the map, zoomed in";
+    move.onclick = () => void moveFix(track.id, chosen!);
+    actions.replaceChildren(Object.assign(document.createElement("div"), { className: "fix-chosen", textContent: `Fix at ${when}` }), said, colour, text("label"), text("comment"), move);
     if (chosen) showFixesOnMap({ feature_id: track.id, fix_times: [chosen] });
   };
   list.replaceChildren(
@@ -1074,9 +1115,38 @@ async function openFixes(trackId: string, time?: string): Promise<void> {
       return li;
     }),
   );
-  showSide(`Fixes of ${name}`, panel("Choose a fix to colour, label or comment on: each change is one step. Right-click a fix on the map to choose it there.", actions, list));
+  showSide(`Fixes of ${name}`, panel("Choose a fix to colour, label, comment on or move: each change is one step. Right-click a fix on the map to choose it there.", actions, list));
   render();
   list.querySelector<HTMLElement>(`li[data-time="${CSS.escape(chosen ?? "")}"]`)?.scrollIntoView({ block: "nearest" });
+}
+/** "Move…" in the fix list: where the fix goes, typed in any notation Debrief reads, saying how far, which way and the speeds it implies; one step. */
+async function moveFix(trackId: string, time: string): Promise<void> {
+  const track = trackOf(trackId);
+  if (!track) return;
+  const name = track.properties.name;
+  const index = fixIndexAt(track.properties.times, time);
+  if (index < 0) return toast(`${name} has no fix at ${describeTimes(time)}.`, "warning");
+  const positions = track.geometry.coordinates as [number, number][];
+  const times = track.properties.times.map(Date.parse);
+  const jump = jumpSpeed(positions, times);
+  const here = positions[index];
+  const read = (text: string): { means: string } | { problem: string } => {
+    try {
+      const p = parsePosition(text);
+      const to: [number, number] = [p.longitude, p.latitude];
+      return { means: `${formatPosition(p)}. ${fixMeans(name, positions, times, index, to, jump, reckoningOf(track.properties))}` };
+    } catch (error) {
+      return { problem: (error as Error).message };
+    }
+  };
+  const values = await trackForm(`Move the fix of ${name} at ${describeTimes(time)}`, "Move", [
+    { id: "position", label: reckoningOf(track.properties) ? FIX_PROMPT_DR : FIX_PROMPT, value: formatPosition({ longitude: here[0], latitude: here[1] }), read },
+  ]);
+  if (!values) return;
+  const p = parsePosition(values.position);
+  const problem = await changeTrack({ kind: "edit", feature: trackId, edit: fixToEdit(track.properties.times[index], [p.longitude, p.latitude]) });
+  if (problem) toast(problem, "warning");
+  await openFixes(trackId, time);
 }
 async function markFix(trackId: string, time: string, changes: Record<string, string | null>, colourName?: string): Promise<void> {
   const outcome = await clean({ kind: "mark", feature: trackId, time, changes, ...(colourName && { colour_name: colourName }) });
@@ -1172,6 +1242,12 @@ function renderOutline(): void {
         const props = f.properties as { times?: string[]; time?: string };
         row.innerHTML = `<span class="name"></span> <span class="detail"></span>`;
         row.querySelector(".name")!.textContent = f.properties.name;
+        // A track plotted by dead reckoning: a small DR beside its name (decision, product owner, 14 Oct 2026).
+        if (f.properties.kind === "track" && isDeadReckoned(f.properties)) {
+          const tag = Object.assign(document.createElement("span"), { className: "tag", textContent: DR_TAG, title: "Plotted by dead reckoning (DR), from its first fix by each fix's course and speed" });
+          tag.setAttribute("aria-label", "plotted by dead reckoning");
+          row.querySelector(".name")!.after(" ", tag);
+        }
         const when = props.times ? describeTimes(props.times[0], props.times.at(-1)) : f.properties.kind;
         row.querySelector(".detail")!.textContent = isHidden(f) ? `hidden on map · ${when}` : when;
         const choose = (add: boolean) =>
@@ -1291,7 +1367,7 @@ for (const panel of OPTIONAL) $(`panel-${panel}`).hidden = !panels.has(panel);
 // The panels in the order the demo lists them, after the plot and its outline.
 for (const panel of panelOrder) if (OPTIONAL.includes(panel)) $("side").append($(`panel-${panel}`));
 /** History, Try and Import need Python: off until it is ready. */
-const NEEDS_PYTHON = ["undo", "redo", "move-track", "rotate-track", "shear-track", "stretch-track", "split-track", "merge-tracks", "find-jumps", "smooth-track", "fix-list", "glitches", "crash", "colleague", "colleague-window", "colleague-during", "file", "colour", "hide", "show", "add-annotation", "edit-annotation", "delete-annotation", "north-arrow"];
+const NEEDS_PYTHON = ["undo", "redo", "move-track", "rotate-track", "shear-track", "stretch-track", "split-track", "merge-tracks", "find-jumps", "smooth-track", "fix-list", "plotting-mode", "ask-again", "glitches", "crash", "colleague", "colleague-window", "colleague-during", "file", "colour", "hide", "show", "add-annotation", "edit-annotation", "delete-annotation", "north-arrow"];
 function needsPython(on: boolean): void {
   for (const id of NEEDS_PYTHON) $<HTMLButtonElement | HTMLInputElement>(id).disabled = !on;
 }
@@ -1335,9 +1411,56 @@ $("colleague-during").onclick = (e) => {
   colleagueDuringNextRun = true;
   (e.target as HTMLButtonElement).textContent = "Armed: run a tool to see what happens";
 };
+// How tracks imported are plotted (CAP-01): asked of each track of a REP file, as legacy Debrief
+// asked, unless the reader chose a mode for future imports. That choice is the reader's own
+// setting, kept in the page's settings file (as debrief-config keeps an analyst's), never in the
+// catalogue or a plot; "Ask again" clears it.
+async function showImportMode(): Promise<void> {
+  const mode = (await python("import_mode")) as "ask" | PlottingMode;
+  $("import-mode-text").textContent =
+    mode === "ask"
+      ? "Debrief asks, for each track of a REP file, whether it is plotted over the ground (OTG) or by dead reckoning (DR)."
+      : `Tracks imported are plotted ${mode === "dr" ? "by dead reckoning (DR)" : "over the ground (OTG)"}, as you chose for future imports.`;
+  $("ask-again").hidden = mode === "ask";
+}
+$("ask-again").onclick = async () => {
+  await python("set_import_mode", "ask");
+  await showImportMode();
+  toast("Debrief will ask how each track you import is plotted.");
+};
+/** How each track of a REP file is plotted: asked, one track at a time, unless a choice is remembered. Undefined if the reader stopped. */
+async function askModes(name: string, data: Uint8Array): Promise<{ modes: Record<string, PlottingMode>; remembered: boolean } | undefined> {
+  const tracks = await pythonJson<string[]>("rep_tracks", name, data);
+  const remembered = (await python("import_mode")) as "ask" | PlottingMode;
+  // As legacy Debrief asked: over the ground or by dead reckoning, and apart from that a box to tick.
+  return chooseModes(
+    tracks,
+    remembered,
+    async (track, index, count) => {
+      const values = await trackForm(
+        modeQuestion(track, index, count),
+        "Import",
+        [
+          { id: "mode", label: "Plotted", options: modeChoices().map((c) => ({ value: c.mode, label: c.label })) },
+          { id: "remember", label: REMEMBER_LABEL, check: true },
+        ],
+        { info: "Over the ground, each fix is where it was logged; by dead reckoning, from the first fix by each fix's course and speed. Tick the box to be asked no more; Ask again, under Import, asks again." },
+      );
+      return values ? { mode: values.mode as PlottingMode, remember: values.remember === "yes" } : undefined;
+    },
+    async (mode) => {
+      await python("set_import_mode", mode);
+      await showImportMode();
+    },
+  );
+}
 $<HTMLInputElement>("file").onchange = async (e) => {
   const file = (e.target as HTMLInputElement).files?.[0];
   if (!file) return;
+  const data = new Uint8Array(await file.arrayBuffer());
+  (e.target as HTMLInputElement).value = ""; // so the same file can be chosen again
+  const asked = await askModes(file.name, data);
+  if (!asked) return toast("Nothing was imported.");
   status(`Importing ${file.name}…`, true);
   const report = await pythonJson<{
     item?: string;
@@ -1345,10 +1468,11 @@ $<HTMLInputElement>("file").onchange = async (e) => {
     fixes: number;
     annotations: number;
     omitted: string[];
+    notes?: string[];
     error?: string;
     plot_file?: boolean;
     steps?: number;
-  }>("import_file", file.name, new Uint8Array(await file.arrayBuffer()));
+  }>("import_file", file.name, data, Object.keys(asked.modes).length ? JSON.stringify(asked.modes) : null, asked.remembered ? REMEMBERED_IN_PLAYGROUND : null);
   status("Ready. Everything runs in your browser; nothing is sent anywhere.");
   if (report.error || !report.item) return toast(report.error ?? "The file could not be imported.", "warning");
   await refreshPlots();
@@ -1370,7 +1494,11 @@ $<HTMLInputElement>("file").onchange = async (e) => {
     : "Everything in the file was imported.";
   const list = document.createElement("ul");
   list.replaceChildren(...report.omitted.map((line) => Object.assign(document.createElement("li"), { textContent: line })));
-  panel.append(heading, lead, list);
+  // How each track is plotted, and how to change a remembered choice.
+  const modes = document.createElement("ul");
+  modes.className = "import-notes";
+  modes.replaceChildren(...(report.notes ?? []).map((line) => Object.assign(document.createElement("li"), { textContent: line })));
+  panel.append(heading, modes, lead, list);
   showSide("Import", panel);
 };
 
@@ -1416,6 +1544,7 @@ function withoutPython(why: string): void {
     // keep: anything the reader selected on the preview stays selected.
     await openPlot(startPlot, true);
     pythonReady = true;
+    await showImportMode();
     needsPython(true);
     status("Ready. Everything runs in your browser; nothing is sent anywhere.");
   } catch (error) {

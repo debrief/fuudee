@@ -1691,6 +1691,15 @@
       "title": "PlotView",
       "type": "object"
     },
+    "PlottingModeEnum": {
+      "description": "How a track is plotted, as legacy Debrief asked of each track imported (CAP-01, decision, product owner, 14 Oct 2026).",
+      "enum": [
+        "otg",
+        "dr"
+      ],
+      "title": "PlottingModeEnum",
+      "type": "string"
+    },
     "PointGeometry": {
       "additionalProperties": false,
       "description": "",
@@ -2790,7 +2799,7 @@
     },
     "TrackEdit": {
       "additionalProperties": false,
-      "description": "A track moved, rotated, sheared or stretched by hand, as the map, a form or an agent describes it (CAP-01, CAP-02, CAP-21): one recorded, undoable step in the plot's history (SUB-19). Geodesic: a move takes every fix in the period the same range along the same bearing, each along its own geodesic; a rotation keeps each fix's range from the pivot and turns its bearing from the pivot by the angle. A shear and a stretch hold one end of the period (the anchor) and work in the azimuthal equidistant frame about it, where a geodesic through the anchor is a straight line: a shear adds to each fix the dragged end's displacement times the fix's fraction of the time from the anchor to the dragged end; a stretch scales each fix's range from the anchor, keeping its bearing from it. Either way a straight, steady leg stays a straight, steady leg. Fixes outside the period stay where they are, so the joins jump.",
+      "description": "A track moved, rotated, sheared or stretched by hand, as the map, a form or an agent describes it (CAP-01, CAP-02, CAP-21): one recorded, undoable step in the plot's history (SUB-19). Geodesic: a move takes every fix in the period the same range along the same bearing, each along its own geodesic; a rotation keeps each fix's range from the pivot and turns its bearing from the pivot by the angle. A shear and a stretch hold one end of the period (the anchor) and work in the azimuthal equidistant frame about it, where a geodesic through the anchor is a straight line: a shear adds to each fix the dragged end's displacement times the fix's fraction of the time from the anchor to the dragged end; a stretch scales each fix's range from the anchor, keeping its bearing from it. Either way a straight, steady leg stays a straight, steady leg. Fixes outside the period stay where they are, so the joins jump. A single fix moved (move_fix) goes where it is told, alone: its neighbours, its time and its recorded course and speed stay. set_plotting_mode with plotting_mode dr plots the whole track by dead reckoning, each fix placed from the one before by that fix's recorded course and speed, from the track's first fix; with otg it puts the fixes back where they were logged, after the analyst confirms losing any change made while plotted by dead reckoning (discard_dr_changes).",
       "properties": {
         "action": {
           "$ref": "#/$defs/TrackEditActionEnum"
@@ -2826,7 +2835,7 @@
               "type": "null"
             }
           ],
-          "description": "Which way a move takes each fix, or a shear drags the end that is not held, true, clockwise from north."
+          "description": "Which way a move takes each fix, a shear drags the end that is not held, or a single fix is moved, true, clockwise from north."
         },
         "course": {
           "anyOf": [
@@ -2839,6 +2848,13 @@
           ],
           "description": "The course made good a shear gives the period: the true bearing, at its first fix, of the geodesic from its first fix to its last. With speed, instead of a distance and a bearing for the dragged end."
         },
+        "discard_dr_changes": {
+          "description": "set_plotting_mode to otg only: plot the track over the ground although it was changed while plotted by dead reckoning, losing those changes, as the analyst confirmed (decision, product owner, 14 Oct 2026). Without it such a change is refused, saying why.",
+          "type": [
+            "boolean",
+            "null"
+          ]
+        },
         "distance": {
           "anyOf": [
             {
@@ -2848,7 +2864,15 @@
               "type": "null"
             }
           ],
-          "description": "How far a move takes each fix, or how far a shear drags the end that is not held."
+          "description": "How far a move takes each fix, a shear drags the end that is not held, or a single fix is moved."
+        },
+        "fix_time": {
+          "description": "The time of the one fix a move_fix moves: the fix is found by its time, as a mark is (where two fixes share a time, the first).",
+          "pattern": "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}\\.\\d{3}Z$",
+          "type": [
+            "string",
+            "null"
+          ]
         },
         "period": {
           "anyOf": [
@@ -2863,6 +2887,29 @@
         },
         "pivot": {
           "description": "[longitude, latitude] of the position a rotation turns about. Left out, the fix nearest current time in the period, or the period's first fix.",
+          "items": {
+            "type": "number"
+          },
+          "maxItems": 2,
+          "minItems": 2,
+          "type": [
+            "array",
+            "null"
+          ]
+        },
+        "plotting_mode": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/PlottingModeEnum"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": "How set_plotting_mode plots the track, over the ground or by dead reckoning."
+        },
+        "position": {
+          "description": "[longitude, latitude] a move_fix puts the fix at, instead of a distance and a bearing from where it is.",
           "items": {
             "type": "number"
           },
@@ -2897,7 +2944,9 @@
         "move",
         "rotate",
         "shear",
-        "stretch"
+        "stretch",
+        "move_fix",
+        "set_plotting_mode"
       ],
       "title": "TrackEditActionEnum",
       "type": "string"
@@ -2936,6 +2985,16 @@
       ],
       "title": "TrackFeature",
       "type": "object"
+    },
+    "TrackImportModeEnum": {
+      "description": "How tracks imported are plotted: ask for each track (the default), or one choice the analyst said to use for future imports. User state, kept here and never in a catalogue or a plot file.",
+      "enum": [
+        "ask",
+        "otg",
+        "dr"
+      ],
+      "title": "TrackImportModeEnum",
+      "type": "string"
     },
     "TrackKindEnum": {
       "description": "",
@@ -2991,6 +3050,39 @@
         "kind": {
           "$ref": "#/$defs/TrackKindEnum"
         },
+        "logged_courses": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/AngleSeries"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": "A track plotted by dead reckoning: its courses as logged, one per fix, as they were when it was plotted so. On a DR track the courses and speeds are what edits change (decision, product owner, 14 Oct 2026), so these tell what was changed while plotted by dead reckoning, and plotting it over the ground again puts them back."
+        },
+        "logged_positions": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/LineStringGeometry"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": "A track plotted by dead reckoning: its positions as logged, over the ground, one per fix, so plotting it over the ground again puts them back. Left out for a legacy plot's DR leg, which saved only the positions it worked out."
+        },
+        "logged_speeds": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/SpeedSeries"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": "A track plotted by dead reckoning: its speeds as logged, one per fix, as they were when it was plotted so; see logged_courses."
+        },
         "name": {
           "type": "string"
         },
@@ -2999,6 +3091,17 @@
             "string",
             "null"
           ]
+        },
+        "plotting_mode": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/PlottingModeEnum"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": "How the track is plotted: over the ground (otg, as logged; also when left out) or by dead reckoning (dr), chosen as it was imported and changed as a recorded, undoable step (CAP-01, SUB-22). The geometry is always the positions as plotted, so other GeoJSON tools draw what Debrief draws."
         },
         "provenance": {
           "description": "Feature-level provenance where needed (SUB-18).",
@@ -3076,7 +3179,7 @@
       "description": "",
       "properties": {
         "config_version": {
-          "description": "Version of this file's layout. Currently 1.",
+          "description": "Version of this file's layout: 1 while it holds only stores; 2 once it holds track_import_mode, which an earlier Debrief cannot read.",
           "minimum": 1,
           "type": "integer"
         },
@@ -3086,6 +3189,17 @@
             "$ref": "#/$defs/KnownStore"
           },
           "type": "array"
+        },
+        "track_import_mode": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/TrackImportModeEnum"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": "How tracks imported are plotted, over the ground or by dead reckoning: ask (the default, also when left out), or otg or dr once the analyst chose \"Use this choice for future imports\" (CAP-01). The analyst may clear it, to be asked again."
         }
       },
       "required": [
@@ -3327,7 +3441,7 @@
               "type": "null"
             }
           ],
-          "description": "How the analyst moved, rotated, sheared or stretched a track on the map (edit_track)."
+          "description": "How the analyst moved, rotated, sheared or stretched a track, or moved one of its fixes, on the map (edit_track)."
         },
         "viewport": {
           "anyOf": [
@@ -3448,5 +3562,5 @@
   ],
   "title": "debrief",
   "type": "object",
-  "version": "0.0.16"
+  "version": "0.0.17"
 }

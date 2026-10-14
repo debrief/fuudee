@@ -54,7 +54,7 @@ from debrief_kernel.geodesy import Position, destination, range_bearing
 from debrief_kernel.time import parse_utc
 from debrief_kernel.units import Quantity
 from debrief_schemas import models
-from debrief_stac.tracks import FEWEST_FIXES, TrackError, period_indices, times_of
+from debrief_stac.tracks import FEWEST_FIXES, SERIES, TrackError, period_indices, times_of
 
 KNOTS = "[kn_i]"
 # Unless the analyst says: three times the track's median speed between fixes, at least 10 kn.
@@ -98,13 +98,16 @@ def _speed_kn(track: models.TrackFeature, times: list[int], a: int, b: int) -> f
 @dataclass(frozen=True)
 class Jump:
     """A fix found to be a jump: where and when, and how fast the track would have
-    had to go to reach it from the last good fix (since)."""
+    had to go to reach it from the last good fix (since). On a track plotted by dead
+    reckoning (logged), the fix's own logged speed, and since the time of the fix its leg
+    runs to (debrief_stac.reckoning.find_dr_jumps)."""
 
     index: int
     time: str
     position: tuple[float, float]
     speed_kn: float
     since: str
+    logged: bool = False
 
 
 def median_speed(track: models.TrackFeature) -> Quantity | None:
@@ -245,10 +248,15 @@ def _kept(track: models.TrackFeature, keep: list[int], **update) -> models.Track
         name: getattr(props, name).model_copy(
             update={"values": [getattr(props, name).values[i] for i in keep]}
         )
-        for name in ("speeds", "courses", "depths")
+        for name in SERIES
         if getattr(props, name) is not None
     }
     times = [props.times[i] for i in keep]
+    if props.logged_positions is not None:
+        logged = props.logged_positions
+        series["logged_positions"] = logged.model_copy(
+            update={"coordinates": [list(logged.coordinates[i]) for i in keep]}
+        )
     marks = marks_within(props.fix_marks, times)
     properties = props.model_copy(
         update={"times": times, "fix_marks": marks, **series, **update.pop("properties", {})}

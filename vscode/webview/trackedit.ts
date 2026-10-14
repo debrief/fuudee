@@ -17,6 +17,7 @@
 import { convert, DEFAULT_SETTINGS, fixed, formatBearing, formatPosition, formatQuantity, formatTime, UNIT_LABELS, type FormatSettings } from "@debrief/kernel";
 import type { TrackEdit } from "@debrief/schemas";
 import { lengthIn, onTheGlobe } from "./drawing.js";
+import { DR_TAG } from "./fixes.js";
 import { rangeBearing, travel, type LonLat } from "./geodesic.js";
 
 /** A span of time, in milliseconds. */
@@ -118,7 +119,8 @@ export function rotateEdit(degrees: number, pivot: LonLat, period?: { start: str
 
 /** Whether a change would move nothing, once rounded as it is saved. A stretch to the speed the period already makes, as shown, is said by the gesture (unchanged). */
 export function changesNothing(edit: TrackEdit): boolean {
-  if (edit.action === "move" || edit.action === "shear") return edit.distance ? !edit.distance.value : false;
+  if (edit.action === "move" || edit.action === "shear" || edit.action === "move_fix") return edit.distance ? !edit.distance.value : false;
+  if (edit.action === "set_plotting_mode") return false;
   if (edit.action === "stretch") return false;
   return !(edit.angle?.value ?? 0) || (edit.angle?.value ?? 0) % 360 === 0;
 }
@@ -287,10 +289,366 @@ export function describeSpan(span: Span, settings: FormatSettings = DEFAULT_SETT
   return `${formatTime(span.start, settings)} to ${formatTime(span.end, settings)}`;
 }
 
+// --- A single fix moved (CAP-01) --------------------------------------------------------
+//
+// As legacy Debrief: only that fix moves, along the geodesic from where it was; its time is
+// unchanged and its neighbours stay. Its recorded course and speed are kept (they are what
+// the platform logged, not worked out from the plotted positions), as for a move of the
+// whole track; what the positions now imply, the speed to reach the fix and to go on from
+// it, is said while it is dragged, so the analyst sees whether it has become a jump.
+
+/** The fix at a time: where two fixes share it, the first, as for a mark. -1 if none. */
+export function fixIndexAt(times: string[], time: string): number {
+  const at = Date.parse(time);
+  return times.findIndex((t) => Date.parse(t) === at);
+}
+
+/** The track's positions with the fix at index put at `to`; every other fix where it was. */
+export function fixMoved(positions: LonLat[], index: number, to: LonLat): LonLat[] {
+  const out = positions.map((p) => [p[0], p[1]] as LonLat);
+  out[index] = [to[0], to[1]];
+  return out;
+}
+
+/** A speed the positions imply between a fix and its neighbour. */
+export interface ImpliedSpeed {
+  /** The neighbour's time, in milliseconds. */
+  time: number;
+  /** Metres a second; null for no time between them. */
+  speed: number | null;
+}
+
+/** The speeds the positions imply to reach the fix at index from the fix before, and from it to the fix after: geodesic range over elapsed time; none at an end. As debrief_stac.tracks.implied_speeds. */
+export function impliedSpeeds(positions: LonLat[], times: number[], index: number): { into?: ImpliedSpeed; out?: ImpliedSpeed } {
+  const between = (a: number, b: number, other: number): ImpliedSpeed => {
+    const seconds = Math.abs(times[b] - times[a]) / 1000;
+    return { time: times[other], speed: seconds > 0 ? rangeBearing(positions[a], positions[b]).metres / seconds : null };
+  };
+  return {
+    ...(index > 0 && { into: between(index - 1, index, index - 1) }),
+    ...(index + 1 < times.length && { out: between(index, index + 1, index + 1) }),
+  };
+}
+
+const KNOT = 1852 / 3600;
+/** Above this speed (metres a second), to reach a fix or go on from it, the readout says it is as fast as a jump: as jump removal's default, three times the track's median speed between fixes, and at least 10 kn. */
+export function jumpSpeed(positions: LonLat[], times: number[]): number {
+  const speeds: number[] = [];
+  for (let i = 0; i + 1 < times.length; i++) {
+    const seconds = (times[i + 1] - times[i]) / 1000;
+    if (seconds > 0) speeds.push(rangeBearing(positions[i], positions[i + 1]).metres / seconds);
+  }
+  speeds.sort((a, b) => a - b);
+  const n = speeds.length;
+  const median = n ? (n % 2 ? speeds[(n - 1) / 2] : (speeds[n / 2 - 1] + speeds[n / 2]) / 2) : 0;
+  return Math.max(3 * median, 10 * KNOT);
+}
+
+/** The single fix moved, to save: its time, and the distance in the analyst's length unit and the bearing, each to the decimals the map showed. */
+export function fixEdit(time: string, metres: number, bearing: number, settings: FormatSettings = DEFAULT_SETTINGS): TrackEdit {
+  const { distance, bearing: b } = moveEdit(metres, bearing, undefined, settings);
+  return { action: "move_fix", fix_time: time, distance, bearing: b };
+}
+
+/** The single fix put at a position, as the forms send it. */
+export function fixToEdit(time: string, position: LonLat): TrackEdit {
+  return { action: "move_fix", fix_time: time, position: onTheGlobe(position) };
+}
+
+/** Where a fix goes for an edit: the distance and bearing (as rounded) from where it is, or the position. */
+export function fixTarget(from: LonLat, edit: TrackEdit): LonLat {
+  if (edit.position) return [edit.position[0], edit.position[1]];
+  return travel(from, edit.bearing!.value, convert(edit.distance!, "m").value);
+}
+
+const speedSaid = (implied: ImpliedSpeed, settings: FormatSettings) => (implied.speed === null ? "no time at all" : speedText(implied.speed, settings));
+
+/**
+ * What the map and the forms say of a fix moved: "RED ONE fix at 09:31:00Z: moving 0.42 nmi
+ * 045.0°T; 37.2 kn from 09:30:00Z, 13.2 kn on to 09:32:00Z", and, when either is faster than
+ * `jump` (metres a second), that it is as fast as a jump.
+ */
+export function fixReadout(
+  name: string,
+  time: number,
+  metres: number,
+  bearing: number,
+  implied: { into?: ImpliedSpeed; out?: ImpliedSpeed },
+  jump?: number,
+  settings: FormatSettings = DEFAULT_SETTINGS,
+  verb = "moving",
+): string {
+  const edit = moveEdit(metres, bearing, undefined, settings);
+  const speeds = [
+    ...(implied.into ? [`${speedSaid(implied.into, settings)} from ${formatTime(implied.into.time, settings)}`] : []),
+    ...(implied.out ? [`${speedSaid(implied.out, settings)} on to ${formatTime(implied.out.time, settings)}`] : []),
+  ];
+  let text = `${name} fix at ${formatTime(time, settings)}: ${verb} ${formatQuantity(edit.distance!, settings)} ${formatBearing(edit.bearing!, settings)}`;
+  if (speeds.length) text += `; ${speeds.join(", ")}`;
+  const fast = [implied.into, implied.out].some((i) => i && (i.speed === null || (jump !== undefined && i.speed > jump)));
+  if (fast && jump !== undefined) text += `: faster than ${speedText(jump, settings)}, as a jump would be`;
+  return text;
+}
+
+/**
+ * What the map and the forms say of a fix of a DR track moved: "RED ONE (DR) fix at 09:43:00Z:
+ * moving 0.42 nmi 045.0°T; leg into it now 056.5°T 12.1 kn; the fixes after follow", and, when
+ * that leg is faster than `jump`, that it is as fast as a jump. The first fix moved moves where
+ * dead reckoning starts.
+ */
+export function drFixReadout(name: string, time: number, metres: number, bearing: number, leg: DrLeg | undefined, jump?: number, settings: FormatSettings = DEFAULT_SETTINGS, verb = "moving"): string {
+  const edit = moveEdit(metres, bearing, undefined, settings);
+  let text = `${drName(name)} fix at ${formatTime(time, settings)}: ${verb} ${formatQuantity(edit.distance!, settings)} ${formatBearing(edit.bearing!, settings)}`;
+  if (!leg) return `${text}; dead reckoning starts here, so every fix follows`;
+  text += `; leg into it now ${drCourseSpeed(leg.course, leg.speed, settings)} (was ${drCourseSpeed(leg.wasCourse, leg.wasSpeed, settings)}); the fixes after follow`;
+  if (jump !== undefined && leg.speed > jump) text += `: faster than ${speedText(jump, settings)}, as a jump would be`;
+  return text;
+}
+
+/** What "Move a fix…" asks: over the ground, only that fix moves; plotted by dead reckoning, the leg into it changes and the fixes after follow. */
+export const FIX_PROMPT = "Where it goes: only this fix moves; its time, recorded course and speed stay";
+export const FIX_PROMPT_DR = "Where it goes: plotted by dead reckoning, the leg into this fix changes so it goes there, and the fixes after it follow";
+
+/** What a form says of a fix put at `to`, as the map says it while dragging: over the ground, the speeds to reach it and go on; plotted by dead reckoning, the leg into it. */
+export function fixMeans(name: string, positions: LonLat[], times: number[], index: number, to: LonLat, jump: number, reckoning?: Reckoning, settings: FormatSettings = DEFAULT_SETTINGS): string {
+  const { metres, bearing } = rangeBearing(positions[index], to);
+  if (reckoning) {
+    const made = drFixMoved(positions, times, reckoning, index, to);
+    if (!made) return sameTime(name, times[index], settings);
+    return drFixReadout(name, times[index], metres, bearing, made.leg, jump, settings, "moves");
+  }
+  return fixReadout(name, times[index], metres, bearing, impliedSpeeds(fixMoved(positions, index, to), times, index), jump, settings, "moves");
+}
+
+/** The most fixes given handles of their own at once; and how far apart on the screen, in pixels, neighbouring fixes must be: closer, the map says to zoom in. */
+export const MOST_FIX_HANDLES = 60;
+export const FIX_SPACING_PX = 14;
+
+/**
+ * Which fixes get a handle of their own: those on the screen (within `size`, and a small
+ * margin), when there are few enough and they are far enough apart to grab one (the median
+ * gap on the screen between neighbours, among those shown, at least FIX_SPACING_PX).
+ * Otherwise none, and whether zooming in would show them.
+ */
+export function fixHandleIndices(points: [number, number][], size: [number, number]): { indices: number[]; zoomIn?: boolean } {
+  const margin = 8;
+  const on = (p: [number, number]) => p[0] >= -margin && p[1] >= -margin && p[0] <= size[0] + margin && p[1] <= size[1] + margin;
+  const indices = points.flatMap((p, i) => (on(p) ? [i] : []));
+  if (!indices.length) return { indices: [] };
+  if (indices.length > MOST_FIX_HANDLES) return { indices: [], zoomIn: true };
+  const gaps: number[] = [];
+  for (let i = 0; i + 1 < points.length; i++) {
+    if (on(points[i]) || on(points[i + 1])) gaps.push(Math.hypot(points[i + 1][0] - points[i][0], points[i + 1][1] - points[i][1]));
+  }
+  gaps.sort((a, b) => a - b);
+  const median = gaps.length ? gaps[Math.floor(gaps.length / 2)] : Infinity;
+  return median >= FIX_SPACING_PX ? { indices } : { indices: [], zoomIn: true };
+}
+
+/** The fixes at indices plotted by dead reckoning, as debrief_stac.tracks.dead_reckoned_positions: the first stays; each after it is placed from the one before by that fix's course (degrees true) and speed (metres a second) over the time between, along the geodesic. */
+export function deadReckoned(positions: LonLat[], times: number[], indices: number[], courses: number[], speeds: number[]): LonLat[] {
+  const out = positions.map((p) => [p[0], p[1]] as LonLat);
+  for (let k = 1; k < indices.length; k++) {
+    const [a, b] = [indices[k - 1], indices[k]];
+    out[b] = travel(out[a], courses[a], (speeds[a] * (times[b] - times[a])) / 1000);
+  }
+  return out;
+}
+
+// --- Editing a track plotted by dead reckoning (decision, product owner, 14 Oct 2026) ---
+//
+// As debrief_stac.reckoning: on a DR track the truth is its origin (the first fix's
+// position) and each fix's course and speed, the leg from it to the next fix; positions are
+// always worked out from them. A move of the whole track moves the origin; a fix dragged
+// changes the leg into it; a rotation turns the courses in the period; a stretch scales the
+// speeds; a shear adds one set and drift to every leg in the period. The fixes after follow
+// on: there is no jump where the period meets the rest. The map previews exactly what the
+// tool service will make (the shared vectors, schemas/vectors/dead-reckoning.json).
+
+/** A DR track's courses (degrees true) and speeds (metres a second), one of each per fix. */
+export interface Reckoning {
+  courses: number[];
+  speeds: number[];
+}
+
+/** The leg into a fix, changed so dead reckoning puts the fix somewhere else: as it now is and as it was. */
+export interface DrLeg {
+  index: number;
+  course: number;
+  speed: number;
+  wasCourse: number;
+  wasSpeed: number;
+}
+
+/** A DR edit: the positions worked out, the courses and speeds, and what it changed. */
+export interface DrResult extends Reckoning {
+  positions: LonLat[];
+  /** The leg into the fix moved (none when the origin moved). */
+  leg?: DrLeg;
+  /** A shear's set and drift, east and north, metres a second. */
+  added?: [number, number];
+}
+
+/** How close a solved end comes to where it was dragged, in metres, as debrief_stac.reckoning.SOLVED_M. */
+const SOLVED_M = 1e-4;
+const ITERATIONS = 40;
+
+/** The fixes worked out from the origin by dead reckoning, up to and including fix upto. */
+export function reckon(origin: LonLat, times: number[], r: Reckoning, upto = times.length - 1): LonLat[] {
+  const out: LonLat[] = [[origin[0], origin[1]]];
+  for (let i = 1; i <= upto; i++) {
+    const metres = (r.speeds[i - 1] * (times[i] - times[i - 1])) / 1000;
+    out.push(metres ? travel(out[i - 1], r.courses[i - 1], metres) : [out[i - 1][0], out[i - 1][1]]);
+  }
+  return out;
+}
+
+class DrState {
+  origin: LonLat;
+  courses: number[];
+  speeds: number[];
+  constructor(
+    readonly here: LonLat[],
+    readonly times: number[],
+    r: Reckoning,
+  ) {
+    this.origin = [here[0][0], here[0][1]];
+    this.courses = r.courses.map((c) => ((c % 360) + 360) % 360);
+    this.speeds = [...r.speeds];
+  }
+  set(i: number, course: number, speed: number): void {
+    this.courses[i] = ((course % 360) + 360) % 360;
+    this.speeds[i] = speed;
+  }
+  positions(upto?: number): LonLat[] {
+    return reckon(this.origin, this.times, this, upto);
+  }
+  result(extra: Partial<DrResult> = {}): DrResult {
+    return { positions: this.positions(), courses: this.courses, speeds: this.speeds, ...extra };
+  }
+  /** Change the course and speed of the fix before index so dead reckoning from it reaches `to`; undefined for two fixes at one time. */
+  legInto(index: number, to: LonLat): DrLeg | undefined {
+    const seconds = (this.times[index] - this.times[index - 1]) / 1000;
+    if (!(seconds > 0)) return undefined;
+    const { metres, bearing } = rangeBearing(this.here[index - 1], to);
+    const [wasCourse, wasSpeed] = [this.courses[index - 1], this.speeds[index - 1]];
+    this.set(index - 1, metres > 0 ? bearing : wasCourse, metres / seconds);
+    return { index, course: this.courses[index - 1], speed: this.speeds[index - 1], wasCourse, wasSpeed };
+  }
+  /** Put fix start at `to`: the origin, or the leg into it. False when it cannot be. */
+  moveStart(start: number, to: LonLat): DrLeg | null | false {
+    if (start === 0) {
+      this.origin = [to[0], to[1]];
+      return null;
+    }
+    return this.legInto(start, to) ?? false;
+  }
+}
+
+const velocity = (course: number, speed: number): [number, number] => [speed * Math.sin((course * Math.PI) / 180), speed * Math.cos((course * Math.PI) / 180)];
+
+/** One velocity (east, north) added to the course and speed of every fix at indices, found so fix last lands at target: as debrief_stac.reckoning._solve_set. */
+function solveSet(s: DrState, indices: number[], last: number, target: LonLat): [number, number] {
+  const base = new Map(indices.map((i) => [i, velocity(s.courses[i], s.speeds[i])]));
+  const kept = new Map(indices.map((i) => [i, s.courses[i]]));
+  const seconds = (s.times[last] - s.times[indices[0]]) / 1000;
+  let [east, north] = [0, 0];
+  for (let k = 0; k < ITERATIONS; k++) {
+    for (const i of indices) {
+      const [ve, vn] = [base.get(i)![0] + east, base.get(i)![1] + north];
+      const speed = Math.hypot(ve, vn);
+      s.set(i, speed > 0 ? (Math.atan2(ve, vn) * 180) / Math.PI : kept.get(i)!, speed);
+    }
+    const end = s.positions(last)[last];
+    const { metres, bearing } = rangeBearing(end, target);
+    if (metres < SOLVED_M) break;
+    const [de, dn] = velocity(bearing, metres);
+    [east, north] = [east + de / seconds, north + dn / seconds];
+  }
+  return [east, north];
+}
+
+/** Move fix start (the origin, or by the leg into it) so fix last lands at held: holding a period's end. */
+function placeStartForEnd(s: DrState, start: number, last: number, held: LonLat): boolean {
+  let at: LonLat = [s.here[start][0], s.here[start][1]];
+  for (let k = 0; k < ITERATIONS; k++) {
+    if (s.moveStart(start, at) === false) return false;
+    const end = s.positions(last)[last];
+    const { metres, bearing } = rangeBearing(end, held);
+    if (metres < SOLVED_M) return true;
+    at = travel(at, bearing, metres);
+  }
+  return true;
+}
+
+/** One fix dragged to `to`: the leg into it changed (the origin moved, for the first fix); later fixes follow. Undefined at the time of the fix before. */
+export function drFixMoved(positions: LonLat[], times: number[], r: Reckoning, index: number, to: LonLat): DrResult | undefined {
+  const s = new DrState(positions, times, r);
+  const leg = s.moveStart(index, to);
+  return leg === false ? undefined : s.result(leg ? { leg } : {});
+}
+
+/** A move of the fixes at indices: of the origin when they start at the first fix; otherwise of the leg into the first of them. */
+export function drMoved(positions: LonLat[], times: number[], r: Reckoning, indices: number[], metres: number, bearing: number): DrResult | undefined {
+  const s = new DrState(positions, times, r);
+  if (!metres) return s.result();
+  const leg = s.moveStart(indices[0], travel(positions[indices[0]], bearing, metres));
+  return leg === false ? undefined : s.result(leg ? { leg } : {});
+}
+
+/** What a DR rotation of the fixes at indices turns about: the pivot when they start at the first fix; otherwise their own first fix. */
+export const drPivot = (positions: LonLat[], indices: number[], pivot: LonLat): LonLat => (indices[0] === 0 ? pivot : positions[indices[0]]);
+
+/** The courses of the fixes at indices turned by degrees (clockwise positive); the origin turned about the pivot when they start at the first fix. */
+export function drTurned(positions: LonLat[], times: number[], r: Reckoning, indices: number[], pivot: LonLat, degrees: number): DrResult {
+  const s = new DrState(positions, times, r);
+  if (!(degrees % 360)) return s.result();
+  for (const i of indices) s.set(i, s.courses[i] + degrees, s.speeds[i]);
+  if (indices[0] === 0) {
+    const { metres, bearing } = rangeBearing(pivot, s.origin);
+    if (metres > 0) s.origin = travel(pivot, bearing + degrees, metres);
+  }
+  return s.result();
+}
+
+/** The speeds of the fixes at indices multiplied by factor; held at the end, the start moved so the end stays. */
+export function drStretched(positions: LonLat[], times: number[], r: Reckoning, indices: number[], anchor: Anchor, factor: number): DrResult | undefined {
+  const s = new DrState(positions, times, r);
+  if (!endsOf(times, indices, anchor) || factor <= 0 || factor === 1) return s.result();
+  for (const i of indices) s.set(i, s.courses[i], s.speeds[i] * factor);
+  const last = indices[indices.length - 1];
+  if (anchor === "end" && !placeStartForEnd(s, indices[0], last, positions[last])) return undefined;
+  return s.result();
+}
+
+/** The period's dragged end to `to`, by one set and drift added to every leg in it; held at the end, the start put at `to` and the set found so the end stays. */
+export function drSheared(positions: LonLat[], times: number[], r: Reckoning, indices: number[], anchor: Anchor, to: LonLat): DrResult | undefined {
+  const s = new DrState(positions, times, r);
+  const ends = endsOf(times, indices, anchor);
+  if (!ends || rangeBearing(positions[ends[1]], to).metres < 1e-6) return s.result();
+  const last = indices[indices.length - 1];
+  if (anchor === "start") return s.result({ added: solveSet(s, indices, last, to) });
+  if (s.moveStart(indices[0], to) === false) return undefined;
+  return s.result({ added: solveSet(s, indices, last, positions[last]) });
+}
+
+/** A DR track's courses and speeds in degrees true and metres a second, from its properties; undefined unless it is plotted by dead reckoning with both recorded. */
+export function reckoningOf(props: { plotting_mode?: string | null; courses?: { unit: string; values: number[] } | null; speeds?: { unit: string; values: number[] } | null }): Reckoning | undefined {
+  if (props.plotting_mode !== "dr" || !props.courses || !props.speeds) return undefined;
+  const { courses, speeds } = props;
+  return {
+    courses: courses.values.map((v) => convert({ value: v, unit: courses.unit }, "deg").value),
+    speeds: speeds.values.map((v) => convert({ value: v, unit: speeds.unit }, "m/s").value),
+  };
+}
+
+const drName = (name: string) => `${name} (${DR_TAG})`;
+const DR_FOLLOW_ON = "the fixes after follow on, by dead reckoning";
+
 // --- Gestures: a drag, or a run of arrow keys, on a handle ----------------------------
 
-/** The handles on a selected track: move it, rotate it, choose the pivot it rotates about, or shear or stretch it from the start or the end of the period. */
-export type TrackRole = "move" | "rotate" | "pivot" | Anchor;
+/** The handles on a selected track: move it, rotate it, choose the pivot it rotates about, shear or stretch it from the start or the end of the period, or move one fix. */
+export type TrackRole = "move" | "rotate" | "pivot" | "fix" | Anchor;
 
 /** Whether a handle is on an end of the period (shear or stretch). */
 export const isEnd = (role: TrackRole): role is Anchor => role === "start" || role === "end";
@@ -313,10 +671,12 @@ export interface Gesture {
   mode?: EndMode;
   /** A stretch made with the arrow keys: the speed made good asked for, in the analyst's unit. */
   speed?: number;
+  /** On a fix's own handle: the fix's time, as the track writes it. */
+  fixTime?: string;
 }
 
-export function startGesture(role: TrackRole, origin: LonLat, mode?: EndMode): Gesture {
-  return { role, origin, at: origin, degrees: 0, ...(isEnd(role) && { mode: mode ?? "shear" }) };
+export function startGesture(role: TrackRole, origin: LonLat, mode?: EndMode, fixTime?: string): Gesture {
+  return { role, origin, at: origin, degrees: 0, ...(isEnd(role) && { mode: mode ?? "shear" }), ...(fixTime !== undefined && { fixTime }) };
 }
 
 /** The gesture with the handle dragged to `to`: the move handle, the pivot and an end go there (a stretch takes only how far along the leg); the rotate handle turns as seen from the pivot. */
@@ -367,6 +727,12 @@ export interface Target {
   pivot: LonLat;
   /** The period sent, if only the fixes in the window change. */
   period?: { start: string; end: string };
+  /** The fixes' times as the track writes them: to find a fix by its time. */
+  fixTimes?: string[];
+  /** Above this speed (metres a second), a fix moved is said to be as fast as a jump. */
+  jump?: number;
+  /** Plotted by dead reckoning: its courses and speeds, which every gesture but a move of the whole track changes. */
+  reckoning?: Reckoning;
 }
 
 /** What a gesture changes: the positions now, the change to save, what the map says, where the handle in use is drawn, and whether it would change nothing as shown. */
@@ -381,6 +747,8 @@ export interface GestureChange {
 /** What a gesture does to the track. None for the pivot, which records nothing, or an end when the period's fixes are all at one time. */
 export function gestureChange(g: Gesture, t: Target, settings: FormatSettings = DEFAULT_SETTINGS): GestureChange | undefined {
   if (isEnd(g.role)) return endChange(g, g.role, t, settings);
+  if (g.role === "fix") return fixChange(g, t, settings);
+  if (t.reckoning) return drChange(g, t, t.reckoning, settings);
   if (g.role === "move") {
     const { metres, bearing } = rangeBearing(g.origin, g.at);
     return { positions: shifted(t.positions, t.indices, metres, bearing), edit: moveEdit(metres, bearing, t.period, settings), readout: moveReadout(t.name, metres, bearing, t.part, settings) };
@@ -389,6 +757,44 @@ export function gestureChange(g: Gesture, t: Target, settings: FormatSettings = 
     return { positions: turned(t.positions, t.indices, t.pivot, g.degrees), edit: rotateEdit(g.degrees, t.pivot, t.period, settings), readout: rotateReadout(t.name, g.degrees, t.pivot, t.part, settings) };
   }
   return undefined;
+}
+
+/** A move or a rotation of a DR track: the origin moved, the leg into the period changed, or the courses turned; the fixes after follow on. */
+function drChange(g: Gesture, t: Target, r: Reckoning, settings: FormatSettings): GestureChange | undefined {
+  const name = drName(t.name);
+  if (g.role === "move") {
+    const { metres, bearing } = rangeBearing(g.origin, g.at);
+    const edit = moveEdit(metres, bearing, t.period, settings);
+    const made = drMoved(t.positions, t.times, r, t.indices, convert(edit.distance!, "m").value, edit.bearing!.value);
+    if (!made) return refusedLeg(t, edit, settings);
+    let readout = `${name}: moving ${formatQuantity(edit.distance!, settings)} ${formatBearing(edit.bearing!, settings)}`;
+    const into = made.leg && formatTime(t.times[made.leg.index], settings);
+    if (made.leg) readout += `; leg into ${into} now ${drCourseSpeed(made.leg.course, made.leg.speed, settings)}; it and the fixes after follow, by dead reckoning`;
+    else if (t.part) readout += `; dead reckoning starts from the first fix, so every fix follows`;
+    return { positions: made.positions, edit, readout };
+  }
+  if (g.role === "rotate") {
+    const pivot = drPivot(t.positions, t.indices, t.pivot);
+    const edit = rotateEdit(g.degrees, pivot, t.period, settings);
+    const made = drTurned(t.positions, t.times, r, t.indices, pivot, edit.angle!.value);
+    const after = t.indices[t.indices.length - 1] < t.times.length - 1;
+    let readout = `${name}: rotating ${describeTurn(angleIn(g.degrees, settings), settings)} about ${formatPosition({ longitude: pivot[0], latitude: pivot[1] }, settings)}`;
+    if (t.part) readout += `; the courses in the time window turn${after ? `, and ${DR_FOLLOW_ON}` : ""}`;
+    return { positions: made.positions, edit, readout };
+  }
+  return undefined;
+}
+
+const drCourseSpeed = (course: number, speed: number, settings: FormatSettings) => `${formatBearing({ value: course, unit: "deg" }, settings)} ${speedText(speed, settings)}`;
+
+/** A DR change that cannot be made: the fix is at the time of the fix before, so no leg reaches it. Nothing moves. */
+function refusedLeg(t: Target, edit: TrackEdit, settings: FormatSettings): GestureChange {
+  return { positions: t.positions, edit, readout: sameTime(t.name, t.times[t.indices[0]], settings), unchanged: true };
+}
+
+/** Why a fix of a DR track at the time of the fix before cannot be put anywhere else, as debrief_stac.reckoning says it. */
+function sameTime(name: string, time: number, settings: FormatSettings): string {
+  return `${drName(name)}: its fix at ${formatTime(time, settings)} is at the same time as the fix before it, so dead reckoning cannot put it anywhere else: move the fix before it.`;
 }
 
 /** A shear or a stretch from dragging (or nudging) an end of the period. The change is worked out from the values as saved (rounded as shown), so what the map draws is what the step makes. */
@@ -404,6 +810,12 @@ function endChange(g: Gesture, end: Anchor, t: Target, settings: FormatSettings)
     const speed = Math.max(speedStep(settings), asked);
     const edit = stretchEdit(anchor, speed, t.period, settings);
     const factor = before.speed > 0 ? toMetresPerSecond(edit.speed!.value, settings) / before.speed : 1;
+    if (t.reckoning) {
+      const made = drStretched(t.positions, t.times, t.reckoning, t.indices, anchor, factor);
+      if (!made) return refusedLeg(t, edit, settings);
+      const readout = before.metres > 0 ? `${stretchReadout(drName(t.name), before.speed * factor, before.speed, false, settings)}; ${drTail("every speed", "is scaled", t)}` : `${drName(t.name)} ends where it starts, so it cannot be stretched: shear it instead.`;
+      return { positions: made.positions, edit, readout, handle: made.positions[dragged], unchanged: before.metres === 0 || edit.speed!.value === was };
+    }
     const positions = stretched(t.positions, t.times, t.indices, anchor, factor);
     const readout = before.metres > 0 ? stretchReadout(t.name, before.speed * factor, before.speed, t.part, settings) : `${t.name} ends where it starts, so it cannot be stretched: shear it instead.`;
     return { positions, edit, readout, handle: positions[dragged], unchanged: before.metres === 0 || edit.speed!.value === was };
@@ -411,9 +823,39 @@ function endChange(g: Gesture, end: Anchor, t: Target, settings: FormatSettings)
   const { metres, bearing } = rangeBearing(t.positions[dragged], g.at);
   const edit = shearEdit(anchor, metres, bearing, t.period, settings);
   const to = travel(t.positions[dragged], edit.bearing!.value, convert(edit.distance!, "m").value);
+  if (t.reckoning) {
+    const made = drSheared(t.positions, t.times, t.reckoning, t.indices, anchor, to);
+    if (!made) return refusedLeg(t, edit, settings);
+    const readout = `${shearReadout(drName(t.name), legOf(made.positions, t.times, t.indices), end, edit, false, settings)}; ${drTail("one set and drift is added to every leg", "", t)}`;
+    return { positions: made.positions, edit, readout, handle: made.positions[dragged] };
+  }
   const positions = sheared(t.positions, t.times, t.indices, anchor, to);
   const readout = shearReadout(t.name, legOf(positions, t.times, t.indices), end, edit, t.part, settings);
   return { positions, edit, readout, handle: positions[dragged] };
+}
+
+/** How a DR shear or stretch ends what it says: "every speed is scaled"; for the time window, "every speed in the time window is scaled, and the fixes after follow on, by dead reckoning". */
+function drTail(what: string, verb: string, t: Target): string {
+  const after = t.indices[t.indices.length - 1] < t.times.length - 1;
+  const text = `${what}${t.part ? " in the time window" : ""}${verb ? ` ${verb}` : ""}`;
+  return t.part && after ? `${text}, and ${DR_FOLLOW_ON}` : text;
+}
+
+/** A single fix dragged (or nudged): it alone goes, by the distance and bearing as saved (rounded as shown), so what the map draws is what the step makes. */
+function fixChange(g: Gesture, t: Target, settings: FormatSettings): GestureChange | undefined {
+  const index = g.fixTime !== undefined && t.fixTimes ? fixIndexAt(t.fixTimes, g.fixTime) : -1;
+  if (index < 0) return undefined;
+  const { metres, bearing } = rangeBearing(g.origin, g.at);
+  const edit = fixEdit(t.fixTimes![index], metres, bearing, settings);
+  const to = fixTarget(t.positions[index], edit);
+  if (t.reckoning) {
+    const made = drFixMoved(t.positions, t.times, t.reckoning, index, to);
+    if (!made) return { ...refusedLeg({ ...t, indices: [index] }, edit, settings), handle: t.positions[index] };
+    return { positions: made.positions, edit, readout: drFixReadout(t.name, t.times[index], metres, bearing, made.leg, t.jump, settings), handle: made.positions[index] };
+  }
+  const positions = fixMoved(t.positions, index, to);
+  const readout = fixReadout(t.name, t.times[index], metres, bearing, impliedSpeeds(positions, t.times, index), t.jump, settings);
+  return { positions, edit, readout, handle: to };
 }
 
 /** How long after the last arrow key a run of presses is sent as one change, as for an annotation's handles. */

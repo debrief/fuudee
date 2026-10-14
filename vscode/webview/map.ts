@@ -60,7 +60,7 @@ import { CONTEXT_WEIGHT, contextStyle, parseColour, WINDOW_WEIGHT, type ContextS
 import { MapEditor } from "./mapedit.js";
 import { PressHold } from "./presshold.js";
 import { TrackEditor } from "./trackmap.js";
-import { describeFix as describeFixOnly, marksByIndex } from "./fixes.js";
+import { describeFix as describeFixOnly, marksByIndex, trackLabel } from "./fixes.js";
 import { DATA_COLOURS } from "./palette.js";
 import { host, onMessage } from "./vscode.js";
 
@@ -381,7 +381,7 @@ function nearestFix(track: Track, at: L.LatLng): number {
 
 function describeFix(track: Track, index: number): string {
   const props = track.properties;
-  const parts = [props.name, describeFixOnly(track, index, settings)];
+  const parts = [trackLabel(props), describeFixOnly(track, index, settings)];
   const depth = props.depths?.values[index];
   if (depth !== undefined && props.depths) parts.push(`depth ${formatQuantity({ value: depth, unit: props.depths.unit }, settings)}`);
   // A marked fix says its label and comment too (EXT-14).
@@ -586,7 +586,7 @@ function timeOf(feature: Feature): { start: number; end: number } | undefined {
 /** Hovering a track line shows its nearest fix; right-clicking it (or pressing and holding it) asks to colour, label or comment on that fix. */
 function hoverFixes(line: L.Polyline, track: Track): void {
   holdable(line);
-  line.bindTooltip(text(track.properties.name), { sticky: true, className: "fix-tooltip" });
+  line.bindTooltip(text(trackLabel(track.properties)), { sticky: true, className: "fix-tooltip" });
   line.on("mousemove", (event: L.LeafletMouseEvent) => {
     line.setTooltipContent(text(describeFix(track, nearestFix(track, event.latlng))));
   });
@@ -781,7 +781,7 @@ function drawWindow(): void {
       const first = L.circleMarker(toLatLng(coordinates[part.first]), { radius: 4, color: colour, weight: 2, fill: true, fillOpacity: 0, baseWeight: 2 } as L.CircleMarkerOptions);
       first.bindTooltip(text(describeFix(track, part.first)));
       const last = L.circleMarker(toLatLng(coordinates[part.last]), { radius: 4.5, color: colour, fillColor: colour, fillOpacity: 1, weight: 1, baseWeight: 1 } as L.CircleMarkerOptions);
-      last.bindTooltip(text(track.properties.name), { permanent: true, direction: "right", className: "track-label", offset: [6, 0] });
+      last.bindTooltip(text(trackLabel(track.properties)), { permanent: true, direction: "right", className: "track-label", offset: [6, 0] });
       first.on("click", click);
       last.on("click", click);
       shown.windowedPaths.push(first, last);
@@ -891,7 +891,7 @@ function drawNow(): void {
     const { track } = entry;
     const colour = colourOf(track);
     const icon = L.divIcon({ className: "now", html: "", iconSize: [10, 10] });
-    const marker = L.marker(toLatLng(position), { icon, keyboard: false, title: track.properties.name });
+    const marker = L.marker(toLatLng(position), { icon, keyboard: false, title: trackLabel(track.properties) });
     marker.on("add", () => marker.getElement()?.style.setProperty("--now-colour", colour));
     marker.on("click", (event: L.LeafletMouseEvent) => {
       L.DomEvent.stopPropagation(event);

@@ -8,7 +8,9 @@ import { userInfo } from "node:os";
 import * as vscode from "vscode";
 import type { AnnotationSpec, ContextTracksEnum, ParameterValue, PlotView, SharedState, SharedStateChange, TimeRange, ToolDeclaration, TrackEdit } from "@debrief/schemas";
 import { formatBearing, formatPosition, formatQuantity, parsePosition, POSITION_EXAMPLE, UNIT_LABELS } from "@debrief/kernel";
-import { defaultPivotIndex, describeDistance, describeSpeed, describeTurn, legNow, mergedName, mergePlan, periodIndices, readBearing, readDistance, readSpeed, readTurn, type Anchor } from "../webview/trackedit.js";
+import { defaultPivotIndex, describeDistance, describeSpeed, describeTurn, FIX_PROMPT, FIX_PROMPT_DR, fixIndexAt, fixMeans, fixToEdit, jumpSpeed, legNow, mergedName, mergePlan, periodIndices, readBearing, readDistance, readSpeed, readTurn, reckoningOf, type Anchor } from "../webview/trackedit.js";
+import { chooseModes, MODE_LABELS, modeChoices, modeQuestion, REMEMBERED_IN_VSCODE, rememberItem, type ModeChoice, type PlottingMode } from "./importmode.js";
+import { loadConfig, trackImportMode, updateConfig, withTrackImportMode, type TrackImportMode } from "@debrief/config";
 import { changedSince, historyOnDisk, knownStores, openPlot, plotFile, type OpenedPlot } from "./catalogue.js";
 import { statSync, unwatchFile, watchFile } from "node:fs";
 import { count, describeTimes, describeToolRun, settings as displaySettings } from "./format.js";
@@ -19,9 +21,9 @@ import { FormPanel } from "./panels/form.js";
 import { MapPanel } from "./panels/map.js";
 import { ResultsPanel } from "./panels/results.js";
 import { TIME_VIEW, TimeView } from "./panels/timeview.js";
-import { CONFLICT, NEWER_SCHEMA, ServiceError, ToolService, type Agent, type AnnotationChange, type CallOutcome, type OpenedView, type ToolListing, type TrackChange } from "./service.js";
+import { CONFLICT, NEEDS_CONFIRMATION, NEWER_SCHEMA, ServiceError, ToolService, type Agent, type AnnotationChange, type CallOutcome, type OpenedView, type ToolListing, type TrackChange } from "./service.js";
 import type { CleanChange } from "./service.js";
-import { describeJump, describeMark, describeWindow, fixRows, jumpsFound, markAt, readThreshold, readWindow, smoothingNote } from "../webview/fixes.js";
+import { describeJump, describeMark, describeWindow, fixRows, isDeadReckoned, jumpsFound, markAt, readThreshold, readWindow, smoothingNote, trackLabel } from "../webview/fixes.js";
 import { HistoryProvider } from "./views/history.js";
 import { DiagnosticLog, hashed, logKey, serviceLine, toolRunLine, type ToolOutcome } from "./diagnostics.js";
 import { hiddenIds, hiddenNotice, isFeature, setViewOf, timeWindowOf, viewOf, type PlotFeature } from "./hidden.js";
@@ -445,17 +447,27 @@ export function activate(context: vscode.ExtensionContext): DebriefApi {
    * A change made elsewhere since the plot was opened is never overwritten (SUB-28).
    * Returns the problem, if any, and the tracks the change made.
    */
-  const changeTrack = (change: TrackChange) =>
+  const changeTrack = (change: TrackChange, confirm?: (message: string) => Promise<boolean>) =>
     serially(() =>
       ourChange(async (): Promise<{ problem?: string; feature?: string; features?: string[]; notes?: string[] }> => {
         const opened = session.current;
         if (!opened) return { problem: "Open a plot first." };
         if (!service || !opened.base) return { problem: "Changing tracks needs Debrief's tool service. Run 'Debrief: Restart tool service'." };
-        const save = (allow = false) => service!.changeTrack(opened.store.id, opened.item.id, opened.base!, agent, change, allow);
+        let sent = change;
+        const save = (allow = false) => service!.changeTrack(opened.store.id, opened.item.id, opened.base!, agent, sent, allow);
         let answer;
         try {
           try {
-            answer = await save();
+            try {
+              answer = await save();
+            } catch (error) {
+              // A change that would lose what the analyst made: with confirm, asked, and sent again confirming; without, refused, saying why.
+              if ((error as ServiceError).code !== NEEDS_CONFIRMATION || !confirm || sent.kind !== "edit") throw error;
+              const said = (error as Error).message.replace(/\s*Nothing was changed\. To go ahead[^]*$/, "");
+              if (!(await confirm(said))) return { problem: "Nothing was changed." };
+              sent = { ...sent, edit: { ...sent.edit, discard_dr_changes: true } };
+              answer = await save();
+            }
           } catch (error) {
             if ((error as ServiceError).code !== NEWER_SCHEMA) throw error;
             if (!(await confirmNewerSchema((error as Error).message))) return { problem: "Nothing was changed." };
@@ -1006,7 +1018,7 @@ export function activate(context: vscode.ExtensionContext): DebriefApi {
 
   // From the map: a handle let go of, or a run of arrow keys on one.
   command("debrief.editTrack", async (featureId?: string, edit?: TrackEdit) => {
-    if (!trackById(featureId) || !edit) return { problem: report("Select a track to move or rotate.") };
+    if (!trackById(featureId) || !edit) return { problem: report("Select a track to change.") };
     return trackDone(await changeTrack({ kind: "edit", feature: featureId!, edit }));
   });
   // "Move track…": what moves, the distance and the bearing. With a change given, no questions.
@@ -1278,7 +1290,8 @@ export function activate(context: vscode.ExtensionContext): DebriefApi {
       return { problem: report((error as Error).message) };
     }
     const times = found.jumps.map((j) => j.time);
-    const said = jumpsFound(name, times.length, found.threshold, displaySettings);
+    const dr = isDeadReckoned(track.properties);
+    const said = jumpsFound(dr ? trackLabel(track.properties) : name, times.length, found.threshold, displaySettings, dr);
     if (!times.length) {
       showFixes(undefined);
       if (!given) void vscode.window.showInformationMessage(said);
@@ -1381,36 +1394,39 @@ export function activate(context: vscode.ExtensionContext): DebriefApi {
   // "Fixes…": the fix list of a track, to choose one; then its colour, label or comment, each one step.
   // From the map (a right-click on a fix), the fix is given. With a change given, no questions.
   type MarkChanges = { colour?: string | null; label?: string | null; comment?: string | null; colour_name?: string };
+  /** The fix list of a track, the fix nearest current time offered: the time of the fix chosen, or undefined for Escape. */
+  async function chooseFix(track: TrackFeature, placeholder: string): Promise<string | undefined> {
+    const rows = fixRows(track, displaySettings, colourName).map((row) => ({ label: row.label, description: row.description, detail: row.mark || undefined, time: row.time }));
+    const current = session.time ? Date.parse(session.time.current) : undefined;
+    const near = current === undefined ? 0 : rows.reduce((best, row, i) => (Math.abs(Date.parse(row.time) - current) < Math.abs(Date.parse(rows[best].time) - current) ? i : best), 0);
+    const quick = vscode.window.createQuickPick<(typeof rows)[number]>();
+    quick.title = `Fixes of ${track.properties.name}`;
+    quick.placeholder = placeholder;
+    quick.items = rows;
+    quick.matchOnDescription = true;
+    quick.matchOnDetail = true;
+    quick.activeItems = rows[near] ? [rows[near]] : [];
+    const at = await new Promise<string | undefined>((resolve) => {
+      quick.onDidAccept(() => resolve(quick.selectedItems[0]?.time ?? quick.activeItems[0]?.time));
+      quick.onDidHide(() => resolve(undefined));
+      quick.show();
+    });
+    quick.dispose();
+    return at;
+  }
   command("debrief.markFix", async (target?: string | Target, time?: string, change?: MarkChanges) => {
     const track = trackTarget(target);
     if (!track) return { problem: report("Select one track to mark one of its fixes.") };
-    const name = track.properties.name;
-    let at = time;
-    if (!at) {
-      const rows = fixRows(track, displaySettings, colourName).map((row) => ({ label: row.label, description: row.description, detail: row.mark || undefined, time: row.time }));
-      const current = session.time ? Date.parse(session.time.current) : undefined;
-      const near = current === undefined ? 0 : rows.reduce((best, row, i) => (Math.abs(Date.parse(row.time) - current) < Math.abs(Date.parse(rows[best].time) - current) ? i : best), 0);
-      const quick = vscode.window.createQuickPick<(typeof rows)[number]>();
-      quick.title = `Fixes of ${name}`;
-      quick.placeholder = "Choose a fix to colour, label or comment on; type a time to find one";
-      quick.items = rows;
-      quick.matchOnDescription = true;
-      quick.matchOnDetail = true;
-      quick.activeItems = rows[near] ? [rows[near]] : [];
-      at = await new Promise<string | undefined>((resolve) => {
-        quick.onDidAccept(() => resolve(quick.selectedItems[0]?.time ?? quick.activeItems[0]?.time));
-        quick.onDidHide(() => resolve(undefined));
-        quick.show();
-      });
-      quick.dispose();
-      if (!at) return {};
-    }
+    const at = time ?? (await chooseFix(track, "Choose a fix to colour, label or comment on; type a time to find one"));
+    if (!at) return {};
     let changes = change;
     if (!changes) {
       // The fix chosen, ringed on the map while the analyst says what to do to it.
       showFixes({ feature_id: track.id, fix_times: [at] });
-      changes = await askMarkChange(track, at);
+      const asked = await askMarkChange(track, at);
       showFixes(undefined);
+      if (asked === "move") return vscode.commands.executeCommand("debrief.moveFix", track.id, at);
+      changes = asked;
       if (!changes) return {};
     }
     const { colour_name, ...members } = changes;
@@ -1418,8 +1434,8 @@ export function activate(context: vscode.ExtensionContext): DebriefApi {
     report(done.problem);
     return done;
   });
-  /** What to do to a fix: its colour, label or comment, asked in VS Code's lists and input boxes. */
-  async function askMarkChange(track: TrackFeature, at: string): Promise<MarkChanges | undefined> {
+  /** What to do to a fix: its colour, label or comment, asked in VS Code's lists and input boxes; or move it. */
+  async function askMarkChange(track: TrackFeature, at: string): Promise<MarkChanges | "move" | undefined> {
     const name = track.properties.name;
     const mark = markAt(track, at);
     const when = describeTimes(at);
@@ -1428,9 +1444,11 @@ export function activate(context: vscode.ExtensionContext): DebriefApi {
       { label: "Label…", description: mark?.label ? `now '${mark.label}'` : "", act: "label" },
       { label: "Comment…", description: mark?.comment ? `now: ${mark.comment.split("\n")[0]}` : "", act: "comment" },
       ...(mark?.colour ? [{ label: "Remove its own colour", description: "drawn in the track's colour again", act: "uncolour" }] : []),
+      { label: "Move…", description: "this fix alone, to a position you type", act: "move" },
     ];
     const action = await vscode.window.showQuickPick(actions, { title: `Fix of ${name} at ${when}`, placeHolder: describeMark(mark, colourName) || "Give this fix a colour, a label or a comment of its own" });
     if (!action) return undefined;
+    if (action.act === "move") return "move";
     if (action.act === "uncolour") return { colour: null };
     if (action.act === "colour") {
       const picked = await vscode.window.showQuickPick(FIX_COLOURS.map((c) => ({ label: c.name, colour: c.colour })), { title: `Colour for the fix of ${name} at ${when}` });
@@ -1443,6 +1461,71 @@ export function activate(context: vscode.ExtensionContext): DebriefApi {
     });
     return typed === undefined ? undefined : { [action.act]: typed.trim() || null };
   }
+  // "Move a fix…": the fix list, then where it goes, typed in any notation Debrief reads. Only that fix moves;
+  // its time, its recorded course and speed and its mark stay. From the map's fix menu, the fix is given;
+  // with a change given ({position} or {distance, bearing}), no questions.
+  command("debrief.moveFix", async (target?: string | Target, time?: string, given?: Omit<TrackEdit, "action" | "fix_time">) => {
+    const track = trackTarget(target);
+    if (!track) return { problem: report("Select one track to move one of its fixes.") };
+    const name = track.properties.name;
+    const at = time ?? (await chooseFix(track, "Choose a fix to move; type a time to find one"));
+    if (!at) return {};
+    if (given && typeof given === "object") return trackDone(await changeTrack({ kind: "edit", feature: track.id, edit: { ...given, action: "move_fix", fix_time: at } }));
+    const index = fixIndexAt(track.properties.times, at);
+    if (index < 0) return { problem: report(`${name} has no fix at ${describeTimes(at)}.`) };
+    const positions = track.geometry.coordinates as [number, number][];
+    const times = track.properties.times.map(Date.parse);
+    const jump = jumpSpeed(positions, times);
+    const here = positions[index];
+    showFixes({ feature_id: track.id, fix_times: [track.properties.times[index]] });
+    const typed = await vscode.window.showInputBox({
+      title: `Move the fix of ${name} at ${describeTimes(at)}`,
+      prompt: reckoningOf(track.properties) ? FIX_PROMPT_DR : FIX_PROMPT,
+      value: formatPosition({ longitude: here[0], latitude: here[1] }, displaySettings),
+      placeHolder: POSITION_EXAMPLE,
+      validateInput: (text) => {
+        try {
+          const p = parsePosition(text);
+          const to: [number, number] = [p.longitude, p.latitude];
+          const said = fixMeans(name, positions, times, index, to, jump, reckoningOf(track.properties), displaySettings);
+          return { message: `Means ${formatPosition(p, displaySettings)}. ${said}`, severity: vscode.InputBoxValidationSeverity.Info };
+        } catch (error) {
+          return { message: (error as Error).message, severity: vscode.InputBoxValidationSeverity.Error };
+        }
+      },
+    });
+    showFixes(undefined);
+    if (typed === undefined) return {};
+    const p = parsePosition(typed);
+    return trackDone(await changeTrack({ kind: "edit", feature: track.id, edit: fixToEdit(track.properties.times[index], [p.longitude, p.latitude]) }));
+  });
+  // "Plot over the ground or by dead reckoning…": the track's plotting mode, chosen as it was
+  // imported, changed as one step. With the mode given ("otg" or "dr"), no questions. Over the ground after a
+  // change made while plotted by dead reckoning loses that change (decision, product owner, 14 Oct 2026): asked,
+  // the analyst confirms in a dialog first; given, it is refused, saying why, unless options say to discard it.
+  command("debrief.plottingMode", async (target?: string | Target, given?: PlottingMode, options?: { discard_dr_changes?: boolean }) => {
+    const track = trackTarget(target);
+    if (!track) return { problem: report("Select one track to plot over the ground or by dead reckoning.") };
+    const name = track.properties.name;
+    const now: PlottingMode = (track.properties.plotting_mode as PlottingMode | undefined) ?? "otg";
+    let mode = given;
+    if (!mode) {
+      const items = (["otg", "dr"] as const).map((m) => ({ label: MODE_LABELS[m], description: m === now ? "as it is plotted now" : "", mode: m }));
+      const picked = await vscode.window.showQuickPick(items, {
+        title: `How is ${name} plotted?`,
+        placeHolder: "By dead reckoning, each fix after the first is placed by the course and speed at the fix before; its positions as logged are kept.",
+      });
+      if (!picked || picked.mode === now) return {};
+      mode = picked.mode;
+    }
+    const discard = !!given && mode === "otg" && options?.discard_dr_changes === true;
+    const edit: TrackEdit = { action: "set_plotting_mode", plotting_mode: mode, ...(discard && { discard_dr_changes: true }) };
+    const confirmLoss = async (message: string) => {
+      const go = "Plot over the ground";
+      return (await vscode.window.showWarningMessage(message, { modal: true }, go)) === go;
+    };
+    return trackDone(await changeTrack({ kind: "edit", feature: track.id, edit }, given ? undefined : confirmLoss));
+  });
   // What the map rings or previews, for agents and tests; debrief.showFixes with nothing takes it away.
   command("debrief.fixesOnMap", () => map.fixesShown);
   command("debrief.showFixes", (shown?: Parameters<typeof showFixes>[0]) => showFixes(shown));
@@ -1534,14 +1617,96 @@ export function activate(context: vscode.ExtensionContext): DebriefApi {
   });
   command("debrief.createCatalogue", () => vscode.commands.executeCommand("debrief.addCatalogue"));
 
-  command("debrief.importRep", async (node?: { view?: { store: { id: string } } }) => {
+  // The remembered choice of how imported tracks are plotted: kept in the analyst's configuration
+  // (debrief-config), shown in Settings as debrief.trackImportMode; never in a catalogue or a plot.
+  const rememberedMode = (): TrackImportMode => {
+    try {
+      return trackImportMode(loadConfig(configFile));
+    } catch {
+      return "ask";
+    }
+  };
+  const rememberMode = async (mode: TrackImportMode) => {
+    updateConfig((c) => withTrackImportMode(c, mode), configFile);
+    const setting = vscode.workspace.getConfiguration("debrief");
+    if (setting.get<string>("trackImportMode") !== mode) await setting.update("trackImportMode", mode, vscode.ConfigurationTarget.Global);
+  };
+  // Settings and the configuration agree: what the configuration holds is shown in Settings, and a change in Settings is kept there.
+  void (async () => {
+    const setting = vscode.workspace.getConfiguration("debrief");
+    const held = rememberedMode();
+    if (setting.get<string>("trackImportMode", "ask") !== held) await setting.update("trackImportMode", held, vscode.ConfigurationTarget.Global);
+  })();
+  context.subscriptions.push(
+    vscode.workspace.onDidChangeConfiguration((event) => {
+      if (!event.affectsConfiguration("debrief.trackImportMode")) return;
+      const mode = vscode.workspace.getConfiguration("debrief").get<TrackImportMode>("trackImportMode", "ask");
+      if (["ask", "otg", "dr"].includes(mode) && mode !== rememberedMode()) updateConfig((c) => withTrackImportMode(c, mode), configFile);
+    }),
+  );
+  command("debrief.askTrackImportMode", async () => {
+    await rememberMode("ask");
+    void vscode.window.showInformationMessage("Debrief will ask, for each track imported, whether it is plotted over the ground (OTG) or by dead reckoning (DR).");
+  });
+  command("debrief.trackImportMode", () => rememberedMode());
+  /** How each track of a REP file is plotted: asked, one track at a time, unless a choice is remembered. Undefined if the analyst stopped. */
+  async function askModes(file: string): Promise<{ modes: Record<string, PlottingMode>; remembered: boolean } | undefined> {
+    const tracks = (await service!.repTracks(file)).tracks;
+    return chooseModes(
+      tracks,
+      rememberedMode(),
+      (track, index, count) => askMode(modeQuestion(track, index, count)),
+      (mode) => rememberMode(mode),
+    );
+  }
+  /**
+   * One track's question, as legacy Debrief asked it: over the ground or by dead reckoning, and apart from that choice
+   * a box to tick, "Use this choice for future track imports". A Quick Pick has no check box, so the box is the list's
+   * last line: choosing it ticks or clears it and the list stays open; choosing OTG or DR answers. So one list, used
+   * the same by keyboard, mouse or screen reader (which reads on or off), and one question per track, not two.
+   */
+  function askMode(title: string): Promise<ModeChoice | undefined> {
+    type Item = vscode.QuickPickItem & { mode?: PlottingMode; toggle?: true };
+    const quick = vscode.window.createQuickPick<Item>();
+    let remember = false;
+    const options: Item[] = modeChoices();
+    const box = (): Item => ({ ...rememberItem(remember), toggle: true, alwaysShow: true });
+    const show = (active?: Item) => {
+      const toggle = box();
+      quick.items = [...options, { label: "", kind: vscode.QuickPickItemKind.Separator }, toggle];
+      quick.activeItems = [active === undefined ? toggle : active];
+    };
+    quick.title = title;
+    quick.placeholder = "Over the ground, as logged, or dead reckoned from course and speed";
+    quick.ignoreFocusOut = true;
+    show(options[0]);
+    return new Promise((resolve) => {
+      quick.onDidAccept(() => {
+        const item = quick.selectedItems[0] ?? quick.activeItems[0];
+        if (item?.toggle) {
+          remember = !remember;
+          show();
+        } else if (item?.mode) {
+          resolve({ mode: item.mode, remember });
+          quick.hide();
+        }
+      });
+      quick.onDidHide(() => {
+        resolve(undefined);
+        quick.dispose();
+      });
+      quick.show();
+    });
+  }
+  // Import a REP or .dpf file. Given { store, path, modes } (agents and tests), it asks nothing.
+  command("debrief.importRep", async (node?: { view?: { store: { id: string } } }, given?: { store?: string; path?: string; modes?: string | Record<string, PlottingMode> }) => {
     if (!needService()) return;
     const writable = knownStores(configFile).stores.filter((s) => !s.read_only);
     if (!writable.length) {
       void vscode.window.showWarningMessage("Add or create a catalogue first; imported plots go into a catalogue.");
       return;
     }
-    let storeId = node?.view?.store.id;
+    let storeId = given?.store ?? node?.view?.store.id;
     if (!storeId) {
       const picked =
         writable.length === 1
@@ -1553,26 +1718,46 @@ export function activate(context: vscode.ExtensionContext): DebriefApi {
       storeId = picked?.id;
     }
     if (!storeId) return;
-    const files = await vscode.window.showOpenDialog({
-      canSelectMany: false,
-      filters: { "Plot files": ["rep", "REP", "dpf", "DPF"], "REP files": ["rep", "REP"], "Legacy plot files": ["dpf", "DPF"] },
-    });
+    const files = given?.path
+      ? [vscode.Uri.file(given.path)]
+      : await vscode.window.showOpenDialog({
+          canSelectMany: false,
+          filters: { "Plot files": ["rep", "REP", "dpf", "DPF"], "REP files": ["rep", "REP"], "Legacy plot files": ["dpf", "DPF"] },
+        });
     if (!files?.length) return;
     try {
+      // How each track is plotted (CAP-01): a legacy plot says; a REP file's tracks are asked about.
+      let options: { modes?: string | Record<string, PlottingMode>; remembered?: string } = {};
+      if (given?.modes) options = { modes: given.modes };
+      else if (!/\.dpf$/i.test(files[0].fsPath)) {
+        const asked = await askModes(files[0].fsPath);
+        if (!asked) {
+          void vscode.window.showInformationMessage("Nothing was imported.");
+          return;
+        }
+        options = { modes: asked.modes, ...(asked.remembered && { remembered: REMEMBERED_IN_VSCODE }) };
+      }
       let report;
       try {
-        report = await service!.importFile(storeId, files[0].fsPath, agent);
+        report = await service!.importFile(storeId, files[0].fsPath, agent, false, options);
       } catch (error) {
         if ((error as ServiceError).code !== NEWER_SCHEMA) throw error;
         if (!(await confirmNewerSchema((error as Error).message))) return;
-        report = await service!.importFile(storeId, files[0].fsPath, agent, true);
+        report = await service!.importFile(storeId, files[0].fsPath, agent, true, options);
       }
       catalogues.refresh();
       const parts = [count(report.tracks.length, "track"), count(report.fixes, "fix", "fixes")];
       if (report.annotations) parts.push(count(report.annotations, "annotation"));
       if (report.narrative_entries) parts.push(count(report.narrative_entries, "narrative note"));
-      const summary = `Imported ${parts.join(", ")}.`;
+      // A remembered choice is said, with how to change it (CAP-01).
+      const remembered = options.remembered ? ` ${report.notes?.at(-1) ?? ""}` : "";
+      const summary = `Imported ${parts.join(", ")}.${remembered}`;
       // Nothing is dropped silently (EXT-14): say what was not imported.
+      if (given) {
+        // Agents and tests: said, not asked about, and what happened returned.
+        void vscode.window.showInformationMessage(summary);
+        return { item: report.item, notes: report.notes ?? [], omitted: report.omitted };
+      }
       if (report.omitted.length) {
         const choice = await vscode.window.showWarningMessage(
           `${summary} Some content was not imported.`,

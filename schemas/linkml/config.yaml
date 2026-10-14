@@ -21,6 +21,15 @@ description: >-
   that finds a newer config_version refuses to overwrite it.
 
 enums:
+  TrackImportModeEnum:
+    description: >-
+      How tracks imported are plotted: ask for each track (the default), or
+      one choice the analyst said to use for future imports. User state,
+      kept here and never in a catalogue or a plot file.
+    permissible_values:
+      ask: {description: "Ask, for each track imported, whether it is plotted over the ground or by dead reckoning."}
+      otg: {description: "Over the ground: each fix where it was logged."}
+      dr: {description: "Dead reckoning: from the first fix, by each fix's recorded course and speed."}
   StoreKindEnum:
     description: How a store is reached. Only static file catalogues so far (SUB-15).
     permissible_values:
@@ -30,7 +39,7 @@ classes:
   UserConfig:
     attributes:
       config_version:
-        description: Version of this file's layout. Currently 1.
+        description: "Version of this file's layout: 1 while it holds only stores; 2 once it holds track_import_mode, which an earlier Debrief cannot read."
         range: integer
         required: true
         minimum_value: 1
@@ -40,6 +49,13 @@ classes:
         multivalued: true
         inlined_as_list: true
         required: true
+      track_import_mode:
+        description: >-
+          How tracks imported are plotted, over the ground or by dead
+          reckoning: ask (the default, also when left out), or otg or dr
+          once the analyst chose "Use this choice for future imports"
+          (CAP-01). The analyst may clear it, to be asked again.
+        range: TrackImportModeEnum
 
   KnownStore:
     attributes:

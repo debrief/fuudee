@@ -1,0 +1,11 @@
+{
+  "kind": "edit_track",
+  "feature_id": "track-red-one",
+  "track_edit": {
+    "action": "move_fix",
+    "position": [
+      -75.45,
+      37.14
+    ]
+  }
+}

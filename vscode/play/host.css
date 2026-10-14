@@ -19,6 +19,7 @@ body { background: var(--vscode-editor-background); color: var(--vscode-foregrou
 .action-group #north-arrow { grid-column: span 2; }
 #outline li:hover { background: var(--vscode-list-hoverBackground); }
 #outline li.selected { background: var(--vscode-list-activeSelectionBackground); color: var(--vscode-list-activeSelectionForeground); }
+#outline .tag { font-size: 10px; padding: 0 3px; border: 1px solid currentColor; border-radius: 2px; opacity: 0.85; }
 .detail { color: var(--vscode-descriptionForeground); font-size: 12px; }
 .step.undone .name, .step.abandoned .name { color: var(--vscode-descriptionForeground); }
 .step.abandoned .name { text-decoration: line-through; }
@@ -104,3 +105,8 @@ dialog::backdrop { background: #0006; }
 .track-form input:focus, .track-form select:focus { outline: 1px solid var(--vscode-focusBorder); }
 .track-form .form-note.problem { color: var(--vscode-errorForeground); }
 .track-form .form-warning { max-width: 32em; margin: 0 0 8px; padding: 4px 6px; border-left: 3px solid var(--vscode-inputValidation-errorBorder); }
+/* What a form explains, not warns of: the neutral bar an information toast has. */
+.track-form .form-info { max-width: 32em; margin: 0 0 8px; padding: 4px 6px; border-left: 3px solid var(--vscode-focusBorder); }
+/* A box to tick, beside what it says. */
+.track-form .form-row.form-check { grid-template-columns: auto 1fr; align-items: center; column-gap: 6px; }
+.track-form .form-check .form-note { grid-column: 1 / -1; }

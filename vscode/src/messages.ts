@@ -38,10 +38,24 @@ export function trackEditProblems(edit: TrackEdit, where = "track_edit"): string
   const problems: string[] = [];
   const period = edit.period;
   if (period && !(Date.parse(period.start) <= Date.parse(period.end))) problems.push(`${where} period: time range starts after it ends`);
-  const given = new Set((["distance", "bearing", "angle", "pivot", "anchor", "course", "speed"] as const).filter((name) => edit[name] != null));
+  const given = new Set((["distance", "bearing", "angle", "pivot", "anchor", "course", "speed", "fix_time", "position", "plotting_mode"] as const).filter((name) => edit[name] != null));
   const any = (...names: string[]) => names.some((n) => given.has(n as never));
   const all = (...names: string[]) => names.every((n) => given.has(n as never));
-  if (edit.action === "move") {
+  if (edit.action !== "move_fix" && any("fix_time", "position")) problems.push(`${where}: only a single fix moved has a fix time or a position`);
+  if (edit.action !== "set_plotting_mode" && any("plotting_mode")) problems.push(`${where}: only a change of plotting mode has a plotting mode`);
+  if (edit.discard_dr_changes != null && !(edit.action === "set_plotting_mode" && edit.plotting_mode === "otg")) problems.push(`${where}: only plotting a track over the ground discards changes made while it was plotted by dead reckoning`);
+  if (edit.action === "move_fix") {
+    if (!edit.fix_time) problems.push(`${where}: moving a fix needs the fix's time`);
+    const byDrag = all("distance", "bearing") && !any("position");
+    const byPlace = any("position") && !any("distance", "bearing");
+    if (!(byDrag || byPlace)) problems.push(`${where}: moving a fix needs either a distance and a bearing, or a position`);
+    if (any("angle", "pivot", "anchor", "course", "speed") || period) problems.push(`${where}: moving a fix has no period, angle, pivot, anchor or speed`);
+    const position = edit.position;
+    if (position && !(Math.abs(position[0]) <= 180 && Math.abs(position[1]) <= 90)) problems.push(`${where}: the position is not on the globe`);
+  } else if (edit.action === "set_plotting_mode") {
+    if (!edit.plotting_mode) problems.push(`${where}: a change of plotting mode needs the mode: otg or dr`);
+    if (given.size > (edit.plotting_mode ? 1 : 0) || period) problems.push(`${where}: a change of plotting mode has only the mode`);
+  } else if (edit.action === "move") {
     if (!edit.distance || !edit.bearing) problems.push(`${where}: a move needs a distance and a bearing`);
     if (any("angle", "pivot")) problems.push(`${where}: a move has no angle or pivot`);
     if (any("anchor", "course", "speed")) problems.push(`${where}: a move has no anchor, course or speed`);

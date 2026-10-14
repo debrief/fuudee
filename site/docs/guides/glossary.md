@@ -58,6 +58,10 @@ Adapted from `DOMAIN_GLOSSARY.md` in debrief/debrief-future, itself adapted from
 
 **Marked fix.** A fix with a colour, a label or a comment of its own, as legacy plots carry. Found by its time, so the mark stays with its fix whatever else changes. Each change is one step (CAP-01, EXT-14).
 
+**Moving a fix** (a single fix). Putting one fix of a track somewhere else, alone: its time, its recorded course and speed, and every other fix stay. The speeds its new position implies, to reach it and to go on from it, are said. One step (CAP-01).
+
+**OTG, DR** (over the ground, dead reckoning). How legacy Debrief plotted a track: OTG, each fix where it was logged; DR, from a start, each fix placed from the one before by the course and speed recorded there. Debrief asks which as each track is imported, unless the analyst said to use one choice for future imports (their setting, which they can clear); the mode is kept on the track, and changing it is one step (CAP-01). On a DR track an edit changes where it starts, or its courses and speeds, and the positions are worked out again; its positions, courses and speeds as logged are kept unchanged beside it (see [Track operations](interaction-models/track-operations.md#editing-a-track-plotted-by-dead-reckoning)).
+
 **Fix list.** A track's fixes in time order, each with its time, position, course, speed and any mark, for choosing one fix to colour, label or comment on.
 
 **Chart furniture.** What a chart carries besides its data: the scale bar, always drawn, and the north arrow, which a plot shows or not.

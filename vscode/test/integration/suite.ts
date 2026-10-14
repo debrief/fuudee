@@ -634,6 +634,98 @@ export async function run(): Promise<void> {
   assert.equal(await vscode.commands.executeCommand("debrief.undo"), undefined);
   assert.equal((await steps()).at(-1)?.status, "undone");
 
+  // --- A single fix moved, and dead reckoning (CAP-01): from the map, and the commands with values given ---
+  const fixBefore = (await steps()).length;
+  const redNow = track("track-red-one")!;
+  const fixIndex = Math.floor(redNow.properties.times.length / 6);
+  const movedTime = redNow.properties.times[fixIndex];
+  const movedWhen = `${new Date(movedTime).toISOString().slice(11, 19)}Z`;
+  // Close in on the fix, RED ONE selected alone: each fix in view has a ring of its own.
+  const [lon, lat] = redNow.geometry.coordinates[fixIndex];
+  await vscode.commands.executeCommand("debrief.select", ["track-red-one"]);
+  await vscode.commands.executeCommand("debrief.setState", { viewport: { bbox: [lon - 0.02, lat - 0.012, lon + 0.02, lat + 0.012] } });
+  await sleep(1500);
+  // Letting go of a fix's ring: that fix alone moves, one step named for the fix, how far and which way.
+  await api.fromMap!({ kind: "edit_track", feature_id: "track-red-one", track_edit: { action: "move_fix", fix_time: movedTime, distance: { value: 0.3, unit: "[nmi_i]" }, bearing: { value: 90, unit: "deg" } } });
+  const fixStep = (await steps()).at(-1)?.notes ?? [];
+  assert.equal(fixStep[0], `${redName} fix at ${movedWhen} moved 0.30 nmi 090.0°T`);
+  assert.match(fixStep[2] ?? "", /^Speed to reach it from \d\d:\d\d:\d\dZ: \d+\.\d kn \(was \d+\.\d kn\)$/);
+  const redMoved = track("track-red-one")!;
+  assert.notDeepEqual(redMoved.geometry.coordinates[fixIndex], redNow.geometry.coordinates[fixIndex]);
+  assert.deepEqual(redMoved.geometry.coordinates[fixIndex + 1], redNow.geometry.coordinates[fixIndex + 1], "its neighbour stays");
+  assert.deepEqual(redMoved.properties.times, redNow.properties.times, "times stay");
+  await vscode.commands.executeCommand("debrief.outline.focus");
+  await sleep(2000);
+  await screenshot("29-fix-moved");
+  // "Move a fix…" with the position given, as an agent would; and the form, put away without sending.
+  const placed = await vscode.commands.executeCommand<TrackDone>("debrief.moveFix", "track-red-one", movedTime, { position: redNow.geometry.coordinates[fixIndex] });
+  assert.equal(placed.problem, undefined);
+  assert.match((await steps()).at(-1)?.notes?.[0] ?? "", new RegExp(`^${redName.replace(/[()]/g, "\\$&")} fix at ${movedWhen} moved 0\\.30 nmi 270\\.0°T$`));
+  const askingFix = vscode.commands.executeCommand<TrackDone>("debrief.moveFix", "track-red-one", redNow.properties.times[fixIndex + 2]);
+  await sleep(1500);
+  await sleep(1000);
+  await screenshot("30-move-fix-form");
+  await vscode.commands.executeCommand("workbench.action.closeQuickOpen");
+  assert.deepEqual(await askingFix, {});
+  // Plotted by dead reckoning, with no questions: one step; over the ground again puts back the positions as logged.
+  const loggedRed = track("track-red-one")!.geometry.coordinates;
+  const reckoned = await vscode.commands.executeCommand<TrackDone>("debrief.plottingMode", "track-red-one", "dr");
+  assert.equal(reckoned.problem, undefined);
+  assert.equal((await steps()).at(-1)?.notes?.[0], `${redName} plotted by dead reckoning`);
+  await vscode.commands.executeCommand("debrief.outline.focus");
+  await sleep(1500);
+  await screenshot("32-dr-tagged");
+  const overGround = await vscode.commands.executeCommand<TrackDone>("debrief.plottingMode", "track-red-one", "otg");
+  assert.equal(overGround.problem, undefined);
+  assert.equal((await steps()).at(-1)?.notes?.[0], `${redName} plotted over the ground`);
+  assert.deepEqual(track("track-red-one")!.geometry.coordinates, loggedRed);
+  assert.equal((await steps()).length, fixBefore + 4);
+  // Changed while plotted by dead reckoning, over the ground again loses that change (product owner, 14 Oct 2026):
+  // given, refused, saying why, until confirmed; confirmed, one step, the positions as logged back.
+  await vscode.commands.executeCommand<TrackDone>("debrief.plottingMode", "track-red-one", "dr");
+  const drBefore = track("track-red-one")!;
+  await api.fromMap!({ kind: "edit_track", feature_id: "track-red-one", track_edit: { action: "move_fix", fix_time: movedTime, distance: { value: 0.3, unit: "[nmi_i]" }, bearing: { value: 90, unit: "deg" } } });
+  // On a DR track the leg into the fix changes and every later fix follows (product owner, 14 Oct 2026).
+  const drFix = (await steps()).at(-1)?.notes ?? [];
+  assert.match(drFix[0] ?? "", new RegExp(`^${redName.replace(/[()]/g, "\\$&")} \\(DR\\) leg into ${movedWhen} now \\d{3}\\.\\d°T \\d+\\.\\d kn$`));
+  assert.equal(drFix.at(-1), "The fixes after it follow, by dead reckoning");
+  const drAfter = track("track-red-one")!;
+  assert.deepEqual(drAfter.geometry.coordinates[fixIndex - 1], drBefore.geometry.coordinates[fixIndex - 1], "the fix before stays");
+  assert.notDeepEqual(drAfter.geometry.coordinates[fixIndex + 1], drBefore.geometry.coordinates[fixIndex + 1], "the fix after follows");
+  const drRefused = await vscode.commands.executeCommand<TrackDone>("debrief.plottingMode", "track-red-one", "otg");
+  assert.match(drRefused.problem ?? "", /was changed while plotted by dead reckoning .* Nothing was changed\. To go ahead/);
+  assert.equal((await steps()).length, fixBefore + 6);
+  const discarded = await vscode.commands.executeCommand<TrackDone>("debrief.plottingMode", "track-red-one", "otg", { discard_dr_changes: true });
+  assert.equal(discarded.problem, undefined);
+  assert.deepEqual((await steps()).at(-1)?.notes?.slice(0, 2), [`${redName} plotted over the ground`, "Changes made while plotted by dead reckoning discarded"]);
+  assert.deepEqual(track("track-red-one")!.geometry.coordinates, loggedRed);
+  assert.equal(await vscode.commands.executeCommand("debrief.undo"), undefined);
+  assert.equal((await steps()).at(-1)?.status, "undone");
+
+  // Importing a REP file: each track plotted as asked (OTG or DR); "use this choice for future imports" is the
+  // analyst's own setting, in their Debrief configuration and VS Code's Settings, never in the plot; cleared to ask again.
+  type Imported = { item?: string; notes?: string[] };
+  const demoRep = path.resolve(__dirname, "../test/integration/demo.rep");
+  const asked = await vscode.commands.executeCommand<Imported>("debrief.importRep", undefined, { store: current.store.id, path: demoRep, modes: { NELSON: "dr", BLUE: "otg", "TRAWLER 7": "otg" } });
+  assert.equal(asked.notes?.[0], "Track 'NELSON' plotted by dead reckoning (DR).");
+  const settings = vscode.workspace.getConfiguration("debrief");
+  assert.equal(settings.get("trackImportMode"), "ask");
+  await settings.update("trackImportMode", "dr", vscode.ConfigurationTarget.Global);
+  await waitFor("the remembered choice in the configuration", async () => (await vscode.commands.executeCommand<string>("debrief.trackImportMode")) === "dr" || undefined);
+  const remembered = await vscode.commands.executeCommand<Imported>("debrief.importRep", undefined, { store: current.store.id, path: demoRep });
+  assert.match(remembered.notes?.at(-1) ?? "", /^Tracks were plotted by dead reckoning \(DR\) as you chose for future imports\. To change it, set Debrief: Track import mode in Settings; to be asked again for each track, run Debrief: Ask again whether imported tracks are OTG or DR\.$/);
+  await vscode.commands.executeCommand("debrief.askTrackImportMode");
+  assert.equal(await vscode.commands.executeCommand<string>("debrief.trackImportMode"), "ask");
+  await waitFor("Settings to say ask", () => vscode.workspace.getConfiguration("debrief").get("trackImportMode") === "ask" || undefined);
+  // Asked again: one question for each track, as legacy Debrief asked; put away, nothing is imported.
+  const prompting = vscode.commands.executeCommand<Imported | undefined>("debrief.importRep", undefined, { store: current.store.id, path: demoRep });
+  await sleep(2500);
+  await screenshot("31-import-asks");
+  await vscode.commands.executeCommand("workbench.action.closeQuickOpen");
+  assert.equal(await prompting, undefined);
+  await vscode.commands.executeCommand("debrief.openPlot", current.store.id, "serial-1");
+  await waitFor("serial 1 again", () => api.session.current?.item.id === "serial-1" || undefined);
+
   // A legacy plot file: its circles, ellipses and styling come in as annotations.
   const dpf = path.resolve(__dirname, "../../python/debrief-io/tests/data/shapes.dpf");
   execFileSync(process.env.DEBRIEF_PYTHON!, [

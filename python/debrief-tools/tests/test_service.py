@@ -272,6 +272,17 @@ def test_create_catalogue_then_import(client, tmp_path) -> None:
     again = rpc(client, "debrief/import_rep", params).json()["result"]
     assert (first["item"], again["item"]) == ("serial", "serial-2")
     assert first["tracks"] == ["NELSON", "BLUE", "LATE"] and first["fixes"] == 8
+    # How each track is plotted: the host asks, given the tracks the file holds, and says.
+    listed = rpc(client, "debrief/rep_tracks", {"path": str(source)}).json()["result"]
+    assert listed == {"tracks": ["NELSON", "BLUE", "LATE"]}
+    modes = {"NELSON": "dr", "BLUE": "otg", "LATE": "otg"}
+    asked = rpc(client, "debrief/import_rep", {**params, "modes": modes}).json()["result"]
+    assert asked["notes"][0] == "Track 'NELSON' plotted by dead reckoning (DR)."
+    remembered = {**params, "modes": "dr", "remembered": "Clear it to be asked again."}
+    said = rpc(client, "debrief/import_rep", remembered).json()["result"]["notes"]
+    assert said[-1].endswith("as you chose for future imports. Clear it to be asked again.")
+    bad = rpc(client, "debrief/import_rep", {**params, "modes": 3}).json()["error"]
+    assert bad["code"] == -32602
 
 
 def test_create_catalogue_refuses_a_folder_with_other_files(client, tmp_path) -> None:
@@ -792,6 +803,87 @@ def test_tracks_are_sheared_and_stretched_as_recorded_steps(client, catalogue) -
     assert bad["code"] == -32602 and "the end it holds" in bad["message"]
     stale = {**where, "base": base, "feature": "track-nelson", "edit": stretch}
     assert rpc(client, "debrief/edit_track", stale).json()["error"]["code"] == -32001
+
+
+def test_a_fix_is_moved_and_a_track_dead_reckoned_as_recorded_steps(client, catalogue) -> None:
+    where = {"store": "exercise", "item": "serial", "agent": AGENT}
+    base = rpc(client, "debrief/open", where).json()["result"]["base"]
+    nelson = next(f for f in catalogue.read_plot("serial").features if f.id == "track-nelson")
+    second = nelson.properties.times[1]
+    move_fix = {
+        "action": "move_fix",
+        "fix_time": second,
+        "distance": {"value": 0.42, "unit": "[nmi_i]"},
+        "bearing": {"value": 45, "unit": "deg"},
+    }
+    moved = rpc(
+        client,
+        "debrief/edit_track",
+        {**where, "base": base, "feature": "track-nelson", "edit": move_fix},
+    ).json()["result"]
+    assert moved == {**moved, "changed": True, "feature": "track-nelson"}
+    reckoned = rpc(
+        client,
+        "debrief/edit_track",
+        {
+            **where,
+            "base": moved["base"],
+            "feature": "track-nelson",
+            "edit": {"action": "set_plotting_mode", "plotting_mode": "dr"},
+        },
+    ).json()["result"]
+    assert reckoned["changed"]
+    steps = rpc(client, "debrief/history", where).json()["result"]["steps"]
+    assert steps[-2]["notes"][0].startswith("NELSON fix at ")
+    assert steps[-2]["notes"][0].endswith(" moved 0.42 nmi 045.0°T")
+    assert steps[-1]["notes"][0] == "NELSON plotted by dead reckoning"
+    # A fix the track does not have; a stale base is a conflict.
+    missing = {**move_fix, "fix_time": "2001-01-01T00:00:00.000Z"}
+    bad = rpc(
+        client, "debrief/edit_track", {**where, "feature": "track-nelson", "edit": missing}
+    ).json()["error"]
+    assert bad["code"] == -32602 and "NELSON has no fix at" in bad["message"]
+    stale = {**where, "base": base, "feature": "track-nelson", "edit": move_fix}
+    assert rpc(client, "debrief/edit_track", stale).json()["error"]["code"] == -32001
+
+
+def test_over_the_ground_after_a_change_made_while_dr_needs_confirming(client) -> None:
+    """Decision, product owner, 14 Oct 2026: plotting a track over the ground again after
+    it was changed while plotted by dead reckoning loses that change, so the service
+    refuses, saying why and how to go ahead; sent again confirming, it is one step."""
+    where = {"store": "exercise", "item": "serial", "agent": AGENT}
+    edit = {**where, "feature": "track-nelson"}
+    as_dr = {"action": "set_plotting_mode", "plotting_mode": "dr"}
+    rpc(client, "debrief/edit_track", {**edit, "edit": as_dr})
+    moved = {
+        "action": "move",
+        "distance": {"value": 2, "unit": "[nmi_i]"},
+        "bearing": {"value": 90, "unit": "deg"},
+    }
+    rpc(client, "debrief/edit_track", {**edit, "edit": moved})
+    # On a DR track a move of the whole track moves where dead reckoning starts.
+    last = rpc(client, "debrief/history", where).json()["result"]["steps"][-1]
+    assert last["notes"][0] == "NELSON (DR) moved 2.00 nmi 090.0°T"
+    assert last["notes"][1].startswith("Dead reckoning now starts from ")
+    count = len(rpc(client, "debrief/history", where).json()["result"]["steps"])
+    as_otg = {"action": "set_plotting_mode", "plotting_mode": "otg"}
+    refused = rpc(client, "debrief/edit_track", {**edit, "edit": as_otg}).json()["error"]
+    assert refused["code"] == -32003
+    assert refused["message"].startswith("NELSON was changed while plotted by dead reckoning")
+    assert (
+        "Nothing was changed. To go ahead, send the change again with discard_dr_changes: true."
+        in refused["message"]
+    )
+    assert len(rpc(client, "debrief/history", where).json()["result"]["steps"]) == count
+    confirmed = {**as_otg, "discard_dr_changes": True}
+    done = rpc(client, "debrief/edit_track", {**edit, "edit": confirmed}).json()["result"]
+    assert done["changed"]
+    steps = rpc(client, "debrief/history", where).json()["result"]["steps"]
+    assert len(steps) == count + 1
+    assert steps[-1]["notes"][:2] == [
+        "NELSON plotted over the ground",
+        "Changes made while plotted by dead reckoning discarded",
+    ]
 
 
 def test_tracks_are_cleaned_what_would_change_shown_first(client, catalogue) -> None:

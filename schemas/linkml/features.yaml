@@ -58,6 +58,15 @@ enums:
       rotate: {description: "Every fix in the period turns about the pivot by the angle, keeping its range from it."}
       shear: {description: "One end of the period is held; the other is dragged, and every fix moves in proportion to its time from the held end, so course and speed change together (TMA shear)."}
       stretch: {description: "One end of the period is held; every fix's range from it is scaled, so speeds change and courses do not (TMA stretch)."}
+      move_fix: {description: "One fix, found by its time (fix_time), goes to a new place: a distance along a bearing, or a position. Its time, its recorded course and speed, its mark and every other fix stay as they were."}
+      set_plotting_mode: {description: "The track plotted over the ground (OTG) or by dead reckoning (DR): plotting_mode says which."}
+  PlottingModeEnum:
+    description: >-
+      How a track is plotted, as legacy Debrief asked of each track imported
+      (CAP-01, decision, product owner, 14 Oct 2026).
+    permissible_values:
+      otg: {description: "Over the ground: each fix where it was logged."}
+      dr: {description: "Dead reckoning: the first fix where it was logged, and each fix after it placed from the one before by that fix's recorded course and speed over the time between, along the geodesic."}
   TrackEditAnchorEnum:
     description: Which end of the period a shear or a stretch holds fixed; the other end is the one dragged.
     permissible_values:
@@ -163,6 +172,38 @@ classes:
         range: FixMark
         multivalued: true
         inlined_as_list: true
+      plotting_mode:
+        description: >-
+          How the track is plotted: over the ground (otg, as logged; also
+          when left out) or by dead reckoning (dr), chosen as it was imported
+          and changed as a recorded, undoable step (CAP-01, SUB-22). The
+          geometry is always the positions as plotted, so other GeoJSON tools
+          draw what Debrief draws.
+        range: PlottingModeEnum
+      logged_positions:
+        description: >-
+          A track plotted by dead reckoning: its positions as logged, over
+          the ground, one per fix, so plotting it over the ground again puts
+          them back. Left out for a legacy plot's DR leg, which saved only
+          the positions it worked out.
+        range: LineStringGeometry
+        inlined: true
+      logged_courses:
+        description: >-
+          A track plotted by dead reckoning: its courses as logged, one per
+          fix, as they were when it was plotted so. On a DR track the
+          courses and speeds are what edits change (decision, product
+          owner, 14 Oct 2026), so these tell what was changed while plotted
+          by dead reckoning, and plotting it over the ground again puts them
+          back.
+        range: AngleSeries
+        inlined: true
+      logged_speeds:
+        description: >-
+          A track plotted by dead reckoning: its speeds as logged, one per
+          fix, as they were when it was plotted so; see logged_courses.
+        range: SpeedSeries
+        inlined: true
       hidden:
         description: >-
           Not drawn on the map. Still listed, and still selectable, in the
@@ -223,7 +264,14 @@ classes:
       the dragged end; a stretch scales each fix's range from the anchor,
       keeping its bearing from it. Either way a straight, steady leg stays a
       straight, steady leg. Fixes outside the period stay where they are, so
-      the joins jump.
+      the joins jump. A single fix moved (move_fix) goes where it is told,
+      alone: its neighbours, its time and its recorded course and speed
+      stay. set_plotting_mode with plotting_mode dr plots the whole track by
+      dead reckoning, each fix placed from the one before by that fix's
+      recorded course and speed, from the track's first fix; with otg it
+      puts the fixes back where they were logged, after the analyst confirms
+      losing any change made while plotted by dead reckoning
+      (discard_dr_changes).
     attributes:
       action: {range: TrackEditActionEnum, required: true}
       period:
@@ -233,11 +281,11 @@ classes:
         range: TimeRange
         inlined: true
       distance:
-        description: How far a move takes each fix, or how far a shear drags the end that is not held.
+        description: How far a move takes each fix, a shear drags the end that is not held, or a single fix is moved.
         range: Length
         inlined: true
       bearing:
-        description: Which way a move takes each fix, or a shear drags the end that is not held, true, clockwise from north.
+        description: Which way a move takes each fix, a shear drags the end that is not held, or a single fix is moved, true, clockwise from north.
         range: Angle
         inlined: true
       angle:
@@ -269,6 +317,29 @@ classes:
           geodesic range from its first fix to its last over the time between.
         range: Speed
         inlined: true
+      fix_time:
+        description: >-
+          The time of the one fix a move_fix moves: the fix is found by its
+          time, as a mark is (where two fixes share a time, the first).
+        range: UtcTimestamp
+      position:
+        description: >-
+          [longitude, latitude] a move_fix puts the fix at, instead of a
+          distance and a bearing from where it is.
+        range: float
+        multivalued: true
+        minimum_cardinality: 2
+        maximum_cardinality: 2
+      plotting_mode:
+        description: How set_plotting_mode plots the track, over the ground or by dead reckoning.
+        range: PlottingModeEnum
+      discard_dr_changes:
+        description: >-
+          set_plotting_mode to otg only: plot the track over the ground
+          although it was changed while plotted by dead reckoning, losing
+          those changes, as the analyst confirmed (decision, product owner,
+          14 Oct 2026). Without it such a change is refused, saying why.
+        range: boolean
 
   # --- Annotations ----------------------------------------------------------
   AnnotationFeature:

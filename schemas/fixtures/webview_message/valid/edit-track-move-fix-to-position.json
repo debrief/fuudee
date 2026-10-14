@@ -1,0 +1,12 @@
+{
+  "kind": "edit_track",
+  "feature_id": "track-red-one",
+  "track_edit": {
+    "action": "move_fix",
+    "fix_time": "2026-10-11T09:31:00.000Z",
+    "position": [
+      -75.45,
+      37.14
+    ]
+  }
+}

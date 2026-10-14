@@ -1,0 +1,10 @@
+{
+  "kind": "edit_track",
+  "feature_id": "track-red-one",
+  "track_edit": {
+    "action": "move",
+    "distance": {"value": 1, "unit": "[nmi_i]"},
+    "bearing": {"value": 90, "unit": "deg"},
+    "discard_dr_changes": true
+  }
+}

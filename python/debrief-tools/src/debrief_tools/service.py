@@ -11,7 +11,9 @@ so undo is the same for the extension and an agent (SUB-21); colour and hiding,
 recorded in that history like any change (debrief/set_colour, debrief/set_hidden);
 annotations added, changed and deleted by hand, and the north arrow, recorded the
 same way (debrief/add_annotation, debrief/edit_annotation, debrief/delete_annotations,
-debrief/set_north_arrow); tracks moved, rotated, split and merged by hand, recorded the
+debrief/set_north_arrow); tracks moved, rotated, sheared, stretched, split and merged by hand,
+single fixes moved and tracks plotted by dead reckoning (move_fix and set_plotting_mode),
+recorded the
 same way (debrief/edit_track, debrief/split_track, debrief/merge_tracks); tracks cleaned,
 what would change shown first (debrief/find_jumps, debrief/preview_smoothing) and then
 changed, recorded the same way (debrief/remove_jumps, debrief/smooth_track), and fixes
@@ -55,12 +57,14 @@ from starlette.routing import Route
 
 from debrief_config import ConfigError, add_store, load_config, update_config
 from debrief_io import import_dpf, import_rep
+from debrief_io.importer import rep_track_names
 from debrief_kernel.units import IncompatibleUnitsError, Quantity
 from debrief_schemas import DocumentKind, dump_document, load_document, models
 from debrief_stac import (
     Base,
     Catalogue,
     CatalogueError,
+    ConfirmationNeeded,
     Conflict,
     HistoryError,
     NewerSchemaError,
@@ -103,6 +107,10 @@ class RpcError(Exception):
 INVALID_REQUEST, METHOD_NOT_FOUND, INVALID_PARAMS, INTERNAL = -32600, -32601, -32602, -32603
 CONFLICT = -32001  # the plot changed since the caller's base: open it again (SUB-28)
 NEWER_SCHEMA = -32002  # would write a newer schema into the catalogue: ask, then allow (SUB-35)
+# would lose what the analyst made: ask, then send again confirming (a track changed while
+# plotted by dead reckoning, plotted over the ground: discard_dr_changes)
+NEEDS_CONFIRMATION = -32003
+CONFIRM_HOW = "To go ahead, send the change again with discard_dr_changes: true."
 # Named groups, not slices of one list: a method added to one group cannot shift another.
 READING_METHODS = ("debrief/open", "debrief/history")
 STEP_METHODS = ("debrief/undo", "debrief/redo", "debrief/goto")
@@ -131,6 +139,7 @@ KNOWN_METHODS = frozenset(
         "debrief/stores",
         "debrief/create_catalogue",
         "debrief/import_rep",
+        "debrief/rep_tracks",
         "debrief/add_plot_file",
         *HISTORY_METHODS,
     )
@@ -270,6 +279,8 @@ class ToolService:
             return self._import(params)
         if method == "debrief/add_plot_file":
             return self._add_plot_file(params)
+        if method == "debrief/rep_tracks":
+            return self._rep_tracks(params)
         if method in HISTORY_METHODS:
             return self._history(method, params)
         raise RpcError(METHOD_NOT_FOUND, f"Unknown method {method}")
@@ -382,6 +393,11 @@ class ToolService:
             raise RpcError(CONFLICT, str(conflict)) from None
         except NewerSchemaError as error:
             raise RpcError(NEWER_SCHEMA, str(error)) from None
+        except ConfirmationNeeded as error:
+            raise RpcError(
+                NEEDS_CONFIRMATION,
+                f"{error} Nothing was changed. {CONFIRM_HOW}",
+            ) from None
         except (CatalogueError, HistoryError, OSError, ValueError) as error:
             raise RpcError(INVALID_PARAMS, str(error)) from None
 
@@ -578,6 +594,8 @@ class ToolService:
                         if math.isinf(j.speed_kn)
                         else {"value": j.speed_kn, "unit": "[kn_i]"},
                         "since": j.since,
+                        # A DR track's jump: its logged speed, on to the fix at since.
+                        **({"logged": True} if j.logged else {}),
                     }
                     for j in jumps
                 ],
@@ -625,10 +643,35 @@ class ToolService:
         )
         return {"changed": step is not None, "feature": feature}
 
+    def _rep_tracks(self, params: dict[str, Any]) -> dict[str, Any]:
+        """The tracks a REP file would import, so the host can ask the analyst how each is
+        plotted, over the ground or by dead reckoning, before importing it (CAP-01). A
+        legacy plot file says for itself: none are listed. Changes nothing."""
+        path = params.get("path")
+        if not isinstance(path, str) or not Path(path).is_file():
+            raise RpcError(INVALID_PARAMS, f"{path} is not a file.")
+        if _is_plot_file(Path(path)):
+            return {"tracks": []}
+        try:
+            return {"tracks": rep_track_names(Path(path))}
+        except (OSError, ValueError) as error:
+            raise RpcError(
+                INVALID_PARAMS, f"{Path(path).name} could not be read: {error}"
+            ) from None
+
     def _import(self, params: dict[str, Any]) -> dict[str, Any]:
         """Import a REP file (EXT-01) or a legacy plot file, .dpf (EXT-14, EXT-15), as a
-        new plot. Nothing in the file is dropped silently: what is not imported is listed."""
+        new plot. Nothing in the file is dropped silently: what is not imported is listed.
+        For a REP file, modes says how each track is plotted (otg or dr, one for all or by
+        track name), as the host asked the analyst or remembered for them; remembered, the
+        words saying how to change that choice. The service never reads that choice itself."""
         path = params.get("path")
+        modes = params.get("modes")
+        remembered = params.get("remembered")
+        if not (modes is None or isinstance(modes, (str, dict))) or not (
+            remembered is None or isinstance(remembered, str)
+        ):
+            raise RpcError(INVALID_PARAMS, "modes is otg or dr, or one of them for each track.")
         store = self._store(params.get("store"), writing=True)
         if not isinstance(path, str) or not Path(path).is_file():
             raise RpcError(INVALID_PARAMS, f"{path} is not a file.")
@@ -638,14 +681,17 @@ class ToolService:
             taken, item_id, n = set(catalogue.item_ids()), stem, 2
             while item_id in taken:
                 item_id, n = f"{stem}-{n}", n + 1
-            importer = import_dpf if _is_plot_file(Path(path)) else import_rep
-            report = importer(
-                catalogue,
-                Path(path),
-                item_id=item_id,
-                agent=_agent(params),
-                allow_newer_schema=params.get("allow_newer_schema") is True,
-            )
+            options = {
+                "item_id": item_id,
+                "agent": _agent(params),
+                "allow_newer_schema": params.get("allow_newer_schema") is True,
+            }
+            if _is_plot_file(Path(path)):
+                report = import_dpf(catalogue, Path(path), **options)
+            else:
+                report = import_rep(
+                    catalogue, Path(path), modes=modes, remembered=remembered, **options
+                )
         except NewerSchemaError as error:
             raise RpcError(NEWER_SCHEMA, str(error)) from None
         except (CatalogueError, OSError, ValueError) as error:
@@ -659,6 +705,7 @@ class ToolService:
             "annotations": report.annotations,
             "narrative_entries": report.narrative_entries,
             "omitted": report.omitted,
+            "notes": report.notes,
         }
 
     def _add_plot_file(self, params: dict[str, Any]) -> dict[str, Any]:

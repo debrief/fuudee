@@ -76,6 +76,9 @@
       {"command": "debrief.removeJumps", "title": "Find and remove jumps…", "category": "Debrief", "icon": "$(debug-step-over)"},
       {"command": "debrief.smoothTrack", "title": "Smooth track…", "category": "Debrief", "icon": "$(pulse)"},
       {"command": "debrief.markFix", "title": "Fixes: colour, label or comment…", "category": "Debrief", "icon": "$(list-unordered)"},
+      {"command": "debrief.moveFix", "title": "Move a fix…", "category": "Debrief", "icon": "$(location)"},
+      {"command": "debrief.plottingMode", "title": "Plot over the ground or by dead reckoning…", "category": "Debrief"},
+      {"command": "debrief.askTrackImportMode", "title": "Ask again whether imported tracks are OTG or DR", "category": "Debrief"},
       {"command": "debrief.goToTime", "title": "Go to this time", "category": "Debrief"},
       {"command": "debrief.show", "title": "Show on map", "category": "Debrief", "icon": "$(eye)"},
         {"command": "debrief.goToStep", "title": "Go back to this step", "category": "Debrief"},
@@ -115,6 +118,8 @@
         {"command": "debrief.removeJumps", "when": "view == debrief.outline && viewItem =~ /^feature-track/", "group": "0_track@7"},
         {"command": "debrief.smoothTrack", "when": "view == debrief.outline && viewItem =~ /^feature-track/", "group": "0_track@8"},
         {"command": "debrief.markFix", "when": "view == debrief.outline && viewItem =~ /^feature-track/", "group": "0_track@9"},
+        {"command": "debrief.moveFix", "when": "view == debrief.outline && viewItem =~ /^feature-track/", "group": "0_track@10"},
+        {"command": "debrief.plottingMode", "when": "view == debrief.outline && viewItem =~ /^feature-track/", "group": "0_track@11"},
         {"command": "debrief.editAnnotation", "when": "view == debrief.outline && viewItem =~ /^feature-annotation/", "group": "0_annotation@1"},
         {"command": "debrief.deleteAnnotation", "when": "view == debrief.outline && viewItem =~ /^feature-annotation/", "group": "0_annotation@2"},
         {"command": "debrief.goToStep", "when": "view == debrief.history && viewItem == step-applied", "group": "1_history"},
@@ -149,6 +154,14 @@
           "default": 120,
           "minimum": 5,
           "markdownDescription": "Seconds a tool may run before Debrief stops it."
+        },
+        "debrief.trackImportMode": {
+          "type": "string",
+          "enum": ["ask", "otg", "dr"],
+          "enumDescriptions": ["Ask, for each track imported, whether it is plotted over the ground or by dead reckoning.", "Plot every track imported over the ground (OTG): each fix where it was logged.", "Plot every track imported by dead reckoning (DR): from the first fix, by each fix's course and speed."],
+          "default": "ask",
+          "scope": "application",
+          "markdownDescription": "How tracks imported from REP files are plotted. Set when you choose *Use this choice for future imports*; set it back to `ask` (or run **Debrief: Ask again whether imported tracks are OTG or DR**) to be asked for each track again. Kept with your Debrief settings, never in a plot."
         },
         "debrief.map.minimumContextContrast": {
           "type": "boolean",

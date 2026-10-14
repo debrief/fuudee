@@ -17,7 +17,9 @@ from debrief_config import (
     normalise_location,
     remove_store,
     same_location,
+    track_import_mode,
     update_config,
+    with_track_import_mode,
 )
 from debrief_schemas import CONFIG_VERSION
 
@@ -50,7 +52,7 @@ def test_same_location_matches_shared_vectors(case: dict) -> None:
 
 def test_missing_file_is_empty_config(tmp_path: Path) -> None:
     config = load_config(tmp_path / "absent.json")
-    assert config.config_version == CONFIG_VERSION
+    assert config.config_version == 1  # only stores: an earlier Debrief still reads it
     assert config.stores == []
 
 
@@ -184,3 +186,31 @@ def test_writes_the_same_bytes_typescript_writes(tmp_path: Path) -> None:
     config = load_config(fixture)
     update_config(lambda _: config, path)
     assert path.read_bytes() == fixture.read_bytes()
+
+
+def test_the_track_import_mode_is_ask_until_remembered_and_can_be_cleared(tmp_path: Path) -> None:
+    """User state (CAP-01): ask, or the choice remembered for future imports, in the
+    user's configuration file, never in a catalogue; clearing it asks again."""
+    path = tmp_path / "config.json"
+    assert track_import_mode(load_config(path)) == "ask"
+    update_config(lambda c: with_track_import_mode(c, "dr"), path)
+    assert track_import_mode(load_config(path)) == "dr"
+    assert json.loads(path.read_text())["track_import_mode"] == "dr"
+    update_config(lambda c: with_track_import_mode(c, "ask"), path)
+    assert track_import_mode(load_config(path)) == "ask"
+    assert "track_import_mode" not in json.loads(path.read_text())
+    with pytest.raises(ConfigError, match="not a track import mode"):
+        with_track_import_mode(load_config(path), "sideways")
+
+
+def test_a_remembered_import_mode_says_a_layout_an_earlier_debrief_knows_it_cannot_read(
+    tmp_path: Path,
+) -> None:
+    """Version 1 Debrief rejects a file with a member it does not know as not valid; so a
+    file remembering the mode says version 2, and an earlier Debrief says to update.
+    Cleared, it is version 1 again, which an earlier Debrief reads."""
+    path = tmp_path / "config.json"
+    update_config(lambda c: with_track_import_mode(c, "otg"), path)
+    assert json.loads(path.read_text())["config_version"] == 2 == CONFIG_VERSION
+    update_config(lambda c: with_track_import_mode(c, "ask"), path)
+    assert json.loads(path.read_text())["config_version"] == 1

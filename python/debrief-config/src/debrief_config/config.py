@@ -97,8 +97,14 @@ def same_location(a: str, b: str, platform: str | None = None) -> bool:
     return a == b
 
 
+# The layout a file needs: 1 while it holds only stores, so an earlier Debrief still reads
+# it; 2 once it remembers how tracks imported are plotted (see with_track_import_mode).
+STORES_VERSION = 1
+IMPORT_MODE_VERSION = 2
+
+
 def _empty() -> models.UserConfig:
-    return models.UserConfig(config_version=CONFIG_VERSION, stores=[])
+    return models.UserConfig(config_version=STORES_VERSION, stores=[])
 
 
 def _read(path: Path) -> str | None:
@@ -262,3 +268,33 @@ def remove_store(config: models.UserConfig, store_id: str) -> models.UserConfig:
     if not any(s.id == store_id for s in config.stores):
         raise ConfigError(f"No store with id {store_id!r}")
     return config.model_copy(update={"stores": [s for s in config.stores if s.id != store_id]})
+
+
+# How tracks imported are plotted (CAP-01, decision, product owner, 14 Oct 2026): ask for
+# each track, or the one choice the analyst said to use for future imports. User state,
+# kept here and never in a catalogue or a plot file; importers take the mode as given.
+TRACK_IMPORT_MODES = ("ask", "otg", "dr")
+
+
+def track_import_mode(config: models.UserConfig) -> str:
+    """ "ask" (the default, also when not set), "otg" or "dr"."""
+    mode = config.track_import_mode
+    if mode is None:
+        return "ask"
+    return str(getattr(mode, "value", mode))
+
+
+def with_track_import_mode(config: models.UserConfig, mode: str) -> models.UserConfig:
+    """A copy of the configuration remembering mode for future imports; "ask" clears it.
+    Remembered, the file says configuration version 2, so an earlier Debrief, which cannot
+    read it, says to update rather than that the file is not valid; cleared, version 1
+    again, so an earlier Debrief reads it."""
+    if mode not in TRACK_IMPORT_MODES:
+        raise ConfigError(f"{mode!r} is not a track import mode: ask, otg or dr")
+    if mode == "ask":
+        version = config.config_version
+        if version <= IMPORT_MODE_VERSION:
+            version = STORES_VERSION
+        return config.model_copy(update={"track_import_mode": None, "config_version": version})
+    version = max(config.config_version, IMPORT_MODE_VERSION)
+    return config.model_copy(update={"track_import_mode": mode, "config_version": version})

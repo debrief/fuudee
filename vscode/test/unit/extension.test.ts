@@ -261,6 +261,8 @@ describe("history steps, in the analyst's words (SUB-21)", () => {
     [{ kind: "edit", tool: null, status: "applied" }, "Edited", "In the plot"],
     [{ kind: "edit", tool: null, status: "applied", notes: ["Note added by a colleague"] }, "Note added by a colleague", "In the plot"],
     [{ kind: "edit", tool: null, status: "applied", notes: ["The plot had content but no record of how it was made, so this is long."] }, "Edited", "In the plot"],
+    // A fix of a DR track dragged: named for the leg into it (product owner, 14 Oct 2026).
+    [{ kind: "edit", tool: null, status: "applied", notes: ["RED ONE (DR) leg into 09:43:00Z now 056.5°T 12.1 kn"] }, "RED ONE (DR) leg into 09:43:00Z now 056.5°T 12.1 kn", "In the plot"],
     // A plot file received from a colleague: the step recording its arrival (decision 13 Oct).
     [{ kind: "import", tool: null, status: "applied", notes: ["Added from the plot file serial-1.geojson"] }, "Added from the plot file serial-1.geojson", "In the plot"],
     [{ kind: "import", tool: null, status: "applied", notes: ["Added from the plot file a-very-long-name-sent-by-a-colleague.geojson"] }, "Added from a plot file", "In the plot"],
@@ -387,7 +389,7 @@ describe("contributed menus", () => {
 describe("hiding and colour are the plot's own content (SUB-22)", () => {
   const plot = {
     type: "FeatureCollection",
-    schema_version: "0.0.16",
+    schema_version: "0.0.17",
     features: [
       { id: "a", properties: { kind: "track", name: "A", style: { colour: "#e01c3e" } } },
       { id: "b", properties: { kind: "annotation", name: "B", hidden: true } },
