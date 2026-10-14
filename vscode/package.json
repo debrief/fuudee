@@ -21,6 +21,7 @@
     "views": {
       "debrief": [
         {"type": "webview", "id": "debrief.time", "name": "Time"},
+        {"type": "webview", "id": "debrief.tote", "name": "Tote", "visibility": "collapsed"},
         {"id": "debrief.catalogues", "name": "Catalogues"},
         {"id": "debrief.outline", "name": "Outline"},
         {"id": "debrief.timeline", "name": "Timeline"},
@@ -83,6 +84,10 @@
       {"command": "debrief.show", "title": "Show on map", "category": "Debrief", "icon": "$(eye)"},
         {"command": "debrief.goToStep", "title": "Go back to this step", "category": "Debrief"},
       {"command": "debrief.redoToStep", "title": "Redo up to this step", "category": "Debrief"},
+      {"command": "debrief.tote.setPrimary", "title": "Set as Tote primary", "category": "Debrief", "enablement": "debrief.plotOpen"},
+      {"command": "debrief.tote.add", "title": "Add to Tote", "category": "Debrief", "enablement": "debrief.plotOpen"},
+      {"command": "debrief.tote.remove", "title": "Remove from Tote", "category": "Debrief", "enablement": "debrief.plotOpen"},
+      {"command": "debrief.setTote", "title": "Set the Tote's tracks", "category": "Debrief"},
       {"command": "debrief.contextTracks.visible", "title": "Context tracks: Visible", "category": "Debrief", "enablement": "debrief.contextTracks", "toggled": {"condition": "debrief.contextTracks == visible"}},
       {"command": "debrief.contextTracks.faint", "title": "Context tracks: Faint", "category": "Debrief", "enablement": "debrief.contextTracks", "toggled": {"condition": "debrief.contextTracks == faint"}},
       {"command": "debrief.contextTracks.hidden", "title": "Context tracks: Hidden", "category": "Debrief", "enablement": "debrief.contextTracks", "toggled": {"condition": "debrief.contextTracks == hidden"}}
@@ -120,6 +125,9 @@
         {"command": "debrief.markFix", "when": "view == debrief.outline && viewItem =~ /^feature-track/", "group": "0_track@9"},
         {"command": "debrief.moveFix", "when": "view == debrief.outline && viewItem =~ /^feature-track/", "group": "0_track@10"},
         {"command": "debrief.plottingMode", "when": "view == debrief.outline && viewItem =~ /^feature-track/", "group": "0_track@11"},
+        {"command": "debrief.tote.setPrimary", "when": "view == debrief.outline && viewItem =~ /^feature-track/", "group": "2_tote@1"},
+        {"command": "debrief.tote.add", "when": "view == debrief.outline && viewItem =~ /^feature-track/", "group": "2_tote@2"},
+        {"command": "debrief.tote.remove", "when": "view == debrief.outline && viewItem =~ /^feature-track/", "group": "2_tote@3"},
         {"command": "debrief.editAnnotation", "when": "view == debrief.outline && viewItem =~ /^feature-annotation/", "group": "0_annotation@1"},
         {"command": "debrief.deleteAnnotation", "when": "view == debrief.outline && viewItem =~ /^feature-annotation/", "group": "0_annotation@2"},
         {"command": "debrief.goToStep", "when": "view == debrief.history && viewItem == step-applied", "group": "1_history"},
@@ -133,7 +141,8 @@
         {"command": "debrief.goToTime", "when": "false"},
         {"command": "debrief.editTrack", "when": "false"},
         {"command": "debrief.goToStep", "when": "false"},
-        {"command": "debrief.redoToStep", "when": "false"}
+        {"command": "debrief.redoToStep", "when": "false"},
+        {"command": "debrief.setTote", "when": "false"}
       ]
     },
     "keybindings": [

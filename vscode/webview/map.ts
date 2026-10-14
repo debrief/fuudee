@@ -55,7 +55,7 @@ import { convert, DEFAULT_SETTINGS, formatPosition, formatQuantity, UNIT_LABELS 
 import type { DebriefFeatureCollection, TimeState } from "@debrief/schemas";
 import type { AnnotationProperties } from "@debrief/schemas";
 import { labelPlacement, labelText, lookOf, shapeOf, specOfFeature, type Look } from "./annotationlook.js";
-import { circleRing, densify, ellipseRing, type LonLat } from "./geodesic.js";
+import { circleRing, densify, ellipseRing, positionAt as trackPositionAt, type LonLat } from "./geodesic.js";
 import { CONTEXT_WEIGHT, contextStyle, parseColour, WINDOW_WEIGHT, type ContextStyle, type ContextTracks, type MapTheme, type Rgb } from "./contrast.js";
 import { MapEditor } from "./mapedit.js";
 import { PressHold } from "./presshold.js";
@@ -853,25 +853,9 @@ function setTracks(plotTracks: Track[]): void {
   tracks = plotTracks.map((track) => ({ track, times: track.properties.times.map(Date.parse) }));
 }
 
-/** Where a track was at an instant, between the fixes either side; none outside its span. */
+/** Where a track was at an instant, between the fixes either side; none outside its span. As the Tote measures it (geodesic.ts). */
 function positionAt(track: Track, times: number[], at: number): LonLat | undefined {
-  const coordinates = track.geometry.coordinates as LonLat[];
-  if (!times.length || at < times[0] || at > times[times.length - 1]) return undefined;
-  let low = 0;
-  let high = times.length - 1;
-  while (high - low > 1) {
-    const middle = (low + high) >> 1;
-    if (times[middle] <= at) low = middle;
-    else high = middle;
-  }
-  const span = times[high] - times[low];
-  const f = span > 0 ? (at - times[low]) / span : 0;
-  const [lon1, lat1] = coordinates[low];
-  const [lon2, lat2] = coordinates[high];
-  // Along the geodesic between the two fixes, as the line is drawn (SUB-03).
-  const line = WGS84.InverseLine(lat1, lon1, lat2, lon2);
-  const point = line.Position(f * line.s13);
-  return [point.lon2 ?? lon2, point.lat2 ?? lat2];
+  return trackPositionAt(track.geometry.coordinates as LonLat[], times, at);
 }
 
 function drawNow(): void {

@@ -8,6 +8,8 @@ import geodesic from "geographiclib-geodesic";
 
 const WGS84 = geodesic.Geodesic.WGS84;
 const MASK = geodesic.Geodesic.LONGITUDE | geodesic.Geodesic.LATITUDE | geodesic.Geodesic.LONG_UNROLL;
+/** Longitudes within ±180°, as the kernel gives positions. */
+const MASK_WRAPPED = geodesic.Geodesic.LONGITUDE | geodesic.Geodesic.LATITUDE;
 /** Longest drawn piece of a segment, in metres. */
 const STEP_M = 2000;
 const MAX_PIECES = 256;
@@ -100,4 +102,31 @@ export function geodesicArea(corners: LonLat[]): number {
   const polygon = WGS84.Polygon(false);
   for (const [lon, lat] of corners) polygon.AddPoint(lat, lon);
   return Math.abs(polygon.Compute(false, true).area ?? 0);
+}
+
+/**
+ * Where a track was at an instant (SUB-03): along the geodesic between the fixes either
+ * side, in proportion to time; none outside its span. Where fixes share a time, the later
+ * one. The map's marker at current time; the Tote's measures place tracks the same way
+ * (debrief_kernel.geodesy.TrackPath), held to schemas/vectors/track-positions.json.
+ */
+export function positionAt(coordinates: LonLat[], times: number[], at: number): LonLat | undefined {
+  if (!times.length || at < times[0] || at > times[times.length - 1]) return undefined;
+  if (times.length === 1) return coordinates[0];
+  let low = 0;
+  let high = times.length - 1;
+  while (high - low > 1) {
+    const middle = (low + high) >> 1;
+    if (times[middle] <= at) low = middle;
+    else high = middle;
+  }
+  const span = times[high] - times[low];
+  const f = span > 0 ? (at - times[low]) / span : 1;
+  if (f <= 0) return coordinates[low];
+  if (f >= 1) return coordinates[high];
+  const [lon1, lat1] = coordinates[low];
+  const [lon2, lat2] = coordinates[high];
+  const line = WGS84.InverseLine(lat1, lon1, lat2, lon2);
+  const point = line.Position(f * line.s13, MASK_WRAPPED);
+  return [point.lon2 ?? lon2, point.lat2 ?? lat2];
 }

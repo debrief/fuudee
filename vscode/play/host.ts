@@ -10,9 +10,10 @@
  *
  * Query parameters choose what an embedded demo shows:
  *   plot=serial-1         the sample serial to open
- *   panels=timeline,tools,history,try,import   the side panels, in this order (all by default)
+ *   panels=tote,timeline,tools,history,try,import   the side panels, in this order (all by default;
+ *                         the Tote, when listed, is always under the time controller)
  */
-import type { AnnotationSpec, DebriefFeatureCollection, ParameterValue, PlotView, SharedStateChange, StacItem, TimeRange, TimeState, ToolDeclaration, ToolResult } from "@debrief/schemas";
+import type { AnnotationSpec, DebriefFeatureCollection, ParameterValue, PlotView, SharedStateChange, StacItem, TimeRange, TimeState, ToolDeclaration, ToolResult, ToteResult, ToteView } from "@debrief/schemas";
 import { specOfFeature } from "../webview/annotationlook.js";
 import { currentEntry, timelineEntries, type TimelineEntry } from "../src/timeline.js";
 import { count, describePeriod, describeTimes, describeToolRun } from "../src/format.js";
@@ -23,6 +24,9 @@ import { contextShown, type ContextTracks } from "../webview/contrast.js";
 import { placeToolTime } from "../webview/timelogic.js";
 import { TRACK_COLOURS } from "../webview/palette.js";
 import { TimeControl } from "../webview/timecontrol.js";
+import { ToteControl } from "../webview/totecontrol.js";
+import { latencySummary, sameTote, toteOf, ToteRequests, toteTracks, withoutSecondary, withPrimary, withSecondaries } from "../webview/totelogic.js";
+import { PressHold } from "../webview/presshold.js";
 import { formatBearing, formatPosition, parsePosition } from "@debrief/kernel";
 import { defaultPivotIndex, describeDistance, describeSpeed, describeTurn, FIX_PROMPT, FIX_PROMPT_DR, fixIndexAt, fixMeans, fixToEdit, jumpSpeed, legNow, mergedName, mergePlan, periodIndices, readBearing, readDistance, readSpeed, readTurn, reckoningOf } from "../webview/trackedit.js";
 import { chooseModes, MODE_LABELS, modeChoices, modeQuestion, REMEMBER_LABEL, REMEMBERED_IN_PLAYGROUND, type PlottingMode } from "../src/importmode.js";
@@ -52,7 +56,7 @@ interface Opened {
 }
 
 const params = new URLSearchParams(location.search);
-const panelOrder = (params.get("panels") ?? "timeline,tools,history,try,import").split(",");
+const panelOrder = (params.get("panels") ?? "tote,timeline,tools,history,try,import").split(",");
 const panels = new Set(panelOrder);
 const startPlot = params.get("plot") ?? "serial-1";
 const theme = matchMedia("(prefers-color-scheme: light)").matches || params.get("theme") === "light" ? "light" : "dark";
@@ -109,6 +113,7 @@ let timePending = false;
 const timeControl = new TimeControl($("timebar"), {
   moved: (moved) => {
     time = moved;
+    refreshTote(); // asked at once: the Tote keeps pace by never queueing (NFR-04)
     if (timePending) return; // tell the map at most once a frame, however fast a slider moves
     timePending = true;
     requestAnimationFrame(() => {
@@ -134,7 +139,59 @@ function showTime(next: TimeState | undefined): void {
   time = next;
   timeControl.show(time, opened && periodOf(opened.item), { saved: savedWindow, context: contextOf(), minimumContrast: false });
   markTimeline();
+  refreshTote();
 }
+
+// --- The Tote (CAP-06): values from Python at each current time; the choice in the island ---
+/** A choice the reader made that is being saved: shown at once, before the save returns. */
+let toteChoosing: ToteView | undefined;
+const toteChoice = (): ToteView => toteChoosing ?? toteOf(opened?.plot);
+const totePanel = $<HTMLDetailsElement>("panel-tote");
+const toteControl = new ToteControl($("tote"), { changed: (view) => void chooseTote(view) });
+/** How long Python took to work each answer out, for the latency check (NFR-04). */
+const toteCompute: number[] = [];
+const toteRequests = new ToteRequests<{ item: string; time: string; tote: ToteView }>(
+  async ({ item, time: at, tote }) => {
+    const outcome = await pythonJson<{ tote?: ToteResult; compute_ms?: number; error?: string }>("tote", item, JSON.stringify({ time: at, tote }));
+    if (outcome.error) throw new Error(outcome.error);
+    if (outcome.compute_ms !== undefined) toteCompute.push(outcome.compute_ms);
+    return outcome.tote;
+  },
+  (result, asked) => {
+    // An answer for a plot no longer open, or a choice since changed, is not shown.
+    if (asked.item !== opened?.item.id || !sameTote(asked.tote, toteChoice())) return;
+    toteControl.show({ result });
+  },
+  (error) => toast(`The Tote could not be worked out: ${error.message}`, "warning"),
+);
+/** For the playground test's latency report: from asking to showing, and Python's part. */
+(window as unknown as { debriefToteLatency: () => unknown }).debriefToteLatency = () => ({ shown: latencySummary(toteRequests.timings), compute: latencySummary(toteCompute) });
+/** Ask for the Tote at current time, while it is showing and has tracks to compare. */
+function refreshTote(): void {
+  if (!opened || !time || !pythonReady || !panels.has("tote") || !totePanel.open) return;
+  const tote = toteChoice();
+  if (!tote.primary && !tote.secondaries?.length) return;
+  toteRequests.request({ item: opened.item.id, time: time.current, tote });
+}
+/** The tracks and the choice, on opening a plot and when its view changes; then the values. */
+function showTote(): void {
+  toteControl.show(opened ? { tracks: toteTracks(opened.plot), view: toteChoice() } : undefined);
+  refreshTote();
+}
+/** The reader chose tracks for the Tote: shown at once, then saved in the island like the window. */
+async function chooseTote(view: ToteView): Promise<void> {
+  if (!opened) return;
+  toteChoosing = view;
+  toteControl.show({ view });
+  refreshTote();
+  await saveView({ tote: view });
+  // Saved (the island has it now) or not (what is saved is shown again); unless the reader
+  // has chosen again meanwhile, which is still being saved and stays on screen.
+  if (toteChoosing !== view) return;
+  toteChoosing = undefined;
+  showTote();
+}
+totePanel.addEventListener("toggle", () => totePanel.open && refreshTote());
 let tools: ToolDeclaration[] = [];
 let offered: string[] = [];
 let formTool: ToolDeclaration | undefined;
@@ -173,7 +230,7 @@ const saveWindow = (window: TimeRange): Promise<void> => saveView({ time_window:
 function saveView(change: Partial<PlotView>): Promise<void> {
   // One at a time, each with the hash the last one left, as VS Code does: two quick
   // key presses must never look like a colleague's change.
-  const what = change.time_window ? "The time window" : "How context tracks are drawn";
+  const what = change.time_window ? "The time window" : change.tote ? "The Tote's tracks" : "How context tracks are drawn";
   saving = saving.then(() => saveViewNow(change, what)).catch((error: Error) => toast(`${what} was not saved: ${error.message}`, "warning"));
   return saving;
 }
@@ -191,7 +248,9 @@ async function saveViewNow(change: Partial<PlotView>, what: string): Promise<voi
     return toast(
       change.time_window
         ? "Someone else changed the time window, so yours was not saved. Debrief is showing theirs; set it again if you still want yours."
-        : "Someone else changed this plot's view, so your choice was not saved. Debrief is showing theirs; choose again if you still want yours.",
+        : change.tote
+          ? "Someone else changed this plot's view, so your choice of Tote tracks was not saved. Debrief is showing theirs; choose again if you still want yours."
+          : "Someone else changed this plot's view, so your choice was not saved. Debrief is showing theirs; choose again if you still want yours.",
       "warning",
     );
   }
@@ -227,6 +286,10 @@ async function openPlot(item: string, keep = false): Promise<void> {
   if (opened && opened.item.id !== item) closeSide();
   // The plot as the map last drew it: if Python's is the same, it isn't sent again.
   const shown = opened?.item.id === item && opened.base.plot_hash ? opened.base.plot_hash : undefined;
+  if (opened?.item.id !== item) {
+    toteRequests.reset();
+    toteChoosing = undefined;
+  }
   opened = await pythonJson<Opened>("open_plot", item);
   $<HTMLSelectElement>("plots").value = item;
   const ids = new Set(features().map((f) => f.id));
@@ -242,6 +305,7 @@ async function openPlot(item: string, keep = false): Promise<void> {
   renderOutline();
   renderTimeline();
   renderHistory();
+  showTote();
   await refreshOffered();
   if (opened.recovered.length) toast(opened.recovered.join(" "), "warning");
 }
@@ -1253,7 +1317,19 @@ function renderOutline(): void {
         const choose = (add: boolean) =>
           void select(add ? (selection.includes(f.id) ? selection.filter((i) => i !== f.id) : [...selection, f.id]) : [f.id]);
         row.onclick = (e) => choose(e.ctrlKey || e.metaKey || e.shiftKey);
+        if (f.properties.kind === "track") {
+          // Its menu: right-click, press and hold on a touch screen, or Shift+F10 (the Tote, CAP-06).
+          row.oncontextmenu = (e) => {
+            e.preventDefault();
+            trackMenu(f.id, e.clientX, e.clientY, row);
+          };
+        }
         row.onkeydown = (e) => {
+          if (f.properties.kind === "track" && (e.key === "ContextMenu" || (e.key === "F10" && e.shiftKey))) {
+            e.preventDefault();
+            const box = row.getBoundingClientRect();
+            return trackMenu(f.id, box.left + 24, box.bottom, row);
+          }
           // Only Enter and Space select; every other key (Tab above all) does what it always does.
           if (e.key !== "Enter" && e.key !== " ") return;
           e.preventDefault();
@@ -1266,6 +1342,97 @@ function renderOutline(): void {
   $("north-arrow").setAttribute("aria-pressed", String(hasNorthArrow()));
   $("selected-count").textContent = selection.length ? `${count(selection.length, "feature")} selected · Ctrl-click to add` : "Click to select · Ctrl-click to add";
 }
+
+// --- The outline's menu for a track (the Tote, CAP-06) ----------------------------------
+let menu: HTMLElement | undefined;
+let menuReturn: HTMLElement | undefined;
+function closeMenu(focus = true): void {
+  const was = menu;
+  menu = undefined;
+  was?.remove();
+  if (was && focus) menuReturn?.focus();
+}
+/** What can be done to a track from the outline: put it in the Tote, as the primary or a secondary, or take it out. */
+function trackMenu(id: string, x: number, y: number, from: HTMLElement): void {
+  closeMenu(false);
+  menuReturn = from;
+  const tote = toteChoice();
+  const items: [string, () => ToteView][] = [];
+  if (tote.primary !== id) items.push(["Set as Tote primary", () => withPrimary(toteChoice(), id)]);
+  if (tote.primary === id || tote.secondaries?.includes(id)) {
+    items.push(["Remove from Tote", () => (toteChoice().primary === id ? withPrimary(toteChoice(), undefined) : withoutSecondary(toteChoice(), id))]);
+  } else items.push(["Add to Tote", () => withSecondaries(toteChoice(), [id])]);
+  const element = document.createElement("div");
+  element.className = "context-menu";
+  element.setAttribute("role", "menu");
+  element.setAttribute("aria-label", `${features().find((f) => f.id === id)?.properties.name ?? id}: Tote`);
+  const buttons = items.map(([label, change]) => {
+    const button = Object.assign(document.createElement("button"), { textContent: label });
+    button.setAttribute("role", "menuitem");
+    button.tabIndex = -1;
+    button.onclick = () => {
+      closeMenu();
+      totePanel.open = true;
+      void chooseTote(change());
+    };
+    return button;
+  });
+  element.append(...buttons);
+  element.onkeydown = (e) => {
+    const at = buttons.indexOf(document.activeElement as HTMLButtonElement);
+    if (e.key === "Escape" || e.key === "Tab") {
+      e.preventDefault();
+      closeMenu();
+    } else if (e.key === "ArrowDown" || e.key === "ArrowUp") {
+      e.preventDefault();
+      buttons[(at + (e.key === "ArrowDown" ? 1 : buttons.length - 1)) % buttons.length].focus();
+    }
+  };
+  document.body.append(element);
+  // Within the window, however near its edge the track was.
+  const box = element.getBoundingClientRect();
+  element.style.left = `${Math.max(0, Math.min(x, innerWidth - box.width - 4))}px`;
+  element.style.top = `${Math.max(0, Math.min(y, innerHeight - box.height - 4))}px`;
+  menu = element;
+  buttons[0].focus();
+}
+document.addEventListener("pointerdown", (e) => void (menu && !menu.contains(e.target as Node) && closeMenu(false)), true);
+// Press and hold a track in the outline on a touch screen: its menu, as a right-click (presshold.ts).
+const outlineHold = new PressHold((x, y) =>
+  document.elementFromPoint(x, y)?.closest("#outline li")?.dispatchEvent(new MouseEvent("contextmenu", { bubbles: true, cancelable: true, clientX: x, clientY: y })),
+);
+const touchy = (e: PointerEvent) => e.pointerType === "touch" || e.pointerType === "pen";
+const outlineList = $("outline");
+outlineList.addEventListener("pointerdown", (e) => {
+  if (!touchy(e)) return outlineHold.reset();
+  if (e.isPrimary) outlineHold.reset();
+  outlineHold.press(e.pointerId, e.clientX, e.clientY);
+});
+outlineList.addEventListener("pointermove", (e) => void (touchy(e) && outlineHold.move(e.pointerId, e.clientX, e.clientY)));
+for (const type of ["pointerup", "pointercancel"] as const) window.addEventListener(type, (e) => void (touchy(e) && outlineHold.release(e.pointerId)), true);
+outlineList.addEventListener("scroll", () => outlineHold.cancel());
+outlineList.addEventListener(
+  "contextmenu",
+  (e) => {
+    if (!e.isTrusted) return; // ours, from the hold
+    if (outlineHold.fired) {
+      e.preventDefault(); // the browser's own right-click for a hold already sent on
+      e.stopImmediatePropagation();
+    } else if (outlineHold.pressing) outlineHold.cancel(); // the browser's came first: it is the one
+  },
+  true,
+);
+outlineList.addEventListener(
+  "click",
+  (e) => {
+    if (outlineHold.fired && !outlineHold.pressing) {
+      e.stopImmediatePropagation(); // the tap that ends a hold is not a click: it would select
+      e.preventDefault();
+      outlineHold.reset();
+    }
+  },
+  true,
+);
 
 function renderTools(): void {
   const list = $("tools");
@@ -1362,10 +1529,11 @@ function ask(question: string, choices: string[]): Promise<string | undefined> {
 }
 
 // --- Wiring -----------------------------------------------------------------------
-const OPTIONAL = ["timeline", "tools", "history", "try", "import"];
+const OPTIONAL = ["tote", "timeline", "tools", "history", "try", "import"];
 for (const panel of OPTIONAL) $(`panel-${panel}`).hidden = !panels.has(panel);
-// The panels in the order the demo lists them, after the plot and its outline.
-for (const panel of panelOrder) if (OPTIONAL.includes(panel)) $("side").append($(`panel-${panel}`));
+// The panels in the order the demo lists them, after the plot and its outline; the Tote stays
+// under the time controller, since both follow current time.
+for (const panel of panelOrder) if (OPTIONAL.includes(panel) && panel !== "tote") $("side").append($(`panel-${panel}`));
 /** History, Try and Import need Python: off until it is ready. */
 const NEEDS_PYTHON = ["undo", "redo", "move-track", "rotate-track", "shear-track", "stretch-track", "split-track", "merge-tracks", "find-jumps", "smooth-track", "fix-list", "plotting-mode", "ask-again", "glitches", "crash", "colleague", "colleague-window", "colleague-during", "file", "colour", "hide", "show", "add-annotation", "edit-annotation", "delete-annotation", "north-arrow"];
 function needsPython(on: boolean): void {
@@ -1517,6 +1685,7 @@ async function preview(item: string): Promise<void> {
     showPlot();
     renderOutline();
     renderTimeline();
+    showTote();
   } catch {
     // the map fills in when Python is ready
   }
@@ -1544,6 +1713,7 @@ function withoutPython(why: string): void {
     // keep: anything the reader selected on the preview stays selected.
     await openPlot(startPlot, true);
     pythonReady = true;
+    refreshTote();
     await showImportMode();
     needsPython(true);
     status("Ready. Everything runs in your browser; nothing is sent anywhere.");

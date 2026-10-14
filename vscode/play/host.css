@@ -110,3 +110,17 @@ dialog::backdrop { background: #0006; }
 /* A box to tick, beside what it says. */
 .track-form .form-row.form-check { grid-template-columns: auto 1fr; align-items: center; column-gap: 6px; }
 .track-form .form-check .form-note { grid-column: 1 / -1; }
+/* A side panel that folds away, to keep the column short: the Tote. Its heading looks like the others'. */
+.side details.panel { padding: 6px 10px 10px; border-bottom: 1px solid var(--vscode-sideBarSectionHeader-border); }
+.side details.panel > summary { list-style: none; cursor: pointer; display: flex; align-items: center; gap: 4px; }
+.side details.panel > summary::-webkit-details-marker { display: none; }
+.side details.panel > summary::before { content: "▾"; font-size: 10px; color: var(--vscode-sideBarSectionHeader-foreground); width: 10px; }
+.side details.panel:not([open]) > summary::before { content: "▸"; }
+.side details.panel > summary h2 { flex: 1; margin: 4px 0; }
+.side details.panel > summary:focus-visible { outline: 1px solid var(--vscode-focusBorder); }
+.side details.panel[open] > summary { margin-bottom: 4px; }
+.side .tote-pick select { width: auto; }
+/* The outline's menu for a track: right-click, press and hold, or Shift+F10. */
+.context-menu { position: fixed; z-index: 20; display: flex; flex-direction: column; min-width: 180px; padding: 4px 0; background: var(--vscode-menu-background, var(--vscode-editorWidget-background)); color: var(--vscode-menu-foreground, var(--vscode-foreground)); border: 1px solid var(--vscode-menu-border, var(--vscode-editorWidget-border)); box-shadow: 0 2px 8px var(--vscode-widget-shadow, transparent); }
+.context-menu button { display: block; width: 100%; margin: 0; padding: 4px 12px; text-align: left; background: none; border: 0; border-radius: 0; color: inherit; }
+.context-menu button:hover, .context-menu button:focus-visible { background: var(--vscode-menu-selectionBackground, var(--vscode-list-activeSelectionBackground)); color: var(--vscode-menu-selectionForeground, var(--vscode-list-activeSelectionForeground)); outline: none; }

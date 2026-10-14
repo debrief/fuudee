@@ -1,0 +1,32 @@
+/* The Tote (totecontrol.ts): interface colours only from the theme (CON-06, DEV-07);
+   the swatch beside each track is the track's own data colour. */
+.tote { display: flex; flex-direction: column; gap: 4px; font-size: 12px; color: var(--vscode-foreground); }
+.tote-pick { display: flex; align-items: center; gap: 6px; }
+.tote-pick > span { min-width: 4.2em; color: var(--vscode-descriptionForeground); }
+.tote-pick select { flex: 1; min-width: 0; height: 22px; background: var(--vscode-dropdown-background); color: var(--vscode-dropdown-foreground, var(--vscode-foreground)); border: 1px solid var(--vscode-dropdown-border, transparent); font: inherit; }
+.tote-pick select:focus-visible { outline: 1px solid var(--vscode-focusBorder); outline-offset: 1px; }
+/* Very narrow views scroll the table sideways rather than squeeze it. */
+.tote-scroll { overflow-x: auto; max-width: 100%; }
+.tote-table { border-collapse: collapse; width: 100%; font-variant-numeric: tabular-nums; }
+.tote-table th, .tote-table td { padding: 1px 3px; text-align: right; white-space: nowrap; }
+.tote-table thead th { font-weight: 600; color: var(--vscode-descriptionForeground); font-size: 11px; }
+.tote-table thead tr:last-child > * { border-bottom: 1px solid var(--vscode-widget-border, var(--vscode-panel-border, transparent)); }
+/* Each track: its name beside its lines of values, a rule beneath. */
+.tote-line > tr:last-child > * { border-bottom: 1px solid var(--vscode-widget-border, var(--vscode-panel-border, transparent)); }
+.tote-primary-line > tr:last-child > * { border-bottom-width: 2px; }
+.tote-table th.tote-track { text-align: left; vertical-align: top; font-weight: normal; color: var(--vscode-foreground); white-space: normal; min-width: 5.5em; }
+.tote-table thead th.tote-track { color: var(--vscode-descriptionForeground); font-weight: 600; vertical-align: bottom; }
+.tote-who { display: inline; }
+.tote-table td { font-family: var(--vscode-editor-font-family); font-size: 11px; padding-left: 6px; }
+.tote-line:focus-visible { outline: 1px solid var(--vscode-focusBorder); outline-offset: -1px; }
+.tote-line:hover { background: var(--vscode-list-hoverBackground); }
+.tote-swatch { display: inline-block; width: 8px; height: 8px; border-radius: 50%; margin-right: 4px; }
+.tote-role { margin-left: 4px; font-size: 10px; padding: 0 3px; border: 1px solid currentColor; border-radius: 2px; color: var(--vscode-descriptionForeground); white-space: nowrap; }
+.tote-table td.tote-why { text-align: left; font-family: var(--vscode-font-family); color: var(--vscode-descriptionForeground); font-style: italic; }
+.tote-table td.tote-hint { text-align: left; white-space: normal; color: var(--vscode-descriptionForeground); padding: 4px 0; font-family: var(--vscode-font-family); font-size: 12px; }
+.tote-remove { min-width: 18px; height: 18px; margin: 0 0 0 2px; padding: 0 3px; line-height: 1; background: transparent; color: var(--vscode-descriptionForeground); border: 1px solid transparent; border-radius: 2px; cursor: pointer; font: inherit; }
+.tote-remove:hover { background: var(--vscode-toolbar-hoverBackground, var(--vscode-list-hoverBackground)); color: var(--vscode-foreground); }
+.tote-remove:focus-visible { outline: 1px solid var(--vscode-focusBorder); }
+.tote-note { margin: 2px 0; padding: 2px 6px; border-left: 3px solid var(--vscode-inputValidation-warningBorder, var(--vscode-focusBorder)); color: var(--vscode-foreground); }
+.tote-note[hidden], .tote-status:empty { display: none; }
+.tote-status { margin: 0; color: var(--vscode-descriptionForeground); font-size: 11px; }
