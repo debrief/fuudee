@@ -134,6 +134,10 @@ MEASURES: dict[str, MeasureDefinition] = {m.id: m for m in CORE_MEASURES}
 
 CORE_GROUP_ID = "core"
 
+# Closer than this, two tracks are in one place: the range is zero and there is no bearing
+# (geodesy would give 180°, which reads as a real direction).
+COINCIDENT_M = 0.001
+
 
 @dataclass(frozen=True, slots=True)
 class MeasureGroup:
@@ -292,7 +296,8 @@ def measure(
 ) -> float | None:
     """One measure's value for a track at an instant, in definition.unit; None when it
     cannot be worked out (no primary at that time for a relative measure, no depth
-    recorded, no course to measure a relative bearing from)."""
+    recorded, no course to measure a relative bearing from, no bearing between two tracks
+    in one place)."""
     kind = definition.id
     if kind == "course":
         return track.course_deg
@@ -305,6 +310,8 @@ def measure(
     rng, brg = range_bearing(primary.position, track.position)
     if kind == "range":
         return rng.value
+    if rng.value < COINCIDENT_M:  # one place: no direction from one to the other
+        return None
     if kind == "bearing":
         return brg.value
     if kind == "relative_bearing":

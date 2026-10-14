@@ -121,6 +121,16 @@ def test_relative_bearing_needs_the_primarys_course() -> None:
     assert at(state(0, 0), state(1, 1), "relative_bearing") is None
 
 
+def test_tracks_in_one_place_have_no_bearing() -> None:
+    # Geodesy gives 180° between coincident points: a direction that is not there.
+    primary = state(-4.0, 50.0, course=90.0)
+    for secondary in (state(-4.0, 50.0), state(-4.0, 50.0 + 1e-12)):
+        assert at(primary, secondary, "range") == pytest.approx(0.0, abs=1e-3)
+        assert at(primary, secondary, "bearing") is None
+        assert at(primary, secondary, "relative_bearing") is None
+    assert at(primary, state(-4.0, 50.0001), "bearing") == pytest.approx(0.0, abs=1e-6)
+
+
 # --- Missing data ----------------------------------------------------------------------
 
 
