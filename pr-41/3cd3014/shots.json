@@ -1,0 +1,41 @@
+{
+ "shots": [
+  {
+   "source": "blog/posts/2026-10-16-the-tote.md",
+   "url": "blog/2026/10/16/the-tote/",
+   "title": "The Tote",
+   "file": "blog-posts-2026-10-16-the-tote.png"
+  },
+  {
+   "source": "guides/glossary.md",
+   "url": "guides/glossary/",
+   "title": "Glossary",
+   "file": "guides-glossary.png"
+  },
+  {
+   "source": "guides/interaction-models/index.md",
+   "url": "guides/interaction-models/",
+   "title": "Interaction models",
+   "file": "guides-interaction-models-index.png"
+  },
+  {
+   "source": "guides/interaction-models/keyboard-equivalents.md",
+   "url": "guides/interaction-models/keyboard-equivalents/",
+   "title": "Keyboard equivalents",
+   "file": "guides-interaction-models-keyboard-equivalents.png"
+  },
+  {
+   "source": "guides/interaction-models/tote.md",
+   "url": "guides/interaction-models/tote/",
+   "title": "Tote",
+   "file": "guides-interaction-models-tote.png"
+  },
+  {
+   "source": "try.md",
+   "url": "try/",
+   "title": "Try Debrief",
+   "file": "try.png"
+  }
+ ],
+ "more": 0
+}
