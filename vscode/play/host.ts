@@ -23,8 +23,9 @@ import { contextShown, type ContextTracks } from "../webview/contrast.js";
 import { placeToolTime } from "../webview/timelogic.js";
 import { TRACK_COLOURS } from "../webview/palette.js";
 import { TimeControl } from "../webview/timecontrol.js";
-import { formatBearing } from "@debrief/kernel";
-import { defaultPivotIndex, describeDistance, describeSpeed, describeTurn, legNow, mergedName, mergePlan, periodIndices, readBearing, readDistance, readSpeed, readTurn } from "../webview/trackedit.js";
+import { formatBearing, formatPosition, parsePosition } from "@debrief/kernel";
+import { defaultPivotIndex, describeDistance, describeSpeed, describeTurn, fixIndexAt, fixMoved, fixReadout, fixToEdit, impliedSpeeds, jumpSpeed, legNow, mergedName, mergePlan, periodIndices, readBearing, readDistance, readSpeed, readTurn } from "../webview/trackedit.js";
+import { rangeBearing } from "../webview/geodesic.js";
 import { describeJump, describeMark, describeWindow, fixRows, jumpsFound, markAt, readThreshold, readWindow, smoothingNote, type Jump } from "../webview/fixes.js";
 import { FIX_COLOURS } from "../webview/palette.js";
 import { formatQuantity } from "@debrief/kernel";
@@ -282,7 +283,7 @@ window.addEventListener("message", (event) => {
       });
     } else if (message.kind === "edit_annotation") editAnnotation(message.feature_id as string);
     if (message.kind === "edit_track") {
-      // A track's move or rotate handle let go of, or nudged: changed so, as one step. Refused, the map shows the latest.
+      // A track's handle or a fix's let go of, or nudged: changed so, as one step. Refused, the map shows the latest.
       const change = { kind: "edit", feature: message.feature_id, edit: message.track_edit };
       const before = opened?.base.plot_hash;
       void changeTrack(change).then(async (problem) => {
@@ -824,6 +825,22 @@ $("stretch-track").onclick = async () => {
   const problem = await changeTrack({ kind: "edit", feature: track.id, edit });
   if (problem) toast(problem, "warning");
 };
+$("dead-reckon").onclick = async () => {
+  const track = oneTrack("plot by dead reckoning");
+  if (!track) return;
+  const name = track.properties.name;
+  if (!track.properties.courses || !track.properties.speeds) return toast(`${name} does not record both courses and speeds, so it cannot be plotted by dead reckoning.`, "warning");
+  const values = await trackForm(
+    `Plot ${name} by dead reckoning`,
+    "Plot as DR",
+    [extentField()],
+    "Its first fix stays; each fix after it is placed from the one before by that fix's recorded course and speed, as legacy Debrief plotted a track imported as DR. The positions as logged are replaced; Undo puts them back.",
+  );
+  if (!values) return;
+  const period = windowPeriod(values.extent);
+  const problem = await changeTrack({ kind: "edit", feature: track.id, edit: { action: "dead_reckon", ...(period && { period }) } });
+  if (problem) toast(problem, "warning");
+};
 $("split-track").onclick = async () => {
   const track = oneTrack("split");
   if (!track || !time) return;
@@ -1044,7 +1061,11 @@ async function openFixes(trackId: string, time?: string): Promise<void> {
       return b;
     };
     const said = Object.assign(document.createElement("div"), { className: "detail", textContent: describeMark(mark, colourName) || "No colour, label or comment of its own." });
-    actions.replaceChildren(Object.assign(document.createElement("div"), { className: "fix-chosen", textContent: `Fix at ${when}` }), said, colour, text("label"), text("comment"));
+    const move = button("Move…");
+    move.id = "move-fix";
+    move.title = "Move this fix alone to a position you type; or drag its ring on the map, zoomed in";
+    move.onclick = () => void moveFix(track.id, chosen!);
+    actions.replaceChildren(Object.assign(document.createElement("div"), { className: "fix-chosen", textContent: `Fix at ${when}` }), said, colour, text("label"), text("comment"), move);
     if (chosen) showFixesOnMap({ feature_id: track.id, fix_times: [chosen] });
   };
   list.replaceChildren(
@@ -1074,9 +1095,39 @@ async function openFixes(trackId: string, time?: string): Promise<void> {
       return li;
     }),
   );
-  showSide(`Fixes of ${name}`, panel("Choose a fix to colour, label or comment on: each change is one step. Right-click a fix on the map to choose it there.", actions, list));
+  showSide(`Fixes of ${name}`, panel("Choose a fix to colour, label, comment on or move: each change is one step. Right-click a fix on the map to choose it there.", actions, list));
   render();
   list.querySelector<HTMLElement>(`li[data-time="${CSS.escape(chosen ?? "")}"]`)?.scrollIntoView({ block: "nearest" });
+}
+/** "Move…" in the fix list: where the fix goes, typed in any notation Debrief reads, saying how far, which way and the speeds it implies; one step. */
+async function moveFix(trackId: string, time: string): Promise<void> {
+  const track = trackOf(trackId);
+  if (!track) return;
+  const name = track.properties.name;
+  const index = fixIndexAt(track.properties.times, time);
+  if (index < 0) return toast(`${name} has no fix at ${describeTimes(time)}.`, "warning");
+  const positions = track.geometry.coordinates as [number, number][];
+  const times = track.properties.times.map(Date.parse);
+  const jump = jumpSpeed(positions, times);
+  const here = positions[index];
+  const read = (text: string): { means: string } | { problem: string } => {
+    try {
+      const p = parsePosition(text);
+      const to: [number, number] = [p.longitude, p.latitude];
+      const { metres, bearing } = rangeBearing(here, to);
+      return { means: `${formatPosition(p)}. ${fixReadout(name, times[index], metres, bearing, impliedSpeeds(fixMoved(positions, index, to), times, index), jump, undefined, "moves")}` };
+    } catch (error) {
+      return { problem: (error as Error).message };
+    }
+  };
+  const values = await trackForm(`Move the fix of ${name} at ${describeTimes(time)}`, "Move", [
+    { id: "position", label: "Where it goes: only this fix moves; its time, recorded course and speed stay", value: formatPosition({ longitude: here[0], latitude: here[1] }), read },
+  ]);
+  if (!values) return;
+  const p = parsePosition(values.position);
+  const problem = await changeTrack({ kind: "edit", feature: trackId, edit: fixToEdit(track.properties.times[index], [p.longitude, p.latitude]) });
+  if (problem) toast(problem, "warning");
+  await openFixes(trackId, time);
 }
 async function markFix(trackId: string, time: string, changes: Record<string, string | null>, colourName?: string): Promise<void> {
   const outcome = await clean({ kind: "mark", feature: trackId, time, changes, ...(colourName && { colour_name: colourName }) });
@@ -1291,7 +1342,7 @@ for (const panel of OPTIONAL) $(`panel-${panel}`).hidden = !panels.has(panel);
 // The panels in the order the demo lists them, after the plot and its outline.
 for (const panel of panelOrder) if (OPTIONAL.includes(panel)) $("side").append($(`panel-${panel}`));
 /** History, Try and Import need Python: off until it is ready. */
-const NEEDS_PYTHON = ["undo", "redo", "move-track", "rotate-track", "shear-track", "stretch-track", "split-track", "merge-tracks", "find-jumps", "smooth-track", "fix-list", "glitches", "crash", "colleague", "colleague-window", "colleague-during", "file", "colour", "hide", "show", "add-annotation", "edit-annotation", "delete-annotation", "north-arrow"];
+const NEEDS_PYTHON = ["undo", "redo", "move-track", "rotate-track", "shear-track", "stretch-track", "split-track", "merge-tracks", "find-jumps", "smooth-track", "fix-list", "dead-reckon", "glitches", "crash", "colleague", "colleague-window", "colleague-during", "file", "colour", "hide", "show", "add-annotation", "edit-annotation", "delete-annotation", "north-arrow"];
 function needsPython(on: boolean): void {
   for (const id of NEEDS_PYTHON) $<HTMLButtonElement | HTMLInputElement>(id).disabled = !on;
 }

@@ -31,11 +31,21 @@
  *   Right and Up clockwise; the change is sent when the analyst stops (or
  *   presses Enter, or moves on), so one run of presses is one step. Presses
  *   made while that step is being saved are kept and made as the next one.
+ * - Single fixes (part B3): zoomed in far enough that fixes are apart on the
+ *   screen (FIX_SPACING_PX, and no more than MOST_FIX_HANDLES in view), each fix
+ *   in view has a small ring of its own, drawn beneath the track's other
+ *   handles. Dragging one moves that fix alone: its time, its recorded course
+ *   and speed and every other fix stay. The note says how far and which way, and
+ *   the speeds the positions now imply to reach it and to go on from it, and
+ *   whether that is as fast as a jump. Letting go is one step; Escape puts it
+ *   back. Tab reaches each ring (after the track's other handles); the arrow
+ *   keys nudge it 5 pixels (25 with Shift), one step for the run. Right-click
+ *   it, or press and hold it on a touch screen, for the fix's menu.
  * - Nothing here changes current time, the window or the selection. If the
  *   plot changes elsewhere during a drag, the drag is dropped and the map says so.
  */
 import L from "leaflet";
-import { DEFAULT_SETTINGS } from "@debrief/kernel";
+import { DEFAULT_SETTINGS, formatTime } from "@debrief/kernel";
 import type { DebriefFeatureCollection } from "@debrief/schemas";
 import { densify, type LonLat } from "./geodesic.js";
 import {
@@ -43,9 +53,11 @@ import {
   defaultPivotIndex,
   dragGesture,
   endPlaces,
+  fixHandleIndices,
   gestureChange,
   handlePlaces,
   isEnd,
+  jumpSpeed,
   KeyRun,
   legOf,
   periodIndices,
@@ -68,6 +80,8 @@ const DRAG_PX = 4;
 /** How far beyond its fix an end's handle is drawn, in pixels, so it is clear of the move handle and the pivot. */
 const END_OFFSET_PX = 18;
 const END_SIZE = 14;
+/** A fix's own handle: smaller than the track's, so they stand out above it where they share a fix. */
+const FIX_SIZE = 12;
 /** The most fixes marked one by one while a track is moved. */
 const MARKED_FIXES = 120;
 const settings = DEFAULT_SETTINGS;
@@ -98,7 +112,19 @@ interface Selected {
   name: string;
   positions: LonLat[];
   times: number[];
+  /** The times as the track writes them: a fix is found by its time. */
+  fixTimes: string[];
   colour: string;
+  /** Above this speed (metres a second), a fix moved is as fast as a jump. */
+  jump: number;
+}
+
+/** A press of an arrow key on a handle: on a fix's own handle, which fix. */
+interface Press {
+  role: TrackRole;
+  key: string;
+  shift: boolean;
+  fixTime?: string;
 }
 
 /** What moves: the whole track, or only its fixes in the time window. */
@@ -115,12 +141,17 @@ export class TrackEditor {
   private readonly preview = L.layerGroup();
   private readonly handleLayer = L.layerGroup();
   private handles = new Map<TrackRole, L.Marker>();
+  /** Each fix's own handle, by the fix's time, beneath the track's other handles. */
+  private readonly fixLayer = L.layerGroup();
+  private fixHandles = new Map<string, L.Marker>();
+  /** Whether fixes in view are too close together for handles of their own: the note says to zoom in. */
+  private fixesTooClose = false;
   private arm?: L.Polyline;
   private drag?: Gesture & { start: L.Point; moved: boolean; pointer: number; element: HTMLElement };
   private dragEnded?: { at: L.Point; time: number };
   /** A run of arrow keys on the move or rotate handle, not yet sent. */
   private nudge?: Gesture;
-  private readonly run = new KeyRun<{ role: TrackRole; key: string; shift: boolean }>(() => this.commitNudge());
+  private readonly run = new KeyRun<Press>(() => this.commitNudge());
   private frame?: number;
   private rebuilding = false;
   private control?: { box: HTMLElement; whole: HTMLButtonElement; window: HTMLButtonElement; shear: HTMLButtonElement; stretch: HTMLButtonElement };
@@ -128,7 +159,10 @@ export class TrackEditor {
 
   constructor(private readonly host: TrackHost) {
     this.preview.addTo(host.map);
+    this.fixLayer.addTo(host.map);
     this.handleLayer.addTo(host.map);
+    // Zooming or panning changes which fixes are in view, and whether they are far enough apart for handles.
+    host.map.on("zoomend moveend resize", () => this.refresh());
     this.screen = {
       toPoint: (p) => {
         const point = host.map.latLngToContainerPoint(toLatLng(p));
@@ -230,7 +264,10 @@ export class TrackEditor {
     const shown = id ? this.host.track(id) : undefined;
     if (before && before !== id) this.cancelGesture();
     if (id !== before) this.chosenPivot = undefined;
-    this.selected = shown && id ? { id, name: shown.feature.properties.name, positions: shown.feature.geometry.coordinates as LonLat[], times: shown.times, colour: shown.colour } : undefined;
+    if (shown && id) {
+      const positions = shown.feature.geometry.coordinates as LonLat[];
+      this.selected = { id, name: shown.feature.properties.name, positions, times: shown.times, fixTimes: shown.feature.properties.times, colour: shown.colour, jump: jumpSpeed(positions, shown.times) };
+    } else this.selected = undefined;
     this.render(before !== id);
   }
 
@@ -245,7 +282,7 @@ export class TrackEditor {
     this.setSelection(ids);
     if (interrupted) this.host.say("The plot was changed elsewhere, so your change was not made. Debrief is showing the latest; try again if you still want to.");
     // Presses made while the last change was saved: now made, from where the track is now.
-    else if (this.selected) for (const k of kept) this.key(k.role, k.key, k.shift);
+    else if (this.selected) for (const k of kept) this.key(k.role, k.key, k.shift, k.fixTime);
   }
 
   /** The time window or current time moved, or drawing began or ended: what moves, and the default pivot, may have changed. */
@@ -278,6 +315,8 @@ export class TrackEditor {
       part: indices.length < s.times.length,
       pivot: this.chosenPivot ?? s.positions[index!],
       ...(inWindow && { period: time.range }),
+      fixTimes: s.fixTimes,
+      jump: s.jump,
     };
   }
 
@@ -288,6 +327,7 @@ export class TrackEditor {
     if (!s || this.host.drawing()) {
       if (box) box.hidden = true;
       this.clearHandles();
+      this.placeFixHandles(undefined);
       return;
     }
     if (this.control && box) {
@@ -300,6 +340,7 @@ export class TrackEditor {
     const t = this.target();
     if (!t) {
       this.clearHandles();
+      this.placeFixHandles(s);
       if (!announce && this.host.noting() === "other") return;
       this.host.say(`${s.name} has no fixes in the time window: choose Whole track to move or rotate all of it.`, undefined, "selection");
       return;
@@ -308,15 +349,61 @@ export class TrackEditor {
     const places = handlePlaces(s.positions, t.indices, t.pivot, pivotIndex);
     const ends = endPlaces(s.positions, s.times, t.indices);
     this.placeHandles({ move: places.move, rotate: places.rotate, pivot: t.pivot, ...ends });
+    // After the track's own handles, so Tab reaches them first.
+    this.placeFixHandles(s);
     if (announce || (!this.drag && this.host.noting() !== "other")) {
       const verb = this.mode === "stretch" ? "stretch" : "shear";
       const toEnds = ends.start ? `, or an end to ${verb} it` : "";
-      this.host.say(`${this.what(s.name)}: drag the move or rotate handle${toEnds}; or Tab to one and use the arrow keys.`, undefined, "selection");
+      const fixes = this.fixHandles.size ? " Drag a fix's ring to move that fix alone." : this.fixesTooClose ? " Zoom in to move a single fix." : "";
+      this.host.say(`${this.what(s.name)}: drag the move or rotate handle${toEnds}; or Tab to one and use the arrow keys.${fixes}`, undefined, "selection");
     }
   }
 
   private what(name: string): string {
     return this.extent === "window" ? `${name}, fixes in the time window` : name;
+  }
+
+  /**
+   * A small ring on each fix in view, when they are few enough and far enough apart on the
+   * screen to grab one; beneath the track's other handles, which keep the pointer where they
+   * share a fix (the pivot can be dragged off one; any fix can be reached with Tab).
+   */
+  private placeFixHandles(s: Selected | undefined): void {
+    const map = this.host.map;
+    let wanted: number[] = [];
+    this.fixesTooClose = false;
+    if (s) {
+      const size = map.getSize();
+      const points = s.positions.map((p) => {
+        const point = map.latLngToContainerPoint(toLatLng(p));
+        return [point.x, point.y] as [number, number];
+      });
+      const shown = fixHandleIndices(points, [size.x, size.y]);
+      wanted = shown.indices;
+      this.fixesTooClose = !!shown.zoomIn;
+    }
+    // Of fixes sharing a time, the first: a fix is found by its time.
+    const byTime = new Map<string, number>();
+    for (const i of wanted) if (!byTime.has(s!.fixTimes[i]) && s!.fixTimes.indexOf(s!.fixTimes[i]) === i) byTime.set(s!.fixTimes[i], i);
+    const same = byTime.size === this.fixHandles.size && [...byTime.keys()].every((t) => this.fixHandles.has(t));
+    if (!same) {
+      const focused = [...this.fixHandles].find(([, m]) => m.getElement() === document.activeElement)?.[0];
+      this.rebuilding = true;
+      this.fixLayer.clearLayers();
+      this.fixHandles.clear();
+      for (const [time, i] of byTime) this.fixHandles.set(time, this.makeHandle("fix", s!.positions[i], time).addTo(this.fixLayer));
+      this.rebuilding = false;
+      if (focused) (this.fixHandles.get(focused)?.getElement() ?? this.host.element).focus({ preventScroll: true });
+    }
+    for (const [time, i] of byTime) {
+      const marker = this.fixHandles.get(time)!;
+      marker.setLatLng(toLatLng(s!.positions[i]));
+      const element = marker.getElement();
+      if (element) {
+        element.setAttribute("aria-label", this.label("fix", s!.name, s!.times[i]));
+        element.title = this.label("fix", s!.name, s!.times[i]);
+      }
+    }
   }
 
   private clearHandles(): void {
@@ -385,7 +472,8 @@ export class TrackEditor {
     element.style.marginTop = `${-END_SIZE / 2 - ux * END_OFFSET_PX}px`;
   }
 
-  private label(role: TrackRole, name: string): string {
+  private label(role: TrackRole, name: string, time?: number): string {
+    if (role === "fix") return `${name}: fix at ${formatTime(time ?? 0, settings)}; drag it, or use the arrow keys, to move this fix alone`;
     if (isEnd(role)) {
       const other = role === "start" ? "end" : "start";
       if (this.mode === "stretch") return `${this.what(name)}: stretch from the ${role}, holding the ${other}; drag it along the track, or use Up and Down to change speed`;
@@ -396,21 +484,24 @@ export class TrackEditor {
     return `${name}: pivot for rotating; drag it, or use the arrow keys, to choose where it turns about`;
   }
 
-  private makeHandle(role: TrackRole, at: LonLat): L.Marker {
-    const size = role === "pivot" ? 12 : isEnd(role) ? END_SIZE : 16;
-    const icon = L.divIcon({ className: `track-handle track-handle-${role}`, iconSize: [size, size] });
-    const marker = L.marker(toLatLng(at), { icon, keyboard: false, interactive: true, bubblingMouseEvents: false, zIndexOffset: 1000 });
+  private makeHandle(role: TrackRole, at: LonLat, fixTime?: string): L.Marker {
+    const size = role === "pivot" ? 12 : role === "fix" ? FIX_SIZE : isEnd(role) ? END_SIZE : 16;
+    // A fix's ring is a hold target too (presshold.ts in map.ts), as a fix on the track is.
+    const icon = L.divIcon({ className: `track-handle track-handle-${role}${role === "fix" ? " fix-hold" : ""}`, iconSize: [size, size] });
+    const marker = L.marker(toLatLng(at), { icon, keyboard: false, interactive: true, bubblingMouseEvents: false, zIndexOffset: role === "fix" ? 500 : 1000 });
     marker.on("add", () => {
       const element = marker.getElement()!;
       element.tabIndex = 0;
       element.setAttribute("role", "button");
       element.dataset.role = role;
+      if (fixTime !== undefined) element.dataset.time = fixTime;
       L.DomEvent.disableClickPropagation(element);
-      element.addEventListener("pointerdown", (event) => this.beginDrag(event, role, element));
+      element.addEventListener("pointerdown", (event) => this.beginDrag(event, role, element, fixTime));
       element.addEventListener("pointermove", (event) => this.moveDrag(event));
       element.addEventListener("pointerup", (event) => this.endDrag(event));
       element.addEventListener("pointercancel", () => this.cancelDrag());
-      element.addEventListener("keydown", (event) => this.handleKey(event, role));
+      element.addEventListener("keydown", (event) => this.handleKey(event, role, fixTime));
+      if (role === "fix") element.addEventListener("contextmenu", (event) => this.chooseFix(event, fixTime!));
       element.addEventListener("blur", () => {
         if (!this.rebuilding && this.nudge) this.commitNudge();
       });
@@ -418,9 +509,19 @@ export class TrackEditor {
     return marker;
   }
 
-  private handleAt(role: TrackRole): LonLat | undefined {
-    const marker = this.handles.get(role);
+  private handleAt(role: TrackRole, fixTime?: string): LonLat | undefined {
+    const marker = role === "fix" ? (fixTime !== undefined ? this.fixHandles.get(fixTime) : undefined) : this.handles.get(role);
     return marker ? lonLat(marker.getLatLng()) : undefined;
+  }
+
+  /** A right-click on a fix's ring, or a press and hold on it: the fix's menu (colour, label, comment, move), as on the track. Not in the middle of a drag. */
+  private chooseFix(event: MouseEvent, fixTime: string): void {
+    event.preventDefault();
+    event.stopPropagation();
+    const s = this.selected;
+    if (!s || this.host.drawing() || this.drag?.moved) return;
+    if (this.drag) this.cancelDrag();
+    this.host.post({ kind: "fix_chosen", feature_id: s.id, fix_time: fixTime });
   }
 
   // --- Showing the change ----------------------------------------------------------------------
@@ -442,11 +543,12 @@ export class TrackEditor {
     L.polyline(densify(s.positions).map(toLatLng), { color: s.colour, weight: 1.5, opacity: 0.6, dashArray: "4 4", interactive: false, className: "track-before" }).addTo(this.preview);
     L.polyline(densify(change.positions).map(toLatLng), { color: s.colour, weight: 3, interactive: false, className: "track-moved" }).addTo(this.preview);
     // The fixes that move, marked while there are few enough to tell apart; a long track is its line.
-    for (const i of t.indices.length <= MARKED_FIXES ? t.indices : []) {
+    const moving = g.role === "fix" ? [] : t.indices.length <= MARKED_FIXES ? t.indices : [];
+    for (const i of moving) {
       L.circleMarker(toLatLng(change.positions[i]), { radius: 2.5, color: s.colour, fillColor: s.colour, fillOpacity: 1, weight: 1, interactive: false, className: "track-moved-fix" }).addTo(this.preview);
     }
     // The handle in use goes with the track.
-    const marker = this.handles.get(g.role);
+    const marker = g.role === "fix" ? this.fixHandles.get(g.fixTime ?? "") : this.handles.get(g.role);
     if (change.handle) marker?.setLatLng(toLatLng(change.handle));
     else if (g.role === "move") marker?.setLatLng(toLatLng(g.at));
     else {
@@ -480,8 +582,8 @@ export class TrackEditor {
   }
 
   // --- Dragging ----------------------------------------------------------------------------------
-  private beginDrag(event: PointerEvent, role: TrackRole, element: HTMLElement): void {
-    const origin = this.handleAt(role);
+  private beginDrag(event: PointerEvent, role: TrackRole, element: HTMLElement, fixTime?: string): void {
+    const origin = this.handleAt(role, fixTime);
     if (event.button !== 0 || !this.selected || !origin || this.host.drawing()) return;
     event.preventDefault();
     event.stopPropagation();
@@ -490,7 +592,7 @@ export class TrackEditor {
     element.focus({ preventScroll: true }); // so Escape can put it back
     element.setPointerCapture?.(event.pointerId);
     const start = this.host.map.mouseEventToContainerPoint(event as unknown as MouseEvent);
-    this.drag = { ...startGesture(role, origin, this.mode), start, moved: false, pointer: event.pointerId, element };
+    this.drag = { ...startGesture(role, origin, this.mode, fixTime), start, moved: false, pointer: event.pointerId, element };
   }
 
   private moveDrag(event: PointerEvent): void {
@@ -549,7 +651,7 @@ export class TrackEditor {
   }
 
   // --- The keyboard ------------------------------------------------------------------------------
-  private handleKey(event: KeyboardEvent, role: TrackRole): void {
+  private handleKey(event: KeyboardEvent, role: TrackRole, fixTime?: string): void {
     if (!this.selected || this.host.drawing()) return;
     if (event.key.startsWith("Arrow")) {
       event.preventDefault();
@@ -557,10 +659,10 @@ export class TrackEditor {
       if (this.drag) return;
       if (this.run.saving && role !== "pivot") {
         // The last change is still being saved: this press is kept, and made as the next change once it is.
-        this.run.press({ role, key: event.key, shift: event.shiftKey });
+        this.run.press({ role, key: event.key, shift: event.shiftKey, fixTime });
         return this.host.say("Saving the last change; your next move follows once it is saved.");
       }
-      this.key(role, event.key, event.shiftKey);
+      this.key(role, event.key, event.shiftKey, fixTime);
     } else if (event.key === "Enter" && this.nudge) {
       event.preventDefault();
       this.commitNudge();
@@ -573,11 +675,11 @@ export class TrackEditor {
   }
 
   /** One arrow key on a handle: the move handle and the pivot move by pixels on the screen; the rotate handle turns by degrees. */
-  private key(role: TrackRole, key: string, shift: boolean): void {
-    const origin = this.handleAt(role);
+  private key(role: TrackRole, key: string, shift: boolean, fixTime?: string): void {
+    const origin = this.handleAt(role, fixTime);
     if (!origin) return;
-    if (this.nudge && this.nudge.role !== role) this.commitNudge();
-    const before = role === "pivot" ? startGesture(role, origin) : (this.nudge ?? startGesture(role, origin, this.mode));
+    if (this.nudge && (this.nudge.role !== role || this.nudge.fixTime !== fixTime)) this.commitNudge();
+    const before = role === "pivot" ? startGesture(role, origin) : (this.nudge ?? startGesture(role, origin, this.mode, fixTime));
     const t = this.target();
     // A stretch's first press starts from the speed the period makes good, as shown.
     const speed = before.mode === "stretch" && t ? speedIn(legOf(t.positions, t.times, t.indices).speed, settings) : undefined;
@@ -585,7 +687,7 @@ export class TrackEditor {
     this.show(g);
     if (role === "pivot") return; // the pivot records nothing: each press puts it where it now is
     this.nudge = g;
-    this.run.press({ role, key, shift });
+    this.run.press({ role, key, shift, fixTime });
   }
 
   private commitNudge(): void {

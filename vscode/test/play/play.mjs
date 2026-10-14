@@ -15,6 +15,7 @@ import { playDrawing } from "./drawing.mjs";
 import { playShear } from "./shear.mjs";
 import { playTracks } from "./tracks.mjs";
 import { playCleaning } from "./cleaning.mjs";
+import { playFixDrag } from "./fixdrag.mjs";
 
 const root = path.resolve(process.argv[2] ?? "../site/docs/play");
 const site = process.argv[3] ? path.resolve(process.argv[3]) : undefined;
@@ -275,6 +276,8 @@ try {
   // Cleaning tracks: jumps found, shown and removed; smoothing previewed and applied; a fix
   // coloured, labelled and commented on, each one step (CAP-01, EXT-14).
   await playCleaning(page, shot);
+  // A single fix moved: by pointer, touch, keyboard and form, each one step; and dead reckoning (CAP-01, NFR-13).
+  await playFixDrag(page, shot);
 
   // Import a legacy plot file.
   const dpf = path.resolve("../python/debrief-io/tests/data/shapes.dpf");
@@ -376,7 +379,7 @@ try {
   await cdnBlocked();
   if (site) await playFromThePost();
   assert.deepEqual(errors, []);
-  console.log(`Playground played: map selection, keyboard, tools, undo, crash recovery, conflict, annotations, drawing, tracks, shear and stretch, cleaning, import, narrow, CDN blocked${site ? ", and from a blog post" : ""}.`);
+  console.log(`Playground played: map selection, keyboard, tools, undo, crash recovery, conflict, annotations, drawing, tracks, shear and stretch, cleaning, single fixes, import, narrow, CDN blocked${site ? ", and from a blog post" : ""}.`);
 
   /**
    * The time controller (CAP-28): drag the window and the map shows only it, at
@@ -691,6 +694,17 @@ try {
     await cleaning.frameLocator(".frame-map").locator("path.fix-check").nth(2).waitFor();
     await post.locator(".debrief-demo").first().scrollIntoViewIfNeeded();
     await shot("clean-05-in-the-post", post);
+    // The single-fix post's demo: select a track, and its handles appear; the fix list offers Move….
+    await post.goto(`http://127.0.0.1:${siteServer.address().port}/blog/2026/10/15/dragging-a-fix/`);
+    await post.locator(".debrief-demo").first().getByRole("button", { name: "Start the demo" }).click();
+    const fixing = post.frameLocator(".debrief-demo-frame");
+    await fixing.locator("#status", { hasText: "Ready" }).waitFor({ timeout: 240000 });
+    await fixing.locator(`#outline li[data-id="track-red-one"]`).click();
+    await fixing.frameLocator(".frame-map").locator(".track-handle-end").waitFor();
+    await fixing.locator("#fix-list").click();
+    await fixing.locator("#move-fix").waitFor();
+    await post.locator(".debrief-demo").first().scrollIntoViewIfNeeded();
+    await shot("fixdrag-06-in-the-post", post);
     siteServer.close();
   }
 } catch (error) {

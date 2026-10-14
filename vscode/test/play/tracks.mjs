@@ -43,7 +43,7 @@ export async function playTracks(page, shot) {
   await page.locator(`#outline li[data-id="track-blue-one"]`).click();
   await handle("move").waitFor();
   // And two ends, to shear or stretch it (shear.mjs).
-  assert.equal(await mapFrame.locator(".track-handle").count(), 5);
+  assert.equal(await mapFrame.locator(".track-handle:not(.track-handle-fix)").count(), 5);
   assert.equal(await handle("move").getAttribute("aria-label"), "BLUE ONE: move; drag it, or use the arrow keys");
   assert.match(await handle("rotate").getAttribute("aria-label"), /^BLUE ONE: rotate about the pivot; drag it round, or use the arrow keys/);
   assert.match(await handle("pivot").getAttribute("aria-label"), /^BLUE ONE: pivot for rotating/);

@@ -209,8 +209,9 @@ def annotate(item: str, request_json: str) -> str:
 
 
 def track(item: str, request_json: str) -> str:
-    """Move, rotate, split or merge tracks: each a recorded, undoable step (CAP-01,
-    CAP-02), as debrief/edit_track, debrief/split_track and debrief/merge_tracks do."""
+    """Move, rotate, shear, stretch, split or merge tracks, move a single fix or plot a
+    track by dead reckoning: each a recorded, undoable step (CAP-01, CAP-02), as
+    debrief/edit_track, debrief/split_track and debrief/merge_tracks do."""
     request = json.loads(request_json)
     base = Base(**request["base"]) if request.get("base") else None
     change = request["change"]

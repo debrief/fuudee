@@ -38,10 +38,21 @@ export function trackEditProblems(edit: TrackEdit, where = "track_edit"): string
   const problems: string[] = [];
   const period = edit.period;
   if (period && !(Date.parse(period.start) <= Date.parse(period.end))) problems.push(`${where} period: time range starts after it ends`);
-  const given = new Set((["distance", "bearing", "angle", "pivot", "anchor", "course", "speed"] as const).filter((name) => edit[name] != null));
+  const given = new Set((["distance", "bearing", "angle", "pivot", "anchor", "course", "speed", "fix_time", "position"] as const).filter((name) => edit[name] != null));
   const any = (...names: string[]) => names.some((n) => given.has(n as never));
   const all = (...names: string[]) => names.every((n) => given.has(n as never));
-  if (edit.action === "move") {
+  if (edit.action !== "move_fix" && any("fix_time", "position")) problems.push(`${where}: only a single fix moved has a fix time or a position`);
+  if (edit.action === "move_fix") {
+    if (!edit.fix_time) problems.push(`${where}: moving a fix needs the fix's time`);
+    const byDrag = all("distance", "bearing") && !any("position");
+    const byPlace = any("position") && !any("distance", "bearing");
+    if (!(byDrag || byPlace)) problems.push(`${where}: moving a fix needs either a distance and a bearing, or a position`);
+    if (any("angle", "pivot", "anchor", "course", "speed") || period) problems.push(`${where}: moving a fix has no period, angle, pivot, anchor or speed`);
+    const position = edit.position;
+    if (position && !(Math.abs(position[0]) <= 180 && Math.abs(position[1]) <= 90)) problems.push(`${where}: the position is not on the globe`);
+  } else if (edit.action === "dead_reckon") {
+    if (given.size) problems.push(`${where}: dead reckoning takes nothing but a period`);
+  } else if (edit.action === "move") {
     if (!edit.distance || !edit.bearing) problems.push(`${where}: a move needs a distance and a bearing`);
     if (any("angle", "pivot")) problems.push(`${where}: a move has no angle or pivot`);
     if (any("anchor", "course", "speed")) problems.push(`${where}: a move has no anchor, course or speed`);

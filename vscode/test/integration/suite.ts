@@ -634,6 +634,47 @@ export async function run(): Promise<void> {
   assert.equal(await vscode.commands.executeCommand("debrief.undo"), undefined);
   assert.equal((await steps()).at(-1)?.status, "undone");
 
+  // --- A single fix moved, and dead reckoning (CAP-01): from the map, and the commands with values given ---
+  const fixBefore = (await steps()).length;
+  const redNow = track("track-red-one")!;
+  const fixIndex = Math.floor(redNow.properties.times.length / 6);
+  const movedTime = redNow.properties.times[fixIndex];
+  const movedWhen = `${new Date(movedTime).toISOString().slice(11, 19)}Z`;
+  // Close in on the fix, RED ONE selected alone: each fix in view has a ring of its own.
+  const [lon, lat] = redNow.geometry.coordinates[fixIndex];
+  await vscode.commands.executeCommand("debrief.select", ["track-red-one"]);
+  await vscode.commands.executeCommand("debrief.setState", { viewport: { bbox: [lon - 0.02, lat - 0.012, lon + 0.02, lat + 0.012] } });
+  await sleep(1500);
+  // Letting go of a fix's ring: that fix alone moves, one step named for the fix, how far and which way.
+  await api.fromMap!({ kind: "edit_track", feature_id: "track-red-one", track_edit: { action: "move_fix", fix_time: movedTime, distance: { value: 0.3, unit: "[nmi_i]" }, bearing: { value: 90, unit: "deg" } } });
+  const fixStep = (await steps()).at(-1)?.notes ?? [];
+  assert.equal(fixStep[0], `${redName} fix at ${movedWhen} moved 0.30 nmi 090.0°T`);
+  assert.match(fixStep[2] ?? "", /^Speed to reach it from \d\d:\d\d:\d\dZ: \d+\.\d kn \(was \d+\.\d kn\)$/);
+  const redMoved = track("track-red-one")!;
+  assert.notDeepEqual(redMoved.geometry.coordinates[fixIndex], redNow.geometry.coordinates[fixIndex]);
+  assert.deepEqual(redMoved.geometry.coordinates[fixIndex + 1], redNow.geometry.coordinates[fixIndex + 1], "its neighbour stays");
+  assert.deepEqual(redMoved.properties.times, redNow.properties.times, "times stay");
+  await vscode.commands.executeCommand("debrief.outline.focus");
+  await sleep(2000);
+  await screenshot("29-fix-moved");
+  // "Move a fix…" with the position given, as an agent would; and the form, put away without sending.
+  const placed = await vscode.commands.executeCommand<TrackDone>("debrief.moveFix", "track-red-one", movedTime, { position: redNow.geometry.coordinates[fixIndex] });
+  assert.equal(placed.problem, undefined);
+  assert.match((await steps()).at(-1)?.notes?.[0] ?? "", new RegExp(`^${redName.replace(/[()]/g, "\\$&")} fix at ${movedWhen} moved 0\\.30 nmi 270\\.0°T$`));
+  const askingFix = vscode.commands.executeCommand<TrackDone>("debrief.moveFix", "track-red-one", redNow.properties.times[fixIndex + 2]);
+  await sleep(1500);
+  await sleep(1000);
+  await screenshot("30-move-fix-form");
+  await vscode.commands.executeCommand("workbench.action.closeQuickOpen");
+  assert.deepEqual(await askingFix, {});
+  // Plot as dead reckoning, with no questions: one step; then undone.
+  const reckoned = await vscode.commands.executeCommand<TrackDone>("debrief.deadReckonTrack", "track-red-one", {});
+  assert.equal(reckoned.problem, undefined);
+  assert.equal((await steps()).at(-1)?.notes?.[0], `${redName} plotted by dead reckoning`);
+  assert.equal((await steps()).length, fixBefore + 3);
+  assert.equal(await vscode.commands.executeCommand("debrief.undo"), undefined);
+  assert.equal((await steps()).at(-1)?.status, "undone");
+
   // A legacy plot file: its circles, ellipses and styling come in as annotations.
   const dpf = path.resolve(__dirname, "../../python/debrief-io/tests/data/shapes.dpf");
   execFileSync(process.env.DEBRIEF_PYTHON!, [
