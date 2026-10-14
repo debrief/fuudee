@@ -1,0 +1,112 @@
+/* The playground page, styled with the same theme variables as the webviews. */
+html, body { height: 100%; margin: 0; }
+[hidden] { display: none !important; }
+body { background: var(--vscode-editor-background); color: var(--vscode-foreground); font-family: var(--vscode-font-family); font-size: var(--vscode-font-size); }
+.app { display: grid; grid-template-columns: clamp(210px, 28vw, 290px) 1fr; grid-template-rows: 1fr auto; height: 100%; }
+.side { grid-row: 1; overflow-y: auto; background: var(--vscode-sideBar-background); border-right: 1px solid var(--vscode-panel-border); }
+.side section { padding: 6px 10px 10px; border-bottom: 1px solid var(--vscode-sideBarSectionHeader-border); }
+.side h2 { font-size: 11px; text-transform: uppercase; letter-spacing: .04em; margin: 4px 0 6px; display: flex; justify-content: space-between; align-items: center; color: var(--vscode-sideBarSectionHeader-foreground); }
+.side select { width: 100%; background: var(--vscode-dropdown-background); color: var(--vscode-foreground); border: 1px solid var(--vscode-dropdown-border); padding: 3px; font: inherit; }
+.list { list-style: none; margin: 0; padding: 0; max-height: 210px; overflow-y: auto; }
+.list li { padding: 2px 4px; cursor: default; border-radius: 2px; }
+#outline li { cursor: pointer; }
+.outline-actions { display: flex; flex-wrap: wrap; gap: 4px; margin-top: 6px; align-items: center; }
+.side .outline-actions select { width: auto; flex: 1; min-width: 0; }
+/* Under the outline: what can be done to a selected track, and to annotations, each a labelled group of equal buttons. */
+.action-group { display: grid; grid-template-columns: repeat(auto-fill, minmax(76px, 1fr)); gap: 4px; margin-top: 8px; }
+.action-label { grid-column: 1 / -1; font-size: 11px; color: var(--vscode-descriptionForeground); }
+.action-group button { margin: 0; padding: 3px 4px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.action-group #north-arrow { grid-column: span 2; }
+#outline li:hover { background: var(--vscode-list-hoverBackground); }
+#outline li.selected { background: var(--vscode-list-activeSelectionBackground); color: var(--vscode-list-activeSelectionForeground); }
+#outline .tag { font-size: 10px; padding: 0 3px; border: 1px solid currentColor; border-radius: 2px; opacity: 0.85; }
+.detail { color: var(--vscode-descriptionForeground); font-size: 12px; }
+.step.undone .name, .step.abandoned .name { color: var(--vscode-descriptionForeground); }
+.step.abandoned .name { text-decoration: line-through; }
+button { background: var(--vscode-button-secondaryBackground); color: var(--vscode-button-secondaryForeground); border: 1px solid var(--vscode-button-border); padding: 3px 8px; margin: 2px 2px 2px 0; font: inherit; cursor: pointer; border-radius: 2px; }
+button:hover:not(:disabled) { background: var(--vscode-button-secondaryHoverBackground); }
+button:disabled { opacity: .5; cursor: default; }
+button.primary { background: var(--vscode-button-background); color: var(--vscode-button-foreground); }
+button.link { background: none; border: none; color: var(--vscode-list-highlightForeground); padding: 0 2px; font-size: 12px; }
+button:focus-visible, li:focus-visible { outline: 1px solid var(--vscode-focusBorder); }
+/* The time controller has its own styles (timecontrol.css, shared with VS Code); the side column's list style stays off it. */
+.side .tc-speed, .side .tc-context { width: auto; padding: 0 2px; }
+#panel-try button { display: block; width: 100%; text-align: left; }
+.tools li { display: flex; align-items: baseline; gap: 6px; flex-wrap: wrap; }
+.file input { display: block; margin: 4px 0; color: var(--vscode-foreground); font: inherit; }
+.omitted-panel { padding: 10px 14px; overflow-y: auto; font-size: 13px; }
+.omitted-panel h2 { font-size: 15px; margin: 4px 0 8px; }
+.omitted-panel ul { padding-left: 18px; }
+.omitted-panel li { margin: 2px 0; }
+main { grid-row: 1; display: flex; min-width: 0; min-height: 0; position: relative; }
+.frame { border: 0; display: block; }
+.frame-map { flex: 1; min-width: 0; height: 100%; }
+.side-frame { width: clamp(260px, 34vw, 380px); border-left: 1px solid var(--vscode-panel-border); display: flex; flex-direction: column; min-height: 0; }
+.side-frame[hidden] { display: none; }
+.side-frame .frame { flex: 1; min-height: 0; width: 100%; }
+.side-frame .omitted-panel { flex: 1; }
+.side-bar { display: flex; justify-content: space-between; align-items: center; padding: 2px 4px 2px 12px; font-size: 11px; text-transform: uppercase; letter-spacing: .04em; color: var(--vscode-sideBarSectionHeader-foreground); background: var(--vscode-sideBar-background); border-bottom: 1px solid var(--vscode-panel-border); }
+.side-bar button { text-transform: none; letter-spacing: 0; }
+.unavailable h2 { color: var(--vscode-disabledForeground); }
+.status.problem { color: var(--vscode-errorForeground); }
+footer { grid-column: 1 / span 2; padding: 3px 10px; background: var(--vscode-editorWidget-background); border-top: 1px solid var(--vscode-panel-border); font-size: 12px; }
+.status.busy::before { content: "⟳ "; display: inline-block; animation: spin 1.2s linear infinite; }
+@keyframes spin { to { transform: rotate(360deg); } }
+.toasts { position: fixed; right: 12px; bottom: 34px; display: flex; flex-direction: column; gap: 6px; max-width: 380px; z-index: 10; }
+.toast { background: var(--vscode-editorWidget-background); color: var(--vscode-editorWidget-foreground); border: 1px solid var(--vscode-editorWidget-border); border-left: 3px solid var(--vscode-focusBorder); padding: 8px 10px; box-shadow: 0 2px 8px #0005; }
+.toast.warning { border-left-color: var(--vscode-inputValidation-errorBorder); }
+dialog { background: var(--vscode-editorWidget-background); color: var(--vscode-editorWidget-foreground); border: 1px solid var(--vscode-editorWidget-border); max-width: 460px; }
+dialog::backdrop { background: #0006; }
+.buttons { display: flex; gap: 6px; justify-content: flex-end; flex-wrap: wrap; }
+/* Narrower: the form or results go under the map, not beside it. */
+@media (max-width: 900px) {
+  main { flex-direction: column; }
+  .frame-map { flex: 1; height: auto; min-height: 240px; }
+  .side-frame { width: auto; height: min(440px, 55%); border-left: 0; border-top: 1px solid var(--vscode-panel-border); }
+}
+/* Phone-sized: one column, the page scrolls; the map first, then the panels. */
+@media (max-width: 600px) {
+  html, body { height: auto; }
+  .app { grid-template-columns: 1fr; grid-template-rows: auto auto auto; height: auto; min-height: 100vh; }
+  main { grid-row: 1; }
+  .frame-map { flex: none; height: 55vh; }
+  .side-frame { height: 460px; }
+  .side { grid-row: 2; border-right: 0; overflow: visible; }
+  footer { grid-column: 1; position: sticky; bottom: 0; }
+}
+/* The Timeline: time-only annotations in time order; choosing one moves current time to it (CAP-05). */
+.timeline li { padding: 0; }
+.timeline button { display: block; width: 100%; text-align: left; background: none; border: none; margin: 0; padding: 3px 4px; color: var(--vscode-foreground); }
+.timeline button:hover { background: var(--vscode-list-hoverBackground); }
+.timeline .when { font-family: var(--vscode-editor-font-family); font-size: 12px; margin-right: 6px; }
+.timeline li.current button { background: var(--vscode-list-inactiveSelectionBackground); }
+.timeline li.current .when::before { content: "▶ "; color: var(--vscode-list-highlightForeground); }
+#north-arrow[aria-pressed="true"] { background: var(--vscode-button-background); color: var(--vscode-button-foreground); }
+/* Cleaning tracks: the jumps found, the fix list and what to do to the fix chosen. */
+/* The panel keeps its height beside the map; a long fix list scrolls inside it. */
+.side-frame .clean-panel { display: flex; flex-direction: column; min-height: 0; }
+.clean-panel p { margin: 4px 0 10px; }
+.jump-list { list-style: none; padding: 0; margin: 0 0 10px; }
+.jump-list li { margin: 4px 0; }
+.jump-list label { cursor: pointer; }
+.fix-list { max-height: none; flex: 1; min-height: 0; overflow-y: auto; }
+.fix-list li { cursor: pointer; }
+.fix-list li:hover { background: var(--vscode-list-hoverBackground); }
+.fix-list li.selected { background: var(--vscode-list-activeSelectionBackground); color: var(--vscode-list-activeSelectionForeground); }
+.fix-list li.selected .detail { color: inherit; }
+.fix-actions { display: flex; flex-wrap: wrap; gap: 4px; align-items: center; margin: 0 0 8px; padding-bottom: 8px; border-bottom: 1px solid var(--vscode-panel-border); }
+.fix-actions .fix-chosen { flex-basis: 100%; font-weight: 600; }
+.fix-actions .detail { flex-basis: 100%; }
+.fix-actions select { font: inherit; background: var(--vscode-dropdown-background); color: var(--vscode-foreground); border: 1px solid var(--vscode-dropdown-border); padding: 2px; }
+/* The small forms for moving, rotating and splitting a track. */
+.track-form h2 { margin: 0 0 8px; font-size: 13px; text-transform: none; letter-spacing: 0; }
+.track-form .form-row { display: grid; gap: 2px; margin-bottom: 8px; }
+.track-form input, .track-form select { font: inherit; background: var(--vscode-input-background); color: var(--vscode-input-foreground); border: 1px solid var(--vscode-input-border, var(--vscode-widget-border)); padding: 3px 4px; }
+.track-form input:focus, .track-form select:focus { outline: 1px solid var(--vscode-focusBorder); }
+.track-form .form-note.problem { color: var(--vscode-errorForeground); }
+.track-form .form-warning { max-width: 32em; margin: 0 0 8px; padding: 4px 6px; border-left: 3px solid var(--vscode-inputValidation-errorBorder); }
+/* What a form explains, not warns of: the neutral bar an information toast has. */
+.track-form .form-info { max-width: 32em; margin: 0 0 8px; padding: 4px 6px; border-left: 3px solid var(--vscode-focusBorder); }
+/* A box to tick, beside what it says. */
+.track-form .form-row.form-check { grid-template-columns: auto 1fr; align-items: center; column-gap: 6px; }
+.track-form .form-check .form-note { grid-column: 1 / -1; }
