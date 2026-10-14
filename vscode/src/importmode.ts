@@ -12,12 +12,16 @@ import type { TrackImportMode } from "@debrief/config";
 
 export type PlottingMode = "otg" | "dr";
 
-/** The choices offered for one track, as a list a keyboard or a finger can choose from. */
-export interface ModeChoice {
+/** The two ways to plot a track offered for one track, as a list a keyboard or a finger can choose from. */
+export interface ModeOption {
   label: string;
   description: string;
   mode: PlottingMode;
-  /** Use this choice for future imports, and remember it. */
+}
+
+/** The answer for one track: how it is plotted, and whether to use this choice for future imports, and remember it. */
+export interface ModeChoice {
+  mode: PlottingMode;
   remember: boolean;
 }
 
@@ -27,11 +31,16 @@ const MODE_DETAILS: Record<PlottingMode, string> = {
   dr: "from the first fix, by each fix's course and speed",
 };
 
-export function modeChoices(): ModeChoice[] {
-  return [
-    ...(["otg", "dr"] as const).map((mode) => ({ label: MODE_LABELS[mode], description: MODE_DETAILS[mode], mode, remember: false })),
-    ...(["otg", "dr"] as const).map((mode) => ({ label: `${MODE_LABELS[mode]}, and use this choice for future imports`, description: "Debrief will not ask again", mode, remember: true })),
-  ];
+/** As legacy Debrief asked: over the ground or by dead reckoning; and, apart from that choice, a box to tick to use it for future imports. */
+export function modeChoices(): ModeOption[] {
+  return (["otg", "dr"] as const).map((mode) => ({ label: MODE_LABELS[mode], description: MODE_DETAILS[mode], mode }));
+}
+
+/** The box beside the choice, as legacy Debrief had it. */
+export const REMEMBER_LABEL = "Use this choice for future track imports";
+/** What the box says when it is ticked or not, where it is a line in a list (VS Code's Quick Pick): a ticked box or an empty one, and on or off in words for a screen reader. */
+export function rememberItem(on: boolean): { label: string; description: string } {
+  return { label: `${on ? "$(pass-filled)" : "$(circle-large-outline)"} ${REMEMBER_LABEL}`, description: on ? "on: Debrief will not ask again" : "off: choose it to turn on" };
 }
 
 /** The title of the question for one track: "How is RED ONE plotted? (1 of 3)". */

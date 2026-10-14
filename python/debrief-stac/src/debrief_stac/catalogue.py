@@ -79,6 +79,12 @@ class NewerSchemaError(CatalogueError):
     """Writing would put a newer-schema file where other users may not open it (SUB-35)."""
 
 
+class ConfirmationNeeded(CatalogueError):
+    """The change would lose something the analyst made, so it waits for them to confirm:
+    a track changed while plotted by dead reckoning, plotted over the ground again
+    (discard_dr_changes). The message says what would be lost."""
+
+
 def _version(text: str) -> tuple[int, ...]:
     return tuple(int(part) for part in text.split("."))
 
@@ -916,9 +922,16 @@ class Catalogue:
                 notes += more
             elif str(edit.action) == "set_plotting_mode":
                 mode = str(getattr(edit.plotting_mode, "value", edit.plotting_mode))
+                # Over the ground again loses a change made while plotted by dead reckoning:
+                # refused, saying so, until the analyst confirms (product owner, 14 Oct 2026).
+                lost = tracks.changed_while_dr(track) if mode == "otg" else None
+                if lost and not edit.discard_dr_changes:
+                    raise ConfirmationNeeded(tracks.describe_dr_changes(track, *lost))
                 after = tracks.plotted_as(track, mode)
                 if after is None:
                     return None
+                if lost:
+                    notes.append("Changes made while plotted by dead reckoning discarded")
                 note = tracks.describe_plotting(name, mode)
                 index, metres = tracks.largest_shift(track, after, indices)
                 notes += [

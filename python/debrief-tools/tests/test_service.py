@@ -847,6 +847,41 @@ def test_a_fix_is_moved_and_a_track_dead_reckoned_as_recorded_steps(client, cata
     assert rpc(client, "debrief/edit_track", stale).json()["error"]["code"] == -32001
 
 
+def test_over_the_ground_after_a_change_made_while_dr_needs_confirming(client) -> None:
+    """Decision, product owner, 14 Oct 2026: plotting a track over the ground again after
+    it was changed while plotted by dead reckoning loses that change, so the service
+    refuses, saying why and how to go ahead; sent again confirming, it is one step."""
+    where = {"store": "exercise", "item": "serial", "agent": AGENT}
+    edit = {**where, "feature": "track-nelson"}
+    as_dr = {"action": "set_plotting_mode", "plotting_mode": "dr"}
+    rpc(client, "debrief/edit_track", {**edit, "edit": as_dr})
+    moved = {
+        "action": "move",
+        "distance": {"value": 2, "unit": "[nmi_i]"},
+        "bearing": {"value": 90, "unit": "deg"},
+    }
+    rpc(client, "debrief/edit_track", {**edit, "edit": moved})
+    count = len(rpc(client, "debrief/history", where).json()["result"]["steps"])
+    as_otg = {"action": "set_plotting_mode", "plotting_mode": "otg"}
+    refused = rpc(client, "debrief/edit_track", {**edit, "edit": as_otg}).json()["error"]
+    assert refused["code"] == -32003
+    assert refused["message"].startswith("NELSON was changed while plotted by dead reckoning")
+    assert (
+        "Nothing was changed. To go ahead, send the change again with discard_dr_changes: true."
+        in refused["message"]
+    )
+    assert len(rpc(client, "debrief/history", where).json()["result"]["steps"]) == count
+    confirmed = {**as_otg, "discard_dr_changes": True}
+    done = rpc(client, "debrief/edit_track", {**edit, "edit": confirmed}).json()["result"]
+    assert done["changed"]
+    steps = rpc(client, "debrief/history", where).json()["result"]["steps"]
+    assert len(steps) == count + 1
+    assert steps[-1]["notes"][:2] == [
+        "NELSON plotted over the ground",
+        "Changes made while plotted by dead reckoning discarded",
+    ]
+
+
 def test_tracks_are_cleaned_what_would_change_shown_first(client, catalogue) -> None:
     where = {"store": "exercise", "item": "serial", "agent": AGENT}
     base = rpc(client, "debrief/open", where).json()["result"]["base"]

@@ -39,7 +39,7 @@ classes:
   UserConfig:
     attributes:
       config_version:
-        description: Version of this file's layout. Currently 1.
+        description: "Version of this file's layout: 1 while it holds only stores; 2 once it holds track_import_mode, which an earlier Debrief cannot read."
         range: integer
         required: true
         minimum_value: 1

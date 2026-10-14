@@ -206,25 +206,58 @@ export async function playFixDrag(page, shot) {
   assert.match(await latest(), /^RED ONE fix at \d\d:\d\d:\d\dZ moved 0\.10 nmi (00\d|35\d)\.\d°T$/);
   await side.locator(".side-bar button", { hasText: "Close" }).click();
 
-  // OTG/DR…: the track plotted by dead reckoning, one step; over the ground again puts the positions as logged back.
+  // OTG/DR…: the track plotted by dead reckoning, one step, and tagged DR beside its name in the outline and on the map.
+  const tag = page.locator(`#outline li[data-id="track-red-one"] .tag`);
+  assert.equal(await tag.count(), 0);
   n = await steps();
   await page.locator("#plotting-mode").click();
   await dialog.waitFor();
-  await dialog.getByText("Undo takes it back").waitFor();
+  // What the form explains is said in the neutral style, not as a warning.
+  await dialog.locator(".form-info", { hasText: "Undo takes it back" }).waitFor();
+  assert.equal(await dialog.locator(".form-warning").count(), 0);
   await page.locator("#track-form-mode").selectOption("dr");
   await shot("fixdrag-05-plot-as-dr");
   await dialog.getByRole("button", { name: "Plot" }).click();
   await stepAdded(n);
   assert.equal(await latest(), "RED ONE plotted by dead reckoning");
+  assert.equal(await tag.innerText(), "DR");
+  await mapFrame.locator(".track-label", { hasText: "RED ONE (DR)" }).waitFor();
+  // Changed while plotted by dead reckoning: moved 1 nmi east.
   n = await steps();
-  await page.locator("#plotting-mode").click();
+  await page.locator("#move-track").click();
   await dialog.waitFor();
-  assert.equal(await page.locator("#track-form-mode option:checked").innerText(), "Dead reckoning (DR), as now");
-  await page.locator("#track-form-mode").selectOption("otg");
-  await dialog.getByRole("button", { name: "Plot" }).click();
+  await page.locator("#track-form-distance").fill("1 nmi");
+  await page.locator("#track-form-bearing").fill("090");
+  await dialog.getByRole("button", { name: "Move" }).click();
+  await stepAdded(n);
+  assert.equal(await latest(), "RED ONE moved 1.00 nmi 090.0°T");
+  // Over the ground again loses that change: the reader is warned and confirms first (product owner, 14 Oct 2026).
+  const toOtg = async () => {
+    await page.locator("#plotting-mode").click();
+    await dialog.waitFor();
+    assert.equal(await page.locator("#track-form-mode option:checked").innerText(), "Dead reckoning (DR), as now");
+    await page.locator("#track-form-mode").selectOption("otg");
+    await dialog.getByRole("button", { name: "Plot" }).click();
+    await page.waitForFunction(() => document.querySelector("dialog.track-form h2")?.textContent === "Plot RED ONE over the ground?");
+    await dialog.locator(".form-warning", { hasText: /^RED ONE was changed while plotted by dead reckoning \(its fix at \d\d:\d\d:\d\dZ is \d+\.\d\d nmi from where dead reckoning puts it\)\. Plotted over the ground, each fix goes back where it was logged, and the changes made while plotted by dead reckoning are lost/ }).waitFor();
+  };
+  n = await steps();
+  await toOtg();
+  await page.mouse.move(2, 2);
+  await shot("fixdrag-06-dr-changes-lost");
+  await dialog.getByRole("button", { name: "Cancel" }).click();
+  await dialog.waitFor({ state: "detached" });
+  await page.waitForTimeout(500);
+  assert.equal(await steps(), n, "not confirmed: nothing changed");
+  assert.equal(await tag.innerText(), "DR");
+  await toOtg();
+  await dialog.getByRole("button", { name: "Plot over the ground" }).click();
   await stepAdded(n);
   assert.equal(await latest(), "RED ONE plotted over the ground");
+  assert.equal(await steps(), n + 1, "one step");
+  assert.equal(await tag.count(), 0);
   await page.locator("#selected-count").click();
+  await page.keyboard.press("Control+z");
   await page.keyboard.press("Control+z");
   await page.keyboard.press("Control+z");
   await page.waitForFunction(() => /RED ONE plotted by dead reckoning[^]*undone/.test(document.getElementById("history")?.textContent ?? ""));
@@ -235,11 +268,18 @@ export async function playFixDrag(page, shot) {
   await page.locator("#file").setInputFiles(rep);
   await dialog.waitFor();
   assert.equal(await dialog.locator("h2").innerText(), "How is NELSON plotted? (1 of 3)");
+  // As legacy Debrief asked: OTG or DR, and apart from that a box to tick; what it explains, in the neutral style.
+  assert.deepEqual(await page.locator("#track-form-mode option").allInnerTexts(), ["Over the ground (OTG)", "Dead reckoning (DR)"]);
+  const remember = dialog.getByRole("checkbox", { name: "Use this choice for future track imports" });
+  assert.equal(await remember.isChecked(), false);
+  await dialog.locator(".form-info", { hasText: "Tick the box to be asked no more" }).waitFor();
+  assert.equal(await dialog.locator(".form-warning").count(), 0);
   await page.locator("#track-form-mode").selectOption({ label: "Dead reckoning (DR)" });
   await shot("fixdrag-07-import-asks");
   await dialog.getByRole("button", { name: "Import" }).click();
   await page.waitForFunction(() => document.querySelector("dialog.track-form h2")?.textContent === "How is BLUE plotted? (2 of 3)");
-  await page.locator("#track-form-mode").selectOption({ label: "Over the ground (OTG), and use this choice for future imports" });
+  await page.locator("#track-form-mode").selectOption({ label: "Over the ground (OTG)" });
+  await dialog.getByRole("checkbox", { name: "Use this choice for future track imports" }).check();
   await dialog.getByRole("button", { name: "Import" }).click();
   const notes = page.locator(".omitted-panel .import-notes");
   await notes.getByText("Track 'NELSON' plotted by dead reckoning (DR).").waitFor({ timeout: 60000 });

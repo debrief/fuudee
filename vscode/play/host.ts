@@ -26,8 +26,8 @@ import { TimeControl } from "../webview/timecontrol.js";
 import { formatBearing, formatPosition, parsePosition } from "@debrief/kernel";
 import { defaultPivotIndex, describeDistance, describeSpeed, describeTurn, fixIndexAt, fixMoved, fixReadout, fixToEdit, impliedSpeeds, jumpSpeed, legNow, mergedName, mergePlan, periodIndices, readBearing, readDistance, readSpeed, readTurn } from "../webview/trackedit.js";
 import { rangeBearing } from "../webview/geodesic.js";
-import { chooseModes, MODE_LABELS, modeChoices, modeQuestion, REMEMBERED_IN_PLAYGROUND, type PlottingMode } from "../src/importmode.js";
-import { describeJump, describeMark, describeWindow, fixRows, jumpsFound, markAt, readThreshold, readWindow, smoothingNote, type Jump } from "../webview/fixes.js";
+import { chooseModes, MODE_LABELS, modeChoices, modeQuestion, REMEMBER_LABEL, REMEMBERED_IN_PLAYGROUND, type PlottingMode } from "../src/importmode.js";
+import { describeJump, describeMark, describeWindow, DR_TAG, fixRows, isDeadReckoned, jumpsFound, markAt, readThreshold, readWindow, smoothingNote, type Jump } from "../webview/fixes.js";
 import { FIX_COLOURS } from "../webview/palette.js";
 import { formatQuantity } from "@debrief/kernel";
 
@@ -587,9 +587,15 @@ $("north-arrow").onclick = () => void annotate({ kind: "north_arrow", shown: !ha
 
 // --- Tracks: moved, rotated, split and merged, each a step (CAP-01, CAP-02) -----------
 /** Move, rotate, split or merge tracks, as debrief/edit_track and the rest do; then show the plot, the new tracks selected. */
-async function changeTrack(change: Record<string, unknown>): Promise<string | undefined> {
+async function changeTrack(change: Record<string, unknown>, confirm?: (message: string) => Promise<boolean>): Promise<string | undefined> {
   if (!opened || !pythonReady) return "Open a plot first.";
-  const outcome = await pythonJson<{ error?: string; feature?: string; features?: string[] }>("track", opened.item.id, JSON.stringify({ base: opened.base, change }));
+  const send = (sent: Record<string, unknown>) => pythonJson<{ error?: string; confirm?: boolean; feature?: string; features?: string[] }>("track", opened!.item.id, JSON.stringify({ base: opened!.base, change: sent }));
+  let outcome = await send(change);
+  // A change that would lose what the reader made: with confirm, asked, and sent again confirming.
+  if (outcome.confirm && confirm && outcome.error) {
+    if (!(await confirm(outcome.error))) return undefined;
+    outcome = await send({ ...change, edit: { ...(change.edit as object), discard_dr_changes: true } });
+  }
   if (outcome.error) return outcome.error;
   await openPlot(opened.item.id, true);
   if (outcome.features) await select(outcome.features);
@@ -619,9 +625,14 @@ interface FormField {
   read?: (text: string) => { means: string } | { problem: string };
   /** The label and the value offered, from the choices made so far: worked out again when a choice changes, the value only while it is still the one offered. */
   follow?: (values: Record<string, string>) => { label: string; value: string };
+  /** A box to tick, beside its label: its value is "yes" when ticked, else "". */
+  check?: boolean;
 }
-/** A small form in a dialog: each field says, beneath it, what it understood or what is wrong; nothing is sent until all are right. Resolves to the values, or undefined for Cancel. */
-function trackForm(title: string, action: string, fields: FormField[], warning?: string): Promise<Record<string, string> | undefined> {
+/**
+ * A small form in a dialog: each field says, beneath it, what it understood or what is wrong; nothing is sent until all are right. Resolves to the values, or undefined for Cancel.
+ * warning, above the fields, is a warning (a red bar); { info } only explains (the neutral bar an information toast has).
+ */
+function trackForm(title: string, action: string, fields: FormField[], warning?: string | { info: string }): Promise<Record<string, string> | undefined> {
   return new Promise((resolve) => {
     const dialog = document.createElement("dialog");
     dialog.className = "track-form";
@@ -630,17 +641,22 @@ function trackForm(title: string, action: string, fields: FormField[], warning?:
     form.method = "dialog";
     const heading = Object.assign(document.createElement("h2"), { textContent: title });
     form.append(heading);
-    if (warning) form.append(Object.assign(document.createElement("p"), { className: "form-warning", textContent: warning }));
+    if (typeof warning === "string") form.append(Object.assign(document.createElement("p"), { className: "form-warning", textContent: warning }));
+    else if (warning) form.append(Object.assign(document.createElement("p"), { className: "form-info", textContent: warning.info }));
     const notes = new Map<string, HTMLElement>();
     const following: (() => void)[] = [];
-    const chosen = () => Object.fromEntries(fields.map((f) => [f.id, (form.elements.namedItem(f.id) as HTMLInputElement | null)?.value ?? ""]));
+    const valueOf = (element: HTMLInputElement | null) => (element?.type === "checkbox" ? (element.checked ? "yes" : "") : (element?.value ?? ""));
+    const chosen = () => Object.fromEntries(fields.map((f) => [f.id, valueOf(form.elements.namedItem(f.id) as HTMLInputElement | null)]));
     for (const field of fields) {
       const row = document.createElement("label");
-      row.className = "form-row";
+      row.className = field.check ? "form-row form-check" : "form-row";
       const label = Object.assign(document.createElement("span"), { textContent: field.label });
-      row.append(label);
+      if (!field.check) row.append(label);
       let input: HTMLInputElement | HTMLSelectElement;
-      if (field.options) {
+      if (field.check) {
+        input = Object.assign(document.createElement("input"), { type: "checkbox", checked: field.value === "yes" });
+        row.append(input, label);
+      } else if (field.options) {
         input = document.createElement("select");
         input.append(...field.options.map((o) => new Option(o.label, o.value)));
       } else {
@@ -648,7 +664,7 @@ function trackForm(title: string, action: string, fields: FormField[], warning?:
       }
       input.name = field.id;
       input.id = `track-form-${field.id}`;
-      if (field.value !== undefined) input.value = field.value;
+      if (field.value !== undefined && !field.check) input.value = field.value;
       const note = Object.assign(document.createElement("span"), { className: "detail form-note" });
       note.id = `${input.id}-note`;
       note.setAttribute("aria-live", "polite");
@@ -675,7 +691,8 @@ function trackForm(title: string, action: string, fields: FormField[], warning?:
         });
       }
       if (field.options) input.addEventListener("change", () => following.forEach((f) => f()));
-      row.append(input, note);
+      if (field.check) row.append(note);
+      else row.append(input, note);
       form.append(row);
     }
     following.forEach((f) => f());
@@ -835,10 +852,13 @@ $("plotting-mode").onclick = async () => {
     `How is ${name} plotted?`,
     "Plot",
     [{ id: "mode", label: "Plotted", value: now, options: (["otg", "dr"] as const).map((m) => ({ value: m, label: `${MODE_LABELS[m]}${m === now ? ", as now" : ""}` })) }],
-    "By dead reckoning, the first fix stays and each fix after it is placed from the one before by that fix's recorded course and speed; its positions as logged are kept, and over the ground puts them back. One step; Undo takes it back.",
+    { info: "By dead reckoning, the first fix stays and each fix after it is placed from the one before by that fix's recorded course and speed; its positions as logged are kept, and over the ground puts them back. One step; Undo takes it back." },
   );
   if (!values || values.mode === now) return;
-  const problem = await changeTrack({ kind: "edit", feature: track.id, edit: { action: "set_plotting_mode", plotting_mode: values.mode } });
+  // Over the ground after a change made while plotted by dead reckoning loses that change (decision, product
+  // owner, 14 Oct 2026): the form says so, and the reader confirms first.
+  const confirmLoss = async (message: string) => !!(await trackForm(`Plot ${name} over the ground?`, "Plot over the ground", [], message));
+  const problem = await changeTrack({ kind: "edit", feature: track.id, edit: { action: "set_plotting_mode", plotting_mode: values.mode } }, confirmLoss);
   if (problem) toast(problem, "warning");
 };
 $("split-track").onclick = async () => {
@@ -1223,6 +1243,12 @@ function renderOutline(): void {
         const props = f.properties as { times?: string[]; time?: string };
         row.innerHTML = `<span class="name"></span> <span class="detail"></span>`;
         row.querySelector(".name")!.textContent = f.properties.name;
+        // A track plotted by dead reckoning: a small DR beside its name (decision, product owner, 14 Oct 2026).
+        if (f.properties.kind === "track" && isDeadReckoned(f.properties)) {
+          const tag = Object.assign(document.createElement("span"), { className: "tag", textContent: DR_TAG, title: "Plotted by dead reckoning (DR), from its first fix by each fix's course and speed" });
+          tag.setAttribute("aria-label", "plotted by dead reckoning");
+          row.querySelector(".name")!.after(" ", tag);
+        }
         const when = props.times ? describeTimes(props.times[0], props.times.at(-1)) : f.properties.kind;
         row.querySelector(".detail")!.textContent = isHidden(f) ? `hidden on map · ${when}` : when;
         const choose = (add: boolean) =>
@@ -1407,15 +1433,21 @@ $("ask-again").onclick = async () => {
 async function askModes(name: string, data: Uint8Array): Promise<{ modes: Record<string, PlottingMode>; remembered: boolean } | undefined> {
   const tracks = await pythonJson<string[]>("rep_tracks", name, data);
   const remembered = (await python("import_mode")) as "ask" | PlottingMode;
-  const choices = modeChoices();
+  // As legacy Debrief asked: over the ground or by dead reckoning, and apart from that a box to tick.
   return chooseModes(
     tracks,
     remembered,
     async (track, index, count) => {
-      const values = await trackForm(modeQuestion(track, index, count), "Import", [
-        { id: "mode", label: "Plotted", options: choices.map((c, i) => ({ value: String(i), label: c.label })) },
-      ], "Over the ground, each fix is where it was logged; by dead reckoning, from the first fix by each fix's course and speed. Choose one '…and use this choice for future imports' to be asked no more; Ask again, under Import, asks again.");
-      return values ? choices[Number(values.mode)] : undefined;
+      const values = await trackForm(
+        modeQuestion(track, index, count),
+        "Import",
+        [
+          { id: "mode", label: "Plotted", options: modeChoices().map((c) => ({ value: c.mode, label: c.label })) },
+          { id: "remember", label: REMEMBER_LABEL, check: true },
+        ],
+        { info: "Over the ground, each fix is where it was logged; by dead reckoning, from the first fix by each fix's course and speed. Tick the box to be asked no more; Ask again, under Import, asks again." },
+      );
+      return values ? { mode: values.mode as PlottingMode, remember: values.remember === "yes" } : undefined;
     },
     async (mode) => {
       await python("set_import_mode", mode);

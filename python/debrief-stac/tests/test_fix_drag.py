@@ -11,9 +11,10 @@ from debrief_kernel.geodesy import WGS84, Position, destination, range_bearing
 from debrief_kernel.time import format_utc, parse_utc
 from debrief_kernel.units import Quantity
 from debrief_schemas import DocumentKind, dump_document, load_document, models
-from debrief_stac import Catalogue, CatalogueError, Changes, Conflict
+from debrief_stac import Catalogue, CatalogueError, Changes, ConfirmationNeeded, Conflict
 from debrief_stac.tracks import (
     TrackError,
+    changed_while_dr,
     fix_index,
     fix_moved,
     implied_speeds,
@@ -351,3 +352,77 @@ def test_changing_the_mode_is_one_step_undone_like_any(catalogue) -> None:
         catalogue.edit_track(
             "p", "track-red", {**edit, "period": {"start": at(1), "end": at(2)}}, AGENT
         )
+
+
+# --- Over the ground again after a change made while plotted by dead reckoning ----------
+# Decision, product owner, 14 Oct 2026: the positions as logged come back, so that change is
+# lost; the analyst is warned and confirms first (discard_dr_changes), still one step.
+
+AS_DR = {"action": "set_plotting_mode", "plotting_mode": "dr"}
+AS_OTG = {"action": "set_plotting_mode", "plotting_mode": "otg"}
+
+
+@pytest.mark.parametrize(
+    "change",
+    [
+        pytest.param(
+            {
+                "action": "move",
+                "distance": {"value": 2, "unit": "[nmi_i]"},
+                "bearing": {"value": 90, "unit": "deg"},
+            },
+            id="moved",
+        ),
+        pytest.param(
+            {
+                "action": "move_fix",
+                "fix_time": at(3),
+                "distance": {"value": 0.3, "unit": "[nmi_i]"},
+                "bearing": {"value": 200, "unit": "deg"},
+            },
+            id="a-fix-moved",
+        ),
+        pytest.param(
+            {
+                "action": "move_fix",
+                "fix_time": at(0),
+                "distance": {"value": 0.3, "unit": "[nmi_i]"},
+                "bearing": {"value": 200, "unit": "deg"},
+            },
+            id="the-first-fix-moved",
+        ),
+    ],
+)
+def test_over_the_ground_after_a_change_made_while_dr_is_confirmed_first(catalogue, change) -> None:
+    catalogue.edit_track("p", "track-red", AS_DR, AGENT)
+    catalogue.edit_track("p", "track-red", change, AGENT)
+    changed = red(catalogue)
+    count = len(catalogue.history("p").steps())
+    with pytest.raises(ConfirmationNeeded) as refused:
+        catalogue.edit_track("p", "track-red", AS_OTG, AGENT)
+    said = str(refused.value)
+    assert said.startswith("RED ONE was changed while plotted by dead reckoning (its fix at ")
+    assert "the changes made while plotted by dead reckoning are lost" in said
+    assert len(catalogue.history("p").steps()) == count
+    assert red(catalogue) == changed
+    # Confirmed: one step, saying so; the positions as logged back; undone like any.
+    catalogue.edit_track("p", "track-red", {**AS_OTG, "discard_dr_changes": True}, AGENT)
+    assert len(catalogue.history("p").steps()) == count + 1
+    assert last_record(catalogue).notes[:2] == [
+        "RED ONE plotted over the ground",
+        "Changes made while plotted by dead reckoning discarded",
+    ]
+    assert red(catalogue).geometry.coordinates == RED.geometry.coordinates
+    catalogue.history("p").undo()
+    assert red(catalogue) == changed
+
+
+def test_over_the_ground_unchanged_while_dr_asks_nothing(catalogue) -> None:
+    """Plotted by dead reckoning and saved, nothing changed since: no warning, however the
+    positions were rounded on the way."""
+    catalogue.edit_track("p", "track-red", AS_DR, AGENT)
+    assert changed_while_dr(red(catalogue)) is None
+    catalogue.edit_track("p", "track-red", AS_OTG, AGENT)
+    assert last_record(catalogue).notes[1] == "Each fix where it was logged"
+    with pytest.raises(CatalogueError, match="only plotting a track over the ground discards"):
+        catalogue.edit_track("p", "track-red", {**AS_DR, "discard_dr_changes": True}, AGENT)

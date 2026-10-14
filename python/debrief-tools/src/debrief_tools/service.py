@@ -12,7 +12,8 @@ recorded in that history like any change (debrief/set_colour, debrief/set_hidden
 annotations added, changed and deleted by hand, and the north arrow, recorded the
 same way (debrief/add_annotation, debrief/edit_annotation, debrief/delete_annotations,
 debrief/set_north_arrow); tracks moved, rotated, sheared, stretched, split and merged by hand,
-single fixes moved and tracks plotted by dead reckoning (move_fix and dead_reckon), recorded the
+single fixes moved and tracks plotted by dead reckoning (move_fix and set_plotting_mode),
+recorded the
 same way (debrief/edit_track, debrief/split_track, debrief/merge_tracks); tracks cleaned,
 what would change shown first (debrief/find_jumps, debrief/preview_smoothing) and then
 changed, recorded the same way (debrief/remove_jumps, debrief/smooth_track), and fixes
@@ -63,6 +64,7 @@ from debrief_stac import (
     Base,
     Catalogue,
     CatalogueError,
+    ConfirmationNeeded,
     Conflict,
     HistoryError,
     NewerSchemaError,
@@ -105,6 +107,10 @@ class RpcError(Exception):
 INVALID_REQUEST, METHOD_NOT_FOUND, INVALID_PARAMS, INTERNAL = -32600, -32601, -32602, -32603
 CONFLICT = -32001  # the plot changed since the caller's base: open it again (SUB-28)
 NEWER_SCHEMA = -32002  # would write a newer schema into the catalogue: ask, then allow (SUB-35)
+# would lose what the analyst made: ask, then send again confirming (a track changed while
+# plotted by dead reckoning, plotted over the ground: discard_dr_changes)
+NEEDS_CONFIRMATION = -32003
+CONFIRM_HOW = "To go ahead, send the change again with discard_dr_changes: true."
 # Named groups, not slices of one list: a method added to one group cannot shift another.
 READING_METHODS = ("debrief/open", "debrief/history")
 STEP_METHODS = ("debrief/undo", "debrief/redo", "debrief/goto")
@@ -387,6 +393,11 @@ class ToolService:
             raise RpcError(CONFLICT, str(conflict)) from None
         except NewerSchemaError as error:
             raise RpcError(NEWER_SCHEMA, str(error)) from None
+        except ConfirmationNeeded as error:
+            raise RpcError(
+                NEEDS_CONFIRMATION,
+                f"{error} Nothing was changed. {CONFIRM_HOW}",
+            ) from None
         except (CatalogueError, HistoryError, OSError, ValueError) as error:
             raise RpcError(INVALID_PARAMS, str(error)) from None
 

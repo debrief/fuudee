@@ -43,6 +43,7 @@ export function trackEditProblems(edit: TrackEdit, where = "track_edit"): string
   const all = (...names: string[]) => names.every((n) => given.has(n as never));
   if (edit.action !== "move_fix" && any("fix_time", "position")) problems.push(`${where}: only a single fix moved has a fix time or a position`);
   if (edit.action !== "set_plotting_mode" && any("plotting_mode")) problems.push(`${where}: only a change of plotting mode has a plotting mode`);
+  if (edit.discard_dr_changes != null && !(edit.action === "set_plotting_mode" && edit.plotting_mode === "otg")) problems.push(`${where}: only plotting a track over the ground discards changes made while it was plotted by dead reckoning`);
   if (edit.action === "move_fix") {
     if (!edit.fix_time) problems.push(`${where}: moving a fix needs the fix's time`);
     const byDrag = all("distance", "bearing") && !any("position");

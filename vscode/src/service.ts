@@ -155,6 +155,8 @@ export class ServiceError extends Error {
 export const CONFLICT = -32001;
 /** The JSON-RPC error for a write that would put a newer schema into the catalogue (SUB-35). */
 export const NEWER_SCHEMA = -32002;
+/** The JSON-RPC error for a change that would lose what the analyst made, until they confirm: a track changed while plotted by dead reckoning, plotted over the ground (discard_dr_changes). */
+export const NEEDS_CONFIRMATION = -32003;
 
 export interface ServiceOptions {
   python: string;

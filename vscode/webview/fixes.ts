@@ -59,6 +59,12 @@ export function describeFix(track: FixTrack, index: number, settings: FormatSett
   return parts.join("  ·  ");
 }
 
+/** The small tag beside the name of a track plotted by dead reckoning, in the outline and on the map (decision, product owner, 14 Oct 2026); its line is drawn as any track's. */
+export const DR_TAG = "DR";
+export const isDeadReckoned = (props: { plotting_mode?: string | null }): boolean => props.plotting_mode === "dr";
+/** A track's name as the map labels it: "RED ONE (DR)" when it is plotted by dead reckoning. */
+export const trackLabel = (props: { name: string; plotting_mode?: string | null }): string => (isDeadReckoned(props) ? `${props.name} (${DR_TAG})` : props.name);
+
 /** A mark in a few words: "own colour · labelled 'Turn' · Wheel over". */
 export function describeMark(mark: FixMark | undefined, colourName?: (colour: string) => string | undefined): string {
   if (!mark) return "";

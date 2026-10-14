@@ -10,7 +10,7 @@ import type { AnnotationSpec, ContextTracksEnum, ParameterValue, PlotView, Share
 import { formatBearing, formatPosition, formatQuantity, parsePosition, POSITION_EXAMPLE, UNIT_LABELS } from "@debrief/kernel";
 import { defaultPivotIndex, describeDistance, describeSpeed, describeTurn, fixIndexAt, fixMoved, fixReadout, fixToEdit, impliedSpeeds, jumpSpeed, legNow, mergedName, mergePlan, periodIndices, readBearing, readDistance, readSpeed, readTurn, type Anchor } from "../webview/trackedit.js";
 import { rangeBearing } from "../webview/geodesic.js";
-import { chooseModes, MODE_LABELS, modeChoices, modeQuestion, REMEMBERED_IN_VSCODE, type PlottingMode } from "./importmode.js";
+import { chooseModes, MODE_LABELS, modeChoices, modeQuestion, REMEMBERED_IN_VSCODE, rememberItem, type ModeChoice, type PlottingMode } from "./importmode.js";
 import { loadConfig, trackImportMode, updateConfig, withTrackImportMode, type TrackImportMode } from "@debrief/config";
 import { changedSince, historyOnDisk, knownStores, openPlot, plotFile, type OpenedPlot } from "./catalogue.js";
 import { statSync, unwatchFile, watchFile } from "node:fs";
@@ -22,7 +22,7 @@ import { FormPanel } from "./panels/form.js";
 import { MapPanel } from "./panels/map.js";
 import { ResultsPanel } from "./panels/results.js";
 import { TIME_VIEW, TimeView } from "./panels/timeview.js";
-import { CONFLICT, NEWER_SCHEMA, ServiceError, ToolService, type Agent, type AnnotationChange, type CallOutcome, type OpenedView, type ToolListing, type TrackChange } from "./service.js";
+import { CONFLICT, NEEDS_CONFIRMATION, NEWER_SCHEMA, ServiceError, ToolService, type Agent, type AnnotationChange, type CallOutcome, type OpenedView, type ToolListing, type TrackChange } from "./service.js";
 import type { CleanChange } from "./service.js";
 import { describeJump, describeMark, describeWindow, fixRows, jumpsFound, markAt, readThreshold, readWindow, smoothingNote } from "../webview/fixes.js";
 import { HistoryProvider } from "./views/history.js";
@@ -448,17 +448,27 @@ export function activate(context: vscode.ExtensionContext): DebriefApi {
    * A change made elsewhere since the plot was opened is never overwritten (SUB-28).
    * Returns the problem, if any, and the tracks the change made.
    */
-  const changeTrack = (change: TrackChange) =>
+  const changeTrack = (change: TrackChange, confirm?: (message: string) => Promise<boolean>) =>
     serially(() =>
       ourChange(async (): Promise<{ problem?: string; feature?: string; features?: string[]; notes?: string[] }> => {
         const opened = session.current;
         if (!opened) return { problem: "Open a plot first." };
         if (!service || !opened.base) return { problem: "Changing tracks needs Debrief's tool service. Run 'Debrief: Restart tool service'." };
-        const save = (allow = false) => service!.changeTrack(opened.store.id, opened.item.id, opened.base!, agent, change, allow);
+        let sent = change;
+        const save = (allow = false) => service!.changeTrack(opened.store.id, opened.item.id, opened.base!, agent, sent, allow);
         let answer;
         try {
           try {
-            answer = await save();
+            try {
+              answer = await save();
+            } catch (error) {
+              // A change that would lose what the analyst made: with confirm, asked, and sent again confirming; without, refused, saying why.
+              if ((error as ServiceError).code !== NEEDS_CONFIRMATION || !confirm || sent.kind !== "edit") throw error;
+              const said = (error as Error).message.replace(/\s*Nothing was changed\. To go ahead[^]*$/, "");
+              if (!(await confirm(said))) return { problem: "Nothing was changed." };
+              sent = { ...sent, edit: { ...sent.edit, discard_dr_changes: true } };
+              answer = await save();
+            }
           } catch (error) {
             if ((error as ServiceError).code !== NEWER_SCHEMA) throw error;
             if (!(await confirmNewerSchema((error as Error).message))) return { problem: "Nothing was changed." };
@@ -1491,8 +1501,10 @@ export function activate(context: vscode.ExtensionContext): DebriefApi {
     return trackDone(await changeTrack({ kind: "edit", feature: track.id, edit: fixToEdit(track.properties.times[index], [p.longitude, p.latitude]) }));
   });
   // "Plot over the ground or by dead reckoning…": the track's plotting mode, chosen as it was
-  // imported, changed as one step. With the mode given ("otg" or "dr"), no questions.
-  command("debrief.plottingMode", async (target?: string | Target, given?: PlottingMode) => {
+  // imported, changed as one step. With the mode given ("otg" or "dr"), no questions. Over the ground after a
+  // change made while plotted by dead reckoning loses that change (decision, product owner, 14 Oct 2026): asked,
+  // the analyst confirms in a dialog first; given, it is refused, saying why, unless options say to discard it.
+  command("debrief.plottingMode", async (target?: string | Target, given?: PlottingMode, options?: { discard_dr_changes?: boolean }) => {
     const track = trackTarget(target);
     if (!track) return { problem: report("Select one track to plot over the ground or by dead reckoning.") };
     const name = track.properties.name;
@@ -1507,7 +1519,13 @@ export function activate(context: vscode.ExtensionContext): DebriefApi {
       if (!picked || picked.mode === now) return {};
       mode = picked.mode;
     }
-    return trackDone(await changeTrack({ kind: "edit", feature: track.id, edit: { action: "set_plotting_mode", plotting_mode: mode } }));
+    const discard = !!given && mode === "otg" && options?.discard_dr_changes === true;
+    const edit: TrackEdit = { action: "set_plotting_mode", plotting_mode: mode, ...(discard && { discard_dr_changes: true }) };
+    const confirmLoss = async (message: string) => {
+      const go = "Plot over the ground";
+      return (await vscode.window.showWarningMessage(message, { modal: true }, go)) === go;
+    };
+    return trackDone(await changeTrack({ kind: "edit", feature: track.id, edit }, given ? undefined : confirmLoss));
   });
   // What the map rings or previews, for agents and tests; debrief.showFixes with nothing takes it away.
   command("debrief.fixesOnMap", () => map.fixesShown);
@@ -1638,9 +1656,48 @@ export function activate(context: vscode.ExtensionContext): DebriefApi {
     return chooseModes(
       tracks,
       rememberedMode(),
-      (track, index, count) => vscode.window.showQuickPick(modeChoices(), { title: modeQuestion(track, index, count), placeHolder: "Over the ground, as logged, or dead reckoned from course and speed", ignoreFocusOut: true }),
+      (track, index, count) => askMode(modeQuestion(track, index, count)),
       (mode) => rememberMode(mode),
     );
+  }
+  /**
+   * One track's question, as legacy Debrief asked it: over the ground or by dead reckoning, and apart from that choice
+   * a box to tick, "Use this choice for future track imports". A Quick Pick has no check box, so the box is the list's
+   * last line: choosing it ticks or clears it and the list stays open; choosing OTG or DR answers. So one list, used
+   * the same by keyboard, mouse or screen reader (which reads on or off), and one question per track, not two.
+   */
+  function askMode(title: string): Promise<ModeChoice | undefined> {
+    type Item = vscode.QuickPickItem & { mode?: PlottingMode; toggle?: true };
+    const quick = vscode.window.createQuickPick<Item>();
+    let remember = false;
+    const options: Item[] = modeChoices();
+    const box = (): Item => ({ ...rememberItem(remember), toggle: true, alwaysShow: true });
+    const show = (active?: Item) => {
+      const toggle = box();
+      quick.items = [...options, { label: "", kind: vscode.QuickPickItemKind.Separator }, toggle];
+      quick.activeItems = [active === undefined ? toggle : active];
+    };
+    quick.title = title;
+    quick.placeholder = "Over the ground, as logged, or dead reckoned from course and speed";
+    quick.ignoreFocusOut = true;
+    show(options[0]);
+    return new Promise((resolve) => {
+      quick.onDidAccept(() => {
+        const item = quick.selectedItems[0] ?? quick.activeItems[0];
+        if (item?.toggle) {
+          remember = !remember;
+          show();
+        } else if (item?.mode) {
+          resolve({ mode: item.mode, remember });
+          quick.hide();
+        }
+      });
+      quick.onDidHide(() => {
+        resolve(undefined);
+        quick.dispose();
+      });
+      quick.show();
+    });
   }
   // Import a REP or .dpf file. Given { store, path, modes } (agents and tests), it asks nothing.
   command("debrief.importRep", async (node?: { view?: { store: { id: string } } }, given?: { store?: string; path?: string; modes?: string | Record<string, PlottingMode> }) => {

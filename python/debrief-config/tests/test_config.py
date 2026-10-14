@@ -52,7 +52,7 @@ def test_same_location_matches_shared_vectors(case: dict) -> None:
 
 def test_missing_file_is_empty_config(tmp_path: Path) -> None:
     config = load_config(tmp_path / "absent.json")
-    assert config.config_version == CONFIG_VERSION
+    assert config.config_version == 1  # only stores: an earlier Debrief still reads it
     assert config.stores == []
 
 
@@ -201,3 +201,16 @@ def test_the_track_import_mode_is_ask_until_remembered_and_can_be_cleared(tmp_pa
     assert "track_import_mode" not in json.loads(path.read_text())
     with pytest.raises(ConfigError, match="not a track import mode"):
         with_track_import_mode(load_config(path), "sideways")
+
+
+def test_a_remembered_import_mode_says_a_layout_an_earlier_debrief_knows_it_cannot_read(
+    tmp_path: Path,
+) -> None:
+    """Version 1 Debrief rejects a file with a member it does not know as not valid; so a
+    file remembering the mode says version 2, and an earlier Debrief says to update.
+    Cleared, it is version 1 again, which an earlier Debrief reads."""
+    path = tmp_path / "config.json"
+    update_config(lambda c: with_track_import_mode(c, "otg"), path)
+    assert json.loads(path.read_text())["config_version"] == 2 == CONFIG_VERSION
+    update_config(lambda c: with_track_import_mode(c, "ask"), path)
+    assert json.loads(path.read_text())["config_version"] == 1

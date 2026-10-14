@@ -7,7 +7,8 @@
 import { readFileSync } from "node:fs";
 import path from "node:path";
 import { describe, expect, it } from "vitest";
-import { checkMessage } from "../../src/messages.js";
+import { checkMessage, trackEditProblems } from "../../src/messages.js";
+import { trackLabel } from "../../webview/fixes.js";
 import { rangeBearing, travel, type LonLat } from "../../webview/geodesic.js";
 import {
   changesNothing,
@@ -189,5 +190,20 @@ describe("dead reckoning, as the tool service does it (debrief_stac.tracks.dead_
     const noisy = RED.map((p, i) => (i ? ([p[0], p[1] + 0.001] as LonLat) : p));
     const dr = deadReckoned(noisy, TIMES, [0, 1, 2, 3, 4, 5], courses, speeds);
     for (let i = 0; i < 6; i++) expect(rangeBearing(dr[i], RED[i]).metres).toBeLessThan(0.01);
+  });
+});
+
+describe("a track plotted by dead reckoning", () => {
+  it("is tagged DR beside its name on the map; its line is drawn as any track's", () => {
+    expect(trackLabel({ name: "RED ONE", plotting_mode: "dr" })).toBe("RED ONE (DR)");
+    expect(trackLabel({ name: "RED ONE", plotting_mode: "otg" })).toBe("RED ONE");
+    expect(trackLabel({ name: "RED ONE" })).toBe("RED ONE");
+  });
+
+  it("is plotted over the ground again discarding changes only when the edit says so, and only then", () => {
+    expect(trackEditProblems({ action: "set_plotting_mode", plotting_mode: "otg", discard_dr_changes: true })).toEqual([]);
+    expect(trackEditProblems({ action: "set_plotting_mode", plotting_mode: "dr", discard_dr_changes: true })).toEqual([
+      "track_edit: only plotting a track over the ground discards changes made while it was plotted by dead reckoning",
+    ]);
   });
 });

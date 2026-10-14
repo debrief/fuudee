@@ -23,8 +23,11 @@ import { homedir } from "node:os";
 import path from "node:path";
 import { parseDocument, serialiseDocument, type KnownStore, type UserConfig } from "@debrief/schemas";
 
-/** The newest configuration layout this build understands. Matches Python's CONFIG_VERSION. */
-export const CONFIG_VERSION = 1;
+/** The newest configuration layout this build understands. Matches Python's CONFIG_VERSION: 1, the stores; 2, also track_import_mode. */
+export const CONFIG_VERSION = 2;
+/** The layout a file needs: 1 while it holds only stores, so an earlier Debrief still reads it; 2 once it remembers how tracks imported are plotted. As debrief_config. */
+export const STORES_VERSION = 1;
+export const IMPORT_MODE_VERSION = 2;
 const FILE_NAME = "config.json";
 export const timing = { lockWaitMs: 5000, lockStaleMs: 30000, replaceWaitMs: 2000 };
 
@@ -79,7 +82,7 @@ export function sameLocation(a: string, b: string, platform: string = process.pl
   return platform === "win32" ? a.toLowerCase() === b.toLowerCase() : a === b;
 }
 
-const empty = (): UserConfig => ({ config_version: CONFIG_VERSION, stores: [] });
+const empty = (): UserConfig => ({ config_version: STORES_VERSION, stores: [] });
 
 function read(file: string): string | undefined {
   try {
@@ -280,5 +283,7 @@ export function withTrackImportMode(config: UserConfig, mode: TrackImportMode): 
   if (!TRACK_IMPORT_MODES.includes(mode)) throw new ConfigError(`"${mode}" is not a track import mode: ask, otg or dr`);
   const rest = { ...config };
   delete rest.track_import_mode;
-  return mode === "ask" ? rest : { ...rest, track_import_mode: mode as UserConfig["track_import_mode"] };
+  // Remembered, version 2, so an earlier Debrief says to update rather than that the file is not valid; cleared, 1 again.
+  if (mode === "ask") return { ...rest, config_version: config.config_version <= IMPORT_MODE_VERSION ? STORES_VERSION : config.config_version };
+  return { ...rest, config_version: Math.max(config.config_version, IMPORT_MODE_VERSION), track_import_mode: mode as UserConfig["track_import_mode"] };
 }

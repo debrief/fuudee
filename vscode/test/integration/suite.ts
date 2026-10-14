@@ -672,11 +672,25 @@ export async function run(): Promise<void> {
   const reckoned = await vscode.commands.executeCommand<TrackDone>("debrief.plottingMode", "track-red-one", "dr");
   assert.equal(reckoned.problem, undefined);
   assert.equal((await steps()).at(-1)?.notes?.[0], `${redName} plotted by dead reckoning`);
+  await vscode.commands.executeCommand("debrief.outline.focus");
+  await sleep(1500);
+  await screenshot("32-dr-tagged");
   const overGround = await vscode.commands.executeCommand<TrackDone>("debrief.plottingMode", "track-red-one", "otg");
   assert.equal(overGround.problem, undefined);
   assert.equal((await steps()).at(-1)?.notes?.[0], `${redName} plotted over the ground`);
   assert.deepEqual(track("track-red-one")!.geometry.coordinates, loggedRed);
   assert.equal((await steps()).length, fixBefore + 4);
+  // Changed while plotted by dead reckoning, over the ground again loses that change (product owner, 14 Oct 2026):
+  // given, refused, saying why, until confirmed; confirmed, one step, the positions as logged back.
+  await vscode.commands.executeCommand<TrackDone>("debrief.plottingMode", "track-red-one", "dr");
+  await api.fromMap!({ kind: "edit_track", feature_id: "track-red-one", track_edit: { action: "move_fix", fix_time: movedTime, distance: { value: 0.3, unit: "[nmi_i]" }, bearing: { value: 90, unit: "deg" } } });
+  const drRefused = await vscode.commands.executeCommand<TrackDone>("debrief.plottingMode", "track-red-one", "otg");
+  assert.match(drRefused.problem ?? "", /was changed while plotted by dead reckoning .* Nothing was changed\. To go ahead/);
+  assert.equal((await steps()).length, fixBefore + 6);
+  const discarded = await vscode.commands.executeCommand<TrackDone>("debrief.plottingMode", "track-red-one", "otg", { discard_dr_changes: true });
+  assert.equal(discarded.problem, undefined);
+  assert.deepEqual((await steps()).at(-1)?.notes?.slice(0, 2), [`${redName} plotted over the ground`, "Changes made while plotted by dead reckoning discarded"]);
+  assert.deepEqual(track("track-red-one")!.geometry.coordinates, loggedRed);
   assert.equal(await vscode.commands.executeCommand("debrief.undo"), undefined);
   assert.equal((await steps()).at(-1)?.status, "undone");
 

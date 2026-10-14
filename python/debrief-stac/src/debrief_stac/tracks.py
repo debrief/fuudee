@@ -639,6 +639,53 @@ def plotted_as(track: models.TrackFeature, mode: str) -> models.TrackFeature | N
     )
 
 
+# Over the ground again after a change made while plotted by dead reckoning (decision,
+# product owner, 14 Oct 2026): the positions as logged come back, so that change is lost;
+# the analyst is warned first and confirms. A track is taken to have been changed while
+# plotted so when a fix is further than this from where dead reckoning from its positions
+# as logged, by its courses and speeds as they now are, puts it.
+DR_CHANGED_M = 1.0
+
+
+def changed_while_dr(track: models.TrackFeature) -> tuple[int, float] | None:
+    """Whether a track plotted by dead reckoning was changed since (moved, rotated, a fix
+    moved, smoothed and so on): the fix furthest from where dead reckoning from its
+    positions as logged puts it, and how far in metres; None if none is, or it cannot tell
+    (not plotted so, or no positions as logged, courses or speeds)."""
+    props = track.properties
+    if plotting_mode(track) != "dr" or props.logged_positions is None:
+        return None
+    try:
+        expected = dead_reckoned_positions(track, props.logged_positions.coordinates)
+    except TrackError:
+        return None
+    best, most = 0, 0.0
+    for i, (a, b) in enumerate(zip(expected, track.geometry.coordinates, strict=True)):
+        metres = range_bearing(Position(*a), Position(*b))[0].value
+        if metres > most:
+            best, most = i, metres
+    return (best, most) if most > DR_CHANGED_M else None
+
+
+def describe_dr_changes(track: models.TrackFeature, index: int, metres: float) -> str:
+    """The warning before such a change is lost: "RED ONE was changed while plotted by dead
+    reckoning (its fix at 09:34:00Z is 2.00 nmi from where dead reckoning puts it). Over the
+    ground, each fix goes
+    back where it was logged, and that change is lost; ..."."""
+    distance, when = (
+        describe_largest_shift(track, index, metres)
+        .removeprefix("The most a fix moved: ")
+        .split(", at ")
+    )
+    return (
+        f"{track.properties.name} was changed while plotted by dead reckoning (its fix at "
+        f"{when} is {distance} from where dead reckoning puts it). Plotted over the ground, "
+        "each fix goes "
+        "back where it was logged, and the changes made while plotted by dead reckoning are "
+        "lost; its courses and speeds stay as they are now. Undo takes it back."
+    )
+
+
 def describe_plotting(name: str, mode: str) -> str:
     """What the History view calls it: "RED ONE plotted by dead reckoning"."""
     return f"{name} plotted {MODE_NAMES[mode]}"
@@ -883,6 +930,9 @@ __all__ = [
     "dead_reckoned_positions",
     "default_pivot",
     "describe_anchor",
+    "DR_CHANGED_M",
+    "changed_while_dr",
+    "describe_dr_changes",
     "describe_plotting",
     "describe_plotting_how",
     "describe_fix_move",

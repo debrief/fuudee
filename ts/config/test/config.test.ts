@@ -49,7 +49,7 @@ afterEach(() => Object.assign(timing, saved));
 
 describe("reading and changing", () => {
   it("treats a missing file as an empty configuration", () => {
-    expect(loadConfig(join(scratch(), "absent.json"))).toEqual({ config_version: CONFIG_VERSION, stores: [] });
+    expect(loadConfig(join(scratch(), "absent.json"))).toEqual({ config_version: 1, stores: [] });
   });
 
   it("adds and removes a store, leaving no temporary or lock file", () => {
@@ -138,9 +138,12 @@ describe("the track import mode", () => {
     expect(trackImportMode(loadConfig(file))).toBe("ask");
     updateConfig((c) => withTrackImportMode(c, "otg"), file);
     expect(trackImportMode(loadConfig(file))).toBe("otg");
+    // Remembered: version 2, which an earlier Debrief says to update for, rather than that the file is not valid.
+    expect(JSON.parse(readFileSync(file, "utf8")).config_version).toBe(CONFIG_VERSION);
     updateConfig((c) => withTrackImportMode(c, "ask"), file);
     expect(trackImportMode(loadConfig(file))).toBe("ask");
     expect(JSON.parse(readFileSync(file, "utf8"))).not.toHaveProperty("track_import_mode");
+    expect(JSON.parse(readFileSync(file, "utf8")).config_version).toBe(1);
     expect(() => withTrackImportMode(loadConfig(file), "sideways" as never)).toThrow(ConfigError);
   });
 });

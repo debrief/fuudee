@@ -9,6 +9,7 @@ import type { Session } from "../session.js";
 import { isFeature, isHidden, type PlotFeature } from "../hidden.js";
 import { describeTimes } from "../format.js";
 import { shapeOf } from "../../webview/annotationlook.js";
+import { DR_TAG, isDeadReckoned } from "../../webview/fixes.js";
 
 type Feature = PlotFeature;
 export type Node =
@@ -143,7 +144,10 @@ export class OutlineProvider implements vscode.TreeDataProvider<Node> {
             ? describeTimes(props.time_range.start, props.time_range.end)
             : describeTimes(props.time);
         const hidden = isHidden(feature);
-        item.description = [selected ? "selected" : "", hidden ? "hidden on map" : "", when].filter(Boolean).join(" · ");
+        // A track plotted by dead reckoning: a small DR beside its name (decision, product owner, 14 Oct 2026).
+        const dr = feature.properties.kind === "track" && isDeadReckoned(feature.properties);
+        if (dr) item.tooltip = `${feature.properties.name}: plotted by dead reckoning (DR), from its first fix by each fix's course and speed`;
+        item.description = [dr ? DR_TAG : "", selected ? "selected" : "", hidden ? "hidden on map" : "", when].filter(Boolean).join(" · ");
         // Chart furniture is shown or removed with the North arrow command, not changed through a form.
         const kind = feature.properties.kind === "annotation" && feature.properties.furniture ? "furniture" : feature.properties.kind;
         item.contextValue = `feature-${kind}${hidden ? "-hidden" : ""}`;

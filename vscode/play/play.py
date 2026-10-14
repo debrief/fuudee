@@ -24,7 +24,16 @@ from debrief_kernel.geodesy import Position, destination
 from debrief_kernel.time import format_utc, parse_utc
 from debrief_kernel.units import Quantity
 from debrief_schemas import DocumentKind, dump_document, models
-from debrief_stac import Base, Catalogue, CatalogueError, Changes, Conflict, History, HistoryError
+from debrief_stac import (
+    Base,
+    Catalogue,
+    CatalogueError,
+    Changes,
+    ConfirmationNeeded,
+    Conflict,
+    History,
+    HistoryError,
+)
 from debrief_stac.fixes import describe_largest
 from debrief_tools import Registry
 from debrief_tools.registry import applies
@@ -238,6 +247,9 @@ def track(item: str, request_json: str) -> str:
             )
     except Conflict:
         return json.dumps({"error": "The plot was changed elsewhere, so nothing was changed."})
+    except ConfirmationNeeded as error:
+        # Would lose what the reader made: they confirm, and it is sent again confirming.
+        return json.dumps({"error": str(error), "confirm": True})
     except (CatalogueError, HistoryError) as error:
         return json.dumps({"error": str(error)})
     return json.dumps(out)

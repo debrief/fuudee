@@ -674,8 +674,10 @@ def _format_settings_problems(settings: g.FormatSettings, raw: dict[str, Any]) -
     return problems
 
 
-# The newest per-user configuration layout this build understands.
-CONFIG_VERSION = 1
+# The newest per-user configuration layout this build understands: 1, the stores; 2, also
+# the choice of how tracks imported are plotted (track_import_mode), which an earlier
+# Debrief cannot read, so a file holding it says 2 and an earlier Debrief says to update.
+CONFIG_VERSION = 2
 
 
 def _user_config_problems(config: g.UserConfig, raw: dict[str, Any]) -> list[str]:
@@ -792,6 +794,13 @@ def track_edit_problems(edit: g.TrackEdit, where: str = "track_edit") -> list[st
         problems.append(f"{where}: only a change of plotting mode has a plotting mode")
     if action != "move_fix" and given & {"fix_time", "position"}:
         problems.append(f"{where}: only a single fix moved has a fix time or a position")
+    if edit.discard_dr_changes is not None and not (
+        action == "set_plotting_mode" and str(edit.plotting_mode) == "otg"
+    ):
+        problems.append(
+            f"{where}: only plotting a track over the ground discards changes made while it "
+            "was plotted by dead reckoning"
+        )
     if action == "move_fix":
         if edit.fix_time is None:
             problems.append(f"{where}: moving a fix needs the fix's time")
