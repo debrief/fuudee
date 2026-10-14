@@ -2,6 +2,14 @@
 
 The data-file schema is versioned independently of Debrief (SUB-12). Before 1.0.0 there is no migration guarantee (SUB-13).
 
+## 0.0.18 (14 Oct 2026)
+
+- Measures and the Tote (CAP-06, CAP-07), in a new module `measures`: `MeasureDefinition` (`id`, `title`, `label` for a column heading, `subject` (`MeasureSubjectEnum`: `relative`, between the primary and a secondary, or `own`, of one track), `quantity_kind`, `display` (`MeasureDisplayEnum`: `quantity`, `bearing`, `relative_bearing` or `depth`), `explanation`); `MeasureGroup` (`id`, `title`, `description`, `extends`, the group whose measures come first, and `measures`, ids in order), ready for a study's own groups in its catalogue; `ToteResult` (`time`, `group`, `measures`, `primary`, `rows`, `note`), each `ToteRow` a track (`track`, `name`, `colour`, `status` (`ToteRowStatusEnum`: `ok`, `no_data` or `missing`), `note`, `values`), each `MeasureValue` a `measure`, its `value` and `unit` (left out where it cannot be worked out); `ToteTrack` (`id`, `name`, `colour`), a track that can be chosen.
+- The plot's island gains `tote` (`ToteView`: `primary`, `secondaries` and `measure_group`, left out meaning core): which tracks the Tote compares. View state, like the time window: never a step in the history (decision, 14 Oct 2026). Rules: the primary is not also a secondary, and no secondary is chosen twice; ids of tracks the plot no longer has are allowed.
+- Webview messages `show_tote` (host to Tote: `tote_tracks`, `tote_view` and `tote`, any of them; none when no plot is open) and `tote_changed` (Tote to host: `tote_view`), the latter held to the same rules.
+- Formatting (both kernels, shared vectors): relative bearings (`R045.0°`, `G120.0°`, `000.0°`, `180.0°`) and depths (metres, or feet where lengths are in feet or yards, one decimal).
+- Before 1.0.0 only an exact version opens (SUB-13): plots written as 0.0.17 must be imported or built again.
+
 ## 0.0.17 (14 Oct 2026)
 
 - `TrackEdit` moves a single fix (CAP-01): `action` may be `move_fix`, with `fix_time` (the fix, found by its time; of fixes sharing a time, the first, as for a mark) and either `distance` and `bearing` (how far and which way it goes, along the geodesic) or `position` ([longitude, latitude], where it goes). Rules: a fix moved needs its time and exactly one of a distance and a bearing or a position, on the globe, and no period, angle, pivot, anchor, course or speed; only a fix moved has a fix time or a position.

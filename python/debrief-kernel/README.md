@@ -8,7 +8,8 @@ The substrate kernel (SUB-01 to SUB-04), shared by every capability and tool.
 | `units` | `Quantity` with kind-checked arithmetic (adding metres to knots raises); conversions between the schema's UCUM units; speed × duration and length ÷ duration; bearing wrap-around | SUB-02, NFR-04 |
 | `geodesy` | Range and bearing, destination, interpolation and drawing points along geodesics; tracks interpolated over time; closest point of approach | SUB-03 |
 | `geodesy_arrays` | The same geodesics over numpy arrays (pyproj): range and bearing, destination, track positions at many times, bearing residuals. For anything over hundreds of points, such as TMA residuals during a drag | SUB-03, NFR-04 |
-| `formatting` | With its TypeScript twin in `ts/kernel`, the one place values are written for people: quantities, three-figure bearings, positions (decimal degrees, degrees and minutes, degrees, minutes and seconds) and times (Zulu, date-time, DTG, optional display zone) | SUB-04 |
+| `formatting` | With its TypeScript twin in `ts/kernel`, the one place values are written for people: quantities, three-figure bearings, relative bearings (`R045.0°`, `G120.0°`), depths, positions (decimal degrees, degrees and minutes, degrees, minutes and seconds) and times (Zulu, date-time, DTG, optional display zone) | SUB-04 |
+| `measures` | The Tote's measures (CAP-06, CAP-07): a track's position, course, speed and depth at any time, placed as the map places it; range, bearing and relative bearing between tracks; the core measure group | CAP-06, CAP-07 |
 
 ## Geodesy
 

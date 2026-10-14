@@ -489,6 +489,103 @@
         "unit": "rad/s"
       },
       "expected": "1.0°/min"
+    },
+    {
+      "name": "relative bearing to starboard",
+      "settings": {},
+      "op": "relative_bearing",
+      "input": {
+        "value": 45,
+        "unit": "deg"
+      },
+      "expected": "G045.0°"
+    },
+    {
+      "name": "relative bearing to port",
+      "settings": {},
+      "op": "relative_bearing",
+      "input": {
+        "value": -5.55,
+        "unit": "deg"
+      },
+      "expected": "R005.5°"
+    },
+    {
+      "name": "relative bearing past 180 is to port",
+      "settings": {},
+      "op": "relative_bearing",
+      "input": {
+        "value": 315,
+        "unit": "deg"
+      },
+      "expected": "R045.0°"
+    },
+    {
+      "name": "relative bearing dead ahead has no side",
+      "settings": {},
+      "op": "relative_bearing",
+      "input": {
+        "value": -0.04,
+        "unit": "deg"
+      },
+      "expected": "000.0°"
+    },
+    {
+      "name": "relative bearing dead astern has no side",
+      "settings": {},
+      "op": "relative_bearing",
+      "input": {
+        "value": -179.97,
+        "unit": "deg"
+      },
+      "expected": "180.0°"
+    },
+    {
+      "name": "relative bearing in radians, no decimals",
+      "settings": {
+        "angle_decimals": 0
+      },
+      "op": "relative_bearing",
+      "input": {
+        "value": 1.5707963267948966,
+        "unit": "rad"
+      },
+      "expected": "G090°"
+    },
+    {
+      "name": "depth in metres",
+      "settings": {},
+      "op": "depth",
+      "input": {
+        "value": 20,
+        "unit": "m"
+      },
+      "expected": "20.0 m"
+    },
+    {
+      "name": "depth in metres whatever the length unit",
+      "settings": {
+        "length_unit": "km",
+        "length_decimals": 3
+      },
+      "op": "depth",
+      "input": {
+        "value": 152.25,
+        "unit": "m"
+      },
+      "expected": "152.3 m"
+    },
+    {
+      "name": "depth in feet where lengths are in yards",
+      "settings": {
+        "length_unit": "[yd_i]"
+      },
+      "op": "depth",
+      "input": {
+        "value": 20,
+        "unit": "m"
+      },
+      "expected": "65.6 ft"
     }
   ]
 }

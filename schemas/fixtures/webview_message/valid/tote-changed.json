@@ -1,0 +1,10 @@
+{
+  "kind": "tote_changed",
+  "tote_view": {
+    "primary": "track-blue-one",
+    "secondaries": [
+      "track-red-one"
+    ],
+    "measure_group": "core"
+  }
+}

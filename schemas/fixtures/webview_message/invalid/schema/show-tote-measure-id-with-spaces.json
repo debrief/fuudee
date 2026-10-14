@@ -1,0 +1,100 @@
+{
+  "kind": "show_tote",
+  "tote": {
+    "time": "2023-06-15T09:21:17.000Z",
+    "group": {
+      "id": "core",
+      "title": "Core",
+      "measures": [
+        "range",
+        "bearing",
+        "relative_bearing",
+        "course",
+        "speed",
+        "depth"
+      ]
+    },
+    "measures": [
+      {
+        "id": "Range from",
+        "title": "Range from the primary",
+        "label": "Range",
+        "subject": "relative",
+        "quantity_kind": "length",
+        "display": "quantity"
+      }
+    ],
+    "primary": {
+      "track": "track-blue-one",
+      "name": "BLUE ONE",
+      "colour": "#1f6feb",
+      "status": "ok",
+      "values": [
+        {
+          "measure": "course",
+          "value": 225.0,
+          "unit": "deg"
+        },
+        {
+          "measure": "speed",
+          "value": 6.17,
+          "unit": "m/s"
+        },
+        {
+          "measure": "depth"
+        }
+      ]
+    },
+    "rows": [
+      {
+        "track": "track-red-one",
+        "name": "RED ONE",
+        "colour": "#e01c3e",
+        "status": "ok",
+        "values": [
+          {
+            "measure": "range",
+            "value": 1234.5,
+            "unit": "m"
+          },
+          {
+            "measure": "bearing",
+            "value": 200.5,
+            "unit": "deg"
+          },
+          {
+            "measure": "relative_bearing",
+            "value": -24.5,
+            "unit": "deg"
+          },
+          {
+            "measure": "course",
+            "value": 230.0,
+            "unit": "deg"
+          },
+          {
+            "measure": "speed",
+            "value": 3.1,
+            "unit": "m/s"
+          },
+          {
+            "measure": "depth",
+            "value": 20.0,
+            "unit": "m"
+          }
+        ]
+      },
+      {
+        "track": "track-tug-01",
+        "name": "Tug 01",
+        "status": "no_data",
+        "note": "Ended 10:35:00Z"
+      },
+      {
+        "track": "track-gone",
+        "status": "missing",
+        "note": "No longer in the plot"
+      }
+    ]
+  }
+}

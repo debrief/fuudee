@@ -18,7 +18,7 @@ from zoneinfo import ZoneInfo
 
 from debrief_kernel.geodesy import Position
 from debrief_kernel.time import from_epoch_ms
-from debrief_kernel.units import Quantity, normalise_bearing
+from debrief_kernel.units import Quantity, bearing_difference, normalise_bearing
 from debrief_schemas.generated.debrief import FormatSettings
 
 UNIT_LABELS = {
@@ -103,6 +103,30 @@ def format_bearing(bearing: Quantity, settings: FormatSettings = DEFAULT_SETTING
         text = fixed(0.0, decimals)
     width = 3 + (decimals + 1 if decimals else 0)
     return f"{text.zfill(width)}°T"
+
+
+def format_relative_bearing(bearing: Quantity, settings: FormatSettings = DEFAULT_SETTINGS) -> str:
+    """A bearing from a vessel's head, three figures, red to port and green to starboard:
+    "R045.0°", "G120.0°"; dead ahead "000.0°" and dead astern "180.0°", with no side."""
+    decimals = settings.angle_decimals
+    signed = bearing_difference(bearing.to("deg").value, 0.0)
+    text = fixed(abs(signed), decimals)
+    width = 3 + (decimals + 1 if decimals else 0)
+    if float(text) == 0.0 or float(text) >= 180.0:
+        return f"{fixed(0.0 if float(text) == 0.0 else 180.0, decimals).zfill(width)}°"
+    return f"{'R' if signed < 0 else 'G'}{text.zfill(width)}°"
+
+
+# Feet where the analyst's lengths are in feet or yards; else metres. One decimal: depths
+# are known to about a metre, and nautical miles would hide them (no depth setting yet).
+_IMPERIAL = ("[ft_i]", "[yd_i]")
+DEPTH_DECIMALS = 1
+
+
+def format_depth(depth: Quantity, settings: FormatSettings = DEFAULT_SETTINGS) -> str:
+    """A depth below the surface: "20.0 m", or "65.6 ft" where lengths are imperial."""
+    unit = "[ft_i]" if str(settings.length_unit) in _IMPERIAL else "m"
+    return f"{fixed(depth.to(unit).value, DEPTH_DECIMALS)} {UNIT_LABELS[unit]}"
 
 
 def format_position(position: Position, settings: FormatSettings = DEFAULT_SETTINGS) -> str:

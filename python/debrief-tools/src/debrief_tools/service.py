@@ -19,7 +19,11 @@ what would change shown first (debrief/find_jumps, debrief/preview_smoothing) an
 changed, recorded the same way (debrief/remove_jumps, debrief/smooth_track), and fixes
 given a colour, label or comment of their own (debrief/mark_fix);
 and the plot's view, its island, kept in the plot file outside its history
-(debrief/set_view; debrief/open returns it) (SUB-22, decision 12 Oct).
+(debrief/set_view; debrief/open returns it) (SUB-22, decision 12 Oct); and the Tote:
+measures between a primary track and its secondaries at one time
+(debrief/tote), and the measure groups it can show (debrief/measure_groups),
+reading only (CAP-06, CAP-07). Which tracks the Tote compares is in the island,
+set with debrief/set_view like the time window (decision, 14 Oct 2026).
 
 Security (SEC-06 to SEC-08):
 - runs as the user who started it, so it can read only what they can;
@@ -58,8 +62,10 @@ from starlette.routing import Route
 from debrief_config import ConfigError, add_store, load_config, update_config
 from debrief_io import import_dpf, import_rep
 from debrief_io.importer import rep_track_names
+from debrief_kernel.time import parse_utc
 from debrief_kernel.units import IncompatibleUnitsError, Quantity
 from debrief_schemas import DocumentKind, dump_document, load_document, models
+from debrief_schemas.documents import DocumentValidationError, load_view
 from debrief_stac import (
     Base,
     Catalogue,
@@ -70,6 +76,7 @@ from debrief_stac import (
     NewerSchemaError,
 )
 from debrief_stac.fixes import describe_largest
+from debrief_stac.tote import measure_groups, tote
 from debrief_tools import diagnostics
 from debrief_tools.registry import applies
 from debrief_tools.worker import ToolWorker
@@ -129,6 +136,8 @@ WRITING_METHODS = (
     STEP_METHODS + PRESENTATION_METHODS + ANNOTATION_METHODS + TRACK_METHODS + CLEANING_METHODS
 )
 HISTORY_METHODS = READING_METHODS + CHECKING_METHODS + WRITING_METHODS
+# The Tote reads a plot at one time; it never changes it, and is asked again at each time.
+TOTE_METHODS = ("debrief/tote", "debrief/measure_groups")
 KNOWN_METHODS = frozenset(
     (
         "initialize",
@@ -141,6 +150,7 @@ KNOWN_METHODS = frozenset(
         "debrief/import_rep",
         "debrief/rep_tracks",
         "debrief/add_plot_file",
+        *TOTE_METHODS,
         *HISTORY_METHODS,
     )
 )
@@ -281,9 +291,40 @@ class ToolService:
             return self._add_plot_file(params)
         if method == "debrief/rep_tracks":
             return self._rep_tracks(params)
+        if method == "debrief/measure_groups":
+            return measure_groups()
+        if method == "debrief/tote":
+            return self._tote(params)
         if method in HISTORY_METHODS:
             return self._history(method, params)
         raise RpcError(METHOD_NOT_FOUND, f"Unknown method {method}")
+
+    def _tote(self, params: dict[str, Any]) -> dict[str, Any]:
+        """The Tote at one time (CAP-06): a ToteResult. tote, a ToteView, says which
+        tracks and which measure group; left out, the plot's island says. One call per
+        change of current time, so it reads nothing it need not (NFR-04)."""
+        item, time, view = params.get("item"), params.get("time"), params.get("tote")
+        if not isinstance(item, str) or not isinstance(time, str):
+            raise RpcError(INVALID_PARAMS, "tote needs a store, an item and a time")
+        try:
+            time_ms = parse_utc(time)
+        except ValueError as error:
+            raise RpcError(INVALID_PARAMS, f"time: {error}") from None
+        if view is not None:
+            if not isinstance(view, dict):
+                raise RpcError(INVALID_PARAMS, "tote must be {primary, secondaries, measure_group}")
+            try:
+                view = load_view({"tote": view}).tote
+            except DocumentValidationError as error:
+                raise RpcError(INVALID_PARAMS, "; ".join(error.problems)) from None
+        store = self._store(params.get("store"), writing=False)
+        try:
+            catalogue = Catalogue.open(Path(store.location))
+            return tote(catalogue, item, time_ms, view)
+        except FileNotFoundError:
+            raise RpcError(INVALID_PARAMS, f"There is no plot {item!r} in {store.title}.") from None
+        except (CatalogueError, HistoryError, OSError, ValueError) as error:
+            raise RpcError(INVALID_PARAMS, str(error)) from None
 
     def _config(self) -> models.UserConfig:
         return load_config(self.config_path) if self.config_path else load_config()
