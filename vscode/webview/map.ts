@@ -52,10 +52,10 @@ import "leaflet/dist/leaflet.css";
 import "./map.css";
 import geodesic from "geographiclib-geodesic";
 import { convert, DEFAULT_SETTINGS, formatPosition, formatQuantity, UNIT_LABELS } from "@debrief/kernel";
-import type { DebriefFeatureCollection, TimeState } from "@debrief/schemas";
+import type { DebriefFeatureCollection, TimeState, ToteView } from "@debrief/schemas";
 import type { AnnotationProperties } from "@debrief/schemas";
 import { labelPlacement, labelText, lookOf, shapeOf, specOfFeature, type Look } from "./annotationlook.js";
-import { circleRing, densify, ellipseRing, type LonLat } from "./geodesic.js";
+import { circleRing, densify, ellipseRing, positionAt as trackPositionAt, type LonLat } from "./geodesic.js";
 import { CONTEXT_WEIGHT, contextStyle, parseColour, WINDOW_WEIGHT, type ContextStyle, type ContextTracks, type MapTheme, type Rgb } from "./contrast.js";
 import { MapEditor } from "./mapedit.js";
 import { PressHold } from "./presshold.js";
@@ -63,6 +63,7 @@ import { TrackEditor } from "./trackmap.js";
 import { describeFix as describeFixOnly, marksByIndex, trackLabel } from "./fixes.js";
 import { DATA_COLOURS } from "./palette.js";
 import { host, onMessage } from "./vscode.js";
+import { toteOf, toteMapLines } from "./totelogic.js";
 
 type Feature = DebriefFeatureCollection["features"][number];
 type Track = Extract<Feature, { properties: { kind: "track" } }>;
@@ -842,6 +843,10 @@ function placeLabels(): void {
 map.on("zoomend", placeLabels);
 
 // --- Current time and the window (shared state) ------------------------------------
+// The Tote's lines (CAP-06; decision, 14 Oct 2026): thin and muted, from the primary to each
+// secondary at current time, under the markers; off when the Tote says so.
+const toteLayer = L.layerGroup().addTo(map);
+let toteView: ToteView = {};
 // Set by the time controller beside the map; the map only shows them.
 const now = L.layerGroup().addTo(map);
 /** Each track with its fix times parsed once, and its marker at current time. */
@@ -853,25 +858,9 @@ function setTracks(plotTracks: Track[]): void {
   tracks = plotTracks.map((track) => ({ track, times: track.properties.times.map(Date.parse) }));
 }
 
-/** Where a track was at an instant, between the fixes either side; none outside its span. */
+/** Where a track was at an instant, between the fixes either side; none outside its span. As the Tote measures it (geodesic.ts). */
 function positionAt(track: Track, times: number[], at: number): LonLat | undefined {
-  const coordinates = track.geometry.coordinates as LonLat[];
-  if (!times.length || at < times[0] || at > times[times.length - 1]) return undefined;
-  let low = 0;
-  let high = times.length - 1;
-  while (high - low > 1) {
-    const middle = (low + high) >> 1;
-    if (times[middle] <= at) low = middle;
-    else high = middle;
-  }
-  const span = times[high] - times[low];
-  const f = span > 0 ? (at - times[low]) / span : 0;
-  const [lon1, lat1] = coordinates[low];
-  const [lon2, lat2] = coordinates[high];
-  // Along the geodesic between the two fixes, as the line is drawn (SUB-03).
-  const line = WGS84.InverseLine(lat1, lon1, lat2, lon2);
-  const point = line.Position(f * line.s13);
-  return [point.lon2 ?? lon2, point.lat2 ?? lat2];
+  return trackPositionAt(track.geometry.coordinates as LonLat[], times, at);
 }
 
 function drawNow(): void {
@@ -900,6 +889,23 @@ function drawNow(): void {
     });
     marker.addTo(now);
     entry.marker = marker;
+  }
+  drawToteLines(at);
+}
+
+/** A line from the primary's marker to each secondary's, along the geodesic, as the Tote measures range. */
+function drawToteLines(at: number): void {
+  toteLayer.clearLayers();
+  if (!time) return;
+  const byId = new Map(tracks.map((entry) => [entry.track.id, entry]));
+  const positionOf = (id: string) => {
+    const entry = byId.get(id);
+    return entry ? positionAt(entry.track, entry.times, at) : undefined;
+  };
+  const colour = css("--vscode-descriptionForeground") || css("--vscode-editor-foreground");
+  for (const line of toteMapLines(toteView, positionOf)) {
+    const options = { color: colour, weight: 1, opacity: 0.7, dashArray: "4 3", interactive: false, className: "tote-map-line" };
+    L.polyline(densify([line.from, line.to]).map(toLatLng), options).addTo(toteLayer);
   }
 }
 
@@ -1059,6 +1065,7 @@ onMessage((message) => {
     selection = new Set(sel.feature_ids);
     showTime(message.time as TimeState | undefined);
     contextMode = (message.context_tracks as ContextTracks | undefined) ?? "visible";
+    toteView = toteOf(message.plot as DebriefFeatureCollection);
     draw(message.plot as DebriefFeatureCollection);
     editing.clear();
     editor.plotDrawn();
@@ -1077,6 +1084,9 @@ onMessage((message) => {
   } else if (message.kind === "set_context") {
     contextMode = message.context_tracks as ContextTracks;
     applyContext();
+  } else if (message.kind === "set_tote") {
+    toteView = (message.tote_view as ToteView | undefined) ?? {};
+    drawToteLines(time ? Date.parse(time.current) : NaN);
   } else if (message.kind === "show_fixes") {
     showFixes(message as Parameters<typeof showFixes>[0]);
   }

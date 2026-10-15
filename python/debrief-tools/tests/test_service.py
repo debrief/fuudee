@@ -1020,3 +1020,52 @@ def test_every_method_that_writes_is_known_and_reading_ones_do_not_write() -> No
     assert "debrief/mark_fix" in service.CLEANING_METHODS
     assert "debrief/merge_tracks" in service.TRACK_METHODS
     assert "debrief/set_north_arrow" in service.ANNOTATION_METHODS
+    assert not set(service.TOTE_METHODS) & set(service.WRITING_METHODS)
+
+
+def test_the_tote_at_a_time_and_its_choice_in_the_island(client, catalogue) -> None:
+    where = {"store": "exercise", "item": "serial"}
+    chosen = {"primary": "track-nelson", "secondaries": ["track-blue", "track-late"]}
+    at = "1995-12-12T05:10:00.000Z"
+    result = rpc(client, "debrief/tote", {**where, "time": at, "tote": chosen}).json()["result"]
+    models.ToteResult.model_validate(result)
+    assert result["primary"]["track"] == "track-nelson"
+    blue, late = result["rows"]
+    measured = {v["measure"]: v.get("value") for v in blue["values"]}
+    assert measured["course"] == pytest.approx(180.0)
+    assert measured["relative_bearing"] == pytest.approx(measured["bearing"] - 90.0, abs=1e-6)
+    assert late["status"] == "no_data" and late["note"] == "Starts 07:00:00Z"
+    # Without a choice, the plot's island says; saving it there is never a step.
+    assert rpc(client, "debrief/tote", {**where, "time": at}).json()["result"]["rows"] == []
+    opened = rpc(client, "debrief/open", {**where, "agent": AGENT}).json()["result"]
+    view = {**opened["view"], "tote": chosen}
+    saved = rpc(
+        client,
+        "debrief/set_view",
+        {**where, "agent": AGENT, "view": view, "hash": opened["view_hash"]},
+    ).json()["result"]
+    assert saved["base"] == opened["base"]
+    from_island = rpc(client, "debrief/tote", {**where, "time": at}).json()["result"]
+    assert [r["track"] for r in from_island["rows"]] == ["track-blue", "track-late"]
+    groups = rpc(client, "debrief/measure_groups").json()["result"]
+    assert [g["id"] for g in groups["groups"]] == ["core"]
+
+
+@pytest.mark.parametrize(
+    ("params", "says"),
+    [
+        ({"time": "noon"}, "time"),
+        (
+            {"time": "1995-12-12T05:10:00.000Z", "tote": {"primary": "a", "secondaries": ["a"]}},
+            "also",
+        ),
+        ({"time": "1995-12-12T05:10:00.000Z", "tote": "track-nelson"}, "tote must be"),
+        ({"time": "1995-12-12T05:10:00.000Z", "item": "nowhere"}, "nowhere"),
+        ({}, "needs"),
+    ],
+)
+def test_the_tote_refuses_what_it_cannot_read(client, params, says) -> None:
+    error = rpc(client, "debrief/tote", {"store": "exercise", "item": "serial", **params}).json()[
+        "error"
+    ]
+    assert error["code"] == -32602 and says in error["message"]

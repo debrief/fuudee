@@ -52,3 +52,11 @@ export function normaliseBearing(degrees: number): number {
   if (wrapped < 0) wrapped += 360.0;
   return wrapped === 360.0 ? 0.0 : wrapped;
 }
+
+/** Signed smallest difference a - b, in (-180, 180], handling wrap at 360, as Python's bearing_difference (NFR-04). */
+export function bearingDifference(a: number, b: number): number {
+  let diff = (a - b) % 360.0;
+  if (diff <= -180.0) diff += 360.0;
+  else if (diff > 180.0) diff -= 360.0;
+  return diff;
+}

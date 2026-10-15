@@ -123,6 +123,8 @@ export async function run(): Promise<void> {
   assert.deepEqual(island().time_window, second);
   assert.equal(await vscode.commands.executeCommand("debrief.setTimeWindow", period), undefined);
 
+  await playTheTote(api, island, period);
+
   // Select BLUE ONE: the tools for one track are offered; open range rings.
   await vscode.commands.executeCommand("debrief.select", ["track-blue-one"]);
   await waitFor("tools for one track", () => api.offered().includes("core.range_rings") || undefined);
@@ -748,4 +750,78 @@ export async function run(): Promise<void> {
   await vscode.commands.executeCommand("debrief.outline.focus");
   await sleep(2000);
   await screenshot("17-imported-dpf");
+}
+
+/**
+ * The Tote (CAP-06, CAP-07, NFR-04), through the real tool service: the tracks chosen by
+ * command, as from the outline's menu, saved in the plot's island and never a step; the
+ * values follow current time; a track with no data says so; and the latency from asking
+ * to showing, as current time moves at display rate, reported.
+ */
+async function playTheTote(api: DebriefApi, island: () => { tote?: unknown }, period: { start: string; end: string }): Promise<void> {
+  const base = api.session.current!.base;
+  // As "Set as Tote primary" and "Add to Tote" in the outline's menu: the Tote view opens.
+  assert.equal(await vscode.commands.executeCommand("debrief.tote.setPrimary", "track-blue-one"), undefined);
+  assert.equal(await vscode.commands.executeCommand("debrief.tote.add", ["track-red-one", "track-ais-cargo-04", "track-ais-tug-01"]), undefined);
+  await waitFor("the Tote view", () => api.toteShowing() || undefined);
+  assert.deepEqual(island().tote, { primary: "track-blue-one", secondaries: ["track-red-one", "track-ais-cargo-04", "track-ais-tug-01"] });
+  assert.deepEqual(api.session.current!.base, base, "choosing the Tote's tracks is no step in the history");
+  // The map is told, for its thin lines from the primary to each secondary.
+  await waitFor("the map's Tote lines", () => (api.mapTote()?.secondaries?.length === 3 ? true : undefined));
+  // At the window's start Cargo 04 has no data yet; RED ONE has every measure.
+  const at = (time: string) => api.setState({ time: { current: time, range: period } });
+  at(period.start);
+  const first = await waitFor("the Tote's values", () => (api.tote()?.time === period.start && api.tote()!.rows.length === 3 ? api.tote() : undefined));
+  const [red, cargo] = first.rows;
+  assert.equal(red.status, "ok");
+  assert.deepEqual(
+    red.values!.map((v) => v.measure),
+    ["range", "bearing", "relative_bearing", "aob", "bearing_rate", "course", "speed", "depth"],
+  );
+  assert.ok(red.values!.every((v) => typeof v.value === "number"));
+  assert.deepEqual([cargo.status, cargo.note], ["no_data", "Starts 08:28:48Z"]);
+  // For the picture, the other views folded away so the Tote has room, as an analyst would.
+  const others = ["debrief.catalogues", "debrief.timeline", "debrief.tools", "debrief.history"];
+  const known = new Set(await vscode.commands.getCommands(true));
+  const toggle = async () => {
+    for (const view of others) if (known.has(`${view}.toggleVisibility`)) await vscode.commands.executeCommand(`${view}.toggleVisibility`);
+  };
+  await toggle();
+  await vscode.commands.executeCommand("debrief.tote.focus");
+  await sleep(1500);
+  await screenshot("34-tote");
+  // Current time moves, as the time controller sends it while playing: the values follow,
+  // one request at a time, the latest time each time.
+  const start = Date.parse(period.start);
+  let last = period.start;
+  for (let i = 1; i <= 300; i++) {
+    last = new Date(start + i * 20_000).toISOString();
+    at(last);
+    await sleep(16);
+  }
+  const moved = await waitFor("the Tote at the latest time", () => (api.tote()?.time === last ? api.tote() : undefined));
+  assert.notEqual(moved.rows[0].values![0].value, red.values![0].value, "the range changed with current time");
+  assert.equal(moved.rows[1].status, "ok", "by 09:40, Cargo 04 has data");
+  await sleep(1000);
+  await screenshot("35-tote-moved");
+  await toggle();
+  const latency = api.toteLatency();
+  console.log(`Tote latency in VS Code (tool service), from asking to showing: p50 ${latency.p50} ms, p95 ${latency.p95} ms, max ${latency.max} ms over ${latency.count} answers (budget 100 ms).`);
+  // Generous: the report says precisely what was seen; this catches only a gross regression.
+  assert.ok(latency.p95 < 300, `Tote p95 ${latency.p95} ms`);
+  // The map's lines off and on again, as the Tote's box does: island state, never a step.
+  const chosen = island().tote as { primary: string; secondaries: string[] };
+  assert.equal(await vscode.commands.executeCommand("debrief.setTote", { ...chosen, map_lines: false }), undefined);
+  assert.deepEqual(island().tote, { ...chosen, map_lines: false });
+  await waitFor("the map's lines off", () => (api.mapTote()?.map_lines === false ? true : undefined));
+  assert.equal(await vscode.commands.executeCommand("debrief.setTote", chosen), undefined);
+  assert.deepEqual(island().tote, chosen);
+  assert.deepEqual(api.session.current!.base, base, "the map's lines are no step either");
+  // Removing tracks, as from the outline's menu.
+  assert.equal(await vscode.commands.executeCommand("debrief.tote.remove", ["track-ais-cargo-04", "track-ais-tug-01"]), undefined);
+  assert.deepEqual(island().tote, { primary: "track-blue-one", secondaries: ["track-red-one"] });
+  // Refused plainly: a feature that is not a track.
+  assert.match((await vscode.commands.executeCommand<string>("debrief.tote.add", ["no-such-track"])) ?? "", /Select the tracks/);
+  assert.deepEqual(api.session.current!.base, base, "still no step");
+  await vscode.commands.executeCommand("notifications.clearAll");
 }

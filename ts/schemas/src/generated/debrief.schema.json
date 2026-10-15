@@ -1247,6 +1247,139 @@
       "title": "LineStyleEnum",
       "type": "string"
     },
+    "MeasureDefinition": {
+      "additionalProperties": false,
+      "description": "One measure the Tote can show. The core measures are Debrief's own; a study may add more (CAP-07), each worked out in Python.",
+      "properties": {
+        "display": {
+          "$ref": "#/$defs/MeasureDisplayEnum"
+        },
+        "explanation": {
+          "description": "How it is worked out, in a sentence.",
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "id": {
+          "description": "Unique among measures, such as range or relative_bearing.",
+          "pattern": "^[a-z][a-z0-9_]*$",
+          "type": "string"
+        },
+        "label": {
+          "description": "Its row heading in the Tote, before the unit, short enough for a narrow view.",
+          "type": "string"
+        },
+        "quantity_kind": {
+          "$ref": "#/$defs/QuantityKindEnum"
+        },
+        "subject": {
+          "$ref": "#/$defs/MeasureSubjectEnum"
+        },
+        "title": {
+          "description": "Its name in full, for hover text and screen readers.",
+          "type": "string"
+        }
+      },
+      "required": [
+        "id",
+        "title",
+        "label",
+        "subject",
+        "quantity_kind",
+        "display"
+      ],
+      "title": "MeasureDefinition",
+      "type": "object"
+    },
+    "MeasureDisplayEnum": {
+      "description": "How a measure's value is written for people, by the formatting service (SUB-04).",
+      "enum": [
+        "quantity",
+        "range",
+        "bearing",
+        "relative_bearing",
+        "depth"
+      ],
+      "title": "MeasureDisplayEnum",
+      "type": "string"
+    },
+    "MeasureGroup": {
+      "additionalProperties": false,
+      "description": "A named, reusable set of measures tied to a mode of analysis (CAP-07), shown by the Tote in this order. Every group extends the shared core: extends names the group it adds to (core itself extends nothing). A study's own groups will be defined by its lead analyst and kept in the study catalogue, shared by every plot in the study.",
+      "properties": {
+        "description": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "extends": {
+          "description": "The group whose measures come first, before this one's own; left out for core.",
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "id": {
+          "pattern": "^[a-z][a-z0-9_-]*$",
+          "type": "string"
+        },
+        "measures": {
+          "description": "The ids of the measures shown, in order, those of the group it extends included.",
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "title": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "id",
+        "title",
+        "measures"
+      ],
+      "title": "MeasureGroup",
+      "type": "object"
+    },
+    "MeasureSubjectEnum": {
+      "description": "What a measure is of.",
+      "enum": [
+        "relative",
+        "own"
+      ],
+      "title": "MeasureSubjectEnum",
+      "type": "string"
+    },
+    "MeasureValue": {
+      "additionalProperties": false,
+      "description": "One measure's value at current time; value left out where it cannot be worked out (no depth recorded, say).",
+      "properties": {
+        "measure": {
+          "type": "string"
+        },
+        "unit": {
+          "description": "The UCUM unit of value, such as m, deg or m/s; formatted for people by the views (SUB-04).",
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "value": {
+          "type": [
+            "number",
+            "null"
+          ]
+        }
+      },
+      "required": [
+        "measure"
+      ],
+      "title": "MeasureValue",
+      "type": "object"
+    },
     "NamedSet": {
       "additionalProperties": false,
       "description": "A saved, reusable selection (TL-11).",
@@ -1686,6 +1819,17 @@
             }
           ],
           "description": "The plot's time window: the period shown, one for the whole plot (CAP-28, CAP-29). Start shall not be after end."
+        },
+        "tote": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/ToteView"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": "Which tracks the Tote compares, and through which measure group (CAP-06, CAP-07). View state, like the window: changing it is never a step in the history (decision, 14 Oct 2026)."
         }
       },
       "title": "PlotView",
@@ -2797,6 +2941,182 @@
       "title": "ToolResult",
       "type": "object"
     },
+    "ToteResult": {
+      "additionalProperties": false,
+      "description": "The Tote at one time: the primary's own measures, and each secondary's measures relative to the primary and its own, as debrief/tote returns them and the Tote view shows them.",
+      "properties": {
+        "group": {
+          "$ref": "#/$defs/MeasureGroup"
+        },
+        "measures": {
+          "description": "The definitions of the group's measures, in its order.",
+          "items": {
+            "$ref": "#/$defs/MeasureDefinition"
+          },
+          "type": "array"
+        },
+        "note": {
+          "description": "What the analyst should know about the Tote as a whole, such as a measure group chosen that this plot's study does not have (core is shown instead).",
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "primary": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/ToteRow"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "rows": {
+          "description": "One per secondary, in the order chosen.",
+          "items": {
+            "$ref": "#/$defs/ToteRow"
+          },
+          "type": "array"
+        },
+        "time": {
+          "description": "The time the values are for.",
+          "pattern": "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}\\.\\d{3}Z$",
+          "type": "string"
+        }
+      },
+      "required": [
+        "time",
+        "group",
+        "measures",
+        "rows"
+      ],
+      "title": "ToteResult",
+      "type": "object"
+    },
+    "ToteRow": {
+      "additionalProperties": false,
+      "description": "One track in the Tote at current time.",
+      "properties": {
+        "colour": {
+          "description": "The track's colour, lower-case hex, to key the row to the map.",
+          "pattern": "^#[0-9a-f]{6}$",
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "name": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "note": {
+          "description": "Why there are no values, for the analyst, such as \"Starts 09:30:00Z\".",
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "status": {
+          "$ref": "#/$defs/ToteRowStatusEnum"
+        },
+        "track": {
+          "description": "The track's feature id.",
+          "type": "string"
+        },
+        "values": {
+          "items": {
+            "$ref": "#/$defs/MeasureValue"
+          },
+          "type": [
+            "array",
+            "null"
+          ]
+        }
+      },
+      "required": [
+        "track",
+        "status"
+      ],
+      "title": "ToteRow",
+      "type": "object"
+    },
+    "ToteRowStatusEnum": {
+      "description": "Whether a track in the Tote has values at current time.",
+      "enum": [
+        "ok",
+        "no_data",
+        "missing"
+      ],
+      "title": "ToteRowStatusEnum",
+      "type": "string"
+    },
+    "ToteTrack": {
+      "additionalProperties": false,
+      "description": "A track the analyst can put in the Tote, as the Tote view lists them.",
+      "properties": {
+        "colour": {
+          "pattern": "^#[0-9a-f]{6}$",
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "id": {
+          "type": "string"
+        },
+        "name": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "id",
+        "name"
+      ],
+      "title": "ToteTrack",
+      "type": "object"
+    },
+    "ToteView": {
+      "additionalProperties": false,
+      "description": "Which tracks the Tote compares, and through which measure group: view state in the plot's island, like the time window, so it travels with the plot file but is never a step in its history and never undone (SUB-22; decision, 14 Oct 2026). Ids of tracks no longer in the plot are shown as missing, not refused, because a change to content never changes the island.",
+      "properties": {
+        "map_lines": {
+          "description": "Whether the map draws a thin line from the primary to each secondary at current time; left out means it does (decision, 14 Oct 2026).",
+          "type": [
+            "boolean",
+            "null"
+          ]
+        },
+        "measure_group": {
+          "description": "The measure group shown; left out means core.",
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "primary": {
+          "description": "The track the others are measured from; left out until one is chosen.",
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "secondaries": {
+          "description": "The tracks measured from the primary, in the order shown.",
+          "items": {
+            "type": "string"
+          },
+          "type": [
+            "array",
+            "null"
+          ]
+        }
+      },
+      "title": "ToteView",
+      "type": "object"
+    },
     "TrackEdit": {
       "additionalProperties": false,
       "description": "A track moved, rotated, sheared or stretched by hand, as the map, a form or an agent describes it (CAP-01, CAP-02, CAP-21): one recorded, undoable step in the plot's history (SUB-19). Geodesic: a move takes every fix in the period the same range along the same bearing, each along its own geodesic; a rotation keeps each fix's range from the pivot and turns its bearing from the pivot by the angle. A shear and a stretch hold one end of the period (the anchor) and work in the azimuthal equidistant frame about it, where a geodesic through the anchor is a straight line: a shear adds to each fix the dragged end's displacement times the fix's fraction of the time from the anchor to the dragged end; a stretch scales each fix's range from the anchor, keeping its bearing from it. Either way a straight, steady leg stays a straight, steady leg. Fixes outside the period stay where they are, so the joins jump. A single fix moved (move_fix) goes where it is told, alone: its neighbours, its time and its recorded course and speed stay. set_plotting_mode with plotting_mode dr plots the whole track by dead reckoning, each fix placed from the one before by that fix's recorded course and speed, from the track's first fix; with otg it puts the fixes back where they were logged, after the analyst confirms losing any change made while plotted by dead reckoning (discard_dr_changes).",
@@ -3432,6 +3752,38 @@
             "null"
           ]
         },
+        "tote": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/ToteResult"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": "The Tote's values at current time (show_tote)."
+        },
+        "tote_tracks": {
+          "description": "The plot's tracks, which the analyst can choose from for the Tote (show_tote).",
+          "items": {
+            "$ref": "#/$defs/ToteTrack"
+          },
+          "type": [
+            "array",
+            "null"
+          ]
+        },
+        "tote_view": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/ToteView"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": "Which tracks the Tote compares, as saved in the plot (show_tote, set_tote) or as the analyst chose (tote_changed)."
+        },
         "track_edit": {
           "anyOf": [
             {
@@ -3489,6 +3841,9 @@
         "annotation_drawn",
         "edit_track",
         "show_fixes",
+        "show_tote",
+        "tote_changed",
+        "set_tote",
         "fix_chosen"
       ],
       "title": "WebviewMessageKindEnum",
@@ -3562,5 +3917,5 @@
   ],
   "title": "debrief",
   "type": "object",
-  "version": "0.0.17"
+  "version": "0.0.18"
 }

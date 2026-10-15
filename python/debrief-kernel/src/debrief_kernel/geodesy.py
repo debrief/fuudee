@@ -199,19 +199,37 @@ class TrackPath:
 
     def position_at(self, time_ms: int) -> Position | None:
         """Position at a time, or None outside the track's time span."""
+        leg = self.leg_at(time_ms)
+        if leg is None:
+            return None
+        index, fraction = leg
+        if index >= len(self.times_ms) - 1:
+            return self.positions[-1]
+        if fraction >= 1.0:
+            return self.positions[index + 1]
+        a, b = self.positions[index], self.positions[index + 1]
+        return interpolate(a, b, fraction, self.line(index))
+
+    def leg_at(self, time_ms: int) -> tuple[int, float] | None:
+        """The fix a time follows and how far it is towards the next, by time; None outside
+        the track's span. At the last fix, its index and 0. Between two fixes at one time,
+        the second (fraction 1)."""
         if time_ms < self.start_ms or time_ms > self.end_ms:
             return None
         index = bisect_right(self.times_ms, time_ms) - 1
         if index >= len(self.times_ms) - 1:
-            return self.positions[-1]
+            return len(self.times_ms) - 1, 0.0
         t0, t1 = self.times_ms[index], self.times_ms[index + 1]
         if t1 == t0:
-            return self.positions[index + 1]
-        a, b = self.positions[index], self.positions[index + 1]
+            return index, 1.0
+        return index, (time_ms - t0) / (t1 - t0)
+
+    def line(self, index: int) -> GeodesicLine:
+        """The geodesic from fix index to the next, worked out once."""
         line = self._lines.get(index)
         if line is None:
-            line = self._lines[index] = _line(a, b)
-        return interpolate(a, b, (time_ms - t0) / (t1 - t0), line)
+            line = self._lines[index] = _line(self.positions[index], self.positions[index + 1])
+        return line
 
 
 @dataclass(frozen=True, slots=True)

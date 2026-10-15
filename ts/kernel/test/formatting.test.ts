@@ -5,8 +5,11 @@ import {
   DEFAULT_SETTINGS,
   fixed,
   formatBearing,
+  formatDepth,
   formatPosition,
   formatQuantity,
+  formatRange,
+  formatRelativeBearing,
   formatTime,
   type FormatSettings,
 } from "../src/index.js";
@@ -26,14 +29,17 @@ describe("shared formatting vectors", () => {
   it.each(cases.map((c) => [c.name, c] as const))("%s", (_name, c) => {
     const settings = { ...DEFAULT_SETTINGS, ...c.settings };
     const input = c.input;
-    const result =
-      c.op === "quantity"
-        ? formatQuantity({ value: input.value as number, unit: input.unit as string }, settings)
-        : c.op === "bearing"
-          ? formatBearing({ value: input.value as number, unit: input.unit as string }, settings)
-          : c.op === "position"
-            ? formatPosition({ longitude: input.longitude as number, latitude: input.latitude as number }, settings)
-            : formatTime(parseUtc(input.utc as string), settings);
+    const quantity = { value: input.value as number, unit: input.unit as string };
+    const formats: Record<string, () => string> = {
+      quantity: () => formatQuantity(quantity, settings),
+      range: () => formatRange(quantity, settings),
+      bearing: () => formatBearing(quantity, settings),
+      relative_bearing: () => formatRelativeBearing(quantity, settings),
+      depth: () => formatDepth(quantity, settings),
+      position: () => formatPosition({ longitude: input.longitude as number, latitude: input.latitude as number }, settings),
+      time: () => formatTime(parseUtc(input.utc as string), settings),
+    };
+    const result = formats[c.op]();
     expect(result).toBe(c.expected);
   });
 });

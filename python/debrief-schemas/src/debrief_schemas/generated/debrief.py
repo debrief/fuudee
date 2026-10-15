@@ -32,7 +32,7 @@ from pydantic import (
 
 
 metamodel_version = "1.12.0"
-version = "0.0.17"
+version = "0.0.18"
 
 
 class ConfiguredBaseModel(BaseModel):
@@ -805,6 +805,64 @@ class TimeStyleEnum(str, Enum):
     """
 
 
+class MeasureSubjectEnum(str, Enum):
+    """
+    What a measure is of.
+    """
+    relative = "relative"
+    """
+    Between the primary and a secondary, such as range: needs both at current time.
+    """
+    own = "own"
+    """
+    Of one track on its own, such as its course: shown for the primary and each secondary.
+    """
+
+
+class MeasureDisplayEnum(str, Enum):
+    """
+    How a measure's value is written for people, by the formatting service (SUB-04).
+    """
+    quantity = "quantity"
+    """
+    In the analyst's unit for its kind, such as 1.25 nmi or 12.0 kn.
+    """
+    range = "range"
+    """
+    A range, in the analyst's length unit; where that is nautical miles, a range under 1 nmi is in whole yards, such as 60 yd (decision, 14 Oct 2026).
+    """
+    bearing = "bearing"
+    """
+    Three figures, true: 045.0°T.
+    """
+    relative_bearing = "relative_bearing"
+    """
+    From the primary's head, port red and starboard green: R045.0° or G045.0°.
+    """
+    depth = "depth"
+    """
+    A depth, in metres, or feet where the analyst's lengths are imperial.
+    """
+
+
+class ToteRowStatusEnum(str, Enum):
+    """
+    Whether a track in the Tote has values at current time.
+    """
+    ok = "ok"
+    """
+    The track has data at current time.
+    """
+    no_data = "no_data"
+    """
+    Current time is before the track starts or after it ends: nothing to show (note says which).
+    """
+    missing = "missing"
+    """
+    The plot no longer has this track (merged or deleted since it was chosen).
+    """
+
+
 class TrackImportModeEnum(str, Enum):
     """
     How tracks imported are plotted: ask for each track (the default), or one choice the analyst said to use for future imports. User state, kept here and never in a catalogue or a plot file.
@@ -938,6 +996,18 @@ class WebviewMessageKindEnum(str, Enum):
     """
     Host to map: ring these fixes of a track for the analyst to check (feature_id, fix_times), such as jumps found before they are removed, and perhaps draw the track as a change would leave it (preview), with a note (message); with no feature_id, take them away.
     """
+    show_tote = "show_tote"
+    """
+    Host to Tote: the tracks that can be chosen (tote_tracks), which are chosen (tote_view) and the values at current time (tote), any of them; none when no plot is open.
+    """
+    tote_changed = "tote_changed"
+    """
+    Tote to host: the analyst chose a primary, added or removed a secondary, chose a measure group, or turned the map's lines on or off; save it in the plot (tote_view).
+    """
+    set_tote = "set_tote"
+    """
+    Host to map: which tracks the Tote compares (tote_view), for a thin line from the primary to each secondary at current time unless its map_lines is false; none when nothing is chosen.
+    """
     fix_chosen = "fix_chosen"
     """
     Map to host: the analyst asked to colour, label or comment on a fix (feature_id, fix_time), by right-clicking it or pressing Enter on a fix chosen with the keyboard.
@@ -971,7 +1041,8 @@ class Length(ConfiguredBaseModel):
                        'Angle',
                        'Duration',
                        'AngularRate',
-                       'ParameterValue']} })
+                       'ParameterValue',
+                       'MeasureValue']} })
     unit: LengthUnitEnum = Field(default=..., json_schema_extra = { "linkml_meta": {'domain_of': ['Length',
                        'Speed',
                        'Angle',
@@ -981,7 +1052,8 @@ class Length(ConfiguredBaseModel):
                        'AngleSeries',
                        'LengthSeries',
                        'PayloadColumn',
-                       'ResultColumn']} })
+                       'ResultColumn',
+                       'MeasureValue']} })
 
 
 class Speed(ConfiguredBaseModel):
@@ -992,7 +1064,8 @@ class Speed(ConfiguredBaseModel):
                        'Angle',
                        'Duration',
                        'AngularRate',
-                       'ParameterValue']} })
+                       'ParameterValue',
+                       'MeasureValue']} })
     unit: SpeedUnitEnum = Field(default=..., json_schema_extra = { "linkml_meta": {'domain_of': ['Length',
                        'Speed',
                        'Angle',
@@ -1002,7 +1075,8 @@ class Speed(ConfiguredBaseModel):
                        'AngleSeries',
                        'LengthSeries',
                        'PayloadColumn',
-                       'ResultColumn']} })
+                       'ResultColumn',
+                       'MeasureValue']} })
 
 
 class Angle(ConfiguredBaseModel):
@@ -1013,7 +1087,8 @@ class Angle(ConfiguredBaseModel):
                        'Angle',
                        'Duration',
                        'AngularRate',
-                       'ParameterValue']} })
+                       'ParameterValue',
+                       'MeasureValue']} })
     unit: AngleUnitEnum = Field(default=..., json_schema_extra = { "linkml_meta": {'domain_of': ['Length',
                        'Speed',
                        'Angle',
@@ -1023,7 +1098,8 @@ class Angle(ConfiguredBaseModel):
                        'AngleSeries',
                        'LengthSeries',
                        'PayloadColumn',
-                       'ResultColumn']} })
+                       'ResultColumn',
+                       'MeasureValue']} })
 
 
 class Duration(ConfiguredBaseModel):
@@ -1034,7 +1110,8 @@ class Duration(ConfiguredBaseModel):
                        'Angle',
                        'Duration',
                        'AngularRate',
-                       'ParameterValue']} })
+                       'ParameterValue',
+                       'MeasureValue']} })
     unit: DurationUnitEnum = Field(default=..., json_schema_extra = { "linkml_meta": {'domain_of': ['Length',
                        'Speed',
                        'Angle',
@@ -1044,7 +1121,8 @@ class Duration(ConfiguredBaseModel):
                        'AngleSeries',
                        'LengthSeries',
                        'PayloadColumn',
-                       'ResultColumn']} })
+                       'ResultColumn',
+                       'MeasureValue']} })
 
 
 class AngularRate(ConfiguredBaseModel):
@@ -1055,7 +1133,8 @@ class AngularRate(ConfiguredBaseModel):
                        'Angle',
                        'Duration',
                        'AngularRate',
-                       'ParameterValue']} })
+                       'ParameterValue',
+                       'MeasureValue']} })
     unit: AngularRateUnitEnum = Field(default=..., json_schema_extra = { "linkml_meta": {'domain_of': ['Length',
                        'Speed',
                        'Angle',
@@ -1065,7 +1144,8 @@ class AngularRate(ConfiguredBaseModel):
                        'AngleSeries',
                        'LengthSeries',
                        'PayloadColumn',
-                       'ResultColumn']} })
+                       'ResultColumn',
+                       'MeasureValue']} })
 
 
 class SpeedSeries(ConfiguredBaseModel):
@@ -1080,8 +1160,9 @@ class SpeedSeries(ConfiguredBaseModel):
                        'AngleSeries',
                        'LengthSeries',
                        'PayloadColumn',
-                       'ResultColumn']} })
-    values: list[float] = Field(default=..., json_schema_extra = { "linkml_meta": {'domain_of': ['SpeedSeries', 'AngleSeries', 'LengthSeries']} })
+                       'ResultColumn',
+                       'MeasureValue']} })
+    values: list[float] = Field(default=..., json_schema_extra = { "linkml_meta": {'domain_of': ['SpeedSeries', 'AngleSeries', 'LengthSeries', 'ToteRow']} })
 
 
 class AngleSeries(ConfiguredBaseModel):
@@ -1096,8 +1177,9 @@ class AngleSeries(ConfiguredBaseModel):
                        'AngleSeries',
                        'LengthSeries',
                        'PayloadColumn',
-                       'ResultColumn']} })
-    values: list[float] = Field(default=..., json_schema_extra = { "linkml_meta": {'domain_of': ['SpeedSeries', 'AngleSeries', 'LengthSeries']} })
+                       'ResultColumn',
+                       'MeasureValue']} })
+    values: list[float] = Field(default=..., json_schema_extra = { "linkml_meta": {'domain_of': ['SpeedSeries', 'AngleSeries', 'LengthSeries', 'ToteRow']} })
 
 
 class LengthSeries(ConfiguredBaseModel):
@@ -1112,8 +1194,9 @@ class LengthSeries(ConfiguredBaseModel):
                        'AngleSeries',
                        'LengthSeries',
                        'PayloadColumn',
-                       'ResultColumn']} })
-    values: list[float] = Field(default=..., json_schema_extra = { "linkml_meta": {'domain_of': ['SpeedSeries', 'AngleSeries', 'LengthSeries']} })
+                       'ResultColumn',
+                       'MeasureValue']} })
+    values: list[float] = Field(default=..., json_schema_extra = { "linkml_meta": {'domain_of': ['SpeedSeries', 'AngleSeries', 'LengthSeries', 'ToteRow']} })
 
 
 class TimeRange(ConfiguredBaseModel):
@@ -1170,7 +1253,9 @@ class ParameterValue(ConfiguredBaseModel):
                        'NamedSet',
                        'ToolDeclaration',
                        'ParameterDeclaration',
-                       'ResultColumn']} })
+                       'ResultColumn',
+                       'ToteRow',
+                       'ToteTrack']} })
     value: Union[Angle, AngularRate, Duration, Length, Speed, bool, float, str] = Field(default=..., json_schema_extra = { "linkml_meta": {'any_of': [{'range': 'float'},
                     {'range': 'string'},
                     {'range': 'boolean'},
@@ -1184,7 +1269,8 @@ class ParameterValue(ConfiguredBaseModel):
                        'Angle',
                        'Duration',
                        'AngularRate',
-                       'ParameterValue']} })
+                       'ParameterValue',
+                       'MeasureValue']} })
 
     @field_validator('name')
     def pattern_name(cls, v):
@@ -1280,6 +1366,9 @@ class ProvRecord(ConfiguredBaseModel):
                        'NamedSet',
                        'StacItem',
                        'StacCatalog',
+                       'MeasureDefinition',
+                       'MeasureGroup',
+                       'ToteTrack',
                        'KnownStore']} })
     kind: ProvActivityKindEnum = Field(default=..., json_schema_extra = { "linkml_meta": {'domain_of': ['ProvRecord',
                        'AgentRef',
@@ -1345,7 +1434,9 @@ class ToolRef(ConfiguredBaseModel):
                        'NamedSet',
                        'ToolDeclaration',
                        'ParameterDeclaration',
-                       'ResultColumn']} })
+                       'ResultColumn',
+                       'ToteRow',
+                       'ToteTrack']} })
     version: str = Field(default=..., json_schema_extra = { "linkml_meta": {'domain_of': ['ToolRef', 'InnerSchemaRef', 'ToolDeclaration']} })
 
 
@@ -1377,7 +1468,9 @@ class AgentRef(ConfiguredBaseModel):
                        'NamedSet',
                        'ToolDeclaration',
                        'ParameterDeclaration',
-                       'ResultColumn']} })
+                       'ResultColumn',
+                       'ToteRow',
+                       'ToteTrack']} })
     model: Optional[str] = Field(default=None, json_schema_extra = { "linkml_meta": {'domain_of': ['AgentRef']} })
 
 
@@ -1431,6 +1524,9 @@ class TrackFeature(ConfiguredBaseModel):
                        'NamedSet',
                        'StacItem',
                        'StacCatalog',
+                       'MeasureDefinition',
+                       'MeasureGroup',
+                       'ToteTrack',
                        'KnownStore']} })
     geometry: LineStringGeometry = Field(default=..., json_schema_extra = { "linkml_meta": {'domain_of': ['TrackFeature',
                        'AnnotationFeature',
@@ -1468,7 +1564,9 @@ class TrackProperties(ConfiguredBaseModel):
                        'NamedSet',
                        'ToolDeclaration',
                        'ParameterDeclaration',
-                       'ResultColumn']} })
+                       'ResultColumn',
+                       'ToteRow',
+                       'ToteTrack']} })
     platform_class: Optional[str] = Field(default=None, json_schema_extra = { "linkml_meta": {'domain_of': ['TrackProperties']} })
     times: list[str] = Field(default=..., description="""One per position, non-decreasing.""", json_schema_extra = { "linkml_meta": {'domain_of': ['TrackProperties']} })
     speeds: Optional[SpeedSeries] = Field(default=None, description="""Speed over ground at each position.""", json_schema_extra = { "linkml_meta": {'domain_of': ['TrackProperties']} })
@@ -1508,7 +1606,11 @@ class TrackStyle(ConfiguredBaseModel):
     """
     linkml_meta: ClassVar[LinkMLMeta] = LinkMLMeta({'from_schema': 'https://debrief.info/schemas/debrief'})
 
-    colour: str = Field(default=..., description="""Lower-case hex RGB, for example \"#e01c3e\".""", json_schema_extra = { "linkml_meta": {'domain_of': ['TrackStyle', 'FixMark', 'AnnotationAppearance']} })
+    colour: str = Field(default=..., description="""Lower-case hex RGB, for example \"#e01c3e\".""", json_schema_extra = { "linkml_meta": {'domain_of': ['TrackStyle',
+                       'FixMark',
+                       'AnnotationAppearance',
+                       'ToteRow',
+                       'ToteTrack']} })
     legacy_symbology: Optional[str] = Field(default=None, description="""The REP symbology code the colour came from, such as \"@C\", kept for export.""", json_schema_extra = { "linkml_meta": {'domain_of': ['TrackStyle']} })
 
     @field_validator('colour')
@@ -1536,9 +1638,14 @@ class FixMark(ConfiguredBaseModel):
                        'AnnotationSpec',
                        'SharedState',
                        'SharedStateChange',
+                       'ToteResult',
                        'WebviewMessage']} })
-    colour: Optional[str] = Field(default=None, description="""The fix's own colour, lower-case hex RGB: its marker and the line from it to the next fix are drawn in it.""", json_schema_extra = { "linkml_meta": {'domain_of': ['TrackStyle', 'FixMark', 'AnnotationAppearance']} })
-    label: Optional[str] = Field(default=None, description="""Text drawn on the map beside the fix.""", json_schema_extra = { "linkml_meta": {'domain_of': ['FixMark']} })
+    colour: Optional[str] = Field(default=None, description="""The fix's own colour, lower-case hex RGB: its marker and the line from it to the next fix are drawn in it.""", json_schema_extra = { "linkml_meta": {'domain_of': ['TrackStyle',
+                       'FixMark',
+                       'AnnotationAppearance',
+                       'ToteRow',
+                       'ToteTrack']} })
+    label: Optional[str] = Field(default=None, description="""Text drawn on the map beside the fix.""", json_schema_extra = { "linkml_meta": {'domain_of': ['FixMark', 'MeasureDefinition']} })
     comment: Optional[str] = Field(default=None, description="""Free text about the fix, shown when the analyst points at it and in the Timeline.""", json_schema_extra = { "linkml_meta": {'domain_of': ['FixMark']} })
 
     @field_validator('time')
@@ -1628,6 +1735,9 @@ class AnnotationFeature(ConfiguredBaseModel):
                        'NamedSet',
                        'StacItem',
                        'StacCatalog',
+                       'MeasureDefinition',
+                       'MeasureGroup',
+                       'ToteTrack',
                        'KnownStore']} })
     geometry: Optional[Union[LineStringGeometry, PointGeometry, PolygonGeometry]] = Field(default=None, json_schema_extra = { "linkml_meta": {'any_of': [{'range': 'PointGeometry'},
                     {'range': 'LineStringGeometry'},
@@ -1669,13 +1779,16 @@ class AnnotationProperties(ConfiguredBaseModel):
                        'NamedSet',
                        'ToolDeclaration',
                        'ParameterDeclaration',
-                       'ResultColumn']} })
+                       'ResultColumn',
+                       'ToteRow',
+                       'ToteTrack']} })
     text: Optional[str] = Field(default=None, json_schema_extra = { "linkml_meta": {'domain_of': ['AnnotationProperties', 'AnnotationSpec']} })
     time: Optional[str] = Field(default=None, json_schema_extra = { "linkml_meta": {'domain_of': ['FixMark',
                        'AnnotationProperties',
                        'AnnotationSpec',
                        'SharedState',
                        'SharedStateChange',
+                       'ToteResult',
                        'WebviewMessage']} })
     time_range: Optional[TimeRange] = Field(default=None, json_schema_extra = { "linkml_meta": {'domain_of': ['AnnotationProperties',
                        'AnnotationSpec',
@@ -1719,7 +1832,11 @@ class AnnotationAppearance(ConfiguredBaseModel):
     """
     linkml_meta: ClassVar[LinkMLMeta] = LinkMLMeta({'from_schema': 'https://debrief.info/schemas/debrief'})
 
-    colour: Optional[str] = Field(default=None, description="""Its line's colour, and a label's or a marker's dot. Lower-case hex RGB, for example \"#c7820a\". Label text is drawn in the theme's text colour, so it stays readable on any map.""", json_schema_extra = { "linkml_meta": {'domain_of': ['TrackStyle', 'FixMark', 'AnnotationAppearance']} })
+    colour: Optional[str] = Field(default=None, description="""Its line's colour, and a label's or a marker's dot. Lower-case hex RGB, for example \"#c7820a\". Label text is drawn in the theme's text colour, so it stays readable on any map.""", json_schema_extra = { "linkml_meta": {'domain_of': ['TrackStyle',
+                       'FixMark',
+                       'AnnotationAppearance',
+                       'ToteRow',
+                       'ToteTrack']} })
     line_style: Optional[LineStyleEnum] = Field(default=None, json_schema_extra = { "linkml_meta": {'domain_of': ['AnnotationAppearance']} })
     line_width: Optional[int] = Field(default=None, description="""Width of its line in screen pixels.""", ge=1, le=10, json_schema_extra = { "linkml_meta": {'domain_of': ['AnnotationAppearance']} })
     fill_colour: Optional[str] = Field(default=None, description="""Colour inside an area, circle or ellipse. Lower-case hex RGB. Left out, the line's colour.""", json_schema_extra = { "linkml_meta": {'domain_of': ['AnnotationAppearance']} })
@@ -1773,7 +1890,9 @@ class AnnotationSpec(ConfiguredBaseModel):
                        'NamedSet',
                        'ToolDeclaration',
                        'ParameterDeclaration',
-                       'ResultColumn']} })
+                       'ResultColumn',
+                       'ToteRow',
+                       'ToteTrack']} })
     text: Optional[str] = Field(default=None, json_schema_extra = { "linkml_meta": {'domain_of': ['AnnotationProperties', 'AnnotationSpec']} })
     positions: Optional[conlist(min_length=1, item_type=conlist(min_length=2, max_length=2, item_type=float))] = Field(default=None, description="""[longitude, latitude] pairs: the line's positions, or the area's corners (not closed); one, the centre or position, for a circle, ellipse, label or marker; none for a note.""", json_schema_extra = { "linkml_meta": {'array': {'dimensions': [{'minimum_cardinality': 1}, {'exact_cardinality': 2}],
                    'exact_number_dimensions': 2},
@@ -1787,6 +1906,7 @@ class AnnotationSpec(ConfiguredBaseModel):
                        'AnnotationSpec',
                        'SharedState',
                        'SharedStateChange',
+                       'ToteResult',
                        'WebviewMessage']} })
     time_range: Optional[TimeRange] = Field(default=None, json_schema_extra = { "linkml_meta": {'domain_of': ['AnnotationProperties',
                        'AnnotationSpec',
@@ -1834,6 +1954,9 @@ class SensorObservationsFeature(ConfiguredBaseModel):
                        'NamedSet',
                        'StacItem',
                        'StacCatalog',
+                       'MeasureDefinition',
+                       'MeasureGroup',
+                       'ToteTrack',
                        'KnownStore']} })
     geometry: Optional[PointGeometry] = Field(default=None, description="""Always null.""", json_schema_extra = { "linkml_meta": {'domain_of': ['TrackFeature',
                        'AnnotationFeature',
@@ -1871,7 +1994,9 @@ class SensorObservationsProperties(ConfiguredBaseModel):
                        'NamedSet',
                        'ToolDeclaration',
                        'ParameterDeclaration',
-                       'ResultColumn']} })
+                       'ResultColumn',
+                       'ToteRow',
+                       'ToteTrack']} })
     sensor_name: str = Field(default=..., json_schema_extra = { "linkml_meta": {'domain_of': ['SensorObservationsProperties']} })
     host_track_id: str = Field(default=..., description="""The track carrying the sensor.""", json_schema_extra = { "linkml_meta": {'domain_of': ['SensorObservationsProperties']} })
     observation_type: ObservationTypeEnum = Field(default=..., json_schema_extra = { "linkml_meta": {'domain_of': ['SensorObservationsProperties']} })
@@ -1933,7 +2058,9 @@ class InnerSchemaRef(ConfiguredBaseModel):
                        'NamedSet',
                        'ToolDeclaration',
                        'ParameterDeclaration',
-                       'ResultColumn']} })
+                       'ResultColumn',
+                       'ToteRow',
+                       'ToteTrack']} })
     version: str = Field(default=..., json_schema_extra = { "linkml_meta": {'domain_of': ['ToolRef', 'InnerSchemaRef', 'ToolDeclaration']} })
 
     @field_validator('version')
@@ -1965,8 +2092,13 @@ class PayloadColumn(ConfiguredBaseModel):
                        'NamedSet',
                        'ToolDeclaration',
                        'ParameterDeclaration',
-                       'ResultColumn']} })
-    quantity_kind: Optional[QuantityKindEnum] = Field(default=None, json_schema_extra = { "linkml_meta": {'domain_of': ['PayloadColumn', 'ParameterDeclaration', 'ResultColumn']} })
+                       'ResultColumn',
+                       'ToteRow',
+                       'ToteTrack']} })
+    quantity_kind: Optional[QuantityKindEnum] = Field(default=None, json_schema_extra = { "linkml_meta": {'domain_of': ['PayloadColumn',
+                       'ParameterDeclaration',
+                       'ResultColumn',
+                       'MeasureDefinition']} })
     unit: Optional[str] = Field(default=None, description="""UCUM unit code, required when quantity_kind is given.""", json_schema_extra = { "linkml_meta": {'domain_of': ['Length',
                        'Speed',
                        'Angle',
@@ -1976,7 +2108,8 @@ class PayloadColumn(ConfiguredBaseModel):
                        'AngleSeries',
                        'LengthSeries',
                        'PayloadColumn',
-                       'ResultColumn']} })
+                       'ResultColumn',
+                       'MeasureValue']} })
 
 
 class PlotFeature(ConfiguredBaseModel):
@@ -2005,6 +2138,9 @@ class PlotFeature(ConfiguredBaseModel):
                        'NamedSet',
                        'StacItem',
                        'StacCatalog',
+                       'MeasureDefinition',
+                       'MeasureGroup',
+                       'ToteTrack',
                        'KnownStore']} })
     geometry: Optional[PointGeometry] = Field(default=None, description="""Always null.""", json_schema_extra = { "linkml_meta": {'domain_of': ['TrackFeature',
                        'AnnotationFeature',
@@ -2038,8 +2174,13 @@ class PlotProperties(ConfiguredBaseModel):
                        'ToolDeclaration',
                        'ParameterDeclaration',
                        'NonSpatialResult',
+                       'MeasureDefinition',
+                       'MeasureGroup',
                        'KnownStore']} })
-    description: Optional[str] = Field(default=None, description="""What the plot is for. Content.""", json_schema_extra = { "linkml_meta": {'domain_of': ['PlotProperties', 'StacItemProperties', 'StacCatalog']} })
+    description: Optional[str] = Field(default=None, description="""What the plot is for. Content.""", json_schema_extra = { "linkml_meta": {'domain_of': ['PlotProperties',
+                       'StacItemProperties',
+                       'StacCatalog',
+                       'MeasureGroup']} })
     view: Optional[PlotView] = Field(default=None, description="""The island: how the plot is being viewed. Outside the plot's history (see the module description). Kept last, so it is easy to find and strip.""", json_schema_extra = { "linkml_meta": {'domain_of': ['PlotProperties']} })
 
 
@@ -2051,6 +2192,7 @@ class PlotView(ConfiguredBaseModel):
 
     time_window: Optional[TimeRange] = Field(default=None, description="""The plot's time window: the period shown, one for the whole plot (CAP-28, CAP-29). Start shall not be after end.""", json_schema_extra = { "linkml_meta": {'domain_of': ['PlotView']} })
     context_tracks: Optional[ContextTracksEnum] = Field(default=None, description="""How tracks outside the time window are drawn (CAP-29). Left out means visible.""", json_schema_extra = { "linkml_meta": {'domain_of': ['PlotView', 'WebviewMessage']} })
+    tote: Optional[ToteView] = Field(default=None, description="""Which tracks the Tote compares, and through which measure group (CAP-06, CAP-07). View state, like the window: changing it is never a step in the history (decision, 14 Oct 2026).""", json_schema_extra = { "linkml_meta": {'domain_of': ['PlotView', 'WebviewMessage']} })
 
 
 class NamedSet(ConfiguredBaseModel):
@@ -2067,6 +2209,9 @@ class NamedSet(ConfiguredBaseModel):
                        'NamedSet',
                        'StacItem',
                        'StacCatalog',
+                       'MeasureDefinition',
+                       'MeasureGroup',
+                       'ToteTrack',
                        'KnownStore']} })
     name: str = Field(default=..., json_schema_extra = { "linkml_meta": {'domain_of': ['ParameterValue',
                        'ToolRef',
@@ -2080,7 +2225,9 @@ class NamedSet(ConfiguredBaseModel):
                        'NamedSet',
                        'ToolDeclaration',
                        'ParameterDeclaration',
-                       'ResultColumn']} })
+                       'ResultColumn',
+                       'ToteRow',
+                       'ToteTrack']} })
     feature_ids: list[str] = Field(default=..., json_schema_extra = { "linkml_meta": {'domain_of': ['NamedSet', 'Selection']} })
 
 
@@ -2160,6 +2307,8 @@ class StacLink(ConfiguredBaseModel):
                        'ToolDeclaration',
                        'ParameterDeclaration',
                        'NonSpatialResult',
+                       'MeasureDefinition',
+                       'MeasureGroup',
                        'KnownStore']} })
 
 
@@ -2189,6 +2338,8 @@ class StacAsset(ConfiguredBaseModel):
                        'ToolDeclaration',
                        'ParameterDeclaration',
                        'NonSpatialResult',
+                       'MeasureDefinition',
+                       'MeasureGroup',
                        'KnownStore']} })
     roles: Optional[list[str]] = Field(default=None, json_schema_extra = { "linkml_meta": {'domain_of': ['StacAsset']} })
     debrief_asset_kind: AssetKindEnum = Field(default=..., alias="debrief:asset_kind", json_schema_extra = { "linkml_meta": {'domain_of': ['StacAsset']} })
@@ -2223,8 +2374,13 @@ class StacItemProperties(ConfiguredBaseModel):
                        'ToolDeclaration',
                        'ParameterDeclaration',
                        'NonSpatialResult',
+                       'MeasureDefinition',
+                       'MeasureGroup',
                        'KnownStore']} })
-    description: Optional[str] = Field(default=None, json_schema_extra = { "linkml_meta": {'domain_of': ['PlotProperties', 'StacItemProperties', 'StacCatalog']} })
+    description: Optional[str] = Field(default=None, json_schema_extra = { "linkml_meta": {'domain_of': ['PlotProperties',
+                       'StacItemProperties',
+                       'StacCatalog',
+                       'MeasureGroup']} })
     debrief_schema_version: str = Field(default=..., alias="debrief:schema_version", json_schema_extra = { "linkml_meta": {'domain_of': ['StacItemProperties', 'StacCatalog']} })
     debrief_participants: Optional[list[str]] = Field(default=None, alias="debrief:participants", description="""Platform names, for catalogue search (SUB-16).""", json_schema_extra = { "linkml_meta": {'domain_of': ['StacItemProperties']} })
 
@@ -2309,6 +2465,9 @@ class StacItem(ConfiguredBaseModel):
                        'NamedSet',
                        'StacItem',
                        'StacCatalog',
+                       'MeasureDefinition',
+                       'MeasureGroup',
+                       'ToteTrack',
                        'KnownStore']} })
     geometry: Optional[Union[LineStringGeometry, PointGeometry, PolygonGeometry]] = Field(default=None, json_schema_extra = { "linkml_meta": {'any_of': [{'range': 'PointGeometry'},
                     {'range': 'LineStringGeometry'},
@@ -2358,6 +2517,9 @@ class StacCatalog(ConfiguredBaseModel):
                        'NamedSet',
                        'StacItem',
                        'StacCatalog',
+                       'MeasureDefinition',
+                       'MeasureGroup',
+                       'ToteTrack',
                        'KnownStore']} })
     title: Optional[str] = Field(default=None, json_schema_extra = { "linkml_meta": {'domain_of': ['PlotProperties',
                        'StacLink',
@@ -2367,8 +2529,13 @@ class StacCatalog(ConfiguredBaseModel):
                        'ToolDeclaration',
                        'ParameterDeclaration',
                        'NonSpatialResult',
+                       'MeasureDefinition',
+                       'MeasureGroup',
                        'KnownStore']} })
-    description: str = Field(default=..., json_schema_extra = { "linkml_meta": {'domain_of': ['PlotProperties', 'StacItemProperties', 'StacCatalog']} })
+    description: str = Field(default=..., json_schema_extra = { "linkml_meta": {'domain_of': ['PlotProperties',
+                       'StacItemProperties',
+                       'StacCatalog',
+                       'MeasureGroup']} })
     links: list[StacLink] = Field(default=..., json_schema_extra = { "linkml_meta": {'domain_of': ['StacItem', 'StacCatalog']} })
     debrief_schema_version: str = Field(default=..., alias="debrief:schema_version", description="""The newest data-file schema this catalogue holds (SUB-35).""", json_schema_extra = { "linkml_meta": {'domain_of': ['StacItemProperties', 'StacCatalog']} })
 
@@ -2429,6 +2596,7 @@ class SharedState(ConfiguredBaseModel):
                        'AnnotationSpec',
                        'SharedState',
                        'SharedStateChange',
+                       'ToteResult',
                        'WebviewMessage']} })
     selection: Selection = Field(default=..., json_schema_extra = { "linkml_meta": {'domain_of': ['SharedState', 'SharedStateChange', 'WebviewMessage']} })
     viewport: Viewport = Field(default=..., json_schema_extra = { "linkml_meta": {'domain_of': ['SharedState', 'SharedStateChange', 'WebviewMessage']} })
@@ -2445,6 +2613,7 @@ class SharedStateChange(ConfiguredBaseModel):
                        'AnnotationSpec',
                        'SharedState',
                        'SharedStateChange',
+                       'ToteResult',
                        'WebviewMessage']} })
     selection: Optional[Selection] = Field(default=None, json_schema_extra = { "linkml_meta": {'domain_of': ['SharedState', 'SharedStateChange', 'WebviewMessage']} })
     viewport: Optional[Viewport] = Field(default=None, json_schema_extra = { "linkml_meta": {'domain_of': ['SharedState', 'SharedStateChange', 'WebviewMessage']} })
@@ -2469,7 +2638,9 @@ class ToolDeclaration(ConfiguredBaseModel):
                        'NamedSet',
                        'ToolDeclaration',
                        'ParameterDeclaration',
-                       'ResultColumn']} })
+                       'ResultColumn',
+                       'ToteRow',
+                       'ToteTrack']} })
     version: str = Field(default=..., json_schema_extra = { "linkml_meta": {'domain_of': ['ToolRef', 'InnerSchemaRef', 'ToolDeclaration']} })
     title: str = Field(default=..., json_schema_extra = { "linkml_meta": {'domain_of': ['PlotProperties',
                        'StacLink',
@@ -2479,8 +2650,10 @@ class ToolDeclaration(ConfiguredBaseModel):
                        'ToolDeclaration',
                        'ParameterDeclaration',
                        'NonSpatialResult',
+                       'MeasureDefinition',
+                       'MeasureGroup',
                        'KnownStore']} })
-    explanation: str = Field(default=..., description="""Short user-facing explanation of what the tool does (CAP-24).""", json_schema_extra = { "linkml_meta": {'domain_of': ['ToolDeclaration', 'ParameterDeclaration']} })
+    explanation: str = Field(default=..., description="""Short user-facing explanation of what the tool does (CAP-24).""", json_schema_extra = { "linkml_meta": {'domain_of': ['ToolDeclaration', 'ParameterDeclaration', 'MeasureDefinition']} })
     judgement: Optional[str] = Field(default=None, description="""Any judgement the tool involves, shown on its form (CAP-24).""", json_schema_extra = { "linkml_meta": {'domain_of': ['ToolDeclaration']} })
     applies_to: list[str] = Field(default=..., description="""Feature kinds from the taxonomy, or \"*\" for any (TL-06). Debrief offers a tool only if every selected item matches (TL-08).""", json_schema_extra = { "linkml_meta": {'domain_of': ['ToolDeclaration']} })
     min_selected: Optional[int] = Field(default=1, ge=0, json_schema_extra = { "linkml_meta": {'domain_of': ['ToolDeclaration'], 'ifabsent': 'int(1)'} })
@@ -2531,7 +2704,9 @@ class ParameterDeclaration(ConfiguredBaseModel):
                        'NamedSet',
                        'ToolDeclaration',
                        'ParameterDeclaration',
-                       'ResultColumn']} })
+                       'ResultColumn',
+                       'ToteRow',
+                       'ToteTrack']} })
     title: str = Field(default=..., json_schema_extra = { "linkml_meta": {'domain_of': ['PlotProperties',
                        'StacLink',
                        'StacAsset',
@@ -2540,8 +2715,10 @@ class ParameterDeclaration(ConfiguredBaseModel):
                        'ToolDeclaration',
                        'ParameterDeclaration',
                        'NonSpatialResult',
+                       'MeasureDefinition',
+                       'MeasureGroup',
                        'KnownStore']} })
-    explanation: Optional[str] = Field(default=None, description="""Shown beside the field on the form (CAP-24).""", json_schema_extra = { "linkml_meta": {'domain_of': ['ToolDeclaration', 'ParameterDeclaration']} })
+    explanation: Optional[str] = Field(default=None, description="""Shown beside the field on the form (CAP-24).""", json_schema_extra = { "linkml_meta": {'domain_of': ['ToolDeclaration', 'ParameterDeclaration', 'MeasureDefinition']} })
     kind: ParameterKindEnum = Field(default=..., json_schema_extra = { "linkml_meta": {'domain_of': ['ProvRecord',
                        'AgentRef',
                        'TrackProperties',
@@ -2551,7 +2728,10 @@ class ParameterDeclaration(ConfiguredBaseModel):
                        'ParameterDeclaration',
                        'KnownStore',
                        'WebviewMessage']} })
-    quantity_kind: Optional[QuantityKindEnum] = Field(default=None, description="""Required when kind is quantity.""", json_schema_extra = { "linkml_meta": {'domain_of': ['PayloadColumn', 'ParameterDeclaration', 'ResultColumn']} })
+    quantity_kind: Optional[QuantityKindEnum] = Field(default=None, description="""Required when kind is quantity.""", json_schema_extra = { "linkml_meta": {'domain_of': ['PayloadColumn',
+                       'ParameterDeclaration',
+                       'ResultColumn',
+                       'MeasureDefinition']} })
     required: Optional[bool] = Field(default=True, json_schema_extra = { "linkml_meta": {'domain_of': ['ParameterDeclaration'], 'ifabsent': 'True'} })
     default: Optional[Union[Angle, AngularRate, Duration, Length, Speed, bool, float, str]] = Field(default=None, json_schema_extra = { "linkml_meta": {'any_of': [{'range': 'float'},
                     {'range': 'string'},
@@ -2617,6 +2797,8 @@ class NonSpatialResult(ConfiguredBaseModel):
                        'ToolDeclaration',
                        'ParameterDeclaration',
                        'NonSpatialResult',
+                       'MeasureDefinition',
+                       'MeasureGroup',
                        'KnownStore']} })
     presentation: ResultPresentationEnum = Field(default=..., json_schema_extra = { "linkml_meta": {'domain_of': ['NonSpatialResult']} })
     columns: list[ResultColumn] = Field(default=..., json_schema_extra = { "linkml_meta": {'domain_of': ['PayloadRef', 'NonSpatialResult']} })
@@ -2640,8 +2822,13 @@ class ResultColumn(ConfiguredBaseModel):
                        'NamedSet',
                        'ToolDeclaration',
                        'ParameterDeclaration',
-                       'ResultColumn']} })
-    quantity_kind: Optional[QuantityKindEnum] = Field(default=None, json_schema_extra = { "linkml_meta": {'domain_of': ['PayloadColumn', 'ParameterDeclaration', 'ResultColumn']} })
+                       'ResultColumn',
+                       'ToteRow',
+                       'ToteTrack']} })
+    quantity_kind: Optional[QuantityKindEnum] = Field(default=None, json_schema_extra = { "linkml_meta": {'domain_of': ['PayloadColumn',
+                       'ParameterDeclaration',
+                       'ResultColumn',
+                       'MeasureDefinition']} })
     unit: Optional[str] = Field(default=None, description="""UCUM unit code, required when quantity_kind is given.""", json_schema_extra = { "linkml_meta": {'domain_of': ['Length',
                        'Speed',
                        'Angle',
@@ -2651,7 +2838,8 @@ class ResultColumn(ConfiguredBaseModel):
                        'AngleSeries',
                        'LengthSeries',
                        'PayloadColumn',
-                       'ResultColumn']} })
+                       'ResultColumn',
+                       'MeasureValue']} })
     numbers: Optional[list[float]] = Field(default=None, json_schema_extra = { "linkml_meta": {'domain_of': ['ResultColumn']} })
     strings: Optional[list[str]] = Field(default=None, json_schema_extra = { "linkml_meta": {'domain_of': ['ResultColumn']} })
 
@@ -2686,6 +2874,278 @@ class FormatSettings(ConfiguredBaseModel):
         return v
 
 
+class MeasureDefinition(ConfiguredBaseModel):
+    """
+    One measure the Tote can show. The core measures are Debrief's own; a study may add more (CAP-07), each worked out in Python.
+    """
+    linkml_meta: ClassVar[LinkMLMeta] = LinkMLMeta({'from_schema': 'https://debrief.info/schemas/debrief'})
+
+    id: str = Field(default=..., description="""Unique among measures, such as range or relative_bearing.""", json_schema_extra = { "linkml_meta": {'domain_of': ['ProvRecord',
+                       'TrackFeature',
+                       'AnnotationFeature',
+                       'SensorObservationsFeature',
+                       'PlotFeature',
+                       'NamedSet',
+                       'StacItem',
+                       'StacCatalog',
+                       'MeasureDefinition',
+                       'MeasureGroup',
+                       'ToteTrack',
+                       'KnownStore']} })
+    title: str = Field(default=..., description="""Its name in full, for hover text and screen readers.""", json_schema_extra = { "linkml_meta": {'domain_of': ['PlotProperties',
+                       'StacLink',
+                       'StacAsset',
+                       'StacItemProperties',
+                       'StacCatalog',
+                       'ToolDeclaration',
+                       'ParameterDeclaration',
+                       'NonSpatialResult',
+                       'MeasureDefinition',
+                       'MeasureGroup',
+                       'KnownStore']} })
+    label: str = Field(default=..., description="""Its row heading in the Tote, before the unit, short enough for a narrow view.""", json_schema_extra = { "linkml_meta": {'domain_of': ['FixMark', 'MeasureDefinition']} })
+    subject: MeasureSubjectEnum = Field(default=..., json_schema_extra = { "linkml_meta": {'domain_of': ['MeasureDefinition']} })
+    quantity_kind: QuantityKindEnum = Field(default=..., json_schema_extra = { "linkml_meta": {'domain_of': ['PayloadColumn',
+                       'ParameterDeclaration',
+                       'ResultColumn',
+                       'MeasureDefinition']} })
+    display: MeasureDisplayEnum = Field(default=..., json_schema_extra = { "linkml_meta": {'domain_of': ['MeasureDefinition']} })
+    explanation: Optional[str] = Field(default=None, description="""How it is worked out, in a sentence.""", json_schema_extra = { "linkml_meta": {'domain_of': ['ToolDeclaration', 'ParameterDeclaration', 'MeasureDefinition']} })
+
+    @field_validator('id')
+    def pattern_id(cls, v):
+        pattern=re.compile(r"^[a-z][a-z0-9_]*$")
+        if isinstance(v, list):
+            for element in v:
+                if isinstance(element, str) and not pattern.search(element):
+                    err_msg = f"Invalid id format: {element}"
+                    raise ValueError(err_msg)
+        elif isinstance(v, str) and not pattern.search(v):
+            err_msg = f"Invalid id format: {v}"
+            raise ValueError(err_msg)
+        return v
+
+
+class MeasureGroup(ConfiguredBaseModel):
+    """
+    A named, reusable set of measures tied to a mode of analysis (CAP-07), shown by the Tote in this order. Every group extends the shared core: extends names the group it adds to (core itself extends nothing). A study's own groups will be defined by its lead analyst and kept in the study catalogue, shared by every plot in the study.
+    """
+    linkml_meta: ClassVar[LinkMLMeta] = LinkMLMeta({'from_schema': 'https://debrief.info/schemas/debrief'})
+
+    id: str = Field(default=..., json_schema_extra = { "linkml_meta": {'domain_of': ['ProvRecord',
+                       'TrackFeature',
+                       'AnnotationFeature',
+                       'SensorObservationsFeature',
+                       'PlotFeature',
+                       'NamedSet',
+                       'StacItem',
+                       'StacCatalog',
+                       'MeasureDefinition',
+                       'MeasureGroup',
+                       'ToteTrack',
+                       'KnownStore']} })
+    title: str = Field(default=..., json_schema_extra = { "linkml_meta": {'domain_of': ['PlotProperties',
+                       'StacLink',
+                       'StacAsset',
+                       'StacItemProperties',
+                       'StacCatalog',
+                       'ToolDeclaration',
+                       'ParameterDeclaration',
+                       'NonSpatialResult',
+                       'MeasureDefinition',
+                       'MeasureGroup',
+                       'KnownStore']} })
+    description: Optional[str] = Field(default=None, json_schema_extra = { "linkml_meta": {'domain_of': ['PlotProperties',
+                       'StacItemProperties',
+                       'StacCatalog',
+                       'MeasureGroup']} })
+    extends: Optional[str] = Field(default=None, description="""The group whose measures come first, before this one's own; left out for core.""", json_schema_extra = { "linkml_meta": {'domain_of': ['MeasureGroup']} })
+    measures: list[str] = Field(default=..., description="""The ids of the measures shown, in order, those of the group it extends included.""", json_schema_extra = { "linkml_meta": {'domain_of': ['MeasureGroup', 'ToteResult']} })
+
+    @field_validator('id')
+    def pattern_id(cls, v):
+        pattern=re.compile(r"^[a-z][a-z0-9_-]*$")
+        if isinstance(v, list):
+            for element in v:
+                if isinstance(element, str) and not pattern.search(element):
+                    err_msg = f"Invalid id format: {element}"
+                    raise ValueError(err_msg)
+        elif isinstance(v, str) and not pattern.search(v):
+            err_msg = f"Invalid id format: {v}"
+            raise ValueError(err_msg)
+        return v
+
+
+class ToteView(ConfiguredBaseModel):
+    """
+    Which tracks the Tote compares, and through which measure group: view state in the plot's island, like the time window, so it travels with the plot file but is never a step in its history and never undone (SUB-22; decision, 14 Oct 2026). Ids of tracks no longer in the plot are shown as missing, not refused, because a change to content never changes the island.
+    """
+    linkml_meta: ClassVar[LinkMLMeta] = LinkMLMeta({'from_schema': 'https://debrief.info/schemas/debrief'})
+
+    primary: Optional[str] = Field(default=None, description="""The track the others are measured from; left out until one is chosen.""", json_schema_extra = { "linkml_meta": {'domain_of': ['ToteView', 'ToteResult']} })
+    secondaries: Optional[list[str]] = Field(default=None, description="""The tracks measured from the primary, in the order shown.""", json_schema_extra = { "linkml_meta": {'domain_of': ['ToteView']} })
+    measure_group: Optional[str] = Field(default=None, description="""The measure group shown; left out means core.""", json_schema_extra = { "linkml_meta": {'domain_of': ['ToteView']} })
+    map_lines: Optional[bool] = Field(default=None, description="""Whether the map draws a thin line from the primary to each secondary at current time; left out means it does (decision, 14 Oct 2026).""", json_schema_extra = { "linkml_meta": {'domain_of': ['ToteView']} })
+
+
+class MeasureValue(ConfiguredBaseModel):
+    """
+    One measure's value at current time; value left out where it cannot be worked out (no depth recorded, say).
+    """
+    linkml_meta: ClassVar[LinkMLMeta] = LinkMLMeta({'from_schema': 'https://debrief.info/schemas/debrief'})
+
+    measure: str = Field(default=..., json_schema_extra = { "linkml_meta": {'domain_of': ['MeasureValue']} })
+    value: Optional[float] = Field(default=None, json_schema_extra = { "linkml_meta": {'domain_of': ['Length',
+                       'Speed',
+                       'Angle',
+                       'Duration',
+                       'AngularRate',
+                       'ParameterValue',
+                       'MeasureValue']} })
+    unit: Optional[str] = Field(default=None, description="""The UCUM unit of value, such as m, deg or m/s; formatted for people by the views (SUB-04).""", json_schema_extra = { "linkml_meta": {'domain_of': ['Length',
+                       'Speed',
+                       'Angle',
+                       'Duration',
+                       'AngularRate',
+                       'SpeedSeries',
+                       'AngleSeries',
+                       'LengthSeries',
+                       'PayloadColumn',
+                       'ResultColumn',
+                       'MeasureValue']} })
+
+
+class ToteRow(ConfiguredBaseModel):
+    """
+    One track in the Tote at current time.
+    """
+    linkml_meta: ClassVar[LinkMLMeta] = LinkMLMeta({'from_schema': 'https://debrief.info/schemas/debrief'})
+
+    track: str = Field(default=..., description="""The track's feature id.""", json_schema_extra = { "linkml_meta": {'domain_of': ['ToteRow']} })
+    name: Optional[str] = Field(default=None, json_schema_extra = { "linkml_meta": {'domain_of': ['ParameterValue',
+                       'ToolRef',
+                       'AgentRef',
+                       'TrackProperties',
+                       'AnnotationProperties',
+                       'AnnotationSpec',
+                       'SensorObservationsProperties',
+                       'InnerSchemaRef',
+                       'PayloadColumn',
+                       'NamedSet',
+                       'ToolDeclaration',
+                       'ParameterDeclaration',
+                       'ResultColumn',
+                       'ToteRow',
+                       'ToteTrack']} })
+    colour: Optional[str] = Field(default=None, description="""The track's colour, lower-case hex, to key the row to the map.""", json_schema_extra = { "linkml_meta": {'domain_of': ['TrackStyle',
+                       'FixMark',
+                       'AnnotationAppearance',
+                       'ToteRow',
+                       'ToteTrack']} })
+    status: ToteRowStatusEnum = Field(default=..., json_schema_extra = { "linkml_meta": {'domain_of': ['ToteRow']} })
+    note: Optional[str] = Field(default=None, description="""Why there are no values, for the analyst, such as \"Starts 09:30:00Z\".""", json_schema_extra = { "linkml_meta": {'domain_of': ['ToteRow', 'ToteResult']} })
+    values: Optional[list[MeasureValue]] = Field(default=None, json_schema_extra = { "linkml_meta": {'domain_of': ['SpeedSeries', 'AngleSeries', 'LengthSeries', 'ToteRow']} })
+
+    @field_validator('colour')
+    def pattern_colour(cls, v):
+        pattern=re.compile(r"^#[0-9a-f]{6}$")
+        if isinstance(v, list):
+            for element in v:
+                if isinstance(element, str) and not pattern.search(element):
+                    err_msg = f"Invalid colour format: {element}"
+                    raise ValueError(err_msg)
+        elif isinstance(v, str) and not pattern.search(v):
+            err_msg = f"Invalid colour format: {v}"
+            raise ValueError(err_msg)
+        return v
+
+
+class ToteResult(ConfiguredBaseModel):
+    """
+    The Tote at one time: the primary's own measures, and each secondary's measures relative to the primary and its own, as debrief/tote returns them and the Tote view shows them.
+    """
+    linkml_meta: ClassVar[LinkMLMeta] = LinkMLMeta({'from_schema': 'https://debrief.info/schemas/debrief'})
+
+    time: str = Field(default=..., description="""The time the values are for.""", json_schema_extra = { "linkml_meta": {'domain_of': ['FixMark',
+                       'AnnotationProperties',
+                       'AnnotationSpec',
+                       'SharedState',
+                       'SharedStateChange',
+                       'ToteResult',
+                       'WebviewMessage']} })
+    group: MeasureGroup = Field(default=..., json_schema_extra = { "linkml_meta": {'domain_of': ['ToteResult']} })
+    measures: list[MeasureDefinition] = Field(default=..., description="""The definitions of the group's measures, in its order.""", json_schema_extra = { "linkml_meta": {'domain_of': ['MeasureGroup', 'ToteResult']} })
+    primary: Optional[ToteRow] = Field(default=None, json_schema_extra = { "linkml_meta": {'domain_of': ['ToteView', 'ToteResult']} })
+    note: Optional[str] = Field(default=None, description="""What the analyst should know about the Tote as a whole, such as a measure group chosen that this plot's study does not have (core is shown instead).""", json_schema_extra = { "linkml_meta": {'domain_of': ['ToteRow', 'ToteResult']} })
+    rows: list[ToteRow] = Field(default=..., description="""One per secondary, in the order chosen.""", json_schema_extra = { "linkml_meta": {'domain_of': ['ToteResult']} })
+
+    @field_validator('time')
+    def pattern_time(cls, v):
+        pattern=re.compile(r"^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}Z$")
+        if isinstance(v, list):
+            for element in v:
+                if isinstance(element, str) and not pattern.search(element):
+                    err_msg = f"Invalid time format: {element}"
+                    raise ValueError(err_msg)
+        elif isinstance(v, str) and not pattern.search(v):
+            err_msg = f"Invalid time format: {v}"
+            raise ValueError(err_msg)
+        return v
+
+
+class ToteTrack(ConfiguredBaseModel):
+    """
+    A track the analyst can put in the Tote, as the Tote view lists them.
+    """
+    linkml_meta: ClassVar[LinkMLMeta] = LinkMLMeta({'from_schema': 'https://debrief.info/schemas/debrief'})
+
+    id: str = Field(default=..., json_schema_extra = { "linkml_meta": {'domain_of': ['ProvRecord',
+                       'TrackFeature',
+                       'AnnotationFeature',
+                       'SensorObservationsFeature',
+                       'PlotFeature',
+                       'NamedSet',
+                       'StacItem',
+                       'StacCatalog',
+                       'MeasureDefinition',
+                       'MeasureGroup',
+                       'ToteTrack',
+                       'KnownStore']} })
+    name: str = Field(default=..., json_schema_extra = { "linkml_meta": {'domain_of': ['ParameterValue',
+                       'ToolRef',
+                       'AgentRef',
+                       'TrackProperties',
+                       'AnnotationProperties',
+                       'AnnotationSpec',
+                       'SensorObservationsProperties',
+                       'InnerSchemaRef',
+                       'PayloadColumn',
+                       'NamedSet',
+                       'ToolDeclaration',
+                       'ParameterDeclaration',
+                       'ResultColumn',
+                       'ToteRow',
+                       'ToteTrack']} })
+    colour: Optional[str] = Field(default=None, json_schema_extra = { "linkml_meta": {'domain_of': ['TrackStyle',
+                       'FixMark',
+                       'AnnotationAppearance',
+                       'ToteRow',
+                       'ToteTrack']} })
+
+    @field_validator('colour')
+    def pattern_colour(cls, v):
+        pattern=re.compile(r"^#[0-9a-f]{6}$")
+        if isinstance(v, list):
+            for element in v:
+                if isinstance(element, str) and not pattern.search(element):
+                    err_msg = f"Invalid colour format: {element}"
+                    raise ValueError(err_msg)
+        elif isinstance(v, str) and not pattern.search(v):
+            err_msg = f"Invalid colour format: {v}"
+            raise ValueError(err_msg)
+        return v
+
+
 class UserConfig(ConfiguredBaseModel):
     linkml_meta: ClassVar[LinkMLMeta] = LinkMLMeta({'from_schema': 'https://debrief.info/schemas/debrief'})
 
@@ -2705,6 +3165,9 @@ class KnownStore(ConfiguredBaseModel):
                        'NamedSet',
                        'StacItem',
                        'StacCatalog',
+                       'MeasureDefinition',
+                       'MeasureGroup',
+                       'ToteTrack',
                        'KnownStore']} })
     title: str = Field(default=..., description="""The name the analyst sees.""", json_schema_extra = { "linkml_meta": {'domain_of': ['PlotProperties',
                        'StacLink',
@@ -2714,6 +3177,8 @@ class KnownStore(ConfiguredBaseModel):
                        'ToolDeclaration',
                        'ParameterDeclaration',
                        'NonSpatialResult',
+                       'MeasureDefinition',
+                       'MeasureGroup',
                        'KnownStore']} })
     kind: StoreKindEnum = Field(default=..., json_schema_extra = { "linkml_meta": {'domain_of': ['ProvRecord',
                        'AgentRef',
@@ -2776,6 +3241,7 @@ class WebviewMessage(ConfiguredBaseModel):
                        'AnnotationSpec',
                        'SharedState',
                        'SharedStateChange',
+                       'ToteResult',
                        'WebviewMessage']} })
     saved_window: Optional[TimeRange] = Field(default=None, description="""The time window as saved in the plot, so the time controller can say when the window shown differs from it (CAP-28).""", json_schema_extra = { "linkml_meta": {'domain_of': ['WebviewMessage']} })
     context_tracks: Optional[ContextTracksEnum] = Field(default=None, description="""How tracks outside the time window are drawn (CAP-29).""", json_schema_extra = { "linkml_meta": {'domain_of': ['PlotView', 'WebviewMessage']} })
@@ -2798,6 +3264,9 @@ class WebviewMessage(ConfiguredBaseModel):
     fix_times: Optional[list[str]] = Field(default=None, description="""The times of the fixes the map rings (show_fixes).""", json_schema_extra = { "linkml_meta": {'domain_of': ['WebviewMessage']} })
     fix_time: Optional[str] = Field(default=None, description="""The time of the fix the analyst chose on the map (fix_chosen).""", json_schema_extra = { "linkml_meta": {'domain_of': ['TrackEdit', 'WebviewMessage']} })
     preview: Optional[LineStringGeometry] = Field(default=None, description="""A track as a change would leave it, one position per fix, drawn beside it until the analyst applies or cancels the change (show_fixes).""", json_schema_extra = { "linkml_meta": {'domain_of': ['WebviewMessage']} })
+    tote: Optional[ToteResult] = Field(default=None, description="""The Tote's values at current time (show_tote).""", json_schema_extra = { "linkml_meta": {'domain_of': ['PlotView', 'WebviewMessage']} })
+    tote_view: Optional[ToteView] = Field(default=None, description="""Which tracks the Tote compares, as saved in the plot (show_tote, set_tote) or as the analyst chose (tote_changed).""", json_schema_extra = { "linkml_meta": {'domain_of': ['WebviewMessage']} })
+    tote_tracks: Optional[list[ToteTrack]] = Field(default=None, description="""The plot's tracks, which the analyst can choose from for the Tote (show_tote).""", json_schema_extra = { "linkml_meta": {'domain_of': ['WebviewMessage']} })
 
     @field_validator('current_time')
     def pattern_current_time(cls, v):
@@ -3069,6 +3538,13 @@ ToolResult.model_rebuild()
 NonSpatialResult.model_rebuild()
 ResultColumn.model_rebuild()
 FormatSettings.model_rebuild()
+MeasureDefinition.model_rebuild()
+MeasureGroup.model_rebuild()
+ToteView.model_rebuild()
+MeasureValue.model_rebuild()
+ToteRow.model_rebuild()
+ToteResult.model_rebuild()
+ToteTrack.model_rebuild()
 UserConfig.model_rebuild()
 KnownStore.model_rebuild()
 WebviewMessage.model_rebuild()

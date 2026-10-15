@@ -1,0 +1,95 @@
+{
+  "kind": "show_tote",
+  "tote": {
+    "time": "2023-06-15T09:21:17.000Z",
+    "group": {
+      "id": "core",
+      "title": "Core",
+      "measures": [
+        "range",
+        "bearing",
+        "relative_bearing",
+        "course",
+        "speed",
+        "depth"
+      ]
+    },
+    "measures": [
+      {
+        "id": "range",
+        "title": "Range from the primary",
+        "label": "Range",
+        "subject": "relative",
+        "quantity_kind": "length",
+        "display": "range"
+      },
+      {
+        "id": "bearing",
+        "title": "Bearing from the primary, true",
+        "label": "Brg",
+        "subject": "relative",
+        "quantity_kind": "angle",
+        "display": "bearing"
+      },
+      {
+        "id": "relative_bearing",
+        "title": "Bearing from the primary's head",
+        "label": "Rel",
+        "subject": "relative",
+        "quantity_kind": "angle",
+        "display": "relative_bearing"
+      },
+      {
+        "id": "course",
+        "title": "Course",
+        "label": "Crse",
+        "subject": "own",
+        "quantity_kind": "angle",
+        "display": "bearing"
+      },
+      {
+        "id": "speed",
+        "title": "Speed",
+        "label": "Spd",
+        "subject": "own",
+        "quantity_kind": "speed",
+        "display": "quantity"
+      },
+      {
+        "id": "depth",
+        "title": "Depth",
+        "label": "Depth",
+        "subject": "own",
+        "quantity_kind": "length",
+        "display": "depth"
+      }
+    ],
+    "primary": {
+      "track": "track-blue-one",
+      "name": "BLUE ONE",
+      "colour": "#1f6feb",
+      "status": "ok",
+      "values": [
+        {
+          "measure": "course",
+          "value": 225.0,
+          "unit": "deg"
+        },
+        {
+          "measure": "speed",
+          "value": 6.17,
+          "unit": "m/s"
+        },
+        {
+          "measure": "depth"
+        }
+      ]
+    },
+    "rows": [
+      {
+        "track": "track-red-one",
+        "status": "unknown"
+      }
+    ]
+  }
+}

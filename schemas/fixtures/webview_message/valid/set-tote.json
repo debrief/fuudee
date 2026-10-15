@@ -1,0 +1,10 @@
+{
+  "kind": "set_tote",
+  "tote_view": {
+    "primary": "track-blue-one",
+    "secondaries": [
+      "track-red-one"
+    ],
+    "map_lines": false
+  }
+}

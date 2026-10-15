@@ -16,6 +16,7 @@ import { playShear } from "./shear.mjs";
 import { playTracks } from "./tracks.mjs";
 import { playCleaning } from "./cleaning.mjs";
 import { playFixDrag } from "./fixdrag.mjs";
+import { playTote, stickyHeadings } from "./tote.mjs";
 
 const root = path.resolve(process.argv[2] ?? "../site/docs/play");
 const site = process.argv[3] ? path.resolve(process.argv[3]) : undefined;
@@ -72,6 +73,9 @@ try {
   await page.waitForFunction((was) => document.querySelector("#timebar .time-label")?.textContent !== was, timeBefore);
   assert.ok((await markers()) > 0, "tracks show where they were at current time");
   await playTheTimeController();
+  // The Tote: primary and secondaries chosen by pointer, keyboard, the outline's menu and touch;
+  // values follow current time as it steps and plays; latency reported (CAP-06, NFR-04).
+  await playTote(page, shot);
 
   // The map: a click on BLUE ONE's first fix, inside the exercise area, selects BLUE ONE, not the area.
   const plot = JSON.parse(readFileSync(path.join(root, "sample/serial-1/plot.geojson"), "utf8"));
@@ -376,10 +380,11 @@ try {
 
   await contextOnDark();
   await vscodeTimeView();
+  await vscodeToteView();
   await cdnBlocked();
   if (site) await playFromThePost();
   assert.deepEqual(errors, []);
-  console.log(`Playground played: map selection, keyboard, tools, undo, crash recovery, conflict, annotations, drawing, tracks, shear and stretch, cleaning, single fixes, import, narrow, CDN blocked${site ? ", and from a blog post" : ""}.`);
+  console.log(`Playground played: map selection, keyboard, the Tote, tools, undo, crash recovery, conflict, annotations, drawing, tracks, shear and stretch, cleaning, single fixes, import, narrow, CDN blocked${site ? ", and from a blog post" : ""}.`);
 
   /**
    * The time controller (CAP-28): drag the window and the map shows only it, at
@@ -604,6 +609,86 @@ try {
     files.close();
   }
 
+  /**
+   * VS Code's Tote view page (dist/webview/tote.js), at a sidebar's usual width: the values
+   * of a show_tote message in legacy Debrief's table, a row a measure and a column a track;
+   * the page never scrolls sideways, the tracks scroll inside the table under row headings
+   * that stay put; Delete on a secondary's × asks the host to remove it.
+   */
+  async function vscodeToteView() {
+    const extension = path.resolve(import.meta.dirname, "..", "..");
+    const files = serve(path.join(extension, "dist", "webview")); // built by vscodeTimeView
+    const view = await browser.newPage({ viewport: { width: 290, height: 300 }, colorScheme: "dark" });
+    view.on("pageerror", (e) => errors.push(String(e)));
+    const posted = [];
+    await view.exposeFunction("tellTest", (message) => posted.push(message));
+    await view.route("**/tote-view.html", (route) =>
+      route.fulfill({
+        contentType: "text/html",
+        body:
+          `<!doctype html><html lang="en-GB"><head><meta charset="utf-8"><link rel="stylesheet" href="tote.css">` +
+          `<style>:root { --vscode-font-family: system-ui, Ubuntu, "Droid Sans", sans-serif; --vscode-font-size: 13px; --vscode-editor-font-family: "Droid Sans Mono", monospace; --vscode-foreground: #ccc; --vscode-descriptionForeground: #9d9d9d; --vscode-sideBar-background: #181818; --vscode-focusBorder: #0078d4; --vscode-dropdown-background: #313131; --vscode-widget-border: #313131; --vscode-list-hoverBackground: #2a2d2e; }</style>` +
+          `</head><body><div id="root"></div><script>window.acquireVsCodeApi = () => ({ postMessage: (m) => window.tellTest(m) });</script>` +
+          `<script src="tote.js"></script></body></html>`,
+      }),
+    );
+    await view.goto(`http://127.0.0.1:${files.address().port}/tote-view.html`);
+    for (let i = 0; i < 50 && !posted.some((m) => m.kind === "ready"); i++) await view.waitForTimeout(100);
+    const fixture = JSON.parse(readFileSync(path.resolve(extension, "..", "schemas/fixtures/webview_message/valid/show-tote.json"), "utf8"));
+    await view.evaluate((message) => window.postMessage(message, "*"), fixture);
+    await view.locator('#tote td[data-track="track-red-one"]').first().waitFor();
+    assert.equal(await view.locator(".empty").isHidden(), true);
+    // A row a measure, its unit in its heading; a column a track, the primary first.
+    assert.deepEqual(await view.locator('#tote tbody th[scope="row"]').allInnerTexts(), ["Range nmi", "Brg °T", "Rel °", "AOB °", "Brg rate °/min", "Crse °T", "Spd kn", "Depth m"]);
+    assert.deepEqual(await view.locator('#tote thead th[scope="col"] .tote-name').allInnerTexts(), ["BLUE ONE", "RED ONE", "Tug 01", "track-gone"]);
+    assert.equal(await view.locator("#tote .tote-table").getAttribute("aria-label"), "Tote");
+    // Figures only; a close range keeps its yards.
+    assert.deepEqual(await view.locator('#tote td[data-track="track-red-one"]').allInnerTexts(), ["1350 yd", "200.5", "R024.5", "G135.0", "-0.8", "230.0", "6.0", "20.0"]);
+    assert.deepEqual(await view.locator('#tote td[data-track="track-blue-one"]').allInnerTexts(), ["", "", "", "", "", "225.0", "12.0", "—"]);
+    // No data: a column of dashes, and why under the table.
+    assert.deepEqual([...new Set(await view.locator('#tote td[data-track="track-tug-01"]').allInnerTexts())], ["—"]);
+    assert.equal(await view.locator("#tote .tote-why").first().innerText(), "Ended 10:35:00Z");
+    assert.equal(await view.locator("#tote .tote-whys li").nth(1).innerText(), "track-gone No longer in the plot");
+    // The × in each secondary's heading, named for screen readers.
+    assert.deepEqual(await view.locator("#tote thead button.tote-remove").evaluateAll((bs) => bs.map((b) => b.getAttribute("aria-label"))), [
+      "Remove RED ONE from the Tote",
+      "Remove Tug 01 from the Tote",
+      "Remove track-gone from the Tote",
+    ]);
+    // Never the page sideways; the table inside itself, its row headings staying put.
+    const pageSideways = () => view.evaluate(() => document.documentElement.scrollWidth > innerWidth);
+    const scroll = view.locator("#tote .tote-scroll");
+    assert.equal(await pageSideways(), false, "at 290 px, the page does not scroll sideways");
+    await stickyHeadings(scroll, "at 290 px");
+    await shot("tote-vscode-view", view);
+    // Narrower still, as the side column of a demo in a blog post.
+    await view.setViewportSize({ width: 210, height: 300 });
+    await view.waitForTimeout(100);
+    assert.equal(await pageSideways(), false, "at 210 px, the page does not scroll sideways");
+    await stickyHeadings(scroll, "at 210 px");
+    // Wide: every track in view, nothing to scroll.
+    await view.setViewportSize({ width: 680, height: 300 });
+    await view.waitForTimeout(100);
+    assert.equal(await pageSideways(), false, "at 680 px, the page does not scroll sideways");
+    assert.ok(await scroll.evaluate((s) => s.scrollWidth <= s.clientWidth), "at 680 px, the table fits");
+    await view.setViewportSize({ width: 290, height: 300 });
+    // Delete on RED ONE's ×: the host is asked to save the Tote without it.
+    await view.locator('#tote button.tote-remove[data-track="track-red-one"]').focus();
+    await view.keyboard.press("Delete");
+    for (let i = 0; i < 20 && !posted.some((m) => m.kind === "tote_changed"); i++) await view.waitForTimeout(50);
+    assert.deepEqual(posted.find((m) => m.kind === "tote_changed")?.tote_view, { primary: "track-blue-one", secondaries: ["track-tug-01", "track-gone"] });
+    // The map's lines off, from the keyboard: saved with the choice.
+    await view.locator("#tote .tote-lines").focus();
+    await view.keyboard.press("Space");
+    for (let i = 0; i < 20 && posted.filter((m) => m.kind === "tote_changed").length < 2; i++) await view.waitForTimeout(50);
+    assert.deepEqual(posted.filter((m) => m.kind === "tote_changed")[1]?.tote_view, { primary: "track-blue-one", secondaries: ["track-tug-01", "track-gone"], map_lines: false });
+    // No plot: it says how to start.
+    await view.evaluate(() => window.postMessage({ kind: "show_tote" }, "*"));
+    await view.locator(".empty", { hasText: "Open a plot" }).waitFor();
+    await view.close();
+    files.close();
+  }
+
   /** With the CDN blocked, the page says so plainly; the map still works. */
   async function cdnBlocked() {
     const context = await browser.newContext({ viewport: { width: 1280, height: 800 } });
@@ -705,6 +790,23 @@ try {
     await fixing.locator("#move-fix").waitFor();
     await post.locator(".debrief-demo").first().scrollIntoViewIfNeeded();
     await shot("fixdrag-06-in-the-post", post);
+    // The Tote post's demo: the Tote under the time controller; a primary and a secondary give values.
+    await post.goto(`http://127.0.0.1:${siteServer.address().port}/blog/2026/10/16/the-tote/`);
+    await post.locator(".debrief-demo").first().getByRole("button", { name: "Start the demo" }).click();
+    const toting = post.frameLocator(".debrief-demo-frame");
+    await toting.locator("#status", { hasText: "Ready" }).waitFor({ timeout: 240000 });
+    assert.equal(await toting.locator("#panel-tote").isVisible(), true);
+    await toting.locator("#tote .tote-primary").selectOption({ label: "BLUE ONE" });
+    await toting.locator("#tote .tote-add").selectOption({ label: "RED ONE" });
+    await toting.locator('#tote td[data-track="track-red-one"][data-measure="range"]', { hasText: /^(\d+\.\d\d|\d+ yd)$/ }).waitFor();
+    // The demo's side column is narrow: the demo's page never scrolls sideways; where the
+    // tracks need more room, they scroll inside the table under row headings that stay put.
+    assert.ok(await toting.locator("html").evaluate((e) => e.scrollWidth <= e.clientWidth), "the demo's page does not scroll sideways");
+    assert.ok(await toting.locator("#panel-tote").evaluate((e) => e.scrollWidth <= e.clientWidth), "the Tote does not widen the demo's side column");
+    const scroll = toting.locator("#tote .tote-scroll");
+    if (await scroll.evaluate((e) => e.scrollWidth > e.clientWidth)) await stickyHeadings(scroll, "in the post's demo");
+    await post.locator(".debrief-demo").first().scrollIntoViewIfNeeded();
+    await shot("tote-06-in-the-post", post);
     siteServer.close();
   }
 } catch (error) {

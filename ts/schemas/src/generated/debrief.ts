@@ -205,6 +205,20 @@ export type ItemTypeEnum = "Feature";
  */
 export type StoreKindEnum = "file";
 /**
+ * How a measure's value is written for people, by the formatting service (SUB-04).
+ *
+ * This interface was referenced by `DebriefSchemaDefinitions`'s JSON-Schema
+ * via the `definition` "MeasureDisplayEnum".
+ */
+export type MeasureDisplayEnum = "quantity" | "range" | "bearing" | "relative_bearing" | "depth";
+/**
+ * What a measure is of.
+ *
+ * This interface was referenced by `DebriefSchemaDefinitions`'s JSON-Schema
+ * via the `definition` "MeasureSubjectEnum".
+ */
+export type MeasureSubjectEnum = "relative" | "own";
+/**
  * This interface was referenced by `DebriefSchemaDefinitions`'s JSON-Schema
  * via the `definition` "ResultPresentationEnum".
  */
@@ -231,6 +245,13 @@ export type StepStateEnum1 = "applied" | "undone" | "abandoned";
  */
 export type ToolOutputKindEnum =
   "new_features" | "modified_features" | "deleted_features" | "non_spatial" | "named_sets" | "state_change";
+/**
+ * Whether a track in the Tote has values at current time.
+ *
+ * This interface was referenced by `DebriefSchemaDefinitions`'s JSON-Schema
+ * via the `definition` "ToteRowStatusEnum".
+ */
+export type ToteRowStatusEnum = "ok" | "no_data" | "missing";
 /**
  * What a track edit does (CAP-01).
  *
@@ -283,6 +304,9 @@ export type WebviewMessageKindEnum =
   | "annotation_drawn"
   | "edit_track"
   | "show_fixes"
+  | "show_tote"
+  | "tote_changed"
+  | "set_tote"
   | "fix_chosen";
 
 export interface DebriefSchemaDefinitions {}
@@ -838,6 +862,34 @@ export interface PlotView {
    * The plot's time window: the period shown, one for the whole plot (CAP-28, CAP-29). Start shall not be after end.
    */
   time_window?: TimeRange | null;
+  /**
+   * Which tracks the Tote compares, and through which measure group (CAP-06, CAP-07). View state, like the window: changing it is never a step in the history (decision, 14 Oct 2026).
+   */
+  tote?: ToteView | null;
+}
+/**
+ * Which tracks the Tote compares, and through which measure group: view state in the plot's island, like the time window, so it travels with the plot file but is never a step in its history and never undone (SUB-22; decision, 14 Oct 2026). Ids of tracks no longer in the plot are shown as missing, not refused, because a change to content never changes the island.
+ *
+ * This interface was referenced by `DebriefSchemaDefinitions`'s JSON-Schema
+ * via the `definition` "ToteView".
+ */
+export interface ToteView {
+  /**
+   * Whether the map draws a thin line from the primary to each secondary at current time; left out means it does (decision, 14 Oct 2026).
+   */
+  map_lines?: boolean | null;
+  /**
+   * The measure group shown; left out means core.
+   */
+  measure_group?: string | null;
+  /**
+   * The track the others are measured from; left out until one is chosen.
+   */
+  primary?: string | null;
+  /**
+   * The tracks measured from the primary, in the order shown.
+   */
+  secondaries?: string[] | null;
 }
 /**
  * A plot's whole history, kept in its plot file as the top-level member history (decision 13 Oct). Steps are numbered from 1 with no gaps, in the order they were made.
@@ -1029,6 +1081,66 @@ export interface KnownStore {
    * The name the analyst sees.
    */
   title: string;
+}
+/**
+ * One measure the Tote can show. The core measures are Debrief's own; a study may add more (CAP-07), each worked out in Python.
+ *
+ * This interface was referenced by `DebriefSchemaDefinitions`'s JSON-Schema
+ * via the `definition` "MeasureDefinition".
+ */
+export interface MeasureDefinition {
+  display: MeasureDisplayEnum;
+  /**
+   * How it is worked out, in a sentence.
+   */
+  explanation?: string | null;
+  /**
+   * Unique among measures, such as range or relative_bearing.
+   */
+  id: string;
+  /**
+   * Its row heading in the Tote, before the unit, short enough for a narrow view.
+   */
+  label: string;
+  quantity_kind: QuantityKindEnum;
+  subject: MeasureSubjectEnum;
+  /**
+   * Its name in full, for hover text and screen readers.
+   */
+  title: string;
+}
+/**
+ * A named, reusable set of measures tied to a mode of analysis (CAP-07), shown by the Tote in this order. Every group extends the shared core: extends names the group it adds to (core itself extends nothing). A study's own groups will be defined by its lead analyst and kept in the study catalogue, shared by every plot in the study.
+ *
+ * This interface was referenced by `DebriefSchemaDefinitions`'s JSON-Schema
+ * via the `definition` "MeasureGroup".
+ */
+export interface MeasureGroup {
+  description?: string | null;
+  /**
+   * The group whose measures come first, before this one's own; left out for core.
+   */
+  extends?: string | null;
+  id: string;
+  /**
+   * The ids of the measures shown, in order, those of the group it extends included.
+   */
+  measures: string[];
+  title: string;
+}
+/**
+ * One measure's value at current time; value left out where it cannot be worked out (no depth recorded, say).
+ *
+ * This interface was referenced by `DebriefSchemaDefinitions`'s JSON-Schema
+ * via the `definition` "MeasureValue".
+ */
+export interface MeasureValue {
+  measure: string;
+  /**
+   * The UCUM unit of value, such as m, deg or m/s; formatted for people by the views (SUB-04).
+   */
+  unit?: string | null;
+  value?: number | null;
 }
 /**
  * A number, table or graph (TL-13), held column by column. A number is one column with one value; a graph plots its first column against the rest.
@@ -1314,6 +1426,66 @@ export interface ToolResult {
   state_change?: SharedStateChange | null;
 }
 /**
+ * The Tote at one time: the primary's own measures, and each secondary's measures relative to the primary and its own, as debrief/tote returns them and the Tote view shows them.
+ *
+ * This interface was referenced by `DebriefSchemaDefinitions`'s JSON-Schema
+ * via the `definition` "ToteResult".
+ */
+export interface ToteResult {
+  group: MeasureGroup;
+  /**
+   * The definitions of the group's measures, in its order.
+   */
+  measures: MeasureDefinition[];
+  /**
+   * What the analyst should know about the Tote as a whole, such as a measure group chosen that this plot's study does not have (core is shown instead).
+   */
+  note?: string | null;
+  primary?: ToteRow | null;
+  /**
+   * One per secondary, in the order chosen.
+   */
+  rows: ToteRow[];
+  /**
+   * The time the values are for.
+   */
+  time: string;
+}
+/**
+ * One track in the Tote at current time.
+ *
+ * This interface was referenced by `DebriefSchemaDefinitions`'s JSON-Schema
+ * via the `definition` "ToteRow".
+ */
+export interface ToteRow {
+  /**
+   * The track's colour, lower-case hex, to key the row to the map.
+   */
+  colour?: string | null;
+  name?: string | null;
+  /**
+   * Why there are no values, for the analyst, such as "Starts 09:30:00Z".
+   */
+  note?: string | null;
+  status: ToteRowStatusEnum;
+  /**
+   * The track's feature id.
+   */
+  track: string;
+  values?: MeasureValue[] | null;
+}
+/**
+ * A track the analyst can put in the Tote, as the Tote view lists them.
+ *
+ * This interface was referenced by `DebriefSchemaDefinitions`'s JSON-Schema
+ * via the `definition` "ToteTrack".
+ */
+export interface ToteTrack {
+  colour?: string | null;
+  id: string;
+  name: string;
+}
+/**
  * A track moved, rotated, sheared or stretched by hand, as the map, a form or an agent describes it (CAP-01, CAP-02, CAP-21): one recorded, undoable step in the plot's history (SUB-19). Geodesic: a move takes every fix in the period the same range along the same bearing, each along its own geodesic; a rotation keeps each fix's range from the pivot and turns its bearing from the pivot by the angle. A shear and a stretch hold one end of the period (the anchor) and work in the azimuthal equidistant frame about it, where a geodesic through the anchor is a straight line: a shear adds to each fix the dragged end's displacement times the fix's fraction of the time from the anchor to the dragged end; a stretch scales each fix's range from the anchor, keeping its bearing from it. Either way a straight, steady leg stays a straight, steady leg. Fixes outside the period stay where they are, so the joins jump. A single fix moved (move_fix) goes where it is told, alone: its neighbours, its time and its recorded course and speed stay. set_plotting_mode with plotting_mode dr plots the whole track by dead reckoning, each fix placed from the one before by that fix's recorded course and speed, from the track's first fix; with otg it puts the fixes back where they were logged, after the analyst confirms losing any change made while plotted by dead reckoning (discard_dr_changes).
  *
  * This interface was referenced by `DebriefSchemaDefinitions`'s JSON-Schema
@@ -1455,6 +1627,18 @@ export interface WebviewMessage {
   time_range?: TimeRange | null;
   tool?: ToolDeclaration | null;
   tool_name?: string | null;
+  /**
+   * The Tote's values at current time (show_tote).
+   */
+  tote?: ToteResult | null;
+  /**
+   * The plot's tracks, which the analyst can choose from for the Tote (show_tote).
+   */
+  tote_tracks?: ToteTrack[] | null;
+  /**
+   * Which tracks the Tote compares, as saved in the plot (show_tote, set_tote) or as the analyst chose (tote_changed).
+   */
+  tote_view?: ToteView | null;
   /**
    * How the analyst moved, rotated, sheared or stretched a track, or moved one of its fixes, on the map (edit_track).
    */

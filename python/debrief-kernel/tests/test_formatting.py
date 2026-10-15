@@ -11,8 +11,11 @@ from debrief_kernel.formatting import (
     PositionError,
     fixed,
     format_bearing,
+    format_depth,
     format_position,
     format_quantity,
+    format_range,
+    format_relative_bearing,
     format_time,
     parse_position,
 )
@@ -35,8 +38,14 @@ def test_shared_vector(case: dict) -> None:
     given = case["input"]
     if case["op"] == "quantity":
         result = format_quantity(Quantity(given["value"], given["unit"]), settings)
+    elif case["op"] == "range":
+        result = format_range(Quantity(given["value"], given["unit"]), settings)
     elif case["op"] == "bearing":
         result = format_bearing(Quantity(given["value"], given["unit"]), settings)
+    elif case["op"] == "relative_bearing":
+        result = format_relative_bearing(Quantity(given["value"], given["unit"]), settings)
+    elif case["op"] == "depth":
+        result = format_depth(Quantity(given["value"], given["unit"]), settings)
     elif case["op"] == "position":
         result = format_position(Position(given["longitude"], given["latitude"]), settings)
     else:
@@ -45,7 +54,15 @@ def test_shared_vector(case: dict) -> None:
 
 
 def test_vectors_cover_every_operation_and_notation() -> None:
-    assert {c["op"] for c in CASES} == {"quantity", "bearing", "position", "time"}
+    assert {c["op"] for c in CASES} == {
+        "quantity",
+        "range",
+        "bearing",
+        "relative_bearing",
+        "depth",
+        "position",
+        "time",
+    }
     notations = {
         c["settings"].get("position_notation", "dm") for c in CASES if c["op"] == "position"
     }

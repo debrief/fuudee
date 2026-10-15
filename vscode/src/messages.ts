@@ -3,7 +3,7 @@
  * validated against the schema, and against the members its kind must carry,
  * before it is acted on.
  */
-import { DocumentValidationError, validateDocument, type TrackEdit, type WebviewMessage } from "@debrief/schemas";
+import { DocumentValidationError, validateDocument, type ToteView, type TrackEdit, type WebviewMessage } from "@debrief/schemas";
 import table from "../../schemas/vectors/webview-messages.json";
 import { timeProblem, viewportProblem } from "./session.js";
 
@@ -29,8 +29,19 @@ export function checkMessage(raw: unknown): WebviewMessage {
   const saved = message.saved_window;
   if (saved && !(Date.parse(saved.start) <= Date.parse(saved.end))) problems.push("saved_window: time range starts after it ends");
   if (message.track_edit) problems.push(...trackEditProblems(message.track_edit));
+  if (message.tote_view) problems.push(...toteViewProblems(message.tote_view));
   if (problems.length) throw new DocumentValidationError(problems);
   return message;
+}
+
+/** The rules on the Tote's choice of tracks that Python's validation applies too (debrief_schemas.documents.tote_view_problems). */
+export function toteViewProblems(tote: ToteView, where = "tote_view"): string[] {
+  const problems: string[] = [];
+  const secondaries = tote.secondaries ?? [];
+  if (tote.primary && secondaries.includes(tote.primary)) problems.push(`${where}: the primary, ${tote.primary}, is also a secondary`);
+  const twice = [...new Set(secondaries.filter((id, i) => secondaries.indexOf(id) !== i))].sort();
+  for (const id of twice) problems.push(`${where}: secondary ${id} is chosen more than once`);
+  return problems;
 }
 
 /** The rules on a track changed by hand that Python's validation applies too (debrief_schemas.documents.track_edit_problems). */

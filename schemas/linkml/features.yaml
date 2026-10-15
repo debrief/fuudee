@@ -15,6 +15,7 @@ imports:
   - core
   - geojson
   - prov
+  - measures
 
 description: >-
   A plot is a GeoJSON FeatureCollection (SUB-05). Every feature carries its
@@ -602,6 +603,13 @@ classes:
           How tracks outside the time window are drawn (CAP-29). Left out
           means visible.
         range: ContextTracksEnum
+      tote:
+        description: >-
+          Which tracks the Tote compares, and through which measure group
+          (CAP-06, CAP-07). View state, like the window: changing it is never
+          a step in the history (decision, 14 Oct 2026).
+        range: ToteView
+        inlined: true
 
   # --- Named sets and the collection ---------------------------------------
   NamedSet:

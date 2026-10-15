@@ -10,7 +10,7 @@ import { randomBytes } from "node:crypto";
 import { request as httpRequest } from "node:http";
 import { tmpdir } from "node:os";
 import { createInterface } from "node:readline";
-import type { AnnotationSpec, DebriefFeatureCollection, PlotView, SharedState, ToolDeclaration, ToolResult, TrackEdit } from "@debrief/schemas";
+import type { AnnotationSpec, DebriefFeatureCollection, MeasureDefinition, MeasureGroup, PlotView, SharedState, ToolDeclaration, ToolResult, ToteResult, ToteView, TrackEdit } from "@debrief/schemas";
 import type { ToolOutcome } from "./diagnostics.js";
 
 export interface Unavailable {
@@ -489,6 +489,20 @@ export class ToolService {
   /** Change the plot's view (its island): never recorded or undone. Fails with CONFLICT if it changed since hash was read. */
   setView(store: string, item: string, view: PlotView | null, hash: string, agent: Agent, allowNewerSchema = false): Promise<OpenedView> {
     return this.request("debrief/set_view", { store, item, view, hash, agent, ...(allowNewerSchema && { allow_newer_schema: true }) });
+  }
+
+  /**
+   * The Tote at one time (CAP-06): measures from the primary to each secondary, and
+   * each track's own, worked out in Python. tote says which tracks; left out, the
+   * plot's island says. Reads only, so it never conflicts; asked again at each time.
+   */
+  tote(store: string, item: string, time: string, tote?: ToteView): Promise<ToteResult> {
+    return this.request("debrief/tote", { store, item, time, ...(tote && { tote }) });
+  }
+
+  /** The measure groups the Tote can show (CAP-07): core, for now. */
+  measureGroups(): Promise<{ groups: MeasureGroup[]; measures: MeasureDefinition[] }> {
+    return this.request("debrief/measure_groups");
   }
 
   /**

@@ -9,6 +9,8 @@ import type { Session } from "../session.js";
 import { checkMessage } from "../messages.js";
 import { webviewHtml } from "./html.js";
 import { displayed, hiddenIds } from "../hidden.js";
+import type { ToteView } from "@debrief/schemas";
+import { toteOf } from "../../webview/totelogic.js";
 
 export class MapPanel {
   private panel?: vscode.WebviewPanel;
@@ -19,6 +21,8 @@ export class MapPanel {
   hiddenCount?: number;
   /** How the map was last told to draw tracks outside the window, for tests and agents. */
   context?: string;
+  /** The Tote's choice the map was last told of, for its lines from the primary (CAP-06), for tests and agents. */
+  tote?: ToteView;
   /** The fixes the map last ringed for the analyst to check, and any change previewed, for tests and agents. */
   fixesShown?: { feature_id: string; fix_times?: string[]; preview?: { type: "LineString"; coordinates: number[][] }; message?: string };
 
@@ -41,6 +45,9 @@ export class MapPanel {
       if (!this.session.current || !this.panel || !this.ready) return;
       this.context = this.session.contextShown();
       this.post({ kind: "set_context", context_tracks: this.context });
+      // The Tote's tracks and whether the map draws its lines: island state too (decision, 14 Oct 2026).
+      this.tote = toteOf(this.session.current.plot);
+      this.post({ kind: "set_tote", tote_view: this.tote });
     });
   }
 

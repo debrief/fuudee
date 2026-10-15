@@ -6,7 +6,7 @@
  * shared vectors in schemas/vectors/formatting.json.
  */
 import type { FormatSettings } from "@debrief/schemas";
-import { convert, kindOf, normaliseBearing, type Quantity } from "./units.js";
+import { bearingDifference, convert, kindOf, normaliseBearing, type Quantity } from "./units.js";
 
 export type { FormatSettings };
 
@@ -74,12 +74,47 @@ export function formatQuantity(quantity: Quantity, settings: FormatSettings = DE
   return `${fixed(convert(quantity, unit).value, decimals)} ${UNIT_LABELS[unit]}`;
 }
 
+/**
+ * A range between two vessels: as formatQuantity, except that where the analyst's lengths
+ * are in nautical miles, a range under 1 nmi is in whole yards, "60 yd", as analysts call
+ * close ranges (decision, 14 Oct 2026); from 1 nmi, nautical miles.
+ */
+export function formatRange(distance: Quantity, settings: FormatSettings = DEFAULT_SETTINGS): string {
+  if (settings.length_unit === "[nmi_i]" && convert(distance, "[nmi_i]").value < 1.0) {
+    return `${fixed(convert(distance, "[yd_i]").value, 0)} ${UNIT_LABELS["[yd_i]"]}`;
+  }
+  return formatQuantity(distance, settings);
+}
+
 export function formatBearing(bearing: Quantity, settings: FormatSettings = DEFAULT_SETTINGS): string {
   const decimals = settings.angle_decimals;
   let text = fixed(normaliseBearing(convert(bearing, "deg").value), decimals);
   if (Number(text) >= 360.0) text = fixed(0.0, decimals);
   const width = 3 + (decimals ? decimals + 1 : 0);
   return `${text.padStart(width, "0")}°T`;
+}
+
+/**
+ * A bearing from a vessel's head, three figures, red to port and green to starboard:
+ * "R045.0°", "G120.0°"; dead ahead "000.0°" and dead astern "180.0°", with no side.
+ */
+export function formatRelativeBearing(bearing: Quantity, settings: FormatSettings = DEFAULT_SETTINGS): string {
+  const decimals = settings.angle_decimals;
+  const signed = bearingDifference(convert(bearing, "deg").value, 0);
+  const text = fixed(Math.abs(signed), decimals);
+  const width = 3 + (decimals ? decimals + 1 : 0);
+  if (Number(text) === 0 || Number(text) >= 180) return `${fixed(Number(text) === 0 ? 0 : 180, decimals).padStart(width, "0")}°`;
+  return `${signed < 0 ? "R" : "G"}${text.padStart(width, "0")}°`;
+}
+
+/** Feet where the analyst's lengths are in feet or yards; else metres; one decimal (no depth setting yet). */
+const IMPERIAL = ["[ft_i]", "[yd_i]"];
+export const DEPTH_DECIMALS = 1;
+
+/** A depth below the surface: "20.0 m", or "65.6 ft" where lengths are imperial. */
+export function formatDepth(depth: Quantity, settings: FormatSettings = DEFAULT_SETTINGS): string {
+  const unit = IMPERIAL.includes(settings.length_unit) ? "[ft_i]" : "m";
+  return `${fixed(convert(depth, unit).value, DEPTH_DECIMALS)} ${UNIT_LABELS[unit]}`;
 }
 
 function scaled(value: number, places: number): string {

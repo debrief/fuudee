@@ -36,15 +36,15 @@ def _track(feature_id: str, path: TrackPath) -> models.TrackFeature:
     )
 
 
-def _rounded(value):
+def _rounded(value, places: int = 9):
     """Floats to 1e-9 (about 0.1 mm in degrees): CPython and Pyodide link different maths
     libraries, which can differ in the last bit of a geodesic result."""
     if isinstance(value, float):
-        return round(value, 9)
+        return round(value, places)
     if isinstance(value, list):
-        return [_rounded(v) for v in value]
+        return [_rounded(v, places) for v in value]
     if isinstance(value, dict):
-        return {k: _rounded(v) for k, v in value.items()}
+        return {k: _rounded(v, places) for k, v in value.items()}
     return value
 
 
@@ -140,6 +140,9 @@ def main(fixtures: Path) -> dict:
     # History: a plot is saved, changed, undone and redone, as the browser playground does.
     report["history"] = _history()
 
+    # The Tote (CAP-06, NFR-04): measures at one time, asked again for each time.
+    report["tote"], timings["tote_ms"] = _tote()
+
     return {"report": report, "timings": timings}
 
 
@@ -188,6 +191,41 @@ def _history() -> dict:
             "received_steps": [s.status for s in other.history(added).steps()],
             "received_at_step_1": [f.id for f in other.read_plot(added).features],
         }
+
+
+def _tote() -> tuple[dict, float]:
+    import tempfile
+
+    from debrief_stac import Catalogue, Changes
+    from debrief_stac.tote import tote
+
+    record = models.ProvRecord(
+        id="op-1",
+        kind="edit",
+        started_at="2026-10-11T10:00:00.000Z",
+        agent=models.AgentRef(kind="person", name="smoke"),
+    )
+    start = parse_utc("2026-10-11T09:00:00.000Z")
+    paths = {
+        "a": TrackPath([start, start + 3_600_000], [Position(179.9, 0), Position(-179.8, 0.1)]),
+        "b": TrackPath([start, start + 3_600_000], [Position(179.95, 0.05), Position(-179.9, 0)]),
+        "c": TrackPath([start, start + 3_600_000], [Position(0, 89.9), Position(180, 89.9)]),
+    }
+    with tempfile.TemporaryDirectory() as folder:
+        catalogue = Catalogue.create(Path(folder) / "cat", "smoke", "Smoke", "")
+        catalogue.create_plot("p", "Plot")
+        features = [_track(name, path) for name, path in paths.items()]
+        catalogue.commit("p", [record], Changes(added=features))
+        view = {"primary": "a", "secondaries": ["b", "c"]}
+        at = [start + i * 18_000 for i in range(200)]
+        results = [tote(catalogue, "p", at[0], view)]
+        began = time.perf_counter()
+        for t in at:
+            tote(catalogue, "p", t, view)
+        per_call_ms = (time.perf_counter() - began) / len(at) * 1000
+        results.append(tote(catalogue, "p", start + 1_800_000, view))
+        # Ranges of thousands of kilometres in metres: a micrometre is the last bit's scale.
+        return _rounded(results, 6), per_call_ms
 
 
 if __name__ == "__main__":

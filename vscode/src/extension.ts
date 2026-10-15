@@ -6,7 +6,7 @@
  */
 import { userInfo } from "node:os";
 import * as vscode from "vscode";
-import type { AnnotationSpec, ContextTracksEnum, ParameterValue, PlotView, SharedState, SharedStateChange, TimeRange, ToolDeclaration, TrackEdit } from "@debrief/schemas";
+import type { AnnotationSpec, ContextTracksEnum, ParameterValue, PlotView, SharedState, SharedStateChange, TimeRange, ToolDeclaration, ToteResult, ToteView as ToteChoice, TrackEdit } from "@debrief/schemas";
 import { formatBearing, formatPosition, formatQuantity, parsePosition, POSITION_EXAMPLE, UNIT_LABELS } from "@debrief/kernel";
 import { defaultPivotIndex, describeDistance, describeSpeed, describeTurn, FIX_PROMPT, FIX_PROMPT_DR, fixIndexAt, fixMeans, fixToEdit, jumpSpeed, legNow, mergedName, mergePlan, periodIndices, readBearing, readDistance, readSpeed, readTurn, reckoningOf, type Anchor } from "../webview/trackedit.js";
 import { chooseModes, MODE_LABELS, modeChoices, modeQuestion, REMEMBERED_IN_VSCODE, rememberItem, type ModeChoice, type PlottingMode } from "./importmode.js";
@@ -21,6 +21,8 @@ import { FormPanel } from "./panels/form.js";
 import { MapPanel } from "./panels/map.js";
 import { ResultsPanel } from "./panels/results.js";
 import { TIME_VIEW, TimeView } from "./panels/timeview.js";
+import { TOTE_VIEW, ToteView } from "./panels/toteview.js";
+import { withMapLines, withPrimary, withSecondaries, withoutSecondary } from "../webview/totelogic.js";
 import { CONFLICT, NEEDS_CONFIRMATION, NEWER_SCHEMA, ServiceError, ToolService, type Agent, type AnnotationChange, type CallOutcome, type OpenedView, type ToolListing, type TrackChange } from "./service.js";
 import type { CleanChange } from "./service.js";
 import { describeJump, describeMark, describeWindow, fixRows, isDeadReckoned, jumpsFound, markAt, readThreshold, readWindow, smoothingNote, trackLabel } from "../webview/fixes.js";
@@ -64,8 +66,15 @@ export interface DebriefApi {
   timeControllerShowing: () => boolean;
   /** How the map was last told to draw tracks outside the window, for tests and agents. */
   mapContext: () => string | undefined;
+  /** The Tote's choice the map was last told of, for its lines from the primary to each secondary, for tests and agents. */
+  mapTote: () => ToteChoice | undefined;
   /** How many times the plot's view has been read again after a change on disk, for tests. */
   viewChecks: () => number;
+  /** Whether the Tote view in the sidebar has loaded, for tests and agents. */
+  toteShowing: () => boolean;
+  /** The Tote's values last shown, and how long answers took to show (CAP-06, NFR-04), for tests and agents. */
+  tote: () => ToteResult | undefined;
+  toteLatency: () => { count: number; p50: number; p95: number; max: number };
   /**
    * For tests only: act on a message as if the map had sent it (drawing or dragging an
    * annotation, say). Present only when the extension runs under test, so no other
@@ -113,8 +122,21 @@ export function activate(context: vscode.ExtensionContext): DebriefApi {
     (window) => void saveWindow(window).then(resync).then(report),
     log,
   );
+  // The Tote, below it: values from the tool service at each current time; the choice of tracks saved in the island.
+  const toteView = new ToteView(
+    context.extensionUri,
+    session,
+    async (plot, time, tote) => {
+      const opened = session.current;
+      if (!service || opened?.item.id !== plot) return undefined;
+      return service.tote(opened.store.id, plot, time, tote);
+    },
+    (tote) => saveTote(tote).then(resync),
+    log,
+  );
   context.subscriptions.push(
     vscode.window.registerWebviewViewProvider(TIME_VIEW, timeView, { webviewOptions: { retainContextWhenHidden: true } }),
+    vscode.window.registerWebviewViewProvider(TOTE_VIEW, toteView, { webviewOptions: { retainContextWhenHidden: true } }),
   );
   const results = new ResultsPanel(context.extensionUri);
 
@@ -571,6 +593,18 @@ export function activate(context: vscode.ExtensionContext): DebriefApi {
       needsService: "Saving how context tracks are drawn needs Debrief's tool service. Run 'Debrief: Restart tool service'.",
       notSaved: "How context tracks are drawn was not saved.",
       conflict: "Someone else changed this plot's view, so your choice was not saved. Debrief is showing theirs; choose again if you still want yours.",
+    });
+
+  /**
+   * Which tracks the Tote compares, for everyone who opens the plot: view state, saved
+   * as the window is (decision, 14 Oct 2026). Never a step in the history: choosing what
+   * to look at is not an edit, so Ctrl+Z never changes it.
+   */
+  const saveTote = (tote: ToteChoice): Promise<string | undefined> =>
+    saveView({ tote }, {
+      needsService: "Saving the Tote's tracks needs Debrief's tool service. Run 'Debrief: Restart tool service'.",
+      notSaved: "The Tote's tracks were not saved.",
+      conflict: "Someone else changed this plot's view, so your choice of Tote tracks was not saved. Debrief is showing theirs; choose again if you still want yours.",
     });
 
   /** Change part of the plot's island, never overwriting a change made elsewhere since it was read (SUB-28). */
@@ -1555,6 +1589,41 @@ export function activate(context: vscode.ExtensionContext): DebriefApi {
     session.setTime({ current: new Date(current).toISOString(), range: window }, "command");
     return report(await saveWindow(window));
   });
+  // --- The Tote (CAP-06): from the outline's menu, the Command Palette, agents and keyboard macros ---
+  /** Tracks named by a command: ids, an outline node (with the others selected beside it), or the selection. */
+  const toteTargets = (target?: string | string[] | Target, others?: unknown): string[] => {
+    const many = Array.isArray(others) ? featureIdsOf(others as never) : [];
+    const ids = typeof target === "string" ? [target] : Array.isArray(target) ? target : many.length ? many : targets(target);
+    return ids.filter((id) => trackById(id));
+  };
+  const chooseTote = async (change: (tote: ToteChoice) => ToteChoice): Promise<string | undefined> => {
+    if (!session.current) return report("Open a plot first.");
+    const problem = await toteView.choose(change(toteView.choice()));
+    if (!problem) void vscode.commands.executeCommand(`${TOTE_VIEW}.focus`, { preserveFocus: true });
+    return report(problem);
+  };
+  command("debrief.tote.setPrimary", async (target?: string | Target, others?: unknown) => {
+    const ids = toteTargets(target, others);
+    if (ids.length !== 1) return report("Select one track to be the Tote's primary.");
+    return chooseTote((tote) => withPrimary(tote, ids[0]));
+  });
+  command("debrief.tote.add", async (target?: string | string[] | Target, others?: unknown) => {
+    const ids = toteTargets(target, others);
+    if (!ids.length) return report("Select the tracks to add to the Tote.");
+    return chooseTote((tote) => withSecondaries(tote, ids));
+  });
+  command("debrief.tote.remove", async (target?: string | string[] | Target, others?: unknown) => {
+    const ids = toteTargets(target, others);
+    if (!ids.length) return report("Select the tracks to remove from the Tote.");
+    return chooseTote((tote) => ids.reduce((t, id) => (t.primary === id ? withPrimary(t, undefined) : withoutSecondary(t, id)), tote));
+  });
+  // The whole choice at once, for agents, keyboard macros and tests: saved as from the Tote view.
+  command("debrief.setTote", async (tote?: ToteChoice) => {
+    if (!tote || typeof tote !== "object") return report("Give the Tote's primary and secondaries.");
+    const choice = withMapLines(withSecondaries(withPrimary({ measure_group: tote.measure_group }, tote.primary ?? undefined), tote.secondaries ?? []), tote.map_lines !== false);
+    return chooseTote(() => choice);
+  });
+
   // How tracks outside the window are drawn, for agents, keyboard macros and tests: saved as from the time controller.
   command("debrief.setContextTracks", async (contextTracks?: ContextTracksEnum) => {
     if (!session.current) return report("Open a plot first.");
@@ -1853,7 +1922,11 @@ export function activate(context: vscode.ExtensionContext): DebriefApi {
     toolsProblem: () => tools.problem,
     hiddenOnMap: () => map.hiddenCount,
     timeControllerShowing: () => timeView.showing,
+    toteShowing: () => toteView.showing,
+    tote: () => toteView.last,
+    toteLatency: () => toteView.latency(),
     mapContext: () => map.context,
+    mapTote: () => map.tote,
     viewChecks: () => viewChecks,
     ...(context.extensionMode === vscode.ExtensionMode.Test && { fromMap: (message: unknown) => map.receive(message) }),
   };

@@ -753,6 +753,9 @@ MESSAGE_MEMBERS: dict[str, tuple[str, ...]] = {
     "edit_track": ("feature_id", "track_edit"),
     "show_fixes": ("feature_id?", "fix_times?", "preview?", "message?"),
     "fix_chosen": ("feature_id", "fix_time"),
+    "show_tote": ("tote_tracks?", "tote_view?", "tote?"),
+    "tote_changed": ("tote_view",),
+    "set_tote": ("tote_view?",),
 }
 
 
@@ -774,6 +777,22 @@ def _webview_message_problems(message: g.WebviewMessage, raw: dict[str, Any]) ->
         problems += _tool_result_problems(message.result, raw["result"])
     if message.track_edit is not None:
         problems += track_edit_problems(message.track_edit)
+    problems += tote_view_problems(message.tote_view)
+    return problems
+
+
+def tote_view_problems(tote: g.ToteView | None, where: str = "tote_view") -> list[str]:
+    """Rules for the Tote's choice of tracks (CAP-06): the primary is not also a
+    secondary, and no secondary is chosen twice. Tracks no longer in the plot are
+    allowed: the island is view state, which a change to content never changes."""
+    if tote is None:
+        return []
+    problems = []
+    secondaries = tote.secondaries or []
+    if tote.primary is not None and tote.primary in secondaries:
+        problems.append(f"{where}: the primary, {tote.primary}, is also a secondary")
+    twice = sorted(i for i, n in Counter(secondaries).items() if n > 1)
+    problems += [f"{where}: secondary {i} is chosen more than once" for i in twice]
     return problems
 
 
@@ -883,7 +902,9 @@ def view_problems(view: g.PlotView | None, where: str = "view") -> list[str]:
     """Rules for the plot's island (its view) that JSON Schema cannot express."""
     if view is None:
         return []
-    return _time_range_problems(f"{where} time window", view.time_window)
+    return _time_range_problems(f"{where} time window", view.time_window) + tote_view_problems(
+        view.tote, f"{where} tote"
+    )
 
 
 def load_view(source: dict[str, Any] | None) -> g.PlotView | None:
