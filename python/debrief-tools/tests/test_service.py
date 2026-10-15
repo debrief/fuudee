@@ -593,7 +593,10 @@ def test_narrative_is_read_filtered_and_changed_as_recorded_steps(
         "Narrative entry by NELSON at 05:05:00Z: text changed",
         "Narrative entry by NELSON at 05:05:00Z deleted",
     ]
-    assert steps[-4]["notes"][0].startswith("Narrative from blue-log.rep: 3 narrative entries")
+    assert steps[-4]["notes"][:2] == [
+        "Narrative read from blue-log.rep",
+        "3 narrative entries read, from BLUE, CONTROL.",
+    ]
     rpc(client, "debrief/undo", {**where, "base": deleted["base"]})
     back = next(f for f in catalogue.read_plot("serial").features if f.id == feature)
     assert back.properties.text == "Turning to 270."

@@ -23,6 +23,9 @@ export function needs(tool: ToolDeclaration): string {
 }
 
 
+/** The importer that reads a file's narrative into an open plot (debrief_io.narrative). */
+export const NARRATIVE_IMPORTER = "debrief-io.narrative";
+
 /** The longest note a step is named by: long enough for "RED ONE (DR) leg into 09:43:00Z now 056.5°T 12.1 kn" with a track name of up to 19 characters. */
 export const STEP_NAME_LENGTH = 64;
 
@@ -33,7 +36,9 @@ export function describeStep(
 ): { label: string; status: string } {
   // An edit made without a tool is named by its note, when it has a short one; so is
   // a plot file added to a catalogue, with its history ("Added from the plot file ...").
-  const note = (step.kind === "edit" || step.kind === "import") && !step.tool ? step.notes?.[0] : undefined;
+  // A narrative read into a plot is named by its note too: "Narrative read from red-log.rep".
+  const named = !step.tool || step.tool === NARRATIVE_IMPORTER;
+  const note = (step.kind === "edit" || step.kind === "import") && named ? step.notes?.[0] : undefined;
   const label =
     note && note.length <= STEP_NAME_LENGTH
       ? note

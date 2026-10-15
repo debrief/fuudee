@@ -143,7 +143,74 @@ def main(fixtures: Path) -> dict:
     # The Tote (CAP-06, NFR-04): measures at one time, asked again for each time.
     report["tote"], timings["tote_ms"] = _tote()
 
+    # The narrative (CAP-20): REP lines read, one order, entries changed as steps.
+    report["narrative"], timings["narrative_5000_ms"] = _narrative()
+
     return {"report": report, "timings": timings}
+
+
+def _narrative() -> tuple[dict, float]:
+    import tempfile
+
+    from debrief_io import parse_rep
+    from debrief_io.importer import narrative_features
+    from debrief_stac import Catalogue, Changes, narrative
+
+    text = (
+        ';NARRATIVE2:\t110621\t093000\t"RED ONE"\tCSD\tGoing deep.\n'
+        ";NARRATIVE:\t110621\t093000\tBLUE_ONE\tComment\tContact on 045.\n"
+        ';NARRATIVE: 110621 092959.500 "HMS TORBAY" Marked range.\n'
+        ";NARRATIVE: 110621 093100 BLUE_ONE\n"
+    )
+    parsed = parse_rep(text)
+    agent = models.AgentRef(kind="person", name="smoke")
+    record = models.ProvRecord(
+        id="op-1", kind="import", started_at="2026-10-11T10:00:00.000Z", agent=agent
+    )
+    with tempfile.TemporaryDirectory() as folder:
+        catalogue = Catalogue.create(Path(folder) / "cat", "smoke", "Smoke", "")
+        catalogue.create_plot("p", "Plot")
+        catalogue.commit("p", [record], Changes(added=narrative_features(parsed.narrative, {})))
+        _, added = catalogue.add_narrative(
+            "p",
+            {"time": "2011-06-21T09:30:00.000Z", "source": "blue_one", "text": "Same second."},
+            agent,
+        )
+        catalogue.edit_narrative("p", added, {"entry_type": "Sonar"}, agent)
+        catalogue.delete_narrative("p", ["narrative-0001"], agent)
+        catalogue.history("p").undo()
+        plot = catalogue.read_plot("p")
+        ordered = [
+            (f.id, f.properties.source, f.properties.entry_type)
+            for f in narrative.order(narrative.entries(plot))
+        ]
+        # Sizing: 5,000 entries added as one step, as a log read into a plot.
+        many = [
+            models.NarrativeFeature(
+                type="Feature",
+                id=f"bulk-{i}",
+                geometry=None,
+                properties=models.NarrativeProperties(
+                    kind="narrative",
+                    time=f"2011-06-21T{10 + i // 3600:02d}:{i // 60 % 60:02d}:{i % 60:02d}.000Z",
+                    source=["BLUE ONE", "RED ONE"][i % 2],
+                    text=f"Entry {i}.",
+                ),
+            )
+            for i in range(5000)
+        ]
+        began = time.perf_counter()
+        catalogue.commit("p", [record.model_copy(update={"id": "op-2"})], Changes(added=many))
+        bulk_ms = (time.perf_counter() - began) * 1000
+        return {
+            "lines": [(n.source, n.entry_type, n.text, n.time_truncated) for n in parsed.narrative],
+            "errors": parsed.errors,
+            "ordered": ordered,
+            "steps": [
+                s.records[0].notes[0] if s.records[0].notes else None
+                for s in catalogue.history("p").steps()
+            ],
+        }, bulk_ms
 
 
 def _history() -> dict:

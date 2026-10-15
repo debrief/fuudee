@@ -10,6 +10,7 @@ import { describe, expect, it } from "vitest";
 import type { DebriefFeatureCollection, TimelineEntry } from "@debrief/schemas";
 import { currentEntry, NARRATIVE_ON_MAP_MS, NarrativeOnMap, timelineEntries, timelineTracks } from "../../src/timeline.js";
 import { checkMessage } from "../../src/messages.js";
+import { describeStep, NARRATIVE_IMPORTER } from "../../src/wording.js";
 import {
   applyFilter,
   columnWidths,
@@ -224,6 +225,15 @@ describe("the narrative on the map", () => {
     expect(at(10)).toBe("a");
     expect(at(11)).toBeUndefined(); // ten minutes on, it goes
     expect(at(31)).toBe("c");
+  });
+});
+
+describe("narrative steps in the History view", () => {
+  it("are named by their notes, a log read in by its file", () => {
+    const named = (step: { kind: string; tool: string | null; notes: string[] }) => describeStep({ ...step, status: "applied" }, () => undefined).label;
+    expect(named({ kind: "edit", tool: null, notes: ["Narrative entry by BLUE ONE at 08:40:00Z added"] })).toBe("Narrative entry by BLUE ONE at 08:40:00Z added");
+    expect(named({ kind: "import", tool: NARRATIVE_IMPORTER, notes: ["Narrative read from red-log.rep", "2 narrative entries read, from RED ONE."] })).toBe("Narrative read from red-log.rep");
+    expect(named({ kind: "import", tool: "debrief-io.rep", notes: ["Track 'A' plotted over the ground (OTG)."] })).toBe("Imported");
   });
 });
 

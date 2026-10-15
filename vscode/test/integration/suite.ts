@@ -474,8 +474,9 @@ export async function run(): Promise<void> {
     const read = await vscode.commands.executeCommand<Narrated>("debrief.importNarrative", red);
     assert.equal(read.problem, undefined);
     assert.equal(read.entries, 2);
-    assert.match((await steps()).at(-1)?.notes?.[0] ?? "", /^Narrative from red-one-log\.rep: 2 narrative entries read, from RED ONE\./);
-    assert.equal(narrativeOf().filter((f) => f.properties.kind === "narrative" && f.properties.text === "Went deep, 40 m.")[0]?.properties.kind === "narrative" && (narrativeOf().find((f) => f.properties.kind === "narrative" && f.properties.text === "Went deep, 40 m.")!.properties as { track_id?: string }).track_id, "track-red-one");
+    assert.deepEqual((await steps()).at(-1)?.notes?.slice(0, 2), ["Narrative read from red-one-log.rep", "2 narrative entries read, from RED ONE."]);
+    const deep = narrativeOf().find((f) => f.properties.kind === "narrative" && f.properties.text === "Went deep, 40 m.");
+    assert.equal((deep?.properties as { track_id?: string } | undefined)?.track_id, "track-red-one");
     assert.equal((await steps()).length, narrativeSteps + 4);
     // Refused plainly, nothing changed: no time.
     const refusedNarrative = await vscode.commands.executeCommand<Narrated>("debrief.addNarrative", { source: "X", text: "No time." });

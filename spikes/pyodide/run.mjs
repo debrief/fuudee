@@ -67,7 +67,7 @@ const same = JSON.stringify(cpython) === JSON.stringify(result.report);
 const failures = Object.entries(result.report.documents).filter(([, ok]) => !ok);
 if (!result.report.kernel_arrays.matches_per_point) failures.push(["kernel_arrays.matches_per_point", false]);
 console.log(`Pyodide: Python ${result.environment.python}, pydantic ${result.environment.pydantic}`);
-console.log(`Boot ${bootMs.toFixed(0)} ms, ready ${readyMs.toFixed(0)} ms, fixtures ${result.timings.all_fixtures_ms.toFixed(0)} ms, range_bearing ${result.timings.range_bearing_us.toFixed(0)} µs, Tote ${result.timings.tote_ms.toFixed(2)} ms a call`);
+console.log(`Boot ${bootMs.toFixed(0)} ms, ready ${readyMs.toFixed(0)} ms, fixtures ${result.timings.all_fixtures_ms.toFixed(0)} ms, range_bearing ${result.timings.range_bearing_us.toFixed(0)} µs, Tote ${result.timings.tote_ms.toFixed(2)} ms a call, 5,000 narrative entries in one step ${result.timings.narrative_5000_ms.toFixed(0)} ms`);
 console.log(`Document checks: ${Object.keys(result.report.documents).length - failures.length}/${Object.keys(result.report.documents).length} passed`);
 console.log(`Report identical to CPython: ${same}`);
 for (const [name] of failures) console.log(`  FAILED ${name}`);

@@ -97,7 +97,12 @@ def import_narrative(
         tool=models.ToolRef(name=IMPORTER, version=version("debrief-io")),
         agent=agent,
         used=[source],
-        notes=[f"Narrative from {path.name}: {narrative_note(parsed.narrative)}", *omitted],
+        # The first note names the step in the History view, so it is short.
+        notes=[
+            f"Narrative read from {path.name}",
+            narrative_note(parsed.narrative),
+            *omitted,
+        ],
     )
     step = catalogue.add_narrative_entries(
         item_id, features, record, base, allow_newer_schema=allow_newer_schema
