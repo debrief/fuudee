@@ -6,6 +6,7 @@ from debrief_io.dpf import DpfError, DpfFile, parse_dpf
 from debrief_io.dpf_import import build_plot_from_dpf, import_dpf
 from debrief_io.importer import IMPORTER, ImportReport, build_plot, import_rep
 from debrief_io.narrative import (
+    AlreadyInPlotError,
     Choices,
     NarrativeImport,
     NoNarrativeError,
@@ -26,6 +27,7 @@ from debrief_io.rep import (
 
 __all__ = [
     "IMPORTER",
+    "AlreadyInPlotError",
     "Choices",
     "Document",
     "DocumentError",

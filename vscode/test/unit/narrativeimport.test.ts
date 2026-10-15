@@ -3,7 +3,7 @@
  * open plot, as legacy Debrief asked (CAP-19): types, the plot's period, tracks.
  */
 import { describe, expect, it } from "vitest";
-import { answersToRemember, choicesOf, describeAnswers, MAX_ASKED_PLATFORMS, periodChoices, questionsFor, readSummary, rememberedAnswers, typeWords, type NarrativePreview } from "../../src/narrativeimport.js";
+import { answersToRemember, choicesOf, describeAnswers, duplicateQuestion, MAX_ASKED_PLATFORMS, periodChoices, questionsFor, readSummary, rememberedAnswers, typeWords, type NarrativePreview } from "../../src/narrativeimport.js";
 import { count } from "../../src/format.js";
 
 const preview = (over: Partial<NarrativePreview> = {}): NarrativePreview => ({
@@ -106,5 +106,34 @@ describe("remembered answers (product owner, 15 Oct 2026)", () => {
       "All types but SONAR; only within the plot's period; BLUE TWO is BLUE ONE",
     );
     expect(describeAnswers(preview(), { types: ["OOW COMMENT", "SONAR"], tracks: { "BLUE TWO": null } }, named)).toBe("All types but (no type); BLUE TWO on no track");
+  });
+});
+
+describe("a file in the plot already (product owner, 15 Oct 2026)", () => {
+  const when = (iso: string) => iso.slice(0, 16).replace("T", " ");
+  const earlier = { step: 4, at: "2026-10-15T09:30:00.000Z", by: "Ian", how: "Narrative read from red-one-log.docx", name: "red-one-log.docx" };
+
+  it("asks nothing of a file new to the plot", () => {
+    expect(duplicateQuestion(preview(), when)).toBeUndefined();
+    expect(duplicateQuestion(preview({ earlier: [], already: 0 }), when)).toBeUndefined();
+  });
+
+  it("says when and how the same file was read in, and how many of its entries are there", () => {
+    const asked = duplicateQuestion(preview({ name: "copy.docx", earlier: [earlier], already: 7 }), when)!;
+    expect(asked.title).toBe("copy.docx is already in the plot");
+    expect(asked.detail).toBe("Read in on 2026-10-15 09:30 by Ian (step 4, Narrative read from red-one-log.docx). All 7 entries are in the plot.");
+    expect(asked).toMatchObject({ skip: "Skip entries already in the plot", skipDetail: "Nothing new to read", nothingNew: true });
+    const some = duplicateQuestion(preview({ earlier: [earlier], already: 5 }), when)!;
+    expect(some.detail).toMatch(/5 of its 7 entries are in the plot\.$/);
+    expect(some).toMatchObject({ skipDetail: "Read the 2 entries not in the plot", nothingNew: false });
+    // Its entries deleted since: still the same file, read in before.
+    expect(duplicateQuestion(preview({ earlier: [earlier], already: 0 }), when)!.detail).toMatch(/None of its entries is in the plot now\.$/);
+  });
+
+  it("says when some entries of another file are in the plot already", () => {
+    const asked = duplicateQuestion(preview({ already: 1 }), when)!;
+    expect(asked.title).toBe("1 of the 7 entries in red-one-log.docx is already in the plot");
+    expect(asked.detail).toBe("The same time, source and text.");
+    expect(asked.skipDetail).toBe("Read the 6 entries not in the plot");
   });
 });

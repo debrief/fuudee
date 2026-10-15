@@ -1212,6 +1212,37 @@ def test_word_narrative_is_previewed_then_read_in_with_the_analysts_choices(
     assert bad["code"] == -32602 and "types" in bad["message"]
 
 
+def test_a_document_read_in_before_is_refused_until_told_what_to_do(
+    client, catalogue, tmp_path
+) -> None:
+    # Product owner, 15 Oct 2026: known by its content, whatever its name; an agent says
+    # duplicates "skip" or "add", and is refused, nothing read, without it.
+    where = {"store": "exercise", "item": "serial", "agent": AGENT}
+    log = _word_log(tmp_path / "nelson-log.docx")
+    rpc(client, "debrief/import_narrative", {**where, "path": str(log)})
+    copy = tmp_path / "copy.docx"
+    copy.write_bytes(log.read_bytes())
+    preview = rpc(client, "debrief/preview_narrative", {**where, "path": str(copy)}).json()
+    (earlier,) = preview["result"]["earlier"]
+    assert earlier["name"] == "nelson-log.docx" and preview["result"]["already"] == 3
+    refused = rpc(client, "debrief/import_narrative", {**where, "path": str(copy)}).json()
+    assert refused["error"]["code"] == -32003
+    assert refused["error"]["message"].startswith("copy.docx is already in the plot: read in on")
+    assert 'duplicates "skip"' in refused["error"]["message"]
+    skipped = rpc(
+        client, "debrief/import_narrative", {**where, "path": str(copy), "duplicates": "skip"}
+    ).json()
+    assert "Nothing would be read" in skipped["error"]["message"]
+    added = rpc(
+        client, "debrief/import_narrative", {**where, "path": str(copy), "duplicates": "add"}
+    ).json()["result"]
+    assert added["entries"] == 3 and any("read again" in n for n in added["notes"])
+    bad = rpc(
+        client, "debrief/import_narrative", {**where, "path": str(copy), "duplicates": "yes"}
+    ).json()["error"]
+    assert bad["code"] == -32602 and "duplicates" in bad["message"]
+
+
 def test_a_word_document_imports_as_a_plot_and_is_not_asked_about_modes(client, tmp_path) -> None:
     log = _word_log(tmp_path / "nelson-log.docx")
     tracks = rpc(client, "debrief/rep_tracks", {"path": str(log)}).json()["result"]

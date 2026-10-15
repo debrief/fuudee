@@ -5,6 +5,7 @@
 // phrases, choosing an entry without moving current time, text size and wrapping, which
 // columns show, on a phone too. The log is synthetic, made up for the sample (DEV-05).
 import assert from "node:assert/strict";
+import { readFileSync } from "node:fs";
 import path from "node:path";
 import { timelineRow } from "./timelinerows.mjs";
 
@@ -88,8 +89,55 @@ export async function playWordNarrative(page, shot) {
   await dialog.locator("button", { hasText: "Cancel" }).click();
   await page.locator(".toast", { hasText: "Nothing was read." }).first().waitFor();
   assert.equal((await state(page)).entries, before);
+
+  await playReadAgain(page, shot, before);
   await unfold();
   console.log(`Word narrative: read into serial 3 in ${readMs} ms (questions answered by the test), undone as one step.`);
+}
+
+/**
+ * The same document read in again, under another name (product owner, 15 Oct 2026): known
+ * by its content, the form says when it was read in and how many of its entries are in the
+ * plot, and its action skips them; Cancel reads nothing. Left as it was found.
+ */
+async function playReadAgain(page, shot, before) {
+  const dialog = page.locator("dialog.track-form[open]");
+  const steps = await page.locator("#history li").count();
+  await page.locator("#panel-import").scrollIntoViewIfNeeded();
+  await page.locator("#narrative-file").setInputFiles(LOG);
+  await dialog.waitFor({ timeout: 60000 });
+  assert.equal(await dialog.locator(".form-warning").count(), 0, "a document new to the plot is not said to be in it");
+  await dialog.locator("button.primary").click(); // as last time: five entries
+  await page.waitForFunction((n) => window.debriefTimeline().entries === n + 5, before);
+  const copy = { name: "red-one-log (2).docx", mimeType: "application/vnd.openxmlformats-officedocument.wordprocessingml.document", buffer: readFileSync(LOG) };
+  await page.locator("#panel-import").scrollIntoViewIfNeeded();
+  await page.locator("#narrative-file").setInputFiles(copy);
+  await dialog.waitFor({ timeout: 60000 });
+  const said = await dialog.locator(".form-warning").innerText();
+  assert.match(said, /^red-one-log \(2\)\.docx is already in the plot\. Read in on .+ \(step \d+, Narrative read from red-one-log\.docx\)\. 5 of its 7 entries are in the plot\.$/);
+  assert.match(await dialog.locator(".form-info").allInnerTexts().then((t) => t.join(" ")), /As last time/);
+  assert.equal(await dialog.locator("button.primary").innerText(), "Skip entries already in the plot");
+  await page.evaluate(() => document.getElementById("toasts")?.replaceChildren());
+  await page.mouse.move(2, 2);
+  await shot("narrative-f-01-already-in-plot");
+  // Cancel reads nothing.
+  await dialog.locator("button", { hasText: "Cancel" }).click();
+  await page.locator(".toast", { hasText: "Nothing was read." }).first().waitFor();
+  assert.equal((await state(page)).entries, before + 5);
+  // Every type, every entry this time: the two not in the plot are read, the five skipped.
+  await page.locator("#narrative-file").setInputFiles(copy);
+  await dialog.waitFor({ timeout: 60000 });
+  await dialog.locator(".form-check", { hasText: "FCS" }).locator("input").check();
+  await dialog.locator("select[name=period]").selectOption("all");
+  await dialog.locator("button.primary").click();
+  await page.locator(".toast", { hasText: "Read 2 narrative entries into the plot." }).first().waitFor({ timeout: 60000 });
+  await page.waitForFunction((n) => window.debriefTimeline().entries === n + 7, before);
+  assert.equal(await page.locator("#history li").count(), steps + 2);
+  // Both reads undone: as found.
+  await page.locator("#undo").click();
+  await page.waitForFunction((n) => window.debriefTimeline().entries === n + 5, before);
+  await page.locator("#undo").click();
+  await page.waitForFunction((n) => window.debriefTimeline().entries === n, before);
 }
 
 /** The Timeline's extras, the reader's own, from the menu (⋯). Left as the Timeline's own afterwards. */

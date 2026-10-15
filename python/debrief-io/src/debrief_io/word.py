@@ -16,7 +16,10 @@ Ported from legacy Debrief's Debrief.ReaderWriter.Word, with the cases of their 
   the day before, said as a warning; and an entry at 23xx whose hidden day is one
   after its DTG's (written just after midnight about the evening before) takes the
   DTG's day. A six-figure DTG whose day goes backwards in a short entry is in the
-  next month. FCS entries (fire-control solutions: bearing, range, course, speed,
+  next month. A line that starts with four or six figures and no metadata is a short
+  entry only if its time is in order with the entries around it (product owner, 15 Oct
+  2026): otherwise, like "2000 yds, closing.", it is text of the entry before (see
+  out_of_order). FCS entries (fire-control solutions: bearing, range, course, speed,
   classification) are read as legacy Debrief read them, and kept as narrative.
 - **Rider's narrative** (``ImportRiderNarrativeDocument``): a table whose first cell is
   ``DTG Start``; its second row the start DTG (``220000Z JUL 09``) and the platform
@@ -36,6 +39,7 @@ is read on its own, in UTC, and a line that cannot be read is listed with why.
 
 from __future__ import annotations
 
+import copy
 import re
 from calendar import timegm
 from collections import Counter
@@ -68,6 +72,17 @@ END_OF_RECORDS = ("END RECORDS FOR", "END OF RECORDS FOR")
 # Lines joined to one entry, at most: a safety cap against a runaway document (a
 # printed log's longest entries run to some dozens of lines); lines past it are counted.
 MAX_CONTINUATION = 2_000
+# How far before the entry before it a short entry may be and still be an entry: a late
+# entry, written up within the hour (legacy Debrief's own late-entry rule is of an entry
+# at 23xx written just after midnight). Also how far after the entry following it.
+LATE_ENTRY_MS = 3_600_000
+# A short entry's four-figure time more than this before the entry before it is after
+# midnight: on the next day.
+ROLLOVER_MS = 12 * 3_600_000
+# The entries after a short entry that its time is checked against, at most, and the
+# lines read to find them.
+LOOKAHEAD_ENTRIES = 3
+LOOKAHEAD_LINES = 500
 DTG_MISSING = "[DTG missing. Re-using previous DTG]"
 
 _MONTHS = {m: i for i, m in enumerate("JAN FEB MAR APR MAY JUN JUL AUG SEP OCT NOV DEC".split(), 1)}
@@ -103,6 +118,9 @@ class DocumentRead:
     preamble: int = 0
     # How many lines followed an entry past MAX_CONTINUATION, and were not joined to it.
     overflow: int = 0
+    # Lines starting with a number, read as text of the entry before rather than as
+    # entries, their times being out of order: (line number, the line).
+    as_text: list[tuple[int, str]] = field(default_factory=list)
     stopped_at: str | None = None  # the end-of-records line, if one ended the reading
 
     @property
@@ -247,6 +265,11 @@ class _Line:
     text: str | None = None
     appended: bool = False
     day_marker: bool = False
+    # A short entry: a time at the start of a line with no metadata, and so perhaps a
+    # number in text ("2000 yds"), not a time at all.
+    timed: bool = False
+    # Dated by the late-entry rule: at 23xx, just after an entry past midnight.
+    late: bool = False
 
 
 _FOUR = re.compile(r"[0-9]{4}")
@@ -285,6 +308,8 @@ class NarrativeDocumentParser:
         self.last_ms: int | None = None
         self.last_platform: str | None = None
         self.has_entry = False
+        # Whether last_ms is a day marker's midnight rather than an entry's time.
+        self.after_marker = False
         self.last_day: str | None = None
         self.last_month: str | None = None
         self.last_year: str | None = None
@@ -363,19 +388,40 @@ class NarrativeDocumentParser:
 
     def _timed(self, trimmed: str, word: str) -> _Line:
         """A time and text, taking the date and platform from the entry before; a
-        six-figure DTG's day earlier than the last is in the next month."""
+        six-figure DTG's day earlier than the last is in the next month.
+
+        Two corrections, new here, for a log with no metadata: an entry at 23xx just
+        after an entry past midnight (00xx) is a late entry, on the evening before, as
+        legacy Debrief corrected a full entry's day (correctLateEntryDay); and a
+        four-figure time more than twelve hours before the entry before it is past
+        midnight, on the next day (legacy Debrief kept the day, so the entry went back
+        almost a day)."""
         last = _utc(self.last_ms)  # type: ignore[arg-type]
         day, month, year = last.day, last.month, last.year
         clock = word
+        # Only after an entry, not a day marker's midnight.
+        just_past_midnight = not self.after_marker and last.hour == 0 and word[-4:-2] == "23"
+        late = False
         if len(word) == 6:
             days = int(word[:2])
-            if days < day:
+            if days == day - 1 and just_past_midnight:
+                late = True
+            elif days < day:
                 month, year = (1, year + 1) if month == 12 else (month + 1, year)
             day, clock = days, word[2:]
         try:
             when = gmt(year, month, day, int(clock[:2]), int(clock[2:4]))
         except ValueError:
             raise _LineError(f"{word} is not a time that exists") from None
+        if len(word) == 4 and just_past_midnight:
+            when -= 86_400_000
+            late = True
+        elif len(word) == 4 and not self.after_marker and when < self.last_ms - ROLLOVER_MS:  # type: ignore[operator]
+            when += 86_400_000
+            self.warnings.append(
+                f"{word} is more than twelve hours before the entry before it: read as "
+                f"past midnight, on {_utc(when).strftime('%d/%m/%Y')}."
+            )
         text = trimmed[len(word) :].strip()
         if not text:
             raise _LineError("it has a time but no text")
@@ -383,12 +429,13 @@ class NarrativeDocumentParser:
         entry_type = "FCS" if fcs_track(start) is not None else NO_TYPE
         platform = self.last_platform
         self._remember(when, platform)  # type: ignore[arg-type]
-        return _Line(when, entry_type, platform, text.replace("\r", "\n"))
+        return _Line(when, entry_type, platform, text.replace("\r", "\n"), timed=True, late=late)
 
     def _text_or_day(self, trimmed: str) -> _Line:
         marker = day_marker(trimmed)
         if marker is not None:
             self.last_ms = marker
+            self.after_marker = True
             if self.last_platform is None:
                 self.last_platform = ""  # a document with no metadata names no platform
             return _Line(day_marker=True)
@@ -400,6 +447,13 @@ class NarrativeDocumentParser:
         self.last_ms = when
         self.last_platform = platform
         self.has_entry = True
+        self.after_marker = False
+
+    def copy(self) -> NarrativeDocumentParser:
+        """The parser as it stands, to go back to or to read ahead with."""
+        twin = copy.copy(self)
+        twin.warnings = list(self.warnings)
+        return twin
 
 
 def index_of_start(lines: list[str]) -> int:
@@ -411,7 +465,12 @@ def index_of_start(lines: list[str]) -> int:
 
 
 def read_narrative_document(lines: list[str]) -> DocumentRead:
-    """Every entry of a narrative document, in its order (collectEntries)."""
+    """Every entry of a narrative document, in its order (collectEntries).
+
+    A line starting with four or six figures and no metadata is a short entry in legacy
+    Debrief, so "2000 yds, closing." was an entry at 20:00. Product owner, 15 Oct 2026:
+    such a line is text of the entry before when its time is out of order with the
+    entries around it (see out_of_order); the lines so read are listed in as_text."""
     out = DocumentRead(NARRATIVE)
     parser = NarrativeDocumentParser()
     start = index_of_start(lines)
@@ -421,6 +480,7 @@ def read_narrative_document(lines: list[str]) -> DocumentRead:
         if number <= start or not raw.strip():
             continue
         text = remove_bad_chars(raw)
+        before = parser.copy()
         try:
             read = parser.line(text)
         except _LineError as error:
@@ -437,9 +497,13 @@ def read_narrative_document(lines: list[str]) -> DocumentRead:
         if read.text.startswith(END_OF_RECORDS):
             out.stopped_at = read.text
             break
+        if read.timed and last is not None and out_of_order(read, before, lines[number:]):
+            parser = before  # as if the line had never been read as an entry
+            read = _Line(text=text.strip(), appended=True)
+            out.as_text.append((number, text.strip()))
         if read.appended:
             if appended < MAX_CONTINUATION and last is not None:
-                last.text += "\n" + read.text
+                last.text += "\n" + read.text  # type: ignore[operator]
                 appended += 1
             else:
                 out.overflow += 1
@@ -453,6 +517,63 @@ def read_narrative_document(lines: list[str]) -> DocumentRead:
             entry.fcs = parse_fcs(entry.text)
     out.warnings = parser.warnings
     return out
+
+
+def out_of_order(read: _Line, before: NarrativeDocumentParser, following: list[str]) -> bool:
+    """Whether a short entry's time is out of order with the entries around it, so that
+    the line is more likely text that starts with a number ("2000 yds, closing.") than
+    an entry (product owner, 15 Oct 2026). before is the parser as it was before the
+    line; following, the lines after it. The entries after are the next
+    LOOKAHEAD_ENTRIES (three), read as if this line were text. Out of order is either:
+
+    - behind: more than LATE_ENTRY_MS (an hour) before the entry before it (or a day
+      marker after that entry), as a late entry is written up within the hour. Not if
+      the entry was dated by the late-entry rule (23xx just after midnight); nor if the
+      entries after it, two at least, are all with it (none more than an hour before
+      it) and all more than an hour before the entry before: then it was the entry
+      before that was out of order, and the log goes on from here, so a run of numbers
+      read as entries does not take the rest of the log with it.
+    - ahead: more than an hour after the entry after it, that being the earliest of
+      the entries after that are in order with the entry before (not more than an hour
+      before it; others are text themselves). The earliest, so that numbers in a row
+      ("2000 yds", "2100 yds") do not vouch for each other; a late entry after it,
+      within the hour, does not count against it.
+
+    The times compared are after the day corrections: a six-figure DTG's day back is in
+    the next month; a four-figure time more than twelve hours back is past midnight. So
+    a day rolling over is in order. The last entry of a document, with nothing after
+    it, is checked against the entry before only."""
+    previous = before.last_ms
+    when = read.time_ms
+    if previous is None or when is None:
+        return False
+    after = following_times(before, following)
+    if not read.late and when < previous - LATE_ENTRY_MS:
+        agree = [t for t in after if when - LATE_ENTRY_MS <= t < previous - LATE_ENTRY_MS]
+        return not (len(after) >= 2 and len(agree) == len(after))
+    in_order = [t for t in after if t >= previous - LATE_ENTRY_MS]
+    return bool(in_order) and when > min(in_order) + LATE_ENTRY_MS
+
+
+def following_times(before: NarrativeDocumentParser, following: list[str]) -> list[int]:
+    """The times of the next LOOKAHEAD_ENTRIES entries in these lines, read ahead from
+    the parser as it was before the line in question (as if that line were text)."""
+    ahead = before.copy()
+    times: list[int] = []
+    for raw in following[:LOOKAHEAD_LINES]:
+        if not raw.strip():
+            continue
+        try:
+            read = ahead.line(remove_bad_chars(raw))
+        except (ValueError, IndexError):
+            continue
+        if read.text is not None and read.text.startswith(END_OF_RECORDS):
+            break
+        if read.time_ms is not None and not read.appended:
+            times.append(read.time_ms)
+            if len(times) == LOOKAHEAD_ENTRIES:
+                break
+    return times
 
 
 # --- Rider's narrative ---------------------------------------------------------------

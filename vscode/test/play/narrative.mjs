@@ -353,6 +353,10 @@ export async function playNarrativeAtScale(page, shot) {
       `an entry added through the form and shown in ${typicalAddMs} ms; undone in ${typicalUndoMs} ms.`,
   );
   assert.ok(typicalImportS < 15, `a typical narrative is read in ${typicalImportS} s`);
+  // The typical log out again: the large one repeats its first entry, which the reader would
+  // be asked about as already in the plot (product owner, 15 Oct 2026).
+  await page.locator("#undo").click();
+  await page.waitForFunction((n) => window.debriefTimeline().entries === n, entriesBefore - typical);
 
   const count = 60_000;
   started = Date.now();

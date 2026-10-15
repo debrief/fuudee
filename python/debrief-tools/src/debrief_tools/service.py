@@ -67,6 +67,7 @@ from starlette.routing import Route
 
 from debrief_config import ConfigError, add_store, load_config, update_config
 from debrief_io import (
+    AlreadyInPlotError,
     Choices,
     NoNarrativeError,
     import_document,
@@ -146,7 +147,9 @@ INVALID_REQUEST, METHOD_NOT_FOUND, INVALID_PARAMS, INTERNAL = -32600, -32601, -3
 CONFLICT = -32001  # the plot changed since the caller's base: open it again (SUB-28)
 NEWER_SCHEMA = -32002  # would write a newer schema into the catalogue: ask, then allow (SUB-35)
 # would lose what the analyst made: ask, then send again confirming (a track changed while
-# plotted by dead reckoning, plotted over the ground: discard_dr_changes)
+# plotted by dead reckoning, plotted over the ground: discard_dr_changes); or would read a
+# narrative file into a plot it was read into before, or entries the plot has already:
+# ask, then send again with duplicates "skip" or "add" (product owner, 15 Oct 2026)
 NEEDS_CONFIRMATION = -32003
 CONFIRM_HOW = "To go ahead, send the change again with discard_dr_changes: true."
 # Named groups, not slices of one list: a method added to one group cannot shift another.
@@ -603,7 +606,11 @@ class ToolService:
         asked them (see debrief_io.Choices): types, the entry types to read ("" for none;
         left out, all); within_period, only entries within the plot's tracks' period;
         tracks, the track id (or null) of a platform; platform, the source of entries
-        whose document names none.
+        whose document names none. A file read into the plot before (known by its
+        content, whatever its name) or with entries the plot has already (the same time,
+        source and text) is refused (NEEDS_CONFIRMATION, the message saying when it was
+        read in and how many entries are there) unless duplicates says "skip" (read only
+        the entries not in the plot) or "add" (read them all again).
         """
         agent = _agent(params)
         if method == "debrief/add_narrative":
@@ -637,6 +644,8 @@ class ToolService:
             done = import_narrative(
                 catalogue, item, Path(path), agent, base, allow_newer_schema=allow, choices=choices
             )
+        except AlreadyInPlotError as error:
+            raise RpcError(NEEDS_CONFIRMATION, str(error)) from None
         except NoNarrativeError as error:
             raise RpcError(INVALID_PARAMS, str(error)) from None
         return {
@@ -819,23 +828,27 @@ class ToolService:
         """What a narrative file holds, before it is read, so the host can ask the analyst
         what legacy Debrief asked (CAP-19): its format and dialect, its entry types with
         counts, its sources with the track each would belong to, its period and, given a
-        plot (store and item), how many entries fall outside its tracks' period. An ASW
-        data document says how many positions it holds instead. Changes nothing."""
+        plot (store and item), how many entries fall outside its tracks' period, whether
+        the file was read into the plot before (earlier: when, by whom, the step; known by
+        its content hash, whatever its name) and how many of its entries the plot has
+        already (already). An ASW data document says how many positions it holds
+        instead. Changes nothing."""
         path, item = params.get("path"), params.get("item")
         if not isinstance(path, str) or not Path(path).is_file():
             raise RpcError(INVALID_PARAMS, f"{path} is not a file.")
-        plot = None
+        catalogue = None
         if item is not None:
             if not isinstance(item, str):
                 raise RpcError(INVALID_PARAMS, "item is the plot's id")
             store = self._store(params.get("store"), writing=False)
             try:
-                plot = Catalogue.open(Path(store.location)).read_plot(item)
+                catalogue = Catalogue.open(Path(store.location))
+                catalogue.read_item(item)
             except (CatalogueError, OSError) as error:
                 raise RpcError(INVALID_PARAMS, str(error)) from None
         try:
-            return preview_narrative(Path(path), plot)
-        except (NoNarrativeError, OSError) as error:
+            return preview_narrative(Path(path), catalogue=catalogue, item_id=item)
+        except (NoNarrativeError, OSError, CatalogueError, HistoryError) as error:
             raise RpcError(INVALID_PARAMS, str(error)) from None
 
     def _import(self, params: dict[str, Any]) -> dict[str, Any]:

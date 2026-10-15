@@ -205,7 +205,7 @@ def test_a_narrative_document_with_hidden_metadata() -> None:
         ("2020-04-02 09:00", "RED TWO", "AVERYLONGTYPEWITHOUT"),
         ("2020-04-02 10:15", "RED TWO", None),  # legacy N/A: no type
         ("2020-05-01 10:30", "RED TWO", "FCS"),
-        ("2020-04-12 12:00", "RED TWO", None),
+        ("2020-05-02 12:00", "RED TWO", None),
     ]
     # Text continuing an entry joins it on a new line.
     assert (
@@ -271,6 +271,153 @@ def test_continuation_stops_at_the_safety_cap_and_says_so(monkeypatch) -> None:
     read = read_narrative_document(lines)
     assert read.entries[0].text.count("\n") == 5
     assert read.overflow == 3
+
+
+# --- Out-of-order "times" are text (product owner, 15 Oct 2026) -------------------------
+
+
+def entries_of(lines: list[str]) -> list[str]:
+    """The document's entries as "dd HH:MM text", continuation lines joined by " / "."""
+    read = read_narrative_document(lines)
+    return [f"{when(e.time_ms)[8:]} {e.text.replace(chr(10), ' / ')}" for e in read.entries]
+
+
+FIRST = "121400,12,03,20,BLUE ONE,OOW COMMENT,Contact bearing 090."
+
+
+def test_a_number_out_of_order_ahead_is_text_of_the_entry_before() -> None:
+    # Legacy Debrief read "2000 yds, closing." as an entry at 20:00, after 14:05.
+    lines = [FIRST, "2000 yds, closing.", "1405 Came to 180.", "1410 Contact lost."]
+    assert entries_of(lines) == [
+        "12 14:00 Contact bearing 090. / 2000 yds, closing.",
+        "12 14:05 Came to 180.",
+        "12 14:10 Contact lost.",
+    ]
+    assert read_narrative_document(lines).as_text == [(2, "2000 yds, closing.")]
+
+
+def test_numbers_in_a_row_do_not_vouch_for_each_other() -> None:
+    lines = [FIRST, "2000 yds, closing.", "2100 yds, opening.", "1405 Came to 180.", "1410 Steady."]
+    assert entries_of(lines) == [
+        "12 14:00 Contact bearing 090. / 2000 yds, closing. / 2100 yds, opening.",
+        "12 14:05 Came to 180.",
+        "12 14:10 Steady.",
+    ]
+
+
+def test_a_number_out_of_order_behind_is_text_of_the_entry_before() -> None:
+    # 05:00 is nine hours before 14:00: no late entry is that late.
+    lines = [FIRST, "0500 yds, opening.", "1405 Came to 180."]
+    assert entries_of(lines) == [
+        "12 14:00 Contact bearing 090. / 0500 yds, opening.",
+        "12 14:05 Came to 180.",
+    ]
+    # Thirteen hours before 18:00 is past midnight, on the 13th: then far ahead of 18:05.
+    evening = ["121800,12,03,20,BLUE ONE,LOG,Dusk.", "0500 yds, opening.", "1805 Darkened."]
+    assert entries_of(evening) == ["12 18:00 Dusk. / 0500 yds, opening.", "12 18:05 Darkened."]
+
+
+def test_a_late_entry_within_the_hour_is_an_entry() -> None:
+    lines = [FIRST, "1430 Came to 270.", "1415 Late entry: contact faded.", "1440 Steady."]
+    assert entries_of(lines) == [
+        "12 14:00 Contact bearing 090.",
+        "12 14:30 Came to 270.",  # the late entry after it does not count against it
+        "12 14:15 Late entry: contact faded.",
+        "12 14:40 Steady.",
+    ]
+    # More than an hour apart, one of the two is out of order: the entry ahead of the
+    # entry after it is text, as a number would be.
+    later = [FIRST, "1530 Came to 270.", "1415 Late entry, written late.", "1540 Steady."]
+    read = read_narrative_document(later)
+    assert entries_of(later) == [
+        "12 14:00 Contact bearing 090. / 1530 Came to 270.",
+        "12 14:15 Late entry, written late.",
+        "12 15:40 Steady.",
+    ]
+    assert read.as_text == [(2, "1530 Came to 270.")]
+
+
+def test_midnight_rolls_over_without_a_day_marker() -> None:
+    # Four figures: legacy Debrief read 0005 on the 12th, a day back; here past midnight.
+    lines = [
+        "122340,12,03,20,BLUE ONE,LOG,Late.",
+        "2350 Later.",
+        "0005 Past midnight.",
+        "0015 Still on.",
+    ]
+    read = read_narrative_document(lines)
+    assert entries_of(lines) == [
+        "12 23:40 Late.",
+        "12 23:50 Later.",
+        "13 00:05 Past midnight.",
+        "13 00:15 Still on.",
+    ]
+    assert read.as_text == []
+    assert read.warnings == [
+        "0005 is more than twelve hours before the entry before it: read as past midnight, "
+        "on 13/03/2020."
+    ]
+    # Six figures carry the day; a day marker gives it.
+    assert entries_of(
+        ["122340,12,03,20,BLUE ONE,LOG,Late.", "130005 Past midnight.", "130015 Still on."]
+    ) == ["12 23:40 Late.", "13 00:05 Past midnight.", "13 00:15 Still on."]
+    assert entries_of(
+        ["122340,12,03,20,BLUE ONE,LOG,Late.", "13 Mar 20", "0005 Past midnight.", "0015 Still on."]
+    ) == ["12 23:40 Late.", "13 00:05 Past midnight.", "13 00:15 Still on."]
+
+
+def test_a_late_entry_at_23xx_just_after_midnight_is_the_evening_before() -> None:
+    # As legacy Debrief corrected a full entry's hidden day (correctLateEntryDay); in a
+    # log with no metadata, a six-figure DTG's day back was the next month.
+    for late in ("122345 Late entry: contact faded.", "2345 Late entry: contact faded."):
+        lines = ["130010,13,03,20,BLUE ONE,LOG,Past midnight.", late, "130020 On."]
+        assert entries_of(lines) == [
+            "13 00:10 Past midnight.",
+            "12 23:45 Late entry: contact faded.",
+            "13 00:20 On.",
+        ]
+
+
+def test_full_entries_are_never_text_however_out_of_order() -> None:
+    # The log goes on after an entry out of order: the entries after it agree.
+    lines = [
+        FIRST,
+        "122000,12,03,20,BLUE ONE,LOG,Out of order.",
+        "1405 Came to 180.",
+        "1410 Steady.",
+        "1415 Contact regained.",
+    ]
+    assert entries_of(lines) == [
+        "12 14:00 Contact bearing 090.",
+        "12 20:00 Out of order.",
+        "12 14:05 Came to 180.",
+        "12 14:10 Steady.",
+        "12 14:15 Contact regained.",
+    ]
+
+
+def test_a_long_run_of_numbers_does_not_take_the_rest_of_the_log_with_it() -> None:
+    # Three in a row are text: the entry after them is in order with the one before.
+    three = [FIRST, "2000 yds, 091.", "2100 yds, 092.", "2200 yds, 093.", "1405 Came to 180."]
+    assert entries_of([*three, "1410 Steady."]) == [
+        "12 14:00 Contact bearing 090. / 2000 yds, 091. / 2100 yds, 092. / 2200 yds, 093.",
+        "12 14:05 Came to 180.",
+        "12 14:10 Steady.",
+    ]
+    # Four vouch for each other, and are entries, as legacy Debrief read them; the
+    # entries after them agree with each other, not with the run, so they are entries.
+    four = [*three[:4], "2300 yds, 094.", *three[4:], "1410 Steady.", "1415 Regained."]
+    got = entries_of(four)
+    assert got[-3:] == ["12 14:05 Came to 180.", "12 14:10 Steady.", "12 14:15 Regained."]
+    assert len(got) == 8
+
+
+def test_a_number_on_the_last_line_is_checked_against_the_entry_before_only() -> None:
+    # Nothing after it to be out of order with: an entry, as legacy Debrief read it.
+    assert entries_of([FIRST, "2000 yds, closing."]) == [
+        "12 14:00 Contact bearing 090.",
+        "12 20:00 yds, closing.",
+    ]
 
 
 def test_end_of_records_stops_reading_and_start_of_records_starts_it() -> None:

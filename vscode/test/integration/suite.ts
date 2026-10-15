@@ -507,10 +507,22 @@ export async function run(): Promise<void> {
     assert.match((sonar?.properties as { text?: string } | undefined)?.text ?? "", /\nContact held on the towed array\.$/);
     assert.equal((await steps()).length, narrativeSteps + 5);
     await screenshot("15c-narrative-word");
+    // The same document again, under another name (product owner, 15 Oct 2026): known by its
+    // content, refused until told to skip the entries already in the plot; then only the rest.
+    const copy = path.join(scratch, "red-one-log copy.docx");
+    copyFileSync(word, copy);
+    const again = await vscode.commands.executeCommand<Narrated>("debrief.importNarrative", copy);
+    assert.match(again.problem ?? "", /^red-one-log copy\.docx is already in the plot: read in on .*Narrative read from red-one-log\.docx\); 3 of the 7 entries to read are in the plot\. Nothing was read\./);
+    assert.equal((await steps()).length, narrativeSteps + 5);
+    const rest = await vscode.commands.executeCommand<Narrated & { omitted?: string[] }>("debrief.importNarrative", copy, { duplicates: "skip", tracks: { "BLUE TWO": null } });
+    assert.equal(rest.problem, undefined);
+    assert.equal(rest.entries, 4, "the four entries not read the first time");
+    assert.match(rest.omitted?.join(" ") ?? "", /3 entries already in the plot \(the same time, source and text\) not read again, as chosen\./);
+    assert.equal((await steps()).length, narrativeSteps + 6);
     // Refused plainly, nothing changed: no time.
     const refusedNarrative = await vscode.commands.executeCommand<Narrated>("debrief.addNarrative", { source: "X", text: "No time." });
     assert.match(refusedNarrative.problem ?? "", /time/);
-  assert.equal((await steps()).length, narrativeSteps + 5);
+  assert.equal((await steps()).length, narrativeSteps + 6);
   }
 
   // The properties form of the circle, as the map's double-click or the outline opens it.

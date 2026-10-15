@@ -7,6 +7,7 @@ from pathlib import Path
 import pytest
 
 from debrief_io import (
+    Choices,
     NoNarrativeError,
     RepError,
     build_plot,
@@ -219,5 +220,10 @@ def test_a_log_with_no_narrative_or_on_an_old_base_changes_nothing(opened, tmp_p
     with pytest.raises(Conflict):
         import_narrative(catalogue, "serial", again, AGENT, base)
     assert "source-again.rep" not in catalogue.assets("serial")
+    # Read again, it is known by its content (product owner, 15 Oct 2026): see
+    # test_narrative_documents. Another file of the same name is not that source.
+    other = tmp_path / "other" / "red-log.rep"
+    other.parent.mkdir()
+    other.write_text(red.read_text() + ";; changed\n")
     with pytest.raises(CatalogueError, match="already has a source named red-log.rep"):
-        import_narrative(catalogue, "serial", red, AGENT)
+        import_narrative(catalogue, "serial", other, AGENT, choices=Choices(duplicates="add"))

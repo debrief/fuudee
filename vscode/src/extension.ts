@@ -13,8 +13,8 @@ import { chooseModes, MODE_LABELS, modeChoices, modeQuestion, REMEMBERED_IN_VSCO
 import { loadConfig, narrativeAnswers, trackImportMode, updateConfig, withNarrativeAnswers, withTrackImportMode, type TrackImportMode } from "@debrief/config";
 import { changedSince, historyOnDisk, knownStores, openPlot, plotFile, type OpenedPlot } from "./catalogue.js";
 import { statSync, unwatchFile, watchFile } from "node:fs";
-import { count, describeTimes, describeToolRun, settings as displaySettings } from "./format.js";
-import { answersToRemember, choicesOf, describeAnswers, NARRATIVE_FILES, periodChoices, questionsFor, readSummary, rememberedAnswers, typeWords, type NarrativeAnswers, type NarrativeChoices, type NarrativePreview } from "./narrativeimport.js";
+import { count, describePeriod, describeTimes, describeToolRun, settings as displaySettings } from "./format.js";
+import { answersToRemember, choicesOf, describeAnswers, duplicateQuestion, NARRATIVE_FILES, periodChoices, questionsFor, readSummary, rememberedAnswers, typeWords, type NarrativeAnswers, type NarrativeChoices, type NarrativePreview } from "./narrativeimport.js";
 import { placeToolTime } from "../webview/timelogic.js";
 import { resolveTimes } from "./timeinput.js";
 import { AnnotationPanel } from "./panels/annotation.js";
@@ -1701,7 +1701,7 @@ export function activate(context: vscode.ExtensionContext): DebriefApi {
       )?.[0]?.fsPath;
     if (!path) return undefined;
     let chosen = choices;
-    if (!given && service && /\.(docx?|pdf)$/i.test(path)) {
+    if (!given && service) {
       const asked = await askNarrativeChoices(path);
       if (asked === "stop") return report("Nothing was read.");
       if (typeof asked === "string") return report(asked);
@@ -1712,16 +1712,40 @@ export function activate(context: vscode.ExtensionContext): DebriefApi {
     void vscode.window.showInformationMessage(readSummary(done, count));
     return done;
   });
-  /** What legacy Debrief asked before reading a document, asked as Quick Picks; "stop" if the analyst stopped, or why it cannot be read. */
+  /**
+   * Before reading a file: if it was read into the plot before, or has entries already in it
+   * (product owner, 15 Oct 2026), skip those entries or read nothing; then, for a document,
+   * what legacy Debrief asked, as Quick Picks. "stop" if the analyst stopped, or why it cannot be read.
+   */
   async function askNarrativeChoices(path: string): Promise<NarrativeChoices | "stop" | string> {
     const opened = session.current!;
     let preview: NarrativePreview;
     try {
       preview = await service!.previewNarrative(path, { store: opened.store.id, item: opened.item.id });
     } catch (error) {
-      return (error as Error).message;
+      // A REP file is read without questions; a document that cannot be previewed cannot be read.
+      return /\.(docx?|pdf)$/i.test(path) ? (error as Error).message : {};
     }
     if (preview.fixes) return `${preview.name} is ASW data: positions of a track, not narrative. Import it as a plot (Import plot file) for its track.`;
+    const again = duplicateQuestion(preview, (iso) => describePeriod(iso));
+    if (again) {
+      const picked = await vscode.window.showQuickPick(
+        [
+          { label: again.skip, detail: again.skipDetail, skip: true },
+          { label: "Cancel", detail: "Read nothing", skip: false },
+        ],
+        { title: again.title, placeHolder: again.detail, ignoreFocusOut: true },
+      );
+      if (!picked?.skip) return "stop";
+      if (again.nothingNew) return `Nothing was read: every entry of ${preview.name} is already in the plot.`;
+    }
+    const duplicates: NarrativeChoices = again ? { duplicates: "skip" } : {};
+    if (!/\.(docx?|pdf)$/i.test(path)) return duplicates;
+    const asked = await askDocumentChoices(preview, opened);
+    return typeof asked === "string" ? asked : { ...asked, ...duplicates };
+  }
+  /** What legacy Debrief asked before reading a document, asked as Quick Picks; "stop" if the analyst stopped. */
+  async function askDocumentChoices(preview: NarrativePreview, opened: NonNullable<typeof session.current>): Promise<NarrativeChoices | "stop"> {
     const tracks = opened.plot.features.filter((f) => f.properties.kind === "track").map((f) => ({ id: f.id as string, name: (f.properties as { name: string }).name }));
     const ask = questionsFor(preview, tracks);
     if (!ask.types && !ask.period && !ask.platforms.length) return {};

@@ -63,6 +63,10 @@ def test_the_fcs_narrative_without_metadata() -> None:
     # lines (a line a paragraph) and 10 of the .doc's. The counts above are unchanged.
     assert pdf.overflow == 0
     assert read(OTHER / "FCS_narrative_no_metadata.doc").overflow == 0
+    # A line starting with a number is text when its time is out of order (product owner,
+    # 15 Oct 2026): none of these logs' 374 short entries is, so the counts are unchanged.
+    assert pdf.as_text == [] and read(OTHER / "FCS_narrative_no_metadata.doc").as_text == []
+    assert len(pdf.entries) == 374
 
 
 @pytest.mark.parametrize(

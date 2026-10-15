@@ -134,7 +134,7 @@ NARRATIVE = [
     ("020900", ",02,04,20,RED TWO,AVERYLONGTYPEWITHOUT", " COMMA and more text,trailing"),
     "1015 follow on text for RED TWO",
     "011030 SR023 B-123 R-5.1kyds C-321 S-6kts Classified Merchant vessel",
-    "12 Apr 20",
+    "02 May 20",
     "1200 after the day marker",
     "",
 ]
