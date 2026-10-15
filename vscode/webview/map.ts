@@ -1274,7 +1274,9 @@ function drawGrid(): void {
   paintMarks(background);
 
   if (thinNote) {
-    thinNote.textContent = thinningNote(thinned, drawing);
+    // Written only when it changes: it is a status a screen reader says, and the map is drawn again at every pan.
+    const said = thinningNote(thinned, drawing);
+    if (thinNote.textContent !== said) thinNote.textContent = said;
     thinNote.hidden = !thinned.length;
   }
   for (const kind of ["time", "symbol"] as const) {

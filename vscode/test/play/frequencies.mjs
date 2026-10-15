@@ -194,16 +194,16 @@ export async function playFrequencies(page, shot) {
   await turn.click();
   n = await steps();
   await page.locator(".fix-actions").getByRole("button", { name: "Label…", exact: true }).click();
-  await page.locator("#track-form-text").fill("Turn 1");
+  await page.locator("#track-form-text").fill("Wheel over");
   await page.locator("dialog.track-form").getByRole("button", { name: "Save" }).click();
   await stepAdded(n);
-  assert.match(await latest(), /^RED ONE fix at 08:20:00Z labelled 'Turn 1'$/);
+  assert.match(await latest(), /^RED ONE fix at 08:20:00Z labelled 'Wheel over'$/);
   // Forced ones are deliberate: never thinned away when zoomed out.
   await page.locator(".side-bar button", { hasText: "Close" }).click();
   await mapFrame.getByRole("button", { name: "Zoom to the selection" }).click();
   await page.waitForTimeout(600);
   await mapFrame.locator(".fix-time-text", { hasText: /^0813$/ }).waitFor();
-  await mapFrame.locator(".leaflet-tooltip.fix-label", { hasText: "Turn 1" }).waitFor();
+  await mapFrame.locator(".leaflet-tooltip.fix-label", { hasText: "Wheel over" }).waitFor();
   await mapFrame.locator(".fix-time-text", { hasText: /^0820$/ }).waitFor();
   assert.deepEqual(await overlaps(), [], "time labels clear of a fix's own label");
   await zoomBy(3);
