@@ -227,6 +227,26 @@ def _documents(docs: Path | None) -> tuple[dict, float]:
             "problems": read.problems,
             "warnings": read.warnings,
         }
+    # Hostile documents are refused in the browser as on the desktop, with the same words:
+    # a page showing text too many times; XML nested too deep.
+    import io
+    import zipfile
+
+    from debrief_io.documents import DocumentError
+
+    deep = io.BytesIO()
+    with zipfile.ZipFile(deep, "w", zipfile.ZIP_DEFLATED) as archive:
+        w = 'xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main"'
+        nested = "<w:tbl><w:tr><w:tc>" * 2_000 + "</w:tc></w:tr></w:tbl>" * 2_000
+        archive.writestr(
+            "word/document.xml", f"<w:document {w}><w:body>{nested}</w:body></w:document>"
+        )
+    for name, data in {"dense.pdf": _pdf(["x"] * 20_001), "deep.docx": deep.getvalue()}.items():
+        try:
+            read_document(name, data)
+            out[name] = {"refused": None}
+        except DocumentError as error:
+            out[name] = {"refused": str(error)}
     return out, (time.perf_counter() - began) * 1000
 
 
