@@ -1,0 +1,47 @@
+{
+  "description": "Shared vectors for how often a track's fixes are labelled, marked with a symbol or given a direction arrow (CAP-32). An interval is a whole number of seconds from 1 s to 24 h. read: text an analyst or an agent types, and the seconds it means, \"off\", or the problem said; debrief_kernel.time.read_interval and readInterval in vscode/webview/frequencies.ts must agree. describe: seconds and the words for them, as step names and the form say them (describe_interval, describeInterval). track: a track's intervals as its details show them (debrief_stac.frequencies.describe_track, describeFrequencies).",
+  "read": [
+    {"text": "90 s", "seconds": 90},
+    {"text": "90s", "seconds": 90},
+    {"text": "1h30", "seconds": 5400},
+    {"text": "1 h 30 min", "seconds": 5400},
+    {"text": "1h 30m", "seconds": 5400},
+    {"text": "2m30", "seconds": 150},
+    {"text": "10 min", "seconds": 600},
+    {"text": "10 mins", "seconds": 600},
+    {"text": "10 minutes", "seconds": 600},
+    {"text": "1.5 h", "seconds": 5400},
+    {"text": "2 hours", "seconds": 7200},
+    {"text": "24 h", "seconds": 86400},
+    {"text": "1 day", "seconds": 86400},
+    {"text": "1 s", "seconds": 1},
+    {"text": " 5 SEC ", "seconds": 5},
+    {"text": "off", "seconds": "off"},
+    {"text": "None", "seconds": "off"},
+    {"text": "10", "problem": "Say the unit, such as 30 s, 10 min or 1 h 30 min."},
+    {"text": "", "problem": "Say the unit, such as 30 s, 10 min or 1 h 30 min."},
+    {"text": "ten minutes", "problem": "Say the unit, such as 30 s, 10 min or 1 h 30 min."},
+    {"text": "10 fortnights", "problem": "Say the unit, such as 30 s, 10 min or 1 h 30 min."},
+    {"text": "30 min 1 h", "problem": "Say the unit, such as 30 s, 10 min or 1 h 30 min."},
+    {"text": "0.5 s", "problem": "Give whole seconds: an interval is from 1 s to 24 h."},
+    {"text": "0 s", "problem": "An interval is from 1 s to 24 h."},
+    {"text": "25 h", "problem": "An interval is from 1 s to 24 h."},
+    {"text": "24 h 1 s", "problem": "An interval is from 1 s to 24 h."}
+  ],
+  "describe": [
+    {"seconds": 1, "text": "1 s"},
+    {"seconds": 30, "text": "30 s"},
+    {"seconds": 60, "text": "1 min"},
+    {"seconds": 90, "text": "1 min 30 s"},
+    {"seconds": 600, "text": "10 min"},
+    {"seconds": 3600, "text": "1 h"},
+    {"seconds": 5400, "text": "1 h 30 min"},
+    {"seconds": 3661, "text": "1 h 1 min 1 s"},
+    {"seconds": 86400, "text": "24 h"}
+  ],
+  "track": [
+    {"properties": {}, "text": "Labels default · Symbols default · Arrows default"},
+    {"properties": {"label_interval": {"value": 10, "unit": "min"}, "symbol_interval": "off", "arrow_interval": {"value": 300, "unit": "s"}}, "text": "Labels every 10 min · Symbols off · Arrows every 5 min"},
+    {"properties": {"arrow_interval": "off", "symbol_interval": {"value": 90, "unit": "min"}}, "text": "Labels default · Symbols every 1 h 30 min · Arrows off"}
+  ]
+}

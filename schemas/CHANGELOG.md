@@ -2,6 +2,13 @@
 
 The data-file schema is versioned independently of Debrief (SUB-12). Before 1.0.0 there is no migration guarantee (SUB-13).
 
+## 0.0.20 (15 Oct 2026)
+
+- How often a track is labelled, marked with a symbol and given a direction arrow (CAP-32): `label_interval`, `symbol_interval` and `arrow_interval` on `TrackProperties`, each a `Duration` or `"off"` (`FixIntervalOffEnum`), presentation content recorded in history like colour (SUB-22), held per track. Left out, Debrief's default: no time labels and no symbols; a few arrows along the track's part in the time window, as before. The map draws them at each whole multiple of the interval of UTC (every 10 min is 0900, 0910, 0920, wherever the track starts), as legacy Debrief aligns them. Rule: a duration is a whole number of seconds from 1 s to 24 h. Nothing else in plot files changes.
+- `FixMark` gains `show_label` and `show_symbol` (boolean, true or left out): the fix always shows its time label or symbol, whatever its track's intervals and at any zoom (CAP-32; decision, product owner, 15 Oct 2026: force on only, so no per-fix off). A mark with only these is valid; the rule that a mark says something now counts them, and a mark saying either false is refused. Set by `debrief/mark_fix`, one step each.
+- Shared vectors `schemas/vectors/fix-intervals.json`: an interval as typed (`90 s`, `1h30`, `off`) and as named (`1 min 30 s`, `1 h 30 min`), held by `debrief_kernel.time` and the map's form alike.
+- Before 1.0.0 only an exact version opens (SUB-13): plots written as 0.0.19 must be imported or built again.
+
 ## 0.0.19 (15 Oct 2026)
 
 - Narrative entries (CAP-05, CAP-19, CAP-20, EXT-14): a feature kind of their own, `narrative` (`NarrativeFeature`, `NarrativeProperties`), with null geometry as a time-only annotation has: `time` (UTC to the millisecond), `source` (who wrote it: a platform, a person or a document), `entry_type` (the source's own kind of entry, free text, such as `GenComment`, `CSD` or `FCS`; left out where it gives none), `text` (may run to several lines) and `track_id` (the track it belongs to; a link to a track since deleted is allowed and ignored), and `provenance`. One feature an entry, so each entry added, changed or deleted is one small step. Every narrative feature in a plot together is its narrative, on one Zulu time axis, in one order held by both languages to `schemas/vectors/narrative-order.json`: by time, then source ignoring case (capitals first between sources differing only in case), then plot order. Rules: null geometry, a source and text that are not blank, a type that is not blank when given. `FeatureKindEnum` gains `narrative`; plots, history steps, earlier deltas and tool results may hold them.

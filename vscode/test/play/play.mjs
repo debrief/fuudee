@@ -19,6 +19,7 @@ import { playFixDrag } from "./fixdrag.mjs";
 import { playTote, stickyHeadings } from "./tote.mjs";
 import { playNarrative, playNarrativeAtScale, vscodeTimelineView } from "./narrative.mjs";
 import { playWordNarrative } from "./narrativeword.mjs";
+import { playFrequencies } from "./frequencies.mjs";
 
 const root = path.resolve(process.argv[2] ?? "../site/docs/play");
 const site = process.argv[3] ? path.resolve(process.argv[3]) : undefined;
@@ -290,6 +291,9 @@ try {
   // Narrative from Word, the reader asked what legacy Debrief asked; and the Timeline's
   // extras: highlights, choosing without moving time, text size, wrapping, columns (CAP-19, CAP-05).
   await playWordNarrative(page, shot);
+  // Labels, symbols and arrows at intervals for two tracks at once, one step; thinned when zoomed
+  // out; mixed values left alone; an interval typed; undo; a fix always showing its label (CAP-32).
+  await playFrequencies(page, shot);
 
   // Import a legacy plot file.
   const dpf = path.resolve("../python/debrief-io/tests/data/shapes.dpf");
@@ -401,7 +405,7 @@ try {
   await ready();
   await playNarrativeAtScale(page, shot);
   assert.deepEqual(errors, []);
-  console.log(`Playground played: map selection, keyboard, the Tote, tools, undo, crash recovery, conflict, annotations, drawing, tracks, shear and stretch, cleaning, single fixes, the narrative in the Timeline (and at 60,000 entries), narrative from Word and the Timeline's extras, import, narrow, CDN blocked${site ? ", and from a blog post" : ""}.`);
+  console.log(`Playground played: map selection, keyboard, the Tote, tools, undo, crash recovery, conflict, annotations, drawing, tracks, shear and stretch, cleaning, single fixes, the narrative in the Timeline (and at 60,000 entries), narrative from Word and the Timeline's extras, labels, symbols and arrows, import, narrow, CDN blocked${site ? ", and from a blog post" : ""}.`);
 
   /**
    * The time controller (CAP-28): drag the window and the map shows only it, at

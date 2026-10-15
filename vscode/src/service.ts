@@ -421,6 +421,24 @@ export class ToolService {
   }
 
   /**
+   * How often tracks are labelled, marked with a symbol and given a direction arrow (CAP-32):
+   * each of label_interval, symbol_interval and arrow_interval given is a duration, "off", or
+   * null for Debrief's default; one left out stays as each track has it. One recorded,
+   * undoable step for every track, named like "Labels every 10 min on 3 tracks".
+   */
+  setFrequencies(
+    store: string,
+    item: string,
+    base: Base,
+    agent: Agent,
+    features: string[],
+    changes: Record<string, unknown>,
+    allowNewerSchema = false,
+  ): Promise<Opened & { changed: boolean }> {
+    return this.request("debrief/set_track_frequencies", { store, item, base, agent, features, ...changes, ...(allowNewerSchema && { allow_newer_schema: true }) });
+  }
+
+  /**
    * Add, change or delete narrative entries, or read a REP file's narrative into the
    * plot: each a recorded, undoable step named like "Narrative entry by BLUE ONE at
    * 08:40:00Z added" (CAP-20). Fails with CONFLICT if the plot changed since base.

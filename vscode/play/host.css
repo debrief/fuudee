@@ -16,7 +16,7 @@ body { background: var(--vscode-editor-background); color: var(--vscode-foregrou
 .action-group { display: grid; grid-template-columns: repeat(auto-fill, minmax(76px, 1fr)); gap: 4px; margin-top: 8px; }
 .action-label { grid-column: 1 / -1; font-size: 11px; color: var(--vscode-descriptionForeground); }
 .action-group button { margin: 0; padding: 3px 4px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.action-group #north-arrow { grid-column: span 2; }
+.action-group #north-arrow, .action-group #track-frequencies { grid-column: span 2; }
 #outline li:hover { background: var(--vscode-list-hoverBackground); }
 #outline li.selected { background: var(--vscode-list-activeSelectionBackground); color: var(--vscode-list-activeSelectionForeground); }
 #outline .tag { font-size: 10px; padding: 0 3px; border: 1px solid currentColor; border-radius: 2px; opacity: 0.85; }
@@ -126,3 +126,13 @@ dialog::backdrop { background: #0006; }
 .context-menu { position: fixed; z-index: 20; display: flex; flex-direction: column; min-width: 180px; padding: 4px 0; background: var(--vscode-menu-background, var(--vscode-editorWidget-background)); color: var(--vscode-menu-foreground, var(--vscode-foreground)); border: 1px solid var(--vscode-menu-border, var(--vscode-editorWidget-border)); box-shadow: 0 2px 8px var(--vscode-widget-shadow, transparent); }
 .context-menu button { display: block; width: 100%; margin: 0; padding: 4px 12px; text-align: left; background: none; border: 0; border-radius: 0; color: inherit; }
 .context-menu button:hover, .context-menu button:focus-visible { background: var(--vscode-menu-selectionBackground, var(--vscode-list-activeSelectionBackground)); color: var(--vscode-menu-selectionForeground, var(--vscode-list-activeSelectionForeground)); outline: none; }
+/* Labels, symbols and arrows (CAP-32): a quiet form, a heading for each chooser, aligned; it never scrolls sideways, down to 210 px. */
+.freq-form { width: min(340px, calc(100vw - 40px)); box-sizing: border-box; }
+.freq-form .freq-tracks { margin: -4px 0 10px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.freq-form .freq-row { display: grid; grid-template-columns: 4.6em minmax(0, 1fr); align-items: center; column-gap: 8px; row-gap: 3px; margin-bottom: 8px; }
+.freq-form .freq-row select, .freq-form .freq-row input { min-width: 0; width: 100%; box-sizing: border-box; }
+.freq-form .freq-row input, .freq-form .freq-row .form-note { grid-column: 2; }
+.freq-form .freq-row .form-note:empty { display: none; }
+.freq-form .buttons { margin-top: 12px; }
+.fix-actions .toggle[aria-pressed="true"] { background: var(--vscode-button-background); color: var(--vscode-button-foreground); }
+#outline .freq-detail { display: block; font-size: 11px; }

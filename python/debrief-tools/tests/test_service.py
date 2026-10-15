@@ -437,6 +437,38 @@ def test_a_newer_schema_question_reaches_the_caller(config_file: Path) -> None:
     }
 
 
+def test_track_frequencies_are_one_recorded_step_for_every_track(client, catalogue) -> None:
+    """CAP-32: agents set how often tracks are labelled, marked and arrowed, as the form does."""
+    where = {"store": "exercise", "item": "serial", "agent": AGENT}
+    base = rpc(client, "debrief/open", where).json()["result"]["base"]
+    params = {**where, "base": base, "features": ["track-nelson", "track-blue"]}
+    done = rpc(
+        client,
+        "debrief/set_track_frequencies",
+        params | {"label_interval": {"value": 10, "unit": "min"}, "arrow_interval": "5 min"},
+    ).json()["result"]
+    assert done["changed"] and done["base"]["current"] == base["current"] + 1
+    steps = rpc(client, "debrief/history", where).json()["result"]["steps"]
+    assert steps[-1]["notes"] == ["Labels every 10 min, arrows every 5 min on NELSON and BLUE"]
+    tracks = {f.id: f.properties for f in catalogue.read_plot("serial").features}
+    assert tracks["track-blue"].label_interval.value == 10
+    assert tracks["track-nelson"].arrow_interval.unit == "min"
+    # A bad interval, or none at all, is refused in plain words; nothing changes.
+    for bad in ({"label_interval": "25 h"}, {}):
+        error = rpc(
+            client, "debrief/set_track_frequencies", {**where, "features": ["track-nelson"], **bad}
+        ).json()["error"]
+        assert error["code"] == -32602
+    assert "1 s to 24 h" in error["message"] or "label_interval" in error["message"]
+    rpc(client, "debrief/undo", {**where, "base": done["base"]})
+    assert (
+        next(
+            f for f in catalogue.read_plot("serial").features if f.id == "track-blue"
+        ).properties.label_interval
+        is None
+    )
+
+
 def test_colour_and_hiding_are_recorded_steps_undone_like_any_other(client, catalogue) -> None:
     where = {"store": "exercise", "item": "serial", "agent": AGENT}
     base = rpc(client, "debrief/open", where).json()["result"]["base"]

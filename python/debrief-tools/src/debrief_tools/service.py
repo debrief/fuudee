@@ -8,8 +8,10 @@ Python (TL-08); stores, catalogues and import (REP, legacy .dpf, Word and PDF do
 adding a plot
 file received from a colleague, with its whole history (debrief/add_plot_file); a plot's history
 (debrief/open, debrief/history, debrief/undo, debrief/redo, debrief/goto),
-so undo is the same for the extension and an agent (SUB-21); colour and hiding,
-recorded in that history like any change (debrief/set_colour, debrief/set_hidden);
+so undo is the same for the extension and an agent (SUB-21); colour and hiding, and how
+often tracks are labelled, marked with a symbol and given a direction arrow, recorded in
+that history like any change (debrief/set_colour, debrief/set_hidden,
+debrief/set_track_frequencies);
 annotations added, changed and deleted by hand, and the north arrow, recorded the
 same way (debrief/add_annotation, debrief/edit_annotation, debrief/delete_annotations,
 debrief/set_north_arrow); narrative entries on one Zulu time axis, read and filtered
@@ -97,6 +99,7 @@ from debrief_stac import (
     Conflict,
     HistoryError,
     NewerSchemaError,
+    frequencies,
     narrative,
 )
 from debrief_stac.fixes import describe_largest
@@ -155,7 +158,12 @@ CONFIRM_HOW = "To go ahead, send the change again with discard_dr_changes: true.
 # Named groups, not slices of one list: a method added to one group cannot shift another.
 READING_METHODS = ("debrief/open", "debrief/history", "debrief/narrative")
 STEP_METHODS = ("debrief/undo", "debrief/redo", "debrief/goto")
-PRESENTATION_METHODS = ("debrief/set_colour", "debrief/set_hidden", "debrief/set_view")
+PRESENTATION_METHODS = (
+    "debrief/set_colour",
+    "debrief/set_hidden",
+    "debrief/set_track_frequencies",
+    "debrief/set_view",
+)
 ANNOTATION_METHODS = (
     "debrief/add_annotation",
     "debrief/edit_annotation",
@@ -452,7 +460,11 @@ class ToolService:
                 if type(step) is not int:
                     raise RpcError(INVALID_PARAMS, "goto needs the step to return to")
                 history.goto(step, expected, allow_newer_schema=allow)
-            elif method in ("debrief/set_colour", "debrief/set_hidden"):
+            elif method in (
+                "debrief/set_colour",
+                "debrief/set_hidden",
+                "debrief/set_track_frequencies",
+            ):
                 out["changed"] = self._restyle(catalogue, item, method, params, expected, allow)
             elif method in ANNOTATION_METHODS:
                 out.update(self._annotate(catalogue, item, method, params, expected, allow))
@@ -519,7 +531,8 @@ class ToolService:
         base: Base | None,
         allow: bool,
     ) -> bool:
-        """Colour tracks or hide features: recorded and undoable, like any change."""
+        """Colour tracks, hide features, or set how often tracks are labelled, marked and
+        arrowed (CAP-32): recorded and undoable, like any change."""
         features = params.get("features")
         if not isinstance(features, list) or not all(isinstance(f, str) for f in features):
             raise RpcError(INVALID_PARAMS, f"{method} needs the features to change")
@@ -530,6 +543,19 @@ class ToolService:
                 raise RpcError(INVALID_PARAMS, "set_colour needs a colour, such as #e01c3e")
             step = catalogue.set_colour(
                 item, features, colour, agent, base, colour_name=name, allow_newer_schema=allow
+            )
+        elif method == "debrief/set_track_frequencies":
+            # Each of label_interval, symbol_interval and arrow_interval given: a duration
+            # ({value, unit}, seconds, or text such as "10 min"), "off", or null for the default.
+            changes = {f: params[f] for f in frequencies.FIELDS if f in params}
+            if not changes:
+                raise RpcError(
+                    INVALID_PARAMS,
+                    "set_track_frequencies needs label_interval, symbol_interval or "
+                    'arrow_interval: a duration such as "10 min", "off", or null for the default',
+                )
+            step = catalogue.set_track_frequencies(
+                item, features, changes, agent, base, allow_newer_schema=allow
             )
         else:
             hidden = params.get("hidden")
@@ -734,7 +760,8 @@ class ToolService:
         the threshold they were found at, for the record. preview_smoothing and
         smooth_track take the window (an odd number of fixes) and a period. mark_fix takes
         the time of the fix and changes ({colour, label, comment}; null or "" takes one
-        away), and colour_name for the step's name.
+        away; show_label, show_symbol: true to always show its time label or symbol,
+        false to stop), and colour_name for the step's name.
         """
         feature = params.get("feature")
         if not isinstance(feature, str):

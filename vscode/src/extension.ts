@@ -28,6 +28,7 @@ import { startup, type StartupSnapshot } from "./startup.js";
 import { withMapLines, withPrimary, withSecondaries, withoutSecondary } from "../webview/totelogic.js";
 import { CONFLICT, NEEDS_CONFIRMATION, NEWER_SCHEMA, ServiceError, ToolService, type Agent, type AnnotationChange, type CallOutcome, type NarrativeChange, type OpenedView, type ToolListing, type TrackChange } from "./service.js";
 import type { CleanChange } from "./service.js";
+import { changesOf, choiceFromValue, choicesFor, describeInterval, FIELD_NAMES, FIELDS, formState, readInterval, type Field, type FieldState } from "../webview/frequencies.js";
 import { describeJump, describeMark, describeWindow, fixRows, isDeadReckoned, jumpsFound, markAt, readThreshold, readWindow, smoothingNote, trackLabel } from "../webview/fixes.js";
 import { HistoryProvider } from "./views/history.js";
 import { DiagnosticLog, hashed, logKey, serviceLine, toolRunLine, type ToolOutcome } from "./diagnostics.js";
@@ -433,13 +434,16 @@ export function activate(context: vscode.ExtensionContext): DebriefApi {
    * by Ctrl+Z like any other (decision 12 Oct). A change made elsewhere since
    * the plot was opened is never overwritten (SUB-28).
    */
-  const restyle = (ids: string[], change: { colour: string; colour_name?: string } | { hidden: boolean }) =>
+  const restyle = (ids: string[], change: { colour: string; colour_name?: string } | { hidden: boolean } | { frequencies: Record<string, unknown> }) =>
     serially(() =>
       ourChange(async () => {
         const opened = session.current;
         if (!opened) return "Open a plot first.";
         if (!service || !opened.base) return "Changing colours and hiding needs Debrief's tool service. Run 'Debrief: Restart tool service'.";
-        const save = (allow = false) => service!.restyle(opened.store.id, opened.item.id, opened.base!, agent, ids, change, allow);
+        const save = (allow = false) =>
+          "frequencies" in change
+            ? service!.setFrequencies(opened.store.id, opened.item.id, opened.base!, agent, ids, change.frequencies, allow)
+            : service!.restyle(opened.store.id, opened.item.id, opened.base!, agent, ids, change, allow);
         try {
           try {
             await save();
@@ -1020,6 +1024,73 @@ export function activate(context: vscode.ExtensionContext): DebriefApi {
     const ids = features(targets(node));
     return report(ids.length ? await restyle(ids, { hidden: false }) : "Select what to show.");
   });
+  // Labels, symbols and arrows (CAP-32): how often, for every track selected at once, as one step.
+  // From the outline's menu (with the others selected beside it), the Command Palette or the selection.
+  // With intervals given (agents, keyboard macros, tests), no questions: each a duration such as
+  // {value: 10, unit: "min"} or "10 min", "off", or null for the default; one left out is unchanged.
+  command("debrief.setTrackFrequencies", async (target?: string | string[] | Target, given?: unknown) => {
+    const others = Array.isArray(given) ? featureIdsOf(given as never) : [];
+    const ids = (typeof target === "string" ? [target] : Array.isArray(target) ? target : others.length ? others : targets(target)).filter((id) => trackById(id));
+    if (!ids.length) return report("Select one or more tracks to set how often they are labelled, marked and arrowed.");
+    const tracks = ids.map(trackById).filter((t): t is TrackFeature => !!t);
+    let changes: Record<string, unknown>;
+    if (given && typeof given === "object" && !Array.isArray(given)) changes = given as Record<string, unknown>;
+    else {
+      const chosen = await askFrequencies(tracks);
+      if (!chosen) return undefined;
+      changes = changesOf(tracks.map((t) => t.properties), chosen);
+      if (!Object.keys(changes).length) return undefined; // nothing changed: no step
+    }
+    return report(await restyle(ids, { frequencies: changes }));
+  });
+  /**
+   * The Frequencies form in VS Code's own lists: Labels, then Symbols, then Arrows, each
+   * offering what the tracks have now first (or Mixed, left as they are), the default for
+   * arrows, Off and the presets; typing an interval ("90 s", "1h30") offers it. Escape
+   * stops, changing nothing.
+   */
+  async function askFrequencies(tracks: TrackFeature[]): Promise<Partial<Record<Field, FieldState>> | undefined> {
+    const state = formState(tracks.map((t) => t.properties));
+    const who = tracks.length === 1 ? tracks[0].properties.name : `${tracks.length} tracks`;
+    const chosen: Partial<Record<Field, FieldState>> = {};
+    for (const [n, field] of FIELDS.entries()) {
+      const now = state[field];
+      const items = choicesFor(field, now).map((c) => ({ label: c.label, value: c.value, description: c.value === String(now) ? "as now" : "" }));
+      const picked = await new Promise<FieldState | undefined>((resolve) => {
+        const pick = vscode.window.createQuickPick<{ label: string; value: string; description?: string; alwaysShow?: boolean }>();
+        pick.title = `${FIELD_NAMES[field]} on ${who} (${n + 1} of ${FIELDS.length})`;
+        pick.placeholder = "Choose, or type an interval such as 90 s or 1h30";
+        pick.items = items;
+        pick.activeItems = items.filter((i) => i.value === String(now));
+        pick.onDidChangeValue((text) => {
+          const read = text.trim() ? readInterval(text) : undefined;
+          const typed =
+            read === undefined || read === "off"
+              ? []
+              : typeof read === "number"
+                ? [{ label: `Every ${describeInterval(read)}`, value: String(read), description: "typed", alwaysShow: true }]
+                : [{ label: `$(warning) ${read.problem}`, value: "", alwaysShow: true }];
+          pick.items = [...typed, ...items];
+        });
+        let done = false;
+        pick.onDidAccept(() => {
+          const item = pick.selectedItems[0];
+          if (!item?.value) return; // a problem said, not a choice
+          done = true;
+          resolve(choiceFromValue(item.value));
+          pick.hide();
+        });
+        pick.onDidHide(() => {
+          if (!done) resolve(undefined);
+          pick.dispose();
+        });
+        pick.show();
+      });
+      if (picked === undefined) return undefined;
+      chosen[field] = picked;
+    }
+    return chosen;
+  }
   command("debrief.goToStep", async (target?: number | { step: { seq: number } }) => {
     const seq = typeof target === "number" ? target : target?.step.seq;
     return seq === undefined ? undefined : report(await move("goto", seq));
@@ -1506,7 +1577,7 @@ export function activate(context: vscode.ExtensionContext): DebriefApi {
 
   // "Fixes…": the fix list of a track, to choose one; then its colour, label or comment, each one step.
   // From the map (a right-click on a fix), the fix is given. With a change given, no questions.
-  type MarkChanges = { colour?: string | null; label?: string | null; comment?: string | null; colour_name?: string };
+  type MarkChanges = { colour?: string | null; label?: string | null; comment?: string | null; show_label?: boolean | null; show_symbol?: boolean | null; colour_name?: string };
   /** The fix list of a track, the fix nearest current time offered: the time of the fix chosen, or undefined for Escape. */
   async function chooseFix(track: TrackFeature, placeholder: string): Promise<string | undefined> {
     const rows = fixRows(track, displaySettings, colourName).map((row) => ({ label: row.label, description: row.description, detail: row.mark || undefined, time: row.time }));
@@ -1557,12 +1628,21 @@ export function activate(context: vscode.ExtensionContext): DebriefApi {
       { label: "Label…", description: mark?.label ? `now '${mark.label}'` : "", act: "label" },
       { label: "Comment…", description: mark?.comment ? `now: ${mark.comment.split("\n")[0]}` : "", act: "comment" },
       ...(mark?.colour ? [{ label: "Remove its own colour", description: "drawn in the track's colour again", act: "uncolour" }] : []),
+      // Force on only (decision, product owner, 15 Oct 2026): whatever the track's intervals, at any zoom.
+      mark?.show_label
+        ? { label: "Stop always showing its time label", description: "shown only where the track's label interval falls", act: "label-off" }
+        : { label: "Always show its time label", description: "whatever the track's label interval, at any zoom", act: "label-on" },
+      mark?.show_symbol
+        ? { label: "Stop always showing its symbol", description: "shown only where the track's symbol interval falls", act: "symbol-off" }
+        : { label: "Always show its symbol", description: "whatever the track's symbol interval, at any zoom", act: "symbol-on" },
       { label: "Move…", description: "this fix alone, to a position you type", act: "move" },
     ];
     const action = await vscode.window.showQuickPick(actions, { title: `Fix of ${name} at ${when}`, placeHolder: describeMark(mark, colourName) || "Give this fix a colour, a label or a comment of its own" });
     if (!action) return undefined;
     if (action.act === "move") return "move";
     if (action.act === "uncolour") return { colour: null };
+    if (action.act === "label-on" || action.act === "label-off") return { show_label: action.act === "label-on" };
+    if (action.act === "symbol-on" || action.act === "symbol-off") return { show_symbol: action.act === "symbol-on" };
     if (action.act === "colour") {
       const picked = await vscode.window.showQuickPick(FIX_COLOURS.map((c) => ({ label: c.name, colour: c.colour })), { title: `Colour for the fix of ${name} at ${when}` });
       return picked && { colour: picked.colour, colour_name: picked.label.toLowerCase() };

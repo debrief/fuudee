@@ -111,8 +111,11 @@ export function geodesicArea(corners: LonLat[]): number {
  * (debrief_kernel.geodesy.TrackPath), held to schemas/vectors/track-positions.json.
  */
 export function positionAt(coordinates: LonLat[], times: number[], at: number): LonLat | undefined {
-  if (!times.length || at < times[0] || at > times[times.length - 1]) return undefined;
-  if (times.length === 1) return coordinates[0];
+  return pointAt(coordinates, times, at)?.position;
+}
+
+/** The fixes either side of an instant within a track's span: the later of fixes sharing a time. */
+function bracket(times: number[], at: number): [number, number] {
   let low = 0;
   let high = times.length - 1;
   while (high - low > 1) {
@@ -120,13 +123,50 @@ export function positionAt(coordinates: LonLat[], times: number[], at: number): 
     if (times[middle] <= at) low = middle;
     else high = middle;
   }
+  return [low, high];
+}
+
+/** The direction of travel, degrees true, along the geodesic from fix i to fix j; none if they are at one place. */
+function legCourse(coordinates: LonLat[], i: number, j: number): number | undefined {
+  const [lon1, lat1] = coordinates[i];
+  const [lon2, lat2] = coordinates[j];
+  const g = WGS84.Inverse(lat1, lon1, lat2, lon2);
+  return (g.s12 ?? 0) > 0.01 ? (((g.azi1 ?? 0) % 360) + 360) % 360 : undefined;
+}
+
+/**
+ * Where a track was at an instant, as positionAt gives it, and its direction of travel
+ * there (degrees true): along the geodesic between the fixes either side, the course at
+ * that point of it. At a fix, the course of the leg leaving it (the leg arriving, at the
+ * last fix); where the track did not move, the nearest leg before it that did. None
+ * outside its span; no course for a track that never moved. The map's direction arrows
+ * at a set interval (CAP-32) are drawn so, on the line and along it.
+ */
+export function pointAt(coordinates: LonLat[], times: number[], at: number): { position: LonLat; course?: number } | undefined {
+  if (!times.length || at < times[0] || at > times[times.length - 1]) return undefined;
+  if (times.length === 1) return { position: coordinates[0] };
+  const [low, high] = bracket(times, at);
   const span = times[high] - times[low];
   const f = span > 0 ? (at - times[low]) / span : 1;
-  if (f <= 0) return coordinates[low];
-  if (f >= 1) return coordinates[high];
+  const legBefore = (end: number) => {
+    for (let k = end; k > 0; k--) {
+      const course = legCourse(coordinates, k - 1, k);
+      if (course !== undefined) return course;
+    }
+    return undefined;
+  };
+  if (f <= 0 || f >= 1) {
+    const fix = f <= 0 ? low : high;
+    const leaving = fix + 1 < coordinates.length ? legCourse(coordinates, fix, fix + 1) : undefined;
+    return { position: coordinates[fix], course: leaving ?? legBefore(fix) };
+  }
   const [lon1, lat1] = coordinates[low];
   const [lon2, lat2] = coordinates[high];
   const line = WGS84.InverseLine(lat1, lon1, lat2, lon2);
-  const point = line.Position(f * line.s13, MASK_WRAPPED);
-  return [point.lon2 ?? lon2, point.lat2 ?? lat2];
+  const point = line.Position(f * line.s13, MASK_WRAPPED | geodesic.Geodesic.AZIMUTH);
+  const moved = line.s13 > 0.01;
+  return {
+    position: [point.lon2 ?? lon2, point.lat2 ?? lat2],
+    course: moved ? ((((point.azi2 ?? 0) % 360) + 360) % 360) : legBefore(low),
+  };
 }

@@ -152,7 +152,7 @@ export function formatPosition(position: Position, settings: FormatSettings = DE
   return `${formatCoordinate(position.latitude, "NS", 2, settings)} ${formatCoordinate(position.longitude, "EW", 3, settings)}`;
 }
 
-interface WallClock {
+export interface WallClock {
   year: number;
   month: number;
   day: number;
@@ -162,7 +162,7 @@ interface WallClock {
   offsetMinutes: number;
 }
 
-function wallClock(epochMs: number, zone: string): WallClock {
+export function wallClock(epochMs: number, zone: string): WallClock {
   if (zone === "UTC") {
     const d = new Date(epochMs);
     return {

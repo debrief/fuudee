@@ -800,9 +800,17 @@
       "title": "FeatureTypeEnum",
       "type": "string"
     },
+    "FixIntervalOffEnum": {
+      "description": "A track's labels, symbols or direction arrows explicitly turned off (CAP-32), rather than left to Debrief's default.",
+      "enum": [
+        "off"
+      ],
+      "title": "FixIntervalOffEnum",
+      "type": "string"
+    },
     "FixMark": {
       "additionalProperties": false,
-      "description": "One fix of a track marked by the analyst, or by a legacy plot: drawn in a colour of its own, labelled on the map, or carrying a comment. Found by its time, not its place in the track, so a mark stays with its fix when fixes before it are removed, the track is split or merged, or it is moved, rotated, sheared, stretched or smoothed. Where two fixes share a time, the mark is the first's.",
+      "description": "One fix of a track marked by the analyst, or by a legacy plot: drawn in a colour of its own, labelled on the map, carrying a comment, or always showing its time label or symbol. Found by its time, not its place in the track, so a mark stays with its fix when fixes before it are removed, the track is split or merged, or it is moved, rotated, sheared, stretched or smoothed. Where two fixes share a time, the mark is the first's.",
       "properties": {
         "colour": {
           "description": "The fix's own colour, lower-case hex RGB: its marker and the line from it to the next fix are drawn in it.",
@@ -823,6 +831,20 @@
           "description": "Text drawn on the map beside the fix.",
           "type": [
             "string",
+            "null"
+          ]
+        },
+        "show_label": {
+          "description": "The fix always shows its time label, as the track's label_interval draws them, whatever that interval is and at any zoom (CAP-32; decision, product owner, 15 Oct 2026: force on only, so true when given). Never drawn twice where the interval falls on the same time.",
+          "type": [
+            "boolean",
+            "null"
+          ]
+        },
+        "show_symbol": {
+          "description": "The fix always shows its symbol, as the track's symbol_interval draws them, whatever that interval is and at any zoom (CAP-32); true when given.",
+          "type": [
+            "boolean",
             "null"
           ]
         },
@@ -3638,6 +3660,20 @@
       "additionalProperties": false,
       "description": "",
       "properties": {
+        "arrow_interval": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/Duration"
+            },
+            {
+              "$ref": "#/$defs/FixIntervalOffEnum"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": "How often a chevron on the line shows the track's direction of travel (CAP-32): aligned and bounded as label_interval. Left out, Debrief's default: a few along the track in the time window."
+        },
         "courses": {
           "anyOf": [
             {
@@ -3661,7 +3697,7 @@
           "description": "Depth below the sea surface at each position, positive down. Absent where depth is not known."
         },
         "fix_marks": {
-          "description": "Fixes with a colour, a label or a comment of their own, in time order, each found by its time (CAP-01, EXT-14). Most fixes have none, so only marked fixes are listed. Content: each change is a recorded, undoable step (SUB-22).",
+          "description": "Fixes with a colour, a label or a comment of their own, or always showing their time label or symbol, in time order, each found by its time (CAP-01, EXT-14). Most fixes have none, so only marked fixes are listed. Content: each change is a recorded, undoable step (SUB-22).",
           "items": {
             "$ref": "#/$defs/FixMark"
           },
@@ -3679,6 +3715,20 @@
         },
         "kind": {
           "$ref": "#/$defs/TrackKindEnum"
+        },
+        "label_interval": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/Duration"
+            },
+            {
+              "$ref": "#/$defs/FixIntervalOffEnum"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": "How often the track is labelled with the time (CAP-32): at each whole multiple of this interval of UTC (every 10 min is 0900, 0910, 0920...), as legacy Debrief aligns them, from 1 second to 24 hours; or off. Left out, Debrief's default: none. Presentation content: each change is a recorded, undoable step, like colour (SUB-22)."
         },
         "logged_courses": {
           "anyOf": [
@@ -3763,6 +3813,20 @@
               "type": "null"
             }
           ]
+        },
+        "symbol_interval": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/Duration"
+            },
+            {
+              "$ref": "#/$defs/FixIntervalOffEnum"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": "How often a small symbol in the track's colour marks where it was (CAP-32): aligned and bounded as label_interval. Left out, none."
         },
         "times": {
           "description": "One per position, non-decreasing.",
@@ -4314,5 +4378,5 @@
   ],
   "title": "debrief",
   "type": "object",
-  "version": "0.0.19"
+  "version": "0.0.20"
 }

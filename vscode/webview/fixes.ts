@@ -72,6 +72,8 @@ export function describeMark(mark: FixMark | undefined, colourName?: (colour: st
     mark.colour ? `coloured ${colourName?.(mark.colour) ?? "its own colour"}` : "",
     mark.label ? `labelled '${mark.label}'` : "",
     mark.comment ? firstLine(mark.comment) : "",
+    mark.show_label ? "time label always shown" : "",
+    mark.show_symbol ? "symbol always shown" : "",
   ]
     .filter(Boolean)
     .join(" · ");

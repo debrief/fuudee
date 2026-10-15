@@ -116,3 +116,14 @@ body { background: var(--vscode-editor-background); color: var(--vscode-foregrou
 .narrative-box b { font-weight: 600; margin-right: 2px; }
 /* Where the right is short of room, the box ends at the marker instead of starting there. */
 .narrative-box.narrative-left { transform: translateX(-100%); }
+/* Labels, symbols and arrows at each track's intervals (CAP-32): a time to port of the track, on a short leader in its colour; a small dot in its colour, haloed. Never interactive. */
+.fix-time-anchor { pointer-events: none; }
+.fix-time { position: relative; width: 0; height: 0; }
+.fix-time-leader { position: absolute; left: 0; top: -0.75px; width: 7px; height: 1.5px; transform-origin: 0 50%; opacity: 0.9; }
+.fix-time-text { position: absolute; white-space: nowrap; font-size: 10.5px; line-height: 12px; font-variant-numeric: tabular-nums; letter-spacing: 0.01em; color: var(--vscode-editor-foreground); text-shadow: 0 0 2px var(--vscode-editor-background), 0 0 2px var(--vscode-editor-background), 0 0 3px var(--vscode-editor-background); }
+.leaflet-overlay-pane path.fix-symbol { pointer-events: none; }
+.swatch-time { width: auto; height: auto; font-size: 10px; font-variant-numeric: tabular-nums; margin: 0 1px; }
+.swatch-symbol { width: 5px; height: 5px; border-radius: 50%; background: var(--debrief-track); margin: 0 6.5px; }
+/* Thinned to fit the zoom: said quietly, above the key. */
+.thin-note { max-width: 260px; background: var(--vscode-editorWidget-background); color: var(--vscode-descriptionForeground); border: 1px solid var(--vscode-editorWidget-border, transparent); padding: 3px 8px; font-size: 11px; line-height: 1.35; }
+.thin-note[hidden] { display: none; }
