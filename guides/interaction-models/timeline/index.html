@@ -1393,6 +1393,17 @@
   
 </li>
         
+          <li class="md-nav__item">
+  <a href="#the-readers-view-highlights-choosing-text-and-columns" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        The reader's view: highlights, choosing, text and columns
+      
+    </span>
+  </a>
+  
+</li>
+        
       </ul>
     </nav>
   
@@ -1410,10 +1421,10 @@
 </li>
       
         <li class="md-nav__item">
-  <a href="#narrative-from-word-and-pdf-part-b-cap-19" class="md-nav__link">
+  <a href="#word-and-pdf-documents-cap-19" class="md-nav__link">
     <span class="md-ellipsis">
       
-        Narrative from Word and PDF: part B (CAP-19)
+        Word and PDF documents (CAP-19)
       
     </span>
   </a>
@@ -1660,6 +1671,17 @@
   
 </li>
         
+          <li class="md-nav__item">
+  <a href="#the-readers-view-highlights-choosing-text-and-columns" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        The reader's view: highlights, choosing, text and columns
+      
+    </span>
+  </a>
+  
+</li>
+        
       </ul>
     </nav>
   
@@ -1677,10 +1699,10 @@
 </li>
       
         <li class="md-nav__item">
-  <a href="#narrative-from-word-and-pdf-part-b-cap-19" class="md-nav__link">
+  <a href="#word-and-pdf-documents-cap-19" class="md-nav__link">
     <span class="md-ellipsis">
       
-        Narrative from Word and PDF: part B (CAP-19)
+        Word and PDF documents (CAP-19)
       
     </span>
   </a>
@@ -1719,7 +1741,7 @@
 
 
 <h1 id="timeline-and-narrative">Timeline and narrative<a class="headerlink" href="#timeline-and-narrative" title="Permanent link">&para;</a></h1>
-<p>How an analyst reads a plot's narrative along with a replay: narrative entries from every platform, with time-only notes and periods and the comments on fixes, in one time-ordered list, the Timeline; how it follows current time without fighting the reader; how entries are chosen, filtered, searched, added, changed and deleted; and how narrative is held and imported.</p>
+<p>How an analyst reads a plot's narrative along with a replay: narrative entries from every platform, with time-only notes and periods and the comments on fixes, in one time-ordered list, the Timeline; how it follows current time without fighting the reader; how entries are chosen, filtered, searched, highlighted, added, changed and deleted; and how narrative is held and imported, from REP files, legacy plots, and Word and PDF documents.</p>
 <p>The product owner decided on 15 Oct 2026 that narrative is read in the Timeline, not a view of its own: one list on one Zulu time axis, which data coverage joins later (CAP-05, CAP-08).</p>
 <h2 id="requirements-cited">Requirements cited<a class="headerlink" href="#requirements-cited" title="Permanent link">&para;</a></h2>
 <table>
@@ -1736,7 +1758,15 @@
 </tr>
 <tr>
 <td>CAP-19</td>
-<td>Narrative is imported from Word and PDF in the legacy parsers' dialects (part B).</td>
+<td>Narrative is imported from Word and PDF in the legacy parsers' dialects, ported to Python with their tests.</td>
+</tr>
+<tr>
+<td>EXT-04</td>
+<td>Narrative documents: Word and PDF, several dialects.</td>
+</tr>
+<tr>
+<td>CON-09, CON-10</td>
+<td>The playground runs the same Python in the browser; a capability it lacks is explained, never failed at the point of use.</td>
 </tr>
 <tr>
 <td>CAP-20</td>
@@ -1778,7 +1808,7 @@
 <h2 id="importing-narrative">Importing narrative<a class="headerlink" href="#importing-narrative" title="Permanent link">&para;</a></h2>
 <ol>
 <li><strong>REP files.</strong> <code>;NARRATIVE:</code> lines (date, time, source, text) and <code>;NARRATIVE2:</code> lines (date, time, source, type, text) are read as legacy Debrief's <code>ImportNarrative</code> and <code>ImportNarrative2</code> read them: fields separated by spaces or tabs; the source, and a type, in quotes where they hold spaces; the text the rest of the line, tabs kept, trimmed; dates in the same 1950 to 2049 window as fixes. As in legacy Debrief, a <code>;NARRATIVE:</code> line has no type: an unquoted source with a space, <em>HMS TORBAY</em>, reads as the source <em>HMS</em> and the text <em>TORBAY…</em>. Unlike legacy Debrief, text run on after a closing quote is kept for the next field rather than dropped with the quote. A line that cannot be read is listed with its number and why. A REP file of narrative alone makes a plot.</li>
-<li><strong>Into the plot already open.</strong> <strong>Read narrative into this plot (REP)…</strong> (on the Timeline's title bar in VS Code; <em>A narrative into the open plot</em> under <em>Import your own</em> in the playground; <code>debrief/import_narrative</code> for agents) reads a second platform's log into the open plot as one step: the file is kept in the plot's item as a source, read-only and hashed, the step's record names the importer, its version and that source, and it lists what was not read (fix lines, which belong to an import as a plot of their own, and lines that could not be read). Undo takes the whole log out again.</li>
+<li><strong>Into the plot already open.</strong> <strong>Read narrative into this plot (REP, Word, PDF)…</strong> (on the Timeline's title bar in VS Code; <em>A narrative into the open plot</em> under <em>Import your own</em> in the playground; <code>debrief/import_narrative</code> for agents) reads a second platform's log into the open plot as one step: the file is kept in the plot's item as a source, read-only and hashed, the step's record names the importer, its version and that source (and for a document its dialect and the analyst's choices), and it lists what was not read (fix lines, which belong to an import as a plot of their own, and lines that could not be read, each with why). Undo takes the whole log out again. A Word or PDF document is read in legacy Debrief's dialects, the analyst asked first what legacy Debrief asked: see <a href="#word-and-pdf-documents-cap-19">Word and PDF documents</a>. <strong>Import plot file (REP, .dpf, Word, PDF)…</strong> makes a plot of a document's narrative alone, as of a REP file's.</li>
 <li><strong>Legacy plots (.dpf).</strong> Narrative entries come in with their time, source, type and text; the entry type, which the Phase 2 import listed as not imported, is kept.</li>
 </ol>
 <h2 id="the-timeline">The Timeline<a class="headerlink" href="#the-timeline" title="Permanent link">&para;</a></h2>
@@ -1871,6 +1901,16 @@
 <td>No</td>
 </tr>
 <tr>
+<td>Highlights, text size, wrapping, columns, the choosing switch</td>
+<td>No (the reader's own, in the page)</td>
+<td>No</td>
+</tr>
+<tr>
+<td>Reading a Word or PDF narrative into the plot</td>
+<td>Yes, one for the document</td>
+<td>Yes</td>
+</tr>
+<tr>
 <td>Narrative on the map, off or on</td>
 <td>No (the plot's island)</td>
 <td>No</td>
@@ -1918,6 +1958,11 @@
 <td>the box</td>
 </tr>
 <tr>
+<td>The reader's view (highlights, choosing, text, columns)</td>
+<td><code>Tab</code> to <strong>⋯</strong>, <code>Enter</code>; <code>Escape</code> closes</td>
+<td><strong>⋯</strong></td>
+</tr>
+<tr>
 <td>Close the form</td>
 <td><code>Escape</code>; <code>Ctrl+Enter</code> saves</td>
 <td><strong>Cancel</strong></td>
@@ -1931,7 +1976,43 @@
 </table>
 <p>The list is a listbox for screen readers: each entry read with its full date and time, its source, type and text; the keyboard's place is its active option, the entry current time is at its current one (<code>aria-current="time"</code>).</p>
 <p><code>Ctrl+Z</code> is decided in the Timeline's page as the key is pressed, against what has focus then: in a text box it is left to the text; elsewhere the page asks its host to undo (<code>undo_asked</code>, <code>redo_asked</code> in VS Code, which runs <strong>Undo</strong> as the map's <code>Ctrl+Z</code> does, and only when there is something to undo). A context key that a keybinding read would reach the page's host after focus had moved, so a <code>Ctrl+Z</code> straight after clicking into the search box could undo the plot.</p>
-<p><em>Not yet</em> (product owner, 15 Oct 2026, for a follow-up): legacy Debrief's Narrative viewer extras. Phrases to highlight wherever they appear; an off switch for <em>choosing an entry moves current time</em>; the text's size and a wrap toggle; and which columns are shown.</p>
+<h3 id="the-readers-view-highlights-choosing-text-and-columns">The reader's view: highlights, choosing, text and columns<a class="headerlink" href="#the-readers-view-highlights-choosing-text-and-columns" title="Permanent link">&para;</a></h3>
+<ol>
+<li>
+<p><strong>One small menu, so the bar stays quiet.</strong> Legacy Debrief's Narrative viewer had extras the product owner kept (15 Oct 2026): phrases highlighted, an off switch for <em>choosing an entry moves current time</em>, the text's size and a wrap toggle, and which columns show. They are in a menu, <strong>⋯</strong> in the bar beside <strong>Filter</strong>, a box under the bar like the filter's, never a row of controls above the list:</p>
+<table>
+<thead>
+<tr>
+<th>In the menu</th>
+<th>What it does</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><strong>Highlight</strong> <em>words, phrases, separated by commas</em></td>
+<td>Each word or phrase is marked wherever it is in an entry's text, ignoring case: bold, underlined in the theme's highlight, so it is told from what the search found (shaded) without colour alone. The longest phrase at a place wins (<em>contact lost</em> whole, not <em>contact</em>); the search wins where the two meet. Twenty phrases at most. A row with one is read as <em>…, highlighted</em> by a screen reader.</td>
+</tr>
+<tr>
+<td><strong>Choosing an entry moves current time</strong></td>
+<td>On, as before. Off, choosing an entry (click, tap, <code>Enter</code>) puts the keyboard's place on it, showing its <strong>Edit</strong> and <strong>Delete</strong>, and leaves current time, and the list's following, as they were: for reading back through a log while a replay holds its place.</td>
+</tr>
+<tr>
+<td><strong>Wrap long entries</strong></td>
+<td>On, as before. Off, each entry is one line, cut with an ellipsis; the whole text is still read by a screen reader and shown in the form.</td>
+</tr>
+<tr>
+<td><em>Text 12px</em>, <strong>A−</strong>, <strong>A+</strong></td>
+<td>The list's text from 11 to 18 px; the bar and the menu keep theirs.</td>
+</tr>
+<tr>
+<td><em>Columns</em>: <strong>Time</strong>, <strong>Source</strong>, <strong>Type</strong></td>
+<td>The columns shown; the entry's text always is. Narrow, with the time hidden, the text starts at the left edge.</td>
+</tr>
+</tbody>
+</table>
+<p><strong>⋯</strong> is drawn like <strong>Filter (2)</strong> when anything differs from the Timeline's own view. <code>Escape</code> closes the menu, back to its button. Like the filter, the view is the reader's own (product owner, 15 Oct 2026): kept in the page (VS Code's webview state; the browser's storage in the playground, guarded), never in the plot, never sent to the host. The page never scrolls sideways at any of these settings, at 210, 280 or 390 px, in a wider font than this machine's (the tests' check).</p>
+</li>
+</ol>
 <h2 id="scale-nfr-06">Scale (NFR-06)<a class="headerlink" href="#scale-nfr-06" title="Permanent link">&para;</a></h2>
 <p>Typical narratives are a few hundred entries; the product owner rarely sees more (15 Oct 2026). That case must be quick, and is:</p>
 <table>
@@ -2035,20 +2116,56 @@
     H-&gt;&gt;P: debrief/add_narrative
     P--&gt;&gt;H: one step, new base
     H-&gt;&gt;T: show_timeline, narrative_saved</code></pre>
-<h2 id="narrative-from-word-and-pdf-part-b-cap-19">Narrative from Word and PDF: part B (CAP-19)<a class="headerlink" href="#narrative-from-word-and-pdf-part-b-cap-19" title="Permanent link">&para;</a></h2>
-<p>Part A leaves the model ready for legacy Debrief's Word and PDF parsers (<code>ImportNarrativeDocument</code>, <code>ImportRiderNarrativeDocument</code>, <code>ImportASWDataDocument</code>, <code>ImportWord_LEGACY</code>). They produce what an entry holds: a time to the minute, a platform (the source), a type (<em>FCS</em>, <em>N/A</em>, a dialect's own, or the Rider document's fixed source), and text, often running over several paragraphs. Part B needs:</p>
+<h2 id="word-and-pdf-documents-cap-19">Word and PDF documents (CAP-19)<a class="headerlink" href="#word-and-pdf-documents-cap-19" title="Permanent link">&para;</a></h2>
+<p>Legacy Debrief read narrative from Word (<code>.doc</code>, <code>.docx</code>) and PDF in four dialects, in <code>Debrief.ReaderWriter.Word</code>. They are ported to Python in <code>debrief_io.word</code>, with the cases of their tests on synthetic documents (DEV-05: none of legacy Debrief's documents or their text is copied), and checked against legacy Debrief's own expectations on its sample documents where a checkout of it is at hand (<code>DEBRIEF_LEGACY</code>): the same 13, 5, 18, 364, 350, 371 and 285 entries, the same 15 Rider entries and 28 ASW positions.</p>
+<table>
+<thead>
+<tr>
+<th>Dialect</th>
+<th>Known by</th>
+<th>Read as</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Narrative log (<code>ImportNarrativeDocument</code>, and <code>ImportWord_LEGACY</code> before it)</td>
+<td>anything not below; <code>.doc</code>, <code>.docx</code> and PDF</td>
+<td>An entry a paragraph, <code>DTG,day,month,year,platform,type,text</code>, the DTG <code>HHMM</code> or <code>DDHHMM</code>, the metadata usually hidden text. A short entry (<code>DDHHMM text</code>, <code>HHMM text</code>) takes the date and platform from the entry before, its type <em>FCS</em> if it starts with a track number, otherwise none (legacy <em>N/A</em>; the Timeline's filter lists entries with none as <em>(no type)</em>). Text alone continues the entry before, every line of it up to the next entry (product owner, 15 Oct 2026), so a PDF's long entry, a line a paragraph, is whole; past 2,000 lines, a runaway document, the rest is listed as not read. <code>12 Mar 20</code> marks a new day. <code>START OF RECORDS</code> and <code>END OF RECORDS FOR</code> bound the entries in a longer document.</td>
+</tr>
+<tr>
+<td>Rider's narrative (<code>ImportRiderNarrativeDocument</code>)</td>
+<td>a first table whose first cell is <em>DTG Start</em></td>
+<td>Its second row the start DTG (<code>220000Z JUL 09</code>, to the hour) and, fifth, the platform; from its fourth row an entry a row: time of day, bearing (<code>273</code>, <code>92/112</code>, an arc <code>096-112</code>, <code>No B</code>), beam, text. Every entry of type <em>Rider</em>, written <code>[Brg:92/112, Beam:12/13] text</code> as legacy Debrief wrote it.</td>
+</tr>
+<tr>
+<td>ASW data (<code>ImportASWDataDocument</code>)</td>
+<td>five <code>TMPOS</code> lines in its first hundred</td>
+<td>Positions of one platform: a track, not narrative. Imported as a plot of its own, the track named as the analyst says (legacy Debrief asked); refused, saying so, when read into an open plot. <code>TIMPD</code> gives the year.</td>
+</tr>
+<tr>
+<td>Dated narrative (<code>ImportWordDummy</code>)</td>
+<td>a line <code>yyyy,MM,dd,HH:mm[:ss],</code></td>
+<td>Type, platform and text after the date. Legacy Debrief never offered it; read here rather than misread as a narrative log.</td>
+</tr>
+</tbody>
+</table>
+<p>The corrections legacy Debrief made are made, and said in the step's record: a day that goes backwards with no new month or year (a mangled cut and paste) keeps the day before; an entry at 23xx whose hidden day is one after its DTG's (logged just after midnight about the evening before) takes the DTG's day; a six-figure short entry whose day is earlier than the last is in the next month. FCS entries are read as legacy Debrief read them (bearing, range in kiloyards, yards or metres, course, speed, classification, track number, the solution's source) and kept as narrative: TMA solution positions on the platform's track wait for TMA solutions in the data model (Phase 4, D stream), and the record says how many there were. Rider bearings, which legacy Debrief also made sensor cuts, stay in the entry's text until sensor data comes.</p>
+<p>Where this differs from legacy Debrief, deliberately: times are UTC throughout (legacy Debrief read some in the machine's time zone); a day or time that does not exist is listed, not rolled on (legacy's 31 April was 1 May); a long type missing its comma keeps its whole first word (legacy cut its last letter); every line continuing an entry is joined to it (legacy joined six, dropped the seventh and went on joining; product owner, 15 Oct 2026); a bad line or Rider row is listed with its number and why, and reading goes on (legacy stopped some imports at the first); a Rider log that passes midnight goes on into the next day (legacy kept the first day); an entry's type <em>N/A</em> is no type. A day marker's two-figure year follows the entries' rule (after 80, 19xx).</p>
+<p><strong>What the analyst is asked</strong>, as legacy Debrief asked, before a document is read into the open plot (<code>debrief/preview_narrative</code> says what the file holds, changing nothing):</p>
 <ul>
-<li>the text of <code>.doc</code>, <code>.docx</code> and PDF under Python, in the browser too (a pure-Python reader, or text extracted on the desktop only, saying so in the playground: CON-10);</li>
-<li>the dialects' parsing, ported with their tests on synthetic documents: comma-separated entries with a four- or six-figure DTG, day, month, year, platform and type; short entries taking the date and platform from the one before; text continuing the entry before; day markers (<code>dd MMM yy</code>); the corrections for a day that goes backwards after a cut and paste, and for an entry written just after midnight about the evening before;</li>
-<li>the questions legacy Debrief asked, asked by the host and passed to the importer: which types to import (with counts), only entries within the plot's period or all, and which track an unknown platform is (skipping <em>HMS</em>, <em>USS</em> and the like before matching names);</li>
-<li>FCS entries (fire-control solutions: bearing, range, course, speed, classification) made into TMA solution positions on the platform's track, which waits for TMA solutions in the data model (Phase 4, D stream); until then, kept as narrative and listed as not imported;</li>
-<li>reading into the open plot as one step with the document as its source, through the same path as a REP file's narrative (<code>debrief_io.narrative.import_narrative</code>, <code>Catalogue.add_narrative_entries</code>).</li>
+<li>which types of entry to read, with how many of each, all ticked, when there are several;</li>
+<li>all entries, or only those within the plot's period (its tracks' first to last fix), when some fall outside;</li>
+<li>which of the plot's tracks a platform is, for each of up to five platforms with no track of their name (legacy Debrief's prefixes <em>HMS</em>, <em>Hms</em>, <em>USS</em>, <em>RNAS</em> and <em>HNLMS</em> are skipped before matching: <em>HMS BLUE ONE</em> is <em>BLUE ONE</em>'s).</li>
 </ul>
+<p>An entry whose platform is matched to a track, by its name or by the analyst's answer, has the track's name as its source, and so its colour (product owner, 15 Oct 2026): <em>HMS BLUE ONE</em>'s entries are <em>BLUE ONE</em>'s. The name as the document wrote it is kept in the step's record (<em>9 entries written as from HMS BLUE ONE are BLUE ONE's</em>). A platform matched to no track keeps its name as written.</p>
+<p><strong>The answers are remembered</strong>, for each dialect, as the analyst's own setting (product owner, 15 Oct 2026): the types not read, whether only within the period, and the track (by name) each platform was said to be. In VS Code they are kept in the user's configuration file (debrief-config's <code>narrative_import</code>, configuration version 3), in the playground in the page's settings; never in a plot or a catalogue, and the importer is only given the answers. Next time a document of that dialect is read, they are offered: in VS Code a first Quick Pick, <strong>Read as last time</strong> with the answers in a line, chosen by <code>Enter</code>, or <strong>Choose again</strong>; in the playground the form comes filled in, the answers said above it, with <strong>Read</strong> taking the keyboard. A type not seen before is read; a platform not remembered, or whose track the plot has not, is asked about.</p>
+<p>VS Code asks in Quick Picks, one after another; the playground in one form. An agent passes the answers to <code>debrief/import_narrative</code> (<code>types</code>, <code>within_period</code>, <code>tracks</code>, <code>platform</code>) or reads everything. A PDF of a log names no platform (its metadata was hidden text, not printed): its entries' source is the plot's one track, as legacy Debrief took it, or else the document's name, or <code>platform</code> where an agent gives it.</p>
+<p><strong>Reading the files.</strong> Documents come from elsewhere, so each reader has hard limits and refuses, saying which, what passes them rather than exhaust the host's memory or time: a file over 200 MB (before it is read into memory); a <code>.docx</code> whose zip directory is over 4 MB, whose text part unpacks to over 64 MB, or whose XML nests over 1,000 deep; a <code>.doc</code> claiming more text than its stream holds, or whose piece table is out of order; a PDF of over 10,000 pages, a page drawing over 4 MB of instructions or showing text over 20,000 times, a stream unpacking to over 32 MB, over 5 million operations in all, or taking over 60 seconds; and, for all, over 500,000 paragraphs or 20 million characters, far more than any narrative. <code>.docx</code> with the standard library (zip and expat, refusing document type declarations, as the <code>.dpf</code> reader does); <code>.doc</code> with olefile (pure Python, for the compound file), its text from the piece table and its tables' rows from the paragraph properties, read in <code>debrief_io.documents</code>; PDF with pypdf (pure Python), a line of text a line. A file is known by its first bytes, not its name: legacy Debrief met <code>.docx</code> files named <code>.doc</code>. All three run in Pyodide, so the playground reads Word and PDF too, in the browser; the Pyodide spike holds the browser's reading to the desktop's. A Word 6 or 95 document, a password-protected one, a damaged one, and a PDF with no text (a scan, which needs text recognition first) are refused, saying which. python-docx is used only to build the tests' synthetic documents.</p>
 <h2 id="reference-implementation">Reference implementation<a class="headerlink" href="#reference-implementation" title="Permanent link">&para;</a></h2>
 <ul>
-<li><strong>Model and Python:</strong> schema 0.0.19's <code>NarrativeFeature</code>, <code>NarrativeProperties</code> and <code>NarrativeSpec</code> in <code>schemas/linkml/features.yaml</code>, the Timeline's messages and <code>TimelineEntry</code> in <code>schemas/linkml/messages.yaml</code>; <code>debrief_stac.narrative</code> (order, query, build, describe) and <code>Catalogue.add_narrative</code>, <code>edit_narrative</code>, <code>delete_narrative</code>, <code>add_narrative_entries</code>; <code>debrief_io.rep.parse_narrative</code> and <code>debrief_io.narrative.import_narrative</code>; the service methods <code>debrief/narrative</code>, <code>debrief/add_narrative</code>, <code>debrief/edit_narrative</code>, <code>debrief/delete_narrative</code> and <code>debrief/import_narrative</code>.</li>
-<li><strong>The Timeline:</strong> <code>vscode/webview/timelinecontrol.ts</code> (the component), <code>vscode/webview/timelinelogic.ts</code> (filter, current entry, rows, layout, following, which keys undo and where they are left to the text), <code>vscode/src/timeline.ts</code> (the entries from a plot, in order; the entry on the map), <code>vscode/src/panels/timelineview.ts</code> (VS Code's view), <code>vscode/play/host.ts</code> and <code>narrative</code> in <code>vscode/play/play.py</code> (the playground).</li>
-<li><strong>Tests:</strong> <code>python/debrief-stac/tests/test_narrative.py</code>, <code>python/debrief-io/tests/test_rep_narrative.py</code>, the service's in <code>python/debrief-tools/tests/test_service.py</code>; <code>vscode/test/unit/timeline.test.ts</code>; the playground's <code>vscode/test/play/narrative.mjs</code>, played by <code>vscode/test/play/play.mjs</code>; the narrative steps of <code>vscode/test/integration/suite.ts</code>.</li>
+<li><strong>Model and Python:</strong> schema 0.0.19's <code>NarrativeFeature</code>, <code>NarrativeProperties</code> and <code>NarrativeSpec</code> in <code>schemas/linkml/features.yaml</code>, the Timeline's messages and <code>TimelineEntry</code> in <code>schemas/linkml/messages.yaml</code>; <code>debrief_stac.narrative</code> (order, query, build, describe) and <code>Catalogue.add_narrative</code>, <code>edit_narrative</code>, <code>delete_narrative</code>, <code>add_narrative_entries</code>; <code>debrief_io.rep.parse_narrative</code> and <code>debrief_io.narrative.import_narrative</code> (with <code>Choices</code>, and <code>preview_narrative</code>); Word and PDF in <code>debrief_io.documents</code> (reading the files), <code>debrief_io.word</code> (the dialects) and <code>debrief_io.document_import</code> (a document as a plot); the service methods <code>debrief/narrative</code>, <code>debrief/add_narrative</code>, <code>debrief/edit_narrative</code>, <code>debrief/delete_narrative</code>, <code>debrief/import_narrative</code> and <code>debrief/preview_narrative</code>.</li>
+<li><strong>The Timeline:</strong> <code>vscode/webview/timelinecontrol.ts</code> (the component), <code>vscode/webview/timelinelogic.ts</code> (filter, current entry, rows, layout, following, which keys undo and where they are left to the text; the reader's view: highlights, text sizes, columns), <code>vscode/src/narrativeimport.ts</code> (what to ask before reading a document in, shared by both hosts), <code>vscode/src/timeline.ts</code> (the entries from a plot, in order; the entry on the map), <code>vscode/src/panels/timelineview.ts</code> (VS Code's view), <code>vscode/play/host.ts</code> and <code>narrative</code> in <code>vscode/play/play.py</code> (the playground).</li>
+<li><strong>Tests:</strong> <code>python/debrief-stac/tests/test_narrative.py</code>, <code>python/debrief-io/tests/test_rep_narrative.py</code>, the dialects' <code>test_word.py</code>, <code>test_narrative_documents.py</code> and (with <code>DEBRIEF_LEGACY</code>) <code>test_word_legacy_samples.py</code>, on the synthetic documents of <code>synthetic_docs.py</code> and <code>tests/data</code>; the service's in <code>python/debrief-tools/tests/test_service.py</code>; Pyodide's reading held to CPython's in <code>spikes/pyodide</code>; <code>vscode/test/unit/timeline.test.ts</code> and <code>timelineview.test.ts</code>; the playground's <code>vscode/test/play/narrative.mjs</code> and <code>narrativeword.mjs</code>, played by <code>vscode/test/play/play.mjs</code>; the narrative steps of <code>vscode/test/integration/suite.ts</code>.</li>
 </ul>
 
 

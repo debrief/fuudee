@@ -6,7 +6,9 @@
   "debrief_schemas-0.0.1-py3-none-any.whl",
   "debrief_stac-0.0.1-py3-none-any.whl",
   "debrief_tools-0.0.1-py3-none-any.whl",
-  "geographiclib-2.1-py3-none-any.whl"
+  "geographiclib-2.1-py3-none-any.whl",
+  "olefile-0.47-py2.py3-none-any.whl",
+  "pypdf-6.20.1-py3-none-any.whl"
  ],
  "sample": [
   "catalog.json",
