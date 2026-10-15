@@ -65,5 +65,7 @@ CI runs it on every pull request and keeps the screenshots as an artifact.
 - **Removing a catalogue from the list.**
 - **Keyboard selection on the map** (NFR-13, Phase 3).
 - **Drawing bearings** (Phase 4).
+- **Narrative from Word and PDF** (CAP-19, narrative part B).
+- **Data coverage in the Timeline** (CAP-05, with collation).
 - **Graphs.** These are shown as tables for now.
 - **Packaging as a VSIX** (Phase 3, DEP-01).

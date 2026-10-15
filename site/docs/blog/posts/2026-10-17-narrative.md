@@ -17,7 +17,7 @@ Every platform in an exercise keeps a log, and reconstructing what happened mean
 
 We started building a Narrative view of its own, beside the Timeline. The product owner stopped us: the Timeline already listed notes and periods in time order, and choosing one already moved current time; a second list in time order, a few centimetres below the first, would only make you choose which to read. So narrative went into the Timeline, which became one list of narrative entries, notes, periods and the comments on fixes, and is where data coverage will join them when collation arrives.
 
-![The playground's Timeline: column headings Time, Source and Type once at the top; under the date 15 Jun 2023, rows each with a monospaced time, a source with its track's coloured dot, a quieter type, and the entry's text beneath; the entry current time is at marked with a bar](images/phase-3/narrative-timeline.png)
+![The playground's Timeline: column headings Time, Source and Type once at the top, then rows each with a monospaced time, a source with its track's coloured dot, a quieter type, and the entry's text beneath; the entry current time is at is marked with a bar, and the map shows it beside RED ONE's square](images/phase-3/narrative-timeline.png)
 
 It reads as a table, because it is one: the headings *Time*, *Source* and *Type* once at the top, then a row an entry, with nothing labelled in the rows. (We'd learned that one from the Tote.) Times are monospaced so they line up; the source carries its track's colour where it has one; the type is quieter; the text wraps. A day's date heads its first entry. In a sidebar or on a phone the text goes under the time, source and type, so the times run down the left like a log's margin. Entries outside the time window are fainter, still there to read and choose.
 
@@ -66,10 +66,10 @@ The requirement says Debrief must cope with the legacy sample's 12,000 narrative
 | --- | --- | --- |
 | Python | Reading all 60,000 into a plot, as one step | 2.5 s |
 | Python | Changing one entry; undoing it | 2.8 s; about 1 s |
-| The playground | Reading a 60,000-line log into a plot, in your browser | 11 to 20 s |
-| The playground | Building the list | 20 ms |
+| The playground | Reading a 60,000-line log into a plot, in your browser | 15 to 30 s |
+| The playground | Building the list | under a tenth of a second |
 | The playground | Scrolling: time between frames | 16.7 ms, 60 a second |
-| The playground | Searching all of them | about 50 ms |
+| The playground | Searching all of them | 30 to 60 ms |
 
 The list only ever draws the rows you can see, measuring each one as it's drawn and estimating the rest from the length of their text, so scrolling through 60,000 is as smooth as through 36. The Python side needed one change to get there: checking each feature against the schema for its own kind first, rather than trying every kind of feature in turn, which took reading 20,000 entries from 37 seconds to one.
 

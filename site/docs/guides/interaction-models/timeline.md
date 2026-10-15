@@ -92,10 +92,10 @@ Measured with 60,000 synthetic entries, the legacy sample's 12,000 scaled by fiv
 | Python, desktop | One entry changed; undone | 2.8 s; 1.0 to 1.5 s |
 | Python, desktop | Ordered; a query by source and text (`debrief/narrative`) | 0.2 to 0.6 s; 0.3 s |
 | Timeline logic | Ordered; filtered, rowed and laid out; searched | 50 ms; 40 ms; 13 ms |
-| Playground (Pyodide) | A 60,000-line log read into an open plot and shown | 11 to 20 s |
-| Playground | The list built; rows drawn | 20 ms; 15 to 20 |
+| Playground (Pyodide) | A 60,000-line log read into an open plot and shown | 15 to 30 s |
+| Playground | The list built; rows drawn | 20 to 90 ms (0.4 s on a busy machine); 15 to 20 |
 | Playground | Scrolling by the wheel: time between frames | p50 and p95 16.7 ms (60 a second) |
-| Playground | A search through all of them | about 50 ms |
+| Playground | A search through all of them | 30 to 60 ms |
 
 Only the rows in sight are drawn (with 400 px above and below), each measured once drawn; the rest are estimated from their text's length and the column's width, and the row at the top of the view stays put when estimates become measurements. Two things made the Python side fast enough: JSON Schema checks each feature against its own kind's class (narrative entries by an exact hand-written check that is never more lenient than the schema, a test holds it to that), instead of trying every feature class in turn (37 s for 20,000 entries before, 1 s after); and a history keeps the plot it built while the file is unchanged.
 
