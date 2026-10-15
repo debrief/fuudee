@@ -22,8 +22,12 @@
  *   where several share a second, the one chosen is the one marked.
  * - Filter by kind, source and type, and search the text; the reader's own, kept in the
  *   page, never in the plot.
+ * - Pressing Play follows current time again (product owner, 15 Oct 2026); scrolling away
+ *   while it plays stops following again, as at any other time.
  * - Narrative entries are added (+, or N), changed (Edit, F2 or double-click) and deleted
  *   (Delete) in a form here, each one step in the plot's history, undone like any other.
+ * - A box, Narrative on the map, turns off and on the map's box beside a track showing
+ *   the entry current time is at: the plot's choice (its island), not the reader's.
  * - Tens of thousands of entries (NFR-06): only the rows in sight are drawn, each
  *   measured once drawn; the rest are estimated from their text's length.
  */
@@ -60,6 +64,18 @@ export interface TimelineHost {
   save(spec: NarrativeSpec, id?: string): void;
   /** Delete a narrative entry. */
   remove(id: string): void;
+  /** The reader turned the narrative box on the map on or off: save it in the plot's island. */
+  narrativeOnMap?(on: boolean): void;
+}
+
+/** What the host tells the Timeline of the open plot. */
+export interface TimelineShown {
+  entries?: TimelineEntry[];
+  tracks?: ToteTrack[];
+  /** Which plot it is: the same plot shown again keeps the reader's place; another is read from current time. */
+  plotId?: string;
+  /** Whether the map shows the entry current time is at beside its track; left out, it does. */
+  narrativeOnMap?: boolean;
 }
 
 /** Where the reader's filter is kept between visits: the page's own storage, guarded. */
@@ -98,6 +114,8 @@ export class TimelineControl {
   private itemIndex = new Map<string, number>();
   private tracks: ToteTrack[] = [];
   private opened = false;
+  private plotId?: string;
+  private playing = false;
   private time?: TimeState;
   private filter: Filter = NO_FILTER;
   private visible: number[] = [];
@@ -143,6 +161,7 @@ export class TimelineControl {
   private readonly followButton: HTMLButtonElement;
   private readonly empty: HTMLElement;
   private readonly status: HTMLElement;
+  private readonly onMap: HTMLInputElement;
   private readonly form: HTMLFormElement;
   private readonly measure: HTMLElement;
 
@@ -168,7 +187,9 @@ export class TimelineControl {
       `<div class="tl-spacer"></div></div>` +
       `<p class="tl-empty" hidden></p>` +
       `</div>` +
-      `<p class="tl-status" aria-live="polite"></p>` +
+      `<div class="tl-foot"><p class="tl-status" aria-live="polite"></p>` +
+      `<label class="tl-on-map" title="Show the entry current time is at beside its track on the map, for everyone who opens this plot">` +
+      `<input type="checkbox" checked>Narrative on the map</label></div>` +
       `<span class="tl-measure" aria-hidden="true">${"x".repeat(40)}</span>`;
     const $ = <T extends HTMLElement>(s: string) => element.querySelector<T>(s)!;
     this.search = $(".tl-search");
@@ -181,6 +202,8 @@ export class TimelineControl {
     this.followButton = $(".tl-follow");
     this.empty = $(".tl-empty");
     this.status = $(".tl-status");
+    this.onMap = $<HTMLInputElement>(".tl-on-map input");
+    this.onMap.disabled = true;
     this.form = $(".tl-form");
     this.measure = $(".tl-measure");
     this.filter = this.remembered();
@@ -212,6 +235,10 @@ export class TimelineControl {
     });
     this.addButton.addEventListener("click", () => this.openForm());
     this.followButton.addEventListener("click", () => this.follow());
+    this.onMap.addEventListener("change", () => {
+      this.host.narrativeOnMap?.(this.onMap.checked);
+      this.say(this.onMap.checked ? "Narrative shown on the map." : "Narrative taken off the map.");
+    });
     this.scroller.addEventListener("scroll", () => this.scrolled());
     const reader = () => (this.readerAt = performance.now());
     for (const kind of ["wheel", "touchmove"]) this.scroller.addEventListener(kind, reader, { passive: true });
@@ -247,19 +274,34 @@ export class TimelineControl {
   // --- What the host tells it ---------------------------------------------------------
 
   /** The plot's entries and tracks; nothing for no plot. */
-  show(state: { entries?: TimelineEntry[]; tracks?: ToteTrack[] } | undefined): void {
+  show(state: TimelineShown | undefined): void {
     this.opened = !!state;
     if (state?.tracks) this.tracks = state.tracks;
     if (!state) this.tracks = [];
-    const keep = this.activeId();
-    const before = this.items[0]?.entry;
+    // Another plot, or none: read it from current time, with nothing of the last one's kept.
+    const another = !state || state.plotId !== this.plotId;
+    this.plotId = state?.plotId;
+    const keep = another ? undefined : this.activeId();
+    if (another) {
+      this.following = true;
+      this.chosen = undefined;
+    }
     this.items = prepare(state?.entries ?? []);
     this.itemIndex = new Map(this.items.map((item, i) => [item.entry.id, i]));
-    // Another plot (the first entry read before is not in it, at its time): read it from
-    // current time again. Plots may share ids, so the time is compared too.
-    const kept = before && this.itemIndex.has(before.id) && this.items[this.itemIndex.get(before.id)!].entry.start === before.start;
-    if (!kept) this.following = true;
+    this.onMap.checked = state?.narrativeOnMap !== false;
+    this.onMap.disabled = !state;
     this.rebuild(keep);
+  }
+
+  /**
+   * Current time started or stopped playing. Starting follows current time again
+   * (product owner, 15 Oct 2026); the reader scrolling away while it plays stops
+   * following again, as at any time.
+   */
+  setPlaying(playing: boolean): void {
+    const started = playing && !this.playing;
+    this.playing = playing;
+    if (started && !this.following) this.follow();
   }
 
   /** Current time and the window shown. */
@@ -341,6 +383,8 @@ export class TimelineControl {
       current: at,
       active: this.activeId(),
       following: this.following,
+      playing: this.playing,
+      narrativeOnMap: this.onMap.checked,
       drawn: this.drawn.size,
       filter: { kinds: [...this.filter.kinds], sources: [...this.filter.sources], types: [...this.filter.types], text: this.filter.text },
     };
@@ -822,8 +866,11 @@ export class TimelineControl {
     const index = this.visibleIndexOf(id);
     this.host.remove(id);
     this.say("Entry deleted. Undo brings it back.");
-    // Keep the keyboard's place: the entry after, which takes its place.
-    if (index >= 0) this.active = Math.min(index, this.visible.length - 2);
+    // Keep the keyboard's place: the entry after, which takes its place when the list
+    // comes back without it (after the last entry, the one before it). Named by
+    // that entry, so it is found again in the list as rebuilt.
+    const last = this.visible.length - 1;
+    if (index !== -1) this.active = index === last ? index - 1 : index + 1;
     this.scroller.focus();
   }
 

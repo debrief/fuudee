@@ -34,6 +34,8 @@ export class TimeView implements vscode.WebviewViewProvider {
     private readonly session: Session,
     private readonly windowSaved: (window: TimeRange) => void,
     private readonly log: (line: string) => void,
+    /** Current time started or stopped playing: the Timeline follows it again when it starts. */
+    private readonly playing: (playing: boolean) => void = () => undefined,
   ) {
     session.onPlot(() => this.showTime());
     session.onView(() => this.showTime());
@@ -74,6 +76,8 @@ export class TimeView implements vscode.WebviewViewProvider {
         this.session.setTime(message.time!, TIME_VIEW);
       } else if (message.kind === "window_changed") {
         this.windowSaved(message.time_range!);
+      } else if (message.kind === "playing_changed") {
+        this.playing(message.playing === true);
       }
     });
     this.showContext();

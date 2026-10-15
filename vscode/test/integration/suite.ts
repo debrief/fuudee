@@ -442,6 +442,15 @@ export async function run(): Promise<void> {
     assert.equal((await vscode.commands.executeCommand<Entries>("debrief.timelineEntries")).current, contact.id);
     await waitFor("the entry on the map, beside BLUE ONE", () => (api.mapNarrative()?.id === contact.id ? true : undefined));
     assert.equal(api.mapNarrative()?.track, "track-blue-one");
+    // Off and on again from the Timeline: the plot's choice, in its island, never a step (product owner, 15 Oct 2026).
+    const stepsBeforeOnMap = (await steps()).length;
+    assert.equal(await vscode.commands.executeCommand("debrief.setNarrativeOnMap", false), undefined);
+    assert.equal(island().narrative_on_map, false);
+    await waitFor("the map's narrative box gone", () => (api.mapNarrative() === undefined ? true : undefined));
+    assert.equal(await vscode.commands.executeCommand("debrief.setNarrativeOnMap", true), undefined);
+    assert.equal("narrative_on_map" in island(), false, "on is left out of the island, as it means");
+    await waitFor("the map's narrative box back", () => (api.mapNarrative()?.id === contact.id ? true : undefined));
+    assert.equal((await steps()).length, stepsBeforeOnMap, "never a step");
     const narrativeSteps = (await steps()).length;
     type Narrated = { problem?: string; feature?: string; entries?: number };
     const added = await vscode.commands.executeCommand<Narrated>("debrief.addNarrative", { time: "2023-06-15T09:05:00.000Z", source: "BLUE ONE", entry_type: "Comms", text: "Link check with control: loud and clear." });

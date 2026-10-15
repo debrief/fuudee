@@ -123,6 +123,7 @@ export function activate(context: vscode.ExtensionContext): DebriefApi {
     // Not saved: show the time controller what is saved again, so it never claims otherwise.
     (window) => void saveWindow(window).then(resync).then(report),
     log,
+    (playing) => timeline.setPlaying(playing),
   );
   // The Tote, below it: values from the tool service at each current time; the choice of tracks saved in the island.
   const toteView = new ToteView(
@@ -147,6 +148,7 @@ export function activate(context: vscode.ExtensionContext): DebriefApi {
     },
     async (id) => (await narrate({ kind: "delete", features: [id] })).problem,
     log,
+    (on) => saveNarrativeOnMap(on).then(resync),
   );
   context.subscriptions.push(
     vscode.window.registerWebviewViewProvider(TIMELINE_VIEW, timeline, { webviewOptions: { retainContextWhenHidden: true } }),
@@ -655,6 +657,18 @@ export function activate(context: vscode.ExtensionContext): DebriefApi {
       needsService: "Saving the Tote's tracks needs Debrief's tool service. Run 'Debrief: Restart tool service'.",
       notSaved: "The Tote's tracks were not saved.",
       conflict: "Someone else changed this plot's view, so your choice of Tote tracks was not saved. Debrief is showing theirs; choose again if you still want yours.",
+    });
+
+  /**
+   * Whether the map shows the narrative entry current time is at beside its track, for
+   * everyone who opens the plot: view state, saved as the Tote's lines are (decision,
+   * product owner, 15 Oct 2026). Left out of the island when on, as it means.
+   */
+  const saveNarrativeOnMap = (on: boolean): Promise<string | undefined> =>
+    saveView({ narrative_on_map: on ? undefined : false }, {
+      needsService: "Saving whether the map shows the narrative needs Debrief's tool service. Run 'Debrief: Restart tool service'.",
+      notSaved: "Whether the map shows the narrative was not saved.",
+      conflict: "Someone else changed this plot's view, so your choice was not saved. Debrief is showing theirs; choose again if you still want yours.",
     });
 
   /** Change part of the plot's island, never overwriting a change made elsewhere since it was read (SUB-28). */
@@ -1627,7 +1641,16 @@ export function activate(context: vscode.ExtensionContext): DebriefApi {
     applyToolState({ time }, "timeline", false);
     return undefined;
   });
+  // The plot's Timeline for agents and tests: every entry, and the one current time is at
+  // among them all. The reader's filter is their own (decision, product owner, 15 Oct
+  // 2026), so it never changes this answer: the row the view marks is the last the reader
+  // has listed at or before current time, which is this one unless it is filtered out.
   command("debrief.timelineEntries", () => ({ entries: timeline.entries.map((e) => e.id), current: timeline.currentId }));
+  // The map's narrative box off or on, for agents and tests, as the Timeline's box does: view state, never a step.
+  command("debrief.setNarrativeOnMap", async (on?: boolean) => {
+    if (!session.current) return report("Open a plot first.");
+    return report(await saveNarrativeOnMap(on !== false).then(resync));
+  });
   // Narrative entries (CAP-20): with an entry, added at once (agents, macros, tests); without, the Timeline's form.
   command("debrief.addNarrative", async (spec?: NarrativeSpec) => {
     if (!session.current) return report("Open a plot first.");

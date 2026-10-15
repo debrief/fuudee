@@ -116,7 +116,15 @@
     "show_timeline": [
       "timeline_entries?",
       "timeline_tracks?",
-      "time?"
+      "time?",
+      "plot_id?",
+      "narrative_on_map?"
+    ],
+    "narrative_on_map_changed": [
+      "narrative_on_map"
+    ],
+    "playing_changed": [
+      "playing"
     ],
     "timeline_chosen": [
       "feature_id"

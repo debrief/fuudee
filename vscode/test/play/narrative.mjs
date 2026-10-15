@@ -116,6 +116,16 @@ export async function playNarrative(page, shot) {
   assert.equal(await scroller.evaluate((el) => el.scrollTop), left, "the list does not fight the reader's scroll");
   await page.mouse.move(2, 2);
   await shot("narrative-03-scrolled-away");
+  // Pressing Play follows current time again; scrolling away while it plays stops it again
+  // (product owner, 15 Oct 2026).
+  await page.locator("#timebar .tc-play").click();
+  await page.waitForFunction(() => window.debriefTimeline().following === true && window.debriefTimeline().playing === true);
+  await page.mouse.move(box.x + box.width / 2, box.y + box.height / 2);
+  await page.mouse.wheel(0, -2000);
+  await page.waitForFunction(() => window.debriefTimeline().following === false);
+  await page.locator("#timebar .tc-play").click(); // pause
+  await page.waitForFunction(() => window.debriefTimeline().playing === false);
+  assert.equal((await state(page)).following, false, "pausing does not follow again");
   await timeline(".tl-follow").click();
   await page.waitForFunction(() => window.debriefTimeline().following === true);
   assert.equal((await currentInView(page)).inView, true);
@@ -139,6 +149,27 @@ export async function playNarrative(page, shot) {
   await mapFrame.locator(".narrative-box", { hasText: "Bow sonar contact" }).waitFor();
   assert.match(await mapFrame.locator(".narrative-box b").innerText(), /BLUE ONE/);
   await shot("narrative-04-on-the-map");
+  // Narrative on the map: the plot's choice, saved in its island, never a step (product
+  // owner, 15 Oct 2026). Off, the box goes; on, it comes back.
+  const stepsBefore = await page.locator("#history li").count();
+  const onMap = timeline(".tl-on-map input");
+  assert.equal(await onMap.isChecked(), true);
+  await onMap.uncheck();
+  await mapFrame.locator(".narrative-box").waitFor({ state: "detached" });
+  await page.waitForFunction(() => window.debriefTimeline().narrativeOnMap === false);
+  // Saved in the plot: the plot opened again still has it off.
+  await page.selectOption("#plots", "serial-1");
+  await page.waitForFunction(() => document.getElementById("plot-title")?.textContent?.includes("1"));
+  await page.selectOption("#plots", "serial-3");
+  await page.waitForFunction(() => document.getElementById("plot-title")?.textContent?.includes("3"));
+  await timeline(".tl-row[data-id]").first().waitFor();
+  assert.equal(await timeline(".tl-on-map input").isChecked(), false, "the plot keeps the map's narrative box off");
+  await timeline(".tl-on-map input").check();
+  await page.waitForFunction(() => window.debriefTimeline().narrativeOnMap === true);
+  const again = await timelineRow(page, "Bow sonar contact");
+  await again.click();
+  await mapFrame.locator(".narrative-box", { hasText: "Bow sonar contact" }).waitFor();
+  assert.equal(await page.locator("#history li").count(), stepsBefore, "turning it off and on is never a step");
 
   // Filter by source and by type; the status says how many are listed of how many.
   await timeline(".tl-filter-button").click();
@@ -178,7 +209,11 @@ export async function playNarrative(page, shot) {
   await form("text").fill("Link check with control: loud and clear.");
   await page.mouse.move(2, 2);
   await shot("narrative-07-form");
+  const entriesBefore = (await state(page)).entries;
+  const addStarted = Date.now();
   await timeline(".tl-form .tl-primary").click();
+  await page.waitForFunction((n) => window.debriefTimeline().entries === n + 1, entriesBefore);
+  const smallAddMs = Date.now() - addStarted;
   await historySays(page, "Narrative entry by BLUE ONE at 17:31:00Z added");
   assert.equal(await steps(), before + 1);
   const added = timeline(".tl-row.tl-active");
@@ -233,6 +268,24 @@ export async function playNarrative(page, shot) {
   await page.keyboard.press("n");
   await timeline(".tl-form:not([hidden])").waitFor();
   await page.keyboard.press("Escape");
+  // Deleting from the keyboard keeps its place: on the entry after, which takes its place.
+  await scroller.focus();
+  await page.keyboard.press("Home");
+  for (let i = 0; i < 40 && (await page.locator(`#${await scroller.getAttribute("aria-activedescendant")}`).getAttribute("data-kind")) !== "narrative"; i++) {
+    await page.keyboard.press("ArrowDown");
+  }
+  const place = await scroller.evaluate((list) => {
+    const rows = [...list.querySelectorAll(".tl-row[data-id]")].sort((a, b) => a.getBoundingClientRect().top - b.getBoundingClientRect().top);
+    const at = rows.findIndex((r) => r.id === list.getAttribute("aria-activedescendant"));
+    return { gone: rows[at].dataset.id, next: rows[at + 1].dataset.id };
+  });
+  const stepsNow = await steps();
+  await page.keyboard.press("Delete");
+  await page.waitForFunction((n) => document.querySelectorAll("#history li").length > n, stepsNow);
+  await page.waitForFunction((id) => window.debriefTimeline().active === id, place.next);
+  assert.equal(await page.evaluate(() => document.activeElement?.classList.contains("tl-scroll")), true, "the list keeps the keyboard");
+  await page.locator("#undo").click();
+  await page.waitForFunction((id) => window.debriefTimeline().entries > 0 && document.querySelector(`#timeline .tl-row[data-id="${id}"]`) !== null, place.gone).catch(() => undefined);
 
   // On a phone: one column for the text under time, source and type; the page never
   // scrolls sideways; a tap moves current time.
@@ -249,7 +302,7 @@ export async function playNarrative(page, shot) {
   await shot("narrative-08-phone");
   await page.setViewportSize({ width: 1400, height: 820 });
   await unfold(); // the panels as the tests after this one expect them
-  console.log(`Timeline: ${initial.entries} entries in serial 3, ${initial.drawn} drawn; followed while playing through ${seen.size} entries.`);
+  console.log(`Timeline: ${initial.entries} entries in serial 3, ${initial.drawn} drawn; followed while playing through ${seen.size} entries; an entry added through the form and shown in ${smallAddMs} ms.`);
 }
 
 /**
@@ -261,8 +314,34 @@ export async function playNarrativeAtScale(page, shot) {
   await page.selectOption("#plots", "serial-2");
   await page.waitForFunction(() => document.getElementById("plot-title")?.textContent?.includes("2"));
   await openTimeline(page);
-  const count = 60_000;
+  // First the typical narrative (a few hundred entries, two thousand at most: product
+  // owner, 15 Oct 2026): read in, then an entry added through the form and undone.
+  const typical = 2_000;
   let started = Date.now();
+  await page.locator("#narrative-file").setInputFiles({ name: "typical-log.rep", mimeType: "text/plain", buffer: Buffer.from(narrativeLog(typical)) });
+  await page.locator(".toast", { hasText: `Read ${typical} narrative entries into the plot` }).waitFor({ timeout: 120000 });
+  const typicalImportS = (Date.now() - started) / 1000;
+  await page.waitForFunction((n) => window.debriefTimeline().entries >= n, typical);
+  await page.locator("#timeline .tl-add").click();
+  await page.locator('#timeline .tl-form [name="source"]').fill("CONTROL");
+  await page.locator('#timeline .tl-form [name="text"]').fill("Typical-size check.");
+  const entriesBefore = (await state(page)).entries;
+  started = Date.now();
+  await page.locator("#timeline .tl-form .tl-primary").click();
+  await page.waitForFunction((n) => window.debriefTimeline().entries === n + 1, entriesBefore);
+  const typicalAddMs = Date.now() - started;
+  started = Date.now();
+  await page.locator("#undo").click();
+  await page.waitForFunction((n) => window.debriefTimeline().entries === n, entriesBefore);
+  const typicalUndoMs = Date.now() - started;
+  console.log(
+    `Timeline at ${typical.toLocaleString("en-GB")} entries (typical): read into the plot and shown in ${typicalImportS.toFixed(1)} s (Pyodide); ` +
+      `an entry added through the form and shown in ${typicalAddMs} ms; undone in ${typicalUndoMs} ms.`,
+  );
+  assert.ok(typicalImportS < 15, `a typical narrative is read in ${typicalImportS} s`);
+
+  const count = 60_000;
+  started = Date.now();
   await page.locator("#narrative-file").setInputFiles({ name: "exercise-log.rep", mimeType: "text/plain", buffer: Buffer.from(narrativeLog(count)) });
   await page.locator(".toast", { hasText: `Read ${count} narrative entries into the plot` }).waitFor({ timeout: 600000 });
   const importS = (Date.now() - started) / 1000;
@@ -383,6 +462,36 @@ export async function vscodeTimelineView(browser, files, errors, shot, plot) {
   // The host refuses it: the form says why and stays open.
   await view.evaluate(() => window.postMessage({ kind: "narrative_saved", message: "The plot was changed elsewhere, so nothing was changed." }, "*"));
   await view.locator(".tl-form-error", { hasText: "changed elsewhere" }).waitFor();
+  // The same plot shown again (a change to it) keeps the reader's place; another plot is
+  // read from current time; Play follows current time again.
+  const following = async () => !(await view.locator(".tl-follow").isVisible());
+  const scrollAway = async () => {
+    const list = view.locator(".tl-scroll");
+    const box = await list.boundingBox();
+    await view.mouse.move(box.x + box.width / 2, box.y + box.height / 2);
+    await view.mouse.wheel(0, 3000);
+    await view.locator(".tl-follow:not([hidden])").waitFor();
+    // The wheel's own scrolling over, as a reader's hand would be, before the host speaks.
+    await view.waitForTimeout(800);
+  };
+  const message = { ...timelineMessage(plot), plot_id: "sample/serial-1" };
+  await view.evaluate((m) => window.postMessage(m, "*"), message);
+  await view.locator(".tl-form .tl-cancel").click().catch(() => undefined);
+  await scrollAway();
+  await view.evaluate((m) => window.postMessage(m, "*"), message);
+  await view.waitForTimeout(200);
+  assert.equal(await following(), false, "the same plot shown again keeps the reader's place");
+  await view.evaluate((m) => window.postMessage({ ...m, plot_id: "sample/serial-2" }, "*"), message);
+  await view.locator(".tl-follow").waitFor({ state: "hidden" });
+  await scrollAway();
+  await view.evaluate(() => window.postMessage({ kind: "playing_changed", playing: true }, "*"));
+  await view.locator(".tl-follow").waitFor({ state: "hidden" });
+  // The narrative box on the map: as the plot says, and the analyst's choice told to the host.
+  await view.evaluate((m) => window.postMessage({ ...m, narrative_on_map: false }, "*"), message);
+  assert.equal(await view.locator(".tl-on-map input").isChecked(), false);
+  await view.locator(".tl-on-map input").check();
+  for (let i = 0; i < 20 && !posted.some((m) => m.kind === "narrative_on_map_changed"); i++) await view.waitForTimeout(50);
+  assert.deepEqual(posted.find((m) => m.kind === "narrative_on_map_changed"), { kind: "narrative_on_map_changed", narrative_on_map: true });
   // No plot: it says how to start.
   await view.evaluate(() => window.postMessage({ kind: "show_timeline" }, "*"));
   await view.locator(".tl-empty", { hasText: "Open a plot" }).waitFor();

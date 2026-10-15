@@ -8,7 +8,7 @@ import { readFileSync } from "node:fs";
 import path from "node:path";
 import { describe, expect, it } from "vitest";
 import type { DebriefFeatureCollection, TimelineEntry } from "@debrief/schemas";
-import { currentEntry, NARRATIVE_ON_MAP_MS, NarrativeOnMap, timelineEntries, timelineTracks } from "../../src/timeline.js";
+import { currentEntry, NARRATIVE_ON_MAP_MS, NarrativeOnMap, narrativeOnMapOf, timelineEntries, timelineTracks } from "../../src/timeline.js";
 import { checkMessage } from "../../src/messages.js";
 import { describeStep, NARRATIVE_IMPORTER } from "../../src/wording.js";
 import {
@@ -80,11 +80,11 @@ describe("one order for every source, as Python's", () => {
 });
 
 describe("Timeline messages are boundary types (CON-08)", () => {
-  it.each(["show-timeline", "show-timeline-no-plot", "timeline-chosen", "save-narrative", "save-narrative-change", "delete-narrative", "narrative-saved", "set-narrative", "open-narrative-form"])("accepts %s", (name) => {
+  it.each(["show-timeline", "show-timeline-no-plot", "timeline-chosen", "save-narrative", "save-narrative-change", "delete-narrative", "narrative-saved", "set-narrative", "open-narrative-form", "narrative-on-map-changed", "playing-changed"])("accepts %s", (name) => {
     const raw = fixture(`webview_message/valid/${name}.json`);
     expect(checkMessage(raw)).toEqual(raw);
   });
-  it.each(["semantic/save-narrative-without-narrative", "semantic/timeline-chosen-without-entry", "schema/show-timeline-unknown-entry-kind", "schema/set-narrative-colour-not-hex"])("refuses %s", (name) => {
+  it.each(["semantic/save-narrative-without-narrative", "semantic/timeline-chosen-without-entry", "schema/show-timeline-unknown-entry-kind", "schema/set-narrative-colour-not-hex", "semantic/playing-changed-without-playing", "schema/narrative-on-map-not-boolean"])("refuses %s", (name) => {
     expect(() => checkMessage(fixture(`webview_message/invalid/${name}.json`))).toThrow();
   });
 });
@@ -225,6 +225,15 @@ describe("the narrative on the map", () => {
     expect(at(10)).toBe("a");
     expect(at(11)).toBeUndefined(); // ten minutes on, it goes
     expect(at(31)).toBe("c");
+  });
+  it("is shown unless the plot's island turns it off (decision, product owner, 15 Oct 2026)", () => {
+    const withView = (view: Record<string, unknown> | undefined) =>
+      plotOf([{ type: "Feature", id: "plot", geometry: null, properties: { kind: "plot", title: "P", ...(view && { view }) } }]);
+    expect(narrativeOnMapOf(undefined)).toBe(true);
+    expect(narrativeOnMapOf(plotOf([]))).toBe(true); // no whole-plot feature: no island
+    expect(narrativeOnMapOf(withView(undefined))).toBe(true);
+    expect(narrativeOnMapOf(withView({ narrative_on_map: true }))).toBe(true);
+    expect(narrativeOnMapOf(withView({ narrative_on_map: false }))).toBe(false);
   });
 });
 

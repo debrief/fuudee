@@ -673,6 +673,14 @@ classes:
           a step in the history (decision, 14 Oct 2026).
         range: ToteView
         inlined: true
+      narrative_on_map:
+        description: >-
+          Whether the map shows the narrative entry current time is at in a
+          small box beside its track, for ten minutes of plot time; left out
+          means it does. Turned off and on in the Timeline. View state, like
+          the Tote's lines: never a step in the history (decision, product
+          owner, 15 Oct 2026).
+        range: boolean
 
   # --- Named sets and the collection ---------------------------------------
   NamedSet:

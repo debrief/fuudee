@@ -60,7 +60,9 @@ enums:
       show_tote: {description: "Host to Tote: the tracks that can be chosen (tote_tracks), which are chosen (tote_view) and the values at current time (tote), any of them; none when no plot is open."}
       tote_changed: {description: "Tote to host: the analyst chose a primary, added or removed a secondary, chose a measure group, or turned the map's lines on or off; save it in the plot (tote_view)."}
       set_tote: {description: "Host to map: which tracks the Tote compares (tote_view), for a thin line from the primary to each secondary at current time unless its map_lines is false; none when nothing is chosen."}
-      show_timeline: {description: "Host to Timeline: what the Timeline lists (timeline_entries, in its order), the tracks a narrative entry can belong to (timeline_tracks) and current time with the window shown (time); none when no plot is open."}
+      show_timeline: {description: "Host to Timeline: what the Timeline lists (timeline_entries, in its order), the tracks a narrative entry can belong to (timeline_tracks), current time with the window shown (time), which plot it is (plot_id, so another plot is told from the same one changed) and whether the map shows the narrative entry at current time (narrative_on_map, left out meaning it does); none when no plot is open."}
+      narrative_on_map_changed: {description: "Timeline to host: the analyst turned the narrative box on the map on or off (narrative_on_map); save it in the plot's island."}
+      playing_changed: {description: "Time controller to host, and host to Timeline: current time started or stopped playing (playing). The Timeline follows current time again when playing starts."}
       timeline_chosen: {description: "Timeline to host: the analyst chose an entry (feature_id, the entry's id): move current time to it."}
       save_narrative: {description: "Timeline to host: add this narrative entry, or change the one named (narrative, and feature_id when changing one), as one recorded step."}
       delete_narrative: {description: "Timeline to host: delete this narrative entry (feature_id), as one recorded step."}
@@ -188,6 +190,20 @@ classes:
         description: The narrative entry current time is at, to show on the map beside its track (set_narrative).
         range: TimelineEntry
         inlined: true
+      plot_id:
+        description: >-
+          Which plot is open, as its host knows it (show_timeline): a list read
+          again for the same plot keeps the reader's place; another plot is read
+          from current time.
+      narrative_on_map:
+        description: >-
+          Whether the map shows the narrative entry current time is at beside
+          its track (show_timeline, narrative_on_map_changed): the plot's
+          PlotView.narrative_on_map; left out means it does.
+        range: boolean
+      playing:
+        description: Whether current time is playing (playing_changed).
+        range: boolean
       timeline_tracks:
         description: The plot's tracks, which a narrative entry can belong to (show_timeline).
         range: ToteTrack

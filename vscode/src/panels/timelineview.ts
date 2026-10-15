@@ -16,7 +16,7 @@ import * as vscode from "vscode";
 import type { NarrativeSpec, TimelineEntry } from "@debrief/schemas";
 import { checkMessage } from "../messages.js";
 import type { Session } from "../session.js";
-import { currentEntry, timelineEntries, timelineTracks } from "../timeline.js";
+import { currentEntry, narrativeOnMapOf, timelineEntries, timelineTracks } from "../timeline.js";
 import { webviewHtml } from "./html.js";
 
 export const TIMELINE_VIEW = "debrief.timeline";
@@ -27,6 +27,10 @@ export class TimelineView implements vscode.WebviewViewProvider {
   /** The open plot's entries, in the Timeline's order, for commands, tests and agents. */
   entries: TimelineEntry[] = [];
   private starts: number[] = [];
+  /** Whether the narrative box on the map was on in what the page was last shown. */
+  private onMapShown?: boolean;
+  /** Whether current time is playing, as the time controller last said. */
+  private playingNow = false;
   /** A form asked for before the page was ready: opened when it is. */
   private formWanted?: { feature?: string };
 
@@ -37,11 +41,17 @@ export class TimelineView implements vscode.WebviewViewProvider {
     private readonly save: (spec: NarrativeSpec, id?: string) => Promise<{ problem?: string; feature?: string }>,
     private readonly remove: (id: string) => Promise<string | undefined>,
     private readonly log: (line: string) => void,
+    /** The analyst turned the narrative box on the map off or on: save it in the plot's island. */
+    private readonly saveOnMap: (on: boolean) => Promise<string | undefined> = async () => undefined,
   ) {
     session.onPlot((opened) => {
       this.entries = opened ? timelineEntries(opened.plot) : [];
       this.starts = this.entries.map((e) => Date.parse(e.start));
       this.showAll();
+    });
+    // The island changed: say so only if the narrative box on the map was turned off or on.
+    session.onView(() => {
+      if (this.session.current && narrativeOnMapOf(this.session.current.plot) !== this.onMapShown) this.showAll();
     });
     session.onState((change) => {
       if (change.time && this.session.time) this.post({ kind: "set_time", time: this.session.time });
@@ -82,6 +92,7 @@ export class TimelineView implements vscode.WebviewViewProvider {
       if (message.kind === "ready") {
         this.ready = true;
         this.showAll();
+        if (this.playingNow) this.post({ kind: "playing_changed", playing: true });
         if (this.formWanted) this.openForm(this.formWanted.feature);
       } else if (message.kind === "timeline_chosen") {
         this.goTo(message.feature_id!);
@@ -89,6 +100,12 @@ export class TimelineView implements vscode.WebviewViewProvider {
         void this.save(message.narrative!, message.feature_id ?? undefined).then(({ problem, feature }) =>
           this.post({ kind: "narrative_saved", ...(problem ? { message: problem } : feature && { feature_id: feature }) }),
         );
+      } else if (message.kind === "narrative_on_map_changed") {
+        void this.saveOnMap(message.narrative_on_map === true).then((problem) => {
+          if (!problem) return;
+          void vscode.window.showWarningMessage(problem);
+          this.showAll(); // what is saved, again
+        });
       } else if (message.kind === "delete_narrative") {
         void this.remove(message.feature_id!).then((problem) => problem && void vscode.window.showWarningMessage(problem));
       }
@@ -107,8 +124,21 @@ export class TimelineView implements vscode.WebviewViewProvider {
     this.post({ kind: "open_narrative_form", ...(feature && { feature_id: feature }) });
   }
 
+  /** Current time started or stopped playing: the page follows it again when it starts. */
+  setPlaying(playing: boolean): void {
+    if (playing === this.playingNow) return;
+    this.playingNow = playing;
+    this.post({ kind: "playing_changed", playing });
+  }
+
+  /** Whether the page follows current time, the narrative box on the map's state and the like, for tests and agents. */
+  get playing(): boolean {
+    return this.playingNow;
+  }
+
   private showAll(): void {
     const opened = this.session.current;
+    this.onMapShown = opened ? narrativeOnMapOf(opened.plot) : undefined;
     if (!opened) return this.post({ kind: "show_timeline" });
     const time = this.session.time;
     this.post({
@@ -116,6 +146,9 @@ export class TimelineView implements vscode.WebviewViewProvider {
       timeline_entries: this.entries,
       timeline_tracks: timelineTracks(opened.plot),
       ...(time && { time }),
+      // Which plot: the same one shown again keeps the reader's place; another is read from current time.
+      plot_id: `${opened.store.id}/${opened.item.id}`,
+      ...(this.onMapShown === false && { narrative_on_map: false }),
     });
   }
 

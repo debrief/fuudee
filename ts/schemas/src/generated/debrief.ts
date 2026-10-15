@@ -320,6 +320,8 @@ export type WebviewMessageKindEnum =
   | "tote_changed"
   | "set_tote"
   | "show_timeline"
+  | "narrative_on_map_changed"
+  | "playing_changed"
   | "timeline_chosen"
   | "save_narrative"
   | "delete_narrative"
@@ -920,6 +922,10 @@ export interface PlotView {
    * How tracks outside the time window are drawn (CAP-29). Left out means visible.
    */
   context_tracks?: ContextTracksEnum | null;
+  /**
+   * Whether the map shows the narrative entry current time is at in a small box beside its track, for ten minutes of plot time; left out means it does. Turned off and on in the Timeline. View state, like the Tote's lines: never a step in the history (decision, product owner, 15 Oct 2026).
+   */
+  narrative_on_map?: boolean | null;
   /**
    * The plot's time window: the period shown, one for the whole plot (CAP-28, CAP-29). Start shall not be after end.
    */
@@ -1729,8 +1735,20 @@ export interface WebviewMessage {
    * A narrative entry as the Timeline's form describes it (save_narrative).
    */
   narrative?: NarrativeSpec | null;
+  /**
+   * Whether the map shows the narrative entry current time is at beside its track (show_timeline, narrative_on_map_changed): the plot's PlotView.narrative_on_map; left out means it does.
+   */
+  narrative_on_map?: boolean | null;
   parameters?: ParameterValue[] | null;
+  /**
+   * Whether current time is playing (playing_changed).
+   */
+  playing?: boolean | null;
   plot?: DebriefFeatureCollection | null;
+  /**
+   * Which plot is open, as its host knows it (show_timeline): a list read again for the same plot keeps the reader's place; another plot is read from current time.
+   */
+  plot_id?: string | null;
   plot_title?: string | null;
   /**
    * A track as a change would leave it, one position per fix, drawn beside it until the analyst applies or cancels the change (show_fixes).

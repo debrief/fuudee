@@ -44,5 +44,7 @@
       "start": "2026-10-11T09:30:00.000Z",
       "end": "2026-10-11T09:32:00.000Z"
     }
-  }
+  },
+  "plot_id": "exercise/serial-1",
+  "narrative_on_map": false
 }

@@ -10,7 +10,7 @@ import { checkMessage } from "../messages.js";
 import { webviewHtml } from "./html.js";
 import { displayed, hiddenIds } from "../hidden.js";
 import type { TimelineEntry, ToteView } from "@debrief/schemas";
-import { NarrativeOnMap, timelineEntries } from "../timeline.js";
+import { NarrativeOnMap, narrativeOnMapOf, timelineEntries } from "../timeline.js";
 import { toteOf } from "../../webview/totelogic.js";
 
 export class MapPanel {
@@ -56,6 +56,8 @@ export class MapPanel {
       // The Tote's tracks and whether the map draws its lines: island state too (decision, 14 Oct 2026).
       this.tote = toteOf(this.session.current.plot);
       this.post({ kind: "set_tote", tote_view: this.tote });
+      // The narrative box, island state too: turned off or on in the Timeline.
+      this.showNarrative();
     });
   }
 
@@ -164,7 +166,8 @@ export class MapPanel {
   /** The narrative entry current time is at, beside its track, when it changes (always, after the plot is drawn again). */
   private showNarrative(again = false): void {
     const time = this.session.time;
-    const entry = time && this.session.current ? this.narrativeOnMap.at(Date.parse(time.current)) : undefined;
+    const opened = this.session.current;
+    const entry = time && opened && narrativeOnMapOf(opened.plot) ? this.narrativeOnMap.at(Date.parse(time.current)) : undefined;
     if (!this.panel || !this.ready || (!again && entry?.id === this.narrative?.id)) return;
     this.narrative = entry;
     this.post(entry ? { kind: "set_narrative", timeline_entry: entry } : { kind: "set_narrative" });

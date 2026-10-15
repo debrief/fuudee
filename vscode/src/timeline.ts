@@ -15,7 +15,7 @@
  * Kept free of VS Code, so it is tested and shared with the playground.
  */
 import type { DebriefFeatureCollection, TimelineEntry, ToteTrack } from "@debrief/schemas";
-import { isFeature, isHidden } from "./hidden.js";
+import { isFeature, isHidden, viewOf } from "./hidden.js";
 
 /** The id of the Timeline's entry for a comment on a track's fix. */
 export const fixCommentId = (trackId: string, time: string) => `fix:${trackId}:${time}`;
@@ -106,6 +106,15 @@ export function timelineTracks(plot: DebriefFeatureCollection): ToteTrack[] {
   return plot.features.flatMap((f) =>
     f.properties.kind === "track" ? [{ id: f.id, name: f.properties.name, ...(f.properties.style?.colour && { colour: f.properties.style.colour }) }] : [],
   );
+}
+
+/**
+ * Whether the map shows the narrative entry current time is at beside its track: the
+ * plot's choice, in its island, turned off and on in the Timeline; left out, it does
+ * (decision, product owner, 15 Oct 2026).
+ */
+export function narrativeOnMapOf(plot: DebriefFeatureCollection | undefined): boolean {
+  return !plot || viewOf(plot)?.narrative_on_map !== false;
 }
 
 /** How long a narrative entry stays beside its track on the map, in plot time, unless a later one replaces it. */

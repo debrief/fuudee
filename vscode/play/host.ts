@@ -19,7 +19,7 @@
  */
 import type { AnnotationSpec, DebriefFeatureCollection, NarrativeSpec, ParameterValue, PlotView, SharedStateChange, StacItem, TimeRange, TimeState, ToolDeclaration, ToolResult, ToteResult, ToteView } from "@debrief/schemas";
 import { specOfFeature } from "../webview/annotationlook.js";
-import { NarrativeOnMap, timelineEntries, timelineTracks } from "../src/timeline.js";
+import { NarrativeOnMap, narrativeOnMapOf, timelineEntries, timelineTracks } from "../src/timeline.js";
 import { TimelineControl } from "../webview/timelinecontrol.js";
 import { count, describePeriod, describeTimes, describeToolRun } from "../src/format.js";
 import { resolveTimes } from "../src/timeinput.js";
@@ -133,6 +133,8 @@ const timeControl = new TimeControl($("timebar"), {
   },
   windowSaved: (window) => void saveWindow(window),
   contextChanged: (context) => void saveView({ context_tracks: context }),
+  // Pressing Play follows current time in the Timeline again (product owner, 15 Oct 2026).
+  playing: (playing) => timelineControl.setPlaying(playing),
 });
 /** The time window as the plot file last had it, or the plot's period. */
 let savedWindow: TimeRange | undefined;
@@ -247,7 +249,13 @@ const saveWindow = (window: TimeRange): Promise<void> => saveView({ time_window:
 function saveView(change: Partial<PlotView>): Promise<void> {
   // One at a time, each with the hash the last one left, as VS Code does: two quick
   // key presses must never look like a colleague's change.
-  const what = change.time_window ? "The time window" : change.tote ? "The Tote's tracks" : "How context tracks are drawn";
+  const what = change.time_window
+    ? "The time window"
+    : change.tote
+      ? "The Tote's tracks"
+      : "narrative_on_map" in change
+        ? "Whether the map shows the narrative"
+        : "How context tracks are drawn";
   saving = saving.then(() => saveViewNow(change, what)).catch((error: Error) => toast(`${what} was not saved: ${error.message}`, "warning"));
   return saving;
 }
@@ -273,6 +281,7 @@ async function saveViewNow(change: Partial<PlotView>, what: string): Promise<voi
   }
   if (outcome.error || !outcome.view_hash || !outcome.base) {
     showTime(time); // what is saved, again
+    if ("narrative_on_map" in change) renderTimeline();
     return toast(outcome.error ?? `${what} was not saved.`, "warning");
   }
   if (opened?.item.id !== item) return;
@@ -283,6 +292,10 @@ async function saveViewNow(change: Partial<PlotView>, what: string): Promise<voi
   // The controller shows what is saved; the map draws context tracks as the plot now says.
   showTime(time);
   if (change.context_tracks) post(map, { kind: "set_context", context_tracks: contextShown(contextOf(), false) });
+  if ("narrative_on_map" in change) {
+    narrativeShown = undefined;
+    narrativeToMap();
+  }
 }
 
 function showPlot(): void {
@@ -1264,6 +1277,8 @@ const timelineControl = new TimelineControl(
     choose: (id) => goToTime(id),
     save: (spec, id) => void saveNarrative(spec, id),
     remove: (id) => void narrate({ kind: "delete", features: [id] }).then((outcome) => outcome.error && toast(outcome.error, "warning")),
+    // The map's narrative box: the plot's choice, in its island like the Tote's lines; left out when on.
+    narrativeOnMap: (on) => void saveView({ narrative_on_map: on ? undefined : false }),
   },
   undefined,
   params.has("panels") ? undefined : timelineMemory,
@@ -1275,13 +1290,15 @@ function renderTimeline(): void {
   const entries = opened ? timelineEntries(opened.plot) : [];
   timelineIds = new Map(entries.map((e) => [e.id, e.start]));
   narrativeOnMap = new NarrativeOnMap(entries);
-  timelineControl.show(opened ? { entries, tracks: timelineTracks(opened.plot) } : undefined);
+  timelineControl.show(
+    opened ? { entries, tracks: timelineTracks(opened.plot), plotId: opened.item.id, narrativeOnMap: narrativeOnMapOf(opened.plot) } : undefined,
+  );
   timelineControl.setTime(time);
   narrativeToMap();
 }
 /** The narrative entry current time is at, beside its track on the map, when it changes (CAP-20). */
 function narrativeToMap(): void {
-  const entry = time && opened ? narrativeOnMap.at(Date.parse(time.current)) : undefined;
+  const entry = time && opened && narrativeOnMapOf(opened.plot) ? narrativeOnMap.at(Date.parse(time.current)) : undefined;
   if (entry?.id === narrativeShown) return;
   narrativeShown = entry?.id;
   post(map, entry ? { kind: "set_narrative", timeline_entry: entry } : { kind: "set_narrative" });

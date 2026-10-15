@@ -85,8 +85,12 @@
 .tl-empty { position: absolute; inset: 0; margin: 0; padding: 8px 6px; color: var(--vscode-descriptionForeground); }
 .tl-empty[hidden] { display: none; }
 .tl-empty button { padding: 0; color: var(--vscode-textLink-foreground); text-decoration: underline; }
-.tl-status { margin: 0; min-height: 0; color: var(--vscode-descriptionForeground); font-size: 11px; }
+/* Under the list: what was done, and the map's narrative box turned off or on. */
+.tl-foot { display: flex; flex-wrap: wrap; align-items: center; gap: 2px 12px; }
+.tl-status { margin: 0; min-height: 0; flex: 1 1 12em; color: var(--vscode-descriptionForeground); font-size: 11px; }
 .tl-status:empty { display: none; }
+.tl-on-map { display: flex; align-items: center; gap: 4px; margin-left: auto; color: var(--vscode-descriptionForeground); font-size: 11px; white-space: nowrap; }
+.tl-on-map input { margin: 0; accent-color: var(--vscode-focusBorder); }
 .tl-measure { position: absolute; visibility: hidden; white-space: pre; pointer-events: none; }
 
 /* VS Code's Timeline view: the list fills the view's height and scrolls inside it. */
