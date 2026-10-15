@@ -1,0 +1,41 @@
+{
+ "shots": [
+  {
+   "source": "blog/posts/2026-10-17-narrative.md",
+   "url": "blog/2026/10/17/narrative/",
+   "title": "Narrative in the Timeline",
+   "file": "blog-posts-2026-10-17-narrative.png"
+  },
+  {
+   "source": "guides/glossary.md",
+   "url": "guides/glossary/",
+   "title": "Glossary",
+   "file": "guides-glossary.png"
+  },
+  {
+   "source": "guides/interaction-models/annotations.md",
+   "url": "guides/interaction-models/annotations/",
+   "title": "Annotations",
+   "file": "guides-interaction-models-annotations.png"
+  },
+  {
+   "source": "guides/interaction-models/index.md",
+   "url": "guides/interaction-models/",
+   "title": "Interaction models",
+   "file": "guides-interaction-models-index.png"
+  },
+  {
+   "source": "guides/interaction-models/keyboard-equivalents.md",
+   "url": "guides/interaction-models/keyboard-equivalents/",
+   "title": "Keyboard equivalents",
+   "file": "guides-interaction-models-keyboard-equivalents.png"
+  },
+  {
+   "source": "guides/interaction-models/timeline.md",
+   "url": "guides/interaction-models/timeline/",
+   "title": "Timeline and narrative",
+   "file": "guides-interaction-models-timeline.png"
+  }
+ ],
+ "more": 2
+}
