@@ -1454,6 +1454,49 @@
       "title": "NarrativeFeature",
       "type": "object"
     },
+    "NarrativeImportAnswers": {
+      "additionalProperties": false,
+      "description": "What the analyst answered for documents of one dialect: the types not read (so a type not seen before is read), whether only entries within the plot's period, and the track each platform was said to be.",
+      "properties": {
+        "dialect": {
+          "description": "The dialect, such as narrative-document or rider-narrative.",
+          "pattern": "^[a-z][a-z0-9-]{0,63}$",
+          "type": "string"
+        },
+        "skip_types": {
+          "description": "Entry types the analyst chose not to read; \"\" for entries with no type.",
+          "items": {
+            "type": "string"
+          },
+          "type": [
+            "array",
+            "null"
+          ]
+        },
+        "tracks": {
+          "description": "The track the analyst said each platform is, by the track's name.",
+          "items": {
+            "$ref": "#/$defs/PlatformTrack"
+          },
+          "type": [
+            "array",
+            "null"
+          ]
+        },
+        "within_period": {
+          "description": "Only the entries within the plot's tracks' period.",
+          "type": [
+            "boolean",
+            "null"
+          ]
+        }
+      },
+      "required": [
+        "dialect"
+      ],
+      "title": "NarrativeImportAnswers",
+      "type": "object"
+    },
     "NarrativeKindEnum": {
       "description": "",
       "enum": [
@@ -1832,6 +1875,27 @@
         "content_hash"
       ],
       "title": "PayloadRef",
+      "type": "object"
+    },
+    "PlatformTrack": {
+      "additionalProperties": false,
+      "description": "A platform, as a document names it, and the track it was said to be.",
+      "properties": {
+        "platform": {
+          "type": "string"
+        },
+        "track": {
+          "description": "The track's name; left out, the platform belongs to no track.",
+          "type": [
+            "string",
+            "null"
+          ]
+        }
+      },
+      "required": [
+        "platform"
+      ],
+      "title": "PlatformTrack",
       "type": "object"
     },
     "PlotFeature": {
@@ -3745,9 +3809,19 @@
       "description": "",
       "properties": {
         "config_version": {
-          "description": "Version of this file's layout: 1 while it holds only stores; 2 once it holds track_import_mode, which an earlier Debrief cannot read.",
+          "description": "Version of this file's layout: 1 while it holds only stores; 2 once it holds track_import_mode; 3 once it holds narrative_import. An earlier Debrief cannot read a later layout.",
           "minimum": 1,
           "type": "integer"
+        },
+        "narrative_import": {
+          "description": "The analyst's last answers to the questions asked before a Word or PDF narrative is read into a plot, one set for each dialect, so they are offered again next time and confirmed with one key (CAP-19; product owner, 15 Oct 2026). User state, kept here and never in a catalogue or a plot file; importers are given the answers.",
+          "items": {
+            "$ref": "#/$defs/NarrativeImportAnswers"
+          },
+          "type": [
+            "array",
+            "null"
+          ]
         },
         "stores": {
           "description": "Known stores, in the order the analyst sees them (SUB-17).",

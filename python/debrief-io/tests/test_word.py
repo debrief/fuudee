@@ -252,10 +252,24 @@ def test_a_printed_log_has_no_metadata() -> None:
     assert read.entries[1].text == "Signal from C. received, read back\nand acknowledged."
 
 
-def test_continuation_stops_after_six_lines() -> None:
-    lines = ["121005,12,03,20,BLUE ONE,LOG,start"] + [f"more {i}" for i in range(9)]
+def test_continuation_keeps_every_line_up_to_the_next_entry() -> None:
+    # Legacy Debrief joined six lines, dropped the seventh and joined on; product owner,
+    # 15 Oct 2026: every line is kept, so a PDF's long entry (a line a paragraph) is whole.
+    lines = ["121005,12,03,20,BLUE ONE,LOG,start"] + [f"more {i}" for i in range(40)]
+    lines += ["121105,12,03,20,BLUE ONE,LOG,next"]
     read = read_narrative_document(lines)
-    assert read.entries[0].text.count("\n") == 6
+    assert read.entries[0].text.count("\n") == 40
+    assert read.entries[1].text == "next"
+    assert read.overflow == 0
+
+
+def test_continuation_stops_at_the_safety_cap_and_says_so(monkeypatch) -> None:
+    import debrief_io.word as word
+
+    monkeypatch.setattr(word, "MAX_CONTINUATION", 5)
+    lines = ["121005,12,03,20,BLUE ONE,LOG,start"] + [f"more {i}" for i in range(8)]
+    read = read_narrative_document(lines)
+    assert read.entries[0].text.count("\n") == 5
     assert read.overflow == 3
 
 

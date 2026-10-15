@@ -7,9 +7,11 @@ Ported from legacy Debrief's Debrief.ReaderWriter.Word, with the cases of their 
   it): an entry a paragraph, ``DTG,day,month,year,platform,type,text``, the DTG of four
   (``HHMM``) or six (``DDHHMM``) figures; the metadata after the DTG is usually hidden
   text in Word, so a PDF of the same log has only ``DDHHMM text``. Short entries take
-  the date and platform from the entry before; text alone continues the entry before
-  (six paragraphs at most); a line ``dd MMM yy`` marks a new day; ``START OF RECORDS``
-  and ``END OF RECORDS FOR`` bound the entries in a longer document. Two corrections:
+  the date and platform from the entry before; text alone continues the entry before,
+  every line of it up to the next entry (legacy Debrief joined six, dropped the
+  seventh and joined on: product owner, 15 Oct 2026, keep them all); a line
+  ``dd MMM yy`` marks a new day; ``START OF RECORDS`` and ``END OF RECORDS FOR`` bound
+  the entries in a longer document. Two corrections:
   a day that goes backwards with no new month or year (a mangled cut and paste) keeps
   the day before, said as a warning; and an entry at 23xx whose hidden day is one
   after its DTG's (written just after midnight about the evening before) takes the
@@ -63,7 +65,9 @@ NO_TYPE = "N/A"
 SKIP_NAMES = ("HMS", "Hms", "USS", "RNAS", "HNLMS")
 START_OF_RECORDS = ("START OF RECORDS", "START RECORDS")
 END_OF_RECORDS = ("END RECORDS FOR", "END OF RECORDS FOR")
-MAX_APPENDED = 6
+# Lines joined to one entry, at most: a safety cap against a runaway document (a
+# printed log's longest entries run to some dozens of lines); lines past it are counted.
+MAX_CONTINUATION = 2_000
 DTG_MISSING = "[DTG missing. Re-using previous DTG]"
 
 _MONTHS = {m: i for i, m in enumerate("JAN FEB MAR APR MAY JUN JUL AUG SEP OCT NOV DEC".split(), 1)}
@@ -97,7 +101,7 @@ class DocumentRead:
     warnings: list[str] = field(default_factory=list)
     # How many lines before the first entry were passed over (a title, a preamble).
     preamble: int = 0
-    # How many lines followed an entry past the six legacy Debrief joined to it.
+    # How many lines followed an entry past MAX_CONTINUATION, and were not joined to it.
     overflow: int = 0
     stopped_at: str | None = None  # the end-of-records line, if one ended the reading
 
@@ -434,7 +438,7 @@ def read_narrative_document(lines: list[str]) -> DocumentRead:
             out.stopped_at = read.text
             break
         if read.appended:
-            if appended < MAX_APPENDED and last is not None:
+            if appended < MAX_CONTINUATION and last is not None:
                 last.text += "\n" + read.text
                 appended += 1
             else:

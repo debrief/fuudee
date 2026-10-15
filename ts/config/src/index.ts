@@ -21,13 +21,14 @@ import {
 } from "node:fs";
 import { homedir } from "node:os";
 import path from "node:path";
-import { parseDocument, serialiseDocument, type KnownStore, type UserConfig } from "@debrief/schemas";
+import { parseDocument, serialiseDocument, type KnownStore, type NarrativeImportAnswers, type UserConfig } from "@debrief/schemas";
 
-/** The newest configuration layout this build understands. Matches Python's CONFIG_VERSION: 1, the stores; 2, also track_import_mode. */
-export const CONFIG_VERSION = 2;
+/** The newest configuration layout this build understands. Matches Python's CONFIG_VERSION: 1, the stores; 2, also track_import_mode; 3, also narrative_import. */
+export const CONFIG_VERSION = 3;
 /** The layout a file needs: 1 while it holds only stores, so an earlier Debrief still reads it; 2 once it remembers how tracks imported are plotted. As debrief_config. */
 export const STORES_VERSION = 1;
 export const IMPORT_MODE_VERSION = 2;
+export const NARRATIVE_IMPORT_VERSION = 3;
 const FILE_NAME = "config.json";
 export const timing = { lockWaitMs: 5000, lockStaleMs: 30000, replaceWaitMs: 2000 };
 
@@ -283,7 +284,56 @@ export function withTrackImportMode(config: UserConfig, mode: TrackImportMode): 
   if (!TRACK_IMPORT_MODES.includes(mode)) throw new ConfigError(`"${mode}" is not a track import mode: ask, otg or dr`);
   const rest = { ...config };
   delete rest.track_import_mode;
-  // Remembered, version 2, so an earlier Debrief says to update rather than that the file is not valid; cleared, 1 again.
-  if (mode === "ask") return { ...rest, config_version: config.config_version <= IMPORT_MODE_VERSION ? STORES_VERSION : config.config_version };
-  return { ...rest, config_version: Math.max(config.config_version, IMPORT_MODE_VERSION), track_import_mode: mode as UserConfig["track_import_mode"] };
+  // Remembered, version 2, so an earlier Debrief says to update rather than that the file is not valid; cleared, 1 again (unless it holds more).
+  const changed: UserConfig = mode === "ask" ? rest : { ...rest, track_import_mode: mode as UserConfig["track_import_mode"] };
+  return { ...changed, config_version: layout(changed) };
+}
+
+/** The layout a configuration needs: the oldest whose Debrief can read all it holds. As debrief_config. */
+function layout(config: UserConfig): number {
+  if (config.narrative_import?.length) return NARRATIVE_IMPORT_VERSION;
+  return config.track_import_mode ? IMPORT_MODE_VERSION : STORES_VERSION;
+}
+
+/**
+ * A narrative import's answers (CAP-19; product owner, 15 Oct 2026): the analyst's last
+ * answers for documents of a dialect, offered again next time and confirmed with one key.
+ * User state, kept here, never in a catalogue or a plot file; importers are given the answers.
+ */
+export interface RememberedAnswers {
+  /** Types the analyst chose not to read; "" for entries with no type. */
+  skipTypes: string[];
+  withinPeriod: boolean;
+  /** A platform's track, by the track's name; null for none. */
+  tracks: Record<string, string | null>;
+}
+
+/** The answers remembered for documents of this dialect, if any. As debrief_config.narrative_answers. */
+export function narrativeAnswers(config: UserConfig, dialect: string): RememberedAnswers | undefined {
+  const found = config.narrative_import?.find((a) => a.dialect === dialect);
+  if (!found) return undefined;
+  return {
+    skipTypes: [...(found.skip_types ?? [])],
+    withinPeriod: found.within_period ?? false,
+    tracks: Object.fromEntries((found.tracks ?? []).map((t) => [t.platform, t.track ?? null])),
+  };
+}
+
+/** A copy of the configuration remembering these answers for the dialect, in place of any before. As debrief_config.with_narrative_answers. */
+export function withNarrativeAnswers(config: UserConfig, dialect: string, answers: RememberedAnswers): UserConfig {
+  const entry: NarrativeImportAnswers = { dialect, within_period: answers.withinPeriod };
+  const skip = [...new Set(answers.skipTypes)].sort();
+  if (skip.length) entry.skip_types = skip;
+  const tracks = Object.entries(answers.tracks).sort(([a], [b]) => (a < b ? -1 : a > b ? 1 : 0));
+  if (tracks.length) entry.tracks = tracks.map(([platform, track]) => (track === null ? { platform } : { platform, track }));
+  const kept = (config.narrative_import ?? []).filter((a) => a.dialect !== dialect);
+  const changed: UserConfig = { ...config, narrative_import: [...kept, entry] };
+  return { ...changed, config_version: layout(changed) };
+}
+
+/** A copy of the configuration forgetting every narrative import's answers. As debrief_config.without_narrative_answers. */
+export function withoutNarrativeAnswers(config: UserConfig): UserConfig {
+  const rest = { ...config };
+  delete rest.narrative_import;
+  return { ...rest, config_version: layout(rest) };
 }

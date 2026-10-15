@@ -76,6 +76,18 @@ export async function playWordNarrative(page, shot) {
   // Undone as one step: the whole log goes.
   await page.locator("#undo").click();
   await page.waitForFunction((n) => window.debriefTimeline().entries === n, before);
+
+  // Read again: last time's answers are offered, kept in the page's settings (never the
+  // plot), and Enter confirms them; Cancel reads nothing.
+  await page.locator("#narrative-file").setInputFiles(LOG);
+  await dialog.waitFor({ timeout: 60000 });
+  assert.match(await dialog.locator(".form-info").innerText(), /As last time: All types but FCS; only within the plot's period; BLUE TWO on no track\./);
+  assert.equal(await dialog.locator(".form-check", { hasText: "FCS" }).locator("input").isChecked(), false);
+  assert.equal(await dialog.locator("select[name=period]").inputValue(), "within");
+  assert.equal(await page.evaluate(() => document.activeElement?.classList.contains("primary")), true, "Enter reads as last time");
+  await dialog.locator("button", { hasText: "Cancel" }).click();
+  await page.locator(".toast", { hasText: "Nothing was read." }).first().waitFor();
+  assert.equal((await state(page)).entries, before);
   await unfold();
   console.log(`Word narrative: read into serial 3 in ${readMs} ms (questions answered by the test), undone as one step.`);
 }
@@ -90,6 +102,7 @@ async function playTimelineExtras(page, shot) {
   assert.equal(await button.getAttribute("aria-expanded"), "true");
   await menu.waitFor();
   assert.equal(await page.evaluate(() => document.activeElement?.classList.contains("tl-highlights")), true, "the menu takes the keyboard");
+  assert.equal(await timeline(".tl-view-label").innerText(), "Highlight", "the phrases' box has a visible label");
 
   // Highlights: phrases the reader names, marked wherever they are, case ignored.
   await timeline(".tl-highlights").fill("contact, towed array");
@@ -104,12 +117,16 @@ async function playTimelineExtras(page, shot) {
 
   // Choosing an entry without moving current time.
   await timeline('input[data-view="moveTime"]').uncheck();
+  assert.doesNotMatch(await timeline(".tl-status").innerText(), /Choosing an entry/, "the switch is seen: the status does not repeat it");
   const label = await timeLabel(page);
   const row = await timelineRow(page, "Came to 180");
   await row.click();
-  await page.waitForTimeout(400);
+  await page.waitForFunction((id) => window.debriefTimeline().active === id, await row.getAttribute("data-id"));
   assert.equal(await timeLabel(page), label, "choosing an entry leaves current time where it is");
-  assert.equal((await state(page)).active, await row.getAttribute("data-id"));
+  // The row worked with shows its Edit and Delete, wholly in the list's sight.
+  const actions = await row.locator(".tl-actions").boundingBox();
+  const list = await timeline(".tl-scroll").boundingBox();
+  assert.ok(actions && list && actions.y + actions.height <= list.y + list.height + 0.5, `Edit and Delete in sight (${JSON.stringify(actions)} in ${JSON.stringify(list)})`);
   await timeline(".tl-scroll").focus();
   await page.keyboard.press("Enter");
   await page.waitForTimeout(300);

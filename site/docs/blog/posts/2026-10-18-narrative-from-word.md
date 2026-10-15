@@ -26,15 +26,19 @@ Legacy Debrief's Word parsers, `ImportNarrativeDocument` and its relatives, are 
 
 You never say which: Debrief looks at the document. It doesn't trust the name either; legacy Debrief met `.docx` files called `.doc`, and so will we.
 
-Legacy Debrief also corrected the mistakes these logs are prone to, and so do we, saying so in the import's record each time: a day that goes backwards with no new month (a cut and paste gone wrong) keeps the day before; an entry at 23:45 whose hidden date is the next day, because it was typed in just after midnight, goes back to the evening it describes. A few things we do differently, on purpose. Every time is UTC; legacy Debrief read some in the computer's own time zone. 31 April is reported rather than quietly read as 1 May. A bad line is listed with its number and why, and reading carries on; legacy stopped some imports at the first. A rider's log that runs past midnight goes on into the next day.
+Legacy Debrief also corrected the mistakes these logs are prone to, and so do we, saying so in the import's record each time: a day that goes backwards with no new month (a cut and paste gone wrong) keeps the day before; an entry at 23:45 whose hidden date is the next day, because it was typed in just after midnight, goes back to the evening it describes. A few things we do differently, on purpose. Every time is UTC; legacy Debrief read some in the computer's own time zone. 31 April is reported rather than quietly read as 1 May. A bad line is listed with its number and why, and reading carries on; legacy stopped some imports at the first. A rider's log that runs past midnight goes on into the next day. And an entry keeps every line that follows it, up to the next entry: legacy Debrief joined six, dropped the seventh and carried on, which in a PDF, where every printed line is a paragraph, lost the ends of long entries.
 
 ## Asked first, as before
 
-Before a document goes into the open plot you're asked what legacy Debrief asked: which types of entry to read, with how many of each; all of them, or only those within the plot's period; and which track a platform belongs to when none has its name. (*HMS BLUE ONE* still finds *BLUE ONE* on its own: the prefixes legacy skipped are skipped.)
+Before a document goes into the open plot you're asked what legacy Debrief asked: which types of entry to read, with how many of each; all of them, or only those within the plot's period; and which track a platform belongs to when none has its name. (*HMS BLUE ONE* still finds *BLUE ONE* on its own: the prefixes legacy skipped are skipped.) An entry matched to a track takes the track's name, and so its colour, in the Timeline; the name as the document wrote it stays in the import's record.
+
+Your answers are remembered for that house style, as your own setting, never in the plot: next time the questions come filled in, said in a line, and one key reads the document as last time.
 
 ![The playground's form over the map: Read red-one-log.docx, Word document, read as a narrative log, 7 entries; the types OOW COMMENT (3), SONAR (2), COMMS (1) ticked and FCS (1) unticked; Entries: only the 6 within the plot's period, 17:00:00Z to 23:00:00Z; BLUE TWO's track: No track; Read and Cancel](images/phase-3/narrative-word-questions.png)
 
 Then it's one step, like a REP file's narrative: the document is kept with the plot as its source, untouched; the step's record names the importer, the document, the style it was read in and what you chose, and lists what wasn't read and why. Undo takes the whole document out again.
+
+These documents come from elsewhere, so each reader has firm limits: a file that would take too much memory or too long to read, a zip bomb or a PDF that draws millions of operations, is refused with a reason, rather than tying up Debrief or your browser tab.
 
 ![After reading: the History's newest step, Narrative read from red-one-log.docx; the Timeline lists RED ONE's entries among the rest, a continuation joined to its entry; a note says 5 entries were read and 3 things were not](images/phase-3/narrative-word-read.png)
 
@@ -56,7 +60,7 @@ The product owner kept legacy's Narrative viewer extras, with one condition: the
 
 ![The Timeline with highlights: contact and towed array marked bold and underlined in RED ONE's sonar entry, and the menu open above the list](images/phase-3/narrative-highlights.png)
 
-- **Highlight.** Type words or phrases, separated by commas, and they're marked wherever they appear in an entry's text: bold and underlined, so they're told apart from what the search finds (shaded) without relying on colour.
+- **Highlight.** Type words or phrases in the box labelled *Highlight*, separated by commas, and they're marked wherever they appear in an entry's text: bold and underlined, so they're told apart from what the search finds (shaded) without relying on colour.
 - **Choosing an entry moves current time.** On, as before. Turn it off to read back through a log while the replay holds its place: choosing an entry just puts you on it.
 - **Wrap long entries.** Off, each entry is one line, cut short.
 - **Text size**, from 11 to 18 pixels, with **A−** and **A+**.
@@ -64,7 +68,7 @@ The product owner kept legacy's Narrative viewer extras, with one condition: the
 
 Like your filter, these are yours: kept with your view, never in the plot, so two analysts reading the same narrative see it their own way. **⋯** is drawn like **Filter (2)** when you've changed anything. Nothing ever scrolls sideways, at any size, in a sidebar 210 pixels wide or on a phone.
 
-![On a phone, 390 pixels wide: the Timeline with the menu open: the highlight box, Choosing an entry moves current time, Wrap long entries, Text 16px with A− and A+, and Columns with Time and Source ticked and Type not](images/phase-3/narrative-phone-menu.png)
+![On a phone, 390 pixels wide: the Timeline with the menu open: the Highlight box, Choosing an entry moves current time, Wrap long entries, Text 16px with A− and A+, and Columns with Time and Source ticked and Type not](images/phase-3/narrative-phone-menu.png)
 
 ![VS Code's Timeline view at the sidebar's usual width, dark theme, with the menu open: the time column hidden, entries one line each, sonar and contact highlighted](images/phase-3/narrative-vscode-menu.png)
 

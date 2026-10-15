@@ -48,7 +48,9 @@ def test_a_word_narrative_is_read_into_the_plot_as_one_step(opened, tmp_path: Pa
     before = opened.history("serial").head().current
     done = import_narrative(opened, "serial", log, AGENT)
     assert done.step == before + 1 and done.entries == 9
-    assert done.sources == ["HMS BLUE ONE", "RED TWO"]
+    # Matched to a track, an entry is the track's by name (product owner, 15 Oct 2026);
+    # the name as written is in the step's record.
+    assert done.sources == ["BLUE ONE", "RED TWO"]
     step = opened.history("serial").delta(done.step)
     (record,) = step.records
     assert record.tool.name == "debrief-io.narrative"
@@ -59,7 +61,11 @@ def test_a_word_narrative_is_read_into_the_plot_as_one_step(opened, tmp_path: Pa
     assert record.notes[1] == "Word document, read as a narrative log."
     # HMS BLUE ONE belongs to BLUE ONE's track, legacy Debrief's prefix skipped.
     tracks = {f.properties.source: f.properties.track_id for f in step.added}
-    assert tracks == {"HMS BLUE ONE": "track-blue-one", "RED TWO": "track-red-two"}
+    assert tracks == {"BLUE ONE": "track-blue-one", "RED TWO": "track-red-two"}
+    assert any(
+        n.endswith("written as from HMS BLUE ONE are BLUE ONE's: their source is the track's name.")
+        for n in record.notes
+    )
     # What was not read, and what was corrected, are said.
     assert "2 lines before the first entry (a title, a preamble) were not read." in done.omitted
     assert any("day went back" in n for n in done.notes)
@@ -105,7 +111,7 @@ def test_a_printed_log_names_no_platform(opened, tmp_path: Path) -> None:
 def test_a_riders_narrative_from_word_97(opened, tmp_path: Path) -> None:
     log = write(tmp_path, "rider.doc", (DATA / "synthetic-rider.doc").read_bytes())
     done = import_narrative(opened, "serial", log, AGENT)
-    assert done.entries == 10 and done.sources == ["HMS Blue One"]
+    assert done.entries == 10 and done.sources == ["BLUE ONE"]
     added = opened.history("serial").delta(done.step).added
     assert {f.properties.entry_type for f in added} == {"Rider"}
     assert {f.properties.track_id for f in added} == {"track-blue-one"}

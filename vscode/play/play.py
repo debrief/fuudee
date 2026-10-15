@@ -17,7 +17,14 @@ from pathlib import Path
 from typing import Any
 
 import debrief_stac.store as store_module
-from debrief_config import load_config, track_import_mode, update_config, with_track_import_mode
+from debrief_config import (
+    load_config,
+    narrative_answers,
+    track_import_mode,
+    update_config,
+    with_narrative_answers,
+    with_track_import_mode,
+)
 from debrief_io import (
     Choices,
     NoNarrativeError,
@@ -539,6 +546,38 @@ def set_import_mode(mode: str) -> str:
     """Remember a choice for future imports, or, with ask, clear it."""
     SETTINGS.parent.mkdir(parents=True, exist_ok=True)
     return track_import_mode(update_config(lambda c: with_track_import_mode(c, mode), SETTINGS))
+
+
+def narrative_answers_for(dialect: str) -> str:
+    """The reader's last answers for narrative documents of this dialect, as the page's
+    settings keep them (debrief-config's narrative_import): {"answers": ...} or {}."""
+    found = narrative_answers(load_config(SETTINGS), dialect)
+    if found is None:
+        return json.dumps({})
+    tracks = {t.platform: t.track for t in found.tracks or []}
+    answers = {
+        "skipTypes": list(found.skip_types or []),
+        "withinPeriod": bool(found.within_period),
+        "tracks": tracks,
+    }
+    return json.dumps({"answers": answers})
+
+
+def set_narrative_answers(dialect: str, answers_json: str) -> str:
+    """Remember the reader's answers for documents of this dialect, for next time."""
+    answers = json.loads(answers_json)
+    SETTINGS.parent.mkdir(parents=True, exist_ok=True)
+    update_config(
+        lambda c: with_narrative_answers(
+            c,
+            dialect,
+            skip_types=answers.get("skipTypes") or [],
+            within_period=bool(answers.get("withinPeriod")),
+            tracks=answers.get("tracks") or {},
+        ),
+        SETTINGS,
+    )
+    return json.dumps({"ok": True})
 
 
 def _upload(name: str, data: bytes) -> Path:

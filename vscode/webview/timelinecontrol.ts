@@ -179,6 +179,8 @@ export class TimelineControl {
   private frame?: number;
   private searchTimer?: ReturnType<typeof setTimeout>;
   private highlightTimer?: ReturnType<typeof setTimeout>;
+  /** A row just made the one worked with: brought wholly into sight once drawn and measured. */
+  private revealActive = false;
   private editing?: string;
   private said?: ReturnType<typeof setTimeout>;
   /** Milliseconds each list was drawn in, for the NFR-06 check. */
@@ -590,7 +592,7 @@ export class TimelineControl {
     const smallest = v.textSize === TEXT_SIZES[0];
     const largest = v.textSize === TEXT_SIZES[TEXT_SIZES.length - 1];
     this.viewPanel.innerHTML =
-      `<input type="text" class="tl-highlights" spellcheck="false" autocomplete="off" placeholder="Highlight: words, phrases, separated by commas" aria-label="Words and phrases to highlight, separated by commas" value="${escape(v.highlights.join(", "))}">` +
+      `<label class="tl-highlight-row"><span class="tl-view-label">Highlight</span><input type="text" class="tl-highlights" spellcheck="false" autocomplete="off" placeholder="words, phrases, separated by commas" aria-label="Highlight words and phrases, separated by commas" value="${escape(v.highlights.join(", "))}"></label>` +
       `<label><input type="checkbox" data-view="moveTime"${check(v.moveTime)}>Choosing an entry moves current time</label>` +
       `<label><input type="checkbox" data-view="wrap"${check(v.wrap)}>Wrap long entries</label>` +
       `<div class="tl-view-line"><span class="tl-view-size" aria-live="polite">Text ${v.textSize}px</span>` +
@@ -631,7 +633,6 @@ export class TimelineControl {
       this.renderView();
       this.viewPanel.querySelector<HTMLElement>(selector)?.focus();
     }
-    if (before.moveTime !== view.moveTime) this.say(view.moveTime ? "Choosing an entry moves current time." : "Choosing an entry leaves current time where it is.");
   }
 
   /** The view as styles: text size and line height, wrapping, the columns' grid. */
@@ -688,7 +689,7 @@ export class TimelineControl {
     this.filterPanel.innerHTML =
       group("Kinds", "kinds", kinds, (n) => KIND_WORDS[n as EntryKind] ?? n) +
       group("Sources", "sources", sources, (n) => n) +
-      group("Types", "types", types, (n) => n || "No type") +
+      group("Types", "types", types, (n) => n || "(no type)") +
       `<button type="button" class="tl-show-all">Show all</button>`;
   }
 
@@ -781,8 +782,15 @@ export class TimelineControl {
         const target = followScroll(this.layout.top(row), this.layout.height(row), this.scroller.scrollTop, viewport, this.layout.total);
         if (target !== undefined) moved = this.scrollTo(target);
       }
+      // The row being worked with, measured with its Edit and Delete: all of it in sight.
+      if (this.revealActive && this.active >= 0) {
+        const row = this.rowOfItem.get(this.visible[this.active]);
+        const target = row === undefined ? undefined : revealScroll(this.layout.top(row), this.layout.height(row), this.scroller.scrollTop, viewport);
+        if (target !== undefined) moved = this.scrollTo(target) || moved;
+      }
       if (!moved && !changed) break;
     }
+    this.revealActive = false;
     const activeRow = this.active >= 0 ? this.rowOfItem.get(this.visible[this.active]) : undefined;
     this.scroller.setAttribute("aria-activedescendant", activeRow !== undefined ? this.rowId(activeRow) : "");
     this.showFollow();
@@ -980,6 +988,7 @@ export class TimelineControl {
   private setActive(index: number, scroll: boolean): void {
     const before = this.active;
     this.active = Math.max(-1, Math.min(index, this.visible.length - 1));
+    if (this.active >= 0 && this.active !== before) this.revealActive = true;
     for (const i of [before, this.active]) {
       if (i < 0) continue;
       const row = this.rowOfItem.get(this.visible[i]);

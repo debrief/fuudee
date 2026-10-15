@@ -23,7 +23,7 @@ import { NarrativeOnMap, narrativeOnMapOf, timelineEntries, timelineTracks } fro
 import { TimelineControl } from "../webview/timelinecontrol.js";
 import { count, describePeriod, describeTimes, describeToolRun } from "../src/format.js";
 import { resolveTimes } from "../src/timeinput.js";
-import { choicesOf, periodChoices, questionsFor, readSummary, typeWords, type NarrativeChoices, type NarrativePreview } from "../src/narrativeimport.js";
+import { answersToRemember, choicesOf, describeAnswers, periodChoices, questionsFor, readSummary, rememberedAnswers, typeWords, type NarrativeChoices, type NarrativePreview } from "../src/narrativeimport.js";
 import { describeStep, needs } from "../src/wording.js";
 import { contextTracksOf, displayed, hiddenIds, isFeature, isHidden, setViewOf, timeWindowOf, viewOf, type PlotFeature } from "../src/hidden.js";
 import { contextShown, type ContextTracks } from "../webview/contrast.js";
@@ -728,7 +728,7 @@ interface FormField {
  * A small form in a dialog: each field says, beneath it, what it understood or what is wrong; nothing is sent until all are right. Resolves to the values, or undefined for Cancel.
  * warning, above the fields, is a warning (a red bar); { info } only explains (the neutral bar an information toast has).
  */
-function trackForm(title: string, action: string, fields: FormField[], warning?: string | { info: string }): Promise<Record<string, string> | undefined> {
+function trackForm(title: string, action: string, fields: FormField[], warning?: string | { info: string; ready?: boolean }): Promise<Record<string, string> | undefined> {
   return new Promise((resolve) => {
     const dialog = document.createElement("dialog");
     dialog.className = "track-form";
@@ -822,6 +822,8 @@ function trackForm(title: string, action: string, fields: FormField[], warning?:
       resolve(values);
     };
     dialog.showModal();
+    // Answers offered from last time: the action has the keyboard, so Enter confirms them.
+    if (typeof warning === "object" && warning.ready) go.focus();
   });
 }
 const shown = (read: { problem: string } | number | { value: number; unit: string }, means: () => string) => (typeof read === "object" && "problem" in read ? read : { means: means() });
@@ -1727,21 +1729,34 @@ async function askNarrative(preview: NarrativePreview): Promise<NarrativeChoices
   const tracks = opened ? timelineTracks(opened.plot) : [];
   const ask = questionsFor(preview, tracks);
   if (!ask.types && !ask.period && !ask.platforms.length) return {};
+  // Last time's answers for this dialect, kept in the page's settings (user state, never in
+  // the plot; product owner, 15 Oct 2026): the form comes filled in, and Enter reads.
+  const dialect = preview.dialect ?? preview.format;
+  const before = (await pythonJson<{ answers?: { skipTypes: string[]; withinPeriod: boolean; tracks: Record<string, string | null> } }>("narrative_answers_for", dialect)).answers;
+  const offered = rememberedAnswers(preview, tracks, before);
+  const last = offered?.answers ?? {};
   const fields: FormField[] = [];
-  if (ask.types) preview.types.forEach((t, i) => fields.push({ id: `type-${i}`, label: `${typeWords(t.name)} (${t.count})`, check: true, value: "yes" }));
+  if (ask.types) preview.types.forEach((t, i) => fields.push({ id: `type-${i}`, label: `${typeWords(t.name)} (${t.count})`, check: true, value: !last.types || last.types.includes(t.name) ? "yes" : "" }));
   if (ask.period) {
     const words = periodChoices(preview, (iso) => describeTimes(iso));
-    fields.push({ id: "period", label: "Entries", options: [{ value: "all", label: words.all }, { value: "within", label: words.within }] });
+    fields.push({ id: "period", label: "Entries", value: last.withinPeriod ? "within" : "all", options: [{ value: "all", label: words.all }, { value: "within", label: words.within }] });
   }
-  ask.platforms.forEach((platform, i) =>
-    fields.push({ id: `track-${i}`, label: `${platform}'s track`, options: [...tracks.map((t) => ({ value: t.id, label: t.name })), { value: "", label: "No track" }] }),
-  );
-  const values = await trackForm(`Read ${preview.name}`, "Read", fields, { info: `${preview.described}: ${count(preview.entries, "entry", "entries")}. Untick the types not to read.` });
+  ask.platforms.forEach((platform, i) => {
+    const known = last.tracks?.[platform];
+    fields.push({ id: `track-${i}`, label: `${platform}'s track`, ...(known !== undefined && { value: known ?? "" }), options: [...tracks.map((t) => ({ value: t.id, label: t.name })), { value: "", label: "No track" }] });
+  });
+  const intro = `${preview.described}: ${count(preview.entries, "entry", "entries")}.`;
+  const info = offered?.complete
+    ? { info: `${intro} As last time: ${describeAnswers(preview, last, tracks)}.`, ready: true }
+    : { info: `${intro} Untick the types not to read.` };
+  const values = await trackForm(`Read ${preview.name}`, "Read", fields, info);
   if (!values) return undefined;
   const types = ask.types ? preview.types.filter((_, i) => values[`type-${i}`] === "yes").map((t) => t.name) : undefined;
   if (types && !types.length) return undefined;
   const chosenTracks = Object.fromEntries(ask.platforms.map((platform, i) => [platform, values[`track-${i}`] || null]));
-  return choicesOf(preview, { types, withinPeriod: values.period === "within", tracks: chosenTracks });
+  const answers = { types, withinPeriod: ask.period ? values.period === "within" : undefined, tracks: chosenTracks };
+  await python("set_narrative_answers", dialect, JSON.stringify(answersToRemember(preview, tracks, answers, before)));
+  return choicesOf(preview, answers);
 }
 $<HTMLInputElement>("file").onchange = async (e) => {
   const file = (e.target as HTMLInputElement).files?.[0];

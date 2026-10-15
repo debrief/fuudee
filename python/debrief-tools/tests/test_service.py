@@ -1202,7 +1202,8 @@ def test_word_narrative_is_previewed_then_read_in_with_the_analysts_choices(
             "tracks": {"RED THREE": None},
         },
     ).json()["result"]
-    assert (read["entries"], read["sources"]) == (1, ["HMS NELSON"])
+    assert (read["entries"], read["sources"]) == (1, ["NELSON"])
+    assert any("written as from HMS NELSON is NELSON's" in n for n in read["notes"])
     assert any("types not chosen" in o for o in read["omitted"])
     assert any("outside the plot's period" in o for o in read["omitted"])
     bad = rpc(

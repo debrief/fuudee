@@ -3315,7 +3315,7 @@ class ToteRow(ConfiguredBaseModel):
     """
     linkml_meta: ClassVar[LinkMLMeta] = LinkMLMeta({'from_schema': 'https://debrief.info/schemas/debrief'})
 
-    track: str = Field(default=..., description="""The track's feature id.""", json_schema_extra = { "linkml_meta": {'domain_of': ['ToteRow', 'TimelineEntry']} })
+    track: str = Field(default=..., description="""The track's feature id.""", json_schema_extra = { "linkml_meta": {'domain_of': ['ToteRow', 'PlatformTrack', 'TimelineEntry']} })
     name: Optional[str] = Field(default=None, json_schema_extra = { "linkml_meta": {'domain_of': ['ParameterValue',
                        'ToolRef',
                        'AgentRef',
@@ -3449,9 +3449,45 @@ class ToteTrack(ConfiguredBaseModel):
 class UserConfig(ConfiguredBaseModel):
     linkml_meta: ClassVar[LinkMLMeta] = LinkMLMeta({'from_schema': 'https://debrief.info/schemas/debrief'})
 
-    config_version: int = Field(default=..., description="""Version of this file's layout: 1 while it holds only stores; 2 once it holds track_import_mode, which an earlier Debrief cannot read.""", ge=1, json_schema_extra = { "linkml_meta": {'domain_of': ['UserConfig']} })
+    config_version: int = Field(default=..., description="""Version of this file's layout: 1 while it holds only stores; 2 once it holds track_import_mode; 3 once it holds narrative_import. An earlier Debrief cannot read a later layout.""", ge=1, json_schema_extra = { "linkml_meta": {'domain_of': ['UserConfig']} })
     stores: list[KnownStore] = Field(default=..., description="""Known stores, in the order the analyst sees them (SUB-17).""", json_schema_extra = { "linkml_meta": {'domain_of': ['UserConfig']} })
     track_import_mode: Optional[TrackImportModeEnum] = Field(default=None, description="""How tracks imported are plotted, over the ground or by dead reckoning: ask (the default, also when left out), or otg or dr once the analyst chose \"Use this choice for future imports\" (CAP-01). The analyst may clear it, to be asked again.""", json_schema_extra = { "linkml_meta": {'domain_of': ['UserConfig']} })
+    narrative_import: Optional[list[NarrativeImportAnswers]] = Field(default=None, description="""The analyst's last answers to the questions asked before a Word or PDF narrative is read into a plot, one set for each dialect, so they are offered again next time and confirmed with one key (CAP-19; product owner, 15 Oct 2026). User state, kept here and never in a catalogue or a plot file; importers are given the answers.""", json_schema_extra = { "linkml_meta": {'domain_of': ['UserConfig']} })
+
+
+class NarrativeImportAnswers(ConfiguredBaseModel):
+    """
+    What the analyst answered for documents of one dialect: the types not read (so a type not seen before is read), whether only entries within the plot's period, and the track each platform was said to be.
+    """
+    linkml_meta: ClassVar[LinkMLMeta] = LinkMLMeta({'from_schema': 'https://debrief.info/schemas/debrief'})
+
+    dialect: str = Field(default=..., description="""The dialect, such as narrative-document or rider-narrative.""", json_schema_extra = { "linkml_meta": {'domain_of': ['NarrativeImportAnswers']} })
+    skip_types: Optional[list[str]] = Field(default=None, description="""Entry types the analyst chose not to read; \"\" for entries with no type.""", json_schema_extra = { "linkml_meta": {'domain_of': ['NarrativeImportAnswers']} })
+    within_period: Optional[bool] = Field(default=None, description="""Only the entries within the plot's tracks' period.""", json_schema_extra = { "linkml_meta": {'domain_of': ['NarrativeImportAnswers']} })
+    tracks: Optional[list[PlatformTrack]] = Field(default=None, description="""The track the analyst said each platform is, by the track's name.""", json_schema_extra = { "linkml_meta": {'domain_of': ['NarrativeImportAnswers']} })
+
+    @field_validator('dialect')
+    def pattern_dialect(cls, v):
+        pattern=re.compile(r"^[a-z][a-z0-9-]{0,63}$")
+        if isinstance(v, list):
+            for element in v:
+                if isinstance(element, str) and not pattern.search(element):
+                    err_msg = f"Invalid dialect format: {element}"
+                    raise ValueError(err_msg)
+        elif isinstance(v, str) and not pattern.search(v):
+            err_msg = f"Invalid dialect format: {v}"
+            raise ValueError(err_msg)
+        return v
+
+
+class PlatformTrack(ConfiguredBaseModel):
+    """
+    A platform, as a document names it, and the track it was said to be.
+    """
+    linkml_meta: ClassVar[LinkMLMeta] = LinkMLMeta({'from_schema': 'https://debrief.info/schemas/debrief'})
+
+    platform: str = Field(default=..., json_schema_extra = { "linkml_meta": {'domain_of': ['PlatformTrack']} })
+    track: Optional[str] = Field(default=None, description="""The track's name; left out, the platform belongs to no track.""", json_schema_extra = { "linkml_meta": {'domain_of': ['ToteRow', 'PlatformTrack', 'TimelineEntry']} })
 
 
 class KnownStore(ConfiguredBaseModel):
@@ -3563,7 +3599,7 @@ class TimelineEntry(ConfiguredBaseModel):
                        'NarrativeProperties',
                        'NarrativeSpec',
                        'TimelineEntry']} })
-    track: Optional[str] = Field(default=None, description="""The track it belongs to: a narrative entry's track, or a fix's.""", json_schema_extra = { "linkml_meta": {'domain_of': ['ToteRow', 'TimelineEntry']} })
+    track: Optional[str] = Field(default=None, description="""The track it belongs to: a narrative entry's track, or a fix's.""", json_schema_extra = { "linkml_meta": {'domain_of': ['ToteRow', 'PlatformTrack', 'TimelineEntry']} })
     colour: Optional[str] = Field(default=None, description="""That track's colour, lower-case hex RGB.""", json_schema_extra = { "linkml_meta": {'domain_of': ['TrackStyle',
                        'FixMark',
                        'AnnotationAppearance',
@@ -3960,6 +3996,8 @@ ToteRow.model_rebuild()
 ToteResult.model_rebuild()
 ToteTrack.model_rebuild()
 UserConfig.model_rebuild()
+NarrativeImportAnswers.model_rebuild()
+PlatformTrack.model_rebuild()
 KnownStore.model_rebuild()
 TimelineEntry.model_rebuild()
 WebviewMessage.model_rebuild()

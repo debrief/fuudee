@@ -101,6 +101,14 @@ def same_location(a: str, b: str, platform: str | None = None) -> bool:
 # it; 2 once it remembers how tracks imported are plotted (see with_track_import_mode).
 STORES_VERSION = 1
 IMPORT_MODE_VERSION = 2
+NARRATIVE_IMPORT_VERSION = 3
+
+
+def _layout(config: models.UserConfig) -> int:
+    """The layout a configuration needs: the oldest whose Debrief can read all it holds."""
+    if config.narrative_import:
+        return NARRATIVE_IMPORT_VERSION
+    return IMPORT_MODE_VERSION if config.track_import_mode is not None else STORES_VERSION
 
 
 def _empty() -> models.UserConfig:
@@ -291,10 +299,49 @@ def with_track_import_mode(config: models.UserConfig, mode: str) -> models.UserC
     again, so an earlier Debrief reads it."""
     if mode not in TRACK_IMPORT_MODES:
         raise ConfigError(f"{mode!r} is not a track import mode: ask, otg or dr")
-    if mode == "ask":
-        version = config.config_version
-        if version <= IMPORT_MODE_VERSION:
-            version = STORES_VERSION
-        return config.model_copy(update={"track_import_mode": None, "config_version": version})
-    version = max(config.config_version, IMPORT_MODE_VERSION)
-    return config.model_copy(update={"track_import_mode": mode, "config_version": version})
+    changed = config.model_copy(update={"track_import_mode": None if mode == "ask" else mode})
+    return changed.model_copy(update={"config_version": _layout(changed)})
+
+
+# --- A narrative import's answers (CAP-19; product owner, 15 Oct 2026) ------------------
+# The analyst's last answers for documents of a dialect, offered again next time and
+# confirmed with one key. User state, kept here, never in a catalogue or a plot file:
+# importers are given the answers (debrief_io.Choices), and never read this file.
+
+
+def narrative_answers(
+    config: models.UserConfig, dialect: str
+) -> models.NarrativeImportAnswers | None:
+    """The answers remembered for documents of this dialect, if any."""
+    return next((a for a in config.narrative_import or [] if a.dialect == dialect), None)
+
+
+def with_narrative_answers(
+    config: models.UserConfig,
+    dialect: str,
+    *,
+    skip_types: list[str] | None = None,
+    within_period: bool = False,
+    tracks: Mapping[str, str | None] | None = None,
+) -> models.UserConfig:
+    """A copy of the configuration remembering these answers for the dialect, in place
+    of any before: the types not read, only within the plot's period, and the track
+    (by name, or None for none) each platform was said to be."""
+    answers = models.NarrativeImportAnswers(
+        dialect=dialect,
+        skip_types=sorted(set(skip_types or [])) or None,
+        within_period=within_period,
+        tracks=[
+            models.PlatformTrack(platform=p, track=t) for p, t in sorted((tracks or {}).items())
+        ]
+        or None,
+    )
+    kept = [a for a in config.narrative_import or [] if a.dialect != dialect]
+    changed = config.model_copy(update={"narrative_import": [*kept, answers]})
+    return changed.model_copy(update={"config_version": _layout(changed)})
+
+
+def without_narrative_answers(config: models.UserConfig) -> models.UserConfig:
+    """A copy of the configuration forgetting every narrative import's answers."""
+    changed = config.model_copy(update={"narrative_import": None})
+    return changed.model_copy(update={"config_version": _layout(changed)})

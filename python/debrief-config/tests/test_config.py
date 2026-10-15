@@ -211,6 +211,42 @@ def test_a_remembered_import_mode_says_a_layout_an_earlier_debrief_knows_it_cann
     Cleared, it is version 1 again, which an earlier Debrief reads."""
     path = tmp_path / "config.json"
     update_config(lambda c: with_track_import_mode(c, "otg"), path)
-    assert json.loads(path.read_text())["config_version"] == 2 == CONFIG_VERSION
+    assert json.loads(path.read_text())["config_version"] == 2
     update_config(lambda c: with_track_import_mode(c, "ask"), path)
+    assert json.loads(path.read_text())["config_version"] == 1
+
+
+def test_narrative_import_answers_are_remembered_per_dialect_and_say_layout_3(
+    tmp_path: Path,
+) -> None:
+    from debrief_config import narrative_answers, with_narrative_answers, without_narrative_answers
+
+    path = tmp_path / "config.json"
+    update_config(
+        lambda c: with_narrative_answers(
+            c,
+            "narrative-document",
+            skip_types=["COMMS", ""],
+            within_period=True,
+            tracks={"HMS NELSON": "NELSON", "RED THREE": None},
+        ),
+        path,
+    )
+    assert json.loads(path.read_text())["config_version"] == 3 == CONFIG_VERSION
+    answers = narrative_answers(load_config(path), "narrative-document")
+    assert answers is not None
+    assert answers.skip_types == ["", "COMMS"] and answers.within_period is True
+    tracks = {t.platform: t.track for t in answers.tracks}
+    assert tracks == {"HMS NELSON": "NELSON", "RED THREE": None}
+    assert narrative_answers(load_config(path), "rider-narrative") is None
+    # Another dialect's answers are kept beside; the same dialect's replaced.
+    update_config(lambda c: with_narrative_answers(c, "rider-narrative"), path)
+    update_config(lambda c: with_narrative_answers(c, "narrative-document"), path)
+    config = load_config(path)
+    assert [a.dialect for a in config.narrative_import] == ["rider-narrative", "narrative-document"]
+    assert narrative_answers(config, "narrative-document").skip_types is None
+    # Clearing the import mode keeps the layout the answers need; forgetting them, 1 again.
+    update_config(lambda c: with_track_import_mode(c, "ask"), path)
+    assert json.loads(path.read_text())["config_version"] == 3
+    update_config(without_narrative_answers, path)
     assert json.loads(path.read_text())["config_version"] == 1

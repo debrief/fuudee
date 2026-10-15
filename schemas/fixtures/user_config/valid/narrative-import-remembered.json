@@ -1,0 +1,19 @@
+{
+  "config_version": 3,
+  "stores": [],
+  "narrative_import": [
+    {
+      "dialect": "narrative-document",
+      "skip_types": ["", "COMMS"],
+      "within_period": true,
+      "tracks": [
+        {"platform": "HMS NELSON", "track": "NELSON"},
+        {"platform": "RED THREE"}
+      ]
+    },
+    {
+      "dialect": "rider-narrative",
+      "within_period": false
+    }
+  ]
+}

@@ -1213,6 +1213,43 @@ export interface MeasureValue {
   value?: number | null;
 }
 /**
+ * What the analyst answered for documents of one dialect: the types not read (so a type not seen before is read), whether only entries within the plot's period, and the track each platform was said to be.
+ *
+ * This interface was referenced by `DebriefSchemaDefinitions`'s JSON-Schema
+ * via the `definition` "NarrativeImportAnswers".
+ */
+export interface NarrativeImportAnswers {
+  /**
+   * The dialect, such as narrative-document or rider-narrative.
+   */
+  dialect: string;
+  /**
+   * Entry types the analyst chose not to read; "" for entries with no type.
+   */
+  skip_types?: string[] | null;
+  /**
+   * The track the analyst said each platform is, by the track's name.
+   */
+  tracks?: PlatformTrack[] | null;
+  /**
+   * Only the entries within the plot's tracks' period.
+   */
+  within_period?: boolean | null;
+}
+/**
+ * A platform, as a document names it, and the track it was said to be.
+ *
+ * This interface was referenced by `DebriefSchemaDefinitions`'s JSON-Schema
+ * via the `definition` "PlatformTrack".
+ */
+export interface PlatformTrack {
+  platform: string;
+  /**
+   * The track's name; left out, the platform belongs to no track.
+   */
+  track?: string | null;
+}
+/**
  * A narrative entry as the analyst describes it in a form, or an agent in a request (debrief/add_narrative, debrief/edit_narrative): made into a narrative feature as one recorded step (CAP-20).
  *
  * This interface was referenced by `DebriefSchemaDefinitions`'s JSON-Schema
@@ -1682,9 +1719,13 @@ export interface TrackEdit {
  */
 export interface UserConfig {
   /**
-   * Version of this file's layout: 1 while it holds only stores; 2 once it holds track_import_mode, which an earlier Debrief cannot read.
+   * Version of this file's layout: 1 while it holds only stores; 2 once it holds track_import_mode; 3 once it holds narrative_import. An earlier Debrief cannot read a later layout.
    */
   config_version: number;
+  /**
+   * The analyst's last answers to the questions asked before a Word or PDF narrative is read into a plot, one set for each dialect, so they are offered again next time and confirmed with one key (CAP-19; product owner, 15 Oct 2026). User state, kept here and never in a catalogue or a plot file; importers are given the answers.
+   */
+  narrative_import?: NarrativeImportAnswers[] | null;
   /**
    * Known stores, in the order the analyst sees them (SUB-17).
    */

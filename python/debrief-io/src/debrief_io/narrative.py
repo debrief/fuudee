@@ -28,7 +28,14 @@ from typing import Any
 from debrief_io.documents import Document, DocumentError, file_bytes, read_document, sniff
 from debrief_io.importer import Clock, _rep_text, wall_clock
 from debrief_io.rep import parse_rep
-from debrief_io.word import ASW, SKIP_NAMES, DocEntry, DocumentRead, read_dialect
+from debrief_io.word import (
+    ASW,
+    MAX_CONTINUATION,
+    SKIP_NAMES,
+    DocEntry,
+    DocumentRead,
+    read_dialect,
+)
 from debrief_kernel.formatting import format_time
 from debrief_kernel.time import format_utc, parse_utc
 from debrief_schemas import DebriefFeatureCollection, models
@@ -158,9 +165,9 @@ def _document_file(name: str, fmt: str, read: DocumentRead) -> NarrativeFile:
         )
     if read.overflow:
         omitted.append(
-            f"{_plural(read.overflow, 'line')} of text after an entry's sixth line of "
-            f"continuation {'was' if read.overflow == 1 else 'were'} not read, as legacy Debrief "
-            "read them."
+            f"{_plural(read.overflow, 'line')} of text after an entry's first "
+            f"{MAX_CONTINUATION:,} lines of continuation {'was' if read.overflow == 1 else 'were'} "
+            "not read: more than an entry could hold."
         )
     if read.stopped_at:
         omitted.append(f"Reading stopped at {read.stopped_at[:60]!r}: what follows was not read.")
@@ -339,7 +346,7 @@ def chosen_features(
         left = Counter(e.entry_type or "" for e in entries if (e.entry_type or "") not in wanted)
         entries = [e for e in entries if (e.entry_type or "") in wanted]
         if left:
-            named = ", ".join(f"{n or 'no type'} ({c})" for n, c in _ranked(left))
+            named = ", ".join(f"{n or '(no type)'} ({c})" for n, c in _ranked(left))
             count = _plural(left.total(), "entry", "entries")
             omitted.append(f"{count} of types not chosen not read: {named}.")
     period = tracks_period(plot)
@@ -357,15 +364,21 @@ def chosen_features(
             f"{_plural(unnamed, 'entry', 'entries')} name no platform: their source is {platform}."
         )
     ids = plot_narrative.new_ids({f.id for f in plot.features}, len(entries))
-    known = {f.id for f in plot.features if f.properties.kind == "track"}
+    names = {f.id: f.properties.name for f in plot.features if f.properties.kind == "track"}
     features = []
+    renamed: Counter[tuple[str, str]] = Counter()
     for feature_id, entry in zip(ids, entries, strict=True):
-        source = entry.source or platform
-        if source in choices.tracks:
-            track = choices.tracks[source]
-            track = track if track in known else None
+        written = entry.source or platform
+        if written in choices.tracks:
+            track = choices.tracks[written]
+            track = track if track in names else None
         else:
-            track = track_for_platform(source, tracks)
+            track = track_for_platform(written, tracks)
+        # Product owner, 15 Oct 2026: an entry matched to a track is that track's, by its
+        # name (and so its colour); the name as written is kept in the step's record.
+        source = names[track] if track is not None else written
+        if source != written:
+            renamed[(written, source)] += 1
         features.append(
             models.NarrativeFeature(
                 type="Feature",
@@ -380,6 +393,11 @@ def chosen_features(
                     track_id=track,
                 ),
             )
+        )
+    for (written, source), n in renamed.items():
+        notes.append(
+            f"{_plural(n, 'entry', 'entries')} written as from {written} "
+            f"{'is' if n == 1 else 'are'} {source}'s: their source is the track's name."
         )
     return features, omitted, notes
 

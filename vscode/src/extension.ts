@@ -10,11 +10,11 @@ import type { AnnotationSpec, ContextTracksEnum, NarrativeSpec, TimelineEntry, P
 import { formatBearing, formatPosition, formatQuantity, parsePosition, POSITION_EXAMPLE, UNIT_LABELS } from "@debrief/kernel";
 import { defaultPivotIndex, describeDistance, describeSpeed, describeTurn, FIX_PROMPT, FIX_PROMPT_DR, fixIndexAt, fixMeans, fixToEdit, jumpSpeed, legNow, mergedName, mergePlan, periodIndices, readBearing, readDistance, readSpeed, readTurn, reckoningOf, type Anchor } from "../webview/trackedit.js";
 import { chooseModes, MODE_LABELS, modeChoices, modeQuestion, REMEMBERED_IN_VSCODE, rememberItem, type ModeChoice, type PlottingMode } from "./importmode.js";
-import { loadConfig, trackImportMode, updateConfig, withTrackImportMode, type TrackImportMode } from "@debrief/config";
+import { loadConfig, narrativeAnswers, trackImportMode, updateConfig, withNarrativeAnswers, withTrackImportMode, type TrackImportMode } from "@debrief/config";
 import { changedSince, historyOnDisk, knownStores, openPlot, plotFile, type OpenedPlot } from "./catalogue.js";
 import { statSync, unwatchFile, watchFile } from "node:fs";
 import { count, describeTimes, describeToolRun, settings as displaySettings } from "./format.js";
-import { choicesOf, NARRATIVE_FILES, periodChoices, questionsFor, readSummary, typeWords, type NarrativeChoices, type NarrativePreview } from "./narrativeimport.js";
+import { answersToRemember, choicesOf, describeAnswers, NARRATIVE_FILES, periodChoices, questionsFor, readSummary, rememberedAnswers, typeWords, type NarrativeAnswers, type NarrativeChoices, type NarrativePreview } from "./narrativeimport.js";
 import { placeToolTime } from "../webview/timelogic.js";
 import { resolveTimes } from "./timeinput.js";
 import { AnnotationPanel } from "./panels/annotation.js";
@@ -1722,12 +1722,35 @@ export function activate(context: vscode.ExtensionContext): DebriefApi {
       return (error as Error).message;
     }
     if (preview.fixes) return `${preview.name} is ASW data: positions of a track, not narrative. Import it as a plot (Import plot file) for its track.`;
-    const tracks = opened.plot.features.filter((f) => f.properties.kind === "track").map((f) => ({ id: f.id, name: (f.properties as { name: string }).name }));
+    const tracks = opened.plot.features.filter((f) => f.properties.kind === "track").map((f) => ({ id: f.id as string, name: (f.properties as { name: string }).name }));
     const ask = questionsFor(preview, tracks);
-    const answers: { types?: string[]; withinPeriod?: boolean; tracks?: Record<string, string | null> } = {};
+    if (!ask.types && !ask.period && !ask.platforms.length) return {};
+    // The answers given last time for documents of this dialect (product owner, 15 Oct 2026):
+    // user state in debrief-config, never in the plot; offered again, confirmed with one key.
+    const dialect = preview.dialect ?? preview.format;
+    let before: ReturnType<typeof narrativeAnswers>;
+    try {
+      before = narrativeAnswers(loadConfig(configFile), dialect);
+    } catch {
+      before = undefined; // an unreadable configuration: asked afresh
+    }
+    const offered = rememberedAnswers(preview, tracks, before);
+    if (offered?.complete) {
+      const picked = await vscode.window.showQuickPick(
+        [
+          { label: "Read as last time", detail: describeAnswers(preview, offered.answers, tracks), again: false },
+          { label: "Choose again", detail: "Which types, the period, which track each platform is", again: true },
+        ],
+        { title: `Read ${preview.name}`, placeHolder: `${preview.described}: ${count(preview.entries, "entry", "entries")}` },
+      );
+      if (!picked) return "stop";
+      if (!picked.again) return choicesOf(preview, offered.answers);
+    }
+    const prefill = offered?.answers ?? {};
+    const answers: NarrativeAnswers = {};
     if (ask.types) {
       const picked = await vscode.window.showQuickPick(
-        preview.types.map((t) => ({ label: typeWords(t.name), description: count(t.count, "entry", "entries"), picked: true, name: t.name })),
+        preview.types.map((t) => ({ label: typeWords(t.name), description: count(t.count, "entry", "entries"), picked: !prefill.types || prefill.types.includes(t.name), name: t.name })),
         { canPickMany: true, title: `Read which types from ${preview.name}?`, placeHolder: `${preview.described}: ${count(preview.entries, "entry", "entries")}` },
       );
       if (!picked?.length) return "stop";
@@ -1735,19 +1758,27 @@ export function activate(context: vscode.ExtensionContext): DebriefApi {
     }
     if (ask.period) {
       const words = periodChoices(preview, (iso) => describeTimes(iso));
-      const picked = await vscode.window.showQuickPick([{ label: words.all, within: false }, { label: words.within, within: true }], {
+      const items = [{ label: words.all, within: false }, { label: words.within, within: true }];
+      if (prefill.withinPeriod) items.reverse(); // last time's answer first, chosen by Enter
+      const picked = await vscode.window.showQuickPick(items, {
         title: `${count(preview.outside, "entry", "entries")} of ${preview.name} ${preview.outside === 1 ? "is" : "are"} outside the plot's period`,
       });
       if (!picked) return "stop";
       answers.withinPeriod = picked.within;
     }
     for (const platform of ask.platforms) {
-      const picked = await vscode.window.showQuickPick(
-        [...tracks.map((t) => ({ label: t.name, id: t.id as string | null })), { label: "No track", id: null }],
-        { title: `Which track is ${platform}'s?`, placeHolder: "Its entries belong to this track: the map shows them beside it." },
-      );
+      const items = [...tracks.map((t) => ({ label: t.name, id: t.id as string | null })), { label: "No track", id: null }];
+      const last = prefill.tracks?.[platform];
+      const at = last === undefined ? -1 : items.findIndex((i) => i.id === last);
+      if (at > 0) items.unshift(...items.splice(at, 1));
+      const picked = await vscode.window.showQuickPick(items, { title: `Which track is ${platform}'s?`, placeHolder: "Its entries belong to this track: the map shows them beside it." });
       if (!picked) return "stop";
       (answers.tracks ??= {})[platform] = picked.id;
+    }
+    try {
+      updateConfig((c) => withNarrativeAnswers(c, dialect, answersToRemember(preview, tracks, answers, before)), configFile);
+    } catch {
+      // Not remembered: these answers still apply to this file.
     }
     return choicesOf(preview, answers);
   }

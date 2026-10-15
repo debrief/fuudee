@@ -3,7 +3,7 @@
  * open plot, as legacy Debrief asked (CAP-19): types, the plot's period, tracks.
  */
 import { describe, expect, it } from "vitest";
-import { choicesOf, MAX_ASKED_PLATFORMS, periodChoices, questionsFor, readSummary, typeWords, type NarrativePreview } from "../../src/narrativeimport.js";
+import { answersToRemember, choicesOf, describeAnswers, MAX_ASKED_PLATFORMS, periodChoices, questionsFor, readSummary, rememberedAnswers, typeWords, type NarrativePreview } from "../../src/narrativeimport.js";
 import { count } from "../../src/format.js";
 
 const preview = (over: Partial<NarrativePreview> = {}): NarrativePreview => ({
@@ -56,7 +56,7 @@ describe("what to ask", () => {
   it("says the period choices in words", () => {
     const words = periodChoices(preview(), (iso) => iso.slice(11, 16));
     expect(words).toEqual({ all: "All 7 entries", within: "Only the 6 within the plot's period (17:00 to 23:00)" });
-    expect(typeWords("")).toBe("No type");
+    expect(typeWords("")).toBe("(no type)");
   });
 });
 
@@ -73,5 +73,38 @@ describe("the answers", () => {
   it("are summed up after reading", () => {
     expect(readSummary({ entries: 5, omitted: ["a", "b", "c"] }, count)).toBe("Read 5 narrative entries into the plot. 3 things were not read; see the History.");
     expect(readSummary({ entries: 1, omitted: [] }, count)).toBe("Read 1 narrative entry into the plot.");
+  });
+});
+
+describe("remembered answers (product owner, 15 Oct 2026)", () => {
+  const named = [
+    { id: "track-red-one", name: "RED ONE" },
+    { id: "track-blue-one", name: "BLUE ONE" },
+  ];
+  it("are nothing to offer when none are remembered for the dialect", () => {
+    expect(rememberedAnswers(preview(), named, undefined)).toBeUndefined();
+  });
+  it("answer every question from memory, a new type read, a track found by its name", () => {
+    const got = rememberedAnswers(preview({ types: [...preview().types, { name: "NEW", count: 1 }] }), named, {
+      skipTypes: ["SONAR"],
+      withinPeriod: true,
+      tracks: { "BLUE TWO": "blue one" },
+    });
+    expect(got).toEqual({ answers: { types: ["OOW COMMENT", "", "NEW"], withinPeriod: true, tracks: { "BLUE TWO": "track-blue-one" } }, complete: true });
+  });
+  it("leave a platform to ask when it was not remembered, or its track is not in this plot", () => {
+    expect(rememberedAnswers(preview(), named, { skipTypes: [], withinPeriod: false, tracks: {} })?.complete).toBe(false);
+    expect(rememberedAnswers(preview(), named, { skipTypes: [], withinPeriod: false, tracks: { "BLUE TWO": "GREEN" } })?.complete).toBe(false);
+    expect(rememberedAnswers(preview(), named, { skipTypes: [], withinPeriod: false, tracks: { "BLUE TWO": null } })?.answers.tracks).toEqual({ "BLUE TWO": null });
+  });
+  it("are kept as the types not read and tracks by name, with platforms remembered before", () => {
+    const kept = answersToRemember(preview(), named, { types: ["OOW COMMENT"], withinPeriod: true, tracks: { "BLUE TWO": "track-blue-one" } }, { tracks: { OTHER: null } });
+    expect(kept).toEqual({ skipTypes: ["SONAR", ""], withinPeriod: true, tracks: { OTHER: null, "BLUE TWO": "BLUE ONE" } });
+  });
+  it("are said in a line to confirm", () => {
+    expect(describeAnswers(preview(), { types: ["OOW COMMENT", ""], withinPeriod: true, tracks: { "BLUE TWO": "track-blue-one" } }, named)).toBe(
+      "All types but SONAR; only within the plot's period; BLUE TWO is BLUE ONE",
+    );
+    expect(describeAnswers(preview(), { types: ["OOW COMMENT", "SONAR"], tracks: { "BLUE TWO": null } }, named)).toBe("All types but (no type); BLUE TWO on no track");
   });
 });

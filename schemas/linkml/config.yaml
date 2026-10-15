@@ -39,7 +39,7 @@ classes:
   UserConfig:
     attributes:
       config_version:
-        description: "Version of this file's layout: 1 while it holds only stores; 2 once it holds track_import_mode, which an earlier Debrief cannot read."
+        description: "Version of this file's layout: 1 while it holds only stores; 2 once it holds track_import_mode; 3 once it holds narrative_import. An earlier Debrief cannot read a later layout."
         range: integer
         required: true
         minimum_value: 1
@@ -56,6 +56,46 @@ classes:
           once the analyst chose "Use this choice for future imports"
           (CAP-01). The analyst may clear it, to be asked again.
         range: TrackImportModeEnum
+      narrative_import:
+        description: >-
+          The analyst's last answers to the questions asked before a Word or
+          PDF narrative is read into a plot, one set for each dialect, so they
+          are offered again next time and confirmed with one key (CAP-19;
+          product owner, 15 Oct 2026). User state, kept here and never in a
+          catalogue or a plot file; importers are given the answers.
+        range: NarrativeImportAnswers
+        multivalued: true
+        inlined_as_list: true
+
+  NarrativeImportAnswers:
+    description: >-
+      What the analyst answered for documents of one dialect: the types not
+      read (so a type not seen before is read), whether only entries within the
+      plot's period, and the track each platform was said to be.
+    attributes:
+      dialect:
+        description: The dialect, such as narrative-document or rider-narrative.
+        required: true
+        pattern: "^[a-z][a-z0-9-]{0,63}$"
+      skip_types:
+        description: Entry types the analyst chose not to read; "" for entries with no type.
+        multivalued: true
+      within_period:
+        description: Only the entries within the plot's tracks' period.
+        range: boolean
+      tracks:
+        description: The track the analyst said each platform is, by the track's name.
+        range: PlatformTrack
+        multivalued: true
+        inlined_as_list: true
+
+  PlatformTrack:
+    description: A platform, as a document names it, and the track it was said to be.
+    attributes:
+      platform:
+        required: true
+      track:
+        description: The track's name; left out, the platform belongs to no track.
 
   KnownStore:
     attributes:

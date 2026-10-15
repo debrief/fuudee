@@ -56,8 +56,13 @@ def test_the_fcs_narrative() -> None:
 def test_the_fcs_narrative_without_metadata() -> None:
     entries = read(OTHER / "FCS_narrative_no_metadata.doc").entries
     assert len(within(entries, "boat1.rep")) == 350  # testNoMetadata
-    pdf = read(OTHER / "FCS_narrative_no_metadata.pdf").entries
-    assert len(within(pdf, "boat1.rep")) == 350
+    pdf = read(OTHER / "FCS_narrative_no_metadata.pdf")
+    assert len(within(pdf.entries, "boat1.rep")) == 350
+    # Every continuation line is kept (product owner, 15 Oct 2026): legacy Debrief joined
+    # six, dropped the seventh and joined on; the six-line limit dropped 135 of the PDF's
+    # lines (a line a paragraph) and 10 of the .doc's. The counts above are unchanged.
+    assert pdf.overflow == 0
+    assert read(OTHER / "FCS_narrative_no_metadata.doc").overflow == 0
 
 
 @pytest.mark.parametrize(

@@ -57,7 +57,7 @@ export function questionsFor(preview: NarrativePreview, tracks: readonly { id: s
 }
 
 /** A type as the analyst reads it. */
-export const typeWords = (name: string) => name || "No type";
+export const typeWords = (name: string) => name || "(no type)";
 
 /** "All 371 entries" and "Only the 364 within the plot's period (… to …)". */
 export function periodChoices(preview: NarrativePreview, format: (iso: string) => string): { all: string; within: string } {
@@ -70,12 +70,88 @@ export function periodChoices(preview: NarrativePreview, format: (iso: string) =
 }
 
 /** The choices from the answers: types left out when all are chosen, so new types are read too. */
-export function choicesOf(preview: NarrativePreview, answers: { types?: string[]; withinPeriod?: boolean; tracks?: Record<string, string | null> }): NarrativeChoices {
+export function choicesOf(preview: NarrativePreview, answers: NarrativeAnswers): NarrativeChoices {
   const choices: NarrativeChoices = {};
   if (answers.types && answers.types.length < preview.types.length) choices.types = answers.types;
   if (answers.withinPeriod) choices.within_period = true;
   if (answers.tracks && Object.keys(answers.tracks).length) choices.tracks = answers.tracks;
   return choices;
+}
+
+/** The analyst's answers to the questions a file needs; a platform's track by its id, or null for none. */
+export interface NarrativeAnswers {
+  types?: string[];
+  withinPeriod?: boolean;
+  tracks?: Record<string, string | null>;
+}
+
+/**
+ * Answers remembered for the file's dialect, as debrief-config keeps them (user state: the
+ * types not read, only within the period, a platform's track by name), made answers to this
+ * file's questions (product owner, 15 Oct 2026: offered again, confirmed with one key).
+ * complete when every question is answered from memory; a platform not remembered, or whose
+ * track the plot has not, is left to ask.
+ */
+export function rememberedAnswers(
+  preview: NarrativePreview,
+  tracks: readonly { id: string; name: string }[],
+  remembered: { skipTypes: string[]; withinPeriod: boolean; tracks: Record<string, string | null> } | undefined,
+): { answers: NarrativeAnswers; complete: boolean } | undefined {
+  if (!remembered) return undefined;
+  const ask = questionsFor(preview, tracks);
+  const answers: NarrativeAnswers = {};
+  let complete = true;
+  if (ask.types) {
+    answers.types = preview.types.map((t) => t.name).filter((name) => !remembered.skipTypes.includes(name));
+    if (!answers.types.length) answers.types = preview.types.map((t) => t.name);
+  }
+  if (ask.period) answers.withinPeriod = remembered.withinPeriod;
+  const key = (name: string) => name.split(/\s+/).join(" ").toLowerCase();
+  for (const platform of ask.platforms) {
+    if (!(platform in remembered.tracks)) {
+      complete = false;
+      continue;
+    }
+    const name = remembered.tracks[platform];
+    const track = name === null ? undefined : tracks.find((t) => key(t.name) === key(name));
+    if (name !== null && !track) {
+      complete = false;
+      continue;
+    }
+    (answers.tracks ??= {})[platform] = track ? track.id : null;
+  }
+  return { answers, complete };
+}
+
+/** The answers to remember for the dialect: what was asked and answered, with the platforms remembered before. */
+export function answersToRemember(
+  preview: NarrativePreview,
+  tracks: readonly { id: string; name: string }[],
+  answers: NarrativeAnswers,
+  before: { tracks: Record<string, string | null> } | undefined,
+): { skipTypes: string[]; withinPeriod: boolean; tracks: Record<string, string | null> } {
+  const named: Record<string, string | null> = { ...(before?.tracks ?? {}) };
+  for (const [platform, id] of Object.entries(answers.tracks ?? {})) named[platform] = id === null ? null : (tracks.find((t) => t.id === id)?.name ?? null);
+  return {
+    skipTypes: answers.types ? preview.types.map((t) => t.name).filter((name) => !answers.types!.includes(name)) : [],
+    withinPeriod: answers.withinPeriod ?? false,
+    tracks: named,
+  };
+}
+
+/** The remembered answers in a line, to confirm: "All types but COMMS; only within the plot's period; HMS NELSON is NELSON". */
+export function describeAnswers(preview: NarrativePreview, answers: NarrativeAnswers, tracks: readonly { id: string; name: string }[]): string {
+  const parts: string[] = [];
+  if (answers.types) {
+    const left = preview.types.map((t) => t.name).filter((name) => !answers.types!.includes(name));
+    parts.push(left.length ? `all types but ${left.map(typeWords).join(", ")}` : "all types");
+  }
+  if (answers.withinPeriod !== undefined) parts.push(answers.withinPeriod ? "only within the plot's period" : "all entries, in the plot's period or not");
+  for (const [platform, id] of Object.entries(answers.tracks ?? {})) {
+    parts.push(id === null ? `${platform} on no track` : `${platform} is ${tracks.find((t) => t.id === id)?.name ?? id}`);
+  }
+  const line = parts.join("; ");
+  return line.charAt(0).toUpperCase() + line.slice(1);
 }
 
 /** What the import said, in a sentence: entries read, and how many things were not. */
