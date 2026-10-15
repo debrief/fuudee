@@ -1,0 +1,113 @@
+/* The Timeline (timelinecontrol.ts): narrative, notes and periods in one quiet table.
+   Interface colours only from the theme (CON-06, DEV-07); the dot beside a source is its
+   track's own data colour. Column headings once; no labels in the rows (product owner,
+   14 Oct 2026: "with table headings you don't need labelled fields"). */
+.tl { --tl-time: 9.5ch; --tl-source: 10ch; --tl-type: 7ch; display: flex; flex-direction: column; gap: 4px; min-width: 0; min-height: 0; height: 100%; font-size: 12px; color: var(--vscode-foreground); position: relative; }
+
+/* Search, filter, add: one line. */
+.tl-bar { display: flex; gap: 4px; align-items: center; min-width: 0; }
+.tl-search { flex: 1; min-width: 0; height: 24px; padding: 0 6px; box-sizing: border-box; font: inherit; color: var(--vscode-input-foreground); background: var(--vscode-input-background); border: 1px solid var(--vscode-input-border, transparent); border-radius: 2px; }
+.tl-search::placeholder { color: var(--vscode-input-placeholderForeground); }
+.tl button { font: inherit; color: var(--vscode-foreground); background: transparent; border: 1px solid transparent; border-radius: 2px; cursor: pointer; }
+.tl button:disabled { opacity: .5; cursor: default; }
+.tl-bar button { height: 24px; padding: 0 6px; flex: none; color: var(--vscode-descriptionForeground); }
+.tl-bar button:hover:not(:disabled) { background: var(--vscode-toolbar-hoverBackground, var(--vscode-list-hoverBackground)); color: var(--vscode-foreground); }
+.tl-bar .tl-on { color: var(--vscode-foreground); border-color: var(--vscode-focusBorder); }
+.tl-add { width: 24px; font-size: 16px !important; line-height: 1; }
+.tl input:focus-visible, .tl select:focus-visible, .tl textarea:focus-visible, .tl button:focus-visible { outline: 1px solid var(--vscode-focusBorder); outline-offset: -1px; }
+
+/* The filter: checkboxes with counts, in a box under the bar. */
+.tl-filter { display: flex; flex-wrap: wrap; gap: 4px 16px; padding: 6px 8px; border: 1px solid var(--vscode-widget-border, var(--vscode-panel-border, transparent)); background: var(--vscode-editorWidget-background, var(--vscode-sideBar-background)); max-height: 40vh; overflow: auto; }
+.tl-filter[hidden] { display: none; }
+.tl-filter fieldset { margin: 0; padding: 0; border: 0; min-width: 9em; }
+.tl-filter legend { padding: 0; margin-bottom: 2px; color: var(--vscode-descriptionForeground); }
+.tl-filter label { display: flex; align-items: center; gap: 6px; line-height: 20px; }
+.tl-filter input { margin: 0; accent-color: var(--vscode-focusBorder); }
+.tl-facet { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.tl-count { color: var(--vscode-descriptionForeground); font-variant-numeric: tabular-nums; }
+.tl-show-all { align-self: flex-end; padding: 2px 6px; color: var(--vscode-textLink-foreground) !important; }
+
+/* Column headings, once. The same grid as the rows. */
+.tl-head, .tl-row { display: grid; grid-template-columns: var(--tl-time) var(--tl-source) var(--tl-type) minmax(0, 1fr); column-gap: 8px; }
+.tl-head { padding: 0 6px 2px; color: var(--vscode-descriptionForeground); border-bottom: 1px solid var(--vscode-widget-border, var(--vscode-panel-border, transparent)); }
+.tl-head[hidden] { display: none; }
+
+.tl-body { position: relative; flex: 1; min-height: 120px; display: flex; }
+.tl-scroll { flex: 1; overflow-y: auto; overflow-x: hidden; overscroll-behavior: contain; position: relative; outline: none; min-height: 0; }
+.tl-scroll:focus-visible { outline: 1px solid var(--vscode-focusBorder); outline-offset: -1px; }
+.tl-spacer { position: relative; width: 100%; }
+
+/* A row: placed by the list, only while in sight. */
+.tl-row { position: absolute; top: 0; left: 0; right: 0; box-sizing: border-box; padding: 3px 6px; line-height: 16px; cursor: pointer; border-left: 2px solid transparent; }
+@media (hover: hover) { .tl-row:hover { background: var(--vscode-list-hoverBackground); } }
+.tl-time { font-family: var(--vscode-editor-font-family, monospace); font-variant-numeric: tabular-nums; white-space: nowrap; color: var(--vscode-descriptionForeground); }
+.tl-source { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.tl-swatch { display: inline-block; width: 7px; height: 7px; border-radius: 50%; margin-right: 4px; vertical-align: 1px; }
+.tl-type { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--vscode-descriptionForeground); }
+.tl-text { min-width: 0; white-space: pre-wrap; overflow-wrap: anywhere; }
+.tl-hidden { color: var(--vscode-descriptionForeground); font-style: italic; }
+.tl mark { background: var(--vscode-editor-findMatchHighlightBackground); color: inherit; border-radius: 1px; }
+
+/* A day's date, before its first entry. */
+.tl-row.tl-day { display: block; cursor: default; padding: 6px 6px 2px; color: var(--vscode-descriptionForeground); font-size: 11px; letter-spacing: .02em; white-space: nowrap; }
+.tl-row.tl-day:hover { background: none; }
+
+/* Outside the time window: fainter, still readable and choosable. */
+.tl-out { opacity: .55; }
+
+/* Current time: the entry it is at. A bar in the theme's highlight and a quiet ground. */
+.tl-row.tl-current { background: var(--vscode-list-inactiveSelectionBackground, var(--vscode-list-hoverBackground)); border-left-color: var(--vscode-list-highlightForeground, var(--vscode-focusBorder)); }
+.tl-current .tl-time { color: var(--vscode-foreground); }
+/* The keyboard's place, when the list has the keyboard. */
+.tl-scroll:focus .tl-active { outline: 1px solid var(--vscode-list-focusOutline, var(--vscode-focusBorder)); outline-offset: -1px; }
+
+/* Edit and Delete: on the row being worked with only, so the list stays quiet. */
+.tl-actions { display: none; grid-column: 4; justify-self: end; gap: 2px; margin-top: 2px; }
+.tl-active .tl-actions { display: flex; }
+.tl-actions button { padding: 0 6px; height: 20px; color: var(--vscode-textLink-foreground); }
+.tl-actions button:hover { background: var(--vscode-toolbar-hoverBackground, var(--vscode-list-hoverBackground)); }
+
+/* Narrow (a sidebar, a phone): time, source and type on one line, the text beneath,
+   aligned with the source; the time is a gutter. */
+.tl-narrow .tl-head, .tl-narrow .tl-row { grid-template-columns: var(--tl-time) minmax(0, 1fr) auto; }
+.tl-narrow .tl-head-text { display: none; }
+.tl-narrow .tl-head > :nth-child(3) { text-align: right; }
+.tl-narrow .tl-type { text-align: right; max-width: 12ch; }
+.tl-narrow .tl-text { grid-column: 2 / -1; }
+.tl-narrow .tl-actions { grid-column: 2 / -1; }
+
+/* Follow time: when the reader has scrolled away, a button in the bar back to current
+   time, in the button colour so it is seen; never over the entries. */
+.tl-bar .tl-follow { padding: 0 8px; color: var(--vscode-button-foreground); background: var(--vscode-button-background); border-radius: 12px; white-space: nowrap; }
+.tl-bar .tl-follow:hover { color: var(--vscode-button-foreground); background: var(--vscode-button-hoverBackground); }
+.tl-follow[hidden] { display: none; }
+
+.tl-empty { position: absolute; inset: 0; margin: 0; padding: 8px 6px; color: var(--vscode-descriptionForeground); }
+.tl-empty[hidden] { display: none; }
+.tl-empty button { padding: 0; color: var(--vscode-textLink-foreground); text-decoration: underline; }
+/* Under the list: what was done, and the map's narrative box turned off or on. */
+.tl-foot { display: flex; flex-wrap: wrap; align-items: center; gap: 2px 12px; }
+.tl-status { margin: 0; min-height: 0; flex: 1 1 12em; color: var(--vscode-descriptionForeground); font-size: 11px; }
+.tl-status:empty { display: none; }
+.tl-on-map { display: flex; align-items: center; gap: 4px; margin-left: auto; color: var(--vscode-descriptionForeground); font-size: 11px; white-space: nowrap; }
+.tl-on-map input { margin: 0; accent-color: var(--vscode-focusBorder); }
+.tl-measure { position: absolute; visibility: hidden; white-space: pre; pointer-events: none; }
+
+/* VS Code's Timeline view: the list fills the view's height and scrolls inside it. */
+html:has(body.tl-page), body.tl-page, body.tl-page #root { height: 100%; }
+body.tl-page #root { box-sizing: border-box; padding: 4px 8px; display: flex; flex-direction: column; }
+
+/* Adding or changing a narrative entry: a short form above the list. */
+.tl-form { display: grid; grid-template-columns: auto minmax(0, 1fr); gap: 4px 8px; align-items: center; padding: 8px; border: 1px solid var(--vscode-widget-border, var(--vscode-panel-border, transparent)); background: var(--vscode-editorWidget-background, var(--vscode-sideBar-background)); }
+.tl-form[hidden] { display: none; }
+.tl-form label { display: contents; }
+.tl-form label > span { color: var(--vscode-descriptionForeground); }
+.tl-form input, .tl-form select, .tl-form textarea { min-width: 0; box-sizing: border-box; font: inherit; color: var(--vscode-input-foreground); background: var(--vscode-input-background); border: 1px solid var(--vscode-input-border, transparent); border-radius: 2px; padding: 3px 6px; }
+.tl-form textarea { resize: vertical; min-height: 48px; }
+.tl-form-title { grid-column: 1 / -1; margin: 0 0 2px; font-weight: 600; }
+.tl-form-error { grid-column: 1 / -1; margin: 0; color: var(--vscode-errorForeground); }
+.tl-form-error:empty { display: none; }
+.tl-form-buttons { grid-column: 1 / -1; display: flex; gap: 6px; }
+.tl-form-buttons button { padding: 3px 10px; border-color: var(--vscode-button-border, transparent); background: var(--vscode-button-secondaryBackground); color: var(--vscode-button-secondaryForeground); }
+.tl-form-buttons .tl-primary { background: var(--vscode-button-background); color: var(--vscode-button-foreground); }
+.tl-form-buttons .tl-delete { margin-left: auto; color: var(--vscode-errorForeground); background: transparent; }
