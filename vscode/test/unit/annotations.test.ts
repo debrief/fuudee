@@ -174,7 +174,7 @@ describe("the map draws an annotation by its look", () => {
 describe("the Timeline", () => {
   const plot = {
     type: "FeatureCollection",
-    schema_version: "0.0.18",
+    schema_version: "0.0.19",
     provenance: [],
     features: [
       { type: "Feature", id: "b", geometry: null, properties: { kind: "annotation", style: "note", name: "Contact", text: "Gained on the array", time: "2026-10-11T09:50:00.000Z" } },

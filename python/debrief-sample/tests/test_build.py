@@ -123,7 +123,7 @@ def test_provenance_is_a_worked_example(built: Path) -> None:
         assert len(ids) == len(set(ids))
 
 
-def test_narrative_is_a_supporting_file_read_into_notes(built: Path) -> None:
+def test_narrative_is_a_supporting_file_read_into_narrative_entries(built: Path) -> None:
     catalogue = Catalogue.open(built)
     for serial in SERIALS:
         text = (built / serial.item_id / "media" / "narrative.txt").read_text(encoding="utf-8")
@@ -131,9 +131,23 @@ def test_narrative_is_a_supporting_file_read_into_notes(built: Path) -> None:
         assert 20 <= len(lines) <= 60
         assert all(re.match(r"\d{2} Jun 2023 \d{2}:\d{2}:\d{2}Z  ", line) for line in lines)
         plot = catalogue.read_plot(serial.item_id)
-        notes = [f for f in plot.features if f.id.startswith("narrative-")]
-        assert len(notes) == len(lines)
-        assert all(n.geometry is None and n.properties.style == "note" for n in notes)
+        entries = [f for f in plot.features if f.properties.kind == "narrative"]
+        assert len(entries) == len(lines)
+        assert all(e.geometry is None for e in entries)
+        # No time-only note annotations are left: the log is narrative (CAP-20).
+        assert not any(
+            f.properties.kind == "annotation" and f.properties.style == "note"
+            for f in plot.features
+        )
+        # Each platform's entries belong to its track; control's to none.
+        tracks = {f.id: f.properties.name for f in plot.features if f.properties.kind == "track"}
+        for entry in entries:
+            props = entry.properties
+            assert props.entry_type in {"Course", "Sonar", "CPA", "Log", "Intention", "Weather"}
+            if props.source in ("BLUE ONE", "RED ONE"):
+                assert tracks[props.track_id] == props.source
+            else:
+                assert props.track_id is None
         assert "color" not in text.lower()  # British English
 
 
@@ -168,7 +182,7 @@ def test_exercise_set_holds_the_exercise(built: Path) -> None:
     plot = Catalogue.open(built).read_plot("serial-1")
     exercise = next(s for s in plot.named_sets if s.id == "set-exercise")
     assert "annotation-exercise-area" in exercise.feature_ids
-    assert "narrative-001" in exercise.feature_ids
+    assert "narrative-0001" in exercise.feature_ids
     assert not any(i.startswith("track-ais-") for i in exercise.feature_ids)
 
 

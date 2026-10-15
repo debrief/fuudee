@@ -80,9 +80,22 @@ class RepFix:
     comment: str | None = None
 
 
+@dataclass(frozen=True)
+class RepNarrative:
+    """A ;NARRATIVE: or ;NARRATIVE2: line: what its source logged at a time (CAP-20)."""
+
+    time_ms: int
+    time_truncated: bool
+    source: str
+    entry_type: str | None
+    text: str
+    line: int = 0
+
+
 @dataclass
 class RepFile:
     fixes: list[RepFix] = field(default_factory=list)
+    narrative: list[RepNarrative] = field(default_factory=list)
     # Other record types by their leading token, such as ";SENSOR:".
     other_records: Counter[str] = field(default_factory=Counter)
     # (line number, problem) for lines that could not be read.
@@ -231,11 +244,98 @@ def parse_fix(line: str) -> RepFix:
     )
 
 
+class _Tokens:
+    """Java's StringTokenizer, as legacy Debrief reads REP lines with it: each token
+    runs to the next delimiter, leading delimiters skipped, and asking for the next
+    token with other delimiters keeps them for the tokens after."""
+
+    def __init__(self, text: str):
+        self.text = text
+        self.pos = 0
+        self.delimiters = " \t\n\r\f"
+
+    def next(self, delimiters: str | None = None) -> str:
+        if delimiters is not None:
+            self.delimiters = delimiters
+        text, pos = self.text, self.pos
+        while pos < len(text) and text[pos] in self.delimiters:
+            pos += 1
+        if pos >= len(text):
+            raise RepError("too few fields")
+        start = pos
+        while pos < len(text) and text[pos] not in self.delimiters:
+            pos += 1
+        self.pos = pos
+        return text[start:pos]
+
+    def rest(self) -> str:
+        """Everything after the last token, as legacy reads an entry's text."""
+        rest, self.pos = self.text[self.pos :], len(self.text)
+        return rest
+
+
+def _quoted(tokens: _Tokens, what: str) -> str:
+    """A name, in quotes if it holds spaces: legacy AbstractPlainLineImporter's
+    checkForQuotedName. Unlike legacy, text run on after the closing quote is kept for
+    the next field, not dropped with the quote."""
+    name = tokens.next()
+    first = name.find('"')
+    if first < 0:
+        return name
+    if name.find('"', first + 1) >= 0:
+        return name[1:-1].strip()  # both quotes in one token: "NELSON"
+    pos = tokens.text.find('"', tokens.pos)
+    if pos < 0:
+        raise RepError(f"the {what} has an opening quote but no closing quote")
+    name = (name + tokens.text[tokens.pos : pos])[first + 1 :]
+    tokens.pos = pos + 1
+    return name.strip()
+
+
+NARRATIVE_RECORDS = (";NARRATIVE:", ";NARRATIVE2:")
+
+
+def parse_narrative(line: str, number: int = 0) -> RepNarrative:
+    """A narrative line, ported from legacy ImportNarrative and ImportNarrative2:
+
+        ;NARRATIVE:  YYMMDD HHMMSS[.fff] SOURCE TEXT...
+        ;NARRATIVE2: YYMMDD HHMMSS[.fff] SOURCE TYPE TEXT...
+
+    Fields are separated by spaces or tabs; the source (and a NARRATIVE2 type) is in
+    quotes if it holds spaces; the text is the rest of the line, tabs kept, trimmed. As
+    in legacy Debrief a ;NARRATIVE: line has no type: an unquoted source with a space,
+    HMS TORBAY, reads as the source HMS and the text TORBAY and the rest.
+    """
+    tokens = _Tokens(line)
+    record = tokens.next()
+    if record not in NARRATIVE_RECORDS:
+        raise RepError(f"{record} is not a narrative line")
+    try:
+        date_token, time_token = tokens.next(), tokens.next()
+    except RepError:
+        raise RepError("a narrative line needs a date and a time") from None
+    time_ms, truncated = parse_time(date_token, time_token)
+    try:
+        source = _quoted(tokens, "source")
+        entry_type = _quoted(tokens, "type") if record == ";NARRATIVE2:" else None
+    except RepError as error:
+        if "quote" in str(error):
+            raise
+        raise RepError("a narrative line needs its source, and then its text") from None
+    if not source:
+        raise RepError("a narrative line needs its source")
+    text = tokens.rest().strip()
+    if not text:
+        raise RepError("a narrative line has no text")
+    return RepNarrative(time_ms, truncated, source, entry_type or None, text, number)
+
+
 _RECORD_TYPE = re.compile(r";\S*")
 
 
 def parse_rep(text: str) -> RepFile:
-    """Read every line: fixes are parsed, other record types counted, bad lines reported."""
+    """Read every line: fixes and narrative lines are parsed, other record types counted,
+    bad lines reported."""
     result = RepFile()
     for number, raw in enumerate(text.splitlines(), start=1):
         line = raw.strip()
@@ -245,7 +345,14 @@ def parse_rep(text: str) -> RepFile:
             result.comments += 1
             continue
         if line.startswith(";"):
-            result.other_records[_RECORD_TYPE.match(line).group(0)] += 1
+            record = _RECORD_TYPE.match(line).group(0)
+            if record in NARRATIVE_RECORDS:
+                try:
+                    result.narrative.append(parse_narrative(line, number))
+                except RepError as error:
+                    result.errors.append((number, str(error)))
+                continue
+            result.other_records[record] += 1
             continue
         try:
             result.fixes.append(parse_fix(line))

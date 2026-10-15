@@ -27,10 +27,11 @@ What becomes what:
   size and label position. What v4 cannot draw (label symbols, fonts other
   than plain Arial, label colours of their own, arrowheads, and dash patterns
   v4 does not have) is listed.
-- Narrative entries: time-only note annotations, as the sample data holds
-  its narrative.
+- Narrative entries: narrative entries, each with its time, its source (the
+  track the legacy entry names), its type and its text, belonging to the
+  track of that name where there is one (CAP-20, schema 0.0.19).
 - Layers: v4 has no layers yet. A layer's annotations, and the narrative's
-  notes, are kept together as a named set with the layer's name; the
+  entries, are kept together as a named set with the layer's name; the
   layer's settings are listed as not imported.
 """
 
@@ -48,7 +49,7 @@ from debrief_kernel.geodesy import Position, circle_ring, destination, ellipse_r
 from debrief_kernel.time import format_utc
 from debrief_kernel.units import angle, length
 from debrief_schemas import SCHEMA_VERSION, DebriefFeatureCollection, models
-from debrief_stac import Catalogue
+from debrief_stac import Catalogue, narrative
 
 IMPORTER = "debrief-io.dpf"
 MEDIA_TYPE = "application/xml"
@@ -569,31 +570,46 @@ def build_plot_from_dpf(
         imported.append(shape)
     notes += _look_notes(imported)
 
-    # Narrative.
-    types: Counter[str] = Counter()
-    for index, entry in enumerate(parsed.narrative, start=1):
-        feature_id = _unique_id("narrative", f"{index:03d}", taken)
+    # Narrative: entries with their source (the track named), type and text (CAP-20).
+    by_name = narrative.track_names(
+        models.DebriefFeatureCollection(
+            type="FeatureCollection",
+            schema_version=SCHEMA_VERSION,
+            features=features,
+            provenance=[],
+        )
+    )
+    empty = 0
+    ids = iter(narrative.new_ids(taken, len(parsed.narrative)))
+    for entry in parsed.narrative:
+        text = entry.text.strip()
+        if not text:
+            empty += 1
+            continue
+        feature_id = next(ids)
+        taken.add(feature_id)
+        who = " ".join((entry.track or entry.narrative).split()) or entry.narrative
         features.append(
-            models.AnnotationFeature(
+            models.NarrativeFeature(
                 type="Feature",
                 id=feature_id,
                 geometry=None,
-                properties=models.AnnotationProperties(
-                    kind="annotation",
-                    style="note",
-                    name=entry.track or entry.narrative,
-                    text=entry.text,
+                properties=models.NarrativeProperties(
+                    kind="narrative",
                     time=format_utc(entry.time_ms),
+                    source=who,
+                    entry_type=" ".join((entry.entry_type or "").split()) or None,
+                    text=text,
+                    track_id=narrative.track_for(who, by_name),
                 ),
             )
         )
         members.setdefault(entry.narrative, []).append(feature_id)
         report.narrative_entries += 1
-        if entry.entry_type:
-            types[entry.entry_type] += 1
-    if types:
-        listed = ", ".join(f"{t!r} ({n})" for t, n in types.most_common())
-        notes.append(f"Narrative entry types not imported: {listed}.")
+    if empty:
+        notes.append(
+            f"{_plural(empty, 'narrative entry', 'narrative entries')} with no text not imported."
+        )
 
     # Everything understood but not imported, each entity named; repeats counted.
     skipped = Counter(parsed.skipped)

@@ -19,10 +19,10 @@ from dataclasses import dataclass, field
 from importlib.metadata import version
 from pathlib import Path
 
-from debrief_io.rep import RepFix, colour_for, parse_rep
+from debrief_io.rep import RepFix, RepNarrative, colour_for, parse_rep
 from debrief_kernel.time import format_utc
 from debrief_schemas import SCHEMA_VERSION, DebriefFeatureCollection, dump_plot, models
-from debrief_stac import Catalogue, period_view, tracks, with_plot_details
+from debrief_stac import Catalogue, narrative, period_view, tracks, with_plot_details
 from debrief_stac.hashing import content_hash
 from debrief_stac.history import view_hash
 
@@ -142,6 +142,38 @@ def _track(feature_id: str, name: str, fixes: list[RepFix]) -> models.TrackFeatu
     )
 
 
+def narrative_features(
+    lines: list[RepNarrative], tracks: dict[str, str]
+) -> list[models.NarrativeFeature]:
+    """Narrative lines as narrative entries, in file order, numbered narrative-0001 on;
+    each belongs to the track named as its source, where there is one (CAP-20)."""
+    ids = narrative.new_ids(set(), len(lines))
+    return [
+        models.NarrativeFeature(
+            type="Feature",
+            id=feature_id,
+            geometry=None,
+            properties=models.NarrativeProperties(
+                kind="narrative",
+                time=format_utc(line.time_ms),
+                source=line.source,
+                entry_type=line.entry_type,
+                text=line.text,
+                track_id=narrative.track_for(line.source, tracks),
+            ),
+        )
+        for feature_id, line in zip(ids, lines, strict=True)
+    ]
+
+
+def narrative_note(lines: list[RepNarrative]) -> str:
+    """What the import says of the narrative it read: how many entries, from whom."""
+    sources = list(dict.fromkeys(line.source for line in lines))
+    named = ", ".join(sources[:5]) + (f" and {len(sources) - 5} more" if len(sources) > 5 else "")
+    entries = "entry" if len(lines) == 1 else "entries"
+    return f"{len(lines)} narrative {entries} read, from {named}."
+
+
 def build_plot(
     text: str,
     source: models.SourceRef,
@@ -167,7 +199,7 @@ def build_plot(
     for fix in parsed.fixes:
         by_track[fix.track].append(fix)
 
-    features: list[models.TrackFeature] = []
+    features: list[models.TrackFeature | models.NarrativeFeature] = []
     taken: set[str] = set()
     chosen: dict[str, str] = {}
     for name, fixes in by_track.items():
@@ -191,6 +223,17 @@ def build_plot(
             f"{truncated} fix times had more than millisecond precision "
             "and were truncated to milliseconds."
         )
+    entries = narrative_features(parsed.narrative, {f.properties.name: f.id for f in features})
+    features += entries
+    report.narrative_entries = len(entries)
+    if entries:
+        report.notes.append(narrative_note(parsed.narrative))
+    truncated = sum(n.time_truncated for n in parsed.narrative)
+    if truncated:
+        report.omitted.append(
+            f"{truncated} narrative times had more than millisecond precision "
+            "and were truncated to milliseconds."
+        )
     for name in report.tracks:
         known = sum(f.depth_m is not None for f in by_track[name])
         if 0 < known < len(by_track[name]):
@@ -207,7 +250,7 @@ def build_plot(
         )
     for number, problem in parsed.errors:
         report.omitted.append(f"Line {number} could not be read: {problem}.")
-    report.notes = mode_notes(chosen, remembered)
+    report.notes = mode_notes(chosen, remembered) + report.notes
 
     record = models.ProvRecord(
         id=f"import-{started}",
@@ -322,9 +365,10 @@ def import_rep(
 def _with_tracks(
     built: tuple[DebriefFeatureCollection, ImportReport],
 ) -> tuple[DebriefFeatureCollection, ImportReport]:
-    """Refuse a file with no readable track, saying why, rather than make an empty plot."""
+    """Refuse a file with no readable track and no narrative, saying why, rather than
+    make an empty plot. A file of narrative alone, a platform's log, makes a plot."""
     plot, report = built
-    if not report.tracks:
+    if not report.tracks and not report.narrative_entries:
         why = " ".join(report.omitted[:3]) or "The file is empty."
         more = len(report.omitted) - 3
         raise NoTracksError(

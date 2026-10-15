@@ -192,19 +192,15 @@ def test_a_feature_that_passed_is_not_checked_again(monkeypatch) -> None:
     from debrief_schemas import documents
 
     checked: list[str] = []
-    real = documents._item_validator
+    real = documents._feature_errors
 
-    class Counting:
-        def __init__(self, inner):
-            self.inner = inner
-
-        def iter_errors(self, item):
-            checked.append(item.get("id"))
-            return self.inner.iter_errors(item)
+    def counting(check, item):
+        checked.append(item.get("id"))
+        return real(check, item)
 
     fixture = (FIXTURES / "plot" / "valid" / "mixed-features.json").read_text()
     text = dump_document(DocumentKind.PLOT, load_document(DocumentKind.PLOT, fixture))
-    monkeypatch.setattr(documents, "_item_validator", lambda *key: Counting(real(*key)))
+    monkeypatch.setattr(documents, "_feature_errors", counting)
     monkeypatch.setattr(documents, "_FEATURES_PASSED", set())
     monkeypatch.setattr(documents, "_PASSED", set())
     plot = load_document(DocumentKind.PLOT, text)  # as Debrief wrote it
@@ -228,6 +224,63 @@ def test_a_feature_that_passed_is_not_checked_again(monkeypatch) -> None:
         with pytest.raises(DocumentValidationError, match="^features/0: "):
             load_document(DocumentKind.PLOT, raw)
     assert checked == [raw["features"][0]["id"]] * 2
+
+
+def test_the_quick_check_of_narrative_entries_is_never_more_lenient_than_the_schema() -> None:
+    """Sixty thousand entries are checked by hand, not by the JSON Schema library
+    (NFR-06); every entry the quick check passes, the schema passes too."""
+    from debrief_schemas import documents
+
+    good = {
+        "type": "Feature",
+        "id": "narrative-0001",
+        "geometry": None,
+        "properties": {
+            "kind": "narrative",
+            "time": "2026-10-11T09:30:00.000Z",
+            "source": "BLUE ONE",
+            "entry_type": "Sonar",
+            "text": "Contact.",
+            "track_id": "track-blue-one",
+        },
+    }
+
+    def variant(path: tuple[str, ...], value: object) -> dict:
+        item = json.loads(json.dumps(good))
+        where = item
+        for key in path[:-1]:
+            where = where[key]
+        if value is KeyError:
+            where.pop(path[-1])
+        else:
+            where[path[-1]] = value
+        return item
+
+    variants = [good]
+    for key in ("type", "id", "geometry", "properties"):
+        variants += [variant((key,), KeyError), variant((key,), 7), variant((key,), "x")]
+    for key in ("kind", "time", "source", "entry_type", "text", "track_id"):
+        variants += [
+            variant(("properties", key), KeyError),
+            variant(("properties", key), None),
+            variant(("properties", key), 7),
+            variant(("properties", key), ["a"]),
+        ]
+    variants += [
+        variant(("properties", "time"), "2026-10-11T09:30:00Z"),
+        variant(("properties", "time"), "2026-10-11T09:30:00.000Z\n"),
+        variant(("properties", "kind"), "annotation"),
+        variant(("properties", "colour"), "#ffffff"),
+        variant(("extra",), 1),
+        variant(("geometry",), {"type": "Point", "coordinates": [0, 0]}),
+        variant(("properties", "provenance"), []),
+    ]
+    schema = documents._class_validator("NarrativeFeature")
+    for item in variants:
+        props = item.get("properties") if isinstance(item.get("properties"), dict) else {}
+        if documents._plain_narrative(item, props):
+            assert schema.is_valid(item), item
+    assert documents._plain_narrative(good, good["properties"])
 
 
 def test_many_features_are_checked_for_duplicate_ids_quickly() -> None:

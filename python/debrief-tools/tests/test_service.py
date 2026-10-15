@@ -530,6 +530,81 @@ def test_annotations_are_added_restyled_and_deleted_as_recorded_steps(client, ca
     assert stale["code"] == -32001
 
 
+def test_narrative_is_read_filtered_and_changed_as_recorded_steps(
+    client, catalogue, tmp_path
+) -> None:
+    where = {"store": "exercise", "item": "serial", "agent": AGENT}
+    log = tmp_path / "blue-log.rep"
+    log.write_text(
+        ";NARRATIVE2: 951212 050000 BLUE Sonar Contact gained, bearing 090.\n"
+        ";NARRATIVE2: 951212 050000 CONTROL Order Serial started.\n"
+        ";NARRATIVE: 951212 051000 BLUE Contact lost.\n"
+    )
+    base = rpc(client, "debrief/open", where).json()["result"]["base"]
+    read = rpc(
+        client, "debrief/import_narrative", {**where, "base": base, "path": str(log)}
+    ).json()["result"]
+    assert (read["entries"], read["sources"]) == (3, ["BLUE", "CONTROL"])
+    added = rpc(
+        client,
+        "debrief/add_narrative",
+        {
+            **where,
+            "base": read["base"],
+            "entry": {"time": "1995-12-12T05:05:00.000Z", "source": "NELSON", "text": "Turning."},
+        },
+    ).json()["result"]
+    feature = added["feature"]
+    # One axis: every source, in time order; BLUE's entries belong to the BLUE track.
+    listed = rpc(client, "debrief/narrative", where).json()["result"]
+    assert [(e["source"], e["text"]) for e in listed["entries"]] == [
+        ("BLUE", "Contact gained, bearing 090."),
+        ("CONTROL", "Serial started."),
+        ("NELSON", "Turning."),
+        ("BLUE", "Contact lost."),
+    ]
+    assert listed["entries"][0]["track_id"] == "track-blue"
+    assert listed["entries"][2]["track_id"] == "track-nelson"
+    assert listed["total"] == 4 and listed["sources"][0] == {"name": "BLUE", "entries": 2}
+    # Filtered by source, type and text; and the entry current time is at.
+    found = rpc(
+        client,
+        "debrief/narrative",
+        {**where, "sources": ["BLUE"], "text": "CONTACT", "at": "1995-12-12T05:09:00.000Z"},
+    ).json()["result"]
+    assert found["total"] == 2 and found["current"] == listed["entries"][0]["id"]
+    typed = rpc(client, "debrief/narrative", {**where, "types": [""]}).json()["result"]
+    assert [e["text"] for e in typed["entries"]] == ["Turning.", "Contact lost."]
+    paged = rpc(client, "debrief/narrative", {**where, "offset": 3, "limit": 5}).json()["result"]
+    assert [e["text"] for e in paged["entries"]] == ["Contact lost."]
+    edited = rpc(
+        client,
+        "debrief/edit_narrative",
+        {**where, "base": added["base"], "feature": feature, "entry": {"text": "Turning to 270."}},
+    ).json()["result"]
+    deleted = rpc(
+        client,
+        "debrief/delete_narrative",
+        {**where, "base": edited["base"], "features": [feature]},
+    ).json()["result"]
+    steps = rpc(client, "debrief/history", where).json()["result"]["steps"]
+    assert [s["notes"][0] for s in steps[-3:]] == [
+        "Narrative entry by NELSON at 05:05:00Z added",
+        "Narrative entry by NELSON at 05:05:00Z: text changed",
+        "Narrative entry by NELSON at 05:05:00Z deleted",
+    ]
+    assert steps[-4]["notes"][0].startswith("Narrative from blue-log.rep: 3 narrative entries")
+    rpc(client, "debrief/undo", {**where, "base": deleted["base"]})
+    back = next(f for f in catalogue.read_plot("serial").features if f.id == feature)
+    assert back.properties.text == "Turning to 270."
+    refused = rpc(
+        client, "debrief/add_narrative", {**where, "entry": {"source": "X", "text": "No time."}}
+    ).json()["error"]
+    assert refused["code"] == -32602 and "time" in refused["message"]
+    bad = rpc(client, "debrief/narrative", {**where, "at": "noon"}).json()["error"]
+    assert bad["code"] == -32602 and "UTC" in bad["message"]
+
+
 def test_the_view_is_set_with_its_hash_and_never_recorded(client, catalogue) -> None:
     where = {"store": "exercise", "item": "serial", "agent": AGENT}
     opened = rpc(client, "debrief/open", where).json()["result"]
@@ -1010,6 +1085,7 @@ def test_every_method_that_writes_is_known_and_reading_ones_do_not_write() -> No
         service.STEP_METHODS,
         service.PRESENTATION_METHODS,
         service.ANNOTATION_METHODS,
+        service.NARRATIVE_METHODS,
         service.TRACK_METHODS,
         service.CLEANING_METHODS,
     )
@@ -1020,6 +1096,7 @@ def test_every_method_that_writes_is_known_and_reading_ones_do_not_write() -> No
     assert "debrief/mark_fix" in service.CLEANING_METHODS
     assert "debrief/merge_tracks" in service.TRACK_METHODS
     assert "debrief/set_north_arrow" in service.ANNOTATION_METHODS
+    assert "debrief/narrative" in service.READING_METHODS
     assert not set(service.TOTE_METHODS) & set(service.WRITING_METHODS)
 
 

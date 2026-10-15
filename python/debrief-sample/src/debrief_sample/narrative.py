@@ -1,9 +1,12 @@
 """The scripted narrative: each serial's log of events, as plain text with Zulu times.
 
-A narrative line is the date and time, the platform and the entry, separated
-by two spaces:
+A narrative line is the date and time, the platform, the kind of entry and the
+entry, separated by two spaces:
 
-    15 Jun 2023 08:40:00Z  BLUE ONE  Came to 270.0°T, 6.0 kn.
+    15 Jun 2023 08:40:00Z  BLUE ONE  Course  Came to 270.0°T, 6.0 kn.
+
+Kinds: Course for an ordered leg, Sonar for what the sonar held and when it was
+off, CPA for a closest approach, and the script's own (Log, Intention, Weather).
 
 Entries come from the serial's script, from the legs each platform was
 ordered to steer, and from what happened: contacts gained and lost, the
@@ -42,7 +45,9 @@ HOLDING_MS = 2 * 60_000
 NOT_REGAINED_MS = 10 * 60_000
 FLICKER_MS = 3 * 60_000
 _MONTHS = ("Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec")
-_LINE = re.compile(r"(\d{1,2}) (\w{3}) (\d{4}) (\d{2}):(\d{2}):(\d{2})Z  (\S.*?)  (\S.*)")
+_LINE = re.compile(
+    r"(\d{1,2}) (\w{3}) (\d{4}) (\d{2}):(\d{2}):(\d{2})Z  (\S.*?)  +(\S.*?)  +(\S.*)"
+)
 
 
 @dataclass(frozen=True)
@@ -50,6 +55,7 @@ class Entry:
     time_ms: int
     platform: str
     text: str
+    entry_type: str = "Log"
 
 
 def _leg_entries(serial: Serial, platform: Platform, with_depth: bool) -> list[Entry]:
@@ -61,7 +67,9 @@ def _leg_entries(serial: Serial, platform: Platform, with_depth: bool) -> list[E
         if with_depth:
             steer += ", " + format_quantity(Quantity(leg.depth_m, "m"), METRES)
         verb = "Steady on" if index == 0 else "Came to"
-        entries.append(Entry(serial.start_ms + minute * 60_000, platform.name, f"{verb} {steer}."))
+        entries.append(
+            Entry(serial.start_ms + minute * 60_000, platform.name, f"{verb} {steer}.", "Course")
+        )
         minute += leg.minutes
     return entries
 
@@ -114,19 +122,21 @@ def _contact_entries(serial: Serial, seen: Picture) -> list[Entry]:
             f"Contact classified submarine, designated {RED}, bearing "
             f"{format_bearing(Quantity(bearing.bearing_deg, 'deg'))}."
         )
-        entries.append(Entry(seen.classified_ms, BLUE, text))
+        entries.append(Entry(seen.classified_ms, BLUE, text, "Sonar"))
     for index, contact in enumerate(seen.contacts):
         bearing = format_bearing(Quantity(contact.start.bearing_deg, "deg"))
         if index == 0:
             text = f"Bow sonar contact, bearing {bearing}. Classifying."
         else:
             text = f"Regained {seen.label(contact.start.time_ms)}, bearing {bearing}."
-        entries.append(Entry(contact.start.time_ms, BLUE, text))
+        entries.append(Entry(contact.start.time_ms, BLUE, text, "Sonar"))
         lost_to_sprint = any(0 < a - contact.end.time_ms <= 60_000 for a, _ in deaf)
         if contact.end.time_ms < serial.end_ms and not lost_to_sprint:
             last = format_bearing(Quantity(contact.end.bearing_deg, "deg"))
             label = seen.label(contact.end.time_ms)
-            entries.append(Entry(contact.end.time_ms, BLUE, f"Lost {label}, last bearing {last}."))
+            entries.append(
+                Entry(contact.end.time_ms, BLUE, f"Lost {label}, last bearing {last}.", "Sonar")
+            )
     # After a sprint, a target held before it and not found again soon after.
     for a, b in deaf:
         held_before = any(c.start.time_ms < a for c in seen.contacts)
@@ -135,7 +145,9 @@ def _contact_entries(serial: Serial, seen: Picture) -> list[Entry]:
         )
         if held_before and not found and b + NOT_REGAINED_MS < serial.end_ms:
             label = seen.label(a)
-            entries.append(Entry(b + NOT_REGAINED_MS, BLUE, f"Not regained {label} after sprint."))
+            entries.append(
+                Entry(b + NOT_REGAINED_MS, BLUE, f"Not regained {label} after sprint.", "Sonar")
+            )
     return entries
 
 
@@ -174,15 +186,19 @@ def _bearing_reports(serial: Serial, seen: Picture) -> list[Entry]:
         bearing = format_bearing(Quantity(window[-1].bearing_deg, "deg"))
         label = seen.label(time_ms)
         label = label[0].upper() + label[1:]
-        entries.append(Entry(time_ms, BLUE, f"{label} bearing {bearing}, {drift}."))
+        entries.append(Entry(time_ms, BLUE, f"{label} bearing {bearing}, {drift}.", "Sonar"))
     return entries
 
 
 def _sprint_entries(serial: Serial) -> list[Entry]:
     entries = []
     for start, end in serial.deaf:
-        entries.append(Entry(serial.start_ms + start * 60_000, BLUE, "Sprinting: sonar off."))
-        entries.append(Entry(serial.start_ms + end * 60_000, BLUE, "Drifting: sonar listening."))
+        entries.append(
+            Entry(serial.start_ms + start * 60_000, BLUE, "Sprinting: sonar off.", "Sonar")
+        )
+        entries.append(
+            Entry(serial.start_ms + end * 60_000, BLUE, "Drifting: sonar listening.", "Sonar")
+        )
     return entries
 
 
@@ -207,13 +223,19 @@ def _cpa_entries(blue: TrackPath, red: TrackPath, ais: dict[str, TrackPath]) -> 
                 cpa.time_ms,
                 CONTROL,
                 f"Closest approach of {BLUE} and {RED}: {format_quantity(cpa.range)}.",
+                "CPA",
             )
         )
     for name, path in ais.items():
         cpa = _closest(blue, path)
         if cpa is not None and cpa.range.to("[nmi_i]").value <= AIS_CPA_REPORT_NMI:
             entries.append(
-                Entry(cpa.time_ms, BLUE, f"{name} passed clear at {format_quantity(cpa.range)}.")
+                Entry(
+                    cpa.time_ms,
+                    BLUE,
+                    f"{name} passed clear at {format_quantity(cpa.range)}.",
+                    "CPA",
+                )
             )
     return entries
 
@@ -231,7 +253,7 @@ def entries(
     sonar did not hold it then.
     """
     scripted = [
-        Entry(serial.start_ms + line.minute * 60_000, line.platform, line.text)
+        Entry(serial.start_ms + line.minute * 60_000, line.platform, line.text, line.entry_type)
         for line in serial.script
         if line.if_holding_at is None or seen.holding(serial.start_ms + line.if_holding_at * 60_000)
     ]
@@ -244,21 +266,23 @@ def entries(
         + _cpa_entries(blue, red, ais)
     )
     # Truncate to whole seconds, as a log keeper would write them.
-    found = [Entry(e.time_ms - e.time_ms % 1000, e.platform, e.text) for e in found]
+    found = [Entry(e.time_ms - e.time_ms % 1000, e.platform, e.text, e.entry_type) for e in found]
     return sorted(scripted + found, key=lambda e: e.time_ms)
 
 
 def write(serial: Serial, items: list[Entry]) -> str:
     width = max(len(e.platform) for e in items)
+    kinds = max(len(e.entry_type) for e in items)
     lines = [
         f"# Narrative, {serial.title} of the Debrief sample exercise. Times are Zulu.",
         "# Fiction: the exercise and its platforms are invented; AIS vessel names are generated.",
     ]
     for entry in items:
-        if "  " in entry.text or "  " in entry.platform:
+        if any("  " in t for t in (entry.text, entry.platform, entry.entry_type)):
             raise ValueError(f"narrative text may not hold two spaces together: {entry.text!r}")
         when = format_time(entry.time_ms, DATE_TIME)
-        lines.append(f"{when}  {entry.platform.ljust(width)}  {entry.text}")
+        kind = entry.entry_type.ljust(kinds)
+        lines.append(f"{when}  {entry.platform.ljust(width)}  {kind}  {entry.text}")
     return "\n".join(lines) + "\n"
 
 
@@ -270,8 +294,10 @@ def parse(text: str) -> list[Entry]:
             continue
         match = _LINE.fullmatch(line)
         if match is None or match.group(2) not in _MONTHS:
-            raise ValueError(f"narrative line {number} is not 'DD Mon YYYY HH:MM:SSZ  WHO  TEXT'")
-        day, month, year, hour, minute, second, platform, body = match.groups()
+            raise ValueError(
+                f"narrative line {number} is not 'DD Mon YYYY HH:MM:SSZ  WHO  KIND  TEXT'"
+            )
+        day, month, year, hour, minute, second, platform, kind, body = match.groups()
         instant = datetime(
             int(year),
             _MONTHS.index(month) + 1,
@@ -281,5 +307,5 @@ def parse(text: str) -> list[Entry]:
             int(second),
             tzinfo=UTC,
         )
-        result.append(Entry(to_epoch_ms(instant), platform.strip(), body))
+        result.append(Entry(to_epoch_ms(instant), platform.strip(), body, kind.strip()))
     return result

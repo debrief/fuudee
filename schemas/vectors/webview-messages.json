@@ -112,6 +112,28 @@
     ],
     "set_tote": [
       "tote_view?"
+    ],
+    "show_timeline": [
+      "timeline_entries?",
+      "timeline_tracks?",
+      "time?"
+    ],
+    "timeline_chosen": [
+      "feature_id"
+    ],
+    "save_narrative": [
+      "narrative",
+      "feature_id?"
+    ],
+    "delete_narrative": [
+      "feature_id"
+    ],
+    "narrative_saved": [
+      "feature_id?",
+      "message?"
+    ],
+    "set_narrative": [
+      "timeline_entry?"
     ]
   }
 }

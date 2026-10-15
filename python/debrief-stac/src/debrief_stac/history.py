@@ -879,7 +879,7 @@ class History:
     def plot(self) -> DebriefFeatureCollection:
         """The plot's content as of its current step, with its island."""
         file = self._state()
-        plot = load_document(DocumentKind.PLOT, file.content)
+        plot = self._content(file)
         view = _valid_view(file.view)
         return with_view(plot, load_view(view)) if view is not None else plot
 
@@ -948,7 +948,11 @@ class History:
         """The content as a model, to apply a change to. Never changed in place."""
         if file.model is not None and file.model[0] is file.content:
             return file.model[1]
-        return load_document(DocumentKind.PLOT, file.content)
+        # Kept with the file, so the plot is built once while the file is unchanged: a
+        # plot of sixty thousand narrative entries takes a second to build (NFR-06).
+        plot = load_document(DocumentKind.PLOT, file.content)
+        file.model = (file.content, plot)
+        return plot
 
     # --- Writing ----------------------------------------------------------------
 
