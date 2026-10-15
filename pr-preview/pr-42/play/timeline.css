@@ -78,7 +78,7 @@
 
 /* Follow time: when the reader has scrolled away, a button in the bar back to current
    time, in the button colour so it is seen; never over the entries. */
-.tl-bar .tl-follow { padding: 0 8px; color: var(--vscode-button-foreground); background: var(--vscode-button-background); border-radius: 12px; white-space: nowrap; }
+.tl-bar .tl-follow { flex: 0 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; padding: 0 8px; color: var(--vscode-button-foreground); background: var(--vscode-button-background); border-radius: 12px; white-space: nowrap; }
 .tl-bar .tl-follow:hover { color: var(--vscode-button-foreground); background: var(--vscode-button-hoverBackground); }
 .tl-follow[hidden] { display: none; }
 
@@ -89,7 +89,8 @@
 .tl-foot { display: flex; flex-wrap: wrap; align-items: center; gap: 2px 12px; }
 .tl-status { margin: 0; min-height: 0; flex: 1 1 12em; color: var(--vscode-descriptionForeground); font-size: 11px; }
 .tl-status:empty { display: none; }
-.tl-on-map { display: flex; align-items: center; gap: 4px; margin-left: auto; color: var(--vscode-descriptionForeground); font-size: 11px; white-space: nowrap; }
+/* Its words may wrap: kept on one line it once made a 210 px view scroll sideways in a wider font. */
+.tl-on-map { display: flex; align-items: center; gap: 4px; margin-left: auto; min-width: 0; color: var(--vscode-descriptionForeground); font-size: 11px; }
 .tl-on-map input { margin: 0; accent-color: var(--vscode-focusBorder); }
 /* Forty characters, for the width of one. Hidden, but a box still widens what it lies in:
    held to the right edge so it reaches out leftwards, which never scrolls, however wide
