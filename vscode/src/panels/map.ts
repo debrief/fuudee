@@ -9,7 +9,8 @@ import type { Session } from "../session.js";
 import { checkMessage } from "../messages.js";
 import { webviewHtml } from "./html.js";
 import { displayed, hiddenIds } from "../hidden.js";
-import type { ToteView } from "@debrief/schemas";
+import type { TimelineEntry, ToteView } from "@debrief/schemas";
+import { NarrativeOnMap, timelineEntries } from "../timeline.js";
 import { toteOf } from "../../webview/totelogic.js";
 
 export class MapPanel {
@@ -25,19 +26,26 @@ export class MapPanel {
   tote?: ToteView;
   /** The fixes the map last ringed for the analyst to check, and any change previewed, for tests and agents. */
   fixesShown?: { feature_id: string; fix_times?: string[]; preview?: { type: "LineString"; coordinates: number[][] }; message?: string };
+  /** The narrative entry the map shows beside its track at current time, for tests and agents (CAP-20). */
+  narrative?: TimelineEntry;
+  private narrativeOnMap = new NarrativeOnMap([]);
 
   constructor(
     private readonly extension: vscode.Uri,
     private readonly session: Session,
     private readonly log: (line: string) => void,
   ) {
-    session.onPlot(() => this.showPlot());
+    session.onPlot((opened) => {
+      this.narrativeOnMap = new NarrativeOnMap(opened ? timelineEntries(opened.plot) : []);
+      this.showPlot();
+    });
     session.onSelection((ids, origin) => {
       if (origin !== "map") this.post({ kind: "set_selection", selection: this.selectionMessage(ids) });
     });
     session.onState((change, origin) => {
       if (origin === "map" || origin === "plot") return; // the map set it, or show_plot carries it
       if (change.time) this.post({ kind: "set_time", time: change.time });
+      if (change.time) this.showNarrative();
       if (change.viewport) this.post({ kind: "set_viewport", viewport: change.viewport });
     });
     // How tracks outside the window are drawn: the plot's choice, the analyst's setting applied (CAP-29).
@@ -145,11 +153,21 @@ export class MapPanel {
       context_tracks: this.session.contextShown(),
       ...(this.session.time && { time: this.session.time }),
     });
+    this.showNarrative(true);
     if (this.ready) {
       this.showing = opened.item.id;
       this.hiddenCount = hidden;
       this.context = this.session.contextShown();
     }
+  }
+
+  /** The narrative entry current time is at, beside its track, when it changes (always, after the plot is drawn again). */
+  private showNarrative(again = false): void {
+    const time = this.session.time;
+    const entry = time && this.session.current ? this.narrativeOnMap.at(Date.parse(time.current)) : undefined;
+    if (!this.panel || !this.ready || (!again && entry?.id === this.narrative?.id)) return;
+    this.narrative = entry;
+    this.post(entry ? { kind: "set_narrative", timeline_entry: entry } : { kind: "set_narrative" });
   }
 
   private post(message: unknown): void {

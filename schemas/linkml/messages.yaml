@@ -64,6 +64,7 @@ enums:
       timeline_chosen: {description: "Timeline to host: the analyst chose an entry (feature_id, the entry's id): move current time to it."}
       save_narrative: {description: "Timeline to host: add this narrative entry, or change the one named (narrative, and feature_id when changing one), as one recorded step."}
       delete_narrative: {description: "Timeline to host: delete this narrative entry (feature_id), as one recorded step."}
+      open_narrative_form: {description: "Host to Timeline: open the form to add a narrative entry, or to change the one named (feature_id), as a command or an agent asked."}
       narrative_saved: {description: "Host to Timeline: the entry was added or changed (feature_id), so the form closes and the list shows it; or, with message, why it was not."}
       set_narrative: {description: "Host to map: the narrative entry current time is at, where it belongs to a track (timeline_entry), to show beside that track's marker; none to take it away."}
       fix_chosen: {description: "Map to host: the analyst asked to colour, label or comment on a fix (feature_id, fix_time), by right-clicking it or pressing Enter on a fix chosen with the keyboard."}

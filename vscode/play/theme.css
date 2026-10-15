@@ -47,6 +47,8 @@
   --vscode-list-activeSelectionBackground: #04395e;
   --vscode-list-activeSelectionForeground: #ffffff;
   --vscode-list-hoverBackground: #2a2d2e;
+  --vscode-list-inactiveSelectionBackground: #37373d;
+  --vscode-editor-findMatchHighlightBackground: rgba(234, 92, 0, 0.33);
   --vscode-list-focusOutline: #0078d4;
   --vscode-list-highlightForeground: #2aaaff;
   --vscode-textBlockQuote-background: #2b2b2b;
@@ -96,6 +98,8 @@
   --vscode-list-activeSelectionBackground: #e8e8e8;
   --vscode-list-activeSelectionForeground: #000000;
   --vscode-list-hoverBackground: #f2f2f2;
+  --vscode-list-inactiveSelectionBackground: #e4e6f1;
+  --vscode-editor-findMatchHighlightBackground: rgba(234, 92, 0, 0.33);
   --vscode-list-highlightForeground: #0066bf;
   --vscode-textBlockQuote-background: #f8f8f8;
   --vscode-textBlockQuote-border: #e5e5e5;

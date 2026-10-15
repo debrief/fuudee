@@ -10,7 +10,7 @@ import { randomBytes } from "node:crypto";
 import { request as httpRequest } from "node:http";
 import { tmpdir } from "node:os";
 import { createInterface } from "node:readline";
-import type { AnnotationSpec, DebriefFeatureCollection, MeasureDefinition, MeasureGroup, PlotView, SharedState, ToolDeclaration, ToolResult, ToteResult, ToteView, TrackEdit } from "@debrief/schemas";
+import type { AnnotationSpec, DebriefFeatureCollection, NarrativeSpec, MeasureDefinition, MeasureGroup, PlotView, SharedState, ToolDeclaration, ToolResult, ToteResult, ToteView, TrackEdit } from "@debrief/schemas";
 import type { ToolOutcome } from "./diagnostics.js";
 
 export interface Unavailable {
@@ -108,6 +108,13 @@ export type AnnotationChange =
   | { kind: "edit"; feature: string; annotation: Partial<AnnotationSpec> }
   | { kind: "delete"; features: string[] }
   | { kind: "north_arrow"; shown: boolean };
+
+/** A change to the plot's narrative, made by hand or by an agent (CAP-20). */
+export type NarrativeChange =
+  | { kind: "add"; entry: NarrativeSpec }
+  | { kind: "edit"; feature: string; entry: { [K in keyof NarrativeSpec]?: NarrativeSpec[K] | null } }
+  | { kind: "delete"; features: string[] }
+  | { kind: "import"; path: string };
 
 /** A change to the plot's tracks, made by hand or by an agent (CAP-01). */
 export type TrackChange =
@@ -410,6 +417,30 @@ export class ToolService {
       ...change,
       ...(allowNewerSchema && { allow_newer_schema: true }),
     });
+  }
+
+  /**
+   * Add, change or delete narrative entries, or read a REP file's narrative into the
+   * plot: each a recorded, undoable step named like "Narrative entry by BLUE ONE at
+   * 08:40:00Z added" (CAP-20). Fails with CONFLICT if the plot changed since base.
+   */
+  narrate(
+    store: string,
+    item: string,
+    base: Base,
+    agent: Agent,
+    change: NarrativeChange,
+    allowNewerSchema = false,
+  ): Promise<Opened & { changed: boolean; feature?: string; entries?: number; sources?: string[]; omitted?: string[] }> {
+    const [method, params] =
+      change.kind === "add"
+        ? ["debrief/add_narrative", { entry: change.entry }]
+        : change.kind === "edit"
+          ? ["debrief/edit_narrative", { feature: change.feature, entry: change.entry }]
+          : change.kind === "delete"
+            ? ["debrief/delete_narrative", { features: change.features }]
+            : ["debrief/import_narrative", { path: change.path }];
+    return this.request(method, { store, item, base, agent, ...params, ...(allowNewerSchema && { allow_newer_schema: true }) });
   }
 
   /**

@@ -68,8 +68,10 @@ describe("marked fixes", () => {
       ],
     } as unknown as DebriefFeatureCollection;
     const entries = timelineEntries(plot);
-    expect(entries.map((e) => e.id)).toEqual(["note", `fix:track-blue:${T(1)}`, `fix:track-blue:${T(2)}`]);
-    expect(entries[1]).toMatchObject({ name: "BLUE ONE fix", text: "Wheel over", when: "09:01:00Z", hidden: false });
+    // At one time, by source: BLUE ONE's comment before the note named Contact.
+    expect(entries.map((e) => e.id)).toEqual([`fix:track-blue:${T(1)}`, "note", `fix:track-blue:${T(2)}`]);
+    expect(entries[0]).toMatchObject({ kind: "fix_comment", source: "BLUE ONE", entry_type: "Fix", text: "Wheel over\nsecond line", start: T(1), track: "track-blue" });
+    expect(entries[0].hidden).toBeUndefined();
   });
 });
 

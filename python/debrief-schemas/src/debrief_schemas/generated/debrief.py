@@ -1050,6 +1050,10 @@ class WebviewMessageKindEnum(str, Enum):
     """
     Timeline to host: delete this narrative entry (feature_id), as one recorded step.
     """
+    open_narrative_form = "open_narrative_form"
+    """
+    Host to Timeline: open the form to add a narrative entry, or to change the one named (feature_id), as a command or an agent asked.
+    """
     narrative_saved = "narrative_saved"
     """
     Host to Timeline: the entry was added or changed (feature_id), so the form closes and the list shows it; or, with message, why it was not.

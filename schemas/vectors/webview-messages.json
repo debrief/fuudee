@@ -128,6 +128,9 @@
     "delete_narrative": [
       "feature_id"
     ],
+    "open_narrative_form": [
+      "feature_id?"
+    ],
     "narrative_saved": [
       "feature_id?",
       "message?"

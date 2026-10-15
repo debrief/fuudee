@@ -55,7 +55,7 @@ export async function run(): Promise<void> {
   // Open serial 1 of the sample exercise from the catalogue.
   await vscode.commands.executeCommand("debrief.openPlot", "sample-exercise", "serial-1");
   const opened = await waitFor("plot", () => api.session.current);
-  const names = opened.plot.features.flatMap((f) => (f.properties.kind === "plot" ? [] : [f.properties.name]));
+  const names = opened.plot.features.flatMap((f) => (f.properties.kind === "plot" || f.properties.kind === "narrative" ? [] : [f.properties.name]));
   assert.ok(names.includes("BLUE ONE") && names.includes("RED ONE"));
   await waitFor("the map to draw the plot", () => api.mapShowing() === "serial-1" || undefined);
   await sleep(1500); // let the map settle before the picture

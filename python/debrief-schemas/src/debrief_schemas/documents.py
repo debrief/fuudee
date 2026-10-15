@@ -839,6 +839,7 @@ MESSAGE_MEMBERS: dict[str, tuple[str, ...]] = {
     "timeline_chosen": ("feature_id",),
     "save_narrative": ("narrative", "feature_id?"),
     "delete_narrative": ("feature_id",),
+    "open_narrative_form": ("feature_id?",),
     "narrative_saved": ("feature_id?", "message?"),
     "set_narrative": ("timeline_entry?",),
 }

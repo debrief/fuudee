@@ -6,7 +6,7 @@
  */
 import { userInfo } from "node:os";
 import * as vscode from "vscode";
-import type { AnnotationSpec, ContextTracksEnum, ParameterValue, PlotView, SharedState, SharedStateChange, TimeRange, ToolDeclaration, ToteResult, ToteView as ToteChoice, TrackEdit } from "@debrief/schemas";
+import type { AnnotationSpec, ContextTracksEnum, NarrativeSpec, TimelineEntry, ParameterValue, PlotView, SharedState, SharedStateChange, TimeRange, ToolDeclaration, ToteResult, ToteView as ToteChoice, TrackEdit } from "@debrief/schemas";
 import { formatBearing, formatPosition, formatQuantity, parsePosition, POSITION_EXAMPLE, UNIT_LABELS } from "@debrief/kernel";
 import { defaultPivotIndex, describeDistance, describeSpeed, describeTurn, FIX_PROMPT, FIX_PROMPT_DR, fixIndexAt, fixMeans, fixToEdit, jumpSpeed, legNow, mergedName, mergePlan, periodIndices, readBearing, readDistance, readSpeed, readTurn, reckoningOf, type Anchor } from "../webview/trackedit.js";
 import { chooseModes, MODE_LABELS, modeChoices, modeQuestion, REMEMBERED_IN_VSCODE, rememberItem, type ModeChoice, type PlottingMode } from "./importmode.js";
@@ -22,8 +22,9 @@ import { MapPanel } from "./panels/map.js";
 import { ResultsPanel } from "./panels/results.js";
 import { TIME_VIEW, TimeView } from "./panels/timeview.js";
 import { TOTE_VIEW, ToteView } from "./panels/toteview.js";
+import { TIMELINE_VIEW, TimelineView } from "./panels/timelineview.js";
 import { withMapLines, withPrimary, withSecondaries, withoutSecondary } from "../webview/totelogic.js";
-import { CONFLICT, NEEDS_CONFIRMATION, NEWER_SCHEMA, ServiceError, ToolService, type Agent, type AnnotationChange, type CallOutcome, type OpenedView, type ToolListing, type TrackChange } from "./service.js";
+import { CONFLICT, NEEDS_CONFIRMATION, NEWER_SCHEMA, ServiceError, ToolService, type Agent, type AnnotationChange, type CallOutcome, type NarrativeChange, type OpenedView, type ToolListing, type TrackChange } from "./service.js";
 import type { CleanChange } from "./service.js";
 import { describeJump, describeMark, describeWindow, fixRows, isDeadReckoned, jumpsFound, markAt, readThreshold, readWindow, smoothingNote, trackLabel } from "../webview/fixes.js";
 import { HistoryProvider } from "./views/history.js";
@@ -34,7 +35,6 @@ import { FIX_COLOURS, TRACK_COLOURS } from "../webview/palette.js";
 import { Session, timeProblem } from "./session.js";
 import { CataloguesProvider } from "./views/catalogues.js";
 import { featureIdsOf, OutlineProvider } from "./views/outline.js";
-import { TimelineProvider } from "./views/timeline.js";
 import { ToolsProvider } from "./views/tools.js";
 
 /** What the integration tests and agents can inspect. */
@@ -72,6 +72,10 @@ export interface DebriefApi {
   viewChecks: () => number;
   /** Whether the Tote view in the sidebar has loaded, for tests and agents. */
   toteShowing: () => boolean;
+  /** Whether the Timeline view in the sidebar has loaded, for tests and agents. */
+  timelineShowing: () => boolean;
+  /** The narrative entry the map shows beside its track at current time, for tests and agents (CAP-20). */
+  mapNarrative: () => TimelineEntry | undefined;
   /** The Tote's values last shown, and how long answers took to show (CAP-06, NFR-04), for tests and agents. */
   tote: () => ToteResult | undefined;
   toteLatency: () => { count: number; p50: number; p95: number; max: number };
@@ -97,7 +101,6 @@ export function activate(context: vscode.ExtensionContext): DebriefApi {
   const tools = new ToolsProvider(session);
   const history = new HistoryProvider((name) => listing?.tools.find((t) => t.name === name)?.title);
   const outlineView = vscode.window.createTreeView("debrief.outline", { treeDataProvider: outline, canSelectMany: true });
-  const timeline = new TimelineProvider(session);
   // What the menus need to know of the open plot: whether there is one, and whether it has a north arrow.
   session.onPlot((opened) => {
     void vscode.commands.executeCommand("setContext", "debrief.plotOpen", !!opened);
@@ -108,7 +111,6 @@ export function activate(context: vscode.ExtensionContext): DebriefApi {
     output,
     vscode.window.registerTreeDataProvider("debrief.catalogues", catalogues),
     outlineView,
-    (timeline.view = vscode.window.createTreeView("debrief.timeline", { treeDataProvider: timeline })),
     vscode.window.registerTreeDataProvider("debrief.tools", tools),
     vscode.window.registerTreeDataProvider("debrief.history", history),
   );
@@ -134,7 +136,20 @@ export function activate(context: vscode.ExtensionContext): DebriefApi {
     (tote) => saveTote(tote).then(resync),
     log,
   );
+  // The Timeline: narrative, notes and periods in time order; choosing one moves current time to it.
+  const timeline = new TimelineView(
+    context.extensionUri,
+    session,
+    (id) => void vscode.commands.executeCommand("debrief.goToTime", id),
+    async (spec, id) => {
+      const done = await narrate(id ? { kind: "edit", feature: id, entry: spec } : { kind: "add", entry: spec });
+      return { problem: done.problem, feature: done.feature ?? id };
+    },
+    async (id) => (await narrate({ kind: "delete", features: [id] })).problem,
+    log,
+  );
   context.subscriptions.push(
+    vscode.window.registerWebviewViewProvider(TIMELINE_VIEW, timeline, { webviewOptions: { retainContextWhenHidden: true } }),
     vscode.window.registerWebviewViewProvider(TIME_VIEW, timeView, { webviewOptions: { retainContextWhenHidden: true } }),
     vscode.window.registerWebviewViewProvider(TOTE_VIEW, toteView, { webviewOptions: { retainContextWhenHidden: true } }),
   );
@@ -459,6 +474,41 @@ export function activate(context: vscode.ExtensionContext): DebriefApi {
         }
         const problem = await reloadPlot(true);
         return { problem, feature: answer.feature };
+      }),
+    );
+
+  // --- Narrative: entries added, changed and deleted by hand, or read in (CAP-20) -------
+  /**
+   * Add, change or delete narrative entries, or read a REP file's narrative into the
+   * open plot: one step in the plot's history each, named by its note ("Narrative entry
+   * by BLUE ONE at 08:40:00Z added"), undone by Ctrl+Z like any other. A change made
+   * elsewhere since the plot was opened is never overwritten (SUB-28).
+   */
+  const narrate = (change: NarrativeChange) =>
+    serially(() =>
+      ourChange(async (): Promise<{ problem?: string; feature?: string; entries?: number; omitted?: string[] }> => {
+        const opened = session.current;
+        if (!opened) return { problem: "Open a plot first." };
+        if (!service || !opened.base) return { problem: "Changing the narrative needs Debrief's tool service. Run 'Debrief: Restart tool service'." };
+        const save = (allow = false) => service!.narrate(opened.store.id, opened.item.id, opened.base!, agent, change, allow);
+        let answer;
+        try {
+          try {
+            answer = await save();
+          } catch (error) {
+            if ((error as ServiceError).code !== NEWER_SCHEMA) throw error;
+            if (!(await confirmNewerSchema((error as Error).message))) return { problem: "Nothing was changed." };
+            answer = await save(true);
+          }
+        } catch (error) {
+          if ((error as ServiceError).code === CONFLICT) {
+            await reloadPlot(true);
+            return { problem: "The plot was changed elsewhere, so nothing was changed. Debrief is showing the latest; try again if you still want to." };
+          }
+          return { problem: (error as Error).message };
+        }
+        const problem = await reloadPlot(true);
+        return { problem, feature: answer.feature, entries: answer.entries, omitted: answer.omitted };
       }),
     );
 
@@ -1570,13 +1620,44 @@ export function activate(context: vscode.ExtensionContext): DebriefApi {
     const entry = timeline.entries.find((e) => e.id === id);
     const range = session.time?.range;
     if (!entry || !range) return report("Choose an entry in the Timeline.");
-    const at = new Date(entry.start).toISOString();
-    const within = entry.start >= Date.parse(range.start) && entry.start <= Date.parse(range.end);
+    const start = Date.parse(entry.start);
+    const at = new Date(start).toISOString();
+    const within = start >= Date.parse(range.start) && start <= Date.parse(range.end);
     const time = { current: at, range: within ? range : { start: at < range.start ? at : range.start, end: at > range.end ? at : range.end } };
     applyToolState({ time }, "timeline", false);
     return undefined;
   });
   command("debrief.timelineEntries", () => ({ entries: timeline.entries.map((e) => e.id), current: timeline.currentId }));
+  // Narrative entries (CAP-20): with an entry, added at once (agents, macros, tests); without, the Timeline's form.
+  command("debrief.addNarrative", async (spec?: NarrativeSpec) => {
+    if (!session.current) return report("Open a plot first.");
+    if (!spec) return timeline.openForm();
+    return narrate({ kind: "add", entry: spec }).then((done) => (done.problem ? report(done.problem) : done));
+  });
+  command("debrief.editNarrative", async (id?: string, changes?: Partial<NarrativeSpec>) => {
+    const entry = timeline.entries.find((e) => e.id === id && e.kind === "narrative");
+    if (!entry) return report("Choose a narrative entry in the Timeline.");
+    if (!changes) return timeline.openForm(entry.id);
+    return narrate({ kind: "edit", feature: entry.id, entry: changes }).then((done) => (done.problem ? report(done.problem) : done));
+  });
+  command("debrief.deleteNarrative", async (id?: string | string[]) => {
+    const ids = (Array.isArray(id) ? id : id ? [id] : []).filter((i) => timeline.entries.some((e) => e.id === i && e.kind === "narrative"));
+    if (!ids.length) return report("Choose a narrative entry in the Timeline.");
+    return narrate({ kind: "delete", features: ids }).then((done) => (done.problem ? report(done.problem) : done));
+  });
+  // A platform's log read into the open plot: its ;NARRATIVE: lines, one step, the file kept as a source.
+  command("debrief.importNarrative", async (given?: string) => {
+    if (!session.current) return report("Open a plot first.");
+    const path =
+      given ??
+      (await vscode.window.showOpenDialog({ canSelectMany: false, openLabel: "Read narrative", filters: { "REP files": ["rep", "REP"], "All files": ["*"] } }))?.[0]?.fsPath;
+    if (!path) return undefined;
+    const done = await narrate({ kind: "import", path });
+    if (done.problem) return report(done.problem);
+    const left = done.omitted?.length ? ` ${done.omitted.length === 1 ? "One line was" : `${done.omitted.length} kinds of line were`} not read; see the History.` : "";
+    void vscode.window.showInformationMessage(`Read ${count(done.entries ?? 0, "narrative entry", "narrative entries")} into the plot.${left}`);
+    return done;
+  });
   command("debrief.annotationFormOpen", () => annotationForm.open);
 
   // The time window, for agents, keyboard macros and tests: saved as when the analyst lets go of it.
@@ -1923,6 +2004,8 @@ export function activate(context: vscode.ExtensionContext): DebriefApi {
     hiddenOnMap: () => map.hiddenCount,
     timeControllerShowing: () => timeView.showing,
     toteShowing: () => toteView.showing,
+    timelineShowing: () => timeline.showing,
+    mapNarrative: () => map.narrative,
     tote: () => toteView.last,
     toteLatency: () => toteView.latency(),
     mapContext: () => map.context,

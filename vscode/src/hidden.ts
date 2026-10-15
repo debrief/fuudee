@@ -7,18 +7,30 @@ import type { DebriefFeatureCollection, PlotView } from "@debrief/schemas";
 
 type Feature = DebriefFeatureCollection["features"][number];
 
-/** A feature the analyst works with: everything but the whole-plot feature (the plot's own details). */
-export type PlotFeature = Exclude<Feature, { properties: { kind: "plot" } }>;
+/**
+ * A feature the analyst works with on the map and in the outline: everything but the
+ * whole-plot feature (the plot's own details) and narrative entries, which have no
+ * place on the map and are read in the Timeline (a plot may hold sixty thousand).
+ */
+export type PlotFeature = Exclude<Feature, { properties: { kind: "plot" } } | { properties: { kind: "narrative" } }>;
+
+/** A narrative entry (CAP-20). */
+export type NarrativeEntryFeature = Extract<Feature, { properties: { kind: "narrative" } }>;
 
 export function isFeature(feature: Feature): feature is PlotFeature {
-  return feature.properties.kind !== "plot";
+  return feature.properties.kind !== "plot" && feature.properties.kind !== "narrative";
 }
 
 export function isHidden(feature: Feature | undefined): boolean {
   return !!feature && isFeature(feature) && feature.properties.hidden === true;
 }
 
-/** The plot as the map shows it: hidden features and the plot's own details left out. */
+/**
+ * The plot as the map shows it: hidden features, the plot's own details and the
+ * narrative left out. Narrative entries have no position, and a plot may hold sixty
+ * thousand of them (NFR-06); the map is told only of the one current time is at
+ * (set_narrative).
+ */
 export function displayed(plot: DebriefFeatureCollection): DebriefFeatureCollection {
   return { ...plot, features: plot.features.filter((f) => isFeature(f) && !isHidden(f)) };
 }

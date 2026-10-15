@@ -323,6 +323,7 @@ export type WebviewMessageKindEnum =
   | "timeline_chosen"
   | "save_narrative"
   | "delete_narrative"
+  | "open_narrative_form"
   | "narrative_saved"
   | "set_narrative"
   | "fix_chosen";
