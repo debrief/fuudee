@@ -32,7 +32,7 @@ cpSync("media/land.geojson", "dist/webview/land.geojson");
 
 await build({
   ...common,
-  entryPoints: ["test/integration/run.ts", "test/integration/suite.ts"],
+  entryPoints: ["test/integration/run.ts", "test/integration/suite.ts", "test/integration/startup-run.ts", "test/integration/startup.ts"],
   outdir: "dist-test",
   platform: "node",
   format: "cjs",

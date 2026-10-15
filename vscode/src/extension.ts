@@ -23,6 +23,7 @@ import { ResultsPanel } from "./panels/results.js";
 import { TIME_VIEW, TimeView } from "./panels/timeview.js";
 import { TOTE_VIEW, ToteView } from "./panels/toteview.js";
 import { TIMELINE_VIEW, TimelineView } from "./panels/timelineview.js";
+import { startup, type StartupSnapshot } from "./startup.js";
 import { withMapLines, withPrimary, withSecondaries, withoutSecondary } from "../webview/totelogic.js";
 import { CONFLICT, NEEDS_CONFIRMATION, NEWER_SCHEMA, ServiceError, ToolService, type Agent, type AnnotationChange, type CallOutcome, type NarrativeChange, type OpenedView, type ToolListing, type TrackChange } from "./service.js";
 import type { CleanChange } from "./service.js";
@@ -81,6 +82,8 @@ export interface DebriefApi {
   /** The Tote's values last shown, and how long answers took to show (CAP-06, NFR-04), for tests and agents. */
   tote: () => ToteResult | undefined;
   toteLatency: () => { count: number; p50: number; p95: number; max: number };
+  /** When the extension activated and each webview loaded and was first shown something (docs/notes/webview-startup.md). */
+  startupTimings: () => StartupSnapshot;
   /**
    * For tests only: act on a message as if the map had sent it (drawing or dragging an
    * annotation, say). Present only when the extension runs under test, so no other
@@ -90,6 +93,7 @@ export interface DebriefApi {
 }
 
 export function activate(context: vscode.ExtensionContext): DebriefApi {
+  startup.mark("extension", "activate_start");
   const output = vscode.window.createOutputChannel("Debrief");
   // Everything logged is redacted, on screen and in the file (NFR-14).
   const diagnostics = new DiagnosticLog(context.logUri.fsPath, (line) => output.appendLine(line));
@@ -2024,6 +2028,7 @@ export function activate(context: vscode.ExtensionContext): DebriefApi {
     }
   });
 
+  startup.mark("extension", "activate_end");
   return {
     session,
     getState: () => session.state(),
@@ -2042,6 +2047,7 @@ export function activate(context: vscode.ExtensionContext): DebriefApi {
     mapNarrative: () => map.narrative,
     tote: () => toteView.last,
     toteLatency: () => toteView.latency(),
+    startupTimings: () => startup.snapshot(),
     mapContext: () => map.context,
     mapTote: () => map.tote,
     viewChecks: () => viewChecks,

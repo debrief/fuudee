@@ -5,6 +5,7 @@
  * state and saves the window; this page only shows and sets them. How context
  * tracks are drawn is chosen from the view's title menu, not here.
  */
+import { pageReady, pageShown } from "./timing.js";
 import "./timecontrol.css";
 import "./time.css";
 import type { TimeRange, TimeState } from "@debrief/schemas";
@@ -48,5 +49,7 @@ onMessage((message) => {
   const time = message.time as TimeState | undefined;
   empty.hidden = !!time;
   control.show(time, message.time_range as TimeRange | undefined, { saved: message.saved_window as TimeRange | undefined });
+  pageShown(!!time);
 });
+pageReady();
 host.postMessage({ kind: "ready" });

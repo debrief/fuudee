@@ -47,6 +47,7 @@
  * Interface colours come from the VS Code theme; data colours from palette.ts
  * (DEV-07). Plot content is always set as text, never as HTML.
  */
+import { pageReady, pageShown } from "./timing.js";
 import L from "leaflet";
 import "leaflet/dist/leaflet.css";
 import "./map.css";
@@ -1105,6 +1106,7 @@ onMessage((message) => {
     trackEditor.plotDrawn([...selection]);
     showHidden(typeof message.hidden_count === "number" ? message.hidden_count : 0);
     if (firstShow) fit(plotBounds);
+    pageShown(true);
   } else if (message.kind === "set_selection") {
     selection = new Set((message.selection as { feature_ids: string[] }).feature_ids);
     restyle();
@@ -1127,4 +1129,5 @@ onMessage((message) => {
     showFixes(message as Parameters<typeof showFixes>[0]);
   }
 });
+pageReady();
 host.postMessage({ kind: "ready" });

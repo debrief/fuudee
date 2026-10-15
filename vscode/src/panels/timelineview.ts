@@ -17,6 +17,7 @@ import type { NarrativeSpec, TimelineEntry } from "@debrief/schemas";
 import { checkMessage } from "../messages.js";
 import type { Session } from "../session.js";
 import { currentEntry, narrativeOnMapOf, timelineEntries, timelineTracks } from "../timeline.js";
+import { startup } from "../startup.js";
 import { webviewHtml } from "./html.js";
 
 export const TIMELINE_VIEW = "debrief.timeline";
@@ -73,6 +74,7 @@ export class TimelineView implements vscode.WebviewViewProvider {
   }
 
   resolveWebviewView(view: vscode.WebviewView): void {
+    startup.mark(TIMELINE_VIEW, "resolve");
     this.view = view;
     this.ready = false;
     view.webview.options = {
@@ -80,6 +82,7 @@ export class TimelineView implements vscode.WebviewViewProvider {
       localResourceRoots: [vscode.Uri.joinPath(this.extension, "dist", "webview")],
     };
     view.webview.html = webviewHtml(view.webview, this.extension, "timeline", "Timeline");
+    startup.mark(TIMELINE_VIEW, "html");
     view.onDidDispose(() => {
       if (this.view === view) this.view = undefined;
     });
@@ -88,6 +91,7 @@ export class TimelineView implements vscode.WebviewViewProvider {
 
   /** A message from the page. Tests send one as the page would: they cannot press a key in it. */
   receive(raw: unknown): void {
+    if (startup.fromPage(TIMELINE_VIEW, raw)) return;
     let message;
     try {
       message = checkMessage(raw);
@@ -96,6 +100,7 @@ export class TimelineView implements vscode.WebviewViewProvider {
       return;
     }
     if (message.kind === "ready") {
+      startup.mark(TIMELINE_VIEW, "ready");
       this.ready = true;
       this.showAll();
       if (this.playingNow) this.post({ kind: "playing_changed", playing: true });
@@ -162,5 +167,6 @@ export class TimelineView implements vscode.WebviewViewProvider {
   private post(message: Record<string, unknown>): void {
     if (!this.view || !this.ready) return;
     void this.view.webview.postMessage(checkMessage(message));
+    if (message.kind === "show_timeline") startup.shown(TIMELINE_VIEW, !!message.timeline_entries);
   }
 }

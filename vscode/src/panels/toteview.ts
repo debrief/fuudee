@@ -18,6 +18,7 @@ import type { ToteResult, ToteView as ToteChoice } from "@debrief/schemas";
 import { checkMessage } from "../messages.js";
 import type { Session } from "../session.js";
 import { latencySummary, sameTote, toteOf, ToteRequests, toteTracks } from "../../webview/totelogic.js";
+import { startup } from "../startup.js";
 import { webviewHtml } from "./html.js";
 
 export const TOTE_VIEW = "debrief.tote";
@@ -80,6 +81,7 @@ export class ToteView implements vscode.WebviewViewProvider {
   }
 
   resolveWebviewView(view: vscode.WebviewView): void {
+    startup.mark(TOTE_VIEW, "resolve");
     this.view = view;
     this.ready = false;
     view.webview.options = {
@@ -87,11 +89,13 @@ export class ToteView implements vscode.WebviewViewProvider {
       localResourceRoots: [vscode.Uri.joinPath(this.extension, "dist", "webview")],
     };
     view.webview.html = webviewHtml(view.webview, this.extension, "tote", "Tote");
+    startup.mark(TOTE_VIEW, "html");
     view.onDidDispose(() => {
       if (this.view === view) this.view = undefined;
     });
     view.onDidChangeVisibility(() => view.visible && this.refresh());
     view.webview.onDidReceiveMessage((raw) => {
+      if (startup.fromPage(TOTE_VIEW, raw)) return;
       let message;
       try {
         message = checkMessage(raw);
@@ -100,6 +104,7 @@ export class ToteView implements vscode.WebviewViewProvider {
         return;
       }
       if (message.kind === "ready") {
+        startup.mark(TOTE_VIEW, "ready");
         this.ready = true;
         this.showAll();
       } else if (message.kind === "tote_changed") {
@@ -148,5 +153,6 @@ export class ToteView implements vscode.WebviewViewProvider {
   private post(message: Record<string, unknown>): void {
     if (!this.view || !this.ready) return;
     void this.view.webview.postMessage(checkMessage(message));
+    if (message.kind === "show_tote") startup.shown(TOTE_VIEW, !!message.tote_tracks);
   }
 }

@@ -5,6 +5,7 @@
  * saves the choice of tracks in the plot's island; this page only shows them and
  * says what the analyst chose.
  */
+import { pageReady, pageShown } from "./timing.js";
 import "./tote.css";
 import "./time.css";
 import type { ToteResult, ToteTrack, ToteView } from "@debrief/schemas";
@@ -27,5 +28,7 @@ onMessage((message) => {
   empty.hidden = open;
   panel.hidden = !open;
   control.show(open ? { tracks, view, result } : undefined);
+  pageShown(!!tracks);
 });
+pageReady();
 host.postMessage({ kind: "ready" });

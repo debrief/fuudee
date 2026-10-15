@@ -5,6 +5,7 @@
  * current time and says what the analyst chose, added, changed or deleted. The filter is
  * the analyst's own, kept with the view (VS Code's webview state), never in the plot.
  */
+import { pageReady, pageShown } from "./timing.js";
 import "./timeline.css";
 import "./time.css";
 import type { TimeState, TimelineEntry, ToteTrack } from "@debrief/schemas";
@@ -41,6 +42,7 @@ onMessage((message) => {
         : undefined,
     );
     control.setTime(message.time as TimeState | undefined);
+    pageShown(!!entries);
   } else if (message.kind === "set_time") {
     control.setTime(message.time as TimeState);
   } else if (message.kind === "playing_changed") {
@@ -51,4 +53,5 @@ onMessage((message) => {
     control.openForm(message.feature_id as string | undefined);
   }
 });
+pageReady();
 host.postMessage({ kind: "ready" });

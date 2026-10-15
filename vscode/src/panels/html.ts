@@ -1,5 +1,6 @@
 import { randomBytes } from "node:crypto";
 import * as vscode from "vscode";
+import { startup } from "../startup.js";
 
 /** A webview page loading one bundle, with a strict content security policy. */
 export function webviewHtml(webview: vscode.Webview, extension: vscode.Uri, bundle: string, title: string): string {
@@ -24,7 +25,7 @@ export function webviewHtml(webview: vscode.Webview, extension: vscode.Uri, bund
 <title>${escapeHtml(title)}</title>
 <link rel="stylesheet" href="${asset(`${bundle}.css`)}">
 </head>
-<body data-land="${asset("land.geojson")}">
+<body data-land="${asset("land.geojson")}"${startup.pages ? ' data-timing="1"' : ""}>
 <div id="root"></div>
 <script nonce="${nonce}" src="${asset(`${bundle}.js`)}"></script>
 </body>

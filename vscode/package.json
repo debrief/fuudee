@@ -192,6 +192,7 @@
     "typecheck": "tsc -p tsconfig.json --noEmit",
     "test": "vitest run",
     "test:integration": "node scripts/build.mjs && node dist-test/run.js",
+    "measure:startup": "node scripts/build.mjs --production && node dist-test/startup-run.js",
     "test:play": "node test/play/play.mjs ../site/docs/play ../site/site",
     "check:theme": "node scripts/check-theme.mjs",
     "check:language": "node scripts/check-language.mjs"
