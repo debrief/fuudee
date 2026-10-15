@@ -559,6 +559,11 @@ def test_damaged_and_hostile_documents_are_refused_in_words() -> None:
         read_document("x.docx", hostile.getvalue())
 
 
+def test_a_pdf_with_no_text_says_it_may_be_a_scan() -> None:
+    with pytest.raises(DocumentError, match="no text to read"):
+        read_document("scan.pdf", pdf([]))
+
+
 def test_a_pdf_whose_page_tree_loops_returns() -> None:
     # Legacy Debrief's PDFBox once recursed until the stack overflowed here.
     try:

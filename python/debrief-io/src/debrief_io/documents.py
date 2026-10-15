@@ -429,6 +429,11 @@ def read_pdf(data: bytes) -> Document:
         raise DocumentError(f"The PDF is damaged: {error}.") from None
     while doc.paragraphs and not doc.paragraphs[-1].strip():
         doc.paragraphs.pop()
+    if not doc.paragraphs and len(reader.pages):
+        raise DocumentError(
+            "The PDF has no text to read: a scanned page is a picture, which needs text "
+            "recognition first."
+        )
     return doc
 
 
