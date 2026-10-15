@@ -1149,3 +1149,80 @@ def test_the_tote_refuses_what_it_cannot_read(client, params, says) -> None:
         "error"
     ]
     assert error["code"] == -32602 and says in error["message"]
+
+
+def _word_log(path: Path) -> Path:
+    """A synthetic narrative document (DEV-05): an entry a paragraph, its metadata hidden."""
+    import docx
+
+    document = docx.Document()
+    document.add_paragraph("Exercise B narrative")
+    for shown, hidden, text in [
+        ("120505", ",12,12,95,HMS NELSON,OOW COMMENT,", "Came to 090."),
+        ("120506", ",12,12,95,HMS NELSON,COMMS,", "Signal from C."),
+        ("121130", ",12,12,95,RED THREE,OOW COMMENT,", "After the plot's period."),
+    ]:
+        paragraph = document.add_paragraph(shown)
+        paragraph.add_run(hidden).font.hidden = True
+        paragraph.add_run(text)
+    document.save(path)
+    return path
+
+
+def test_word_narrative_is_previewed_then_read_in_with_the_analysts_choices(
+    client, catalogue, tmp_path
+) -> None:
+    where = {"store": "exercise", "item": "serial", "agent": AGENT}
+    log = _word_log(tmp_path / "nelson-log.docx")
+    preview = rpc(client, "debrief/preview_narrative", {**where, "path": str(log)}).json()
+    preview = preview["result"]
+    assert (preview["dialect"], preview["entries"], preview["outside"]) == (
+        "narrative-document",
+        3,
+        1,
+    )
+    assert preview["types"] == [
+        {"name": "OOW COMMENT", "count": 2},
+        {"name": "COMMS", "count": 1},
+    ]
+    assert preview["sources"][0] == {"name": "HMS NELSON", "count": 2, "track_id": "track-nelson"}
+    # A preview needs no plot, for a document imported as a plot of its own.
+    alone = rpc(client, "debrief/preview_narrative", {"path": str(log)}).json()["result"]
+    assert alone["outside"] == 0 and alone["plot_start"] is None
+    base = rpc(client, "debrief/open", where).json()["result"]["base"]
+    read = rpc(
+        client,
+        "debrief/import_narrative",
+        {
+            **where,
+            "base": base,
+            "path": str(log),
+            "types": ["OOW COMMENT"],
+            "within_period": True,
+            "tracks": {"RED THREE": None},
+        },
+    ).json()["result"]
+    assert (read["entries"], read["sources"]) == (1, ["NELSON"])
+    assert any("written as from HMS NELSON is NELSON's" in n for n in read["notes"])
+    assert any("types not chosen" in o for o in read["omitted"])
+    assert any("outside the plot's period" in o for o in read["omitted"])
+    bad = rpc(
+        client, "debrief/import_narrative", {**where, "path": str(log), "types": "OOW"}
+    ).json()["error"]
+    assert bad["code"] == -32602 and "types" in bad["message"]
+
+
+def test_a_word_document_imports_as_a_plot_and_is_not_asked_about_modes(client, tmp_path) -> None:
+    log = _word_log(tmp_path / "nelson-log.docx")
+    tracks = rpc(client, "debrief/rep_tracks", {"path": str(log)}).json()["result"]
+    assert tracks == {"tracks": []}
+    report = rpc(
+        client, "debrief/import", {"store": "exercise", "path": str(log), "agent": AGENT}
+    ).json()["result"]
+    assert report["narrative_entries"] == 3 and report["tracks"] == []
+    broken = tmp_path / "broken.pdf"
+    broken.write_bytes(b"%PDF-1.4\nnot really")
+    refused = rpc(
+        client, "debrief/import", {"store": "exercise", "path": str(broken), "agent": AGENT}
+    ).json()["error"]
+    assert refused["code"] == -32602 and refused["message"].startswith("broken.pdf")

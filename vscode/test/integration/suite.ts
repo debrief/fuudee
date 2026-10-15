@@ -493,10 +493,24 @@ export async function run(): Promise<void> {
     const deep = narrativeOf().find((f) => f.properties.kind === "narrative" && f.properties.text === "Went deep, 40 m.");
     assert.equal((deep?.properties as { track_id?: string } | undefined)?.track_id, "track-red-one");
     assert.equal((await steps()).length, narrativeSteps + 4);
+    // A Word narrative (CAP-19), legacy Debrief's narrative-document dialect, with the
+    // choices an agent passes: the types to read and BLUE TWO's track (none). One step.
+    const word = path.join(scratch, "red-one-log.docx");
+    copyFileSync(path.resolve(__dirname, "../test/play/red-one-log.docx"), word);
+    const wordRead = await vscode.commands.executeCommand<Narrated & { omitted?: string[] }>("debrief.importNarrative", word, { types: ["SONAR", "COMMS"], tracks: { "BLUE TWO": null } });
+    assert.equal(wordRead.problem, undefined);
+    assert.equal(wordRead.entries, 3);
+    assert.match(wordRead.omitted?.join(" ") ?? "", /4 entries of types not chosen not read/);
+    assert.deepEqual((await steps()).at(-1)?.notes?.slice(0, 2), ["Narrative read from red-one-log.docx", "Word document, read as a narrative log."]);
+    const sonar = narrativeOf().find((f) => f.properties.kind === "narrative" && f.properties.text.startsWith("Contact on the bow"));
+    assert.equal((sonar?.properties as { track_id?: string } | undefined)?.track_id, "track-red-one");
+    assert.match((sonar?.properties as { text?: string } | undefined)?.text ?? "", /\nContact held on the towed array\.$/);
+    assert.equal((await steps()).length, narrativeSteps + 5);
+    await screenshot("15c-narrative-word");
     // Refused plainly, nothing changed: no time.
     const refusedNarrative = await vscode.commands.executeCommand<Narrated>("debrief.addNarrative", { source: "X", text: "No time." });
     assert.match(refusedNarrative.problem ?? "", /time/);
-  assert.equal((await steps()).length, narrativeSteps + 4);
+  assert.equal((await steps()).length, narrativeSteps + 5);
   }
 
   // The properties form of the circle, as the map's double-click or the outline opens it.

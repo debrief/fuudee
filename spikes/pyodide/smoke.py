@@ -69,7 +69,7 @@ def run_core_tools(a: TrackPath, b: TrackPath) -> dict:
     return results
 
 
-def main(fixtures: Path) -> dict:
+def main(fixtures: Path, docs: Path | None = None) -> dict:
     report: dict = {"schema_version": SCHEMA_VERSION, "documents": {}, "kernel": {}}
     timings: dict = {}
 
@@ -146,7 +146,108 @@ def main(fixtures: Path) -> dict:
     # The narrative (CAP-20): REP lines read, one order, entries changed as steps.
     report["narrative"], timings["narrative_5000_ms"] = _narrative()
 
+    # Narrative from Word and PDF (CAP-19): the same documents read the same way.
+    report["narrative_documents"], timings["narrative_documents_ms"] = _documents(docs)
+
     return {"report": report, "timings": timings}
+
+
+def _docx(paragraphs: list[tuple[str, str, str]]) -> bytes:
+    """A minimal .docx, built with the standard library: each paragraph's middle run
+    hidden, as a narrative document hides its metadata."""
+    import io
+    import zipfile
+
+    w = 'xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main"'
+
+    def run(text: str, hidden: bool = False) -> str:
+        props = "<w:rPr><w:vanish/></w:rPr>" if hidden else ""
+        return f'<w:r>{props}<w:t xml:space="preserve">{text}</w:t></w:r>'
+
+    body = "".join(f"<w:p>{run(a)}{run(b, True)}{run(c)}</w:p>" for a, b, c in paragraphs)
+    out = io.BytesIO()
+    with zipfile.ZipFile(out, "w") as archive:
+        archive.writestr(
+            "[Content_Types].xml",
+            '<Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types">'
+            '<Override PartName="/word/document.xml" ContentType="application/'
+            'vnd.openxmlformats-officedocument.wordprocessingml.document.main+xml"/></Types>',
+        )
+        archive.writestr(
+            "word/document.xml", f"<w:document {w}><w:body>{body}</w:body></w:document>"
+        )
+    return out.getvalue()
+
+
+def _pdf(lines: list[str]) -> bytes:
+    """A minimal PDF, a line of text a line."""
+    content = "BT /F1 10 Tf 12 TL 40 800 Td " + " ".join(f"({x}) Tj T*" for x in lines) + " ET"
+    objects = [
+        "<< /Type /Catalog /Pages 2 0 R >>",
+        "<< /Type /Pages /Kids [4 0 R] /Count 1 >>",
+        "<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>",
+        "<< /Type /Page /Parent 2 0 R /MediaBox [0 0 595 842] "
+        "/Resources << /Font << /F1 3 0 R >> >> /Contents 5 0 R >>",
+        f"<< /Length {len(content)} >>\nstream\n{content}\nendstream",
+    ]
+    out, offsets = "%PDF-1.4\n", []
+    for number, body in enumerate(objects, start=1):
+        offsets.append(len(out))
+        out += f"{number} 0 obj\n{body}\nendobj\n"
+    xref = len(out)
+    out += f"xref\n0 {len(objects) + 1}\n0000000000 65535 f \n"
+    out += "".join(f"{o:010d} 00000 n \n" for o in offsets)
+    out += f"trailer\n<< /Size {len(objects) + 1} /Root 1 0 R >>\nstartxref\n{xref}\n%%EOF\n"
+    return out.encode("latin-1")
+
+
+def _documents(docs: Path | None) -> tuple[dict, float]:
+    from debrief_io.documents import read_document
+    from debrief_io.word import read_dialect
+
+    made = {
+        "made.docx": _docx(
+            [
+                ("121005", ",12,03,20,HMS BLUE ONE,OOW COMMENT,", "Came to 090."),
+                ("122345", ",13,03,20,HMS BLUE ONE,OOW COMMENT,", "Late entry."),
+                ("110900", ",11,03,20,HMS BLUE ONE,LOG,", "Mangled day."),
+            ]
+        ),
+        "made.pdf": _pdf(["12 Mar 20", "121005 Came to 090.", "130010 SR023 B-123 R-5kyds"]),
+    }
+    for path in sorted(docs.glob("*.doc")) if docs else []:
+        made[path.name] = path.read_bytes()
+    began = time.perf_counter()
+    out = {}
+    for name, data in made.items():
+        read = read_dialect(read_document(name, data), default_year=2026)
+        out[name] = {
+            "dialect": read.dialect,
+            "entries": [(e.time_ms, e.source, e.entry_type, e.text) for e in read.entries],
+            "problems": read.problems,
+            "warnings": read.warnings,
+        }
+    # Hostile documents are refused in the browser as on the desktop, with the same words:
+    # a page showing text too many times; XML nested too deep.
+    import io
+    import zipfile
+
+    from debrief_io.documents import DocumentError
+
+    deep = io.BytesIO()
+    with zipfile.ZipFile(deep, "w", zipfile.ZIP_DEFLATED) as archive:
+        w = 'xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main"'
+        nested = "<w:tbl><w:tr><w:tc>" * 2_000 + "</w:tc></w:tr></w:tbl>" * 2_000
+        archive.writestr(
+            "word/document.xml", f"<w:document {w}><w:body>{nested}</w:body></w:document>"
+        )
+    for name, data in {"dense.pdf": _pdf(["x"] * 20_001), "deep.docx": deep.getvalue()}.items():
+        try:
+            read_document(name, data)
+            out[name] = {"refused": None}
+        except DocumentError as error:
+            out[name] = {"refused": str(error)}
+    return out, (time.perf_counter() - began) * 1000
 
 
 def _narrative() -> tuple[dict, float]:
@@ -296,4 +397,5 @@ def _tote() -> tuple[dict, float]:
 
 
 if __name__ == "__main__":
-    print(json.dumps(main(Path(sys.argv[1])), indent=2, sort_keys=True))
+    docs = Path(sys.argv[2]) if len(sys.argv) > 2 else None
+    print(json.dumps(main(Path(sys.argv[1]), docs), indent=2, sort_keys=True))

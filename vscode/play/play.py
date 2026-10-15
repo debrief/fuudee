@@ -17,8 +17,24 @@ from pathlib import Path
 from typing import Any
 
 import debrief_stac.store as store_module
-from debrief_config import load_config, track_import_mode, update_config, with_track_import_mode
-from debrief_io import NoNarrativeError, import_dpf, import_narrative, import_rep
+from debrief_config import (
+    load_config,
+    narrative_answers,
+    track_import_mode,
+    update_config,
+    with_narrative_answers,
+    with_track_import_mode,
+)
+from debrief_io import (
+    Choices,
+    NoNarrativeError,
+    import_document,
+    import_dpf,
+    import_narrative,
+    import_rep,
+    preview_narrative,
+)
+from debrief_io.document_import import SUFFIXES as DOCUMENT_SUFFIXES
 from debrief_io.importer import rep_track_names
 from debrief_kernel.geodesy import Position, destination
 from debrief_kernel.time import format_utc, parse_utc
@@ -221,8 +237,9 @@ def annotate(item: str, request_json: str) -> str:
 
 
 def narrative(item: str, request_json: str, data: bytes | None = None) -> str:
-    """Add, change or delete narrative entries, or read a REP file's narrative lines into
-    the plot: each a recorded, undoable step (CAP-20), as debrief/add_narrative,
+    """Add, change or delete narrative entries, or read a REP file's narrative lines or a
+    Word or PDF document's entries into the plot, with the reader's choices: each a
+    recorded, undoable step (CAP-19, CAP-20), as debrief/add_narrative,
     debrief/edit_narrative, debrief/delete_narrative and debrief/import_narrative do."""
     request = json.loads(request_json)
     base = Base(**request["base"]) if request.get("base") else None
@@ -237,13 +254,32 @@ def narrative(item: str, request_json: str, data: bytes | None = None) -> str:
         elif change["kind"] == "delete":
             _cat().delete_narrative(item, change["features"], YOU, base)
         else:
-            done = import_narrative(_cat(), item, _upload(change["name"], data or b""), YOU, base)
-            out.update(entries=done.entries, sources=done.sources, omitted=done.omitted)
+            done = import_narrative(
+                _cat(),
+                item,
+                _upload(change["name"], data or b""),
+                YOU,
+                base,
+                choices=Choices.of(change.get("choices")),
+            )
+            out.update(
+                entries=done.entries, sources=done.sources, omitted=done.omitted, notes=done.notes
+            )
     except Conflict:
         return json.dumps({"error": "The plot was changed elsewhere, so nothing was changed."})
-    except (CatalogueError, HistoryError, NoNarrativeError, OSError) as error:
+    except (CatalogueError, HistoryError, NoNarrativeError, OSError, ValueError) as error:
         return json.dumps({"error": str(error)})
     return json.dumps(out)
+
+
+def narrative_preview(item: str | None, name: str, data: bytes) -> str:
+    """What a narrative file holds, before it is read in, so the reader can choose what
+    legacy Debrief asked: types, the plot's period, tracks (debrief/preview_narrative)."""
+    try:
+        plot = _cat().read_plot(item) if item else None
+        return json.dumps(preview_narrative(_upload(name, data), plot))
+    except (CatalogueError, NoNarrativeError, OSError) as error:
+        return json.dumps({"error": str(error)})
 
 
 def track(item: str, request_json: str) -> str:
@@ -512,6 +548,38 @@ def set_import_mode(mode: str) -> str:
     return track_import_mode(update_config(lambda c: with_track_import_mode(c, mode), SETTINGS))
 
 
+def narrative_answers_for(dialect: str) -> str:
+    """The reader's last answers for narrative documents of this dialect, as the page's
+    settings keep them (debrief-config's narrative_import): {"answers": ...} or {}."""
+    found = narrative_answers(load_config(SETTINGS), dialect)
+    if found is None:
+        return json.dumps({})
+    tracks = {t.platform: t.track for t in found.tracks or []}
+    answers = {
+        "skipTypes": list(found.skip_types or []),
+        "withinPeriod": bool(found.within_period),
+        "tracks": tracks,
+    }
+    return json.dumps({"answers": answers})
+
+
+def set_narrative_answers(dialect: str, answers_json: str) -> str:
+    """Remember the reader's answers for documents of this dialect, for next time."""
+    answers = json.loads(answers_json)
+    SETTINGS.parent.mkdir(parents=True, exist_ok=True)
+    update_config(
+        lambda c: with_narrative_answers(
+            c,
+            dialect,
+            skip_types=answers.get("skipTypes") or [],
+            within_period=bool(answers.get("withinPeriod")),
+            tracks=answers.get("tracks") or {},
+        ),
+        SETTINGS,
+    )
+    return json.dumps({"ok": True})
+
+
 def _upload(name: str, data: bytes) -> Path:
     work = Path("/play/uploads")
     work.mkdir(parents=True, exist_ok=True)
@@ -523,7 +591,7 @@ def _upload(name: str, data: bytes) -> Path:
 def rep_tracks(name: str, data: bytes) -> str:
     """The tracks a REP file would import, to ask how each is plotted; none for others."""
     path = _upload(name, data)
-    if path.suffix.lower() in (".dpf", ".xml", ".geojson", ".json"):
+    if path.suffix.lower() in (".dpf", ".xml", ".geojson", ".json", *DOCUMENT_SUFFIXES):
         return json.dumps([])
     try:
         return json.dumps(rep_track_names(path))
@@ -532,11 +600,16 @@ def rep_tracks(name: str, data: bytes) -> str:
 
 
 def import_file(
-    name: str, data: bytes, modes_json: str | None = None, remembered: str | None = None
+    name: str,
+    data: bytes,
+    modes_json: str | None = None,
+    remembered: str | None = None,
+    track_name: str | None = None,
 ) -> str:
     """Import a REP or legacy .dpf file the reader dropped in, as a new plot, each REP
-    track plotted as modes_json says (asked, or the reader's remembered choice); or add a
-    Debrief plot file (.geojson) with its whole history, as a colleague would."""
+    track plotted as modes_json says (asked, or the reader's remembered choice); a Word or
+    PDF document as a plot of its narrative (or an ASW document's track, named track_name);
+    or add a Debrief plot file (.geojson) with its whole history, as a colleague would."""
     path = _upload(name, data)
     stem = "".join(c if c.isalnum() or c in "-_." else "-" for c in path.stem).strip("-.") or "plot"
     taken, item_id, n = set(_cat().item_ids()), stem, 2
@@ -553,6 +626,10 @@ def import_file(
     try:
         if path.suffix.lower() in (".dpf", ".xml"):
             report = import_dpf(_cat(), path, item_id=item_id, agent=YOU)
+        elif path.suffix.lower() in DOCUMENT_SUFFIXES:
+            report = import_document(
+                _cat(), path, item_id=item_id, agent=YOU, track_name=track_name
+            )
         else:
             report = import_rep(
                 _cat(), path, item_id=item_id, agent=YOU, modes=modes, remembered=remembered

@@ -12,12 +12,15 @@ from debrief_config.config import (
     add_store,
     config_path,
     load_config,
+    narrative_answers,
     normalise_location,
     remove_store,
     same_location,
     track_import_mode,
     update_config,
+    with_narrative_answers,
     with_track_import_mode,
+    without_narrative_answers,
 )
 
 __all__ = [
@@ -26,10 +29,13 @@ __all__ = [
     "add_store",
     "config_path",
     "load_config",
+    "narrative_answers",
     "normalise_location",
     "remove_store",
     "same_location",
     "track_import_mode",
     "update_config",
+    "with_narrative_answers",
     "with_track_import_mode",
+    "without_narrative_answers",
 ]

@@ -46,7 +46,7 @@
     "commands": [
       {"command": "debrief.addCatalogue", "title": "Add catalogue folder…", "category": "Debrief", "icon": "$(folder-opened)"},
       {"command": "debrief.createCatalogue", "title": "Create catalogue…", "category": "Debrief", "icon": "$(new-folder)"},
-      {"command": "debrief.importRep", "title": "Import plot file (REP or .dpf)…", "category": "Debrief", "icon": "$(cloud-download)"},
+      {"command": "debrief.importRep", "title": "Import plot file (REP, .dpf, Word, PDF)…", "category": "Debrief", "icon": "$(cloud-download)"},
       {"command": "debrief.addPlotFile", "title": "Add a plot file…", "category": "Debrief", "icon": "$(file-add)"},
       {"command": "debrief.refresh", "title": "Refresh", "category": "Debrief", "icon": "$(refresh)"},
       {"command": "debrief.openPlot", "title": "Open plot", "category": "Debrief"},
@@ -80,7 +80,7 @@
       {"command": "debrief.addNarrative", "title": "Add narrative entry…", "category": "Debrief", "icon": "$(comment)", "enablement": "debrief.plotOpen"},
       {"command": "debrief.editNarrative", "title": "Change narrative entry…", "category": "Debrief"},
       {"command": "debrief.deleteNarrative", "title": "Delete narrative entry", "category": "Debrief"},
-      {"command": "debrief.importNarrative", "title": "Read narrative into this plot (REP)…", "category": "Debrief", "icon": "$(cloud-download)", "enablement": "debrief.plotOpen"},
+      {"command": "debrief.importNarrative", "title": "Read narrative into this plot (REP, Word, PDF)…", "category": "Debrief", "icon": "$(cloud-download)", "enablement": "debrief.plotOpen"},
       {"command": "debrief.setNarrativeOnMap", "title": "Narrative on the map", "category": "Debrief"},
       {"command": "debrief.show", "title": "Show on map", "category": "Debrief", "icon": "$(eye)"},
         {"command": "debrief.goToStep", "title": "Go back to this step", "category": "Debrief"},

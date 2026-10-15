@@ -330,7 +330,7 @@ Each interface is a named commitment, even where its implementation is shared wi
 | EXT-01 | Track data | In | REP (replay format) | Port legacy Java code and tests |
 | EXT-02 | Legacy track formats | In | About 17 legacy formats, including NMEA, AIS, GPX and Antares (listed in CAPABILITY\_AUDIT.md) | Later, as importer tools in the tool library. Initial releases support REP (EXT-01) and .dpf (EXT-14) only. |
 | EXT-03 | Acoustic replay application | In, file only | DSF (REP contact lines only) | Stable for decades |
-| EXT-04 | Narrative documents | In | Word and PDF, several dialects | Port Java parsers and tests to Python |
+| EXT-04 | Narrative documents | In | Word and PDF, several dialects | Port Java parsers and tests to Python. Ported (15 Oct 2026): `.docx`, `.doc` and PDF in the narrative-log, Rider, ASW (as a track) and dated dialects, on the desktop and in the browser |
 | EXT-05 | Report images | Out | Images with embedded GUID metadata | New |
 | EXT-06 | Storyboard exports | Out | Offline HTML, PowerPoint, video | New (CAP-14) |
 | EXT-07 | Archive handover to another government organisation | Out, one-way | Legacy CSV, columns as defined by the ported Java exporter and its tests. A comment line carries the source plot's GUID (as SUB-25), so provenance can be traced from the archive without changing the recipient's ingest. | Port legacy Java code and tests; verify the recipient tolerates the comment line (section 12.2) |

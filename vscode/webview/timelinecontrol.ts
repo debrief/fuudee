@@ -32,6 +32,11 @@
  *   the entry current time is at: the plot's choice (its island), not the reader's.
  * - Tens of thousands of entries (NFR-06): only the rows in sight are drawn, each
  *   measured once drawn; the rest are estimated from their text's length.
+ * - The reader's view (product owner, 15 Oct 2026: legacy Debrief's Narrative viewer's
+ *   extras), in one small menu (⋯) so the bar stays quiet: words and phrases highlighted
+ *   wherever they are in an entry's text; an off switch for choosing an entry moving
+ *   current time; the text's size and whether long entries wrap; which of the time,
+ *   source and type columns show. Like the filter, the reader's own, kept in the page.
  */
 import { DEFAULT_SETTINGS, formatTime, type FormatSettings } from "@debrief/kernel";
 import type { NarrativeSpec, TimeState, TimelineEntry, ToteTrack } from "@debrief/schemas";
@@ -60,6 +65,17 @@ import {
   editsText,
   historyMove,
   type HistoryMove,
+  COLUMNS,
+  type Column,
+  gridOf,
+  lineHeight,
+  marks,
+  parseHighlights,
+  readView,
+  stepTextSize,
+  TEXT_SIZES,
+  viewChanged,
+  type ViewSettings,
 } from "./timelinelogic.js";
 
 /** On macOS Undo is Cmd+Z, as VS Code's keybindings have it. */
@@ -99,8 +115,8 @@ export interface TimelineMemory {
 }
 
 const KIND_WORDS: Record<EntryKind, string> = { narrative: "Narrative", annotation: "Notes and periods", fix_comment: "Fix comments" };
+const COLUMN_WORDS: Record<Column, string> = { time: "Time", source: "Source", type: "Type" };
 const NARROW_PX = 420;
-const LINE_PX = 16;
 const ROW_PAD_PX = 6;
 const DAY_PX = 24;
 const OVERSCAN_PX = 400;
@@ -109,14 +125,14 @@ const DATED: FormatSettings = { ...DEFAULT_SETTINGS, time_style: "date_time" };
 const escape = (text: string) => text.replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[c]!);
 const plural = (n: number, one: string, many = `${one}s`) => `${n.toLocaleString("en-GB")} ${n === 1 ? one : many}`;
 
-/** Text with a search's matches marked, escaped. */
-function marked(text: string, needle: string): string {
-  const found = matches(text, needle);
+/** Text with a search's matches, and the reader's highlighted phrases, marked; escaped. */
+function marked(text: string, needle: string, highlights: readonly string[] = []): string {
+  const found = highlights.length ? marks(text, needle, highlights) : matches(text, needle).map(([start, end]) => ({ start, end, kind: "found" as const }));
   if (!found.length) return escape(text);
   let out = "";
   let at = 0;
-  for (const [start, end] of found) {
-    out += escape(text.slice(at, start)) + `<mark>${escape(text.slice(start, end))}</mark>`;
+  for (const { start, end, kind } of found) {
+    out += escape(text.slice(at, start)) + `<mark${kind === "highlight" ? ' class="tl-hl"' : ""}>${escape(text.slice(start, end))}</mark>`;
     at = end;
   }
   return out + escape(text.slice(at));
@@ -132,6 +148,8 @@ export class TimelineControl {
   private playing = false;
   private time?: TimeState;
   private filter: Filter = NO_FILTER;
+  /** The reader's view: highlights, choosing, text size, wrapping, columns. */
+  private view: ViewSettings = readView(undefined);
   private visible: number[] = [];
   private rows: Row[] = [];
   private rowOfItem = new Map<number, number>();
@@ -160,6 +178,11 @@ export class TimelineControl {
   private ownScroll?: number;
   private frame?: number;
   private searchTimer?: ReturnType<typeof setTimeout>;
+  private highlightTimer?: ReturnType<typeof setTimeout>;
+  /** A row just made the one worked with: brought wholly into sight once drawn and measured. */
+  private revealActive = false;
+  /** Laid out again (width, text size, wrapping, columns): the row worked with, if in sight, kept wholly so. */
+  private keepActive = false;
   private editing?: string;
   private said?: ReturnType<typeof setTimeout>;
   /** Milliseconds each list was drawn in, for the NFR-06 check. */
@@ -168,6 +191,8 @@ export class TimelineControl {
   private readonly search: HTMLInputElement;
   private readonly filterButton: HTMLButtonElement;
   private readonly filterPanel: HTMLElement;
+  private readonly viewButton: HTMLButtonElement;
+  private readonly viewPanel: HTMLElement;
   private readonly addButton: HTMLButtonElement;
   private readonly head: HTMLElement;
   private readonly scroller: HTMLElement;
@@ -191,24 +216,28 @@ export class TimelineControl {
       `<input type="search" class="tl-search" placeholder="Search" aria-label="Search the Timeline" spellcheck="false">` +
       `<button type="button" class="tl-follow" hidden title="Follow current time again">Follow time</button>` +
       `<button type="button" class="tl-filter-button" aria-expanded="false" aria-haspopup="true" title="Choose which kinds, sources and types are listed">Filter</button>` +
+      `<button type="button" class="tl-view-button" aria-expanded="false" aria-haspopup="true" aria-label="View: highlights, choosing, text size, columns" title="Highlight words; whether choosing an entry moves current time; text size and wrapping; columns">⋯</button>` +
       `<button type="button" class="tl-add" title="Add a narrative entry (N)" aria-label="Add a narrative entry">+</button>` +
       `</div>` +
       `<div class="tl-filter" role="group" aria-label="Filter the Timeline" hidden></div>` +
+      `<div class="tl-view" role="group" aria-label="How the Timeline is shown to you" hidden></div>` +
       `<form class="tl-form" hidden novalidate></form>` +
-      `<div class="tl-head" aria-hidden="true"><span>Time</span><span>Source</span><span>Type</span><span class="tl-head-text">Entry</span></div>` +
+      `<div class="tl-head" aria-hidden="true"><span class="tl-head-time">Time</span><span class="tl-head-source">Source</span><span class="tl-head-type">Type</span><span class="tl-head-text">Entry</span></div>` +
       `<div class="tl-body">` +
-      `<div class="tl-scroll" role="listbox" tabindex="0" aria-label="Narrative, notes and periods in time order: Enter moves current time to the entry">` +
+      `<div class="tl-scroll" role="listbox" tabindex="0">` +
       `<div class="tl-spacer"></div></div>` +
       `<p class="tl-empty" hidden></p>` +
+      `<span class="tl-measure" aria-hidden="true">${"x".repeat(40)}</span>` +
       `</div>` +
       `<div class="tl-foot"><p class="tl-status" aria-live="polite"></p>` +
       `<label class="tl-on-map" title="Show the entry current time is at beside its track on the map, for everyone who opens this plot">` +
-      `<input type="checkbox" checked>Narrative on the map</label></div>` +
-      `<span class="tl-measure" aria-hidden="true">${"x".repeat(40)}</span>`;
+      `<input type="checkbox" checked>Narrative on the map</label></div>`;
     const $ = <T extends HTMLElement>(s: string) => element.querySelector<T>(s)!;
     this.search = $(".tl-search");
     this.filterButton = $(".tl-filter-button");
     this.filterPanel = $(".tl-filter");
+    this.viewButton = $(".tl-view-button");
+    this.viewPanel = $(".tl-view");
     this.addButton = $(".tl-add");
     this.head = $(".tl-head");
     this.scroller = $(".tl-scroll");
@@ -221,6 +250,8 @@ export class TimelineControl {
     this.form = $(".tl-form");
     this.measure = $(".tl-measure");
     this.filter = this.remembered();
+    this.view = this.rememberedView();
+    this.applyView();
 
     this.search.addEventListener("input", () => {
       clearTimeout(this.searchTimer);
@@ -246,6 +277,24 @@ export class TimelineControl {
       event.preventDefault();
       this.toggleFilter(false);
       this.filterButton.focus();
+    });
+    this.viewButton.addEventListener("click", () => this.toggleView());
+    this.viewPanel.addEventListener("change", (event) => this.viewChangedBy(event.target as HTMLInputElement));
+    this.viewPanel.addEventListener("input", (event) => {
+      const target = event.target as HTMLInputElement;
+      if (!target.classList.contains("tl-highlights")) return;
+      clearTimeout(this.highlightTimer);
+      this.highlightTimer = setTimeout(() => this.setView({ ...this.view, highlights: parseHighlights(target.value) }), 250);
+    });
+    this.viewPanel.addEventListener("click", (event) => {
+      const size = (event.target as HTMLElement).closest<HTMLButtonElement>("[data-size]");
+      if (size) this.setView({ ...this.view, textSize: stepTextSize(this.view.textSize, size.dataset.size === "up" ? 1 : -1) }, size);
+    });
+    this.viewPanel.addEventListener("keydown", (event) => {
+      if (event.key !== "Escape") return;
+      event.preventDefault();
+      this.toggleView(false);
+      this.viewButton.focus();
     });
     this.addButton.addEventListener("click", () => this.openForm());
     this.followButton.addEventListener("click", () => this.follow());
@@ -412,6 +461,7 @@ export class TimelineControl {
       narrativeOnMap: this.onMap.checked,
       drawn: this.drawn.size,
       filter: { kinds: [...this.filter.kinds], sources: [...this.filter.sources], types: [...this.filter.types], text: this.filter.text },
+      view: { ...this.view, highlights: [...this.view.highlights], hidden: [...this.view.hidden] },
     };
   }
 
@@ -444,19 +494,24 @@ export class TimelineControl {
     const narrow = this.narrow;
     const textPx = Math.max(80, this.widthPx - (narrow ? 0 : this.fixedColumnsPx()) - 16);
     const chars = textPx / this.charPx;
+    const line = lineHeight(this.view.textSize);
+    const wrap = this.view.wrap;
+    const firstLine = narrow && this.view.hidden.length < COLUMNS.length ? 1 : 0;
     this.layout = new Layout(this.rows.length, (r) => {
       const row = this.rows[r];
       if ("day" in row) return DAY_PX;
       const entry = this.items[row.item].entry;
-      const lines = estimateLines(this.textOf(entry), chars);
-      return (narrow ? lines + 1 : lines) * LINE_PX + ROW_PAD_PX;
+      const lines = wrap ? estimateLines(this.textOf(entry), chars) : 1;
+      return (lines + firstLine) * line + ROW_PAD_PX;
     });
   }
 
   private fixedColumnsPx(): number {
     const style = getComputedStyle(this.element);
     const ch = (name: string) => parseFloat(style.getPropertyValue(name)) || 10;
-    return (9 + ch("--tl-source") + ch("--tl-type")) * this.charPx + 24;
+    const width: Record<Column, number> = { time: 9, source: ch("--tl-source"), type: ch("--tl-type") };
+    const shown = COLUMNS.filter((c) => !this.view.hidden.includes(c));
+    return shown.reduce((sum, c) => sum + width[c], 0) * this.charPx + 8 * shown.length;
   }
 
   private textOf(entry: TimelineEntry): string {
@@ -468,9 +523,11 @@ export class TimelineControl {
     const width = this.scroller.clientWidth;
     if (!width || Math.abs(width - this.widthPx) < 1) return;
     this.widthPx = width;
+    this.keepActive = true; // laid out again: the row worked with, if in sight, stays wholly so
     const narrow = width < NARROW_PX;
     this.narrow = narrow;
     this.element.classList.toggle("tl-narrow", narrow);
+    this.applyGrid();
     this.charPx = Math.max(4, this.measure.getBoundingClientRect().width / 40) || 7;
     // Keep the row at the top of the view where it is while every height is estimated again.
     const top = this.layout.rowAt(this.scroller.scrollTop);
@@ -480,6 +537,25 @@ export class TimelineControl {
     this.spacer.style.height = `${this.layout.total}px`;
     if (top >= 0 && !this.following) this.scrollTo(this.layout.top(top));
     this.schedule();
+  }
+
+  private rememberedView(): ViewSettings {
+    try {
+      const raw = this.memory?.load() as { view?: unknown } | undefined;
+      return readView(raw && typeof raw === "object" ? raw.view : undefined);
+    } catch {
+      return readView(undefined);
+    }
+  }
+
+  /** Keep the filter and the view for the reader's next visit: theirs, never the plot's. */
+  private remember(): void {
+    const { kinds, sources, types } = this.filter;
+    try {
+      this.memory?.save({ kinds: [...kinds], sources: [...sources], types: [...types], view: this.view });
+    } catch {
+      // Not remembered: the filter and view still apply on this visit.
+    }
   }
 
   private remembered(): Filter {
@@ -495,14 +571,92 @@ export class TimelineControl {
 
   private setFilter(filter: Filter, keepFocus = false): void {
     this.filter = filter;
-    try {
-      this.memory?.save({ kinds: [...filter.kinds], sources: [...filter.sources], types: [...filter.types] });
-    } catch {
-      // Not remembered: the filter still applies on this visit.
-    }
+    this.remember();
     const focus = keepFocus ? document.activeElement : undefined;
     this.rebuild(this.activeId());
     if (focus instanceof HTMLElement && this.element.contains(focus)) focus.focus();
+  }
+
+  // --- The reader's view ------------------------------------------------------------------
+
+  private toggleView(open = this.viewPanel.hidden): void {
+    this.viewPanel.hidden = !open;
+    this.viewButton.setAttribute("aria-expanded", String(open));
+    if (open) {
+      this.toggleFilter(false);
+      this.renderView();
+      this.viewPanel.querySelector<HTMLInputElement>("input")?.focus();
+    }
+  }
+
+  private renderView(): void {
+    const v = this.view;
+    const check = (on: boolean) => (on ? " checked" : "");
+    const smallest = v.textSize === TEXT_SIZES[0];
+    const largest = v.textSize === TEXT_SIZES[TEXT_SIZES.length - 1];
+    this.viewPanel.innerHTML =
+      `<label class="tl-highlight-row"><span class="tl-view-label">Highlight</span><input type="text" class="tl-highlights" spellcheck="false" autocomplete="off" placeholder="words, phrases, separated by commas" aria-label="Highlight words and phrases, separated by commas" value="${escape(v.highlights.join(", "))}"></label>` +
+      `<label><input type="checkbox" data-view="moveTime"${check(v.moveTime)}>Choosing an entry moves current time</label>` +
+      `<label><input type="checkbox" data-view="wrap"${check(v.wrap)}>Wrap long entries</label>` +
+      `<div class="tl-view-line"><span class="tl-view-size" aria-live="polite">Text ${v.textSize}px</span>` +
+      `<button type="button" data-size="down" aria-label="Smaller text"${smallest ? " disabled" : ""}>A−</button>` +
+      `<button type="button" data-size="up" aria-label="Larger text"${largest ? " disabled" : ""}>A+</button></div>` +
+      `<fieldset class="tl-view-line"><legend>Columns</legend>` +
+      COLUMNS.map((c) => `<label><input type="checkbox" data-column="${c}"${check(!v.hidden.includes(c))}>${COLUMN_WORDS[c]}</label>`).join("") +
+      `</fieldset>`;
+  }
+
+  private viewChangedBy(input: HTMLInputElement): void {
+    const setting = input.dataset.view as "moveTime" | "wrap" | undefined;
+    const column = input.dataset.column as Column | undefined;
+    if (setting) this.setView({ ...this.view, [setting]: input.checked }, input);
+    else if (column) {
+      const hidden = input.checked ? this.view.hidden.filter((c) => c !== column) : [...this.view.hidden, column];
+      this.setView({ ...this.view, hidden: COLUMNS.filter((c) => hidden.includes(c)) }, input);
+    }
+  }
+
+  /** Change the reader's view, keep it, and show it; the keyboard stays where it was. */
+  private setView(view: ViewSettings, keep?: HTMLElement): void {
+    const before = this.view;
+    this.view = view;
+    this.remember();
+    this.applyView();
+    const relaid = before.textSize !== view.textSize || before.wrap !== view.wrap || before.hidden.join() !== view.hidden.join();
+    if (relaid) {
+      this.widthPx = 0; // measured again, in the new size, and laid out again
+      this.resized();
+    } else {
+      for (const el of this.drawn.values()) el.remove();
+      this.drawn.clear();
+      this.schedule();
+    }
+    if (keep && !this.viewPanel.hidden && !keep.classList.contains("tl-highlights")) {
+      const selector = keep.dataset.size ? `[data-size="${keep.dataset.size}"]` : keep.dataset.view ? `[data-view="${keep.dataset.view}"]` : `[data-column="${keep.dataset.column}"]`;
+      this.renderView();
+      this.viewPanel.querySelector<HTMLElement>(selector)?.focus();
+    }
+  }
+
+  /** The view as styles: text size and line height, wrapping, the columns' grid. */
+  private applyView(): void {
+    const v = this.view;
+    this.element.style.setProperty("--tl-font", `${v.textSize}px`);
+    this.element.style.setProperty("--tl-line", `${lineHeight(v.textSize)}px`);
+    this.element.classList.toggle("tl-nowrap", !v.wrap);
+    for (const c of COLUMNS) this.element.classList.toggle(`tl-hide-${c}`, v.hidden.includes(c));
+    this.viewButton.classList.toggle("tl-on", viewChanged(v));
+    this.scroller.setAttribute(
+      "aria-label",
+      `Narrative, notes and periods in time order${v.moveTime ? ": Enter moves current time to the entry" : ""}`,
+    );
+    this.applyGrid();
+  }
+
+  private applyGrid(): void {
+    const grid = gridOf(this.view.hidden, this.narrow);
+    this.element.style.setProperty("--tl-grid", grid.columns);
+    this.element.style.setProperty("--tl-text-from", String(grid.textFrom));
   }
 
   // --- The filter -----------------------------------------------------------------------
@@ -511,6 +665,7 @@ export class TimelineControl {
     this.filterPanel.hidden = !open;
     this.filterButton.setAttribute("aria-expanded", String(open));
     if (open) {
+      this.toggleView(false);
       this.renderFilter();
       this.filterPanel.querySelector<HTMLInputElement>("input")?.focus();
     }
@@ -537,7 +692,7 @@ export class TimelineControl {
     this.filterPanel.innerHTML =
       group("Kinds", "kinds", kinds, (n) => KIND_WORDS[n as EntryKind] ?? n) +
       group("Sources", "sources", sources, (n) => n) +
-      group("Types", "types", types, (n) => n || "No type") +
+      group("Types", "types", types, (n) => n || "(no type)") +
       `<button type="button" class="tl-show-all">Show all</button>`;
   }
 
@@ -573,6 +728,7 @@ export class TimelineControl {
     this.addButton.disabled = !this.opened;
     this.search.disabled = !this.opened;
     this.filterButton.disabled = !this.opened;
+    this.viewButton.disabled = !this.opened;
   }
 
   // --- Drawing -----------------------------------------------------------------------------
@@ -629,8 +785,20 @@ export class TimelineControl {
         const target = followScroll(this.layout.top(row), this.layout.height(row), this.scroller.scrollTop, viewport, this.layout.total);
         if (target !== undefined) moved = this.scrollTo(target);
       }
+      // The row being worked with, measured with its Edit and Delete: all of it in sight, when
+      // it was just chosen, or when the list follows current time to it (never while the
+      // reader scrolls: following stops then).
+      const followed = this.following && this.active >= 0 && this.active === this.current;
+      const row = this.active >= 0 ? this.rowOfItem.get(this.visible[this.active]) : undefined;
+      const inSight = row !== undefined && whereIs(this.layout.top(row), this.layout.height(row), this.scroller.scrollTop, viewport) === "in view";
+      if (row !== undefined && (this.revealActive || followed || (this.keepActive && inSight))) {
+        const target = revealScroll(this.layout.top(row), this.layout.height(row), this.scroller.scrollTop, viewport);
+        if (target !== undefined) moved = this.scrollTo(target) || moved;
+      }
       if (!moved && !changed) break;
     }
+    this.revealActive = false;
+    this.keepActive = false;
     const activeRow = this.active >= 0 ? this.rowOfItem.get(this.visible[this.active]) : undefined;
     this.scroller.setAttribute("aria-activedescendant", activeRow !== undefined ? this.rowId(activeRow) : "");
     this.showFollow();
@@ -664,15 +832,16 @@ export class TimelineControl {
     el.setAttribute("aria-setsize", String(this.visible.length));
     el.setAttribute("aria-posinset", String(index + 1));
     const hidden = entry.hidden ? ", hidden on the map" : "";
+    const lit = this.view.highlights.length && marks(text, "", this.view.highlights).length ? ", highlighted" : "";
     el.setAttribute(
       "aria-label",
-      `${formatTime(item.ms, DATED)}, ${entry.source}${entry.entry_type ? `, ${entry.entry_type}` : ""}${text ? `: ${text}` : ""}${hidden}`,
+      `${formatTime(item.ms, DATED)}, ${entry.source}${entry.entry_type ? `, ${entry.entry_type}` : ""}${text ? `: ${text}` : ""}${hidden}${lit}`,
     );
     el.innerHTML =
       `<span class="tl-time">${escape(time)}</span>` +
       `<span class="tl-source" title="${escape(entry.source)}">${swatch}${marked(entry.source, needle)}</span>` +
       `<span class="tl-type">${marked(entry.entry_type ?? "", needle)}</span>` +
-      `<span class="tl-text">${marked(text, needle)}${entry.hidden ? ` <span class="tl-hidden">hidden on map</span>` : ""}</span>` +
+      `<span class="tl-text">${marked(text, needle, this.view.highlights)}${entry.hidden ? ` <span class="tl-hidden">hidden on map</span>` : ""}</span>` +
       (entry.kind === "narrative"
         ? `<span class="tl-actions"><button type="button" tabindex="-1" class="tl-edit" title="Change this entry (F2)">Edit</button><button type="button" tabindex="-1" class="tl-remove" title="Delete this entry (Delete); Undo brings it back">Delete</button></span>`
         : "");
@@ -811,6 +980,12 @@ export class TimelineControl {
   private choose(index: number): void {
     if (index < 0) return;
     const id = this.items[this.visible[index]].entry.id;
+    if (!this.view.moveTime) {
+      // The reader turned it off: the entry is theirs to work with; current time stays.
+      this.following = false;
+      this.setActive(index, false);
+      return;
+    }
     this.chosen = id;
     this.setActive(index, false);
     this.following = true; // choosing an entry moves time to it: the list follows again
@@ -821,6 +996,7 @@ export class TimelineControl {
   private setActive(index: number, scroll: boolean): void {
     const before = this.active;
     this.active = Math.max(-1, Math.min(index, this.visible.length - 1));
+    if (this.active >= 0 && this.active !== before) this.revealActive = true;
     for (const i of [before, this.active]) {
       if (i < 0) continue;
       const row = this.rowOfItem.get(this.visible[i]);
@@ -837,7 +1013,7 @@ export class TimelineControl {
 
   private key(event: KeyboardEvent): void {
     if (event.target !== this.scroller) return;
-    const page = Math.max(1, Math.floor(this.scroller.clientHeight / (LINE_PX * 2 + ROW_PAD_PX)));
+    const page = Math.max(1, Math.floor(this.scroller.clientHeight / (lineHeight(this.view.textSize) * 2 + ROW_PAD_PX)));
     const from = this.active >= 0 ? this.active : Math.max(0, this.current);
     const move = (to: number) => {
       event.preventDefault();

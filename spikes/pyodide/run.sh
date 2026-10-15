@@ -13,7 +13,7 @@ uv build --project "$root" --package debrief-kernel --wheel --out-dir "$here/whe
 for package in debrief-config debrief-io debrief-stac debrief-tools; do
   uv build --project "$root" --package "$package" --wheel --out-dir "$here/wheels" -q
 done
-uv run --project "$root" --with pip python -m pip download --no-deps --only-binary :all: --dest "$here/wheels" -q "geographiclib==2.1"
+uv run --project "$root" --with pip python -m pip download --no-deps --only-binary :all: --dest "$here/wheels" -q "geographiclib==2.1" $(python3 "$root/scripts/locked_requirements.py" pypdf olefile)
 
-uv run --project "$root" python "$here/smoke.py" "$root/schemas/fixtures" > "$work/cpython.json"
+uv run --project "$root" python "$here/smoke.py" "$root/schemas/fixtures" "$root/python/debrief-io/tests/data" > "$work/cpython.json"
 (cd "$here" && npm ci --silent && node run.mjs "$work/cpython.json" "$work/pyodide.json")

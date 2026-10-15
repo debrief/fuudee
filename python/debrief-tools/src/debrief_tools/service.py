@@ -4,7 +4,8 @@ The protocol is MCP's Streamable HTTP transport (JSON-RPC 2.0, one POST per
 request, JSON responses), so the VS Code extension and any MCP-capable agent
 use the same tools (TL-01, TL-17). Debrief adds methods of its own, named
 debrief/...: debrief/tools_for_selection, so the offering rule lives in
-Python (TL-08); stores, catalogues and import (REP and legacy .dpf); adding a plot
+Python (TL-08); stores, catalogues and import (REP, legacy .dpf, Word and PDF documents);
+adding a plot
 file received from a colleague, with its whole history (debrief/add_plot_file); a plot's history
 (debrief/open, debrief/history, debrief/undo, debrief/redo, debrief/goto),
 so undo is the same for the extension and an agent (SUB-21); colour and hiding,
@@ -14,7 +15,9 @@ same way (debrief/add_annotation, debrief/edit_annotation, debrief/delete_annota
 debrief/set_north_arrow); narrative entries on one Zulu time axis, read and filtered
 (debrief/narrative) and added, changed, deleted or read in from a REP file's narrative
 lines, recorded the same way (debrief/add_narrative, debrief/edit_narrative,
-debrief/delete_narrative, debrief/import_narrative); tracks moved, rotated, sheared,
+debrief/delete_narrative, debrief/import_narrative), Word and PDF narrative among them,
+in legacy Debrief's dialects, what a file holds said first so the analyst can choose
+(debrief/preview_narrative); tracks moved, rotated, sheared,
 stretched, split and merged by hand, single fixes moved and tracks plotted by dead
 reckoning (move_fix and set_plotting_mode), recorded the same way (debrief/edit_track,
 debrief/split_track, debrief/merge_tracks); tracks cleaned,
@@ -63,7 +66,17 @@ from starlette.responses import JSONResponse, Response
 from starlette.routing import Route
 
 from debrief_config import ConfigError, add_store, load_config, update_config
-from debrief_io import NoNarrativeError, import_dpf, import_narrative, import_rep
+from debrief_io import (
+    Choices,
+    NoNarrativeError,
+    import_document,
+    import_dpf,
+    import_narrative,
+    import_rep,
+    preview_narrative,
+)
+from debrief_io.document_import import SUFFIXES as DOCUMENT_SUFFIXES
+from debrief_io.documents import sniff
 from debrief_io.importer import rep_track_names
 from debrief_kernel.time import parse_utc
 from debrief_kernel.units import IncompatibleUnitsError, Quantity
@@ -113,6 +126,14 @@ def _is_plot_file(path: Path) -> bool:
     with path.open("rb") as stream:
         head = stream.read(1024)
     return re.search(rb"<(?:[A-Za-z_][\w.-]*:)?plot[\s>/]", head) is not None
+
+
+def _is_document(path: Path) -> bool:
+    """A Word or PDF document, by its name or its first bytes."""
+    if path.suffix.lower() in DOCUMENT_SUFFIXES:
+        return True
+    with path.open("rb") as stream:
+        return sniff(stream.read(1024)) is not None
 
 
 class RpcError(Exception):
@@ -171,6 +192,7 @@ KNOWN_METHODS = frozenset(
         "debrief/create_catalogue",
         "debrief/import_rep",
         "debrief/rep_tracks",
+        "debrief/preview_narrative",
         "debrief/add_plot_file",
         *TOTE_METHODS,
         *HISTORY_METHODS,
@@ -313,6 +335,8 @@ class ToolService:
             return self._add_plot_file(params)
         if method == "debrief/rep_tracks":
             return self._rep_tracks(params)
+        if method == "debrief/preview_narrative":
+            return self._preview_narrative(params)
         if method == "debrief/measure_groups":
             return measure_groups()
         if method == "debrief/tote":
@@ -574,7 +598,12 @@ class ToolService:
         An entry is described as a NarrativeSpec: time (UTC to the millisecond), source,
         entry_type, text and track_id; left out on adding, the track is the one named as
         its source. edit_narrative may give only the members that change, and None clears
-        one. import_narrative reads the narrative lines of a REP file (path) into the plot.
+        one. import_narrative reads the narrative of a REP file or a Word (.docx, .doc) or
+        PDF document (path) into the plot, with the analyst's choices as legacy Debrief
+        asked them (see debrief_io.Choices): types, the entry types to read ("" for none;
+        left out, all); within_period, only entries within the plot's tracks' period;
+        tracks, the track id (or null) of a platform; platform, the source of entries
+        whose document names none.
         """
         agent = _agent(params)
         if method == "debrief/add_narrative":
@@ -601,8 +630,12 @@ class ToolService:
         if not isinstance(path, str):
             raise RpcError(INVALID_PARAMS, "import_narrative needs the path of the file to read")
         try:
+            choices = Choices.of(params)
+        except ValueError as error:
+            raise RpcError(INVALID_PARAMS, str(error)) from None
+        try:
             done = import_narrative(
-                catalogue, item, Path(path), agent, base, allow_newer_schema=allow
+                catalogue, item, Path(path), agent, base, allow_newer_schema=allow, choices=choices
             )
         except NoNarrativeError as error:
             raise RpcError(INVALID_PARAMS, str(error)) from None
@@ -611,6 +644,7 @@ class ToolService:
             "entries": done.entries,
             "sources": done.sources,
             "omitted": done.omitted,
+            "notes": done.notes,
         }
 
     def _track(
@@ -772,7 +806,7 @@ class ToolService:
         path = params.get("path")
         if not isinstance(path, str) or not Path(path).is_file():
             raise RpcError(INVALID_PARAMS, f"{path} is not a file.")
-        if _is_plot_file(Path(path)):
+        if _is_plot_file(Path(path)) or _is_document(Path(path)):
             return {"tracks": []}
         try:
             return {"tracks": rep_track_names(Path(path))}
@@ -781,9 +815,34 @@ class ToolService:
                 INVALID_PARAMS, f"{Path(path).name} could not be read: {error}"
             ) from None
 
+    def _preview_narrative(self, params: dict[str, Any]) -> dict[str, Any]:
+        """What a narrative file holds, before it is read, so the host can ask the analyst
+        what legacy Debrief asked (CAP-19): its format and dialect, its entry types with
+        counts, its sources with the track each would belong to, its period and, given a
+        plot (store and item), how many entries fall outside its tracks' period. An ASW
+        data document says how many positions it holds instead. Changes nothing."""
+        path, item = params.get("path"), params.get("item")
+        if not isinstance(path, str) or not Path(path).is_file():
+            raise RpcError(INVALID_PARAMS, f"{path} is not a file.")
+        plot = None
+        if item is not None:
+            if not isinstance(item, str):
+                raise RpcError(INVALID_PARAMS, "item is the plot's id")
+            store = self._store(params.get("store"), writing=False)
+            try:
+                plot = Catalogue.open(Path(store.location)).read_plot(item)
+            except (CatalogueError, OSError) as error:
+                raise RpcError(INVALID_PARAMS, str(error)) from None
+        try:
+            return preview_narrative(Path(path), plot)
+        except (NoNarrativeError, OSError) as error:
+            raise RpcError(INVALID_PARAMS, str(error)) from None
+
     def _import(self, params: dict[str, Any]) -> dict[str, Any]:
-        """Import a REP file (EXT-01) or a legacy plot file, .dpf (EXT-14, EXT-15), as a
-        new plot. Nothing in the file is dropped silently: what is not imported is listed.
+        """Import a REP file (EXT-01), a legacy plot file, .dpf (EXT-14, EXT-15), or a Word
+        or PDF document (CAP-19, EXT-04: its narrative, or an ASW document's track, named
+        track_name; types as for import_narrative) as a new plot.
+        Nothing in the file is dropped silently: what is not imported is listed.
         For a REP file, modes says how each track is plotted (otg or dr, one for all or by
         track name), as the host asked the analyst or remembered for them; remembered, the
         words saying how to change that choice. The service never reads that choice itself."""
@@ -810,6 +869,17 @@ class ToolService:
             }
             if _is_plot_file(Path(path)):
                 report = import_dpf(catalogue, Path(path), **options)
+            elif _is_document(Path(path)):
+                track_name = params.get("track_name")
+                if track_name is not None and not isinstance(track_name, str):
+                    raise ValueError("track_name is the name of an ASW document's track")
+                report = import_document(
+                    catalogue,
+                    Path(path),
+                    choices=Choices.of(params),
+                    track_name=track_name,
+                    **options,
+                )
             else:
                 report = import_rep(
                     catalogue, Path(path), modes=modes, remembered=remembered, **options
@@ -817,9 +887,10 @@ class ToolService:
         except NewerSchemaError as error:
             raise RpcError(NEWER_SCHEMA, str(error)) from None
         except (CatalogueError, OSError, ValueError) as error:
-            raise RpcError(
-                INVALID_PARAMS, f"{Path(path).name} could not be imported: {error}"
-            ) from None
+            message = str(error)
+            if not message.startswith(Path(path).name):
+                message = f"{Path(path).name} could not be imported: {message}"
+            raise RpcError(INVALID_PARAMS, message) from None
         return {
             "item": report.item_id,
             "tracks": report.tracks,

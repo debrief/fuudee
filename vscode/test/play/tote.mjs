@@ -364,9 +364,17 @@ export async function playFolding(page) {
 
 /** A finger held on an element, as a tablet sends it: touch pointer events, held still past the hold time. */
 async function pressAndHold(page, selector) {
-  const box = await page.locator(selector).boundingBox();
+  // Into view first: a row below the outline's visible part has a box, but the touch would
+  // land on whatever is drawn there (fonts differ between machines, so rows do too).
+  const row = page.locator(selector);
+  await row.scrollIntoViewIfNeeded();
+  const box = await row.boundingBox();
   const x = box.x + 30;
   const y = box.y + box.height / 2;
+  assert.ok(
+    await page.evaluate(({ selector, x, y }) => document.querySelector(selector)?.contains(document.elementFromPoint(x, y)), { selector, x, y }),
+    `the touch lands on ${selector}`,
+  );
   const fire = (type) =>
     page.evaluate(
       ({ type, x, y }) => {

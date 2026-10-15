@@ -477,7 +477,36 @@ export async function vscodeTimelineView(browser, files, errors, shot, plot) {
     await view.setViewportSize({ width, height: 420 });
     await noSideways(`in a wide font at ${width} px`);
   }
+  // The extras' menu open, the time hidden, unwrapped: still never sideways (CAP-05).
+  await view.locator(".tl-view-button").click();
+  await view.locator('input[data-column="time"]').uncheck();
+  await view.locator('input[data-view="wrap"]').uncheck();
+  for (const width of [210, 280, 390]) {
+    await view.setViewportSize({ width, height: 420 });
+    await noSideways(`in a wide font, the menu open, at ${width} px`);
+  }
   await wide.evaluate((style) => style.remove());
+  await view.setViewportSize({ width: 280, height: 420 });
+  await view.locator(".tl-highlights").fill("sonar, contact");
+  await view.waitForTimeout(400);
+  await view.mouse.move(2, 2);
+  await shot("narrative-b-05-vscode-menu", view);
+  await view.locator(".tl-highlights").fill("");
+  await view.waitForTimeout(400);
+  // The largest text, in this machine's font.
+  for (let i = 0; i < 3; i++) await view.locator('[data-size="up"]').click();
+  for (const width of [210, 280, 390]) {
+    await view.setViewportSize({ width, height: 420 });
+    await noSideways(`at 18 px text, the menu open, at ${width} px`);
+  }
+  // The reader's own, kept with the view (VS Code's webview state), never sent to the host.
+  const kept = await view.evaluate(() => window.acquireVsCodeApi().getState());
+  assert.deepEqual(kept.filter.view, { highlights: [], moveTime: true, textSize: 18, wrap: false, hidden: ["time"] });
+  assert.ok(!posted.some((m) => JSON.stringify(m).includes("textSize")));
+  for (let i = 0; i < 3; i++) await view.locator('[data-size="down"]').click();
+  await view.locator('input[data-column="time"]').check();
+  await view.locator('input[data-view="wrap"]').check();
+  await view.locator(".tl-view-button").click();
   await view.setViewportSize({ width: 280, height: 420 });
   console.log(`Timeline view widths (scrollWidth/clientWidth): ${widths.join("; ")}.`);
   await view.waitForTimeout(300);

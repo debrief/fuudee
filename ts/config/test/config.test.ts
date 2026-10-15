@@ -8,12 +8,15 @@ import {
   ConfigError,
   configPath,
   loadConfig,
+  narrativeAnswers,
   normaliseLocation,
   removeStore,
   sameLocation,
   timing,
   trackImportMode,
   updateConfig,
+  withNarrativeAnswers,
+  withoutNarrativeAnswers,
   withTrackImportMode,
 } from "../src/index.js";
 
@@ -139,11 +142,40 @@ describe("the track import mode", () => {
     updateConfig((c) => withTrackImportMode(c, "otg"), file);
     expect(trackImportMode(loadConfig(file))).toBe("otg");
     // Remembered: version 2, which an earlier Debrief says to update for, rather than that the file is not valid.
-    expect(JSON.parse(readFileSync(file, "utf8")).config_version).toBe(CONFIG_VERSION);
+    expect(JSON.parse(readFileSync(file, "utf8")).config_version).toBe(2);
     updateConfig((c) => withTrackImportMode(c, "ask"), file);
     expect(trackImportMode(loadConfig(file))).toBe("ask");
     expect(JSON.parse(readFileSync(file, "utf8"))).not.toHaveProperty("track_import_mode");
     expect(JSON.parse(readFileSync(file, "utf8")).config_version).toBe(1);
     expect(() => withTrackImportMode(loadConfig(file), "sideways" as never)).toThrow(ConfigError);
+  });
+});
+
+describe("a narrative import's answers", () => {
+  it("are remembered per dialect, as in Python, and say layout 3", () => {
+    const file = join(mkdtempSync(join(tmpdir(), "debrief-answers-")), "config.json");
+    updateConfig(
+      (c) => withNarrativeAnswers(c, "narrative-document", { skipTypes: ["COMMS", ""], withinPeriod: true, tracks: { "RED THREE": null, "HMS NELSON": "NELSON" } }),
+      file,
+    );
+    const raw = JSON.parse(readFileSync(file, "utf8"));
+    expect(raw.config_version).toBe(3);
+    expect(CONFIG_VERSION).toBe(3);
+    expect(raw.narrative_import).toEqual([
+      { dialect: "narrative-document", within_period: true, skip_types: ["", "COMMS"], tracks: [{ platform: "HMS NELSON", track: "NELSON" }, { platform: "RED THREE" }] },
+    ]);
+    expect(narrativeAnswers(loadConfig(file), "narrative-document")).toEqual({ skipTypes: ["", "COMMS"], withinPeriod: true, tracks: { "HMS NELSON": "NELSON", "RED THREE": null } });
+    expect(narrativeAnswers(loadConfig(file), "rider-narrative")).toBeUndefined();
+    updateConfig((c) => withTrackImportMode(c, "ask"), file);
+    expect(JSON.parse(readFileSync(file, "utf8")).config_version).toBe(3);
+    updateConfig(withoutNarrativeAnswers, file);
+    expect(JSON.parse(readFileSync(file, "utf8"))).toEqual({ config_version: 1, stores: [] });
+  });
+
+  it("reads the fixture Python reads", () => {
+    const fixture = join(__dirname, "../../../schemas/fixtures/user_config/valid/narrative-import-remembered.json");
+    const config = loadConfig(fixture);
+    expect(narrativeAnswers(config, "narrative-document")?.tracks).toEqual({ "HMS NELSON": "NELSON", "RED THREE": null });
+    expect(narrativeAnswers(config, "rider-narrative")).toEqual({ skipTypes: [], withinPeriod: false, tracks: {} });
   });
 });

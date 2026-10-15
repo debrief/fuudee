@@ -776,8 +776,9 @@ def _format_settings_problems(settings: g.FormatSettings, raw: dict[str, Any]) -
 
 # The newest per-user configuration layout this build understands: 1, the stores; 2, also
 # the choice of how tracks imported are plotted (track_import_mode), which an earlier
-# Debrief cannot read, so a file holding it says 2 and an earlier Debrief says to update.
-CONFIG_VERSION = 2
+# Debrief cannot read, so a file holding it says 2 and an earlier Debrief says to update;
+# 3, also the answers to a narrative import's questions (narrative_import).
+CONFIG_VERSION = 3
 
 
 def _user_config_problems(config: g.UserConfig, raw: dict[str, Any]) -> list[str]:
