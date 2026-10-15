@@ -12,7 +12,7 @@ for package in debrief-schemas debrief-kernel debrief-config debrief-stac debrie
   uv build --project "$root" --package "$package" --wheel --out-dir "$out/wheels" -q
 done
 uv run --project "$root" --with pip python -m pip download --no-deps --only-binary :all: \
-  --dest "$out/wheels" -q "geographiclib==2.1"
+  --dest "$out/wheels" -q "geographiclib==2.1" $(python3 "$root/scripts/locked_requirements.py" pypdf olefile)
 
 uv run --project "$root" python -m debrief_sample build "$out/sample" > /dev/null
 

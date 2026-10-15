@@ -23,6 +23,7 @@ import { NarrativeOnMap, narrativeOnMapOf, timelineEntries, timelineTracks } fro
 import { TimelineControl } from "../webview/timelinecontrol.js";
 import { count, describePeriod, describeTimes, describeToolRun } from "../src/format.js";
 import { resolveTimes } from "../src/timeinput.js";
+import { choicesOf, periodChoices, questionsFor, readSummary, typeWords, type NarrativeChoices, type NarrativePreview } from "../src/narrativeimport.js";
 import { describeStep, needs } from "../src/wording.js";
 import { contextTracksOf, displayed, hiddenIds, isFeature, isHidden, setViewOf, timeWindowOf, viewOf, type PlotFeature } from "../src/hidden.js";
 import { contextShown, type ContextTracks } from "../webview/contrast.js";
@@ -1688,32 +1689,76 @@ async function askModes(name: string, data: Uint8Array): Promise<{ modes: Record
     },
   );
 }
-// A platform's log read into the open plot, as one step (CAP-20): its narrative lines.
+// A platform's log read into the open plot, as one step (CAP-19, CAP-20): a REP file's
+// narrative lines, or a Word or PDF document's entries in legacy Debrief's dialects, the
+// reader asked first what legacy Debrief asked (types, the plot's period, tracks).
 $<HTMLInputElement>("narrative-file").onchange = async (e) => {
   const input = e.target as HTMLInputElement;
   const file = input.files?.[0];
   input.value = "";
   if (!file || !opened || !pythonReady) return;
-  status(`Reading ${file.name}…`, true);
   const data = new Uint8Array(await file.arrayBuffer());
+  let choices: NarrativeChoices | undefined;
+  if (/\.(docx?|pdf)$/i.test(file.name)) {
+    status(`Reading ${file.name}…`, true);
+    const preview = await pythonJson<NarrativePreview>("narrative_preview", opened.item.id, file.name, data);
+    status("");
+    if (preview.error) return toast(preview.error, "warning");
+    if (preview.fixes) return toast(`${file.name} is ASW data: positions of a track, not narrative. Import it as a plot for its track.`, "warning");
+    const asked = await askNarrative(preview);
+    if (!asked) return toast("Nothing was read.");
+    choices = asked;
+  }
+  status(`Reading ${file.name}…`, true);
   const outcome = await pythonJson<{ error?: string; entries?: number; omitted?: string[] }>(
     "narrative",
     opened.item.id,
-    JSON.stringify({ base: opened.base, change: { kind: "import", name: file.name } }),
+    JSON.stringify({ base: opened.base, change: { kind: "import", name: file.name, ...(choices && { choices }) } }),
     data,
   );
   status("");
   if (outcome.error) return toast(outcome.error, "warning");
   await openPlot(opened.item.id, true);
   folds.setOpen("panel-timeline", true);
-  const left = outcome.omitted?.length ? ` ${outcome.omitted.length === 1 ? "One kind of line was" : `${outcome.omitted.length} kinds of line were`} not read; see the History.` : "";
-  toast(`Read ${count(outcome.entries ?? 0, "narrative entry", "narrative entries")} into the plot.${left}`);
+  toast(readSummary(outcome, count));
 };
+/** What legacy Debrief asked before reading a document, in one form; undefined if the reader stopped. */
+async function askNarrative(preview: NarrativePreview): Promise<NarrativeChoices | undefined> {
+  const tracks = opened ? timelineTracks(opened.plot) : [];
+  const ask = questionsFor(preview, tracks);
+  if (!ask.types && !ask.period && !ask.platforms.length) return {};
+  const fields: FormField[] = [];
+  if (ask.types) preview.types.forEach((t, i) => fields.push({ id: `type-${i}`, label: `${typeWords(t.name)} (${t.count})`, check: true, value: "yes" }));
+  if (ask.period) {
+    const words = periodChoices(preview, (iso) => describeTimes(iso));
+    fields.push({ id: "period", label: "Entries", options: [{ value: "all", label: words.all }, { value: "within", label: words.within }] });
+  }
+  ask.platforms.forEach((platform, i) =>
+    fields.push({ id: `track-${i}`, label: `${platform}'s track`, options: [...tracks.map((t) => ({ value: t.id, label: t.name })), { value: "", label: "No track" }] }),
+  );
+  const values = await trackForm(`Read ${preview.name}`, "Read", fields, { info: `${preview.described}: ${count(preview.entries, "entry", "entries")}. Untick the types not to read.` });
+  if (!values) return undefined;
+  const types = ask.types ? preview.types.filter((_, i) => values[`type-${i}`] === "yes").map((t) => t.name) : undefined;
+  if (types && !types.length) return undefined;
+  const chosenTracks = Object.fromEntries(ask.platforms.map((platform, i) => [platform, values[`track-${i}`] || null]));
+  return choicesOf(preview, { types, withinPeriod: values.period === "within", tracks: chosenTracks });
+}
 $<HTMLInputElement>("file").onchange = async (e) => {
   const file = (e.target as HTMLInputElement).files?.[0];
   if (!file) return;
   const data = new Uint8Array(await file.arrayBuffer());
   (e.target as HTMLInputElement).value = ""; // so the same file can be chosen again
+  // A Word or PDF document: narrative, with no tracks to ask about; or ASW data, positions
+  // of one platform, whose track legacy Debrief asked a name for.
+  let trackName: string | null = null;
+  if (/\.(docx?|pdf)$/i.test(file.name)) {
+    const preview = await pythonJson<NarrativePreview>("narrative_preview", null, file.name, data);
+    if (preview.fixes) {
+      const values = await trackForm("Name for this track", "Import", [{ id: "name", label: "Track", value: file.name.replace(/\.[^.]+$/, "") }], { info: `${file.name} holds ${count(preview.fixes, "position")} of one platform.` });
+      if (!values) return toast("Nothing was imported.");
+      trackName = values.name;
+    }
+  }
   const asked = await askModes(file.name, data);
   if (!asked) return toast("Nothing was imported.");
   status(`Importing ${file.name}…`, true);
@@ -1722,12 +1767,13 @@ $<HTMLInputElement>("file").onchange = async (e) => {
     tracks: string[];
     fixes: number;
     annotations: number;
+    narrative_entries?: number;
     omitted: string[];
     notes?: string[];
     error?: string;
     plot_file?: boolean;
     steps?: number;
-  }>("import_file", file.name, data, Object.keys(asked.modes).length ? JSON.stringify(asked.modes) : null, asked.remembered ? REMEMBERED_IN_PLAYGROUND : null);
+  }>("import_file", file.name, data, Object.keys(asked.modes).length ? JSON.stringify(asked.modes) : null, asked.remembered ? REMEMBERED_IN_PLAYGROUND : null, trackName);
   status("Ready. Everything runs in your browser; nothing is sent anywhere.");
   if (report.error || !report.item) return toast(report.error ?? "The file could not be imported.", "warning");
   await refreshPlots();
@@ -1738,6 +1784,7 @@ $<HTMLInputElement>("file").onchange = async (e) => {
   }
   const parts = [count(report.tracks.length, "track"), count(report.fixes, "fix", "fixes")];
   if (report.annotations) parts.push(count(report.annotations, "annotation"));
+  if (report.narrative_entries) parts.push(count(report.narrative_entries, "narrative entry", "narrative entries"));
   // Nothing is dropped silently (EXT-15): what wasn't imported is listed beside the map.
   const panel = document.createElement("div");
   panel.className = "omitted-panel";

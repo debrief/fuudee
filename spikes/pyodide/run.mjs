@@ -29,6 +29,8 @@ const bootMs = performance.now() - started;
 await pyodide.loadPackage(["micropip", "pydantic", "jsonschema", "tzdata", "numpy", "pyproj"]);
 copyTree(pyodide, join(here, "wheels"), "/wheels");
 copyTree(pyodide, join(root, "schemas/fixtures"), "/fixtures");
+// The synthetic Word 97 documents the narrative dialects' tests read (CAP-19).
+copyTree(pyodide, join(root, "python/debrief-io/tests/data"), "/docs");
 pyodide.FS.writeFile("/smoke.py", readFileSync(join(here, "smoke.py")));
 const wheels = readdirSync(join(here, "wheels"))
   .filter((name) => name.endsWith(".whl"))
@@ -49,7 +51,7 @@ import json, sys
 sys.path.insert(0, "/")
 import smoke, pydantic, platform
 from pathlib import Path
-result = smoke.main(Path("/fixtures"))
+result = smoke.main(Path("/fixtures"), Path("/docs"))
 result["environment"] = {"python": platform.python_version(), "pydantic": pydantic.VERSION}
 json.dumps(result, sort_keys=True)
 `);
@@ -67,7 +69,7 @@ const same = JSON.stringify(cpython) === JSON.stringify(result.report);
 const failures = Object.entries(result.report.documents).filter(([, ok]) => !ok);
 if (!result.report.kernel_arrays.matches_per_point) failures.push(["kernel_arrays.matches_per_point", false]);
 console.log(`Pyodide: Python ${result.environment.python}, pydantic ${result.environment.pydantic}`);
-console.log(`Boot ${bootMs.toFixed(0)} ms, ready ${readyMs.toFixed(0)} ms, fixtures ${result.timings.all_fixtures_ms.toFixed(0)} ms, range_bearing ${result.timings.range_bearing_us.toFixed(0)} µs, Tote ${result.timings.tote_ms.toFixed(2)} ms a call, 5,000 narrative entries in one step ${result.timings.narrative_5000_ms.toFixed(0)} ms`);
+console.log(`Boot ${bootMs.toFixed(0)} ms, ready ${readyMs.toFixed(0)} ms, fixtures ${result.timings.all_fixtures_ms.toFixed(0)} ms, range_bearing ${result.timings.range_bearing_us.toFixed(0)} µs, Tote ${result.timings.tote_ms.toFixed(2)} ms a call, 5,000 narrative entries in one step ${result.timings.narrative_5000_ms.toFixed(0)} ms, Word and PDF narrative read ${result.timings.narrative_documents_ms.toFixed(0)} ms`);
 console.log(`Document checks: ${Object.keys(result.report.documents).length - failures.length}/${Object.keys(result.report.documents).length} passed`);
 console.log(`Report identical to CPython: ${same}`);
 for (const [name] of failures) console.log(`  FAILED ${name}`);

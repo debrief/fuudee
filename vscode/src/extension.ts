@@ -14,6 +14,7 @@ import { loadConfig, trackImportMode, updateConfig, withTrackImportMode, type Tr
 import { changedSince, historyOnDisk, knownStores, openPlot, plotFile, type OpenedPlot } from "./catalogue.js";
 import { statSync, unwatchFile, watchFile } from "node:fs";
 import { count, describeTimes, describeToolRun, settings as displaySettings } from "./format.js";
+import { choicesOf, NARRATIVE_FILES, periodChoices, questionsFor, readSummary, typeWords, type NarrativeChoices, type NarrativePreview } from "./narrativeimport.js";
 import { placeToolTime } from "../webview/timelogic.js";
 import { resolveTimes } from "./timeinput.js";
 import { AnnotationPanel } from "./panels/annotation.js";
@@ -1682,19 +1683,74 @@ export function activate(context: vscode.ExtensionContext): DebriefApi {
     if (!ids.length) return report("Choose a narrative entry in the Timeline.");
     return narrate({ kind: "delete", features: ids }).then((done) => (report(done.problem), done));
   });
-  // A platform's log read into the open plot: its ;NARRATIVE: lines, one step, the file kept as a source.
-  command("debrief.importNarrative", async (given?: string) => {
+  // A platform's log read into the open plot: a REP file's ;NARRATIVE: lines, or a Word or
+  // PDF document's entries in legacy Debrief's dialects (CAP-19); one step, the file kept as
+  // a source. Before a document is read the analyst is asked what legacy Debrief asked:
+  // which types, only within the plot's period, which track an unknown platform is. Given
+  // a path (agents and tests), it asks nothing: choices, if given, say.
+  command("debrief.importNarrative", async (given?: string, choices?: NarrativeChoices) => {
     if (!session.current) return report("Open a plot first.");
     const path =
       given ??
-      (await vscode.window.showOpenDialog({ canSelectMany: false, openLabel: "Read narrative", filters: { "REP files": ["rep", "REP"], "All files": ["*"] } }))?.[0]?.fsPath;
+      (
+        await vscode.window.showOpenDialog({
+          canSelectMany: false,
+          openLabel: "Read narrative",
+          filters: { "Narrative (REP, Word, PDF)": NARRATIVE_FILES, "All files": ["*"] },
+        })
+      )?.[0]?.fsPath;
     if (!path) return undefined;
-    const done = await narrate({ kind: "import", path });
+    let chosen = choices;
+    if (!given && service && /\.(docx?|pdf)$/i.test(path)) {
+      const asked = await askNarrativeChoices(path);
+      if (asked === "stop") return report("Nothing was read.");
+      if (typeof asked === "string") return report(asked);
+      chosen = asked;
+    }
+    const done = await narrate({ kind: "import", path, ...(chosen && { choices: chosen }) });
     if (done.problem) return (report(done.problem), done);
-    const left = done.omitted?.length ? ` ${done.omitted.length === 1 ? "One line was" : `${done.omitted.length} kinds of line were`} not read; see the History.` : "";
-    void vscode.window.showInformationMessage(`Read ${count(done.entries ?? 0, "narrative entry", "narrative entries")} into the plot.${left}`);
+    void vscode.window.showInformationMessage(readSummary(done, count));
     return done;
   });
+  /** What legacy Debrief asked before reading a document, asked as Quick Picks; "stop" if the analyst stopped, or why it cannot be read. */
+  async function askNarrativeChoices(path: string): Promise<NarrativeChoices | "stop" | string> {
+    const opened = session.current!;
+    let preview: NarrativePreview;
+    try {
+      preview = await service!.previewNarrative(path, { store: opened.store.id, item: opened.item.id });
+    } catch (error) {
+      return (error as Error).message;
+    }
+    if (preview.fixes) return `${preview.name} is ASW data: positions of a track, not narrative. Import it as a plot (Import plot file) for its track.`;
+    const tracks = opened.plot.features.filter((f) => f.properties.kind === "track").map((f) => ({ id: f.id, name: (f.properties as { name: string }).name }));
+    const ask = questionsFor(preview, tracks);
+    const answers: { types?: string[]; withinPeriod?: boolean; tracks?: Record<string, string | null> } = {};
+    if (ask.types) {
+      const picked = await vscode.window.showQuickPick(
+        preview.types.map((t) => ({ label: typeWords(t.name), description: count(t.count, "entry", "entries"), picked: true, name: t.name })),
+        { canPickMany: true, title: `Read which types from ${preview.name}?`, placeHolder: `${preview.described}: ${count(preview.entries, "entry", "entries")}` },
+      );
+      if (!picked?.length) return "stop";
+      answers.types = picked.map((p) => p.name);
+    }
+    if (ask.period) {
+      const words = periodChoices(preview, (iso) => describeTimes(iso));
+      const picked = await vscode.window.showQuickPick([{ label: words.all, within: false }, { label: words.within, within: true }], {
+        title: `${count(preview.outside, "entry", "entries")} of ${preview.name} ${preview.outside === 1 ? "is" : "are"} outside the plot's period`,
+      });
+      if (!picked) return "stop";
+      answers.withinPeriod = picked.within;
+    }
+    for (const platform of ask.platforms) {
+      const picked = await vscode.window.showQuickPick(
+        [...tracks.map((t) => ({ label: t.name, id: t.id as string | null })), { label: "No track", id: null }],
+        { title: `Which track is ${platform}'s?`, placeHolder: "Its entries belong to this track: the map shows them beside it." },
+      );
+      if (!picked) return "stop";
+      (answers.tracks ??= {})[platform] = picked.id;
+    }
+    return choicesOf(preview, answers);
+  }
   command("debrief.annotationFormOpen", () => annotationForm.open);
 
   // The time window, for agents, keyboard macros and tests: saved as when the analyst lets go of it.
@@ -1885,8 +1941,8 @@ export function activate(context: vscode.ExtensionContext): DebriefApi {
       quick.show();
     });
   }
-  // Import a REP or .dpf file. Given { store, path, modes } (agents and tests), it asks nothing.
-  command("debrief.importRep", async (node?: { view?: { store: { id: string } } }, given?: { store?: string; path?: string; modes?: string | Record<string, PlottingMode> }) => {
+  // Import a REP, .dpf, Word or PDF file. Given { store, path, modes, track_name } (agents and tests), it asks nothing.
+  command("debrief.importRep", async (node?: { view?: { store: { id: string } } }, given?: { store?: string; path?: string; modes?: string | Record<string, PlottingMode>; track_name?: string }) => {
     if (!needService()) return;
     const writable = knownStores(configFile).stores.filter((s) => !s.read_only);
     if (!writable.length) {
@@ -1909,14 +1965,32 @@ export function activate(context: vscode.ExtensionContext): DebriefApi {
       ? [vscode.Uri.file(given.path)]
       : await vscode.window.showOpenDialog({
           canSelectMany: false,
-          filters: { "Plot files": ["rep", "REP", "dpf", "DPF"], "REP files": ["rep", "REP"], "Legacy plot files": ["dpf", "DPF"] },
+          filters: {
+            "Plot files": ["rep", "REP", "dpf", "DPF", "docx", "DOCX", "doc", "DOC", "pdf", "PDF"],
+            "REP files": ["rep", "REP"],
+            "Legacy plot files": ["dpf", "DPF"],
+            "Narrative (Word, PDF)": ["docx", "DOCX", "doc", "DOC", "pdf", "PDF"],
+          },
         });
     if (!files?.length) return;
     try {
       // How each track is plotted (CAP-01): a legacy plot says; a REP file's tracks are asked about.
-      let options: { modes?: string | Record<string, PlottingMode>; remembered?: string } = {};
+      let options: { modes?: string | Record<string, PlottingMode>; remembered?: string; track_name?: string } = {};
       if (given?.modes) options = { modes: given.modes };
-      else if (!/\.dpf$/i.test(files[0].fsPath)) {
+      else if (/\.(docx?|pdf)$/i.test(files[0].fsPath)) {
+        // A document: narrative, which has no tracks to ask about; or ASW data, a track, which
+        // legacy Debrief asked a name for.
+        const preview = await service!.previewNarrative(files[0].fsPath).catch(() => undefined);
+        if (given?.track_name) options = { track_name: given.track_name };
+        else if (preview?.fixes && !given) {
+          const name = await vscode.window.showInputBox({ title: "Name for this track", prompt: `${preview.name} holds ${count(preview.fixes, "position")} of one platform.`, value: preview.name.replace(/\.[^.]+$/, "") });
+          if (name === undefined) {
+            void vscode.window.showInformationMessage("Nothing was imported.");
+            return;
+          }
+          options = { track_name: name };
+        }
+      } else if (!/\.dpf$/i.test(files[0].fsPath)) {
         const asked = await askModes(files[0].fsPath);
         if (!asked) {
           void vscode.window.showInformationMessage("Nothing was imported.");
@@ -1935,7 +2009,7 @@ export function activate(context: vscode.ExtensionContext): DebriefApi {
       catalogues.refresh();
       const parts = [count(report.tracks.length, "track"), count(report.fixes, "fix", "fixes")];
       if (report.annotations) parts.push(count(report.annotations, "annotation"));
-      if (report.narrative_entries) parts.push(count(report.narrative_entries, "narrative note"));
+      if (report.narrative_entries) parts.push(count(report.narrative_entries, "narrative entry", "narrative entries"));
       // A remembered choice is said, with how to change it (CAP-01).
       const remembered = options.remembered ? ` ${report.notes?.at(-1) ?? ""}` : "";
       const summary = `Imported ${parts.join(", ")}.${remembered}`;

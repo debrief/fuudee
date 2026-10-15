@@ -12,6 +12,7 @@ import { tmpdir } from "node:os";
 import { createInterface } from "node:readline";
 import type { AnnotationSpec, DebriefFeatureCollection, NarrativeSpec, MeasureDefinition, MeasureGroup, PlotView, SharedState, ToolDeclaration, ToolResult, ToteResult, ToteView, TrackEdit } from "@debrief/schemas";
 import type { ToolOutcome } from "./diagnostics.js";
+import type { NarrativeChoices, NarrativePreview } from "./narrativeimport.js";
 
 export interface Unavailable {
   library: string;
@@ -114,7 +115,7 @@ export type NarrativeChange =
   | { kind: "add"; entry: NarrativeSpec }
   | { kind: "edit"; feature: string; entry: { [K in keyof NarrativeSpec]?: NarrativeSpec[K] | null } }
   | { kind: "delete"; features: string[] }
-  | { kind: "import"; path: string };
+  | { kind: "import"; path: string; choices?: NarrativeChoices };
 
 /** A change to the plot's tracks, made by hand or by an agent (CAP-01). */
 export type TrackChange =
@@ -431,7 +432,7 @@ export class ToolService {
     agent: Agent,
     change: NarrativeChange,
     allowNewerSchema = false,
-  ): Promise<Opened & { changed: boolean; feature?: string; entries?: number; sources?: string[]; omitted?: string[] }> {
+  ): Promise<Opened & { changed: boolean; feature?: string; entries?: number; sources?: string[]; omitted?: string[]; notes?: string[] }> {
     const [method, params] =
       change.kind === "add"
         ? ["debrief/add_narrative", { entry: change.entry }]
@@ -439,7 +440,7 @@ export class ToolService {
           ? ["debrief/edit_narrative", { feature: change.feature, entry: change.entry }]
           : change.kind === "delete"
             ? ["debrief/delete_narrative", { features: change.features }]
-            : ["debrief/import_narrative", { path: change.path }];
+            : ["debrief/import_narrative", { path: change.path, ...change.choices }];
     return this.request(method, { store, item, base, agent, ...params, ...(allowNewerSchema && { allow_newer_schema: true }) });
   }
 
@@ -546,8 +547,17 @@ export class ToolService {
 
   /** Import a REP file or a legacy plot file (.dpf) as a new plot. */
   /** Import a REP or .dpf file; for a REP file, modes says how each track is plotted (otg or dr), and remembered how to change a remembered choice. */
-  importFile(store: string, path: string, agent: Agent, allowNewerSchema = false, options: { modes?: string | Record<string, string>; remembered?: string } = {}): Promise<ImportReport> {
+  importFile(store: string, path: string, agent: Agent, allowNewerSchema = false, options: { modes?: string | Record<string, string>; remembered?: string; track_name?: string } = {}): Promise<ImportReport> {
     return this.request("debrief/import", { store, path, agent, ...(allowNewerSchema && { allow_newer_schema: true }), ...options });
+  }
+
+  /**
+   * What a narrative file (REP, Word or PDF) holds before it is read in, so the analyst can
+   * be asked what legacy Debrief asked; given a plot, its period and tracks are taken into
+   * account (debrief/preview_narrative). Changes nothing.
+   */
+  previewNarrative(path: string, plot?: { store: string; item: string }): Promise<NarrativePreview> {
+    return this.request("debrief/preview_narrative", { path, ...plot });
   }
 
   /** The tracks a REP file would import, to ask how each is plotted. */
