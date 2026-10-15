@@ -16,6 +16,7 @@ Worked patterns applied the same way across hosts, tools and agents (DEV-08). Ea
 | [Time controller](time-controller.md) | Phase 3 | Written |
 | [Annotations](annotations.md) | Phase 3 | Written (forms; drawing and editing on the map) |
 | [Track operations](track-operations.md) | Phase 3 | Written (part A: move, rotate, split, merge; part B1: shear, stretch; part B2: jumps, smoothing, marked fixes; part B3: single fixes, dead reckoning) |
+| [Labels, symbols and arrows](labels-symbols-arrows.md) | Phase 3 | Written (intervals per track, aligned to the clock as legacy Debrief; thinning; a fix's own label or symbol) |
 | [Tote](tote.md) | Phase 3 | Written (part A: primary and secondaries, the core measures, latency) |
 | [Timeline and narrative](timeline.md) | Phase 3 | Written (part A: narrative entries, REP and .dpf import, the Timeline following current time, filter, search, editing, scale) |
 | [Keyboard equivalents](keyboard-equivalents.md) | Phase 3 | Partly written (annotations, tracks, the Tote, the Timeline) |

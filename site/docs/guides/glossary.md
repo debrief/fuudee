@@ -56,7 +56,9 @@ Adapted from `DOMAIN_GLOSSARY.md` in debrief/debrief-future, itself adapted from
 
 **Smoothing.** Moving each fix of a track, or of a period of it, to the average position of itself and the same number of fixes either side, the first and last fixes staying where they are. Previewed first; applied as one step (CAP-01).
 
-**Marked fix.** A fix with a colour, a label or a comment of its own, as legacy plots carry. Found by its time, so the mark stays with its fix whatever else changes. Each change is one step (CAP-01, EXT-14).
+**Marked fix.** A fix with a colour, a label or a comment of its own, as legacy plots carry, or one that always shows its time label or symbol whatever its track's intervals (force on only). Found by its time, so the mark stays with its fix whatever else changes. Each change is one step (CAP-01, CAP-32, EXT-14).
+
+**Label, symbol and arrow intervals.** How often a track is labelled with the time, marked with a small dot in its colour and given a direction arrow: each from every second to every 24 hours, or off, held by the track (not its fixes) and set for several tracks at once as one step. Drawn on whole multiples of the interval of UTC (every 10 min is 0900, 0910, 0920), as legacy Debrief's symbol, label and arrow frequencies were, and thinned when zoomed out (CAP-32).
 
 **Moving a fix** (a single fix). Putting one fix of a track somewhere else, alone: its time, its recorded course and speed, and every other fix stay. The speeds its new position implies, to reach it and to go on from it, are said. One step (CAP-01).
 
