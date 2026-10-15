@@ -245,7 +245,7 @@ Capabilities are replaceable and are where feature requests land. Each shall be 
 
 - **CAP-03** Annotations (shapes, labels, chart furniture) shall be ordinary GeoJSON features, inheriting provenance, export and tool support. GeoJSON has no curves: a circle or an ellipse shall be kept as a polygon approximating it, so other GeoJSON tools see the area it covers, together with its exact centre and size, from which Debrief draws and edits it along geodesics. How an annotation is drawn (colour, line style and width, fill, label size and position) is content (SUB-22). Adding, changing and deleting an annotation are each one recorded, undoable step (SUB-19).
 - **CAP-04** Annotations with only a time shall use null geometry.
-- **CAP-05** An optional temporal view should show narrative entries, time-only annotations, and data coverage per source, supporting collation (CAP-08). Choosing an entry shall move current time to it. (The Timeline view shows time-only annotations, narrative notes included; data coverage arrives with collation.)
+- **CAP-05** An optional temporal view should show narrative entries, time-only annotations, and data coverage per source, supporting collation (CAP-08). Choosing an entry shall move current time to it. (The Timeline view shows narrative entries, time-only annotations and fix comments in one time order, following current time; data coverage arrives with collation. Decision, product owner, 15 Oct 2026: narrative is read in the Timeline, not a view of its own.)
 
 ### 7.3 Tote and measures
 
@@ -278,7 +278,7 @@ Capabilities are replaceable and are where feature requests land. Each shall be 
 ### 7.7 Narrative
 
 - **CAP-19** Debrief shall import narrative from Word and PDF in the dialects the legacy parsers support, ported to Python with their tests.
-- **CAP-20** Narratives from several platforms shall be combined on a single Zulu time axis.
+- **CAP-20** Narratives from several platforms shall be combined on a single Zulu time axis. (Part A, 15 Oct 2026: narrative entries are features of their own; every source's entries are ordered by time, then source, then the source's own order, the same in Python and TypeScript; a second platform's REP log is read into an open plot as one step.)
 
 ### 7.8 Domain modules
 

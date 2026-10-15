@@ -148,6 +148,7 @@ export class TimelineControl {
     element.innerHTML =
       `<div class="tl-bar">` +
       `<input type="search" class="tl-search" placeholder="Search" aria-label="Search the Timeline" spellcheck="false">` +
+      `<button type="button" class="tl-follow" hidden title="Follow current time again">Follow time</button>` +
       `<button type="button" class="tl-filter-button" aria-expanded="false" aria-haspopup="true" title="Choose which kinds, sources and types are listed">Filter</button>` +
       `<button type="button" class="tl-add" title="Add a narrative entry (N)" aria-label="Add a narrative entry">+</button>` +
       `</div>` +
@@ -157,7 +158,6 @@ export class TimelineControl {
       `<div class="tl-body">` +
       `<div class="tl-scroll" role="listbox" tabindex="0" aria-label="Narrative, notes and periods in time order: Enter moves current time to the entry">` +
       `<div class="tl-spacer"></div></div>` +
-      `<button type="button" class="tl-follow" hidden title="Follow current time again">Follow</button>` +
       `<p class="tl-empty" hidden></p>` +
       `</div>` +
       `<p class="tl-status" aria-live="polite"></p>` +
@@ -514,21 +514,20 @@ export class TimelineControl {
           this.drawn.delete(row);
         }
       }
-      const fresh: [number, HTMLElement][] = [];
       for (const row of wanted) {
         let el = this.drawn.get(row);
         if (!el) {
           el = this.makeRow(row);
           this.spacer.append(el);
           this.drawn.set(row, el);
-          fresh.push([row, el]);
         }
       }
       // Measure what was drawn; keep the row at the top of the view where it was.
       const anchor = this.layout.rowAt(this.scroller.scrollTop);
       const offset = anchor >= 0 ? this.scroller.scrollTop - this.layout.top(anchor) : 0;
       let changed = false;
-      for (const [row, el] of fresh) changed = this.layout.setHeight(row, el.offsetHeight) || changed;
+      // Every row in sight, not only new ones: a row grows when it shows its Edit and Delete.
+      for (const [row, el] of this.drawn) changed = this.layout.setHeight(row, el.offsetHeight) || changed;
       if (changed) {
         this.spacer.style.height = `${this.layout.total}px`;
         if (anchor >= 0 && !this.following) this.scrollTo(this.layout.top(anchor) + offset);

@@ -1632,18 +1632,18 @@ export function activate(context: vscode.ExtensionContext): DebriefApi {
   command("debrief.addNarrative", async (spec?: NarrativeSpec) => {
     if (!session.current) return report("Open a plot first.");
     if (!spec) return timeline.openForm();
-    return narrate({ kind: "add", entry: spec }).then((done) => (done.problem ? report(done.problem) : done));
+    return narrate({ kind: "add", entry: spec }).then((done) => (report(done.problem), done));
   });
   command("debrief.editNarrative", async (id?: string, changes?: Partial<NarrativeSpec>) => {
     const entry = timeline.entries.find((e) => e.id === id && e.kind === "narrative");
     if (!entry) return report("Choose a narrative entry in the Timeline.");
     if (!changes) return timeline.openForm(entry.id);
-    return narrate({ kind: "edit", feature: entry.id, entry: changes }).then((done) => (done.problem ? report(done.problem) : done));
+    return narrate({ kind: "edit", feature: entry.id, entry: changes }).then((done) => (report(done.problem), done));
   });
   command("debrief.deleteNarrative", async (id?: string | string[]) => {
     const ids = (Array.isArray(id) ? id : id ? [id] : []).filter((i) => timeline.entries.some((e) => e.id === i && e.kind === "narrative"));
     if (!ids.length) return report("Choose a narrative entry in the Timeline.");
-    return narrate({ kind: "delete", features: ids }).then((done) => (done.problem ? report(done.problem) : done));
+    return narrate({ kind: "delete", features: ids }).then((done) => (report(done.problem), done));
   });
   // A platform's log read into the open plot: its ;NARRATIVE: lines, one step, the file kept as a source.
   command("debrief.importNarrative", async (given?: string) => {
@@ -1653,7 +1653,7 @@ export function activate(context: vscode.ExtensionContext): DebriefApi {
       (await vscode.window.showOpenDialog({ canSelectMany: false, openLabel: "Read narrative", filters: { "REP files": ["rep", "REP"], "All files": ["*"] } }))?.[0]?.fsPath;
     if (!path) return undefined;
     const done = await narrate({ kind: "import", path });
-    if (done.problem) return report(done.problem);
+    if (done.problem) return (report(done.problem), done);
     const left = done.omitted?.length ? ` ${done.omitted.length === 1 ? "One line was" : `${done.omitted.length} kinds of line were`} not read; see the History.` : "";
     void vscode.window.showInformationMessage(`Read ${count(done.entries ?? 0, "narrative entry", "narrative entries")} into the plot.${left}`);
     return done;

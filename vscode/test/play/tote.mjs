@@ -6,6 +6,7 @@
 // remove secondaries by the × in their headings and the Delete key; on a phone the
 // tracks scroll inside the table, never the page; the choice is view state in the
 // plot's island, never a step; and the latency while playing, reported.
+import { timelineRow } from "./timelinerows.mjs";
 import assert from "node:assert/strict";
 
 const BUDGET_MS = 100;
@@ -241,7 +242,7 @@ export async function playTote(page, shot) {
   // BLUE ONE at 0.53 nmi; the Timeline's note of it moves current time there.
   await tote(".tote-primary").selectOption({ label: "BLUE ONE" });
   await tote(".tote-add").selectOption({ label: "Towing 01" });
-  await page.locator("#timeline li[data-id]", { hasText: "Towing 01 passed clear" }).locator("button").click();
+  await (await timelineRow(page, "Towing 01 passed clear")).click();
   await page.waitForFunction(() => /^\d+ yd$/.test(document.querySelector('#tote td[data-measure="range"]:not(.tote-col-primary)')?.textContent ?? ""), null, { timeout: 30000 });
   const close = Number((await (await cell("Towing 01", "range")).innerText()).replace(" yd", ""));
   assert.ok(close > 900 && close < 1100, `Towing 01 at ${close} yd, about 0.53 nmi`);

@@ -27,7 +27,7 @@ Each plot holds:
 - **Background traffic.** 8 to 10 AIS tracks: merchant ships under way and at anchor, a tug, yachts and pleasure craft. Each is named by its type and a number, such as "Cargo 03", never by its real name.
 - **BLUE ONE and RED ONE.** One fix a minute. RED ONE's tracks carry depth. Both were written as REP files and imported, so they are sources like any analyst's.
 - **Sonar bearings.** BLUE ONE's bow sonar on RED ONE every 30 seconds, with a 1.5° error. The sonar can hold RED ONE only within 4.5 nmi, outside its baffles astern and while not sprinting, and within those limits contact comes and goes, so each serial has gaps. Between 177 and 349 bearings per serial, held as one set of sensor observations (CON-02).
-- **Narrative.** About 35 entries per serial, in Zulu time, from BLUE ONE, RED ONE and exercise control (EXCON): intentions, alterations of course, first contact and its classification, contacts lost and regained, bearing reports with their drift, and closest approaches. The log is kept as a supporting file, and each entry is also a note at its time.
+- **Narrative.** About 35 entries per serial, in Zulu time, from BLUE ONE, RED ONE and exercise control (EXCON): intentions, alterations of course, first contact and its classification, contacts lost and regained, bearing reports with their drift, and closest approaches. Each entry has a kind (Course, Sonar, CPA, Log, Intention, Weather). The log is kept as a supporting file, and each entry is also a narrative entry in the plot, BLUE ONE's and RED ONE's belonging to their tracks, read in the Timeline (CAP-20).
 - **The exercise area**, as a shape, and two named sets: *Exercise* and *Background traffic*.
 
 ## Its history, as a worked example

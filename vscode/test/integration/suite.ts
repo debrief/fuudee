@@ -427,6 +427,62 @@ export async function run(): Promise<void> {
   await sleep(2000);
   await screenshot("15-timeline");
 
+  // The narrative in the Timeline (CAP-20): the sample's log is narrative entries, one step each
+  // to add, change and delete; a REP file's narrative read into the plot as one step; the entry
+  // current time is at shown on the map beside its track.
+  {
+    await waitFor("the Timeline view", () => api.timelineShowing() || undefined);
+    const narrativeOf = () => api.session.current!.plot.features.filter((f) => f.properties.kind === "narrative");
+    const logged = narrativeOf();
+    assert.ok(logged.length > 20, "the sample's log is narrative entries");
+    assert.ok(!api.session.current!.plot.features.some((f) => f.properties.kind === "annotation" && f.properties.style === "note" && f.properties.name === "BLUE ONE"), "not notes");
+    const contact = logged.find((f) => f.properties.kind === "narrative" && f.properties.text.startsWith("Bow sonar contact"))!;
+    assert.ok(listed.entries.includes(contact.id) || (await vscode.commands.executeCommand<Entries>("debrief.timelineEntries")).entries.includes(contact.id));
+    assert.equal(await vscode.commands.executeCommand("debrief.goToTime", contact.id), undefined);
+    assert.equal((await vscode.commands.executeCommand<Entries>("debrief.timelineEntries")).current, contact.id);
+    await waitFor("the entry on the map, beside BLUE ONE", () => (api.mapNarrative()?.id === contact.id ? true : undefined));
+    assert.equal(api.mapNarrative()?.track, "track-blue-one");
+    const narrativeSteps = (await steps()).length;
+    type Narrated = { problem?: string; feature?: string; entries?: number };
+    const added = await vscode.commands.executeCommand<Narrated>("debrief.addNarrative", { time: "2023-06-15T09:05:00.000Z", source: "BLUE ONE", entry_type: "Comms", text: "Link check with control: loud and clear." });
+    assert.equal(added.problem, undefined);
+    assert.deepEqual((await steps()).at(-1)?.notes, ["Narrative entry by BLUE ONE at 09:05:00Z added"]);
+    const entry = narrativeOf().find((f) => f.id === added.feature)!;
+    assert.equal(entry.properties.kind === "narrative" && entry.properties.track_id, "track-blue-one");
+    assert.equal((await vscode.commands.executeCommand<Narrated>("debrief.editNarrative", added.feature, { text: "Link check: loud and clear on both nets." })).problem, undefined);
+    assert.deepEqual((await steps()).at(-1)?.notes, ["Narrative entry by BLUE ONE at 09:05:00Z: text changed"]);
+    assert.equal(await vscode.commands.executeCommand("debrief.goToTime", added.feature), undefined);
+    // For the picture, the other views folded away so the Timeline has room, as an analyst would.
+    const folded = ["debrief.catalogues", "debrief.outline", "debrief.tools", "debrief.history", "debrief.tote"];
+    const commands = new Set(await vscode.commands.getCommands(true));
+    const fold = async () => {
+      for (const view of folded) if (commands.has(`${view}.toggleVisibility`)) await vscode.commands.executeCommand(`${view}.toggleVisibility`);
+    };
+    await fold();
+    await vscode.commands.executeCommand("debrief.timeline.focus");
+    await sleep(2000);
+    await screenshot("15b-narrative");
+    await fold();
+    assert.equal((await vscode.commands.executeCommand<Narrated>("debrief.deleteNarrative", added.feature)).problem, undefined);
+    assert.equal(narrativeOf().some((f) => f.id === added.feature), false);
+    assert.equal(await vscode.commands.executeCommand("debrief.undo"), undefined);
+    assert.equal(narrativeOf().some((f) => f.id === added.feature), true, "undo brings it back");
+    // A second platform's log: its narrative lines read into the open plot, one step, its source kept.
+    const scratch = mkdtempSync(path.join(tmpdir(), "debrief-narrative-"));
+    const red = path.join(scratch, "red-one-log.rep");
+    (await import("node:fs")).writeFileSync(red, ';NARRATIVE2: 230615 090000 "RED ONE" CSD Went deep, 40 m.\n;NARRATIVE2: 230615 090100 "RED ONE" Comms Missed the broadcast.\n');
+    const read = await vscode.commands.executeCommand<Narrated>("debrief.importNarrative", red);
+    assert.equal(read.problem, undefined);
+    assert.equal(read.entries, 2);
+    assert.match((await steps()).at(-1)?.notes?.[0] ?? "", /^Narrative from red-one-log\.rep: 2 narrative entries read, from RED ONE\./);
+    assert.equal(narrativeOf().filter((f) => f.properties.kind === "narrative" && f.properties.text === "Went deep, 40 m.")[0]?.properties.kind === "narrative" && (narrativeOf().find((f) => f.properties.kind === "narrative" && f.properties.text === "Went deep, 40 m.")!.properties as { track_id?: string }).track_id, "track-red-one");
+    assert.equal((await steps()).length, narrativeSteps + 4);
+    // Refused plainly, nothing changed: no time.
+    const refusedNarrative = await vscode.commands.executeCommand<Narrated>("debrief.addNarrative", { source: "X", text: "No time." });
+    assert.match(refusedNarrative.problem ?? "", /time/);
+  assert.equal((await steps()).length, narrativeSteps + 4);
+  }
+
   // The properties form of the circle, as the map's double-click or the outline opens it.
   await vscode.commands.executeCommand("debrief.editAnnotation", "annotation-exclusion-zone");
   await waitFor("the circle's form", async () => (await vscode.commands.executeCommand<string | undefined>("debrief.annotationFormOpen")) === "annotation-exclusion-zone" || undefined);

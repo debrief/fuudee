@@ -935,7 +935,10 @@ function drawNarrative(at: number): void {
   source.textContent = entry.source;
   box.append(source, document.createTextNode(` ${shown}`));
   box.title = `${entry.source}: ${entry.text ?? ""}`;
-  const icon = L.divIcon({ className: "narrative-on-map", html: box, iconSize: [0, 0], iconAnchor: [-10, 26] });
+  // Beside the marker, to its right; to its left where the right is short of room.
+  const left = map.latLngToContainerPoint(toLatLng(position)).x > map.getSize().x - 300;
+  if (left) box.classList.add("narrative-left");
+  const icon = L.divIcon({ className: "narrative-on-map", html: box, iconSize: [0, 0], iconAnchor: [left ? 10 : -10, 26] });
   L.marker(toLatLng(position), { icon, interactive: false, keyboard: false }).addTo(narrativeLayer);
 }
 

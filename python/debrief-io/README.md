@@ -16,7 +16,7 @@ The import runs in four steps:
 2. One provenance record is made, naming the importer and its version, the source and its hash, and every omission (SUB-18). The whole plot is validated before anything is written.
 3. The source is copied into a new catalogue item, read-only, and hashed (SUB-10, SUB-11), and the plot written. If writing fails, the new item is removed, so a failed import leaves the catalogue as it was.
 4. Nothing is dropped silently. Each of these is listed, both in the report and in provenance:
-   - other record types (`;SENSOR:`, `;NARRATIVE:` and so on), but not `;;` comment lines, which hold no data;
+   - other record types (`;SENSOR:` and so on), but not `;;` comment lines, which hold no data;
    - lines that could not be read;
    - tracks with a single fix;
    - depths of a track where some fixes give none, since a depth series has no gaps;
@@ -42,7 +42,23 @@ The provenance record is timed by a `clock` (epoch milliseconds), the wall clock
 
 Checked against every REP file in legacy Debrief's sample data: 85 files and 173,548 fixes. The only line that failed is in `BAD_boat2.rep`, a file broken on purpose. A 28,000-fix file imports in about 1.5 s.
 
-Not yet: sensor and narrative lines (Phases 3 and 4), REP per-fix labels, and the legacy OTG and DR modes (CAP-01).
+Not yet: sensor lines (Phase 4) and REP per-fix labels.
+
+## Narrative in REP files
+
+`;NARRATIVE:` and `;NARRATIVE2:` lines are narrative entries (CAP-20, schema 0.0.19), ported from legacy Debrief's `ImportNarrative` and `ImportNarrative2` with their test cases (on synthetic lines):
+
+```
+;NARRATIVE:  YYMMDD HHMMSS[.fff] SOURCE TEXT...
+;NARRATIVE2: YYMMDD HHMMSS[.fff] SOURCE TYPE TEXT...
+```
+
+- Fields separated by spaces or tabs, read as legacy Debrief's `StringTokenizer` reads them; a source or type with spaces is quoted, `"HMS TORBAY"`; leading spaces or tabs before the record are allowed.
+- The text is the rest of the line, tabs kept, trimmed. A `;NARRATIVE:` line has no type: an unquoted two-word source reads as its first word, the rest being text, as legacy Debrief read it.
+- Text run on after a closing quote is kept for the next field (legacy Debrief dropped it).
+- Dates and times as for fixes. A line with no text, or no closing quote, is reported with its number.
+
+Each entry belongs to the plot's track of its source's name, ignoring case and spacing. A file of narrative alone makes a plot. `import_narrative(catalogue, item, path, agent, base)` reads a file's narrative into a plot already open, as one step: the file kept as a source in the plot's item, one provenance record (`debrief-io.narrative`) naming it and listing what was not read; a stale `base` changes nothing.
 
 ## Legacy plot files (.dpf)
 
@@ -68,8 +84,8 @@ What becomes what:
 | Line, vector | Line annotation. |
 | How a shape or label is drawn | Its appearance: colour, line style (solid, dotted; long dashes, short dashes and dot-dash as dashed; unconnected points as dotted, listed), line width (a hairline as 1 px), fill (semi-transparent at 63% opacity, as legacy Debrief drew it, otherwise solid; only areas, circles and ellipses), label size from its font size, and label position (left, right, above, below, centre, or none when its label is hidden). |
 | A shape's time range | The annotation's time, or time range. |
-| Narrative entry | A time-only note annotation, named after its track, as the sample data holds its narrative. The entry's type is listed as not imported. |
-| Layer, narrative | A named set of the annotations or notes it held, with the layer's name. Its settings are listed as not imported, since v4 has no layers yet. |
+| Narrative entry | A narrative entry (schema 0.0.19): its time, its source (the track the entry names), its type and its text, belonging to the track of that name where there is one. An entry with no text is listed. |
+| Layer, narrative | A named set of the annotations or narrative entries it held, with the layer's name. Its settings are listed as not imported, since v4 has no layers yet. |
 
 Not imported, each named in the report and in provenance:
 
