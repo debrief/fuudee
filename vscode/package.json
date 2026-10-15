@@ -24,7 +24,7 @@
         {"type": "webview", "id": "debrief.tote", "name": "Tote", "visibility": "collapsed"},
         {"id": "debrief.catalogues", "name": "Catalogues"},
         {"id": "debrief.outline", "name": "Outline"},
-        {"id": "debrief.timeline", "name": "Timeline"},
+        {"type": "webview", "id": "debrief.timeline", "name": "Timeline"},
         {"id": "debrief.tools", "name": "Tools"},
         {"id": "debrief.history", "name": "History"}
       ]
@@ -37,10 +37,6 @@
       {
         "view": "debrief.outline",
         "contents": "Open a plot from a catalogue to see its tracks, annotations and sensor data here."
-      },
-      {
-        "view": "debrief.timeline",
-        "contents": "Notes and periods with a time but no position appear here in time order. Choose one to move current time to it.\n[Add annotation](command:debrief.addAnnotation)"
       },
       {
         "view": "debrief.history",
@@ -81,6 +77,11 @@
       {"command": "debrief.plottingMode", "title": "Plot over the ground or by dead reckoning…", "category": "Debrief"},
       {"command": "debrief.askTrackImportMode", "title": "Ask again whether imported tracks are OTG or DR", "category": "Debrief"},
       {"command": "debrief.goToTime", "title": "Go to this time", "category": "Debrief"},
+      {"command": "debrief.addNarrative", "title": "Add narrative entry…", "category": "Debrief", "icon": "$(comment)", "enablement": "debrief.plotOpen"},
+      {"command": "debrief.editNarrative", "title": "Change narrative entry…", "category": "Debrief"},
+      {"command": "debrief.deleteNarrative", "title": "Delete narrative entry", "category": "Debrief"},
+      {"command": "debrief.importNarrative", "title": "Read narrative into this plot (REP)…", "category": "Debrief", "icon": "$(cloud-download)", "enablement": "debrief.plotOpen"},
+      {"command": "debrief.setNarrativeOnMap", "title": "Narrative on the map", "category": "Debrief"},
       {"command": "debrief.show", "title": "Show on map", "category": "Debrief", "icon": "$(eye)"},
         {"command": "debrief.goToStep", "title": "Go back to this step", "category": "Debrief"},
       {"command": "debrief.redoToStep", "title": "Redo up to this step", "category": "Debrief"},
@@ -104,7 +105,9 @@
         {"command": "debrief.addAnnotation", "when": "view == debrief.outline", "group": "navigation@0"},
         {"command": "debrief.clearSelection", "when": "view == debrief.outline", "group": "navigation@1"},
         {"command": "debrief.toggleNorthArrow", "when": "view == debrief.outline", "group": "2_furniture@1"},
-        {"command": "debrief.addAnnotation", "when": "view == debrief.timeline", "group": "navigation@1"},
+        {"command": "debrief.addNarrative", "when": "view == debrief.timeline", "group": "navigation@1"},
+        {"command": "debrief.addAnnotation", "when": "view == debrief.timeline", "group": "navigation@2"},
+        {"command": "debrief.importNarrative", "when": "view == debrief.timeline", "group": "navigation@3"},
         {"command": "debrief.undo", "when": "view == debrief.history", "group": "navigation@1"},
         {"command": "debrief.redo", "when": "view == debrief.history", "group": "navigation@2"}
       ],
@@ -139,6 +142,9 @@
         {"command": "debrief.showToolForm", "when": "false"},
         {"command": "debrief.runTool", "when": "false"},
         {"command": "debrief.goToTime", "when": "false"},
+        {"command": "debrief.editNarrative", "when": "false"},
+        {"command": "debrief.deleteNarrative", "when": "false"},
+        {"command": "debrief.setNarrativeOnMap", "when": "false"},
         {"command": "debrief.editTrack", "when": "false"},
         {"command": "debrief.goToStep", "when": "false"},
         {"command": "debrief.redoToStep", "when": "false"},

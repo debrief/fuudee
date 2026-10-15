@@ -1,0 +1,15 @@
+{
+  "kind": "show_timeline",
+  "timeline_entries": [
+    {
+      "id": "narrative-002",
+      "kind": "sensor",
+      "start": "2026-10-11T09:31:00.000Z",
+      "source": "NELSON",
+      "entry_type": "GenComment",
+      "text": "Contact gained, bearing 045°T.",
+      "track": "track-nelson",
+      "colour": "#0064bd"
+    }
+  ]
+}

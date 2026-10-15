@@ -137,7 +137,10 @@ def test_a_target_lost_to_a_sprint_and_not_found_is_logged() -> None:
     drift = serial.start_ms + serial.deaf[0][1] * 60_000
     assert (
         narrative.Entry(
-            drift + narrative.NOT_REGAINED_MS, "BLUE ONE", "Not regained RED ONE after sprint."
+            drift + narrative.NOT_REGAINED_MS,
+            "BLUE ONE",
+            "Not regained RED ONE after sprint.",
+            "Sonar",
         )
         in entries
     )
@@ -147,10 +150,11 @@ def test_narrative_round_trips() -> None:
     serial = SERIALS[0]
     entries = [
         narrative.Entry(serial.start_ms, "EXCON", "Serial 1 started."),
-        narrative.Entry(serial.start_ms + 90_000, "BLUE ONE", "Came to 270.0°T, 6.0 kn."),
+        narrative.Entry(serial.start_ms + 90_000, "BLUE ONE", "Came to 270.0°T, 6.0 kn.", "Course"),
     ]
     text = narrative.write(serial, entries)
-    assert "15 Jun 2023 08:01:30Z  BLUE ONE  Came to 270.0°T, 6.0 kn." in text
+    assert "15 Jun 2023 08:01:30Z  BLUE ONE  Course  Came to 270.0°T, 6.0 kn." in text
+    assert "15 Jun 2023 08:00:00Z  EXCON     Log     Serial 1 started." in text
     assert narrative.parse(text) == entries
 
 

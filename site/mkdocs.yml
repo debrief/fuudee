@@ -79,6 +79,7 @@ nav:
           - Annotations: guides/interaction-models/annotations.md
           - Track operations: guides/interaction-models/track-operations.md
           - Tote: guides/interaction-models/tote.md
+          - Timeline and narrative: guides/interaction-models/timeline.md
           - Keyboard equivalents: guides/interaction-models/keyboard-equivalents.md
       - Tool-author guide: guides/tool-author/index.md
       - Sample data: guides/sample-data.md

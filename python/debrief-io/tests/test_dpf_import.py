@@ -68,7 +68,20 @@ def test_shapes_sample_imports(catalogue: Catalogue) -> None:
         for f in plot.features
         if f.properties.kind == "annotation"
     )
-    assert kinds[("note", None)] == 2
+    assert kinds[("note", None)] == 0  # the narrative is narrative entries now
+    entries = [f for f in plot.features if f.properties.kind == "narrative"]
+    assert [
+        (e.properties.time, e.properties.source, e.properties.entry_type, e.properties.text)
+        for e in entries
+    ] == [
+        ("1995-12-12T05:02:00.000Z", "NEL_STYLE", None, "comment 3"),
+        ("1995-12-12T05:05:00.000Z", "NEL_STYLE", "GenComment2", "Mk Rge BAAA R121212"),
+    ]
+    # Each belongs to the track it names; together they are the narrative layer's named set.
+    assert {e.properties.track_id for e in entries} == {"track-nel-style"}
+    assert all(e.geometry is None for e in entries)
+    narratives = next(s for s in plot.named_sets if s.name == "Narratives")
+    assert narratives.feature_ids == [e.id for e in entries]
     assert kinds[("label", "Point")] > 0
     assert kinds[("shape", "Polygon")] > 0
     assert kinds[("shape", "LineString")] > 0
@@ -149,7 +162,6 @@ def test_provenance_names_source_and_every_omission(catalogue: Catalogue) -> Non
         "1 annotation drawn with unconnected points (such as 'unconnected 4px semi transparent'): "
         "drawn dotted",
         "wheel 'test wheel' in layer 'Annotations' not imported",
-        "Narrative entry types not imported: 'GenComment2' (1).",
         "Layer 'Annotations' (layer, shown): its settings are not imported",
         "kept as the named set 'Annotations'",
         "Display settings not imported: where fix labels go, fix symbols and arrows; track "

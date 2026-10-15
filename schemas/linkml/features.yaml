@@ -41,6 +41,7 @@ enums:
       annotation: {}
       sensor_observations: {}
       plot: {description: "The whole plot: its own details and its view. At most one per plot."}
+      narrative: {description: "A narrative entry: what a platform, a person or a document logged at a time, with no position (CAP-19, CAP-20)."}
   PlotKindEnum: {permissible_values: {plot: {}}}
   ContextTracksEnum:
     description: >-
@@ -75,6 +76,7 @@ enums:
       end: {description: "The period's last fix is held; its first is dragged."}
   AnnotationKindEnum: {permissible_values: {annotation: {}}}
   SensorObservationsKindEnum: {permissible_values: {sensor_observations: {}}}
+  NarrativeKindEnum: {permissible_values: {narrative: {}}}
   AnnotationStyleEnum:
     description: What an annotation depicts (CAP-03, CAP-04).
     permissible_values:
@@ -489,6 +491,67 @@ classes:
       time_range: {range: TimeRange, inlined: true}
       appearance: {range: AnnotationAppearance, inlined: true}
 
+  # --- Narrative ------------------------------------------------------------
+  NarrativeFeature:
+    description: >-
+      One narrative entry (CAP-19, CAP-20, EXT-14): what a platform, a person
+      or a document logged at a time. A feature of its own with null geometry,
+      as a time-only annotation is, so other GeoJSON tools read it, and each
+      entry added, changed or deleted is one small recorded, undoable step
+      (SUB-19). Every narrative feature in a plot together makes the plot's
+      narrative: one combined Zulu time axis, however many sources it came
+      from, in the order narrative_order gives (time; then source, ignoring
+      case; then the plot's order, so a log's own order at one time is kept).
+    attributes:
+      type: {range: FeatureTypeEnum, required: true}
+      id: {required: true}
+      geometry:
+        description: Always null.
+        range: PointGeometry
+        inlined: true
+      properties: {range: NarrativeProperties, required: true, inlined: true}
+  NarrativeProperties:
+    attributes:
+      kind: {range: NarrativeKindEnum, required: true}
+      time:
+        description: When it was logged, to the millisecond, Zulu (SUB-01).
+        range: UtcTimestamp
+        required: true
+      source:
+        description: >-
+          Who wrote it: the platform, person or document whose log it is
+          (legacy Debrief's track name on an entry), such as "BLUE ONE".
+        required: true
+      entry_type:
+        description: >-
+          What kind of entry, in the source's own words, such as legacy
+          Debrief's GenComment, Posn, CSD or FCS. Free text: each source has
+          its own types. Left out where the source gives none.
+      text:
+        description: What was logged. May run to several lines.
+        required: true
+      track_id:
+        description: >-
+          The track the entry belongs to, where one is known: by default the
+          track named as its source. A track since deleted leaves the link,
+          which is then ignored.
+      provenance:
+        range: ProvRecord
+        multivalued: true
+        inlined_as_list: true
+
+  NarrativeSpec:
+    description: >-
+      A narrative entry as the analyst describes it in a form, or an agent in
+      a request (debrief/add_narrative, debrief/edit_narrative): made into a
+      narrative feature as one recorded step (CAP-20).
+    attributes:
+      time: {range: UtcTimestamp}
+      source: {}
+      entry_type: {}
+      text: {}
+      track_id: {}
+
   # --- Sensor observations --------------------------------------------------
   SensorObservationsFeature:
     description: >-
@@ -610,6 +673,14 @@ classes:
           a step in the history (decision, 14 Oct 2026).
         range: ToteView
         inlined: true
+      narrative_on_map:
+        description: >-
+          Whether the map shows the narrative entry current time is at in a
+          small box beside its track, for ten minutes of plot time; left out
+          means it does. Turned off and on in the Timeline. View state, like
+          the Tote's lines: never a step in the history (decision, product
+          owner, 15 Oct 2026).
+        range: boolean
 
   # --- Named sets and the collection ---------------------------------------
   NamedSet:
@@ -633,6 +704,7 @@ classes:
           - range: TrackFeature
           - range: AnnotationFeature
           - range: SensorObservationsFeature
+          - range: NarrativeFeature
           - range: PlotFeature
       named_sets:
         range: NamedSet

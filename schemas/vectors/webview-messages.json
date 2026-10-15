@@ -112,6 +112,41 @@
     ],
     "set_tote": [
       "tote_view?"
-    ]
+    ],
+    "show_timeline": [
+      "timeline_entries?",
+      "timeline_tracks?",
+      "time?",
+      "plot_id?",
+      "narrative_on_map?"
+    ],
+    "narrative_on_map_changed": [
+      "narrative_on_map"
+    ],
+    "playing_changed": [
+      "playing"
+    ],
+    "timeline_chosen": [
+      "feature_id"
+    ],
+    "save_narrative": [
+      "narrative",
+      "feature_id?"
+    ],
+    "delete_narrative": [
+      "feature_id"
+    ],
+    "open_narrative_form": [
+      "feature_id?"
+    ],
+    "narrative_saved": [
+      "feature_id?",
+      "message?"
+    ],
+    "set_narrative": [
+      "timeline_entry?"
+    ],
+    "undo_asked": [],
+    "redo_asked": []
   }
 }

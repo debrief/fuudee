@@ -17,6 +17,7 @@ import { playTracks } from "./tracks.mjs";
 import { playCleaning } from "./cleaning.mjs";
 import { playFixDrag } from "./fixdrag.mjs";
 import { playTote, stickyHeadings } from "./tote.mjs";
+import { playNarrative, playNarrativeAtScale, vscodeTimelineView } from "./narrative.mjs";
 
 const root = path.resolve(process.argv[2] ?? "../site/docs/play");
 const site = process.argv[3] ? path.resolve(process.argv[3]) : undefined;
@@ -282,6 +283,9 @@ try {
   await playCleaning(page, shot);
   // A single fix moved: by pointer, touch, keyboard and form, each one step; and dead reckoning (CAP-01, NFR-13).
   await playFixDrag(page, shot);
+  // The narrative in the Timeline: followed while playing, chosen, filtered, searched,
+  // added, changed and deleted, from the keyboard too, on a phone (CAP-05, CAP-20).
+  await playNarrative(page, shot);
 
   // Import a legacy plot file.
   const dpf = path.resolve("../python/debrief-io/tests/data/shapes.dpf");
@@ -381,10 +385,19 @@ try {
   await contextOnDark();
   await vscodeTimeView();
   await vscodeToteView();
+  {
+    const files = serve(path.join(path.resolve(import.meta.dirname, "..", ".."), "dist", "webview")); // built by vscodeTimeView
+    await vscodeTimelineView(browser, files, errors, shot, JSON.parse(readFileSync(path.join(root, "sample/serial-1/plot.geojson"), "utf8")));
+    files.close();
+  }
   await cdnBlocked();
   if (site) await playFromThePost();
+  // Last, as it fills a plot with sixty thousand entries: the Timeline at scale (NFR-06).
+  await page.goto(`${BASE}/index.html`);
+  await ready();
+  await playNarrativeAtScale(page, shot);
   assert.deepEqual(errors, []);
-  console.log(`Playground played: map selection, keyboard, the Tote, tools, undo, crash recovery, conflict, annotations, drawing, tracks, shear and stretch, cleaning, single fixes, import, narrow, CDN blocked${site ? ", and from a blog post" : ""}.`);
+  console.log(`Playground played: map selection, keyboard, the Tote, tools, undo, crash recovery, conflict, annotations, drawing, tracks, shear and stretch, cleaning, single fixes, the narrative in the Timeline (and at 60,000 entries), import, narrow, CDN blocked${site ? ", and from a blog post" : ""}.`);
 
   /**
    * The time controller (CAP-28): drag the window and the map shows only it, at
@@ -726,7 +739,8 @@ try {
     await post.locator(".debrief-demo").first().getByRole("button", { name: "Start the demo" }).click();
     const annotated = post.frameLocator(".debrief-demo-frame");
     await annotated.locator("#status", { hasText: "Ready" }).waitFor({ timeout: 240000 });
-    assert.ok((await annotated.locator("#timeline li[data-id]").count()) > 3, "the Timeline lists the sample's narrative");
+    await annotated.locator("#timeline .tl-row[data-id]").first().waitFor();
+    assert.ok((await annotated.locator("#timeline .tl-row[data-id]").count()) > 3, "the Timeline lists the sample's narrative");
     assert.equal(await annotated.locator("#panel-tools").isHidden(), true);
     await annotated.locator("#add-annotation").click();
     await annotated.frameLocator(".frame-annotation").getByRole("button", { name: "Add" }).waitFor();

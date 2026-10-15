@@ -1,0 +1,54 @@
+{
+  "description": "The narrative's one order (CAP-20): by time; at one time by source ignoring case (sources differing only in case as written, capitals first); from one source at one time in plot order. Then the entry current time is at: the last at or before it, -1 before the first. Python (debrief_stac.narrative) and TypeScript (vscode/webview/timelinelogic.ts) both hold to these cases. Entries are listed in plot order.",
+  "cases": [
+    {
+      "name": "two sources at one second interleave by source, whichever came first in the plot",
+      "entries": [
+        {"id": "r1", "time": "2026-10-11T09:30:00.000Z", "source": "RED ONE"},
+        {"id": "b1", "time": "2026-10-11T09:30:00.000Z", "source": "BLUE ONE"},
+        {"id": "c1", "time": "2026-10-11T09:29:59.999Z", "source": "CONTROL"}
+      ],
+      "order": ["c1", "b1", "r1"],
+      "current": [
+        {"at": "2026-10-11T09:29:00.000Z", "index": -1},
+        {"at": "2026-10-11T09:29:59.999Z", "index": 0},
+        {"at": "2026-10-11T09:30:00.000Z", "index": 2},
+        {"at": "2026-10-11T10:00:00.000Z", "index": 2}
+      ]
+    },
+    {
+      "name": "one source's entries at one time keep the log's own order",
+      "entries": [
+        {"id": "first", "time": "2026-10-11T09:30:00.000Z", "source": "BLUE ONE"},
+        {"id": "second", "time": "2026-10-11T09:30:00.000Z", "source": "BLUE ONE"},
+        {"id": "third", "time": "2026-10-11T09:30:00.000Z", "source": "BLUE ONE"},
+        {"id": "earlier", "time": "2026-10-11T09:29:00.000Z", "source": "BLUE ONE"}
+      ],
+      "order": ["earlier", "first", "second", "third"],
+      "current": [
+        {"at": "2026-10-11T09:29:30.000Z", "index": 0},
+        {"at": "2026-10-11T09:30:00.000Z", "index": 3}
+      ]
+    },
+    {
+      "name": "case is ignored between sources, then capitals first",
+      "entries": [
+        {"id": "lower", "time": "2026-10-11T09:30:00.000Z", "source": "blue one"},
+        {"id": "alpha", "time": "2026-10-11T09:30:00.000Z", "source": "alpha"},
+        {"id": "upper", "time": "2026-10-11T09:30:00.000Z", "source": "BLUE ONE"},
+        {"id": "bravo", "time": "2026-10-11T09:30:00.000Z", "source": "Bravo"}
+      ],
+      "order": ["alpha", "upper", "lower", "bravo"],
+      "current": []
+    },
+    {
+      "name": "identical entries are both kept, in plot order",
+      "entries": [
+        {"id": "twin-b", "time": "2026-10-11T09:30:00.000Z", "source": "NELSON"},
+        {"id": "twin-a", "time": "2026-10-11T09:30:00.000Z", "source": "NELSON"}
+      ],
+      "order": ["twin-b", "twin-a"],
+      "current": []
+    }
+  ]
+}

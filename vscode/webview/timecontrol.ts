@@ -59,6 +59,8 @@ export interface TimeControlHost {
   windowSaved(window: TimeRange): void;
   /** The analyst chose how tracks outside the window are drawn, where the control offers it: save it in the plot. */
   contextChanged?(context: ContextTracks): void;
+  /** Current time started or stopped playing: the Timeline follows it again when it starts. */
+  playing?(playing: boolean): void;
 }
 
 /** What the host knows of the plot's view (its island) beyond the window shown. */
@@ -265,6 +267,7 @@ export class TimeControl {
     button.textContent = playing ? "❚❚" : "▶";
     button.setAttribute("aria-label", playing ? "Pause" : "Play");
     this.render();
+    this.host.playing?.(playing);
   }
 
   // --- The window: keys and pointer ---------------------------------------------

@@ -164,6 +164,72 @@ def _item_validator(name: str, member: str) -> Draft201909Validator:
     return Draft201909Validator({"$schema": schema["$schema"], "$defs": schema["$defs"], **items})
 
 
+# Each feature kind's own class. A feature that is valid against its kind's class is
+# valid against the list's anyOf of every feature class, so it is checked against that
+# class alone: much quicker where a plot holds tens of thousands of small features, such
+# as narrative entries (NFR-06), since each class the feature is not costs a failed check.
+# A feature that fails is checked against the whole anyOf, so the problems reported are
+# the same as before.
+_FEATURE_CLASSES = {
+    "track": "TrackFeature",
+    "annotation": "AnnotationFeature",
+    "sensor_observations": "SensorObservationsFeature",
+    "narrative": "NarrativeFeature",
+    "plot": "PlotFeature",
+}
+
+
+def _feature_errors(check: Draft201909Validator, item: Any) -> list[Any]:
+    props = item.get("properties") if isinstance(item, dict) else None
+    kind = props.get("kind") if isinstance(props, dict) else None
+    if kind == "narrative" and _plain_narrative(item):
+        return []
+    own = _FEATURE_CLASSES.get(kind) if isinstance(kind, str) else None
+    if own is not None and _class_validator(own).is_valid(item):
+        return []
+    return list(check.iter_errors(item))
+
+
+_NARRATIVE_REQUIRED = frozenset(("kind", "time", "source", "text"))
+_NARRATIVE_MEMBERS = _NARRATIVE_REQUIRED | {"entry_type", "track_id"}
+
+
+@cache
+def _utc_pattern() -> re.Pattern[str]:
+    pattern = _json_schema()["$defs"]["NarrativeProperties"]["properties"]["time"]["pattern"]
+    return re.compile(pattern)
+
+
+def _plain_narrative(item: Any) -> bool:
+    """A narrative entry as importers and forms write it, checked by hand: exactly what
+    NarrativeFeature's JSON Schema allows, less its provenance (an entry carrying any is
+    left to the schema). True only where the schema would pass it too; anything else is
+    left to the schema, so this can only make checking quicker, never more lenient.
+    A plot may hold sixty thousand entries (NFR-06), each checked once."""
+    if not isinstance(item, dict):
+        return False
+    props = item.get("properties")
+    if not isinstance(props, dict) or props.get("kind") != "narrative":
+        return False
+    if not item.keys() <= {"type", "id", "geometry", "properties"}:
+        return False
+    if item.get("type") != "Feature" or not isinstance(item.get("id"), str):
+        return False
+    if item.get("geometry") is not None:
+        return False
+    if not (_NARRATIVE_REQUIRED <= props.keys() <= _NARRATIVE_MEMBERS):
+        return False
+    time, source, text = props["time"], props["source"], props["text"]
+    if not (type(time) is str and type(source) is str and type(text) is str):
+        return False
+    entry_type, track_id = props.get("entry_type"), props.get("track_id")
+    if not (entry_type is None or type(entry_type) is str):
+        return False
+    if not (track_id is None or type(track_id) is str):
+        return False
+    return _utc_pattern().search(time) is not None
+
+
 def _schema_errors(
     name: str, document: Any, validator: Draft201909Validator | None = None
 ) -> list[str]:
@@ -185,10 +251,12 @@ def _schema_errors(
             rest[member] = []
             check = _item_validator(name, member)
             for index, item in enumerate(items):
+                if _plain_narrative(item):
+                    continue  # checked by hand, quicker than looking it up
                 key = hashlib.sha256(json.dumps(item, separators=(",", ":")).encode()).digest()
                 if key in _FEATURES_PASSED:
                     continue
-                errors = list(check.iter_errors(item))
+                errors = _feature_errors(check, item)
                 found += [([member, index, *e.path], e.message) for e in errors]
                 if not errors:
                     if len(_FEATURES_PASSED) >= _FEATURES_PASSED_MAX:
@@ -466,6 +534,9 @@ def _feature_problems(feature: Any, track_ids: set[str] | None) -> list[str]:
             problems.append(f"{where}: the whole-plot feature has null geometry")
         problems += view_problems(props.view, where)
 
+    elif props.kind == "narrative":
+        problems += narrative_problems(where, feature)
+
     elif props.kind == "sensor_observations":
         if feature.geometry is not None:
             problems.append(f"{where}: sensor observations have null geometry")
@@ -477,6 +548,22 @@ def _feature_problems(feature: Any, track_ids: set[str] | None) -> list[str]:
                 f"{where} column {column.name}", column.quantity_kind, column.unit
             )
 
+    return problems
+
+
+def narrative_problems(where: str, feature: Any) -> list[str]:
+    """Rules for a narrative entry (CAP-20): no position, and something said by someone.
+    A link to a track the plot no longer has is allowed, and ignored."""
+    props = feature.properties
+    problems = []
+    if feature.geometry is not None:
+        problems.append(f"{where}: a narrative entry has null geometry")
+    if not props.source.strip():
+        problems.append(f"{where}: a narrative entry says who wrote it (its source)")
+    if not props.text.strip():
+        problems.append(f"{where}: a narrative entry has text")
+    if props.entry_type is not None and not props.entry_type.strip():
+        problems.append(f"{where}: a narrative entry's type, when given, is not empty")
     return problems
 
 
@@ -756,6 +843,23 @@ MESSAGE_MEMBERS: dict[str, tuple[str, ...]] = {
     "show_tote": ("tote_tracks?", "tote_view?", "tote?"),
     "tote_changed": ("tote_view",),
     "set_tote": ("tote_view?",),
+    "show_timeline": (
+        "timeline_entries?",
+        "timeline_tracks?",
+        "time?",
+        "plot_id?",
+        "narrative_on_map?",
+    ),
+    "narrative_on_map_changed": ("narrative_on_map",),
+    "playing_changed": ("playing",),
+    "timeline_chosen": ("feature_id",),
+    "save_narrative": ("narrative", "feature_id?"),
+    "delete_narrative": ("feature_id",),
+    "open_narrative_form": ("feature_id?",),
+    "narrative_saved": ("feature_id?", "message?"),
+    "set_narrative": ("timeline_entry?",),
+    "undo_asked": (),
+    "redo_asked": (),
 }
 
 

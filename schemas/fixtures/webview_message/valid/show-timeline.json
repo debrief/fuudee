@@ -1,0 +1,50 @@
+{
+  "kind": "show_timeline",
+  "timeline_entries": [
+    {
+      "id": "note-1",
+      "kind": "annotation",
+      "start": "2026-10-11T09:30:00.000Z",
+      "end": "2026-10-11T09:45:00.000Z",
+      "source": "Period of interest",
+      "entry_type": "Period"
+    },
+    {
+      "id": "narrative-002",
+      "kind": "narrative",
+      "start": "2026-10-11T09:31:00.000Z",
+      "source": "NELSON",
+      "entry_type": "GenComment",
+      "text": "Contact gained, bearing 045°T.",
+      "track": "track-nelson",
+      "colour": "#0064bd"
+    },
+    {
+      "id": "fix:track-nelson:2026-10-11T09:32:00.000Z",
+      "kind": "fix_comment",
+      "start": "2026-10-11T09:32:00.000Z",
+      "source": "NELSON",
+      "entry_type": "Fix",
+      "text": "Wheel over",
+      "track": "track-nelson",
+      "colour": "#0064bd",
+      "hidden": true
+    }
+  ],
+  "timeline_tracks": [
+    {
+      "id": "track-nelson",
+      "name": "NELSON",
+      "colour": "#0064bd"
+    }
+  ],
+  "time": {
+    "current": "2026-10-11T09:31:00.000Z",
+    "range": {
+      "start": "2026-10-11T09:30:00.000Z",
+      "end": "2026-10-11T09:32:00.000Z"
+    }
+  },
+  "plot_id": "exercise/serial-1",
+  "narrative_on_map": false
+}

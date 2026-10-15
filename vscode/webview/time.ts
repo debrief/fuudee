@@ -38,6 +38,7 @@ const control = new TimeControl(
       pending = undefined;
       host.postMessage({ kind: "window_changed", time_range: window });
     },
+    playing: (playing) => host.postMessage({ kind: "playing_changed", playing }),
   },
   { contextInView: false },
 );

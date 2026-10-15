@@ -23,6 +23,12 @@ description: >-
   checked by the receiver.
 
 enums:
+  TimelineEntryKindEnum:
+    description: What a Timeline row is.
+    permissible_values:
+      narrative: {description: "A narrative entry."}
+      annotation: {description: "A time-only annotation: a note or a period of interest."}
+      fix_comment: {description: "A comment on one of a track's fixes."}
   WebviewMessageKindEnum:
     permissible_values:
       ready: {description: "Webview to host: loaded and listening."}
@@ -54,9 +60,48 @@ enums:
       show_tote: {description: "Host to Tote: the tracks that can be chosen (tote_tracks), which are chosen (tote_view) and the values at current time (tote), any of them; none when no plot is open."}
       tote_changed: {description: "Tote to host: the analyst chose a primary, added or removed a secondary, chose a measure group, or turned the map's lines on or off; save it in the plot (tote_view)."}
       set_tote: {description: "Host to map: which tracks the Tote compares (tote_view), for a thin line from the primary to each secondary at current time unless its map_lines is false; none when nothing is chosen."}
+      show_timeline: {description: "Host to Timeline: what the Timeline lists (timeline_entries, in its order), the tracks a narrative entry can belong to (timeline_tracks), current time with the window shown (time), which plot it is (plot_id, so another plot is told from the same one changed) and whether the map shows the narrative entry at current time (narrative_on_map, left out meaning it does); none when no plot is open."}
+      narrative_on_map_changed: {description: "Timeline to host: the analyst turned the narrative box on the map on or off (narrative_on_map); save it in the plot's island."}
+      playing_changed: {description: "Time controller to host, and host to Timeline: current time started or stopped playing (playing). The Timeline follows current time again when playing starts."}
+      timeline_chosen: {description: "Timeline to host: the analyst chose an entry (feature_id, the entry's id): move current time to it."}
+      save_narrative: {description: "Timeline to host: add this narrative entry, or change the one named (narrative, and feature_id when changing one), as one recorded step."}
+      delete_narrative: {description: "Timeline to host: delete this narrative entry (feature_id), as one recorded step."}
+      open_narrative_form: {description: "Host to Timeline: open the form to add a narrative entry, or to change the one named (feature_id), as a command or an agent asked."}
+      narrative_saved: {description: "Host to Timeline: the entry was added or changed (feature_id), so the form closes and the list shows it; or, with message, why it was not."}
+      set_narrative: {description: "Host to map: the narrative entry current time is at, where it belongs to a track (timeline_entry), to show beside that track's marker; none to take it away."}
+      undo_asked: {description: "Timeline to host: the analyst pressed Undo (Ctrl+Z; Cmd+Z on macOS) with focus in the Timeline but not in a text box: undo the plot's last step, as the map, Outline and History do (decision, product owner, 15 Oct 2026)."}
+      redo_asked: {description: "Timeline to host: the analyst pressed Redo (Ctrl+Shift+Z or Ctrl+Y; Cmd+Shift+Z on macOS) with focus in the Timeline but not in a text box: redo the step last undone."}
       fix_chosen: {description: "Map to host: the analyst asked to colour, label or comment on a fix (feature_id, fix_time), by right-clicking it or pressing Enter on a fix chosen with the keyboard."}
 
 classes:
+  TimelineEntry:
+    description: >-
+      One row of the Timeline (CAP-05, CAP-20): a narrative entry, a
+      time-only annotation (a note or a period) or a comment on a track's
+      fix, as the Timeline lists them, in one time order.
+    attributes:
+      id:
+        description: The narrative entry's or annotation's feature id, or fix:<track>:<time> for a fix's comment.
+        required: true
+      kind: {range: TimelineEntryKindEnum, required: true}
+      start:
+        description: Its time, or the start of its period.
+        range: UtcTimestamp
+        required: true
+      end:
+        description: The end of its period; left out for a single time.
+        range: UtcTimestamp
+      source:
+        description: Who wrote a narrative entry; an annotation's name; the track a fix comment is on.
+        required: true
+      entry_type: {description: "A narrative entry's type, in its source's words."}
+      text: {description: "Its text."}
+      track: {description: "The track it belongs to: a narrative entry's track, or a fix's."}
+      colour:
+        description: That track's colour, lower-case hex RGB.
+        pattern: "^#[0-9a-f]{6}$"
+      hidden: {range: boolean, description: "An annotation or track hidden on the map."}
+
   WebviewMessage:
     attributes:
       kind: {range: WebviewMessageKindEnum, required: true}
@@ -111,7 +156,7 @@ classes:
         range: AnnotationSpec
         inlined: true
       feature_id:
-        description: The annotation a form changes or deletes, the annotation or track the map asks to change, or the track whose fixes it rings or the analyst chose.
+        description: The narrative entry the Timeline chose, changes or deletes, the annotation a form changes or deletes, the annotation or track the map asks to change, or the track whose fixes it rings or the analyst chose.
       track_edit:
         description: How the analyst moved, rotated, sheared or stretched a track, or moved one of its fixes, on the map (edit_track).
         range: TrackEdit
@@ -137,6 +182,38 @@ classes:
       tote_view:
         description: Which tracks the Tote compares, as saved in the plot (show_tote, set_tote) or as the analyst chose (tote_changed).
         range: ToteView
+        inlined: true
+      timeline_entries:
+        description: The Timeline's rows, in its order (show_timeline).
+        range: TimelineEntry
+        multivalued: true
+        inlined_as_list: true
+      timeline_entry:
+        description: The narrative entry current time is at, to show on the map beside its track (set_narrative).
+        range: TimelineEntry
+        inlined: true
+      plot_id:
+        description: >-
+          Which plot is open, as its host knows it (show_timeline): a list read
+          again for the same plot keeps the reader's place; another plot is read
+          from current time.
+      narrative_on_map:
+        description: >-
+          Whether the map shows the narrative entry current time is at beside
+          its track (show_timeline, narrative_on_map_changed): the plot's
+          PlotView.narrative_on_map; left out means it does.
+        range: boolean
+      playing:
+        description: Whether current time is playing (playing_changed).
+        range: boolean
+      timeline_tracks:
+        description: The plot's tracks, which a narrative entry can belong to (show_timeline).
+        range: ToteTrack
+        multivalued: true
+        inlined_as_list: true
+      narrative:
+        description: A narrative entry as the Timeline's form describes it (save_narrative).
+        range: NarrativeSpec
         inlined: true
       tote_tracks:
         description: The plot's tracks, which the analyst can choose from for the Tote (show_tote).

@@ -174,7 +174,7 @@ describe("the map draws an annotation by its look", () => {
 describe("the Timeline", () => {
   const plot = {
     type: "FeatureCollection",
-    schema_version: "0.0.18",
+    schema_version: "0.0.19",
     provenance: [],
     features: [
       { type: "Feature", id: "b", geometry: null, properties: { kind: "annotation", style: "note", name: "Contact", text: "Gained on the array", time: "2026-10-11T09:50:00.000Z" } },
@@ -188,14 +188,15 @@ describe("the Timeline", () => {
   it("lists time-only annotations in time order, with what they say", () => {
     const entries = timelineEntries(plot);
     expect(entries.map((e) => e.id)).toEqual(["a", "b", "c"]);
-    expect(entries[0]).toMatchObject({ name: "Serial", when: "09:30:00Z – 10:30:00Z" });
-    expect(entries[1]).toMatchObject({ name: "Contact", text: "Gained on the array", when: "09:50:00Z" });
+    expect(entries[0]).toMatchObject({ kind: "annotation", source: "Serial", entry_type: "Period", start: "2026-10-11T09:30:00.000Z", end: "2026-10-11T10:30:00.000Z" });
+    expect(entries[1]).toMatchObject({ source: "Contact", entry_type: "Note", text: "Gained on the array", start: "2026-10-11T09:50:00.000Z" });
+    expect(entries[1].end).toBeUndefined();
     expect(entries[2].hidden).toBe(true);
   });
 
   it("marks the entry current time is at", () => {
-    const entries = timelineEntries(plot);
-    const at = (iso: string) => currentEntry(entries, Date.parse(iso));
+    const starts = timelineEntries(plot).map((e) => Date.parse(e.start));
+    const at = (iso: string) => currentEntry(starts, Date.parse(iso));
     expect(at("2026-10-11T09:00:00.000Z")).toBe(-1);
     expect(at("2026-10-11T09:30:00.000Z")).toBe(0);
     expect(at("2026-10-11T09:55:00.000Z")).toBe(1);

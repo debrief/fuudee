@@ -110,3 +110,9 @@ body { background: var(--vscode-editor-background); color: var(--vscode-foregrou
 .track-extent .track-extent-button:focus-visible { outline: 1px solid var(--vscode-focusBorder); outline-offset: -1px; }
 /* The Tote's lines from the primary to each secondary at current time: thin and muted, never in the way. */
 .leaflet-overlay-pane path.tote-map-line { stroke: var(--vscode-descriptionForeground); pointer-events: none; }
+/* The narrative entry current time is at, beside its track: a small box in the theme's colours, never in the way. */
+.narrative-on-map { pointer-events: none; }
+.narrative-box { display: inline-block; max-width: 280px; padding: 1px 6px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; font-size: 11px; line-height: 16px; color: var(--vscode-editorWidget-foreground, var(--vscode-foreground)); background: var(--vscode-editorWidget-background, var(--vscode-editor-background)); border: 1px solid var(--vscode-widget-border, var(--vscode-panel-border, transparent)); border-radius: 3px; opacity: .92; }
+.narrative-box b { font-weight: 600; margin-right: 2px; }
+/* Where the right is short of room, the box ends at the marker instead of starting there. */
+.narrative-box.narrative-left { transform: translateX(-100%); }

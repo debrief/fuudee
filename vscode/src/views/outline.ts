@@ -7,7 +7,7 @@ import * as vscode from "vscode";
 import type { OpenedPlot } from "../catalogue.js";
 import type { Session } from "../session.js";
 import { isFeature, isHidden, type PlotFeature } from "../hidden.js";
-import { describeTimes } from "../format.js";
+import { count, describeTimes } from "../format.js";
 import { shapeOf } from "../../webview/annotationlook.js";
 import { DR_TAG, isDeadReckoned } from "../../webview/fixes.js";
 
@@ -17,6 +17,7 @@ export type Node =
   | { kind: "group"; id: string; label: string; parent: Node; children: Node[] }
   | { kind: "feature"; feature: Feature; parent: Node }
   | { kind: "file"; title: string; fileKind: string; href: string; parent: Node }
+  | { kind: "narrative"; entries: number; sources: number; parent: Node }
   | { kind: "empty"; text: string; parent: Node };
 
 /** Codicons for each kind of annotation (CAP-03). */
@@ -56,6 +57,12 @@ function build(opened: OpenedPlot): { roots: Node[]; features: Map<string, Node>
       group.children.push(node);
     }
     plotSection.children.push(group);
+  }
+  // The narrative: one row, read in the Timeline (a plot may hold sixty thousand entries).
+  const entries = opened.plot.features.filter((f) => f.properties.kind === "narrative");
+  if (entries.length) {
+    const sources = new Set(entries.map((f) => (f.properties as { source: string }).source)).size;
+    plotSection.children.push({ kind: "narrative", entries: entries.length, sources, parent: plotSection });
   }
   const files = section("files", "Supporting files");
   files.children = opened.files.length
@@ -112,6 +119,15 @@ export class OutlineProvider implements vscode.TreeDataProvider<Node> {
         });
       case "empty":
         return Object.assign(new vscode.TreeItem(node.text), { description: "" });
+      case "narrative": {
+        const item = new vscode.TreeItem("Narrative");
+        item.id = "narrative";
+        item.description = `${count(node.entries, "entry", "entries")} from ${count(node.sources, "source")}`;
+        item.iconPath = new vscode.ThemeIcon("comment-discussion");
+        item.tooltip = "Read in the Timeline, in time order with notes and periods";
+        item.command = { command: "debrief.timeline.focus", title: "Show the Timeline" };
+        return item;
+      }
       case "file": {
         const item = new vscode.TreeItem(node.title);
         item.description = node.fileKind;

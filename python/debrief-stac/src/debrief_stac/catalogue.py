@@ -42,7 +42,7 @@ from debrief_schemas import (
 )
 from debrief_schemas.documents import track_edit_problems
 from debrief_schemas.island import PLOT_FEATURE_ID, plot_feature
-from debrief_stac import annotations, fixes, reckoning, tracks
+from debrief_stac import annotations, fixes, narrative, reckoning, tracks
 from debrief_stac.hashing import content_hash
 from debrief_stac.history import (
     LOCK,
@@ -115,7 +115,16 @@ def plot_extent(plot: DebriefFeatureCollection) -> Extent:
     lons: list[float] = []
     lats: list[float] = []
     times: list[int] = []
+    # Times of single instants, as written: UTC to the millisecond in one fixed form
+    # (UtcTimestamp), so the earliest and latest as text are the earliest and latest
+    # in time, and only those two are read. A plot may hold tens of thousands of
+    # narrative entries (NFR-06).
+    instants: list[str] = []
     for feature in plot.features:
+        props = feature.properties
+        if props.kind == "narrative":
+            instants.append(props.time)
+            continue
         geometry = feature.geometry
         if geometry is not None:
             coordinates = geometry.coordinates
@@ -127,13 +136,15 @@ def plot_extent(plot: DebriefFeatureCollection) -> Extent:
                 points = [p for ring in coordinates for p in ring]
             lons += [p[0] for p in points]
             lats += [p[1] for p in points]
-        props = feature.properties
         if props.kind == "track":
             times += [parse_utc(props.times[0]), parse_utc(props.times[-1])]
-        if getattr(props, "time", None):
-            times.append(parse_utc(props.time))
+        time = getattr(props, "time", None)
+        if time:
+            instants.append(time)
         if getattr(props, "time_range", None):
             times += [parse_utc(props.time_range.start), parse_utc(props.time_range.end)]
+    if instants:
+        times += [parse_utc(min(instants)), parse_utc(max(instants))]
     bbox = (min(lons), min(lats), max(lons), max(lats)) if lons else None
     return Extent(bbox, min(times) if times else None, max(times) if times else None)
 
@@ -855,6 +866,135 @@ class Catalogue:
         result = self._change(item_id, change, agent, base, allow_newer_schema)
         return None if result is None else result[0]
 
+    # --- Narrative entries: added, changed and deleted by hand (CAP-20) --------
+
+    def add_narrative(
+        self,
+        item_id: str,
+        spec: models.NarrativeSpec | dict,
+        agent: models.AgentRef,
+        base: Base | None = None,
+        *,
+        allow_newer_schema: bool = False,
+    ) -> tuple[int, str]:
+        """Add a narrative entry described by spec: one recorded, undoable step, named
+        like "Narrative entry by BLUE ONE at 08:40:00Z added". Returns the step and the
+        new entry's id. Left out, the track it belongs to is the one named as its source.
+        NarrativeError says, in plain words, what is wrong with the description."""
+        described = narrative.spec_from(spec)
+
+        def change(plot: DebriefFeatureCollection):
+            names = narrative.track_names(plot)
+            if (
+                described.track_id is None
+                and described.source
+                and not (isinstance(spec, dict) and "track_id" in spec)
+            ):
+                found = narrative.track_for(described.source, names)
+                chosen = described.model_copy(update={"track_id": found})
+            else:
+                chosen = described
+            (feature_id,) = narrative.new_ids({f.id for f in plot.features})
+            feature = narrative.build(chosen, feature_id, set(names.values()))
+            return Changes(added=[feature]), f"{narrative.title_of(feature)} added", feature_id
+
+        return self._change(item_id, change, agent, base, allow_newer_schema)
+
+    def edit_narrative(
+        self,
+        item_id: str,
+        feature_id: str,
+        spec: models.NarrativeSpec | dict,
+        agent: models.AgentRef,
+        base: Base | None = None,
+        *,
+        allow_newer_schema: bool = False,
+    ) -> int | None:
+        """Change a narrative entry, as one step. A dict may give only what changes; the
+        rest is kept, and a member given as None is cleared. None if nothing changed."""
+
+        def change(plot: DebriefFeatureCollection):
+            before = self._narrative(plot, feature_id)
+            if isinstance(spec, dict):
+                merged = narrative.spec_of(before).model_dump(mode="json", exclude_none=True)
+                merged.update(spec)
+                described = narrative.spec_from({k: v for k, v in merged.items() if v is not None})
+            else:
+                described = spec
+            tracks_now = set(narrative.track_names(plot).values())
+            after = narrative.build(described, feature_id, tracks_now, previous=before)
+            note = narrative.describe_change(before, after)
+            if note is None:
+                return None
+            return Changes(modified=[after]), note, None
+
+        result = self._change(item_id, change, agent, base, allow_newer_schema)
+        return None if result is None else result[0]
+
+    def delete_narrative(
+        self,
+        item_id: str,
+        feature_ids: list[str],
+        agent: models.AgentRef,
+        base: Base | None = None,
+        *,
+        allow_newer_schema: bool = False,
+    ) -> int:
+        """Delete narrative entries as one step. Named sets keep the rest of their
+        members; a set left empty goes too. Undo brings them all back."""
+        if not feature_ids:
+            raise CatalogueError("Choose the narrative entries to delete.")
+
+        def change(plot: DebriefFeatureCollection):
+            gone = [self._narrative(plot, i) for i in dict.fromkeys(feature_ids)]
+            note = (
+                f"{narrative.title_of(gone[0])} deleted"
+                if len(gone) == 1
+                else f"{len(gone)} narrative entries deleted"
+            )
+            return self._deleted(plot, [f.id for f in gone]), note, None
+
+        return self._change(item_id, change, agent, base, allow_newer_schema)[0]
+
+    def add_narrative_entries(
+        self,
+        item_id: str,
+        features: list[models.NarrativeFeature],
+        record: models.ProvRecord,
+        base: Base | None = None,
+        *,
+        allow_newer_schema: bool = False,
+    ) -> int:
+        """Add entries read from a source (an importer's) to the plot, as one step with
+        the importer's record. Their ids are given new ones the plot does not use."""
+        history = self.history(item_id)
+        if base is None:
+            base = history.base()
+            plot = history.plot()
+        else:
+            history.check_base(base)
+            plot = history.replay(base.current)
+        ids = narrative.new_ids({f.id for f in plot.features}, len(features))
+        added = [f.model_copy(update={"id": i}) for f, i in zip(features, ids, strict=True)]
+        return self.commit(
+            item_id, [record], Changes(added=added), base, allow_newer_schema=allow_newer_schema
+        )
+
+    @staticmethod
+    def _deleted(plot: DebriefFeatureCollection, ids_list: list[str]) -> Changes:
+        """Features deleted; named sets keep the rest of their members, and a set left
+        empty goes too."""
+        ids = set(ids_list)
+        sets, emptied = [], []
+        for named in plot.named_sets or []:
+            if ids & set(named.feature_ids):
+                kept = [i for i in named.feature_ids if i not in ids]
+                if kept:
+                    sets.append(named.model_copy(update={"feature_ids": kept}))
+                else:
+                    emptied.append(named.id)
+        return Changes(deleted_ids=ids_list, named_sets=sets, deleted_named_set_ids=emptied)
+
     # --- Tracks: moved, rotated, split and merged by hand (CAP-01, CAP-02) ------
 
     def edit_track(
@@ -1472,6 +1612,15 @@ class Catalogue:
             raise CatalogueError(f"{feature.properties.name} is not an annotation.")
         return feature
 
+    @staticmethod
+    def _narrative(plot: DebriefFeatureCollection, feature_id: str) -> models.NarrativeFeature:
+        feature = next((f for f in plot.features if f.id == feature_id), None)
+        if feature is None:
+            raise CatalogueError(f"The plot has no narrative entry {feature_id!r}.")
+        if feature.properties.kind != "narrative":
+            raise CatalogueError(f"{feature_id} is not a narrative entry.")
+        return feature
+
     def _change(self, item_id, change, agent, base, allow_newer_schema):
         """Make one change by hand: change(plot) gives the changes, the note naming
         them and a value to return with the step, or None if nothing changes. base is
@@ -1485,7 +1634,7 @@ class Catalogue:
             plot = history.replay(base.current)
         try:
             made = change(plot)
-        except (annotations.AnnotationError, tracks.TrackError) as error:
+        except (annotations.AnnotationError, narrative.NarrativeError, tracks.TrackError) as error:
             raise CatalogueError(str(error)) from None
         if made is None:
             return None

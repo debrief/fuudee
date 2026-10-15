@@ -6,6 +6,7 @@
 // step; the label is drawn on the map, the comment shows when pointing at the fix and in the
 // Timeline; a right-click on a fix on the map chooses it in the list, and so, on a touch screen,
 // does pressing and holding it (a tap or a moving finger does not); the list works from the keyboard.
+import { searchTimeline, timelineRow } from "./timelinerows.mjs";
 import assert from "node:assert/strict";
 
 export async function playCleaning(page, shot) {
@@ -151,7 +152,8 @@ export async function playCleaning(page, shot) {
   const dot = mapFrame.locator('path.fix-mark[fill="#ffd700"]');
   await dot.waitFor();
   // The comment is in the Timeline, at its fix's time.
-  await page.locator("#timeline li", { hasText: "RED ONE fix" }).filter({ hasText: "Wheel over for the second leg" }).waitFor();
+  const comment = await timelineRow(page, "Wheel over for the second leg", "fix_comment");
+  assert.equal(await comment.locator(".tl-source").innerText(), "RED ONE");
   // Pointing at the fix shows its comment.
   const at = await dot.boundingBox();
   await page.mouse.move(at.x + at.width / 2, at.y + at.height / 2);
@@ -218,7 +220,9 @@ export async function playCleaning(page, shot) {
     await page.waitForFunction((c) => (document.getElementById("history")?.textContent?.match(/undone/g) ?? []).length === c, i);
   }
   await mapFrame.locator(".fix-label").waitFor({ state: "detached" });
-  assert.equal(await page.locator("#timeline li", { hasText: "RED ONE fix" }).count(), 0);
+  await searchTimeline(page, "Wheel over for the second leg");
+  assert.equal(await page.locator('#timeline .tl-row[data-kind="fix_comment"]').count(), 0);
+  await searchTimeline(page, "");
   for (let i = 2; i >= 0; i--) {
     await page.locator("#redo").click();
     await page.waitForFunction((c) => (document.getElementById("history")?.textContent?.match(/undone/g) ?? []).length === c, i);

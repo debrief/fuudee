@@ -17,9 +17,10 @@
  * folded in this browser; a demo that chooses its panels starts with them all open, and
  * folding there is not remembered, so a post's demo always shows what the post describes.
  */
-import type { AnnotationSpec, DebriefFeatureCollection, ParameterValue, PlotView, SharedStateChange, StacItem, TimeRange, TimeState, ToolDeclaration, ToolResult, ToteResult, ToteView } from "@debrief/schemas";
+import type { AnnotationSpec, DebriefFeatureCollection, NarrativeSpec, ParameterValue, PlotView, SharedStateChange, StacItem, TimeRange, TimeState, ToolDeclaration, ToolResult, ToteResult, ToteView } from "@debrief/schemas";
 import { specOfFeature } from "../webview/annotationlook.js";
-import { currentEntry, timelineEntries, type TimelineEntry } from "../src/timeline.js";
+import { NarrativeOnMap, narrativeOnMapOf, timelineEntries, timelineTracks } from "../src/timeline.js";
+import { TimelineControl } from "../webview/timelinecontrol.js";
 import { count, describePeriod, describeTimes, describeToolRun } from "../src/format.js";
 import { resolveTimes } from "../src/timeinput.js";
 import { describeStep, needs } from "../src/wording.js";
@@ -121,6 +122,8 @@ const timeControl = new TimeControl($("timebar"), {
   moved: (moved) => {
     time = moved;
     refreshTote(); // asked at once: the Tote keeps pace by never queueing (NFR-04)
+    timelineControl.setTime(time); // the Timeline follows; it draws at most once a frame
+    narrativeToMap();
     if (timePending) return; // tell the map at most once a frame, however fast a slider moves
     timePending = true;
     requestAnimationFrame(() => {
@@ -130,6 +133,8 @@ const timeControl = new TimeControl($("timebar"), {
   },
   windowSaved: (window) => void saveWindow(window),
   contextChanged: (context) => void saveView({ context_tracks: context }),
+  // Pressing Play follows current time in the Timeline again (product owner, 15 Oct 2026).
+  playing: (playing) => timelineControl.setPlaying(playing),
 });
 /** The time window as the plot file last had it, or the plot's period. */
 let savedWindow: TimeRange | undefined;
@@ -145,7 +150,8 @@ const contextOf = (): ContextTracks => (opened && contextTracksOf(opened.plot)) 
 function showTime(next: TimeState | undefined): void {
   time = next;
   timeControl.show(time, opened && periodOf(opened.item), { saved: savedWindow, context: contextOf(), minimumContrast: false });
-  markTimeline();
+  timelineControl.setTime(time);
+  narrativeToMap();
   refreshTote();
 }
 
@@ -243,7 +249,13 @@ const saveWindow = (window: TimeRange): Promise<void> => saveView({ time_window:
 function saveView(change: Partial<PlotView>): Promise<void> {
   // One at a time, each with the hash the last one left, as VS Code does: two quick
   // key presses must never look like a colleague's change.
-  const what = change.time_window ? "The time window" : change.tote ? "The Tote's tracks" : "How context tracks are drawn";
+  const what = change.time_window
+    ? "The time window"
+    : change.tote
+      ? "The Tote's tracks"
+      : "narrative_on_map" in change
+        ? "Whether the map shows the narrative"
+        : "How context tracks are drawn";
   saving = saving.then(() => saveViewNow(change, what)).catch((error: Error) => toast(`${what} was not saved: ${error.message}`, "warning"));
   return saving;
 }
@@ -269,6 +281,7 @@ async function saveViewNow(change: Partial<PlotView>, what: string): Promise<voi
   }
   if (outcome.error || !outcome.view_hash || !outcome.base) {
     showTime(time); // what is saved, again
+    if ("narrative_on_map" in change) renderTimeline();
     return toast(outcome.error ?? `${what} was not saved.`, "warning");
   }
   if (opened?.item.id !== item) return;
@@ -279,6 +292,10 @@ async function saveViewNow(change: Partial<PlotView>, what: string): Promise<voi
   // The controller shows what is saved; the map draws context tracks as the plot now says.
   showTime(time);
   if (change.context_tracks) post(map, { kind: "set_context", context_tracks: contextShown(contextOf(), false) });
+  if ("narrative_on_map" in change) {
+    narrativeShown = undefined;
+    narrativeToMap();
+  }
 }
 
 function showPlot(): void {
@@ -292,6 +309,8 @@ function showPlot(): void {
     context_tracks: contextShown(contextOf(), false),
     ...(time && { time }),
   });
+  narrativeShown = undefined;
+  narrativeToMap();
 }
 
 async function openPlot(item: string, keep = false): Promise<void> {
@@ -1231,47 +1250,81 @@ async function markFix(trackId: string, time: string, changes: Record<string, st
   await openFixes(trackId, time); // the list again, saying the fix's new mark
 }
 
-// --- The Timeline: time-only annotations in time order (CAP-05) ----------------------
-let timeline: TimelineEntry[] = [];
+// --- The Timeline: narrative, notes and periods in time order (CAP-05, CAP-20) -------
+/** Where the reader's Timeline filter is kept: this browser, every read and write guarded. */
+const TIMELINE_FILTER_KEY = "debrief.play.timelineFilter";
+const timelineMemory = {
+  load: () => {
+    try {
+      const text = window.localStorage.getItem(TIMELINE_FILTER_KEY);
+      return text ? JSON.parse(text) : undefined;
+    } catch {
+      return undefined;
+    }
+  },
+  save: (value: unknown) => {
+    try {
+      window.localStorage.setItem(TIMELINE_FILTER_KEY, JSON.stringify(value));
+    } catch {
+      // Not remembered: the filter still applies on this visit.
+    }
+  },
+};
+let timelineIds = new Map<string, string>();
+const timelineControl = new TimelineControl(
+  $("timeline"),
+  {
+    choose: (id) => goToTime(id),
+    save: (spec, id) => void saveNarrative(spec, id),
+    remove: (id) => void narrate({ kind: "delete", features: [id] }).then((outcome) => outcome.error && toast(outcome.error, "warning")),
+    // The map's narrative box: the plot's choice, in its island like the Tote's lines; left out when on.
+    narrativeOnMap: (on) => void saveView({ narrative_on_map: on ? undefined : false }),
+    // Ctrl+Z outside the Timeline's text boxes, decided by the Timeline as in VS Code.
+    history: (how) => void move(how),
+  },
+  undefined,
+  params.has("panels") ? undefined : timelineMemory,
+);
+(window as unknown as { debriefTimeline: () => unknown }).debriefTimeline = () => ({ ...timelineControl.state, drawTimes: timelineControl.drawTimes.slice(-20) });
+let narrativeOnMap = new NarrativeOnMap([]);
+let narrativeShown: string | undefined;
 function renderTimeline(): void {
-  timeline = opened ? timelineEntries(opened.plot) : [];
-  const list = $("timeline");
-  if (!timeline.length) {
-    list.replaceChildren(Object.assign(document.createElement("li"), { className: "detail", textContent: "No notes or periods with a time yet." }));
-    return;
-  }
-  list.replaceChildren(
-    ...timeline.map((entry) => {
-      const row = document.createElement("li");
-      row.dataset.id = entry.id;
-      const button = document.createElement("button");
-      button.innerHTML = `<span class="when"></span><span class="name"></span> <span class="detail"></span>`;
-      button.querySelector(".when")!.textContent = entry.when;
-      button.querySelector(".name")!.textContent = entry.name;
-      button.querySelector(".detail")!.textContent = [entry.text, entry.hidden ? "hidden on map" : ""].filter(Boolean).join(" · ");
-      button.title = "Move current time here";
-      button.onclick = () => goToTime(entry);
-      row.append(button);
-      return row;
-    }),
+  const entries = opened ? timelineEntries(opened.plot) : [];
+  timelineIds = new Map(entries.map((e) => [e.id, e.start]));
+  narrativeOnMap = new NarrativeOnMap(entries);
+  timelineControl.show(
+    opened ? { entries, tracks: timelineTracks(opened.plot), plotId: opened.item.id, narrativeOnMap: narrativeOnMapOf(opened.plot) } : undefined,
   );
-  markTimeline();
+  timelineControl.setTime(time);
+  narrativeToMap();
 }
-/** Mark the entry current time is at, as the Timeline view in VS Code does. */
-function markTimeline(): void {
-  const at = time ? currentEntry(timeline, Date.parse(time.current)) : -1;
-  $("timeline").querySelectorAll<HTMLElement>("li[data-id]").forEach((row, i) => {
-    row.classList.toggle("current", i === at);
-    row.querySelector("button")?.setAttribute("aria-current", i === at ? "time" : "false");
-  });
+/** The narrative entry current time is at, beside its track on the map, when it changes (CAP-20). */
+function narrativeToMap(): void {
+  const entry = time && opened && narrativeOnMapOf(opened.plot) ? narrativeOnMap.at(Date.parse(time.current)) : undefined;
+  if (entry?.id === narrativeShown) return;
+  narrativeShown = entry?.id;
+  post(map, entry ? { kind: "set_narrative", timeline_entry: entry } : { kind: "set_narrative" });
 }
 /** Move current time to an entry: outside the window shown, the window widens or moves, shown but not saved (CAP-28). */
-function goToTime(entry: TimelineEntry): void {
-  if (!time || !opened) return;
-  const at = new Date(entry.start).toISOString();
+function goToTime(id: string): void {
+  const start = timelineIds.get(id);
+  if (!time || !opened || !start) return;
+  const at = new Date(Date.parse(start)).toISOString();
   const range = time.range;
   const span = { start: at < range.start ? at : range.start, end: at > range.end ? at : range.end };
   showToolTime({ time: { current: at, range: span } }, opened.item.id, false);
+}
+/** Add, change or delete narrative entries, or read a REP file's narrative in, as debrief/add_narrative and the rest do. */
+async function narrate(change: Record<string, unknown>): Promise<{ error?: string; feature?: string; entries?: number; omitted?: string[] }> {
+  if (!opened || !pythonReady) return { error: "Open a plot first." };
+  const outcome = await pythonJson<{ error?: string; feature?: string; entries?: number; omitted?: string[] }>("narrative", opened.item.id, JSON.stringify({ base: opened.base, change }));
+  if (outcome.error) return outcome;
+  await openPlot(opened.item.id, true);
+  return outcome;
+}
+async function saveNarrative(spec: NarrativeSpec, id?: string): Promise<void> {
+  const outcome = await narrate(id ? { kind: "edit", feature: id, entry: spec } : { kind: "add", entry: spec });
+  timelineControl.saved(outcome.error ? undefined : (outcome.feature ?? id), outcome.error);
 }
 
 // --- History ----------------------------------------------------------------------
@@ -1548,7 +1601,7 @@ for (const panel of OPTIONAL) $(`panel-${panel}`).hidden = !panels.has(panel);
 // under the time controller, since both follow current time.
 for (const panel of panelOrder) if (OPTIONAL.includes(panel) && panel !== "tote") $("side").append($(`panel-${panel}`));
 /** History, Try and Import need Python: off until it is ready. */
-const NEEDS_PYTHON = ["undo", "redo", "move-track", "rotate-track", "shear-track", "stretch-track", "split-track", "merge-tracks", "find-jumps", "smooth-track", "fix-list", "plotting-mode", "ask-again", "glitches", "crash", "colleague", "colleague-window", "colleague-during", "file", "colour", "hide", "show", "add-annotation", "edit-annotation", "delete-annotation", "north-arrow"];
+const NEEDS_PYTHON = ["undo", "redo", "move-track", "rotate-track", "shear-track", "stretch-track", "split-track", "merge-tracks", "find-jumps", "smooth-track", "fix-list", "plotting-mode", "ask-again", "glitches", "crash", "colleague", "colleague-window", "colleague-during", "file", "narrative-file", "colour", "hide", "show", "add-annotation", "edit-annotation", "delete-annotation", "north-arrow"];
 function needsPython(on: boolean): void {
   for (const id of NEEDS_PYTHON) $<HTMLButtonElement | HTMLInputElement>(id).disabled = !on;
 }
@@ -1635,6 +1688,27 @@ async function askModes(name: string, data: Uint8Array): Promise<{ modes: Record
     },
   );
 }
+// A platform's log read into the open plot, as one step (CAP-20): its narrative lines.
+$<HTMLInputElement>("narrative-file").onchange = async (e) => {
+  const input = e.target as HTMLInputElement;
+  const file = input.files?.[0];
+  input.value = "";
+  if (!file || !opened || !pythonReady) return;
+  status(`Reading ${file.name}…`, true);
+  const data = new Uint8Array(await file.arrayBuffer());
+  const outcome = await pythonJson<{ error?: string; entries?: number; omitted?: string[] }>(
+    "narrative",
+    opened.item.id,
+    JSON.stringify({ base: opened.base, change: { kind: "import", name: file.name } }),
+    data,
+  );
+  status("");
+  if (outcome.error) return toast(outcome.error, "warning");
+  await openPlot(opened.item.id, true);
+  folds.setOpen("panel-timeline", true);
+  const left = outcome.omitted?.length ? ` ${outcome.omitted.length === 1 ? "One kind of line was" : `${outcome.omitted.length} kinds of line were`} not read; see the History.` : "";
+  toast(`Read ${count(outcome.entries ?? 0, "narrative entry", "narrative entries")} into the plot.${left}`);
+};
 $<HTMLInputElement>("file").onchange = async (e) => {
   const file = (e.target as HTMLInputElement).files?.[0];
   if (!file) return;

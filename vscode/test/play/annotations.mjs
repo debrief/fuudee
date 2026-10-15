@@ -2,6 +2,7 @@
 // circle through the form, restyle it, undo, add an ellipse, an area and a label,
 // show the north arrow, and move current time from the Timeline. Shared by play.mjs
 // and, while working on it, explore.mjs.
+import { timelineRow } from "./timelinerows.mjs";
 import assert from "node:assert/strict";
 
 /** Choose an option of one of the form's lists, by its label. */
@@ -115,15 +116,14 @@ export async function playAnnotations(page, shot) {
   await page.locator("#selected-count").click();
   await shot("annot-03-styled-on-the-map");
 
-  // The Timeline: notes in time order; choosing one moves current time to it.
-  const rows = page.locator("#timeline li[data-id]");
-  assert.ok((await rows.count()) > 3, "the sample's narrative is in the Timeline");
-  const target = rows.filter({ hasText: "Closest approach of BLUE ONE" });
-  const when = (await target.locator(".when").innerText()).trim();
-  await target.locator("button").click();
+  // The Timeline: the narrative and notes in time order; choosing one moves current time to it.
+  assert.ok((await page.locator("#timeline .tl-row[data-id]").count()) > 3, "the sample's narrative is in the Timeline");
+  const target = await timelineRow(page, "Closest approach of BLUE ONE");
+  const when = (await target.locator(".tl-time").innerText()).trim();
+  await target.click();
   await page.waitForFunction((w) => document.querySelector("#timebar .time-label")?.textContent?.includes(w), when);
-  await page.waitForFunction(() => document.querySelector("#timeline li.current") !== null);
-  assert.equal(await page.locator("#timeline li.current").getAttribute("data-id"), await target.getAttribute("data-id"));
+  await page.waitForFunction(() => document.querySelector("#timeline .tl-row.tl-current") !== null);
+  assert.equal(await page.locator("#timeline .tl-row.tl-current").getAttribute("data-id"), await target.getAttribute("data-id"));
   await page.locator("#panel-timeline").scrollIntoViewIfNeeded();
   await page.mouse.move(2, 2);
   await shot("annot-04-timeline");
@@ -137,7 +137,7 @@ export async function playAnnotations(page, shot) {
   await form.locator(".field-echo", { hasText: "Means 15 Jun 2023 10:15:00Z" }).waitFor();
   await form.getByRole("button", { name: "Add" }).click();
   await historySays("Note 'Contact gained' added");
-  await page.locator("#timeline li", { hasText: "Contact gained" }).waitFor();
+  assert.equal(await (await timelineRow(page, "Contact gained", "annotation")).locator(".tl-type").innerText(), "Note");
 
   // Delete the label: one step; undo brings it back.
   await page.locator(`#outline li[data-id="annotation-datum-buoy"]`).click();

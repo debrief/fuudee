@@ -163,6 +163,11 @@ export type QuantityKindEnum = "length" | "speed" | "angle" | "duration" | "angu
 export type PayloadFormatEnum = "arrow" | "parquet" | "geojson";
 /**
  * This interface was referenced by `DebriefSchemaDefinitions`'s JSON-Schema
+ * via the `definition` "NarrativeKindEnum".
+ */
+export type NarrativeKindEnum = "narrative";
+/**
+ * This interface was referenced by `DebriefSchemaDefinitions`'s JSON-Schema
  * via the `definition` "PlotKindEnum".
  */
 export type PlotKindEnum = "plot";
@@ -181,7 +186,7 @@ export type FeatureCollectionTypeEnum = "FeatureCollection";
  * This interface was referenced by `DebriefSchemaDefinitions`'s JSON-Schema
  * via the `definition` "FeatureKindEnum".
  */
-export type FeatureKindEnum = "track" | "annotation" | "sensor_observations" | "plot";
+export type FeatureKindEnum = "track" | "annotation" | "sensor_observations" | "plot" | "narrative";
 /**
  * This interface was referenced by `DebriefSchemaDefinitions`'s JSON-Schema
  * via the `definition` "PositionNotationEnum".
@@ -237,6 +242,13 @@ export type ParameterKindEnum = "number" | "integer" | "string" | "boolean" | "c
  * via the `definition` "StepStateEnum".
  */
 export type StepStateEnum1 = "applied" | "undone" | "abandoned";
+/**
+ * What a Timeline row is.
+ *
+ * This interface was referenced by `DebriefSchemaDefinitions`'s JSON-Schema
+ * via the `definition` "TimelineEntryKindEnum".
+ */
+export type TimelineEntryKindEnum = "narrative" | "annotation" | "fix_comment";
 /**
  * What a tool may return (TL-11).
  *
@@ -307,6 +319,17 @@ export type WebviewMessageKindEnum =
   | "show_tote"
   | "tote_changed"
   | "set_tote"
+  | "show_timeline"
+  | "narrative_on_map_changed"
+  | "playing_changed"
+  | "timeline_chosen"
+  | "save_narrative"
+  | "delete_narrative"
+  | "open_narrative_form"
+  | "narrative_saved"
+  | "set_narrative"
+  | "undo_asked"
+  | "redo_asked"
   | "fix_chosen";
 
 export interface DebriefSchemaDefinitions {}
@@ -600,7 +623,7 @@ export interface AnnotationSpec {
  * via the `definition` "DebriefFeatureCollection".
  */
 export interface DebriefFeatureCollection {
-  features: (TrackFeature | AnnotationFeature | SensorObservationsFeature | PlotFeature)[];
+  features: (TrackFeature | AnnotationFeature | SensorObservationsFeature | NarrativeFeature | PlotFeature)[];
   /**
    * The plot's whole history: every step, with its provenance and whether it is applied, undone or abandoned, and the current step (SUB-19, SUB-21, decision 13 Oct). A GeoJSON foreign member, so other tools still read the file as GeoJSON. Not content: left out of every content hash. Last in the file. A plot sent to a view or a tool never carries it.
    */
@@ -814,6 +837,49 @@ export interface InnerSchemaRef {
   version: string;
 }
 /**
+ * One narrative entry (CAP-19, CAP-20, EXT-14): what a platform, a person or a document logged at a time. A feature of its own with null geometry, as a time-only annotation is, so other GeoJSON tools read it, and each entry added, changed or deleted is one small recorded, undoable step (SUB-19). Every narrative feature in a plot together makes the plot's narrative: one combined Zulu time axis, however many sources it came from, in the order narrative_order gives (time; then source, ignoring case; then the plot's order, so a log's own order at one time is kept).
+ *
+ * This interface was referenced by `DebriefSchemaDefinitions`'s JSON-Schema
+ * via the `definition` "NarrativeFeature".
+ */
+export interface NarrativeFeature {
+  /**
+   * Always null.
+   */
+  geometry?: PointGeometry | null;
+  id: string;
+  properties: NarrativeProperties;
+  type: FeatureTypeEnum;
+}
+/**
+ * This interface was referenced by `DebriefSchemaDefinitions`'s JSON-Schema
+ * via the `definition` "NarrativeProperties".
+ */
+export interface NarrativeProperties {
+  /**
+   * What kind of entry, in the source's own words, such as legacy Debrief's GenComment, Posn, CSD or FCS. Free text: each source has its own types. Left out where the source gives none.
+   */
+  entry_type?: string | null;
+  kind: NarrativeKindEnum;
+  provenance?: ProvRecord[] | null;
+  /**
+   * Who wrote it: the platform, person or document whose log it is (legacy Debrief's track name on an entry), such as "BLUE ONE".
+   */
+  source: string;
+  /**
+   * What was logged. May run to several lines.
+   */
+  text: string;
+  /**
+   * When it was logged, to the millisecond, Zulu (SUB-01).
+   */
+  time: string;
+  /**
+   * The track the entry belongs to, where one is known: by default the track named as its source. A track since deleted leaves the link, which is then ignored.
+   */
+  track_id?: string | null;
+}
+/**
  * The whole plot: its own details, and its view (the island). At most one per plot. Geometry is always null, so the plot file stays plain GeoJSON for other tools.
  *
  * This interface was referenced by `DebriefSchemaDefinitions`'s JSON-Schema
@@ -858,6 +924,10 @@ export interface PlotView {
    * How tracks outside the time window are drawn (CAP-29). Left out means visible.
    */
   context_tracks?: ContextTracksEnum | null;
+  /**
+   * Whether the map shows the narrative entry current time is at in a small box beside its track, for ten minutes of plot time; left out means it does. Turned off and on in the Timeline. View state, like the Tote's lines: never a step in the history (decision, product owner, 15 Oct 2026).
+   */
+  narrative_on_map?: boolean | null;
   /**
    * The plot's time window: the period shown, one for the whole plot (CAP-28, CAP-29). Start shall not be after end.
    */
@@ -918,7 +988,7 @@ export interface HistoryStep {
   /**
    * Features added. A whole-plot feature here never carries its view: the island is not content (SUB-22).
    */
-  added?: (TrackFeature | AnnotationFeature | SensorObservationsFeature | PlotFeature)[] | null;
+  added?: (TrackFeature | AnnotationFeature | SensorObservationsFeature | NarrativeFeature | PlotFeature)[] | null;
   /**
    * The step this one was applied on top of (0 for the first). Replay follows these links back from a step to the first.
    */
@@ -928,7 +998,7 @@ export interface HistoryStep {
   /**
    * Features changed, in full, replacing those with the same id.
    */
-  modified?: (TrackFeature | AnnotationFeature | SensorObservationsFeature | PlotFeature)[] | null;
+  modified?: (TrackFeature | AnnotationFeature | SensorObservationsFeature | NarrativeFeature | PlotFeature)[] | null;
   /**
    * Named sets added or replaced, by id.
    */
@@ -978,7 +1048,7 @@ export interface Delta {
   /**
    * Features added, never with the whole-plot feature's view.
    */
-  added?: (TrackFeature | AnnotationFeature | SensorObservationsFeature | PlotFeature)[] | null;
+  added?: (TrackFeature | AnnotationFeature | SensorObservationsFeature | NarrativeFeature | PlotFeature)[] | null;
   /**
    * The delta this one was applied on top of (0 for the first).
    */
@@ -988,7 +1058,7 @@ export interface Delta {
   /**
    * Features changed, in full, replacing those with the same id.
    */
-  modified?: (TrackFeature | AnnotationFeature | SensorObservationsFeature | PlotFeature)[] | null;
+  modified?: (TrackFeature | AnnotationFeature | SensorObservationsFeature | NarrativeFeature | PlotFeature)[] | null;
   /**
    * Named sets added or replaced, by id.
    */
@@ -1141,6 +1211,19 @@ export interface MeasureValue {
    */
   unit?: string | null;
   value?: number | null;
+}
+/**
+ * A narrative entry as the analyst describes it in a form, or an agent in a request (debrief/add_narrative, debrief/edit_narrative): made into a narrative feature as one recorded step (CAP-20).
+ *
+ * This interface was referenced by `DebriefSchemaDefinitions`'s JSON-Schema
+ * via the `definition` "NarrativeSpec".
+ */
+export interface NarrativeSpec {
+  entry_type?: string | null;
+  source?: string | null;
+  text?: string | null;
+  time?: string | null;
+  track_id?: string | null;
 }
 /**
  * A number, table or graph (TL-13), held column by column. A number is one column with one value; a graph plots its first column against the rest.
@@ -1378,6 +1461,51 @@ export interface StacItemProperties {
   [k: string]: unknown;
 }
 /**
+ * One row of the Timeline (CAP-05, CAP-20): a narrative entry, a time-only annotation (a note or a period) or a comment on a track's fix, as the Timeline lists them, in one time order.
+ *
+ * This interface was referenced by `DebriefSchemaDefinitions`'s JSON-Schema
+ * via the `definition` "TimelineEntry".
+ */
+export interface TimelineEntry {
+  /**
+   * That track's colour, lower-case hex RGB.
+   */
+  colour?: string | null;
+  /**
+   * The end of its period; left out for a single time.
+   */
+  end?: string | null;
+  /**
+   * A narrative entry's type, in its source's words.
+   */
+  entry_type?: string | null;
+  /**
+   * An annotation or track hidden on the map.
+   */
+  hidden?: boolean | null;
+  /**
+   * The narrative entry's or annotation's feature id, or fix:<track>:<time> for a fix's comment.
+   */
+  id: string;
+  kind: TimelineEntryKindEnum;
+  /**
+   * Who wrote a narrative entry; an annotation's name; the track a fix comment is on.
+   */
+  source: string;
+  /**
+   * Its time, or the start of its period.
+   */
+  start: string;
+  /**
+   * Its text.
+   */
+  text?: string | null;
+  /**
+   * The track it belongs to: a narrative entry's track, or a fix's.
+   */
+  track?: string | null;
+}
+/**
  * How a tool describes itself to Debrief, agents and hooks (TL-04, TL-06).
  *
  * This interface was referenced by `DebriefSchemaDefinitions`'s JSON-Schema
@@ -1419,9 +1547,9 @@ export interface ToolDeclaration {
  */
 export interface ToolResult {
   deleted_feature_ids?: string[] | null;
-  modified_features?: (TrackFeature | AnnotationFeature | SensorObservationsFeature)[] | null;
+  modified_features?: (TrackFeature | AnnotationFeature | SensorObservationsFeature | NarrativeFeature)[] | null;
   named_sets?: NamedSet[] | null;
-  new_features?: (TrackFeature | AnnotationFeature | SensorObservationsFeature)[] | null;
+  new_features?: (TrackFeature | AnnotationFeature | SensorObservationsFeature | NarrativeFeature)[] | null;
   non_spatial?: NonSpatialResult[] | null;
   state_change?: SharedStateChange | null;
 }
@@ -1584,7 +1712,7 @@ export interface WebviewMessage {
    */
   current_time?: string | null;
   /**
-   * The annotation a form changes or deletes, the annotation or track the map asks to change, or the track whose fixes it rings or the analyst chose.
+   * The narrative entry the Timeline chose, changes or deletes, the annotation a form changes or deletes, the annotation or track the map asks to change, or the track whose fixes it rings or the analyst chose.
    */
   feature_id?: string | null;
   /**
@@ -1605,8 +1733,24 @@ export interface WebviewMessage {
    * The analyst's setting that shows faint context tracks as visible, so the time controller can say so.
    */
   minimum_context_contrast?: boolean | null;
+  /**
+   * A narrative entry as the Timeline's form describes it (save_narrative).
+   */
+  narrative?: NarrativeSpec | null;
+  /**
+   * Whether the map shows the narrative entry current time is at beside its track (show_timeline, narrative_on_map_changed): the plot's PlotView.narrative_on_map; left out means it does.
+   */
+  narrative_on_map?: boolean | null;
   parameters?: ParameterValue[] | null;
+  /**
+   * Whether current time is playing (playing_changed).
+   */
+  playing?: boolean | null;
   plot?: DebriefFeatureCollection | null;
+  /**
+   * Which plot is open, as its host knows it (show_timeline): a list read again for the same plot keeps the reader's place; another plot is read from current time.
+   */
+  plot_id?: string | null;
   plot_title?: string | null;
   /**
    * A track as a change would leave it, one position per fix, drawn beside it until the analyst applies or cancels the change (show_fixes).
@@ -1625,6 +1769,18 @@ export interface WebviewMessage {
    * The plot's period, so times can be entered as the analyst reads them (show_form) and the time window set within it (show_time); or the time window to save (window_changed).
    */
   time_range?: TimeRange | null;
+  /**
+   * The Timeline's rows, in its order (show_timeline).
+   */
+  timeline_entries?: TimelineEntry[] | null;
+  /**
+   * The narrative entry current time is at, to show on the map beside its track (set_narrative).
+   */
+  timeline_entry?: TimelineEntry | null;
+  /**
+   * The plot's tracks, which a narrative entry can belong to (show_timeline).
+   */
+  timeline_tracks?: ToteTrack[] | null;
   tool?: ToolDeclaration | null;
   tool_name?: string | null;
   /**

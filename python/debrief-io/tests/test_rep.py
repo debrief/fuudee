@@ -225,7 +225,9 @@ def test_file_counts_other_records_and_reports_bad_lines() -> None:
     )
     parsed = parse_rep(text)
     assert len(parsed.fixes) == 2
-    assert parsed.other_records == {";SENSOR:": 2, ";NARRATIVE:": 1}
+    # Narrative lines are read (test_rep_narrative.py), not counted as not imported.
+    assert parsed.other_records == {";SENSOR:": 2}
+    assert [(n.source, n.text) for n in parsed.narrative] == [("CARPET", "COMMENT text")]
     assert [number for number, _ in parsed.errors] == [6]
 
 

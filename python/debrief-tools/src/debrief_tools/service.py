@@ -11,10 +11,13 @@ so undo is the same for the extension and an agent (SUB-21); colour and hiding,
 recorded in that history like any change (debrief/set_colour, debrief/set_hidden);
 annotations added, changed and deleted by hand, and the north arrow, recorded the
 same way (debrief/add_annotation, debrief/edit_annotation, debrief/delete_annotations,
-debrief/set_north_arrow); tracks moved, rotated, sheared, stretched, split and merged by hand,
-single fixes moved and tracks plotted by dead reckoning (move_fix and set_plotting_mode),
-recorded the
-same way (debrief/edit_track, debrief/split_track, debrief/merge_tracks); tracks cleaned,
+debrief/set_north_arrow); narrative entries on one Zulu time axis, read and filtered
+(debrief/narrative) and added, changed, deleted or read in from a REP file's narrative
+lines, recorded the same way (debrief/add_narrative, debrief/edit_narrative,
+debrief/delete_narrative, debrief/import_narrative); tracks moved, rotated, sheared,
+stretched, split and merged by hand, single fixes moved and tracks plotted by dead
+reckoning (move_fix and set_plotting_mode), recorded the same way (debrief/edit_track,
+debrief/split_track, debrief/merge_tracks); tracks cleaned,
 what would change shown first (debrief/find_jumps, debrief/preview_smoothing) and then
 changed, recorded the same way (debrief/remove_jumps, debrief/smooth_track), and fixes
 given a colour, label or comment of their own (debrief/mark_fix);
@@ -60,11 +63,17 @@ from starlette.responses import JSONResponse, Response
 from starlette.routing import Route
 
 from debrief_config import ConfigError, add_store, load_config, update_config
-from debrief_io import import_dpf, import_rep
+from debrief_io import NoNarrativeError, import_dpf, import_narrative, import_rep
 from debrief_io.importer import rep_track_names
 from debrief_kernel.time import parse_utc
 from debrief_kernel.units import IncompatibleUnitsError, Quantity
-from debrief_schemas import DocumentKind, dump_document, load_document, models
+from debrief_schemas import (
+    DebriefFeatureCollection,
+    DocumentKind,
+    dump_document,
+    load_document,
+    models,
+)
 from debrief_schemas.documents import DocumentValidationError, load_view
 from debrief_stac import (
     Base,
@@ -74,6 +83,7 @@ from debrief_stac import (
     Conflict,
     HistoryError,
     NewerSchemaError,
+    narrative,
 )
 from debrief_stac.fixes import describe_largest
 from debrief_stac.tote import measure_groups, tote
@@ -119,7 +129,7 @@ NEWER_SCHEMA = -32002  # would write a newer schema into the catalogue: ask, the
 NEEDS_CONFIRMATION = -32003
 CONFIRM_HOW = "To go ahead, send the change again with discard_dr_changes: true."
 # Named groups, not slices of one list: a method added to one group cannot shift another.
-READING_METHODS = ("debrief/open", "debrief/history")
+READING_METHODS = ("debrief/open", "debrief/history", "debrief/narrative")
 STEP_METHODS = ("debrief/undo", "debrief/redo", "debrief/goto")
 PRESENTATION_METHODS = ("debrief/set_colour", "debrief/set_hidden", "debrief/set_view")
 ANNOTATION_METHODS = (
@@ -129,11 +139,23 @@ ANNOTATION_METHODS = (
     "debrief/set_north_arrow",
 )
 TRACK_METHODS = ("debrief/edit_track", "debrief/split_track", "debrief/merge_tracks")
+# Narrative entries, each change one step (CAP-20); and a narrative read into an open plot.
+NARRATIVE_METHODS = (
+    "debrief/add_narrative",
+    "debrief/edit_narrative",
+    "debrief/delete_narrative",
+    "debrief/import_narrative",
+)
 # Cleaning tracks: what would change is shown first (read), then changed as one step (write).
 CHECKING_METHODS = ("debrief/find_jumps", "debrief/preview_smoothing")
 CLEANING_METHODS = ("debrief/remove_jumps", "debrief/smooth_track", "debrief/mark_fix")
 WRITING_METHODS = (
-    STEP_METHODS + PRESENTATION_METHODS + ANNOTATION_METHODS + TRACK_METHODS + CLEANING_METHODS
+    STEP_METHODS
+    + PRESENTATION_METHODS
+    + ANNOTATION_METHODS
+    + NARRATIVE_METHODS
+    + TRACK_METHODS
+    + CLEANING_METHODS
 )
 HISTORY_METHODS = READING_METHODS + CHECKING_METHODS + WRITING_METHODS
 # The Tote reads a plot at one time; it never changes it, and is asked again at each time.
@@ -407,6 +429,10 @@ class ToolService:
                 out["changed"] = self._restyle(catalogue, item, method, params, expected, allow)
             elif method in ANNOTATION_METHODS:
                 out.update(self._annotate(catalogue, item, method, params, expected, allow))
+            elif method in NARRATIVE_METHODS:
+                out.update(self._narrate(catalogue, item, method, params, expected, allow))
+            elif method == "debrief/narrative":
+                out.update(_narrative_query(history.plot(), params))
             elif method in TRACK_METHODS:
                 out.update(self._track(catalogue, item, method, params, expected, allow))
             elif method in CHECKING_METHODS + CLEANING_METHODS:
@@ -531,6 +557,61 @@ class ToolService:
             raise RpcError(INVALID_PARAMS, "set_north_arrow needs shown, true or false")
         step = catalogue.set_north_arrow(item, shown, agent, base, allow_newer_schema=allow)
         return {"changed": step is not None}
+
+    def _narrate(
+        self,
+        catalogue: Catalogue,
+        item: str,
+        method: str,
+        params: dict[str, Any],
+        base: Base | None,
+        allow: bool,
+    ) -> dict[str, Any]:
+        """Add, change or delete narrative entries, or read a file's narrative into the
+        plot: each one recorded, undoable step, named like "Narrative entry by BLUE ONE at
+        08:40:00Z added" (CAP-20).
+
+        An entry is described as a NarrativeSpec: time (UTC to the millisecond), source,
+        entry_type, text and track_id; left out on adding, the track is the one named as
+        its source. edit_narrative may give only the members that change, and None clears
+        one. import_narrative reads the narrative lines of a REP file (path) into the plot.
+        """
+        agent = _agent(params)
+        if method == "debrief/add_narrative":
+            entry = params.get("entry")
+            if not isinstance(entry, dict):
+                raise RpcError(INVALID_PARAMS, "add_narrative needs the entry to add")
+            _, feature = catalogue.add_narrative(item, entry, agent, base, allow_newer_schema=allow)
+            return {"changed": True, "feature": feature}
+        if method == "debrief/edit_narrative":
+            feature, entry = params.get("feature"), params.get("entry")
+            if not isinstance(feature, str) or not isinstance(entry, dict):
+                raise RpcError(INVALID_PARAMS, "edit_narrative needs the feature and its changes")
+            step = catalogue.edit_narrative(
+                item, feature, entry, agent, base, allow_newer_schema=allow
+            )
+            return {"changed": step is not None, "feature": feature}
+        if method == "debrief/delete_narrative":
+            features = params.get("features")
+            if not isinstance(features, list) or not all(isinstance(f, str) for f in features):
+                raise RpcError(INVALID_PARAMS, "delete_narrative needs the entries to delete")
+            catalogue.delete_narrative(item, features, agent, base, allow_newer_schema=allow)
+            return {"changed": True}
+        path = params.get("path")
+        if not isinstance(path, str):
+            raise RpcError(INVALID_PARAMS, "import_narrative needs the path of the file to read")
+        try:
+            done = import_narrative(
+                catalogue, item, Path(path), agent, base, allow_newer_schema=allow
+            )
+        except NoNarrativeError as error:
+            raise RpcError(INVALID_PARAMS, str(error)) from None
+        return {
+            "changed": True,
+            "entries": done.entries,
+            "sources": done.sources,
+            "omitted": done.omitted,
+        }
 
     def _track(
         self,
@@ -868,6 +949,68 @@ def _argument_problem(arguments: dict[str, Any]) -> str | None:
     if arguments.get("on_conflict", "refuse") not in ("refuse", "merge", "new_plot"):
         return "on_conflict must be refuse, merge or new_plot"
     return None
+
+
+NARRATIVE_LIMIT = 1000
+
+
+def _narrative_query(plot: DebriefFeatureCollection, params: dict[str, Any]) -> dict[str, Any]:
+    """debrief/narrative: the plot's narrative on one Zulu time axis (CAP-20), all its
+    sources merged in one order, with what agents filter by: sources and types (lists;
+    "" is an entry with no type), text (found in an entry's text, source or type,
+    ignoring case), start and end (UTC, ends included); offset and limit page through
+    (at most NARRATIVE_LIMIT a call). at, a UTC time, also gives the entry current time
+    would be at among those matching: the last at or before it. Returns the entries,
+    how many match in all, and each source's and type's count over the whole narrative."""
+
+    def names(member: str) -> frozenset[str] | None:
+        value = params.get(member)
+        if value is None:
+            return None
+        if not isinstance(value, list) or not all(isinstance(v, str) for v in value):
+            raise RpcError(INVALID_PARAMS, f"{member} must be a list of names")
+        return frozenset(value)
+
+    def time_of(member: str) -> int | None:
+        value = params.get(member)
+        if value is None:
+            return None
+        problem = f"{member} must be a UTC time, such as 2026-10-11T09:30:00.000Z"
+        if not isinstance(value, str):
+            raise RpcError(INVALID_PARAMS, problem)
+        try:
+            return parse_utc(value)
+        except ValueError:
+            raise RpcError(INVALID_PARAMS, problem) from None
+
+    text = params.get("text")
+    if text is not None and not isinstance(text, str):
+        raise RpcError(INVALID_PARAMS, "text must be text to find")
+    offset, limit = params.get("offset", 0), params.get("limit", NARRATIVE_LIMIT)
+    if type(offset) is not int or type(limit) is not int or offset < 0 or limit < 0:
+        raise RpcError(INVALID_PARAMS, "offset and limit must be whole numbers, not negative")
+    asked = narrative.Query(
+        sources=names("sources"),
+        types=names("types"),
+        text=text or None,
+        start_ms=time_of("start"),
+        end_ms=time_of("end"),
+    )
+    at = time_of("at")
+    every = narrative.order(narrative.entries(plot))
+    matching = [f for f in every if asked.matches(f, parse_utc(f.properties.time))]
+    page = matching[offset : offset + min(limit, NARRATIVE_LIMIT)]
+    out: dict[str, Any] = {
+        "entries": [narrative.as_json(f) for f in page],
+        "total": len(matching),
+        "offset": offset,
+        **narrative.summary(every),
+    }
+    if at is not None:
+        times = [parse_utc(f.properties.time) for f in matching]
+        index = narrative.current_index(times, at)
+        out["current"] = matching[index].id if index >= 0 else None
+    return out
 
 
 def _period(value: Any) -> tuple[str, str] | None:

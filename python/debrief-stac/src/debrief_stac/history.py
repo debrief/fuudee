@@ -257,10 +257,10 @@ _SPLIT: dict[bytes, tuple[str, View | None]] = {}
 _SPLIT_KEPT = 2
 
 
-def _remember(text: str, content: str, view: View | None) -> None:
+def _remember(text: str, content: str, view: View | None, digest: bytes | None = None) -> None:
     while len(_SPLIT) >= _SPLIT_KEPT:
         _SPLIT.pop(next(iter(_SPLIT)))
-    _SPLIT[_digest(text)] = (content, copy.deepcopy(view))
+    _SPLIT[digest or _digest(text)] = (content, copy.deepcopy(view))
 
 
 def _split(text: str) -> tuple[str, View | None]:
@@ -491,9 +491,15 @@ class _File:
     def latest(self) -> int:
         return len(self.steps)
 
+    # The content's hash, kept with the very text it was taken over: a large plot's
+    # content is tens of megabytes, and its hash is asked for several times a change.
+    _hashed: tuple[str, str] | None = field(default=None, repr=False, compare=False)
+
     @property
     def plot_hash(self) -> str:
-        return text_hash(self.content)
+        if self._hashed is None or self._hashed[0] is not self.content:
+            self._hashed = (self.content, text_hash(self.content))
+        return self._hashed[1]
 
     @property
     def expected_hash(self) -> str:
@@ -693,7 +699,7 @@ class History:
         except OSError:
             file.stat = None
         _keep(self._key, file)
-        _remember(text, file.content, file.view)
+        _remember(text, file.content, file.view, file.digest)
 
     def _write_content(
         self,
@@ -848,8 +854,19 @@ class History:
 
     def _writable(self) -> _File:
         """The plot file, whole, for a change. Hold the lock."""
-        self._repair()
         file = self._read()
+        # Read once when it is whole, as it nearly always is; repaired and read again if
+        # not. A large plot file is tens of megabytes, read and hashed each time.
+        if not (
+            file is not None
+            and file.has_history
+            and file.problem is None
+            and file.matches()
+            and not self._legacy_exists()
+            and not self.store.leftovers(self._plot_path)
+        ):
+            self._repair()
+            file = self._read()
         if file is None or not file.has_history:  # its history folder could not be moved in
             raise HistoryError(
                 "This plot's history could not be moved into its plot file, so it cannot "
@@ -879,7 +896,7 @@ class History:
     def plot(self) -> DebriefFeatureCollection:
         """The plot's content as of its current step, with its island."""
         file = self._state()
-        plot = load_document(DocumentKind.PLOT, file.content)
+        plot = self._content(file)
         view = _valid_view(file.view)
         return with_view(plot, load_view(view)) if view is not None else plot
 
@@ -948,7 +965,11 @@ class History:
         """The content as a model, to apply a change to. Never changed in place."""
         if file.model is not None and file.model[0] is file.content:
             return file.model[1]
-        return load_document(DocumentKind.PLOT, file.content)
+        # Kept with the file, so the plot is built once while the file is unchanged: a
+        # plot of sixty thousand narrative entries takes a second to build (NFR-06).
+        plot = load_document(DocumentKind.PLOT, file.content)
+        file.model = (file.content, plot)
+        return plot
 
     # --- Writing ----------------------------------------------------------------
 

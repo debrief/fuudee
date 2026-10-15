@@ -1,6 +1,6 @@
 {
   "type": "FeatureCollection",
-  "schema_version": "0.0.18",
+  "schema_version": "0.0.19",
   "features": [
     {
       "type": "Feature",
@@ -16,6 +16,7 @@
             "end": "2026-10-11T09:31:30.000Z"
           },
           "context_tracks": "faint",
+          "narrative_on_map": false,
           "tote": {
             "primary": "track-nelson",
             "secondaries": [

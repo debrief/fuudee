@@ -8,6 +8,7 @@
 <link rel="stylesheet" href="theme.css">
 <link rel="stylesheet" href="timecontrol.css">
 <link rel="stylesheet" href="tote.css">
+<link rel="stylesheet" href="timeline.css">
 <link rel="stylesheet" href="host.css">
 </head>
 <body>
@@ -67,7 +68,7 @@
     <section class="panel" id="panel-timeline">
       <h2><button type="button" class="fold" aria-expanded="true" aria-controls="body-timeline"><span class="arrow" aria-hidden="true"></span>Timeline</button></h2>
       <div class="panel-body" id="body-timeline">
-        <ul id="timeline" class="list timeline" aria-label="Notes and periods, in time order: choose one to move current time to it"></ul>
+        <div id="timeline" class="timeline"></div>
       </div>
     </section>
     <section class="panel" id="panel-tools">
@@ -97,6 +98,7 @@
       <h2><button type="button" class="fold" aria-expanded="true" aria-controls="body-import"><span class="arrow" aria-hidden="true"></span>Import your own</button></h2>
       <div class="panel-body" id="body-import">
         <label class="file">REP, legacy .dpf, or a Debrief plot file <input id="file" type="file" accept=".rep,.REP,.dpf,.DPF,.xml,.geojson,.json"></label>
+        <label class="file">A narrative (REP <code>;NARRATIVE:</code> lines) into the open plot <input id="narrative-file" type="file" accept=".rep,.REP,.txt"></label>
         <div class="detail">Read and imported in your browser; never uploaded.</div>
         <div id="import-mode" class="detail import-mode"><span id="import-mode-text">Debrief asks, for each track of a REP file, whether it is plotted over the ground (OTG) or by dead reckoning (DR).</span> <button id="ask-again" hidden title="Forget the choice you made for future imports, and be asked for each track again">Ask again</button></div>
       </div>

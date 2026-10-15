@@ -75,6 +75,8 @@ class ScriptLine:
     # Written only if BLUE ONE holds the classified target at this minute,
     # so a line such as "Holding RED ONE" never contradicts the bearings.
     if_holding_at: int | None = None
+    # What kind of entry, as a log keeper would file it.
+    entry_type: str = "Log"
 
 
 @dataclass(frozen=True)
@@ -148,7 +150,7 @@ SERIALS: tuple[Serial, ...] = (
                 0, RED, "Dived north-east of the area. Intention: transit south-west undetected."
             ),
             ScriptLine(0, BLUE, "On task. Searching the north-east of the area with bow sonar."),
-            ScriptLine(120, CONTROL, "Weather: wind backing south, 18 kn."),
+            ScriptLine(120, CONTROL, "Weather: wind backing south, 18 kn.", entry_type="Weather"),
             ScriptLine(
                 55,
                 BLUE,
@@ -186,9 +188,17 @@ SERIALS: tuple[Serial, ...] = (
         ),
         script=(
             ScriptLine(0, CONTROL, "Serial 2 started. RED ONE free to close the shipping lane."),
-            ScriptLine(0, RED, "Intention: transit west at slow speed towards the lane."),
             ScriptLine(
-                0, BLUE, "Intention: close RED ONE's last known position, then screen the lane."
+                0,
+                RED,
+                "Intention: transit west at slow speed towards the lane.",
+                entry_type="Intention",
+            ),
+            ScriptLine(
+                0,
+                BLUE,
+                "Intention: close RED ONE's last known position, then screen the lane.",
+                entry_type="Intention",
             ),
             ScriptLine(75, BLUE, "Changing legs to resolve range on RED ONE.", if_holding_at=75),
             ScriptLine(100, CONTROL, "RED ONE reports its simulated defect cleared."),
@@ -223,8 +233,18 @@ SERIALS: tuple[Serial, ...] = (
                 CONTROL,
                 "Serial 3 started. BLUE ONE to sprint and drift; sonar off when sprinting.",
             ),
-            ScriptLine(0, RED, "Intention: evade to the north, then double back to the west."),
-            ScriptLine(0, BLUE, "Intention: sprint and drift to hold RED ONE as it evades."),
+            ScriptLine(
+                0,
+                RED,
+                "Intention: evade to the north, then double back to the west.",
+                entry_type="Intention",
+            ),
+            ScriptLine(
+                0,
+                BLUE,
+                "Intention: sprint and drift to hold RED ONE as it evades.",
+                entry_type="Intention",
+            ),
             ScriptLine(200, CONTROL, "Communications check with all units: good."),
             ScriptLine(300, BLUE, "Searching for RED ONE."),
             ScriptLine(360, CONTROL, "Serial 3 ended. End of exercise."),

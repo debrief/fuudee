@@ -52,7 +52,7 @@ import "leaflet/dist/leaflet.css";
 import "./map.css";
 import geodesic from "geographiclib-geodesic";
 import { convert, DEFAULT_SETTINGS, formatPosition, formatQuantity, UNIT_LABELS } from "@debrief/kernel";
-import type { DebriefFeatureCollection, TimeState, ToteView } from "@debrief/schemas";
+import type { DebriefFeatureCollection, TimelineEntry, TimeState, ToteView } from "@debrief/schemas";
 import type { AnnotationProperties } from "@debrief/schemas";
 import { labelPlacement, labelText, lookOf, shapeOf, specOfFeature, type Look } from "./annotationlook.js";
 import { circleRing, densify, ellipseRing, positionAt as trackPositionAt, type LonLat } from "./geodesic.js";
@@ -891,6 +891,7 @@ function drawNow(): void {
     entry.marker = marker;
   }
   drawToteLines(at);
+  drawNarrative(at);
 }
 
 /** A line from the primary's marker to each secondary's, along the geodesic, as the Tote measures range. */
@@ -907,6 +908,38 @@ function drawToteLines(at: number): void {
     const options = { color: colour, weight: 1, opacity: 0.7, dashArray: "4 3", interactive: false, className: "tote-map-line" };
     L.polyline(densify([line.from, line.to]).map(toLatLng), options).addTo(toteLayer);
   }
+}
+
+// --- The narrative at current time (CAP-20) --------------------------------------
+/**
+ * The narrative entry current time is at, where it belongs to a track: its source and
+ * the start of its text in a small box beside the track's marker, in the theme's
+ * colours, never in the way (not interactive). The host says which entry, and none
+ * when ten minutes of plot time have passed with no other.
+ */
+const narrativeLayer = L.layerGroup().addTo(map);
+let narrativeShown: TimelineEntry | undefined;
+const NARRATIVE_CHARS = 60;
+function drawNarrative(at: number): void {
+  narrativeLayer.clearLayers();
+  const entry = narrativeShown;
+  if (!entry?.track || !time) return;
+  const found = tracks.find((t) => t.track.id === entry.track);
+  const position = found ? positionAt(found.track, found.times, at) : undefined;
+  if (!position) return;
+  const box = document.createElement("div");
+  box.className = "narrative-box";
+  const words = (entry.text ?? "").replace(/\s+/g, " ").trim();
+  const shown = words.length > NARRATIVE_CHARS ? `${words.slice(0, NARRATIVE_CHARS - 1).trimEnd()}…` : words;
+  const source = document.createElement("b");
+  source.textContent = entry.source;
+  box.append(source, document.createTextNode(` ${shown}`));
+  box.title = `${entry.source}: ${entry.text ?? ""}`;
+  // Beside the marker, to its right; to its left where the right is short of room.
+  const left = map.latLngToContainerPoint(toLatLng(position)).x > map.getSize().x - 300;
+  if (left) box.classList.add("narrative-left");
+  const icon = L.divIcon({ className: "narrative-on-map", html: box, iconSize: [0, 0], iconAnchor: [left ? 10 : -10, 26] });
+  L.marker(toLatLng(position), { icon, interactive: false, keyboard: false }).addTo(narrativeLayer);
 }
 
 /** Current time and the window changed: move the markers, and draw the window again if it moved. */
@@ -1087,6 +1120,9 @@ onMessage((message) => {
   } else if (message.kind === "set_tote") {
     toteView = (message.tote_view as ToteView | undefined) ?? {};
     drawToteLines(time ? Date.parse(time.current) : NaN);
+  } else if (message.kind === "set_narrative") {
+    narrativeShown = message.timeline_entry as TimelineEntry | undefined;
+    drawNarrative(time ? Date.parse(time.current) : NaN);
   } else if (message.kind === "show_fixes") {
     showFixes(message as Parameters<typeof showFixes>[0]);
   }

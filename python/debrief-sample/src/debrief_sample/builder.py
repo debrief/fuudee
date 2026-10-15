@@ -11,7 +11,7 @@ records how (SUB-18):
 4. The ownship's sonar bearings are derived from the imported tracks, with
    seeded noise, and stored as a Parquet payload (CON-02).
 5. The scripted narrative is written, kept as a supporting file and read
-   into time-only note annotations.
+   into narrative entries (CAP-20).
 
 6. The exercise area and the named sets are added, each with its own record,
    with the plot's own details (its title). Its view, a time window over the
@@ -44,6 +44,7 @@ from debrief_sample.synth import (
 )
 from debrief_schemas import SCHEMA_VERSION, DebriefFeatureCollection, models
 from debrief_stac import Catalogue, with_plot_details
+from debrief_stac import narrative as plot_narrative
 from debrief_stac.history import view_hash
 
 TOOL = "debrief-sample"
@@ -336,7 +337,7 @@ def _build_serial(
         )
     )
 
-    # 5. The scripted narrative, kept as a supporting file and read into notes.
+    # 5. The scripted narrative, kept as a supporting file and read into narrative entries.
     started = clock.text()
     seen = narrative.picture(bearings, contacts, SONAR.interval_ms)
     items = narrative.entries(serial, blue_path, red_path, seen, ais_paths)
@@ -344,20 +345,24 @@ def _build_serial(
     narrative_file.write_text(narrative.write(serial, items), encoding="utf-8")
     narrative_ref = catalogue.add_supporting_file(item, narrative_file, media_type="text/plain")
     parsed = narrative.parse(narrative_file.read_text(encoding="utf-8"))
+    names = {f.properties.name: f.id for f in features if f.properties.kind == "track"}
     notes = [
-        models.AnnotationFeature(
+        models.NarrativeFeature(
             type="Feature",
-            id=f"narrative-{index:03d}",
+            id=feature_id,
             geometry=None,
-            properties=models.AnnotationProperties(
-                kind="annotation",
-                style="note",
-                name=entry.platform,
-                text=entry.text,
+            properties=models.NarrativeProperties(
+                kind="narrative",
                 time=format_utc(entry.time_ms),
+                source=entry.platform,
+                entry_type=entry.entry_type,
+                text=entry.text,
+                track_id=plot_narrative.track_for(entry.platform, names),
             ),
         )
-        for index, entry in enumerate(parsed, start=1)
+        for feature_id, entry in zip(
+            plot_narrative.new_ids(set(), len(parsed)), parsed, strict=True
+        )
     ]
     provenance.append(
         models.ProvRecord(
@@ -370,7 +375,8 @@ def _build_serial(
             parameters=[_param("script_digest", script_digest(serial))],
             used=[narrative_ref],
             notes=[
-                "Scripted narrative: each line read into a time-only note annotation.",
+                "Scripted narrative: each line read into a narrative entry, which belongs to "
+                "the track of its platform where there is one.",
                 "The narrative is a supporting file, not a source: the builder wrote it.",
             ],
         )
@@ -423,7 +429,7 @@ def _build_serial(
             agent=agent,
             notes=[
                 "Exercise: the blue and red tracks, the sonar bearings, the exercise area and "
-                "the narrative notes.",
+                "the narrative.",
                 "Background traffic: the AIS tracks.",
             ],
         )

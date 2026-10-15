@@ -39,5 +39,6 @@ for (const file of ["index.html", "geodesic.html", "frame-map.html", "frame-form
 }
 cpSync("webview/timecontrol.css", path.join(out, "timecontrol.css"));
 cpSync("webview/tote.css", path.join(out, "tote.css"));
+cpSync("webview/timeline.css", path.join(out, "timeline.css"));
 cpSync("media/land.geojson", path.join(out, "land.geojson"));
 console.log(`Playground bundled into ${out}`);
