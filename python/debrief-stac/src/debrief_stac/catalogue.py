@@ -115,7 +115,16 @@ def plot_extent(plot: DebriefFeatureCollection) -> Extent:
     lons: list[float] = []
     lats: list[float] = []
     times: list[int] = []
+    # Times of single instants, as written: UTC to the millisecond in one fixed form
+    # (UtcTimestamp), so the earliest and latest as text are the earliest and latest
+    # in time, and only those two are read. A plot may hold tens of thousands of
+    # narrative entries (NFR-06).
+    instants: list[str] = []
     for feature in plot.features:
+        props = feature.properties
+        if props.kind == "narrative":
+            instants.append(props.time)
+            continue
         geometry = feature.geometry
         if geometry is not None:
             coordinates = geometry.coordinates
@@ -127,13 +136,15 @@ def plot_extent(plot: DebriefFeatureCollection) -> Extent:
                 points = [p for ring in coordinates for p in ring]
             lons += [p[0] for p in points]
             lats += [p[1] for p in points]
-        props = feature.properties
         if props.kind == "track":
             times += [parse_utc(props.times[0]), parse_utc(props.times[-1])]
-        if getattr(props, "time", None):
-            times.append(parse_utc(props.time))
+        time = getattr(props, "time", None)
+        if time:
+            instants.append(time)
         if getattr(props, "time_range", None):
             times += [parse_utc(props.time_range.start), parse_utc(props.time_range.end)]
+    if instants:
+        times += [parse_utc(min(instants)), parse_utc(max(instants))]
     bbox = (min(lons), min(lats), max(lons), max(lats)) if lons else None
     return Extent(bbox, min(times) if times else None, max(times) if times else None)
 

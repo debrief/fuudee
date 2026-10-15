@@ -334,3 +334,38 @@ def test_sixty_thousand_entries_order_query_and_change_quickly(catalogue, capsys
         )
     # Bounds generous enough for a slow machine; the figures above are what is reported.
     assert order_s < 2 and query_s < 3 and edit_s < 30 and undo_s < 30
+
+
+def test_the_plot_period_runs_from_its_earliest_entry_to_its_latest(catalogue) -> None:
+    """The item's period takes in narrative entries, read from their earliest and latest
+    times as written (UTC to the millisecond in one form), whatever their plot order."""
+    from debrief_stac.catalogue import plot_extent
+
+    late = {"time": "2026-10-11T23:59:59.999Z", "source": "CONTROL", "text": "Late."}
+    early = {"time": "2026-10-10T00:00:00.001Z", "source": "CONTROL", "text": "Early."}
+    catalogue.add_narrative("p", late, AGENT)
+    catalogue.add_narrative("p", early, AGENT)
+    extent = plot_extent(catalogue.read_plot("p"))
+    assert extent.start_ms == parse_utc(early["time"])
+    assert extent.end_ms == parse_utc(late["time"])
+
+
+def test_a_typical_narrative_is_changed_and_undone_at_once(catalogue, capsys) -> None:
+    """Typical narratives run to a few hundred entries, two thousand at most (product
+    owner, 15 Oct 2026): a change or an undo there is well under 200 ms."""
+    origin = models.ProvRecord(
+        id="op-typical", kind="import", started_at="2026-10-11T10:02:00.000Z", agent=AGENT
+    )
+    catalogue.commit("p", [origin], Changes(added=big_plot(2_000)))
+    started = time.perf_counter()
+    catalogue.edit_narrative("p", "narrative-01000", {"text": "Changed."}, AGENT)
+    edit_s = time.perf_counter() - started
+    started = time.perf_counter()
+    catalogue.history("p").undo()
+    undo_s = time.perf_counter() - started
+    with capsys.disabled():
+        print(
+            f"\nnarrative at 2,000 entries: one entry changed {edit_s * 1000:.0f} ms, "
+            f"undone {undo_s * 1000:.0f} ms"
+        )
+    assert edit_s < 1 and undo_s < 1  # generous for a slow machine; typically ~20 ms

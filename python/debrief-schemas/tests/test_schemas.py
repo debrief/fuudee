@@ -276,11 +276,10 @@ def test_the_quick_check_of_narrative_entries_is_never_more_lenient_than_the_sch
         variant(("properties", "provenance"), []),
     ]
     schema = documents._class_validator("NarrativeFeature")
-    for item in variants:
-        props = item.get("properties") if isinstance(item.get("properties"), dict) else {}
-        if documents._plain_narrative(item, props):
+    for item in [*variants, None, [], "x"]:
+        if documents._plain_narrative(item):
             assert schema.is_valid(item), item
-    assert documents._plain_narrative(good, good["properties"])
+    assert documents._plain_narrative(good)
 
 
 def test_many_features_are_checked_for_duplicate_ids_quickly() -> None:

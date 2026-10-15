@@ -182,7 +182,7 @@ _FEATURE_CLASSES = {
 def _feature_errors(check: Draft201909Validator, item: Any) -> list[Any]:
     props = item.get("properties") if isinstance(item, dict) else None
     kind = props.get("kind") if isinstance(props, dict) else None
-    if kind == "narrative" and _plain_narrative(item, props):
+    if kind == "narrative" and _plain_narrative(item):
         return []
     own = _FEATURE_CLASSES.get(kind) if isinstance(kind, str) else None
     if own is not None and _class_validator(own).is_valid(item):
@@ -191,7 +191,7 @@ def _feature_errors(check: Draft201909Validator, item: Any) -> list[Any]:
 
 
 _NARRATIVE_REQUIRED = frozenset(("kind", "time", "source", "text"))
-_NARRATIVE_OPTIONAL = frozenset(("entry_type", "track_id"))
+_NARRATIVE_MEMBERS = _NARRATIVE_REQUIRED | {"entry_type", "track_id"}
 
 
 @cache
@@ -200,28 +200,34 @@ def _utc_pattern() -> re.Pattern[str]:
     return re.compile(pattern)
 
 
-def _plain_narrative(item: dict[str, Any], props: dict[str, Any]) -> bool:
+def _plain_narrative(item: Any) -> bool:
     """A narrative entry as importers and forms write it, checked by hand: exactly what
     NarrativeFeature's JSON Schema allows, less its provenance (an entry carrying any is
     left to the schema). True only where the schema would pass it too; anything else is
     left to the schema, so this can only make checking quicker, never more lenient.
     A plot may hold sixty thousand entries (NFR-06), each checked once."""
-    if not set(item) <= {"type", "id", "geometry", "properties"}:
+    if not isinstance(item, dict):
+        return False
+    props = item.get("properties")
+    if not isinstance(props, dict) or props.get("kind") != "narrative":
+        return False
+    if not item.keys() <= {"type", "id", "geometry", "properties"}:
         return False
     if item.get("type") != "Feature" or not isinstance(item.get("id"), str):
         return False
     if item.get("geometry") is not None:
         return False
-    keys = set(props)
-    if props.get("kind") != "narrative":
+    if not (_NARRATIVE_REQUIRED <= props.keys() <= _NARRATIVE_MEMBERS):
         return False
-    if not (_NARRATIVE_REQUIRED <= keys <= _NARRATIVE_REQUIRED | _NARRATIVE_OPTIONAL):
+    time, source, text = props["time"], props["source"], props["text"]
+    if not (type(time) is str and type(source) is str and type(text) is str):
         return False
-    if not all(isinstance(props[k], str) for k in ("time", "source", "text")):
+    entry_type, track_id = props.get("entry_type"), props.get("track_id")
+    if not (entry_type is None or type(entry_type) is str):
         return False
-    if not all(props.get(k) is None or isinstance(props[k], str) for k in _NARRATIVE_OPTIONAL):
+    if not (track_id is None or type(track_id) is str):
         return False
-    return _utc_pattern().search(props["time"]) is not None
+    return _utc_pattern().search(time) is not None
 
 
 def _schema_errors(
@@ -245,6 +251,8 @@ def _schema_errors(
             rest[member] = []
             check = _item_validator(name, member)
             for index, item in enumerate(items):
+                if _plain_narrative(item):
+                    continue  # checked by hand, quicker than looking it up
                 key = hashlib.sha256(json.dumps(item, separators=(",", ":")).encode()).digest()
                 if key in _FEATURES_PASSED:
                     continue
