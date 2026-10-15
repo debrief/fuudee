@@ -70,7 +70,7 @@ Adapted from `DOMAIN_GLOSSARY.md` in debrief/debrief-future, itself adapted from
 
 **Named set.** A saved selection of features, reusable as a selection or as a tool's input (TL-11).
 
-**Narrative.** The log of events from each platform, imported from REP files, legacy plots and (part B) Word or PDF, and combined on one Zulu time axis (CAP-19, CAP-20). A plot's narrative is all its narrative entries; it is read in the Timeline.
+**Narrative.** The log of events from each platform, imported from REP files, legacy plots and Word or PDF documents, and combined on one Zulu time axis (CAP-19, CAP-20). A plot's narrative is all its narrative entries; it is read in the Timeline.
 
 **Narrative entry.** One entry of a narrative: its time, its source, its type, its text and, perhaps, the track it belongs to. A feature of its own, with no position; adding, changing or deleting one is one step. Not a note, which is the analyst's own annotation.
 
@@ -79,6 +79,12 @@ Adapted from `DOMAIN_GLOSSARY.md` in debrief/debrief-future, itself adapted from
 **Entry type.** What kind of narrative entry it is, in its source's own words, such as *GenComment*, *CSD* or *Sonar*. Free text: each source has its own.
 
 **Follow time.** The Timeline keeping the entry current time is at in sight as current time moves. It stops when the analyst scrolls the list or moves through it with the keyboard; **Follow time** starts it again.
+
+**Dialect** (of a narrative document). One of the layouts legacy Debrief read narrative in from Word and PDF: a *narrative log* (an entry a paragraph, its date, platform and type comma-separated and usually hidden), a *Rider's narrative* (a table), *ASW data* (positions of one platform: a track, not narrative) and *dated narrative* lines. Debrief tells which from the document itself (CAP-19). See [Word and PDF documents](interaction-models/timeline.md#word-and-pdf-documents-cap-19).
+
+**FCS** (fire-control solution). A narrative entry giving a contact's bearing, range, course, speed and classification. Kept as narrative; it becomes a TMA solution position when TMA solutions come (Phase 4).
+
+**Highlighted phrases.** Words or phrases the analyst names in the Timeline's menu (**⋯**), marked wherever they are in an entry's text. Like the filter, text size, wrapping and the columns shown, the analyst's own: kept in their view, never in the plot.
 
 **Serial.** A period of an exercise, typically 4, 6, 12 or 24 hours.
 
