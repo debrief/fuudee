@@ -1,0 +1,112 @@
+{
+  "type": "Feature",
+  "stac_version": "1.1.0",
+  "id": "serial-1",
+  "geometry": {
+    "type": "Polygon",
+    "coordinates": [
+      [
+        [
+          -75.9,
+          36.7
+        ],
+        [
+          -75.2,
+          36.7
+        ],
+        [
+          -75.2,
+          37.2
+        ],
+        [
+          -75.9,
+          37.2
+        ],
+        [
+          -75.9,
+          36.7
+        ]
+      ]
+    ]
+  },
+  "bbox": [
+    -75.9,
+    36.7,
+    -75.2,
+    37.2
+  ],
+  "properties": {
+    "start_datetime": "2023-06-15T08:00:00.000Z",
+    "end_datetime": "2023-06-15T12:00:00.000Z",
+    "title": "Serial 1",
+    "debrief:schema_version": "0.0.20",
+    "datetime": null
+  },
+  "links": [
+    {
+      "rel": "parent",
+      "href": "../catalog.json",
+      "type": "application/json"
+    },
+    {
+      "rel": "root",
+      "href": "../catalog.json",
+      "type": "application/json"
+    }
+  ],
+  "assets": {
+    "plot": {
+      "href": "./plot.geojson",
+      "type": "application/geo+json",
+      "roles": [
+        "data"
+      ],
+      "debrief:asset_kind": "plot"
+    },
+    "source-blue-one.rep": {
+      "href": "./sources/blue-one.rep",
+      "type": "text/plain",
+      "roles": [
+        "source"
+      ],
+      "debrief:asset_kind": "source",
+      "debrief:content_hash": "sha256:43bafec6f06d49542ac7f13222100c247845c698975321b1821b614857cac54a"
+    },
+    "source-red-one.rep": {
+      "href": "./sources/red-one.rep",
+      "type": "text/plain",
+      "roles": [
+        "source"
+      ],
+      "debrief:asset_kind": "source",
+      "debrief:content_hash": "sha256:34bc0ab5e99d0f4c530bc750c8dd51178e1f28e274e78ddce5936d907049657a"
+    },
+    "source-ais-2023-06-15-chesapeake-approaches.csv": {
+      "href": "./sources/ais-2023-06-15-chesapeake-approaches.csv",
+      "type": "text/csv",
+      "roles": [
+        "source"
+      ],
+      "debrief:asset_kind": "source",
+      "debrief:content_hash": "sha256:6c9ff3d6fd59a9de619d9e079cfe8560514f4e48e7d96e86d136c719bd54b344"
+    },
+    "payload-bow-sonar-bearings.parquet": {
+      "href": "./payloads/bow-sonar-bearings.parquet",
+      "type": "application/vnd.apache.parquet",
+      "roles": [
+        "data"
+      ],
+      "debrief:asset_kind": "payload",
+      "debrief:content_hash": "sha256:6aa1379315d64bacaf19a2e37254da7d40fd2e9be604c6de8ea0ba14af9095f6"
+    },
+    "supporting_file-narrative.txt": {
+      "href": "./media/narrative.txt",
+      "type": "text/plain",
+      "roles": [
+        "metadata"
+      ],
+      "debrief:asset_kind": "supporting_file",
+      "debrief:content_hash": "sha256:52411002692f7cfd1495b466d5691d81e12a379f13630836767b9a61e3bda2e9"
+    }
+  }
+}
