@@ -1,0 +1,17 @@
+{
+ "shots": [
+  {
+   "source": "blog/posts/2026-10-18-narrative-from-word.md",
+   "url": "blog/2026/10/18/narrative-from-word/",
+   "title": "Narrative from Word and PDF",
+   "file": "blog-posts-2026-10-18-narrative-from-word.png"
+  },
+  {
+   "source": "guides/interaction-models/timeline.md",
+   "url": "guides/interaction-models/timeline/",
+   "title": "Timeline and narrative",
+   "file": "guides-interaction-models-timeline.png"
+  }
+ ],
+ "more": 0
+}
