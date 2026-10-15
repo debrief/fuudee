@@ -116,8 +116,16 @@ export class TimelineControl {
   private narrow = false;
   private charPx = 7;
   private widthPx = 0;
-  /** A scroll this component made, so the scroll event it fires is not taken as the reader's. */
-  private expectedScroll?: number;
+  /**
+   * When the reader last turned a wheel, touched the list or pressed a key in it, and
+   * whether they are dragging its scrollbar: a scroll then is theirs. Any other scroll
+   * (this component's own, or the browser keeping the list in range as it is resized or
+   * filtered) is not, and never stops following.
+   */
+  private readerAt = 0;
+  private dragging = false;
+  /** Where this component last scrolled the list to, so the scroll event that follows is known as its own. */
+  private ownScroll?: number;
   private frame?: number;
   private searchTimer?: ReturnType<typeof setTimeout>;
   private editing?: string;
@@ -205,6 +213,14 @@ export class TimelineControl {
     this.addButton.addEventListener("click", () => this.openForm());
     this.followButton.addEventListener("click", () => this.follow());
     this.scroller.addEventListener("scroll", () => this.scrolled());
+    const reader = () => (this.readerAt = performance.now());
+    for (const kind of ["wheel", "touchmove"]) this.scroller.addEventListener(kind, reader, { passive: true });
+    // A press on the list itself, not on a row, is on its scrollbar. (The keys that move
+    // through the list stop following themselves: see key.)
+    this.scroller.addEventListener("pointerdown", (event) => {
+      if (event.target === this.scroller) this.dragging = true;
+    });
+    window.addEventListener("pointerup", () => (this.dragging = false));
     this.scroller.addEventListener("click", (event) => this.clicked(event));
     this.scroller.addEventListener("dblclick", (event) => {
       const id = this.rowEntry(event.target as HTMLElement);
@@ -236,8 +252,13 @@ export class TimelineControl {
     if (state?.tracks) this.tracks = state.tracks;
     if (!state) this.tracks = [];
     const keep = this.activeId();
+    const before = this.items[0]?.entry;
     this.items = prepare(state?.entries ?? []);
     this.itemIndex = new Map(this.items.map((item, i) => [item.entry.id, i]));
+    // Another plot (the first entry read before is not in it, at its time): read it from
+    // current time again. Plots may share ids, so the time is compared too.
+    const kept = before && this.itemIndex.has(before.id) && this.items[this.itemIndex.get(before.id)!].entry.start === before.start;
+    if (!kept) this.following = true;
     this.rebuild(keep);
   }
 
@@ -655,19 +676,16 @@ export class TimelineControl {
     this.scroller.scrollTop = top;
     const after = this.scroller.scrollTop;
     if (Math.abs(after - before) < 1) return false;
-    this.expectedScroll = after;
+    this.ownScroll = after;
     return true;
   }
 
   private scrolled(): void {
     const top = this.scroller.scrollTop;
-    if (this.expectedScroll !== undefined && Math.abs(top - this.expectedScroll) <= 2) {
-      this.expectedScroll = undefined;
-    } else {
-      // The reader's own scroll: stop following until they ask again.
-      this.expectedScroll = undefined;
-      this.following = false;
-    }
+    const ours = this.ownScroll !== undefined && Math.abs(top - this.ownScroll) <= 2;
+    this.ownScroll = undefined;
+    // The reader's own scroll: stop following until they ask again.
+    if (!ours && (this.dragging || performance.now() - this.readerAt < 700)) this.following = false;
     this.schedule();
   }
 

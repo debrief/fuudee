@@ -453,7 +453,7 @@ export async function run(): Promise<void> {
     assert.deepEqual((await steps()).at(-1)?.notes, ["Narrative entry by BLUE ONE at 09:05:00Z: text changed"]);
     assert.equal(await vscode.commands.executeCommand("debrief.goToTime", added.feature), undefined);
     // For the picture, the other views folded away so the Timeline has room, as an analyst would.
-    const folded = ["debrief.catalogues", "debrief.outline", "debrief.tools", "debrief.history", "debrief.tote"];
+    const folded = ["debrief.time", "debrief.catalogues", "debrief.outline", "debrief.tools", "debrief.history", "debrief.tote"];
     const commands = new Set(await vscode.commands.getCommands(true));
     const fold = async () => {
       for (const view of folded) if (commands.has(`${view}.toggleVisibility`)) await vscode.commands.executeCommand(`${view}.toggleVisibility`);

@@ -16,32 +16,47 @@ const historySays = (page, text) => page.locator("#history li", { hasText: text 
 
 /** The row current time is at, and whether it lies wholly within the list's view. */
 async function currentInView(page) {
-  // After the frame in which the list draws: current time may have moved since the last.
+  // Looked at after a frame: while playing fast, current time may move between the list's
+  // drawing and this look, so a look that finds it not yet drawn looks again next frame.
   return page.evaluate(async () => {
-    await new Promise((resolve) => requestAnimationFrame(() => resolve()));
-    const row = document.querySelector("#timeline .tl-row.tl-current");
-    const list = document.querySelector("#timeline .tl-scroll");
-    if (!row || !list) return { id: undefined, inView: false };
-    const r = row.getBoundingClientRect();
-    const l = list.getBoundingClientRect();
-    return { id: row.dataset.id, inView: r.top >= l.top - 1 && r.bottom <= l.bottom + 1 };
+    let seen = { id: undefined, inView: false };
+    for (let i = 0; i < 4 && !seen.inView; i++) {
+      await new Promise((resolve) => requestAnimationFrame(() => resolve()));
+      const row = document.querySelector("#timeline .tl-row.tl-current");
+      const list = document.querySelector("#timeline .tl-scroll");
+      if (!row || !list) continue;
+      const r = row.getBoundingClientRect();
+      const l = list.getBoundingClientRect();
+      seen = { id: row.dataset.id, inView: r.top >= l.top - 1 && r.bottom <= l.bottom + 1 };
+    }
+    return seen;
   });
 }
 
+/** Fold the panels above the Timeline away, as a reader would, and open it; returns how to put them back. */
 async function openTimeline(page) {
+  const folded = [];
   for (const id of ["panel-tote", "panel-outline", "panel-tools", "panel-try"]) {
     const fold = page.locator(`#${id} button.fold`);
-    if ((await fold.count()) && (await fold.getAttribute("aria-expanded")) === "true") await fold.click();
+    if ((await fold.count()) && (await fold.getAttribute("aria-expanded")) === "true") {
+      await fold.click();
+      folded.push(fold);
+    }
   }
   const fold = page.locator("#panel-timeline button.fold");
   if ((await fold.getAttribute("aria-expanded")) === "false") await fold.click();
   await page.locator("#panel-timeline").scrollIntoViewIfNeeded();
+  return async () => {
+    for (const button of folded) if ((await button.getAttribute("aria-expanded")) === "false") await button.click();
+  };
 }
 
 export async function playNarrative(page, shot) {
   await page.selectOption("#plots", "serial-3");
   await page.waitForFunction(() => document.getElementById("plot-title")?.textContent?.includes("3"));
-  await openTimeline(page);
+  const unfold = await openTimeline(page);
+  // Notes from the tests before this one are not this one's to show.
+  await page.evaluate(() => document.getElementById("toasts")?.replaceChildren());
   const timeline = (selector) => page.locator(`#timeline ${selector}`);
   await timeline(".tl-row[data-id]").first().waitFor();
 
@@ -57,6 +72,8 @@ export async function playNarrative(page, shot) {
   assert.equal(await page.evaluate(() => getComputedStyle(document.querySelector("#timeline .tl-time")).fontFamily.toLowerCase().includes("mono")), true, "times are monospaced");
   const initial = await state(page);
   assert.ok(initial.entries > 30 && initial.drawn < initial.entries, "only the rows in sight are drawn");
+  // Another plot opened: the list follows current time again, whatever the reader did before.
+  assert.equal(initial.following, true);
   // BLUE ONE's entries carry its track's colour; the exercise's control has none.
   assert.ok(await timeline('.tl-row[data-kind="narrative"]:has(.tl-swatch)').count());
   await page.mouse.move(2, 2);
@@ -77,6 +94,12 @@ export async function playNarrative(page, shot) {
   assert.equal((await state(page)).following, true);
   await shot("narrative-02-playing");
   await page.locator("#timebar .tc-play").click(); // pause
+  // Resizing never stops it following: only the reader's own scroll does.
+  await page.setViewportSize({ width: 1400, height: 560 });
+  await page.waitForTimeout(300);
+  await page.setViewportSize({ width: 1400, height: 820 });
+  await page.waitForTimeout(300);
+  assert.equal((await state(page)).following, true, "resizing the page does not stop following");
 
   // The reader scrolls the list: it stops following, and says where current time is.
   const scroller = timeline(".tl-scroll");
@@ -100,7 +123,7 @@ export async function playNarrative(page, shot) {
   // Choosing an entry moves current time to it; among those at one second, the one chosen is marked.
   await searchTimeline(page, "");
   const firstAtStart = timeline('.tl-row[data-id]').filter({ has: page.locator(".tl-time", { hasText: "17:00:00Z" }) }).first();
-  await scroller.evaluate((el) => (el.scrollTop = 0));
+  await scroller.evaluate((el) => (el.dispatchEvent(new WheelEvent("wheel")), (el.scrollTop = 0)));
   await page.waitForTimeout(100);
   const chosen = await firstAtStart.getAttribute("data-id");
   await firstAtStart.click();
@@ -123,6 +146,7 @@ export async function playNarrative(page, shot) {
   await page.waitForFunction(() => document.querySelector("#timeline .tl-status")?.textContent?.includes(" of "));
   assert.equal(await timeline('.tl-row[data-id] .tl-source:text-is("BLUE ONE")').count(), 0);
   assert.equal(await timeline(".tl-filter-button").innerText(), "Filter (1)");
+  assert.equal((await state(page)).following, true, "filtering does not stop following");
   await timeline('.tl-filter input[data-member="types"][data-name="Course"]').uncheck();
   assert.equal(await timeline('.tl-row[data-id] .tl-type:text-is("Course")').count(), 0);
   await page.mouse.move(2, 2);
@@ -213,7 +237,7 @@ export async function playNarrative(page, shot) {
   // On a phone: one column for the text under time, source and type; the page never
   // scrolls sideways; a tap moves current time.
   await page.setViewportSize({ width: 390, height: 844 });
-  await openTimeline(page);
+  await page.locator("#panel-timeline").scrollIntoViewIfNeeded();
   await page.waitForTimeout(300);
   assert.equal(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth), true, "the page does not scroll sideways on a phone");
   assert.equal(await timeline(".tl-scroll").evaluate((el) => el.scrollWidth <= el.clientWidth), true, "nor the list");
@@ -224,6 +248,7 @@ export async function playNarrative(page, shot) {
   await page.mouse.move(2, 2);
   await shot("narrative-08-phone");
   await page.setViewportSize({ width: 1400, height: 820 });
+  await unfold(); // the panels as the tests after this one expect them
   console.log(`Timeline: ${initial.entries} entries in serial 3, ${initial.drawn} drawn; followed while playing through ${seen.size} entries.`);
 }
 
@@ -283,7 +308,7 @@ export async function playNarrativeAtScale(page, shot) {
     await page.waitForTimeout(250);
     const now = await currentInView(page);
     ids.add(now.id);
-    assert.ok(now.inView, "at 60,000 entries the entry at current time stays in view while playing");
+    assert.ok(now.inView, `at 60,000 entries the entry at current time stays in view while playing: ${JSON.stringify({ now, state: await state(page) })}`);
   }
   await page.locator("#timebar .tc-play").click();
   console.log(

@@ -8,7 +8,8 @@ export async function timelineRow(on, text, kind) {
   const scroller = on.locator("#timeline .tl-scroll");
   const rows = on.locator("#timeline .tl-row[data-id]", { hasText: text });
   const found = () => (kind ? rows.and(on.locator(`#timeline .tl-row[data-kind="${kind}"]`)) : rows).first();
-  await scroller.evaluate((el) => (el.scrollTop = 0));
+  // As the reader scrolls it: the list then stops following current time.
+  await scroller.evaluate((el) => (el.dispatchEvent(new WheelEvent("wheel")), (el.scrollTop = 0)));
   await frame(scroller);
   for (let i = 0; i < 400; i++) {
     if (await found().count()) {
@@ -20,7 +21,10 @@ export async function timelineRow(on, text, kind) {
           const row = list.querySelector(`.tl-row[data-id="${CSS.escape(rowId)}"]`);
           if (!row) return false;
           const top = row.getBoundingClientRect().top - list.getBoundingClientRect().top;
-          if (top < 0 || top > list.clientHeight - row.offsetHeight) list.scrollTop += top - list.clientHeight / 3;
+          if (top < 0 || top > list.clientHeight - row.offsetHeight) {
+            list.dispatchEvent(new WheelEvent("wheel"));
+            list.scrollTop += top - list.clientHeight / 3;
+          }
           return true;
         }, id));
       if (placed) {
@@ -31,6 +35,7 @@ export async function timelineRow(on, text, kind) {
     }
     const moved = await scroller.evaluate((el) => {
       const before = el.scrollTop;
+      el.dispatchEvent(new WheelEvent("wheel"));
       el.scrollTop += el.clientHeight * 0.8;
       return el.scrollTop !== before;
     });
