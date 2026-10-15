@@ -18,7 +18,7 @@ from typing import Any
 
 import debrief_stac.store as store_module
 from debrief_config import load_config, track_import_mode, update_config, with_track_import_mode
-from debrief_io import import_dpf, import_rep
+from debrief_io import NoNarrativeError, import_dpf, import_narrative, import_rep
 from debrief_io.importer import rep_track_names
 from debrief_kernel.geodesy import Position, destination
 from debrief_kernel.time import format_utc, parse_utc
@@ -218,6 +218,32 @@ def annotate(item: str, request_json: str) -> str:
     except (CatalogueError, HistoryError) as error:
         return json.dumps({"error": str(error)})
     return json.dumps({"ok": True, "feature": feature})
+
+
+def narrative(item: str, request_json: str, data: bytes | None = None) -> str:
+    """Add, change or delete narrative entries, or read a REP file's narrative lines into
+    the plot: each a recorded, undoable step (CAP-20), as debrief/add_narrative,
+    debrief/edit_narrative, debrief/delete_narrative and debrief/import_narrative do."""
+    request = json.loads(request_json)
+    base = Base(**request["base"]) if request.get("base") else None
+    change = request["change"]
+    out: dict[str, Any] = {"ok": True}
+    try:
+        if change["kind"] == "add":
+            _, out["feature"] = _cat().add_narrative(item, change["entry"], YOU, base)
+        elif change["kind"] == "edit":
+            _cat().edit_narrative(item, change["feature"], change["entry"], YOU, base)
+            out["feature"] = change["feature"]
+        elif change["kind"] == "delete":
+            _cat().delete_narrative(item, change["features"], YOU, base)
+        else:
+            done = import_narrative(_cat(), item, _upload(change["name"], data or b""), YOU, base)
+            out.update(entries=done.entries, sources=done.sources, omitted=done.omitted)
+    except Conflict:
+        return json.dumps({"error": "The plot was changed elsewhere, so nothing was changed."})
+    except (CatalogueError, HistoryError, NoNarrativeError, OSError) as error:
+        return json.dumps({"error": str(error)})
+    return json.dumps(out)
 
 
 def track(item: str, request_json: str) -> str:

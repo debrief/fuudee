@@ -1,0 +1,2115 @@
+
+<!doctype html>
+<html lang="en" class="no-js">
+  <head>
+    
+      <meta charset="utf-8">
+      <meta name="viewport" content="width=device-width,initial-scale=1">
+      
+        <meta name="description" content="Development blog and guides for Debrief v4">
+      
+      
+      
+        <link rel="canonical" href="https://debrief.github.io/fuudee/guides/interaction-models/timeline/">
+      
+      
+        <link rel="prev" href="../tote/">
+      
+      
+        <link rel="next" href="../keyboard-equivalents/">
+      
+      
+        
+      
+      
+      <link rel="icon" href="../../../assets/images/favicon.png">
+      <meta name="generator" content="mkdocs-1.6.1, mkdocs-material-9.7.7">
+    
+    
+      
+        <title>Timeline and narrative - Debrief v4</title>
+      
+    
+    
+      <link rel="stylesheet" href="../../../assets/stylesheets/main.ec1eaa64.min.css">
+      
+        
+        <link rel="stylesheet" href="../../../assets/stylesheets/palette.ab4e12ef.min.css">
+      
+      
+
+
+    
+    
+      
+    
+    
+      
+        
+        
+        <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+        <link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Roboto:300,300i,400,400i,700,700i%7CRoboto+Mono:400,400i,700,700i&display=fallback">
+        <style>:root{--md-text-font:"Roboto";--md-code-font:"Roboto Mono"}</style>
+      
+    
+    
+      <link rel="stylesheet" href="../../../stylesheets/demo.css">
+    
+    <script>__md_scope=new URL("../../..",location),__md_hash=e=>[...e].reduce(((e,_)=>(e<<5)-e+_.charCodeAt(0)),0),__md_get=(e,_=localStorage,t=__md_scope)=>JSON.parse(_.getItem(t.pathname+"."+e)),__md_set=(e,_,t=localStorage,a=__md_scope)=>{try{t.setItem(a.pathname+"."+e,JSON.stringify(_))}catch(e){}}</script>
+    
+      
+
+    
+    
+  </head>
+  
+  
+    
+    
+      
+    
+    
+    
+    
+    <body dir="ltr" data-md-color-scheme="default" data-md-color-primary="indigo" data-md-color-accent="indigo">
+  
+    
+    <input class="md-toggle" data-md-toggle="drawer" type="checkbox" id="__drawer" autocomplete="off">
+    <input class="md-toggle" data-md-toggle="search" type="checkbox" id="__search" autocomplete="off">
+    <label class="md-overlay" for="__drawer"></label>
+    <div data-md-component="skip">
+      
+        
+        <a href="#timeline-and-narrative" class="md-skip">
+          Skip to content
+        </a>
+      
+    </div>
+    <div data-md-component="announce">
+      
+    </div>
+    
+    
+      
+
+<header class="md-header" data-md-component="header">
+  <nav class="md-header__inner md-grid" aria-label="Header">
+    <a href="../../.." title="Debrief v4" class="md-header__button md-logo" aria-label="Debrief v4" data-md-component="logo">
+      
+  
+  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 8a3 3 0 0 0 3-3 3 3 0 0 0-3-3 3 3 0 0 0-3 3 3 3 0 0 0 3 3m0 3.54C9.64 9.35 6.5 8 3 8v11c3.5 0 6.64 1.35 9 3.54 2.36-2.19 5.5-3.54 9-3.54V8c-3.5 0-6.64 1.35-9 3.54"/></svg>
+
+    </a>
+    <label class="md-header__button md-icon" for="__drawer">
+      
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M3 6h18v2H3zm0 5h18v2H3zm0 5h18v2H3z"/></svg>
+    </label>
+    <div class="md-header__title" data-md-component="header-title">
+      <div class="md-header__ellipsis">
+        <div class="md-header__topic">
+          <span class="md-ellipsis">
+            Debrief v4
+          </span>
+        </div>
+        <div class="md-header__topic" data-md-component="header-topic">
+          <span class="md-ellipsis">
+            
+              Timeline and narrative
+            
+          </span>
+        </div>
+      </div>
+    </div>
+    
+      
+        <form class="md-header__option" data-md-component="palette">
+  
+    
+    
+    
+    <input class="md-option" data-md-color-media="(prefers-color-scheme: light)" data-md-color-scheme="default" data-md-color-primary="indigo" data-md-color-accent="indigo"  aria-label="Dark"  type="radio" name="__palette" id="__palette_0">
+    
+      <label class="md-header__button md-icon" title="Dark" for="__palette_1" hidden>
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="m17.75 4.09-2.53 1.94.91 3.06-2.63-1.81-2.63 1.81.91-3.06-2.53-1.94L12.44 4l1.06-3 1.06 3zm3.5 6.91-1.64 1.25.59 1.98-1.7-1.17-1.7 1.17.59-1.98L15.75 11l2.06-.05L18.5 9l.69 1.95zm-2.28 4.95c.83-.08 1.72 1.1 1.19 1.85-.32.45-.66.87-1.08 1.27C15.17 23 8.84 23 4.94 19.07c-3.91-3.9-3.91-10.24 0-14.14.4-.4.82-.76 1.27-1.08.75-.53 1.93.36 1.85 1.19-.27 2.86.69 5.83 2.89 8.02a9.96 9.96 0 0 0 8.02 2.89m-1.64 2.02a12.08 12.08 0 0 1-7.8-3.47c-2.17-2.19-3.33-5-3.49-7.82-2.81 3.14-2.7 7.96.31 10.98 3.02 3.01 7.84 3.12 10.98.31"/></svg>
+      </label>
+    
+  
+    
+    
+    
+    <input class="md-option" data-md-color-media="(prefers-color-scheme: dark)" data-md-color-scheme="slate" data-md-color-primary="indigo" data-md-color-accent="indigo"  aria-label="Light"  type="radio" name="__palette" id="__palette_1">
+    
+      <label class="md-header__button md-icon" title="Light" for="__palette_0" hidden>
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 7a5 5 0 0 1 5 5 5 5 0 0 1-5 5 5 5 0 0 1-5-5 5 5 0 0 1 5-5m0 2a3 3 0 0 0-3 3 3 3 0 0 0 3 3 3 3 0 0 0 3-3 3 3 0 0 0-3-3m0-7 2.39 3.42C13.65 5.15 12.84 5 12 5s-1.65.15-2.39.42zM3.34 7l4.16-.35A7.2 7.2 0 0 0 5.94 8.5c-.44.74-.69 1.5-.83 2.29zm.02 10 1.76-3.77a7.131 7.131 0 0 0 2.38 4.14zM20.65 7l-1.77 3.79a7.02 7.02 0 0 0-2.38-4.15zm-.01 10-4.14.36c.59-.51 1.12-1.14 1.54-1.86.42-.73.69-1.5.83-2.29zM12 22l-2.41-3.44c.74.27 1.55.44 2.41.44.82 0 1.63-.17 2.37-.44z"/></svg>
+      </label>
+    
+  
+</form>
+      
+    
+    
+      <script>var palette=__md_get("__palette");if(palette&&palette.color){if("(prefers-color-scheme)"===palette.color.media){var media=matchMedia("(prefers-color-scheme: light)"),input=document.querySelector(media.matches?"[data-md-color-media='(prefers-color-scheme: light)']":"[data-md-color-media='(prefers-color-scheme: dark)']");palette.color.media=input.getAttribute("data-md-color-media"),palette.color.scheme=input.getAttribute("data-md-color-scheme"),palette.color.primary=input.getAttribute("data-md-color-primary"),palette.color.accent=input.getAttribute("data-md-color-accent")}for(var[key,value]of Object.entries(palette.color))document.body.setAttribute("data-md-color-"+key,value)}</script>
+    
+    
+    
+      
+      
+        <label class="md-header__button md-icon" for="__search">
+          
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M9.5 3A6.5 6.5 0 0 1 16 9.5c0 1.61-.59 3.09-1.56 4.23l.27.27h.79l5 5-1.5 1.5-5-5v-.79l-.27-.27A6.52 6.52 0 0 1 9.5 16 6.5 6.5 0 0 1 3 9.5 6.5 6.5 0 0 1 9.5 3m0 2C7 5 5 7 5 9.5S7 14 9.5 14 14 12 14 9.5 12 5 9.5 5"/></svg>
+        </label>
+        <div class="md-search" data-md-component="search" role="dialog">
+  <label class="md-search__overlay" for="__search"></label>
+  <div class="md-search__inner" role="search">
+    <form class="md-search__form" name="search">
+      <input type="text" class="md-search__input" name="query" aria-label="Search" placeholder="Search" autocapitalize="off" autocorrect="off" autocomplete="off" spellcheck="false" data-md-component="search-query" required>
+      <label class="md-search__icon md-icon" for="__search">
+        
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M9.5 3A6.5 6.5 0 0 1 16 9.5c0 1.61-.59 3.09-1.56 4.23l.27.27h.79l5 5-1.5 1.5-5-5v-.79l-.27-.27A6.52 6.52 0 0 1 9.5 16 6.5 6.5 0 0 1 3 9.5 6.5 6.5 0 0 1 9.5 3m0 2C7 5 5 7 5 9.5S7 14 9.5 14 14 12 14 9.5 12 5 9.5 5"/></svg>
+        
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M20 11v2H8l5.5 5.5-1.42 1.42L4.16 12l7.92-7.92L13.5 5.5 8 11z"/></svg>
+      </label>
+      <nav class="md-search__options" aria-label="Search">
+        
+        <button type="reset" class="md-search__icon md-icon" title="Clear" aria-label="Clear" tabindex="-1">
+          
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M19 6.41 17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/></svg>
+        </button>
+      </nav>
+      
+    </form>
+    <div class="md-search__output">
+      <div class="md-search__scrollwrap" tabindex="0" data-md-scrollfix>
+        <div class="md-search-result" data-md-component="search-result">
+          <div class="md-search-result__meta">
+            Initializing search
+          </div>
+          <ol class="md-search-result__list" role="presentation"></ol>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+      
+    
+    
+      <div class="md-header__source">
+        <a href="https://github.com/debrief/fuudee" title="Go to repository" class="md-source" data-md-component="source">
+  <div class="md-source__icon md-icon">
+    
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 448 512"><!--! Font Awesome Free 7.1.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2025 Fonticons, Inc.--><path d="M439.6 236.1 244 40.5c-5.4-5.5-12.8-8.5-20.4-8.5s-15 3-20.4 8.4L162.5 81l51.5 51.5c27.1-9.1 52.7 16.8 43.4 43.7l49.7 49.7c34.2-11.8 61.2 31 35.5 56.7-26.5 26.5-70.2-2.9-56-37.3L240.3 199v121.9c25.3 12.5 22.3 41.8 9.1 55-6.4 6.4-15.2 10.1-24.3 10.1s-17.8-3.6-24.3-10.1c-17.6-17.6-11.1-46.9 11.2-56v-123c-20.8-8.5-24.6-30.7-18.6-45L142.6 101 8.5 235.1C3 240.6 0 247.9 0 255.5s3 15 8.5 20.4l195.6 195.7c5.4 5.4 12.7 8.4 20.4 8.4s15-3 20.4-8.4l194.7-194.7c5.4-5.4 8.4-12.8 8.4-20.4s-3-15-8.4-20.4"/></svg>
+  </div>
+  <div class="md-source__repository">
+    debrief/fuudee
+  </div>
+</a>
+      </div>
+    
+  </nav>
+  
+</header>
+    
+    <div class="md-container" data-md-component="container">
+      
+      
+        
+          
+            
+<nav class="md-tabs" aria-label="Tabs" data-md-component="tabs">
+  <div class="md-grid">
+    <ul class="md-tabs__list">
+      
+        
+  
+  
+  
+  
+    <li class="md-tabs__item">
+      <a href="../../.." class="md-tabs__link">
+        
+  
+  
+    
+  
+  Home
+
+      </a>
+    </li>
+  
+
+      
+        
+  
+  
+  
+  
+    <li class="md-tabs__item">
+      <a href="../../../try/" class="md-tabs__link">
+        
+  
+  
+    
+  
+  Try Debrief
+
+      </a>
+    </li>
+  
+
+      
+        
+  
+  
+  
+  
+    
+    
+      <li class="md-tabs__item">
+        <a href="../../../blog/" class="md-tabs__link">
+          
+  
+  
+    
+  
+  Blog
+
+        </a>
+      </li>
+    
+  
+
+      
+        
+  
+  
+  
+    
+  
+  
+    
+    
+      <li class="md-tabs__item md-tabs__item--active">
+        <a href="../../" class="md-tabs__link">
+          
+  
+  
+    
+  
+  Guides
+
+        </a>
+      </li>
+    
+  
+
+      
+    </ul>
+  </div>
+</nav>
+          
+        
+      
+      <main class="md-main" data-md-component="main">
+        <div class="md-main__inner md-grid">
+          
+            
+              
+              <div class="md-sidebar md-sidebar--primary" data-md-component="sidebar" data-md-type="navigation" >
+                <div class="md-sidebar__scrollwrap">
+                  <div class="md-sidebar__inner">
+                    
+
+
+  
+
+
+<nav class="md-nav md-nav--primary md-nav--lifted" aria-label="Navigation" data-md-level="0">
+  <label class="md-nav__title" for="__drawer">
+    <a href="../../.." title="Debrief v4" class="md-nav__button md-logo" aria-label="Debrief v4" data-md-component="logo">
+      
+  
+  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 8a3 3 0 0 0 3-3 3 3 0 0 0-3-3 3 3 0 0 0-3 3 3 3 0 0 0 3 3m0 3.54C9.64 9.35 6.5 8 3 8v11c3.5 0 6.64 1.35 9 3.54 2.36-2.19 5.5-3.54 9-3.54V8c-3.5 0-6.64 1.35-9 3.54"/></svg>
+
+    </a>
+    Debrief v4
+  </label>
+  
+    <div class="md-nav__source">
+      <a href="https://github.com/debrief/fuudee" title="Go to repository" class="md-source" data-md-component="source">
+  <div class="md-source__icon md-icon">
+    
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 448 512"><!--! Font Awesome Free 7.1.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2025 Fonticons, Inc.--><path d="M439.6 236.1 244 40.5c-5.4-5.5-12.8-8.5-20.4-8.5s-15 3-20.4 8.4L162.5 81l51.5 51.5c27.1-9.1 52.7 16.8 43.4 43.7l49.7 49.7c34.2-11.8 61.2 31 35.5 56.7-26.5 26.5-70.2-2.9-56-37.3L240.3 199v121.9c25.3 12.5 22.3 41.8 9.1 55-6.4 6.4-15.2 10.1-24.3 10.1s-17.8-3.6-24.3-10.1c-17.6-17.6-11.1-46.9 11.2-56v-123c-20.8-8.5-24.6-30.7-18.6-45L142.6 101 8.5 235.1C3 240.6 0 247.9 0 255.5s3 15 8.5 20.4l195.6 195.7c5.4 5.4 12.7 8.4 20.4 8.4s15-3 20.4-8.4l194.7-194.7c5.4-5.4 8.4-12.8 8.4-20.4s-3-15-8.4-20.4"/></svg>
+  </div>
+  <div class="md-source__repository">
+    debrief/fuudee
+  </div>
+</a>
+    </div>
+  
+  <ul class="md-nav__list" data-md-scrollfix>
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../.." class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Home
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../try/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Try Debrief
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+      
+        
+          
+        
+      
+        
+      
+    
+    
+    
+      
+      
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_3" >
+        
+          
+          <div class="md-nav__link md-nav__container">
+            <a href="../../../blog/" class="md-nav__link ">
+              
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Blog
+  
+
+    
+  </span>
+  
+  
+
+            </a>
+            
+              
+              <label class="md-nav__link " for="__nav_3" id="__nav_3_label" tabindex="0">
+                <span class="md-nav__icon md-icon"></span>
+              </label>
+            
+          </div>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_3_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_3">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Blog
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+            
+              
+                
+  
+  
+  
+  
+    
+    
+      
+        
+      
+        
+      
+    
+    
+    
+      
+      
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_3_2" >
+        
+          
+          <label class="md-nav__link" for="__nav_3_2" id="__nav_3_2_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Categories
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="2" aria-labelledby="__nav_3_2_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_3_2">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Categories
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+    
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../blog/category/architecture/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Architecture
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+    
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../blog/category/capability/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Capability
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+    
+  
+  
+  
+    
+    
+      
+        
+          
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+    
+    
+    
+      
+        
+        
+      
+      
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--active md-nav__item--section md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_4" checked>
+        
+          
+          <div class="md-nav__link md-nav__container">
+            <a href="../../" class="md-nav__link ">
+              
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Guides
+  
+
+    
+  </span>
+  
+  
+
+            </a>
+            
+              
+              <label class="md-nav__link " for="__nav_4" id="__nav_4_label" tabindex="">
+                <span class="md-nav__icon md-icon"></span>
+              </label>
+            
+          </div>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_4_label" aria-expanded="true">
+          <label class="md-nav__title" for="__nav_4">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Guides
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+            
+              
+                
+  
+  
+  
+  
+    
+    
+      
+        
+          
+        
+      
+        
+      
+        
+      
+        
+      
+    
+    
+    
+      
+      
+        
+          
+          
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--section md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_4_2" >
+        
+          
+          <div class="md-nav__link md-nav__container">
+            <a href="../../style-guide/" class="md-nav__link ">
+              
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Style guide
+  
+
+    
+  </span>
+  
+  
+
+            </a>
+            
+              
+              <label class="md-nav__link " for="__nav_4_2" id="__nav_4_2_label" tabindex="">
+                <span class="md-nav__icon md-icon"></span>
+              </label>
+            
+          </div>
+        
+        <nav class="md-nav" data-md-level="2" aria-labelledby="__nav_4_2_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_4_2">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Style guide
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../style-guide/language/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Language
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../style-guide/theme/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Theme
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../style-guide/ui/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    User interface
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+    
+  
+  
+  
+    
+    
+      
+        
+          
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+    
+    
+    
+      
+      
+        
+          
+          
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--active md-nav__item--section md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_4_3" checked>
+        
+          
+          <div class="md-nav__link md-nav__container">
+            <a href="../" class="md-nav__link ">
+              
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Interaction models
+  
+
+    
+  </span>
+  
+  
+
+            </a>
+            
+              
+              <label class="md-nav__link " for="__nav_4_3" id="__nav_4_3_label" tabindex="">
+                <span class="md-nav__icon md-icon"></span>
+              </label>
+            
+          </div>
+        
+        <nav class="md-nav" data-md-level="2" aria-labelledby="__nav_4_3_label" aria-expanded="true">
+          <label class="md-nav__title" for="__nav_4_3">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Interaction models
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../selection/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Selection and tool offering
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../tool-invocation/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Tool invocation and forms
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../unavailable-capabilities/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Unavailable capabilities
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../undo/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Undo
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../conflicts/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Conflicts
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../long-running-operations/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Long-running operations
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../check-overrides/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Check overrides
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../time-controller/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Time controller
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../annotations/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Annotations
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../track-operations/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Track operations
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../tote/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Tote
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+    
+  
+  
+  
+    <li class="md-nav__item md-nav__item--active">
+      
+      <input class="md-nav__toggle md-toggle" type="checkbox" id="__toc">
+      
+      
+        
+      
+      
+        <label class="md-nav__link md-nav__link--active" for="__toc">
+          
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Timeline and narrative
+  
+
+    
+  </span>
+  
+  
+
+          <span class="md-nav__icon md-icon"></span>
+        </label>
+      
+      <a href="./" class="md-nav__link md-nav__link--active">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Timeline and narrative
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+      
+        
+
+<nav class="md-nav md-nav--secondary" aria-label="Table of contents">
+  
+  
+  
+    
+  
+  
+    <label class="md-nav__title" for="__toc">
+      <span class="md-nav__icon md-icon"></span>
+      Table of contents
+    </label>
+    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#requirements-cited" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Requirements cited
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#narrative-entries" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Narrative entries
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#importing-narrative" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Importing narrative
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#the-timeline" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        The Timeline
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="The Timeline">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#what-is-a-step-and-what-isnt" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        What is a step, and what isn't
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#keyboard-and-touch" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Keyboard and touch
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#scale-nfr-06" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Scale (NFR-06)
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#narrative-from-word-and-pdf-part-b-cap-19" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Narrative from Word and PDF: part B (CAP-19)
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#reference-implementation" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Reference implementation
+      
+    </span>
+  </a>
+  
+</li>
+      
+    </ul>
+  
+</nav>
+      
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../keyboard-equivalents/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Keyboard equivalents
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../tool-author/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Tool-author guide
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../sample-data/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Sample data
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../glossary/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Glossary
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+  </ul>
+</nav>
+                  </div>
+                </div>
+              </div>
+            
+            
+              
+              <div class="md-sidebar md-sidebar--secondary" data-md-component="sidebar" data-md-type="toc" >
+                <div class="md-sidebar__scrollwrap">
+                  <div class="md-sidebar__inner">
+                    
+
+<nav class="md-nav md-nav--secondary" aria-label="Table of contents">
+  
+  
+  
+    
+  
+  
+    <label class="md-nav__title" for="__toc">
+      <span class="md-nav__icon md-icon"></span>
+      Table of contents
+    </label>
+    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#requirements-cited" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Requirements cited
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#narrative-entries" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Narrative entries
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#importing-narrative" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Importing narrative
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#the-timeline" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        The Timeline
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="The Timeline">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#what-is-a-step-and-what-isnt" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        What is a step, and what isn't
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#keyboard-and-touch" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Keyboard and touch
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#scale-nfr-06" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Scale (NFR-06)
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#narrative-from-word-and-pdf-part-b-cap-19" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Narrative from Word and PDF: part B (CAP-19)
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#reference-implementation" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Reference implementation
+      
+    </span>
+  </a>
+  
+</li>
+      
+    </ul>
+  
+</nav>
+                  </div>
+                </div>
+              </div>
+            
+          
+          
+            <div class="md-content" data-md-component="content">
+              
+              <article class="md-content__inner md-typeset">
+                
+                  
+
+
+  
+  
+
+
+<h1 id="timeline-and-narrative">Timeline and narrative<a class="headerlink" href="#timeline-and-narrative" title="Permanent link">&para;</a></h1>
+<p>How an analyst reads a plot's narrative along with a replay: narrative entries from every platform, with time-only notes and periods and the comments on fixes, in one time-ordered list, the Timeline; how it follows current time without fighting the reader; how entries are chosen, filtered, searched, added, changed and deleted; and how narrative is held and imported.</p>
+<p>The product owner decided on 15 Oct 2026 that narrative is read in the Timeline, not a view of its own: one list on one Zulu time axis, which data coverage joins later (CAP-05, CAP-08).</p>
+<h2 id="requirements-cited">Requirements cited<a class="headerlink" href="#requirements-cited" title="Permanent link">&para;</a></h2>
+<table>
+<thead>
+<tr>
+<th>SRD</th>
+<th>Requirement</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>CAP-05</td>
+<td>An optional temporal view shows narrative entries, time-only annotations and data coverage per source; choosing an entry moves current time to it.</td>
+</tr>
+<tr>
+<td>CAP-19</td>
+<td>Narrative is imported from Word and PDF in the legacy parsers' dialects (part B).</td>
+</tr>
+<tr>
+<td>CAP-20</td>
+<td>Narratives from several platforms are combined on a single Zulu time axis.</td>
+</tr>
+<tr>
+<td>EXT-14</td>
+<td>A legacy .dpf plot's narrative is imported, as far as the data model allows.</td>
+</tr>
+<tr>
+<td>NFR-06</td>
+<td>Usable with 12,000 narrative entries scaled by three to five: the stress bound. Typical narratives are a few hundred entries (product owner, 15 Oct 2026).</td>
+</tr>
+<tr>
+<td>NFR-13</td>
+<td>Everything works from the keyboard, and by touch.</td>
+</tr>
+<tr>
+<td>SUB-19, SUB-21</td>
+<td>Every change is a recorded step; undo replays to the step before.</td>
+</tr>
+<tr>
+<td>SUB-04</td>
+<td>Times are written by the formatting service, in the analyst's settings.</td>
+</tr>
+</tbody>
+</table>
+<h2 id="narrative-entries">Narrative entries<a class="headerlink" href="#narrative-entries" title="Permanent link">&para;</a></h2>
+<ol>
+<li>
+<p><strong>An entry is a feature of its own.</strong> Kind <code>narrative</code>, with no geometry, as a time-only annotation has: its <code>time</code> (UTC, to the millisecond), its <code>source</code> (who wrote it: a platform, a person or a document, such as <em>BLUE ONE</em>; legacy Debrief's track name on an entry), its <code>entry_type</code> (the source's own kind of entry, free text: legacy logs use <em>GenComment</em>, <em>Posn</em>, <em>CSD</em>, <em>FCS</em>; the sample uses <em>Course</em>, <em>Sonar</em>, <em>CPA</em>, <em>Log</em>), its <code>text</code> (which may run to several lines) and the track it belongs to, <code>track_id</code>, where there is one. Schema 0.0.19.</p>
+<p>One feature an entry, not one feature holding a whole log: each entry added, changed or deleted is then one small step in the history, holding that entry alone. A log of 12,000 entries held as one feature would put all 12,000 into the history at every change.
+2. <strong>The plot's narrative is every narrative entry in it.</strong> There is no narrative layer to create first: entries from a REP file, a legacy plot, the sample's script and the analyst's own typing are one narrative. A legacy plot's narrative layers are kept as named sets of their entries, with the layers' names, as its annotation layers are.
+3. <strong>One Zulu time axis, one order.</strong> By time; at one time by source, ignoring case (and between sources differing only in case, capitals first); from one source at one time, in the plot's order, which is the order its log gave them. Two platforms' entries at one second therefore always come in the same order, whichever log was imported first, and a log's own order at one second is kept. Legacy Debrief sorted entries at one time by source, then type, then text, which put a log's own order at one second out of order, and dropped entries alike in all four; both are kept here. Python and TypeScript are held to the same cases, <code>schemas/vectors/narrative-order.json</code>.
+4. <strong>Notes and narrative are kept apart.</strong> The sample's scripted log, and a legacy plot's narrative entries, were time-only note annotations before schema 0.0.19; they are narrative entries now. A note the analyst adds through the annotation form stays an annotation: the analyst's own remark, with a name, a style and perhaps a period, drawn by the annotation tools, hidden or shown like any annotation. Both are listed in the Timeline.
+5. <strong>Belonging to a track.</strong> An entry imported or added belongs to the plot's track of its source's name, ignoring case and spacing, where there is exactly one; the form and agents may choose another, or none. A track deleted since leaves the link, which is then ignored.</p>
+</li>
+</ol>
+<h2 id="importing-narrative">Importing narrative<a class="headerlink" href="#importing-narrative" title="Permanent link">&para;</a></h2>
+<ol>
+<li><strong>REP files.</strong> <code>;NARRATIVE:</code> lines (date, time, source, text) and <code>;NARRATIVE2:</code> lines (date, time, source, type, text) are read as legacy Debrief's <code>ImportNarrative</code> and <code>ImportNarrative2</code> read them: fields separated by spaces or tabs; the source, and a type, in quotes where they hold spaces; the text the rest of the line, tabs kept, trimmed; dates in the same 1950 to 2049 window as fixes. As in legacy Debrief, a <code>;NARRATIVE:</code> line has no type: an unquoted source with a space, <em>HMS TORBAY</em>, reads as the source <em>HMS</em> and the text <em>TORBAY…</em>. Unlike legacy Debrief, text run on after a closing quote is kept for the next field rather than dropped with the quote. A line that cannot be read is listed with its number and why. A REP file of narrative alone makes a plot.</li>
+<li><strong>Into the plot already open.</strong> <strong>Read narrative into this plot (REP)…</strong> (on the Timeline's title bar in VS Code; <em>A narrative into the open plot</em> under <em>Import your own</em> in the playground; <code>debrief/import_narrative</code> for agents) reads a second platform's log into the open plot as one step: the file is kept in the plot's item as a source, read-only and hashed, the step's record names the importer, its version and that source, and it lists what was not read (fix lines, which belong to an import as a plot of their own, and lines that could not be read). Undo takes the whole log out again.</li>
+<li><strong>Legacy plots (.dpf).</strong> Narrative entries come in with their time, source, type and text; the entry type, which the Phase 2 import listed as not imported, is kept.</li>
+</ol>
+<h2 id="the-timeline">The Timeline<a class="headerlink" href="#the-timeline" title="Permanent link">&para;</a></h2>
+<ol>
+<li><strong>One component, every host.</strong> VS Code shows the Timeline as a view in the Debrief sidebar; the playground shows the same component in its Timeline panel, which folds away like every side panel. It replaced a native tree, which could not search, filter, follow current time without taking the keyboard, or hold sixty thousand entries.</li>
+<li>
+<p><strong>A quiet table.</strong> Column headings once, <em>Time</em>, <em>Source</em>, <em>Type</em>, <em>Entry</em>; then a row an entry, with nothing labelled in the rows:</p>
+<table>
+<thead>
+<tr>
+<th>Time</th>
+<th>Source</th>
+<th>Type</th>
+<th>Entry</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><em>15 Jun 2023</em></td>
+<td></td>
+<td></td>
+<td></td>
+</tr>
+<tr>
+<td><code>08:29:00Z</code></td>
+<td>● BLUE ONE</td>
+<td>Sonar</td>
+<td>Bow sonar contact, bearing 277.0°T. Classifying.</td>
+</tr>
+<tr>
+<td><code>08:30:00Z</code></td>
+<td>● BLUE ONE</td>
+<td>Course</td>
+<td>Came to 215.0°T, 10.0 kn.</td>
+</tr>
+<tr>
+<td><code>08:58:00Z</code></td>
+<td>EXCON</td>
+<td>Log</td>
+<td>Permission granted.</td>
+</tr>
+</tbody>
+</table>
+<ul>
+<li>The time in the editor's monospaced font, written by the formatting service in the analyst's settings; a day's date heads its first entry.</li>
+<li>The source, with its track's colour where it belongs to one; the type quieter; the text wrapping, with its line breaks.</li>
+<li>A note shows its name as its source and <em>Note</em> as its type, a period <em>Period</em> and <em>Until …</em> before its text, a fix comment its track and <em>Fix</em>. One hidden on the map says so.</li>
+<li>Entries outside the time window are drawn fainter: still read, still chosen.</li>
+<li>Where the list is narrow (VS Code's sidebar, the playground's side column, a phone), time, source and type are one line and the text goes under them, aligned with the source, so the time is a gutter down the left. The page never scrolls sideways.</li>
+<li><strong>Following current time.</strong> The entry current time is at (the last at or before it, among those listed) is marked by a bar in the theme's highlight and a quiet ground. As current time moves, while playing or stepping or from a tool, the list keeps that entry in sight: it scrolls only when the entry leaves the middle of the view (its top tenth to three quarters down), and then puts it a third of the way down, so what comes next is seen below it. It never moves the keyboard, and never animates, so a reader is not pulled about.</li>
+</ul>
+<p>The reader always wins. Scrolling the list (wheel, touch, scrollbar) or moving through it with the keyboard stops it following. <strong>Follow time</strong> then appears in the bar, with an arrow towards where current time is (↑ or ↓); it starts following again and brings the entry into sight. Choosing an entry also starts following again, since current time moves to it, and so does pressing <strong>Play</strong> (product owner, 15 Oct 2026): playing is asking to read along. Scrolling away while it plays stops it following again, as at any other time; pausing leaves it as it is.</p>
+<p>Following starts afresh, at current time, when another plot is opened; the same plot shown again after a change (an entry added, an undo) keeps the reader's place. The host says which plot it is (<code>plot_id</code> on <code>show_timeline</code>).
+12. <strong>Choosing an entry</strong> (click, tap, <code>Enter</code> or <code>Space</code>) moves current time to it, or to the start of a period. Outside the window shown, the window widens or moves to take it in, shown but never saved, exactly as for a tool's time, with <strong>Keep</strong> and <strong>Revert</strong> on the time controller (CAP-28). Where several entries share a second, the one chosen is the one marked, not the last of them.
+13. <strong>Filter and search.</strong> <strong>Filter</strong> opens checkboxes, with counts, for each kind (<em>Narrative</em>, <em>Notes and periods</em>, <em>Fix comments</em>), source and type; unticked ones are left out, and <strong>Filter (2)</strong> says how many are. <strong>Show all</strong> puts them back. The search box finds text in an entry's text, source or type, ignoring case, and marks it; <code>Escape</code> clears it. Under the list, <em>12 entries of 120</em> while anything is left out. The filter and the search are the reader's own (product owner, 15 Oct 2026), kept in the page (VS Code's webview state; the browser's storage in the playground, every read and write guarded), never in the plot: two analysts reading one narrative want different filters, and neither changes what the plot says. Following and current time work among the entries listed. Agents filter for themselves (<code>debrief/narrative</code>); <code>debrief.timelineEntries</code> answers for the whole plot, so its <code>current</code> is the entry current time is at among all of them, which is the row the reader sees marked unless their filter leaves it out.
+14. <strong>Adding, changing and deleting an entry.</strong> <strong>+</strong> (or <code>N</code> with the list focused; <strong>Add narrative entry…</strong> in VS Code) opens a short form above the list: <em>Time</em> (starting at current time, in any of the analyst's notations: <code>09:30Z</code>, <code>15 Jun 2023 09:30:00Z</code>, <code>150930Z JUN 23</code>), <em>Source</em> and <em>Type</em> (each suggesting those the plot has), <em>Track</em> (following the source's name until chosen) and <em>Entry</em>. <strong>Edit</strong> and <strong>Delete</strong> appear on the row being worked with (the one chosen, or the keyboard's), so the list stays quiet; <code>F2</code> or double-click changes, <code>Delete</code> deletes. Each is one step, named in the History view (<em>Narrative entry by BLUE ONE at 08:40:00Z added</em>, <em>…: text changed</em>, <em>… moved to 08:41:00Z</em>, <em>… deleted</em>), undone like any other: <strong>Undo</strong> in the History view, or <code>Ctrl+Z</code> (<code>Cmd+Z</code> on macOS) from the Timeline itself, as from the map, the Outline or the History view, except in the search box and the form's text boxes, where it undoes the typing (product owner, 15 Oct 2026). <code>Ctrl+Shift+Z</code> or <code>Ctrl+Y</code> redoes. Deleting from the keyboard keeps its place, on the entry after the one deleted. A form that cannot be saved says why and stays open; a change made elsewhere meanwhile is never overwritten (SUB-28).
+15. <strong>On the map.</strong> The entry current time is at, where it belongs to a track, is shown beside that track's square: its source in bold and the start of its text, in a small box in the theme's colours, never in the way of the pointer, to the left where the right is short of room. It goes when ten minutes of plot time pass with no later entry for a track, so an entry long past does not linger. The map is never sent the narrative itself: a plot may hold sixty thousand entries.</p>
+<p><strong>Narrative on the map</strong>, a box under the list, turns it off and on (product owner, 15 Oct 2026). It is the plot's choice, not the reader's: kept in the plot's island (<code>PlotView.narrative_on_map</code>, left out meaning on), like the Tote's <em>Lines on the map</em>, so it travels with the plot file; never a step, never undone (SUB-22). A colleague's change meanwhile is never overwritten (SUB-28).
+16. <strong>The outline</strong> has one row, <em>Narrative: 120 entries from 3 sources</em>, which shows the Timeline; the entries are not listed there one by one (product owner, 15 Oct 2026: kept as it is).</p>
+</li>
+</ol>
+<h3 id="what-is-a-step-and-what-isnt">What is a step, and what isn't<a class="headerlink" href="#what-is-a-step-and-what-isnt" title="Permanent link">&para;</a></h3>
+<table>
+<thead>
+<tr>
+<th></th>
+<th>Step in the history</th>
+<th>Undone by <code>Ctrl+Z</code></th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Adding, changing or deleting an entry</td>
+<td>Yes, one each</td>
+<td>Yes</td>
+</tr>
+<tr>
+<td>Reading a REP file's narrative into the plot</td>
+<td>Yes, one for the file</td>
+<td>Yes</td>
+</tr>
+<tr>
+<td>Choosing an entry (current time)</td>
+<td>No</td>
+<td>No</td>
+</tr>
+<tr>
+<td>Filtering, searching, following</td>
+<td>No (the reader's own, in the page)</td>
+<td>No</td>
+</tr>
+<tr>
+<td>Narrative on the map, off or on</td>
+<td>No (the plot's island)</td>
+<td>No</td>
+</tr>
+</tbody>
+</table>
+<h3 id="keyboard-and-touch">Keyboard and touch<a class="headerlink" href="#keyboard-and-touch" title="Permanent link">&para;</a></h3>
+<table>
+<thead>
+<tr>
+<th>In the Timeline</th>
+<th>Keys</th>
+<th>Touch</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Move through the list (stops following)</td>
+<td><code>Up</code>, <code>Down</code>, <code>Page Up</code>, <code>Page Down</code>, <code>Home</code>, <code>End</code></td>
+<td>swipe</td>
+</tr>
+<tr>
+<td>Move current time to the entry</td>
+<td><code>Enter</code> or <code>Space</code></td>
+<td>tap</td>
+</tr>
+<tr>
+<td>Change the entry</td>
+<td><code>F2</code> or <code>E</code></td>
+<td>tap it, then <strong>Edit</strong></td>
+</tr>
+<tr>
+<td>Delete the entry</td>
+<td><code>Delete</code></td>
+<td>tap it, then <strong>Delete</strong></td>
+</tr>
+<tr>
+<td>Add an entry</td>
+<td><code>N</code> or <code>Insert</code></td>
+<td><strong>+</strong></td>
+</tr>
+<tr>
+<td>Search</td>
+<td><code>/</code>; <code>Escape</code> clears; <code>Down</code> back to the list</td>
+<td>the box</td>
+</tr>
+<tr>
+<td>Close the form</td>
+<td><code>Escape</code>; <code>Ctrl+Enter</code> saves</td>
+<td><strong>Cancel</strong></td>
+</tr>
+<tr>
+<td>Undo or redo the plot's last step</td>
+<td><code>Ctrl+Z</code>; <code>Ctrl+Shift+Z</code> or <code>Ctrl+Y</code> (<code>Cmd+Z</code>, <code>Cmd+Shift+Z</code> on macOS), anywhere in the Timeline but a text box</td>
+<td><strong>Undo</strong> in History</td>
+</tr>
+</tbody>
+</table>
+<p>The list is a listbox for screen readers: each entry read with its full date and time, its source, type and text; the keyboard's place is its active option, the entry current time is at its current one (<code>aria-current="time"</code>).</p>
+<p><code>Ctrl+Z</code> is decided in the Timeline's page as the key is pressed, against what has focus then: in a text box it is left to the text; elsewhere the page asks its host to undo (<code>undo_asked</code>, <code>redo_asked</code> in VS Code, which runs <strong>Undo</strong> as the map's <code>Ctrl+Z</code> does, and only when there is something to undo). A context key that a keybinding read would reach the page's host after focus had moved, so a <code>Ctrl+Z</code> straight after clicking into the search box could undo the plot.</p>
+<p><em>Not yet</em> (product owner, 15 Oct 2026, for a follow-up): legacy Debrief's Narrative viewer extras. Phrases to highlight wherever they appear; an off switch for <em>choosing an entry moves current time</em>; the text's size and a wrap toggle; and which columns are shown.</p>
+<h2 id="scale-nfr-06">Scale (NFR-06)<a class="headerlink" href="#scale-nfr-06" title="Permanent link">&para;</a></h2>
+<p>Typical narratives are a few hundred entries; the product owner rarely sees more (15 Oct 2026). That case must be quick, and is:</p>
+<table>
+<thead>
+<tr>
+<th>Where</th>
+<th>What, at 2,000 entries</th>
+<th>Time</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Python, desktop</td>
+<td>One entry changed; undone</td>
+<td>about 20 ms; 10 to 20 ms</td>
+</tr>
+<tr>
+<td>Playground (Pyodide)</td>
+<td>A 2,000-line log read into an open plot and shown</td>
+<td>0.8 s</td>
+</tr>
+<tr>
+<td>Playground</td>
+<td>An entry added through the form, saved, the plot opened again and the list shown; undone the same way</td>
+<td>190 to 250 ms; 220 to 250 ms</td>
+</tr>
+</tbody>
+</table>
+<p>The playground's round trip is mostly the plot opened again after the step (read from Python, the map and every panel redrawn), as for any step: 115 to 160 ms with 36 entries.</p>
+<p>The stress bound stays the legacy sample's 12,000 entries scaled by three to five, measured with 60,000 synthetic entries:</p>
+<table>
+<thead>
+<tr>
+<th>Where</th>
+<th>What</th>
+<th>Time</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Python, desktop</td>
+<td>One step adding all 60,000; the plot file 20 MB, 35 MB with its history</td>
+<td>1.4 to 2.5 s</td>
+</tr>
+<tr>
+<td>Python, desktop</td>
+<td>One entry changed; undone (12,000 entries: 0.11 s; 0.08 s)</td>
+<td>0.7 to 1.0 s; 0.5 to 0.6 s</td>
+</tr>
+<tr>
+<td>Python, desktop</td>
+<td>Ordered; a query by source and text (<code>debrief/narrative</code>)</td>
+<td>0.2 to 0.6 s; 0.3 s</td>
+</tr>
+<tr>
+<td>Timeline logic</td>
+<td>Ordered; filtered, rowed and laid out; searched</td>
+<td>50 ms; 40 ms; 13 ms</td>
+</tr>
+<tr>
+<td>Playground (Pyodide)</td>
+<td>A 60,000-line log read into an open plot and shown</td>
+<td>8 to 30 s</td>
+</tr>
+<tr>
+<td>Playground</td>
+<td>The list built; rows drawn</td>
+<td>20 to 90 ms (0.4 s on a busy machine); 15 to 20</td>
+</tr>
+<tr>
+<td>Playground</td>
+<td>Scrolling by the wheel: time between frames</td>
+<td>p50 and p95 16.7 ms (60 a second)</td>
+</tr>
+<tr>
+<td>Playground</td>
+<td>A search through all of them</td>
+<td>30 to 60 ms</td>
+</tr>
+</tbody>
+</table>
+<p>A change rewrites the whole plot file, history included, and checks it whole before it is written: that is the design (one file, history included, 13 Oct 2026), and at 60,000 entries it costs most of a second. The review of 15 Oct halved it with small changes (the plot's period read from its earliest and latest times only; a plain narrative entry checked by hand before its JSON is hashed; the file read and hashed once a change, not twice); anything more, such as checking or hashing only what changed, is not worth building for narratives of a few hundred entries.</p>
+<p>Only the rows in sight are drawn (with 400 px above and below), each measured once drawn; the rest are estimated from their text's length and the column's width, and the row at the top of the view stays put when estimates become measurements. Two things made the Python side fast enough: JSON Schema checks each feature against its own kind's class (narrative entries by an exact hand-written check that is never more lenient than the schema, a test holds it to that), instead of trying every feature class in turn (37 s for 20,000 entries before, 1 s after); and a history keeps the plot it built while the file is unchanged.</p>
+<pre class="mermaid"><code>sequenceDiagram
+    participant A as Analyst
+    participant T as Timeline
+    participant H as Host
+    participant P as Python
+    H-&gt;&gt;T: show_timeline (entries in order, tracks, time)
+    loop while playing
+        H-&gt;&gt;T: set_time
+        T-&gt;&gt;T: mark the entry at current time; scroll only if it left the middle
+    end
+    A-&gt;&gt;T: scrolls the list
+    T-&gt;&gt;T: stop following; show Follow time
+    A-&gt;&gt;T: chooses an entry
+    T-&gt;&gt;H: timeline_chosen
+    H-&gt;&gt;H: current time to the entry (widen the window, never saved)
+    A-&gt;&gt;T: adds an entry in the form
+    T-&gt;&gt;H: save_narrative
+    H-&gt;&gt;P: debrief/add_narrative
+    P--&gt;&gt;H: one step, new base
+    H-&gt;&gt;T: show_timeline, narrative_saved</code></pre>
+<h2 id="narrative-from-word-and-pdf-part-b-cap-19">Narrative from Word and PDF: part B (CAP-19)<a class="headerlink" href="#narrative-from-word-and-pdf-part-b-cap-19" title="Permanent link">&para;</a></h2>
+<p>Part A leaves the model ready for legacy Debrief's Word and PDF parsers (<code>ImportNarrativeDocument</code>, <code>ImportRiderNarrativeDocument</code>, <code>ImportASWDataDocument</code>, <code>ImportWord_LEGACY</code>). They produce what an entry holds: a time to the minute, a platform (the source), a type (<em>FCS</em>, <em>N/A</em>, a dialect's own, or the Rider document's fixed source), and text, often running over several paragraphs. Part B needs:</p>
+<ul>
+<li>the text of <code>.doc</code>, <code>.docx</code> and PDF under Python, in the browser too (a pure-Python reader, or text extracted on the desktop only, saying so in the playground: CON-10);</li>
+<li>the dialects' parsing, ported with their tests on synthetic documents: comma-separated entries with a four- or six-figure DTG, day, month, year, platform and type; short entries taking the date and platform from the one before; text continuing the entry before; day markers (<code>dd MMM yy</code>); the corrections for a day that goes backwards after a cut and paste, and for an entry written just after midnight about the evening before;</li>
+<li>the questions legacy Debrief asked, asked by the host and passed to the importer: which types to import (with counts), only entries within the plot's period or all, and which track an unknown platform is (skipping <em>HMS</em>, <em>USS</em> and the like before matching names);</li>
+<li>FCS entries (fire-control solutions: bearing, range, course, speed, classification) made into TMA solution positions on the platform's track, which waits for TMA solutions in the data model (Phase 4, D stream); until then, kept as narrative and listed as not imported;</li>
+<li>reading into the open plot as one step with the document as its source, through the same path as a REP file's narrative (<code>debrief_io.narrative.import_narrative</code>, <code>Catalogue.add_narrative_entries</code>).</li>
+</ul>
+<h2 id="reference-implementation">Reference implementation<a class="headerlink" href="#reference-implementation" title="Permanent link">&para;</a></h2>
+<ul>
+<li><strong>Model and Python:</strong> schema 0.0.19's <code>NarrativeFeature</code>, <code>NarrativeProperties</code> and <code>NarrativeSpec</code> in <code>schemas/linkml/features.yaml</code>, the Timeline's messages and <code>TimelineEntry</code> in <code>schemas/linkml/messages.yaml</code>; <code>debrief_stac.narrative</code> (order, query, build, describe) and <code>Catalogue.add_narrative</code>, <code>edit_narrative</code>, <code>delete_narrative</code>, <code>add_narrative_entries</code>; <code>debrief_io.rep.parse_narrative</code> and <code>debrief_io.narrative.import_narrative</code>; the service methods <code>debrief/narrative</code>, <code>debrief/add_narrative</code>, <code>debrief/edit_narrative</code>, <code>debrief/delete_narrative</code> and <code>debrief/import_narrative</code>.</li>
+<li><strong>The Timeline:</strong> <code>vscode/webview/timelinecontrol.ts</code> (the component), <code>vscode/webview/timelinelogic.ts</code> (filter, current entry, rows, layout, following, which keys undo and where they are left to the text), <code>vscode/src/timeline.ts</code> (the entries from a plot, in order; the entry on the map), <code>vscode/src/panels/timelineview.ts</code> (VS Code's view), <code>vscode/play/host.ts</code> and <code>narrative</code> in <code>vscode/play/play.py</code> (the playground).</li>
+<li><strong>Tests:</strong> <code>python/debrief-stac/tests/test_narrative.py</code>, <code>python/debrief-io/tests/test_rep_narrative.py</code>, the service's in <code>python/debrief-tools/tests/test_service.py</code>; <code>vscode/test/unit/timeline.test.ts</code>; the playground's <code>vscode/test/play/narrative.mjs</code>, played by <code>vscode/test/play/play.mjs</code>; the narrative steps of <code>vscode/test/integration/suite.ts</code>.</li>
+</ul>
+
+
+
+
+
+
+
+
+
+
+
+
+                
+              </article>
+            </div>
+          
+          
+<script>var target=document.getElementById(location.hash.slice(1));target&&target.name&&(target.checked=target.name.startsWith("__tabbed_"))</script>
+        </div>
+        
+      </main>
+      
+        <footer class="md-footer">
+  
+  <div class="md-footer-meta md-typeset">
+    <div class="md-footer-meta__inner md-grid">
+      <div class="md-copyright">
+  
+    <div class="md-copyright__highlight">
+      Debrief is open source under the Eclipse Public License 2.0.
+    </div>
+  
+  
+    Made with
+    <a href="https://squidfunk.github.io/mkdocs-material/" target="_blank" rel="noopener">
+      Material for MkDocs
+    </a>
+  
+</div>
+      
+    </div>
+  </div>
+</footer>
+      
+    </div>
+    <div class="md-dialog" data-md-component="dialog">
+      <div class="md-dialog__inner md-typeset"></div>
+    </div>
+    
+    
+    
+      
+      
+      <script id="__config" type="application/json">{"annotate": null, "base": "../../..", "features": ["navigation.tabs", "navigation.sections", "navigation.indexes", "content.code.copy"], "search": "../../../assets/javascripts/workers/search.2c215733.min.js", "tags": null, "translations": {"clipboard.copied": "Copied to clipboard", "clipboard.copy": "Copy to clipboard", "search.result.more.one": "1 more on this page", "search.result.more.other": "# more on this page", "search.result.none": "No matching documents", "search.result.one": "1 matching document", "search.result.other": "# matching documents", "search.result.placeholder": "Type to start searching", "search.result.term.missing": "Missing", "select.version": "Select version"}, "version": null}</script>
+    
+    
+      <script src="../../../assets/javascripts/bundle.d7400e89.min.js"></script>
+      
+        <script src="../../../javascripts/demo.js"></script>
+      
+    
+  </body>
+</html>

@@ -13,7 +13,7 @@
         <link rel="canonical" href="https://debrief.github.io/fuudee/guides/interaction-models/keyboard-equivalents/">
       
       
-        <link rel="prev" href="../tote/">
+        <link rel="prev" href="../timeline/">
       
       
         <link rel="next" href="../../tool-author/">
@@ -893,6 +893,8 @@
       
         
       
+        
+      
     
     
     
@@ -1245,6 +1247,34 @@
     
   
     Tote
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../timeline/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Timeline and narrative
   
 
     
@@ -1625,6 +1655,10 @@
 <td><strong>Primary</strong> and <strong>Add</strong> in the Tote are lists; <code>Delete</code> on a secondary removes it. A track's menu in the outline (<code>Shift+F10</code> or the menu key; press and hold on a touch screen) has <strong>Set as Tote primary</strong>, <strong>Add to Tote</strong> and <strong>Remove from Tote</strong> (<a href="../tote/#keyboard-and-touch">Tote</a>). There is no map gesture.</td>
 </tr>
 <tr>
+<td>Choose a narrative entry, a note or a period to move current time to it; read along while playing</td>
+<td>The Timeline is a list: <code>Up</code>, <code>Down</code>, <code>Page Up</code>, <code>Page Down</code>, <code>Home</code> and <code>End</code> move through it, <code>Enter</code> or <code>Space</code> moves current time to the entry, <code>F2</code> changes a narrative entry, <code>Delete</code> deletes it, <code>N</code> adds one, <code>/</code> searches; <code>Ctrl+Z</code> undoes the plot's last step from the Timeline except in its text boxes (the search box and the form), where it undoes the typing (<a href="../timeline/#keyboard-and-touch">Timeline and narrative</a>). The entry on the map beside its track needs no gesture.</td>
+</tr>
+<tr>
 <td>Clear the selection</td>
 <td><code>Escape</code> on the map; or the outline, a native tree.</td>
 </tr>
@@ -1635,7 +1669,7 @@
 </tbody>
 </table>
 <h2 id="reference-implementation">Reference implementation<a class="headerlink" href="#reference-implementation" title="Permanent link">&para;</a></h2>
-<p><code>vscode/webview/mapedit.ts</code> (keys while drawing and on handles) and <code>vscode/webview/drawing.ts</code>; <code>vscode/webview/trackmap.ts</code> and <code>vscode/webview/trackedit.ts</code> for a track's handles. The playground tests <code>vscode/test/play/drawing.mjs</code> and <code>vscode/test/play/tracks.mjs</code> place a marker, change an area, move and rotate a track, <code>vscode/test/play/shear.mjs</code> shears and stretches one, and <code>vscode/test/play/fixdrag.mjs</code> moves a single fix, from the keyboard alone; <code>vscode/test/play/tote.mjs</code> chooses the Tote's tracks from the keyboard and by press and hold.</p>
+<p><code>vscode/webview/mapedit.ts</code> (keys while drawing and on handles) and <code>vscode/webview/drawing.ts</code>; <code>vscode/webview/trackmap.ts</code> and <code>vscode/webview/trackedit.ts</code> for a track's handles. The playground tests <code>vscode/test/play/drawing.mjs</code> and <code>vscode/test/play/tracks.mjs</code> place a marker, change an area, move and rotate a track, <code>vscode/test/play/shear.mjs</code> shears and stretches one, and <code>vscode/test/play/fixdrag.mjs</code> moves a single fix, from the keyboard alone; <code>vscode/test/play/tote.mjs</code> chooses the Tote's tracks from the keyboard and by press and hold; <code>vscode/test/play/narrative.mjs</code> reads, chooses, adds, changes and deletes narrative entries from the keyboard.</p>
 
 
 

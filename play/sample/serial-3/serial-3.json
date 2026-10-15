@@ -39,7 +39,7 @@
     "start_datetime": "2023-06-15T17:00:00.000Z",
     "end_datetime": "2023-06-15T23:00:00.000Z",
     "title": "Serial 3",
-    "debrief:schema_version": "0.0.18",
+    "debrief:schema_version": "0.0.19",
     "datetime": null
   },
   "links": [
@@ -106,7 +106,7 @@
         "metadata"
       ],
       "debrief:asset_kind": "supporting_file",
-      "debrief:content_hash": "sha256:52a1309a8fdf217a1d8a30b18e3d108cbe83c69a2da366df98f7e0402d8f1c78"
+      "debrief:content_hash": "sha256:8ca111a2827b14f7bc06ef265e741f82e84404cdbe929558bb07ce09d14be039"
     }
   }
 }

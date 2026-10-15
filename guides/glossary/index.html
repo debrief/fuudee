@@ -889,6 +889,8 @@
       
         
       
+        
+      
     
     
     
@@ -1241,6 +1243,34 @@
     
   
     Tote
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../interaction-models/timeline/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Timeline and narrative
   
 
     
@@ -1618,9 +1648,13 @@
 <p><strong>OTG, DR</strong> (over the ground, dead reckoning). How legacy Debrief plotted a track: OTG, each fix where it was logged; DR, from a start, each fix placed from the one before by the course and speed recorded there. Debrief asks which as each track is imported, unless the analyst said to use one choice for future imports (their setting, which they can clear); the mode is kept on the track, and changing it is one step (CAP-01). On a DR track an edit changes where it starts, or its courses and speeds, and the positions are worked out again; its positions, courses and speeds as logged are kept unchanged beside it (see <a href="../interaction-models/track-operations/#editing-a-track-plotted-by-dead-reckoning">Track operations</a>).</p>
 <p><strong>Fix list.</strong> A track's fixes in time order, each with its time, position, course, speed and any mark, for choosing one fix to colour, label or comment on.</p>
 <p><strong>Chart furniture.</strong> What a chart carries besides its data: the scale bar, always drawn, and the north arrow, which a plot shows or not.</p>
-<p><strong>Timeline.</strong> The view listing a plot's time-only annotations, such as narrative notes and periods of interest, in time order. Choosing an entry moves current time to it (CAP-05). The SRD calls it the temporal view.</p>
+<p><strong>Timeline.</strong> The view listing a plot's narrative entries, time-only annotations (notes and periods of interest) and fix comments in one time order, on one Zulu time axis. Choosing an entry moves current time to it; it follows current time while playing, until the analyst scrolls it (CAP-05, CAP-20). The SRD calls it the temporal view. See <a href="../interaction-models/timeline/">Timeline and narrative</a>.</p>
 <p><strong>Named set.</strong> A saved selection of features, reusable as a selection or as a tool's input (TL-11).</p>
-<p><strong>Narrative.</strong> The log of events from each platform, imported from Word or PDF and combined on one time axis (CAP-19, CAP-20).</p>
+<p><strong>Narrative.</strong> The log of events from each platform, imported from REP files, legacy plots and (part B) Word or PDF, and combined on one Zulu time axis (CAP-19, CAP-20). A plot's narrative is all its narrative entries; it is read in the Timeline.</p>
+<p><strong>Narrative entry.</strong> One entry of a narrative: its time, its source, its type, its text and, perhaps, the track it belongs to. A feature of its own, with no position; adding, changing or deleting one is one step. Not a note, which is the analyst's own annotation.</p>
+<p><strong>Source</strong> (of a narrative entry). Who wrote it: the platform, person or document whose log it is, such as <em>BLUE ONE</em>. Not <em>author</em> or <em>track</em>: an entry may belong to a track, but its source is who logged it.</p>
+<p><strong>Entry type.</strong> What kind of narrative entry it is, in its source's own words, such as <em>GenComment</em>, <em>CSD</em> or <em>Sonar</em>. Free text: each source has its own.</p>
+<p><strong>Follow time.</strong> The Timeline keeping the entry current time is at in sight as current time moves. It stops when the analyst scrolls the list or moves through it with the keyboard; <strong>Follow time</strong> starts it again.</p>
 <p><strong>Serial.</strong> A period of an exercise, typically 4, 6, 12 or 24 hours.</p>
 <h2 id="sensors-and-tma">Sensors and TMA<a class="headerlink" href="#sensors-and-tma" title="Permanent link">&para;</a></h2>
 <p><strong>Sensor.</strong> A device on a platform that observes others: sonar, radar or visual.</p>

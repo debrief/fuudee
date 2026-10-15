@@ -75,13 +75,9 @@ dialog::backdrop { background: #0006; }
   .side { grid-row: 2; border-right: 0; overflow: visible; min-width: 0; }
   footer { grid-column: 1; position: sticky; bottom: 0; }
 }
-/* The Timeline: time-only annotations in time order; choosing one moves current time to it (CAP-05). */
-.timeline li { padding: 0; }
-.timeline button { display: block; width: 100%; text-align: left; background: none; border: none; margin: 0; padding: 3px 4px; color: var(--vscode-foreground); }
-.timeline button:hover { background: var(--vscode-list-hoverBackground); }
-.timeline .when { font-family: var(--vscode-editor-font-family); font-size: 12px; margin-right: 6px; }
-.timeline li.current button { background: var(--vscode-list-inactiveSelectionBackground); }
-.timeline li.current .when::before { content: "▶ "; color: var(--vscode-list-highlightForeground); }
+/* The Timeline (webview/timeline.css): narrative, notes and periods in time order (CAP-05, CAP-20).
+   The list scrolls inside a panel of its own height, drawing only the rows in sight. */
+#timeline { height: min(440px, 60vh); }
 #north-arrow[aria-pressed="true"] { background: var(--vscode-button-background); color: var(--vscode-button-foreground); }
 /* Cleaning tracks: the jumps found, the fix list and what to do to the fix chosen. */
 /* The panel keeps its height beside the map; a long fix list scrolls inside it. */
