@@ -19,6 +19,7 @@ import * as vscode from "vscode";
 import type { TimeRange } from "@debrief/schemas";
 import { checkMessage } from "../messages.js";
 import type { Session } from "../session.js";
+import { startup } from "../startup.js";
 import { webviewHtml } from "./html.js";
 
 export const TIME_VIEW = "debrief.time";
@@ -51,6 +52,7 @@ export class TimeView implements vscode.WebviewViewProvider {
   }
 
   resolveWebviewView(view: vscode.WebviewView): void {
+    startup.mark(TIME_VIEW, "resolve");
     this.view = view;
     this.ready = false;
     view.webview.options = {
@@ -58,10 +60,12 @@ export class TimeView implements vscode.WebviewViewProvider {
       localResourceRoots: [vscode.Uri.joinPath(this.extension, "dist", "webview")],
     };
     view.webview.html = webviewHtml(view.webview, this.extension, "time", "Time");
+    startup.mark(TIME_VIEW, "html");
     view.onDidDispose(() => {
       if (this.view === view) this.view = undefined;
     });
     view.webview.onDidReceiveMessage((raw) => {
+      if (startup.fromPage(TIME_VIEW, raw)) return;
       let message;
       try {
         message = checkMessage(raw);
@@ -70,6 +74,7 @@ export class TimeView implements vscode.WebviewViewProvider {
         return;
       }
       if (message.kind === "ready") {
+        startup.mark(TIME_VIEW, "ready");
         this.ready = true;
         this.showTime();
       } else if (message.kind === "time_changed") {
@@ -99,6 +104,7 @@ export class TimeView implements vscode.WebviewViewProvider {
         ...(time && { context_tracks: this.session.contextTracks(), minimum_context_contrast: this.session.minimumContextContrast }),
       }),
     );
+    startup.shown(TIME_VIEW, !!time);
   }
 
   /** The plot's choice of context tracks, checked in the title menu; and the setting's effect, said beside the title. */

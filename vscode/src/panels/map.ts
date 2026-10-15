@@ -8,6 +8,7 @@ import * as vscode from "vscode";
 import type { Session } from "../session.js";
 import { checkMessage } from "../messages.js";
 import { webviewHtml } from "./html.js";
+import { startup } from "../startup.js";
 import { displayed, hiddenIds } from "../hidden.js";
 import type { TimelineEntry, ToteView } from "@debrief/schemas";
 import { NarrativeOnMap, narrativeOnMapOf, timelineEntries } from "../timeline.js";
@@ -74,6 +75,7 @@ export class MapPanel {
       this.panel.reveal(undefined, true);
       return;
     }
+    startup.mark("map", "resolve");
     this.panel = vscode.window.createWebviewPanel("debrief.map", title, vscode.ViewColumn.One, {
       enableScripts: true,
       retainContextWhenHidden: true,
@@ -81,6 +83,7 @@ export class MapPanel {
     });
     this.ready = false;
     this.panel.webview.html = webviewHtml(this.panel.webview, this.extension, "map", title);
+    startup.mark("map", "html");
     this.panel.onDidDispose(() => {
       this.panel = undefined;
       this.showing = undefined;
@@ -90,6 +93,7 @@ export class MapPanel {
 
   /** A message from the map webview; tests may pass one as if the map had sent it. Resolves once it is acted on. */
   async receive(raw: unknown): Promise<void> {
+    if (startup.fromPage("map", raw)) return;
     let message;
     try {
       message = checkMessage(raw);
@@ -99,6 +103,7 @@ export class MapPanel {
       return;
     }
     if (message.kind === "ready") {
+      startup.mark("map", "ready");
       this.ready = true;
       this.showPlot();
     } else if (message.kind === "selection_changed") {
@@ -157,6 +162,7 @@ export class MapPanel {
     });
     this.showNarrative(true);
     if (this.ready) {
+      startup.shown("map", true);
       this.showing = opened.item.id;
       this.hiddenCount = hidden;
       this.context = this.session.contextShown();
