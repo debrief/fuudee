@@ -181,6 +181,8 @@ export class TimelineControl {
   private highlightTimer?: ReturnType<typeof setTimeout>;
   /** A row just made the one worked with: brought wholly into sight once drawn and measured. */
   private revealActive = false;
+  /** Laid out again (width, text size, wrapping, columns): the row worked with, if in sight, kept wholly so. */
+  private keepActive = false;
   private editing?: string;
   private said?: ReturnType<typeof setTimeout>;
   /** Milliseconds each list was drawn in, for the NFR-06 check. */
@@ -521,6 +523,7 @@ export class TimelineControl {
     const width = this.scroller.clientWidth;
     if (!width || Math.abs(width - this.widthPx) < 1) return;
     this.widthPx = width;
+    this.keepActive = true; // laid out again: the row worked with, if in sight, stays wholly so
     const narrow = width < NARROW_PX;
     this.narrow = narrow;
     this.element.classList.toggle("tl-narrow", narrow);
@@ -782,15 +785,20 @@ export class TimelineControl {
         const target = followScroll(this.layout.top(row), this.layout.height(row), this.scroller.scrollTop, viewport, this.layout.total);
         if (target !== undefined) moved = this.scrollTo(target);
       }
-      // The row being worked with, measured with its Edit and Delete: all of it in sight.
-      if (this.revealActive && this.active >= 0) {
-        const row = this.rowOfItem.get(this.visible[this.active]);
-        const target = row === undefined ? undefined : revealScroll(this.layout.top(row), this.layout.height(row), this.scroller.scrollTop, viewport);
+      // The row being worked with, measured with its Edit and Delete: all of it in sight, when
+      // it was just chosen, or when the list follows current time to it (never while the
+      // reader scrolls: following stops then).
+      const followed = this.following && this.active >= 0 && this.active === this.current;
+      const row = this.active >= 0 ? this.rowOfItem.get(this.visible[this.active]) : undefined;
+      const inSight = row !== undefined && whereIs(this.layout.top(row), this.layout.height(row), this.scroller.scrollTop, viewport) === "in view";
+      if (row !== undefined && (this.revealActive || followed || (this.keepActive && inSight))) {
+        const target = revealScroll(this.layout.top(row), this.layout.height(row), this.scroller.scrollTop, viewport);
         if (target !== undefined) moved = this.scrollTo(target) || moved;
       }
       if (!moved && !changed) break;
     }
     this.revealActive = false;
+    this.keepActive = false;
     const activeRow = this.active >= 0 ? this.rowOfItem.get(this.visible[this.active]) : undefined;
     this.scroller.setAttribute("aria-activedescendant", activeRow !== undefined ? this.rowId(activeRow) : "");
     this.showFollow();

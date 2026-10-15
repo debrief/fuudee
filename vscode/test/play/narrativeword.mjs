@@ -164,6 +164,11 @@ async function playTimelineExtras(page, shot) {
   await timeline('input[data-view="wrap"]').check();
   await page.locator("#panel-timeline").scrollIntoViewIfNeeded();
   await noSideways("on a phone, the menu open");
+  // The row worked with keeps its Edit and Delete in sight, above the list's foot.
+  await page.waitForTimeout(300);
+  const phoneActions = await timeline(".tl-active .tl-actions").boundingBox();
+  const phoneList = await timeline(".tl-scroll").boundingBox();
+  assert.ok(phoneActions && phoneList && phoneActions.y + phoneActions.height <= phoneList.y + phoneList.height + 0.5, `on a phone, Edit and Delete in sight (${JSON.stringify(phoneActions)} in ${JSON.stringify(phoneList)})`);
   await page.evaluate(() => document.getElementById("toasts")?.replaceChildren());
   await page.mouse.move(2, 2);
   await shot("narrative-b-04-phone-menu");
