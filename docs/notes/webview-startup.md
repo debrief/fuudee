@@ -2,7 +2,7 @@
 
 **Question (product owner, 15 Oct 2026).** The Debrief sidebar now holds three webview views: Time (`debrief.time`), Tote (`debrief.tote`, collapsed by default) and Timeline (`debrief.timeline`), beside the native Catalogues, Outline, Tools and History trees. Does having several webviews slow startup, and would one composite webview be quicker? Measure before deciding.
 
-**Answer.** Yes, a little, but not much. Opening the sidebar with a plot open, the views are usable in about 0.4 s on the CI machine (median; p90 about 0.85 s). One view alone takes 0.22 to 0.33 s. VS Code loads the views in parallel and loads collapsed ones only when they are expanded, so the collapsed Tote costs nothing. Merging the three into one webview would save about 0.1 s at the median on this machine, less on a laptop. Merging would also give up things VS Code's separate views provide. **Recommendation: keep three views, with small tweaks (below). Pending the product owner's decision.**
+**Answer.** Yes, a little, but not much. Opening the sidebar with a plot open, the views are usable in about 0.4 s on the CI machine (median; p90 about 0.85 s). One view alone takes 0.22 to 0.33 s. VS Code loads the views in parallel and loads collapsed ones only when they are expanded, so the collapsed Tote costs nothing. Merging the three into one webview would save about 0.1 s at the median on this machine, less on a laptop. Merging would also give up things VS Code's separate views provide. **Decision (product owner, 15 Oct 2026): keep three views, with the small tweaks below.**
 
 ## Method
 
@@ -101,4 +101,4 @@ A composite would have to rebuild every one of these inside one page: collapsibl
 3. **Re-measure with `npm run measure:startup`** before adding a fourth webview to the sidebar, or if the views' bundles grow past about 100 KB each. Reconsider a composite if the default layout's sidebar takes more than about 0.6 s (cold median, on CI), or if the views together take more than 0.2 s longer than the slowest one alone.
 4. Not worth doing now: lighter pages. Our script runs in under 10 ms; VS Code's webview setup dominates.
 
-*Pending the product owner's decision.*
+*Decided by the product owner, 15 Oct 2026: keep the three views.*
