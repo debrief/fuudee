@@ -95,9 +95,9 @@ Typical narratives are a few hundred entries; the product owner rarely sees more
 | --- | --- | --- |
 | Python, desktop | One entry changed; undone | about 20 ms; 10 to 20 ms |
 | Playground (Pyodide) | A 2,000-line log read into an open plot and shown | 0.8 s |
-| Playground | An entry added through the form, saved, the plot opened again and the list shown; undone the same way | 210 ms; 240 ms |
+| Playground | An entry added through the form, saved, the plot opened again and the list shown; undone the same way | 190 to 250 ms; 220 to 250 ms |
 
-The playground's round trip is mostly the plot opened again after the step (read from Python, the map and every panel redrawn), as for any step; it takes about as long with 36 entries.
+The playground's round trip is mostly the plot opened again after the step (read from Python, the map and every panel redrawn), as for any step: 115 to 160 ms with 36 entries.
 
 The stress bound stays the legacy sample's 12,000 entries scaled by three to five, measured with 60,000 synthetic entries:
 
