@@ -472,7 +472,7 @@ export async function vscodeTimelineView(browser, files, errors, shot, plot) {
     await noSideways(`at ${width} px`);
   }
   // A wider font than this machine's, as some have (the CI runner's once overflowed 280 px).
-  const wide = await view.addStyleTag({ content: "* { letter-spacing: 0.1em !important } body { font-size: 16px !important }" });
+  const wide = await view.addStyleTag({ content: "* { letter-spacing: 0.1em !important } .tl, .tl * { font-size: 15px !important }" });
   for (const width of [210, 280, 390]) {
     await view.setViewportSize({ width, height: 420 });
     await noSideways(`in a wide font at ${width} px`);
