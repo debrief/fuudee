@@ -15,6 +15,29 @@ export async function playFrequencies(page, shot) {
   const stepAdded = (count) => page.waitForFunction((c) => document.querySelectorAll("#history li").length > c, count, { timeout: 60000 });
   const dialog = page.locator("dialog.freq-form");
   const labels = () => mapFrame.locator(".fix-time-text").allInnerTexts();
+  // Symbols and arrows are painted on one canvas, which says how many of each it holds.
+  const marks = mapFrame.locator("canvas.freq-marks");
+  const painted = async (kind) => Number((await marks.getAttribute(`data-${kind}`)) ?? 0);
+  /** Time labels overlapping one another, or a track's name or a fix's own label: none, at any zoom. */
+  const overlaps = () =>
+    mapFrame.locator("#map").evaluate((map) => {
+      const box = (e) => e.getBoundingClientRect();
+      const times = [...map.querySelectorAll(".fix-time-text")].map((e) => ({ text: e.textContent, r: box(e) }));
+      const others = [...map.querySelectorAll(".leaflet-tooltip.track-label, .leaflet-tooltip.fix-label")].filter((e) => e.style.visibility !== "hidden").map((e) => ({ text: e.textContent, r: box(e) }));
+      const hit = (a, b) => a.left < b.right - 1 && b.left < a.right - 1 && a.top < b.bottom - 1 && b.top < a.bottom - 1;
+      const out = [];
+      times.forEach((a, i) => {
+        for (const b of [...times.slice(i + 1), ...others]) if (hit(a.r, b.r)) out.push(`${a.text} on ${b.text}`);
+      });
+      return out;
+    });
+  const undone = () => page.locator("#history li.undone").count();
+  /** Undo, and wait until the step shows as undone. */
+  const undo = async () => {
+    const before = await undone();
+    await page.locator("#undo").click();
+    await page.waitForFunction((u) => document.querySelectorAll("#history li.undone").length > u, before, { timeout: 60000 });
+  };
   const row = (id) => page.locator(`#outline li[data-id="${id}"]`);
   const chooser = (field) => page.locator(`#freq-${field}`);
   /** Out (positive) or in (negative) by whole zoom levels, with the map's own buttons (half a level a press). */
@@ -74,7 +97,9 @@ export async function playFrequencies(page, shot) {
   assert.ok(shown.length >= 8, `labels drawn: ${shown.length}`);
   for (const label of shown) assert.match(label, /^(\d\d)?\d\d[0-5]0$/, `${label} is on a whole ten minutes`);
   assert.ok(shown.some((l) => /^15\d{4}$/.test(l)), "the first label of the day carries the day");
-  assert.ok((await mapFrame.locator(".tick").count()) > ticksBefore, "arrows every 5 min");
+  assert.ok((await mapFrame.locator(".tick").count()) + (await painted("arrows")) > ticksBefore, "arrows every 5 min");
+  // Where the tracks cross and double back, no time sits on another, or on a track's name.
+  assert.deepEqual(await overlaps(), [], "time labels clear of one another and of names");
   // Held per track, and said in the outline: the intervals set, and all three when pointed at.
   assert.equal(await row("track-blue-one").locator(".freq-detail").innerText(), "Labels every 10 min · Arrows every 5 min");
   assert.match(await row("track-red-one").getAttribute("title"), /Labels every 10 min · Symbols default · Arrows every 5 min$/);
@@ -91,6 +116,7 @@ export async function playFrequencies(page, shot) {
   await note.waitFor({ state: "visible" });
   assert.match(await note.innerText(), /^Labels every \d+ (h|min)( or more)?(, arrows every [^;]+)? at this zoom; zoom in for more$/);
   assert.ok((await labels()).length <= 2 * 100, "never more than the cap per track");
+  assert.deepEqual(await overlaps(), [], "time labels clear of one another, zoomed out");
   await shot("freq-04-thinned");
   // Closer, a level at a time, until every one is drawn and the note goes (how close depends on the tracks' speeds on screen).
   await zoomBy(-3);
@@ -134,12 +160,12 @@ export async function playFrequencies(page, shot) {
   assert.equal(await latest(), "Symbols every 1 h 30 min on BLUE ONE and RED ONE");
   assert.equal(await row("track-blue-one").locator(".freq-detail").innerText(), "Labels every 30 min · Symbols every 1 h 30 min · Arrows every 5 min");
   assert.equal(await row("track-red-one").locator(".freq-detail").innerText(), "Labels every 10 min · Symbols every 1 h 30 min · Arrows every 5 min");
-  await mapFrame.locator("path.fix-symbol").first().waitFor({ state: "attached" }); // drawn near the view, perhaps just outside it
+  await mapFrame.locator("canvas.freq-marks:not([data-symbols='0'])").waitFor({ state: "attached" }); // near the view, perhaps just outside it
 
   // Undo takes the last change back, for both tracks at once.
-  await page.locator("#undo").click();
-  await page.waitForFunction(() => /Symbols every 1 h 30 min[^]*undone/.test(document.getElementById("history")?.textContent ?? ""));
-  await mapFrame.locator("path.fix-symbol").first().waitFor({ state: "detached" });
+  await undo();
+  assert.match(await page.locator("#history li.undone").first().innerText(), /Symbols every 1 h 30 min/);
+  await mapFrame.locator("canvas.freq-marks[data-symbols='0']").waitFor({ state: "attached" });
   assert.equal(await row("track-red-one").locator(".freq-detail").innerText(), "Labels every 10 min · Arrows every 5 min");
 
   // One fix of RED ONE always shows its time label and its symbol, whatever the intervals (force on only).
@@ -162,13 +188,27 @@ export async function playFrequencies(page, shot) {
   assert.match(await latest(), /symbol always shown$/);
   assert.equal(await page.locator(".fix-actions button", { hasText: "Symbol" }).getAttribute("aria-pressed"), "true");
   assert.match(await page.locator(".fix-list li").nth(13).innerText(), /time label always shown · symbol always shown/);
+  // A fix with a label of its own where a time label falls (08:20): the time gives way to it, never on it.
+  const turn = page.locator(".fix-list li").nth(20);
+  await turn.scrollIntoViewIfNeeded();
+  await turn.click();
+  n = await steps();
+  await page.locator(".fix-actions").getByRole("button", { name: "Label…", exact: true }).click();
+  await page.locator("#track-form-text").fill("Turn 1");
+  await page.locator("dialog.track-form").getByRole("button", { name: "Save" }).click();
+  await stepAdded(n);
+  assert.match(await latest(), /^RED ONE fix at 08:20:00Z labelled 'Turn 1'$/);
   // Forced ones are deliberate: never thinned away when zoomed out.
   await page.locator(".side-bar button", { hasText: "Close" }).click();
   await mapFrame.getByRole("button", { name: "Zoom to the selection" }).click();
   await page.waitForTimeout(600);
   await mapFrame.locator(".fix-time-text", { hasText: /^0813$/ }).waitFor();
+  await mapFrame.locator(".leaflet-tooltip.fix-label", { hasText: "Turn 1" }).waitFor();
+  await mapFrame.locator(".fix-time-text", { hasText: /^0820$/ }).waitFor();
+  assert.deepEqual(await overlaps(), [], "time labels clear of a fix's own label");
   await zoomBy(3);
-  await mapFrame.locator(".fix-time-text", { hasText: /^0813$/ }).waitFor();
+  // Zoomed out, the day goes on the first label of the day still drawn, which may be this one.
+  await mapFrame.locator(".fix-time-text", { hasText: /^(15)?0813$/ }).waitFor();
   await zoomBy(-3);
 
   // On a phone, and down to 210 px: the form fits and never scrolls sideways.
@@ -192,10 +232,7 @@ export async function playFrequencies(page, shot) {
   }
   await page.setViewportSize({ width: 1400, height: 820 });
 
-  // Back as it was, so what follows starts the same: the fix's marks, then the intervals, undone.
-  for (let i = 0; i < 4; i++) {
-    await page.locator("#undo").click();
-    await page.waitForTimeout(400);
-  }
+  // Back as it was, so what follows starts the same: the fix's marks and label, then the intervals, undone.
+  for (let i = 0; i < 5; i++) await undo();
   await page.waitForFunction(() => !document.querySelector("#outline .freq-detail"), null, { timeout: 30000 });
 }

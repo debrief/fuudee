@@ -369,21 +369,103 @@ export function portSide(course: number | undefined): { x: number; y: number } {
   return { x: Math.sin(port), y: -Math.cos(port) };
 }
 
+// --- Labels kept clear of one another --------------------------------------------------
+/** A box on screen, in pixels: left, top, right, bottom. */
+export interface Box {
+  x0: number;
+  y0: number;
+  x1: number;
+  y1: number;
+}
+/** How far a time label stands off its point, along its leader, and how tall it is (map.css .fix-time-text). */
+export const LEADER_PX = 9;
+export const LABEL_HEIGHT_PX = 12;
+/** Where a label's text sits about its point, to the side given: as map.ts lays it out (timeLabel) and map.css draws it. */
+export function labelBox(at: { x: number; y: number }, side: { x: number; y: number }, width: number): Box {
+  const across = (d: number, size: number) => (d > 0.38 ? 0 : d < -0.38 ? -size : -size / 2);
+  const x0 = at.x + side.x * LEADER_PX + across(side.x, width);
+  const y0 = at.y + side.y * LEADER_PX + across(side.y, LABEL_HEIGHT_PX);
+  return { x0, y0, x1: x0 + width, y1: y0 + LABEL_HEIGHT_PX };
+}
+
+/** Boxes taken on screen, found by a coarse grid of cells, so each test looks at a few neighbours only. */
+export class Occupied {
+  private cells = new Map<string, Box[]>();
+  constructor(private cell = 48) {}
+  private keys(box: Box): string[] {
+    const out: string[] = [];
+    for (let i = Math.floor(box.x0 / this.cell); i <= Math.floor(box.x1 / this.cell); i++)
+      for (let j = Math.floor(box.y0 / this.cell); j <= Math.floor(box.y1 / this.cell); j++) out.push(`${i},${j}`);
+    return out;
+  }
+  add(box: Box): void {
+    for (const key of this.keys(box)) {
+      const list = this.cells.get(key);
+      if (list) list.push(box);
+      else this.cells.set(key, [box]);
+    }
+  }
+  /** Whether the box overlaps one taken, with `gap` pixels to spare around it. */
+  hits(box: Box, gap = 1): boolean {
+    for (const key of this.keys({ x0: box.x0 - gap, y0: box.y0 - gap, x1: box.x1 + gap, y1: box.y1 + gap }))
+      for (const b of this.cells.get(key) ?? []) if (box.x0 < b.x1 + gap && box.x1 + gap > b.x0 && box.y0 < b.y1 + gap && box.y1 + gap > b.y0) return true;
+    return false;
+  }
+}
+
+/**
+ * Which side each time label goes so that none overlaps another or anything already taken
+ * (the tracks' names, fixes' own labels, the ends of tracks): to port, as legacy Debrief
+ * places them; where that is taken, to starboard; where both are, left out. A fix's label
+ * always shown (forced) is placed first, so it wins, and is never left out: to port where
+ * both sides are taken. Otherwise first come, first placed, so the caller orders them
+ * (earliest time first: where tracks cross, the later label gives way). The side chosen for
+ * each, or undefined where left out; each placed is added to what is taken.
+ */
+export function placeLabels(
+  labels: { at: { x: number; y: number }; side: { x: number; y: number }; width: number; forced?: boolean }[],
+  taken: Occupied,
+): ({ x: number; y: number } | undefined)[] {
+  const out: ({ x: number; y: number } | undefined)[] = new Array(labels.length).fill(undefined);
+  const order = [...labels.keys()].sort((a, b) => Number(!!labels[b].forced) - Number(!!labels[a].forced));
+  for (const k of order) {
+    const { at, side, width, forced } = labels[k];
+    const starboard = { x: -side.x || 0, y: -side.y || 0 };
+    const port = labelBox(at, side, width);
+    const other = labelBox(at, starboard, width);
+    const chosen = !taken.hits(port) ? side : !taken.hits(other) ? starboard : forced ? side : undefined;
+    if (!chosen) continue;
+    taken.add(chosen === side ? port : other);
+    out[k] = chosen;
+  }
+  return out;
+}
+
+/** Tracks named in a note: one or two by name, more by count. */
+const whom = (names: string[]) => (names.length === 1 ? names[0] : names.length === 2 ? `${names[0]} and ${names[1]}` : `${names.length} tracks`);
+
 /**
  * What the map says when it thins: "Labels every 1 h, arrows every 30 min at this zoom; zoom
  * in for more". Each entry is a track's kind thinned: to the interval drawn, or, with none,
- * only some left out where they would crowd.
+ * only some left out where they would crowd. Where only some of the tracks drawing a kind
+ * were thinned (`drawing` says how many draw each), it says which, so a track drawn at its
+ * own interval beside one thinned is not misdescribed: "Labels every 20 min on RED ONE at
+ * this zoom; zoom in for more".
  */
-export function thinningNote(thinned: { field: Field; drawn?: number }[]): string {
+export function thinningNote(thinned: { field: Field; drawn?: number; track?: string }[], drawing: Partial<Record<Field, number>> = {}): string {
   if (!thinned.length) return "";
   const parts = FIELDS.flatMap((field) => {
     const mine = thinned.filter((t) => t.field === field);
     if (!mine.length) return [];
     const noun = FIELD_NAMES[field].toLowerCase();
     const drawn = [...new Set(mine.flatMap((t) => (t.drawn ? [t.drawn] : [])))].sort((a, b) => a - b);
-    if (!drawn.length) return [`some ${noun} left out`];
-    return [`${noun} every ${describeInterval(Math.round(drawn[0] / 1000))}${drawn.length > 1 ? " or more" : ""}`];
+    const names = [...new Set(mine.flatMap((t) => (t.track ? [t.track] : [])))];
+    const on = names.length && names.length < (drawing[field] ?? 0) ? ` on ${whom(names)}` : "";
+    const what = drawn.length ? `${noun} every ${describeInterval(Math.round(drawn[0] / 1000))}${drawn.length > 1 ? " or more" : ""}` : `some ${noun} left out`;
+    return [{ what, on }];
   });
-  const said = parts.join(", ");
+  // Said once, at the end, where every part is on the same tracks.
+  const same = parts.every((p) => p.on === parts[0].on);
+  const said = same ? parts.map((p) => p.what).join(", ") + parts[0].on : parts.map((p) => p.what + p.on).join(", ");
   return `${said[0].toUpperCase()}${said.slice(1)} at this zoom; zoom in for more`;
 }

@@ -25,8 +25,11 @@ import {
   gridCount,
   gridTimes,
   intervalMs,
+  labelBox,
   labelsWithDay,
   mergeSpans,
+  Occupied,
+  placeLabels,
   portSide,
   PRESETS,
   readInterval,
@@ -216,6 +219,55 @@ describe("thinning", () => {
     expect(thinningNote([{ field: "label_interval", drawn: HOUR }, { field: "label_interval", drawn: 2 * HOUR }, { field: "symbol_interval" }])).toBe(
       "Labels every 1 h or more, some symbols left out at this zoom; zoom in for more",
     );
+  });
+  it("says which tracks, where only some of those drawing a kind were thinned", () => {
+    // RED ONE thinned, BLUE ONE drawn at its own interval: the note must not seem to speak for both.
+    expect(thinningNote([{ field: "label_interval", drawn: 20 * MIN, track: "RED ONE" }, { field: "arrow_interval", drawn: 10 * MIN, track: "RED ONE" }], { label_interval: 2, arrow_interval: 2 })).toBe(
+      "Labels every 20 min, arrows every 10 min on RED ONE at this zoom; zoom in for more",
+    );
+    expect(thinningNote([{ field: "label_interval", drawn: HOUR, track: "A" }, { field: "label_interval", drawn: HOUR, track: "B" }, { field: "arrow_interval", drawn: HOUR, track: "A" }], { label_interval: 3, arrow_interval: 1 })).toBe(
+      "Labels every 1 h on A and B, arrows every 1 h at this zoom; zoom in for more",
+    );
+    // Every track drawing labels thinned: no names.
+    expect(thinningNote([{ field: "label_interval", drawn: HOUR, track: "A" }], { label_interval: 1 })).toBe("Labels every 1 h at this zoom; zoom in for more");
+    expect(thinningNote(["A", "B", "C"].map((track) => ({ field: "label_interval" as const, drawn: HOUR, track })), { label_interval: 4 })).toBe(
+      "Labels every 1 h on 3 tracks at this zoom; zoom in for more",
+    );
+  });
+});
+
+describe("time labels kept clear of one another", () => {
+  const east = { x: 1, y: 0 };
+  it("lays a label out as the map draws it: off its point by the leader, centred across it", () => {
+    expect(labelBox({ x: 100, y: 100 }, east, 30)).toEqual({ x0: 109, y0: 94, x1: 139, y1: 106 });
+    expect(labelBox({ x: 100, y: 100 }, { x: -1, y: 0 }, 30)).toEqual({ x0: 61, y0: 94, x1: 91, y1: 106 });
+    expect(labelBox({ x: 100, y: 100 }, { x: 0, y: -1 }, 30)).toEqual({ x0: 85, y0: 79, x1: 115, y1: 91 });
+  });
+  it("finds what overlaps, with a pixel to spare", () => {
+    const taken = new Occupied();
+    taken.add({ x0: 0, y0: 0, x1: 10, y1: 10 });
+    expect(taken.hits({ x0: 10.5, y0: 0, x1: 20, y1: 10 })).toBe(true);
+    expect(taken.hits({ x0: 12, y0: 0, x1: 20, y1: 10 })).toBe(false);
+    expect(taken.hits({ x0: -500, y0: 5, x1: 500, y1: 6 })).toBe(true); // across many cells
+  });
+  it("goes to port; to starboard where port is taken; left out where both are", () => {
+    const taken = new Occupied();
+    const label = { at: { x: 100, y: 100 }, side: east, width: 30 };
+    // The first to port; the second, at the same point, to starboard; the third left out.
+    expect(placeLabels([label, label, label], taken)).toEqual([east, { x: -1, y: 0 }, undefined]);
+  });
+  it("places a fix's label always shown first, and never leaves it out", () => {
+    const taken = new Occupied();
+    taken.add({ x0: 0, y0: 0, x1: 200, y1: 200 }); // a track's name, say, over both sides
+    const regular = { at: { x: 100, y: 100 }, side: east, width: 30 };
+    expect(placeLabels([regular, { ...regular, forced: true }], taken)).toEqual([undefined, east]);
+    const clear = new Occupied();
+    expect(placeLabels([regular, { ...regular, forced: true }], clear)).toEqual([{ x: -1, y: 0 }, east]);
+  });
+  it("keeps clear of what is already there, such as a fix's own label beside it", () => {
+    const taken = new Occupied();
+    taken.add(labelBox({ x: 100, y: 100 }, east, 40)); // "Turn 1", to the right of the fix
+    expect(placeLabels([{ at: { x: 100, y: 100 }, side: east, width: 30 }], taken)).toEqual([{ x: -1, y: 0 }]);
   });
 });
 
