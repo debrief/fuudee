@@ -14,7 +14,7 @@ from datetime import UTC, datetime
 from importlib.metadata import version
 from pathlib import Path
 
-from debrief_io.documents import DocumentError, read_document
+from debrief_io.documents import DocumentError, file_bytes, read_document
 from debrief_io.importer import Clock, ImportReport, _track, store_import, wall_clock
 from debrief_io.narrative import (
     MEDIA_TYPES,
@@ -52,8 +52,8 @@ def import_document(
     item_id = item_id or re.sub(r"[^A-Za-z0-9._-]+", "-", path.stem).strip("-.") or "plot"
     agent = agent or models.AgentRef(kind="person", name="analyst")
     choices = choices or Choices()
-    data = path.read_bytes()
     try:
+        data = file_bytes(path)
         doc = read_document(path.name, data)
     except DocumentError as error:
         raise NoNarrativeError(str(error)) from None

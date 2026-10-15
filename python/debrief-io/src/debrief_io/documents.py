@@ -13,23 +13,83 @@ Legacy Debrief read documents with Apache POI (.doc, .docx) and PDFBox (.pdf). H
 
 All three run under Pyodide, so the playground reads them too (CON-09). A file is
 known by its first bytes, not its name: legacy Debrief met .docx files named .doc.
+
+Documents come from elsewhere, so each reader has hard limits, each refused with a
+reason rather than left to exhaust memory or time (a host's service, or the
+playground's browser tab, would otherwise hang): the file's size; a .docx's zip
+directory, its text part's size and how deeply its XML nests; a .doc's text no longer
+than its stream holds; a PDF's pages, each page's drawing, the operations read and the
+time taken; and, for all, the paragraphs and characters of text a narrative could need.
 """
 
 from __future__ import annotations
 
 import io
+import os
 import re
 import struct
+import time
 import zipfile
 from dataclasses import dataclass, field
+from pathlib import Path
 from xml.parsers import expat
 
 # A document larger than this is refused before it is read (zip bombs, runaway PDFs).
 MAX_BYTES = 200 * 1024 * 1024
+# The text a narrative could need, at most: a thousand-page log is some 3 million
+# characters in some 50,000 paragraphs. More is refused, not read for minutes.
+MAX_PARAGRAPHS = 500_000
+MAX_CHARS = 20_000_000
+# A .docx: its zip directory (a million empty entries cost a gigabyte to list), the
+# size of its text part unpacked, and how deeply its XML nests (Word's own tables nest
+# 63 deep at most).
+MAX_ZIP_DIRECTORY = 4 * 1024 * 1024
+MAX_XML_BYTES = 64 * 1024 * 1024
+MAX_XML_DEPTH = 1_000
+# A PDF: pages, a page's drawing instructions once unpacked (a page of text is some
+# kilobytes; one stream may unpack to MAX_PDF_STREAM, a font or a picture), and the
+# operations read in all; and, as a last resort, the time it takes.
+MAX_PDF_PAGES = 10_000
+MAX_PDF_PAGE_BYTES = 4 * 1024 * 1024
+MAX_PDF_STREAM = 32 * 1024 * 1024
+MAX_PDF_OPERATIONS = 5_000_000
+# Text shown on one page, in operations: a dense page of text shows some thousands;
+# pypdf's time grows with the square of a page's text, so this keeps a page to a second.
+MAX_PDF_PAGE_TEXTS = 20_000
+MAX_SECONDS = 60.0
 
 
 class DocumentError(ValueError):
     """A document whose text could not be read, said in words an analyst can act on."""
+
+
+class DocumentTooLarge(DocumentError):
+    """A document past one of the limits: refused, as reading it could exhaust the host."""
+
+
+def _too_much(what: str) -> DocumentTooLarge:
+    return DocumentTooLarge(
+        f"The {what}: more than a narrative needs, so it is not read. If it is a narrative, "
+        "save the part that is as a document of its own and import that."
+    )
+
+
+class _Text:
+    """The paragraphs read so far, counted against MAX_PARAGRAPHS and MAX_CHARS."""
+
+    def __init__(self, paragraphs: list[str], what: str) -> None:
+        self.paragraphs = paragraphs
+        self.what = what
+        self.chars = 0
+
+    def add(self, paragraph: str) -> None:
+        self.chars += len(paragraph)
+        if len(self.paragraphs) >= MAX_PARAGRAPHS or self.chars > MAX_CHARS:
+            raise _too_much(
+                f"{self.what} holds more than {MAX_PARAGRAPHS:,} paragraphs or "
+                f"{MAX_CHARS // 1_000_000} million characters of text"
+            )
+        self.paragraphs.append(paragraph)
 
 
 @dataclass
@@ -74,9 +134,22 @@ def read_document(name: str, data: bytes) -> Document:
         return readers[kind](data)
     except DocumentError:
         raise
+    except MemoryError:
+        what = "PDF" if kind == "pdf" else "Word document"
+        raise _too_much(f"{what} needs more memory to read than there is") from None
     except Exception as error:  # a damaged file can fail its reader in many ways
         what = "PDF" if kind == "pdf" else "Word document"
         raise DocumentError(f"The {what} is damaged: {error}.") from None
+
+
+def file_bytes(path: Path) -> bytes:
+    """A file's bytes; DocumentTooLarge, before reading it into memory, for a document
+    (known by its first bytes) larger than MAX_BYTES. Other files are read whole."""
+    with path.open("rb") as stream:
+        head = stream.read(1024)
+        if sniff(head) is not None and os.fstat(stream.fileno()).st_size > MAX_BYTES:
+            raise DocumentTooLarge(f"{path.name} is larger than {MAX_BYTES // (1024 * 1024)} MB.")
+        return head + stream.read()
 
 
 # --- .docx ---------------------------------------------------------------------------
@@ -92,12 +165,17 @@ class _DocxReader:
 
     def __init__(self) -> None:
         self.doc = Document("docx")
+        self.out = _Text(self.doc.paragraphs, "Word document")
         self.text: list[str] | None = None  # the paragraph being read
         self.tables: list[list[list[list[str]]]] = []  # open tables: rows of cells of paragraphs
         self.in_text = False
         self.skip = 0  # inside text Word does not show as the paragraph's: text boxes, deletions
+        self.depth = 0
 
     def start(self, tag: str, attrs: dict[str, str]) -> None:
+        self.depth += 1
+        if self.depth > MAX_XML_DEPTH:
+            raise _too_much(f"Word document's XML nests more than {MAX_XML_DEPTH:,} deep")
         ns, _, local = tag.rpartition("}")
         if ns.lstrip("{") not in _W:
             return
@@ -124,6 +202,7 @@ class _DocxReader:
             self.tables[-1][-1].append([])
 
     def end(self, tag: str) -> None:
+        self.depth -= 1
         ns, _, local = tag.rpartition("}")
         if ns.lstrip("{") not in _W:
             return
@@ -137,7 +216,7 @@ class _DocxReader:
         elif local == "p" and self.text is not None:
             paragraph = "".join(self.text)
             self.text = None
-            self.doc.paragraphs.append(paragraph)
+            self.out.add(paragraph)
             if self.tables and self.tables[-1] and self.tables[-1][-1]:
                 self.tables[-1][-1][-1].append(paragraph)
         elif local == "tbl" and self.tables:
@@ -155,7 +234,34 @@ def _refuse_dtd(*_args: object) -> None:
     raise DocumentError("The document holds a document type declaration, which is refused.")
 
 
+def zip_directory_size(data: bytes) -> int | None:
+    """The size of a zip's central directory, as its end record says (zip64's, if it has
+    one), read before zipfile lists every entry in it; None if no end record is found."""
+    end = b"PK\x05\x06"
+    at = len(data) - 22 if data[-22:-18] == end else data.rfind(end, max(0, len(data) - 65_557))
+    if at < 0 or at + 22 > len(data):
+        return None
+    size = _u32(data, at + 12)
+    locator = at - 20
+    if size == 0xFFFFFFFF or _u16(data, at + 10) == 0xFFFF:
+        if locator < 0 or data[locator : locator + 4] != b"PK\x06\x07":
+            return None
+        record = struct.unpack_from("<Q", data, locator + 8)[0]
+        if record + 56 > len(data) or data[record : record + 4] != b"PK\x06\x06":
+            return None
+        size = struct.unpack_from("<Q", data, record + 40)[0]
+    return size
+
+
 def read_docx(data: bytes) -> Document:
+    directory = zip_directory_size(data)
+    if directory is None:
+        raise DocumentError("The Word document is damaged: it is not a readable .docx.")
+    if directory > MAX_ZIP_DIRECTORY:
+        raise _too_much(
+            f"Word document lists more parts than a document has ({directory // 1024:,} KB "
+            "of zip directory)"
+        )
     try:
         archive = zipfile.ZipFile(io.BytesIO(data))
     except zipfile.BadZipFile:
@@ -165,8 +271,12 @@ def read_docx(data: bytes) -> Document:
             info = archive.getinfo("word/document.xml")
         except KeyError:
             raise DocumentError("This is a zip file, but not a Word document.") from None
-        if info.file_size > MAX_BYTES:
-            raise DocumentError("The Word document's text is too large to read.")
+        # zipfile unpacks no more than this declared size: a part that unpacks to more
+        # fails its check and is refused as damaged.
+        if info.file_size > MAX_XML_BYTES:
+            raise _too_much(
+                f"Word document's text unpacks to {info.file_size // (1024 * 1024):,} MB"
+            )
         xml = archive.read(info)
     reader = _DocxReader()
     parser = expat.ParserCreate(namespace_separator="}")
@@ -226,6 +336,14 @@ def read_doc(data: bytes) -> Document:
             raise DocumentError("The Word document is damaged: its table stream is missing.")
         table = ole.openstream(table_name).read()
     text_cps = _u32(word, 0x4C)  # ccpText: the main document's characters
+    # Each character is stored in the stream, in one byte at least: more is a piece
+    # table that reads the same bytes again and again.
+    if text_cps > len(word):
+        raise DocumentError("The Word document is damaged: it claims more text than it holds.")
+    if text_cps > MAX_CHARS:
+        raise _too_much(
+            f"Word document holds more than {MAX_CHARS // 1_000_000} million characters"
+        )
     pieces = _pieces(table, _u32(word, 0x1A2), _u32(word, 0x1A6))
     paras = _paragraph_properties(word, table, _u32(word, 0x102), _u32(word, 0x106))
     return _doc_text(word, pieces, paras, text_cps)
@@ -251,6 +369,9 @@ def _pieces(table: bytes, fc_clx: int, lcb_clx: int) -> list[_Piece]:
     plc = clx[at + 5 : at + 5 + size]
     n = (len(plc) - 4) // 12
     cps = [_u32(plc, 4 * i) for i in range(n + 1)]
+    if any(a > b for a, b in zip(cps, cps[1:], strict=False)):
+        # Pieces in order, none overlapping: so no character is read twice.
+        raise DocumentError("The Word document is damaged: its piece table is out of order.")
     pieces = []
     for i in range(n):
         raw = _u32(plc, 4 * (n + 1) + 8 * i + 2)
@@ -268,12 +389,16 @@ def _paragraph_properties(word: bytes, table: bytes, fc: int, lcb: int) -> list[
         return out
     plc = table[fc : fc + lcb]
     n = (len(plc) - 4) // 8
+    pages: set[int] = set()
     for i in range(n):
         page_no = _u32(plc, 4 * (n + 1) + 4 * i)
         page = word[page_no * 512 : page_no * 512 + 512]
-        if len(page) < 512:
-            continue
+        if len(page) < 512 or page_no in pages:
+            continue  # a page named twice is read once: its paragraphs are the same
+        pages.add(page_no)
         runs = page[511]
+        if runs > 0x1D:  # a page holds 29 paragraphs' ends at most (MS-DOC 2.9.175)
+            raise DocumentError("The Word document is damaged: its paragraphs cannot be read.")
         for r in range(runs):
             end = _u32(page, 4 * (r + 1))
             offset = page[4 * (runs + 1) + 13 * r] * 2
@@ -328,6 +453,7 @@ def _doc_text(
     word: bytes, pieces: list[_Piece], paras: list[tuple[int, int]], limit: int
 ) -> Document:
     doc = Document("doc")
+    out = _Text(doc.paragraphs, "Word document")
     ends = [end for end, _ in paras]
     states = [state for _, state in paras]
 
@@ -388,7 +514,7 @@ def _doc_text(
                 rows.append(list(row))
                 row.clear()
                 continue
-            doc.paragraphs.append(line)
+            out.add(line)
             if ch == _CELL or state:
                 cell.append(line)
                 if ch == _CELL:
@@ -397,7 +523,7 @@ def _doc_text(
             else:
                 finish_table()
     if paragraph:
-        doc.paragraphs.append("".join(paragraph).translate(_DROP))
+        out.add("".join(paragraph).translate(_DROP))
     finish_table()
     return doc
 
@@ -408,28 +534,112 @@ _SOFT_TO_LINE = {_SOFT: "\n", _PAGE: "\n", "\xa0": " "}
 # --- .pdf ----------------------------------------------------------------------------
 
 
+_PDF_TEXT_OPERATORS = frozenset((b"Tj", b"TJ", b"'", b'"'))
+
+
+class _PdfWork:
+    """Counts what reading a PDF's text costs, and stops it past the limits: called by
+    pypdf before each operation of a page's drawing, its forms' among them."""
+
+    def __init__(self) -> None:
+        self.operations = 0
+        self.page = 0
+        self.texts = 0  # on this page
+        self.deadline = time.monotonic() + MAX_SECONDS
+        self.stopped: DocumentTooLarge | None = None
+
+    def new_page(self, number: int) -> None:
+        self.page, self.texts = number, 0
+        self.check_time()
+
+    def __call__(self, operator: bytes, *_args: object) -> None:
+        if self.stopped is not None:
+            raise self.stopped  # again: pypdf passes over a form that fails
+        self.operations += 1
+        if operator in _PDF_TEXT_OPERATORS:
+            self.texts += 1
+            if self.texts > MAX_PDF_PAGE_TEXTS:
+                self.stopped = _too_much(
+                    f"PDF's page {self.page} shows text more than {MAX_PDF_PAGE_TEXTS:,} times"
+                )
+        if self.operations > MAX_PDF_OPERATIONS:
+            self.stopped = _too_much(
+                f"PDF draws more than {MAX_PDF_OPERATIONS:,} operations on its pages"
+            )
+        elif self.operations % 1_000 == 0:
+            self.check_time()
+        if self.stopped is not None:
+            raise self.stopped
+
+    def check_time(self) -> None:
+        if self.stopped is None and time.monotonic() > self.deadline:
+            self.stopped = _too_much(f"PDF took more than {MAX_SECONDS:.0f} seconds to read")
+        if self.stopped is not None:
+            raise self.stopped
+
+
 def read_pdf(data: bytes) -> Document:
     import logging
 
-    from pypdf import PdfReader
+    from pypdf import PdfReader, apply_configuration
 
     # pypdf says what it repairs in a damaged file through logging: not the analyst's concern.
     logging.getLogger("pypdf").setLevel(logging.ERROR)
     doc = Document("pdf")
+    out = _Text(doc.paragraphs, "PDF")
+    work = _PdfWork()
+    unpacked = {
+        name: MAX_PDF_STREAM
+        for name in (
+            "maximum_declared_stream_length",
+            "array_based_stream_maximum_output_length",
+            "jbig2_maximum_output_length",
+            "lzw_maximum_output_length",
+            "run_length_maximum_output_length",
+            "zlib_maximum_output_length",
+            "brotli_maximum_output_length",
+            "image_maximum_buffer_size",
+        )
+    }
+    pages = 0
     try:
-        reader = PdfReader(io.BytesIO(data), strict=False)
-        if reader.is_encrypted and not reader.decrypt(""):
-            raise DocumentError("The PDF is password-protected: save it without and import that.")
-        for page in reader.pages:
-            text = page.extract_text() or ""
-            doc.paragraphs.extend(_PDF_LINE_END.split(text))
+        with apply_configuration(
+            **unpacked,
+            stream_decoding_work_maximum_length=4 * MAX_PDF_STREAM,
+            page_tree_maximum_entries=2 * MAX_PDF_PAGES + 100,  # pages and their nodes
+            xform_maximum_invocations_per_extraction=500,
+        ):
+            reader = PdfReader(io.BytesIO(data), strict=False)
+            if reader.is_encrypted and not reader.decrypt(""):
+                raise DocumentError(
+                    "The PDF is password-protected: save it without and import that."
+                )
+            pages = len(reader.pages)
+            if pages > MAX_PDF_PAGES:
+                raise _too_much(f"PDF has {pages:,} pages")
+            for number, page in enumerate(reader.pages, start=1):
+                work.new_page(number)
+                contents = page.get_contents()
+                drawn = len(contents.get_data()) if contents is not None else 0
+                if drawn > MAX_PDF_PAGE_BYTES:
+                    raise _too_much(
+                        f"PDF's page {number} draws {drawn // (1024 * 1024):,} MB of instructions"
+                    )
+                text = page.extract_text(visitor_operand_before=work) or ""
+                work.check_time()
+                for line in _PDF_LINE_END.split(text):
+                    out.add(line)
     except DocumentError:
         raise
+    except MemoryError:
+        raise _too_much("PDF needs more memory to read than there is") from None
     except Exception as error:  # a damaged PDF can fail in pypdf in many ways: all are said
+        if type(error).__name__ == "LimitReachedError":
+            raise _too_much(f"PDF is too large to read safely ({error})") from None
         raise DocumentError(f"The PDF is damaged: {error}.") from None
     while doc.paragraphs and not doc.paragraphs[-1].strip():
         doc.paragraphs.pop()
-    if not doc.paragraphs and len(reader.pages):
+    if not doc.paragraphs and pages:
         raise DocumentError(
             "The PDF has no text to read: a scanned page is a picture, which needs text "
             "recognition first."

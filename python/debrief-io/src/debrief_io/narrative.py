@@ -25,7 +25,7 @@ from importlib.metadata import version
 from pathlib import Path
 from typing import Any
 
-from debrief_io.documents import Document, DocumentError, read_document, sniff
+from debrief_io.documents import Document, DocumentError, file_bytes, read_document, sniff
 from debrief_io.importer import Clock, _rep_text, wall_clock
 from debrief_io.rep import parse_rep
 from debrief_io.word import ASW, SKIP_NAMES, DocEntry, DocumentRead, read_dialect
@@ -99,7 +99,10 @@ def _plural(n: int, one: str, many: str | None = None) -> str:
 def read_narrative_file(path: Path, *, clock: Clock = wall_clock) -> NarrativeFile:
     """A REP file's narrative lines, or a document's entries in its dialect."""
     path = Path(path)
-    data = path.read_bytes()
+    try:
+        data = file_bytes(path)
+    except DocumentError as error:
+        raise NoNarrativeError(f"{path.name} could not be read: {error}") from None
     kind = sniff(data)
     if kind is None:
         return _rep_file(path.name, data)
