@@ -27,11 +27,11 @@ Press play and the list keeps the entry current time is at in sight. It doesn't 
 
 ![Playing at 3600×: the Timeline has followed current time to 19:00, its entry marked a third of the way down the list, and the map shows the tracks at that time](images/phase-3/narrative-playing.png)
 
-The moment you scroll the list yourself, or move through it with the arrow keys, it stops following, so it never drags you away from what you're reading. **Follow time** appears in the bar, with an arrow pointing to where current time has got to; press it, or choose an entry, and it follows again.
+The moment you scroll the list yourself, or move through it with the arrow keys, it stops following, so it never drags you away from what you're reading. **Follow time** appears in the bar, with an arrow pointing to where current time has got to; press it, choose an entry, or press **Play** again, and it follows again.
 
 ![The reader has scrolled up, so the Timeline has stopped following: Follow time, with an arrow pointing up, in the bar above the list](images/phase-3/narrative-scrolled-away.png)
 
-Choose an entry (click it, tap it, or `Enter`) and current time moves to it; if it's outside the time window, the window widens to take it in, without saving, exactly as when a tool moves time. When several entries share a second, the one you chose is the one marked. And the entry current time is at, if it belongs to a track, is shown on the map beside that track's square: its source and the start of its text, gone once ten minutes of plot time have passed without another.
+Choose an entry (click it, tap it, or `Enter`) and current time moves to it; if it's outside the time window, the window widens to take it in, without saving, exactly as when a tool moves time. When several entries share a second, the one you chose is the one marked. And the entry current time is at, if it belongs to a track, is shown on the map beside that track's square: its source and the start of its text, gone once ten minutes of plot time have passed without another. **Narrative on the map**, under the list, turns that off for the plot, and on again; like the Tote's lines, it's kept in the plot, not in your undo history.
 
 ![The map with BLUE ONE's square at 17:39 and beside it a small box: BLUE ONE, Bow sonar contact, bearing 103.7°T, Classifying](images/phase-3/narrative-on-the-map.png)
 
@@ -60,13 +60,15 @@ Each entry belongs to the plot's track of its source's name, if there's one. Eve
 
 ## Sixty thousand entries
 
-The requirement says Debrief must cope with the legacy sample's 12,000 narrative entries scaled by three to five. We tested it with 60,000 made-up entries, from five sources over a day:
+Most narratives are a few hundred entries. At two thousand, changing an entry takes Python about 20 ms, and reading a 2,000-line log into a plot in your browser under a second.
+
+The requirement says Debrief must cope with the legacy sample's 12,000 narrative entries scaled by three to five, so we tested that too, with 60,000 made-up entries from five sources over a day:
 
 | Where | What | Time |
 | --- | --- | --- |
-| Python | Reading all 60,000 into a plot, as one step | 2.5 s |
-| Python | Changing one entry; undoing it | 2.8 s; about 1 s |
-| The playground | Reading a 60,000-line log into a plot, in your browser | 15 to 30 s |
+| Python | Reading all 60,000 into a plot, as one step | 1.4 to 2.5 s |
+| Python | Changing one entry; undoing it | under a second; about half a second |
+| The playground | Reading a 60,000-line log into a plot, in your browser | 8 to 30 s |
 | The playground | Building the list | under a tenth of a second |
 | The playground | Scrolling: time between frames | 16.7 ms, 60 a second |
 | The playground | Searching all of them | 30 to 60 ms |
@@ -110,4 +112,3 @@ Most narrative arrives as Word documents and PDFs, in several house styles that 
 - **Word and PDF narrative** (part B).
 - **Data coverage** in the Timeline, which comes with collation.
 - **Plain-text and CSV logs**; for now a log can be read in as REP `;NARRATIVE:` lines.
-- **Choosing whether the map shows the current entry.** It always does, for ten minutes of plot time.

@@ -358,7 +358,7 @@ Analysts accept a visible lag on busy plots, but not a stall. Requirements are s
 
 ### 10.2 Volume
 
-- **NFR-06** Debrief shall remain usable with two volume profiles. Track-heavy (O, N): the legacy sample data (300 tracks, 12,000 narrative entries, a 109,000-line NMEA log) scaled by 3–5×, collated from several sources per serial. Observation-heavy (D): a handful of tracks with weeks of continuous bearing data, potentially millions of observations; CAP-28 and CAP-29 are the strategy for this profile. A catalogue holds hundreds of files. The track-heavy bound is assumed; it shall be measured against real O data at the overnight-storyboard milestone (section 12.2).
+- **NFR-06** Debrief shall remain usable with two volume profiles. Track-heavy (O, N): the legacy sample data (300 tracks, 12,000 narrative entries, a 109,000-line NMEA log) scaled by 3–5×, collated from several sources per serial. Observation-heavy (D): a handful of tracks with weeks of continuous bearing data, potentially millions of observations; CAP-28 and CAP-29 are the strategy for this profile. A catalogue holds hundreds of files. The track-heavy bound is assumed; it shall be measured against real O data at the overnight-storyboard milestone (section 12.2). *Note, 15 Oct 2026 (product owner):* typical narratives are a few hundred entries, rarely more; the 12,000 narrative entries of the legacy sample remain the stress bound, and the typical case shall be quick.
 
 ### 10.3 Portability and compatibility
 

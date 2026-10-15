@@ -12,7 +12,7 @@ The product owner decided on 15 Oct 2026 that narrative is read in the Timeline,
 | CAP-19 | Narrative is imported from Word and PDF in the legacy parsers' dialects (part B). |
 | CAP-20 | Narratives from several platforms are combined on a single Zulu time axis. |
 | EXT-14 | A legacy .dpf plot's narrative is imported, as far as the data model allows. |
-| NFR-06 | Usable with 12,000 narrative entries scaled by three to five. |
+| NFR-06 | Usable with 12,000 narrative entries scaled by three to five: the stress bound. Typical narratives are a few hundred entries (product owner, 15 Oct 2026). |
 | NFR-13 | Everything works from the keyboard, and by touch. |
 | SUB-19, SUB-21 | Every change is a recorded step; undo replays to the step before. |
 | SUB-04 | Times are written by the formatting service, in the analyst's settings. |
@@ -52,12 +52,16 @@ The product owner decided on 15 Oct 2026 that narrative is read in the Timeline,
     - Where the list is narrow (VS Code's sidebar, the playground's side column, a phone), time, source and type are one line and the text goes under them, aligned with the source, so the time is a gutter down the left. The page never scrolls sideways.
 11. **Following current time.** The entry current time is at (the last at or before it, among those listed) is marked by a bar in the theme's highlight and a quiet ground. As current time moves, while playing or stepping or from a tool, the list keeps that entry in sight: it scrolls only when the entry leaves the middle of the view (its top tenth to three quarters down), and then puts it a third of the way down, so what comes next is seen below it. It never moves the keyboard, and never animates, so a reader is not pulled about.
 
-    The reader always wins. Scrolling the list (wheel, touch, scrollbar) or moving through it with the keyboard stops it following. **Follow time** then appears in the bar, with an arrow towards where current time is (↑ or ↓); it starts following again and brings the entry into sight. Choosing an entry also starts following again, since current time moves to it.
+    The reader always wins. Scrolling the list (wheel, touch, scrollbar) or moving through it with the keyboard stops it following. **Follow time** then appears in the bar, with an arrow towards where current time is (↑ or ↓); it starts following again and brings the entry into sight. Choosing an entry also starts following again, since current time moves to it, and so does pressing **Play** (product owner, 15 Oct 2026): playing is asking to read along. Scrolling away while it plays stops it following again, as at any other time; pausing leaves it as it is.
+
+    Following starts afresh, at current time, when another plot is opened; the same plot shown again after a change (an entry added, an undo) keeps the reader's place. The host says which plot it is (`plot_id` on `show_timeline`).
 12. **Choosing an entry** (click, tap, `Enter` or `Space`) moves current time to it, or to the start of a period. Outside the window shown, the window widens or moves to take it in, shown but never saved, exactly as for a tool's time, with **Keep** and **Revert** on the time controller (CAP-28). Where several entries share a second, the one chosen is the one marked, not the last of them.
-13. **Filter and search.** **Filter** opens checkboxes, with counts, for each kind (*Narrative*, *Notes and periods*, *Fix comments*), source and type; unticked ones are left out, and **Filter (2)** says how many are. **Show all** puts them back. The search box finds text in an entry's text, source or type, ignoring case, and marks it; `Escape` clears it. Under the list, *12 entries of 120* while anything is left out. The filter is the reader's own, kept in the page (VS Code's webview state; the browser's storage in the playground, every read and write guarded), never in the plot: two analysts reading one narrative want different filters, and neither changes what the plot says. Following and current time work among the entries listed.
-14. **Adding, changing and deleting an entry.** **+** (or `N` with the list focused; **Add narrative entry…** in VS Code) opens a short form above the list: *Time* (starting at current time, in any of the analyst's notations: `09:30Z`, `15 Jun 2023 09:30:00Z`, `150930Z JUN 23`), *Source* and *Type* (each suggesting those the plot has), *Track* (following the source's name until chosen) and *Entry*. **Edit** and **Delete** appear on the row being worked with (the one chosen, or the keyboard's), so the list stays quiet; `F2` or double-click changes, `Delete` deletes. Each is one step, named in the History view (*Narrative entry by BLUE ONE at 08:40:00Z added*, *…: text changed*, *… moved to 08:41:00Z*, *… deleted*), undone by `Ctrl+Z` like any other. A form that cannot be saved says why and stays open; a change made elsewhere meanwhile is never overwritten (SUB-28).
+13. **Filter and search.** **Filter** opens checkboxes, with counts, for each kind (*Narrative*, *Notes and periods*, *Fix comments*), source and type; unticked ones are left out, and **Filter (2)** says how many are. **Show all** puts them back. The search box finds text in an entry's text, source or type, ignoring case, and marks it; `Escape` clears it. Under the list, *12 entries of 120* while anything is left out. The filter and the search are the reader's own (product owner, 15 Oct 2026), kept in the page (VS Code's webview state; the browser's storage in the playground, every read and write guarded), never in the plot: two analysts reading one narrative want different filters, and neither changes what the plot says. Following and current time work among the entries listed. Agents filter for themselves (`debrief/narrative`); `debrief.timelineEntries` answers for the whole plot, so its `current` is the entry current time is at among all of them, which is the row the reader sees marked unless their filter leaves it out.
+14. **Adding, changing and deleting an entry.** **+** (or `N` with the list focused; **Add narrative entry…** in VS Code) opens a short form above the list: *Time* (starting at current time, in any of the analyst's notations: `09:30Z`, `15 Jun 2023 09:30:00Z`, `150930Z JUN 23`), *Source* and *Type* (each suggesting those the plot has), *Track* (following the source's name until chosen) and *Entry*. **Edit** and **Delete** appear on the row being worked with (the one chosen, or the keyboard's), so the list stays quiet; `F2` or double-click changes, `Delete` deletes. Each is one step, named in the History view (*Narrative entry by BLUE ONE at 08:40:00Z added*, *…: text changed*, *… moved to 08:41:00Z*, *… deleted*), undone like any other: **Undo** in the History view, or `Ctrl+Z` (in the playground anywhere but a text box; in VS Code with the map, the Outline or the History view focused, as for every step). Deleting from the keyboard keeps its place, on the entry after the one deleted. A form that cannot be saved says why and stays open; a change made elsewhere meanwhile is never overwritten (SUB-28).
 15. **On the map.** The entry current time is at, where it belongs to a track, is shown beside that track's square: its source in bold and the start of its text, in a small box in the theme's colours, never in the way of the pointer, to the left where the right is short of room. It goes when ten minutes of plot time pass with no later entry for a track, so an entry long past does not linger. The map is never sent the narrative itself: a plot may hold sixty thousand entries.
-16. **The outline** has one row, *Narrative: 120 entries from 3 sources*, which shows the Timeline; the entries are not listed there one by one.
+
+    **Narrative on the map**, a box under the list, turns it off and on (product owner, 15 Oct 2026). It is the plot's choice, not the reader's: kept in the plot's island (`PlotView.narrative_on_map`, left out meaning on), like the Tote's *Lines on the map*, so it travels with the plot file; never a step, never undone (SUB-22). A colleague's change meanwhile is never overwritten (SUB-28).
+16. **The outline** has one row, *Narrative: 120 entries from 3 sources*, which shows the Timeline; the entries are not listed there one by one (product owner, 15 Oct 2026: kept as it is).
 
 ### What is a step, and what isn't
 
@@ -67,6 +71,7 @@ The product owner decided on 15 Oct 2026 that narrative is read in the Timeline,
 | Reading a REP file's narrative into the plot | Yes, one for the file | Yes |
 | Choosing an entry (current time) | No | No |
 | Filtering, searching, following | No (the reader's own, in the page) | No |
+| Narrative on the map, off or on | No (the plot's island) | No |
 
 ### Keyboard and touch
 
@@ -84,18 +89,30 @@ The list is a listbox for screen readers: each entry read with its full date and
 
 ## Scale (NFR-06)
 
-Measured with 60,000 synthetic entries, the legacy sample's 12,000 scaled by five:
+Typical narratives are a few hundred entries; the product owner rarely sees more (15 Oct 2026). That case must be quick, and is:
+
+| Where | What, at 2,000 entries | Time |
+| --- | --- | --- |
+| Python, desktop | One entry changed; undone | about 20 ms; 10 to 20 ms |
+| Playground (Pyodide) | A 2,000-line log read into an open plot and shown | 0.8 s |
+| Playground | An entry added through the form, saved, the plot opened again and the list shown; undone the same way | 210 ms; 240 ms |
+
+The playground's round trip is mostly the plot opened again after the step (read from Python, the map and every panel redrawn), as for any step; it takes about as long with 36 entries.
+
+The stress bound stays the legacy sample's 12,000 entries scaled by three to five, measured with 60,000 synthetic entries:
 
 | Where | What | Time |
 | --- | --- | --- |
-| Python, desktop | One step adding all 60,000; the plot file 20 MB | 2.5 s |
-| Python, desktop | One entry changed; undone | 2.8 s; 1.0 to 1.5 s |
+| Python, desktop | One step adding all 60,000; the plot file 20 MB, 35 MB with its history | 1.4 to 2.5 s |
+| Python, desktop | One entry changed; undone (12,000 entries: 0.11 s; 0.08 s) | 0.7 to 1.0 s; 0.5 to 0.6 s |
 | Python, desktop | Ordered; a query by source and text (`debrief/narrative`) | 0.2 to 0.6 s; 0.3 s |
 | Timeline logic | Ordered; filtered, rowed and laid out; searched | 50 ms; 40 ms; 13 ms |
-| Playground (Pyodide) | A 60,000-line log read into an open plot and shown | 15 to 30 s |
+| Playground (Pyodide) | A 60,000-line log read into an open plot and shown | 8 to 30 s |
 | Playground | The list built; rows drawn | 20 to 90 ms (0.4 s on a busy machine); 15 to 20 |
 | Playground | Scrolling by the wheel: time between frames | p50 and p95 16.7 ms (60 a second) |
 | Playground | A search through all of them | 30 to 60 ms |
+
+A change rewrites the whole plot file, history included, and checks it whole before it is written: that is the design (one file, history included, 13 Oct 2026), and at 60,000 entries it costs most of a second. The review of 15 Oct halved it with small changes (the plot's period read from its earliest and latest times only; a plain narrative entry checked by hand before its JSON is hashed; the file read and hashed once a change, not twice); anything more, such as checking or hashing only what changed, is not worth building for narratives of a few hundred entries.
 
 Only the rows in sight are drawn (with 400 px above and below), each measured once drawn; the rest are estimated from their text's length and the column's width, and the row at the top of the view stays put when estimates become measurements. Two things made the Python side fast enough: JSON Schema checks each feature against its own kind's class (narrative entries by an exact hand-written check that is never more lenient than the schema, a test holds it to that), instead of trying every feature class in turn (37 s for 20,000 entries before, 1 s after); and a history keeps the plot it built while the file is unchanged.
 
