@@ -34,6 +34,9 @@ from debrief_kernel.units import Quantity
 from debrief_schemas import models
 
 FIELDS = ("label_interval", "symbol_interval", "arrow_interval")
+# The intervals the forms offer, in seconds: legacy Debrief's, from 1 s to 24 h (as
+# PRESETS in vscode/webview/frequencies.ts).
+PRESETS = (1, 5, 10, 30, 60, 120, 300, 600, 900, 1800, 3600, 7200, 21_600, 43_200, 86_400)
 NOUNS = {"label_interval": "labels", "symbol_interval": "symbols", "arrow_interval": "arrows"}
 
 Interval = models.Duration | models.FixIntervalOffEnum | models.FixIntervalAllEnum | None

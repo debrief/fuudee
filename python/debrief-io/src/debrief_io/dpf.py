@@ -323,7 +323,11 @@ class DpfFix:
     comment: str | None = None
     colour: str | None = None
     visible: bool = True
+    # Whether legacy Debrief showed the fix's label, symbol and arrow (FixHandler): set by
+    # a track's frequencies or a display rule as it was plotted, or by hand.
     label_showing: bool = False
+    symbol_showing: bool = False
+    arrow_showing: bool = False
     line: int = 0
     # The depth as written, when it could not be read and zero was used instead.
     bad_depth: str | None = None
@@ -416,6 +420,26 @@ class DpfLayer:
 
 
 @dataclass(frozen=True)
+class DpfFormatter:
+    """A display rule (CoreFormatter, CoreFormatItemListener): every so often, label, mark
+    with a symbol or arrow the fixes of the tracks it names, or of every track.
+
+    As legacy Debrief reads one (CoreFormatHandler), with its defaults for what is not
+    given: active, an interval of 10,000,000 ms, not on regular intervals, symbols.
+    """
+
+    name: str | None
+    layer: str
+    style: str  # A_Style: Label, Symbol or Arrow
+    interval_ms: int | None  # None where it cannot be read
+    track: str  # LayerName: the track it applies to; blank, every track
+    symbology: str
+    regular: bool  # RegularIntervals: on whole multiples of the interval
+    active: bool
+    line: int
+
+
+@dataclass(frozen=True)
 class DpfSkipped:
     """Something the reader understood but does not import, named for the analyst."""
 
@@ -431,6 +455,7 @@ class DpfFile:
     shapes: list[DpfShape] = field(default_factory=list)
     narrative: list[DpfNarrativeEntry] = field(default_factory=list)
     layers: list[DpfLayer] = field(default_factory=list)
+    formatters: list[DpfFormatter] = field(default_factory=list)
     skipped: list[DpfSkipped] = field(default_factory=list)
     # (line number, problem) for elements that could not be read.
     errors: list[tuple[int, str]] = field(default_factory=list)
@@ -610,18 +635,31 @@ def _read_layer(node: Node, result: DpfFile) -> None:
                     DpfSkipped(item.tag, item.name(), name, SHAPE_REASONS[item.tag])
                 )
             elif item.tag == "CoreFormatter":
-                result.skipped.append(
-                    DpfSkipped(
-                        item.tag,
-                        item.name(),
-                        name,
-                        "a display rule for tracks; display rules are not yet supported",
-                    )
-                )
+                result.formatters.append(_read_formatter(item, name))
             else:
                 result.skipped.append(DpfSkipped(item.tag, item.name(), name, UNKNOWN))
         except DpfError as error:
             result.errors.append((item.line, f"{item.tag} {item.name() or ''}: {error}".strip()))
+
+
+def _read_formatter(node: Node, layer: str) -> DpfFormatter:
+    """CoreFormatHandler: a display rule, with legacy Debrief's defaults."""
+    a = node.attrs
+    try:
+        interval = int(a.get("Interval", "10000000").strip())
+    except ValueError:
+        interval = None
+    return DpfFormatter(
+        name=a.get("Name"),
+        layer=layer,
+        style=(a.get("A_Style") or "Symbol").strip(),
+        interval_ms=interval,
+        track=(a.get("LayerName") or "").strip(),
+        symbology=(a.get("Symbology") or "").strip(),
+        regular=read_bool(a.get("RegularIntervals"), False),
+        active=read_bool(a.get("Active"), True),
+        line=node.line,
+    )
 
 
 def _read_track(node: Node, result: DpfFile) -> None:
@@ -749,6 +787,8 @@ def read_fix(node: Node) -> tuple[DpfFix, bool]:
         colour=colour,
         visible=read_bool(a.get("Visible"), True),
         label_showing=read_bool(a.get("LabelShowing"), False),
+        symbol_showing=read_bool(a.get("SymbolShowing"), False),
+        arrow_showing=read_bool(a.get("ArrowShowing"), False),
         line=node.line,
         bad_depth=location.bad_depth,
     )

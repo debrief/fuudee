@@ -164,8 +164,7 @@ def test_provenance_names_source_and_every_omission(catalogue: Catalogue) -> Non
         "wheel 'test wheel' in layer 'Annotations' not imported",
         "Layer 'Annotations' (layer, shown): its settings are not imported",
         "kept as the named set 'Annotations'",
-        "Display settings not imported: where fix labels go, fix symbols and arrows; track "
-        "symbols, fonts and line styles.",
+        "Display settings not imported: where fix labels go; track symbols, fonts and line styles.",
         "View settings not imported: the map projection",
     ]:
         assert expected in notes, expected
