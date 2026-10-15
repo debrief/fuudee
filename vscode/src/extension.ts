@@ -74,6 +74,8 @@ export interface DebriefApi {
   toteShowing: () => boolean;
   /** Whether the Timeline view in the sidebar has loaded, for tests and agents. */
   timelineShowing: () => boolean;
+  /** A message to the extension as the Timeline's page sends it (Ctrl+Z there posts undo_asked), for tests. */
+  timelineMessage: (message: unknown) => void;
   /** The narrative entry the map shows beside its track at current time, for tests and agents (CAP-20). */
   mapNarrative: () => TimelineEntry | undefined;
   /** The Tote's values last shown, and how long answers took to show (CAP-06, NFR-04), for tests and agents. */
@@ -149,6 +151,14 @@ export function activate(context: vscode.ExtensionContext): DebriefApi {
     async (id) => (await narrate({ kind: "delete", features: [id] })).problem,
     log,
     (on) => saveNarrativeOnMap(on).then(resync),
+    // Ctrl+Z in the Timeline outside a text box (product owner, 15 Oct 2026). The page
+    // decides as the key is pressed, against what has focus then, rather than a context
+    // key a keybinding reads: that would reach here and back after focus moved, so a
+    // Ctrl+Z typed straight after clicking into the search box could undo the plot.
+    // Like the keybindings, it does nothing when there is nothing to undo or redo.
+    (how) => {
+      if (how === "undo" ? history.canUndo() : history.canRedo()) void vscode.commands.executeCommand(`debrief.${how}`);
+    },
   );
   context.subscriptions.push(
     vscode.window.registerWebviewViewProvider(TIMELINE_VIEW, timeline, { webviewOptions: { retainContextWhenHidden: true } }),
@@ -2028,6 +2038,7 @@ export function activate(context: vscode.ExtensionContext): DebriefApi {
     timeControllerShowing: () => timeView.showing,
     toteShowing: () => toteView.showing,
     timelineShowing: () => timeline.showing,
+    timelineMessage: (message) => timeline.receive(message),
     mapNarrative: () => map.narrative,
     tote: () => toteView.last,
     toteLatency: () => toteView.latency(),

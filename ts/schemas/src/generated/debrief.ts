@@ -328,6 +328,8 @@ export type WebviewMessageKindEnum =
   | "open_narrative_form"
   | "narrative_saved"
   | "set_narrative"
+  | "undo_asked"
+  | "redo_asked"
   | "fix_chosen";
 
 export interface DebriefSchemaDefinitions {}

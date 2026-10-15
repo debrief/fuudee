@@ -260,8 +260,22 @@ export async function playNarrative(page, shot) {
   await historySays(page, "Narrative entry by BLUE ONE at 17:31:00Z deleted");
   await page.waitForFunction(() => window.debriefTimeline().listed === 0);
   await timeline(".tl-empty", { hasText: "Nothing matches" }).waitFor();
-  // Undone like any step: it comes back.
-  await page.locator("#undo").click();
+  // Undone like any step, by Ctrl+Z in the Timeline (product owner, 15 Oct 2026); but in
+  // the search box Ctrl+Z edits the search, never the plot.
+  const entriesNow = (await state(page)).entries;
+  await timeline(".tl-search").focus();
+  await page.keyboard.press("Control+z");
+  await page.waitForTimeout(800);
+  assert.equal((await state(page)).entries, entriesNow, "Ctrl+Z in the search box leaves the plot alone");
+  await searchTimeline(page, "both nets");
+  await scroller.focus();
+  await page.keyboard.press("Control+z");
+  await page.waitForFunction(() => window.debriefTimeline().listed === 1);
+  assert.equal(await page.evaluate(() => document.activeElement?.classList.contains("tl-scroll")), true, "the list keeps the keyboard");
+  // Ctrl+Shift+Z redoes and Ctrl+Z undoes again, from the list.
+  await page.keyboard.press("Control+Shift+z");
+  await page.waitForFunction(() => window.debriefTimeline().listed === 0);
+  await page.keyboard.press("Control+z");
   await page.waitForFunction(() => window.debriefTimeline().listed === 1);
   await timeline(".tl-search").press("Escape");
   await scroller.focus();
@@ -443,14 +457,49 @@ export async function vscodeTimelineView(browser, files, errors, shot, plot) {
   // The sample's first serial, as the extension sends it.
   await view.evaluate((m) => window.postMessage(m, "*"), timelineMessage(plot));
   await view.locator(".tl-row[data-id]").first().waitFor();
-  assert.equal(await view.evaluate(() => document.documentElement.scrollWidth <= innerWidth), true, "at 280 px, the view does not scroll sideways");
+  // Never wider than the sidebar, at any width or font: measured, so a failure says by how much.
+  const widths = [];
+  const noSideways = async (what) => {
+    await view.waitForTimeout(300); // the list laid out again for its new width
+    const [page, list] = await view.evaluate(() => [document.documentElement, document.querySelector(".tl-scroll")].map((el) => [el.scrollWidth, el.clientWidth]));
+    widths.push(`${what}: page ${page[0]}/${page[1]} px, list ${list[0]}/${list[1]} px`);
+    assert.ok(page[0] <= page[1] && list[0] <= list[1], `${what}, the view does not scroll sideways: page scrollWidth ${page[0]} px in ${page[1]} px, list ${list[0]} px in ${list[1]} px`);
+  };
+  await noSideways("at 280 px");
   assert.equal(await view.locator(".tl").evaluate((el) => el.classList.contains("tl-narrow")), true);
+  for (const width of [210, 390]) {
+    await view.setViewportSize({ width, height: 420 });
+    await noSideways(`at ${width} px`);
+  }
+  // A wider font than this machine's, as some have (the CI runner's once overflowed 280 px).
+  const wide = await view.addStyleTag({ content: "* { letter-spacing: 0.1em !important } body { font-size: 16px !important }" });
+  for (const width of [210, 280, 390]) {
+    await view.setViewportSize({ width, height: 420 });
+    await noSideways(`in a wide font at ${width} px`);
+  }
+  await wide.evaluate((style) => style.remove());
+  await view.setViewportSize({ width: 280, height: 420 });
+  console.log(`Timeline view widths (scrollWidth/clientWidth): ${widths.join("; ")}.`);
   await view.waitForTimeout(300);
   await shot("narrative-vscode-view", view);
   // Choosing an entry tells the host; the form saves through it.
   await view.locator(".tl-row[data-id]").nth(2).click();
   for (let i = 0; i < 20 && !posted.some((m) => m.kind === "timeline_chosen"); i++) await view.waitForTimeout(50);
   assert.ok(posted.some((m) => m.kind === "timeline_chosen"));
+  // Ctrl+Z and Ctrl+Y in the list ask the host to undo and redo the plot; in the search
+  // box they edit the search, asking nothing (product owner, 15 Oct 2026).
+  const asked = () => posted.filter((m) => m.kind === "undo_asked" || m.kind === "redo_asked").map((m) => m.kind);
+  await view.locator(".tl-scroll").focus();
+  await view.keyboard.press("Control+z");
+  await view.keyboard.press("Control+y");
+  for (let i = 0; i < 20 && asked().length < 2; i++) await view.waitForTimeout(50);
+  assert.deepEqual(asked(), ["undo_asked", "redo_asked"]);
+  await view.locator(".tl-search").fill("sonar");
+  await view.keyboard.press("Control+z");
+  await view.waitForTimeout(300);
+  assert.deepEqual(asked(), ["undo_asked", "redo_asked"], "Ctrl+Z in the search box asks nothing of the host");
+  assert.equal(await view.locator(".tl-search").inputValue(), "", "it undoes the typing");
+  await view.locator(".tl-search").press("Escape");
   await view.evaluate(() => window.postMessage({ kind: "open_narrative_form" }, "*"));
   await view.locator(".tl-form [name=source]").fill("CONTROL");
   await view.locator(".tl-form [name=text]").fill("Serial paused for weather.");

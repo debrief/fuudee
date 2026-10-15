@@ -20,6 +20,8 @@ const control = new TimelineControl(
     save: (narrative, id) => host.postMessage({ kind: "save_narrative", narrative, ...(id && { feature_id: id }) }),
     remove: (id) => host.postMessage({ kind: "delete_narrative", feature_id: id }),
     narrativeOnMap: (on) => host.postMessage({ kind: "narrative_on_map_changed", narrative_on_map: on }),
+    // Ctrl+Z outside a text box: the extension undoes the plot, as from the map.
+    history: (move) => host.postMessage({ kind: move === "undo" ? "undo_asked" : "redo_asked" }),
   },
   undefined,
   {

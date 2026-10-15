@@ -26,6 +26,8 @@
  *   while it plays stops following again, as at any other time.
  * - Narrative entries are added (+, or N), changed (Edit, F2 or double-click) and deleted
  *   (Delete) in a form here, each one step in the plot's history, undone like any other.
+ *   Ctrl+Z undoes and Ctrl+Shift+Z or Ctrl+Y redoes the plot from anywhere in the
+ *   Timeline but a text box, where they edit the text (product owner, 15 Oct 2026).
  * - A box, Narrative on the map, turns off and on the map's box beside a track showing
  *   the entry current time is at: the plot's choice (its island), not the reader's.
  * - Tens of thousands of entries (NFR-06): only the rows in sight are drawn, each
@@ -55,7 +57,13 @@ import {
   type Filter,
   type Item,
   type Row,
+  editsText,
+  historyMove,
+  type HistoryMove,
 } from "./timelinelogic.js";
+
+/** On macOS Undo is Cmd+Z, as VS Code's keybindings have it. */
+const MAC = typeof navigator !== "undefined" && /Mac|iPhone|iPad/.test(navigator.platform);
 
 export interface TimelineHost {
   /** The reader chose an entry: move current time to it. */
@@ -66,6 +74,12 @@ export interface TimelineHost {
   remove(id: string): void;
   /** The reader turned the narrative box on the map on or off: save it in the plot's island. */
   narrativeOnMap?(on: boolean): void;
+  /**
+   * The reader pressed Undo or Redo with focus in the Timeline but not in a text box:
+   * undo or redo the plot, as the map, Outline and History do (decision, product owner,
+   * 15 Oct 2026). In a text box the keys edit the text, as anywhere.
+   */
+  history?(move: HistoryMove): void;
 }
 
 /** What the host tells the Timeline of the open plot. */
@@ -254,6 +268,17 @@ export class TimelineControl {
       if (id && this.entry(id)?.kind === "narrative") this.openForm(id);
     });
     this.scroller.addEventListener("keydown", (event) => this.key(event));
+    // Undo and Redo, decided here as the key is pressed, against what has focus then:
+    // never in a text box, where they undo the typing. Handled, they go no further, so
+    // neither VS Code's own Undo (which undoes nothing here) nor the playground's sees them.
+    element.addEventListener("keydown", (event) => {
+      if (!this.host.history || editsText(event.target as HTMLElement)) return;
+      const move = historyMove(event, MAC);
+      if (!move) return;
+      event.preventDefault();
+      event.stopPropagation();
+      this.host.history(move);
+    });
     this.form.addEventListener("submit", (event) => {
       event.preventDefault();
       this.submit();

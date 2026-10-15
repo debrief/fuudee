@@ -145,6 +145,8 @@
     ],
     "set_narrative": [
       "timeline_entry?"
-    ]
+    ],
+    "undo_asked": [],
+    "redo_asked": []
   }
 }

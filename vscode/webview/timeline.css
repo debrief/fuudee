@@ -91,7 +91,10 @@
 .tl-status:empty { display: none; }
 .tl-on-map { display: flex; align-items: center; gap: 4px; margin-left: auto; color: var(--vscode-descriptionForeground); font-size: 11px; white-space: nowrap; }
 .tl-on-map input { margin: 0; accent-color: var(--vscode-focusBorder); }
-.tl-measure { position: absolute; visibility: hidden; white-space: pre; pointer-events: none; }
+/* Forty characters, for the width of one. Hidden, but a box still widens what it lies in:
+   held to the right edge so it reaches out leftwards, which never scrolls, however wide
+   the font (it once made a 280 px view scroll sideways where the font was wider). */
+.tl-measure { position: absolute; top: 0; right: 0; visibility: hidden; white-space: pre; pointer-events: none; }
 
 /* VS Code's Timeline view: the list fills the view's height and scrolls inside it. */
 html:has(body.tl-page), body.tl-page, body.tl-page #root { height: 100%; }

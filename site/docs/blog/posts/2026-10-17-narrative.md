@@ -43,7 +43,7 @@ Choose an entry (click it, tap it, or `Enter`) and current time moves to it; if 
 
 ## One step at a time
 
-**+** opens a short form above the list: the time (starting at current time, typed any way you'd write it, `09:30Z` or `150930Z JUN 23`), the source, the type, the track it belongs to (which follows the source's name until you choose one) and the entry. **Edit** and **Delete** appear on the entry you're working with, so the rest of the list stays quiet. Each change is one step in **History**, named like *Narrative entry by BLUE ONE at 17:31:00Z added*, and `Ctrl+Z` undoes it like any other.
+**+** opens a short form above the list: the time (starting at current time, typed any way you'd write it, `09:30Z` or `150930Z JUN 23`), the source, the type, the track it belongs to (which follows the source's name until you choose one) and the entry. **Edit** and **Delete** appear on the entry you're working with, so the rest of the list stays quiet. Each change is one step in **History**, named like *Narrative entry by BLUE ONE at 17:31:00Z added*, and `Ctrl+Z` undoes it like any other, from the Timeline itself too (in its search box and form, `Ctrl+Z` undoes your typing instead).
 
 ![The form above the list: Time 15 Jun 2023 17:31:00Z, Source BLUE ONE, Type Comms, Track BLUE ONE, Entry Link check with control: loud and clear; Add and Cancel](images/phase-3/narrative-form.png)
 
@@ -111,4 +111,5 @@ Most narrative arrives as Word documents and PDFs, in several house styles that 
 
 - **Word and PDF narrative** (part B).
 - **Data coverage** in the Timeline, which comes with collation.
+- **Legacy's Narrative viewer extras**: highlighted phrases, an off switch for choosing an entry moving current time, text size and wrapping, and choosing the columns shown.
 - **Plain-text and CSV logs**; for now a log can be read in as REP `;NARRATIVE:` lines.

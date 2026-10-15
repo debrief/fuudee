@@ -476,6 +476,12 @@ export async function run(): Promise<void> {
     assert.equal(narrativeOf().some((f) => f.id === added.feature), false);
     assert.equal(await vscode.commands.executeCommand("debrief.undo"), undefined);
     assert.equal(narrativeOf().some((f) => f.id === added.feature), true, "undo brings it back");
+    // Ctrl+Shift+Z and Ctrl+Z in the Timeline outside a text box: the page posts redo_asked
+    // and undo_asked, and the plot is redone and undone as from the map (product owner, 15 Oct 2026).
+    api.timelineMessage({ kind: "redo_asked" });
+    await waitFor("redone from the Timeline", () => (narrativeOf().some((f) => f.id === added.feature) ? undefined : true));
+    api.timelineMessage({ kind: "undo_asked" });
+    await waitFor("undone from the Timeline", () => (narrativeOf().some((f) => f.id === added.feature) ? true : undefined));
     // A second platform's log: its narrative lines read into the open plot, one step, its source kept.
     const scratch = mkdtempSync(path.join(tmpdir(), "debrief-narrative-"));
     const red = path.join(scratch, "red-one-log.rep");

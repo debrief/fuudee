@@ -1279,6 +1279,8 @@ const timelineControl = new TimelineControl(
     remove: (id) => void narrate({ kind: "delete", features: [id] }).then((outcome) => outcome.error && toast(outcome.error, "warning")),
     // The map's narrative box: the plot's choice, in its island like the Tote's lines; left out when on.
     narrativeOnMap: (on) => void saveView({ narrative_on_map: on ? undefined : false }),
+    // Ctrl+Z outside the Timeline's text boxes, decided by the Timeline as in VS Code.
+    history: (how) => void move(how),
   },
   undefined,
   params.has("panels") ? undefined : timelineMemory,

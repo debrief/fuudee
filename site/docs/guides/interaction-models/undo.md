@@ -15,7 +15,7 @@ How an analyst steps back through changes to a plot, including its colours and w
 ## Model
 
 1. **Every change is a step.** An import, a tool run or an edit becomes one step in the plot's history, recording what made it, who, when, and what it changed (SUB-19, SUB-24). The **History** view lists the steps, newest first, and marks the current one.
-2. **Undo** (`Ctrl+Z` on the map, the outline or the History view, or the button on the History view) returns the plot to the step before. Nothing is deleted: the step undone stays in the list, marked *Undone*.
+2. **Undo** (`Ctrl+Z` on the map, the outline, the History view or the Timeline (not in its text boxes), or the button on the History view) returns the plot to the step before. Nothing is deleted: the step undone stays in the list, marked *Undone*.
 3. **Redo** (`Ctrl+Shift+Z` or `Ctrl+Y`) brings back the next undone step. Once anything new is done, there is nothing to redo: Debrief says so rather than bringing back an older undone step. Undone steps that a new change replaced stay in the History view, on record.
 4. **Go back to a step.** On any step still in the plot, **Go back to this step** returns the plot to just after it; on an undone step, **Redo up to this step** brings everything back up to it. Each step shows its number, and whether it is current, undone or replaced.
 5. **A new change after undoing** replaces the undone steps. They stay on record, marked *replaced by a later change*, and can't be redone (decision, 11 Oct 2026). Nothing is ever silently lost.

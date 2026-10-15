@@ -284,3 +284,45 @@ export function matches(text: string, needle: string): [number, number][] {
   for (let at = lower.indexOf(n); at >= 0; at = lower.indexOf(n, at + n.length)) out.push([at, at + n.length]);
   return out;
 }
+
+/** A step back or forward through the plot's history. */
+export type HistoryMove = "undo" | "redo";
+
+/** The parts of a key press that say which history move it asks for. */
+export interface KeyChord {
+  key: string;
+  ctrlKey: boolean;
+  metaKey: boolean;
+  shiftKey: boolean;
+  altKey: boolean;
+}
+
+/**
+ * Which history move a key press asks for, as VS Code's keybindings for the map, the
+ * Outline and History have it: Ctrl+Z undoes, Ctrl+Shift+Z or Ctrl+Y redoes; on macOS
+ * Cmd+Z undoes and Cmd+Shift+Z redoes (Ctrl+Y still redoes, as there).
+ */
+export function historyMove(e: KeyChord, mac: boolean): HistoryMove | undefined {
+  if (e.altKey) return undefined;
+  const key = e.key.toLowerCase();
+  const command = mac ? e.metaKey && !e.ctrlKey : e.ctrlKey && !e.metaKey;
+  if (command && key === "z") return e.shiftKey ? "redo" : "undo";
+  if (e.ctrlKey && !e.metaKey && !e.shiftKey && key === "y") return "redo";
+  return undefined;
+}
+
+/** Input types that hold no text to undo: a checkbox, a button and the like. */
+const NOT_TEXT = new Set(["checkbox", "radio", "button", "submit", "reset", "image", "range", "color", "file", "hidden"]);
+
+/**
+ * Whether an element edits text: there Ctrl+Z undoes the typing, not the plot
+ * (decision, product owner, 15 Oct 2026): the Timeline's search box and the entry
+ * form's time, source, type and text.
+ */
+export function editsText(element: { tagName?: string; type?: string; isContentEditable?: boolean } | null | undefined): boolean {
+  if (!element?.tagName) return false;
+  if (element.isContentEditable) return true;
+  const tag = element.tagName.toUpperCase();
+  if (tag === "TEXTAREA") return true;
+  return tag === "INPUT" && !NOT_TEXT.has((element.type || "text").toLowerCase());
+}

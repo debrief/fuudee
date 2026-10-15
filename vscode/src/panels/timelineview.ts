@@ -43,6 +43,8 @@ export class TimelineView implements vscode.WebviewViewProvider {
     private readonly log: (line: string) => void,
     /** The analyst turned the narrative box on the map off or on: save it in the plot's island. */
     private readonly saveOnMap: (on: boolean) => Promise<string | undefined> = async () => undefined,
+    /** Undo or redo pressed in the Timeline outside a text box: as Ctrl+Z on the map. */
+    private readonly historyMove: (move: "undo" | "redo") => void = () => undefined,
   ) {
     session.onPlot((opened) => {
       this.entries = opened ? timelineEntries(opened.plot) : [];
@@ -81,35 +83,40 @@ export class TimelineView implements vscode.WebviewViewProvider {
     view.onDidDispose(() => {
       if (this.view === view) this.view = undefined;
     });
-    view.webview.onDidReceiveMessage((raw) => {
-      let message;
-      try {
-        message = checkMessage(raw);
-      } catch {
-        this.log("webview_message_refused panel=timeline");
-        return;
-      }
-      if (message.kind === "ready") {
-        this.ready = true;
-        this.showAll();
-        if (this.playingNow) this.post({ kind: "playing_changed", playing: true });
-        if (this.formWanted) this.openForm(this.formWanted.feature);
-      } else if (message.kind === "timeline_chosen") {
-        this.goTo(message.feature_id!);
-      } else if (message.kind === "save_narrative") {
-        void this.save(message.narrative!, message.feature_id ?? undefined).then(({ problem, feature }) =>
-          this.post({ kind: "narrative_saved", ...(problem ? { message: problem } : feature && { feature_id: feature }) }),
-        );
-      } else if (message.kind === "narrative_on_map_changed") {
-        void this.saveOnMap(message.narrative_on_map === true).then((problem) => {
-          if (!problem) return;
-          void vscode.window.showWarningMessage(problem);
-          this.showAll(); // what is saved, again
-        });
-      } else if (message.kind === "delete_narrative") {
-        void this.remove(message.feature_id!).then((problem) => problem && void vscode.window.showWarningMessage(problem));
-      }
-    });
+    view.webview.onDidReceiveMessage((raw) => this.receive(raw));
+  }
+
+  /** A message from the page. Tests send one as the page would: they cannot press a key in it. */
+  receive(raw: unknown): void {
+    let message;
+    try {
+      message = checkMessage(raw);
+    } catch {
+      this.log("webview_message_refused panel=timeline");
+      return;
+    }
+    if (message.kind === "ready") {
+      this.ready = true;
+      this.showAll();
+      if (this.playingNow) this.post({ kind: "playing_changed", playing: true });
+      if (this.formWanted) this.openForm(this.formWanted.feature);
+    } else if (message.kind === "timeline_chosen") {
+      this.goTo(message.feature_id!);
+    } else if (message.kind === "save_narrative") {
+      void this.save(message.narrative!, message.feature_id ?? undefined).then(({ problem, feature }) =>
+        this.post({ kind: "narrative_saved", ...(problem ? { message: problem } : feature && { feature_id: feature }) }),
+      );
+    } else if (message.kind === "narrative_on_map_changed") {
+      void this.saveOnMap(message.narrative_on_map === true).then((problem) => {
+        if (!problem) return;
+        void vscode.window.showWarningMessage(problem);
+        this.showAll(); // what is saved, again
+      });
+    } else if (message.kind === "undo_asked" || message.kind === "redo_asked") {
+      this.historyMove(message.kind === "undo_asked" ? "undo" : "redo");
+    } else if (message.kind === "delete_narrative") {
+      void this.remove(message.feature_id!).then((problem) => problem && void vscode.window.showWarningMessage(problem));
+    }
   }
 
   /** Open the page's form: to add an entry, or change one. Shows the view first. */

@@ -15,10 +15,12 @@ import {
   applyFilter,
   columnWidths,
   currentIndex,
+  editsText,
   estimateLines,
   facets,
   filtering,
   followScroll,
+  historyMove,
   Layout,
   matches,
   NO_FILTER,
@@ -80,11 +82,11 @@ describe("one order for every source, as Python's", () => {
 });
 
 describe("Timeline messages are boundary types (CON-08)", () => {
-  it.each(["show-timeline", "show-timeline-no-plot", "timeline-chosen", "save-narrative", "save-narrative-change", "delete-narrative", "narrative-saved", "set-narrative", "open-narrative-form", "narrative-on-map-changed", "playing-changed"])("accepts %s", (name) => {
+  it.each(["show-timeline", "show-timeline-no-plot", "timeline-chosen", "save-narrative", "save-narrative-change", "delete-narrative", "narrative-saved", "set-narrative", "open-narrative-form", "narrative-on-map-changed", "playing-changed", "undo-asked", "redo-asked"])("accepts %s", (name) => {
     const raw = fixture(`webview_message/valid/${name}.json`);
     expect(checkMessage(raw)).toEqual(raw);
   });
-  it.each(["semantic/save-narrative-without-narrative", "semantic/timeline-chosen-without-entry", "schema/show-timeline-unknown-entry-kind", "schema/set-narrative-colour-not-hex", "semantic/playing-changed-without-playing", "schema/narrative-on-map-not-boolean"])("refuses %s", (name) => {
+  it.each(["semantic/save-narrative-without-narrative", "semantic/timeline-chosen-without-entry", "schema/show-timeline-unknown-entry-kind", "schema/set-narrative-colour-not-hex", "semantic/playing-changed-without-playing", "schema/narrative-on-map-not-boolean", "semantic/undo-asked-carrying-entry"])("refuses %s", (name) => {
     expect(() => checkMessage(fixture(`webview_message/invalid/${name}.json`))).toThrow();
   });
 });
@@ -207,6 +209,47 @@ describe("following current time", () => {
     expect(whereIs(100, 40, 500, 300)).toBe("above");
     expect(whereIs(900, 40, 500, 300)).toBe("below");
     expect(whereIs(600, 40, 500, 300)).toBe("in view");
+  });
+});
+
+describe("Undo and Redo in the Timeline (product owner, 15 Oct 2026)", () => {
+  const press = (key: string, more: Partial<{ ctrlKey: boolean; metaKey: boolean; shiftKey: boolean; altKey: boolean }> = {}) => ({ key, ctrlKey: false, metaKey: false, shiftKey: false, altKey: false, ...more });
+  /** A VS Code keybinding, such as "cmd+shift+z", as the key press it is. */
+  const chord = (binding: string) => {
+    const parts = binding.split("+");
+    const key = parts.at(-1)!;
+    return press(parts.includes("shift") ? key.toUpperCase() : key, { ctrlKey: parts.includes("ctrl"), metaKey: parts.includes("cmd"), shiftKey: parts.includes("shift") });
+  };
+
+  it("takes the keys VS Code's keybindings give the map, Outline and History, on each platform", () => {
+    const manifest = JSON.parse(readFileSync(path.join(ROOT, "vscode/package.json"), "utf8")) as { contributes: { keybindings: { command: string; key: string; mac?: string }[] } };
+    const bindings = manifest.contributes.keybindings.filter((b) => b.command === "debrief.undo" || b.command === "debrief.redo");
+    expect(bindings.length).toBe(3);
+    for (const binding of bindings) {
+      const move = binding.command === "debrief.undo" ? "undo" : "redo";
+      expect(historyMove(chord(binding.key), false), binding.key).toBe(move);
+      expect(historyMove(chord(binding.mac ?? binding.key), true), binding.mac ?? binding.key).toBe(move);
+    }
+  });
+  it("takes nothing else", () => {
+    expect(historyMove(press("z"), false)).toBeUndefined();
+    expect(historyMove(press("z", { metaKey: true }), false)).toBeUndefined(); // Cmd is macOS's
+    expect(historyMove(press("z", { ctrlKey: true }), true)).toBeUndefined(); // Ctrl+Z is not Undo on macOS
+    expect(historyMove(press("z", { ctrlKey: true, altKey: true }), false)).toBeUndefined();
+    expect(historyMove(press("Y", { ctrlKey: true, shiftKey: true }), false)).toBeUndefined();
+    expect(historyMove(press("x", { ctrlKey: true }), false)).toBeUndefined();
+  });
+  it("leaves the keys to the text in the search box and the form's text boxes, and only there", () => {
+    expect(editsText({ tagName: "INPUT", type: "search" })).toBe(true); // the search box
+    expect(editsText({ tagName: "INPUT", type: "text" })).toBe(true); // the form's time, source and type
+    expect(editsText({ tagName: "INPUT", type: "" })).toBe(true);
+    expect(editsText({ tagName: "TEXTAREA" })).toBe(true); // the form's entry
+    expect(editsText({ tagName: "DIV", isContentEditable: true })).toBe(true);
+    expect(editsText({ tagName: "DIV" })).toBe(false); // the list
+    expect(editsText({ tagName: "BUTTON", type: "submit" })).toBe(false); // Filter, +, Save
+    expect(editsText({ tagName: "INPUT", type: "checkbox" })).toBe(false); // the filter's choices, Narrative on the map
+    expect(editsText({ tagName: "SELECT" })).toBe(false); // the form's track
+    expect(editsText(null)).toBe(false);
   });
 });
 
