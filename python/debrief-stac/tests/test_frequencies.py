@@ -154,6 +154,38 @@ def test_the_extremes_are_allowed(catalogue) -> None:
     assert props(catalogue, "blue").arrow_interval == models.Duration(value=24, unit="h")
 
 
+def test_labels_and_symbols_at_every_fix_but_never_arrows(catalogue) -> None:
+    """Legacy Debrief's "All" (product owner, 15 Oct 2026): labels and symbols at every
+    recorded fix, held as "all"; arrows have no such choice."""
+    catalogue.set_track_frequencies(
+        "p", ["blue", "red"], {"label_interval": "all", "symbol_interval": "every fix"}, AGENT
+    )
+    assert last_note(catalogue) == (
+        "Labels at every fix, symbols at every fix on BLUE ONE and RED ONE"
+    )
+    assert props(catalogue, "blue").label_interval == models.FixIntervalAllEnum.all
+    assert describe_track(props(catalogue, "red")) == (
+        "Labels at every fix · Symbols at every fix · Arrows default"
+    )
+    record = catalogue.history("p").steps()[-1].records[0]
+    assert [p.value for p in record.parameters] == ["all", "all"]
+    # The same again changes nothing; off is not all.
+    assert catalogue.set_track_frequencies("p", ["blue"], {"label_interval": "all"}, AGENT) is None
+    assert not same(models.FixIntervalAllEnum.all, models.FixIntervalOffEnum.off)
+    with pytest.raises(CatalogueError, match="Arrows cannot be at every fix"):
+        catalogue.set_track_frequencies("p", ["blue"], {"arrow_interval": "all"}, AGENT)
+    # Held so in the file, and refused there for arrows.
+    plot = json.loads(dump_plot(catalogue.read_plot("p")))
+    blue = next(f for f in plot["features"] if f["id"] == "blue")
+    assert blue["properties"]["label_interval"] == "all"
+    load_plot(plot)
+    blue["properties"]["arrow_interval"] = "all"
+    with pytest.raises(DocumentValidationError):
+        load_plot(plot)
+    catalogue.history("p").undo()
+    assert props(catalogue, "blue").label_interval is None
+
+
 def test_only_tracks_and_only_known_fields(catalogue) -> None:
     with pytest.raises(CatalogueError, match="Only tracks"):
         catalogue.set_track_frequencies("p", ["a"], {"label_interval": TEN_MIN}, AGENT)

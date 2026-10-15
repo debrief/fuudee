@@ -211,6 +211,19 @@ export async function playFrequencies(page, shot) {
   await mapFrame.locator(".fix-time-text", { hasText: /^(15)?0813$/ }).waitFor();
   await zoomBy(-3);
 
+  // All: BLUE ONE's symbols at every fix (legacy Debrief's All; product owner, 15 Oct 2026). Arrows have no All.
+  await row("track-blue-one").click();
+  n = await steps();
+  await page.locator("#track-frequencies").click();
+  await dialog.waitFor();
+  assert.equal(await chooser("arrow_interval").locator("option[value='all']").count(), 0, "no All for arrows");
+  await chooser("symbol_interval").selectOption({ label: "All (every fix)" });
+  await dialog.getByRole("button", { name: "Apply" }).click();
+  await stepAdded(n);
+  assert.equal(await latest(), "Symbols at every fix on BLUE ONE");
+  assert.match(await row("track-blue-one").locator(".freq-detail").innerText(), /Symbols at every fix/);
+  await mapFrame.locator("canvas.freq-marks:not([data-symbols='0'])").waitFor({ state: "attached" });
+
   // On a phone, and down to 210 px: the form fits and never scrolls sideways.
   for (const width of [390, 280, 210]) {
     await page.setViewportSize({ width, height: 844 });
@@ -232,7 +245,7 @@ export async function playFrequencies(page, shot) {
   }
   await page.setViewportSize({ width: 1400, height: 820 });
 
-  // Back as it was, so what follows starts the same: the fix's marks and label, then the intervals, undone.
-  for (let i = 0; i < 5; i++) await undo();
+  // Back as it was, so what follows starts the same: the symbols at every fix, the fix's marks and label, then the intervals, undone.
+  for (let i = 0; i < 6; i++) await undo();
   await page.waitForFunction(() => !document.querySelector("#outline .freq-detail"), null, { timeout: 30000 });
 }

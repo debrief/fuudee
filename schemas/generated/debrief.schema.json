@@ -800,6 +800,14 @@
       "title": "FeatureTypeEnum",
       "type": "string"
     },
+    "FixIntervalAllEnum": {
+      "description": "A track's time labels or symbols at every recorded fix (CAP-32), legacy Debrief's \"All\" (decision, product owner, 15 Oct 2026): still thinned when zoomed out. Not for arrows.",
+      "enum": [
+        "all"
+      ],
+      "title": "FixIntervalAllEnum",
+      "type": "string"
+    },
     "FixIntervalOffEnum": {
       "description": "A track's labels, symbols or direction arrows explicitly turned off (CAP-32), rather than left to Debrief's default.",
       "enum": [
@@ -3725,10 +3733,13 @@
               "$ref": "#/$defs/FixIntervalOffEnum"
             },
             {
+              "$ref": "#/$defs/FixIntervalAllEnum"
+            },
+            {
               "type": "null"
             }
           ],
-          "description": "How often the track is labelled with the time (CAP-32): at each whole multiple of this interval of UTC (every 10 min is 0900, 0910, 0920...), as legacy Debrief aligns them, from 1 second to 24 hours; or off. Left out, Debrief's default: none. Presentation content: each change is a recorded, undoable step, like colour (SUB-22)."
+          "description": "How often the track is labelled with the time (CAP-32): at each whole multiple of this interval of UTC (every 10 min is 0900, 0910, 0920...), as legacy Debrief aligns them, from 1 second to 24 hours; at every fix (\"all\"); or off. Left out, Debrief's default: none. Presentation content: each change is a recorded, undoable step, like colour (SUB-22)."
         },
         "logged_courses": {
           "anyOf": [
@@ -3823,10 +3834,13 @@
               "$ref": "#/$defs/FixIntervalOffEnum"
             },
             {
+              "$ref": "#/$defs/FixIntervalAllEnum"
+            },
+            {
               "type": "null"
             }
           ],
-          "description": "How often a small symbol in the track's colour marks where it was (CAP-32): aligned and bounded as label_interval. Left out, none."
+          "description": "How often a small symbol in the track's colour marks where it was (CAP-32): aligned and bounded as label_interval, or at every fix (\"all\"). Left out, none."
         },
         "times": {
           "description": "One per position, non-decreasing.",

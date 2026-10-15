@@ -74,6 +74,8 @@ def truncate_to_ms(instant: datetime) -> tuple[int, bool]:
 INTERVAL_MIN_S = 1
 INTERVAL_MAX_S = 86_400
 INTERVAL_OFF = "off"
+# Labels or symbols at every recorded fix: legacy Debrief's "All" (not for arrows).
+INTERVAL_ALL = "all"
 _INTERVAL_UNITS = {
     "d": 86_400,
     "day": 86_400,
@@ -106,13 +108,16 @@ class IntervalError(ValueError):
 
 
 def read_interval(text: str) -> int | str:
-    """Read an interval typed by the analyst: seconds, or INTERVAL_OFF for "off" or
-    "none". Units may be written short or long ("90 s", "10 min", "2 hours", "1 day")
-    and combined ("1 h 30 min"); a bare number after one with a unit is in the next
-    smaller unit ("1h30" is 1 h 30 min, "2m30" 2 min 30 s). Raises IntervalError."""
+    """Read an interval typed by the analyst: seconds, INTERVAL_OFF for "off" or
+    "none", or INTERVAL_ALL for "all" or "every fix". Units may be written short or
+    long ("90 s", "10 min", "2 hours", "1 day") and combined ("1 h 30 min"); a bare
+    number after one with a unit is in the next smaller unit ("1h30" is 1 h 30 min,
+    "2m30" 2 min 30 s). Raises IntervalError."""
     said = text.strip().lower()
     if said in ("off", "none"):
         return INTERVAL_OFF
+    if said in ("all", "every fix", "all fixes"):
+        return INTERVAL_ALL
     rest = said.replace(",", " ")
     total = 0.0
     previous: int | None = None

@@ -9,7 +9,9 @@ import { readFileSync } from "node:fs";
 import path from "node:path";
 import { describe, expect, it } from "vitest";
 import {
+  AT_EVERY_FIX,
   changesOf,
+  choiceFromValue,
   choicesFor,
   choiceOf,
   declutter,
@@ -18,6 +20,7 @@ import {
   describeSetFrequencies,
   describeInterval,
   durationOf,
+  everyFix,
   fixLabel,
   forcedTimes,
   formState,
@@ -27,6 +30,7 @@ import {
   intervalMs,
   labelBox,
   labelsWithDay,
+  medianStep,
   mergeSpans,
   Occupied,
   placeLabels,
@@ -42,7 +46,7 @@ import { pointAt, positionAt, type LonLat } from "../../webview/geodesic.js";
 
 const repo = path.resolve(__dirname, "../../..");
 const vectors = JSON.parse(readFileSync(path.join(repo, "schemas", "vectors", "fix-intervals.json"), "utf8")) as {
-  read: { text: string; seconds?: number | "off"; problem?: string }[];
+  read: { text: string; seconds?: number | "off" | "all"; problem?: string }[];
   describe: { seconds: number; text: string }[];
   track: { properties: Record<string, never>; text: string }[];
 };
@@ -99,7 +103,8 @@ describe("the form for several tracks", () => {
     const labels = choicesFor("label_interval", 90);
     expect(labels[0]).toEqual({ value: "off", label: "Off" });
     expect(labels.map((c) => c.label)).toContain("Every 1 min 30 s");
-    expect(labels).toHaveLength(2 + PRESETS.length);
+    expect(labels[1]).toEqual({ value: "all", label: "All (every fix)" });
+    expect(labels).toHaveLength(3 + PRESETS.length);
     const arrows = choicesFor("arrow_interval", "mixed");
     expect(arrows.slice(0, 3).map((c) => c.value)).toEqual(["mixed", "default", "off"]);
     expect(arrows.at(-1)).toEqual({ value: "86400", label: "Every 24 h" });
@@ -117,6 +122,36 @@ describe("the form for several tracks", () => {
     );
     expect(describeChanges({ symbol_interval: "off" }, ["A", "B", "C"])).toBe("Symbols off on 3 tracks");
     expect(describeChanges({ arrow_interval: null }, ["A"])).toBe("Arrows back to the default on A");
+  });
+  it("offers labels and symbols at every fix (legacy Debrief's All), never arrows", () => {
+    expect(choicesFor("symbol_interval", "all").map((c) => c.value)).toContain("all");
+    expect(choicesFor("arrow_interval", "default").map((c) => c.value)).not.toContain("all");
+    expect(choiceOf("label_interval", "all")).toBe("all");
+    expect(choiceFromValue("all")).toBe("all");
+    expect(formState([{ label_interval: "all" }, { label_interval: "all" }]).label_interval).toBe("all");
+    expect(formState([{ label_interval: "all" }, { label_interval: "off" }]).label_interval).toBe("mixed");
+    expect(changesOf([{ label_interval: "off" }], { label_interval: "all" })).toEqual({ label_interval: "all" });
+    expect(changesOf([{ label_interval: "all" }], { label_interval: "all" })).toEqual({});
+    expect(describeChanges({ label_interval: "all", symbol_interval: "all" }, ["A"])).toBe("Labels at every fix, symbols at every fix on A");
+    expect(describeSetFrequencies({ symbol_interval: "all" })).toBe("Symbols at every fix");
+    expect(intervalMs("all")).toBe("all");
+    expect(AT_EVERY_FIX).toEqual(["label_interval", "symbol_interval"]);
+  });
+});
+
+describe("at every fix", () => {
+  const times = [0, 60_000, 120_000, 125_000, 180_000, 240_000].map((t) => t + at("2026-10-15T09:00:00.000Z"));
+  const whole: [number, number][] = [[times[0], times[5]]];
+  it("is each fix's time in view, each once, while they are far enough apart", () => {
+    expect(medianStep(times)).toBe(60_000);
+    expect(everyFix(times, whole, 1 / 1000, 44)).toEqual({ times }); // 60 px apart
+    expect(everyFix([...times, times[5]], whole, 1 / 1000, 44)).toEqual({ times }); // a time shared
+    expect(everyFix(times, [[times[1], times[3]]], 1 / 1000, 44)).toEqual({ times: times.slice(1, 4) });
+  });
+  it("gives way to an interval, thinned as any is, where the fixes would crowd or pass the cap", () => {
+    expect(everyFix(times, whole, 1 / 10_000, 44)).toEqual({ every: 60_000 }); // 6 px apart: every 1 min, then thinned
+    expect(everyFix(times, whole, 1 / 1000, 44, 3)).toEqual({ every: 60_000 });
+    expect(everyFix([0, 7000, 14_000, 21_000], [[0, 21_000]], 1 / 1000, 44)).toEqual({ every: 10_000 }); // the preset at least 7 s
   });
 });
 

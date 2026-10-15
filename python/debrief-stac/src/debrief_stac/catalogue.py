@@ -723,7 +723,7 @@ class Catalogue:
         if not changes:
             raise CatalogueError("Say which to change: labels, symbols or arrows.")
         try:
-            wanted = {f: frequencies.interval_from(v) for f, v in changes.items()}
+            wanted = {f: frequencies.interval_from(v, f) for f, v in changes.items()}
         except IntervalError as error:
             raise CatalogueError(str(error)) from None
 
@@ -758,11 +758,11 @@ class Catalogue:
         if not modified:
             return None
 
-        # What was asked, exactly, beside the name: an interval, "off", or "default".
+        # What was asked, exactly, beside the name: an interval, "off", "all" or "default".
         def said(value: object) -> object:
             if isinstance(value, models.Duration):
                 return value
-            return "default" if value is None else "off"
+            return "default" if value is None else str(getattr(value, "value", value))
 
         asked = [
             models.ParameterValue(name=f, value=said(wanted[f]))

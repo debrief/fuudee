@@ -136,6 +136,13 @@ export type FixIntervalOffEnum = "off";
  */
 export type TrackKindEnum = "track";
 /**
+ * A track's time labels or symbols at every recorded fix (CAP-32), legacy Debrief's "All" (decision, product owner, 15 Oct 2026): still thinned when zoomed out. Not for arrows.
+ *
+ * This interface was referenced by `DebriefSchemaDefinitions`'s JSON-Schema
+ * via the `definition` "FixIntervalAllEnum".
+ */
+export type FixIntervalAllEnum = "all";
+/**
  * How a track is plotted, as legacy Debrief asked of each track imported (CAP-01, decision, product owner, 14 Oct 2026).
  *
  * This interface was referenced by `DebriefSchemaDefinitions`'s JSON-Schema
@@ -679,9 +686,9 @@ export interface TrackProperties {
   hidden?: boolean | null;
   kind: TrackKindEnum;
   /**
-   * How often the track is labelled with the time (CAP-32): at each whole multiple of this interval of UTC (every 10 min is 0900, 0910, 0920...), as legacy Debrief aligns them, from 1 second to 24 hours; or off. Left out, Debrief's default: none. Presentation content: each change is a recorded, undoable step, like colour (SUB-22).
+   * How often the track is labelled with the time (CAP-32): at each whole multiple of this interval of UTC (every 10 min is 0900, 0910, 0920...), as legacy Debrief aligns them, from 1 second to 24 hours; at every fix ("all"); or off. Left out, Debrief's default: none. Presentation content: each change is a recorded, undoable step, like colour (SUB-22).
    */
-  label_interval?: Duration | FixIntervalOffEnum | null;
+  label_interval?: Duration | FixIntervalOffEnum | FixIntervalAllEnum | null;
   /**
    * A track plotted by dead reckoning: its courses as logged, one per fix, as they were when it was plotted so. On a DR track the courses and speeds are what edits change (decision, product owner, 14 Oct 2026), so these tell what was changed while plotted by dead reckoning, and plotting it over the ground again puts them back.
    */
@@ -710,9 +717,9 @@ export interface TrackProperties {
   speeds?: SpeedSeries | null;
   style?: TrackStyle | null;
   /**
-   * How often a small symbol in the track's colour marks where it was (CAP-32): aligned and bounded as label_interval. Left out, none.
+   * How often a small symbol in the track's colour marks where it was (CAP-32): aligned and bounded as label_interval, or at every fix ("all"). Left out, none.
    */
-  symbol_interval?: Duration | FixIntervalOffEnum | null;
+  symbol_interval?: Duration | FixIntervalOffEnum | FixIntervalAllEnum | null;
   /**
    * One per position, non-decreasing.
    */

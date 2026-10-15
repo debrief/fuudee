@@ -1,5 +1,5 @@
 {
-  "description": "Shared vectors for how often a track's fixes are labelled, marked with a symbol or given a direction arrow (CAP-32). An interval is a whole number of seconds from 1 s to 24 h. read: text an analyst or an agent types, and the seconds it means, \"off\", or the problem said; debrief_kernel.time.read_interval and readInterval in vscode/webview/frequencies.ts must agree. describe: seconds and the words for them, as step names and the form say them (describe_interval, describeInterval). track: a track's intervals as its details show them (debrief_stac.frequencies.describe_track, describeFrequencies).",
+  "description": "Shared vectors for how often a track's fixes are labelled, marked with a symbol or given a direction arrow (CAP-32). An interval is a whole number of seconds from 1 s to 24 h. read: text an analyst or an agent types, and the seconds it means, \"off\", \"all\" (at every fix: labels and symbols only), or the problem said; debrief_kernel.time.read_interval and readInterval in vscode/webview/frequencies.ts must agree. describe: seconds and the words for them, as step names and the form say them (describe_interval, describeInterval). track: a track's intervals as its details show them (debrief_stac.frequencies.describe_track, describeFrequencies).",
   "read": [
     {"text": "90 s", "seconds": 90},
     {"text": "90s", "seconds": 90},
@@ -18,6 +18,8 @@
     {"text": " 5 SEC ", "seconds": 5},
     {"text": "off", "seconds": "off"},
     {"text": "None", "seconds": "off"},
+    {"text": "all", "seconds": "all"},
+    {"text": " Every fix ", "seconds": "all"},
     {"text": "10", "problem": "Say the unit, such as 30 s, 10 min or 1 h 30 min."},
     {"text": "", "problem": "Say the unit, such as 30 s, 10 min or 1 h 30 min."},
     {"text": "ten minutes", "problem": "Say the unit, such as 30 s, 10 min or 1 h 30 min."},
@@ -42,6 +44,7 @@
   "track": [
     {"properties": {}, "text": "Labels default · Symbols default · Arrows default"},
     {"properties": {"label_interval": {"value": 10, "unit": "min"}, "symbol_interval": "off", "arrow_interval": {"value": 300, "unit": "s"}}, "text": "Labels every 10 min · Symbols off · Arrows every 5 min"},
-    {"properties": {"arrow_interval": "off", "symbol_interval": {"value": 90, "unit": "min"}}, "text": "Labels default · Symbols every 1 h 30 min · Arrows off"}
+    {"properties": {"arrow_interval": "off", "symbol_interval": {"value": 90, "unit": "min"}}, "text": "Labels default · Symbols every 1 h 30 min · Arrows off"},
+    {"properties": {"label_interval": "all", "symbol_interval": "all"}, "text": "Labels at every fix · Symbols at every fix · Arrows default"}
   ]
 }

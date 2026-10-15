@@ -39,7 +39,7 @@ import { defaultPivotIndex, describeDistance, describeSpeed, describeTurn, FIX_P
 import { chooseModes, MODE_LABELS, modeChoices, modeQuestion, REMEMBER_LABEL, REMEMBERED_IN_PLAYGROUND, type PlottingMode } from "../src/importmode.js";
 import { describeJump, describeMark, describeWindow, DR_TAG, fixRows, isDeadReckoned, jumpsFound, markAt, readThreshold, readWindow, smoothingNote, type Jump } from "../webview/fixes.js";
 import { FIX_COLOURS } from "../webview/palette.js";
-import { changesOf, choiceFromValue, choicesFor, describeChanges, describeInterval, describeSetFrequencies, FIELD_NAMES, FIELDS, formState, readInterval, trackDetails, type Field, type FieldState } from "../webview/frequencies.js";
+import { ALL_PROBLEM, AT_EVERY_FIX, changesOf, choiceFromValue, choicesFor, describeChanges, describeInterval, describeSetFrequencies, FIELD_NAMES, FIELDS, formState, readInterval, trackDetails, type Field, type FieldState } from "../webview/frequencies.js";
 import { formatQuantity } from "@debrief/kernel";
 
 type Feature = PlotFeature;
@@ -647,10 +647,14 @@ function frequencyForm(tracks: NonNullable<ReturnType<typeof trackOf>>[]): Promi
       const note = Object.assign(document.createElement("span"), { className: "detail form-note", id: `${id}-note` });
       note.setAttribute("aria-live", "polite");
       other.setAttribute("aria-describedby", note.id);
-      const typed = () => readInterval(other.value);
+      // Arrows have no All: typed, it is a problem, as any other text that is not an interval.
+      const typed = () => {
+        const r = readInterval(other.value);
+        return r === "all" && !AT_EVERY_FIX.includes(field) ? { problem: ALL_PROBLEM } : r;
+      };
       const say = () => {
         const r = typed();
-        note.textContent = !other.value.trim() ? "" : typeof r === "object" ? r.problem : r === "off" ? "Means off" : `Means every ${describeInterval(r)}`;
+        note.textContent = !other.value.trim() ? "" : typeof r === "object" ? r.problem : r === "off" ? "Means off" : r === "all" ? "Means at every fix" : `Means every ${describeInterval(r)}`;
         note.classList.toggle("problem", typeof r === "object" && !!other.value.trim());
       };
       other.addEventListener("input", say);

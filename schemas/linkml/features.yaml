@@ -75,6 +75,13 @@ enums:
       (CAP-32), rather than left to Debrief's default.
     permissible_values:
       "off": {description: "None drawn."}
+  FixIntervalAllEnum:
+    description: >-
+      A track's time labels or symbols at every recorded fix (CAP-32), legacy
+      Debrief's "All" (decision, product owner, 15 Oct 2026): still thinned
+      when zoomed out. Not for arrows.
+    permissible_values:
+      all: {description: "At every fix."}
   TrackEditAnchorEnum:
     description: Which end of the period a shear or a stretch holds fixed; the other end is the one dragged.
     permissible_values:
@@ -219,21 +226,24 @@ classes:
           How often the track is labelled with the time (CAP-32): at each
           whole multiple of this interval of UTC (every 10 min is 0900,
           0910, 0920...), as legacy Debrief aligns them, from 1 second to 24
-          hours; or off. Left out, Debrief's default: none. Presentation
-          content: each change is a recorded, undoable step, like colour
-          (SUB-22).
+          hours; at every fix ("all"); or off. Left out, Debrief's default:
+          none. Presentation content: each change is a recorded, undoable
+          step, like colour (SUB-22).
         inlined: true
         any_of:
           - range: Duration
           - range: FixIntervalOffEnum
+          - range: FixIntervalAllEnum
       symbol_interval:
         description: >-
           How often a small symbol in the track's colour marks where it was
-          (CAP-32): aligned and bounded as label_interval. Left out, none.
+          (CAP-32): aligned and bounded as label_interval, or at every fix
+          ("all"). Left out, none.
         inlined: true
         any_of:
           - range: Duration
           - range: FixIntervalOffEnum
+          - range: FixIntervalAllEnum
       arrow_interval:
         description: >-
           How often a chevron on the line shows the track's direction of

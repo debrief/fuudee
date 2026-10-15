@@ -28,7 +28,7 @@ import { startup, type StartupSnapshot } from "./startup.js";
 import { withMapLines, withPrimary, withSecondaries, withoutSecondary } from "../webview/totelogic.js";
 import { CONFLICT, NEEDS_CONFIRMATION, NEWER_SCHEMA, ServiceError, ToolService, type Agent, type AnnotationChange, type CallOutcome, type NarrativeChange, type OpenedView, type ToolListing, type TrackChange } from "./service.js";
 import type { CleanChange } from "./service.js";
-import { changesOf, choiceFromValue, choicesFor, describeInterval, FIELD_NAMES, FIELDS, formState, readInterval, type Field, type FieldState } from "../webview/frequencies.js";
+import { ALL_PROBLEM, AT_EVERY_FIX, changesOf, choiceFromValue, choicesFor, describeInterval, FIELD_NAMES, FIELDS, formState, readInterval, type Field, type FieldState } from "../webview/frequencies.js";
 import { describeJump, describeMark, describeWindow, fixRows, isDeadReckoned, jumpsFound, markAt, readThreshold, readWindow, smoothingNote, trackLabel } from "../webview/fixes.js";
 import { HistoryProvider } from "./views/history.js";
 import { DiagnosticLog, hashed, logKey, serviceLine, toolRunLine, type ToolOutcome } from "./diagnostics.js";
@@ -1027,7 +1027,8 @@ export function activate(context: vscode.ExtensionContext): DebriefApi {
   // Labels, symbols and arrows (CAP-32): how often, for every track selected at once, as one step.
   // From the outline's menu (with the others selected beside it), the Command Palette or the selection.
   // With intervals given (agents, keyboard macros, tests), no questions: each a duration such as
-  // {value: 10, unit: "min"} or "10 min", "off", or null for the default; one left out is unchanged.
+  // {value: 10, unit: "min"} or "10 min", "off", "all" (labels and symbols at every fix), or null
+  // for the default; one left out is unchanged.
   command("debrief.setTrackFrequencies", async (target?: string | string[] | Target, given?: unknown) => {
     const others = Array.isArray(given) ? featureIdsOf(given as never) : [];
     const ids = (typeof target === "string" ? [target] : Array.isArray(target) ? target : others.length ? others : targets(target)).filter((id) => trackById(id));
@@ -1064,12 +1065,13 @@ export function activate(context: vscode.ExtensionContext): DebriefApi {
         pick.activeItems = items.filter((i) => i.value === String(now));
         pick.onDidChangeValue((text) => {
           const read = text.trim() ? readInterval(text) : undefined;
-          const typed =
-            read === undefined || read === "off"
-              ? []
-              : typeof read === "number"
-                ? [{ label: `Every ${describeInterval(read)}`, value: String(read), description: "typed", alwaysShow: true }]
-                : [{ label: `$(warning) ${read.problem}`, value: "", alwaysShow: true }];
+          // Off and All are in the list already, found by typing them; arrows have no All.
+          const problem = typeof read === "object" ? read.problem : read === "all" && !AT_EVERY_FIX.includes(field) ? ALL_PROBLEM : undefined;
+          const typed = problem
+            ? [{ label: `$(warning) ${problem}`, value: "", alwaysShow: true }]
+            : typeof read === "number"
+              ? [{ label: `Every ${describeInterval(read)}`, value: String(read), description: "typed", alwaysShow: true }]
+              : [];
           pick.items = [...typed, ...items];
         });
         let done = false;

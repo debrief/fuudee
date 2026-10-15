@@ -584,6 +584,16 @@ class FixIntervalOffEnum(str, Enum):
     """
 
 
+class FixIntervalAllEnum(str, Enum):
+    """
+    A track's time labels or symbols at every recorded fix (CAP-32), legacy Debrief's "All" (decision, product owner, 15 Oct 2026): still thinned when zoomed out. Not for arrows.
+    """
+    all = "all"
+    """
+    At every fix.
+    """
+
+
 class TrackEditAnchorEnum(str, Enum):
     """
     Which end of the period a shear or a stretch holds fixed; the other end is the one dragged.
@@ -1674,9 +1684,13 @@ class TrackProperties(ConfiguredBaseModel):
     logged_positions: Optional[LineStringGeometry] = Field(default=None, description="""A track plotted by dead reckoning: its positions as logged, over the ground, one per fix, so plotting it over the ground again puts them back. Left out for a legacy plot's DR leg, which saved only the positions it worked out.""", json_schema_extra = { "linkml_meta": {'domain_of': ['TrackProperties']} })
     logged_courses: Optional[AngleSeries] = Field(default=None, description="""A track plotted by dead reckoning: its courses as logged, one per fix, as they were when it was plotted so. On a DR track the courses and speeds are what edits change (decision, product owner, 14 Oct 2026), so these tell what was changed while plotted by dead reckoning, and plotting it over the ground again puts them back.""", json_schema_extra = { "linkml_meta": {'domain_of': ['TrackProperties']} })
     logged_speeds: Optional[SpeedSeries] = Field(default=None, description="""A track plotted by dead reckoning: its speeds as logged, one per fix, as they were when it was plotted so; see logged_courses.""", json_schema_extra = { "linkml_meta": {'domain_of': ['TrackProperties']} })
-    label_interval: Optional[Union[Duration, FixIntervalOffEnum]] = Field(default=None, description="""How often the track is labelled with the time (CAP-32): at each whole multiple of this interval of UTC (every 10 min is 0900, 0910, 0920...), as legacy Debrief aligns them, from 1 second to 24 hours; or off. Left out, Debrief's default: none. Presentation content: each change is a recorded, undoable step, like colour (SUB-22).""", json_schema_extra = { "linkml_meta": {'any_of': [{'range': 'Duration'}, {'range': 'FixIntervalOffEnum'}],
+    label_interval: Optional[Union[Duration, FixIntervalAllEnum, FixIntervalOffEnum]] = Field(default=None, description="""How often the track is labelled with the time (CAP-32): at each whole multiple of this interval of UTC (every 10 min is 0900, 0910, 0920...), as legacy Debrief aligns them, from 1 second to 24 hours; at every fix (\"all\"); or off. Left out, Debrief's default: none. Presentation content: each change is a recorded, undoable step, like colour (SUB-22).""", json_schema_extra = { "linkml_meta": {'any_of': [{'range': 'Duration'},
+                    {'range': 'FixIntervalOffEnum'},
+                    {'range': 'FixIntervalAllEnum'}],
          'domain_of': ['TrackProperties']} })
-    symbol_interval: Optional[Union[Duration, FixIntervalOffEnum]] = Field(default=None, description="""How often a small symbol in the track's colour marks where it was (CAP-32): aligned and bounded as label_interval. Left out, none.""", json_schema_extra = { "linkml_meta": {'any_of': [{'range': 'Duration'}, {'range': 'FixIntervalOffEnum'}],
+    symbol_interval: Optional[Union[Duration, FixIntervalAllEnum, FixIntervalOffEnum]] = Field(default=None, description="""How often a small symbol in the track's colour marks where it was (CAP-32): aligned and bounded as label_interval, or at every fix (\"all\"). Left out, none.""", json_schema_extra = { "linkml_meta": {'any_of': [{'range': 'Duration'},
+                    {'range': 'FixIntervalOffEnum'},
+                    {'range': 'FixIntervalAllEnum'}],
          'domain_of': ['TrackProperties']} })
     arrow_interval: Optional[Union[Duration, FixIntervalOffEnum]] = Field(default=None, description="""How often a chevron on the line shows the track's direction of travel (CAP-32): aligned and bounded as label_interval. Left out, Debrief's default: a few along the track in the time window.""", json_schema_extra = { "linkml_meta": {'any_of': [{'range': 'Duration'}, {'range': 'FixIntervalOffEnum'}],
          'domain_of': ['TrackProperties']} })

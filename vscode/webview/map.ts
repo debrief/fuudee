@@ -63,7 +63,7 @@ import type { DebriefFeatureCollection, TimelineEntry, TimeState, ToteView } fro
 import type { AnnotationProperties } from "@debrief/schemas";
 import { labelPlacement, labelText, lookOf, shapeOf, specOfFeature, type Look } from "./annotationlook.js";
 import { circleRing, densify, ellipseRing, pointAt, positionAt as trackPositionAt, type LonLat } from "./geodesic.js";
-import { CAP, declutter, FIELDS, fixLabel, forcedTimes, gaps, gridCount, gridTimes, intervalMs, labelsWithDay, LEADER_PX, mergeSpans, Occupied, placeLabels as placeTimeLabels, portSide, SPACING_PX, thinnedInterval, thinningNote, withForced, type Field } from "./frequencies.js";
+import { CAP, declutter, everyFix, FIELDS, fixLabel, forcedTimes, gaps, gridCount, gridTimes, intervalMs, labelsWithDay, LEADER_PX, medianStep, mergeSpans, Occupied, placeLabels as placeTimeLabels, portSide, SPACING_PX, thinnedInterval, thinningNote, withForced, type Field } from "./frequencies.js";
 import { CONTEXT_WEIGHT, contextStyle, parseColour, WINDOW_WEIGHT, type ContextStyle, type ContextTracks, type MapTheme, type Rgb } from "./contrast.js";
 import { MapEditor } from "./mapedit.js";
 import { PressHold } from "./presshold.js";
@@ -956,8 +956,9 @@ interface Projected {
   along: Float64Array;
   bounds: [number, number, number, number];
   wraps: boolean;
-  /** Its gaps in the data, where nothing is drawn (frequencies.gaps). */
+  /** Its gaps in the data, where nothing is drawn (frequencies.gaps), and the median time between its fixes. */
   gaps: [number, number][];
+  median: number;
   at: Map<number, { position: LonLat; course?: number; x: number; y: number }>;
 }
 const projectedTracks = new WeakMap<Track, Projected>();
@@ -985,7 +986,7 @@ function projectedOf(track: Track, times: number[]): Projected {
       along[i] = along[i - 1] + Math.hypot(dx, p.y - xy[2 * i - 1]);
     }
   });
-  const out = { xy, along, bounds, wraps, gaps: gaps(times), at: new Map() };
+  const out = { xy, along, bounds, wraps, gaps: gaps(times), median: medianStep(times), at: new Map() };
   projectedTracks.set(track, out);
   return out;
 }
@@ -1136,7 +1137,7 @@ function drawGrid(): void {
     const props = track.properties;
     // Fixes whose label or symbol is always shown (show_label, show_symbol), by kind: drawn whatever the interval, never thinned.
     const forcedAt = forcedTimes(props.fix_marks);
-    const fields = FIELDS.filter((f) => typeof intervalMs(props[f]) === "number" || forcedAt[f].length);
+    const fields = FIELDS.filter((f) => typeof intervalMs(props[f]) === "number" || intervalMs(props[f]) === "all" || forcedAt[f].length);
     if (!fields.length || editing.has(track.id) || !times.length) continue;
     const start = Math.max(times[0], window.start);
     const end = Math.min(times[times.length - 1], window.end);
@@ -1172,9 +1173,12 @@ function drawGrid(): void {
       const set = intervalMs(props[field]);
       const every = typeof set === "number" ? set : undefined;
       const spacing = SPACING_PX[field];
-      if (every) drawing[field] = (drawing[field] ?? 0) + 1;
-      const drawnEvery = every && thinnedInterval(every, pxPerMs, spacing, (e) => gridCount(spans, e), CAP[field]);
-      const regular = drawnEvery ? gridTimes(spans, drawnEvery, { start: times[0], end: times[times.length - 1] }, gapSpans, CAP[field]) : [];
+      // At every fix (legacy Debrief's All): each fix's time, until they would crowd; then an interval, thinned as any is.
+      const fixes = set === "all" ? everyFix(times, spans, pxPerMs, spacing, CAP[field], p.median) : undefined;
+      const asked = every ?? (fixes && "every" in fixes ? fixes.every : undefined);
+      if (every || fixes) drawing[field] = (drawing[field] ?? 0) + 1;
+      const drawnEvery = asked && thinnedInterval(asked, pxPerMs, spacing, (e) => gridCount(spans, e), CAP[field]);
+      const regular = fixes && "times" in fixes ? fixes.times : drawnEvery ? gridTimes(spans, drawnEvery, { start: times[0], end: times[times.length - 1] }, gapSpans, CAP[field]) : [];
       const onScreen = regular.map(screen);
       // Never closer on screen than the spacing allows, where the track is slow or doubles back.
       let keptIndices = declutter(onScreen, spacing * 0.8);
@@ -1182,9 +1186,9 @@ function drawGrid(): void {
       if (field === "arrow_interval") keptIndices = keptIndices.filter((k) => ends.every((e) => Math.hypot(onScreen[k].x - e.x, onScreen[k].y - e.y) >= ARROW_END_PX));
       const keptRegular = keptIndices.map((k) => regular[k]);
       // Said when the interval was raised, or where crowding left out more than a quarter: a few in a tight turn go unsaid. Labels are said once placed.
-      const raised = !!(every && drawnEvery && drawnEvery !== every);
-      if (field === "label_interval" && every) regularLabels.set(track.id, { offered: regular.length, name: trackLabel(props), ...(raised && { raised: drawnEvery as number }) });
-      else if (every && drawnEvery && (raised || keptRegular.length < CROWDED * regular.length)) thinned.push({ field, track: trackLabel(props), ...(raised && { drawn: drawnEvery }) });
+      const raised = !!(drawnEvery && (fixes || drawnEvery !== every));
+      if (field === "label_interval" && (every || fixes)) regularLabels.set(track.id, { offered: regular.length, name: trackLabel(props), ...(raised && { raised: drawnEvery as number }) });
+      else if ((every || fixes) && (raised || keptRegular.length < CROWDED * regular.length)) thinned.push({ field, track: trackLabel(props), ...(raised && { drawn: drawnEvery as number }) });
       // A fix whose label or symbol is always shown: at the fix, at any zoom; once, where the interval falls on it too.
       const forced = forcedAt[field].filter(inSpans);
       const at = withForced(keptRegular, forced);

@@ -26,7 +26,12 @@ export const FIELDS = ["label_interval", "symbol_interval", "arrow_interval"] as
 export type Field = (typeof FIELDS)[number];
 /** What each is called, as a heading in the form and in what the map says. */
 export const FIELD_NAMES: Record<Field, string> = { label_interval: "Labels", symbol_interval: "Symbols", arrow_interval: "Arrows" };
-export type Interval = Duration | "off" | null | undefined;
+export type Interval = Duration | "off" | "all" | null | undefined;
+/** What a change sets a field to: a duration, off, at every fix, or null for Debrief's default. */
+export type Setting = Duration | "off" | "all" | null;
+/** The kinds that may be at every fix (legacy Debrief's "All"; product owner, 15 Oct 2026): labels and symbols, never arrows. */
+export const AT_EVERY_FIX: readonly Field[] = ["label_interval", "symbol_interval"];
+export const ALL_PROBLEM = "Arrows cannot be at every fix: give an interval, such as 10 min, or off.";
 
 export const MIN_S = 1;
 export const MAX_S = 86_400;
@@ -46,13 +51,15 @@ export const WHOLE_PROBLEM = "Give whole seconds: an interval is from 1 s to 24 
 export const RANGE_PROBLEM = "An interval is from 1 s to 24 h.";
 
 /**
- * An interval as typed: seconds, "off" (for off or none), or what is wrong. Units short or
+ * An interval as typed: seconds, "off" (for off or none), "all" (for all or every fix), or
+ * what is wrong. Units short or
  * long ("90 s", "10 min", "2 hours", "1 day"), combined ("1 h 30 min"); a bare number after
  * one with a unit is in the next smaller unit ("1h30" is 1 h 30 min).
  */
-export function readInterval(text: string): number | "off" | { problem: string } {
+export function readInterval(text: string): number | "off" | "all" | { problem: string } {
   const said = text.trim().toLowerCase();
   if (said === "off" || said === "none") return "off";
+  if (said === "all" || said === "every fix" || said === "all fixes") return "all";
   const rest = said.replace(/,/g, " ");
   const part = /(\d+(?:\.\d+)?)\s*([a-z]*)/y;
   let total = 0;
@@ -109,14 +116,14 @@ export function durationOf(seconds: number): Duration {
 
 // --- The form: what each field shows for the tracks chosen, and what to send ------------
 /** A field's choice: Debrief's default, off, or every so many seconds. */
-export type Choice = "default" | "off" | number;
+export type Choice = "default" | "off" | "all" | number;
 /** A field's state for the tracks chosen: their choice, or "mixed" where they differ (left unchanged unless changed). */
 export type FieldState = Choice | "mixed";
 
 /** What a track's interval shows as. Labels and symbols by default are none, so they show as off; arrows show their default. */
 export function choiceOf(field: Field, value: Interval): Choice {
   if (value === undefined || value === null) return field === "arrow_interval" ? "default" : "off";
-  if (value === "off") return "off";
+  if (value === "off" || value === "all") return value;
   return Math.round(secondsOf(value));
 }
 
@@ -131,11 +138,12 @@ export function formState(tracks: Presentation[]): Record<Field, FieldState> {
   return state;
 }
 
-/** The choices a field offers, in order: (mixed,) (the default,) off, the presets, then any other interval a track has. */
+/** The choices a field offers, in order: (mixed,) (the default,) off, (every fix, for labels and symbols,) the presets, then any other interval a track has. */
 export function choicesFor(field: Field, state: FieldState): { value: string; label: string }[] {
   const out = state === "mixed" ? [{ value: "mixed", label: "Mixed (unchanged)" }] : [];
   if (field === "arrow_interval") out.push({ value: "default", label: "A few (default)" });
   out.push({ value: "off", label: "Off" });
+  if (AT_EVERY_FIX.includes(field)) out.push({ value: "all", label: "All (every fix)" });
   const seconds = [...PRESETS];
   if (typeof state === "number" && !seconds.includes(state)) seconds.push(state);
   seconds.sort((a, b) => a - b);
@@ -143,35 +151,36 @@ export function choicesFor(field: Field, state: FieldState): { value: string; la
   return out;
 }
 
-/** A choice from the form's value: "mixed" (unchanged), "default", "off" or seconds. */
+/** A choice from the form's value: "mixed" (unchanged), "default", "off", "all" or seconds. */
 export function choiceFromValue(value: string): FieldState {
-  return value === "mixed" || value === "default" || value === "off" ? value : Number(value);
+  return value === "mixed" || value === "default" || value === "off" || value === "all" ? value : Number(value);
 }
 
 /**
  * What to send for the choices made: each field changed from what at least one track shows,
- * as a duration, "off", or null for Debrief's default. A field left mixed, or showing what
+ * as a duration, "off", "all", or null for Debrief's default. A field left mixed, or showing what
  * every track has already, is left out, so it stays as each track has it.
  */
-export function changesOf(tracks: Presentation[], chosen: Partial<Record<Field, FieldState>>): Partial<Record<Field, Duration | "off" | null>> {
-  const out: Partial<Record<Field, Duration | "off" | null>> = {};
+export function changesOf(tracks: Presentation[], chosen: Partial<Record<Field, FieldState>>): Partial<Record<Field, Setting>> {
+  const out: Partial<Record<Field, Setting>> = {};
   for (const field of FIELDS) {
     const choice = chosen[field];
     if (choice === undefined || choice === "mixed") continue;
     if (tracks.every((t) => choiceOf(field, t[field]) === choice)) continue;
-    out[field] = choice === "default" ? null : choice === "off" ? "off" : durationOf(choice);
+    out[field] = choice === "default" ? null : choice === "off" || choice === "all" ? choice : durationOf(choice);
   }
   return out;
 }
 
 /** What a change says, as its step will be named: "Labels every 10 min, arrows off on 2 tracks". */
-export function describeChanges(changes: Partial<Record<Field, Duration | "off" | null>>, names: string[]): string {
+export function describeChanges(changes: Partial<Record<Field, Setting>>, names: string[]): string {
   const said = FIELDS.filter((f) => f in changes)
     .map((f) => {
       const value = changes[f];
       const noun = FIELD_NAMES[f].toLowerCase();
       if (value === null || value === undefined) return `${noun} back to the default`;
       if (value === "off") return `${noun} off`;
+      if (value === "all") return `${noun} at every fix`;
       return `${noun} every ${describeInterval(Math.round(secondsOf(value)))}`;
     })
     .join(", ");
@@ -187,7 +196,7 @@ export function describeChanges(changes: Partial<Record<Field, Duration | "off" 
 export function describeFrequencies(track: Presentation): string {
   return FIELDS.map((field) => {
     const value = track[field];
-    const said = value === undefined || value === null ? "default" : value === "off" ? "off" : `every ${describeInterval(Math.round(secondsOf(value)))}`;
+    const said = value === undefined || value === null ? "default" : value === "off" ? "off" : value === "all" ? "at every fix" : `every ${describeInterval(Math.round(secondsOf(value)))}`;
     return `${FIELD_NAMES[field]} ${said}`;
   }).join(" · ");
 }
@@ -212,10 +221,10 @@ export function trackDetails(props: Presentation & { name: string }, when: strin
 }
 
 // --- Times on the map -----------------------------------------------------------------
-/** Milliseconds between items, or none to draw (off) or the default (left out). */
-export function intervalMs(value: Interval): number | "off" | undefined {
+/** Milliseconds between items; or none to draw (off), at every fix (all), or the default (left out). */
+export function intervalMs(value: Interval): number | "off" | "all" | undefined {
   if (value === undefined || value === null) return undefined;
-  if (value === "off") return "off";
+  if (value === "off" || value === "all") return value;
   return Math.round(secondsOf(value)) * 1000;
 }
 
@@ -255,6 +264,38 @@ export function gridTimes(spans: [number, number][], every: number, track: { sta
     }
   }
   return out;
+}
+
+/**
+ * Labels or symbols at every fix ("all"): the times of the track's fixes within the spans
+ * (in order, each once, at most `cap`); or, where they would crowd (the fixes' median time
+ * apart crossing less than `spacingPx` on screen at `pxPerMs`) or number more than `cap`,
+ * none, and the interval to draw at instead, so a track zoomed out is thinned to round
+ * times as any interval is: the smallest preset at least the fixes' median time apart.
+ */
+export function everyFix(times: number[], spans: [number, number][], pxPerMs: number, spacingPx: number, cap = Infinity, median = medianStep(times)): { times: number[] } | { every: number } {
+  const out: number[] = [];
+  let count = 0;
+  for (const t of times) {
+    if (t === out[out.length - 1] || !spans.some(([a, b]) => t >= a && t <= b)) continue;
+    count++;
+    if (out.length < cap) out.push(t);
+  }
+  if (median && (median * pxPerMs < spacingPx || count > cap)) {
+    const preset = PRESETS.find((s) => s * 1000 >= median);
+    return { every: (preset ?? PRESETS[PRESETS.length - 1]) * 1000 };
+  }
+  return { times: out };
+}
+
+/** The median time between a track's fixes, in ms (fixes sharing a time aside); 0 with fewer than two times. */
+export function medianStep(times: number[]): number {
+  const steps = times
+    .slice(1)
+    .map((t, i) => t - times[i])
+    .filter((d) => d > 0)
+    .sort((x, y) => x - y);
+  return steps.length ? steps[Math.floor(steps.length / 2)] : 0;
 }
 
 /** How many grid times the spans hold at `every` ms, without listing them. */

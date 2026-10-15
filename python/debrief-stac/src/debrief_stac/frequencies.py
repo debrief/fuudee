@@ -4,7 +4,9 @@ undoable step, as colour is (SUB-22).
 
 Each of a track's label_interval, symbol_interval and arrow_interval is a Duration
 (a whole number of seconds from 1 s to 24 h), "off", or left out for Debrief's default
-(labels and symbols: none; arrows: a few along the track in the time window). The map
+(labels and symbols: none; arrows: a few along the track in the time window). Labels
+and symbols may also be "all": at every recorded fix, legacy Debrief's "All"
+(decision, product owner, 15 Oct 2026); arrows may not. The map
 draws them at each whole multiple of the interval of UTC, as legacy Debrief's
 LightweightTrackWrapper.setFixes does (it rounds the track's start up to a multiple of
 the frequency): every 10 min is 0900, 0910, 0920, whenever the track starts.
@@ -20,6 +22,7 @@ from collections.abc import Mapping
 from typing import Any
 
 from debrief_kernel.time import (
+    INTERVAL_ALL,
     INTERVAL_MAX_S,
     INTERVAL_MIN_S,
     INTERVAL_OFF,
@@ -33,7 +36,10 @@ from debrief_schemas import models
 FIELDS = ("label_interval", "symbol_interval", "arrow_interval")
 NOUNS = {"label_interval": "labels", "symbol_interval": "symbols", "arrow_interval": "arrows"}
 
-Interval = models.Duration | models.FixIntervalOffEnum | None
+Interval = models.Duration | models.FixIntervalOffEnum | models.FixIntervalAllEnum | None
+# Kinds that may be at every fix: labels and symbols, as legacy Debrief's "All".
+AT_EVERY_FIX = ("label_interval", "symbol_interval")
+ALL_PROBLEM = "Arrows cannot be at every fix: give an interval, such as 10 min, or off."
 
 
 def seconds_of(duration: models.Duration) -> float:
@@ -51,16 +57,23 @@ def duration_of(seconds: int) -> models.Duration:
     return models.Duration(value=seconds, unit="s")
 
 
-def interval_from(value: Any) -> Interval:
-    """An interval as a form or an agent gives it: a Duration (or {value, unit}),
-    seconds as a number, text such as "10 min" or "1h30", "off", or None for Debrief's
-    default. Raises IntervalError, in plain words."""
+def interval_from(value: Any, field: str = "label_interval") -> Interval:
+    """An interval as a form or an agent gives it for a field: a Duration (or {value,
+    unit}), seconds as a number, text such as "10 min" or "1h30", "off", "all" (at
+    every fix: labels and symbols only), or None for Debrief's default. Raises
+    IntervalError, in plain words."""
     if value is None:
         return None
     if isinstance(value, models.FixIntervalOffEnum):
         return value
+    if isinstance(value, models.FixIntervalAllEnum):
+        value = INTERVAL_ALL
     if isinstance(value, str):
         read = read_interval(value)
+        if read == INTERVAL_ALL:
+            if field not in AT_EVERY_FIX:
+                raise IntervalError(ALL_PROBLEM)
+            return models.FixIntervalAllEnum.all
         return models.FixIntervalOffEnum.off if read == INTERVAL_OFF else duration_of(int(read))
     if isinstance(value, bool):
         raise IntervalError("Give an interval, such as 10 min, or off.")
@@ -83,17 +96,25 @@ def interval_from(value: Any) -> Interval:
 
 
 def same(a: Interval, b: Interval) -> bool:
-    """Whether two intervals draw the same: equal durations in any unit, both off, or
-    both left out."""
+    """Whether two intervals draw the same: equal durations in any unit, both off, both
+    at every fix, or both left out."""
     if isinstance(a, models.Duration) and isinstance(b, models.Duration):
         return abs(seconds_of(a) - seconds_of(b)) < 1e-6
     if a is None or b is None:
         return a is None and b is None
-    return _off(a) and _off(b)
+    return _keyword(a) is not None and _keyword(a) == _keyword(b)
+
+
+def _keyword(value: object) -> str | None:
+    """ "off" or "all" for an interval that is one of them, as an enum or as text."""
+    if isinstance(value, models.Duration) or value is None:
+        return None
+    said = str(getattr(value, "value", value))
+    return said if said in (INTERVAL_OFF, INTERVAL_ALL) else None
 
 
 def _off(value: Interval) -> bool:
-    return value is not None and not isinstance(value, models.Duration)
+    return _keyword(value) == INTERVAL_OFF
 
 
 def describe(field: str, value: Interval) -> str:
@@ -104,6 +125,8 @@ def describe(field: str, value: Interval) -> str:
         return f"{noun} back to the default"
     if _off(value):
         return f"{noun} off"
+    if _keyword(value) == INTERVAL_ALL:
+        return f"{noun} at every fix"
     return f"{noun} every {describe_interval(round(seconds_of(value)))}"
 
 
@@ -120,6 +143,8 @@ def describe_track(props: Any) -> str:
             said = "default"
         elif isinstance(value, models.Duration):
             said = f"every {describe_interval(round(seconds_of(value)))}"
+        elif _keyword(value) == INTERVAL_ALL:
+            said = "at every fix"
         else:
             said = "off"
         parts.append(f"{NOUNS[field].capitalize()} {said}")
