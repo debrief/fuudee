@@ -326,3 +326,122 @@ export function editsText(element: { tagName?: string; type?: string; isContentE
   if (tag === "TEXTAREA") return true;
   return tag === "INPUT" && !NOT_TEXT.has((element.type || "text").toLowerCase());
 }
+
+// --- The reader's view: highlights, choosing, text size, wrapping, columns ---------------
+
+/** The Timeline's columns the reader may hide; the entry's text is always shown. */
+export type Column = "time" | "source" | "type";
+export const COLUMNS: readonly Column[] = ["time", "source", "type"];
+
+/** Text sizes the reader steps through, in CSS pixels; 12 is the Timeline's own. */
+export const TEXT_SIZES: readonly number[] = [11, 12, 14, 16, 18];
+export const DEFAULT_TEXT_SIZE = 12;
+
+/**
+ * How the reader likes the Timeline (product owner, 15 Oct 2026: legacy Debrief's
+ * Narrative viewer's extras): words and phrases to highlight wherever they are in an
+ * entry's text; whether choosing an entry moves current time; the text's size and
+ * whether long entries wrap; which columns show. The reader's own, kept in the page as
+ * the filter is, never in the plot.
+ */
+export interface ViewSettings {
+  highlights: string[];
+  moveTime: boolean;
+  textSize: number;
+  wrap: boolean;
+  hidden: Column[];
+}
+
+export const DEFAULT_VIEW: ViewSettings = { highlights: [], moveTime: true, textSize: DEFAULT_TEXT_SIZE, wrap: true, hidden: [] };
+
+/** At most this many phrases, each at most this long: a reader's list, not a document. */
+export const MAX_HIGHLIGHTS = 20;
+const MAX_PHRASE = 60;
+
+/**
+ * Phrases to highlight from what the reader typed: separated by commas or new lines,
+ * trimmed, spaces inside kept; each once, ignoring case, in the order first typed.
+ */
+export function parseHighlights(text: string): string[] {
+  const out: string[] = [];
+  const seen = new Set<string>();
+  for (const raw of text.split(/[,\n]/)) {
+    const phrase = raw.trim().replace(/\s+/g, " ").slice(0, MAX_PHRASE);
+    const key = phrase.toLowerCase();
+    if (!phrase || seen.has(key)) continue;
+    seen.add(key);
+    out.push(phrase);
+    if (out.length === MAX_HIGHLIGHTS) break;
+  }
+  return out;
+}
+
+/** The view kept from an earlier visit, checked: anything unreadable is the default. */
+export function readView(raw: unknown): ViewSettings {
+  if (!raw || typeof raw !== "object") return { ...DEFAULT_VIEW };
+  const value = raw as Record<string, unknown>;
+  const highlights = Array.isArray(value.highlights) ? parseHighlights(value.highlights.filter((h): h is string => typeof h === "string").join(",")) : [];
+  const size = typeof value.textSize === "number" && TEXT_SIZES.includes(value.textSize) ? value.textSize : DEFAULT_TEXT_SIZE;
+  const hidden = Array.isArray(value.hidden) ? COLUMNS.filter((c) => (value.hidden as unknown[]).includes(c)) : [];
+  return { highlights, moveTime: value.moveTime !== false, textSize: size, wrap: value.wrap !== false, hidden };
+}
+
+/** One step smaller or larger, within the sizes offered; the same size at either end. */
+export function stepTextSize(size: number, step: -1 | 1): number {
+  const at = TEXT_SIZES.indexOf(size);
+  const from = at < 0 ? TEXT_SIZES.indexOf(DEFAULT_TEXT_SIZE) : at;
+  return TEXT_SIZES[Math.max(0, Math.min(TEXT_SIZES.length - 1, from + step))];
+}
+
+/** A line's height for a text size: four thirds of it, as the Timeline's 16 px for 12 px. */
+export const lineHeight = (size: number) => Math.round((size * 4) / 3);
+
+/** Whether the reader has changed anything from the Timeline's own view. */
+export const viewChanged = (v: ViewSettings) =>
+  v.highlights.length > 0 || !v.moveTime || v.textSize !== DEFAULT_TEXT_SIZE || !v.wrap || v.hidden.length > 0;
+
+/**
+ * The columns of the list's grid for the columns shown: widths as CSS, and the column
+ * the entry's text starts in on a narrow list, where it goes under the time, source and
+ * type, aligned with the source (with the time hidden, from the left edge).
+ */
+export function gridOf(hidden: readonly Column[], narrow: boolean): { columns: string; textFrom: number } {
+  const shows = (c: Column) => !hidden.includes(c);
+  const width: Record<Column, string> = { time: "var(--tl-time)", source: "var(--tl-source)", type: "var(--tl-type)" };
+  if (!narrow) {
+    const columns = [...COLUMNS.filter(shows).map((c) => width[c]), "minmax(0, 1fr)"];
+    return { columns: columns.join(" "), textFrom: columns.length };
+  }
+  const columns = [...(shows("time") ? [width.time] : []), "minmax(0, 1fr)", ...(shows("type") ? ["auto"] : [])];
+  return { columns: columns.join(" "), textFrom: shows("time") ? 2 : 1 };
+}
+
+/** A span of text to mark: what the search found, or a phrase the reader highlights. */
+export interface Mark {
+  start: number;
+  end: number;
+  kind: "found" | "highlight";
+}
+
+/**
+ * Where a text is marked: the search's matches, and the reader's phrases, ignoring case;
+ * never overlapping. Where the two meet, the search wins (it is what the reader is
+ * looking for now); among phrases, the longest at a place wins, so "contact lost" is
+ * marked whole, not just "contact".
+ */
+export function marks(text: string, needle: string, highlights: readonly string[]): Mark[] {
+  const lower = text.toLowerCase();
+  const taken = new Uint8Array(text.length);
+  const out: Mark[] = [];
+  const claim = (start: number, end: number, kind: Mark["kind"]) => {
+    for (let i = start; i < end; i++) if (taken[i]) return;
+    taken.fill(1, start, end);
+    out.push({ start, end, kind });
+  };
+  for (const [start, end] of matches(text, needle)) claim(start, end, "found");
+  const phrases = [...new Set(highlights.map((h) => h.trim().toLowerCase()).filter(Boolean))].sort((a, b) => b.length - a.length);
+  for (const phrase of phrases) {
+    for (let at = lower.indexOf(phrase); at >= 0; at = lower.indexOf(phrase, at + phrase.length)) claim(at, at + phrase.length, "highlight");
+  }
+  return out.sort((a, b) => a.start - b.start);
+}
