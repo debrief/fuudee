@@ -3,8 +3,23 @@
  * from what the file holds (debrief/preview_narrative), as legacy Debrief asked before
  * reading a Word or PDF narrative: which types of entry (with how many of each); all
  * entries or only those within the plot's period; and which track an unknown platform
- * is. Shared by VS Code and the playground, so both ask the same.
+ * is. Shared by VS Code and the playground, so both ask the same. And, first, for a file
+ * read into the plot before or with entries already in it (product owner, 15 Oct 2026):
+ * skip the entries already there, or read nothing.
  */
+
+/** A step that read the same file (by its content hash) into the plot, still in it. */
+export interface EarlierRead {
+  step: number;
+  /** When the step began, UTC ISO. */
+  at: string;
+  /** Who: the agent's name. */
+  by: string;
+  /** The step's name in the History: "Narrative read from red-one-log.docx". */
+  how: string;
+  /** The source's name as it was read in. */
+  name: string;
+}
 
 /** What a narrative file holds, said before it is read in (debrief/preview_narrative). */
 export interface NarrativePreview {
@@ -31,6 +46,12 @@ export interface NarrativePreview {
   outside: number;
   omitted: string[];
   notes: string[];
+  /** The file's content hash, as a source's is recorded. */
+  content_hash?: string;
+  /** Steps in the plot that read this file before, under any name; empty if none. */
+  earlier?: EarlierRead[];
+  /** Entries the plot has already: the same time, source and text. */
+  already?: number;
   error?: string;
 }
 
@@ -42,6 +63,44 @@ export interface NarrativeChoices {
   /** A platform's track: its id, or null for none. */
   tracks?: Record<string, string | null>;
   platform?: string;
+  /** For a file read in before, or with entries already in the plot: skip those, or add them again. */
+  duplicates?: "skip" | "add";
+}
+
+/**
+ * What to say before reading a file read into the plot before, or with entries already in
+ * it; undefined if neither. title and detail say what and when; skip labels the choice to
+ * read only the entries not in the plot, and nothingNew is true when there are none.
+ */
+export function duplicateQuestion(
+  preview: NarrativePreview,
+  format: (iso: string) => string,
+): { title: string; detail: string; skip: string; skipDetail: string; nothingNew: boolean } | undefined {
+  const earlier = preview.earlier?.length ? preview.earlier[preview.earlier.length - 1] : undefined;
+  const already = preview.already ?? 0;
+  if (!earlier && !already) return undefined;
+  const n = (count: number) => count.toLocaleString("en-GB");
+  const entries = (count: number) => `${n(count)} ${count === 1 ? "entry" : "entries"}`;
+  const there =
+    already === preview.entries
+      ? preview.entries === 1
+        ? "Its entry is in the plot."
+        : `All ${entries(preview.entries)} are in the plot.`
+      : already
+        ? `${n(already)} of its ${entries(preview.entries)} ${already === 1 ? "is" : "are"} in the plot.`
+        : "None of its entries is in the plot now.";
+  const title = earlier
+    ? `${preview.name} is already in the plot`
+    : `${n(already)} of the ${entries(preview.entries)} in ${preview.name} ${already === 1 ? "is" : "are"} already in the plot`;
+  const detail = earlier ? `Read in on ${format(earlier.at)} by ${earlier.by} (step ${earlier.step}, ${earlier.how}). ${there}` : "The same time, source and text.";
+  const left = preview.entries - already;
+  return {
+    title,
+    detail,
+    skip: "Skip entries already in the plot",
+    skipDetail: left ? `Read the ${entries(left)} not in the plot` : "Nothing new to read",
+    nothingNew: left === 0,
+  };
 }
 
 /** At most this many platforms are asked about; the rest belong to no track. */

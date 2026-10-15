@@ -58,7 +58,7 @@ Not yet: sensor lines (Phase 4) and REP per-fix labels.
 - Text run on after a closing quote is kept for the next field (legacy Debrief dropped it).
 - Dates and times as for fixes. A line with no text, or no closing quote, is reported with its number.
 
-Each entry belongs to the plot's track of its source's name, ignoring case and spacing. A file of narrative alone makes a plot. `import_narrative(catalogue, item, path, agent, base)` reads a file's narrative into a plot already open, as one step: the file kept as a source in the plot's item, one provenance record (`debrief-io.narrative`) naming it and listing what was not read; a stale `base` changes nothing.
+Each entry belongs to the plot's track of its source's name, ignoring case and spacing. A file of narrative alone makes a plot. `import_narrative(catalogue, item, path, agent, base)` reads a file's narrative into a plot already open, as one step: the file kept as a source in the plot's item, one provenance record (`debrief-io.narrative`) naming it and listing what was not read; a stale `base` changes nothing. A file read in before, known by its content hash whatever its name, or one with entries the plot has already (the same time, source and text), is read only with `Choices(duplicates="skip")` (the entries not in the plot) or `"add"` (all again); otherwise `AlreadyInPlotError` says when it was read in, and nothing is read.
 
 ## Word and PDF narrative
 
@@ -67,7 +67,8 @@ Narrative from Word (`.docx`, `.doc`) and PDF documents (CAP-19, EXT-04), in leg
 ```python
 from debrief_io import Choices, import_document, import_narrative, preview_narrative
 
-preview_narrative(Path("blue-log.docx"), plot)  # dialect, types and sources with counts, period
+# Dialect, types and sources with counts, period; read in before, entries already there.
+preview_narrative(Path("blue-log.docx"), catalogue=catalogue, item_id="serial")
 done = import_narrative(
     catalogue,
     "serial",
@@ -87,7 +88,7 @@ import_document(catalogue, Path("rider.doc"))  # a plot of its own
 | ASW data (`ImportASWDataDocument`) | five `TMPOS` lines in the first hundred | positions of one platform: a track, imported as a plot, not narrative |
 | Dated narrative (`ImportWordDummy`) | `yyyy,MM,dd,HH:mm[:ss],` lines | type, platform, text |
 
-The files are read in `debrief_io.documents`: `.docx` by the standard library (zip and expat, refusing document type declarations); `.doc` by olefile and a reader of Word 97's piece table and paragraph properties; PDF by pypdf. All pure Python, so the same code runs in the browser under Pyodide. A file is known by its first bytes, not its name. The dialects are in `debrief_io.word`, with legacy Debrief's corrections (a day back with no new month, a late entry's hidden day) and its FCS parsing; where they differ from legacy Debrief, deliberately, is listed in the [Timeline guide](../../site/docs/guides/interaction-models/timeline.md#word-and-pdf-documents-cap-19).
+The files are read in `debrief_io.documents`: `.docx` by the standard library (zip and expat, refusing document type declarations); `.doc` by olefile and a reader of Word 97's piece table and paragraph properties; PDF by pypdf. All pure Python, so the same code runs in the browser under Pyodide. A file is known by its first bytes, not its name. The dialects are in `debrief_io.word`, with legacy Debrief's corrections (a day back with no new month, a late entry's hidden day) and its FCS parsing; a line starting with a number whose time would be out of order with the entries around it is text, not an entry (`word.out_of_order`); where they differ from legacy Debrief, deliberately, is listed in the [Timeline guide](../../site/docs/guides/interaction-models/timeline.md#word-and-pdf-documents-cap-19).
 
 `tests/test_word_legacy_samples.py` holds the dialects to legacy Debrief's own test expectations on its sample documents, without copying them: set `DEBRIEF_LEGACY` to a checkout of legacy Debrief. The synthetic `.doc` fixtures in `tests/data` are made by `tests/data/make_doc_fixtures.py` (LibreOffice), from the synthetic `.docx` of `tests/synthetic_docs.py`.
 

@@ -274,11 +274,14 @@ def narrative(item: str, request_json: str, data: bytes | None = None) -> str:
 
 def narrative_preview(item: str | None, name: str, data: bytes) -> str:
     """What a narrative file holds, before it is read in, so the reader can choose what
-    legacy Debrief asked: types, the plot's period, tracks (debrief/preview_narrative)."""
+    legacy Debrief asked: types, the plot's period, tracks; and whether it was read into
+    the plot before, or has entries the plot has already (debrief/preview_narrative)."""
     try:
-        plot = _cat().read_plot(item) if item else None
-        return json.dumps(preview_narrative(_upload(name, data), plot))
-    except (CatalogueError, NoNarrativeError, OSError) as error:
+        found = _upload(name, data)
+        if item:
+            return json.dumps(preview_narrative(found, catalogue=_cat(), item_id=item))
+        return json.dumps(preview_narrative(found))
+    except (CatalogueError, HistoryError, NoNarrativeError, OSError) as error:
         return json.dumps({"error": str(error)})
 
 

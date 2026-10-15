@@ -70,7 +70,8 @@ def import_document(
             type="FeatureCollection", schema_version=SCHEMA_VERSION, features=[], provenance=[]
         )
         if narrative is not None:
-            entries, left, notes = chosen_features(narrative, empty, choices)
+            chosen = chosen_features(narrative, empty, choices)
+            entries, left, notes = chosen.features, chosen.omitted, chosen.notes
             if not entries:
                 raise NoNarrativeError(f"nothing would be imported: {' '.join(left)}")
             features += entries

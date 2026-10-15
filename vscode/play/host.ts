@@ -23,7 +23,7 @@ import { NarrativeOnMap, narrativeOnMapOf, timelineEntries, timelineTracks } fro
 import { TimelineControl } from "../webview/timelinecontrol.js";
 import { count, describePeriod, describeTimes, describeToolRun } from "../src/format.js";
 import { resolveTimes } from "../src/timeinput.js";
-import { answersToRemember, choicesOf, describeAnswers, periodChoices, questionsFor, readSummary, rememberedAnswers, typeWords, type NarrativeChoices, type NarrativePreview } from "../src/narrativeimport.js";
+import { answersToRemember, choicesOf, describeAnswers, duplicateQuestion, periodChoices, questionsFor, readSummary, rememberedAnswers, typeWords, type NarrativeChoices, type NarrativePreview } from "../src/narrativeimport.js";
 import { describeStep, needs } from "../src/wording.js";
 import { contextTracksOf, displayed, hiddenIds, isFeature, isHidden, setViewOf, timeWindowOf, viewOf, type PlotFeature } from "../src/hidden.js";
 import { contextShown, type ContextTracks } from "../webview/contrast.js";
@@ -726,9 +726,9 @@ interface FormField {
 }
 /**
  * A small form in a dialog: each field says, beneath it, what it understood or what is wrong; nothing is sent until all are right. Resolves to the values, or undefined for Cancel.
- * warning, above the fields, is a warning (a red bar); { info } only explains (the neutral bar an information toast has).
+ * warning, above the fields, is a warning (a red bar); { info } only explains (the neutral bar an information toast has); { warning, info } is both, the warning first.
  */
-function trackForm(title: string, action: string, fields: FormField[], warning?: string | { info: string; ready?: boolean }): Promise<Record<string, string> | undefined> {
+function trackForm(title: string, action: string, fields: FormField[], warning?: string | { info?: string; ready?: boolean; warning?: string }): Promise<Record<string, string> | undefined> {
   return new Promise((resolve) => {
     const dialog = document.createElement("dialog");
     dialog.className = "track-form";
@@ -738,7 +738,10 @@ function trackForm(title: string, action: string, fields: FormField[], warning?:
     const heading = Object.assign(document.createElement("h2"), { textContent: title });
     form.append(heading);
     if (typeof warning === "string") form.append(Object.assign(document.createElement("p"), { className: "form-warning", textContent: warning }));
-    else if (warning) form.append(Object.assign(document.createElement("p"), { className: "form-info", textContent: warning.info }));
+    else if (warning) {
+      if (warning.warning) form.append(Object.assign(document.createElement("p"), { className: "form-warning", textContent: warning.warning }));
+      if (warning.info) form.append(Object.assign(document.createElement("p"), { className: "form-info", textContent: warning.info }));
+    }
     const notes = new Map<string, HTMLElement>();
     const following: (() => void)[] = [];
     const valueOf = (element: HTMLInputElement | null) => (element?.type === "checkbox" ? (element.checked ? "yes" : "") : (element?.value ?? ""));
@@ -1701,14 +1704,20 @@ $<HTMLInputElement>("narrative-file").onchange = async (e) => {
   if (!file || !opened || !pythonReady) return;
   const data = new Uint8Array(await file.arrayBuffer());
   let choices: NarrativeChoices | undefined;
-  if (/\.(docx?|pdf)$/i.test(file.name)) {
-    status(`Reading ${file.name}…`, true);
-    const preview = await pythonJson<NarrativePreview>("narrative_preview", opened.item.id, file.name, data);
-    status("");
-    if (preview.error) return toast(preview.error, "warning");
+  const isDocument = /\.(docx?|pdf)$/i.test(file.name);
+  status(`Reading ${file.name}…`, true);
+  const preview = await pythonJson<NarrativePreview>("narrative_preview", opened.item.id, file.name, data);
+  status("");
+  // A REP file that cannot be previewed is read as before, and says why it cannot be.
+  if (preview.error && isDocument) return toast(preview.error, "warning");
+  if (!preview.error) {
     if (preview.fixes) return toast(`${file.name} is ASW data: positions of a track, not narrative. Import it as a plot for its track.`, "warning");
-    const asked = await askNarrative(preview);
+    // Read into the plot before, or with entries already in it (product owner, 15 Oct 2026):
+    // a line at the top of the form says so, and its action skips them; Cancel reads nothing.
+    const again = duplicateQuestion(preview, (iso) => describePeriod(iso));
+    const asked = isDocument ? await askNarrative(preview, again) : again ? await askAgain(preview, again) : {};
     if (!asked) return toast("Nothing was read.");
+    if (again?.nothingNew) return toast(`Nothing was read: every entry of ${preview.name} is already in the plot.`);
     choices = asked;
   }
   status(`Reading ${file.name}…`, true);
@@ -1724,11 +1733,19 @@ $<HTMLInputElement>("narrative-file").onchange = async (e) => {
   folds.setOpen("panel-timeline", true);
   toast(readSummary(outcome, count));
 };
-/** What legacy Debrief asked before reading a document, in one form; undefined if the reader stopped. */
-async function askNarrative(preview: NarrativePreview): Promise<NarrativeChoices | undefined> {
+type Again = NonNullable<ReturnType<typeof duplicateQuestion>>;
+/** The line saying a file is in the plot already, for the top of the form. */
+const againLine = (again: Again) => `${again.title}. ${again.detail}`;
+/** A file read in before, or with entries in the plot: skip those, or (Cancel) read nothing. */
+async function askAgain(preview: NarrativePreview, again: Again): Promise<NarrativeChoices | undefined> {
+  const values = await trackForm(`Read ${preview.name}`, again.skip, [], { warning: againLine(again), info: `${again.skipDetail}.`, ready: true });
+  return values ? { duplicates: "skip" } : undefined;
+}
+/** What legacy Debrief asked before reading a document, in one form, below the line saying it is in the plot already, if it is; undefined if the reader stopped. */
+async function askNarrative(preview: NarrativePreview, again?: Again): Promise<NarrativeChoices | undefined> {
   const tracks = opened ? timelineTracks(opened.plot) : [];
   const ask = questionsFor(preview, tracks);
-  if (!ask.types && !ask.period && !ask.platforms.length) return {};
+  if (!ask.types && !ask.period && !ask.platforms.length) return again ? askAgain(preview, again) : {};
   // Last time's answers for this dialect, kept in the page's settings (user state, never in
   // the plot; product owner, 15 Oct 2026): the form comes filled in, and Enter reads.
   const dialect = preview.dialect ?? preview.format;
@@ -1749,14 +1766,14 @@ async function askNarrative(preview: NarrativePreview): Promise<NarrativeChoices
   const info = offered?.complete
     ? { info: `${intro} As last time: ${describeAnswers(preview, last, tracks)}.`, ready: true }
     : { info: `${intro} Untick the types not to read.` };
-  const values = await trackForm(`Read ${preview.name}`, "Read", fields, info);
+  const values = await trackForm(`Read ${preview.name}`, again ? again.skip : "Read", fields, again ? { ...info, warning: againLine(again) } : info);
   if (!values) return undefined;
   const types = ask.types ? preview.types.filter((_, i) => values[`type-${i}`] === "yes").map((t) => t.name) : undefined;
   if (types && !types.length) return undefined;
   const chosenTracks = Object.fromEntries(ask.platforms.map((platform, i) => [platform, values[`track-${i}`] || null]));
   const answers = { types, withinPeriod: ask.period ? values.period === "within" : undefined, tracks: chosenTracks };
   await python("set_narrative_answers", dialect, JSON.stringify(answersToRemember(preview, tracks, answers, before)));
-  return choicesOf(preview, answers);
+  return { ...choicesOf(preview, answers), ...(again && { duplicates: "skip" as const }) };
 }
 $<HTMLInputElement>("file").onchange = async (e) => {
   const file = (e.target as HTMLInputElement).files?.[0];

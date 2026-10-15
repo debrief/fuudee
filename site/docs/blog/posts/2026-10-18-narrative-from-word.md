@@ -28,6 +28,8 @@ You never say which: Debrief looks at the document. It doesn't trust the name ei
 
 Legacy Debrief also corrected the mistakes these logs are prone to, and so do we, saying so in the import's record each time: a day that goes backwards with no new month (a cut and paste gone wrong) keeps the day before; an entry at 23:45 whose hidden date is the next day, because it was typed in just after midnight, goes back to the evening it describes. A few things we do differently, on purpose. Every time is UTC; legacy Debrief read some in the computer's own time zone. 31 April is reported rather than quietly read as 1 May. A bad line is listed with its number and why, and reading carries on; legacy stopped some imports at the first. A rider's log that runs past midnight goes on into the next day. And an entry keeps every line that follows it, up to the next entry: legacy Debrief joined six, dropped the seventh and carried on, which in a PDF, where every printed line is a paragraph, lost the ends of long entries.
 
+One more, from the product owner. A line that starts with four figures was, to legacy Debrief, a new entry at that time, so *2000 yds, closing.* in the middle of an afternoon's log became an entry at 20:00. Now a number at the start of a line is only a time when it fits: an entry more than an hour before the one above it, or more than an hour after the ones that follow, is read as text of the entry above, and the import's record lists each line it treated that way. Late entries written within the hour, and logs running past midnight, stay entries. Legacy Debrief's own sample logs read exactly as before.
+
 ## Asked first, as before
 
 Before a document goes into the open plot you're asked what legacy Debrief asked: which types of entry to read, with how many of each; all of them, or only those within the plot's period; and which track a platform belongs to when none has its name. (*HMS BLUE ONE* still finds *BLUE ONE* on its own: the prefixes legacy skipped are skipped.) An entry matched to a track takes the track's name, and so its colour, in the Timeline; the name as the document wrote it stays in the import's record.
@@ -41,6 +43,12 @@ Then it's one step, like a REP file's narrative: the document is kept with the p
 These documents come from elsewhere, so each reader has firm limits: a file that would take too much memory or too long to read, a zip bomb or a PDF that draws millions of operations, is refused with a reason, rather than tying up Debrief or your browser tab.
 
 ![After reading: the History's newest step, Narrative read from red-one-log.docx; the Timeline lists RED ONE's entries among the rest, a continuation joined to its entry; a note says 5 entries were read and 3 things were not](images/phase-3/narrative-word-read.png)
+
+### Read it twice?
+
+Logs get passed around, renamed and read in again. Debrief knows a document it has read into the plot by its content, whatever it's called now, and says so before asking anything else: when it was read in, by whom, as which step, and how many of its entries are still there. You can **Skip entries already in the plot**, reading only what's new, or **Cancel**. The same goes for a different file that repeats some entries already in the plot: an entry is the same when its time, source and text are.
+
+![The playground's form for red-one-log (2).docx: a red line says it is already in the plot, read in earlier by you, in the browser (step 7, Narrative read from red-one-log.docx), 5 of its 7 entries in the plot; below it last time's answers, and the action Skip entries already in the plot beside Cancel](images/phase-3/narrative-word-again.png)
 
 In VS Code it's **Read narrative into this plot (REP, Word, PDF)…** on the Timeline's title bar, and the questions are a few quick picks. **Import plot file (REP, .dpf, Word, PDF)…** makes a plot of a document's narrative alone.
 
@@ -74,7 +82,7 @@ Like your filter, these are yours: kept with your view, never in the plot, so tw
 
 ## For agents
 
-`debrief/preview_narrative` says what a file holds before anything is read: its style, its types and platforms with counts, the track each platform would go to, and how many entries fall outside the plot's period. `debrief/import_narrative` takes the answers (`types`, `within_period`, `tracks`, `platform`), or reads everything.
+`debrief/preview_narrative` says what a file holds before anything is read: its style, its types and platforms with counts, the track each platform would go to, and how many entries fall outside the plot's period. `debrief/import_narrative` takes the answers (`types`, `within_period`, `tracks`, `platform`), or reads everything. The preview also says whether the file was read in before and how many of its entries are in the plot; an import of such a file is refused, with a message saying so, until the agent says `duplicates`: `"skip"` or `"add"`.
 
 ## Try it
 

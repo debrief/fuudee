@@ -7,6 +7,7 @@ import pytest
 from synthetic_docs import ASW, NARRATIVE, NARRATIVE_PDF, RIDER_TABLE, docx, pdf
 
 from debrief_io import (
+    AlreadyInPlotError,
     Choices,
     NoNarrativeError,
     import_document,
@@ -84,7 +85,7 @@ def test_the_analysts_choices_types_period_and_tracks(opened, tmp_path: Path) ->
     )
     done = import_narrative(opened, "serial", log, AGENT, choices=choices)
     added = opened.history("serial").delta(done.step).added
-    # OOW COMMENT 3, LOG 1, no type 2 of which one (12 April) is after the plot's period.
+    # OOW COMMENT 3, LOG 1, no type 2 of which one (2 May) is after the plot's period.
     assert done.entries == 5
     assert {f.properties.entry_type for f in added} == {"OOW COMMENT", "LOG", None}
     assert any(o.startswith("3 entries of types not chosen") for o in done.omitted)
@@ -191,8 +192,133 @@ def test_damaged_documents_and_stale_bases_change_nothing(opened, tmp_path: Path
 
 @pytest.mark.parametrize(
     "value",
-    [{"types": "OOW"}, {"tracks": {"A": 3}}, {"platform": " "}, {"within_period": "yes"}],
+    [
+        {"types": "OOW"},
+        {"tracks": {"A": 3}},
+        {"platform": " "},
+        {"within_period": "yes"},
+        {"duplicates": "yes"},
+    ],
 )
 def test_choices_are_checked(value: dict) -> None:
     with pytest.raises(ValueError):
         Choices.of(value)
+
+
+# --- Read before (product owner, 15 Oct 2026) -------------------------------------------
+
+
+def narrative_in(catalogue: Catalogue) -> list:
+    plot = catalogue.read_plot("serial")
+    return [f for f in plot.features if f.properties.kind == "narrative"]
+
+
+def test_the_same_document_read_again_under_any_name_is_known(opened, tmp_path: Path) -> None:
+    first = write(tmp_path, "blue-log.docx", docx(NARRATIVE))
+    done = import_narrative(opened, "serial", first, AGENT)
+    again = write(tmp_path, "copy of the log.docx", first.read_bytes())
+    # The preview says when and how it was read in, and how many entries are there.
+    preview = preview_narrative(again, catalogue=opened, item_id="serial")
+    (earlier,) = preview["earlier"]
+    assert earlier["step"] == done.step and earlier["name"] == "blue-log.docx"
+    assert earlier["by"] == "analyst" and earlier["how"] == "Narrative read from blue-log.docx"
+    assert preview["already"] == 9 and preview["content_hash"].startswith("sha256:")
+    # Not read again until told: nothing changed.
+    before = opened.history("serial").head()
+    with pytest.raises(AlreadyInPlotError) as raised:
+        import_narrative(opened, "serial", again, AGENT)
+    said = str(raised.value)
+    assert said.startswith("copy of the log.docx is already in the plot: read in on ")
+    assert f"by analyst (step {done.step}, Narrative read from blue-log.docx)" in said
+    assert "; all 9 entries to read are in the plot. Nothing was read." in said
+    assert 'duplicates "skip"' in said and '"add"' in said
+    assert opened.history("serial").head() == before
+    # Skipping them all leaves nothing to read, and says so.
+    with pytest.raises(NoNarrativeError, match="Nothing would be read.*9 entries already"):
+        import_narrative(opened, "serial", again, AGENT, choices=Choices(duplicates="skip"))
+    # Added again: twice, said, and the source already kept is used, not kept again.
+    twice = import_narrative(opened, "serial", again, AGENT, choices=Choices(duplicates="add"))
+    assert twice.entries == 9 and len(narrative_in(opened)) == 18
+    assert any("read again, as chosen: the plot has them twice" in n for n in twice.notes)
+    assert any(n.startswith("The same file (by its content) was read in on") for n in twice.notes)
+    (record,) = opened.history("serial").delta(twice.step).records
+    assert record.used[0].href == "sources/blue-log.docx"
+    assert {p.name: p.value for p in record.parameters}["duplicates"] == "add"
+    assert "source-copy of the log.docx" not in opened.assets("serial")
+    assert opened.verify_sources("serial") == []
+
+
+def test_only_the_entries_not_in_the_plot_are_read_when_skipping(opened, tmp_path: Path) -> None:
+    log = write(tmp_path, "blue-log.docx", docx(NARRATIVE))
+    import_narrative(opened, "serial", log, AGENT, choices=Choices(types=["OOW COMMENT"]))
+    assert len(narrative_in(opened)) == 3
+    done = import_narrative(opened, "serial", log, AGENT, choices=Choices(duplicates="skip"))
+    assert done.entries == 6 and len(narrative_in(opened)) == 9
+    assert (
+        "3 entries already in the plot (the same time, source and text) not read again, "
+        "as chosen." in done.omitted
+    )
+
+
+def test_some_entries_already_in_the_plot_from_another_file(opened, tmp_path: Path) -> None:
+    # Not the same file (another entry at its end), but most of its entries are there.
+    import_narrative(opened, "serial", write(tmp_path, "a.docx", docx(NARRATIVE)), AGENT)
+    longer = write(tmp_path, "b.docx", docx([*NARRATIVE, "1300 One more entry after them."]))
+    preview = preview_narrative(longer, catalogue=opened, item_id="serial")
+    assert preview["earlier"] == [] and (preview["entries"], preview["already"]) == (10, 9)
+    with pytest.raises(AlreadyInPlotError) as raised:
+        import_narrative(opened, "serial", longer, AGENT)
+    assert str(raised.value).startswith(
+        "9 of the 10 entries to read from b.docx are already in the plot (the same time, "
+        "source and text). Nothing was read."
+    )
+    done = import_narrative(opened, "serial", longer, AGENT, choices=Choices(duplicates="skip"))
+    assert done.entries == 1 and len(narrative_in(opened)) == 10
+
+
+def test_entries_match_by_time_source_and_text_as_the_importer_writes_them(
+    opened, tmp_path: Path
+) -> None:
+    log = write(tmp_path, "blue-log.docx", docx(NARRATIVE))
+    import_narrative(opened, "serial", log, AGENT)
+    # HMS BLUE ONE's entries are BLUE ONE's in the plot: still the same entries.
+    preview = preview_narrative(log, catalogue=opened, item_id="serial")
+    assert preview["already"] == 9
+    # An entry changed in the plot is no longer the same; one deleted is not there.
+    entries = narrative_in(opened)
+    opened.edit_narrative("serial", entries[0].id, {"text": "Came to 095, 12 kn."}, AGENT)
+    opened.delete_narrative("serial", [entries[1].id], AGENT)
+    assert preview_narrative(log, catalogue=opened, item_id="serial")["already"] == 7
+    # Spacing and case in the text are not a difference.
+    plain = narrative_in(opened)[0]
+    opened.edit_narrative("serial", plain.id, {"text": plain.properties.text.upper()}, AGENT)
+    assert preview_narrative(log, catalogue=opened, item_id="serial")["already"] == 7
+
+
+def test_a_read_undone_is_not_in_the_plot(opened, tmp_path: Path) -> None:
+    log = write(tmp_path, "blue-log.docx", docx(NARRATIVE))
+    import_narrative(opened, "serial", log, AGENT)
+    opened.history("serial").undo()
+    preview = preview_narrative(log, catalogue=opened, item_id="serial")
+    assert preview["earlier"] == [] and preview["already"] == 0
+    # Read again without asking; the source of the same name and content is used again.
+    done = import_narrative(opened, "serial", log, AGENT)
+    assert done.entries == 9 and opened.verify_sources("serial") == []
+
+
+def test_numbers_read_as_text_are_listed_in_the_record(opened, tmp_path: Path) -> None:
+    # Product owner, 15 Oct 2026: a line out of order is text, and the step says so.
+    lines = [*NARRATIVE_PDF[:3], "2000 yds, closing.", *NARRATIVE_PDF[3:]]
+    log = write(tmp_path, "printed.pdf", pdf(lines))
+    preview = preview_narrative(log, catalogue=opened, item_id="serial")
+    said = (
+        "1 line starting with a number was read as text of the entry before, not as an "
+        "entry: its time would be out of order with the entries around it (line 4: "
+        "“2000 yds, closing.”)."
+    )
+    assert preview["entries"] == 5 and said in preview["notes"]
+    done = import_narrative(opened, "serial", log, AGENT, choices=Choices(platform="BLUE ONE"))
+    (record,) = opened.history("serial").delta(done.step).records
+    assert said in record.notes
+    first = opened.history("serial").delta(done.step).added[0]
+    assert first.properties.text == "Came to 090, 12 kn.\n2000 yds, closing."
