@@ -1462,6 +1462,17 @@
       <ul class="md-nav__list">
         
           <li class="md-nav__item">
+  <a href="#read-it-twice" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Read it twice?
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
   <a href="#what-waits-for-later" class="md-nav__link">
     <span class="md-ellipsis">
       
@@ -1610,7 +1621,7 @@
                           <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 20a8 8 0 0 0 8-8 8 8 0 0 0-8-8 8 8 0 0 0-8 8 8 8 0 0 0 8 8m0-18a10 10 0 0 1 10 10 10 10 0 0 1-10 10C6.47 22 2 17.5 2 12A10 10 0 0 1 12 2m.5 5v5.25l4.5 2.67-.75 1.23L11 13V7z"/></svg>
                           <span class="md-ellipsis">
                             
-                              7 min read
+                              8 min read
                             
                           </span>
                         </div>
@@ -1677,6 +1688,7 @@
 </table>
 <p>You never say which: Debrief looks at the document. It doesn't trust the name either; legacy Debrief met <code>.docx</code> files called <code>.doc</code>, and so will we.</p>
 <p>Legacy Debrief also corrected the mistakes these logs are prone to, and so do we, saying so in the import's record each time: a day that goes backwards with no new month (a cut and paste gone wrong) keeps the day before; an entry at 23:45 whose hidden date is the next day, because it was typed in just after midnight, goes back to the evening it describes. A few things we do differently, on purpose. Every time is UTC; legacy Debrief read some in the computer's own time zone. 31 April is reported rather than quietly read as 1 May. A bad line is listed with its number and why, and reading carries on; legacy stopped some imports at the first. A rider's log that runs past midnight goes on into the next day. And an entry keeps every line that follows it, up to the next entry: legacy Debrief joined six, dropped the seventh and carried on, which in a PDF, where every printed line is a paragraph, lost the ends of long entries.</p>
+<p>One more, from the product owner. A line that starts with four figures was, to legacy Debrief, a new entry at that time, so <em>2000 yds, closing.</em> in the middle of an afternoon's log became an entry at 20:00. Now a number at the start of a line is only a time when it fits: an entry more than an hour before the one above it, or more than an hour after the ones that follow, is read as text of the entry above, and the import's record lists each line it treated that way. Late entries written within the hour, and logs running past midnight, stay entries. Legacy Debrief's own sample logs read exactly as before.</p>
 <h2 id="asked-first-as-before">Asked first, as before<a class="headerlink" href="#asked-first-as-before" title="Permanent link">&para;</a></h2>
 <p>Before a document goes into the open plot you're asked what legacy Debrief asked: which types of entry to read, with how many of each; all of them, or only those within the plot's period; and which track a platform belongs to when none has its name. (<em>HMS BLUE ONE</em> still finds <em>BLUE ONE</em> on its own: the prefixes legacy skipped are skipped.) An entry matched to a track takes the track's name, and so its colour, in the Timeline; the name as the document wrote it stays in the import's record.</p>
 <p>Your answers are remembered for that house style, as your own setting, never in the plot: next time the questions come filled in, said in a line, and one key reads the document as last time.</p>
@@ -1684,6 +1696,9 @@
 <p>Then it's one step, like a REP file's narrative: the document is kept with the plot as its source, untouched; the step's record names the importer, the document, the style it was read in and what you chose, and lists what wasn't read and why. Undo takes the whole document out again.</p>
 <p>These documents come from elsewhere, so each reader has firm limits: a file that would take too much memory or too long to read, a zip bomb or a PDF that draws millions of operations, is refused with a reason, rather than tying up Debrief or your browser tab.</p>
 <p><img alt="After reading: the History's newest step, Narrative read from red-one-log.docx; the Timeline lists RED ONE's entries among the rest, a continuation joined to its entry; a note says 5 entries were read and 3 things were not" src="../../../../images/phase-3/narrative-word-read.png" /></p>
+<h3 id="read-it-twice">Read it twice?<a class="headerlink" href="#read-it-twice" title="Permanent link">&para;</a></h3>
+<p>Logs get passed around, renamed and read in again. Debrief knows a document it has read into the plot by its content, whatever it's called now, and says so before asking anything else: when it was read in, by whom, as which step, and how many of its entries are still there. You can <strong>Skip entries already in the plot</strong>, reading only what's new, or <strong>Cancel</strong>. The same goes for a different file that repeats some entries already in the plot: an entry is the same when its time, source and text are.</p>
+<p><img alt="The playground's form for red-one-log (2).docx: a red line says it is already in the plot, read in earlier by you, in the browser (step 7, Narrative read from red-one-log.docx), 5 of its 7 entries in the plot; below it last time's answers, and the action Skip entries already in the plot beside Cancel" src="../../../../images/phase-3/narrative-word-again.png" /></p>
 <p>In VS Code it's <strong>Read narrative into this plot (REP, Word, PDF)…</strong> on the Timeline's title bar, and the questions are a few quick picks. <strong>Import plot file (REP, .dpf, Word, PDF)…</strong> makes a plot of a document's narrative alone.</p>
 <h3 id="what-waits-for-later">What waits for later<a class="headerlink" href="#what-waits-for-later" title="Permanent link">&para;</a></h3>
 <p>Fire-control solutions (<em>FCS</em> entries: bearing, range, course, speed, classification) are read exactly as legacy Debrief read them, but they stay narrative: turning them into TMA solution positions on the platform's track waits for TMA solutions in the data model. A rider's bearings, which legacy Debrief also drew as sensor cuts, stay in the entry's text until sensor data arrives. The import's record says how many of each there were, so nothing is lost on the way.</p>
@@ -1704,7 +1719,7 @@
 <p><img alt="On a phone, 390 pixels wide: the Timeline with the menu open: the Highlight box, Choosing an entry moves current time, Wrap long entries, Text 16px with A− and A+, and Columns with Time and Source ticked and Type not" src="../../../../images/phase-3/narrative-phone-menu.png" /></p>
 <p><img alt="VS Code's Timeline view at the sidebar's usual width, dark theme, with the menu open: the time column hidden, entries one line each, sonar and contact highlighted" src="../../../../images/phase-3/narrative-vscode-menu.png" /></p>
 <h2 id="for-agents">For agents<a class="headerlink" href="#for-agents" title="Permanent link">&para;</a></h2>
-<p><code>debrief/preview_narrative</code> says what a file holds before anything is read: its style, its types and platforms with counts, the track each platform would go to, and how many entries fall outside the plot's period. <code>debrief/import_narrative</code> takes the answers (<code>types</code>, <code>within_period</code>, <code>tracks</code>, <code>platform</code>), or reads everything.</p>
+<p><code>debrief/preview_narrative</code> says what a file holds before anything is read: its style, its types and platforms with counts, the track each platform would go to, and how many entries fall outside the plot's period. <code>debrief/import_narrative</code> takes the answers (<code>types</code>, <code>within_period</code>, <code>tracks</code>, <code>platform</code>), or reads everything. The preview also says whether the file was read in before and how many of its entries are in the plot; an import of such a file is refused, with a message saying so, until the agent says <code>duplicates</code>: <code>"skip"</code> or <code>"add"</code>.</p>
 <h2 id="try-it">Try it<a class="headerlink" href="#try-it" title="Permanent link">&para;</a></h2>
 <p>Download <a href="../../../../files/red-one-log.docx">a made-up Word log for RED ONE</a>, then under <strong>Import your own</strong> read it into serial 3 as <em>A narrative into the open plot</em>. Open <strong>⋯</strong> in the Timeline and highlight <em>contact</em>:</p>
 <div class="debrief-demo" data-demo="?panels=timeline,history,import" data-height="820px" data-caption="Read a Word or PDF narrative into the open plot under Import your own. Highlight words, choose entries, change the text size and columns under ⋯. Everything runs in your browser."></div>
