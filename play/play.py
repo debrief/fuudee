@@ -35,6 +35,7 @@ from debrief_stac import (
     HistoryError,
 )
 from debrief_stac.fixes import describe_largest
+from debrief_stac.tote import tote as tote_at
 from debrief_tools import Registry
 from debrief_tools.registry import applies
 from debrief_tools.run import ToolRunConflict, ToolRunError, run_tool
@@ -371,6 +372,19 @@ def set_view(item: str, request_json: str) -> str:
     return json.dumps(
         {"view_hash": view_hash, "base": {"current": head.current, "plot_hash": head.plot_hash}}
     )
+
+
+def tote(item: str, request_json: str) -> str:
+    """The Tote at one time, as debrief/tote returns it (CAP-06): asked again at each
+    time, so the plot's tracks are prepared once and kept while it is unchanged. Says
+    how long the computation took, for the latency check (NFR-04)."""
+    request = json.loads(request_json)
+    started = time.perf_counter()
+    try:
+        result = tote_at(_cat(), item, request["time"], request.get("tote"))
+    except (CatalogueError, HistoryError, ValueError) as error:
+        return json.dumps({"error": str(error)})
+    return json.dumps({"tote": result, "compute_ms": (time.perf_counter() - started) * 1000})
 
 
 def colleague_window(item: str) -> str:

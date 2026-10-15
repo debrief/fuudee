@@ -13,7 +13,7 @@
         <link rel="canonical" href="https://debrief.github.io/fuudee/guides/interaction-models/keyboard-equivalents/">
       
       
-        <link rel="prev" href="../track-operations/">
+        <link rel="prev" href="../tote/">
       
       
         <link rel="next" href="../../tool-author/">
@@ -891,6 +891,8 @@
       
         
       
+        
+      
     
     
     
@@ -1215,6 +1217,34 @@
     
   
     Track operations
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../tote/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Tote
   
 
     
@@ -1591,6 +1621,10 @@
 <td><strong>Find and remove jumps…</strong> lists each jump, ticked, in a list read by screen readers; <strong>Smooth track…</strong> says how many fixes would move and the most any would, in words, before Apply (<a href="../track-operations/#cleaning-tracks">track operations</a>, items 1 and 2).</td>
 </tr>
 <tr>
+<td>Choose the Tote's tracks</td>
+<td><strong>Primary</strong> and <strong>Add</strong> in the Tote are lists; <code>Delete</code> on a secondary removes it. A track's menu in the outline (<code>Shift+F10</code> or the menu key; press and hold on a touch screen) has <strong>Set as Tote primary</strong>, <strong>Add to Tote</strong> and <strong>Remove from Tote</strong> (<a href="../tote/#keyboard-and-touch">Tote</a>). There is no map gesture.</td>
+</tr>
+<tr>
 <td>Clear the selection</td>
 <td><code>Escape</code> on the map; or the outline, a native tree.</td>
 </tr>
@@ -1601,7 +1635,7 @@
 </tbody>
 </table>
 <h2 id="reference-implementation">Reference implementation<a class="headerlink" href="#reference-implementation" title="Permanent link">&para;</a></h2>
-<p><code>vscode/webview/mapedit.ts</code> (keys while drawing and on handles) and <code>vscode/webview/drawing.ts</code>; <code>vscode/webview/trackmap.ts</code> and <code>vscode/webview/trackedit.ts</code> for a track's handles. The playground tests <code>vscode/test/play/drawing.mjs</code> and <code>vscode/test/play/tracks.mjs</code> place a marker, change an area, move and rotate a track, <code>vscode/test/play/shear.mjs</code> shears and stretches one, and <code>vscode/test/play/fixdrag.mjs</code> moves a single fix, from the keyboard alone.</p>
+<p><code>vscode/webview/mapedit.ts</code> (keys while drawing and on handles) and <code>vscode/webview/drawing.ts</code>; <code>vscode/webview/trackmap.ts</code> and <code>vscode/webview/trackedit.ts</code> for a track's handles. The playground tests <code>vscode/test/play/drawing.mjs</code> and <code>vscode/test/play/tracks.mjs</code> place a marker, change an area, move and rotate a track, <code>vscode/test/play/shear.mjs</code> shears and stretches one, and <code>vscode/test/play/fixdrag.mjs</code> moves a single fix, from the keyboard alone; <code>vscode/test/play/tote.mjs</code> chooses the Tote's tracks from the keyboard and by press and hold.</p>
 
 
 
