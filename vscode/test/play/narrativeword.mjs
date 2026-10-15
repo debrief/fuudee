@@ -1,0 +1,164 @@
+// Narrative part B in the playground (CAP-19, CAP-05), played as a reader would: a Word
+// narrative read into the open plot, the reader asked first what legacy Debrief asked
+// (which types, only within the plot's period, which track an unknown platform is), one
+// step, undone like any other; then the Timeline's extras, the reader's own: highlighted
+// phrases, choosing an entry without moving current time, text size and wrapping, which
+// columns show, on a phone too. The log is synthetic, made up for the sample (DEV-05).
+import assert from "node:assert/strict";
+import path from "node:path";
+import { timelineRow } from "./timelinerows.mjs";
+
+const state = (page) => page.evaluate(() => window.debriefTimeline());
+const timeLabel = (page) => page.locator("#timebar .time-label").innerText();
+const LOG = path.join(import.meta.dirname, "red-one-log.docx");
+
+/** Fold the panels above the Timeline away, and open it; returns how to put them back. */
+async function openTimeline(page) {
+  const folded = [];
+  for (const id of ["panel-tote", "panel-outline", "panel-tools", "panel-try"]) {
+    const fold = page.locator(`#${id} button.fold`);
+    if ((await fold.count()) && (await fold.getAttribute("aria-expanded")) === "true") {
+      await fold.click();
+      folded.push(fold);
+    }
+  }
+  const fold = page.locator("#panel-timeline button.fold");
+  if ((await fold.getAttribute("aria-expanded")) === "false") await fold.click();
+  await page.locator("#panel-timeline").scrollIntoViewIfNeeded();
+  return async () => {
+    for (const button of folded) if ((await button.getAttribute("aria-expanded")) === "false") await button.click();
+  };
+}
+
+export async function playWordNarrative(page, shot) {
+  await page.selectOption("#plots", "serial-3");
+  await page.waitForFunction(() => document.getElementById("plot-title")?.textContent?.includes("3"));
+  const unfold = await openTimeline(page);
+  await page.locator("#timeline .tl-row[data-id]").first().waitFor();
+  const before = (await state(page)).entries;
+  const steps = await page.locator("#history li").count();
+
+  // The file chosen under Import: the reader is asked what legacy Debrief asked.
+  await page.locator("#panel-import").scrollIntoViewIfNeeded();
+  const started = Date.now();
+  await page.locator("#narrative-file").setInputFiles(LOG);
+  const dialog = page.locator("dialog.track-form[open]");
+  await dialog.waitFor({ timeout: 60000 });
+  assert.match(await dialog.locator(".form-info").innerText(), /Word document, read as a narrative log: 7 entries/);
+  // Its types with how many of each, every one ticked; the plot's period; BLUE TWO, which has no track.
+  const types = await dialog.locator(".form-check span:not(.form-note)").allInnerTexts();
+  assert.deepEqual(types, ["OOW COMMENT (3)", "SONAR (2)", "COMMS (1)", "FCS (1)"]);
+  assert.match(await dialog.locator("select[name=period] option").nth(1).innerText(), /^Only the 6 within the plot's period/);
+  assert.deepEqual(await dialog.locator("select[name=track-0] option").allInnerTexts().then((o) => [o[0], o.at(-1)]), ["BLUE ONE", "No track"]);
+  await dialog.locator(".form-check", { hasText: "FCS" }).locator("input").uncheck();
+  await dialog.locator("select[name=period]").selectOption("within");
+  await dialog.locator("select[name=track-0]").selectOption("");
+  await page.mouse.move(2, 2);
+  await shot("narrative-b-01-word-questions");
+  await dialog.locator("button.primary").click();
+  // One step, named in the History; five entries: no FCS, none after the serial.
+  await page.locator("#history li", { hasText: "Narrative read from red-one-log.docx" }).first().waitFor({ timeout: 60000 });
+  const readMs = Date.now() - started;
+  await page.waitForFunction((n) => window.debriefTimeline().entries === n + 5, before);
+  assert.equal(await page.locator("#history li").count(), steps + 1);
+  await page.locator(".toast", { hasText: "Read 5 narrative entries into the plot" }).first().waitFor();
+  // RED ONE's entries belong to its track; the continuation joined its entry.
+  const sonar = await timelineRow(page, "Classified as BLUE ONE");
+  assert.match(await sonar.innerText(), /SONAR/);
+  assert.match(await sonar.locator(".tl-text").innerText(), /Contact held on the towed array/);
+  assert.equal(await sonar.locator(".tl-swatch").count(), 1, "RED ONE's entry has its track's colour");
+  await page.locator("#panel-timeline").scrollIntoViewIfNeeded();
+  await page.mouse.move(2, 2);
+  await shot("narrative-b-02-word-read");
+
+  await playTimelineExtras(page, shot);
+
+  // Undone as one step: the whole log goes.
+  await page.locator("#undo").click();
+  await page.waitForFunction((n) => window.debriefTimeline().entries === n, before);
+  await unfold();
+  console.log(`Word narrative: read into serial 3 in ${readMs} ms (questions answered by the test), undone as one step.`);
+}
+
+/** The Timeline's extras, the reader's own, from the menu (⋯). Left as the Timeline's own afterwards. */
+async function playTimelineExtras(page, shot) {
+  const timeline = (selector, options) => page.locator(`#timeline ${selector}`, options);
+  const menu = timeline(".tl-view");
+  const button = timeline(".tl-view-button");
+  assert.equal(await menu.isHidden(), true, "the bar stays quiet: the extras are in a menu");
+  await button.click();
+  assert.equal(await button.getAttribute("aria-expanded"), "true");
+  await menu.waitFor();
+  assert.equal(await page.evaluate(() => document.activeElement?.classList.contains("tl-highlights")), true, "the menu takes the keyboard");
+
+  // Highlights: phrases the reader names, marked wherever they are, case ignored.
+  await timeline(".tl-highlights").fill("contact, towed array");
+  await page.waitForFunction(() => window.debriefTimeline().view.highlights.length === 2);
+  const lit = await timelineRow(page, "Classified as BLUE ONE");
+  assert.deepEqual(await lit.locator("mark.tl-hl").allInnerTexts(), ["Contact", "Contact", "towed array"]);
+  assert.match(await lit.getAttribute("aria-label"), /, highlighted$/);
+  assert.equal(await button.evaluate((b) => b.classList.contains("tl-on")), true, "the button says the view is the reader's own");
+  await page.evaluate(() => document.getElementById("toasts")?.replaceChildren());
+  await page.mouse.move(2, 2);
+  await shot("narrative-b-03-highlights");
+
+  // Choosing an entry without moving current time.
+  await timeline('input[data-view="moveTime"]').uncheck();
+  const label = await timeLabel(page);
+  const row = await timelineRow(page, "Came to 180");
+  await row.click();
+  await page.waitForTimeout(400);
+  assert.equal(await timeLabel(page), label, "choosing an entry leaves current time where it is");
+  assert.equal((await state(page)).active, await row.getAttribute("data-id"));
+  await timeline(".tl-scroll").focus();
+  await page.keyboard.press("Enter");
+  await page.waitForTimeout(300);
+  assert.equal(await timeLabel(page), label, "Enter too");
+  const openMenu = async () => (await menu.isHidden()) && (await button.click());
+  await openMenu();
+  await timeline('input[data-view="moveTime"]').check();
+  await (await timelineRow(page, "Came to 180")).click();
+  await page.waitForFunction((l) => document.querySelector("#timebar .time-label")?.textContent !== l, label);
+
+  // Text size and wrapping; the columns shown. Never sideways, at any size.
+  await openMenu();
+  const larger = timeline('[data-size="up"]');
+  await larger.click();
+  await larger.click();
+  assert.equal((await state(page)).view.textSize, 16);
+  assert.equal(await timeline(".tl-text").first().evaluate((el) => getComputedStyle(el).fontSize), "16px");
+  await timeline('input[data-view="wrap"]').uncheck();
+  assert.equal(await timeline(".tl-text").first().evaluate((el) => getComputedStyle(el).whiteSpace), "nowrap");
+  await timeline('input[data-column="type"]').uncheck();
+  assert.equal(await timeline(".tl-row[data-id] .tl-type").first().isVisible(), false);
+  assert.equal(await timeline(".tl-head-type").isVisible(), false);
+  const noSideways = async (what) => {
+    await page.waitForTimeout(300);
+    const [pageWidth, list] = await page.evaluate(() => [document.documentElement, document.querySelector("#timeline .tl-scroll")].map((el) => [el.scrollWidth, el.clientWidth]));
+    assert.ok(pageWidth[0] <= pageWidth[1] && list[0] <= list[1], `${what}: no sideways scroll (page ${pageWidth}, list ${list})`);
+  };
+  await noSideways("larger text, unwrapped, no type");
+  // Kept for the reader's next visit, in this browser only.
+  const kept = await page.evaluate(() => JSON.parse(localStorage.getItem("debrief.play.timelineFilter") ?? "{}").view);
+  assert.deepEqual(kept, { highlights: ["contact", "towed array"], moveTime: true, textSize: 16, wrap: false, hidden: ["type"] });
+
+  // On a phone, with the menu open.
+  await page.setViewportSize({ width: 390, height: 844 });
+  await timeline('input[data-view="wrap"]').check();
+  await page.locator("#panel-timeline").scrollIntoViewIfNeeded();
+  await noSideways("on a phone, the menu open");
+  await page.evaluate(() => document.getElementById("toasts")?.replaceChildren());
+  await page.mouse.move(2, 2);
+  await shot("narrative-b-04-phone-menu");
+  // Back to the Timeline's own view, from the keyboard: Escape closes the menu.
+  await timeline('input[data-column="type"]').check();
+  await timeline('[data-size="down"]').click();
+  await timeline('[data-size="down"]').click();
+  await timeline(".tl-highlights").fill("");
+  await page.waitForFunction(() => window.debriefTimeline().view.highlights.length === 0);
+  await timeline(".tl-highlights").press("Escape");
+  assert.equal(await menu.isHidden(), true);
+  assert.equal(await page.evaluate(() => document.activeElement?.classList.contains("tl-view-button")), true, "Escape returns the keyboard to the button");
+  assert.deepEqual((await state(page)).view, { highlights: [], moveTime: true, textSize: 12, wrap: true, hidden: [] });
+  await page.setViewportSize({ width: 1400, height: 820 });
+}
