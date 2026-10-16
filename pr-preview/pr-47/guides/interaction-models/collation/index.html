@@ -71,7 +71,7 @@
     
     
     
-    <body dir="ltr" data-md-color-scheme="default" data-md-color-primary="indigo" data-md-color-accent="indigo"><div class="pr-preview-banner" style="background:#fff4ce;color:#3b2f00;border-bottom:1px solid #e0c060;padding:6px 16px;font:14px/1.4 system-ui,sans-serif;text-align:center">Preview of <a style="color:inherit;text-decoration:underline" href="https://github.com/debrief/fuudee/pull/47">pull request #47</a>: Collation: coverage, source per period, platforms, new data, revisions (CAP-05, CAP-08 to CAP-12). Built from 4c638a2 on 2026-10-16 11:23 UTC. <a style="color:inherit;text-decoration:underline" href="https://debrief.github.io/fuudee/pr-preview/">All previews</a></div>
+    <body dir="ltr" data-md-color-scheme="default" data-md-color-primary="indigo" data-md-color-accent="indigo"><div class="pr-preview-banner" style="background:#fff4ce;color:#3b2f00;border-bottom:1px solid #e0c060;padding:6px 16px;font:14px/1.4 system-ui,sans-serif;text-align:center">Preview of <a style="color:inherit;text-decoration:underline" href="https://github.com/debrief/fuudee/pull/47">pull request #47</a>: Collation: coverage, source per period, platforms, new data, revisions (CAP-05, CAP-08 to CAP-12). Built from 74b20e3 on 2026-10-16 12:54 UTC. <a style="color:inherit;text-decoration:underline" href="https://debrief.github.io/fuudee/pr-preview/">All previews</a></div>
   
     
     <input class="md-toggle" data-md-toggle="drawer" type="checkbox" id="__drawer" autocomplete="off">
@@ -1818,18 +1818,19 @@
 <li><strong>A source is a catalogue item</strong> (decision, product owner, 16 Oct 2026). Every file Debrief imports becomes an item of its own: a REP file, a legacy plot, a Word or PDF narrative, a colleague's plot file. Any item can supply data to a plot, and a plot is itself an item, so the plot an analyst collates into can later be a source for another. Collation never changes an item it reads from (SUB-10).</li>
 <li><strong>Coverage.</strong> Each item's tracks and the periods each has data for: from a track's first fix to its last, broken at each gap. A gap is a time between two fixes more than ten times the track's median time between fixes (the upper of the middle two, as the map's labels and smoothing judge one) and more than five minutes, so a busy track's pause for breath is not a gap; with fewer than three steps between fixes there is no median, and no gap. A single fix is a period of an instant. Debrief works coverage out at every change to an item and keeps it in the item's STAC metadata (<code>debrief:coverage</code>), so a catalogue's coverage is read from its items alone, never their plots. Python and TypeScript work spans out alike, held to <code>schemas/vectors/collation.json</code>.</li>
 <li><strong>One platform across items.</strong> Tracks whose names match, ignoring case and runs of spaces (<em>BLUE ONE</em>, <em>Blue One</em>, <em>blue  one</em>; not <em>BLUE-ONE</em>), are <em>proposed</em> as one platform. The analyst confirms (<strong>Same platform</strong>), refuses (<strong>Not this platform</strong>, after which it is proposed no more), or links a track of another name by hand. Each is one recorded step on the plot's track (<code>platform_links</code>, <code>platform_unlinks</code>), named <em>Blue One in Nav log confirmed as BLUE ONE</em>, <em>BLUE ONE in Serial 2 is not BLUE ONE</em>, <em>MERCHANT in Nav log linked to BLUE</em>. A link to an item that supplies a period of the track cannot be undone by unlinking: choose another source for that period first, or undo the step that took it.</li>
-<li><strong>Source preference, per period</strong> (decision, product owner, 16 Oct 2026). For each of the plot's tracks, Coverage lists every source with data for its platform (the plot's own data, items linked, items proposed) and cuts the track's time where the sources with data change. Where two or more have data for a period, the analyst chooses which supplies it; the track is stitched from the chosen periods. The choice is one recorded step, <em>BLUE ONE 09:20:00Z to 10:20:00Z from Nav log</em>, whose record says what the period had and has (<em>Was Serial 1: 61 fixes</em>, <em>Now Nav log: 361 fixes</em>) and names the item and the revision taken (<code>drawn_from</code>). The track keeps which item supplies which period (<code>supplies</code>, in time order, each from its first fix to its last), so Coverage shows it and the next choice starts from it. The plot's own data, as it was first recorded, is a source like any other: choosing it again puts back what was imported. A period with data no fix of the plot's track comes from yet shows as <em>Not taken</em>; choosing a source for it takes that period. The seconds between the last fix one source supplies and the first the next supplies are no period to choose: the track has no gap there.</li>
-<li><strong>New data arrives only through Debrief's import</strong> (decision, product owner, 16 Oct 2026): no folder is watched and nothing is polled. An item is marked as <strong>new data</strong> for the open plot when it came into the catalogue after the plot did (STAC's <code>created</code>), within the folder tree the plot draws from (its own catalogue, and those of items it has taken data from), with data for the plot's platforms (linked or proposed) or within its period; and the plot has neither taken it nor set it aside at this revision. The mark is a sparkle and the words <em>New data</em>, never colour alone; its reason (<em>New data for Serial 1: BLUE ONE, within its period</em>) is its tooltip and is read by screen readers. Items outside the folder tree are never marked.</li>
+<li><strong>Source preference, per period</strong> (decision, product owner, 16 Oct 2026). For each of the plot's tracks, Coverage lists every source with data for its platform (the plot's own data, items linked, items proposed) and cuts the track's time where the sources with data change, within the plot's own period (decision, product owner, 16 Oct 2026): a track of the same name far outside it is still proposed, but offers no period to choose. Where two or more have data for a period, the analyst picks which supplies it on the period's list and presses <strong>Set</strong> (or <code>Enter</code> on the list), or clicks that source's bar in the period; moving through the list makes no step. The track is stitched from the chosen periods. The choice is one recorded step, <em>BLUE ONE 09:20:00Z to 10:20:00Z from Nav log</em>, whose record says what the period had and has (<em>Was Serial 1: 61 fixes</em>, <em>Now Nav log: 361 fixes</em>) and names the item and the revision taken (<code>drawn_from</code>). The track keeps which item supplies which period (<code>supplies</code>, in time order, each from its first fix to its last, with the revision it was read at), so Coverage shows it and the next choice starts from it. Periods of one item read at two revisions are two periods, each naming its own. The plot's own data, as it was first recorded, is a source like any other: choosing it again puts back what was imported. A period with data no fix of the plot's track comes from yet shows as <em>Not taken</em>; choosing a source for it takes that period. The seconds between the last fix one source supplies and the first the next supplies are no period to choose: the track has no gap there.</li>
+<li><strong>New data arrives only through Debrief's import</strong> (decision, product owner, 16 Oct 2026): no folder is watched and nothing is polled. An item is marked as <strong>new data</strong> for the open plot when it came into the catalogue after the plot did (STAC's <code>created</code>; for an item saved before items kept it, its first step's time), within the folder tree the plot draws from (its own catalogue, and those of items it has taken data from), shares a platform with the plot (linked or proposed) and has data within its period; and the plot has neither taken it nor set it aside at this revision (decision, product owner, 16 Oct 2026). Only an item that came in by importing files is new data: its history starts with a record naming the files (<code>debrief:imported</code>). An item made from this plot's data, a product of other items and an item made by hand never are. A colleague's copy of this plot (their histories share their first step, <code>debrief:origin</code>) is new data only once it has steps since they parted that add data: an import, data taken from an item, a track or a narrative entry added. The mark is a sparkle and the words <em>New data</em>, never colour alone; its reason (<em>New data for Serial 1: BLUE ONE, within its period</em>) is its tooltip and is read by screen readers. Items outside the folder tree are never marked.</li>
 <li>
 <p><strong>Taking new data is the analyst's choice</strong> (CAP-11): <strong>Take</strong> in Coverage or on the item in the catalogue (<strong>Take data into the open plot…</strong> on the item's menu in VS Code). It is one recorded step, named for the item (<em>New data from Nav log</em>), and its record says what it did (<em>BLUE ONE 120 fixes, WATCHER added</em>) and names the item at the revision taken. For each track of the item:</p>
 <ul>
 <li><strong>matched</strong> (linked, or proposed by name, which taking confirms) to one of the plot's tracks: the plot's track gains the item's fixes where it has no data of its own; where another item supplies a period, that period stays as the analyst chose, and the record says the item also has data then (<em>choose which in Coverage</em>); where this item already supplies a period (taken before), that period is read again from the item's latest revision;</li>
 <li><strong>unmatched</strong>: added as a new track of the plot, supplied by the item;</li>
-<li>nothing new at all: refused, saying why, with <strong>Not now</strong> to set the item aside.</li>
+<li>nothing new at all: refused, saying why, with <strong>Not now</strong> to set the item aside;</li>
+<li>the item's data as the plot has it already (taken before, or a revision that changed nothing the plot took, such as a colour): no step, so no new revision of the plot and no product flagged for nothing; the plot is marked as reviewed against that revision instead, and the analyst is told.</li>
 </ul>
-<p>The mark clears once taken. <strong>Not now</strong> sets an item aside for the plot: view state in its island, never a step, until the item is revised. Undo takes a whole take back.
-7. <strong>The analyst's work survives</strong> (CAP-11). Annotations and narrative are untouched. Marks stay with their fixes, found by time; a mark whose fix a new source replaces moves to the nearest fix without one, and the record says so. A track's colour, frequencies, hiding and plotting mode are its own and are kept. Edits are carried to new fixes: each existing fix's offset from where its source puts it is worked out (for the plot's own data, the track as the plot first recorded it; for an item's, the item at the revision taken), and a new fix is moved by the offsets of the fixes either side of it in time, in proportion to its time between them, or as the nearest beyond the first or last. A move is carried exactly; a shear, being proportional to time, exactly within the period it covered; a rotation, a stretch, smoothing and a single fix dragged, closely. On a track plotted by dead reckoning the edits change courses and speeds (decision, product owner, 14 Oct 2026), so a new fix's course gains the change in course of the fixes either side and its speed their change in proportion, its course, speed and position as logged are kept beside it, and the positions after it are worked out again by dead reckoning; an item with no courses and speeds cannot supply a DR track, and says so. Replay never reads an item again: each step records its output, so undo, redo and a colleague's copy of the plot need none of the items (SUB-19).
-8. <strong>Revisions.</strong> Any recorded change to an item, of its data or its details, is a new revision (decision, product owner, 16 Oct 2026): its revision is its plot's content hash (<code>debrief:revision</code>), which changes with every step and comes back with undo. Changing only an item's view (its time window, its Tote) is no revision. A product is any plot whose provenance names an item it drew from (<code>drawn_from</code>, kept in its STAC metadata as <code>debrief:drawn_from</code>): a plot that took data, a copy saved from one, a colleague's plot file added with its history. When an item it drew from has a revision other than the one taken, the product <strong>may need review</strong>: VS Code says so once, in a notification naming the plot and the item, with <strong>Show in Catalogues</strong>; the playground says so in a note. The product is flagged in the catalogue (a warning symbol and <em>May need review</em>, with the reason as its tooltip) and in Coverage, with <strong>Reviewed</strong> to clear the flag. Clearing is view state in the product's island, never a step; the flag comes back at the item's next revision. Taking the item again (<strong>Take again</strong> under <em>Revised since taken</em>) reads the periods it supplies from its latest revision. Items a product names that are not in the analyst's catalogues are passed over.</p>
+<p>The record counts only fixes added or changed. Collation's steps are a tool's (<code>kind: tool</code>, <code>debrief-stac.collation</code>), never mistaken for a file's import. The mark clears once taken. <strong>Not now</strong> sets an item aside for the plot: view state in its island, never a step, until the item is revised. Undo takes a whole take back.
+7. <strong>The analyst's work survives</strong> (CAP-11). Annotations and narrative are untouched. Marks stay with their fixes, found by time; a mark whose fix a new source replaces moves to the nearest fix without one, and the record says so. A track's colour, frequencies, hiding and plotting mode are its own and are kept. Edits are carried to new fixes: each existing fix's offset from where its source puts it is worked out (for the plot's own data, the track as the plot first recorded it; for an item's, the item at the revision each period was read at), and a new fix is moved by the offsets of the fixes either side of it in time, in proportion to its time between them, or as the nearest beyond the first or last. Its recorded course and speed go through the same change, as a shear or a stretch carries a fix's own: a rotation turns the course, a stretch scales the speed, a shear changes both, so a new fix's course and speed agree with where it and the next are. A move is carried exactly; a shear, being proportional to time, exactly within the period it covered; a rotation, a stretch and smoothing, closely. A fix dragged on its own moves only the new fix at its very time, never those about it. On a track plotted by dead reckoning the edits change courses and speeds (decision, product owner, 14 Oct 2026), so a new fix's course gains the change in course of the fixes either side and its speed their change in proportion, its course, speed and position as logged are kept beside it, and the positions after it are worked out again by dead reckoning; an item with no courses and speeds cannot supply a DR track, and says so. Replay never reads an item again: each step records its output, so undo, redo and a colleague's copy of the plot need none of the items (SUB-19).
+8. <strong>Revisions.</strong> Any recorded change to an item, of its data or its details, is a new revision (decision, product owner, 16 Oct 2026): its revision is its plot's content hash (<code>debrief:revision</code>), which changes with every step and comes back with undo. Changing only an item's view (its time window, its Tote) is no revision. A product is any plot whose tracks take data from an item (each period naming the item and the revision it was read at, kept in its STAC metadata as <code>debrief:drawn_from</code>): a plot that took data, a copy saved from one, a colleague's plot file added with its history. When a period was read at a revision of the item other than its revision now, the product <strong>may need review</strong>; once none of its data comes from the item any more, it is not flagged for it. Then: VS Code says so once, in a notification naming the plot and the item, with <strong>Show in Catalogues</strong>; the playground says so in a note. The product is flagged in the catalogue (a warning symbol and <em>May need review</em>, with the reason as its tooltip) and in Coverage, with <strong>Reviewed</strong> to clear the flag. Clearing is view state in the product's island, never a step (decision, product owner, 16 Oct 2026); the island keeps who cleared it and when (<code>by</code>, <code>at</code>), a light audit trail, as it does for <strong>Not now</strong>. The flag comes back at the item's next revision. VS Code says a revision once in each session, so after a restart it says outstanding ones once more. Taking the item again (<strong>Take again</strong> under <em>Revised since taken</em>) reads the periods it supplies from its latest revision. Items a product names that are not in the analyst's catalogues are passed over.</p>
 </li>
 </ol>
 <h3 id="what-is-a-step-and-what-isnt">What is a step, and what isn't<a class="headerlink" href="#what-is-a-step-and-what-isnt" title="Permanent link">&para;</a></h3>
@@ -1863,13 +1864,19 @@
 </tr>
 <tr>
 <td>Setting new data aside (<strong>Not now</strong>)</td>
-<td>The plot's island (<code>collation.dismissed</code>)</td>
+<td>The plot's island (<code>collation.dismissed</code>, with who and when)</td>
 <td>No</td>
 <td>No</td>
 </tr>
 <tr>
 <td>Clearing a review flag (<strong>Reviewed</strong>)</td>
-<td>The product's island (<code>collation.reviewed</code>)</td>
+<td>The product's island (<code>collation.reviewed</code>, with who and when)</td>
+<td>No</td>
+<td>No</td>
+</tr>
+<tr>
+<td>Taking an item whose data the plot has already</td>
+<td>The plot's island (<code>collation.reviewed</code>)</td>
 <td>No</td>
 <td>No</td>
 </tr>
@@ -1912,7 +1919,12 @@
 <tr>
 <td>A period's list</td>
 <td><code>↑</code> <code>↓</code> (or <code>Alt+↓</code> to open it)</td>
-<td>Chooses the item supplying that period: one step</td>
+<td>Picks an item for that period: no step yet</td>
+</tr>
+<tr>
+<td>A period's list, or its <strong>Set</strong></td>
+<td><code>Enter</code>; click, tap</td>
+<td>The item picked supplies that period: one step</td>
 </tr>
 <tr>
 <td>A source's bar</td>
@@ -1931,7 +1943,7 @@
 </tr>
 </tbody>
 </table>
-<p>Coverage has no menu of its own, so nothing needs pressing and holding: every choice is a button or a list.</p>
+<p>Coverage has no menu of its own, so nothing needs pressing and holding: every choice is a button or a list. Every button, list and bar is at least 24 pixels tall on a touch screen or a phone's width, and focus stays where it was when Coverage is drawn again after a step. A refused choice puts its list back to the source supplying the period. A platform with more than 40 periods to choose lists the first 40 and says how many more: their bars choose them.</p>
 <pre class="mermaid"><code>sequenceDiagram
     actor Analyst
     participant Import
@@ -1966,11 +1978,15 @@
 <tbody>
 <tr>
 <td>Coverage of a plot, the first time (its plot file read, every item read)</td>
-<td>200 to 230 ms</td>
+<td>150 to 230 ms</td>
 </tr>
 <tr>
 <td>Coverage again (items unchanged since, read from memory by their file's version)</td>
-<td>40 to 45 ms</td>
+<td>35 to 45 ms</td>
+</tr>
+<tr>
+<td>Fifty gappy sources of one platform, a hundred spans each (5,000 spans, 9,800 periods; <code>test_coverage_of_gappy_sources_stays_responsive</code>)</td>
+<td>250 to 370 ms the first time, 15 to 30 ms after</td>
 </tr>
 <tr>
 <td>Review flags for the whole catalogue</td>
@@ -1978,7 +1994,7 @@
 </tr>
 <tr>
 <td>Coverage of serial 1 of the sample (six items, with the navigation log) in the playground, Pyodide, asking to answer</td>
-<td>median 80 to 90 ms, slowest 160 to 300 ms, over 20 asks in each of two runs</td>
+<td>median 70 to 90 ms, slowest 160 to 330 ms, over 20 asks in each of three runs</td>
 </tr>
 <tr>
 <td>Working out a plot's coverage for its metadata at a save, fifty tracks of 2,000 fixes</td>
@@ -1986,6 +2002,7 @@
 </tr>
 </tbody>
 </table>
+<p>A platform's periods are cut by a sweep along the time, each source's spans opening and closing at their bounds, so the work grows with the number of spans rather than spans times bounds (Python and TypeScript alike); its rows are kept while its sources, its supplies and its fixes are unchanged. The Timeline finds a track's pieces in one pass over its fixes.</p>
 <p><strong>Budget:</strong> coverage within 500 ms the first time a plot of a 50-item study is opened and within 100 ms after; review flags within 500 ms. Taking new data and choosing a period read the items involved in full, and their histories where a revision must be replayed: they are steps, within NFR-01's 5 s failure line, not drags. Keeping each item's coverage in its metadata costs each save of a plot the spans of its changed tracks only, a few milliseconds beside the save itself.</p>
 <h2 id="reference-implementation">Reference implementation<a class="headerlink" href="#reference-implementation" title="Permanent link">&para;</a></h2>
 <ul>

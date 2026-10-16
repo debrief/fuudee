@@ -722,15 +722,26 @@ def collate(item: str, request_json: str) -> str:
             )
         elif kind == "dismiss":
             source = change["source"]
-            _cat().dismiss_new_data(item, source["catalogue"], source["item"], source["revision"])
+            _cat().dismiss_new_data(
+                item, source["catalogue"], source["item"], source["revision"], YOU
+            )
             return json.dumps({"ok": True, "changed": True})
         else:
             target = change.get("item") or item
-            return json.dumps({"ok": True, "changed": _cat().clear_review_flag(target) > 0})
+            cleared = _cat().clear_review_flag(target, agent=YOU)
+            return json.dumps({"ok": True, "changed": cleared > 0})
     except Conflict:
         return json.dumps({"error": "The plot was changed elsewhere, so nothing was changed."})
     except (CatalogueError, HistoryError, ValueError, KeyError) as error:
         return json.dumps({"error": str(error)})
+    if step is None and kind == "take":
+        # Nothing to take: the plot already has the item's data as it is now; it is
+        # marked as reviewed against this revision instead.
+        message = (
+            "The plot already has this item's data as it is now: nothing was taken, and it "
+            "is marked as reviewed against this revision."
+        )
+        return json.dumps({"ok": True, "changed": False, "message": message})
     if step is None:
         return json.dumps({"ok": True, "changed": False})
     record = _cat().history(item).steps()[-1].records[0]
