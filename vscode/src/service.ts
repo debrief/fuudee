@@ -11,6 +11,7 @@ import { request as httpRequest } from "node:http";
 import { tmpdir } from "node:os";
 import { createInterface } from "node:readline";
 import type { AnnotationSpec, CoverageReport, DebriefFeatureCollection, FigureSource, ImageExport, ItemRevision, NarrativeSpec, MeasureDefinition, MeasureGroup, PlotView, ReviewFlag, SharedState, SourceTrackRef, TimeRange, TimeState, ToolDeclaration, ToolResult, ToteResult, ToteView, TrackEdit, Viewport } from "@debrief/schemas";
+import { guardRequest, type ShownReadOnly } from "./figures.js";
 import type { ToolOutcome } from "./diagnostics.js";
 import type { NarrativeChoices, NarrativePreview } from "./narrativeimport.js";
 
@@ -274,15 +275,16 @@ export class ToolService {
   }
 
   /**
-   * Why a method may not be called now, if it may not: the extension refuses every change
-   * while an earlier revision of a plot is shown read-only (SUB-25), here, in one place.
+   * The plot shown read-only, an earlier revision of it, if one is: every request aimed at
+   * it that might change it is refused here, in one place (SUB-25; guardRequest).
    */
-  guard?: (method: string) => string | undefined;
+  shownReadOnly?: () => ShownReadOnly | undefined;
 
   /** One JSON-RPC request. No time limit here: the service stops tools that overrun. */
-  private request<T>(method: string, params: Record<string, unknown> = {}): Promise<T> {
-    const refused = this.guard?.(method);
-    if (refused) return Promise.reject(new ServiceError(refused, READ_ONLY_CODE));
+  private request<T>(method: string, given: Record<string, unknown> = {}): Promise<T> {
+    const guarded = guardRequest(method, given, this.shownReadOnly?.());
+    if ("refused" in guarded) return Promise.reject(new ServiceError(guarded.refused, READ_ONLY_CODE));
+    const params = guarded.params;
     const body = JSON.stringify({ jsonrpc: "2.0", id: this.nextId++, method, params });
     return new Promise((resolve, reject) => {
       const req = httpRequest(
@@ -320,6 +322,11 @@ export class ToolService {
       req.on("error", (error) => reject(new ServiceError(`Debrief's tool service is not responding: ${error.message}`)));
       req.end(body);
     });
+  }
+
+  /** For tests: a request as an agent sends it, through the same guard. */
+  raw<T>(method: string, params: Record<string, unknown>): Promise<T> {
+    return this.request(method, params);
   }
 
   async initialise(): Promise<void> {
@@ -386,9 +393,13 @@ export class ToolService {
     };
   }
 
-  /** Open a plot: finish any change a crash interrupted, and say where its history stands. */
-  open(store: string, item: string, agent: Agent): Promise<OpenedView> {
-    return this.request("debrief/open", { store, item, agent });
+  /**
+   * Open a plot: finish any change a crash interrupted, and say where its history stands.
+   * readOnly, to show an earlier revision: nothing interrupted is finished, which would
+   * write to the plot.
+   */
+  open(store: string, item: string, agent: Agent, readOnly = false): Promise<OpenedView> {
+    return this.request("debrief/open", { store, item, agent, ...(readOnly && { read_only: true }) });
   }
 
   history(store: string, item: string): Promise<Opened & { steps: HistoryStep[] }> {
@@ -560,8 +571,8 @@ export class ToolService {
    * each track's own, worked out in Python. tote says which tracks; left out, the
    * plot's island says. Reads only, so it never conflicts; asked again at each time.
    */
-  tote(store: string, item: string, time: string, tote?: ToteView): Promise<ToteResult> {
-    return this.request("debrief/tote", { store, item, time, ...(tote && { tote }) });
+  tote(store: string, item: string, time: string, tote?: ToteView, revision?: string): Promise<ToteResult> {
+    return this.request("debrief/tote", { store, item, time, ...(tote && { tote }), ...(revision && { revision }) });
   }
 
   /** The measure groups the Tote can show (CAP-07): core, for now. */
@@ -634,20 +645,35 @@ export class ToolService {
   }
 
   /**
-   * The image the map drew, with its ID put into its metadata, written to file and the
-   * export recorded in the plot's export log (its island, never a step).
+   * The image the map drew, with its ID put into its metadata and the export recorded in
+   * the plot's export log (its island, never a step), or the analyst's own where the plot's
+   * cannot be written; given back to write. The service writes no image file.
    */
   exportImage(
     store: string,
     item: string,
     agent: Agent,
-    request: { id: string; image: string; file: string; overwrite: boolean; format: string; footer: boolean; preset: string; theme: string; width: number; height: number; viewport?: Viewport; time?: TimeState },
-  ): Promise<ExportedImage> {
+    request: { id: string; image: string; file: string; format: string; footer: boolean; preset: string; theme: string; width: number; height: number; viewport?: Viewport; time?: TimeState; tote?: ToteView },
+  ): Promise<StampedImage> {
     return this.request("debrief/export_image", { store, item, agent, ...request });
   }
 
+  /**
+   * What the service asks of the extension: an agent's export, for the open map to draw
+   * (SUB-25). Waits up to wait seconds for one; polling is what tells the service a map
+   * is open.
+   */
+  hostPoll(wait = 20): Promise<{ requests: HostRequest[] }> {
+    return this.request("debrief/host_poll", { wait_s: wait });
+  }
+
+  /** The extension's answer to one of the service's requests: the export done, or why not. */
+  hostAnswer(id: string, answer: { result: ExportedImage } | { problem: string }): Promise<unknown> {
+    return this.request("debrief/host_answer", { id, ...answer });
+  }
+
   /** The plots an image came from: by a file's metadata, or an ID typed from its footer. Reads only. */
-  findImageSource(where: { file: string } | { id: string }): Promise<{ images: TracedImage[]; problem?: string }> {
+  findImageSource(where: { file: string } | { id: string }): Promise<{ images: TracedImage[]; problem?: string; skipped?: { where: string; why: string }[] }> {
     return this.request("debrief/find_image_source", where);
   }
 
@@ -655,6 +681,34 @@ export class ToolService {
   openRevision(store: string, item: string, revision: string, id?: string): Promise<{ plot: DebriefFeatureCollection; step: number; current: number; latest: number; revision: string; export?: ImageExport }> {
     return this.request("debrief/open_revision", { store, item, revision, ...(id && { id }) });
   }
+}
+
+/** The image stamped with its ID and the export recorded, given back to write. */
+export interface StampedImage {
+  id: string;
+  short: string;
+  revision: string;
+  /** A PNG as base 64, or an SVG's text. */
+  image: string;
+  recorded: boolean;
+  /** Where the export is recorded: the plot's export log, the analyst's own, or neither. */
+  logged?: "plot" | "user" | null;
+  note?: string;
+}
+
+/** An agent's export, asked of the open map by the service (debrief/host_poll). */
+export interface HostRequest {
+  id: string;
+  kind: "export_image";
+  store: string;
+  item: string;
+  file: string;
+  format: "png" | "svg";
+  preset?: string;
+  theme?: string;
+  footer?: boolean;
+  overwrite?: boolean;
+  agent: Agent;
 }
 
 /** What exporting an image said: where it went, its ID, and whether the plot's export log has it. */

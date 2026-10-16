@@ -195,6 +195,11 @@
           "default": "",
           "markdownDescription": "Python interpreter with Debrief's Python packages installed. Leave empty to use `python3`, or `python` on Windows."
         },
+        "debrief.exportFolder": {
+          "type": "string",
+          "default": "",
+          "markdownDescription": "A folder agents may export images into, besides this workspace's folders. Your own exports go wherever you save them."
+        },
         "debrief.toolTimeout": {
           "type": "number",
           "default": 120,

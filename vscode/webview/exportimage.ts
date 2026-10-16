@@ -2,18 +2,18 @@
  * The map as an image (SUB-25, EXT-05): what the analyst sees, written as SVG from the
  * map as drawn, so what is exported is what is on screen, labels where the map placed
  * them after keeping them clear of one another. Then, for a PNG, that SVG drawn onto a
- * canvas: the canvas holds only what Debrief wrote (reference tiles inlined as data, or
- * left out and said so), so it can always be read back.
+ * canvas.
  *
- * In it: reference tiles, land and the graticule; tracks, annotations, the selection's
+ * In it: land and the graticule; tracks, annotations, the selection's
  * plot features as unselected; symbols and arrows (the map's canvas, drawn again as
  * vectors); time labels, track names, fix and annotation labels; current time's
  * markers, the Tote's lines and the narrative box; the north arrow and the scale bar;
  * and the footer with the image's short ID. Not in it: the map's controls, its key, its
  * notes, the drawing toolbar, handles, fixes ringed to check, and the selection's
- * outline and dimming, which are for working, not for a report.
+ * outline and dimming, which are for working, not for a report. The map draws no
+ * reference tiles; were one shown, it would be left out and said so.
  */
-import { escapeXml, fitText, footerPlace, haloColour, n, type Box } from "./exportlogic.js";
+import { escapeXml, fitText, footerPlace, haloColour, n, svgFrame, textStyleAttributes, type Box } from "./exportlogic.js";
 
 /** A symbol or an arrow from the map's canvas, where it is on the map (container pixels). */
 export interface PaintedMark {
@@ -31,12 +31,12 @@ export interface ComposeOptions {
   scale: number;
   background: string;
   marks: PaintedMark[];
-  /** The footer's text and colours; none for no footer. */
-  footer?: { text: string; colour: string; halo: string };
-  /** Reference tiles as data, by element; a tile with none could not be read and is left out. */
-  tiles: Map<HTMLImageElement, string | undefined>;
+  /** The footer's text, colours and font size (footerFontSize); none for no footer. */
+  footer?: { text: string; colour: string; halo: string; size: number };
   /** The size of the chevron the map draws arrows with (map.ts TICK_SIZE). */
   tickSize: number;
+  /** The image's own clip id (clipIdFor). */
+  clipId: string;
 }
 
 /** Paths that are for working, never in an image: handles, fixes to check, a change previewed, the wide invisible edge that takes clicks. */
@@ -62,19 +62,10 @@ export function composeSvg(options: ComposeOptions): { svg: string; notes: strin
   const covered: { x: number; y: number }[] = [];
   out.push(`<rect width="${n(width)}" height="${n(height)}" fill="${escapeXml(options.background)}"/>`);
 
-  // Reference tiles, beneath everything.
-  let missing = 0;
-  for (const tile of Array.from(root.querySelectorAll<HTMLImageElement>(".leaflet-tile-pane img"))) {
-    if (!shown(tile)) continue;
-    const data = options.tiles.get(tile);
-    if (!data) {
-      missing++;
-      continue;
-    }
-    const r = at(tile.getBoundingClientRect());
-    out.push(`<image href="${escapeXml(data)}" x="${n(r.x)}" y="${n(r.y)}" width="${n(r.width)}" height="${n(r.height)}" preserveAspectRatio="none"/>`);
-  }
-  if (missing) notes.push(`${missing} reference ${missing === 1 ? "tile" : "tiles"} could not be read, so ${missing === 1 ? "it is" : "they are"} not in the image.`);
+  // Reference tiles: the map draws none; any shown is left out (another page's picture can
+  // neither be read back from a canvas nor be fetched under the webview's policy), and said.
+  const tiles = Array.from(root.querySelectorAll<HTMLImageElement>(".leaflet-tile-pane img")).filter(shown).length;
+  if (tiles) notes.push("The map's reference tiles are not in the image.");
 
   // Leaflet's vector layers: land, the graticule, tracks, annotations, the Tote's lines.
   for (const layer of Array.from(root.querySelectorAll<SVGSVGElement>(".leaflet-pane svg.leaflet-zoom-animated, .leaflet-overlay-pane > svg"))) {
@@ -221,24 +212,18 @@ export function composeSvg(options: ComposeOptions): { svg: string; notes: strin
   // The footer: the image's short ID, small and haloed, in the corner it covers least of.
   if (options.footer) {
     const family = getComputedStyle(root).fontFamily;
-    const size = 10.5;
+    const size = options.footer.size;
     const font = `${size}px ${family}`;
     const width = measureText(options.footer.text, font) + 6;
     const metrics = fontMetrics(font);
     const place = footerPlace({ width: options.width, height: options.height }, { width, height: metrics.ascent + metrics.descent + 4 }, furniture, covered);
     const baseline = place.y0 + 2 + metrics.ascent;
     out.push(
-      `<text class="debrief-footer" x="${n(place.x0 + 3)}" y="${n(baseline)}" font-family="${escapeXml(family)}" font-size="${size}" letter-spacing="0.3" fill="${escapeXml(options.footer.colour)}" stroke="${escapeXml(options.footer.halo)}" stroke-width="3" stroke-linejoin="round" paint-order="stroke">${escapeXml(options.footer.text)}</text>`,
+      `<text class="debrief-footer" x="${n(place.x0 + 3)}" y="${n(baseline)}" style="font-variant-numeric: tabular-nums" font-family="${escapeXml(family)}" font-size="${n(size)}" letter-spacing="${n(size * 0.03)}" fill="${escapeXml(options.footer.colour)}" stroke="${escapeXml(options.footer.halo)}" stroke-width="${n(Math.max(3, size * 0.28))}" stroke-linejoin="round" paint-order="stroke">${escapeXml(options.footer.text)}</text>`,
     );
   }
 
-  const pixels = { width: Math.round(width * scale), height: Math.round(height * scale) };
-  const svg =
-    `<svg xmlns="http://www.w3.org/2000/svg" width="${pixels.width}" height="${pixels.height}" viewBox="0 0 ${n(width)} ${n(height)}">` +
-    `<clipPath id="debrief-map"><rect width="${n(width)}" height="${n(height)}"/></clipPath><g clip-path="url(#debrief-map)">` +
-    out.join("") +
-    "</g></svg>";
-  return { svg, notes, covered };
+  return { svg: svgFrame(out.join(""), width, height, scale, options.clipId), notes, covered };
 }
 
 /** A box's background and border, as the map draws a control. */
@@ -284,7 +269,7 @@ function textElement(
   const alpha = Number(style.opacity) * opacity;
   covered.push({ x: r.x, y: r.y }, { x: r.x + r.width, y: r.y + r.height }, { x: r.x + r.width / 2, y: r.y + r.height / 2 });
   return (
-    `<text x="${n(x)}" y="${n(baseline)}"${anchor === "middle" ? ' text-anchor="middle"' : ""} font-family="${escapeXml(style.fontFamily)}" font-size="${escapeXml(style.fontSize.replace("px", ""))}" font-weight="${escapeXml(style.fontWeight)}"` +
+    `<text x="${n(x)}" y="${n(baseline)}"${anchor === "middle" ? ' text-anchor="middle"' : ""} font-family="${escapeXml(style.fontFamily)}" font-size="${escapeXml(style.fontSize.replace("px", ""))}" font-weight="${escapeXml(style.fontWeight)}"${textStyleAttributes(style)}` +
     ` fill="${escapeXml(style.color)}"${haloed}${alpha < 1 ? ` opacity="${n(alpha)}"` : ""} xml:space="preserve">${escapeXml(element.textContent ?? "")}</text>` // not user-facing
   );
 }
@@ -306,40 +291,9 @@ function narrativeBox(box: HTMLElement, at: (r: DOMRect) => { x: number; y: numb
   covered.push({ x: r.x, y: r.y }, { x: r.x + r.width, y: r.y + r.height });
   return (
     `<g opacity="${n(Number(style.opacity) || 1)}">${panel(box, r)}` +
-    `<text x="${n(r.x + padding)}" y="${n(baseline)}" font-family="${escapeXml(style.fontFamily)}" font-size="${escapeXml(style.fontSize.replace("px", ""))}" fill="${escapeXml(style.color)}" xml:space="preserve">` + // not user-facing
+    `<text x="${n(r.x + padding)}" y="${n(baseline)}" font-family="${escapeXml(style.fontFamily)}" font-size="${escapeXml(style.fontSize.replace("px", ""))}" fill="${escapeXml(style.color)}"${textStyleAttributes(style)} xml:space="preserve">` + // not user-facing
     `<tspan font-weight="600">${escapeXml(source)}</tspan><tspan dx="2">${escapeXml(text)}</tspan></text></g>`
   );
-}
-
-/** Each reference tile as data, where it can be read; none where it cannot (another site's tile that does not allow it). */
-export async function readTiles(root: HTMLElement): Promise<Map<HTMLImageElement, string | undefined>> {
-  const tiles = new Map<HTMLImageElement, string | undefined>();
-  await Promise.all(
-    Array.from(root.querySelectorAll<HTMLImageElement>(".leaflet-tile-pane img")).map(async (tile) => {
-      if (tile.src.startsWith("data:")) return void tiles.set(tile, tile.src);
-      try {
-        const canvas = document.createElement("canvas");
-        canvas.width = tile.naturalWidth;
-        canvas.height = tile.naturalHeight;
-        canvas.getContext("2d")!.drawImage(tile, 0, 0);
-        tiles.set(tile, canvas.toDataURL("image/png")); // throws for a tile read without leave to
-      } catch {
-        try {
-          const response = await fetch(tile.src, { mode: "cors" });
-          const blob = await response.blob();
-          tiles.set(tile, await new Promise<string>((resolve, reject) => {
-            const reader = new FileReader();
-            reader.onload = () => resolve(String(reader.result));
-            reader.onerror = () => reject(reader.error);
-            reader.readAsDataURL(blob);
-          }));
-        } catch {
-          tiles.set(tile, undefined); // offline, or not allowed: left out, and said
-        }
-      }
-    }),
-  );
-  return tiles;
 }
 
 /** The SVG drawn onto a canvas at its size, as a PNG in base 64. */

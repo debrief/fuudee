@@ -1105,6 +1105,23 @@
       "title": "DurationUnitEnum",
       "type": "string"
     },
+    "ExportLog": {
+      "additionalProperties": false,
+      "description": "The analyst's own export log, exports.json beside their Debrief configuration: the newest 2,000 exports their plots could not keep.",
+      "properties": {
+        "exports": {
+          "items": {
+            "$ref": "#/$defs/LoggedExport"
+          },
+          "type": [
+            "array",
+            "null"
+          ]
+        }
+      },
+      "title": "ExportLog",
+      "type": "object"
+    },
     "FeatureCollectionTypeEnum": {
       "description": "",
       "enum": [
@@ -1162,7 +1179,7 @@
               "type": "null"
             }
           ],
-          "description": "The export log entry for the image, when the plot has one."
+          "description": "The export log entry for the image, where the plot's log or the analyst's own has one. A footer's short form may name several exports of one revision: each is a source of its own, to choose from."
         },
         "item": {
           "type": "string"
@@ -1602,6 +1619,17 @@
           ],
           "description": "Current time and the time window when it was exported."
         },
+        "tote": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/ToteView"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": "Which tracks the Tote compared when it was exported, so the plot traced from the image shows the Tote, and its lines on the map, as the figure did (decision, product owner, 16 Oct 2026)."
+        },
         "viewport": {
           "anyOf": [
             {
@@ -1657,7 +1685,7 @@
       "properties": {
         "footer_text": {
           "description": "The image's ID in its short form, to draw in a corner; left out for no footer.",
-          "pattern": "^DBF-[0-9A-HJKMNP-TV-Z]{4}-[0-9A-HJKMNP-TV-Z]{4}-[0-9A-HJKMNP-TV-Z]{4}$",
+          "pattern": "^DBF-[0-9A-HJKMNP-TV-Z]{4}-[0-9A-HJKMNP-TV-Z]{4}-[0-9A-HJKMNP-TV-Z]{4}-[0-9A-HJKMNP-TV-Z]{2}$",
           "type": [
             "string",
             "null"
@@ -1934,6 +1962,29 @@
       ],
       "title": "LineStyleEnum",
       "type": "string"
+    },
+    "LoggedExport": {
+      "additionalProperties": false,
+      "description": "An export recorded in the analyst's own export log, beside their Debrief configuration, where the plot's could not be written (a read-only catalogue, say), so every export stays traceable (decision, product owner, 16 Oct 2026).",
+      "properties": {
+        "catalogue": {
+          "description": "The catalogue's own id, from its catalog.json.",
+          "type": "string"
+        },
+        "export": {
+          "$ref": "#/$defs/ImageExport"
+        },
+        "item": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "catalogue",
+        "item",
+        "export"
+      ],
+      "title": "LoggedExport",
+      "type": "object"
     },
     "MeasureDefinition": {
       "additionalProperties": false,
@@ -3148,7 +3199,7 @@
       "properties": {
         "figure": {
           "description": "The image's ID, in its short form, when one was traced.",
-          "pattern": "^DBF-[0-9A-HJKMNP-TV-Z]{4}-[0-9A-HJKMNP-TV-Z]{4}-[0-9A-HJKMNP-TV-Z]{4}$",
+          "pattern": "^DBF-[0-9A-HJKMNP-TV-Z]{4}-[0-9A-HJKMNP-TV-Z]{4}-[0-9A-HJKMNP-TV-Z]{4}-[0-9A-HJKMNP-TV-Z]{2}$",
           "type": [
             "string",
             "null"
@@ -3766,6 +3817,17 @@
           "pattern": "^sha256:[0-9a-f]{64}$",
           "type": [
             "string",
+            "null"
+          ]
+        },
+        "debrief:revisions": {
+          "description": "Every revision the item's history has had, each as the 16 symbols an image ID names it by (the first 80 bits of the content hash after each step, in Crockford's base 32), so an exported image is traced to its plot from the catalogue's items alone, never reading a plot that never had its revision (SUB-25). Derived at each change, never authoritative.",
+          "items": {
+            "pattern": "^[0-9A-HJKMNP-TV-Z]{16}$",
+            "type": "string"
+          },
+          "type": [
+            "array",
             "null"
           ]
         },

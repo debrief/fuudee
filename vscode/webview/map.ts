@@ -72,8 +72,8 @@ import { describeFix as describeFixOnly, marksByIndex, trackLabel } from "./fixe
 import { DATA_COLOURS, LIGHT_EXPORT_THEME } from "./palette.js";
 import { host, onMessage } from "./vscode.js";
 import { toteOf, toteMapLines } from "./totelogic.js";
-import { composeSvg, rasterise, readTiles, type PaintedMark } from "./exportimage.js";
-import { layoutFor, pixelsOf, type ImageFormat, type ImagePreset, type ImageTheme } from "./exportlogic.js";
+import { composeSvg, rasterise, type PaintedMark } from "./exportimage.js";
+import { clipIdFor, footerFontSize, layoutFor, pixelsOf, type ImageFormat, type ImagePreset, type ImageTheme } from "./exportlogic.js";
 import type { RenderedImage, RevisionShown } from "@debrief/schemas";
 
 type Feature = DebriefFeatureCollection["features"][number];
@@ -82,7 +82,7 @@ const settings = DEFAULT_SETTINGS;
 const WGS84 = geodesic.Geodesic.WGS84;
 
 const root = document.getElementById("root")!;
-root.innerHTML = `<div id="map" tabindex="0" aria-label="Plot map"></div><div id="status" class="status"></div><div id="empty" class="empty" hidden></div><div id="revision" class="revision-banner" role="status" hidden><span class="revision-text"></span><button type="button" class="revision-latest"></button></div><div id="exporting" class="exporting-note" role="status" hidden>Preparing the image…</div>`;
+root.innerHTML = `<div id="map" tabindex="0" aria-label="Plot map"></div><div id="status" class="status"></div><div id="empty" class="empty" hidden></div><div id="revision" class="revision-banner" hidden><span class="revision-text" role="status"></span><button type="button" class="revision-latest"></button></div><div id="exporting" class="exporting-note" role="status" hidden>Preparing the image…</div>`;
 const status = document.getElementById("status")!;
 const mapElement = document.getElementById("map")!;
 
@@ -1624,8 +1624,27 @@ async function settle(): Promise<void> {
   await frame();
   drawGrid();
   placeLabels();
+  // The narrative box's side is chosen by the room beside its marker: at the image's size, not the screen's.
+  drawNarrative(time ? Date.parse(time.current) : NaN);
   await frame();
 }
+/**
+ * A picture of the map as it is, laid over it while the map is laid out at an image's size
+ * and in its colours, so the analyst sees no jump and no flash of colour (expert panel,
+ * 16 Oct 2026); removed once the map is put back.
+ */
+async function coverMap(): Promise<() => void> {
+  const size = map.getSize();
+  const r = mapElement.getBoundingClientRect();
+  const { svg } = composeSvg({ root: mapElement, width: size.x, height: size.y, scale: 1, background: css("--vscode-editor-background"), marks: paintedMarks(), tickSize: TICK_SIZE, clipId: clipIdFor() });
+  const cover = Object.assign(document.createElement("img"), { className: "export-cover", alt: "", src: `data:image/svg+xml;charset=utf-8,${encodeURIComponent(svg)}` });
+  Object.assign(cover.style, { left: `${r.left}px`, top: `${r.top}px`, width: `${r.width}px`, height: `${r.height}px` });
+  document.body.append(cover);
+  await cover.decode().catch(() => undefined);
+  return () => cover.remove();
+}
+/** Messages that came while an image was being drawn: shown once the map is put back, so none is undone by it (a selection set meanwhile, say). */
+const whileExporting: Record<string, unknown>[] = [];
 /** The map's own colours swapped for light ones (LIGHT_EXPORT_THEME); returns how to put them back. */
 function lightTheme(): () => void {
   const style = document.documentElement.style;
@@ -1665,6 +1684,7 @@ async function exportImage(request: { format: ImageFormat; preset: ImagePreset; 
   exporting = true;
   note.hidden = false;
   try {
+    restore.push(await coverMap());
     const kept = selection;
     selection = new Set();
     restyle();
@@ -1710,9 +1730,9 @@ async function exportImage(request: { format: ImageFormat; preset: ImagePreset; 
       scale: layout.scale,
       background,
       marks: paintedMarks(),
-      footer: request.footer_text ? { text: request.footer_text, colour: css("--vscode-descriptionForeground") || css("--vscode-editor-foreground"), halo: background } : undefined,
-      tiles: await readTiles(mapElement),
+      footer: request.footer_text ? { text: request.footer_text, colour: css("--vscode-descriptionForeground") || css("--vscode-editor-foreground"), halo: background, size: footerFontSize({ width: size.x, height: size.y, scale: layout.scale }) } : undefined,
       tickSize: TICK_SIZE,
+      clipId: clipIdFor(),
     });
     const pixels = pixelsOf({ width: size.x, height: size.y, scale: layout.scale });
     const bounds = map.getBounds();
@@ -1723,10 +1743,14 @@ async function exportImage(request: { format: ImageFormat; preset: ImagePreset; 
     const data = request.format === "png" ? await rasterise(composed.svg, pixels.width, pixels.height) : composed.svg;
     return { format: request.format, data, width: pixels.width, height: pixels.height, viewport: { bbox }, ...(composed.notes.length && { notes: composed.notes }) };
   } finally {
+    // Put back beneath the picture of it, which goes last.
+    const uncover = restore.shift();
     for (const undo of restore.reverse()) undo();
     if (request.theme === "light") applyContext();
     await settle();
     exporting = false;
+    for (const message of whileExporting.splice(0)) handle(message);
+    uncover?.();
     note.hidden = true;
   }
 }
@@ -1750,6 +1774,10 @@ function showRevision(shown: RevisionShown | undefined): void {
 
 let shownPlot = "";
 onMessage((message) => {
+  if (exporting && message.kind !== "export_image") whileExporting.push(message);
+  else handle(message);
+});
+function handle(message: Record<string, unknown>): void {
   if (message.kind === "show_plot") {
     const sel = message.selection as { plot: string; feature_ids: string[] };
     const firstShow = sel.plot !== shownPlot;
@@ -1793,6 +1821,6 @@ onMessage((message) => {
   } else if (message.kind === "show_fixes") {
     showFixes(message as Parameters<typeof showFixes>[0]);
   }
-});
+}
 pageReady();
 host.postMessage({ kind: "ready" });

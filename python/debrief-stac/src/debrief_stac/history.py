@@ -696,6 +696,7 @@ class History:
                 text,
                 revision=file.plot_hash,
                 origin=file.steps[0].hash if file.steps else None,
+                revisions=[s.result_hash for s in file.steps],
             )
         else:
             self.store.write_text_atomic(self._plot_path, text)

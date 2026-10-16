@@ -11,6 +11,7 @@ imports:
   - linkml:types
   - core
   - state
+  - measures
 
 description: >-
   An image exported from Debrief carries an image ID: one plot, at the exact
@@ -34,13 +35,16 @@ types:
       the export (8 random symbols) and a check symbol (Luhn mod 32 over the
       rest), in Crockford's base 32, for example
       DBF1-PTETVDX3-KG8RB9E5X7Y58R98-M6SC7N75-Z. Its short form, the footer's,
-      is DBF, four symbols of the plot key, seven of the revision and a check
-      symbol: DBF-PTET-KG8R-B9E9.
+      is DBF, four symbols of the plot key, seven of the revision, two of the
+      export and a check symbol: DBF-PTET-KG8R-B9EM-69.
     pattern: "^DBF1-[0-9A-HJKMNP-TV-Z]{8}-[0-9A-HJKMNP-TV-Z]{16}-[0-9A-HJKMNP-TV-Z]{8}-[0-9A-HJKMNP-TV-Z]$"
   ShortFigureId:
     typeof: string
-    description: An image ID's short form, as the footer shows it and an analyst types it.
-    pattern: "^DBF-[0-9A-HJKMNP-TV-Z]{4}-[0-9A-HJKMNP-TV-Z]{4}-[0-9A-HJKMNP-TV-Z]{4}$"
+    description: >-
+      An image ID's short form, as the footer shows it and an analyst types it:
+      4 symbols of the plot key, 7 of the revision, 2 of the export and a check
+      symbol, so two exports of one revision have different footers.
+    pattern: "^DBF-[0-9A-HJKMNP-TV-Z]{4}-[0-9A-HJKMNP-TV-Z]{4}-[0-9A-HJKMNP-TV-Z]{4}-[0-9A-HJKMNP-TV-Z]{2}$"
 
 enums:
   ImageFormatEnum:
@@ -89,6 +93,13 @@ classes:
       time:
         description: Current time and the time window when it was exported.
         range: TimeState
+        inlined: true
+      tote:
+        description: >-
+          Which tracks the Tote compared when it was exported, so the plot
+          traced from the image shows the Tote, and its lines on the map, as
+          the figure did (decision, product owner, 16 Oct 2026).
+        range: ToteView
         inlined: true
 
   ImageRequest:
@@ -148,6 +159,30 @@ classes:
           another catalogue).
         range: boolean
       export:
-        description: The export log entry for the image, when the plot has one.
+        description: >-
+          The export log entry for the image, where the plot's log or the
+          analyst's own has one. A footer's short form may name several exports
+          of one revision: each is a source of its own, to choose from.
         range: ImageExport
         inlined: true
+
+  LoggedExport:
+    description: >-
+      An export recorded in the analyst's own export log, beside their Debrief
+      configuration, where the plot's could not be written (a read-only
+      catalogue, say), so every export stays traceable (decision, product
+      owner, 16 Oct 2026).
+    attributes:
+      catalogue: {required: true, description: "The catalogue's own id, from its catalog.json."}
+      item: {required: true}
+      export: {range: ImageExport, required: true, inlined: true}
+
+  ExportLog:
+    description: >-
+      The analyst's own export log, exports.json beside their Debrief
+      configuration: the newest 2,000 exports their plots could not keep.
+    attributes:
+      exports:
+        range: LoggedExport
+        multivalued: true
+        inlined_as_list: true

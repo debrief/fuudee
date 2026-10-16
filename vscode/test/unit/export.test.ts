@@ -2,8 +2,9 @@ import { readFileSync } from "node:fs";
 import path from "node:path";
 import { describe, expect, it } from "vitest";
 import type { FigureSource } from "@debrief/schemas";
-import { escapeXml, fileNameFor, fitText, footerPlace, haloColour, layoutFor, pixelsOf, PRESETS } from "../../webview/exportlogic.js";
-import { CHANGING_METHODS, describeExported, describeSource, READ_ONLY, revisionOf } from "../../src/figures.js";
+import { clipIdFor, escapeXml, fileNameFor, fitText, footerFontSize, footerPlace, haloColour, layoutFor, pixelsOf, PRESETS, svgFrame, textStyleAttributes } from "../../webview/exportlogic.js";
+import { DEFAULT_EXPORT, describeExport, describeExported, describeSource, guardRequest, insideFolders, LEAVES_PLOT, READ_ONLY, rememberedOf, revisionOf, startingChoice } from "../../src/figures.js";
+import { READ_ONLY_CODE, ToolService } from "../../src/service.js";
 import { checkMessage } from "../../src/messages.js";
 
 const repo = path.resolve(__dirname, "../../..");
@@ -62,7 +63,7 @@ describe("text in an SVG", () => {
     expect(haloColour("none")).toBeUndefined();
   });
   it("names the file for the plot and the image's ID", () => {
-    expect(fileNameFor("Serial 1", "DBF-PTET-KG8R-B9E9", "png")).toBe("Serial-1 DBF-PTET-KG8R-B9E9.png");
+    expect(fileNameFor("Serial 1", "DBF-PTET-KG8R-B9EM-69", "png")).toBe("Serial-1 DBF-PTET-KG8R-B9EM-69.png");
     expect(fileNameFor("Ex: blue/red ", undefined, "svg")).toBe("Ex-bluered.svg");
     expect(fileNameFor("", undefined, "png")).toBe("plot.png");
   });
@@ -71,22 +72,72 @@ describe("text in an SVG", () => {
 describe("what the hosts say", () => {
   const source: FigureSource = { store: "sample", store_title: "Sample", catalogue: "debrief-sample", item: "serial-1", title: "Serial 1", revision: `sha256:${"a".repeat(64)}`, step: 3, current: 5 };
   it("an export, with its ID and whether the plot's export log has it", () => {
-    expect(describeExported({ file: "/tmp/Serial-1.png", short: "DBF-PTET-KG8R-B9E9", recorded: true }, true)).toBe(
-      "Exported Serial-1.png. Its ID, DBF-PTET-KG8R-B9E9, is in its metadata and its corner. The plot's export log has it.",
+    expect(describeExported({ file: "/tmp/Serial-1.png", short: "DBF-PTET-KG8R-B9EM-69", recorded: true }, true)).toBe(
+      "Exported Serial-1.png. Its ID, DBF-PTET-KG8R-B9EM-69, is in its metadata and its corner. The plot's export log has it.",
     );
-    expect(describeExported({ file: "C:\\figures\\a.svg", short: "DBF-PTET-KG8R-B9E9", recorded: false, note: "Not logged: read-only." }, false)).toBe(
-      "Exported a.svg. Its ID, DBF-PTET-KG8R-B9E9, is in its metadata (no footer). Not logged: read-only.",
+    expect(describeExported({ file: "C:\\figures\\a.svg", short: "DBF-PTET-KG8R-B9EM-69", recorded: false, note: "Not logged: read-only." }, false)).toBe(
+      "Exported a.svg. Its ID, DBF-PTET-KG8R-B9EM-69, is in its metadata (no footer). Not logged: read-only.",
     );
   });
   it("a plot an image came from: the step it was exported at, and where the plot is now", () => {
     expect(describeSource(source)).toEqual({ label: "Serial 1, step 3; the plot is at step 5 now", detail: "Sample" });
     expect(describeSource({ ...source, current: 3, copied: true })).toEqual({ label: "Serial 1, step 3, as it is now", detail: "Sample · a copy, with the same content then" });
-    expect(revisionOf(source, "DBF-PTET-KG8R-B9E9")).toEqual({ step: 3, latest: 5, revision: source.revision, figure: "DBF-PTET-KG8R-B9E9" });
+    expect(revisionOf(source, "DBF-PTET-KG8R-B9EM-69")).toEqual({ step: 3, latest: 5, revision: source.revision, figure: "DBF-PTET-KG8R-B9EM-69" });
   });
-  it("refuses every change, and nothing else, while an earlier revision is shown", () => {
-    for (const method of ["tools/call", "debrief/undo", "debrief/set_view", "debrief/edit_track", "debrief/take_new_data", "debrief/clear_review_flag"]) expect(CHANGING_METHODS.has(method)).toBe(true);
-    for (const method of ["debrief/open", "debrief/figure_id", "debrief/export_image", "debrief/find_image_source", "debrief/open_revision", "debrief/tote", "debrief/history"]) expect(CHANGING_METHODS.has(method)).toBe(false);
+  it("lists two exports of one revision by when each was made and what it showed", () => {
+    const entry = { id: "DBF1-X", revision: source.revision, at: "2026-10-16T10:42:07.000Z", format: "png" as const, footer: true, viewport: { bbox: [-4.2, 50.3, -4.0, 50.4] as [number, number, number, number] } };
+    expect(describeExport(entry)).toBe("exported 16 Oct 2026 10:42 UTC, 50.30°N to 50.40°N, 4.20°W to 4.00°W");
+    expect(describeSource({ ...source, export: entry }).detail).toBe("exported 16 Oct 2026 10:42 UTC, 50.30°N to 50.40°N, 4.20°W to 4.00°W · Sample");
+  });
+});
+
+describe("a plot shown read-only (SUB-25; expert panel, 16 Oct 2026)", () => {
+  const vectors = JSON.parse(readFileSync(path.join(repo, "schemas/vectors/service-methods.json"), "utf8")) as { changes_plot: string[]; leaves_plot: string[] };
+  const shown = { store: "exercise", item: "serial" };
+  it("allows only the methods that leave a plot alone, as Python lists them", () => {
+    expect([...LEAVES_PLOT].sort()).toEqual([...vectors.leaves_plot].sort());
+    for (const method of vectors.changes_plot) expect(LEAVES_PLOT.has(method)).toBe(false);
+  });
+  it("refuses every change aimed at it, and a method it does not know", () => {
+    for (const method of vectors.changes_plot.filter((m) => m !== "tools/call")) expect(guardRequest(method, { ...shown }, shown)).toEqual({ refused: READ_ONLY });
+    expect(guardRequest("tools/call", { name: "x", arguments: { ...shown } }, shown)).toEqual({ refused: READ_ONLY });
+    expect(guardRequest("debrief/some_later_change", { ...shown }, shown)).toEqual({ refused: READ_ONLY });
     expect(READ_ONLY).toMatch(/read-only/);
+  });
+  it("leaves other plots, and reading this one, alone; opens it without recovering", () => {
+    expect(guardRequest("debrief/set_colour", { store: "exercise", item: "other" }, shown)).toEqual({ params: { store: "exercise", item: "other" } });
+    expect(guardRequest("debrief/set_colour", { ...shown }, undefined)).toEqual({ params: { ...shown } });
+    expect(guardRequest("debrief/tote", { ...shown, time: "t" }, shown)).toEqual({ params: { ...shown, time: "t" } });
+    expect(guardRequest("debrief/open", { ...shown }, shown)).toEqual({ params: { ...shown, read_only: true } });
+  });
+  it("is refused in the tool service's client, before anything is sent", async () => {
+    const service = Object.create(ToolService.prototype) as unknown as { shownReadOnly: ToolService["shownReadOnly"]; request: (method: string, params: object) => Promise<unknown> };
+    service.shownReadOnly = () => shown;
+    await expect(service.request("debrief/undo", { ...shown })).rejects.toMatchObject({ code: READ_ONLY_CODE, message: READ_ONLY });
+  });
+});
+
+describe("what an export starts from", () => {
+  it("the size and colours chosen last; the footer on, every time", () => {
+    const last = rememberedOf({ format: "svg", preset: "a4_landscape", theme: "light", footer: false });
+    expect(last).toEqual({ preset: "a4_landscape", theme: "light" });
+    expect(startingChoice(last)).toEqual({ ...DEFAULT_EXPORT, preset: "a4_landscape", theme: "light", footer: true });
+    // Remembered before this rule, with the footer off: on again.
+    expect(startingChoice({ preset: "screen", theme: "current", footer: false, format: "svg" })).toEqual({ ...DEFAULT_EXPORT, preset: "screen" });
+    expect(startingChoice(undefined)).toEqual(DEFAULT_EXPORT);
+    expect(startingChoice({ preset: "huge" })).toEqual(DEFAULT_EXPORT);
+  });
+});
+
+describe("where an agent may write an image", () => {
+  it("inside the workspace's folders or the exports folder, nowhere else", () => {
+    expect(insideFolders("/work/figures/a.png", ["/work"])).toBe(true);
+    expect(insideFolders("/work-other/a.png", ["/work"])).toBe(false);
+    expect(insideFolders("/etc/a.png", ["/work", "/exports"])).toBe(false);
+    expect(insideFolders("/exports/a.png", ["/work", "/exports/"])).toBe(true);
+    expect(insideFolders("C:\\Work\\a.png", ["c:\\work"], true)).toBe(true);
+    expect(insideFolders("C:\\Work\\a.png", ["c:\\work"], false)).toBe(false);
+    expect(insideFolders("/a.png", [""])).toBe(false);
   });
 });
 
@@ -100,5 +151,30 @@ describe("the export's messages are boundary types (CON-08)", () => {
   });
   it.each(["export-image-footer-not-short-id", "export-image-unknown-preset"])("refuses %s by its schema", (name) => {
     expect(() => checkMessage(fixture(`invalid/schema/${name}.json`))).toThrow();
+  });
+});
+
+describe("the parts the image's SVG is written with (expert panel, 16 Oct 2026)", () => {
+  it("a footer sized to the image, so it reads at half a page's width, never under 14 pixels", () => {
+    const slide = layoutFor("slide", { width: 900, height: 700 });
+    expect(footerFontSize(slide) * slide.scale).toBeCloseTo(32, 1);
+    const a4 = layoutFor("a4_landscape", { width: 900, height: 700 });
+    expect(footerFontSize(a4) * a4.scale).toBeCloseTo(35.08, 1);
+    const small = layoutFor("screen", { width: 300, height: 200 });
+    expect(footerFontSize(small) * small.scale).toBeCloseTo(14, 1);
+  });
+  it("keeps a label's letter-spacing and tabular figures, and adds nothing where it has neither", () => {
+    expect(textStyleAttributes({ letterSpacing: "0.5px", fontVariantNumeric: "tabular-nums" })).toBe(' letter-spacing="0.5" font-variant-numeric="tabular-nums" style="font-variant-numeric: tabular-nums"');
+    expect(textStyleAttributes({ letterSpacing: "normal", fontVariantNumeric: "normal" })).toBe("");
+    expect(textStyleAttributes({ letterSpacing: "0px", fontVariantNumeric: "" })).toBe("");
+  });
+  it("clips each image to its own id, so two in one document do not share one", () => {
+    const a = clipIdFor(() => 0.25);
+    const b = clipIdFor(() => 0.75);
+    expect(a).toMatch(/^debrief-map-[0-9a-z]{8}$/);
+    expect(a).not.toBe(b);
+    const svg = svgFrame("<path/>", 800, 450, 2, a);
+    expect(svg).toBe(`<svg xmlns="http://www.w3.org/2000/svg" width="1600" height="900" viewBox="0 0 800 450"><clipPath id="${a}"><rect width="800" height="450"/></clipPath><g clip-path="url(#${a})"><path/></g></svg>`);
+    expect(svg).not.toContain('id="debrief-map"');
   });
 });

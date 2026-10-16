@@ -113,8 +113,8 @@ linkml_meta = LinkMLMeta({'default_prefix': 'debrief',
                                            'DBF1-PTETVDX3-KG8RB9E5X7Y58R98-M6SC7N75-Z. '
                                            "Its short form, the footer's, is DBF, "
                                            'four symbols of the plot key, seven of '
-                                           'the revision and a check symbol: '
-                                           'DBF-PTET-KG8R-B9E9.',
+                                           'the revision, two of the export and a '
+                                           'check symbol: DBF-PTET-KG8R-B9EM-69.',
                             'from_schema': 'https://debrief.info/schemas/debrief',
                             'name': 'FigureId',
                             'pattern': '^DBF1-[0-9A-HJKMNP-TV-Z]{8}-[0-9A-HJKMNP-TV-Z]{16}-[0-9A-HJKMNP-TV-Z]{8}-[0-9A-HJKMNP-TV-Z]$',
@@ -127,10 +127,14 @@ linkml_meta = LinkMLMeta({'default_prefix': 'debrief',
                                  'typeof': 'string'},
                'ShortFigureId': {'description': "An image ID's short form, as the "
                                                 'footer shows it and an analyst '
-                                                'types it.',
+                                                'types it: 4 symbols of the plot '
+                                                'key, 7 of the revision, 2 of the '
+                                                'export and a check symbol, so two '
+                                                'exports of one revision have '
+                                                'different footers.',
                                  'from_schema': 'https://debrief.info/schemas/debrief',
                                  'name': 'ShortFigureId',
-                                 'pattern': '^DBF-[0-9A-HJKMNP-TV-Z]{4}-[0-9A-HJKMNP-TV-Z]{4}-[0-9A-HJKMNP-TV-Z]{4}$',
+                                 'pattern': '^DBF-[0-9A-HJKMNP-TV-Z]{4}-[0-9A-HJKMNP-TV-Z]{4}-[0-9A-HJKMNP-TV-Z]{4}-[0-9A-HJKMNP-TV-Z]{2}$',
                                  'typeof': 'string'},
                'UtcTimestamp': {'description': 'Instant in UTC with exactly '
                                                'millisecond precision (SUB-01), '
@@ -1783,7 +1787,8 @@ class ItemRef(ConfiguredBaseModel):
                        'CoverageSource',
                        'CoverageItem',
                        'ReviewFlag',
-                       'FigureSource']} })
+                       'FigureSource',
+                       'LoggedExport']} })
     item: str = Field(default=..., description="""The item's id in that catalogue.""", json_schema_extra = { "linkml_meta": {'domain_of': ['ItemRef',
                        'SourceTrackRef',
                        'TrackSupply',
@@ -1792,7 +1797,8 @@ class ItemRef(ConfiguredBaseModel):
                        'CoverageSource',
                        'CoverageItem',
                        'ReviewFlag',
-                       'FigureSource']} })
+                       'FigureSource',
+                       'LoggedExport']} })
     title: Optional[str] = Field(default=None, description="""The item's title when it was read, to name it if it has gone.""", json_schema_extra = { "linkml_meta": {'domain_of': ['ItemRef',
                        'TrackSupply',
                        'PlotProperties',
@@ -1977,7 +1983,8 @@ class SourceTrackRef(ConfiguredBaseModel):
                        'CoverageSource',
                        'CoverageItem',
                        'ReviewFlag',
-                       'FigureSource']} })
+                       'FigureSource',
+                       'LoggedExport']} })
     item: str = Field(default=..., json_schema_extra = { "linkml_meta": {'domain_of': ['ItemRef',
                        'SourceTrackRef',
                        'TrackSupply',
@@ -1986,7 +1993,8 @@ class SourceTrackRef(ConfiguredBaseModel):
                        'CoverageSource',
                        'CoverageItem',
                        'ReviewFlag',
-                       'FigureSource']} })
+                       'FigureSource',
+                       'LoggedExport']} })
     track: str = Field(default=..., description="""The track's feature id in that item.""", json_schema_extra = { "linkml_meta": {'domain_of': ['SourceTrackRef',
                        'TrackSupply',
                        'TrackCoverage',
@@ -2030,7 +2038,8 @@ class TrackSupply(ConfiguredBaseModel):
                        'CoverageSource',
                        'CoverageItem',
                        'ReviewFlag',
-                       'FigureSource']} })
+                       'FigureSource',
+                       'LoggedExport']} })
     item: str = Field(default=..., json_schema_extra = { "linkml_meta": {'domain_of': ['ItemRef',
                        'SourceTrackRef',
                        'TrackSupply',
@@ -2039,7 +2048,8 @@ class TrackSupply(ConfiguredBaseModel):
                        'CoverageSource',
                        'CoverageItem',
                        'ReviewFlag',
-                       'FigureSource']} })
+                       'FigureSource',
+                       'LoggedExport']} })
     track: str = Field(default=..., description="""The supplying track's feature id in that item.""", json_schema_extra = { "linkml_meta": {'domain_of': ['SourceTrackRef',
                        'TrackSupply',
                        'TrackCoverage',
@@ -2944,10 +2954,10 @@ class PlotView(ConfiguredBaseModel):
 
     time_window: Optional[TimeRange] = Field(default=None, description="""The plot's time window: the period shown, one for the whole plot (CAP-28, CAP-29). Start shall not be after end.""", json_schema_extra = { "linkml_meta": {'domain_of': ['PlotView']} })
     context_tracks: Optional[ContextTracksEnum] = Field(default=None, description="""How tracks outside the time window are drawn (CAP-29). Left out means visible.""", json_schema_extra = { "linkml_meta": {'domain_of': ['PlotView', 'WebviewMessage']} })
-    tote: Optional[ToteView] = Field(default=None, description="""Which tracks the Tote compares, and through which measure group (CAP-06, CAP-07). View state, like the window: changing it is never a step in the history (decision, 14 Oct 2026).""", json_schema_extra = { "linkml_meta": {'domain_of': ['PlotView', 'WebviewMessage']} })
+    tote: Optional[ToteView] = Field(default=None, description="""Which tracks the Tote compares, and through which measure group (CAP-06, CAP-07). View state, like the window: changing it is never a step in the history (decision, 14 Oct 2026).""", json_schema_extra = { "linkml_meta": {'domain_of': ['PlotView', 'ImageExport', 'WebviewMessage']} })
     narrative_on_map: Optional[bool] = Field(default=None, description="""Whether the map shows the narrative entry current time is at in a small box beside its track, for ten minutes of plot time; left out means it does. Turned off and on in the Timeline. View state, like the Tote's lines: never a step in the history (decision, product owner, 15 Oct 2026).""", json_schema_extra = { "linkml_meta": {'domain_of': ['PlotView', 'WebviewMessage']} })
     collation: Optional[CollationView] = Field(default=None, description="""What the analyst has said of catalogue items while collating (CAP-10, CAP-12): new data set aside for now, and revisions reviewed. View state: never a step in the history.""", json_schema_extra = { "linkml_meta": {'domain_of': ['PlotView']} })
-    exports: Optional[list[ImageExport]] = Field(default=None, description="""The plot's export log: each image exported from it, with its ID, the revision exported, when, by whom, the view and the time, the format and the file's name (SUB-25; decision, product owner, 16 Oct 2026). View state: never a step, so an export changes neither the plot's revision nor any product that drew from it.""", json_schema_extra = { "linkml_meta": {'domain_of': ['PlotView']} })
+    exports: Optional[list[ImageExport]] = Field(default=None, description="""The plot's export log: each image exported from it, with its ID, the revision exported, when, by whom, the view and the time, the format and the file's name (SUB-25; decision, product owner, 16 Oct 2026). View state: never a step, so an export changes neither the plot's revision nor any product that drew from it.""", json_schema_extra = { "linkml_meta": {'domain_of': ['PlotView', 'ExportLog']} })
 
 
 class CollationView(ConfiguredBaseModel):
@@ -2974,7 +2984,8 @@ class ItemRevision(ConfiguredBaseModel):
                        'CoverageSource',
                        'CoverageItem',
                        'ReviewFlag',
-                       'FigureSource']} })
+                       'FigureSource',
+                       'LoggedExport']} })
     item: str = Field(default=..., json_schema_extra = { "linkml_meta": {'domain_of': ['ItemRef',
                        'SourceTrackRef',
                        'TrackSupply',
@@ -2983,7 +2994,8 @@ class ItemRevision(ConfiguredBaseModel):
                        'CoverageSource',
                        'CoverageItem',
                        'ReviewFlag',
-                       'FigureSource']} })
+                       'FigureSource',
+                       'LoggedExport']} })
     revision: str = Field(default=..., json_schema_extra = { "linkml_meta": {'domain_of': ['ItemRef',
                        'TrackSupply',
                        'ItemRevision',
@@ -3249,6 +3261,7 @@ class StacItemProperties(ConfiguredBaseModel):
     debrief_drawn_from: Optional[list[ItemRef]] = Field(default=None, alias="debrief:drawn_from", description="""The catalogue items the plot's tracks take data from now, each at every revision a period of it was read at (CAP-12), from its tracks' supplies. Derived at each change, never authoritative.""", json_schema_extra = { "linkml_meta": {'domain_of': ['StacItemProperties']} })
     debrief_imported: Optional[bool] = Field(default=None, alias="debrief:imported", description="""Whether the item came in by importing source files: its history starts with a record naming the files it read. Only such items can be new data for a plot (CAP-10; decision, product owner, 16 Oct 2026). Derived at each change, never authoritative.""", json_schema_extra = { "linkml_meta": {'domain_of': ['StacItemProperties']} })
     debrief_origin: Optional[str] = Field(default=None, alias="debrief:origin", description="""The step_hash of the first step of the item's history: items that share it are copies of one plot, forked where their histories part (CAP-10). Derived at each change, never authoritative.""", json_schema_extra = { "linkml_meta": {'domain_of': ['StacItemProperties']} })
+    debrief_revisions: Optional[list[str]] = Field(default=None, alias="debrief:revisions", description="""Every revision the item's history has had, each as the 16 symbols an image ID names it by (the first 80 bits of the content hash after each step, in Crockford's base 32), so an exported image is traced to its plot from the catalogue's items alone, never reading a plot that never had its revision (SUB-25). Derived at each change, never authoritative.""", json_schema_extra = { "linkml_meta": {'domain_of': ['StacItemProperties']} })
 
     @field_validator('datetime')
     def pattern_datetime(cls, v):
@@ -3338,6 +3351,19 @@ class StacItemProperties(ConfiguredBaseModel):
                     raise ValueError(err_msg)
         elif isinstance(v, str) and not pattern.search(v):
             err_msg = f"Invalid debrief_origin format: {v}"
+            raise ValueError(err_msg)
+        return v
+
+    @field_validator('debrief_revisions')
+    def pattern_debrief_revisions(cls, v):
+        pattern=re.compile(r"^[0-9A-HJKMNP-TV-Z]{16}$")
+        if isinstance(v, list):
+            for element in v:
+                if isinstance(element, str) and not pattern.search(element):
+                    err_msg = f"Invalid debrief_revisions format: {element}"
+                    raise ValueError(err_msg)
+        elif isinstance(v, str) and not pattern.search(v):
+            err_msg = f"Invalid debrief_revisions format: {v}"
             raise ValueError(err_msg)
         return v
 
@@ -4351,7 +4377,8 @@ class CoverageReport(ConfiguredBaseModel):
                        'CoverageSource',
                        'CoverageItem',
                        'ReviewFlag',
-                       'FigureSource']} })
+                       'FigureSource',
+                       'LoggedExport']} })
     item: str = Field(default=..., description="""The plot's item id.""", json_schema_extra = { "linkml_meta": {'domain_of': ['ItemRef',
                        'SourceTrackRef',
                        'TrackSupply',
@@ -4360,7 +4387,8 @@ class CoverageReport(ConfiguredBaseModel):
                        'CoverageSource',
                        'CoverageItem',
                        'ReviewFlag',
-                       'FigureSource']} })
+                       'FigureSource',
+                       'LoggedExport']} })
     title: str = Field(default=..., json_schema_extra = { "linkml_meta": {'domain_of': ['ItemRef',
                        'TrackSupply',
                        'PlotProperties',
@@ -4498,7 +4526,8 @@ class CoverageSource(ConfiguredBaseModel):
                        'CoverageSource',
                        'CoverageItem',
                        'ReviewFlag',
-                       'FigureSource']} })
+                       'FigureSource',
+                       'LoggedExport']} })
     item: str = Field(default=..., json_schema_extra = { "linkml_meta": {'domain_of': ['ItemRef',
                        'SourceTrackRef',
                        'TrackSupply',
@@ -4507,7 +4536,8 @@ class CoverageSource(ConfiguredBaseModel):
                        'CoverageSource',
                        'CoverageItem',
                        'ReviewFlag',
-                       'FigureSource']} })
+                       'FigureSource',
+                       'LoggedExport']} })
     track: str = Field(default=..., json_schema_extra = { "linkml_meta": {'domain_of': ['SourceTrackRef',
                        'TrackSupply',
                        'TrackCoverage',
@@ -4621,7 +4651,8 @@ class CoverageItem(ConfiguredBaseModel):
                        'CoverageSource',
                        'CoverageItem',
                        'ReviewFlag',
-                       'FigureSource']} })
+                       'FigureSource',
+                       'LoggedExport']} })
     item: str = Field(default=..., json_schema_extra = { "linkml_meta": {'domain_of': ['ItemRef',
                        'SourceTrackRef',
                        'TrackSupply',
@@ -4630,7 +4661,8 @@ class CoverageItem(ConfiguredBaseModel):
                        'CoverageSource',
                        'CoverageItem',
                        'ReviewFlag',
-                       'FigureSource']} })
+                       'FigureSource',
+                       'LoggedExport']} })
     title: str = Field(default=..., json_schema_extra = { "linkml_meta": {'domain_of': ['ItemRef',
                        'TrackSupply',
                        'PlotProperties',
@@ -4778,7 +4810,8 @@ class ReviewFlag(ConfiguredBaseModel):
                        'CoverageSource',
                        'CoverageItem',
                        'ReviewFlag',
-                       'FigureSource']} })
+                       'FigureSource',
+                       'LoggedExport']} })
     item: str = Field(default=..., json_schema_extra = { "linkml_meta": {'domain_of': ['ItemRef',
                        'SourceTrackRef',
                        'TrackSupply',
@@ -4787,7 +4820,8 @@ class ReviewFlag(ConfiguredBaseModel):
                        'CoverageSource',
                        'CoverageItem',
                        'ReviewFlag',
-                       'FigureSource']} })
+                       'FigureSource',
+                       'LoggedExport']} })
     title: str = Field(default=..., json_schema_extra = { "linkml_meta": {'domain_of': ['ItemRef',
                        'TrackSupply',
                        'PlotProperties',
@@ -4867,6 +4901,7 @@ class ImageExport(ConfiguredBaseModel):
                        'ToteResult',
                        'ImageExport',
                        'WebviewMessage']} })
+    tote: Optional[ToteView] = Field(default=None, description="""Which tracks the Tote compared when it was exported, so the plot traced from the image shows the Tote, and its lines on the map, as the figure did (decision, product owner, 16 Oct 2026).""", json_schema_extra = { "linkml_meta": {'domain_of': ['PlotView', 'ImageExport', 'WebviewMessage']} })
 
     @field_validator('id')
     def pattern_id(cls, v):
@@ -4921,7 +4956,7 @@ class ImageRequest(ConfiguredBaseModel):
 
     @field_validator('footer_text')
     def pattern_footer_text(cls, v):
-        pattern=re.compile(r"^DBF-[0-9A-HJKMNP-TV-Z]{4}-[0-9A-HJKMNP-TV-Z]{4}-[0-9A-HJKMNP-TV-Z]{4}$")
+        pattern=re.compile(r"^DBF-[0-9A-HJKMNP-TV-Z]{4}-[0-9A-HJKMNP-TV-Z]{4}-[0-9A-HJKMNP-TV-Z]{4}-[0-9A-HJKMNP-TV-Z]{2}$")
         if isinstance(v, list):
             for element in v:
                 if isinstance(element, str) and not pattern.search(element):
@@ -4984,7 +5019,7 @@ class RevisionShown(ConfiguredBaseModel):
 
     @field_validator('figure')
     def pattern_figure(cls, v):
-        pattern=re.compile(r"^DBF-[0-9A-HJKMNP-TV-Z]{4}-[0-9A-HJKMNP-TV-Z]{4}-[0-9A-HJKMNP-TV-Z]{4}$")
+        pattern=re.compile(r"^DBF-[0-9A-HJKMNP-TV-Z]{4}-[0-9A-HJKMNP-TV-Z]{4}-[0-9A-HJKMNP-TV-Z]{4}-[0-9A-HJKMNP-TV-Z]{2}$")
         if isinstance(v, list):
             for element in v:
                 if isinstance(element, str) and not pattern.search(element):
@@ -5012,7 +5047,8 @@ class FigureSource(ConfiguredBaseModel):
                        'CoverageSource',
                        'CoverageItem',
                        'ReviewFlag',
-                       'FigureSource']} })
+                       'FigureSource',
+                       'LoggedExport']} })
     item: str = Field(default=..., json_schema_extra = { "linkml_meta": {'domain_of': ['ItemRef',
                        'SourceTrackRef',
                        'TrackSupply',
@@ -5021,7 +5057,8 @@ class FigureSource(ConfiguredBaseModel):
                        'CoverageSource',
                        'CoverageItem',
                        'ReviewFlag',
-                       'FigureSource']} })
+                       'FigureSource',
+                       'LoggedExport']} })
     title: str = Field(default=..., json_schema_extra = { "linkml_meta": {'domain_of': ['ItemRef',
                        'TrackSupply',
                        'PlotProperties',
@@ -5051,7 +5088,7 @@ class FigureSource(ConfiguredBaseModel):
     step: int = Field(default=..., description="""The step at that revision.""", ge=0, json_schema_extra = { "linkml_meta": {'domain_of': ['RevisionShown', 'FigureSource']} })
     current: int = Field(default=..., description="""The plot's current step now.""", ge=0, json_schema_extra = { "linkml_meta": {'domain_of': ['TimeState', 'FigureSource', 'PlotHistory', 'HistoryHead']} })
     copied: Optional[bool] = Field(default=None, description="""The image's plot key names another plot: this is a copy of it with the same content at that revision (a colleague's, or one moved to another catalogue).""", json_schema_extra = { "linkml_meta": {'domain_of': ['FigureSource']} })
-    export: Optional[ImageExport] = Field(default=None, description="""The export log entry for the image, when the plot has one.""", json_schema_extra = { "linkml_meta": {'domain_of': ['FigureSource']} })
+    export: Optional[ImageExport] = Field(default=None, description="""The export log entry for the image, where the plot's log or the analyst's own has one. A footer's short form may name several exports of one revision: each is a source of its own, to choose from.""", json_schema_extra = { "linkml_meta": {'domain_of': ['FigureSource', 'LoggedExport']} })
 
     @field_validator('revision')
     def pattern_revision(cls, v):
@@ -5065,6 +5102,44 @@ class FigureSource(ConfiguredBaseModel):
             err_msg = f"Invalid revision format: {v}"
             raise ValueError(err_msg)
         return v
+
+
+class LoggedExport(ConfiguredBaseModel):
+    """
+    An export recorded in the analyst's own export log, beside their Debrief configuration, where the plot's could not be written (a read-only catalogue, say), so every export stays traceable (decision, product owner, 16 Oct 2026).
+    """
+    linkml_meta: ClassVar[LinkMLMeta] = LinkMLMeta({'from_schema': 'https://debrief.info/schemas/debrief'})
+
+    catalogue: str = Field(default=..., description="""The catalogue's own id, from its catalog.json.""", json_schema_extra = { "linkml_meta": {'domain_of': ['ItemRef',
+                       'SourceTrackRef',
+                       'TrackSupply',
+                       'ItemRevision',
+                       'CoverageReport',
+                       'CoverageSource',
+                       'CoverageItem',
+                       'ReviewFlag',
+                       'FigureSource',
+                       'LoggedExport']} })
+    item: str = Field(default=..., json_schema_extra = { "linkml_meta": {'domain_of': ['ItemRef',
+                       'SourceTrackRef',
+                       'TrackSupply',
+                       'ItemRevision',
+                       'CoverageReport',
+                       'CoverageSource',
+                       'CoverageItem',
+                       'ReviewFlag',
+                       'FigureSource',
+                       'LoggedExport']} })
+    export: ImageExport = Field(default=..., json_schema_extra = { "linkml_meta": {'domain_of': ['FigureSource', 'LoggedExport']} })
+
+
+class ExportLog(ConfiguredBaseModel):
+    """
+    The analyst's own export log, exports.json beside their Debrief configuration: the newest 2,000 exports their plots could not keep.
+    """
+    linkml_meta: ClassVar[LinkMLMeta] = LinkMLMeta({'from_schema': 'https://debrief.info/schemas/debrief'})
+
+    exports: Optional[list[LoggedExport]] = Field(default=None, json_schema_extra = { "linkml_meta": {'domain_of': ['PlotView', 'ExportLog']} })
 
 
 class TimelineEntry(ConfiguredBaseModel):
@@ -5235,7 +5310,7 @@ class WebviewMessage(ConfiguredBaseModel):
     fix_times: Optional[list[str]] = Field(default=None, description="""The times of the fixes the map rings (show_fixes).""", json_schema_extra = { "linkml_meta": {'domain_of': ['WebviewMessage']} })
     fix_time: Optional[str] = Field(default=None, description="""The time of the fix the analyst chose on the map (fix_chosen).""", json_schema_extra = { "linkml_meta": {'domain_of': ['TrackEdit', 'WebviewMessage']} })
     preview: Optional[LineStringGeometry] = Field(default=None, description="""A track as a change would leave it, one position per fix, drawn beside it until the analyst applies or cancels the change (show_fixes).""", json_schema_extra = { "linkml_meta": {'domain_of': ['WebviewMessage']} })
-    tote: Optional[ToteResult] = Field(default=None, description="""The Tote's values at current time (show_tote).""", json_schema_extra = { "linkml_meta": {'domain_of': ['PlotView', 'WebviewMessage']} })
+    tote: Optional[ToteResult] = Field(default=None, description="""The Tote's values at current time (show_tote).""", json_schema_extra = { "linkml_meta": {'domain_of': ['PlotView', 'ImageExport', 'WebviewMessage']} })
     tote_view: Optional[ToteView] = Field(default=None, description="""Which tracks the Tote compares, as saved in the plot (show_tote, set_tote) or as the analyst chose (tote_changed).""", json_schema_extra = { "linkml_meta": {'domain_of': ['WebviewMessage']} })
     timeline_entries: Optional[list[TimelineEntry]] = Field(default=None, description="""The Timeline's rows, in its order (show_timeline).""", json_schema_extra = { "linkml_meta": {'domain_of': ['WebviewMessage']} })
     timeline_entry: Optional[TimelineEntry] = Field(default=None, description="""The narrative entry current time is at, to show on the map beside its track (set_narrative).""", json_schema_extra = { "linkml_meta": {'domain_of': ['WebviewMessage']} })
@@ -5562,6 +5637,8 @@ ImageRequest.model_rebuild()
 RenderedImage.model_rebuild()
 RevisionShown.model_rebuild()
 FigureSource.model_rebuild()
+LoggedExport.model_rebuild()
+ExportLog.model_rebuild()
 TimelineEntry.model_rebuild()
 WebviewMessage.model_rebuild()
 PlotHistory.model_rebuild()

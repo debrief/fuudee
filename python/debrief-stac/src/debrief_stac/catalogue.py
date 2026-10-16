@@ -53,6 +53,7 @@ from debrief_stac import (
     reckoning,
     tracks,
 )
+from debrief_stac.figures import PLOT_LOG_LIMIT, revision_symbols
 from debrief_stac.hashing import content_hash
 from debrief_stac.history import (
     LOCK,
@@ -426,6 +427,7 @@ class Catalogue:
         *,
         revision: str | None = None,
         origin: str | None = None,
+        revisions: list[str] | None = None,
     ) -> None:
         """Write the materialised plot atomically and refresh the item's extent (NFR-11),
         and what collation reads of it (CAP-08 to CAP-12): its revision (the content's
@@ -447,6 +449,9 @@ class Catalogue:
         props.debrief_drawn_from = collation.drawn_from(plot) or None
         props.debrief_imported = collation.imported(plot)
         props.debrief_origin = origin or props.debrief_origin
+        if revisions is not None:
+            # What an image ID names each revision by: traced from the items alone (SUB-25).
+            props.debrief_revisions = list(dict.fromkeys(revision_symbols(r) for r in revisions))
         props.created = props.created or collation.first_recorded_at(plot)
         self._write_item(item)
 
@@ -2157,6 +2162,8 @@ class Catalogue:
             view, hash_ = history.view()
             view = view or models.PlotView()
             kept = [e for e in view.exports or [] if e.id != export.id]
+            # At most PLOT_LOG_LIMIT, the oldest dropped (decision, product owner, 16 Oct 2026).
+            kept = kept[len(kept) - PLOT_LOG_LIMIT + 1 :] if len(kept) >= PLOT_LOG_LIMIT else kept
             new = view.model_copy(update={"exports": [*kept, export]})
             try:
                 history.write_view(new, hash_)
@@ -2173,13 +2180,20 @@ class Catalogue:
         replay and checked against the step that recorded it, with that step's number
         (the current step where that is at the revision, else the latest that was)."""
         history = self.history(item_id)
+        head = history.head()
+        problem = history.problem()
+        if problem is not None:
+            # A damaged history is never replayed: the plot as its file holds it, when that
+            # is the revision named (expert panel, 16 Oct 2026).
+            if head.plot_hash != revision:
+                raise HistoryError(problem)
+            return history.plot(), head.current
         matching = [seq for seq, r in history.revisions() if r == revision]
         if not matching:
             raise HistoryError(
                 "The plot's history has no step at the revision the image was exported at."
             )
-        current = history.head().current
-        step = current if current in matching else matching[-1]
+        step = head.current if head.current in matching else matching[-1]
         return history.replay_checked(step), step
 
     # --- The plot's island: its view (SUB-22) ---------------------------------

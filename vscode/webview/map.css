@@ -131,7 +131,7 @@ body { background: var(--vscode-editor-background); color: var(--vscode-foregrou
 /* An earlier revision shown read-only (an image traced to its plot): said at the top, with a way to the latest. */
 .revision-banner { position: absolute; left: 50%; transform: translateX(-50%); top: 8px; z-index: 1001; display: flex; flex-wrap: wrap; align-items: center; gap: 4px 10px; max-width: calc(100% - 140px); box-sizing: border-box; padding: 4px 8px; background: var(--vscode-editorWidget-background); color: var(--vscode-editorWidget-foreground); border: 1px solid var(--vscode-editorWarning-foreground, var(--vscode-focusBorder)); font-size: 12px; line-height: 1.4; }
 .revision-banner[hidden] { display: none; }
-.revision-banner button { background: var(--vscode-button-background); color: var(--vscode-button-foreground); border: none; padding: 2px 10px; font: inherit; cursor: pointer; }
+.revision-banner button { min-height: 24px; min-width: 24px; background: var(--vscode-button-background); color: var(--vscode-button-foreground); border: none; padding: 2px 10px; font: inherit; cursor: pointer; }
 .revision-banner button:hover { background: var(--vscode-button-hoverBackground); }
 .revision-banner button:focus-visible { outline: 1px solid var(--vscode-focusBorder); outline-offset: 2px; }
 @media (max-width: 480px) { .revision-banner { left: 8px; right: 8px; transform: none; max-width: none; top: 44px; } }
@@ -141,3 +141,5 @@ body { background: var(--vscode-editor-background); color: var(--vscode-foregrou
 #map.export-sizing { right: auto; bottom: auto; }
 .exporting-note { position: fixed; left: 8px; top: 8px; z-index: 1002; padding: 4px 8px; background: var(--vscode-editorWidget-background); color: var(--vscode-editorWidget-foreground); border: 1px solid var(--vscode-focusBorder); font-size: 12px; }
 .exporting-note[hidden] { display: none; }
+/* A picture of the map laid over it while an image is drawn at another size (exportImage): no jump, no flash. */
+.export-cover { position: fixed; z-index: 1001; pointer-events: none; }

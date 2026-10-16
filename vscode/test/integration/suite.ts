@@ -6,7 +6,7 @@
  */
 import assert from "node:assert/strict";
 import { execFileSync } from "node:child_process";
-import { copyFileSync, mkdtempSync, readdirSync, readFileSync, writeFileSync } from "node:fs";
+import { copyFileSync, existsSync, mkdtempSync, readdirSync, readFileSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import * as vscode from "vscode";
@@ -1063,6 +1063,13 @@ async function exportedImages(api: DebriefApi, steps: () => Thenable<unknown[]>)
   const base = opened.base!;
   const count = (await steps()).length;
   type Exported = { file: string; id: string; short: string; recorded: boolean };
+  // An export not saved through the dialog (an agent's, this test's) goes only into the
+  // workspace's folders or the exports folder set (expert panel, 16 Oct 2026).
+  const settings = vscode.workspace.getConfiguration("debrief");
+  const outside = String(await vscode.commands.executeCommand("debrief.exportImage", { format: "png", preset: "slide", file: path.join(tmpdir(), "debrief-outside.png") }));
+  assert.match(outside, /only into this workspace's folders or the folder set in Debrief: Export folder/);
+  assert.ok(!existsSync(path.join(tmpdir(), "debrief-outside.png")), "nothing written outside");
+  await settings.update("exportFolder", folder, vscode.ConfigurationTarget.Global);
   const png = (await vscode.commands.executeCommand<Exported>("debrief.exportImage", { format: "png", preset: "slide", theme: "light", footer: true, file: path.join(folder, "serial-1.png") }))!;
   assert.ok(png.recorded, "the plot's export log has it");
   const data = readFileSync(png.file);
@@ -1085,6 +1092,18 @@ async function exportedImages(api: DebriefApi, steps: () => Thenable<unknown[]>)
   assert.ok(svgText.includes(`<dc:identifier>${svg.id}</dc:identifier>`), "the SVG's ID in its metadata");
   assert.ok(!svgText.includes("debrief-footer"), "no footer, as asked");
   assert.ok(svgText.includes(">BLUE ONE</text>"), "track names as text");
+  // Never over a file without being asked to.
+  assert.match(String(await vscode.commands.executeCommand("debrief.exportImage", { format: "svg", file: svg.file })), /serial-1\.svg is there already/);
+  // An agent's export (product owner, 16 Oct 2026): the service asks the open map to draw it, as the analyst's is.
+  const agentFile = path.join(folder, "agent.svg");
+  const byAgent = (await api.asAgent!("debrief/export_image", { store: opened.store.id, item: opened.item.id, file: agentFile, theme: "light", agent: { kind: "software_agent", name: "Test agent" } })) as Exported;
+  assert.equal(byAgent.file, agentFile);
+  assert.ok(readFileSync(agentFile, "utf8").includes(`<dc:identifier>${byAgent.id}</dc:identifier>`), "drawn by the map and written");
+  const byAgentLogged = JSON.parse(readFileSync(plotPath, "utf8")).features.find((f: { properties: { kind: string } }) => f.properties.kind === "plot").properties.view.exports;
+  assert.equal(byAgentLogged.at(-1).by, "Test agent");
+  await assert.rejects(api.asAgent!("debrief/export_image", { store: opened.store.id, item: "no-such-plot", file: path.join(folder, "x.png") }), /no plot 'no-such-plot'/);
+  await assert.rejects(api.asAgent!("debrief/export_image", { store: opened.store.id, item: opened.item.id, file: path.join(tmpdir(), "debrief-agent-outside.png") }), /only into this workspace's folders/);
+  assert.equal((await steps()).length, count, "exports are never steps");
   await sleep(500);
   await screenshot("40-exported");
 

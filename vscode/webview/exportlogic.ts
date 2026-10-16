@@ -133,3 +133,50 @@ export function fileNameFor(title: string, short: string | undefined, format: Im
     .slice(0, 60);
   return `${[base || "plot", short].filter(Boolean).join(" ")}.${format}`;
 }
+
+/**
+ * The footer's font size, in the layout's CSS pixels: a share of the image's width, so it
+ * stays legible when Word shows the image at half a page's width, and never smaller than
+ * 14 pixels in the image (expert panel, 16 Oct 2026). A 1600-pixel slide's footer is 32
+ * pixels high in the image; A4's, 35: about 9 points across a page, 4.5 at half its width.
+ */
+export const FOOTER_SHARE = 0.02;
+export const FOOTER_MIN_PIXELS = 14;
+export function footerFontSize(layout: ImageLayout): number {
+  const pixels = Math.max(FOOTER_MIN_PIXELS, pixelsOf(layout).width * FOOTER_SHARE);
+  return Math.round((pixels / layout.scale) * 100) / 100;
+}
+
+/**
+ * A label's spacing and figures as the page set them, as SVG attributes: letter-spacing,
+ * and tabular figures (times and ranges line up), so the PNG drawn from the SVG keeps
+ * them (expert panel, 16 Oct 2026). Empty where the page has neither.
+ */
+export function textStyleAttributes(style: { letterSpacing: string; fontVariantNumeric: string }): string {
+  const parts: string[] = [];
+  const spacing = style.letterSpacing.trim();
+  if (spacing && spacing !== "normal" && parseFloat(spacing) !== 0) parts.push(` letter-spacing="${escapeXml(spacing.replace(/px$/, ""))}"`);
+  const numeric = style.fontVariantNumeric.trim();
+  if (numeric && numeric !== "normal") parts.push(` font-variant-numeric="${escapeXml(numeric)}" style="font-variant-numeric: ${escapeXml(numeric)}"`);
+  return parts.join("");
+}
+
+/**
+ * The image's SVG around what it draws: its size in pixels, its view in CSS pixels, and
+ * everything clipped to the map. The clip's id is the image's own (clipId), so two
+ * images pasted into one SVG document do not take each other's (expert panel, 16 Oct 2026).
+ */
+export function svgFrame(content: string, width: number, height: number, scale: number, clipId: string): string {
+  const id = escapeXml(clipId);
+  return (
+    `<svg xmlns="http://www.w3.org/2000/svg" width="${Math.round(width * scale)}" height="${Math.round(height * scale)}" viewBox="0 0 ${n(width)} ${n(height)}">` +
+    `<clipPath id="${id}"><rect width="${n(width)}" height="${n(height)}"/></clipPath><g clip-path="url(#${id})">` +
+    content +
+    "</g></svg>"
+  );
+}
+
+/** A clip id for one image, its own: "debrief-map-" and eight random symbols. */
+export function clipIdFor(random: () => number = Math.random): string {
+  return `debrief-map-${Math.floor(random() * 36 ** 8).toString(36).padStart(8, "0")}`;
+}

@@ -74,6 +74,8 @@ export async function playExport(page, shot) {
   assert.ok(!xmp.includes("Serial 1") && !xmp.includes("serial-1"), "nothing but the ID and the software: no plot title or item");
   assert.equal(png.name, `Serial-1 ${short}.png`);
   assert.match(png.said, new RegExp(`Its ID, ${short}, is in its metadata and its corner\\. The plot's export log has it\\.`));
+  // No save dialog here to rename it in: said plainly that the title travels in the file's name.
+  assert.match(png.said, new RegExp(`Its file name, Serial-1 ${short}\\.png, has the plot's title in it`));
   const size = await page.evaluate(async (b64) => {
     const image = new Image();
     image.src = `data:image/png;base64,${b64}`;
@@ -90,6 +92,9 @@ export async function playExport(page, shot) {
   // The same view without its footer: the only pixels that differ are the footer's, in a corner.
   const bare = await exportImage({ format: "png", preset: "slide", theme: "current", footer: false });
   assert.match(bare.said, /in its metadata \(no footer\)/);
+  // The footer is on again for the next image; only the size and colours are remembered.
+  assert.equal(await page.locator("#export-footer").isChecked(), true, "the footer is on again");
+  assert.deepEqual(await page.evaluate(() => JSON.parse(localStorage.getItem("debrief.play.export"))), { preset: "slide", theme: "current" });
   const differ = await page.evaluate(
     async ([a, b]) => {
       const pixels = async (b64) => {
@@ -115,8 +120,10 @@ export async function playExport(page, shot) {
     [png.data.toString("base64"), bare.data.toString("base64")],
   );
   assert.ok(differ.count > 50, "the footer is drawn");
-  assert.ok(differ.x1 - differ.x0 < 260 && differ.y1 - differ.y0 < 40, `only the footer differs: ${JSON.stringify(differ)}`);
-  const inCorner = (differ.y1 > differ.height - 60 || differ.y0 < 60) && (differ.x0 < 300 || differ.x1 > differ.width - 300);
+  // About 2% of the image's width high (32 pixels on a slide), so it reads when Word shows the image at half a page's width.
+  assert.ok(differ.y1 - differ.y0 >= 20 && differ.y1 - differ.y0 < 60, `the footer is sized to the image: ${JSON.stringify(differ)}`);
+  assert.ok(differ.x1 - differ.x0 < 560, `only the footer differs: ${JSON.stringify(differ)}`);
+  const inCorner = (differ.y1 > differ.height - 90 || differ.y0 < 90) && (differ.x0 < 600 || differ.x1 > differ.width - 600);
   assert.ok(inCorner, `the footer is in a corner: ${JSON.stringify(differ)}`);
 
   // An SVG as on screen: its ID in its metadata; the footer's text; labels where the map put them.
@@ -125,7 +132,10 @@ export async function playExport(page, shot) {
   const svgId = text.match(/<dc:identifier>(DBF1-[^<]+)<\/dc:identifier>/)[1];
   assert.notEqual(svgId, id, "each export its own ID");
   assert.equal(svgId.slice(0, 30), id.slice(0, 30), "the same plot and revision");
-  assert.ok(text.includes(`<text class="debrief-footer"`) && text.includes(`>${short}</text>`), "the footer's ID");
+  // Its footer is its own: the same plot and revision as the PNG's, its export's two symbols another's.
+  const svgShort = text.match(/<debrief:short>(DBF-[^<]+)<\/debrief:short>/)[1];
+  assert.equal(svgShort.slice(0, 17), short.slice(0, 17), "the same plot and revision in the footer");
+  assert.ok(text.includes(`<text class="debrief-footer"`) && text.includes(`>${svgShort}</text>`), "the footer's ID");
   const labels = await map.locator(".leaflet-tooltip.track-label").evaluateAll((all) => {
     const origin = document.getElementById("map").getBoundingClientRect();
     return all
@@ -161,6 +171,21 @@ export async function playExport(page, shot) {
   assert.ok(lightness.white > 0.4, `light: mostly white (${Math.round(lightness.white * 100)}%)`);
   assert.equal(await historyRows(), rows, "four exports, still no step");
 
+  // A track selected while an image is drawn stays selected once the map is put back: the
+  // map's own putting back never undoes it.
+  await page.selectOption("#export-preset", "a4_landscape");
+  await Promise.all([
+    page.waitForEvent("download", { timeout: 90000 }),
+    (async () => {
+      await page.locator("#export-image").click();
+      await map.locator("#exporting").waitFor({ state: "visible", timeout: 30000 });
+      await page.locator('#outline li[data-id="track-blue-one"]').click();
+    })(),
+  ]);
+  await map.locator("#exporting").waitFor({ state: "hidden", timeout: 30000 });
+  await map.locator('path.leaflet-interactive[stroke-opacity="0.3"]').first().waitFor({ timeout: 10000 }); // the others dimmed: BLUE ONE is selected
+  assert.equal(await historyRows(), rows, "five exports, still no step");
+
   // The analyst carries on: the plot changes, one step.
   await page.locator('#outline li[data-id="track-blue-one"]').click();
   await page.selectOption("#colour", { label: "Teal" });
@@ -175,6 +200,11 @@ export async function playExport(page, shot) {
   const banner = map.locator(".revision-banner");
   await banner.waitFor({ state: "visible", timeout: 60000 });
   assert.equal(await banner.locator(".revision-text").innerText(), `The plot at step ${step} of ${latest}, as when image ${short} was exported. Read-only.`);
+  // Only its words are a status a screen reader reads out; its button, outside that, is a full target.
+  assert.equal(await banner.getAttribute("role"), null);
+  assert.equal(await banner.locator(".revision-text").getAttribute("role"), "status");
+  const target = await banner.locator("button").boundingBox();
+  assert.ok(target.height >= 24 && target.width >= 24, `Go to latest is at least 24 px: ${JSON.stringify(target)}`);
   assert.match(await page.locator("#plot-title").innerText(), /\(read-only\)$/);
   assert.match(await page.locator("#find-results").innerText(), new RegExp(`${short}: Serial 1, step ${step}; the plot is at step ${latest} now`));
   assert.match(await page.locator("#history li.shown .detail").innerText(), new RegExp(`step ${step} .*shown read-only`));
@@ -187,9 +217,9 @@ export async function playExport(page, shot) {
   await page.keyboard.press("Control+z");
   await page.locator(".toast", { hasText: "shown read-only, so it cannot be changed" }).waitFor();
   assert.equal(await historyRows(), rows + 1);
-  // Exported again from here, the image names the same revision: the same short ID.
+  // Exported again from here, the image names the same revision: its short ID starts as the first's.
   const again = await exportImage({ format: "png", preset: "screen", theme: "current", footer: true });
-  assert.match(again.said, new RegExp(`Its ID, ${short},`));
+  assert.match(again.said, new RegExp(`Its ID, ${short.slice(0, 17)}[0-9A-HJKMNP-TV-Z]-[0-9A-HJKMNP-TV-Z]{2},`));
   // Go to latest: the plot as it is, to change.
   await banner.locator("button", { hasText: "Go to latest" }).click();
   await banner.waitFor({ state: "hidden" });
@@ -199,7 +229,7 @@ export async function playExport(page, shot) {
   // Traced by its ID, typed from the footer as a reader might: lower case, spaces, O for 0.
   await page.locator("#panel-export").scrollIntoViewIfNeeded();
   const typed = page.locator("#find-id");
-  await typed.fill("DBF-PTET-KG8R-B9E8");
+  await typed.fill("DBF-PTET-KG8R-B9EM-68");
   assert.equal(await page.locator("#find-id-problem").innerText(), "That image ID has a character wrong: check it against the image.");
   assert.equal(await typed.getAttribute("aria-invalid"), "true");
   await typed.fill(short.toLowerCase().replace(/-/g, " ").replace(/0/g, "o"));

@@ -1367,6 +1367,10 @@ export interface ImageExport {
    */
   time?: TimeState | null;
   /**
+   * Which tracks the Tote compared when it was exported, so the plot traced from the image shows the Tote, and its lines on the map, as the figure did (decision, product owner, 16 Oct 2026).
+   */
+  tote?: ToteView | null;
+  /**
    * The area of the map exported.
    */
   viewport?: Viewport | null;
@@ -1382,17 +1386,6 @@ export interface ImageExport {
 export interface TimeState {
   current: string;
   range: TimeRange;
-}
-/**
- * This interface was referenced by `DebriefSchemaDefinitions`'s JSON-Schema
- * via the `definition` "Viewport".
- */
-export interface Viewport {
-  /**
-   * @minItems 4
-   * @maxItems 4
-   */
-  bbox: [number, number, number, number];
 }
 /**
  * Which tracks the Tote compares, and through which measure group: view state in the plot's island, like the time window, so it travels with the plot file but is never a step in its history and never undone (SUB-22; decision, 14 Oct 2026). Ids of tracks no longer in the plot are shown as missing, not refused, because a change to content never changes the island.
@@ -1417,6 +1410,17 @@ export interface ToteView {
    * The tracks measured from the primary, in the order shown.
    */
   secondaries?: string[] | null;
+}
+/**
+ * This interface was referenced by `DebriefSchemaDefinitions`'s JSON-Schema
+ * via the `definition` "Viewport".
+ */
+export interface Viewport {
+  /**
+   * @minItems 4
+   * @maxItems 4
+   */
+  bbox: [number, number, number, number];
 }
 /**
  * A plot's whole history, kept in its plot file as the top-level member history (decision 13 Oct). Steps are numbered from 1 with no gaps, in the order they were made.
@@ -1541,6 +1545,29 @@ export interface Delta {
   seq: number;
 }
 /**
+ * The analyst's own export log, exports.json beside their Debrief configuration: the newest 2,000 exports their plots could not keep.
+ *
+ * This interface was referenced by `DebriefSchemaDefinitions`'s JSON-Schema
+ * via the `definition` "ExportLog".
+ */
+export interface ExportLog {
+  exports?: LoggedExport[] | null;
+}
+/**
+ * An export recorded in the analyst's own export log, beside their Debrief configuration, where the plot's could not be written (a read-only catalogue, say), so every export stays traceable (decision, product owner, 16 Oct 2026).
+ *
+ * This interface was referenced by `DebriefSchemaDefinitions`'s JSON-Schema
+ * via the `definition` "LoggedExport".
+ */
+export interface LoggedExport {
+  /**
+   * The catalogue's own id, from its catalog.json.
+   */
+  catalogue: string;
+  export: ImageExport;
+  item: string;
+}
+/**
  * Where an image came from: a plot in one of the analyst's catalogues, at the revision the image was exported at (Find source of image).
  *
  * This interface was referenced by `DebriefSchemaDefinitions`'s JSON-Schema
@@ -1560,7 +1587,7 @@ export interface FigureSource {
    */
   current: number;
   /**
-   * The export log entry for the image, when the plot has one.
+   * The export log entry for the image, where the plot's log or the analyst's own has one. A footer's short form may name several exports of one revision: each is a source of its own, to choose from.
    */
   export?: ImageExport | null;
   item: string;
@@ -2047,6 +2074,10 @@ export interface StacItemProperties {
    * The content hash of the item's plot, its whole-plot details included, so any recorded change to the item is a new revision (CAP-12). Derived at each change, never authoritative, as the extent is.
    */
   "debrief:revision"?: string | null;
+  /**
+   * Every revision the item's history has had, each as the 16 symbols an image ID names it by (the first 80 bits of the content hash after each step, in Crockford's base 32), so an exported image is traced to its plot from the catalogue's items alone, never reading a plot that never had its revision (SUB-25). Derived at each change, never authoritative.
+   */
+  "debrief:revisions"?: string[] | null;
   "debrief:schema_version": string;
   description?: string | null;
   end_datetime?: string | null;

@@ -44,7 +44,7 @@ import { ALL_PROBLEM, AT_EVERY_FIX, changesOf, choiceFromValue, choicesFor, desc
 import { formatQuantity, figureIdProblem } from "@debrief/kernel";
 import type { FigureSource, ImageExport, RenderedImage, RevisionShown } from "@debrief/schemas";
 import { fileNameFor, PRESETS, type ImageFormat, type ImagePreset, type ImageTheme } from "../webview/exportlogic.js";
-import { DEFAULT_EXPORT, describeExported, describeSource, READ_ONLY, revisionOf, type ExportChoice } from "../src/figures.js";
+import { describeExported, describeSource, READ_ONLY, rememberedOf, revisionOf, startingChoice, type ExportChoice } from "../src/figures.js";
 
 type Feature = PlotFeature;
 interface Step {
@@ -180,7 +180,9 @@ const toteControl = new ToteControl($("tote"), { changed: (view) => void chooseT
 const toteCompute: number[] = [];
 const toteRequests = new ToteRequests<{ item: string; time: string; tote: ToteView }>(
   async ({ item, time: at, tote }) => {
-    const outcome = await pythonJson<{ tote?: ToteResult; compute_ms?: number; error?: string }>("tote", item, JSON.stringify({ time: at, tote }));
+    // An earlier revision shown read-only: the Tote of the plot as it was then (product owner, 16 Oct 2026).
+    const revision = opened?.item.id === item ? opened.revision?.revision : undefined;
+    const outcome = await pythonJson<{ tote?: ToteResult; compute_ms?: number; error?: string }>("tote", item, JSON.stringify({ time: at, tote, ...(revision && { revision }) }));
     if (outcome.error) throw new Error(outcome.error);
     if (outcome.compute_ms !== undefined) toteCompute.push(outcome.compute_ms);
     return outcome.tote;
@@ -197,14 +199,13 @@ const toteRequests = new ToteRequests<{ item: string; time: string; tote: ToteVi
 /** Ask for the Tote at current time, while it is showing and has tracks to compare. */
 function refreshTote(): void {
   if (!opened || !time || !pythonReady || !panels.has("tote") || !folds.isOpen(totePanel.id)) return;
-  if (opened.revision) return; // worked out on the plot as it is now: not for an earlier revision
   const tote = toteChoice();
   if (!tote.primary && !tote.secondaries?.length) return;
   toteRequests.request({ item: opened.item.id, time: time.current, tote });
 }
 /** The tracks and the choice, on opening a plot and when its view changes; then the values. */
 function showTote(): void {
-  toteControl.show(opened && !opened.revision ? { tracks: toteTracks(opened.plot), view: toteChoice() } : undefined);
+  toteControl.show(opened ? { tracks: toteTracks(opened.plot), view: toteChoice() } : undefined);
   toteToMap();
   refreshTote();
 }
@@ -1895,7 +1896,7 @@ function drawImage(request: { format: ImageFormat; preset: ImagePreset; theme: I
     post(map, { kind: "export_image", image_request: request });
   });
 }
-/** What the reader chose for an export, remembered in this browser. */
+/** What the reader chose for an export; its size and colours remembered in this browser. */
 function exportChoice(): ExportChoice {
   return {
     format: $<HTMLSelectElement>("export-format").value as ImageFormat,
@@ -1907,16 +1908,17 @@ function exportChoice(): ExportChoice {
 const EXPORT_KEY = "debrief.play.export";
 function rememberExport(choice: ExportChoice): void {
   try {
-    localStorage.setItem(EXPORT_KEY, JSON.stringify(choice));
+    // The size and colours only: the footer is on again next time (expert panel, 16 Oct 2026).
+    localStorage.setItem(EXPORT_KEY, JSON.stringify(rememberedOf(choice)));
   } catch {
     // a private window: not remembered
   }
 }
 function recalledExport(): ExportChoice {
   try {
-    return { ...DEFAULT_EXPORT, ...(JSON.parse(localStorage.getItem(EXPORT_KEY) ?? "{}") as Partial<ExportChoice>) };
+    return startingChoice(JSON.parse(localStorage.getItem(EXPORT_KEY) ?? "{}"));
   } catch {
-    return DEFAULT_EXPORT;
+    return startingChoice(undefined);
   }
 }
 /**
@@ -1943,7 +1945,8 @@ async function exportMap(): Promise<void> {
     if (opened !== shown) throw new Error("the plot changed while the image was being drawn. Export it again.");
     const file = fileNameFor(opened.item.properties.title ?? item, figure.short, choice.format);
     const bytes = choice.format === "png" ? Uint8Array.from(atob(image.data), (c) => c.charCodeAt(0)) : new TextEncoder().encode(image.data);
-    const request = { id: figure.id, file, footer: choice.footer, format: choice.format, preset: choice.preset, theme: choice.theme, width: image.width, height: image.height, viewport: image.viewport, time };
+    const tote = toteChoice();
+    const request = { id: figure.id, file, footer: choice.footer, format: choice.format, preset: choice.preset, theme: choice.theme, width: image.width, height: image.height, viewport: image.viewport, time, ...(tote.primary && { tote }) };
     const done = await pythonJson<{ data?: string; short: string; recorded: boolean; note?: string; error?: string; view?: PlotView | null; view_hash?: string }>("export_image", item, JSON.stringify(request), bytes);
     if (done.error || !done.data) throw new Error(done.error ?? "it could not be saved");
     // The plot's island has the export log now: kept, so the next change to the view is not taken for a colleague's.
@@ -1955,14 +1958,23 @@ async function exportMap(): Promise<void> {
     const link = Object.assign(document.createElement("a"), { href: URL.createObjectURL(blob), download: file });
     link.click();
     setTimeout(() => URL.revokeObjectURL(link.href), 60000);
-    said.textContent = [describeExported({ file, short: done.short, recorded: done.recorded, note: done.note }, choice.footer), ...(image.notes ?? [])].join(" ");
+    // There is no save dialog here to rename it in: say plainly that the plot's title travels in the name (product owner, 16 Oct 2026).
+    const titled = `Its file name, ${file}, has the plot's title in it: rename it before sending it on if the title should not travel.`;
+    said.textContent = [describeExported({ file, short: done.short, recorded: done.recorded, note: done.note }, choice.footer), titled, ...(image.notes ?? [])].join(" ");
   } catch (error) {
     said.textContent = `The image was not exported: ${(error as Error).message}`;
   } finally {
     button.disabled = false;
+    $<HTMLInputElement>("export-footer").checked = true; // on again for the next image
   }
 }
-/** The plots an image came from, by a file's metadata or an ID typed from its corner; one found is opened as it was then. */
+/** What Find source answers: each ID found, with the plots and exports it names; the pictures not read, and why. */
+type Traced = { images: { id: string; short: string; where: string; sources: FigureSource[] }[]; problem?: string; skipped?: { where: string; why: string }[] };
+/**
+ * The plots an image came from, by a file's metadata or an ID typed from its corner; one
+ * found is opened as it was then. Several (two exports of one revision, say) are listed
+ * for the reader to choose, never one picked for them.
+ */
 async function findSource(how: { file: File } | { typed: string }): Promise<void> {
   if (!pythonReady) return;
   const list = $("find-results");
@@ -1970,9 +1982,12 @@ async function findSource(how: { file: File } | { typed: string }): Promise<void
   $("find-said").textContent = "Looking…";
   const answer =
     "file" in how
-      ? await pythonJson<{ images: { id: string; short: string; where: string; sources: FigureSource[] }[]; problem?: string }>("find_image_source", how.file.name, new Uint8Array(await how.file.arrayBuffer()), null)
-      : await pythonJson<{ images: { id: string; short: string; where: string; sources: FigureSource[] }[]; problem?: string }>("find_image_source", null, null, how.typed);
-  $("find-said").textContent = answer.problem ?? "";
+      ? await pythonJson<Traced>("find_image_source", how.file.name, new Uint8Array(await how.file.arrayBuffer()), null)
+      : await pythonJson<Traced>("find_image_source", null, null, how.typed);
+  // A picture that could not be read (encrypted, say): said, the others still traced.
+  const unread = (answer.skipped ?? []).map((s) => `${s.where} was not read: ${s.why}.`).join(" ");
+  const several = answer.images.reduce((n, i) => n + i.sources.length, 0) > 1 ? "Several exports match: choose one by when it was exported and what it showed." : "";
+  $("find-said").textContent = answer.problem ?? [several, answer.images.length ? unread : ""].filter(Boolean).join(" ");
   const found = answer.images.flatMap((image) => image.sources.map((source) => ({ image, source })));
   for (const { image, source } of found) {
     const row = document.createElement("li");
@@ -1997,6 +2012,8 @@ async function openRevision(source: FigureSource, id: string, short: string): Pr
   $<HTMLSelectElement>("plots").value = source.item;
   $("plot-title").textContent = `${opened.item.properties.title ?? source.item} (read-only)`;
   const exported = shown.export ?? source.export;
+  // The Tote's tracks as exported, so its lines and values are the image's (product owner, 16 Oct 2026).
+  if (exported?.tote) setViewOf(opened.plot, { ...(viewOf(opened.plot) ?? {}), tote: exported.tote });
   if (exported?.time) savedWindow = exported.time.range; // the window this revision is shown in, not one beyond a saved window
   showTime(exported?.time ?? timeOf(opened.item, opened.plot));
   showPlot();

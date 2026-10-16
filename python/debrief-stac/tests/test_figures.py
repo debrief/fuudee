@@ -273,7 +273,7 @@ def test_an_export_is_logged_in_the_island_and_is_never_a_step(catalogue: Catalo
     stamped, entry = prepare_export(catalogue, "p", figure.text, png(), export_details())
     assert figure_ids_in(stamped).ids[0][0] == figure.text
     assert entry.revision == head.plot_hash
-    assert log_export(catalogue, "p", entry) is None
+    assert log_export(catalogue, "p", entry).where == "plot"
     # The log is in the island: the revision, the steps and the content hash are as they were.
     assert history.head() == head
     assert len(history.steps()) == 1

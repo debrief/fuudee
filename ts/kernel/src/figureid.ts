@@ -4,7 +4,7 @@
  * reads them. Held to schemas/vectors/figure-ids.json, as Python is.
  *
  *     DBF1-PPPPPPPP-RRRRRRRRRRRRRRRR-EEEEEEEE-C      in full
- *     DBF-PPPP-RRRR-RRRC                             its short form
+ *     DBF-PPPP-RRRR-RRRE-EC                          its short form (2 export symbols too)
  *
  * Crockford's base 32 (no I, L, O or U), most significant bit first: P the plot key
  * (the first 40 bits of the SHA-256 of "<catalogue>/<item>"), R the revision (the
@@ -16,7 +16,7 @@
 export const FIGURE_ALPHABET = "0123456789ABCDEFGHJKMNPQRSTVWXYZ";
 const INDEX = new Map([...FIGURE_ALPHABET].map((c, i) => [c, i]));
 
-export const NOT_AN_ID = "That is not a Debrief image ID. One looks like DBF-PTET-KG8R-B9E9, as in an image's corner.";
+export const NOT_AN_ID = "That is not a Debrief image ID. One looks like DBF-PTET-KG8R-B9EM-69, as in an image's corner.";
 export const MISTYPED = "That image ID has a character wrong: check it against the image.";
 
 export type FigureIdProblem = "not_an_id" | "mistyped";
@@ -77,17 +77,17 @@ export function revisionSymbols(revision: string): string {
   return figureSymbols(bytes, 16);
 }
 
-/** The short form of an ID's plot and revision symbols. */
-function shortOf(plot: string, revision: string): string {
-  const payload = plot.slice(0, 4) + revision.slice(0, 7);
-  return `DBF-${payload.slice(0, 4)}-${payload.slice(4, 8)}-${payload.slice(8)}${checkSymbol(payload)}`;
+/** The short form of an ID's plot, revision and export symbols: 4, 7 and 2 of them and a check. */
+function shortOf(plot: string, revision: string, exported: string): string {
+  const payload = plot.slice(0, 4) + revision.slice(0, 7) + exported.slice(0, 2);
+  return `DBF-${payload.slice(0, 4)}-${payload.slice(4, 8)}-${payload.slice(8, 12)}-${payload.slice(12)}${checkSymbol(payload)}`;
 }
 
 /** An ID in full from its parts: the plot key's symbols, the revision's hash and the export's 5 bytes. */
 export function figureId(plot: string, revision: string, exportBytes: Uint8Array): FigureRef {
   const r = revisionSymbols(revision);
   const e = figureSymbols(exportBytes, 8);
-  return { full: true, plot, revision: r, export: e, text: `DBF1-${plot}-${r}-${e}-${checkSymbol(plot + r + e)}`, short: shortOf(plot, r) };
+  return { full: true, plot, revision: r, export: e, text: `DBF1-${plot}-${r}-${e}-${checkSymbol(plot + r + e)}`, short: shortOf(plot, r, e) };
 }
 
 /** The plot key from the SHA-256 digest of "<catalogue>/<item>" in UTF-8. */
@@ -112,14 +112,16 @@ export function parseFigureId(typed: string): FigureRef {
     const payload = plain.slice(4, 36);
     if (checkSymbol(payload) !== plain[36]) throw new FigureIdError(MISTYPED, "mistyped");
     const [plot, revision, exported] = [payload.slice(0, 8), payload.slice(8, 24), payload.slice(24)];
-    return { full: true, plot, revision, export: exported, text: `DBF1-${plot}-${revision}-${exported}-${plain[36]}`, short: shortOf(plot, revision) };
+    return { full: true, plot, revision, export: exported, text: `DBF1-${plot}-${revision}-${exported}-${plain[36]}`, short: shortOf(plot, revision, exported) };
   }
-  const body = plain.startsWith("DBF") && plain.length === 15 ? plain.slice(3) : plain;
-  if (body.length === 12) {
-    const payload = body.slice(0, 11);
-    if (checkSymbol(payload) !== body[11]) throw new FigureIdError(MISTYPED, "mistyped");
-    const short = shortOf(payload.slice(0, 4), payload.slice(4));
-    return { full: false, plot: payload.slice(0, 4), revision: payload.slice(4), text: short, short };
+  let body = plain;
+  if (plain.startsWith("DBF") && plain.length === 17) body = plain.slice(3);
+  else if (plain.startsWith("DBF")) throw new FigureIdError(NOT_AN_ID, "not_an_id"); // DBF and the wrong number of symbols
+  if (body.length === 14) {
+    const payload = body.slice(0, 13);
+    if (checkSymbol(payload) !== body[13]) throw new FigureIdError(MISTYPED, "mistyped");
+    const short = shortOf(payload.slice(0, 4), payload.slice(4, 11), payload.slice(11));
+    return { full: false, plot: payload.slice(0, 4), revision: payload.slice(4, 11), export: payload.slice(11), text: short, short };
   }
   throw new FigureIdError(NOT_AN_ID, "not_an_id");
 }

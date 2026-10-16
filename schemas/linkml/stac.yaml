@@ -132,6 +132,17 @@ classes:
           share it are copies of one plot, forked where their histories part
           (CAP-10). Derived at each change, never authoritative.
         range: ContentHash
+      debrief_revisions:
+        alias: "debrief:revisions"
+        description: >-
+          Every revision the item's history has had, each as the 16 symbols
+          an image ID names it by (the first 80 bits of the content hash after
+          each step, in Crockford's base 32), so an exported image is traced
+          to its plot from the catalogue's items alone, never reading a plot
+          that never had its revision (SUB-25). Derived at each change, never
+          authoritative.
+        multivalued: true
+        pattern: "^[0-9A-HJKMNP-TV-Z]{16}$"
 
   TrackCoverage:
     description: >-
