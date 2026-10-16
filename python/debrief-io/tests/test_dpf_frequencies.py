@@ -173,6 +173,32 @@ def test_fixes_shown_at_a_regular_interval_give_the_tracks_interval(
     )
 
 
+def test_fixes_shown_at_no_interval_always_show_their_label_or_symbol(
+    catalogue: Catalogue, tmp_path: Path
+) -> None:
+    """Labels and symbols legacy Debrief showed at no interval the forms offer are kept as
+    those fixes always showing theirs (product owner, 16 Oct 2026); arrows are listed."""
+    shown = {
+        "LabelShowing": {0, 3, 4, 17},
+        "SymbolShowing": {2, 9},
+        "ArrowShowing": {0, 3, 4, 17},
+    }
+    source = _plot_file(tmp_path, _minutes("T", 21, shown))
+    report = import_dpf(catalogue, source)
+    assert _intervals(catalogue)["T"] == (None, None, None)
+    track = next(f for f in catalogue.read_plot("made").features if f.properties.name == "T")
+    marks = track.properties.fix_marks or []
+    assert len([m for m in marks if m.show_label]) == 4
+    assert len([m for m in marks if m.show_symbol]) == 2
+    notes = "\n".join(report.omitted)
+    assert (
+        "Track 'T': 4 of 21 fixes showed their label in the legacy plot, at no interval "
+        "Debrief v4 offers; those fixes always show their label." in notes
+    )
+    assert "those fixes always show their symbol." in notes
+    assert "which arrows were shown is not imported." in notes
+
+
 def test_a_display_rule_wins_over_what_fixes_showed(catalogue: Catalogue, tmp_path: Path) -> None:
     source = _plot_file(
         tmp_path,

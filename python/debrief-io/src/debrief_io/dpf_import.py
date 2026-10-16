@@ -396,6 +396,32 @@ def _inferred(fixes: list[DpfFix], field: str) -> object | None | str:
     return "irregular"
 
 
+def _force_shown(feature, fixes: list[DpfFix], field: str) -> tuple[object, int]:
+    """Mark each fix that showed its label or symbol in the legacy plot as always showing
+    it (show_label, show_symbol), joining any mark the fix already has: the feature so
+    marked, and how many fixes were. Fixes with a label of their own are left out for
+    labels, as in _inferred."""
+    attr = "show_label" if field == "label_interval" else "show_symbol"
+    flag = FLAGS[field]
+    marks = {m.time: m for m in feature.properties.fix_marks or []}
+    count = 0
+    for fix in fixes:
+        if not getattr(fix, flag):
+            continue
+        if field == "label_interval" and fix.label and fix.label.strip() and not _time_label(fix):
+            continue
+        at = format_utc(fix.time_ms)
+        mark = marks.get(at)
+        marks[at] = (
+            mark.model_copy(update={attr: True})
+            if mark
+            else models.FixMark(time=at, **{attr: True})
+        )
+        count += 1
+    props = feature.properties.model_copy(update={"fix_marks": [marks[t] for t in sorted(marks)]})
+    return feature.model_copy(update={"properties": props}), count
+
+
 def _track_frequencies(
     tracks: list[tuple[int, str, str, list[DpfFix]]],
     features: list,
@@ -471,12 +497,20 @@ def _track_frequencies(
             if found == "irregular":
                 flag = FLAGS[field]
                 count = sum(1 for f in fixes if getattr(f, flag))
-                notes.append(
+                said = (
                     f"Track {name!r}: {count} of {_plural(len(fixes), 'fix', 'fixes')} "
                     f"showed {'its' if count == 1 else 'their'} {noun} in the legacy plot, "
-                    f"at no interval Debrief v4 offers; which {noun}s were shown is not "
-                    "imported."
+                    "at no interval Debrief v4 offers; "
                 )
+                if field == "arrow_interval":
+                    notes.append(f"{said}which {noun}s were shown is not imported.")
+                    continue
+                # Labels and symbols: those fixes always show theirs (product owner, 16 Oct 2026).
+                features[index], forced = _force_shown(features[index], fixes, field)
+                which = (
+                    "that fix always shows its" if forced == 1 else "those fixes always show their"
+                )
+                notes.append(f"{said}{which} {noun}.")
                 continue
             value = models.FixIntervalAllEnum.all if found == "all" else found
             props = features[index].properties.model_copy(update={field: value})
