@@ -1123,8 +1123,12 @@ def test_every_method_that_writes_is_known_and_reading_ones_do_not_write() -> No
         service.NARRATIVE_METHODS,
         service.TRACK_METHODS,
         service.CLEANING_METHODS,
+        service.COLLATION_METHODS,
+        service.COLLATION_VIEW_METHODS,
     )
     assert set(service.WRITING_METHODS) == {m for g in groups for m in g}
+    assert "debrief/coverage" in service.READING_METHODS
+    assert "debrief/review_flags" in service.KNOWN_METHODS
     assert set(service.HISTORY_METHODS) <= service.KNOWN_METHODS
     assert not set(service.READING_METHODS) & set(service.WRITING_METHODS)
     assert not set(service.CHECKING_METHODS) & set(service.WRITING_METHODS)

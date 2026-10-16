@@ -124,6 +124,20 @@ export type CatalogTypeEnum = "Catalog";
  */
 export type ContextTracksEnum = "visible" | "faint" | "hidden";
 /**
+ * What an item is to the plot.
+ *
+ * This interface was referenced by `DebriefSchemaDefinitions`'s JSON-Schema
+ * via the `definition` "CoverageItemRoleEnum".
+ */
+export type CoverageItemRoleEnum = "this_plot" | "drawn_from" | "other";
+/**
+ * How a source's track is known to be the plot's platform.
+ *
+ * This interface was referenced by `DebriefSchemaDefinitions`'s JSON-Schema
+ * via the `definition` "CoverageLinkEnum".
+ */
+export type CoverageLinkEnum = "plot" | "linked" | "proposed";
+/**
  * A track's labels, symbols or direction arrows explicitly turned off (CAP-32), rather than left to Debrief's default.
  *
  * This interface was referenced by `DebriefSchemaDefinitions`'s JSON-Schema
@@ -262,7 +276,7 @@ export type StepStateEnum1 = "applied" | "undone" | "abandoned";
  * This interface was referenced by `DebriefSchemaDefinitions`'s JSON-Schema
  * via the `definition` "TimelineEntryKindEnum".
  */
-export type TimelineEntryKindEnum = "narrative" | "annotation" | "fix_comment";
+export type TimelineEntryKindEnum = "narrative" | "annotation" | "fix_comment" | "coverage";
 /**
  * What a tool may return (TL-11).
  *
@@ -344,7 +358,13 @@ export type WebviewMessageKindEnum =
   | "set_narrative"
   | "undo_asked"
   | "redo_asked"
-  | "fix_chosen";
+  | "fix_chosen"
+  | "show_coverage"
+  | "source_chosen"
+  | "link_changed"
+  | "take_asked"
+  | "dismiss_asked"
+  | "review_cleared";
 
 export interface DebriefSchemaDefinitions {}
 /**
@@ -521,6 +541,10 @@ export interface AnnotationProperties {
  */
 export interface ProvRecord {
   agent: AgentRef;
+  /**
+   * Catalogue items the operation took data from, each at the revision it read (CAP-09 to CAP-12): PROV's wasDerivedFrom. A product whose provenance names an item at a revision it no longer has may need review (CAP-12).
+   */
+  drawn_from?: ItemRef[] | null;
   ended_at?: string | null;
   id: string;
   kind: ProvActivityKindEnum;
@@ -543,6 +567,30 @@ export interface ProvRecord {
   started_at: string;
   tool?: ToolRef | null;
   used?: SourceRef[] | null;
+}
+/**
+ * A catalogue item an operation took data from, at one revision (CAP-09 to CAP-12). Items are named by their catalogue's own id (the catalog.json id, not the analyst's name for the folder) and their item id, so the reference means the same on every analyst's machine.
+ *
+ * This interface was referenced by `DebriefSchemaDefinitions`'s JSON-Schema
+ * via the `definition` "ItemRef".
+ */
+export interface ItemRef {
+  /**
+   * The id in the item's catalog.json.
+   */
+  catalogue: string;
+  /**
+   * The item's id in that catalogue.
+   */
+  item: string;
+  /**
+   * The item's revision when it was read: the content hash of its plot (its whole-plot details included), so any recorded change to the item, of data or details, is a new revision.
+   */
+  revision: string;
+  /**
+   * The item's title when it was read, to name it if it has gone.
+   */
+  title?: string | null;
 }
 /**
  * A tool parameter value as supplied or recorded (TL-07, SUB-19). Scalars, or a quantity with its unit.
@@ -631,6 +679,214 @@ export interface AnnotationSpec {
   time_range?: TimeRange | null;
 }
 /**
+ * The analyst's answers to collation's marks, each for one revision of an item, so a later revision is marked again.
+ *
+ * This interface was referenced by `DebriefSchemaDefinitions`'s JSON-Schema
+ * via the `definition` "CollationView".
+ */
+export interface CollationView {
+  /**
+   * Items marked as new data for this plot that the analyst set aside (Not now), at the revision then (CAP-10).
+   */
+  dismissed?: ItemRevision[] | null;
+  /**
+   * Revised items this plot drew from that the analyst reviewed it against, clearing its review flag, at the revision reviewed (CAP-12).
+   */
+  reviewed?: ItemRevision[] | null;
+}
+/**
+ * One revision of a catalogue item.
+ *
+ * This interface was referenced by `DebriefSchemaDefinitions`'s JSON-Schema
+ * via the `definition` "ItemRevision".
+ */
+export interface ItemRevision {
+  catalogue: string;
+  item: string;
+  revision: string;
+}
+/**
+ * A catalogue item in the folder tree the plot draws from.
+ *
+ * This interface was referenced by `DebriefSchemaDefinitions`'s JSON-Schema
+ * via the `definition` "CoverageItem".
+ */
+export interface CoverageItem {
+  catalogue: string;
+  created?: string | null;
+  end?: string | null;
+  item: string;
+  /**
+   * Marked as new data for the plot (CAP-10).
+   */
+  new_data?: NewDataMark | null;
+  /**
+   * The plot took data from this item at a revision it no longer has (CAP-12).
+   */
+  revised?: boolean | null;
+  revision?: string | null;
+  role: CoverageItemRoleEnum;
+  start?: string | null;
+  title: string;
+  tracks?: TrackCoverage[] | null;
+}
+/**
+ * Why an item is marked as new data for a plot (CAP-10): it came in after the plot, through Debrief's import, within the folder tree the plot draws from, and has data for the plot's platforms or within its period; the plot has not taken it or set it aside at this revision.
+ *
+ * This interface was referenced by `DebriefSchemaDefinitions`'s JSON-Schema
+ * via the `definition` "NewDataMark".
+ */
+export interface NewDataMark {
+  /**
+   * What the mark says, for its tooltip and screen readers.
+   */
+  note: string;
+  /**
+   * The plot's tracks it has data for.
+   */
+  platforms?: string[] | null;
+  revision: string;
+  /**
+   * It has data within the plot's period.
+   */
+  within_period?: boolean | null;
+}
+/**
+ * The periods one track of an item has data for (CAP-05, CAP-08): from its first fix to its last, broken at each gap (a time between two fixes more than ten times the track's median time between fixes, and more than five minutes).
+ *
+ * This interface was referenced by `DebriefSchemaDefinitions`'s JSON-Schema
+ * via the `definition` "TrackCoverage".
+ */
+export interface TrackCoverage {
+  fixes: number;
+  name: string;
+  spans: TimeRange[];
+  /**
+   * The track's feature id.
+   */
+  track: string;
+}
+/**
+ * A period in which the same sources have data for a platform.
+ *
+ * This interface was referenced by `DebriefSchemaDefinitions`'s JSON-Schema
+ * via the `definition` "CoveragePeriod".
+ */
+export interface CoveragePeriod {
+  /**
+   * The source supplying the period; left out where the plot has none of its data yet.
+   */
+  chosen?: number | null;
+  end: string;
+  /**
+   * The platform's sources with data throughout the period, by their place in its list.
+   */
+  sources: number[];
+  start: string;
+}
+/**
+ * One of the plot's tracks, and every source of data for its platform.
+ *
+ * This interface was referenced by `DebriefSchemaDefinitions`'s JSON-Schema
+ * via the `definition` "CoveragePlatform".
+ */
+export interface CoveragePlatform {
+  colour?: string | null;
+  name: string;
+  /**
+   * The track's time cut where the sources with data change, in time order: each with the sources that have data then and the one that supplies it.
+   */
+  periods: CoveragePeriod[];
+  /**
+   * The plot's own data first, then items' tracks linked or proposed.
+   */
+  sources: CoverageSource[];
+  /**
+   * The track's feature id in the plot.
+   */
+  track: string;
+}
+/**
+ * A track in a catalogue item with data for the platform.
+ *
+ * This interface was referenced by `DebriefSchemaDefinitions`'s JSON-Schema
+ * via the `definition` "CoverageSource".
+ */
+export interface CoverageSource {
+  catalogue: string;
+  fixes: number;
+  item: string;
+  link: CoverageLinkEnum;
+  /**
+   * The track's name in that item.
+   */
+  name: string;
+  /**
+   * The plot took data from this item at a revision it no longer has.
+   */
+  revised?: boolean | null;
+  spans: TimeRange[];
+  /**
+   * The item's title.
+   */
+  title: string;
+  track: string;
+}
+/**
+ * Coverage for one plot (CAP-08, CAP-09): its platforms with every source of data for each, the items in the folder tree it draws from with their marks, and whether the plot itself may need review.
+ *
+ * This interface was referenced by `DebriefSchemaDefinitions`'s JSON-Schema
+ * via the `definition` "CoverageReport".
+ */
+export interface CoverageReport {
+  /**
+   * The plot's catalogue, by its own id.
+   */
+  catalogue: string;
+  /**
+   * The latest time any source shown has data.
+   */
+  end?: string | null;
+  /**
+   * The plot's item id.
+   */
+  item: string;
+  items: CoverageItem[];
+  /**
+   * Anything the analyst should know about what is shown.
+   */
+  note?: string | null;
+  platforms: CoveragePlatform[];
+  /**
+   * The plot drew from items since revised, so it may need review (CAP-12).
+   */
+  review?: ReviewFlag | null;
+  /**
+   * The earliest time any source shown has data.
+   */
+  start?: string | null;
+  title: string;
+}
+/**
+ * A product that drew from catalogue items since revised, so may need review (CAP-12), until the analyst clears it.
+ *
+ * This interface was referenced by `DebriefSchemaDefinitions`'s JSON-Schema
+ * via the `definition` "ReviewFlag".
+ */
+export interface ReviewFlag {
+  catalogue: string;
+  item: string;
+  /**
+   * What the flag says, for its tooltip and screen readers.
+   */
+  note: string;
+  /**
+   * Each item revised since the product took data from it, at its revision now.
+   */
+  revised: ItemRef[];
+  title: string;
+}
+/**
  * The unit of analysis (SUB-05), stored as an asset of a STAC item.
  *
  * This interface was referenced by `DebriefSchemaDefinitions`'s JSON-Schema
@@ -704,6 +960,14 @@ export interface TrackProperties {
   name: string;
   platform_class?: string | null;
   /**
+   * Tracks in other catalogue items the analyst confirmed, or linked by hand, as this track's platform (CAP-09; decision, product owner, 16 Oct 2026). Tracks whose names match this one's, ignoring case and spaces, are proposed until confirmed or refused. Each change is a recorded, undoable step.
+   */
+  platform_links?: SourceTrackRef[] | null;
+  /**
+   * Tracks in other catalogue items whose names match this one's but which the analyst said are another platform: no longer proposed.
+   */
+  platform_unlinks?: SourceTrackRef[] | null;
+  /**
    * How the track is plotted: over the ground (otg, as logged; also when left out) or by dead reckoning (dr), chosen as it was imported and changed as a recorded, undoable step (CAP-01, SUB-22). The geometry is always the positions as plotted, so other GeoJSON tools draw what Debrief draws.
    */
   plotting_mode?: PlottingModeEnum | null;
@@ -716,6 +980,10 @@ export interface TrackProperties {
    */
   speeds?: SpeedSeries | null;
   style?: TrackStyle | null;
+  /**
+   * Which catalogue item supplies each period of the track (CAP-09): where two items have data for the platform over the same period, the analyst chooses which supplies it, and the track is stitched from the chosen periods. In time order, not overlapping, each from its first fix to its last. Left out, the plot itself supplies the whole track, as imported. Content: each change is a recorded, undoable step (SUB-22), naming the items and periods.
+   */
+  supplies?: TrackSupply[] | null;
   /**
    * How often a small symbol in the track's colour marks where it was (CAP-32): aligned and bounded as label_interval, or at every fix ("all"). Left out, none.
    */
@@ -774,6 +1042,24 @@ export interface SpeedSeries {
   values: number[];
 }
 /**
+ * A track in a catalogue item, as collation names it (CAP-08, CAP-09): the item by its catalogue's own id and its item id, the track by its feature id there, and its name when last read, to show if the item has gone.
+ *
+ * This interface was referenced by `DebriefSchemaDefinitions`'s JSON-Schema
+ * via the `definition` "SourceTrackRef".
+ */
+export interface SourceTrackRef {
+  /**
+   * The id in the item's catalog.json.
+   */
+  catalogue: string;
+  item: string;
+  name: string;
+  /**
+   * The track's feature id in that item.
+   */
+  track: string;
+}
+/**
  * How a track is drawn. Data colours do not change with the theme (DEV-07). Colour is content: the analyst changing it (blue friendly to red enemy, say) is a recorded, undoable change (SUB-22).
  *
  * This interface was referenced by `DebriefSchemaDefinitions`'s JSON-Schema
@@ -788,6 +1074,33 @@ export interface TrackStyle {
    * The REP symbology code the colour came from, such as "@C", kept for export.
    */
   legacy_symbology?: string | null;
+}
+/**
+ * One period of a track and the catalogue item that supplies it (CAP-09): the fixes from start to end, ends included, are that item's track's (the plot's own, where it names the plot itself).
+ *
+ * This interface was referenced by `DebriefSchemaDefinitions`'s JSON-Schema
+ * via the `definition` "TrackSupply".
+ */
+export interface TrackSupply {
+  /**
+   * The id in the item's catalog.json.
+   */
+  catalogue: string;
+  end: string;
+  item: string;
+  /**
+   * The item's revision when the period was taken from it; left out where the plot supplies it itself.
+   */
+  revision?: string | null;
+  start: string;
+  /**
+   * The item's title when the period was taken from it.
+   */
+  title: string;
+  /**
+   * The supplying track's feature id in that item.
+   */
+  track: string;
 }
 /**
  * A set of sensor observations, such as weeks of bearings, held as an opaque payload (CON-02, NFR-06). Geometry is null; positions come from the host track at each observation time.
@@ -954,6 +1267,10 @@ export interface PlotProperties {
  * via the `definition` "PlotView".
  */
 export interface PlotView {
+  /**
+   * What the analyst has said of catalogue items while collating (CAP-10, CAP-12): new data set aside for now, and revisions reviewed. View state: never a step in the history.
+   */
+  collation?: CollationView | null;
   /**
    * How tracks outside the time window are drawn (CAP-29). Left out means visible.
    */
@@ -1517,13 +1834,29 @@ export interface StacItem {
  */
 export interface StacItemProperties {
   /**
+   * When the item came into the catalogue (STAC common metadata): by import, as a received plot file, or as a copy. Items that came in after a plot can be new data for it (CAP-10).
+   */
+  created?: string | null;
+  /**
    * Null when start_datetime and end_datetime are given.
    */
   datetime?: string | null;
   /**
+   * The periods each of the item's tracks has data for (CAP-08), so a catalogue's coverage is read from its items alone. Derived at each change, never authoritative.
+   */
+  "debrief:coverage"?: TrackCoverage[] | null;
+  /**
+   * The catalogue items the plot took data from, each at the latest revision taken (CAP-12), from its provenance. Derived at each change, never authoritative.
+   */
+  "debrief:drawn_from"?: ItemRef[] | null;
+  /**
    * Platform names, for catalogue search (SUB-16).
    */
   "debrief:participants"?: string[] | null;
+  /**
+   * The content hash of the item's plot, its whole-plot details included, so any recorded change to the item is a new revision (CAP-12). Derived at each change, never authoritative, as the extent is.
+   */
+  "debrief:revision"?: string | null;
   "debrief:schema_version": string;
   description?: string | null;
   end_datetime?: string | null;
@@ -1560,7 +1893,7 @@ export interface TimelineEntry {
   id: string;
   kind: TimelineEntryKindEnum;
   /**
-   * Who wrote a narrative entry; an annotation's name; the track a fix comment is on.
+   * Who wrote a narrative entry; an annotation's name; the track a fix comment is on; the item supplying a period of data.
    */
   source: string;
   /**
@@ -1783,6 +2116,10 @@ export interface WebviewMessage {
    */
   context_tracks?: ContextTracksEnum | null;
   /**
+   * The open plot's coverage (show_coverage).
+   */
+  coverage?: CoverageReport | null;
+  /**
    * Current time from shared state, which a tool form offers for its time fields.
    */
   current_time?: string | null;
@@ -1802,7 +2139,15 @@ export interface WebviewMessage {
    * How many of the plot's features are hidden on the map (SUB-22), so the map can say so.
    */
   hidden_count?: number | null;
+  /**
+   * The item, at the revision the analyst saw (take_asked, dismiss_asked).
+   */
+  item_revision?: ItemRevision | null;
   kind: WebviewMessageKindEnum;
+  /**
+   * Whether the source is the track's platform (link_changed).
+   */
+  linked?: boolean | null;
   message?: string | null;
   /**
    * The analyst's setting that shows faint context tracks as visible, so the time controller can say so.
@@ -1839,9 +2184,13 @@ export interface WebviewMessage {
   saved_window?: TimeRange | null;
   selected_names?: string[] | null;
   selection?: Selection | null;
+  /**
+   * A track in a catalogue item (source_chosen, link_changed).
+   */
+  source?: SourceTrackRef | null;
   time?: TimeState | null;
   /**
-   * The plot's period, so times can be entered as the analyst reads them (show_form) and the time window set within it (show_time); or the time window to save (window_changed).
+   * The plot's period, so times can be entered as the analyst reads them (show_form) and the time window set within it (show_time); the time window to save (window_changed); or the period whose source the analyst chose (source_chosen).
    */
   time_range?: TimeRange | null;
   /**

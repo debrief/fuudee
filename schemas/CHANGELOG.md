@@ -2,6 +2,19 @@
 
 The data-file schema is versioned independently of Debrief (SUB-12). Before 1.0.0 there is no migration guarantee (SUB-13).
 
+## 0.0.21 (16 Oct 2026)
+
+- Collation (CAP-05, CAP-08 to CAP-12; decisions, product owner, 16 Oct 2026). A source is a catalogue item.
+  - `TrackProperties.supplies` (a list of `TrackSupply`: `catalogue`, `item`, `track`, `title`, `revision`, `start`, `end`): which catalogue item supplies each period of a track, the track stitched from the chosen periods; left out, the plot itself supplies the whole track, as imported. Rules: each period from start to end, in time order, apart. Split and merged tracks keep the periods of their fixes.
+  - `TrackProperties.platform_links` and `platform_unlinks` (lists of `SourceTrackRef`: `catalogue`, `item`, `track`, `name`): tracks in other items confirmed or linked by hand as this track's platform, and tracks of the same name refused. Rules: none named twice, none both linked and unlinked.
+  - `ProvRecord.drawn_from` (a list of `ItemRef`: `catalogue`, `item`, `title`, `revision`): the catalogue items an operation took data from, each at the revision read; PROV's wasDerivedFrom. Items are named by their catalogue's own id (from its `catalog.json`) and their item id.
+  - `PlotView.collation` (`CollationView`: `dismissed` and `reviewed`, lists of `ItemRevision`): new data set aside (Not now) and revisions reviewed; view state in the island, never a step.
+  - `StacItemProperties` gains `created` (STAC common metadata: when the item came into the catalogue), `debrief:revision` (the content hash of its plot: any recorded change is a new revision), `debrief:coverage` (a list of `TrackCoverage`: `track`, `name`, `fixes`, `spans`) and `debrief:drawn_from` (`ItemRef`s), all derived at each change, never authoritative. Rule: each span from start to end.
+  - A new module, `collation.yaml`: `CoverageReport` (a plot's platforms, the items in the folder tree it draws from, and its review flag), `CoveragePlatform`, `CoverageSource` (`link`: `CoverageLinkEnum`, `plot`, `linked` or `proposed`), `CoveragePeriod` (`sources`, `chosen`), `CoverageItem` (`role`: `CoverageItemRoleEnum`, `this_plot`, `drawn_from` or `other`; `new_data`, `revised`), `NewDataMark` and `ReviewFlag`.
+  - Webview messages `show_coverage` (`coverage`, `time`; or `message` alone, why a choice was not made), `source_chosen` (`feature_id`, `time_range`, `source`), `link_changed` (`feature_id`, `source`, `linked`), `take_asked` and `dismiss_asked` (`item_revision`), and `review_cleared`. `TimelineEntryKindEnum` gains `coverage`: a period a track has data for, from one source.
+- Shared vectors `schemas/vectors/collation.json`: spans (gaps more than ten times the median time between fixes and more than five minutes; none with fewer than three steps), platform names (case and runs of spaces ignored) and periods, held by Python and TypeScript.
+- Before 1.0.0 only an exact version opens (SUB-13): plots written as 0.0.20 must be imported or built again.
+
 ## 0.0.20 (15 Oct 2026)
 
 - How often a track is labelled, marked with a symbol and given a direction arrow (CAP-32): `label_interval`, `symbol_interval` and `arrow_interval` on `TrackProperties`, each a `Duration` or `"off"` (`FixIntervalOffEnum`); labels and symbols may also be `"all"` (`FixIntervalAllEnum`), at every recorded fix, legacy Debrief's *All* (decision, product owner, 15 Oct 2026), which arrows may not; presentation content recorded in history like colour (SUB-22), held per track. Left out, Debrief's default: no time labels and no symbols; a few arrows along the track's part in the time window, as before. The map draws them at each whole multiple of the interval of UTC (every 10 min is 0900, 0910, 0920, wherever the track starts), as legacy Debrief aligns them. Rule: a duration is a whole number of seconds from 1 s to 24 h. Nothing else in plot files changes.

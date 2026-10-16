@@ -14,6 +14,8 @@ Adapted from `DOMAIN_GLOSSARY.md` in debrief/debrief-future, itself adapted from
 
 **Source.** A file imported into Debrief, such as a REP file or a legacy plot. Debrief never changes a source; a revision arrives as a new source (SUB-10). A catalogue keeps its sources, but they don't travel with a plot file: the plot's first step holds what was imported, and its history names each source.
 
+In collation, a source is a **catalogue item**: an imported file, kept as a plot of its own, or any other plot in a catalogue, from which a plot takes data (decision, product owner, 16 Oct 2026).
+
 **Supporting file.** Video, imagery, acoustic files and other content that is not geographic data, kept beside a plot (SUB-06).
 
 **History** (in guides, **provenance**). The record of every operation that produced a plot: imports, tool runs, edits and deletions, with who or what made them (SUB-18 to SUB-24). Kept in the plot file, all of it, always.
@@ -69,6 +71,22 @@ Adapted from `DOMAIN_GLOSSARY.md` in debrief/debrief-future, itself adapted from
 **Chart furniture.** What a chart carries besides its data: the scale bar, always drawn, and the north arrow, which a plot shows or not.
 
 **Timeline.** The view listing a plot's narrative entries, time-only annotations (notes and periods of interest) and fix comments in one time order, on one Zulu time axis. Choosing an entry moves current time to it; it follows current time while playing, until the analyst scrolls it (CAP-05, CAP-20). The SRD calls it the temporal view. See [Timeline and narrative](interaction-models/timeline.md).
+
+**Collation.** Putting a plot together from the catalogue items with data for it: seeing which item covers which periods, choosing which supplies each period of a platform, taking new data, and reviewing a plot when an item it drew from is revised. Done in the catalogue browser, Catalogues and Coverage (CAP-08 to CAP-12). See [Collation](interaction-models/collation.md).
+
+**Catalogue item** (in collation, **item**). One entry of a catalogue: a plot, with its sources and files. Every import makes one, so an imported file and the analyst's working plot are both items.
+
+**Coverage.** The periods a track has data for, from its first fix to its last, broken at gaps; for a plot, every source of data for each of its tracks, with those periods, side by side (CAP-08). Shown in Coverage and listed in the Timeline.
+
+**Platform** (across items). The vessel or aircraft a track is of. Tracks in different items whose names match, ignoring case and spaces, are proposed as one platform; the analyst confirms, refuses, or links others by hand.
+
+**Source preference.** Which catalogue item supplies each period of a track where more than one has data then: the analyst's choice, per period, one step each. The track is stitched from the chosen periods (CAP-09).
+
+**New data.** A catalogue item that came in after the plot, within the folders it draws from, with data for its platforms or within its period, not yet taken or set aside: marked with a sparkle and the words *New data* (CAP-10). Taking it is one step (CAP-11); **Not now** sets it aside until it is revised.
+
+**Revision** (of a catalogue item). Its content after any recorded change, of data or details; known by the content's checksum, so undo brings a revision back. A plot that drew from an item at an earlier revision **may need review** until the analyst marks it **Reviewed** (CAP-12).
+
+**Folder tree** (a plot draws from). The catalogue a plot is in, and the catalogues of the items it has taken data from: where its new data is looked for (CAP-10).
 
 **Named set.** A saved selection of features, reusable as a selection or as a tool's input (TL-11).
 

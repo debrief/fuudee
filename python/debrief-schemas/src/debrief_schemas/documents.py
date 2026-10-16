@@ -525,6 +525,7 @@ def _feature_problems(feature: Any, track_ids: set[str] | None) -> list[str]:
                 )
         problems += _fix_mark_problems(where, props)
         problems += _interval_problems(where, props)
+        problems += _collation_problems(where, props)
 
     elif props.kind == "annotation":
         problems += _annotation_problems(where, feature)
@@ -621,6 +622,35 @@ def _interval_problems(where: str, props: Any) -> list[str]:
     return problems
 
 
+def _collation_problems(where: str, props: Any) -> list[str]:
+    """Rules for a track's collation (CAP-09) that JSON Schema cannot express: the
+    periods items supply are each from start to end, in time order and not
+    overlapping; a track in another item is linked once, and is not both linked and
+    unlinked."""
+    problems = []
+    supplies = props.supplies or []
+    for supply in supplies:
+        if supply.start > supply.end:
+            problems.append(
+                f"{where}: the period {supply.item!r} supplies ends ({supply.end}) "
+                f"before it starts ({supply.start})"
+            )
+    if any(a.end >= b.start for a, b in zip(supplies, supplies[1:], strict=False)):
+        problems.append(f"{where}: the periods items supply are not in time order, apart")
+    links = [(r.catalogue, r.item, r.track) for r in props.platform_links or []]
+    unlinks = [(r.catalogue, r.item, r.track) for r in props.platform_unlinks or []]
+    for name, refs in (("platform_links", links), ("platform_unlinks", unlinks)):
+        if len(set(refs)) != len(refs):
+            problems.append(f"{where}: {name} names a track more than once")
+    both = set(links) & set(unlinks)
+    if both:
+        problems.append(
+            f"{where}: the track {sorted(both)[0][2]!r} of {sorted(both)[0][1]!r} is both "
+            "linked and unlinked"
+        )
+    return problems
+
+
 def _raw_feature_problems(raw_features: Any, label: str) -> list[str]:
     if not isinstance(raw_features, list):
         return []
@@ -689,6 +719,9 @@ def _stac_item_problems(item: g.StacItem, raw: dict[str, Any]) -> list[str]:
     for key, asset in item.assets.items():
         if asset.debrief_asset_kind == "source" and asset.debrief_content_hash is None:
             problems.append(f"asset {key}: a source needs debrief:content_hash (SUB-11)")
+    for coverage in props.debrief_coverage or []:
+        for span in coverage.spans:
+            problems += _time_range_problems(f"debrief:coverage {coverage.track}", span)
     return problems
 
 
@@ -894,6 +927,12 @@ MESSAGE_MEMBERS: dict[str, tuple[str, ...]] = {
     "set_narrative": ("timeline_entry?",),
     "undo_asked": (),
     "redo_asked": (),
+    "show_coverage": ("coverage?", "time?", "message?"),
+    "source_chosen": ("feature_id", "time_range", "source"),
+    "link_changed": ("feature_id", "source", "linked"),
+    "take_asked": ("item_revision",),
+    "dismiss_asked": ("item_revision",),
+    "review_cleared": (),
 }
 
 

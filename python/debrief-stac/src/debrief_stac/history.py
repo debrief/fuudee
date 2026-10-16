@@ -690,7 +690,7 @@ class History:
                 )
         text = compose(content_and_island, file)
         if plot is not None:
-            self.catalogue.store_plot_text(self.item_id, plot, text)
+            self.catalogue.store_plot_text(self.item_id, plot, text, revision=file.plot_hash)
         else:
             self.store.write_text_atomic(self._plot_path, text)
         file.digest = _digest(text)
@@ -937,6 +937,29 @@ class History:
         """The plot's content as it was after a step, rebuilt from the recorded steps
         (SUB-19). Never needs a source file. Content only: no island, no history."""
         return self._replay(self._trusted(), upto)
+
+    def first_recorded(self, feature_id: str) -> models.TrackFeature | None:
+        """A track as the plot first recorded it, in the earliest step on its current
+        line that added it: an import's track as imported, before any edit (collation
+        carries edits to new fixes from it). None if no step added a track of that id."""
+        file = self._trusted()
+        for seq in file.chain(file.current):
+            for raw in file.steps[seq - 1].raw.get("added") or []:
+                if isinstance(raw, dict) and raw.get("id") == feature_id:
+                    properties = raw.get("properties") or {}
+                    if properties.get("kind") != "track":
+                        return None
+                    return models.TrackFeature.model_validate(raw)
+        return None
+
+    def at_revision(self, revision: str) -> DebriefFeatureCollection | None:
+        """The plot's content as it was when its content hash was revision (an earlier
+        revision of a catalogue item), replayed; None if no step recorded it."""
+        file = self._trusted()
+        for step in reversed(file.steps):
+            if step.result_hash == revision:
+                return self._replay(file, step.seq)
+        return None
 
     @staticmethod
     def _replay(file: _File, upto: int) -> DebriefFeatureCollection:

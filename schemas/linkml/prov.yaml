@@ -58,6 +58,15 @@ classes:
       notes:
         description: Free-text notes such as truncations or omitted content (EXT-14, EXT-15).
         multivalued: true
+      drawn_from:
+        description: >-
+          Catalogue items the operation took data from, each at the revision
+          it read (CAP-09 to CAP-12): PROV's wasDerivedFrom. A product whose
+          provenance names an item at a revision it no longer has may need
+          review (CAP-12).
+        range: ItemRef
+        multivalued: true
+        inlined_as_list: true
 
   ToolRef:
     description: The tool and version that performed an operation (SUB-24).
@@ -79,3 +88,22 @@ classes:
     attributes:
       href: {required: true}
       content_hash: {range: ContentHash, required: true}
+
+  ItemRef:
+    class_uri: prov:Entity
+    description: >-
+      A catalogue item an operation took data from, at one revision (CAP-09
+      to CAP-12). Items are named by their catalogue's own id (the catalog.json
+      id, not the analyst's name for the folder) and their item id, so the
+      reference means the same on every analyst's machine.
+    attributes:
+      catalogue: {required: true, description: "The id in the item's catalog.json."}
+      item: {required: true, description: "The item's id in that catalogue."}
+      title: {description: "The item's title when it was read, to name it if it has gone."}
+      revision:
+        description: >-
+          The item's revision when it was read: the content hash of its plot
+          (its whole-plot details included), so any recorded change to the
+          item, of data or details, is a new revision.
+        range: ContentHash
+        required: true

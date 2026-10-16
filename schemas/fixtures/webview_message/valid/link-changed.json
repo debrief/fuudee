@@ -1,0 +1,11 @@
+{
+  "kind": "link_changed",
+  "feature_id": "track-blue-one",
+  "source": {
+    "catalogue": "debrief-sample",
+    "item": "blue-one-nav-log",
+    "track": "track-blue-one",
+    "name": "Blue One"
+  },
+  "linked": false
+}

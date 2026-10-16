@@ -817,8 +817,20 @@ def _sliced(track: models.TrackFeature, part: slice, **update) -> models.TrackFe
     # Marked fixes go with their fixes: found by time, so each part keeps its own.
     kept = set(times)
     marks = [m for m in props.fix_marks or [] if m.time in kept] or None
+    # The periods items supply (CAP-09) go with their fixes too, cut to the part.
+    supplies = [
+        s.model_copy(update={"start": max(s.start, times[0]), "end": min(s.end, times[-1])})
+        for s in props.supplies or []
+        if times and s.end >= times[0] and s.start <= times[-1]
+    ] or None
     properties = props.model_copy(
-        update={"times": times, "fix_marks": marks, **series, **update.pop("properties", {})}
+        update={
+            "times": times,
+            "fix_marks": marks,
+            "supplies": supplies,
+            **series,
+            **update.pop("properties", {}),
+        }
     )
     geometry = track.geometry.model_copy(update={"coordinates": track.geometry.coordinates[part]})
     return track.model_copy(update={"geometry": geometry, "properties": properties, **update})
@@ -988,6 +1000,7 @@ def merge(
             "style": style,
             "platform_class": platform,
             "provenance": provenance or None,
+            **_collation_of(ordered),
             **series,
         }
     )
@@ -1018,6 +1031,30 @@ def merge(
                 f"{shift[0].lower()}{shift[1:]}"
             )
     return merged, notes
+
+
+def _collation_of(ordered: Sequence[models.TrackFeature]) -> dict:
+    """What merged tracks keep of collation (CAP-09): the periods each item supplies, in
+    time order, and every track in another item linked as the platform (or refused)."""
+    supplies = [s for t in ordered for s in t.properties.supplies or []]
+
+    def refs(member: str) -> list:
+        seen, out = set(), []
+        for t in ordered:
+            for r in getattr(t.properties, member) or []:
+                if (r.catalogue, r.item, r.track) not in seen:
+                    seen.add((r.catalogue, r.item, r.track))
+                    out.append(r)
+        return out
+
+    links = refs("platform_links")
+    linked = {(r.catalogue, r.item, r.track) for r in links}
+    unlinks = [r for r in refs("platform_unlinks") if (r.catalogue, r.item, r.track) not in linked]
+    return {
+        "supplies": supplies or None,
+        "platform_links": links or None,
+        "platform_unlinks": unlinks or None,
+    }
 
 
 __all__ = [

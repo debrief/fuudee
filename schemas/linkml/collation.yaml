@@ -1,0 +1,175 @@
+id: https://debrief.info/schemas/debrief/collation
+name: debrief_collation
+title: "Collation: coverage, source preference, new data and review flags"
+license: EPL-2.0
+prefixes:
+  linkml: https://w3id.org/linkml/
+  debrief: https://debrief.info/schemas/debrief/
+default_prefix: debrief
+default_range: string
+imports:
+  - linkml:types
+  - core
+  - prov
+  - stac
+  - features
+
+description: >-
+  What the catalogue browser shows while an analyst collates data for a plot
+  (CAP-08 to CAP-12): for each of the plot's platforms, the catalogue items
+  with data for it and the periods each covers, which item supplies each
+  period, the items marked as new data for the plot, and the products that
+  drew from an item since revised. Worked out in Python (debrief_stac.collation)
+  and sent to the browser as it is: the browser only draws it.
+
+enums:
+  CoverageLinkEnum:
+    description: How a source's track is known to be the plot's platform.
+    permissible_values:
+      plot: {description: "The plot's own data for the track, as imported."}
+      linked: {description: "Confirmed, or linked by hand, as this platform."}
+      proposed: {description: "Its name matches the track's, ignoring case and spaces: proposed, not yet confirmed."}
+  CoverageItemRoleEnum:
+    description: What an item is to the plot.
+    permissible_values:
+      this_plot: {description: "The plot itself."}
+      drawn_from: {description: "The plot took data from it."}
+      other: {description: "In the folder tree the plot draws from, but nothing taken from it."}
+
+classes:
+  CoverageReport:
+    description: >-
+      Coverage for one plot (CAP-08, CAP-09): its platforms with every
+      source of data for each, the items in the folder tree it draws from
+      with their marks, and whether the plot itself may need review.
+    attributes:
+      catalogue: {required: true, description: "The plot's catalogue, by its own id."}
+      item: {required: true, description: "The plot's item id."}
+      title: {required: true}
+      start: {range: UtcTimestamp, description: "The earliest time any source shown has data."}
+      end: {range: UtcTimestamp, description: "The latest time any source shown has data."}
+      platforms:
+        range: CoveragePlatform
+        multivalued: true
+        inlined_as_list: true
+        required: true
+      items:
+        range: CoverageItem
+        multivalued: true
+        inlined_as_list: true
+        required: true
+      review:
+        description: The plot drew from items since revised, so it may need review (CAP-12).
+        range: ReviewFlag
+        inlined: true
+      note: {description: "Anything the analyst should know about what is shown."}
+
+  CoveragePlatform:
+    description: One of the plot's tracks, and every source of data for its platform.
+    attributes:
+      track: {required: true, description: "The track's feature id in the plot."}
+      name: {required: true}
+      colour: {pattern: "^#[0-9a-f]{6}$"}
+      sources:
+        description: The plot's own data first, then items' tracks linked or proposed.
+        range: CoverageSource
+        multivalued: true
+        inlined_as_list: true
+        required: true
+      periods:
+        description: >-
+          The track's time cut where the sources with data change, in time
+          order: each with the sources that have data then and the one that
+          supplies it.
+        range: CoveragePeriod
+        multivalued: true
+        inlined_as_list: true
+        required: true
+
+  CoverageSource:
+    description: A track in a catalogue item with data for the platform.
+    attributes:
+      catalogue: {required: true}
+      item: {required: true}
+      track: {required: true}
+      name: {required: true, description: "The track's name in that item."}
+      title: {required: true, description: "The item's title."}
+      link: {range: CoverageLinkEnum, required: true}
+      fixes: {range: integer, required: true, minimum_value: 0}
+      spans:
+        range: TimeRange
+        multivalued: true
+        inlined_as_list: true
+        required: true
+      revised:
+        description: The plot took data from this item at a revision it no longer has.
+        range: boolean
+
+  CoveragePeriod:
+    description: A period in which the same sources have data for a platform.
+    attributes:
+      start: {range: UtcTimestamp, required: true}
+      end: {range: UtcTimestamp, required: true}
+      sources:
+        description: The platform's sources with data throughout the period, by their place in its list.
+        range: integer
+        multivalued: true
+        required: true
+      chosen:
+        description: The source supplying the period; left out where the plot has none of its data yet.
+        range: integer
+
+  CoverageItem:
+    description: A catalogue item in the folder tree the plot draws from.
+    attributes:
+      catalogue: {required: true}
+      item: {required: true}
+      title: {required: true}
+      role: {range: CoverageItemRoleEnum, required: true}
+      created: {range: UtcTimestamp}
+      start: {range: UtcTimestamp}
+      end: {range: UtcTimestamp}
+      revision: {range: ContentHash}
+      tracks:
+        range: TrackCoverage
+        multivalued: true
+        inlined_as_list: true
+      new_data:
+        description: Marked as new data for the plot (CAP-10).
+        range: NewDataMark
+        inlined: true
+      revised:
+        description: The plot took data from this item at a revision it no longer has (CAP-12).
+        range: boolean
+
+  NewDataMark:
+    description: >-
+      Why an item is marked as new data for a plot (CAP-10): it came in after
+      the plot, through Debrief's import, within the folder tree the plot
+      draws from, and has data for the plot's platforms or within its period;
+      the plot has not taken it or set it aside at this revision.
+    attributes:
+      revision: {range: ContentHash, required: true}
+      platforms:
+        description: The plot's tracks it has data for.
+        multivalued: true
+      within_period:
+        description: It has data within the plot's period.
+        range: boolean
+      note: {required: true, description: "What the mark says, for its tooltip and screen readers."}
+
+  ReviewFlag:
+    description: >-
+      A product that drew from catalogue items since revised, so may need
+      review (CAP-12), until the analyst clears it.
+    attributes:
+      catalogue: {required: true}
+      item: {required: true}
+      title: {required: true}
+      revised:
+        description: Each item revised since the product took data from it, at its revision now.
+        range: ItemRef
+        multivalued: true
+        inlined_as_list: true
+        required: true
+      note: {required: true, description: "What the flag says, for its tooltip and screen readers."}

@@ -1,0 +1,14 @@
+{
+  "kind": "source_chosen",
+  "feature_id": "track-blue-one",
+  "time_range": {
+    "start": "2023-06-15T09:30:00.000Z",
+    "end": "2023-06-15T09:00:00.000Z"
+  },
+  "source": {
+    "catalogue": "debrief-sample",
+    "item": "blue-one-nav-log",
+    "track": "track-blue-one",
+    "name": "Blue One"
+  }
+}

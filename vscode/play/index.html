@@ -9,6 +9,7 @@
 <link rel="stylesheet" href="timecontrol.css">
 <link rel="stylesheet" href="tote.css">
 <link rel="stylesheet" href="timeline.css">
+<link rel="stylesheet" href="coverage.css">
 <link rel="stylesheet" href="host.css">
 </head>
 <body>
@@ -72,6 +73,18 @@
         <div id="timeline" class="timeline"></div>
       </div>
     </section>
+    <section class="panel" id="panel-catalogue">
+      <h2><button type="button" class="fold" aria-expanded="true" aria-controls="body-catalogue"><span class="arrow" aria-hidden="true"></span>Catalogue</button></h2>
+      <div class="panel-body" id="body-catalogue">
+        <ul id="items" class="items" aria-label="Items in the catalogue"></ul>
+      </div>
+    </section>
+    <section class="panel" id="panel-coverage">
+      <h2><button type="button" class="fold" aria-expanded="true" aria-controls="body-coverage"><span class="arrow" aria-hidden="true"></span>Coverage</button></h2>
+      <div class="panel-body" id="body-coverage">
+        <div id="coverage"></div>
+      </div>
+    </section>
     <section class="panel" id="panel-tools">
       <h2><button type="button" class="fold" aria-expanded="true" aria-controls="body-tools"><span class="arrow" aria-hidden="true"></span>Tools</button></h2>
       <div class="panel-body" id="body-tools">
@@ -93,6 +106,8 @@
         <button id="colleague">A colleague changes the plot</button>
         <button id="colleague-window">A colleague changes the time window</button>
         <button id="colleague-during">A colleague changes it while your next tool runs</button>
+        <button id="new-data" title="A navigation log for this plot's first track is imported into the catalogue, as new data arrives">New data arrives for this plot</button>
+        <button id="revise" title="A colleague corrects an item this plot took data from: it may need review">A colleague revises an item this plot drew from</button>
       </div>
     </section>
     <section class="panel" id="panel-import">

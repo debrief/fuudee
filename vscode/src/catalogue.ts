@@ -15,6 +15,7 @@ import {
   type DebriefFeatureCollection,
   type KnownStore,
   type StacItem,
+  type TrackCoverage,
 } from "@debrief/schemas";
 
 export const CATALOGUE_FILE = "catalog.json";
@@ -24,10 +25,14 @@ export interface PlotSummary {
   title: string;
   start?: string;
   end?: string;
+  /** Each track's periods of data, as the item keeps them (CAP-08): read from the item alone. */
+  tracks: TrackCoverage[];
 }
 
 export interface CatalogueView {
   store: KnownStore;
+  /** The catalogue's own id, from its catalog.json: what collation names items by. */
+  id?: string;
   title: string;
   plots: PlotSummary[];
   problem?: string;
@@ -145,6 +150,7 @@ function summarise(itemFile: string): PlotSummary | undefined {
       title: p.title ?? item.id,
       start: p.start_datetime ?? p.datetime ?? undefined,
       end: p.end_datetime ?? p.datetime ?? undefined,
+      tracks: p["debrief:coverage"] ?? [],
     };
   }
   summaries.set(itemFile, { mtimeMs, size, summary });
@@ -165,7 +171,7 @@ export function readCatalogue(store: KnownStore): CatalogueView {
       const summary = summarise(itemFile);
       if (summary) plots.push(summary);
     }
-    return { store, title: catalogue.title ?? store.title, plots };
+    return { store, id: catalogue.id, title: catalogue.title ?? store.title, plots };
   } catch (error) {
     return { store, title: store.title, plots: [], problem: (error as Error).message };
   }

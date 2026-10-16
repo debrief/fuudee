@@ -10,7 +10,7 @@ import { randomBytes } from "node:crypto";
 import { request as httpRequest } from "node:http";
 import { tmpdir } from "node:os";
 import { createInterface } from "node:readline";
-import type { AnnotationSpec, DebriefFeatureCollection, NarrativeSpec, MeasureDefinition, MeasureGroup, PlotView, SharedState, ToolDeclaration, ToolResult, ToteResult, ToteView, TrackEdit } from "@debrief/schemas";
+import type { AnnotationSpec, CoverageReport, DebriefFeatureCollection, ItemRevision, NarrativeSpec, MeasureDefinition, MeasureGroup, PlotView, ReviewFlag, SharedState, SourceTrackRef, TimeRange, ToolDeclaration, ToolResult, ToteResult, ToteView, TrackEdit } from "@debrief/schemas";
 import type { ToolOutcome } from "./diagnostics.js";
 import type { NarrativeChoices, NarrativePreview } from "./narrativeimport.js";
 
@@ -122,6 +122,12 @@ export type TrackChange =
   | { kind: "edit"; feature: string; edit: TrackEdit; current_time?: string }
   | { kind: "split"; feature: string; at: string; names?: [string, string] }
   | { kind: "merge"; features: string[]; name?: string };
+
+/** A collation step (CAP-09, CAP-11), by hand or by an agent: each one step naming the items. */
+export type CollationChange =
+  | { kind: "take"; source: { catalogue: string; item: string; revision?: string } }
+  | { kind: "prefer"; feature: string; period: TimeRange; source: SourceTrackRef }
+  | { kind: "link"; feature: string; source: SourceTrackRef; linked: boolean };
 
 /** A track cleaned, or a fix marked, by hand or by an agent (CAP-01, EXT-14): each one step. */
 export type CleanChange =
@@ -581,5 +587,36 @@ export class ToolService {
   /** The tracks a REP file would import, to ask how each is plotted. */
   repTracks(path: string): Promise<{ tracks: string[] }> {
     return this.request("debrief/rep_tracks", { path });
+  }
+
+  /**
+   * The plot's coverage (CAP-08 to CAP-12): its platforms and every catalogue item with
+   * data for each, the items marked as new data for it, and whether it may need review.
+   * Reads only.
+   */
+  coverage(store: string, item: string): Promise<Opened & { coverage: CoverageReport }> {
+    return this.request("debrief/coverage", { store, item });
+  }
+
+  /**
+   * A collation step (CAP-09, CAP-11): take an item's new data, choose which item supplies
+   * a period of a track, or link or unlink a track in another item as a platform; each a
+   * recorded, undoable step. Fails with CONFLICT if the plot changed since base.
+   */
+  collate(store: string, item: string, base: Base, agent: Agent, change: CollationChange, allowNewerSchema = false): Promise<Opened & { changed: boolean }> {
+    const { kind, ...params } = change;
+    const method = { take: "debrief/take_new_data", prefer: "debrief/set_source_preference", link: "debrief/link_tracks" }[kind];
+    return this.request(method, { store, item, base, agent, ...params, ...(allowNewerSchema && { allow_newer_schema: true }) });
+  }
+
+  /** Set an item's new data aside, or clear the plot's review flag (CAP-10, CAP-12): the plot's island, never a step. */
+  collationView(store: string, item: string, agent: Agent, change: { kind: "dismiss"; source: ItemRevision } | { kind: "reviewed" }): Promise<OpenedView & { changed: boolean }> {
+    if (change.kind === "dismiss") return this.request("debrief/dismiss_new_data", { store, item, agent, source: change.source });
+    return this.request("debrief/clear_review_flag", { store, item, agent });
+  }
+
+  /** Every plot in the analyst's catalogues that may need review (CAP-12), with the store each is in. */
+  reviewFlags(): Promise<{ flags: (ReviewFlag & { store?: string })[] }> {
+    return this.request("debrief/review_flags");
   }
 }
