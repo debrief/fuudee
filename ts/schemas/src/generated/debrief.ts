@@ -124,10 +124,24 @@ export type CatalogTypeEnum = "Catalog";
  */
 export type ContextTracksEnum = "visible" | "faint" | "hidden";
 /**
+ * A track's labels, symbols or direction arrows explicitly turned off (CAP-32), rather than left to Debrief's default.
+ *
+ * This interface was referenced by `DebriefSchemaDefinitions`'s JSON-Schema
+ * via the `definition` "FixIntervalOffEnum".
+ */
+export type FixIntervalOffEnum = "off";
+/**
  * This interface was referenced by `DebriefSchemaDefinitions`'s JSON-Schema
  * via the `definition` "TrackKindEnum".
  */
 export type TrackKindEnum = "track";
+/**
+ * A track's time labels or symbols at every recorded fix (CAP-32), legacy Debrief's "All" (decision, product owner, 15 Oct 2026): still thinned when zoomed out. Not for arrows.
+ *
+ * This interface was referenced by `DebriefSchemaDefinitions`'s JSON-Schema
+ * via the `definition` "FixIntervalAllEnum".
+ */
+export type FixIntervalAllEnum = "all";
 /**
  * How a track is plotted, as legacy Debrief asked of each track imported (CAP-01, decision, product owner, 14 Oct 2026).
  *
@@ -651,6 +665,10 @@ export interface TrackFeature {
  */
 export interface TrackProperties {
   /**
+   * How often a chevron on the line shows the track's direction of travel (CAP-32): aligned and bounded as label_interval. Left out, Debrief's default: a few along the track in the time window.
+   */
+  arrow_interval?: Duration | FixIntervalOffEnum | null;
+  /**
    * Course over ground at each position, true north, clockwise.
    */
   courses?: AngleSeries | null;
@@ -659,7 +677,7 @@ export interface TrackProperties {
    */
   depths?: LengthSeries | null;
   /**
-   * Fixes with a colour, a label or a comment of their own, in time order, each found by its time (CAP-01, EXT-14). Most fixes have none, so only marked fixes are listed. Content: each change is a recorded, undoable step (SUB-22).
+   * Fixes with a colour, a label or a comment of their own, or always showing their time label or symbol, in time order, each found by its time (CAP-01, EXT-14). Most fixes have none, so only marked fixes are listed. Content: each change is a recorded, undoable step (SUB-22).
    */
   fix_marks?: FixMark[] | null;
   /**
@@ -667,6 +685,10 @@ export interface TrackProperties {
    */
   hidden?: boolean | null;
   kind: TrackKindEnum;
+  /**
+   * How often the track is labelled with the time (CAP-32): at each whole multiple of this interval of UTC (every 10 min is 0900, 0910, 0920...), as legacy Debrief aligns them, from 1 second to 24 hours; at every fix ("all"); or off. Left out, Debrief's default: none. Presentation content: each change is a recorded, undoable step, like colour (SUB-22).
+   */
+  label_interval?: Duration | FixIntervalOffEnum | FixIntervalAllEnum | null;
   /**
    * A track plotted by dead reckoning: its courses as logged, one per fix, as they were when it was plotted so. On a DR track the courses and speeds are what edits change (decision, product owner, 14 Oct 2026), so these tell what was changed while plotted by dead reckoning, and plotting it over the ground again puts them back.
    */
@@ -695,6 +717,10 @@ export interface TrackProperties {
   speeds?: SpeedSeries | null;
   style?: TrackStyle | null;
   /**
+   * How often a small symbol in the track's colour marks where it was (CAP-32): aligned and bounded as label_interval, or at every fix ("all"). Left out, none.
+   */
+  symbol_interval?: Duration | FixIntervalOffEnum | FixIntervalAllEnum | null;
+  /**
    * One per position, non-decreasing.
    */
   times: string[];
@@ -708,7 +734,7 @@ export interface LengthSeries {
   values: number[];
 }
 /**
- * One fix of a track marked by the analyst, or by a legacy plot: drawn in a colour of its own, labelled on the map, or carrying a comment. Found by its time, not its place in the track, so a mark stays with its fix when fixes before it are removed, the track is split or merged, or it is moved, rotated, sheared, stretched or smoothed. Where two fixes share a time, the mark is the first's.
+ * One fix of a track marked by the analyst, or by a legacy plot: drawn in a colour of its own, labelled on the map, carrying a comment, or always showing its time label or symbol. Found by its time, not its place in the track, so a mark stays with its fix when fixes before it are removed, the track is split or merged, or it is moved, rotated, sheared, stretched or smoothed. Where two fixes share a time, the mark is the first's.
  *
  * This interface was referenced by `DebriefSchemaDefinitions`'s JSON-Schema
  * via the `definition` "FixMark".
@@ -726,6 +752,14 @@ export interface FixMark {
    * Text drawn on the map beside the fix.
    */
   label?: string | null;
+  /**
+   * The fix always shows its time label, as the track's label_interval draws them, whatever that interval is and at any zoom (CAP-32; decision, product owner, 15 Oct 2026: force on only, so true when given). Never drawn twice where the interval falls on the same time.
+   */
+  show_label?: boolean | null;
+  /**
+   * The fix always shows its symbol, as the track's symbol_interval draws them, whatever that interval is and at any zoom (CAP-32); true when given.
+   */
+  show_symbol?: boolean | null;
   /**
    * The time of the fix marked; one of the track's times.
    */

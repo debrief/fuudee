@@ -35,6 +35,12 @@
  *   label or comment on it. The host may ring fixes for the
  *   analyst to check (jumps found, before they are removed) and draw a track as
  *   a change would leave it (smoothing, before it is applied): show_fixes.
+ * - Labels, symbols and arrows at an interval set for each track (CAP-32, frequencies.ts):
+ *   the time beside the track, to port of its course, as legacy Debrief labels fixes; a
+ *   small dot in its colour; a chevron on the line along its course. At each whole
+ *   multiple of the interval of UTC in the time window, where the track was then, as the
+ *   marker at current time places it. Thinned when zoomed out, and the map says so; only
+ *   what is in view is drawn, again after each pan or zoom.
  * - Chart furniture: the scale bar always, and a north arrow when the plot has one.
  * - Selected features get an outline in the theme's text colour, which can
  *   never be mistaken for a force colour; everything else is dimmed.
@@ -56,7 +62,8 @@ import { convert, DEFAULT_SETTINGS, formatPosition, formatQuantity, UNIT_LABELS 
 import type { DebriefFeatureCollection, TimelineEntry, TimeState, ToteView } from "@debrief/schemas";
 import type { AnnotationProperties } from "@debrief/schemas";
 import { labelPlacement, labelText, lookOf, shapeOf, specOfFeature, type Look } from "./annotationlook.js";
-import { circleRing, densify, ellipseRing, positionAt as trackPositionAt, type LonLat } from "./geodesic.js";
+import { circleRing, densify, ellipseRing, pointAt, positionAt as trackPositionAt, type LonLat } from "./geodesic.js";
+import { CAP, declutter, everyFix, FIELDS, fixLabel, forcedTimes, gaps, gridCount, gridTimes, intervalMs, labelsWithDay, LEADER_PX, medianStep, mergeSpans, Occupied, placeLabels as placeTimeLabels, portSide, SPACING_PX, thinnedInterval, thinningNote, withForced, type Field } from "./frequencies.js";
 import { CONTEXT_WEIGHT, contextStyle, parseColour, WINDOW_WEIGHT, type ContextStyle, type ContextTracks, type MapTheme, type Rgb } from "./contrast.js";
 import { MapEditor } from "./mapedit.js";
 import { PressHold } from "./presshold.js";
@@ -167,11 +174,13 @@ const Legend = L.Control.extend({
     const div = L.DomUtil.create("details", "legend");
     L.DomUtil.create("summary", "", div).textContent = "Key";
     const rows: [string, string][] = [
-      ["track", "Track in the time window, in its force colour; ticks show direction"],
+      ["track", "Track in the time window, in its force colour; arrows show direction"],
       ["context", "Track outside the time window"],
       ["first", "First fix in the window"],
       ["latest", "Last fix in the window, labelled"],
       ["now", "Position at current time"],
+      ["time", "Time label, at the interval set for the track"],
+      ["symbol", "Symbol, at the interval set for the track"],
       ["marked", "Marked fix: its own colour, a label or a comment; right-click a fix to mark it"],
       ["check", "Fix to check, such as a jump found"],
       ["annotation", "Annotation, including what tools draw: dashed unless given a style"],
@@ -179,8 +188,10 @@ const Legend = L.Control.extend({
     ];
     for (const [kind, label] of rows) {
       const row = L.DomUtil.create("div", "legend-row", div);
-      L.DomUtil.create("span", `swatch swatch-${kind}`, row);
+      const swatch = L.DomUtil.create("span", `swatch swatch-${kind}`, row);
+      if (kind === "time") swatch.textContent = "0930";
       L.DomUtil.create("span", "", row).textContent = label;
+      if (kind === "time" || kind === "symbol") row.hidden = true; // shown once a track has them
     }
     return div;
   },
@@ -209,6 +220,19 @@ const Hidden = L.Control.extend({
   },
 });
 new Hidden({ position: "bottomleft" }).addTo(map);
+
+// Labels, symbols or arrows thinned to fit the zoom (CAP-32): the map says so, quietly.
+let thinNote: HTMLElement | undefined;
+const ThinNote = L.Control.extend({
+  onAdd() {
+    const note = L.DomUtil.create("div", "thin-note");
+    note.hidden = true;
+    note.setAttribute("role", "status");
+    thinNote = note;
+    return note;
+  },
+});
+new ThinNote({ position: "bottomleft" }).addTo(map);
 function showHidden(count: number): void {
   if (!hiddenControl) return;
   hiddenControl.box.hidden = count === 0;
@@ -268,6 +292,10 @@ interface Drawn {
   colour?: string;
   /** An annotation's time or period, if it has one. */
   when?: { start: number; end: number };
+  /** A track's time labels at its interval, in view (its symbols and arrows are painted: paintMarks). */
+  timeLabels?: L.Marker[];
+  /** A track's first and last fix in the time window, where its end markers are. */
+  ends?: [number, number];
 }
 const drawn = new Map<string, Drawn>();
 
@@ -320,8 +348,18 @@ function showContextKey(theme: MapTheme): void {
   swatch.style.opacity = String(style.opacity);
 }
 // VS Code changes theme by changing the page's classes and variables: draw again for the new one.
-new MutationObserver(() => applyContext()).observe(document.body, { attributes: true, attributeFilter: ["class"] });
-new MutationObserver(() => applyContext()).observe(document.documentElement, { attributes: true, attributeFilter: ["style", "class"] });
+// Only then: Leaflet marks the body while the map is dragged (leaflet-dragging), at the start and
+// end of every pan, and drawing everything again for that made each pan stutter.
+const themeOf = () => [Array.from(document.body.classList).filter((c) => c.startsWith("vscode-")).join(" "), document.documentElement.className, document.documentElement.getAttribute("style") ?? ""].join("|");
+let shownTheme = themeOf();
+const themeChanged = () => {
+  const theme = themeOf();
+  if (theme === shownTheme) return;
+  shownTheme = theme;
+  applyContext();
+};
+new MutationObserver(themeChanged).observe(document.body, { attributes: true, attributeFilter: ["class"] });
+new MutationObserver(themeChanged).observe(document.documentElement, { attributes: true, attributeFilter: ["style", "class"] });
 
 function colourOf(feature: Feature): string {
   if (feature.properties.kind === "track") return feature.properties.style?.colour ?? DATA_COLOURS.track;
@@ -353,6 +391,11 @@ function restyle(): void {
     // Dimmed for a selection elsewhere: a state of its own, never below its floor.
     if (context && style) context.setStyle({ opacity: !any || selected ? style.opacity : style.dimmed });
   }
+  for (const [id, { timeLabels }] of drawn) {
+    const opacity = !any || selection.has(id) ? 1 : 0.3;
+    timeLabels?.forEach((marker) => marker.setOpacity(opacity));
+  }
+  paintMarks();
   halo.clearLayers();
   const outline = css("--vscode-editor-foreground");
   for (const id of selection) {
@@ -388,7 +431,8 @@ function describeFix(track: Track, index: number): string {
   if (depth !== undefined && props.depths) parts.push(`depth ${formatQuantity({ value: depth, unit: props.depths.unit }, settings)}`);
   // A marked fix says its label and comment too (EXT-14).
   const mark = props.fix_marks?.find((m) => m.time === props.times[index]);
-  const said = [parts.join("  ·  "), mark?.label ? `Label: ${mark.label}` : "", mark?.comment ? `Comment: ${mark.comment}` : ""];
+  const forced = [mark?.show_label ? "time label" : "", mark?.show_symbol ? "symbol" : ""].filter(Boolean).join(" and ");
+  const said = [parts.join("  ·  "), mark?.label ? `Label: ${mark.label}` : "", mark?.comment ? `Comment: ${mark.comment}` : "", forced ? `Always shows its ${forced}` : ""];
   return said.filter(Boolean).join("\n");
 }
 
@@ -616,6 +660,8 @@ function drawMarks(track: Track, first: number, last: number, colour: string, cl
   const coordinates = track.geometry.coordinates as LonLat[];
   for (const [i, mark] of marks) {
     if (i < first || i > last) continue;
+    // A mark that only shows its time label or symbol always is drawn with the track's others (drawGrid).
+    if (!mark.colour && !mark.label && !mark.comment) continue;
     const own = mark.colour ?? colour;
     if (mark.colour && i + 1 < coordinates.length) {
       const leg = L.polyline(densify([coordinates[i], coordinates[i + 1]]).map(toLatLng), { color: mark.colour, weight: WINDOW_WEIGHT, baseWeight: WINDOW_WEIGHT, className: "fix-leg" } as L.PolylineOptions);
@@ -766,6 +812,7 @@ function drawWindow(): void {
     shown.windowed = [];
     shown.windowedPaths = [];
     const part = partIn(entry, window);
+    shown.ends = part?.first !== undefined && part.last !== undefined ? [part.first, part.last] : undefined;
     if (!part) continue;
     const { track } = entry;
     const colour = colourOf(track);
@@ -790,7 +837,9 @@ function drawWindow(): void {
     }
     const marked = part.first !== undefined && part.last !== undefined ? drawMarks(track, part.first, part.last, colour, click) : { paths: [], labels: [] };
     shown.windowedPaths.push(...marked.paths);
-    shown.windowed = [...shown.windowedPaths, ...marked.labels, ...directionTicks(part.coordinates, colour)];
+    // Arrows: a few along the track by default; at an interval set for it, drawn by drawGrid; or none.
+    const arrows = track.properties.arrow_interval === undefined || track.properties.arrow_interval === null ? directionTicks(part.coordinates, colour) : [];
+    shown.windowed = [...shown.windowedPaths, ...marked.labels, ...arrows];
     shown.windowed.forEach((layer) => layer.addTo(features));
   }
   for (const shown of drawn.values()) {
@@ -804,9 +853,477 @@ function drawWindow(): void {
   for (const area of areas) area.bringToBack();
   restyle();
   drawNow();
+  drawGrid();
   editor.refresh(); // an annotation with handles may have come into the window, or left it
   trackEditor.refresh(); // what moves, if only the fixes in the window
 }
+
+// --- Labels, symbols and arrows at each track's intervals (CAP-32, frequencies.ts) -----
+/**
+ * Symbols and arrows: painted on one canvas above the tracks, beneath the markers at current
+ * time, so thousands of them cost one image, not thousands of elements, to pan. Never
+ * interactive, so never in the way; hidden from screen readers, as the arrows and dots of the
+ * tracks are. It says how many of each it holds (data-symbols, data-arrows).
+ */
+map.createPane("freqMarks").style.zIndex = "450";
+const marksCanvas = L.DomUtil.create("canvas", "freq-marks", map.getPane("freqMarks"));
+marksCanvas.setAttribute("aria-hidden", "true");
+/** Painted beyond the view by this share of it each way, so a short pan shows them already there. */
+const MARKS_PAD = 0.25;
+/** What the canvas holds: each symbol and arrow on the map's plane (see Projected), its track, colour and course. */
+let marks: { kind: "symbol" | "arrow"; x: number; y: number; track: string; colour: string; course?: number }[] = [];
+map.on("zoomstart", () => (marksCanvas.style.visibility = "hidden")); // painted again for the new zoom
+/** Paint the symbols and arrows for the view as it is, dimmed where a selection is elsewhere (restyle). */
+function paintMarks(background = css("--vscode-editor-background")): void {
+  const size = map.getSize();
+  const ratio = Math.min(globalThis.devicePixelRatio || 1, 2);
+  const corner = map.containerPointToLayerPoint([-size.x * MARKS_PAD, -size.y * MARKS_PAD]);
+  const width = size.x * (1 + 2 * MARKS_PAD);
+  const height = size.y * (1 + 2 * MARKS_PAD);
+  if (marksCanvas.width !== Math.round(width * ratio) || marksCanvas.height !== Math.round(height * ratio)) {
+    marksCanvas.width = Math.round(width * ratio);
+    marksCanvas.height = Math.round(height * ratio);
+    marksCanvas.style.width = `${width}px`;
+    marksCanvas.style.height = `${height}px`;
+  }
+  L.DomUtil.setPosition(marksCanvas, corner);
+  const context = marksCanvas.getContext("2d");
+  if (!context) return;
+  context.setTransform(ratio, 0, 0, ratio, 0, 0);
+  context.clearRect(0, 0, width, height);
+  const scale = crs.scale(map.getZoom());
+  const origin = map.getPixelOrigin();
+  const any = selection.size > 0;
+
+  // How many it holds, in view or near it (as drawGrid chose them), for tests and tools.
+  const counts = { symbol: 0, arrow: 0 };
+  for (const mark of marks) counts[mark.kind]++;
+  context.lineCap = "round";
+  context.lineJoin = "round";
+  const k = TICK_SIZE / 16;
+  for (const mark of marks) {
+    const x = mark.x * scale - origin.x - corner.x;
+    const y = mark.y * scale - origin.y - corner.y;
+    if (x < -TICK_SIZE || y < -TICK_SIZE || x > width + TICK_SIZE || y > height + TICK_SIZE) continue;
+    const alpha = !any || selection.has(mark.track) ? 1 : 0.3;
+    if (mark.kind === "symbol") {
+      // A small dot in the track's colour, haloed in the background's (radius 2.5, as the key's swatch).
+      context.globalAlpha = alpha;
+      context.beginPath();
+      context.arc(x, y, 2.5, 0, 2 * Math.PI);
+      context.fillStyle = mark.colour;
+      context.fill();
+      context.lineWidth = 1;
+      context.strokeStyle = background;
+      context.stroke();
+      continue;
+    }
+    // The chevron the default arrows are (TICK_SVG, map.css .tick), turned to the course: its middle on the line.
+    context.save();
+    context.translate(x, y);
+    context.rotate(((mark.course ?? 0) * Math.PI) / 180);
+    context.beginPath();
+    context.moveTo(-5 * k, 3 * k);
+    context.lineTo(0, -3 * k);
+    context.lineTo(5 * k, 3 * k);
+    context.globalAlpha = alpha * 0.8;
+    context.lineWidth = 4.5 * k;
+    context.strokeStyle = background;
+    context.stroke();
+    context.globalAlpha = alpha;
+    context.lineWidth = 2.5 * k;
+    context.strokeStyle = mark.colour;
+    context.stroke();
+    context.restore();
+  }
+  marksCanvas.dataset.symbols = String(counts.symbol);
+  marksCanvas.dataset.arrows = String(counts.arrow);
+  marksCanvas.style.visibility = "";
+}
+/** Time labels: above arrows and markers, so no chevron cuts a time; beneath the tracks' names and fixes' labels (tooltips). */
+map.createPane("timeLabels").style.zIndex = "620";
+const timeLabels = L.layerGroup().addTo(map);
+/** The time labels drawn now, by track, time and look: kept across a pan or zoom, so only what comes into view is made. */
+const gridLayers = new Map<string, { layer: L.Marker; track: string }>();
+
+/**
+ * Each track's fixes on the map's plane once (map pixels at the zoom where the world is one
+ * pixel across), with the distance along it to each fix there, its bounds, and where it was
+ * at each time drawn so far: so a pan or zoom costs arithmetic, not geodesy, per fix.
+ */
+interface Projected {
+  xy: Float64Array;
+  along: Float64Array;
+  bounds: [number, number, number, number];
+  wraps: boolean;
+  /** Its gaps in the data, where nothing is drawn (frequencies.gaps), and the median time between its fixes. */
+  gaps: [number, number][];
+  median: number;
+  at: Map<number, { position: LonLat; course?: number; x: number; y: number }>;
+}
+const projectedTracks = new WeakMap<Track, Projected>();
+const crs = map.options.crs ?? L.CRS.EPSG3857;
+const UNIT_ZOOM = crs.zoom(1);
+function projectedOf(track: Track, times: number[]): Projected {
+  const known = projectedTracks.get(track);
+  if (known) return known;
+  const coordinates = track.geometry.coordinates as LonLat[];
+  const xy = new Float64Array(coordinates.length * 2);
+  const along = new Float64Array(coordinates.length);
+  const bounds: [number, number, number, number] = [Infinity, Infinity, -Infinity, -Infinity];
+  let wraps = false;
+  coordinates.forEach((c, i) => {
+    const p = crs.latLngToPoint(toLatLng(c), UNIT_ZOOM);
+    xy[2 * i] = p.x;
+    xy[2 * i + 1] = p.y;
+    bounds[0] = Math.min(bounds[0], p.x);
+    bounds[1] = Math.min(bounds[1], p.y);
+    bounds[2] = Math.max(bounds[2], p.x);
+    bounds[3] = Math.max(bounds[3], p.y);
+    if (i) {
+      const dx = p.x - xy[2 * i - 2];
+      if (Math.abs(coordinates[i][0] - coordinates[i - 1][0]) > 180) wraps = true;
+      along[i] = along[i - 1] + Math.hypot(dx, p.y - xy[2 * i - 1]);
+    }
+  });
+  const out = { xy, along, bounds, wraps, gaps: gaps(times), median: medianStep(times), at: new Map() };
+  projectedTracks.set(track, out);
+  return out;
+}
+/** The first fix at or after `t` (times.length if none). */
+function fixFrom(times: number[], t: number): number {
+  let low = 0;
+  let high = times.length;
+  while (low < high) {
+    const middle = (low + high) >> 1;
+    if (times[middle] < t) low = middle + 1;
+    else high = middle;
+  }
+  return low;
+}
+/** Where a track was at `t` on the map's plane, between the fixes either side, and its direction there on screen. */
+function planeAt(p: Projected, times: number[], t: number): { x: number; y: number; dx: number; dy: number } {
+  const j = Math.min(Math.max(fixFrom(times, t), 1), times.length - 1);
+  const i = j - 1;
+  if (times.length < 2) return { x: p.xy[0], y: p.xy[1], dx: 0, dy: 0 };
+  const span = times[j] - times[i];
+  const f = span > 0 ? Math.min(Math.max((t - times[i]) / span, 0), 1) : 1;
+  const dx = p.xy[2 * j] - p.xy[2 * i];
+  const dy = p.xy[2 * j + 1] - p.xy[2 * i + 1];
+  return { x: p.xy[2 * i] + f * dx, y: p.xy[2 * i + 1] + f * dy, dx, dy };
+}
+/**
+ * Where the track was at `t`, and its course, as pointAt says (along the geodesic; at a fix,
+ * the course of the leg leaving it), with where that is on the map's plane: worked out once
+ * for each time drawn. On a leg shorter than SHORT_LEG_M, along the straight line on the
+ * map's plane instead, which is the geodesic there to well under a millimetre and costs no
+ * geodesy (the map is conformal, so its direction there is the course).
+ */
+function pointOf(p: Projected, track: Track, times: number[], t: number): { position: LonLat; course?: number; x: number; y: number } {
+  let point = p.at.get(t);
+  if (!point) {
+    point = shortLegPoint(p, track, times, t);
+    if (!point) {
+      const geodesic = pointAt(track.geometry.coordinates as LonLat[], times, t)!;
+      const plane = crs.latLngToPoint(toLatLng(geodesic.position), UNIT_ZOOM);
+      point = { ...geodesic, x: plane.x, y: plane.y };
+    }
+    p.at.set(t, point);
+  }
+  return point;
+}
+const SHORT_LEG_M = 2000;
+/** The map's plane is one unit across the world: metres in one unit at the equator (EPSG:3857's sphere). */
+const UNIT_M = 2 * Math.PI * 6_378_137;
+function shortLegPoint(p: Projected, track: Track, times: number[], t: number): { position: LonLat; course?: number; x: number; y: number } | undefined {
+  const n = times.length;
+  if (n < 2 || t < times[0] || t > times[n - 1]) return undefined;
+  // The last fix at or before t (the later of fixes sharing a time, as pointAt takes it).
+  let low = fixFrom(times, t);
+  while (low < n && times[low] === t) low++;
+  low--;
+  const atFix = times[low] === t;
+  const [i, j] = low + 1 < n ? [low, low + 1] : [low - 1, low];
+  const dx = p.xy[2 * j] - p.xy[2 * i];
+  const dy = p.xy[2 * j + 1] - p.xy[2 * i + 1];
+  const coordinates = track.geometry.coordinates as LonLat[];
+  const metres = Math.hypot(dx, dy) * UNIT_M * Math.cos((coordinates[i][1] * Math.PI) / 180);
+  if (!(metres > 0.01) || metres > SHORT_LEG_M) return undefined; // not moving there, or a long leg: as pointAt
+  const course = ((((Math.atan2(dx, -dy) * 180) / Math.PI) % 360) + 360) % 360;
+  if (atFix) return { position: coordinates[low], course, x: p.xy[2 * low], y: p.xy[2 * low + 1] };
+  const f = (t - times[i]) / (times[j] - times[i]);
+  const x = p.xy[2 * i] + f * dx;
+  const y = p.xy[2 * i + 1] + f * dy;
+  const at = crs.pointToLatLng(L.point(x, y), UNIT_ZOOM);
+  return { position: [at.lng, at.lat], course, x, y };
+}
+
+/** Text widths on screen, measured once each. */
+const measure = document.createElement("canvas").getContext("2d");
+const widths = new Map<string, number>();
+function textWidth(text: string, font: string): number {
+  const key = `${font}|${text}`;
+  let width = widths.get(key);
+  if (width === undefined) {
+    if (measure) measure.font = font;
+    width = measure ? measure.measureText(text).width : text.length * 7;
+    widths.set(key, width);
+  }
+  return width;
+}
+const TIME_FONT = () => {
+  const family = getComputedStyle(document.body).fontFamily;
+  return `10.5px ${family}`;
+};
+
+/** Every grid layer of a track taken off the map: it is being edited, or its plot was drawn again. */
+function clearGridOf(id?: string): void {
+  for (const [key, { layer, track }] of gridLayers) {
+    if (id !== undefined && track !== id) continue;
+    timeLabels.removeLayer(layer);
+    gridLayers.delete(key);
+  }
+  marks = id === undefined ? [] : marks.filter((mark) => mark.track !== id);
+  paintMarks();
+}
+
+/**
+ * Draw each track's labels, symbols and arrows at the intervals set for it: at the whole
+ * multiples of each interval of UTC within the time window and the track's span, where the
+ * track was then (as the marker at current time places it). Only what is in view, or near
+ * it, is drawn; thinned when zoomed out (frequencies.ts), and the map says so. Time labels are
+ * kept clear of one another, across tracks, and of the tracks' names, fixes' own labels and
+ * the tracks' ends: each to port, or to starboard where port is taken, or left out (a fix's
+ * label always shown wins). Arrows are not drawn on a track's first or last fix in the
+ * window, where its end markers are. What is already drawn and still wanted is kept.
+ */
+function drawGrid(): void {
+  const window = drawnWindow ?? ALL;
+  const zoom = map.getZoom();
+  const scale = crs.scale(zoom);
+  const origin = map.getPixelOrigin();
+  const pixels = map.getPixelBounds();
+  const size = pixels.getSize();
+  // In view, or half a view about it, in map pixels; and on the layer, where markers are placed.
+  const view = { x0: pixels.min!.x - size.x / 2, y0: pixels.min!.y - size.y / 2, x1: pixels.max!.x + size.x / 2, y1: pixels.max!.y + size.y / 2 };
+  const onLayer = (x: number, y: number) => ({ x: x * scale - origin.x, y: y * scale - origin.y });
+  const any = selection.size > 0;
+  const font = TIME_FONT();
+  const background = css("--vscode-editor-background");
+
+  // What time labels must keep clear of: the tracks' names and fixes' own labels as drawn (read before anything is written).
+  const taken = new Occupied();
+  const mapBox = mapElement.getBoundingClientRect();
+  for (const element of Array.from(mapElement.querySelectorAll<HTMLElement>(".leaflet-tooltip.track-label, .leaflet-tooltip.fix-label"))) {
+    if (element.style.visibility === "hidden") continue;
+    const r = element.getBoundingClientRect();
+    const corner = map.containerPointToLayerPoint([r.left - mapBox.left, r.top - mapBox.top]);
+    taken.add({ x0: corner.x, y0: corner.y, x1: corner.x + r.width, y1: corner.y + r.height });
+  }
+
+  const wanted = new Map<string, { track: string; make: () => L.Marker }>();
+  const marking: typeof marks = [];
+  const thinned: { field: Field; drawn?: number; track: string }[] = [];
+  const drawing: Partial<Record<Field, number>> = {};
+  const shownKinds = new Set<Field>();
+  /** Time labels, from every track, placed together once all are known. */
+  const candidates: { id: string; time: number; step: number; withDay: boolean; text: string; at: { x: number; y: number }; side: { x: number; y: number }; width: number; forced: boolean; regular: boolean; colour: string; make: (side: { x: number; y: number }, text: string) => L.Marker }[] = [];
+  const regularLabels = new Map<string, { offered: number; name: string; raised?: number }>();
+
+  for (const entry of tracks) {
+    const shown = drawn.get(entry.track.id);
+    if (!shown) continue;
+    const { track, times } = entry;
+    const props = track.properties;
+    // Fixes whose label or symbol is always shown (show_label, show_symbol), by kind: drawn whatever the interval, never thinned.
+    const forcedAt = forcedTimes(props.fix_marks);
+    const fields = FIELDS.filter((f) => typeof intervalMs(props[f]) === "number" || intervalMs(props[f]) === "all" || forcedAt[f].length);
+    if (!fields.length || editing.has(track.id) || !times.length) continue;
+    const start = Math.max(times[0], window.start);
+    const end = Math.min(times[times.length - 1], window.end);
+    if (start > end) continue;
+    const p = projectedOf(track, times);
+    const inView = (x0: number, y0: number, x1: number, y1: number) => x1 * scale >= view.x0 && x0 * scale <= view.x1 && y1 * scale >= view.y0 && y0 * scale <= view.y1;
+    if (!p.wraps && !inView(...p.bounds)) continue;
+    // The fixes in the window, the spans of time the track is in view there, and how fast it crosses the screen.
+    const first = Math.max(fixFrom(times, start) - 1, 0);
+    const last = Math.min(fixFrom(times, end), times.length - 1);
+    const legs: [number, number][] = [];
+    for (let i = first; i < last; i++) {
+      if (times[i + 1] < start || times[i] > end) continue;
+      const [ax, ay, bx, by] = [p.xy[2 * i], p.xy[2 * i + 1], p.xy[2 * i + 2], p.xy[2 * i + 3]];
+      if (Math.abs(bx - ax) > 0.5 || inView(Math.min(ax, bx), Math.min(ay, by), Math.max(ax, bx), Math.max(ay, by))) legs.push([Math.max(times[i], start), Math.min(times[i + 1], end)]);
+    }
+    if (times.length === 1 && inView(p.xy[0], p.xy[1], p.xy[0], p.xy[1])) legs.push([times[0], times[0]]);
+    const spans = mergeSpans(legs);
+    if (!spans.length) continue;
+    const pxPerMs = end > start ? ((p.along[last] - p.along[first]) * scale) / (end - start) : 0;
+    const gapSpans = p.gaps;
+    const colour = colourOf(track);
+    const inSpans = (t: number) => spans.some(([a, b]) => t >= a && t <= b);
+    const screen = (t: number) => {
+      const q = planeAt(p, times, t);
+      return { ...onLayer(q.x, q.y), dx: q.dx, dy: q.dy };
+    };
+    // The track's ends in the window, where its end markers are: no arrow on them, no label over them.
+    const ends = shown.ends?.map((i) => onLayer(p.xy[2 * i], p.xy[2 * i + 1])) ?? [];
+    for (const e of ends) taken.add({ x0: e.x - END_PX, y0: e.y - END_PX, x1: e.x + END_PX, y1: e.y + END_PX });
+    const opacity = !any || selection.has(track.id) ? 1 : 0.3;
+    for (const field of fields) {
+      const set = intervalMs(props[field]);
+      const every = typeof set === "number" ? set : undefined;
+      const spacing = SPACING_PX[field];
+      // At every fix (legacy Debrief's All): each fix's time, until they would crowd; then an interval, thinned as any is.
+      const fixes = set === "all" ? everyFix(times, spans, pxPerMs, spacing, CAP[field], p.median) : undefined;
+      const asked = every ?? (fixes && "every" in fixes ? fixes.every : undefined);
+      if (every || fixes) drawing[field] = (drawing[field] ?? 0) + 1;
+      const drawnEvery = asked && thinnedInterval(asked, pxPerMs, spacing, (e) => gridCount(spans, e), CAP[field]);
+      const regular = fixes && "times" in fixes ? fixes.times : drawnEvery ? gridTimes(spans, drawnEvery, { start: times[0], end: times[times.length - 1] }, gapSpans, CAP[field]) : [];
+      const onScreen = regular.map(screen);
+      // Never closer on screen than the spacing allows, where the track is slow or doubles back.
+      let keptIndices = declutter(onScreen, spacing * 0.8);
+      // An arrow on an end marker reads as a second arrowhead, or hides the marker: none there.
+      if (field === "arrow_interval") keptIndices = keptIndices.filter((k) => ends.every((e) => Math.hypot(onScreen[k].x - e.x, onScreen[k].y - e.y) >= ARROW_END_PX));
+      const keptRegular = keptIndices.map((k) => regular[k]);
+      // Said when the interval was raised, or where crowding left out more than a quarter: a few in a tight turn go unsaid. Labels are said once placed.
+      const raised = !!(drawnEvery && (fixes || drawnEvery !== every));
+      if (field === "label_interval" && (every || fixes)) regularLabels.set(track.id, { offered: regular.length, name: trackLabel(props), ...(raised && { raised: drawnEvery as number }) });
+      else if ((every || fixes) && (raised || keptRegular.length < CROWDED * regular.length)) thinned.push({ field, track: trackLabel(props), ...(raised && { drawn: drawnEvery as number }) });
+      // A fix whose label or symbol is always shown: at the fix, at any zoom; once, where the interval falls on it too.
+      const forced = forcedAt[field].filter(inSpans);
+      const at = withForced(keptRegular, forced);
+      if (field === "label_interval") {
+        const days = labelsWithDay(at, settings);
+        at.forEach((t, k) => {
+          const isForced = forced.includes(t);
+          // Seconds shown where the interval drawn is not whole minutes, or a forced fix's time is not.
+          const step = drawnEvery && !isForced ? drawnEvery : t % 60_000 ? 1000 : 60_000;
+          const text = fixLabel(t, step, settings, days[k]);
+          // To port of the course there, as legacy Debrief places a fix's label.
+          const { position, course, x, y } = pointOf(p, track, times, t);
+          candidates.push({
+            id: track.id,
+            time: t,
+            step,
+            withDay: days[k],
+            text,
+            at: onLayer(x, y),
+            side: portSide(course),
+            width: textWidth(text, font) + 2,
+            forced: isForced,
+            regular: !isForced || keptRegular.includes(t),
+            colour,
+            make: (chosen, said) => {
+              const label = L.marker(toLatLng(position), { icon: timeLabel(said, chosen, colour), interactive: false, keyboard: false, pane: "timeLabels" });
+              label.setOpacity(opacity);
+              return label;
+            },
+          });
+        });
+        continue;
+      }
+      if (at.length) shownKinds.add(field);
+      for (const t of at) {
+        const { x, y, course } = pointOf(p, track, times, t);
+        if (field === "arrow_interval" && course === undefined) continue; // a track that never moved has no direction
+        marking.push({ kind: field === "symbol_interval" ? "symbol" : "arrow", x, y, track: track.id, colour, course });
+      }
+    }
+  }
+
+  // Time labels, from every track at once: forced first, then earliest first, each to port, or starboard, or left out.
+  candidates.sort((a, b) => a.time - b.time);
+  const sides = placeTimeLabels(candidates, taken);
+  const placed = new Map<string, number>();
+  // The day on the first label of each day that is drawn, though an earlier one gave way.
+  const shownOf = new Map<string, number[]>();
+  candidates.forEach((c, k) => sides[k] && shownOf.set(c.id, [...(shownOf.get(c.id) ?? []), k]));
+  for (const ks of shownOf.values()) {
+    const withDay = labelsWithDay(ks.map((k) => candidates[k].time), settings);
+    ks.forEach((k, n) => {
+      const c = candidates[k];
+      if (withDay[n] !== c.withDay) c.text = fixLabel(c.time, c.step, settings, withDay[n]);
+    });
+  }
+  candidates.forEach((c, k) => {
+    const side = sides[k];
+    if (!side) return;
+    if (c.regular) placed.set(c.id, (placed.get(c.id) ?? 0) + 1);
+    shownKinds.add("label_interval");
+    wanted.set(`${c.id}|${c.time}|${c.text}|${c.colour}|${Math.round(Math.atan2(side.y, side.x) * 100)}`, { track: c.id, make: () => c.make(side, c.text) });
+  });
+  for (const [id, { offered, name, raised }] of regularLabels) {
+    if (raised || (placed.get(id) ?? 0) < CROWDED * offered) thinned.push({ field: "label_interval", track: name, ...(raised && { drawn: raised }) });
+  }
+
+  // Keep what is drawn and still wanted; take off the rest; make what is new.
+  for (const [key, { layer }] of gridLayers) {
+    if (wanted.has(key)) continue;
+    timeLabels.removeLayer(layer);
+    gridLayers.delete(key);
+  }
+  for (const [key, { track, make }] of wanted) {
+    if (gridLayers.has(key)) continue;
+    const layer = make();
+    layer.addTo(timeLabels);
+    gridLayers.set(key, { layer, track });
+  }
+  for (const shown of drawn.values()) shown.timeLabels = [];
+  for (const { layer, track } of gridLayers.values()) drawn.get(track)?.timeLabels!.push(layer);
+  marks = marking;
+  paintMarks(background);
+
+  if (thinNote) {
+    // Written only when it changes: it is a status a screen reader says, and the map is drawn again at every pan.
+    const said = thinningNote(thinned, drawing);
+    if (thinNote.textContent !== said) thinNote.textContent = said;
+    thinNote.hidden = !thinned.length;
+  }
+  for (const kind of ["time", "symbol"] as const) {
+    const row = document.querySelector<HTMLElement>(`.swatch-${kind}`)?.parentElement;
+    if (row) row.hidden = !shownKinds.has(kind === "time" ? "label_interval" : "symbol_interval");
+  }
+}
+
+/**
+ * A time label beside its point, to the side given (port of the course, or starboard where
+ * port is taken): a short leader in the track's colour from the point, then the time in the
+ * theme's text colour, haloed. Set as text. Laid out as frequencies.labelBox says.
+ */
+function timeLabel(time: string, side: { x: number; y: number }, colour: string): L.DivIcon {
+  const box = document.createElement("div");
+  box.className = "fix-time";
+  const leader = document.createElement("span");
+  leader.className = "fix-time-leader";
+  leader.style.background = colour;
+  leader.style.transform = `rotate(${(Math.atan2(side.y, side.x) * 180) / Math.PI}deg)`;
+  const words = document.createElement("span");
+  words.className = "fix-time-text";
+  words.textContent = time;
+  const across = (d: number) => (d > 0.38 ? "0%" : d < -0.38 ? "-100%" : "-50%");
+  words.style.left = `${side.x * LEADER_PX}px`;
+  words.style.top = `${side.y * LEADER_PX}px`;
+  words.style.transform = `translate(${across(side.x)}, ${across(side.y)})`;
+  box.append(leader, words);
+  return L.divIcon({ className: "fix-time-anchor", html: box, iconSize: [0, 0], iconAnchor: [0, 0] });
+}
+/** Room kept about a track's end markers in the window, in pixels (their radius, and a pixel): no time label over them; and how near them no arrow is drawn. */
+const END_PX = 5;
+const ARROW_END_PX = 12;
+/** Where fewer than this share of a track's items are kept for crowding, the map says some were left out. */
+const CROWDED = 0.75;
+
+/** Drawn again after each pan or zoom, at most once a frame: only what is in view is drawn. */
+let gridPending = false;
+function scheduleGrid(): void {
+  if (gridPending) return;
+  gridPending = true;
+  requestAnimationFrame(() => {
+    gridPending = false;
+    drawGrid();
+  });
+}
+map.on("zoomend moveend", scheduleGrid);
 
 /**
  * A track's part in the window: its fixes there, with the positions at the
@@ -857,6 +1374,7 @@ let time: TimeState | undefined;
 function setTracks(plotTracks: Track[]): void {
   now.clearLayers();
   tracks = plotTracks.map((track) => ({ track, times: track.properties.times.map(Date.parse) }));
+  clearGridOf(); // drawn again for the plot as it now is
 }
 
 /** Where a track was at an instant, between the fixes either side; none outside its span. As the Tote measures it (geodesic.ts). */
@@ -1083,6 +1601,8 @@ const trackEditor = new TrackEditor({
       else group.removeLayer(layer);
     }
     if (shown && entry.context && !entry.contextStyle) features.removeLayer(entry.context); // context tracks hidden
+    if (!shown) clearGridOf(id); // its labels, symbols and arrows off while it moves
+    else scheduleGrid(); // drawn again where the track now is
     restyle();
   },
   say: (text, readout, saying) => editor.say(text, readout, saying),

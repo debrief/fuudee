@@ -32,7 +32,7 @@ from pydantic import (
 
 
 metamodel_version = "1.12.0"
-version = "0.0.19"
+version = "0.0.20"
 
 
 class ConfiguredBaseModel(BaseModel):
@@ -571,6 +571,26 @@ class PlottingModeEnum(str, Enum):
     dr = "dr"
     """
     Dead reckoning: the first fix where it was logged, and each fix after it placed from the one before by that fix's recorded course and speed over the time between, along the geodesic.
+    """
+
+
+class FixIntervalOffEnum(str, Enum):
+    """
+    A track's labels, symbols or direction arrows explicitly turned off (CAP-32), rather than left to Debrief's default.
+    """
+    off = "off"
+    """
+    None drawn.
+    """
+
+
+class FixIntervalAllEnum(str, Enum):
+    """
+    A track's time labels or symbols at every recorded fix (CAP-32), legacy Debrief's "All" (decision, product owner, 15 Oct 2026): still thinned when zoomed out. Not for arrows.
+    """
+    all = "all"
+    """
+    At every fix.
     """
 
 
@@ -1659,11 +1679,21 @@ class TrackProperties(ConfiguredBaseModel):
     courses: Optional[AngleSeries] = Field(default=None, description="""Course over ground at each position, true north, clockwise.""", json_schema_extra = { "linkml_meta": {'domain_of': ['TrackProperties']} })
     depths: Optional[LengthSeries] = Field(default=None, description="""Depth below the sea surface at each position, positive down. Absent where depth is not known.""", json_schema_extra = { "linkml_meta": {'domain_of': ['TrackProperties']} })
     style: Optional[TrackStyle] = Field(default=None, json_schema_extra = { "linkml_meta": {'domain_of': ['TrackProperties', 'AnnotationProperties']} })
-    fix_marks: Optional[list[FixMark]] = Field(default=None, description="""Fixes with a colour, a label or a comment of their own, in time order, each found by its time (CAP-01, EXT-14). Most fixes have none, so only marked fixes are listed. Content: each change is a recorded, undoable step (SUB-22).""", json_schema_extra = { "linkml_meta": {'domain_of': ['TrackProperties']} })
+    fix_marks: Optional[list[FixMark]] = Field(default=None, description="""Fixes with a colour, a label or a comment of their own, or always showing their time label or symbol, in time order, each found by its time (CAP-01, EXT-14). Most fixes have none, so only marked fixes are listed. Content: each change is a recorded, undoable step (SUB-22).""", json_schema_extra = { "linkml_meta": {'domain_of': ['TrackProperties']} })
     plotting_mode: Optional[PlottingModeEnum] = Field(default=None, description="""How the track is plotted: over the ground (otg, as logged; also when left out) or by dead reckoning (dr), chosen as it was imported and changed as a recorded, undoable step (CAP-01, SUB-22). The geometry is always the positions as plotted, so other GeoJSON tools draw what Debrief draws.""", json_schema_extra = { "linkml_meta": {'domain_of': ['TrackProperties', 'TrackEdit']} })
     logged_positions: Optional[LineStringGeometry] = Field(default=None, description="""A track plotted by dead reckoning: its positions as logged, over the ground, one per fix, so plotting it over the ground again puts them back. Left out for a legacy plot's DR leg, which saved only the positions it worked out.""", json_schema_extra = { "linkml_meta": {'domain_of': ['TrackProperties']} })
     logged_courses: Optional[AngleSeries] = Field(default=None, description="""A track plotted by dead reckoning: its courses as logged, one per fix, as they were when it was plotted so. On a DR track the courses and speeds are what edits change (decision, product owner, 14 Oct 2026), so these tell what was changed while plotted by dead reckoning, and plotting it over the ground again puts them back.""", json_schema_extra = { "linkml_meta": {'domain_of': ['TrackProperties']} })
     logged_speeds: Optional[SpeedSeries] = Field(default=None, description="""A track plotted by dead reckoning: its speeds as logged, one per fix, as they were when it was plotted so; see logged_courses.""", json_schema_extra = { "linkml_meta": {'domain_of': ['TrackProperties']} })
+    label_interval: Optional[Union[Duration, FixIntervalAllEnum, FixIntervalOffEnum]] = Field(default=None, description="""How often the track is labelled with the time (CAP-32): at each whole multiple of this interval of UTC (every 10 min is 0900, 0910, 0920...), as legacy Debrief aligns them, from 1 second to 24 hours; at every fix (\"all\"); or off. Left out, Debrief's default: none. Presentation content: each change is a recorded, undoable step, like colour (SUB-22).""", json_schema_extra = { "linkml_meta": {'any_of': [{'range': 'Duration'},
+                    {'range': 'FixIntervalOffEnum'},
+                    {'range': 'FixIntervalAllEnum'}],
+         'domain_of': ['TrackProperties']} })
+    symbol_interval: Optional[Union[Duration, FixIntervalAllEnum, FixIntervalOffEnum]] = Field(default=None, description="""How often a small symbol in the track's colour marks where it was (CAP-32): aligned and bounded as label_interval, or at every fix (\"all\"). Left out, none.""", json_schema_extra = { "linkml_meta": {'any_of': [{'range': 'Duration'},
+                    {'range': 'FixIntervalOffEnum'},
+                    {'range': 'FixIntervalAllEnum'}],
+         'domain_of': ['TrackProperties']} })
+    arrow_interval: Optional[Union[Duration, FixIntervalOffEnum]] = Field(default=None, description="""How often a chevron on the line shows the track's direction of travel (CAP-32): aligned and bounded as label_interval. Left out, Debrief's default: a few along the track in the time window.""", json_schema_extra = { "linkml_meta": {'any_of': [{'range': 'Duration'}, {'range': 'FixIntervalOffEnum'}],
+         'domain_of': ['TrackProperties']} })
     hidden: Optional[bool] = Field(default=None, description="""Not drawn on the map. Still listed, and still selectable, in the outline. Content: hiding is a recorded, undoable change (SUB-22).""", json_schema_extra = { "linkml_meta": {'domain_of': ['TrackProperties',
                        'AnnotationProperties',
                        'SensorObservationsProperties',
@@ -1718,7 +1748,7 @@ class TrackStyle(ConfiguredBaseModel):
 
 class FixMark(ConfiguredBaseModel):
     """
-    One fix of a track marked by the analyst, or by a legacy plot: drawn in a colour of its own, labelled on the map, or carrying a comment. Found by its time, not its place in the track, so a mark stays with its fix when fixes before it are removed, the track is split or merged, or it is moved, rotated, sheared, stretched or smoothed. Where two fixes share a time, the mark is the first's.
+    One fix of a track marked by the analyst, or by a legacy plot: drawn in a colour of its own, labelled on the map, carrying a comment, or always showing its time label or symbol. Found by its time, not its place in the track, so a mark stays with its fix when fixes before it are removed, the track is split or merged, or it is moved, rotated, sheared, stretched or smoothed. Where two fixes share a time, the mark is the first's.
     """
     linkml_meta: ClassVar[LinkMLMeta] = LinkMLMeta({'from_schema': 'https://debrief.info/schemas/debrief'})
 
@@ -1739,6 +1769,8 @@ class FixMark(ConfiguredBaseModel):
                        'TimelineEntry']} })
     label: Optional[str] = Field(default=None, description="""Text drawn on the map beside the fix.""", json_schema_extra = { "linkml_meta": {'domain_of': ['FixMark', 'MeasureDefinition']} })
     comment: Optional[str] = Field(default=None, description="""Free text about the fix, shown when the analyst points at it and in the Timeline.""", json_schema_extra = { "linkml_meta": {'domain_of': ['FixMark']} })
+    show_label: Optional[bool] = Field(default=None, description="""The fix always shows its time label, as the track's label_interval draws them, whatever that interval is and at any zoom (CAP-32; decision, product owner, 15 Oct 2026: force on only, so true when given). Never drawn twice where the interval falls on the same time.""", json_schema_extra = { "linkml_meta": {'domain_of': ['FixMark']} })
+    show_symbol: Optional[bool] = Field(default=None, description="""The fix always shows its symbol, as the track's symbol_interval draws them, whatever that interval is and at any zoom (CAP-32); true when given.""", json_schema_extra = { "linkml_meta": {'domain_of': ['FixMark']} })
 
     @field_validator('time')
     def pattern_time(cls, v):

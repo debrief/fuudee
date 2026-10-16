@@ -70,7 +70,9 @@ LARGEST_WINDOW = 99
 GAP_FACTOR = 10
 # How much of a label a step's name quotes.
 LABEL_SHOWN = 16
-_MARK_MEMBERS = ("colour", "label", "comment")
+_MARK_MEMBERS = ("colour", "label", "comment", "show_label", "show_symbol")
+# Shown always at the fix, whatever the track's intervals (CAP-32): true, or left out.
+_FORCED = ("show_label", "show_symbol")
 
 
 def _when(ms: int) -> str:
@@ -457,15 +459,26 @@ def marked(
     track: models.TrackFeature, time: str, changes: dict, colour_name: str | None = None
 ) -> tuple[models.TrackFeature, str] | None:
     """The track with its fix at time given the colour, label or comment in changes (a
-    member given as None or empty is taken away), and the note naming the change, such
-    as "BLUE ONE fix at 09:31:00Z labelled 'Turn'". None if nothing changes."""
+    member given as None or empty is taken away), or always showing its time label or
+    symbol (show_label, show_symbol: true, or false or None to stop), and the note naming
+    the change, such as "BLUE ONE fix at 09:31:00Z labelled 'Turn'". None if nothing
+    changes."""
     unknown = set(changes) - set(_MARK_MEMBERS)
     if unknown or not changes:
-        raise TrackError("Say what to change about the fix: its colour, label or comment.")
+        raise TrackError(
+            "Say what to change about the fix: its colour, label or comment, "
+            "or whether it always shows its time label or symbol."
+        )
     at = fix_at(track, time)
     before = mark_of(track, at)
     now = {m: getattr(before, m) if before else None for m in _MARK_MEMBERS}
     for member, value in changes.items():
+        if member in _FORCED:
+            # Force on only (decision, product owner, 15 Oct 2026): true, or left out.
+            if value is not None and not isinstance(value, bool):
+                raise TrackError(f"A fix's {member} is true or false.")
+            now[member] = True if value else None
+            continue
         if value is not None and not isinstance(value, str):
             raise TrackError(f"A fix's {member} is text.")
         text = value.strip() if isinstance(value, str) and member != "colour" else value
@@ -510,6 +523,9 @@ def describe_mark(name: str, at: str, old: dict, now: dict, colour_name: str | N
             else now["label"][: LABEL_SHOWN - 1] + "…"
         )
         return f"{fix} labelled '{label}'"
+    if member in _FORCED:
+        what = "time label" if member == "show_label" else "symbol"
+        return f"{fix}: {what} {'always shown' if now[member] else 'shown only at its interval'}"
     if now["comment"] is None:
         return f"{fix}: comment removed"
     return f"{fix}: comment {'added' if old['comment'] is None else 'changed'}"

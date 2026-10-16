@@ -78,6 +78,7 @@ nav:
           - Time controller: guides/interaction-models/time-controller.md
           - Annotations: guides/interaction-models/annotations.md
           - Track operations: guides/interaction-models/track-operations.md
+          - Labels, symbols and arrows: guides/interaction-models/labels-symbols-arrows.md
           - Tote: guides/interaction-models/tote.md
           - Timeline and narrative: guides/interaction-models/timeline.md
           - Keyboard equivalents: guides/interaction-models/keyboard-equivalents.md

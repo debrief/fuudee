@@ -39,6 +39,7 @@ import { defaultPivotIndex, describeDistance, describeSpeed, describeTurn, FIX_P
 import { chooseModes, MODE_LABELS, modeChoices, modeQuestion, REMEMBER_LABEL, REMEMBERED_IN_PLAYGROUND, type PlottingMode } from "../src/importmode.js";
 import { describeJump, describeMark, describeWindow, DR_TAG, fixRows, isDeadReckoned, jumpsFound, markAt, readThreshold, readWindow, smoothingNote, type Jump } from "../webview/fixes.js";
 import { FIX_COLOURS } from "../webview/palette.js";
+import { ALL_PROBLEM, AT_EVERY_FIX, changesOf, choiceFromValue, choicesFor, describeChanges, describeInterval, describeSetFrequencies, FIELD_NAMES, FIELDS, formState, readInterval, trackDetails, type Field, type FieldState } from "../webview/frequencies.js";
 import { formatQuantity } from "@debrief/kernel";
 
 type Feature = PlotFeature;
@@ -615,6 +616,107 @@ $("hide").onclick = () => (selection.length ? void restyle(selection, { hidden: 
 // With nothing selected, Show shows everything hidden, as the map's "Show all" does.
 $("show").onclick = () => opened && void restyle(selection.length ? selection : hiddenIds(opened.plot), { hidden: false });
 
+// --- Labels, symbols and arrows: how often, per track, one step for all chosen (CAP-32) ---
+/**
+ * The Frequencies form: a heading, the tracks it is for, and one chooser each for labels,
+ * symbols and arrows, showing what the tracks have now ("Mixed (unchanged)" where they
+ * differ), the default for arrows, Off and the presets; "Other…" opens a box to type an
+ * interval ("90 s", "1h30"), saying what it means. Resolves to the choices, or undefined.
+ */
+function frequencyForm(tracks: NonNullable<ReturnType<typeof trackOf>>[]): Promise<Partial<Record<Field, FieldState>> | undefined> {
+  return new Promise((resolve) => {
+    const state = formState(tracks.map((t) => t.properties));
+    const dialog = Object.assign(document.createElement("dialog"), { className: "track-form freq-form" });
+    dialog.setAttribute("aria-labelledby", "freq-title");
+    const form = Object.assign(document.createElement("form"), { method: "dialog" });
+    const names = tracks.map((t) => t.properties.name);
+    form.append(
+      Object.assign(document.createElement("h2"), { id: "freq-title", textContent: "Labels, symbols and arrows" }),
+      Object.assign(document.createElement("p"), { className: "detail freq-tracks", textContent: names.join(", "), title: names.join(", ") }),
+    );
+    const read: Record<string, () => FieldState | { problem: string }> = {};
+    for (const field of FIELDS) {
+      const row = Object.assign(document.createElement("div"), { className: "freq-row" });
+      const id = `freq-${field}`;
+      const label = Object.assign(document.createElement("label"), { htmlFor: id, textContent: FIELD_NAMES[field] });
+      const select = Object.assign(document.createElement("select"), { id, name: field });
+      select.append(...choicesFor(field, state[field]).map((c) => new Option(c.label, c.value)), new Option("Other…", "other"));
+      select.value = String(state[field]);
+      const other = Object.assign(document.createElement("input"), { type: "text", id: `${id}-other`, autocomplete: "off", placeholder: "such as 90 s or 1h30", hidden: true });
+      other.setAttribute("aria-label", `${FIELD_NAMES[field]}: every`);
+      const note = Object.assign(document.createElement("span"), { className: "detail form-note", id: `${id}-note` });
+      note.setAttribute("aria-live", "polite");
+      other.setAttribute("aria-describedby", note.id);
+      // Arrows have no All: typed, it is a problem, as any other text that is not an interval.
+      const typed = () => {
+        const r = readInterval(other.value);
+        return r === "all" && !AT_EVERY_FIX.includes(field) ? { problem: ALL_PROBLEM } : r;
+      };
+      const say = () => {
+        const r = typed();
+        note.textContent = !other.value.trim() ? "" : typeof r === "object" ? r.problem : r === "off" ? "Means off" : r === "all" ? "Means at every fix" : `Means every ${describeInterval(r)}`;
+        note.classList.toggle("problem", typeof r === "object" && !!other.value.trim());
+      };
+      other.addEventListener("input", say);
+      select.addEventListener("change", () => {
+        other.hidden = select.value !== "other";
+        if (other.hidden) note.textContent = "";
+        else other.focus();
+      });
+      read[field] = () => {
+        if (select.value !== "other") return choiceFromValue(select.value);
+        return typed();
+      };
+      row.append(label, select, other, note);
+      form.append(row);
+    }
+    const buttons = Object.assign(document.createElement("div"), { className: "buttons" });
+    const go = Object.assign(document.createElement("button"), { type: "submit", className: "primary", textContent: "Apply", value: "go" });
+    const cancel = Object.assign(document.createElement("button"), { type: "button", textContent: "Cancel" });
+    buttons.append(go, cancel);
+    form.append(buttons);
+    dialog.append(form);
+    document.body.append(dialog);
+    let values: Partial<Record<Field, FieldState>> | undefined;
+    form.addEventListener("submit", (event) => {
+      const chosen: Partial<Record<Field, FieldState>> = {};
+      for (const field of FIELDS) {
+        const r = read[field]();
+        if (typeof r === "object") {
+          event.preventDefault();
+          const box = document.getElementById(`freq-${field}-other`) as HTMLInputElement;
+          const note = document.getElementById(`freq-${field}-note`)!;
+          note.textContent = r.problem;
+          note.classList.add("problem");
+          box.focus();
+          return;
+        }
+        chosen[field] = r;
+      }
+      values = chosen;
+    });
+    cancel.onclick = () => dialog.close();
+    dialog.onclose = () => {
+      dialog.remove();
+      resolve(values);
+    };
+    dialog.showModal();
+  });
+}
+$("track-frequencies").onclick = async () => {
+  const ids = tracksSelected();
+  if (!ids.length) return toast("Select one or more tracks: Ctrl-click to add one.", "warning");
+  const tracks = ids.map(trackOf).filter((t): t is NonNullable<ReturnType<typeof trackOf>> => !!t);
+  const chosen = await frequencyForm(tracks);
+  if (!chosen || !opened || !pythonReady) return;
+  const changes = changesOf(tracks.map((t) => t.properties), chosen);
+  if (!Object.keys(changes).length) return; // nothing changed: no step
+  const outcome = await pythonJson<{ error?: string }>("frequencies", opened.item.id, JSON.stringify({ base: opened.base, features: ids, ...changes }));
+  if (outcome.error) toast(outcome.error, "warning");
+  else status(describeChanges(changes, tracks.map((t) => t.properties.name)));
+  await openPlot(opened.item.id, true);
+};
+
 // --- Annotations: made, changed and deleted by hand, each a step (CAP-03 to CAP-05) ----
 /** What the annotation form shows: a new annotation (no featureId), or the one being changed. */
 let annotationShowing: { spec?: AnnotationSpec; featureId?: string } | undefined;
@@ -1187,7 +1289,16 @@ async function openFixes(trackId: string, time?: string): Promise<void> {
     move.id = "move-fix";
     move.title = "Move this fix alone to a position you type; or drag its ring on the map, zoomed in";
     move.onclick = () => void moveFix(track.id, chosen!);
-    actions.replaceChildren(Object.assign(document.createElement("div"), { className: "fix-chosen", textContent: `Fix at ${when}` }), said, colour, text("label"), text("comment"), move);
+    // Force on only (decision, product owner, 15 Oct 2026): this fix always shows its time label, or its symbol, whatever the track's intervals.
+    const forced = (member: "show_label" | "show_symbol", words: string) => {
+      const b = button(words);
+      b.className = "toggle";
+      b.setAttribute("aria-pressed", String(!!mark?.[member]));
+      b.title = `Always show this fix's ${words.toLowerCase()}, whatever the track's interval, at any zoom`;
+      b.onclick = () => void markFix(track.id, chosen!, { [member]: !mark?.[member] });
+      return b;
+    };
+    actions.replaceChildren(Object.assign(document.createElement("div"), { className: "fix-chosen", textContent: `Fix at ${when}` }), said, colour, text("label"), text("comment"), forced("show_label", "Time label"), forced("show_symbol", "Symbol"), move);
     if (chosen) showFixesOnMap({ feature_id: track.id, fix_times: [chosen] });
   };
   list.replaceChildren(
@@ -1250,7 +1361,7 @@ async function moveFix(trackId: string, time: string): Promise<void> {
   if (problem) toast(problem, "warning");
   await openFixes(trackId, time);
 }
-async function markFix(trackId: string, time: string, changes: Record<string, string | null>, colourName?: string): Promise<void> {
+async function markFix(trackId: string, time: string, changes: Record<string, string | boolean | null>, colourName?: string): Promise<void> {
   const outcome = await clean({ kind: "mark", feature: trackId, time, changes, ...(colourName && { colour_name: colourName }) });
   if (outcome.error) toast(outcome.error, "warning");
   await openFixes(trackId, time); // the list again, saying the fix's new mark
@@ -1386,6 +1497,12 @@ function renderOutline(): void {
         }
         const when = props.times ? describeTimes(props.times[0], props.times.at(-1)) : f.properties.kind;
         row.querySelector(".detail")!.textContent = isHidden(f) ? `hidden on map · ${when}` : when;
+        if (f.properties.kind === "track") {
+          // Its details when pointed at, its labels, symbols and arrows among them; those set on a line of their own (CAP-32).
+          row.title = trackDetails(f.properties, when, isDeadReckoned(f.properties));
+          const set = describeSetFrequencies(f.properties);
+          if (set) row.append(Object.assign(document.createElement("span"), { className: "detail freq-detail", textContent: set }));
+        }
         const choose = (add: boolean) =>
           void select(add ? (selection.includes(f.id) ? selection.filter((i) => i !== f.id) : [...selection, f.id]) : [f.id]);
         row.onclick = (e) => choose(e.ctrlKey || e.metaKey || e.shiftKey);
@@ -1607,7 +1724,7 @@ for (const panel of OPTIONAL) $(`panel-${panel}`).hidden = !panels.has(panel);
 // under the time controller, since both follow current time.
 for (const panel of panelOrder) if (OPTIONAL.includes(panel) && panel !== "tote") $("side").append($(`panel-${panel}`));
 /** History, Try and Import need Python: off until it is ready. */
-const NEEDS_PYTHON = ["undo", "redo", "move-track", "rotate-track", "shear-track", "stretch-track", "split-track", "merge-tracks", "find-jumps", "smooth-track", "fix-list", "plotting-mode", "ask-again", "glitches", "crash", "colleague", "colleague-window", "colleague-during", "file", "narrative-file", "colour", "hide", "show", "add-annotation", "edit-annotation", "delete-annotation", "north-arrow"];
+const NEEDS_PYTHON = ["undo", "redo", "track-frequencies", "move-track", "rotate-track", "shear-track", "stretch-track", "split-track", "merge-tracks", "find-jumps", "smooth-track", "fix-list", "plotting-mode", "ask-again", "glitches", "crash", "colleague", "colleague-window", "colleague-during", "file", "narrative-file", "colour", "hide", "show", "add-annotation", "edit-annotation", "delete-annotation", "north-arrow"];
 function needsPython(on: boolean): void {
   for (const id of NEEDS_PYTHON) $<HTMLButtonElement | HTMLInputElement>(id).disabled = !on;
 }

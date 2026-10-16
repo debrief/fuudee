@@ -67,8 +67,8 @@ export async function playShear(page, shot) {
   const tops = await mapFrame.locator('.track-extent [role="group"]').evaluateAll((all) => all.map((g) => Math.round(g.getBoundingClientRect().top)));
   assert.deepEqual(tops, [tops[0], tops[0]], "side by side, so the control is short enough for a short map");
   // Under the outline, the track's actions and the annotations' are labelled groups, compact: the track's
-  // ten (changing it, cleaning it, then dead reckoning) in at most four rows, the annotations' four in at most two.
-  for (const [group, count, most] of [["Track", 10, 4], ["Annotation", 4, 2]]) {
+  // eleven (changing it, cleaning it, dead reckoning, then labels, symbols and arrows) in at most four rows, the annotations' four in at most two.
+  for (const [group, count, most] of [["Track", 11, 4], ["Annotation", 4, 2]]) {
     const buttons = page.getByRole("group", { name: group, exact: true }).getByRole("button");
     assert.equal(await buttons.count(), count, group);
     const rows = new Set(await buttons.evaluateAll((all) => all.map((b) => Math.round(b.getBoundingClientRect().top))));

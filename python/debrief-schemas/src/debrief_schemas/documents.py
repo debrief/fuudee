@@ -524,6 +524,7 @@ def _feature_problems(feature: Any, track_ids: set[str] | None) -> list[str]:
                     f"{where}: {name} has {len(series_logged.values)} entries for {count} fixes"
                 )
         problems += _fix_mark_problems(where, props)
+        problems += _interval_problems(where, props)
 
     elif props.kind == "annotation":
         problems += _annotation_problems(where, feature)
@@ -570,21 +571,53 @@ def narrative_problems(where: str, feature: Any) -> list[str]:
 def _fix_mark_problems(where: str, props: Any) -> list[str]:
     """Rules for marked fixes JSON Schema cannot express: each is one of the track's
     fixes, found by its time; they are in time order, one per time; and each says
-    something (a colour, a label or a comment), with no empty text."""
+    something (a colour, a label or a comment, or always shows its time label or symbol),
+    with no empty text; show_label and show_symbol are true or left out (force on only)."""
     marks = props.fix_marks or []
     problems = []
     times = set(props.times)
     for mark in marks:
         if mark.time not in times:
             problems.append(f"{where}: a fix mark at {mark.time} is not at one of its fixes")
-        if mark.colour is None and mark.label is None and mark.comment is None:
-            problems.append(f"{where}: the fix mark at {mark.time} has no colour, label or comment")
+        forced = (mark.show_label, mark.show_symbol)
+        if mark.colour is None and mark.label is None and mark.comment is None and not any(forced):
+            problems.append(
+                f"{where}: the fix mark at {mark.time} has no colour, label or comment, "
+                "and shows no time label or symbol"
+            )
+        if False in forced:
+            # Force on only (decision, product owner, 15 Oct 2026): left out, never false.
+            problems.append(
+                f"{where}: the fix mark at {mark.time} says show_label or show_symbol false; "
+                "leave it out instead"
+            )
         if (mark.label is not None and not mark.label.strip()) or (
             mark.comment is not None and not mark.comment.strip()
         ):
             problems.append(f"{where}: the fix mark at {mark.time} has an empty label or comment")
     if any(a.time >= b.time for a, b in zip(marks, marks[1:], strict=False)):
         problems.append(f"{where}: fix marks are not in time order, one per time")
+    return problems
+
+
+_SECONDS = {"ms": 0.001, "s": 1.0, "min": 60.0, "h": 3600.0}
+
+
+def _interval_problems(where: str, props: Any) -> list[str]:
+    """Rules for how often a track's fixes are labelled, marked and arrowed (CAP-32) that
+    JSON Schema cannot express: each interval given is a whole number of seconds from
+    1 s to 24 h."""
+    problems = []
+    for name in ("label_interval", "symbol_interval", "arrow_interval"):
+        value = getattr(props, name, None)
+        if not isinstance(value, g.Duration):
+            continue
+        seconds = value.value * _SECONDS[str(getattr(value.unit, "value", value.unit))]
+        if abs(seconds - round(seconds)) > 1e-6 or not 1 <= round(seconds) <= 86_400:
+            problems.append(
+                f"{where}: {name} is {value.value:g} {getattr(value.unit, 'value', value.unit)}; "
+                "an interval is a whole number of seconds from 1 s to 24 h"
+            )
     return problems
 
 

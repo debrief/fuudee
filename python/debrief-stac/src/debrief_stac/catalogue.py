@@ -30,7 +30,7 @@ from pathlib import Path, PurePosixPath
 
 from debrief_kernel.formatting import DEFAULT_SETTINGS, format_position, format_time
 from debrief_kernel.geodesy import Position, destination, range_bearing
-from debrief_kernel.time import format_utc, parse_utc
+from debrief_kernel.time import IntervalError, format_utc, parse_utc
 from debrief_kernel.units import Quantity
 from debrief_schemas import (
     SCHEMA_VERSION,
@@ -42,7 +42,7 @@ from debrief_schemas import (
 )
 from debrief_schemas.documents import track_edit_problems
 from debrief_schemas.island import PLOT_FEATURE_ID, plot_feature
-from debrief_stac import annotations, fixes, narrative, reckoning, tracks
+from debrief_stac import annotations, fixes, frequencies, narrative, reckoning, tracks
 from debrief_stac.hashing import content_hash
 from debrief_stac.history import (
     LOCK,
@@ -695,6 +695,92 @@ class Catalogue:
             agent,
             base,
             allow_newer_schema,
+        )
+
+    def set_track_frequencies(
+        self,
+        item_id: str,
+        feature_ids: list[str],
+        changes: dict[str, object],
+        agent: models.AgentRef,
+        base: Base | None = None,
+        *,
+        allow_newer_schema: bool = False,
+    ) -> int | None:
+        """How often tracks' fixes are labelled, marked with a symbol and given a direction
+        arrow (CAP-32): one recorded, undoable step for every track at once, like colour.
+
+        changes holds any of label_interval, symbol_interval and arrow_interval, each a
+        Duration (or {value, unit}, seconds, or text such as "10 min"), "off", or None
+        for Debrief's default; one left out stays as each track has it. The step is named
+        like "Labels every 10 min on 3 tracks". None if nothing needed to change.
+        """
+        unknown = sorted(set(changes) - set(frequencies.FIELDS))
+        if unknown:
+            raise CatalogueError(
+                f"{', '.join(unknown)}: give label_interval, symbol_interval or arrow_interval."
+            )
+        if not changes:
+            raise CatalogueError("Say which to change: labels, symbols or arrows.")
+        try:
+            wanted = {f: frequencies.interval_from(v, f) for f, v in changes.items()}
+        except IntervalError as error:
+            raise CatalogueError(str(error)) from None
+
+        def retime(feature):
+            props = feature.properties
+            if props.kind != "track":
+                raise CatalogueError(
+                    f"Only tracks have labels, symbols and arrows; {props.name} is not a track."
+                )
+            update = {f: v for f, v in wanted.items() if not frequencies.same(getattr(props, f), v)}
+            return props.model_copy(update=update) if update else None
+
+        if not feature_ids:
+            raise CatalogueError("Choose the tracks to change.")
+        history = self.history(item_id)
+        if base is None:
+            base = history.base()
+            plot = history.plot()
+        else:
+            history.check_base(base)
+            plot = history.replay(base.current)
+        by_id = {f.id: f for f in plot.features}
+        modified, names = [], []
+        for feature_id in dict.fromkeys(feature_ids):
+            feature = by_id.get(feature_id)
+            if feature is None or feature.properties.kind == "plot":
+                raise CatalogueError(f"The plot has no feature {feature_id!r}.")
+            names.append(feature.properties.name)
+            props = retime(feature)
+            if props is not None:
+                modified.append(feature.model_copy(update={"properties": props}))
+        if not modified:
+            return None
+
+        # What was asked, exactly, beside the name: an interval, "off", "all" or "default".
+        def said(value: object) -> object:
+            if isinstance(value, models.Duration):
+                return value
+            return "default" if value is None else str(getattr(value, "value", value))
+
+        asked = [
+            models.ParameterValue(name=f, value=said(wanted[f]))
+            for f in frequencies.FIELDS
+            if f in wanted
+        ]
+        record = _edit_record(
+            agent,
+            frequencies.step_name(wanted, names),
+            parameters=asked,
+            selected=list(dict.fromkeys(feature_ids)),
+        )
+        return self.commit(
+            item_id,
+            [record],
+            Changes(modified=modified),
+            base,
+            allow_newer_schema=allow_newer_schema,
         )
 
     def _edit_features(

@@ -27,6 +27,15 @@ What becomes what:
   size and label position. What v4 cannot draw (label symbols, fonts other
   than plain Arial, label colours of their own, arrowheads, and dash patterns
   v4 does not have) is listed.
+- How often tracks are labelled, marked with a symbol and given a direction arrow
+  (CAP-32): each active display rule (CoreFormatter) becomes the label, symbol or
+  arrow interval of the tracks it names, or of every track; legacy Debrief's "All"
+  (an interval of 0, or its show-all value) becomes "all" for labels and symbols. A
+  track no rule sets an interval for, whose fixes legacy Debrief showed with their
+  label, symbol or arrow, gets the interval those fixes fall at, where they fall as
+  legacy Debrief would have shown them at one of the intervals the forms offer (or at
+  every fix); otherwise they are listed. Legacy Debrief keeps no frequency on a track
+  in the file (TrackHandler writes none), only these.
 - Narrative entries: narrative entries, each with its time, its source (the
   track the legacy entry names), its type and its text, belonging to the
   track of that name where there is one (CAP-20, schema 0.0.19).
@@ -42,14 +51,22 @@ from collections import Counter
 from importlib.metadata import version
 from pathlib import Path
 
-from debrief_io.dpf import DpfError, DpfFile, DpfFix, DpfShape, DpfTrack, parse_dpf
+from debrief_io.dpf import (
+    DpfError,
+    DpfFile,
+    DpfFix,
+    DpfFormatter,
+    DpfShape,
+    DpfTrack,
+    parse_dpf,
+)
 from debrief_io.importer import Clock, ImportReport, store_import, wall_clock
 from debrief_io.rep import DEFAULT_COLOUR
 from debrief_kernel.geodesy import Position, circle_ring, destination, ellipse_ring
 from debrief_kernel.time import format_utc
 from debrief_kernel.units import angle, length
 from debrief_schemas import SCHEMA_VERSION, DebriefFeatureCollection, models
-from debrief_stac import Catalogue, narrative
+from debrief_stac import Catalogue, frequencies, narrative
 
 IMPORTER = "debrief-io.dpf"
 MEDIA_TYPE = "application/xml"
@@ -294,6 +311,217 @@ def _track_notes(track: DpfTrack, joined: bool) -> list[str]:
     return notes
 
 
+# --- How often tracks are labelled, marked and arrowed (CAP-32) --------------------
+
+# A display rule's A_Style (AttributeTypePropertyEditor) and the interval it sets.
+FORMATTER_FIELDS = {
+    "Label": "label_interval",
+    "Symbol": "symbol_interval",
+    "Arrow": "arrow_interval",
+}
+NOUNS = {"label_interval": "label", "symbol_interval": "symbol", "arrow_interval": "arrow"}
+FLAGS = {
+    "label_interval": "label_showing",
+    "symbol_interval": "symbol_showing",
+    "arrow_interval": "arrow_showing",
+}
+# Legacy Debrief's "All": an interval of 0 applies the rule to every fix, and its
+# show-all value (TimeFrequencyPropertyEditor.SHOW_ALL_FREQUENCY, TimePeriod.INVALID_TIME)
+# shows every fix's on the track.
+SHOW_ALL = (0, -1)
+
+
+def _interval_for(field: str, interval_ms: int | None) -> tuple[object | None, str | None]:
+    """A legacy interval in ms as a track's interval for the field, or why it cannot be."""
+    if interval_ms is None:
+        return None, "its interval cannot be read"
+    if interval_ms in SHOW_ALL:
+        if field == "arrow_interval":
+            return None, "it shows arrows at every fix, which Debrief v4 does not offer"
+        return models.FixIntervalAllEnum.all, None
+    if interval_ms % 1000 or not 1 <= interval_ms // 1000 <= 86_400:
+        return None, (
+            f"its interval of {interval_ms} ms is not a whole number of seconds from 1 s to 24 h"
+        )
+    return frequencies.duration_of(interval_ms // 1000), None
+
+
+def _said(value: object) -> str:
+    if isinstance(value, models.Duration):
+        return f"every {frequencies.describe_interval(round(frequencies.seconds_of(value)))}"
+    return "at every fix"
+
+
+def _legacy_shown(times: list[int], freq_ms: int) -> list[bool]:
+    """Which fixes legacy Debrief shows at a frequency (LightweightTrackWrapper.setFixes):
+    from the track's start rounded up to a multiple of it (its start, where the track is
+    no longer than one), the first fix at or after each multiple, unless it comes more
+    than one interval after it."""
+    start, end = times[0], times[-1]
+    marker = -(-start // freq_ms) * freq_ms if start + freq_ms < end else start
+    shown = []
+    for t in times:
+        show = False
+        if t >= marker:
+            show = t - marker <= freq_ms
+            while marker <= t:
+                marker += freq_ms
+        shown.append(show)
+    return shown
+
+
+def _inferred(fixes: list[DpfFix], field: str) -> object | None | str:
+    """The interval a track's fixes showing their label, symbol or arrow fall at, as legacy
+    Debrief would have shown them: at every fix, or at the smallest interval the forms offer
+    that shows exactly those. None where no fix shows one; "irregular" where they fall at
+    none. Fixes with a label of their own are left out of it for labels: their labels are
+    the fix's marks."""
+    flag = FLAGS[field]
+    kept = [
+        f
+        for f in fixes
+        if field != "label_interval" or not (f.label and f.label.strip()) or _time_label(f)
+    ]
+    shown = [getattr(f, flag) for f in kept]
+    if not any(shown):
+        return None
+    if all(shown) and len(kept) > 1:
+        return "all" if field != "arrow_interval" else "irregular"
+    times = [f.time_ms for f in fixes]
+    every = [getattr(f, flag) for f in fixes]
+    for seconds in frequencies.PRESETS:
+        legacy = _legacy_shown(times, seconds * 1000)
+        if all(a == b for a, b, f in zip(legacy, every, fixes, strict=True) if f in kept):
+            return frequencies.duration_of(seconds)
+    return "irregular"
+
+
+def _force_shown(feature, fixes: list[DpfFix], field: str) -> tuple[object, int]:
+    """Mark each fix that showed its label or symbol in the legacy plot as always showing
+    it (show_label, show_symbol), joining any mark the fix already has: the feature so
+    marked, and how many fixes were. Fixes with a label of their own are left out for
+    labels, as in _inferred."""
+    attr = "show_label" if field == "label_interval" else "show_symbol"
+    flag = FLAGS[field]
+    marks = {m.time: m for m in feature.properties.fix_marks or []}
+    count = 0
+    for fix in fixes:
+        if not getattr(fix, flag):
+            continue
+        if field == "label_interval" and fix.label and fix.label.strip() and not _time_label(fix):
+            continue
+        at = format_utc(fix.time_ms)
+        mark = marks.get(at)
+        marks[at] = (
+            mark.model_copy(update={attr: True})
+            if mark
+            else models.FixMark(time=at, **{attr: True})
+        )
+        count += 1
+    props = feature.properties.model_copy(update={"fix_marks": [marks[t] for t in sorted(marks)]})
+    return feature.model_copy(update={"properties": props}), count
+
+
+def _track_frequencies(
+    tracks: list[tuple[int, str, str, list[DpfFix]]],
+    features: list,
+    formatters: list[DpfFormatter],
+) -> list[str]:
+    """Set each imported track's label, symbol and arrow intervals from the plot's display
+    rules, or from what its fixes showed; the notes saying what was and was not taken.
+    tracks: (index in features, track name, the legacy track it came from, its fixes)."""
+    notes: list[str] = []
+    set_by: dict[tuple[int, str], str] = {}  # (feature index, field): the rule that set it
+    for rule in formatters:
+        label = f"Display rule {rule.name!r}" if rule.name else "An unnamed display rule"
+        where = f" in layer {rule.layer!r}"
+        field = FORMATTER_FIELDS.get(rule.style)
+        if not rule.active:
+            notes.append(f"{label}{where} not imported: it is not active.")
+            continue
+        if field is None:
+            notes.append(
+                f"{label}{where} not imported: it sets {rule.style!r}, not labels, "
+                "symbols or arrows."
+            )
+            continue
+        value, problem = _interval_for(field, rule.interval_ms)
+        if problem:
+            notes.append(f"{label}{where} not imported: {problem}.")
+            continue
+        targets = [
+            t for t in tracks if not rule.track or rule.track in (t[1], t[2])
+        ]  # by the legacy track's name, so each leg imported as a track of its own
+        if not targets:
+            notes.append(
+                f"{label}{where} not imported: it applies to {rule.track!r}, "
+                "and no track of that name was imported."
+            )
+            continue
+        for index, name, _, _ in targets:
+            earlier = set_by.get((index, field))
+            if earlier:
+                notes.append(
+                    f"Track {name!r}: display rules {earlier!r} and {rule.name!r} both set "
+                    f"its {NOUNS[field]}s; the later, {rule.name!r}, is used, as in legacy "
+                    "Debrief."
+                )
+            set_by[(index, field)] = rule.name or "unnamed"
+            props = features[index].properties.model_copy(update={field: value})
+            features[index] = features[index].model_copy(update={"properties": props})
+        who = (
+            "every track" if not rule.track else ", ".join(repr(name) for _, name, _, _ in targets)
+        )
+        said = f"{NOUNS[field]}s {_said(value)} on {who}"
+        notes.append(f"{label}{where} imported: {said}.")
+        if not rule.regular:
+            notes.append(
+                f"{label}: legacy Debrief applied it from each track's first fix; Debrief "
+                "v4 puts them on whole multiples of the interval (every 30 min is on the "
+                "hour and half hour), as legacy Debrief's own track frequencies did."
+            )
+        if rule.symbology:
+            notes.append(
+                f"{label}: its symbology match {rule.symbology!r} is not imported "
+                "(legacy Debrief did not apply it either); it applies to the tracks above."
+            )
+    # Fixes shown in the legacy plot, where no display rule says how often.
+    for index, name, _, fixes in tracks:
+        for field in frequencies.FIELDS:
+            if (index, field) in set_by:
+                continue
+            found = _inferred(fixes, field)
+            noun = NOUNS[field]
+            if found is None:
+                continue
+            if found == "irregular":
+                flag = FLAGS[field]
+                count = sum(1 for f in fixes if getattr(f, flag))
+                said = (
+                    f"Track {name!r}: {count} of {_plural(len(fixes), 'fix', 'fixes')} "
+                    f"showed {'its' if count == 1 else 'their'} {noun} in the legacy plot, "
+                    "at no interval Debrief v4 offers; "
+                )
+                if field == "arrow_interval":
+                    notes.append(f"{said}which {noun}s were shown is not imported.")
+                    continue
+                # Labels and symbols: those fixes always show theirs (product owner, 16 Oct 2026).
+                features[index], forced = _force_shown(features[index], fixes, field)
+                which = (
+                    "that fix always shows its" if forced == 1 else "those fixes always show their"
+                )
+                notes.append(f"{said}{which} {noun}.")
+                continue
+            value = models.FixIntervalAllEnum.all if found == "all" else found
+            props = features[index].properties.model_copy(update={field: value})
+            features[index] = features[index].model_copy(update={"properties": props})
+            notes.append(
+                f"Track {name!r}: its fixes' {noun}s shown in the legacy plot fall "
+                f"{_said(value)}, so its {noun}s are {_said(value)}."
+            )
+    return notes
+
+
 # --- Annotations -------------------------------------------------------------------
 
 # Legacy line styles (CanvasType) as v4 draws them; the dash patterns v4 does not
@@ -507,6 +735,7 @@ def build_plot_from_dpf(
 
     # Tracks.
     hidden = 0
+    imported_tracks: list[tuple[int, str, str, list[DpfFix]]] = []
     for track in parsed.tracks:
         parts = _track_parts(track)
         if parts is not None:
@@ -543,6 +772,7 @@ def build_plot_from_dpf(
             marks, mark_notes = _fix_marks(name, track, fixes)
             notes += mark_notes
             feature_id = _unique_id("track", name, taken)
+            imported_tracks.append((len(features), name, track.name, fixes))
             features.append(_track_feature(feature_id, name, track, fixes, marks, mode))
             report.tracks.append(name)
             report.fixes += len(fixes)
@@ -552,6 +782,8 @@ def build_plot_from_dpf(
             if duplicates:
                 notes.append(duplicates)
         notes += _track_notes(track, joined=imported and len(parts) == 1)
+    # How often each is labelled, marked and arrowed: the plot's display rules, or its fixes.
+    notes += _track_frequencies(imported_tracks, features, parsed.formatters)
 
     # Annotations, grouped by layer.
     members: dict[str, list[str]] = {}
@@ -634,6 +866,8 @@ def build_plot_from_dpf(
                 f"its {_plural(len(ids), 'item')} {_are(len(ids))} kept "
                 f"as the named set {layer.name!r}"
             )
+        elif any(rule.layer == layer.name for rule in parsed.formatters):
+            kept = "its display rules are said above"
         else:
             kept = "it holds nothing that was imported"
         notes.append(
@@ -643,7 +877,7 @@ def build_plot_from_dpf(
 
     # Display settings, which v4 does not yet hold.
     display = [
-        "where fix labels go, fix symbols and arrows",
+        "where fix labels go",
         "track symbols, fonts and line styles",
     ]
     notes.append(

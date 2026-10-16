@@ -1,6 +1,6 @@
 {
   "type": "FeatureCollection",
-  "schema_version": "0.0.19",
+  "schema_version": "0.0.20",
   "features": [
     {
       "type": "Feature",
@@ -100,7 +100,7 @@
   ],
   "history": {
     "current": 4,
-    "head_hash": "sha256:07dd6329f7f2cf1b43f28156ce65b23c7d95e5f4d71d304a9ff3f5576d258de0",
+    "head_hash": "sha256:a6975a0dbc3be5ba3744251533bde10540d0075e47a4270b6cadef212c0d0a2a",
     "steps": [
       {
         "seq": 1,
@@ -160,8 +160,8 @@
             }
           }
         ],
-        "result_hash": "sha256:b68bc74839ff83f818dab0d33b823e48d1b5a0aec61eaa086e73588c0bacefb0",
-        "step_hash": "sha256:db01df087f48a3bd0eaa7575ee861b19d9576a252d34b076dd0e7fbc66d12856"
+        "result_hash": "sha256:93a6ddb5b6b3c38be9e28bfaf9daaa38d1ebee9b2590d9d57479960dd1e4dd7e",
+        "step_hash": "sha256:36ae8b0652c8c3877258916c07d26c68f4a3c1b53491d81b4aa7c98fd7556a18"
       },
       {
         "seq": 2,
@@ -195,8 +195,8 @@
             "geometry": null
           }
         ],
-        "result_hash": "sha256:b7949f62195fafd2b5de458cd19a6491d0684adb0eebdabff8461b9c91b86cdf",
-        "step_hash": "sha256:f9e32079dfc3b75dfd756a04af0af9ce2822e66fb63c42a13f2ff165f08b61f2"
+        "result_hash": "sha256:24c064b1cf3d93e804d1a3134cd60fa35cf6c5269783cd8a5a4013efac52f7e6",
+        "step_hash": "sha256:e6cf69050a6626fbffb609e3d3f966231509a8c64f2b3a00fdfa47ba1fc99e92"
       },
       {
         "seq": 3,
@@ -230,8 +230,8 @@
             "geometry": null
           }
         ],
-        "result_hash": "sha256:5ec827d8ddd8b636580d034895853bd6b3a7defdafb0034f86b6d9409a4266f8",
-        "step_hash": "sha256:15497fb8a8820d9c8f257e17474333017034700ffb750fc9a293b9414ccb6901"
+        "result_hash": "sha256:8b0c97d8dab8de7e9cfe75179ef05cc30e97e97a7e45c94c25e99ac256d197cb",
+        "step_hash": "sha256:cd29f5ecb3850213537a3dcb87498b2ac3c6745691802b1551b4c2a948d60097"
       },
       {
         "seq": 4,
@@ -282,8 +282,8 @@
             }
           }
         ],
-        "result_hash": "sha256:185a2e6ebaeaee21205e0dac9449f4f178015f448f312f4c0bd12ec03f346481",
-        "step_hash": "sha256:0177d2dd78c4bfcd29204f00b3cf3344c1533b3397f7023a03ab7ed2fcbec736"
+        "result_hash": "sha256:ab451dd56b788085e12de57f6337e855a064f8c2a6e33eb89e826aea9c41bb0b",
+        "step_hash": "sha256:53d52aa1ceb866b294c2f3343ee80af1bf39329eacf96c7841ff9c425eefa5bc"
       },
       {
         "seq": 5,
@@ -307,8 +307,8 @@
         "deleted_ids": [
           "note-1"
         ],
-        "result_hash": "sha256:8288bcb713fa91f9292decc902330225b0055fda3fb29132c44902a9c36bc871",
-        "step_hash": "sha256:07dd6329f7f2cf1b43f28156ce65b23c7d95e5f4d71d304a9ff3f5576d258de0"
+        "result_hash": "sha256:37b816d6feae37cd03e7d04675c223c4f952648d26f2ebd3c8a97eef14caf840",
+        "step_hash": "sha256:a6975a0dbc3be5ba3744251533bde10540d0075e47a4270b6cadef212c0d0a2a"
       }
     ]
   }

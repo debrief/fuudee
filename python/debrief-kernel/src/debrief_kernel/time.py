@@ -64,3 +64,99 @@ def truncate_to_ms(instant: datetime) -> tuple[int, bool]:
         raise TimeError("naive datetime: give a time zone so it can be converted to UTC")
     lost = instant.microsecond % 1000
     return to_epoch_ms(instant - timedelta(microseconds=lost)), lost != 0
+
+
+# --- How often a track's fixes are labelled, marked or arrowed (CAP-32) -------------
+# An interval is a whole number of seconds from 1 s to 24 h, as legacy Debrief's
+# frequency choices run from 1 second to 24 hours. TypeScript reads and names them the
+# same way (vscode/webview/frequencies.ts), held to schemas/vectors/fix-intervals.json.
+
+INTERVAL_MIN_S = 1
+INTERVAL_MAX_S = 86_400
+INTERVAL_OFF = "off"
+# Labels or symbols at every recorded fix: legacy Debrief's "All" (not for arrows).
+INTERVAL_ALL = "all"
+_INTERVAL_UNITS = {
+    "d": 86_400,
+    "day": 86_400,
+    "days": 86_400,
+    "h": 3600,
+    "hr": 3600,
+    "hrs": 3600,
+    "hour": 3600,
+    "hours": 3600,
+    "m": 60,
+    "min": 60,
+    "mins": 60,
+    "minute": 60,
+    "minutes": 60,
+    "s": 1,
+    "sec": 1,
+    "secs": 1,
+    "second": 1,
+    "seconds": 1,
+}
+_INTERVAL_PART = re.compile(r"(\d+(?:\.\d+)?)\s*([a-z]*)")
+_NEXT_UNIT = {86_400: 3600, 3600: 60, 60: 1}
+INTERVAL_RANGE_PROBLEM = "An interval is from 1 s to 24 h."
+INTERVAL_UNIT_PROBLEM = "Say the unit, such as 30 s, 10 min or 1 h 30 min."
+INTERVAL_WHOLE_PROBLEM = "Give whole seconds: an interval is from 1 s to 24 h."
+
+
+class IntervalError(ValueError):
+    """Text that is not an interval from 1 s to 24 h, in plain words."""
+
+
+def read_interval(text: str) -> int | str:
+    """Read an interval typed by the analyst: seconds, INTERVAL_OFF for "off" or
+    "none", or INTERVAL_ALL for "all" or "every fix". Units may be written short or
+    long ("90 s", "10 min", "2 hours", "1 day") and combined ("1 h 30 min"); a bare
+    number after one with a unit is in the next smaller unit ("1h30" is 1 h 30 min,
+    "2m30" 2 min 30 s). Raises IntervalError."""
+    said = text.strip().lower()
+    if said in ("off", "none"):
+        return INTERVAL_OFF
+    if said in ("all", "every fix", "all fixes"):
+        return INTERVAL_ALL
+    rest = said.replace(",", " ")
+    total = 0.0
+    previous: int | None = None
+    position = 0
+    while position < len(rest):
+        if rest[position].isspace():
+            position += 1
+            continue
+        match = _INTERVAL_PART.match(rest, position)
+        if match is None:
+            raise IntervalError(INTERVAL_UNIT_PROBLEM)
+        number, unit = float(match.group(1)), match.group(2)
+        if unit:
+            size = _INTERVAL_UNITS.get(unit)
+            if size is None or (previous is not None and size >= previous):
+                raise IntervalError(INTERVAL_UNIT_PROBLEM)
+        elif previous in _NEXT_UNIT:
+            size = _NEXT_UNIT[previous]
+        else:
+            raise IntervalError(INTERVAL_UNIT_PROBLEM)
+        total += number * size
+        previous = size
+        position = match.end()
+    if previous is None:
+        raise IntervalError(INTERVAL_UNIT_PROBLEM)
+    seconds = round(total)
+    if abs(total - seconds) > 1e-6:
+        raise IntervalError(INTERVAL_WHOLE_PROBLEM)
+    if not INTERVAL_MIN_S <= seconds <= INTERVAL_MAX_S:
+        raise IntervalError(INTERVAL_RANGE_PROBLEM)
+    return seconds
+
+
+def describe_interval(seconds: int) -> str:
+    """An interval in words, largest unit first: 90 is "1 min 30 s", 5400 "1 h 30 min",
+    86400 "24 h"."""
+    hours, rest = divmod(int(seconds), 3600)
+    minutes, secs = divmod(rest, 60)
+    parts = [f"{hours} h"] if hours else []
+    parts += [f"{minutes} min"] if minutes else []
+    parts += [f"{secs} s"] if secs or not parts else []
+    return " ".join(parts)

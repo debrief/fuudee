@@ -826,6 +826,33 @@ export async function run(): Promise<void> {
   await vscode.commands.executeCommand("debrief.openPlot", current.store.id, "serial-1");
   await waitFor("serial 1 again", () => api.session.current?.item.id === "serial-1" || undefined);
 
+  // --- Labels, symbols and arrows at intervals (CAP-32): one step for every track chosen ---
+  const beforeFrequencies = (await steps()).length;
+  const frequencies = (id: string) => {
+    const p = track(id)!.properties as unknown as Record<string, unknown>;
+    return [p.label_interval, p.symbol_interval, p.arrow_interval];
+  };
+  assert.equal(await vscode.commands.executeCommand("debrief.setTrackFrequencies", ["track-blue-one", "track-red-one"], { label_interval: "10 min", arrow_interval: { value: 5, unit: "min" } }), undefined);
+  assert.equal((await steps()).length, beforeFrequencies + 1, "one step for both tracks");
+  assert.match((await steps()).at(-1)?.notes?.[0] ?? "", /^Labels every 10 min, arrows every 5 min on BLUE ONE and RED ONE/);
+  assert.deepEqual(frequencies("track-red-one"), [{ value: 10, unit: "min" }, undefined, { value: 5, unit: "min" }]);
+  // Refused plainly: an interval out of range, or no track.
+  assert.match((await vscode.commands.executeCommand<string>("debrief.setTrackFrequencies", ["track-blue-one"], { label_interval: "25 h" })) ?? "", /1 s to 24 h/);
+  assert.match((await vscode.commands.executeCommand<string>("debrief.setTrackFrequencies", ["no-such-track"], { label_interval: "1 h" })) ?? "", /Select one or more tracks/);
+  // A fix of RED ONE always shows its time label (force on only): through the fix's own change, one step.
+  const forcedAt = track("track-red-one")!.properties.times[13];
+  const forced = await vscode.commands.executeCommand<{ problem?: string }>("debrief.markFix", "track-red-one", forcedAt, { show_label: true });
+  assert.equal(forced.problem, undefined);
+  assert.match((await steps()).at(-1)?.notes?.[0] ?? "", /time label always shown$/);
+  await vscode.commands.executeCommand("debrief.outline.focus");
+  await sleep(2000);
+  await screenshot("36-labels-symbols-arrows");
+  // Undone like any step: the fix's mark, then both tracks' intervals at once.
+  assert.equal(await vscode.commands.executeCommand("debrief.undo"), undefined);
+  assert.equal(await vscode.commands.executeCommand("debrief.undo"), undefined);
+  assert.deepEqual(frequencies("track-blue-one"), [undefined, undefined, undefined]);
+  assert.deepEqual(frequencies("track-red-one"), [undefined, undefined, undefined]);
+
   // A legacy plot file: its circles, ellipses and styling come in as annotations.
   const dpf = path.resolve(__dirname, "../../python/debrief-io/tests/data/shapes.dpf");
   execFileSync(process.env.DEBRIEF_PYTHON!, [
@@ -921,5 +948,6 @@ async function playTheTote(api: DebriefApi, island: () => { tote?: unknown }, pe
   // Refused plainly: a feature that is not a track.
   assert.match((await vscode.commands.executeCommand<string>("debrief.tote.add", ["no-such-track"])) ?? "", /Select the tracks/);
   assert.deepEqual(api.session.current!.base, base, "still no step");
+
   await vscode.commands.executeCommand("notifications.clearAll");
 }

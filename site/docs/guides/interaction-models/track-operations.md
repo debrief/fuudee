@@ -202,6 +202,7 @@ Part B2 (14 Oct 2026). Three ways to tidy a track an analyst has imported, each 
     | Colour | a dot at the fix in that colour, and the line from it to the next fix drawn in it | the fix list |
     | Label | the text beside the fix, as a track's name is | the fix list |
     | Comment | shown when pointing at the fix, with its time, position, course and speed | the fix list, and the **Timeline**, at the fix's time, as *RED ONE fix* |
+    | Time label or symbol, always | the fix's time, or a small dot, as the track's [label and symbol intervals](labels-symbols-arrows.md) draw them, whatever those are and at any zoom (force on only; decision, product owner, 15 Oct 2026) | the fix list: *time label always shown*, *symbol always shown* |
 
     A fix with only a label or a comment is a ring in the track's colour, so it can be pointed at. To mark a fix: **right-click it on the map** (on a touch screen, **press and hold it**: about half a second with the finger still), or open the **fix list** (**Fixes: colour, label or comment…** on the outline's menu; **Fixes…** in the playground), which lists every fix of the track in time order with its time, position, course, speed and any mark, and choose one; then **Colour…** (the track colours, amber and yellow), **Label…** or **Comment…**. An empty label or comment, or *Track's colour*, takes it away. Each change is **one step**: *RED ONE fix at 09:31:00Z coloured yellow*, *… labelled 'Turn 1'*, *…: comment added* (or *changed*, *removed*); a long label is shortened in the step's name and kept whole.
 
