@@ -157,9 +157,9 @@ describe("the export's messages are boundary types (CON-08)", () => {
 describe("the parts the image's SVG is written with (expert panel, 16 Oct 2026)", () => {
   it("a footer sized to the image, so it reads at half a page's width, never under 14 pixels", () => {
     const slide = layoutFor("slide", { width: 900, height: 700 });
-    expect(footerFontSize(slide) * slide.scale).toBeCloseTo(32, 1);
+    expect(footerFontSize(slide) * slide.scale).toBeCloseTo(22.4, 1);
     const a4 = layoutFor("a4_landscape", { width: 900, height: 700 });
-    expect(footerFontSize(a4) * a4.scale).toBeCloseTo(35.08, 1);
+    expect(footerFontSize(a4) * a4.scale).toBeCloseTo(24.56, 1);
     const small = layoutFor("screen", { width: 300, height: 200 });
     expect(footerFontSize(small) * small.scale).toBeCloseTo(14, 1);
   });

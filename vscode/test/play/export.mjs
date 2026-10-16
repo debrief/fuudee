@@ -120,8 +120,8 @@ export async function playExport(page, shot) {
     [png.data.toString("base64"), bare.data.toString("base64")],
   );
   assert.ok(differ.count > 50, "the footer is drawn");
-  // About 2% of the image's width high (32 pixels on a slide), so it reads when Word shows the image at half a page's width.
-  assert.ok(differ.y1 - differ.y0 >= 20 && differ.y1 - differ.y0 < 60, `the footer is sized to the image: ${JSON.stringify(differ)}`);
+  // About 1.4% of the image's width high (22 pixels on a slide), so it reads when Word shows the image at half a page's width.
+  assert.ok(differ.y1 - differ.y0 >= 14 && differ.y1 - differ.y0 < 60, `the footer is sized to the image: ${JSON.stringify(differ)}`);
   assert.ok(differ.x1 - differ.x0 < 560, `only the footer differs: ${JSON.stringify(differ)}`);
   const inCorner = (differ.y1 > differ.height - 90 || differ.y0 < 90) && (differ.x0 < 600 || differ.x1 > differ.width - 600);
   assert.ok(inCorner, `the footer is in a corner: ${JSON.stringify(differ)}`);

@@ -137,10 +137,11 @@ export function fileNameFor(title: string, short: string | undefined, format: Im
 /**
  * The footer's font size, in the layout's CSS pixels: a share of the image's width, so it
  * stays legible when Word shows the image at half a page's width, and never smaller than
- * 14 pixels in the image (expert panel, 16 Oct 2026). A 1600-pixel slide's footer is 32
- * pixels high in the image; A4's, 35: about 9 points across a page, 4.5 at half its width.
+ * 14 pixels in the image (expert panel, 16 Oct 2026; 1.4%, product owner, 16 Oct 2026).
+ * A 1600-pixel slide's footer is 22 pixels high in the image; A4's, 25: about 6 points
+ * across a page, 3 at half its width.
  */
-export const FOOTER_SHARE = 0.02;
+export const FOOTER_SHARE = 0.014;
 export const FOOTER_MIN_PIXELS = 14;
 export function footerFontSize(layout: ImageLayout): number {
   const pixels = Math.max(FOOTER_MIN_PIXELS, pixelsOf(layout).width * FOOTER_SHARE);
