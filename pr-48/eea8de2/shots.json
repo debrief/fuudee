@@ -1,0 +1,35 @@
+{
+ "shots": [
+  {
+   "source": "blog/posts/2026-10-21-traceable-figures.md",
+   "url": "blog/2026/10/21/traceable-figures/",
+   "title": "Traceable figures: every image knows where it came from",
+   "file": "blog-posts-2026-10-21-traceable-figures.png"
+  },
+  {
+   "source": "guides/glossary.md",
+   "url": "guides/glossary/",
+   "title": "Glossary",
+   "file": "guides-glossary.png"
+  },
+  {
+   "source": "guides/interaction-models/export.md",
+   "url": "guides/interaction-models/export/",
+   "title": "Exported images",
+   "file": "guides-interaction-models-export.png"
+  },
+  {
+   "source": "guides/interaction-models/index.md",
+   "url": "guides/interaction-models/",
+   "title": "Interaction models",
+   "file": "guides-interaction-models-index.png"
+  },
+  {
+   "source": "guides/interaction-models/keyboard-equivalents.md",
+   "url": "guides/interaction-models/keyboard-equivalents/",
+   "title": "Keyboard equivalents",
+   "file": "guides-interaction-models-keyboard-equivalents.png"
+  }
+ ],
+ "more": 0
+}
