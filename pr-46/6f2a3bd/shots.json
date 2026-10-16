@@ -1,0 +1,41 @@
+{
+ "shots": [
+  {
+   "source": "blog/posts/2026-10-19-labels-symbols-arrows.md",
+   "url": "blog/2026/10/19/labels-symbols-arrows/",
+   "title": "Labels, symbols and arrows",
+   "file": "blog-posts-2026-10-19-labels-symbols-arrows.png"
+  },
+  {
+   "source": "guides/glossary.md",
+   "url": "guides/glossary/",
+   "title": "Glossary",
+   "file": "guides-glossary.png"
+  },
+  {
+   "source": "guides/interaction-models/index.md",
+   "url": "guides/interaction-models/",
+   "title": "Interaction models",
+   "file": "guides-interaction-models-index.png"
+  },
+  {
+   "source": "guides/interaction-models/keyboard-equivalents.md",
+   "url": "guides/interaction-models/keyboard-equivalents/",
+   "title": "Keyboard equivalents",
+   "file": "guides-interaction-models-keyboard-equivalents.png"
+  },
+  {
+   "source": "guides/interaction-models/labels-symbols-arrows.md",
+   "url": "guides/interaction-models/labels-symbols-arrows/",
+   "title": "Labels, symbols and arrows",
+   "file": "guides-interaction-models-labels-symbols-arrows.png"
+  },
+  {
+   "source": "guides/interaction-models/track-operations.md",
+   "url": "guides/interaction-models/track-operations/",
+   "title": "Track operations",
+   "file": "guides-interaction-models-track-operations.png"
+  }
+ ],
+ "more": 1
+}
