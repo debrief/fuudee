@@ -32,6 +32,18 @@ button:focus-visible, li:focus-visible { outline: 1px solid var(--vscode-focusBo
 /* The time controller has its own styles (timecontrol.css, shared with VS Code); the side column's list style stays off it. */
 .side .tc-speed, .side .tc-context { width: auto; padding: 0 2px; }
 #panel-try button { display: block; width: 100%; text-align: left; }
+/* The catalogue's items (CAP-08 to CAP-12): a mark is a symbol and words, never colour alone. */
+.items { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 6px; max-height: 320px; overflow-y: auto; overflow-wrap: anywhere; }
+.items > li { padding: 3px 4px; border-radius: 2px; min-width: 0; }
+.items > li.item-open { background: var(--vscode-list-inactiveSelectionBackground); }
+.item-name { font-weight: 600; }
+.item-mark { color: var(--vscode-charts-yellow, var(--vscode-editorWarning-foreground)); font-weight: normal; }
+.item-flag { color: var(--vscode-editorWarning-foreground); }
+.items details { font-size: 12px; }
+.items summary { cursor: pointer; color: var(--vscode-descriptionForeground); }
+.item-tracks { list-style: none; margin: 2px 0 0; padding: 0 0 0 12px; font-size: 12px; }
+.item-actions { display: flex; flex-wrap: wrap; gap: 2px 4px; }
+.item-actions button { margin: 2px 0 0; padding: 1px 6px; }
 .tools li { display: flex; align-items: baseline; gap: 6px; flex-wrap: wrap; }
 .file input { display: block; margin: 4px 0; color: var(--vscode-foreground); font: inherit; }
 .omitted-panel { padding: 10px 14px; overflow-y: auto; font-size: 13px; }

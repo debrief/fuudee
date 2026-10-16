@@ -39,7 +39,127 @@
     "start_datetime": "2023-06-15T08:00:00.000Z",
     "end_datetime": "2023-06-15T12:00:00.000Z",
     "title": "Serial 1",
-    "debrief:schema_version": "0.0.20",
+    "debrief:schema_version": "0.0.21",
+    "created": "2026-10-11T00:00:00.000Z",
+    "debrief:revision": "sha256:4f63c6098151b4ef57e06e0bdb5efc5a21fe65f08182481e9680596686f64af9",
+    "debrief:coverage": [
+      {
+        "track": "track-blue-one",
+        "name": "BLUE ONE",
+        "fixes": 241,
+        "spans": [
+          {
+            "start": "2023-06-15T08:00:00.000Z",
+            "end": "2023-06-15T12:00:00.000Z"
+          }
+        ]
+      },
+      {
+        "track": "track-red-one",
+        "name": "RED ONE",
+        "fixes": 241,
+        "spans": [
+          {
+            "start": "2023-06-15T08:00:00.000Z",
+            "end": "2023-06-15T12:00:00.000Z"
+          }
+        ]
+      },
+      {
+        "track": "track-ais-cargo-01",
+        "name": "Cargo 01",
+        "fixes": 207,
+        "spans": [
+          {
+            "start": "2023-06-15T08:00:01.000Z",
+            "end": "2023-06-15T11:59:52.000Z"
+          }
+        ]
+      },
+      {
+        "track": "track-ais-cargo-02",
+        "name": "Cargo 02",
+        "fixes": 206,
+        "spans": [
+          {
+            "start": "2023-06-15T08:00:04.000Z",
+            "end": "2023-06-15T11:58:55.000Z"
+          }
+        ]
+      },
+      {
+        "track": "track-ais-tug-01",
+        "name": "Tug 01",
+        "fixes": 142,
+        "spans": [
+          {
+            "start": "2023-06-15T08:00:05.000Z",
+            "end": "2023-06-15T10:35:17.000Z"
+          }
+        ]
+      },
+      {
+        "track": "track-ais-sailing-01",
+        "name": "Sailing 01",
+        "fixes": 105,
+        "spans": [
+          {
+            "start": "2023-06-15T08:00:06.000Z",
+            "end": "2023-06-15T10:38:37.000Z"
+          }
+        ]
+      },
+      {
+        "track": "track-ais-cargo-03",
+        "name": "Cargo 03",
+        "fixes": 78,
+        "spans": [
+          {
+            "start": "2023-06-15T08:01:11.000Z",
+            "end": "2023-06-15T11:58:12.000Z"
+          }
+        ]
+      },
+      {
+        "track": "track-ais-cargo-04",
+        "name": "Cargo 04",
+        "fixes": 180,
+        "spans": [
+          {
+            "start": "2023-06-15T08:28:48.000Z",
+            "end": "2023-06-15T11:59:59.000Z"
+          }
+        ]
+      },
+      {
+        "track": "track-ais-cargo-05",
+        "name": "Cargo 05",
+        "fixes": 113,
+        "spans": [
+          {
+            "start": "2023-06-15T08:45:02.000Z",
+            "end": "2023-06-15T09:16:21.000Z"
+          },
+          {
+            "start": "2023-06-15T10:23:11.000Z",
+            "end": "2023-06-15T11:59:31.000Z"
+          }
+        ]
+      },
+      {
+        "track": "track-ais-cargo-06",
+        "name": "Cargo 06",
+        "fixes": 146,
+        "spans": [
+          {
+            "start": "2023-06-15T09:08:23.000Z",
+            "end": "2023-06-15T11:59:23.000Z"
+          }
+        ]
+      }
+    ],
+    "debrief:imported": false,
+    "debrief:origin": "sha256:8e95779e35d3e9a7995661edd7ef8ae16c5b052715614ccb9994c8025bce7087",
     "datetime": null
   },
   "links": [

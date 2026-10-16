@@ -39,7 +39,145 @@
     "start_datetime": "2023-06-15T12:00:00.000Z",
     "end_datetime": "2023-06-15T17:00:00.000Z",
     "title": "Serial 2",
-    "debrief:schema_version": "0.0.20",
+    "debrief:schema_version": "0.0.21",
+    "created": "2026-10-11T00:00:00.000Z",
+    "debrief:revision": "sha256:a3ef684588c14608be751fad89578fd644067a87a01ccaf973f1341a755b70fc",
+    "debrief:coverage": [
+      {
+        "track": "track-blue-one",
+        "name": "BLUE ONE",
+        "fixes": 301,
+        "spans": [
+          {
+            "start": "2023-06-15T12:00:00.000Z",
+            "end": "2023-06-15T17:00:00.000Z"
+          }
+        ]
+      },
+      {
+        "track": "track-red-one",
+        "name": "RED ONE",
+        "fixes": 301,
+        "spans": [
+          {
+            "start": "2023-06-15T12:00:00.000Z",
+            "end": "2023-06-15T17:00:00.000Z"
+          }
+        ]
+      },
+      {
+        "track": "track-ais-cargo-01",
+        "name": "Cargo 01",
+        "fixes": 256,
+        "spans": [
+          {
+            "start": "2023-06-15T12:01:02.000Z",
+            "end": "2023-06-15T16:59:40.000Z"
+          }
+        ]
+      },
+      {
+        "track": "track-ais-cargo-02",
+        "name": "Cargo 02",
+        "fixes": 259,
+        "spans": [
+          {
+            "start": "2023-06-15T12:00:03.000Z",
+            "end": "2023-06-15T16:59:13.000Z"
+          }
+        ]
+      },
+      {
+        "track": "track-ais-cargo-03",
+        "name": "Cargo 03",
+        "fixes": 99,
+        "spans": [
+          {
+            "start": "2023-06-15T12:01:11.000Z",
+            "end": "2023-06-15T16:58:12.000Z"
+          }
+        ]
+      },
+      {
+        "track": "track-ais-cargo-04",
+        "name": "Cargo 04",
+        "fixes": 5,
+        "spans": [
+          {
+            "start": "2023-06-15T12:01:17.000Z",
+            "end": "2023-06-15T12:05:57.000Z"
+          }
+        ]
+      },
+      {
+        "track": "track-ais-cargo-05",
+        "name": "Cargo 05",
+        "fixes": 107,
+        "spans": [
+          {
+            "start": "2023-06-15T12:01:12.000Z",
+            "end": "2023-06-15T16:58:04.000Z"
+          }
+        ]
+      },
+      {
+        "track": "track-ais-cargo-06",
+        "name": "Cargo 06",
+        "fixes": 90,
+        "spans": [
+          {
+            "start": "2023-06-15T12:01:12.000Z",
+            "end": "2023-06-15T13:44:22.000Z"
+          }
+        ]
+      },
+      {
+        "track": "track-ais-cargo-07",
+        "name": "Cargo 07",
+        "fixes": 150,
+        "spans": [
+          {
+            "start": "2023-06-15T13:00:09.000Z",
+            "end": "2023-06-15T15:54:49.000Z"
+          }
+        ]
+      },
+      {
+        "track": "track-ais-pleasure-craft-01",
+        "name": "Pleasure craft 01",
+        "fixes": 88,
+        "spans": [
+          {
+            "start": "2023-06-15T14:04:17.000Z",
+            "end": "2023-06-15T16:22:01.000Z"
+          }
+        ]
+      },
+      {
+        "track": "track-ais-towing-01",
+        "name": "Towing 01",
+        "fixes": 131,
+        "spans": [
+          {
+            "start": "2023-06-15T14:29:09.000Z",
+            "end": "2023-06-15T16:59:59.000Z"
+          }
+        ]
+      },
+      {
+        "track": "track-ais-passenger-01",
+        "name": "Passenger 01",
+        "fixes": 80,
+        "spans": [
+          {
+            "start": "2023-06-15T15:16:53.000Z",
+            "end": "2023-06-15T16:56:43.000Z"
+          }
+        ]
+      }
+    ],
+    "debrief:imported": false,
+    "debrief:origin": "sha256:23d2b68b9fec99fe42df5be50403173fbbddc70c50c5d3c923ca454906f8bc35",
     "datetime": null
   },
   "links": [

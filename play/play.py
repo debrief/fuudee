@@ -36,7 +36,7 @@ from debrief_io import (
 )
 from debrief_io.document_import import SUFFIXES as DOCUMENT_SUFFIXES
 from debrief_io.importer import rep_track_names
-from debrief_kernel.geodesy import Position, destination
+from debrief_kernel.geodesy import Position, TrackPath, destination, range_bearing
 from debrief_kernel.time import format_utc, parse_utc
 from debrief_kernel.units import Quantity
 from debrief_schemas import DocumentKind, dump_document, models
@@ -50,6 +50,7 @@ from debrief_stac import (
     History,
     HistoryError,
 )
+from debrief_stac.catalogue import review_flags
 from debrief_stac.fixes import describe_largest
 from debrief_stac.tote import tote as tote_at
 from debrief_tools import Registry
@@ -671,3 +672,179 @@ def import_file(
             "notes": report.notes,
         }
     )
+
+
+# --- Collation (CAP-08 to CAP-12): as debrief/coverage and the collation methods do -----
+
+
+def coverage(item: str) -> str:
+    """The open plot's coverage, and every plot in the catalogue that may need review."""
+    try:
+        report = _cat().coverage(item)
+        flags = review_flags([_cat()])
+    except (CatalogueError, HistoryError, OSError, ValueError) as error:
+        return json.dumps({"error": str(error)})
+    return json.dumps(
+        {
+            "coverage": report.model_dump(mode="json", exclude_none=True),
+            "flags": [f.model_dump(mode="json", exclude_none=True) for f in flags],
+        }
+    )
+
+
+def collate(item: str, request_json: str) -> str:
+    """A collation step, as debrief/take_new_data, debrief/set_source_preference and
+    debrief/link_tracks make them (one recorded step each), or new data set aside or a
+    review flag cleared, in a plot's island (debrief/dismiss_new_data,
+    debrief/clear_review_flag)."""
+    request = json.loads(request_json)
+    base = Base(**request["base"]) if request.get("base") else None
+    change = request["change"]
+    kind = change["kind"]
+    try:
+        if kind == "take":
+            source = change["source"]
+            step = _cat().take_new_data(
+                item,
+                source["catalogue"],
+                source["item"],
+                YOU,
+                base,
+                revision=source.get("revision") or None,
+            )
+        elif kind == "prefer":
+            step = _cat().set_source_preference(
+                item, change["feature"], change["period"], change["source"], YOU, base
+            )
+        elif kind == "link":
+            step = _cat().link_tracks(
+                item, change["feature"], change["source"], change["linked"], YOU, base
+            )
+        elif kind == "dismiss":
+            source = change["source"]
+            _cat().dismiss_new_data(
+                item, source["catalogue"], source["item"], source["revision"], YOU
+            )
+            return json.dumps({"ok": True, "changed": True})
+        else:
+            target = change.get("item") or item
+            cleared = _cat().clear_review_flag(target, agent=YOU)
+            return json.dumps({"ok": True, "changed": cleared > 0})
+    except Conflict:
+        return json.dumps({"error": "The plot was changed elsewhere, so nothing was changed."})
+    except (CatalogueError, HistoryError, ValueError, KeyError) as error:
+        return json.dumps({"error": str(error)})
+    if step is None and kind == "take":
+        # Nothing to take: the plot already has the item's data as it is now; it is
+        # marked as reviewed against this revision instead.
+        message = (
+            "The plot already has this item's data as it is now: nothing was taken, and it "
+            "is marked as reviewed against this revision."
+        )
+        return json.dumps({"ok": True, "changed": False, "message": message})
+    if step is None:
+        return json.dumps({"ok": True, "changed": False})
+    record = _cat().history(item).steps()[-1].records[0]
+    return json.dumps({"ok": True, "changed": True, "notes": list(record.notes or [])})
+
+
+def _dms(value: float, positive: str, negative: str, width: int) -> str:
+    hemisphere = positive if value >= 0 else negative
+    hundredths = round(abs(value) * 360_000)
+    degrees, rest = divmod(hundredths, 360_000)
+    minutes, rest = divmod(rest, 6_000)
+    return f"{degrees:0{width}d} {minutes:02d} {rest / 100:05.2f} {hemisphere}"
+
+
+def _rep(name: str, ms: int, position: Position, course: float, knots: float) -> str:
+    when = format_utc(ms)
+    stamp = f"{when[2:4]}{when[5:7]}{when[8:10]} {when[11:13]}{when[14:16]}{when[17:19]}.000"
+    quoted = f'"{name}"' if " " in name else name
+    lat = _dms(position.latitude, "N", "S", 2)
+    lon = _dms(position.longitude, "E", "W", 3)
+    return f"{stamp} {quoted} @A {lat} {lon} {course:05.1f} {knots:.1f} 0"
+
+
+def _course(track_path: TrackPath, ms: int) -> float:
+    leg = track_path.leg_at(ms)
+    i = min(leg[0] if leg else 0, len(track_path.positions) - 2)
+    a, b = track_path.positions[i], track_path.positions[i + 1]
+    return range_bearing(a, b)[1].value
+
+
+def _knots(track_path: TrackPath, ms: int) -> float:
+    leg = track_path.leg_at(ms)
+    i = min(leg[0] if leg else 0, len(track_path.positions) - 2)
+    a, b = track_path.positions[i], track_path.positions[i + 1]
+    seconds = max((track_path.times_ms[i + 1] - track_path.times_ms[i]) / 1000, 1)
+    return range_bearing(a, b)[0].value / seconds * 3600 / 1852
+
+
+def new_data(item: str) -> str:
+    """New data arrives for the open plot, as an analyst would bring it in: a REP file
+    written here (fiction, like the sample) and imported through Debrief's import into the
+    same catalogue (CAP-10). It is the plot's first track's own navigation log, a fix
+    every 10 s over part of its period and on for 20 minutes after it ends, 120 m from
+    where the plot has it, under its name in other letters; and a contact the plot has
+    never seen."""
+    plot = _cat().read_plot(item)
+    tracks = [
+        f for f in plot.features if f.properties.kind == "track" and len(f.properties.times) > 2
+    ]
+    if not tracks:
+        return json.dumps({"error": "The open plot has no track to bring new data for."})
+    own = tracks[0]
+    path_of = TrackPath.from_feature(own)
+    start, end = path_of.start_ms, path_of.end_ms
+    name = own.properties.name.title()
+    lines = [";; A navigation log, made up for the playground: not a record of any real platform."]
+    first = start + (end - start) // 3 // 60_000 * 60_000
+    last = first + (end - start) // 4 // 60_000 * 60_000
+    north = Quantity(120, "m")
+    for ms in range(first, last + 1, 10_000):
+        at = destination(path_of.position_at(ms), Quantity(0, "deg"), north)
+        lines.append(_rep(name, ms, at, _course(path_of, ms), _knots(path_of, ms)))
+    course, knots = _course(path_of, end), _knots(path_of, end)
+    tail = path_of.position_at(end)
+    for i in range(1, 121):
+        metres = knots * 1852 / 3600 * i * 10
+        at = destination(tail, Quantity(course, "deg"), Quantity(metres, "m"))
+        lines.append(_rep(name, end + i * 10_000, at, course, knots))
+    origin = destination(path_of.position_at(first), Quantity(225, "deg"), Quantity(6000, "m"))
+    for i in range(31):
+        at = destination(origin, Quantity(80, "deg"), Quantity(i * 300, "m"))
+        lines.append(_rep("WATCHER", first + i * 60_000, at, 80.0, 9.7))
+    work = Path("/play/uploads")
+    work.mkdir(parents=True, exist_ok=True)
+    stem = f"{own.properties.name.lower().replace(' ', '-')}-nav-log"
+    source = work / f"{stem}.rep"
+    source.write_text("\n".join(lines) + "\n")
+    taken, item_id, n = set(_cat().item_ids()), stem, 2
+    while item_id in taken:
+        item_id, n = f"{stem}-{n}", n + 1
+    title = f"{own.properties.name} navigation log"
+    report = import_rep(_cat(), source, item_id=item_id, title=title, agent=YOU, modes="otg")
+    return json.dumps({"item": report.item_id, "title": title, "fixes": report.fixes})
+
+
+def revise(item: str) -> str:
+    """An item the open plot drew from is revised, as if by a colleague on another
+    computer: its first track's positions corrected 0.1 nmi east, as one recorded step in
+    that item (CAP-12). Any recorded change to an item is a revision."""
+    drawn = [
+        r
+        for r in (_cat().read_item(item).properties.debrief_drawn_from or [])
+        if r.catalogue == _cat().id
+    ]
+    if not drawn:
+        return json.dumps(
+            {"error": "This plot has taken no data from another item yet: take some first."}
+        )
+    source = drawn[-1].item
+    tracks = [f for f in _cat().read_plot(source).features if f.properties.kind == "track"]
+    if not tracks:
+        return json.dumps({"error": "That item has no track to correct."})
+    move = {"distance": {"value": 0.1, "unit": "[nmi_i]"}, "bearing": {"value": 90, "unit": "deg"}}
+    _cat().edit_track(source, tracks[0].id, {"action": "move", **move}, COLLEAGUE)
+    title = _cat().read_item(source).properties.title or source
+    return json.dumps({"item": source, "title": title})

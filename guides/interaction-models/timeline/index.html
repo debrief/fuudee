@@ -16,7 +16,7 @@
         <link rel="prev" href="../tote/">
       
       
-        <link rel="next" href="../keyboard-equivalents/">
+        <link rel="next" href="../collation/">
       
       
         
@@ -897,6 +897,8 @@
       
         
       
+        
+      
     
     
     
@@ -1488,6 +1490,34 @@
   
   
     <li class="md-nav__item">
+      <a href="../collation/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Collation
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
       <a href="../keyboard-equivalents/" class="md-nav__link">
         
   
@@ -1771,8 +1801,8 @@
 
 
 <h1 id="timeline-and-narrative">Timeline and narrative<a class="headerlink" href="#timeline-and-narrative" title="Permanent link">&para;</a></h1>
-<p>How an analyst reads a plot's narrative along with a replay: narrative entries from every platform, with time-only notes and periods and the comments on fixes, in one time-ordered list, the Timeline; how it follows current time without fighting the reader; how entries are chosen, filtered, searched, highlighted, added, changed and deleted; and how narrative is held and imported, from REP files, legacy plots, and Word and PDF documents.</p>
-<p>The product owner decided on 15 Oct 2026 that narrative is read in the Timeline, not a view of its own: one list on one Zulu time axis, which data coverage joins later (CAP-05, CAP-08).</p>
+<p>How an analyst reads a plot's narrative along with a replay: narrative entries from every platform, with time-only notes and periods, the comments on fixes and each track's data coverage, in one time-ordered list, the Timeline; how it follows current time without fighting the reader; how entries are chosen, filtered, searched, highlighted, added, changed and deleted; and how narrative is held and imported, from REP files, legacy plots, and Word and PDF documents.</p>
+<p>The product owner decided on 15 Oct 2026 that narrative is read in the Timeline, not a view of its own: one list on one Zulu time axis, which data coverage joined with collation on 16 Oct 2026 (CAP-05, CAP-08; see <a href="../collation/">Collation</a>).</p>
 <h2 id="requirements-cited">Requirements cited<a class="headerlink" href="#requirements-cited" title="Permanent link">&para;</a></h2>
 <table>
 <thead>
@@ -1893,6 +1923,7 @@
 <li>The time in the editor's monospaced font, written by the formatting service in the analyst's settings; a day's date heads its first entry.</li>
 <li>The source, with its track's colour where it belongs to one; the type quieter; the text wrapping, with its line breaks.</li>
 <li>A note shows its name as its source and <em>Note</em> as its type, a period <em>Period</em> and <em>Until …</em> before its text, a fix comment its track and <em>Fix</em>. One hidden on the map says so.</li>
+<li><strong>Data coverage</strong> (CAP-05, CAP-08; decision, product owner, 16 Oct 2026): each period a track has data for, from its first fix to its last and broken at gaps as collation breaks them, cut where the catalogue item supplying it changes. Its source is that item (the plot's own title for the data it was imported with), its type <em>Data</em>, its text the track and how many fixes, <em>Until …</em> before them: <em>Until 12:00:00Z. BLUE ONE: 241 fixes</em>. In the track's colour; hidden on the map, it says so. Choosing it moves current time to its start. Worked out in TypeScript from the plot alone, as Python works out coverage, held to the same vectors (<code>schemas/vectors/collation.json</code>).</li>
 <li>Entries outside the time window are drawn fainter: still read, still chosen.</li>
 <li>Where the list is narrow (VS Code's sidebar, the playground's side column, a phone), time, source and type are one line and the text goes under them, aligned with the source, so the time is a gutter down the left. The page never scrolls sideways.</li>
 <li><strong>Following current time.</strong> The entry current time is at (the last at or before it, among those listed) is marked by a bar in the theme's highlight and a quiet ground. As current time moves, while playing or stepping or from a tool, the list keeps that entry in sight: it scrolls only when the entry leaves the middle of the view (its top tenth to three quarters down), and then puts it a third of the way down, so what comes next is seen below it. It never moves the keyboard, and never animates, so a reader is not pulled about.</li>
@@ -1900,7 +1931,7 @@
 <p>The reader always wins. Scrolling the list (wheel, touch, scrollbar) or moving through it with the keyboard stops it following. <strong>Follow time</strong> then appears in the bar, with an arrow towards where current time is (↑ or ↓); it starts following again and brings the entry into sight. Choosing an entry also starts following again, since current time moves to it, and so does pressing <strong>Play</strong> (product owner, 15 Oct 2026): playing is asking to read along. Scrolling away while it plays stops it following again, as at any other time; pausing leaves it as it is.</p>
 <p>Following starts afresh, at current time, when another plot is opened; the same plot shown again after a change (an entry added, an undo) keeps the reader's place. The host says which plot it is (<code>plot_id</code> on <code>show_timeline</code>).
 12. <strong>Choosing an entry</strong> (click, tap, <code>Enter</code> or <code>Space</code>) moves current time to it, or to the start of a period. Outside the window shown, the window widens or moves to take it in, shown but never saved, exactly as for a tool's time, with <strong>Keep</strong> and <strong>Revert</strong> on the time controller (CAP-28). Where several entries share a second, the one chosen is the one marked, not the last of them.
-13. <strong>Filter and search.</strong> <strong>Filter</strong> opens checkboxes, with counts, for each kind (<em>Narrative</em>, <em>Notes and periods</em>, <em>Fix comments</em>), source and type; unticked ones are left out, and <strong>Filter (2)</strong> says how many are. <strong>Show all</strong> puts them back. The search box finds text in an entry's text, source or type, ignoring case, and marks it; <code>Escape</code> clears it. Under the list, <em>12 entries of 120</em> while anything is left out. The filter and the search are the reader's own (product owner, 15 Oct 2026), kept in the page (VS Code's webview state; the browser's storage in the playground, every read and write guarded), never in the plot: two analysts reading one narrative want different filters, and neither changes what the plot says. Following and current time work among the entries listed. Agents filter for themselves (<code>debrief/narrative</code>); <code>debrief.timelineEntries</code> answers for the whole plot, so its <code>current</code> is the entry current time is at among all of them, which is the row the reader sees marked unless their filter leaves it out.
+13. <strong>Filter and search.</strong> <strong>Filter</strong> opens checkboxes, with counts, for each kind (<em>Narrative</em>, <em>Notes and periods</em>, <em>Fix comments</em>, <em>Data coverage</em>), source and type; unticked ones are left out, and <strong>Filter (2)</strong> says how many are. <strong>Show all</strong> puts them back. The search box finds text in an entry's text, source or type, ignoring case, and marks it; <code>Escape</code> clears it. Under the list, <em>12 entries of 120</em> while anything is left out. The filter and the search are the reader's own (product owner, 15 Oct 2026), kept in the page (VS Code's webview state; the browser's storage in the playground, every read and write guarded), never in the plot: two analysts reading one narrative want different filters, and neither changes what the plot says. Following and current time work among the entries listed. Agents filter for themselves (<code>debrief/narrative</code>); <code>debrief.timelineEntries</code> answers for the whole plot, so its <code>current</code> is the entry current time is at among all of them, which is the row the reader sees marked unless their filter leaves it out.
 14. <strong>Adding, changing and deleting an entry.</strong> <strong>+</strong> (or <code>N</code> with the list focused; <strong>Add narrative entry…</strong> in VS Code) opens a short form above the list: <em>Time</em> (starting at current time, in any of the analyst's notations: <code>09:30Z</code>, <code>15 Jun 2023 09:30:00Z</code>, <code>150930Z JUN 23</code>), <em>Source</em> and <em>Type</em> (each suggesting those the plot has), <em>Track</em> (following the source's name until chosen) and <em>Entry</em>. <strong>Edit</strong> and <strong>Delete</strong> appear on the row being worked with (the one chosen, or the keyboard's), so the list stays quiet; <code>F2</code> or double-click changes, <code>Delete</code> deletes. Each is one step, named in the History view (<em>Narrative entry by BLUE ONE at 08:40:00Z added</em>, <em>…: text changed</em>, <em>… moved to 08:41:00Z</em>, <em>… deleted</em>), undone like any other: <strong>Undo</strong> in the History view, or <code>Ctrl+Z</code> (<code>Cmd+Z</code> on macOS) from the Timeline itself, as from the map, the Outline or the History view, except in the search box and the form's text boxes, where it undoes the typing (product owner, 15 Oct 2026). <code>Ctrl+Shift+Z</code> or <code>Ctrl+Y</code> redoes. Deleting from the keyboard keeps its place, on the entry after the one deleted. A form that cannot be saved says why and stays open; a change made elsewhere meanwhile is never overwritten (SUB-28).
 15. <strong>On the map.</strong> The entry current time is at, where it belongs to a track, is shown beside that track's square: its source in bold and the start of its text, in a small box in the theme's colours, never in the way of the pointer, to the left where the right is short of room. It goes when ten minutes of plot time pass with no later entry for a track, so an entry long past does not linger. The map is never sent the narrative itself: a plot may hold sixty thousand entries.</p>
 <p><strong>Narrative on the map</strong>, a box under the list, turns it off and on (product owner, 15 Oct 2026). It is the plot's choice, not the reader's: kept in the plot's island (<code>PlotView.narrative_on_map</code>, left out meaning on), like the Tote's <em>Lines on the map</em>, so it travels with the plot file; never a step, never undone (SUB-22). A colleague's change meanwhile is never overwritten (SUB-28).

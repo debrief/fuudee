@@ -39,7 +39,134 @@
     "start_datetime": "2023-06-15T17:00:00.000Z",
     "end_datetime": "2023-06-15T23:00:00.000Z",
     "title": "Serial 3",
-    "debrief:schema_version": "0.0.20",
+    "debrief:schema_version": "0.0.21",
+    "created": "2026-10-11T00:00:00.000Z",
+    "debrief:revision": "sha256:1a30c5d6c2d7c27e280d04e286c02db32eba226721b20684874ebe10b342e24d",
+    "debrief:coverage": [
+      {
+        "track": "track-blue-one",
+        "name": "BLUE ONE",
+        "fixes": 361,
+        "spans": [
+          {
+            "start": "2023-06-15T17:00:00.000Z",
+            "end": "2023-06-15T23:00:00.000Z"
+          }
+        ]
+      },
+      {
+        "track": "track-red-one",
+        "name": "RED ONE",
+        "fixes": 361,
+        "spans": [
+          {
+            "start": "2023-06-15T17:00:00.000Z",
+            "end": "2023-06-15T23:00:00.000Z"
+          }
+        ]
+      },
+      {
+        "track": "track-ais-cargo-01",
+        "name": "Cargo 01",
+        "fixes": 309,
+        "spans": [
+          {
+            "start": "2023-06-15T17:01:11.000Z",
+            "end": "2023-06-15T22:59:11.000Z"
+          }
+        ]
+      },
+      {
+        "track": "track-ais-cargo-02",
+        "name": "Cargo 02",
+        "fixes": 132,
+        "spans": [
+          {
+            "start": "2023-06-15T17:01:15.000Z",
+            "end": "2023-06-15T19:33:44.000Z"
+          }
+        ]
+      },
+      {
+        "track": "track-ais-cargo-03",
+        "name": "Cargo 03",
+        "fixes": 120,
+        "spans": [
+          {
+            "start": "2023-06-15T17:01:11.000Z",
+            "end": "2023-06-15T22:58:10.000Z"
+          }
+        ]
+      },
+      {
+        "track": "track-ais-cargo-05",
+        "name": "Cargo 05",
+        "fixes": 148,
+        "spans": [
+          {
+            "start": "2023-06-15T17:01:04.000Z",
+            "end": "2023-06-15T22:59:44.000Z"
+          }
+        ]
+      },
+      {
+        "track": "track-ais-towing-01",
+        "name": "Towing 01",
+        "fixes": 39,
+        "spans": [
+          {
+            "start": "2023-06-15T17:01:19.000Z",
+            "end": "2023-06-15T17:45:39.000Z"
+          }
+        ]
+      },
+      {
+        "track": "track-ais-pleasure-craft-02",
+        "name": "Pleasure craft 02",
+        "fixes": 107,
+        "spans": [
+          {
+            "start": "2023-06-15T17:35:31.000Z",
+            "end": "2023-06-15T20:09:02.000Z"
+          }
+        ]
+      },
+      {
+        "track": "track-ais-sailing-02",
+        "name": "Sailing 02",
+        "fixes": 122,
+        "spans": [
+          {
+            "start": "2023-06-15T18:19:10.000Z",
+            "end": "2023-06-15T21:12:11.000Z"
+          }
+        ]
+      },
+      {
+        "track": "track-ais-cargo-08",
+        "name": "Cargo 08",
+        "fixes": 150,
+        "spans": [
+          {
+            "start": "2023-06-15T18:34:40.000Z",
+            "end": "2023-06-15T21:26:31.000Z"
+          }
+        ]
+      },
+      {
+        "track": "track-ais-pleasure-craft-03",
+        "name": "Pleasure craft 03",
+        "fixes": 163,
+        "spans": [
+          {
+            "start": "2023-06-15T19:15:47.000Z",
+            "end": "2023-06-15T22:58:47.000Z"
+          }
+        ]
+      }
+    ],
+    "debrief:imported": false,
+    "debrief:origin": "sha256:99b2a269145ea0f25b218c00e2697fba501cd448a1d4021de9c06e1a58a30998",
     "datetime": null
   },
   "links": [
