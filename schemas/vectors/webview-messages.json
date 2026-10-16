@@ -147,6 +147,28 @@
       "timeline_entry?"
     ],
     "undo_asked": [],
-    "redo_asked": []
+    "redo_asked": [],
+    "show_coverage": [
+      "coverage?",
+      "time?",
+      "message?"
+    ],
+    "source_chosen": [
+      "feature_id",
+      "time_range",
+      "source"
+    ],
+    "link_changed": [
+      "feature_id",
+      "source",
+      "linked"
+    ],
+    "take_asked": [
+      "item_revision"
+    ],
+    "dismiss_asked": [
+      "item_revision"
+    ],
+    "review_cleared": []
   }
 }

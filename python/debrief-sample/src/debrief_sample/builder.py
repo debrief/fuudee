@@ -174,7 +174,7 @@ def _build_serial(
     work: Path,
 ) -> dict[str, int]:
     item = serial.item_id
-    catalogue.create_plot(item, serial.title)
+    catalogue.create_plot(item, serial.title, created=RECORDED_AT)
     agent = _agent()
     features: list = []
     provenance: list[models.ProvRecord] = []

@@ -1,7 +1,8 @@
 /**
  * The Timeline (CAP-05, CAP-20): one list in time order of a plot's narrative entries,
- * its time-only annotations (notes and periods of interest) and the comments on tracks'
- * fixes (EXT-14). Choosing one moves current time to it. Narrative from every source is
+ * its time-only annotations (notes and periods of interest), the comments on tracks'
+ * fixes (EXT-14), and each track's data coverage: the periods it has data for, by the
+ * catalogue item supplying each (CAP-08; decision, product owner, 16 Oct 2026). Choosing one moves current time to it. Narrative from every source is
  * on one Zulu time axis (decision, product owner, 15 Oct 2026: the Timeline is where the
  * narrative is read; there is no separate narrative view).
  *
@@ -16,6 +17,8 @@
  */
 import type { DebriefFeatureCollection, TimelineEntry, ToteTrack } from "@debrief/schemas";
 import { isFeature, isHidden, viewOf } from "./hidden.js";
+import { count } from "./format.js";
+import { coveragePieces, plotTitleOf } from "../webview/coveragelogic.js";
 
 /** The id of the Timeline's entry for a comment on a track's fix. */
 export const fixCommentId = (trackId: string, time: string) => `fix:${trackId}:${time}`;
@@ -24,6 +27,7 @@ export const fixCommentId = (trackId: string, time: string) => `fix:${trackId}:$
 export const NOTE_TYPE = "Note";
 export const PERIOD_TYPE = "Period";
 export const FIX_TYPE = "Fix";
+export const DATA_TYPE = "Data";
 
 /** The Timeline's order of two entries, as Python's narrative.order_key. */
 export function compareEntries(a: { ms: number; source: string; index: number }, b: { ms: number; source: string; index: number }): number {
@@ -38,8 +42,12 @@ export function compareEntries(a: { ms: number; source: string; index: number },
 /** Text without spaces at either end, or undefined if there is none. */
 const said = (text: string | null | undefined) => text?.trim() || undefined;
 
+/** The id of the Timeline's entry for a period a track has data for. */
+export const coverageId = (trackId: string, start: string) => `coverage:${trackId}:${start}`;
+
 /** Every entry of the plot's Timeline, in its order. */
 export function timelineEntries(plot: DebriefFeatureCollection): TimelineEntry[] {
+  const plotTitle = plotTitleOf(plot);
   const colours = new Map<string, string>();
   const hiddenTracks = new Set<string>();
   for (const f of plot.features) {
@@ -64,6 +72,23 @@ export function timelineEntries(plot: DebriefFeatureCollection): TimelineEntry[]
         ...(colour && { colour }),
       });
     } else if (props.kind === "track") {
+      // The periods the track has data for, by the item supplying each (CAP-05, CAP-08).
+      const colour = colours.get(feature.id);
+      for (const piece of coveragePieces(props.times, props.supplies)) {
+        const start = new Date(piece.start).toISOString();
+        add({
+          id: coverageId(feature.id, start),
+          kind: "coverage",
+          start,
+          ...(piece.end !== piece.start && { end: new Date(piece.end).toISOString() }),
+          source: piece.source ?? plotTitle,
+          entry_type: DATA_TYPE,
+          text: `${props.name}: ${count(piece.fixes, "fix", "fixes")}`,
+          track: feature.id,
+          ...(colour && { colour }),
+          ...(hiddenTracks.has(feature.id) && { hidden: true }),
+        });
+      }
       // A comment on a fix is read with the narrative, at its fix's time.
       for (const mark of props.fix_marks ?? []) {
         const text = said(mark.comment);

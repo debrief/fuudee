@@ -25,6 +25,8 @@ export function needs(tool: ToolDeclaration): string {
 
 /** The importer that reads a file's narrative into an open plot (debrief_io.narrative). */
 export const NARRATIVE_IMPORTER = "debrief-io.narrative";
+/** Collation's steps: new data taken, a source chosen for a period, a platform linked (debrief_stac.collation). */
+export const COLLATION_TOOL = "debrief-stac.collation";
 
 /** The longest note a step is named by: long enough for "RED ONE (DR) leg into 09:43:00Z now 056.5°T 12.1 kn" with a track name of up to 19 characters. */
 export const STEP_NAME_LENGTH = 64;
@@ -37,12 +39,19 @@ export function describeStep(
   // An edit made without a tool is named by its note, when it has a short one; so is
   // a plot file added to a catalogue, with its history ("Added from the plot file ...").
   // A narrative read into a plot is named by its note too: "Narrative read from red-log.rep".
-  const named = !step.tool || step.tool === NARRATIVE_IMPORTER;
-  const note = (step.kind === "edit" || step.kind === "import") && named ? step.notes?.[0] : undefined;
+  // So is a collation step: "New data from Nav log", "BLUE ONE 09:00:00Z to 09:30:00Z from Nav log".
+  const collation = step.tool === COLLATION_TOOL;
+  const named = !step.tool || step.tool === NARRATIVE_IMPORTER || collation;
+  // Collation's steps are a tool's (kind "tool"), told apart from a file's import.
+  const note = (step.kind === "edit" || step.kind === "import" || collation) && named ? step.notes?.[0] : undefined;
   const label =
     note && note.length <= STEP_NAME_LENGTH
       ? note
-      : step.kind === "import"
+      : collation
+        ? step.notes?.[0]?.startsWith("New data from")
+          ? "New data taken"
+          : "Source or platform chosen"
+        : step.kind === "import"
         ? step.tool
           ? "Imported"
           : "Added from a plot file"

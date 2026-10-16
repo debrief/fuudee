@@ -258,11 +258,68 @@ classes:
           Not drawn on the map. Still listed, and still selectable, in the
           outline. Content: hiding is a recorded, undoable change (SUB-22).
         range: boolean
+      supplies:
+        description: >-
+          Which catalogue item supplies each period of the track (CAP-09):
+          where two items have data for the platform over the same period,
+          the analyst chooses which supplies it, and the track is stitched
+          from the chosen periods. In time order, not overlapping, each from
+          its first fix to its last. Left out, the plot itself supplies the
+          whole track, as imported. Content: each change is a recorded,
+          undoable step (SUB-22), naming the items and periods.
+        range: TrackSupply
+        multivalued: true
+        inlined_as_list: true
+      platform_links:
+        description: >-
+          Tracks in other catalogue items the analyst confirmed, or linked by
+          hand, as this track's platform (CAP-09; decision, product owner,
+          16 Oct 2026). Tracks whose names match this one's, ignoring case
+          and spaces, are proposed until confirmed or refused. Each change is
+          a recorded, undoable step.
+        range: SourceTrackRef
+        multivalued: true
+        inlined_as_list: true
+      platform_unlinks:
+        description: >-
+          Tracks in other catalogue items whose names match this one's but
+          which the analyst said are another platform: no longer proposed.
+        range: SourceTrackRef
+        multivalued: true
+        inlined_as_list: true
       provenance:
         description: Feature-level provenance where needed (SUB-18).
         range: ProvRecord
         multivalued: true
         inlined_as_list: true
+  SourceTrackRef:
+    description: >-
+      A track in a catalogue item, as collation names it (CAP-08, CAP-09):
+      the item by its catalogue's own id and its item id, the track by its
+      feature id there, and its name when last read, to show if the item has
+      gone.
+    attributes:
+      catalogue: {required: true, description: "The id in the item's catalog.json."}
+      item: {required: true}
+      track: {required: true, description: "The track's feature id in that item."}
+      name: {required: true}
+  TrackSupply:
+    description: >-
+      One period of a track and the catalogue item that supplies it (CAP-09):
+      the fixes from start to end, ends included, are that item's track's
+      (the plot's own, where it names the plot itself).
+    attributes:
+      catalogue: {required: true, description: "The id in the item's catalog.json."}
+      item: {required: true}
+      track: {required: true, description: "The supplying track's feature id in that item."}
+      title: {required: true, description: "The item's title when the period was taken from it."}
+      revision:
+        description: >-
+          The item's revision when the period was taken from it; left out
+          where the plot supplies it itself.
+        range: ContentHash
+      start: {range: UtcTimestamp, required: true}
+      end: {range: UtcTimestamp, required: true}
   TrackStyle:
     description: >-
       How a track is drawn. Data colours do not change with the theme
@@ -741,6 +798,43 @@ classes:
           the Tote's lines: never a step in the history (decision, product
           owner, 15 Oct 2026).
         range: boolean
+      collation:
+        description: >-
+          What the analyst has said of catalogue items while collating
+          (CAP-10, CAP-12): new data set aside for now, and revisions
+          reviewed. View state: never a step in the history.
+        range: CollationView
+        inlined: true
+  CollationView:
+    description: >-
+      The analyst's answers to collation's marks, each for one revision of
+      an item, so a later revision is marked again.
+    attributes:
+      dismissed:
+        description: >-
+          Items marked as new data for this plot that the analyst set aside
+          (Not now), at the revision then (CAP-10).
+        range: ItemRevision
+        multivalued: true
+        inlined_as_list: true
+      reviewed:
+        description: >-
+          Revised items this plot drew from that the analyst reviewed it
+          against, clearing its review flag, at the revision reviewed (CAP-12).
+        range: ItemRevision
+        multivalued: true
+        inlined_as_list: true
+  ItemRevision:
+    description: >-
+      One revision of a catalogue item; for an answer the analyst gave
+      (Not now, Reviewed), who gave it and when, a light audit trail kept
+      in the island (decision, product owner, 16 Oct 2026).
+    attributes:
+      catalogue: {required: true}
+      item: {required: true}
+      revision: {range: ContentHash, required: true}
+      by: {description: "Who gave the answer: the agent's name."}
+      at: {range: UtcTimestamp, description: "When the answer was given."}
 
   # --- Named sets and the collection ---------------------------------------
   NamedSet:

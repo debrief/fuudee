@@ -114,7 +114,7 @@ export interface TimelineMemory {
   save(value: unknown): void;
 }
 
-const KIND_WORDS: Record<EntryKind, string> = { narrative: "Narrative", annotation: "Notes and periods", fix_comment: "Fix comments" };
+const KIND_WORDS: Record<EntryKind, string> = { narrative: "Narrative", annotation: "Notes and periods", fix_comment: "Fix comments", coverage: "Data coverage" };
 const COLUMN_WORDS: Record<Column, string> = { time: "Time", source: "Source", type: "Type" };
 const NARROW_PX = 420;
 const ROW_PAD_PX = 6;

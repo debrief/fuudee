@@ -60,14 +60,15 @@ describe("marked fixes", () => {
   it("show their comments in the Timeline, at their fix's time, with the narrative", () => {
     const plot = {
       type: "FeatureCollection",
-      schema_version: "0.0.20",
+      schema_version: "0.0.21",
       provenance: [],
       features: [
         { type: "Feature", id: "note", geometry: null, properties: { kind: "annotation", style: "note", name: "Contact", time: T(1) } },
         { type: "Feature", id: "track-blue", geometry: { type: "LineString", coordinates: track.geometry.coordinates }, properties: { kind: "track", ...track.properties } },
       ],
     } as unknown as DebriefFeatureCollection;
-    const entries = timelineEntries(plot);
+    // The track's data coverage is listed too (CAP-05); here, the comments and the note.
+    const entries = timelineEntries(plot).filter((e) => e.kind !== "coverage");
     // At one time, by source: BLUE ONE's comment before the note named Contact.
     expect(entries.map((e) => e.id)).toEqual([`fix:track-blue:${T(1)}`, "note", `fix:track-blue:${T(2)}`]);
     expect(entries[0]).toMatchObject({ kind: "fix_comment", source: "BLUE ONE", entry_type: "Fix", text: "Wheel over\nsecond line", start: T(1), track: "track-blue" });

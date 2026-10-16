@@ -17,7 +17,8 @@
  * folded in this browser; a demo that chooses its panels starts with them all open, and
  * folding there is not remembered, so a post's demo always shows what the post describes.
  */
-import type { AnnotationSpec, DebriefFeatureCollection, NarrativeSpec, ParameterValue, PlotView, SharedStateChange, StacItem, TimeRange, TimeState, ToolDeclaration, ToolResult, ToteResult, ToteView } from "@debrief/schemas";
+import type { AnnotationSpec, CoverageReport, DebriefFeatureCollection, ItemRevision, NarrativeSpec, ParameterValue, PlotView, ReviewFlag, SharedStateChange, SourceTrackRef, StacItem, TimeRange, TimeState, ToolDeclaration, ToolResult, ToteResult, ToteView } from "@debrief/schemas";
+import { CoverageControl } from "../webview/coveragecontrol.js";
 import { specOfFeature } from "../webview/annotationlook.js";
 import { NarrativeOnMap, narrativeOnMapOf, timelineEntries, timelineTracks } from "../src/timeline.js";
 import { TimelineControl } from "../webview/timelinecontrol.js";
@@ -64,7 +65,7 @@ interface Opened {
 }
 
 const params = new URLSearchParams(location.search);
-const panelOrder = (params.get("panels") ?? "tote,timeline,tools,history,try,import").split(",");
+const panelOrder = (params.get("panels") ?? "tote,timeline,catalogue,coverage,tools,history,try,import").split(",");
 const panels = new Set(panelOrder);
 const startPlot = params.get("plot") ?? "serial-1";
 /** Every side panel folds by its heading; remembered in this browser, except in a demo that chooses its panels. */
@@ -125,6 +126,7 @@ const timeControl = new TimeControl($("timebar"), {
     time = moved;
     refreshTote(); // asked at once: the Tote keeps pace by never queueing (NFR-04)
     timelineControl.setTime(time); // the Timeline follows; it draws at most once a frame
+    coverageControl.setTime(Date.parse(moved.current)); // a line across Coverage's bars
     narrativeToMap();
     if (timePending) return; // tell the map at most once a frame, however fast a slider moves
     timePending = true;
@@ -153,6 +155,7 @@ function showTime(next: TimeState | undefined): void {
   time = next;
   timeControl.show(time, opened && periodOf(opened.item), { saved: savedWindow, context: contextOf(), minimumContrast: false });
   timelineControl.setTime(time);
+  coverageControl.setTime(time ? Date.parse(time.current) : undefined);
   narrativeToMap();
   refreshTote();
 }
@@ -340,6 +343,7 @@ async function openPlot(item: string, keep = false): Promise<void> {
   renderTimeline();
   renderHistory();
   showTote();
+  void refreshCollation();
   await refreshOffered();
   if (opened.recovered.length) toast(opened.recovered.join(" "), "warning");
 }
@@ -1717,14 +1721,157 @@ function ask(question: string, choices: string[]): Promise<string | undefined> {
   });
 }
 
+// --- Collation (CAP-08 to CAP-12): the catalogue's items, and the open plot's coverage ---
+// As VS Code's Catalogues tree and Coverage view: each item in the folder tree the plot
+// draws from with its tracks and their periods of data, new data marked with a sparkle and
+// the words "New data" (never colour alone), plots that drew from an item since revised
+// flagged "May need review"; and Coverage, the same component as VS Code's, to choose which
+// item supplies each period. Each step goes through Python as the tool service's do.
+type CollationStep =
+  | { kind: "take"; source: { catalogue: string; item: string; revision?: string } }
+  | { kind: "prefer"; feature: string; period: TimeRange; source: SourceTrackRef }
+  | { kind: "link"; feature: string; source: SourceTrackRef; linked: boolean }
+  | { kind: "dismiss"; source: ItemRevision }
+  | { kind: "reviewed"; item?: string };
+let coverage: CoverageReport | undefined;
+let reviewFlags: ReviewFlag[] = [];
+/** Review flags already said, so each revision is said once (CAP-12). */
+const flagsSaid = new Set<string>();
+const coverageControl = new CoverageControl($("coverage"), {
+  choose: (track, period, source) => void collateStep({ kind: "prefer", feature: track, period, source }),
+  link: (track, source, linked) => void collateStep({ kind: "link", feature: track, source, linked }),
+  take: (item) => void collateStep({ kind: "take", source: item }),
+  dismiss: (item) => void collateStep({ kind: "dismiss", source: item }),
+  reviewed: () => void collateStep({ kind: "reviewed" }),
+});
+/** How long each ask for coverage took, from asking Python to its answer, for the performance check (NFR-01). */
+const coverageTimes: number[] = [];
+(window as unknown as { debriefCoverage: () => unknown }).debriefCoverage = () => ({ coverage, flags: reviewFlags, times: coverageTimes.slice(-20) });
+
+/** Ask Python what collation says of the open plot and the catalogue; show it, and say a new revision once. */
+async function refreshCollation(): Promise<void> {
+  if (!opened) return;
+  const asked = opened.item.id;
+  const started = performance.now();
+  const answer = await pythonJson<{ coverage?: CoverageReport; flags?: ReviewFlag[]; error?: string }>("coverage", asked);
+  coverageTimes.push(performance.now() - started);
+  if (opened?.item.id !== asked) return; // another plot was opened meanwhile
+  if (answer.error) return coverageControl.say(answer.error);
+  coverage = answer.coverage;
+  reviewFlags = answer.flags ?? [];
+  coverageControl.show(coverage);
+  coverageControl.setTime(time ? Date.parse(time.current) : undefined);
+  renderItems();
+  const fresh = reviewFlags.filter((f) => !flagsSaid.has(`${f.item}:${f.revised.map((r) => r.revision).join()}`));
+  for (const f of fresh) flagsSaid.add(`${f.item}:${f.revised.map((r) => r.revision).join()}`);
+  for (const f of fresh) toast(`${f.note}. Reviewed, under Catalogue or Coverage, clears the flag.`, "warning");
+}
+
+/** The catalogue's items, as Catalogues lists them: marks, tracks and what can be done to each. */
+function renderItems(): void {
+  const items = coverage?.items ?? [];
+  $("items").replaceChildren(
+    ...items.map((item) => {
+      const li = document.createElement("li");
+      const flag = reviewFlags.find((f) => f.catalogue === item.catalogue && f.item === item.item);
+      const open = item.role === "this_plot";
+      li.className = `item${open ? " item-open" : ""}`;
+      const words = [open ? "open" : "", item.new_data ? "New data" : "", flag ? "May need review" : "", item.role === "drawn_from" ? (item.revised ? "drawn from, revised since" : "drawn from") : ""].filter(Boolean);
+      const notes = [item.new_data?.note, flag ? `${flag.note}.` : "", item.revised ? "Revised since this plot took data from it." : ""].filter(Boolean);
+      li.setAttribute("aria-label", [item.title, ...words, ...notes].join(", "));
+      const name = document.createElement("div");
+      name.className = "item-name";
+      // A mark is a symbol and words, its reason the tooltip: never colour alone.
+      const symbol = flag ? "⚑" : item.new_data ? "✦" : "";
+      name.innerHTML = `${symbol ? `<span class="item-mark${flag ? " item-flag" : ""}" aria-hidden="true">${symbol}</span> ` : ""}<span class="item-title"></span>`;
+      name.querySelector(".item-title")!.textContent = item.title;
+      if (notes.length) name.title = notes.join(" ");
+      const detail = document.createElement("div");
+      detail.className = "detail";
+      detail.textContent = [...words, describePeriod(item.start ?? undefined, item.end ?? undefined)].filter(Boolean).join(" · ");
+      const actions = document.createElement("div");
+      actions.className = "item-actions";
+      const button = (text: string, title: string, act: () => void) => {
+        const b = document.createElement("button");
+        b.textContent = text;
+        b.title = title;
+        b.onclick = act;
+        actions.append(b);
+      };
+      if (!open) {
+        button("Open", `Open ${item.title}`, () => void openPlot(item.item));
+        button(item.new_data ? "Take" : "Take data", `Take its data into ${opened?.item.properties.title ?? "this plot"}, as one step: Undo takes it back`, () =>
+          void collateStep({ kind: "take", source: { catalogue: item.catalogue, item: item.item, ...(item.revision && { revision: item.revision }) } }),
+        );
+      }
+      if (item.new_data) button("Not now", "Set it aside: the mark clears until it is revised", () => void collateStep({ kind: "dismiss", source: { catalogue: item.catalogue, item: item.item, revision: item.new_data!.revision } }));
+      if (flag) button("Reviewed", "You have reviewed this plot against the revised items: clear its flag until one is revised again", () => void collateStep({ kind: "reviewed", item: item.item }));
+      li.append(name, detail);
+      if (item.tracks?.length) {
+        const tracks = document.createElement("details");
+        const summary = document.createElement("summary");
+        summary.textContent = count(item.tracks.length, "track");
+        const list = document.createElement("ul");
+        list.className = "item-tracks";
+        list.replaceChildren(
+          ...item.tracks.map((t) => {
+            const row = document.createElement("li");
+            const spans = t.spans.map((s) => describeTimes(s.start, s.end)).join("; ");
+            row.textContent = `${t.name}: ${spans} · ${count(t.fixes, "fix", "fixes")}`;
+            return row;
+          }),
+        );
+        tracks.append(summary, list);
+        li.append(tracks);
+      }
+      if (actions.childElementCount) li.append(actions);
+      return li;
+    }),
+  );
+  // Plots elsewhere in the catalogue that may need review, though not in this plot's folder tree.
+  for (const flag of reviewFlags.filter((f) => !items.some((i) => i.item === f.item))) {
+    const li = document.createElement("li");
+    li.className = "item";
+    li.innerHTML = `<div class="item-name"><span class="item-mark item-flag" aria-hidden="true">⚑</span> <span class="item-title"></span></div><div class="detail"></div>`;
+    li.querySelector(".item-title")!.textContent = flag.title;
+    li.querySelector(".detail")!.textContent = `May need review · ${flag.note}`;
+    $("items").append(li);
+  }
+}
+
+/** A collation step, one recorded step in the plot's history; or new data set aside or a flag cleared, in a plot's island. */
+async function collateStep(change: CollationStep): Promise<void> {
+  if (!opened || !pythonReady) return;
+  status("Collating…", true);
+  const outcome = await pythonJson<{ error?: string; changed?: boolean; notes?: string[]; message?: string }>("collate", opened.item.id, JSON.stringify({ base: opened.base, change }));
+  status("Ready. Everything runs in your browser; nothing is sent anywhere.");
+  if (outcome.error) {
+    toast(outcome.error, "warning");
+    coverageControl.say(outcome.error);
+    return;
+  }
+  if (!outcome.changed) {
+    if (outcome.message) {
+      // Nothing taken, but the plot's island may say it is reviewed now: show collation again.
+      await refreshCollation();
+      toast(outcome.message);
+    }
+    coverageControl.say(outcome.message ?? "Nothing to change: it is so already.");
+    return;
+  }
+  // The plot, its island or another plot's island changed: show the latest, and with it collation.
+  await openPlot(opened.item.id, true);
+  if (outcome.notes?.length) toast(`${outcome.notes[0]}. Undo takes it back.`);
+}
+
 // --- Wiring -----------------------------------------------------------------------
-const OPTIONAL = ["tote", "timeline", "tools", "history", "try", "import"];
+const OPTIONAL = ["tote", "timeline", "catalogue", "coverage", "tools", "history", "try", "import"];
 for (const panel of OPTIONAL) $(`panel-${panel}`).hidden = !panels.has(panel);
 // The panels in the order the demo lists them, after the plot and its outline; the Tote stays
 // under the time controller, since both follow current time.
 for (const panel of panelOrder) if (OPTIONAL.includes(panel) && panel !== "tote") $("side").append($(`panel-${panel}`));
 /** History, Try and Import need Python: off until it is ready. */
-const NEEDS_PYTHON = ["undo", "redo", "track-frequencies", "move-track", "rotate-track", "shear-track", "stretch-track", "split-track", "merge-tracks", "find-jumps", "smooth-track", "fix-list", "plotting-mode", "ask-again", "glitches", "crash", "colleague", "colleague-window", "colleague-during", "file", "narrative-file", "colour", "hide", "show", "add-annotation", "edit-annotation", "delete-annotation", "north-arrow"];
+const NEEDS_PYTHON = ["new-data", "revise", "undo", "redo", "track-frequencies", "move-track", "rotate-track", "shear-track", "stretch-track", "split-track", "merge-tracks", "find-jumps", "smooth-track", "fix-list", "plotting-mode", "ask-again", "glitches", "crash", "colleague", "colleague-window", "colleague-during", "file", "narrative-file", "colour", "hide", "show", "add-annotation", "edit-annotation", "delete-annotation", "north-arrow"];
 function needsPython(on: boolean): void {
   for (const id of NEEDS_PYTHON) $<HTMLButtonElement | HTMLInputElement>(id).disabled = !on;
 }
@@ -1763,6 +1910,28 @@ $("colleague-window").onclick = async () => {
   // As the extension does when the plot file changes: show the latest, and say so.
   await openPlot(opened.item.id, true);
   toast(`The time window of ${opened.item.properties.title} was changed elsewhere. Debrief is showing the latest.`);
+};
+// New data arrives through Debrief's import (CAP-10): a navigation log for the open plot's
+// first track, written here and imported into the catalogue, so Catalogue and Coverage mark it.
+$("new-data").onclick = async () => {
+  if (!opened) return;
+  status("Importing a navigation log…", true);
+  const made = await pythonJson<{ item?: string; title?: string; fixes?: number; error?: string }>("new_data", opened.item.id);
+  status("Ready. Everything runs in your browser; nothing is sent anywhere.");
+  if (made.error) return toast(made.error, "warning");
+  await refreshPlots();
+  await refreshCollation();
+  folds.setOpen("panel-catalogue", true);
+  folds.setOpen("panel-coverage", true);
+  toast(`${made.title} was imported into the catalogue: ${count(made.fixes ?? 0, "fix", "fixes")}. It has data for this plot, so it is marked New data.`);
+};
+// An item the plot drew from is revised (CAP-12): a colleague corrects it, as one step in that item.
+$("revise").onclick = async () => {
+  if (!opened) return;
+  const revised = await pythonJson<{ item?: string; title?: string; error?: string }>("revise", opened.item.id);
+  if (revised.error) return toast(revised.error, "warning");
+  await refreshCollation();
+  folds.setOpen("panel-catalogue", true);
 };
 $("colleague-during").onclick = (e) => {
   colleagueDuringNextRun = true;

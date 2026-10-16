@@ -14,6 +14,7 @@ imports:
   - state
   - tools
   - measures
+  - collation
 
 description: >-
   Every message the VS Code extension host and its webviews (map, time
@@ -29,6 +30,7 @@ enums:
       narrative: {description: "A narrative entry."}
       annotation: {description: "A time-only annotation: a note or a period of interest."}
       fix_comment: {description: "A comment on one of a track's fixes."}
+      coverage: {description: "A period a track has data for, from one source: the plot itself or the catalogue item supplying it (CAP-05, CAP-08)."}
   WebviewMessageKindEnum:
     permissible_values:
       ready: {description: "Webview to host: loaded and listening."}
@@ -72,6 +74,12 @@ enums:
       undo_asked: {description: "Timeline to host: the analyst pressed Undo (Ctrl+Z; Cmd+Z on macOS) with focus in the Timeline but not in a text box: undo the plot's last step, as the map, Outline and History do (decision, product owner, 15 Oct 2026)."}
       redo_asked: {description: "Timeline to host: the analyst pressed Redo (Ctrl+Shift+Z or Ctrl+Y; Cmd+Shift+Z on macOS) with focus in the Timeline but not in a text box: redo the step last undone."}
       fix_chosen: {description: "Map to host: the analyst asked to colour, label or comment on a fix (feature_id, fix_time), by right-clicking it or pressing Enter on a fix chosen with the keyboard."}
+      show_coverage: {description: "Host to Coverage: the open plot's coverage (coverage) and current time (time); none when no plot is open; or, with message alone, why what the analyst asked for was not done, leaving what is shown."}
+      source_chosen: {description: "Coverage to host: the analyst chose which source supplies a period of a track (feature_id, time_range, source), as one recorded step (CAP-09)."}
+      link_changed: {description: "Coverage to host: the analyst confirmed or linked (linked true), or refused or unlinked (linked false), a track in another item as the platform of the plot's track (feature_id, source), as one recorded step."}
+      take_asked: {description: "Coverage to host: take the new data in this item into the plot (item_revision), as one recorded step (CAP-11)."}
+      dismiss_asked: {description: "Coverage to host: set this item's new data aside for now (item_revision): its mark clears until it is revised (CAP-10)."}
+      review_cleared: {description: "Coverage to host: the analyst reviewed the plot against the items revised since it drew from them; clear its review flag (CAP-12)."}
 
 classes:
   TimelineEntry:
@@ -92,7 +100,7 @@ classes:
         description: The end of its period; left out for a single time.
         range: UtcTimestamp
       source:
-        description: Who wrote a narrative entry; an annotation's name; the track a fix comment is on.
+        description: Who wrote a narrative entry; an annotation's name; the track a fix comment is on; the item supplying a period of data.
         required: true
       entry_type: {description: "A narrative entry's type, in its source's words."}
       text: {description: "Its text."}
@@ -131,8 +139,9 @@ classes:
       time_range:
         description: >-
           The plot's period, so times can be entered as the analyst reads them
-          (show_form) and the time window set within it (show_time); or the
-          time window to save (window_changed).
+          (show_form) and the time window set within it (show_time); the time
+          window to save (window_changed); or the period whose source the
+          analyst chose (source_chosen).
         range: TimeRange
         inlined: true
       current_time:
@@ -220,3 +229,18 @@ classes:
         range: ToteTrack
         multivalued: true
         inlined_as_list: true
+      coverage:
+        description: The open plot's coverage (show_coverage).
+        range: CoverageReport
+        inlined: true
+      source:
+        description: A track in a catalogue item (source_chosen, link_changed).
+        range: SourceTrackRef
+        inlined: true
+      linked:
+        description: Whether the source is the track's platform (link_changed).
+        range: boolean
+      item_revision:
+        description: The item, at the revision the analyst saw (take_asked, dismiss_asked).
+        range: ItemRevision
+        inlined: true

@@ -8,12 +8,13 @@ Every type that crosses a process or language boundary is defined here in LinkML
 | --- | --- | --- |
 | `core.yaml` | Timestamps, schema version, content hash; quantities with units; time ranges; parameter values | SUB-01, SUB-02, SUB-11, SUB-12 |
 | `geojson.yaml` | Point, LineString and Polygon geometries | SUB-05, CON-04 |
-| `prov.yaml` | Provenance records, tools, agents, sources | SUB-18 to SUB-20, SUB-24 |
+| `prov.yaml` | Provenance records, tools, agents, sources, catalogue items drawn from | SUB-18 to SUB-20, SUB-24, CAP-12 |
 | `features.yaml` | Plot features (tracks, annotations with their shapes and appearance, sensor observations), payload envelopes, named sets, the plot itself; an annotation as a form describes it (`AnnotationSpec`) | SUB-05, CAP-03, CAP-04, CAP-22, CON-02, TL-11 |
-| `stac.yaml` | Catalogues, items, assets, links | SUB-06, SUB-15 to SUB-17, SUB-23, SUB-35 |
+| `stac.yaml` | Catalogues, items, assets, links; an item's arrival, revision, coverage and what it drew from | SUB-06, SUB-15 to SUB-17, SUB-23, SUB-35, CAP-08 to CAP-12 |
 | `state.yaml` | Current time, selection and viewport | SUB-26, SUB-27, TL-10 |
 | `tools.yaml` | Tool declarations, parameter declarations, tool results | TL-04 to TL-13, CAP-24 |
 | `formatting.yaml` | The analyst's display formatting settings | SUB-04 |
+| `collation.yaml` | What the catalogue browser shows while collating: a plot's coverage, platforms and their sources, periods, items marked as new data, review flags | CAP-05, CAP-08 to CAP-12 |
 | `history.yaml` | A plot's history, kept in its plot file (`PlotHistory`, `HistoryStep`), and the earlier history-folder layout (`Delta`, `HistoryHead`) | SUB-19 to SUB-21, NFR-10, NFR-11 |
 | `debrief.yaml` | Root: imports the modules and holds the schema version | SUB-12 |
 

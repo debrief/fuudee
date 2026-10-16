@@ -240,8 +240,9 @@ export async function playNarrative(page, shot) {
   // following stops; Enter moves current time; F2 changes; Delete deletes; N adds.
   await scroller.focus();
   const label = await timeLabel(page);
-  await page.keyboard.press("ArrowDown");
-  await page.keyboard.press("ArrowDown");
+  // Two rows down, and on past any at current time's own second (a track's data coverage starts with it).
+  const activeTime = () => timeline(".tl-row.tl-active .tl-time").innerText();
+  for (let i = 0; i < 2 || (await activeTime()) === label; i++) await page.keyboard.press("ArrowDown");
   assert.equal(await timeLabel(page), label, "moving through the list leaves current time alone");
   assert.equal((await state(page)).following, false);
   const active = await scroller.getAttribute("aria-activedescendant");

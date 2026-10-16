@@ -1,0 +1,129 @@
+{
+  "type": "FeatureCollection",
+  "schema_version": "0.0.21",
+  "features": [
+    {
+      "type": "Feature",
+      "id": "track-blue-one",
+      "geometry": {
+        "type": "LineString",
+        "coordinates": [
+          [
+            -75.2,
+            37.1
+          ],
+          [
+            -75.21,
+            37.11
+          ],
+          [
+            -75.22,
+            37.12
+          ],
+          [
+            -75.23,
+            37.13
+          ]
+        ]
+      },
+      "properties": {
+        "kind": "track",
+        "name": "BLUE ONE",
+        "times": [
+          "2023-06-15T08:00:00.000Z",
+          "2023-06-15T08:01:00.000Z",
+          "2023-06-15T08:02:00.000Z",
+          "2023-06-15T08:03:00.000Z"
+        ],
+        "supplies": [
+          {
+            "catalogue": "debrief-sample",
+            "item": "serial-1",
+            "track": "track-blue-one",
+            "title": "Serial 1",
+            "start": "2023-06-15T08:00:00.000Z",
+            "end": "2023-06-15T08:01:00.000Z"
+          },
+          {
+            "catalogue": "debrief-sample",
+            "item": "blue-one-nav-log",
+            "track": "track-blue-one",
+            "title": "BLUE ONE navigation log",
+            "revision": "sha256:1111111111111111111111111111111111111111111111111111111111111111",
+            "start": "2023-06-15T08:02:00.000Z",
+            "end": "2023-06-15T08:03:00.000Z"
+          }
+        ],
+        "platform_links": [
+          {
+            "catalogue": "debrief-sample",
+            "item": "blue-one-nav-log",
+            "track": "track-blue-one",
+            "name": "Blue One"
+          }
+        ],
+        "platform_unlinks": [
+          {
+            "catalogue": "debrief-sample",
+            "item": "serial-2",
+            "track": "track-blue-one",
+            "name": "BLUE ONE"
+          }
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "plot",
+      "geometry": null,
+      "properties": {
+        "kind": "plot",
+        "title": "Serial 1",
+        "view": {
+          "collation": {
+            "dismissed": [
+              {
+                "catalogue": "debrief-sample",
+                "item": "serial-3",
+                "revision": "sha256:2222222222222222222222222222222222222222222222222222222222222222",
+                "by": "analyst",
+                "at": "2026-10-16T10:30:00.000Z"
+              }
+            ],
+            "reviewed": [
+              {
+                "catalogue": "debrief-sample",
+                "item": "blue-one-nav-log",
+                "revision": "sha256:1111111111111111111111111111111111111111111111111111111111111111",
+                "by": "analyst",
+                "at": "2026-10-16T11:00:00.000Z"
+              }
+            ]
+          }
+        }
+      }
+    }
+  ],
+  "provenance": [
+    {
+      "id": "take-1",
+      "kind": "import",
+      "started_at": "2026-10-16T09:00:00.000Z",
+      "agent": {
+        "kind": "person",
+        "name": "analyst"
+      },
+      "drawn_from": [
+        {
+          "catalogue": "debrief-sample",
+          "item": "blue-one-nav-log",
+          "title": "BLUE ONE navigation log",
+          "revision": "sha256:1111111111111111111111111111111111111111111111111111111111111111"
+        }
+      ],
+      "notes": [
+        "New data taken from BLUE ONE navigation log: BLUE ONE 2 fixes"
+      ]
+    }
+  ]
+}

@@ -1,0 +1,8 @@
+{
+  "kind": "take_asked",
+  "item_revision": {
+    "catalogue": "debrief-sample",
+    "item": "blue-one-nav-log",
+    "revision": "sha256:1111111111111111111111111111111111111111111111111111111111111111"
+  }
+}

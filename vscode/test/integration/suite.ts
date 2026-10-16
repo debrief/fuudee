@@ -6,7 +6,7 @@
  */
 import assert from "node:assert/strict";
 import { execFileSync } from "node:child_process";
-import { copyFileSync, mkdtempSync, readdirSync, readFileSync } from "node:fs";
+import { copyFileSync, mkdtempSync, readdirSync, readFileSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import * as vscode from "vscode";
@@ -853,6 +853,9 @@ export async function run(): Promise<void> {
   assert.deepEqual(frequencies("track-blue-one"), [undefined, undefined, undefined]);
   assert.deepEqual(frequencies("track-red-one"), [undefined, undefined, undefined]);
 
+  // --- Collation (CAP-08 to CAP-12): new data arrives through import, is marked, taken, its periods chosen; revisions flagged ---
+  await playCollation(api, current.store, steps);
+
   // A legacy plot file: its circles, ellipses and styling come in as annotations.
   const dpf = path.resolve(__dirname, "../../python/debrief-io/tests/data/shapes.dpf");
   execFileSync(process.env.DEBRIEF_PYTHON!, [
@@ -949,5 +952,97 @@ async function playTheTote(api: DebriefApi, island: () => { tote?: unknown }, pe
   assert.match((await vscode.commands.executeCommand<string>("debrief.tote.add", ["no-such-track"])) ?? "", /Select the tracks/);
   assert.deepEqual(api.session.current!.base, base, "still no step");
 
+  await vscode.commands.executeCommand("notifications.clearAll");
+}
+
+
+/** A REP position: degrees, minutes and seconds with a hemisphere, as legacy Debrief writes them. */
+function dms(value: number, positive: string, negative: string, width: number): string {
+  const hundredths = Math.round(Math.abs(value) * 360_000);
+  const degrees = Math.floor(hundredths / 360_000);
+  const minutes = Math.floor((hundredths % 360_000) / 6_000);
+  const seconds = ((hundredths % 6_000) / 100).toFixed(2).padStart(5, "0");
+  return `${String(degrees).padStart(width, "0")} ${String(minutes).padStart(2, "0")} ${seconds} ${value >= 0 ? positive : negative}`;
+}
+
+/**
+ * Collation (CAP-08 to CAP-12) in VS Code, through the real tool service: a navigation log for
+ * BLUE ONE, written here (fiction, like the sample) and imported, is marked as new data for
+ * serial 1 in Catalogues and Coverage; taken as one step; a period's source chosen; a proposal
+ * refused; then the log revised by a colleague, the analyst told once and the plot flagged
+ * until reviewed. Every step is undone at the end, so what follows starts as before.
+ */
+async function playCollation(api: DebriefApi, store: { id: string; location: string }, steps: () => Thenable<{ notes?: string[]; status: string }[]>): Promise<void> {
+  const before = (await steps()).length;
+  const plot = api.session.current!.plot;
+  const blue = plot.features.find((f) => f.id === "track-blue-one") as unknown as { geometry: { coordinates: number[][] }; properties: { times: string[] } };
+  // BLUE ONE's own log under its name in other letters: its fixes from 09:20 to 10:20, 0.001° north
+  // of the plot's, then on for 20 minutes after the plot's last fix.
+  const at = (i: number) => ({ time: Date.parse(blue.properties.times[i]), position: blue.geometry.coordinates[i] });
+  const fixes = blue.properties.times.map((_, i) => at(i)).filter((f) => f.time >= Date.parse("2023-06-15T09:20:00.000Z") && f.time <= Date.parse("2023-06-15T10:20:00.000Z"));
+  const last = at(blue.properties.times.length - 1);
+  for (let i = 1; i <= 20; i++) fixes.push({ time: last.time + i * 60_000, position: [last.position[0] - i * 0.002, last.position[1] + i * 0.001] });
+  const lines = fixes.map(({ time, position }) => {
+    const t = new Date(time).toISOString();
+    const stamp = `${t.slice(2, 4)}${t.slice(5, 7)}${t.slice(8, 10)} ${t.slice(11, 13)}${t.slice(14, 16)}${t.slice(17, 19)}.000`;
+    return `${stamp} "Blue One" @A ${dms(position[1] + 0.001, "N", "S", 2)} ${dms(position[0], "E", "W", 3)} 295.0 10.0 0`;
+  });
+  const folder = mkdtempSync(path.join(tmpdir(), "debrief-nav-"));
+  const log = path.join(folder, "blue-one-nav-log.rep");
+  writeFileSync(log, [";; A navigation log, made up for this test: not a record of any real platform.", ...lines].join("\n") + "\n");
+  const imported = await vscode.commands.executeCommand<{ item?: string }>("debrief.importRep", undefined, { store: store.id, path: log, modes: "otg" });
+  assert.equal(imported.item, "blue-one-nav-log");
+  // Marked as new data for serial 1, in Catalogues and Coverage: a sparkle and the words, its reason in the tooltip.
+  const marked = await waitFor("the new data to be marked", () => api.catalogueMarks().coverage?.items.find((i) => i.item === "blue-one-nav-log" && i.new_data));
+  assert.equal(marked.new_data!.note, "New data for Serial 1: BLUE ONE, within its period");
+  await vscode.commands.executeCommand("debrief.showCoverage");
+  await waitFor("the Coverage view", () => (api.coverageShowing() && api.coverage()?.items.some((i) => i.new_data)) || undefined);
+  await vscode.commands.executeCommand("debrief.catalogues.focus");
+  await sleep(1500);
+  await screenshot("37-new-data-marked");
+  // Taken, as Coverage's Take asks: one step, named for the item; the mark clears.
+  api.coverageMessage({ kind: "take_asked", item_revision: { catalogue: marked.catalogue, item: marked.item, revision: marked.revision } });
+  await waitFor("the new data taken", async () => (await steps()).at(-1)?.notes?.[0] === "New data from blue-one-nav-log" || undefined);
+  await waitFor("the mark to clear", () => api.coverage()?.items.find((i) => i.item === "blue-one-nav-log" && i.role === "drawn_from" && !i.new_data));
+  // The Timeline lists the log's period of data (CAP-05).
+  const timelined = await vscode.commands.executeCommand<{ entries: string[] }>("debrief.timelineEntries");
+  assert.ok(timelined.entries.includes("coverage:track-blue-one:2023-06-15T12:01:00.000Z"), "the log's period after the plot's, in the Timeline");
+  // The period both have, the log chosen for it, as Coverage's list asks.
+  const platform = api.coverage()!.platforms.find((p) => p.track === "track-blue-one")!;
+  const both = platform.periods.find((p) => p.sources.length > 1)!;
+  const source = platform.sources.find((s) => s.item === "blue-one-nav-log")!;
+  api.coverageMessage({ kind: "source_chosen", feature_id: "track-blue-one", time_range: { start: both.start, end: both.end }, source: { catalogue: source.catalogue, item: source.item, track: source.track, name: source.name } });
+  await waitFor("the period's source chosen", async () => /^BLUE ONE \d\d:\d\d:\d\dZ to \d\d:\d\d:\d\dZ from blue-one-nav-log$/.test((await steps()).at(-1)?.notes?.[0] ?? "") || undefined);
+  // Serial 2's BLUE ONE is another platform: refused, by the command agents and the tree's menu use.
+  const serial2 = platform.sources.find((s) => s.item === "serial-2")!;
+  assert.equal(await vscode.commands.executeCommand("debrief.collate", { kind: "link", feature: "track-blue-one", source: { catalogue: serial2.catalogue, item: serial2.item, track: serial2.track, name: serial2.name }, linked: false }), undefined);
+  assert.equal((await steps()).at(-1)?.notes?.[0], "BLUE ONE in Serial 2 is not BLUE ONE");
+  await vscode.commands.executeCommand("debrief.coverage.focus");
+  await sleep(1500);
+  await screenshot("38-coverage-view");
+  // A colleague revises the log: Debrief says so once, and flags serial 1 until reviewed (CAP-12).
+  execFileSync(process.env.DEBRIEF_PYTHON || "python3", [
+    "-c",
+    "import sys; from pathlib import Path; from debrief_schemas import models; from debrief_stac import Catalogue; " +
+      "c = Catalogue.open(Path(sys.argv[1])); " +
+      "c.edit_track('blue-one-nav-log', 'track-blue-one', {'action': 'move', 'distance': {'value': 0.1, 'unit': '[nmi_i]'}, 'bearing': {'value': 90, 'unit': 'deg'}}, models.AgentRef(kind='person', name='a colleague'))",
+    store.location,
+  ]);
+  await vscode.commands.executeCommand("debrief.refresh");
+  const flagged = await waitFor("the plot flagged for review", () => api.catalogueMarks().flags.find((f) => f.item === "serial-1"));
+  assert.equal(flagged.note, "May need review: blue-one-nav-log was revised since Serial 1 took data from it");
+  await vscode.commands.executeCommand("debrief.catalogues.focus");
+  await sleep(1500);
+  await screenshot("39-review-flag", true);
+  assert.equal(await vscode.commands.executeCommand("debrief.clearReviewFlag"), undefined);
+  await waitFor("the flag to clear", () => !api.catalogueMarks().flags.length || undefined);
+  // Not now with nothing chosen says why it did nothing, rather than nothing at all.
+  assert.match(String(await vscode.commands.executeCommand("debrief.dismissNewData")), /^Choose an item marked New data in Catalogues/);
+  // The three steps undone, so the tests after start as before.
+  assert.equal((await steps()).length, before + 3);
+  for (let i = 0; i < 3; i++) assert.equal(await vscode.commands.executeCommand("debrief.undo"), undefined);
+  const restored = api.session.current!.plot.features.find((f) => f.id === "track-blue-one") as unknown as { properties: { supplies?: unknown; platform_unlinks?: unknown } };
+  assert.equal(restored.properties.supplies, undefined);
+  assert.equal(restored.properties.platform_unlinks, undefined);
   await vscode.commands.executeCommand("notifications.clearAll");
 }

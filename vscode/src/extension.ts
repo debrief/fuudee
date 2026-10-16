@@ -6,7 +6,7 @@
  */
 import { userInfo } from "node:os";
 import * as vscode from "vscode";
-import type { AnnotationSpec, ContextTracksEnum, NarrativeSpec, TimelineEntry, ParameterValue, PlotView, SharedState, SharedStateChange, TimeRange, ToolDeclaration, ToteResult, ToteView as ToteChoice, TrackEdit } from "@debrief/schemas";
+import type { AnnotationSpec, ContextTracksEnum, CoverageReport, NarrativeSpec, ReviewFlag, SourceTrackRef, TimelineEntry, ParameterValue, PlotView, SharedState, SharedStateChange, TimeRange, ToolDeclaration, ToteResult, ToteView as ToteChoice, TrackEdit } from "@debrief/schemas";
 import { formatBearing, formatPosition, formatQuantity, parsePosition, POSITION_EXAMPLE, UNIT_LABELS } from "@debrief/kernel";
 import { defaultPivotIndex, describeDistance, describeSpeed, describeTurn, FIX_PROMPT, FIX_PROMPT_DR, fixIndexAt, fixMeans, fixToEdit, jumpSpeed, legNow, mergedName, mergePlan, periodIndices, readBearing, readDistance, readSpeed, readTurn, reckoningOf, type Anchor } from "../webview/trackedit.js";
 import { chooseModes, MODE_LABELS, modeChoices, modeQuestion, REMEMBERED_IN_VSCODE, rememberItem, type ModeChoice, type PlottingMode } from "./importmode.js";
@@ -24,9 +24,10 @@ import { ResultsPanel } from "./panels/results.js";
 import { TIME_VIEW, TimeView } from "./panels/timeview.js";
 import { TOTE_VIEW, ToteView } from "./panels/toteview.js";
 import { TIMELINE_VIEW, TimelineView } from "./panels/timelineview.js";
+import { COVERAGE_VIEW, CoverageView, type CoverageAsk } from "./panels/coverageview.js";
 import { startup, type StartupSnapshot } from "./startup.js";
 import { withMapLines, withPrimary, withSecondaries, withoutSecondary } from "../webview/totelogic.js";
-import { CONFLICT, NEEDS_CONFIRMATION, NEWER_SCHEMA, ServiceError, ToolService, type Agent, type AnnotationChange, type CallOutcome, type NarrativeChange, type OpenedView, type ToolListing, type TrackChange } from "./service.js";
+import { CONFLICT, NEEDS_CONFIRMATION, NEWER_SCHEMA, ServiceError, ToolService, type Agent, type AnnotationChange, type CallOutcome, type CollationChange, type NarrativeChange, type OpenedView, type ToolListing, type TrackChange } from "./service.js";
 import type { CleanChange } from "./service.js";
 import { ALL_PROBLEM, AT_EVERY_FIX, changesOf, choiceFromValue, choicesFor, describeInterval, FIELD_NAMES, FIELDS, formState, readInterval, type Field, type FieldState } from "../webview/frequencies.js";
 import { describeJump, describeMark, describeWindow, fixRows, isDeadReckoned, jumpsFound, markAt, readThreshold, readWindow, smoothingNote, trackLabel } from "../webview/fixes.js";
@@ -36,7 +37,7 @@ import { hiddenIds, hiddenNotice, isFeature, setViewOf, timeWindowOf, viewOf, ty
 import { specOfFeature } from "../webview/annotationlook.js";
 import { FIX_COLOURS, TRACK_COLOURS } from "../webview/palette.js";
 import { Session, timeProblem } from "./session.js";
-import { CataloguesProvider } from "./views/catalogues.js";
+import { CataloguesProvider, type CollationMarks } from "./views/catalogues.js";
 import { featureIdsOf, OutlineProvider } from "./views/outline.js";
 import { ToolsProvider } from "./views/tools.js";
 
@@ -79,6 +80,14 @@ export interface DebriefApi {
   timelineShowing: () => boolean;
   /** A message to the extension as the Timeline's page sends it (Ctrl+Z there posts undo_asked), for tests. */
   timelineMessage: (message: unknown) => void;
+  /** Whether the Coverage view has loaded, for tests and agents. */
+  coverageShowing: () => boolean;
+  /** The open plot's coverage last shown (CAP-08 to CAP-12), for tests and agents. */
+  coverage: () => CoverageReport | undefined;
+  /** A message to the extension as the Coverage page sends it, for tests. */
+  coverageMessage: (message: unknown) => void;
+  /** What the Catalogues tree marks: new data and review flags (CAP-10, CAP-12), for tests and agents. */
+  catalogueMarks: () => CollationMarks;
   /** The narrative entry the map shows beside its track at current time, for tests and agents (CAP-20). */
   mapNarrative: () => TimelineEntry | undefined;
   /** The Tote's values last shown, and how long answers took to show (CAP-06, NFR-04), for tests and agents. */
@@ -166,7 +175,10 @@ export function activate(context: vscode.ExtensionContext): DebriefApi {
       if (how === "undo" ? history.canUndo() : history.canRedo()) void vscode.commands.executeCommand(`debrief.${how}`);
     },
   );
+  // Coverage, below Catalogues: collation with coverage visible (CAP-08 to CAP-12).
+  const coverageView = new CoverageView(context.extensionUri, session, (ask) => collate(ask), log);
   context.subscriptions.push(
+    vscode.window.registerWebviewViewProvider(COVERAGE_VIEW, coverageView),
     vscode.window.registerWebviewViewProvider(TIMELINE_VIEW, timeline, { webviewOptions: { retainContextWhenHidden: true } }),
     vscode.window.registerWebviewViewProvider(TIME_VIEW, timeView, { webviewOptions: { retainContextWhenHidden: true } }),
     vscode.window.registerWebviewViewProvider(TOTE_VIEW, toteView, { webviewOptions: { retainContextWhenHidden: true } }),
@@ -222,6 +234,7 @@ export function activate(context: vscode.ExtensionContext): DebriefApi {
         await refreshTools();
         // A plot opened before the service started: open it again, finishing any interrupted change.
         if (session.current) await serially(() => reloadPlot(true));
+        else void refreshCollation(); // the catalogues' review flags (CAP-12)
       } catch (error) {
         log(`service_start_failed message=${hashed((error as Error).message)}`);
         tools.update(undefined, [], (error as Error).message);
@@ -723,6 +736,104 @@ export function activate(context: vscode.ExtensionContext): DebriefApi {
         }
         showView(opened, answer, true);
         return undefined;
+      }),
+    );
+
+  // --- Collation (CAP-08 to CAP-12): coverage, sources, new data, review flags --------
+  let collationAsked = 0;
+  /** Review flags the analyst has been told of this session, so each is said once. */
+  const flagsSaid = new Set<string>();
+  /**
+   * Ask the tool service what collation says of the open plot and the catalogues: its
+   * coverage, the items with new data for it, and every plot that may need review. The
+   * Catalogues tree and the Coverage view show it; a newly revised item is said once.
+   */
+  async function refreshCollation(): Promise<void> {
+    const asked = ++collationAsked;
+    const opened = session.current;
+    if (!service) {
+      catalogues.setMarks({ flags: [] });
+      coverageView.show(undefined);
+      return;
+    }
+    let coverage: CoverageReport | undefined;
+    let flags: (ReviewFlag & { store?: string })[] = [];
+    try {
+      [coverage, flags] = await Promise.all([
+        opened ? service.coverage(opened.store.id, opened.item.id).then((r) => r.coverage) : Promise.resolve(undefined),
+        service.reviewFlags().then((r) => r.flags),
+      ]);
+    } catch (error) {
+      log(`coverage_failed code=${(error as ServiceError).code ?? "-"}`);
+    }
+    if (asked !== collationAsked) return; // a later refresh has the newer answer
+    catalogues.setMarks({ open: opened && { store: opened.store.id, item: opened.item.id }, coverage, flags });
+    coverageView.show(coverage);
+    void vscode.commands.executeCommand("setContext", "debrief.reviewFlags", flags.length > 0);
+    // The analyst is told when an item is revised (CAP-12): once a revision, in plain words.
+    const fresh = flags.filter((f) => !flagsSaid.has(`${f.catalogue}/${f.item}:${f.revised.map((r) => r.revision).join()}`));
+    for (const f of fresh) flagsSaid.add(`${f.catalogue}/${f.item}:${f.revised.map((r) => r.revision).join()}`);
+    if (fresh.length) {
+      const said = fresh.length === 1 ? `${fresh[0].note}.` : `${count(fresh.length, "plot")} may need review: items they took data from were revised (${fresh.map((f) => f.title).join(", ")}).`;
+      void vscode.window.showInformationMessage(said, "Show in Catalogues").then((choice) => {
+        if (choice) void vscode.commands.executeCommand("debrief.catalogues.focus");
+      });
+    }
+  }
+  session.onPlot(() => void refreshCollation());
+  catalogues.onDidRefresh(() => void refreshCollation());
+
+  /**
+   * What the analyst asked in Coverage or the Catalogues tree: a collation step (one step in
+   * the plot's history, the plot shown again after), or a change to the island (new data
+   * set aside, a review flag cleared). A problem to say, if it was not done.
+   */
+  const collate = (ask: CoverageAsk, target?: { store: string; item: string }): Promise<string | undefined> =>
+    serially(() =>
+      ourChange(async () => {
+        const opened = session.current;
+        const where = target ?? (opened && { store: opened.store.id, item: opened.item.id });
+        if (!where) return "Open a plot first.";
+        if (!service) return "Collation needs Debrief's tool service. Run 'Debrief: Restart tool service'.";
+        const onOpen = !!opened && opened.store.id === where.store && opened.item.id === where.item;
+        try {
+          if (ask.kind === "dismiss" || ask.kind === "reviewed") {
+            const answer = await service.collationView(where.store, where.item, agent, ask.kind === "dismiss" ? { kind: "dismiss", source: ask.source } : { kind: "reviewed" });
+            if (onOpen && opened) showView(opened, answer, true);
+            await refreshCollation();
+            return undefined;
+          }
+          if (!opened || !onOpen || !opened.base) return "Open the plot first.";
+          const change: CollationChange =
+            ask.kind === "take"
+              ? { kind: "take", source: ask.source }
+              : ask.kind === "prefer"
+                ? { kind: "prefer", feature: ask.feature, period: ask.period, source: ask.source }
+                : { kind: "link", feature: ask.feature, source: ask.source, linked: ask.linked };
+          const run = (allow = false) => service!.collate(where.store, where.item, opened.base!, agent, change, allow);
+          let done;
+          try {
+            done = await run();
+          } catch (error) {
+            if ((error as ServiceError).code !== NEWER_SCHEMA) throw error;
+            if (!(await confirmNewerSchema((error as Error).message))) return "Nothing was changed.";
+            done = await run(true);
+          }
+          if (!done.changed) {
+            await refreshCollation();
+            return done.message ?? "Nothing to change: it is so already.";
+          }
+          const problem = await reloadPlot(true);
+          await refreshHistory();
+          return problem;
+        } catch (error) {
+          if ((error as ServiceError).code === CONFLICT) {
+            await reloadPlot(true);
+            return "The plot was changed elsewhere, so nothing was changed. Debrief is showing the latest; try again if you still want to.";
+          }
+          await refreshCollation();
+          return (error as Error).message;
+        }
       }),
     );
 
@@ -1972,6 +2083,98 @@ export function activate(context: vscode.ExtensionContext): DebriefApi {
   });
   command("debrief.restartTools", () => startService());
 
+  // --- Collation from the Catalogues tree and the Command Palette (CAP-08 to CAP-12) -----
+  type PlotNode = { kind: "plot"; view: { store: { id: string }; id?: string }; plot: { id: string; title: string } };
+  type TrackNode = { kind: "track"; view: { store: { id: string }; id?: string }; plot: { id: string; title: string }; track: { track: string; name: string } };
+  const say = (problem: string | undefined, done: string) =>
+    problem ? void vscode.window.showWarningMessage(problem) : void vscode.window.showInformationMessage(done);
+  /** The item a tree node names, at the revision collation last saw. */
+  const itemOf = (node: PlotNode) => {
+    const listed = coverageView.report?.items.find((i) => i.catalogue === node.view.id && i.item === node.plot.id);
+    return { catalogue: node.view.id ?? "", item: node.plot.id, ...(listed?.revision && { revision: listed.revision }) };
+  };
+  // Take an item's data into the open plot, as one step (CAP-11). Given {catalogue, item}, for agents and tests.
+  command("debrief.takeNewData", async (node?: PlotNode, given?: { catalogue: string; item: string; revision?: string }) => {
+    const opened = session.current;
+    if (!opened) return say("Open the plot to take data into first.", "");
+    let source = given ?? (node?.kind === "plot" ? itemOf(node) : undefined);
+    if (!source) {
+      const fresh = coverageView.report?.items.filter((i) => i.role !== "this_plot") ?? [];
+      const picked = await vscode.window.showQuickPick(
+        fresh.map((i) => ({ label: i.title, description: i.new_data ? "New data" : i.role === "drawn_from" ? "drawn from" : "", detail: i.new_data?.note, i })),
+        { placeHolder: `Take data from which item into ${opened.item.properties.title ?? opened.item.id}?` },
+      );
+      if (!picked) return undefined;
+      source = { catalogue: picked.i.catalogue, item: picked.i.item, ...(picked.i.revision && { revision: picked.i.revision }) };
+    }
+    const title = coverageView.report?.items.find((i) => i.catalogue === source.catalogue && i.item === source.item)?.title ?? source.item;
+    const problem = await collate({ kind: "take", source });
+    say(problem, `Took the new data in ${title} into ${opened.item.properties.title ?? opened.item.id}, as one step. Undo takes it back.`);
+    return problem;
+  });
+  command("debrief.dismissNewData", async (node?: PlotNode) => {
+    // Said, not silently ignored: nothing chosen, or an item Coverage has not listed.
+    if (node?.kind !== "plot") {
+      const problem = "Choose an item marked New data in Catalogues to set aside, or use Not now in Coverage.";
+      say(problem, "");
+      return problem;
+    }
+    const source = itemOf(node);
+    if (!source.revision) {
+      const problem = session.current
+        ? `${node.plot.title} is not marked as new data for the open plot, so there is nothing to set aside.`
+        : "Open the plot the new data is for first.";
+      say(problem, "");
+      return problem;
+    }
+    const problem = await collate({ kind: "dismiss", source: { catalogue: source.catalogue, item: source.item, revision: source.revision } });
+    say(problem, `${node.plot.title} set aside. It is marked again if it is revised.`);
+    return problem;
+  });
+  // Clear a review flag (CAP-12): on the open plot, or the product the tree names.
+  command("debrief.clearReviewFlag", async (node?: PlotNode) => {
+    const target = node?.kind === "plot" ? { store: node.view.store.id, item: node.plot.id } : undefined;
+    const problem = await collate({ kind: "reviewed" }, target);
+    say(problem, `Review flag cleared${node?.kind === "plot" ? ` on ${node.plot.title}` : ""}. It is flagged again if an item it drew from is revised.`);
+    return problem;
+  });
+  /** The open plot's tracks a track in another item could be, its proposal first. */
+  const platformChoices = (node: TrackNode) => {
+    const opened = session.current;
+    const tracks = opened?.plot.features.filter((f) => f.properties.kind === "track") ?? [];
+    const match = (name: string) => name.split(/\s+/).filter(Boolean).join(" ").toLowerCase();
+    return tracks
+      .map((f) => ({ label: (f.properties as { name: string }).name, id: f.id }))
+      .sort((a, b) => Number(match(b.label) === match(node.track.name)) - Number(match(a.label) === match(node.track.name)));
+  };
+  const refOfNode = (node: TrackNode): SourceTrackRef => ({ catalogue: node.view.id ?? "", item: node.plot.id, track: node.track.track, name: node.track.name });
+  // Same platform as one of the open plot's tracks: confirm a proposal, or link one by hand.
+  command("debrief.linkTrack", async (node?: TrackNode, feature?: string) => {
+    if (node?.kind !== "track" || !session.current) return undefined;
+    let target = feature;
+    if (!target) {
+      const picked = await vscode.window.showQuickPick(platformChoices(node), { placeHolder: `${node.track.name} in ${node.plot.title} is the same platform as which track in the open plot?` });
+      target = picked?.id;
+    }
+    if (!target) return undefined;
+    const problem = await collate({ kind: "link", feature: target, source: refOfNode(node), linked: true });
+    say(problem, `${node.track.name} in ${node.plot.title} linked.`);
+    return problem;
+  });
+  command("debrief.unlinkTrack", async (node?: TrackNode) => {
+    if (node?.kind !== "track") return undefined;
+    const platform = coverageView.report?.platforms.find((p) =>
+      p.sources.some((s) => s.catalogue === node.view.id && s.item === node.plot.id && s.track === node.track.track),
+    );
+    if (!platform) return undefined;
+    const problem = await collate({ kind: "link", feature: platform.track, source: refOfNode(node), linked: false });
+    say(problem, `${node.track.name} in ${node.plot.title} is not ${platform.name}.`);
+    return problem;
+  });
+  command("debrief.showCoverage", () => vscode.commands.executeCommand(`${COVERAGE_VIEW}.focus`));
+  // For agents and tests: anything Coverage can ask, without the page.
+  command("debrief.collate", (ask: CoverageAsk) => collate(ask));
+
   const timeRangeOf = () => {
     const extent = session.current?.item.properties;
     const start = extent?.start_datetime ?? extent?.datetime ?? undefined;
@@ -2269,6 +2472,10 @@ export function activate(context: vscode.ExtensionContext): DebriefApi {
     timeControllerShowing: () => timeView.showing,
     toteShowing: () => toteView.showing,
     timelineShowing: () => timeline.showing,
+    coverageShowing: () => coverageView.showing,
+    coverage: () => coverageView.report,
+    coverageMessage: (message) => coverageView.receive(message),
+    catalogueMarks: () => catalogues.marks(),
     timelineMessage: (message) => timeline.receive(message),
     mapNarrative: () => map.narrative,
     tote: () => toteView.last,

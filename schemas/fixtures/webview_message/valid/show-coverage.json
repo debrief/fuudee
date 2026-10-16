@@ -1,0 +1,107 @@
+{
+  "kind": "show_coverage",
+  "coverage": {
+    "catalogue": "debrief-sample",
+    "item": "serial-1",
+    "title": "Serial 1",
+    "start": "2023-06-15T08:00:00.000Z",
+    "end": "2023-06-15T10:00:00.000Z",
+    "platforms": [
+      {
+        "track": "track-blue-one",
+        "name": "BLUE ONE",
+        "colour": "#2e6fd8",
+        "sources": [
+          {
+            "catalogue": "debrief-sample",
+            "item": "serial-1",
+            "track": "track-blue-one",
+            "name": "BLUE ONE",
+            "title": "Serial 1",
+            "link": "plot",
+            "fixes": 121,
+            "spans": [
+              {
+                "start": "2023-06-15T08:00:00.000Z",
+                "end": "2023-06-15T10:00:00.000Z"
+              }
+            ]
+          },
+          {
+            "catalogue": "debrief-sample",
+            "item": "blue-one-nav-log",
+            "track": "track-blue-one",
+            "name": "Blue One",
+            "title": "BLUE ONE navigation log",
+            "link": "proposed",
+            "fixes": 361,
+            "spans": [
+              {
+                "start": "2023-06-15T09:00:00.000Z",
+                "end": "2023-06-15T09:30:00.000Z"
+              }
+            ]
+          }
+        ],
+        "periods": [
+          {
+            "start": "2023-06-15T08:00:00.000Z",
+            "end": "2023-06-15T09:00:00.000Z",
+            "sources": [
+              0
+            ],
+            "chosen": 0
+          },
+          {
+            "start": "2023-06-15T09:00:00.000Z",
+            "end": "2023-06-15T09:30:00.000Z",
+            "sources": [
+              0,
+              1
+            ],
+            "chosen": 0
+          },
+          {
+            "start": "2023-06-15T09:30:00.000Z",
+            "end": "2023-06-15T10:00:00.000Z",
+            "sources": [
+              0
+            ],
+            "chosen": 0
+          }
+        ]
+      }
+    ],
+    "items": [
+      {
+        "catalogue": "debrief-sample",
+        "item": "serial-1",
+        "title": "Serial 1",
+        "role": "this_plot"
+      },
+      {
+        "catalogue": "debrief-sample",
+        "item": "blue-one-nav-log",
+        "title": "BLUE ONE navigation log",
+        "role": "other",
+        "created": "2026-10-16T09:00:00.000Z",
+        "revision": "sha256:1111111111111111111111111111111111111111111111111111111111111111",
+        "new_data": {
+          "revision": "sha256:1111111111111111111111111111111111111111111111111111111111111111",
+          "platforms": [
+            "BLUE ONE"
+          ],
+          "within_period": true,
+          "note": "New data for Serial 1: BLUE ONE, within its period"
+        }
+      }
+    ]
+  },
+  "time": {
+    "current": "2023-06-15T09:10:00.000Z",
+    "range": {
+      "start": "2023-06-15T08:00:00.000Z",
+      "end": "2023-06-15T10:00:00.000Z"
+    }
+  }
+}

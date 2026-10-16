@@ -31,7 +31,14 @@ and the plot's view, its island, kept in the plot file outside its history
 measures between a primary track and its secondaries at one time
 (debrief/tote), and the measure groups it can show (debrief/measure_groups),
 reading only (CAP-06, CAP-07). Which tracks the Tote compares is in the island,
-set with debrief/set_view like the time window (decision, 14 Oct 2026).
+set with debrief/set_view like the time window (decision, 14 Oct 2026). Collation
+(CAP-08 to CAP-12): a plot's coverage, its platforms and every catalogue item with data
+for each, the items marked as new data for it, and whether it may need review
+(debrief/coverage); taking an item's new data, choosing which item supplies a period of
+a track, and linking or unlinking a track in another item as a platform, each a step
+(debrief/take_new_data, debrief/set_source_preference, debrief/link_tracks); setting new
+data aside and clearing a review flag, in the plot's island (debrief/dismiss_new_data,
+debrief/clear_review_flag); and every plot that may need review (debrief/review_flags).
 
 Security (SEC-06 to SEC-08):
 - runs as the user who started it, so it can read only what they can;
@@ -102,6 +109,7 @@ from debrief_stac import (
     frequencies,
     narrative,
 )
+from debrief_stac.catalogue import review_flags
 from debrief_stac.fixes import describe_largest
 from debrief_stac.tote import measure_groups, tote
 from debrief_tools import diagnostics
@@ -156,7 +164,7 @@ NEWER_SCHEMA = -32002  # would write a newer schema into the catalogue: ask, the
 NEEDS_CONFIRMATION = -32003
 CONFIRM_HOW = "To go ahead, send the change again with discard_dr_changes: true."
 # Named groups, not slices of one list: a method added to one group cannot shift another.
-READING_METHODS = ("debrief/open", "debrief/history", "debrief/narrative")
+READING_METHODS = ("debrief/open", "debrief/history", "debrief/narrative", "debrief/coverage")
 STEP_METHODS = ("debrief/undo", "debrief/redo", "debrief/goto")
 PRESENTATION_METHODS = (
     "debrief/set_colour",
@@ -181,6 +189,14 @@ NARRATIVE_METHODS = (
 # Cleaning tracks: what would change is shown first (read), then changed as one step (write).
 CHECKING_METHODS = ("debrief/find_jumps", "debrief/preview_smoothing")
 CLEANING_METHODS = ("debrief/remove_jumps", "debrief/smooth_track", "debrief/mark_fix")
+# Collation (CAP-08 to CAP-12): a step each, naming the items and periods taken from.
+COLLATION_METHODS = (
+    "debrief/take_new_data",
+    "debrief/set_source_preference",
+    "debrief/link_tracks",
+)
+# What the analyst said of collation's marks: the plot's island, never a step.
+COLLATION_VIEW_METHODS = ("debrief/dismiss_new_data", "debrief/clear_review_flag")
 WRITING_METHODS = (
     STEP_METHODS
     + PRESENTATION_METHODS
@@ -188,6 +204,8 @@ WRITING_METHODS = (
     + NARRATIVE_METHODS
     + TRACK_METHODS
     + CLEANING_METHODS
+    + COLLATION_METHODS
+    + COLLATION_VIEW_METHODS
 )
 HISTORY_METHODS = READING_METHODS + CHECKING_METHODS + WRITING_METHODS
 # The Tote reads a plot at one time; it never changes it, and is asked again at each time.
@@ -205,6 +223,7 @@ KNOWN_METHODS = frozenset(
         "debrief/rep_tracks",
         "debrief/preview_narrative",
         "debrief/add_plot_file",
+        "debrief/review_flags",
         *TOTE_METHODS,
         *HISTORY_METHODS,
     )
@@ -352,6 +371,8 @@ class ToolService:
             return measure_groups()
         if method == "debrief/tote":
             return self._tote(params)
+        if method == "debrief/review_flags":
+            return self._review_flags()
         if method in HISTORY_METHODS:
             return self._history(method, params)
         raise RpcError(METHOD_NOT_FOUND, f"Unknown method {method}")
@@ -476,6 +497,11 @@ class ToolService:
                 out.update(self._track(catalogue, item, method, params, expected, allow))
             elif method in CHECKING_METHODS + CLEANING_METHODS:
                 out.update(self._clean(catalogue, item, method, params, expected, allow))
+            elif method == "debrief/coverage":
+                report = catalogue.coverage(item, self._other_catalogues(catalogue))
+                out["coverage"] = report.model_dump(mode="json", exclude_none=True)
+            elif method in COLLATION_METHODS + COLLATION_VIEW_METHODS:
+                out.update(self._collate(catalogue, item, method, params, expected, allow))
             elif method == "debrief/set_view":
                 view, given = params.get("view"), params.get("hash")
                 if not isinstance(given, str) or not (view is None or isinstance(view, dict)):
@@ -483,7 +509,7 @@ class ToolService:
                 catalogue.write_view(
                     item, view, given, agent=_agent(params), allow_newer_schema=allow
                 )
-            if method in ("debrief/open", "debrief/set_view"):
+            if method in ("debrief/open", "debrief/set_view", *COLLATION_VIEW_METHODS):
                 view, view_hash = catalogue.read_view(item)
                 out["view"] = view.model_dump(mode="json", exclude_none=True) if view else None
                 out["view_hash"] = view_hash
@@ -834,6 +860,115 @@ class ToolService:
             item, feature, time, changes, agent, base, colour_name=name, allow_newer_schema=allow
         )
         return {"changed": step is not None, "feature": feature}
+
+    def _other_catalogues(self, catalogue: Catalogue) -> list[Catalogue]:
+        """The analyst's other catalogues, where items a plot drew from may be (CAP-10):
+        each store in their configuration that holds one, other than this."""
+        others = []
+        for store in self._config().stores:
+            try:
+                other = Catalogue.open(Path(store.location))
+            except (CatalogueError, OSError, ValueError):
+                continue
+            if getattr(other.store, "root", None) != getattr(catalogue.store, "root", None):
+                others.append(other)
+        return others
+
+    def _review_flags(self) -> dict[str, Any]:
+        """Every plot in the analyst's catalogues that drew from an item since revised, so
+        may need review (CAP-12), with the store each is in."""
+        catalogues: list[tuple[models.KnownStore, Catalogue]] = []
+        for store in self._config().stores:
+            try:
+                catalogues.append((store, Catalogue.open(Path(store.location))))
+            except (CatalogueError, OSError, ValueError):
+                continue
+        stores = {catalogue.id: store.id for store, catalogue in catalogues}
+        flags = review_flags([c for _, c in catalogues])
+        return {
+            "flags": [
+                {**f.model_dump(mode="json", exclude_none=True), "store": stores.get(f.catalogue)}
+                for f in flags
+            ]
+        }
+
+    def _collate(
+        self,
+        catalogue: Catalogue,
+        item: str,
+        method: str,
+        params: dict[str, Any],
+        base: Base | None,
+        allow: bool,
+    ) -> dict[str, Any]:
+        """Collation (CAP-08 to CAP-12). take_new_data takes a catalogue item's data into
+        the plot (source: {catalogue, item}, the catalogue by its own id, and revision,
+        the revision the analyst saw, if any), one step naming it. set_source_preference
+        chooses which item supplies a period of a track (feature, period {start, end},
+        source {catalogue, item, track, name}), one step. link_tracks confirms or links
+        (linked true), or refuses or unlinks (linked false), a track in another item as
+        the platform of the plot's track (feature, source), one step. dismiss_new_data
+        sets an item's new data aside (source with its revision), and clear_review_flag
+        clears the plot's review flag: both in the plot's island, never steps, with who
+        answered and when. take_new_data makes no step when the plot has the item's data
+        as it is now already: changed false, and a message saying so."""
+        agent = _agent(params)
+        others = self._other_catalogues(catalogue)
+        source = params.get("source")
+        if method == "debrief/clear_review_flag":
+            return {"changed": catalogue.clear_review_flag(item, others, agent) > 0}
+        if not isinstance(source, dict):
+            raise RpcError(INVALID_PARAMS, f"{method} needs the source: its catalogue and item")
+        if method == "debrief/take_new_data":
+            if not isinstance(source.get("catalogue"), str) or not isinstance(
+                source.get("item"), str
+            ):
+                raise RpcError(INVALID_PARAMS, "take_new_data needs source {catalogue, item}")
+            revision = source.get("revision")
+            step = catalogue.take_new_data(
+                item,
+                source["catalogue"],
+                source["item"],
+                agent,
+                base,
+                others=others,
+                revision=revision if isinstance(revision, str) and revision else None,
+                allow_newer_schema=allow,
+            )
+            if step is None:
+                # Nothing to take: the plot has the item's data as it is now already.
+                return {
+                    "changed": False,
+                    "message": "The plot already has this item's data as it is now: nothing "
+                    "was taken, and it is marked as reviewed against this revision.",
+                }
+            return {"changed": True, "step": step}
+        if method == "debrief/dismiss_new_data":
+            fields = ("catalogue", "item", "revision")
+            if not all(isinstance(source.get(f), str) for f in fields):
+                raise RpcError(
+                    INVALID_PARAMS, "dismiss_new_data needs source {catalogue, item, revision}"
+                )
+            catalogue.dismiss_new_data(item, *(source[f] for f in fields), agent)
+            return {"changed": True}
+        feature = params.get("feature")
+        if not isinstance(feature, str):
+            raise RpcError(INVALID_PARAMS, f"{method} needs the plot's track (feature)")
+        if method == "debrief/set_source_preference":
+            period = params.get("period")
+            if not isinstance(period, dict):
+                raise RpcError(INVALID_PARAMS, "set_source_preference needs the period")
+            step = catalogue.set_source_preference(
+                item, feature, period, source, agent, base, others=others, allow_newer_schema=allow
+            )
+            return {"changed": step is not None}
+        linked = params.get("linked")
+        if not isinstance(linked, bool):
+            raise RpcError(INVALID_PARAMS, "link_tracks needs linked, true or false")
+        step = catalogue.link_tracks(
+            item, feature, source, linked, agent, base, others=others, allow_newer_schema=allow
+        )
+        return {"changed": step is not None}
 
     def _rep_tracks(self, params: dict[str, Any]) -> dict[str, Any]:
         """The tracks a REP file would import, so the host can ask the analyst how each is

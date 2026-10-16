@@ -38,7 +38,7 @@ const vectors = JSON.parse(readFileSync(path.join(ROOT, "schemas/vectors/narrati
 };
 const fixture = (name: string) => JSON.parse(readFileSync(path.join(ROOT, "schemas/fixtures", name), "utf8"));
 
-const plotOf = (features: unknown[]) => ({ type: "FeatureCollection", schema_version: "0.0.20", provenance: [], features }) as unknown as DebriefFeatureCollection;
+const plotOf = (features: unknown[]) => ({ type: "FeatureCollection", schema_version: "0.0.21", provenance: [], features }) as unknown as DebriefFeatureCollection;
 const narrative = (id: string, time: string, source: string, more: Record<string, unknown> = {}) => ({
   type: "Feature",
   id,
@@ -69,12 +69,14 @@ describe("one order for every source, as Python's", () => {
     ]);
     const entries = timelineEntries(plot);
     expect(entries.map((e) => [e.id, e.kind])).toEqual([
+      [`coverage:track-blue-one:${T(0)}`, "coverage"], // the track's data, from its first fix to its last
       ["note-1", "annotation"], // "analyst" before "blue one" before "control"
       ["narrative-0001", "narrative"],
       ["narrative-0002", "narrative"],
       [`fix:track-blue-one:${T(10)}`, "fix_comment"],
     ]);
-    expect(entries[1]).toEqual({ id: "narrative-0001", kind: "narrative", start: T(5), source: "BLUE ONE", entry_type: "Sonar", text: "BLUE ONE logged.", track: "track-blue-one", colour: "#0064bd" });
+    expect(entries[0]).toMatchObject({ source: "This plot", entry_type: "Data", text: "BLUE ONE: 2 fixes", end: T(10) });
+    expect(entries[2]).toEqual({ id: "narrative-0001", kind: "narrative", start: T(5), source: "BLUE ONE", entry_type: "Sonar", text: "BLUE ONE logged.", track: "track-blue-one", colour: "#0064bd" });
     expect(timelineTracks(plot)).toEqual([{ id: "track-blue-one", name: "BLUE ONE", colour: "#0064bd" }]);
     // The rows the Timeline is sent are boundary types.
     expect(() => checkMessage({ kind: "show_timeline", timeline_entries: entries, timeline_tracks: timelineTracks(plot) })).not.toThrow();

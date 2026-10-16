@@ -266,6 +266,10 @@ describe("history steps, in the analyst's words (SUB-21)", () => {
     // A plot file received from a colleague: the step recording its arrival (decision 13 Oct).
     [{ kind: "import", tool: null, status: "applied", notes: ["Added from the plot file serial-1.geojson"] }, "Added from the plot file serial-1.geojson", "In the plot"],
     [{ kind: "import", tool: null, status: "applied", notes: ["Added from the plot file a-very-long-name-sent-by-a-colleague.geojson"] }, "Added from a plot file", "In the plot"],
+    // Collation's steps: a tool's, told apart from a file's import (product owner, 16 Oct 2026), named by their note.
+    [{ kind: "tool", tool: "debrief-stac.collation", status: "applied", notes: ["New data from BLUE ONE navigation log"] }, "New data from BLUE ONE navigation log", "In the plot"],
+    [{ kind: "tool", tool: "debrief-stac.collation", status: "applied", notes: ["BLUE ONE 09:20:00Z to 10:20:00Z from Serial 1"] }, "BLUE ONE 09:20:00Z to 10:20:00Z from Serial 1", "In the plot"],
+    [{ kind: "tool", tool: "debrief-stac.collation", status: "applied", notes: ["New data from a navigation log with a name far too long to name a step by"] }, "New data taken", "In the plot"],
   ])("%#", (step, label, status) => expect(describeStep(step, title)).toEqual({ label, status }));
 });
 
@@ -389,7 +393,7 @@ describe("contributed menus", () => {
 describe("hiding and colour are the plot's own content (SUB-22)", () => {
   const plot = {
     type: "FeatureCollection",
-    schema_version: "0.0.20",
+    schema_version: "0.0.21",
     features: [
       { id: "a", properties: { kind: "track", name: "A", style: { colour: "#e01c3e" } } },
       { id: "b", properties: { kind: "annotation", name: "B", hidden: true } },

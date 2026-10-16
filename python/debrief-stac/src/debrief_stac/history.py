@@ -690,7 +690,13 @@ class History:
                 )
         text = compose(content_and_island, file)
         if plot is not None:
-            self.catalogue.store_plot_text(self.item_id, plot, text)
+            self.catalogue.store_plot_text(
+                self.item_id,
+                plot,
+                text,
+                revision=file.plot_hash,
+                origin=file.steps[0].hash if file.steps else None,
+            )
         else:
             self.store.write_text_atomic(self._plot_path, text)
         file.digest = _digest(text)
@@ -900,6 +906,45 @@ class History:
         view = _valid_view(file.view)
         return with_view(plot, load_view(view)) if view is not None else plot
 
+    def plot_and_revision(self) -> tuple[DebriefFeatureCollection, str]:
+        """The plot's content and its revision (content hash), read together, so a
+        revision recorded as taken is the one whose data was read (CAP-12)."""
+        file = self._state()
+        return self._content(file), file.plot_hash
+
+    def origin(self) -> str | None:
+        """The step_hash of the history's first step: plots that share it are copies of
+        one plot (CAP-10). None for a plot with no steps."""
+        file = self._state()
+        return file.steps[0].hash if file.steps else None
+
+    def step_hashes(self) -> list[str]:
+        """The step_hash of each step on the line to the current step, oldest first."""
+        file = self._trusted()
+        return [file.steps[seq - 1].hash for seq in file.chain(file.current)]
+
+    def adds_data_after(self, shared: set[str]) -> bool:
+        """Whether a step on the line to the current step, not among shared (steps of
+        another plot this one was copied from), adds data: imports files, takes data
+        from an item, or adds a track or a narrative entry."""
+        file = self._trusted()
+        for seq in file.chain(file.current):
+            step = file.steps[seq - 1]
+            if step.hash in shared:
+                continue
+            for record in step.raw.get("records") or []:
+                if isinstance(record, dict) and (record.get("used") or record.get("drawn_from")):
+                    return True
+            for raw in step.raw.get("added") or []:
+                kind = (
+                    ((raw or {}).get("properties") or {}).get("kind")
+                    if isinstance(raw, dict)
+                    else None
+                )
+                if kind in ("track", "narrative"):
+                    return True
+        return False
+
     def view(self) -> tuple[models.PlotView | None, str]:
         """The plot's island, and the hash to pass back to write_view when changing it."""
         view = island_of(self._read_plot_text())
@@ -937,6 +982,29 @@ class History:
         """The plot's content as it was after a step, rebuilt from the recorded steps
         (SUB-19). Never needs a source file. Content only: no island, no history."""
         return self._replay(self._trusted(), upto)
+
+    def first_recorded(self, feature_id: str) -> models.TrackFeature | None:
+        """A track as the plot first recorded it, in the earliest step on its current
+        line that added it: an import's track as imported, before any edit (collation
+        carries edits to new fixes from it). None if no step added a track of that id."""
+        file = self._trusted()
+        for seq in file.chain(file.current):
+            for raw in file.steps[seq - 1].raw.get("added") or []:
+                if isinstance(raw, dict) and raw.get("id") == feature_id:
+                    properties = raw.get("properties") or {}
+                    if properties.get("kind") != "track":
+                        return None
+                    return models.TrackFeature.model_validate(raw)
+        return None
+
+    def at_revision(self, revision: str) -> DebriefFeatureCollection | None:
+        """The plot's content as it was when its content hash was revision (an earlier
+        revision of a catalogue item), replayed; None if no step recorded it."""
+        file = self._trusted()
+        for step in reversed(file.steps):
+            if step.result_hash == revision:
+                return self._replay(file, step.seq)
+        return None
 
     @staticmethod
     def _replay(file: _File, upto: int) -> DebriefFeatureCollection:

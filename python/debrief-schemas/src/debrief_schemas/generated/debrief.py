@@ -32,7 +32,7 @@ from pydantic import (
 
 
 metamodel_version = "1.12.0"
-version = "0.0.20"
+version = "0.0.21"
 
 
 class ConfiguredBaseModel(BaseModel):
@@ -919,6 +919,42 @@ class StoreKindEnum(str, Enum):
     """
 
 
+class CoverageLinkEnum(str, Enum):
+    """
+    How a source's track is known to be the plot's platform.
+    """
+    plot = "plot"
+    """
+    The plot's own data for the track, as imported.
+    """
+    linked = "linked"
+    """
+    Confirmed, or linked by hand, as this platform.
+    """
+    proposed = "proposed"
+    """
+    Its name matches the track's, ignoring case and spaces: proposed, not yet confirmed.
+    """
+
+
+class CoverageItemRoleEnum(str, Enum):
+    """
+    What an item is to the plot.
+    """
+    this_plot = "this_plot"
+    """
+    The plot itself.
+    """
+    drawn_from = "drawn_from"
+    """
+    The plot took data from it.
+    """
+    other = "other"
+    """
+    In the folder tree the plot draws from, but nothing taken from it.
+    """
+
+
 class TimelineEntryKindEnum(str, Enum):
     """
     What a Timeline row is.
@@ -934,6 +970,10 @@ class TimelineEntryKindEnum(str, Enum):
     fix_comment = "fix_comment"
     """
     A comment on one of a track's fixes.
+    """
+    coverage = "coverage"
+    """
+    A period a track has data for, from one source: the plot itself or the catalogue item supplying it (CAP-05, CAP-08).
     """
 
 
@@ -1101,6 +1141,30 @@ class WebviewMessageKindEnum(str, Enum):
     fix_chosen = "fix_chosen"
     """
     Map to host: the analyst asked to colour, label or comment on a fix (feature_id, fix_time), by right-clicking it or pressing Enter on a fix chosen with the keyboard.
+    """
+    show_coverage = "show_coverage"
+    """
+    Host to Coverage: the open plot's coverage (coverage) and current time (time); none when no plot is open; or, with message alone, why what the analyst asked for was not done, leaving what is shown.
+    """
+    source_chosen = "source_chosen"
+    """
+    Coverage to host: the analyst chose which source supplies a period of a track (feature_id, time_range, source), as one recorded step (CAP-09).
+    """
+    link_changed = "link_changed"
+    """
+    Coverage to host: the analyst confirmed or linked (linked true), or refused or unlinked (linked false), a track in another item as the platform of the plot's track (feature_id, source), as one recorded step.
+    """
+    take_asked = "take_asked"
+    """
+    Coverage to host: take the new data in this item into the plot (item_revision), as one recorded step (CAP-11).
+    """
+    dismiss_asked = "dismiss_asked"
+    """
+    Coverage to host: set this item's new data aside for now (item_revision): its mark clears until it is revised (CAP-10).
+    """
+    review_cleared = "review_cleared"
+    """
+    Coverage to host: the analyst reviewed the plot against the items revised since it drew from them; clear its review flag (CAP-12).
     """
 
 
@@ -1295,8 +1359,18 @@ class TimeRange(ConfiguredBaseModel):
     """
     linkml_meta: ClassVar[LinkMLMeta] = LinkMLMeta({'from_schema': 'https://debrief.info/schemas/debrief'})
 
-    start: str = Field(default=..., json_schema_extra = { "linkml_meta": {'domain_of': ['TimeRange', 'TimelineEntry']} })
-    end: str = Field(default=..., json_schema_extra = { "linkml_meta": {'domain_of': ['TimeRange', 'TimelineEntry']} })
+    start: str = Field(default=..., json_schema_extra = { "linkml_meta": {'domain_of': ['TimeRange',
+                       'TrackSupply',
+                       'CoverageReport',
+                       'CoveragePeriod',
+                       'CoverageItem',
+                       'TimelineEntry']} })
+    end: str = Field(default=..., json_schema_extra = { "linkml_meta": {'domain_of': ['TimeRange',
+                       'TrackSupply',
+                       'CoverageReport',
+                       'CoveragePeriod',
+                       'CoverageItem',
+                       'TimelineEntry']} })
 
     @field_validator('start')
     def pattern_start(cls, v):
@@ -1335,17 +1409,21 @@ class ParameterValue(ConfiguredBaseModel):
                        'ToolRef',
                        'AgentRef',
                        'TrackProperties',
+                       'SourceTrackRef',
                        'AnnotationProperties',
                        'AnnotationSpec',
                        'SensorObservationsProperties',
                        'InnerSchemaRef',
                        'PayloadColumn',
                        'NamedSet',
+                       'TrackCoverage',
                        'ToolDeclaration',
                        'ParameterDeclaration',
                        'ResultColumn',
                        'ToteRow',
-                       'ToteTrack']} })
+                       'ToteTrack',
+                       'CoveragePlatform',
+                       'CoverageSource']} })
     value: Union[Angle, AngularRate, Duration, Length, Speed, bool, float, str] = Field(default=..., json_schema_extra = { "linkml_meta": {'any_of': [{'range': 'float'},
                     {'range': 'string'},
                     {'range': 'boolean'},
@@ -1485,6 +1563,7 @@ class ProvRecord(ConfiguredBaseModel):
     used: Optional[list[SourceRef]] = Field(default=None, json_schema_extra = { "linkml_meta": {'domain_of': ['ProvRecord']} })
     seed: Optional[int] = Field(default=None, description="""Random seed, for operations that use randomness (SUB-20).""", json_schema_extra = { "linkml_meta": {'domain_of': ['ProvRecord']} })
     notes: Optional[list[str]] = Field(default=None, description="""Free-text notes such as truncations or omitted content (EXT-14, EXT-15).""", json_schema_extra = { "linkml_meta": {'domain_of': ['ProvRecord']} })
+    drawn_from: Optional[list[ItemRef]] = Field(default=None, description="""Catalogue items the operation took data from, each at the revision it read (CAP-09 to CAP-12): PROV's wasDerivedFrom. A product whose provenance names an item at a revision it no longer has may need review (CAP-12).""", json_schema_extra = { "linkml_meta": {'domain_of': ['ProvRecord']} })
 
     @field_validator('started_at')
     def pattern_started_at(cls, v):
@@ -1523,17 +1602,21 @@ class ToolRef(ConfiguredBaseModel):
                        'ToolRef',
                        'AgentRef',
                        'TrackProperties',
+                       'SourceTrackRef',
                        'AnnotationProperties',
                        'AnnotationSpec',
                        'SensorObservationsProperties',
                        'InnerSchemaRef',
                        'PayloadColumn',
                        'NamedSet',
+                       'TrackCoverage',
                        'ToolDeclaration',
                        'ParameterDeclaration',
                        'ResultColumn',
                        'ToteRow',
-                       'ToteTrack']} })
+                       'ToteTrack',
+                       'CoveragePlatform',
+                       'CoverageSource']} })
     version: str = Field(default=..., json_schema_extra = { "linkml_meta": {'domain_of': ['ToolRef', 'InnerSchemaRef', 'ToolDeclaration']} })
 
 
@@ -1559,17 +1642,21 @@ class AgentRef(ConfiguredBaseModel):
                        'ToolRef',
                        'AgentRef',
                        'TrackProperties',
+                       'SourceTrackRef',
                        'AnnotationProperties',
                        'AnnotationSpec',
                        'SensorObservationsProperties',
                        'InnerSchemaRef',
                        'PayloadColumn',
                        'NamedSet',
+                       'TrackCoverage',
                        'ToolDeclaration',
                        'ParameterDeclaration',
                        'ResultColumn',
                        'ToteRow',
-                       'ToteTrack']} })
+                       'ToteTrack',
+                       'CoveragePlatform',
+                       'CoverageSource']} })
     model: Optional[str] = Field(default=None, json_schema_extra = { "linkml_meta": {'domain_of': ['AgentRef']} })
 
 
@@ -1593,6 +1680,66 @@ class SourceRef(ConfiguredBaseModel):
                     raise ValueError(err_msg)
         elif isinstance(v, str) and not pattern.search(v):
             err_msg = f"Invalid content_hash format: {v}"
+            raise ValueError(err_msg)
+        return v
+
+
+class ItemRef(ConfiguredBaseModel):
+    """
+    A catalogue item an operation took data from, at one revision (CAP-09 to CAP-12). Items are named by their catalogue's own id (the catalog.json id, not the analyst's name for the folder) and their item id, so the reference means the same on every analyst's machine.
+    """
+    linkml_meta: ClassVar[LinkMLMeta] = LinkMLMeta({'class_uri': 'prov:Entity',
+         'from_schema': 'https://debrief.info/schemas/debrief'})
+
+    catalogue: str = Field(default=..., description="""The id in the item's catalog.json.""", json_schema_extra = { "linkml_meta": {'domain_of': ['ItemRef',
+                       'SourceTrackRef',
+                       'TrackSupply',
+                       'ItemRevision',
+                       'CoverageReport',
+                       'CoverageSource',
+                       'CoverageItem',
+                       'ReviewFlag']} })
+    item: str = Field(default=..., description="""The item's id in that catalogue.""", json_schema_extra = { "linkml_meta": {'domain_of': ['ItemRef',
+                       'SourceTrackRef',
+                       'TrackSupply',
+                       'ItemRevision',
+                       'CoverageReport',
+                       'CoverageSource',
+                       'CoverageItem',
+                       'ReviewFlag']} })
+    title: Optional[str] = Field(default=None, description="""The item's title when it was read, to name it if it has gone.""", json_schema_extra = { "linkml_meta": {'domain_of': ['ItemRef',
+                       'TrackSupply',
+                       'PlotProperties',
+                       'StacLink',
+                       'StacAsset',
+                       'StacItemProperties',
+                       'StacCatalog',
+                       'ToolDeclaration',
+                       'ParameterDeclaration',
+                       'NonSpatialResult',
+                       'MeasureDefinition',
+                       'MeasureGroup',
+                       'KnownStore',
+                       'CoverageReport',
+                       'CoverageSource',
+                       'CoverageItem',
+                       'ReviewFlag']} })
+    revision: str = Field(default=..., description="""The item's revision when it was read: the content hash of its plot (its whole-plot details included), so any recorded change to the item, of data or details, is a new revision.""", json_schema_extra = { "linkml_meta": {'domain_of': ['ItemRef',
+                       'TrackSupply',
+                       'ItemRevision',
+                       'CoverageItem',
+                       'NewDataMark']} })
+
+    @field_validator('revision')
+    def pattern_revision(cls, v):
+        pattern=re.compile(r"^sha256:[0-9a-f]{64}$")
+        if isinstance(v, list):
+            for element in v:
+                if isinstance(element, str) and not pattern.search(element):
+                    err_msg = f"Invalid revision format: {element}"
+                    raise ValueError(err_msg)
+        elif isinstance(v, str) and not pattern.search(v):
+            err_msg = f"Invalid revision format: {v}"
             raise ValueError(err_msg)
         return v
 
@@ -1662,17 +1809,21 @@ class TrackProperties(ConfiguredBaseModel):
                        'ToolRef',
                        'AgentRef',
                        'TrackProperties',
+                       'SourceTrackRef',
                        'AnnotationProperties',
                        'AnnotationSpec',
                        'SensorObservationsProperties',
                        'InnerSchemaRef',
                        'PayloadColumn',
                        'NamedSet',
+                       'TrackCoverage',
                        'ToolDeclaration',
                        'ParameterDeclaration',
                        'ResultColumn',
                        'ToteRow',
-                       'ToteTrack']} })
+                       'ToteTrack',
+                       'CoveragePlatform',
+                       'CoverageSource']} })
     platform_class: Optional[str] = Field(default=None, json_schema_extra = { "linkml_meta": {'domain_of': ['TrackProperties']} })
     times: list[str] = Field(default=..., description="""One per position, non-decreasing.""", json_schema_extra = { "linkml_meta": {'domain_of': ['TrackProperties']} })
     speeds: Optional[SpeedSeries] = Field(default=None, description="""Speed over ground at each position.""", json_schema_extra = { "linkml_meta": {'domain_of': ['TrackProperties']} })
@@ -1698,6 +1849,9 @@ class TrackProperties(ConfiguredBaseModel):
                        'AnnotationProperties',
                        'SensorObservationsProperties',
                        'TimelineEntry']} })
+    supplies: Optional[list[TrackSupply]] = Field(default=None, description="""Which catalogue item supplies each period of the track (CAP-09): where two items have data for the platform over the same period, the analyst chooses which supplies it, and the track is stitched from the chosen periods. In time order, not overlapping, each from its first fix to its last. Left out, the plot itself supplies the whole track, as imported. Content: each change is a recorded, undoable step (SUB-22), naming the items and periods.""", json_schema_extra = { "linkml_meta": {'domain_of': ['TrackProperties']} })
+    platform_links: Optional[list[SourceTrackRef]] = Field(default=None, description="""Tracks in other catalogue items the analyst confirmed, or linked by hand, as this track's platform (CAP-09; decision, product owner, 16 Oct 2026). Tracks whose names match this one's, ignoring case and spaces, are proposed until confirmed or refused. Each change is a recorded, undoable step.""", json_schema_extra = { "linkml_meta": {'domain_of': ['TrackProperties']} })
+    platform_unlinks: Optional[list[SourceTrackRef]] = Field(default=None, description="""Tracks in other catalogue items whose names match this one's but which the analyst said are another platform: no longer proposed.""", json_schema_extra = { "linkml_meta": {'domain_of': ['TrackProperties']} })
     provenance: Optional[list[ProvRecord]] = Field(default=None, description="""Feature-level provenance where needed (SUB-18).""", json_schema_extra = { "linkml_meta": {'domain_of': ['TrackProperties',
                        'AnnotationProperties',
                        'NarrativeProperties',
@@ -1718,6 +1872,162 @@ class TrackProperties(ConfiguredBaseModel):
         return v
 
 
+class SourceTrackRef(ConfiguredBaseModel):
+    """
+    A track in a catalogue item, as collation names it (CAP-08, CAP-09): the item by its catalogue's own id and its item id, the track by its feature id there, and its name when last read, to show if the item has gone.
+    """
+    linkml_meta: ClassVar[LinkMLMeta] = LinkMLMeta({'from_schema': 'https://debrief.info/schemas/debrief'})
+
+    catalogue: str = Field(default=..., description="""The id in the item's catalog.json.""", json_schema_extra = { "linkml_meta": {'domain_of': ['ItemRef',
+                       'SourceTrackRef',
+                       'TrackSupply',
+                       'ItemRevision',
+                       'CoverageReport',
+                       'CoverageSource',
+                       'CoverageItem',
+                       'ReviewFlag']} })
+    item: str = Field(default=..., json_schema_extra = { "linkml_meta": {'domain_of': ['ItemRef',
+                       'SourceTrackRef',
+                       'TrackSupply',
+                       'ItemRevision',
+                       'CoverageReport',
+                       'CoverageSource',
+                       'CoverageItem',
+                       'ReviewFlag']} })
+    track: str = Field(default=..., description="""The track's feature id in that item.""", json_schema_extra = { "linkml_meta": {'domain_of': ['SourceTrackRef',
+                       'TrackSupply',
+                       'TrackCoverage',
+                       'ToteRow',
+                       'PlatformTrack',
+                       'CoveragePlatform',
+                       'CoverageSource',
+                       'TimelineEntry']} })
+    name: str = Field(default=..., json_schema_extra = { "linkml_meta": {'domain_of': ['ParameterValue',
+                       'ToolRef',
+                       'AgentRef',
+                       'TrackProperties',
+                       'SourceTrackRef',
+                       'AnnotationProperties',
+                       'AnnotationSpec',
+                       'SensorObservationsProperties',
+                       'InnerSchemaRef',
+                       'PayloadColumn',
+                       'NamedSet',
+                       'TrackCoverage',
+                       'ToolDeclaration',
+                       'ParameterDeclaration',
+                       'ResultColumn',
+                       'ToteRow',
+                       'ToteTrack',
+                       'CoveragePlatform',
+                       'CoverageSource']} })
+
+
+class TrackSupply(ConfiguredBaseModel):
+    """
+    One period of a track and the catalogue item that supplies it (CAP-09): the fixes from start to end, ends included, are that item's track's (the plot's own, where it names the plot itself).
+    """
+    linkml_meta: ClassVar[LinkMLMeta] = LinkMLMeta({'from_schema': 'https://debrief.info/schemas/debrief'})
+
+    catalogue: str = Field(default=..., description="""The id in the item's catalog.json.""", json_schema_extra = { "linkml_meta": {'domain_of': ['ItemRef',
+                       'SourceTrackRef',
+                       'TrackSupply',
+                       'ItemRevision',
+                       'CoverageReport',
+                       'CoverageSource',
+                       'CoverageItem',
+                       'ReviewFlag']} })
+    item: str = Field(default=..., json_schema_extra = { "linkml_meta": {'domain_of': ['ItemRef',
+                       'SourceTrackRef',
+                       'TrackSupply',
+                       'ItemRevision',
+                       'CoverageReport',
+                       'CoverageSource',
+                       'CoverageItem',
+                       'ReviewFlag']} })
+    track: str = Field(default=..., description="""The supplying track's feature id in that item.""", json_schema_extra = { "linkml_meta": {'domain_of': ['SourceTrackRef',
+                       'TrackSupply',
+                       'TrackCoverage',
+                       'ToteRow',
+                       'PlatformTrack',
+                       'CoveragePlatform',
+                       'CoverageSource',
+                       'TimelineEntry']} })
+    title: str = Field(default=..., description="""The item's title when the period was taken from it.""", json_schema_extra = { "linkml_meta": {'domain_of': ['ItemRef',
+                       'TrackSupply',
+                       'PlotProperties',
+                       'StacLink',
+                       'StacAsset',
+                       'StacItemProperties',
+                       'StacCatalog',
+                       'ToolDeclaration',
+                       'ParameterDeclaration',
+                       'NonSpatialResult',
+                       'MeasureDefinition',
+                       'MeasureGroup',
+                       'KnownStore',
+                       'CoverageReport',
+                       'CoverageSource',
+                       'CoverageItem',
+                       'ReviewFlag']} })
+    revision: Optional[str] = Field(default=None, description="""The item's revision when the period was taken from it; left out where the plot supplies it itself.""", json_schema_extra = { "linkml_meta": {'domain_of': ['ItemRef',
+                       'TrackSupply',
+                       'ItemRevision',
+                       'CoverageItem',
+                       'NewDataMark']} })
+    start: str = Field(default=..., json_schema_extra = { "linkml_meta": {'domain_of': ['TimeRange',
+                       'TrackSupply',
+                       'CoverageReport',
+                       'CoveragePeriod',
+                       'CoverageItem',
+                       'TimelineEntry']} })
+    end: str = Field(default=..., json_schema_extra = { "linkml_meta": {'domain_of': ['TimeRange',
+                       'TrackSupply',
+                       'CoverageReport',
+                       'CoveragePeriod',
+                       'CoverageItem',
+                       'TimelineEntry']} })
+
+    @field_validator('revision')
+    def pattern_revision(cls, v):
+        pattern=re.compile(r"^sha256:[0-9a-f]{64}$")
+        if isinstance(v, list):
+            for element in v:
+                if isinstance(element, str) and not pattern.search(element):
+                    err_msg = f"Invalid revision format: {element}"
+                    raise ValueError(err_msg)
+        elif isinstance(v, str) and not pattern.search(v):
+            err_msg = f"Invalid revision format: {v}"
+            raise ValueError(err_msg)
+        return v
+
+    @field_validator('start')
+    def pattern_start(cls, v):
+        pattern=re.compile(r"^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}Z$")
+        if isinstance(v, list):
+            for element in v:
+                if isinstance(element, str) and not pattern.search(element):
+                    err_msg = f"Invalid start format: {element}"
+                    raise ValueError(err_msg)
+        elif isinstance(v, str) and not pattern.search(v):
+            err_msg = f"Invalid start format: {v}"
+            raise ValueError(err_msg)
+        return v
+
+    @field_validator('end')
+    def pattern_end(cls, v):
+        pattern=re.compile(r"^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}Z$")
+        if isinstance(v, list):
+            for element in v:
+                if isinstance(element, str) and not pattern.search(element):
+                    err_msg = f"Invalid end format: {element}"
+                    raise ValueError(err_msg)
+        elif isinstance(v, str) and not pattern.search(v):
+            err_msg = f"Invalid end format: {v}"
+            raise ValueError(err_msg)
+        return v
+
+
 class TrackStyle(ConfiguredBaseModel):
     """
     How a track is drawn. Data colours do not change with the theme (DEV-07). Colour is content: the analyst changing it (blue friendly to red enemy, say) is a recorded, undoable change (SUB-22).
@@ -1729,6 +2039,7 @@ class TrackStyle(ConfiguredBaseModel):
                        'AnnotationAppearance',
                        'ToteRow',
                        'ToteTrack',
+                       'CoveragePlatform',
                        'TimelineEntry']} })
     legacy_symbology: Optional[str] = Field(default=None, description="""The REP symbology code the colour came from, such as \"@C\", kept for export.""", json_schema_extra = { "linkml_meta": {'domain_of': ['TrackStyle']} })
 
@@ -1766,6 +2077,7 @@ class FixMark(ConfiguredBaseModel):
                        'AnnotationAppearance',
                        'ToteRow',
                        'ToteTrack',
+                       'CoveragePlatform',
                        'TimelineEntry']} })
     label: Optional[str] = Field(default=None, description="""Text drawn on the map beside the fix.""", json_schema_extra = { "linkml_meta": {'domain_of': ['FixMark', 'MeasureDefinition']} })
     comment: Optional[str] = Field(default=None, description="""Free text about the fix, shown when the analyst points at it and in the Timeline.""", json_schema_extra = { "linkml_meta": {'domain_of': ['FixMark']} })
@@ -1902,17 +2214,21 @@ class AnnotationProperties(ConfiguredBaseModel):
                        'ToolRef',
                        'AgentRef',
                        'TrackProperties',
+                       'SourceTrackRef',
                        'AnnotationProperties',
                        'AnnotationSpec',
                        'SensorObservationsProperties',
                        'InnerSchemaRef',
                        'PayloadColumn',
                        'NamedSet',
+                       'TrackCoverage',
                        'ToolDeclaration',
                        'ParameterDeclaration',
                        'ResultColumn',
                        'ToteRow',
-                       'ToteTrack']} })
+                       'ToteTrack',
+                       'CoveragePlatform',
+                       'CoverageSource']} })
     text: Optional[str] = Field(default=None, json_schema_extra = { "linkml_meta": {'domain_of': ['AnnotationProperties',
                        'AnnotationSpec',
                        'NarrativeProperties',
@@ -1976,6 +2292,7 @@ class AnnotationAppearance(ConfiguredBaseModel):
                        'AnnotationAppearance',
                        'ToteRow',
                        'ToteTrack',
+                       'CoveragePlatform',
                        'TimelineEntry']} })
     line_style: Optional[LineStyleEnum] = Field(default=None, json_schema_extra = { "linkml_meta": {'domain_of': ['AnnotationAppearance']} })
     line_width: Optional[int] = Field(default=None, description="""Width of its line in screen pixels.""", ge=1, le=10, json_schema_extra = { "linkml_meta": {'domain_of': ['AnnotationAppearance']} })
@@ -2022,17 +2339,21 @@ class AnnotationSpec(ConfiguredBaseModel):
                        'ToolRef',
                        'AgentRef',
                        'TrackProperties',
+                       'SourceTrackRef',
                        'AnnotationProperties',
                        'AnnotationSpec',
                        'SensorObservationsProperties',
                        'InnerSchemaRef',
                        'PayloadColumn',
                        'NamedSet',
+                       'TrackCoverage',
                        'ToolDeclaration',
                        'ParameterDeclaration',
                        'ResultColumn',
                        'ToteRow',
-                       'ToteTrack']} })
+                       'ToteTrack',
+                       'CoveragePlatform',
+                       'CoverageSource']} })
     text: Optional[str] = Field(default=None, json_schema_extra = { "linkml_meta": {'domain_of': ['AnnotationProperties',
                        'AnnotationSpec',
                        'NarrativeProperties',
@@ -2144,7 +2465,10 @@ class NarrativeProperties(ConfiguredBaseModel):
                        'SharedStateChange',
                        'ToteResult',
                        'WebviewMessage']} })
-    source: str = Field(default=..., description="""Who wrote it: the platform, person or document whose log it is (legacy Debrief's track name on an entry), such as \"BLUE ONE\".""", json_schema_extra = { "linkml_meta": {'domain_of': ['NarrativeProperties', 'NarrativeSpec', 'TimelineEntry']} })
+    source: str = Field(default=..., description="""Who wrote it: the platform, person or document whose log it is (legacy Debrief's track name on an entry), such as \"BLUE ONE\".""", json_schema_extra = { "linkml_meta": {'domain_of': ['NarrativeProperties',
+                       'NarrativeSpec',
+                       'TimelineEntry',
+                       'WebviewMessage']} })
     entry_type: Optional[str] = Field(default=None, description="""What kind of entry, in the source's own words, such as legacy Debrief's GenComment, Posn, CSD or FCS. Free text: each source has its own types. Left out where the source gives none.""", json_schema_extra = { "linkml_meta": {'domain_of': ['NarrativeProperties', 'NarrativeSpec', 'TimelineEntry']} })
     text: str = Field(default=..., description="""What was logged. May run to several lines.""", json_schema_extra = { "linkml_meta": {'domain_of': ['AnnotationProperties',
                        'AnnotationSpec',
@@ -2187,7 +2511,10 @@ class NarrativeSpec(ConfiguredBaseModel):
                        'SharedStateChange',
                        'ToteResult',
                        'WebviewMessage']} })
-    source: Optional[str] = Field(default=None, json_schema_extra = { "linkml_meta": {'domain_of': ['NarrativeProperties', 'NarrativeSpec', 'TimelineEntry']} })
+    source: Optional[str] = Field(default=None, json_schema_extra = { "linkml_meta": {'domain_of': ['NarrativeProperties',
+                       'NarrativeSpec',
+                       'TimelineEntry',
+                       'WebviewMessage']} })
     entry_type: Optional[str] = Field(default=None, json_schema_extra = { "linkml_meta": {'domain_of': ['NarrativeProperties', 'NarrativeSpec', 'TimelineEntry']} })
     text: Optional[str] = Field(default=None, json_schema_extra = { "linkml_meta": {'domain_of': ['AnnotationProperties',
                        'AnnotationSpec',
@@ -2275,17 +2602,21 @@ class SensorObservationsProperties(ConfiguredBaseModel):
                        'ToolRef',
                        'AgentRef',
                        'TrackProperties',
+                       'SourceTrackRef',
                        'AnnotationProperties',
                        'AnnotationSpec',
                        'SensorObservationsProperties',
                        'InnerSchemaRef',
                        'PayloadColumn',
                        'NamedSet',
+                       'TrackCoverage',
                        'ToolDeclaration',
                        'ParameterDeclaration',
                        'ResultColumn',
                        'ToteRow',
-                       'ToteTrack']} })
+                       'ToteTrack',
+                       'CoveragePlatform',
+                       'CoverageSource']} })
     sensor_name: str = Field(default=..., json_schema_extra = { "linkml_meta": {'domain_of': ['SensorObservationsProperties']} })
     host_track_id: str = Field(default=..., description="""The track carrying the sensor.""", json_schema_extra = { "linkml_meta": {'domain_of': ['SensorObservationsProperties']} })
     observation_type: ObservationTypeEnum = Field(default=..., json_schema_extra = { "linkml_meta": {'domain_of': ['SensorObservationsProperties']} })
@@ -2341,17 +2672,21 @@ class InnerSchemaRef(ConfiguredBaseModel):
                        'ToolRef',
                        'AgentRef',
                        'TrackProperties',
+                       'SourceTrackRef',
                        'AnnotationProperties',
                        'AnnotationSpec',
                        'SensorObservationsProperties',
                        'InnerSchemaRef',
                        'PayloadColumn',
                        'NamedSet',
+                       'TrackCoverage',
                        'ToolDeclaration',
                        'ParameterDeclaration',
                        'ResultColumn',
                        'ToteRow',
-                       'ToteTrack']} })
+                       'ToteTrack',
+                       'CoveragePlatform',
+                       'CoverageSource']} })
     version: str = Field(default=..., json_schema_extra = { "linkml_meta": {'domain_of': ['ToolRef', 'InnerSchemaRef', 'ToolDeclaration']} })
 
     @field_validator('version')
@@ -2375,17 +2710,21 @@ class PayloadColumn(ConfiguredBaseModel):
                        'ToolRef',
                        'AgentRef',
                        'TrackProperties',
+                       'SourceTrackRef',
                        'AnnotationProperties',
                        'AnnotationSpec',
                        'SensorObservationsProperties',
                        'InnerSchemaRef',
                        'PayloadColumn',
                        'NamedSet',
+                       'TrackCoverage',
                        'ToolDeclaration',
                        'ParameterDeclaration',
                        'ResultColumn',
                        'ToteRow',
-                       'ToteTrack']} })
+                       'ToteTrack',
+                       'CoveragePlatform',
+                       'CoverageSource']} })
     quantity_kind: Optional[QuantityKindEnum] = Field(default=None, json_schema_extra = { "linkml_meta": {'domain_of': ['PayloadColumn',
                        'ParameterDeclaration',
                        'ResultColumn',
@@ -2464,7 +2803,9 @@ class PlotProperties(ConfiguredBaseModel):
                        'KnownStore',
                        'TimelineEntry',
                        'WebviewMessage']} })
-    title: Optional[str] = Field(default=None, description="""The plot's title. Content, like everything outside view.""", json_schema_extra = { "linkml_meta": {'domain_of': ['PlotProperties',
+    title: Optional[str] = Field(default=None, description="""The plot's title. Content, like everything outside view.""", json_schema_extra = { "linkml_meta": {'domain_of': ['ItemRef',
+                       'TrackSupply',
+                       'PlotProperties',
                        'StacLink',
                        'StacAsset',
                        'StacItemProperties',
@@ -2474,7 +2815,11 @@ class PlotProperties(ConfiguredBaseModel):
                        'NonSpatialResult',
                        'MeasureDefinition',
                        'MeasureGroup',
-                       'KnownStore']} })
+                       'KnownStore',
+                       'CoverageReport',
+                       'CoverageSource',
+                       'CoverageItem',
+                       'ReviewFlag']} })
     description: Optional[str] = Field(default=None, description="""What the plot is for. Content.""", json_schema_extra = { "linkml_meta": {'domain_of': ['PlotProperties',
                        'StacItemProperties',
                        'StacCatalog',
@@ -2492,6 +2837,74 @@ class PlotView(ConfiguredBaseModel):
     context_tracks: Optional[ContextTracksEnum] = Field(default=None, description="""How tracks outside the time window are drawn (CAP-29). Left out means visible.""", json_schema_extra = { "linkml_meta": {'domain_of': ['PlotView', 'WebviewMessage']} })
     tote: Optional[ToteView] = Field(default=None, description="""Which tracks the Tote compares, and through which measure group (CAP-06, CAP-07). View state, like the window: changing it is never a step in the history (decision, 14 Oct 2026).""", json_schema_extra = { "linkml_meta": {'domain_of': ['PlotView', 'WebviewMessage']} })
     narrative_on_map: Optional[bool] = Field(default=None, description="""Whether the map shows the narrative entry current time is at in a small box beside its track, for ten minutes of plot time; left out means it does. Turned off and on in the Timeline. View state, like the Tote's lines: never a step in the history (decision, product owner, 15 Oct 2026).""", json_schema_extra = { "linkml_meta": {'domain_of': ['PlotView', 'WebviewMessage']} })
+    collation: Optional[CollationView] = Field(default=None, description="""What the analyst has said of catalogue items while collating (CAP-10, CAP-12): new data set aside for now, and revisions reviewed. View state: never a step in the history.""", json_schema_extra = { "linkml_meta": {'domain_of': ['PlotView']} })
+
+
+class CollationView(ConfiguredBaseModel):
+    """
+    The analyst's answers to collation's marks, each for one revision of an item, so a later revision is marked again.
+    """
+    linkml_meta: ClassVar[LinkMLMeta] = LinkMLMeta({'from_schema': 'https://debrief.info/schemas/debrief'})
+
+    dismissed: Optional[list[ItemRevision]] = Field(default=None, description="""Items marked as new data for this plot that the analyst set aside (Not now), at the revision then (CAP-10).""", json_schema_extra = { "linkml_meta": {'domain_of': ['CollationView']} })
+    reviewed: Optional[list[ItemRevision]] = Field(default=None, description="""Revised items this plot drew from that the analyst reviewed it against, clearing its review flag, at the revision reviewed (CAP-12).""", json_schema_extra = { "linkml_meta": {'domain_of': ['CollationView']} })
+
+
+class ItemRevision(ConfiguredBaseModel):
+    """
+    One revision of a catalogue item; for an answer the analyst gave (Not now, Reviewed), who gave it and when, a light audit trail kept in the island (decision, product owner, 16 Oct 2026).
+    """
+    linkml_meta: ClassVar[LinkMLMeta] = LinkMLMeta({'from_schema': 'https://debrief.info/schemas/debrief'})
+
+    catalogue: str = Field(default=..., json_schema_extra = { "linkml_meta": {'domain_of': ['ItemRef',
+                       'SourceTrackRef',
+                       'TrackSupply',
+                       'ItemRevision',
+                       'CoverageReport',
+                       'CoverageSource',
+                       'CoverageItem',
+                       'ReviewFlag']} })
+    item: str = Field(default=..., json_schema_extra = { "linkml_meta": {'domain_of': ['ItemRef',
+                       'SourceTrackRef',
+                       'TrackSupply',
+                       'ItemRevision',
+                       'CoverageReport',
+                       'CoverageSource',
+                       'CoverageItem',
+                       'ReviewFlag']} })
+    revision: str = Field(default=..., json_schema_extra = { "linkml_meta": {'domain_of': ['ItemRef',
+                       'TrackSupply',
+                       'ItemRevision',
+                       'CoverageItem',
+                       'NewDataMark']} })
+    by: Optional[str] = Field(default=None, description="""Who gave the answer: the agent's name.""", json_schema_extra = { "linkml_meta": {'domain_of': ['ItemRevision']} })
+    at: Optional[str] = Field(default=None, description="""When the answer was given.""", json_schema_extra = { "linkml_meta": {'domain_of': ['ItemRevision']} })
+
+    @field_validator('revision')
+    def pattern_revision(cls, v):
+        pattern=re.compile(r"^sha256:[0-9a-f]{64}$")
+        if isinstance(v, list):
+            for element in v:
+                if isinstance(element, str) and not pattern.search(element):
+                    err_msg = f"Invalid revision format: {element}"
+                    raise ValueError(err_msg)
+        elif isinstance(v, str) and not pattern.search(v):
+            err_msg = f"Invalid revision format: {v}"
+            raise ValueError(err_msg)
+        return v
+
+    @field_validator('at')
+    def pattern_at(cls, v):
+        pattern=re.compile(r"^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}Z$")
+        if isinstance(v, list):
+            for element in v:
+                if isinstance(element, str) and not pattern.search(element):
+                    err_msg = f"Invalid at format: {element}"
+                    raise ValueError(err_msg)
+        elif isinstance(v, str) and not pattern.search(v):
+            err_msg = f"Invalid at format: {v}"
+            raise ValueError(err_msg)
+        return v
 
 
 class NamedSet(ConfiguredBaseModel):
@@ -2518,17 +2931,21 @@ class NamedSet(ConfiguredBaseModel):
                        'ToolRef',
                        'AgentRef',
                        'TrackProperties',
+                       'SourceTrackRef',
                        'AnnotationProperties',
                        'AnnotationSpec',
                        'SensorObservationsProperties',
                        'InnerSchemaRef',
                        'PayloadColumn',
                        'NamedSet',
+                       'TrackCoverage',
                        'ToolDeclaration',
                        'ParameterDeclaration',
                        'ResultColumn',
                        'ToteRow',
-                       'ToteTrack']} })
+                       'ToteTrack',
+                       'CoveragePlatform',
+                       'CoverageSource']} })
     feature_ids: list[str] = Field(default=..., json_schema_extra = { "linkml_meta": {'domain_of': ['NamedSet', 'Selection']} })
 
 
@@ -2604,7 +3021,9 @@ class StacLink(ConfiguredBaseModel):
                        'StacAsset',
                        'StacItem',
                        'StacCatalog']} })
-    title: Optional[str] = Field(default=None, json_schema_extra = { "linkml_meta": {'domain_of': ['PlotProperties',
+    title: Optional[str] = Field(default=None, json_schema_extra = { "linkml_meta": {'domain_of': ['ItemRef',
+                       'TrackSupply',
+                       'PlotProperties',
                        'StacLink',
                        'StacAsset',
                        'StacItemProperties',
@@ -2614,7 +3033,11 @@ class StacLink(ConfiguredBaseModel):
                        'NonSpatialResult',
                        'MeasureDefinition',
                        'MeasureGroup',
-                       'KnownStore']} })
+                       'KnownStore',
+                       'CoverageReport',
+                       'CoverageSource',
+                       'CoverageItem',
+                       'ReviewFlag']} })
 
 
 class StacAsset(ConfiguredBaseModel):
@@ -2636,7 +3059,9 @@ class StacAsset(ConfiguredBaseModel):
                        'StacAsset',
                        'StacItem',
                        'StacCatalog']} })
-    title: Optional[str] = Field(default=None, json_schema_extra = { "linkml_meta": {'domain_of': ['PlotProperties',
+    title: Optional[str] = Field(default=None, json_schema_extra = { "linkml_meta": {'domain_of': ['ItemRef',
+                       'TrackSupply',
+                       'PlotProperties',
                        'StacLink',
                        'StacAsset',
                        'StacItemProperties',
@@ -2646,7 +3071,11 @@ class StacAsset(ConfiguredBaseModel):
                        'NonSpatialResult',
                        'MeasureDefinition',
                        'MeasureGroup',
-                       'KnownStore']} })
+                       'KnownStore',
+                       'CoverageReport',
+                       'CoverageSource',
+                       'CoverageItem',
+                       'ReviewFlag']} })
     roles: Optional[list[str]] = Field(default=None, json_schema_extra = { "linkml_meta": {'domain_of': ['StacAsset']} })
     debrief_asset_kind: AssetKindEnum = Field(default=..., alias="debrief:asset_kind", json_schema_extra = { "linkml_meta": {'domain_of': ['StacAsset']} })
     debrief_content_hash: Optional[str] = Field(default=None, alias="debrief:content_hash", description="""Required for sources (SUB-11).""", json_schema_extra = { "linkml_meta": {'domain_of': ['StacAsset']} })
@@ -2672,7 +3101,9 @@ class StacItemProperties(ConfiguredBaseModel):
     datetime: Optional[str] = Field(default=None, description="""Null when start_datetime and end_datetime are given.""", json_schema_extra = { "linkml_meta": {'domain_of': ['StacItemProperties']} })
     start_datetime: Optional[str] = Field(default=None, json_schema_extra = { "linkml_meta": {'domain_of': ['StacItemProperties']} })
     end_datetime: Optional[str] = Field(default=None, json_schema_extra = { "linkml_meta": {'domain_of': ['StacItemProperties']} })
-    title: Optional[str] = Field(default=None, json_schema_extra = { "linkml_meta": {'domain_of': ['PlotProperties',
+    title: Optional[str] = Field(default=None, json_schema_extra = { "linkml_meta": {'domain_of': ['ItemRef',
+                       'TrackSupply',
+                       'PlotProperties',
                        'StacLink',
                        'StacAsset',
                        'StacItemProperties',
@@ -2682,13 +3113,23 @@ class StacItemProperties(ConfiguredBaseModel):
                        'NonSpatialResult',
                        'MeasureDefinition',
                        'MeasureGroup',
-                       'KnownStore']} })
+                       'KnownStore',
+                       'CoverageReport',
+                       'CoverageSource',
+                       'CoverageItem',
+                       'ReviewFlag']} })
     description: Optional[str] = Field(default=None, json_schema_extra = { "linkml_meta": {'domain_of': ['PlotProperties',
                        'StacItemProperties',
                        'StacCatalog',
                        'MeasureGroup']} })
     debrief_schema_version: str = Field(default=..., alias="debrief:schema_version", json_schema_extra = { "linkml_meta": {'domain_of': ['StacItemProperties', 'StacCatalog']} })
     debrief_participants: Optional[list[str]] = Field(default=None, alias="debrief:participants", description="""Platform names, for catalogue search (SUB-16).""", json_schema_extra = { "linkml_meta": {'domain_of': ['StacItemProperties']} })
+    created: Optional[str] = Field(default=None, description="""When the item came into the catalogue (STAC common metadata): by import, as a received plot file, or as a copy. Items that came in after a plot can be new data for it (CAP-10).""", json_schema_extra = { "linkml_meta": {'domain_of': ['StacItemProperties', 'CoverageItem']} })
+    debrief_revision: Optional[str] = Field(default=None, alias="debrief:revision", description="""The content hash of the item's plot, its whole-plot details included, so any recorded change to the item is a new revision (CAP-12). Derived at each change, never authoritative, as the extent is.""", json_schema_extra = { "linkml_meta": {'domain_of': ['StacItemProperties']} })
+    debrief_coverage: Optional[list[TrackCoverage]] = Field(default=None, alias="debrief:coverage", description="""The periods each of the item's tracks has data for (CAP-08), so a catalogue's coverage is read from its items alone. Derived at each change, never authoritative.""", json_schema_extra = { "linkml_meta": {'domain_of': ['StacItemProperties']} })
+    debrief_drawn_from: Optional[list[ItemRef]] = Field(default=None, alias="debrief:drawn_from", description="""The catalogue items the plot's tracks take data from now, each at every revision a period of it was read at (CAP-12), from its tracks' supplies. Derived at each change, never authoritative.""", json_schema_extra = { "linkml_meta": {'domain_of': ['StacItemProperties']} })
+    debrief_imported: Optional[bool] = Field(default=None, alias="debrief:imported", description="""Whether the item came in by importing source files: its history starts with a record naming the files it read. Only such items can be new data for a plot (CAP-10; decision, product owner, 16 Oct 2026). Derived at each change, never authoritative.""", json_schema_extra = { "linkml_meta": {'domain_of': ['StacItemProperties']} })
+    debrief_origin: Optional[str] = Field(default=None, alias="debrief:origin", description="""The step_hash of the first step of the item's history: items that share it are copies of one plot, forked where their histories part (CAP-10). Derived at each change, never authoritative.""", json_schema_extra = { "linkml_meta": {'domain_of': ['StacItemProperties']} })
 
     @field_validator('datetime')
     def pattern_datetime(cls, v):
@@ -2741,6 +3182,82 @@ class StacItemProperties(ConfiguredBaseModel):
             err_msg = f"Invalid debrief_schema_version format: {v}"
             raise ValueError(err_msg)
         return v
+
+    @field_validator('created')
+    def pattern_created(cls, v):
+        pattern=re.compile(r"^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}Z$")
+        if isinstance(v, list):
+            for element in v:
+                if isinstance(element, str) and not pattern.search(element):
+                    err_msg = f"Invalid created format: {element}"
+                    raise ValueError(err_msg)
+        elif isinstance(v, str) and not pattern.search(v):
+            err_msg = f"Invalid created format: {v}"
+            raise ValueError(err_msg)
+        return v
+
+    @field_validator('debrief_revision')
+    def pattern_debrief_revision(cls, v):
+        pattern=re.compile(r"^sha256:[0-9a-f]{64}$")
+        if isinstance(v, list):
+            for element in v:
+                if isinstance(element, str) and not pattern.search(element):
+                    err_msg = f"Invalid debrief_revision format: {element}"
+                    raise ValueError(err_msg)
+        elif isinstance(v, str) and not pattern.search(v):
+            err_msg = f"Invalid debrief_revision format: {v}"
+            raise ValueError(err_msg)
+        return v
+
+    @field_validator('debrief_origin')
+    def pattern_debrief_origin(cls, v):
+        pattern=re.compile(r"^sha256:[0-9a-f]{64}$")
+        if isinstance(v, list):
+            for element in v:
+                if isinstance(element, str) and not pattern.search(element):
+                    err_msg = f"Invalid debrief_origin format: {element}"
+                    raise ValueError(err_msg)
+        elif isinstance(v, str) and not pattern.search(v):
+            err_msg = f"Invalid debrief_origin format: {v}"
+            raise ValueError(err_msg)
+        return v
+
+
+class TrackCoverage(ConfiguredBaseModel):
+    """
+    The periods one track of an item has data for (CAP-05, CAP-08): from its first fix to its last, broken at each gap (a time between two fixes more than ten times the track's median time between fixes, and more than five minutes).
+    """
+    linkml_meta: ClassVar[LinkMLMeta] = LinkMLMeta({'from_schema': 'https://debrief.info/schemas/debrief'})
+
+    track: str = Field(default=..., description="""The track's feature id.""", json_schema_extra = { "linkml_meta": {'domain_of': ['SourceTrackRef',
+                       'TrackSupply',
+                       'TrackCoverage',
+                       'ToteRow',
+                       'PlatformTrack',
+                       'CoveragePlatform',
+                       'CoverageSource',
+                       'TimelineEntry']} })
+    name: str = Field(default=..., json_schema_extra = { "linkml_meta": {'domain_of': ['ParameterValue',
+                       'ToolRef',
+                       'AgentRef',
+                       'TrackProperties',
+                       'SourceTrackRef',
+                       'AnnotationProperties',
+                       'AnnotationSpec',
+                       'SensorObservationsProperties',
+                       'InnerSchemaRef',
+                       'PayloadColumn',
+                       'NamedSet',
+                       'TrackCoverage',
+                       'ToolDeclaration',
+                       'ParameterDeclaration',
+                       'ResultColumn',
+                       'ToteRow',
+                       'ToteTrack',
+                       'CoveragePlatform',
+                       'CoverageSource']} })
+    fixes: int = Field(default=..., ge=0, json_schema_extra = { "linkml_meta": {'domain_of': ['TrackCoverage', 'CoverageSource']} })
+    spans: list[TimeRange] = Field(default=..., json_schema_extra = { "linkml_meta": {'domain_of': ['TrackCoverage', 'CoverageSource']} })
 
 
 class StacItem(ConfiguredBaseModel):
@@ -2835,7 +3352,9 @@ class StacCatalog(ConfiguredBaseModel):
                        'ToteTrack',
                        'KnownStore',
                        'TimelineEntry']} })
-    title: Optional[str] = Field(default=None, json_schema_extra = { "linkml_meta": {'domain_of': ['PlotProperties',
+    title: Optional[str] = Field(default=None, json_schema_extra = { "linkml_meta": {'domain_of': ['ItemRef',
+                       'TrackSupply',
+                       'PlotProperties',
                        'StacLink',
                        'StacAsset',
                        'StacItemProperties',
@@ -2845,7 +3364,11 @@ class StacCatalog(ConfiguredBaseModel):
                        'NonSpatialResult',
                        'MeasureDefinition',
                        'MeasureGroup',
-                       'KnownStore']} })
+                       'KnownStore',
+                       'CoverageReport',
+                       'CoverageSource',
+                       'CoverageItem',
+                       'ReviewFlag']} })
     description: str = Field(default=..., json_schema_extra = { "linkml_meta": {'domain_of': ['PlotProperties',
                        'StacItemProperties',
                        'StacCatalog',
@@ -2948,19 +3471,25 @@ class ToolDeclaration(ConfiguredBaseModel):
                        'ToolRef',
                        'AgentRef',
                        'TrackProperties',
+                       'SourceTrackRef',
                        'AnnotationProperties',
                        'AnnotationSpec',
                        'SensorObservationsProperties',
                        'InnerSchemaRef',
                        'PayloadColumn',
                        'NamedSet',
+                       'TrackCoverage',
                        'ToolDeclaration',
                        'ParameterDeclaration',
                        'ResultColumn',
                        'ToteRow',
-                       'ToteTrack']} })
+                       'ToteTrack',
+                       'CoveragePlatform',
+                       'CoverageSource']} })
     version: str = Field(default=..., json_schema_extra = { "linkml_meta": {'domain_of': ['ToolRef', 'InnerSchemaRef', 'ToolDeclaration']} })
-    title: str = Field(default=..., json_schema_extra = { "linkml_meta": {'domain_of': ['PlotProperties',
+    title: str = Field(default=..., json_schema_extra = { "linkml_meta": {'domain_of': ['ItemRef',
+                       'TrackSupply',
+                       'PlotProperties',
                        'StacLink',
                        'StacAsset',
                        'StacItemProperties',
@@ -2970,7 +3499,11 @@ class ToolDeclaration(ConfiguredBaseModel):
                        'NonSpatialResult',
                        'MeasureDefinition',
                        'MeasureGroup',
-                       'KnownStore']} })
+                       'KnownStore',
+                       'CoverageReport',
+                       'CoverageSource',
+                       'CoverageItem',
+                       'ReviewFlag']} })
     explanation: str = Field(default=..., description="""Short user-facing explanation of what the tool does (CAP-24).""", json_schema_extra = { "linkml_meta": {'domain_of': ['ToolDeclaration', 'ParameterDeclaration', 'MeasureDefinition']} })
     judgement: Optional[str] = Field(default=None, description="""Any judgement the tool involves, shown on its form (CAP-24).""", json_schema_extra = { "linkml_meta": {'domain_of': ['ToolDeclaration']} })
     applies_to: list[str] = Field(default=..., description="""Feature kinds from the taxonomy, or \"*\" for any (TL-06). Debrief offers a tool only if every selected item matches (TL-08).""", json_schema_extra = { "linkml_meta": {'domain_of': ['ToolDeclaration']} })
@@ -3014,18 +3547,24 @@ class ParameterDeclaration(ConfiguredBaseModel):
                        'ToolRef',
                        'AgentRef',
                        'TrackProperties',
+                       'SourceTrackRef',
                        'AnnotationProperties',
                        'AnnotationSpec',
                        'SensorObservationsProperties',
                        'InnerSchemaRef',
                        'PayloadColumn',
                        'NamedSet',
+                       'TrackCoverage',
                        'ToolDeclaration',
                        'ParameterDeclaration',
                        'ResultColumn',
                        'ToteRow',
-                       'ToteTrack']} })
-    title: str = Field(default=..., json_schema_extra = { "linkml_meta": {'domain_of': ['PlotProperties',
+                       'ToteTrack',
+                       'CoveragePlatform',
+                       'CoverageSource']} })
+    title: str = Field(default=..., json_schema_extra = { "linkml_meta": {'domain_of': ['ItemRef',
+                       'TrackSupply',
+                       'PlotProperties',
                        'StacLink',
                        'StacAsset',
                        'StacItemProperties',
@@ -3035,7 +3574,11 @@ class ParameterDeclaration(ConfiguredBaseModel):
                        'NonSpatialResult',
                        'MeasureDefinition',
                        'MeasureGroup',
-                       'KnownStore']} })
+                       'KnownStore',
+                       'CoverageReport',
+                       'CoverageSource',
+                       'CoverageItem',
+                       'ReviewFlag']} })
     explanation: Optional[str] = Field(default=None, description="""Shown beside the field on the form (CAP-24).""", json_schema_extra = { "linkml_meta": {'domain_of': ['ToolDeclaration', 'ParameterDeclaration', 'MeasureDefinition']} })
     kind: ParameterKindEnum = Field(default=..., json_schema_extra = { "linkml_meta": {'domain_of': ['ProvRecord',
                        'AgentRef',
@@ -3111,7 +3654,9 @@ class NonSpatialResult(ConfiguredBaseModel):
     """
     linkml_meta: ClassVar[LinkMLMeta] = LinkMLMeta({'from_schema': 'https://debrief.info/schemas/debrief'})
 
-    title: str = Field(default=..., json_schema_extra = { "linkml_meta": {'domain_of': ['PlotProperties',
+    title: str = Field(default=..., json_schema_extra = { "linkml_meta": {'domain_of': ['ItemRef',
+                       'TrackSupply',
+                       'PlotProperties',
                        'StacLink',
                        'StacAsset',
                        'StacItemProperties',
@@ -3121,7 +3666,11 @@ class NonSpatialResult(ConfiguredBaseModel):
                        'NonSpatialResult',
                        'MeasureDefinition',
                        'MeasureGroup',
-                       'KnownStore']} })
+                       'KnownStore',
+                       'CoverageReport',
+                       'CoverageSource',
+                       'CoverageItem',
+                       'ReviewFlag']} })
     presentation: ResultPresentationEnum = Field(default=..., json_schema_extra = { "linkml_meta": {'domain_of': ['NonSpatialResult']} })
     columns: list[ResultColumn] = Field(default=..., json_schema_extra = { "linkml_meta": {'domain_of': ['PayloadRef', 'NonSpatialResult']} })
 
@@ -3136,17 +3685,21 @@ class ResultColumn(ConfiguredBaseModel):
                        'ToolRef',
                        'AgentRef',
                        'TrackProperties',
+                       'SourceTrackRef',
                        'AnnotationProperties',
                        'AnnotationSpec',
                        'SensorObservationsProperties',
                        'InnerSchemaRef',
                        'PayloadColumn',
                        'NamedSet',
+                       'TrackCoverage',
                        'ToolDeclaration',
                        'ParameterDeclaration',
                        'ResultColumn',
                        'ToteRow',
-                       'ToteTrack']} })
+                       'ToteTrack',
+                       'CoveragePlatform',
+                       'CoverageSource']} })
     quantity_kind: Optional[QuantityKindEnum] = Field(default=None, json_schema_extra = { "linkml_meta": {'domain_of': ['PayloadColumn',
                        'ParameterDeclaration',
                        'ResultColumn',
@@ -3216,7 +3769,9 @@ class MeasureDefinition(ConfiguredBaseModel):
                        'ToteTrack',
                        'KnownStore',
                        'TimelineEntry']} })
-    title: str = Field(default=..., description="""Its name in full, for hover text and screen readers.""", json_schema_extra = { "linkml_meta": {'domain_of': ['PlotProperties',
+    title: str = Field(default=..., description="""Its name in full, for hover text and screen readers.""", json_schema_extra = { "linkml_meta": {'domain_of': ['ItemRef',
+                       'TrackSupply',
+                       'PlotProperties',
                        'StacLink',
                        'StacAsset',
                        'StacItemProperties',
@@ -3226,7 +3781,11 @@ class MeasureDefinition(ConfiguredBaseModel):
                        'NonSpatialResult',
                        'MeasureDefinition',
                        'MeasureGroup',
-                       'KnownStore']} })
+                       'KnownStore',
+                       'CoverageReport',
+                       'CoverageSource',
+                       'CoverageItem',
+                       'ReviewFlag']} })
     label: str = Field(default=..., description="""Its row heading in the Tote, before the unit, short enough for a narrow view.""", json_schema_extra = { "linkml_meta": {'domain_of': ['FixMark', 'MeasureDefinition']} })
     subject: MeasureSubjectEnum = Field(default=..., json_schema_extra = { "linkml_meta": {'domain_of': ['MeasureDefinition']} })
     quantity_kind: QuantityKindEnum = Field(default=..., json_schema_extra = { "linkml_meta": {'domain_of': ['PayloadColumn',
@@ -3270,7 +3829,9 @@ class MeasureGroup(ConfiguredBaseModel):
                        'ToteTrack',
                        'KnownStore',
                        'TimelineEntry']} })
-    title: str = Field(default=..., json_schema_extra = { "linkml_meta": {'domain_of': ['PlotProperties',
+    title: str = Field(default=..., json_schema_extra = { "linkml_meta": {'domain_of': ['ItemRef',
+                       'TrackSupply',
+                       'PlotProperties',
                        'StacLink',
                        'StacAsset',
                        'StacItemProperties',
@@ -3280,7 +3841,11 @@ class MeasureGroup(ConfiguredBaseModel):
                        'NonSpatialResult',
                        'MeasureDefinition',
                        'MeasureGroup',
-                       'KnownStore']} })
+                       'KnownStore',
+                       'CoverageReport',
+                       'CoverageSource',
+                       'CoverageItem',
+                       'ReviewFlag']} })
     description: Optional[str] = Field(default=None, json_schema_extra = { "linkml_meta": {'domain_of': ['PlotProperties',
                        'StacItemProperties',
                        'StacCatalog',
@@ -3347,30 +3912,46 @@ class ToteRow(ConfiguredBaseModel):
     """
     linkml_meta: ClassVar[LinkMLMeta] = LinkMLMeta({'from_schema': 'https://debrief.info/schemas/debrief'})
 
-    track: str = Field(default=..., description="""The track's feature id.""", json_schema_extra = { "linkml_meta": {'domain_of': ['ToteRow', 'PlatformTrack', 'TimelineEntry']} })
+    track: str = Field(default=..., description="""The track's feature id.""", json_schema_extra = { "linkml_meta": {'domain_of': ['SourceTrackRef',
+                       'TrackSupply',
+                       'TrackCoverage',
+                       'ToteRow',
+                       'PlatformTrack',
+                       'CoveragePlatform',
+                       'CoverageSource',
+                       'TimelineEntry']} })
     name: Optional[str] = Field(default=None, json_schema_extra = { "linkml_meta": {'domain_of': ['ParameterValue',
                        'ToolRef',
                        'AgentRef',
                        'TrackProperties',
+                       'SourceTrackRef',
                        'AnnotationProperties',
                        'AnnotationSpec',
                        'SensorObservationsProperties',
                        'InnerSchemaRef',
                        'PayloadColumn',
                        'NamedSet',
+                       'TrackCoverage',
                        'ToolDeclaration',
                        'ParameterDeclaration',
                        'ResultColumn',
                        'ToteRow',
-                       'ToteTrack']} })
+                       'ToteTrack',
+                       'CoveragePlatform',
+                       'CoverageSource']} })
     colour: Optional[str] = Field(default=None, description="""The track's colour, lower-case hex, to key the row to the map.""", json_schema_extra = { "linkml_meta": {'domain_of': ['TrackStyle',
                        'FixMark',
                        'AnnotationAppearance',
                        'ToteRow',
                        'ToteTrack',
+                       'CoveragePlatform',
                        'TimelineEntry']} })
     status: ToteRowStatusEnum = Field(default=..., json_schema_extra = { "linkml_meta": {'domain_of': ['ToteRow']} })
-    note: Optional[str] = Field(default=None, description="""Why there are no values, for the analyst, such as \"Starts 09:30:00Z\".""", json_schema_extra = { "linkml_meta": {'domain_of': ['ToteRow', 'ToteResult']} })
+    note: Optional[str] = Field(default=None, description="""Why there are no values, for the analyst, such as \"Starts 09:30:00Z\".""", json_schema_extra = { "linkml_meta": {'domain_of': ['ToteRow',
+                       'ToteResult',
+                       'CoverageReport',
+                       'NewDataMark',
+                       'ReviewFlag']} })
     values: Optional[list[MeasureValue]] = Field(default=None, json_schema_extra = { "linkml_meta": {'domain_of': ['SpeedSeries', 'AngleSeries', 'LengthSeries', 'ToteRow']} })
 
     @field_validator('colour')
@@ -3405,7 +3986,11 @@ class ToteResult(ConfiguredBaseModel):
     group: MeasureGroup = Field(default=..., json_schema_extra = { "linkml_meta": {'domain_of': ['ToteResult']} })
     measures: list[MeasureDefinition] = Field(default=..., description="""The definitions of the group's measures, in its order.""", json_schema_extra = { "linkml_meta": {'domain_of': ['MeasureGroup', 'ToteResult']} })
     primary: Optional[ToteRow] = Field(default=None, json_schema_extra = { "linkml_meta": {'domain_of': ['ToteView', 'ToteResult']} })
-    note: Optional[str] = Field(default=None, description="""What the analyst should know about the Tote as a whole, such as a measure group chosen that this plot's study does not have (core is shown instead).""", json_schema_extra = { "linkml_meta": {'domain_of': ['ToteRow', 'ToteResult']} })
+    note: Optional[str] = Field(default=None, description="""What the analyst should know about the Tote as a whole, such as a measure group chosen that this plot's study does not have (core is shown instead).""", json_schema_extra = { "linkml_meta": {'domain_of': ['ToteRow',
+                       'ToteResult',
+                       'CoverageReport',
+                       'NewDataMark',
+                       'ReviewFlag']} })
     rows: list[ToteRow] = Field(default=..., description="""One per secondary, in the order chosen.""", json_schema_extra = { "linkml_meta": {'domain_of': ['ToteResult']} })
 
     @field_validator('time')
@@ -3446,22 +4031,27 @@ class ToteTrack(ConfiguredBaseModel):
                        'ToolRef',
                        'AgentRef',
                        'TrackProperties',
+                       'SourceTrackRef',
                        'AnnotationProperties',
                        'AnnotationSpec',
                        'SensorObservationsProperties',
                        'InnerSchemaRef',
                        'PayloadColumn',
                        'NamedSet',
+                       'TrackCoverage',
                        'ToolDeclaration',
                        'ParameterDeclaration',
                        'ResultColumn',
                        'ToteRow',
-                       'ToteTrack']} })
+                       'ToteTrack',
+                       'CoveragePlatform',
+                       'CoverageSource']} })
     colour: Optional[str] = Field(default=None, json_schema_extra = { "linkml_meta": {'domain_of': ['TrackStyle',
                        'FixMark',
                        'AnnotationAppearance',
                        'ToteRow',
                        'ToteTrack',
+                       'CoveragePlatform',
                        'TimelineEntry']} })
 
     @field_validator('colour')
@@ -3495,8 +4085,8 @@ class NarrativeImportAnswers(ConfiguredBaseModel):
 
     dialect: str = Field(default=..., description="""The dialect, such as narrative-document or rider-narrative.""", json_schema_extra = { "linkml_meta": {'domain_of': ['NarrativeImportAnswers']} })
     skip_types: Optional[list[str]] = Field(default=None, description="""Entry types the analyst chose not to read; \"\" for entries with no type.""", json_schema_extra = { "linkml_meta": {'domain_of': ['NarrativeImportAnswers']} })
-    within_period: Optional[bool] = Field(default=None, description="""Only the entries within the plot's tracks' period.""", json_schema_extra = { "linkml_meta": {'domain_of': ['NarrativeImportAnswers']} })
-    tracks: Optional[list[PlatformTrack]] = Field(default=None, description="""The track the analyst said each platform is, by the track's name.""", json_schema_extra = { "linkml_meta": {'domain_of': ['NarrativeImportAnswers']} })
+    within_period: Optional[bool] = Field(default=None, description="""Only the entries within the plot's tracks' period.""", json_schema_extra = { "linkml_meta": {'domain_of': ['NarrativeImportAnswers', 'NewDataMark']} })
+    tracks: Optional[list[PlatformTrack]] = Field(default=None, description="""The track the analyst said each platform is, by the track's name.""", json_schema_extra = { "linkml_meta": {'domain_of': ['NarrativeImportAnswers', 'CoverageItem']} })
 
     @field_validator('dialect')
     def pattern_dialect(cls, v):
@@ -3519,7 +4109,14 @@ class PlatformTrack(ConfiguredBaseModel):
     linkml_meta: ClassVar[LinkMLMeta] = LinkMLMeta({'from_schema': 'https://debrief.info/schemas/debrief'})
 
     platform: str = Field(default=..., json_schema_extra = { "linkml_meta": {'domain_of': ['PlatformTrack']} })
-    track: Optional[str] = Field(default=None, description="""The track's name; left out, the platform belongs to no track.""", json_schema_extra = { "linkml_meta": {'domain_of': ['ToteRow', 'PlatformTrack', 'TimelineEntry']} })
+    track: Optional[str] = Field(default=None, description="""The track's name; left out, the platform belongs to no track.""", json_schema_extra = { "linkml_meta": {'domain_of': ['SourceTrackRef',
+                       'TrackSupply',
+                       'TrackCoverage',
+                       'ToteRow',
+                       'PlatformTrack',
+                       'CoveragePlatform',
+                       'CoverageSource',
+                       'TimelineEntry']} })
 
 
 class KnownStore(ConfiguredBaseModel):
@@ -3539,7 +4136,9 @@ class KnownStore(ConfiguredBaseModel):
                        'ToteTrack',
                        'KnownStore',
                        'TimelineEntry']} })
-    title: str = Field(default=..., description="""The name the analyst sees.""", json_schema_extra = { "linkml_meta": {'domain_of': ['PlotProperties',
+    title: str = Field(default=..., description="""The name the analyst sees.""", json_schema_extra = { "linkml_meta": {'domain_of': ['ItemRef',
+                       'TrackSupply',
+                       'PlotProperties',
                        'StacLink',
                        'StacAsset',
                        'StacItemProperties',
@@ -3549,7 +4148,11 @@ class KnownStore(ConfiguredBaseModel):
                        'NonSpatialResult',
                        'MeasureDefinition',
                        'MeasureGroup',
-                       'KnownStore']} })
+                       'KnownStore',
+                       'CoverageReport',
+                       'CoverageSource',
+                       'CoverageItem',
+                       'ReviewFlag']} })
     kind: StoreKindEnum = Field(default=..., json_schema_extra = { "linkml_meta": {'domain_of': ['ProvRecord',
                        'AgentRef',
                        'TrackProperties',
@@ -3591,6 +4194,465 @@ class KnownStore(ConfiguredBaseModel):
         return v
 
 
+class CoverageReport(ConfiguredBaseModel):
+    """
+    Coverage for one plot (CAP-08, CAP-09): its platforms with every source of data for each, the items in the folder tree it draws from with their marks, and whether the plot itself may need review.
+    """
+    linkml_meta: ClassVar[LinkMLMeta] = LinkMLMeta({'from_schema': 'https://debrief.info/schemas/debrief'})
+
+    catalogue: str = Field(default=..., description="""The plot's catalogue, by its own id.""", json_schema_extra = { "linkml_meta": {'domain_of': ['ItemRef',
+                       'SourceTrackRef',
+                       'TrackSupply',
+                       'ItemRevision',
+                       'CoverageReport',
+                       'CoverageSource',
+                       'CoverageItem',
+                       'ReviewFlag']} })
+    item: str = Field(default=..., description="""The plot's item id.""", json_schema_extra = { "linkml_meta": {'domain_of': ['ItemRef',
+                       'SourceTrackRef',
+                       'TrackSupply',
+                       'ItemRevision',
+                       'CoverageReport',
+                       'CoverageSource',
+                       'CoverageItem',
+                       'ReviewFlag']} })
+    title: str = Field(default=..., json_schema_extra = { "linkml_meta": {'domain_of': ['ItemRef',
+                       'TrackSupply',
+                       'PlotProperties',
+                       'StacLink',
+                       'StacAsset',
+                       'StacItemProperties',
+                       'StacCatalog',
+                       'ToolDeclaration',
+                       'ParameterDeclaration',
+                       'NonSpatialResult',
+                       'MeasureDefinition',
+                       'MeasureGroup',
+                       'KnownStore',
+                       'CoverageReport',
+                       'CoverageSource',
+                       'CoverageItem',
+                       'ReviewFlag']} })
+    start: Optional[str] = Field(default=None, description="""The earliest time any source shown has data.""", json_schema_extra = { "linkml_meta": {'domain_of': ['TimeRange',
+                       'TrackSupply',
+                       'CoverageReport',
+                       'CoveragePeriod',
+                       'CoverageItem',
+                       'TimelineEntry']} })
+    end: Optional[str] = Field(default=None, description="""The latest time any source shown has data.""", json_schema_extra = { "linkml_meta": {'domain_of': ['TimeRange',
+                       'TrackSupply',
+                       'CoverageReport',
+                       'CoveragePeriod',
+                       'CoverageItem',
+                       'TimelineEntry']} })
+    platforms: list[CoveragePlatform] = Field(default=..., json_schema_extra = { "linkml_meta": {'domain_of': ['CoverageReport', 'NewDataMark']} })
+    items: list[CoverageItem] = Field(default=..., json_schema_extra = { "linkml_meta": {'domain_of': ['CoverageReport']} })
+    review: Optional[ReviewFlag] = Field(default=None, description="""The plot drew from items since revised, so it may need review (CAP-12).""", json_schema_extra = { "linkml_meta": {'domain_of': ['CoverageReport']} })
+    note: Optional[str] = Field(default=None, description="""Anything the analyst should know about what is shown.""", json_schema_extra = { "linkml_meta": {'domain_of': ['ToteRow',
+                       'ToteResult',
+                       'CoverageReport',
+                       'NewDataMark',
+                       'ReviewFlag']} })
+
+    @field_validator('start')
+    def pattern_start(cls, v):
+        pattern=re.compile(r"^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}Z$")
+        if isinstance(v, list):
+            for element in v:
+                if isinstance(element, str) and not pattern.search(element):
+                    err_msg = f"Invalid start format: {element}"
+                    raise ValueError(err_msg)
+        elif isinstance(v, str) and not pattern.search(v):
+            err_msg = f"Invalid start format: {v}"
+            raise ValueError(err_msg)
+        return v
+
+    @field_validator('end')
+    def pattern_end(cls, v):
+        pattern=re.compile(r"^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}Z$")
+        if isinstance(v, list):
+            for element in v:
+                if isinstance(element, str) and not pattern.search(element):
+                    err_msg = f"Invalid end format: {element}"
+                    raise ValueError(err_msg)
+        elif isinstance(v, str) and not pattern.search(v):
+            err_msg = f"Invalid end format: {v}"
+            raise ValueError(err_msg)
+        return v
+
+
+class CoveragePlatform(ConfiguredBaseModel):
+    """
+    One of the plot's tracks, and every source of data for its platform.
+    """
+    linkml_meta: ClassVar[LinkMLMeta] = LinkMLMeta({'from_schema': 'https://debrief.info/schemas/debrief'})
+
+    track: str = Field(default=..., description="""The track's feature id in the plot.""", json_schema_extra = { "linkml_meta": {'domain_of': ['SourceTrackRef',
+                       'TrackSupply',
+                       'TrackCoverage',
+                       'ToteRow',
+                       'PlatformTrack',
+                       'CoveragePlatform',
+                       'CoverageSource',
+                       'TimelineEntry']} })
+    name: str = Field(default=..., json_schema_extra = { "linkml_meta": {'domain_of': ['ParameterValue',
+                       'ToolRef',
+                       'AgentRef',
+                       'TrackProperties',
+                       'SourceTrackRef',
+                       'AnnotationProperties',
+                       'AnnotationSpec',
+                       'SensorObservationsProperties',
+                       'InnerSchemaRef',
+                       'PayloadColumn',
+                       'NamedSet',
+                       'TrackCoverage',
+                       'ToolDeclaration',
+                       'ParameterDeclaration',
+                       'ResultColumn',
+                       'ToteRow',
+                       'ToteTrack',
+                       'CoveragePlatform',
+                       'CoverageSource']} })
+    colour: Optional[str] = Field(default=None, json_schema_extra = { "linkml_meta": {'domain_of': ['TrackStyle',
+                       'FixMark',
+                       'AnnotationAppearance',
+                       'ToteRow',
+                       'ToteTrack',
+                       'CoveragePlatform',
+                       'TimelineEntry']} })
+    sources: list[CoverageSource] = Field(default=..., description="""The plot's own data first, then items' tracks linked or proposed.""", json_schema_extra = { "linkml_meta": {'domain_of': ['CoveragePlatform', 'CoveragePeriod']} })
+    periods: list[CoveragePeriod] = Field(default=..., description="""The track's time cut where the sources with data change, in time order: each with the sources that have data then and the one that supplies it.""", json_schema_extra = { "linkml_meta": {'domain_of': ['CoveragePlatform']} })
+
+    @field_validator('colour')
+    def pattern_colour(cls, v):
+        pattern=re.compile(r"^#[0-9a-f]{6}$")
+        if isinstance(v, list):
+            for element in v:
+                if isinstance(element, str) and not pattern.search(element):
+                    err_msg = f"Invalid colour format: {element}"
+                    raise ValueError(err_msg)
+        elif isinstance(v, str) and not pattern.search(v):
+            err_msg = f"Invalid colour format: {v}"
+            raise ValueError(err_msg)
+        return v
+
+
+class CoverageSource(ConfiguredBaseModel):
+    """
+    A track in a catalogue item with data for the platform.
+    """
+    linkml_meta: ClassVar[LinkMLMeta] = LinkMLMeta({'from_schema': 'https://debrief.info/schemas/debrief'})
+
+    catalogue: str = Field(default=..., json_schema_extra = { "linkml_meta": {'domain_of': ['ItemRef',
+                       'SourceTrackRef',
+                       'TrackSupply',
+                       'ItemRevision',
+                       'CoverageReport',
+                       'CoverageSource',
+                       'CoverageItem',
+                       'ReviewFlag']} })
+    item: str = Field(default=..., json_schema_extra = { "linkml_meta": {'domain_of': ['ItemRef',
+                       'SourceTrackRef',
+                       'TrackSupply',
+                       'ItemRevision',
+                       'CoverageReport',
+                       'CoverageSource',
+                       'CoverageItem',
+                       'ReviewFlag']} })
+    track: str = Field(default=..., json_schema_extra = { "linkml_meta": {'domain_of': ['SourceTrackRef',
+                       'TrackSupply',
+                       'TrackCoverage',
+                       'ToteRow',
+                       'PlatformTrack',
+                       'CoveragePlatform',
+                       'CoverageSource',
+                       'TimelineEntry']} })
+    name: str = Field(default=..., description="""The track's name in that item.""", json_schema_extra = { "linkml_meta": {'domain_of': ['ParameterValue',
+                       'ToolRef',
+                       'AgentRef',
+                       'TrackProperties',
+                       'SourceTrackRef',
+                       'AnnotationProperties',
+                       'AnnotationSpec',
+                       'SensorObservationsProperties',
+                       'InnerSchemaRef',
+                       'PayloadColumn',
+                       'NamedSet',
+                       'TrackCoverage',
+                       'ToolDeclaration',
+                       'ParameterDeclaration',
+                       'ResultColumn',
+                       'ToteRow',
+                       'ToteTrack',
+                       'CoveragePlatform',
+                       'CoverageSource']} })
+    title: str = Field(default=..., description="""The item's title.""", json_schema_extra = { "linkml_meta": {'domain_of': ['ItemRef',
+                       'TrackSupply',
+                       'PlotProperties',
+                       'StacLink',
+                       'StacAsset',
+                       'StacItemProperties',
+                       'StacCatalog',
+                       'ToolDeclaration',
+                       'ParameterDeclaration',
+                       'NonSpatialResult',
+                       'MeasureDefinition',
+                       'MeasureGroup',
+                       'KnownStore',
+                       'CoverageReport',
+                       'CoverageSource',
+                       'CoverageItem',
+                       'ReviewFlag']} })
+    link: CoverageLinkEnum = Field(default=..., json_schema_extra = { "linkml_meta": {'domain_of': ['CoverageSource']} })
+    fixes: int = Field(default=..., ge=0, json_schema_extra = { "linkml_meta": {'domain_of': ['TrackCoverage', 'CoverageSource']} })
+    spans: list[TimeRange] = Field(default=..., json_schema_extra = { "linkml_meta": {'domain_of': ['TrackCoverage', 'CoverageSource']} })
+    revised: Optional[bool] = Field(default=None, description="""The plot took data from this item at a revision it no longer has.""", json_schema_extra = { "linkml_meta": {'domain_of': ['CoverageSource', 'CoverageItem', 'ReviewFlag']} })
+
+
+class CoveragePeriod(ConfiguredBaseModel):
+    """
+    A period in which the same sources have data for a platform.
+    """
+    linkml_meta: ClassVar[LinkMLMeta] = LinkMLMeta({'from_schema': 'https://debrief.info/schemas/debrief'})
+
+    start: str = Field(default=..., json_schema_extra = { "linkml_meta": {'domain_of': ['TimeRange',
+                       'TrackSupply',
+                       'CoverageReport',
+                       'CoveragePeriod',
+                       'CoverageItem',
+                       'TimelineEntry']} })
+    end: str = Field(default=..., json_schema_extra = { "linkml_meta": {'domain_of': ['TimeRange',
+                       'TrackSupply',
+                       'CoverageReport',
+                       'CoveragePeriod',
+                       'CoverageItem',
+                       'TimelineEntry']} })
+    sources: list[int] = Field(default=..., description="""The platform's sources with data throughout the period, by their place in its list.""", json_schema_extra = { "linkml_meta": {'domain_of': ['CoveragePlatform', 'CoveragePeriod']} })
+    chosen: Optional[int] = Field(default=None, description="""The source supplying the period; left out where the plot has none of its data yet.""", json_schema_extra = { "linkml_meta": {'domain_of': ['CoveragePeriod']} })
+
+    @field_validator('start')
+    def pattern_start(cls, v):
+        pattern=re.compile(r"^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}Z$")
+        if isinstance(v, list):
+            for element in v:
+                if isinstance(element, str) and not pattern.search(element):
+                    err_msg = f"Invalid start format: {element}"
+                    raise ValueError(err_msg)
+        elif isinstance(v, str) and not pattern.search(v):
+            err_msg = f"Invalid start format: {v}"
+            raise ValueError(err_msg)
+        return v
+
+    @field_validator('end')
+    def pattern_end(cls, v):
+        pattern=re.compile(r"^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}Z$")
+        if isinstance(v, list):
+            for element in v:
+                if isinstance(element, str) and not pattern.search(element):
+                    err_msg = f"Invalid end format: {element}"
+                    raise ValueError(err_msg)
+        elif isinstance(v, str) and not pattern.search(v):
+            err_msg = f"Invalid end format: {v}"
+            raise ValueError(err_msg)
+        return v
+
+
+class CoverageItem(ConfiguredBaseModel):
+    """
+    A catalogue item in the folder tree the plot draws from.
+    """
+    linkml_meta: ClassVar[LinkMLMeta] = LinkMLMeta({'from_schema': 'https://debrief.info/schemas/debrief'})
+
+    catalogue: str = Field(default=..., json_schema_extra = { "linkml_meta": {'domain_of': ['ItemRef',
+                       'SourceTrackRef',
+                       'TrackSupply',
+                       'ItemRevision',
+                       'CoverageReport',
+                       'CoverageSource',
+                       'CoverageItem',
+                       'ReviewFlag']} })
+    item: str = Field(default=..., json_schema_extra = { "linkml_meta": {'domain_of': ['ItemRef',
+                       'SourceTrackRef',
+                       'TrackSupply',
+                       'ItemRevision',
+                       'CoverageReport',
+                       'CoverageSource',
+                       'CoverageItem',
+                       'ReviewFlag']} })
+    title: str = Field(default=..., json_schema_extra = { "linkml_meta": {'domain_of': ['ItemRef',
+                       'TrackSupply',
+                       'PlotProperties',
+                       'StacLink',
+                       'StacAsset',
+                       'StacItemProperties',
+                       'StacCatalog',
+                       'ToolDeclaration',
+                       'ParameterDeclaration',
+                       'NonSpatialResult',
+                       'MeasureDefinition',
+                       'MeasureGroup',
+                       'KnownStore',
+                       'CoverageReport',
+                       'CoverageSource',
+                       'CoverageItem',
+                       'ReviewFlag']} })
+    role: CoverageItemRoleEnum = Field(default=..., json_schema_extra = { "linkml_meta": {'domain_of': ['CoverageItem']} })
+    created: Optional[str] = Field(default=None, json_schema_extra = { "linkml_meta": {'domain_of': ['StacItemProperties', 'CoverageItem']} })
+    start: Optional[str] = Field(default=None, json_schema_extra = { "linkml_meta": {'domain_of': ['TimeRange',
+                       'TrackSupply',
+                       'CoverageReport',
+                       'CoveragePeriod',
+                       'CoverageItem',
+                       'TimelineEntry']} })
+    end: Optional[str] = Field(default=None, json_schema_extra = { "linkml_meta": {'domain_of': ['TimeRange',
+                       'TrackSupply',
+                       'CoverageReport',
+                       'CoveragePeriod',
+                       'CoverageItem',
+                       'TimelineEntry']} })
+    revision: Optional[str] = Field(default=None, json_schema_extra = { "linkml_meta": {'domain_of': ['ItemRef',
+                       'TrackSupply',
+                       'ItemRevision',
+                       'CoverageItem',
+                       'NewDataMark']} })
+    tracks: Optional[list[TrackCoverage]] = Field(default=None, json_schema_extra = { "linkml_meta": {'domain_of': ['NarrativeImportAnswers', 'CoverageItem']} })
+    new_data: Optional[NewDataMark] = Field(default=None, description="""Marked as new data for the plot (CAP-10).""", json_schema_extra = { "linkml_meta": {'domain_of': ['CoverageItem']} })
+    revised: Optional[bool] = Field(default=None, description="""The plot took data from this item at a revision it no longer has (CAP-12).""", json_schema_extra = { "linkml_meta": {'domain_of': ['CoverageSource', 'CoverageItem', 'ReviewFlag']} })
+
+    @field_validator('created')
+    def pattern_created(cls, v):
+        pattern=re.compile(r"^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}Z$")
+        if isinstance(v, list):
+            for element in v:
+                if isinstance(element, str) and not pattern.search(element):
+                    err_msg = f"Invalid created format: {element}"
+                    raise ValueError(err_msg)
+        elif isinstance(v, str) and not pattern.search(v):
+            err_msg = f"Invalid created format: {v}"
+            raise ValueError(err_msg)
+        return v
+
+    @field_validator('start')
+    def pattern_start(cls, v):
+        pattern=re.compile(r"^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}Z$")
+        if isinstance(v, list):
+            for element in v:
+                if isinstance(element, str) and not pattern.search(element):
+                    err_msg = f"Invalid start format: {element}"
+                    raise ValueError(err_msg)
+        elif isinstance(v, str) and not pattern.search(v):
+            err_msg = f"Invalid start format: {v}"
+            raise ValueError(err_msg)
+        return v
+
+    @field_validator('end')
+    def pattern_end(cls, v):
+        pattern=re.compile(r"^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}Z$")
+        if isinstance(v, list):
+            for element in v:
+                if isinstance(element, str) and not pattern.search(element):
+                    err_msg = f"Invalid end format: {element}"
+                    raise ValueError(err_msg)
+        elif isinstance(v, str) and not pattern.search(v):
+            err_msg = f"Invalid end format: {v}"
+            raise ValueError(err_msg)
+        return v
+
+    @field_validator('revision')
+    def pattern_revision(cls, v):
+        pattern=re.compile(r"^sha256:[0-9a-f]{64}$")
+        if isinstance(v, list):
+            for element in v:
+                if isinstance(element, str) and not pattern.search(element):
+                    err_msg = f"Invalid revision format: {element}"
+                    raise ValueError(err_msg)
+        elif isinstance(v, str) and not pattern.search(v):
+            err_msg = f"Invalid revision format: {v}"
+            raise ValueError(err_msg)
+        return v
+
+
+class NewDataMark(ConfiguredBaseModel):
+    """
+    Why an item is marked as new data for a plot (CAP-10): it came in after the plot, through Debrief's import, within the folder tree the plot draws from, and has data for the plot's platforms or within its period; the plot has not taken it or set it aside at this revision.
+    """
+    linkml_meta: ClassVar[LinkMLMeta] = LinkMLMeta({'from_schema': 'https://debrief.info/schemas/debrief'})
+
+    revision: str = Field(default=..., json_schema_extra = { "linkml_meta": {'domain_of': ['ItemRef',
+                       'TrackSupply',
+                       'ItemRevision',
+                       'CoverageItem',
+                       'NewDataMark']} })
+    platforms: Optional[list[str]] = Field(default=None, description="""The plot's tracks it has data for.""", json_schema_extra = { "linkml_meta": {'domain_of': ['CoverageReport', 'NewDataMark']} })
+    within_period: Optional[bool] = Field(default=None, description="""It has data within the plot's period.""", json_schema_extra = { "linkml_meta": {'domain_of': ['NarrativeImportAnswers', 'NewDataMark']} })
+    note: str = Field(default=..., description="""What the mark says, for its tooltip and screen readers.""", json_schema_extra = { "linkml_meta": {'domain_of': ['ToteRow',
+                       'ToteResult',
+                       'CoverageReport',
+                       'NewDataMark',
+                       'ReviewFlag']} })
+
+    @field_validator('revision')
+    def pattern_revision(cls, v):
+        pattern=re.compile(r"^sha256:[0-9a-f]{64}$")
+        if isinstance(v, list):
+            for element in v:
+                if isinstance(element, str) and not pattern.search(element):
+                    err_msg = f"Invalid revision format: {element}"
+                    raise ValueError(err_msg)
+        elif isinstance(v, str) and not pattern.search(v):
+            err_msg = f"Invalid revision format: {v}"
+            raise ValueError(err_msg)
+        return v
+
+
+class ReviewFlag(ConfiguredBaseModel):
+    """
+    A product that drew from catalogue items since revised, so may need review (CAP-12), until the analyst clears it.
+    """
+    linkml_meta: ClassVar[LinkMLMeta] = LinkMLMeta({'from_schema': 'https://debrief.info/schemas/debrief'})
+
+    catalogue: str = Field(default=..., json_schema_extra = { "linkml_meta": {'domain_of': ['ItemRef',
+                       'SourceTrackRef',
+                       'TrackSupply',
+                       'ItemRevision',
+                       'CoverageReport',
+                       'CoverageSource',
+                       'CoverageItem',
+                       'ReviewFlag']} })
+    item: str = Field(default=..., json_schema_extra = { "linkml_meta": {'domain_of': ['ItemRef',
+                       'SourceTrackRef',
+                       'TrackSupply',
+                       'ItemRevision',
+                       'CoverageReport',
+                       'CoverageSource',
+                       'CoverageItem',
+                       'ReviewFlag']} })
+    title: str = Field(default=..., json_schema_extra = { "linkml_meta": {'domain_of': ['ItemRef',
+                       'TrackSupply',
+                       'PlotProperties',
+                       'StacLink',
+                       'StacAsset',
+                       'StacItemProperties',
+                       'StacCatalog',
+                       'ToolDeclaration',
+                       'ParameterDeclaration',
+                       'NonSpatialResult',
+                       'MeasureDefinition',
+                       'MeasureGroup',
+                       'KnownStore',
+                       'CoverageReport',
+                       'CoverageSource',
+                       'CoverageItem',
+                       'ReviewFlag']} })
+    revised: list[ItemRef] = Field(default=..., description="""Each item revised since the product took data from it, at its revision now.""", json_schema_extra = { "linkml_meta": {'domain_of': ['CoverageSource', 'CoverageItem', 'ReviewFlag']} })
+    note: str = Field(default=..., description="""What the flag says, for its tooltip and screen readers.""", json_schema_extra = { "linkml_meta": {'domain_of': ['ToteRow',
+                       'ToteResult',
+                       'CoverageReport',
+                       'NewDataMark',
+                       'ReviewFlag']} })
+
+
 class TimelineEntry(ConfiguredBaseModel):
     """
     One row of the Timeline (CAP-05, CAP-20): a narrative entry, a time-only annotation (a note or a period) or a comment on a track's fix, as the Timeline lists them, in one time order.
@@ -3622,21 +4684,42 @@ class TimelineEntry(ConfiguredBaseModel):
                        'KnownStore',
                        'TimelineEntry',
                        'WebviewMessage']} })
-    start: str = Field(default=..., description="""Its time, or the start of its period.""", json_schema_extra = { "linkml_meta": {'domain_of': ['TimeRange', 'TimelineEntry']} })
-    end: Optional[str] = Field(default=None, description="""The end of its period; left out for a single time.""", json_schema_extra = { "linkml_meta": {'domain_of': ['TimeRange', 'TimelineEntry']} })
-    source: str = Field(default=..., description="""Who wrote a narrative entry; an annotation's name; the track a fix comment is on.""", json_schema_extra = { "linkml_meta": {'domain_of': ['NarrativeProperties', 'NarrativeSpec', 'TimelineEntry']} })
+    start: str = Field(default=..., description="""Its time, or the start of its period.""", json_schema_extra = { "linkml_meta": {'domain_of': ['TimeRange',
+                       'TrackSupply',
+                       'CoverageReport',
+                       'CoveragePeriod',
+                       'CoverageItem',
+                       'TimelineEntry']} })
+    end: Optional[str] = Field(default=None, description="""The end of its period; left out for a single time.""", json_schema_extra = { "linkml_meta": {'domain_of': ['TimeRange',
+                       'TrackSupply',
+                       'CoverageReport',
+                       'CoveragePeriod',
+                       'CoverageItem',
+                       'TimelineEntry']} })
+    source: str = Field(default=..., description="""Who wrote a narrative entry; an annotation's name; the track a fix comment is on; the item supplying a period of data.""", json_schema_extra = { "linkml_meta": {'domain_of': ['NarrativeProperties',
+                       'NarrativeSpec',
+                       'TimelineEntry',
+                       'WebviewMessage']} })
     entry_type: Optional[str] = Field(default=None, description="""A narrative entry's type, in its source's words.""", json_schema_extra = { "linkml_meta": {'domain_of': ['NarrativeProperties', 'NarrativeSpec', 'TimelineEntry']} })
     text: Optional[str] = Field(default=None, description="""Its text.""", json_schema_extra = { "linkml_meta": {'domain_of': ['AnnotationProperties',
                        'AnnotationSpec',
                        'NarrativeProperties',
                        'NarrativeSpec',
                        'TimelineEntry']} })
-    track: Optional[str] = Field(default=None, description="""The track it belongs to: a narrative entry's track, or a fix's.""", json_schema_extra = { "linkml_meta": {'domain_of': ['ToteRow', 'PlatformTrack', 'TimelineEntry']} })
+    track: Optional[str] = Field(default=None, description="""The track it belongs to: a narrative entry's track, or a fix's.""", json_schema_extra = { "linkml_meta": {'domain_of': ['SourceTrackRef',
+                       'TrackSupply',
+                       'TrackCoverage',
+                       'ToteRow',
+                       'PlatformTrack',
+                       'CoveragePlatform',
+                       'CoverageSource',
+                       'TimelineEntry']} })
     colour: Optional[str] = Field(default=None, description="""That track's colour, lower-case hex RGB.""", json_schema_extra = { "linkml_meta": {'domain_of': ['TrackStyle',
                        'FixMark',
                        'AnnotationAppearance',
                        'ToteRow',
                        'ToteTrack',
+                       'CoveragePlatform',
                        'TimelineEntry']} })
     hidden: Optional[bool] = Field(default=None, description="""An annotation or track hidden on the map.""", json_schema_extra = { "linkml_meta": {'domain_of': ['TrackProperties',
                        'AnnotationProperties',
@@ -3714,7 +4797,7 @@ class WebviewMessage(ConfiguredBaseModel):
     saved_window: Optional[TimeRange] = Field(default=None, description="""The time window as saved in the plot, so the time controller can say when the window shown differs from it (CAP-28).""", json_schema_extra = { "linkml_meta": {'domain_of': ['WebviewMessage']} })
     context_tracks: Optional[ContextTracksEnum] = Field(default=None, description="""How tracks outside the time window are drawn (CAP-29).""", json_schema_extra = { "linkml_meta": {'domain_of': ['PlotView', 'WebviewMessage']} })
     minimum_context_contrast: Optional[bool] = Field(default=None, description="""The analyst's setting that shows faint context tracks as visible, so the time controller can say so.""", json_schema_extra = { "linkml_meta": {'domain_of': ['WebviewMessage']} })
-    time_range: Optional[TimeRange] = Field(default=None, description="""The plot's period, so times can be entered as the analyst reads them (show_form) and the time window set within it (show_time); or the time window to save (window_changed).""", json_schema_extra = { "linkml_meta": {'domain_of': ['AnnotationProperties',
+    time_range: Optional[TimeRange] = Field(default=None, description="""The plot's period, so times can be entered as the analyst reads them (show_form) and the time window set within it (show_time); the time window to save (window_changed); or the period whose source the analyst chose (source_chosen).""", json_schema_extra = { "linkml_meta": {'domain_of': ['AnnotationProperties',
                        'AnnotationSpec',
                        'SensorObservationsProperties',
                        'WebviewMessage']} })
@@ -3742,6 +4825,13 @@ class WebviewMessage(ConfiguredBaseModel):
     timeline_tracks: Optional[list[ToteTrack]] = Field(default=None, description="""The plot's tracks, which a narrative entry can belong to (show_timeline).""", json_schema_extra = { "linkml_meta": {'domain_of': ['WebviewMessage']} })
     narrative: Optional[NarrativeSpec] = Field(default=None, description="""A narrative entry as the Timeline's form describes it (save_narrative).""", json_schema_extra = { "linkml_meta": {'domain_of': ['WebviewMessage']} })
     tote_tracks: Optional[list[ToteTrack]] = Field(default=None, description="""The plot's tracks, which the analyst can choose from for the Tote (show_tote).""", json_schema_extra = { "linkml_meta": {'domain_of': ['WebviewMessage']} })
+    coverage: Optional[CoverageReport] = Field(default=None, description="""The open plot's coverage (show_coverage).""", json_schema_extra = { "linkml_meta": {'domain_of': ['WebviewMessage']} })
+    source: Optional[SourceTrackRef] = Field(default=None, description="""A track in a catalogue item (source_chosen, link_changed).""", json_schema_extra = { "linkml_meta": {'domain_of': ['NarrativeProperties',
+                       'NarrativeSpec',
+                       'TimelineEntry',
+                       'WebviewMessage']} })
+    linked: Optional[bool] = Field(default=None, description="""Whether the source is the track's platform (link_changed).""", json_schema_extra = { "linkml_meta": {'domain_of': ['WebviewMessage']} })
+    item_revision: Optional[ItemRevision] = Field(default=None, description="""The item, at the revision the analyst saw (take_asked, dismiss_asked).""", json_schema_extra = { "linkml_meta": {'domain_of': ['WebviewMessage']} })
 
     @field_validator('current_time')
     def pattern_current_time(cls, v):
@@ -3982,8 +5072,11 @@ ProvRecord.model_rebuild()
 ToolRef.model_rebuild()
 AgentRef.model_rebuild()
 SourceRef.model_rebuild()
+ItemRef.model_rebuild()
 TrackFeature.model_rebuild()
 TrackProperties.model_rebuild()
+SourceTrackRef.model_rebuild()
+TrackSupply.model_rebuild()
 TrackStyle.model_rebuild()
 FixMark.model_rebuild()
 TrackEdit.model_rebuild()
@@ -4002,11 +5095,14 @@ PayloadColumn.model_rebuild()
 PlotFeature.model_rebuild()
 PlotProperties.model_rebuild()
 PlotView.model_rebuild()
+CollationView.model_rebuild()
+ItemRevision.model_rebuild()
 NamedSet.model_rebuild()
 DebriefFeatureCollection.model_rebuild()
 StacLink.model_rebuild()
 StacAsset.model_rebuild()
 StacItemProperties.model_rebuild()
+TrackCoverage.model_rebuild()
 StacItem.model_rebuild()
 StacCatalog.model_rebuild()
 TimeState.model_rebuild()
@@ -4031,6 +5127,13 @@ UserConfig.model_rebuild()
 NarrativeImportAnswers.model_rebuild()
 PlatformTrack.model_rebuild()
 KnownStore.model_rebuild()
+CoverageReport.model_rebuild()
+CoveragePlatform.model_rebuild()
+CoverageSource.model_rebuild()
+CoveragePeriod.model_rebuild()
+CoverageItem.model_rebuild()
+NewDataMark.model_rebuild()
+ReviewFlag.model_rebuild()
 TimelineEntry.model_rebuild()
 WebviewMessage.model_rebuild()
 PlotHistory.model_rebuild()

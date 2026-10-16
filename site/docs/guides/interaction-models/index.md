@@ -19,6 +19,7 @@ Worked patterns applied the same way across hosts, tools and agents (DEV-08). Ea
 | [Labels, symbols and arrows](labels-symbols-arrows.md) | Phase 3 | Written (intervals per track, aligned to the clock as legacy Debrief; thinning; a fix's own label or symbol) |
 | [Tote](tote.md) | Phase 3 | Written (part A: primary and secondaries, the core measures, latency) |
 | [Timeline and narrative](timeline.md) | Phase 3 | Written (part A: narrative entries, REP and .dpf import, the Timeline following current time, filter, search, editing, scale) |
-| [Keyboard equivalents](keyboard-equivalents.md) | Phase 3 | Partly written (annotations, tracks, the Tote, the Timeline) |
+| [Collation](collation.md) | Phase 3 | Written (coverage, platforms across items, source preference per period, new data, taking it, review flags) |
+| [Keyboard equivalents](keyboard-equivalents.md) | Phase 3 | Partly written (annotations, tracks, the Tote, the Timeline, collation) |
 
 Analysts review the Phase 1 models before they are built.
