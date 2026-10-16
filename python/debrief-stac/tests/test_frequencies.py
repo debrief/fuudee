@@ -30,7 +30,7 @@ def test_intervals_are_on_the_track_not_its_fixes(catalogue) -> None:
     blue = next(f for f in plot["features"] if f["id"] == "blue")["properties"]
     assert blue["label_interval"] == {"value": 10.0, "unit": "min"}
     assert describe_track(props(catalogue, "blue")) == (
-        "Labels every 10 min · Symbols default · Arrows default"
+        "Labels every 10 min · Symbols off · Arrows default"
     )
 
 
@@ -111,7 +111,7 @@ def test_held_per_track_so_tracks_set_together_may_later_differ(catalogue) -> No
     assert props(catalogue, "red").symbol_interval == models.FixIntervalOffEnum.off
     # Back to Debrief's default: left out of the file.
     catalogue.set_track_frequencies("p", ["red"], {"symbol_interval": None}, AGENT)
-    assert last_note(catalogue) == "Symbols back to the default on RED ONE"
+    assert last_note(catalogue) == "Symbols off on RED ONE"
     assert props(catalogue, "red").symbol_interval is None
 
 
@@ -237,7 +237,7 @@ def test_helpers() -> None:
     assert same(models.Duration(value=1, unit="h"), models.Duration(value=60, unit="min"))
     off = models.FixIntervalOffEnum.off
     assert step_name({"arrow_interval": off, "label_interval": None}, ["A"]) == (
-        "Labels back to the default, arrows off on A"
+        "Labels off, arrows off on A"
     )
 
 

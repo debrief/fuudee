@@ -125,7 +125,7 @@ def describe(field: str, value: Interval) -> str:
     the default"."""
     noun = NOUNS[field]
     if value is None:
-        return f"{noun} back to the default"
+        return f"{noun} back to the default" if field == "arrow_interval" else f"{noun} off"
     if _off(value):
         return f"{noun} off"
     if _keyword(value) == INTERVAL_ALL:
@@ -135,7 +135,8 @@ def describe(field: str, value: Interval) -> str:
 
 def describe_track(props: Any) -> str:
     """A track's intervals in words, as its details show them (product owner, 15 Oct
-    2026): "Labels every 10 min · Symbols off · Arrows default". Left out is "default".
+    2026): "Labels every 10 min · Symbols off · Arrows default". Left out is "off" for
+    labels and symbols (none are drawn) and "default" for arrows (product owner, 16 Oct 2026).
     As describeFrequencies in vscode/webview/frequencies.ts, held to the shared vectors."""
     parts = []
     for field in FIELDS:
@@ -143,7 +144,7 @@ def describe_track(props: Any) -> str:
         if isinstance(value, dict):
             value = models.Duration(**value)
         if value is None:
-            said = "default"
+            said = "default" if field == "arrow_interval" else "off"
         elif isinstance(value, models.Duration):
             said = f"every {describe_interval(round(seconds_of(value)))}"
         elif _keyword(value) == INTERVAL_ALL:

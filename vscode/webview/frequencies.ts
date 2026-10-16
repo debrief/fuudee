@@ -178,7 +178,7 @@ export function describeChanges(changes: Partial<Record<Field, Setting>>, names:
     .map((f) => {
       const value = changes[f];
       const noun = FIELD_NAMES[f].toLowerCase();
-      if (value === null || value === undefined) return `${noun} back to the default`;
+      if (value === null || value === undefined) return f === "arrow_interval" ? `${noun} back to the default` : `${noun} off`;
       if (value === "off") return `${noun} off`;
       if (value === "all") return `${noun} at every fix`;
       return `${noun} every ${describeInterval(Math.round(secondsOf(value)))}`;
@@ -190,22 +190,22 @@ export function describeChanges(changes: Partial<Record<Field, Setting>>, names:
 
 /**
  * A track's intervals in words, as its details show them (product owner, 15 Oct 2026):
- * "Labels every 10 min · Symbols off · Arrows default". Left out is "default". As
+ * "Labels every 10 min · Symbols off · Arrows default". Left out is "off" for labels
+ * and symbols (none are drawn) and "default" for arrows (product owner, 16 Oct 2026). As
  * debrief_stac.frequencies.describe_track says it, held to the shared vectors.
  */
 export function describeFrequencies(track: Presentation): string {
   return FIELDS.map((field) => {
     const value = track[field];
-    const said = value === undefined || value === null ? "default" : value === "off" ? "off" : value === "all" ? "at every fix" : `every ${describeInterval(Math.round(secondsOf(value)))}`;
+    const said = value === undefined || value === null ? (field === "arrow_interval" ? "default" : "off") : value === "off" ? "off" : value === "all" ? "at every fix" : `every ${describeInterval(Math.round(secondsOf(value)))}`;
     return `${FIELD_NAMES[field]} ${said}`;
   }).join(" · ");
 }
 
-/** Only the intervals set (not left to the default), in words; empty when none is set. */
+/** Only the intervals set (not left out), in words; empty when none is set. */
 export function describeSetFrequencies(track: Presentation): string {
-  return describeFrequencies(track)
-    .split(" · ")
-    .filter((part) => !part.endsWith(" default"))
+  return FIELDS.map((field, i) => (track[field] === undefined || track[field] === null ? "" : describeFrequencies(track).split(" · ")[i]))
+    .filter(Boolean)
     .join(" · ");
 }
 

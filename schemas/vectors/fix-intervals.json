@@ -42,9 +42,9 @@
     {"seconds": 86400, "text": "24 h"}
   ],
   "track": [
-    {"properties": {}, "text": "Labels default · Symbols default · Arrows default"},
+    {"properties": {}, "text": "Labels off · Symbols off · Arrows default"},
     {"properties": {"label_interval": {"value": 10, "unit": "min"}, "symbol_interval": "off", "arrow_interval": {"value": 300, "unit": "s"}}, "text": "Labels every 10 min · Symbols off · Arrows every 5 min"},
-    {"properties": {"arrow_interval": "off", "symbol_interval": {"value": 90, "unit": "min"}}, "text": "Labels default · Symbols every 1 h 30 min · Arrows off"},
+    {"properties": {"arrow_interval": "off", "symbol_interval": {"value": 90, "unit": "min"}}, "text": "Labels off · Symbols every 1 h 30 min · Arrows off"},
     {"properties": {"label_interval": "all", "symbol_interval": "all"}, "text": "Labels at every fix · Symbols at every fix · Arrows default"}
   ]
 }

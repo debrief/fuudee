@@ -72,7 +72,7 @@ describe("intervals as typed and named (shared vectors)", () => {
   });
   it("are among a track's details, as the outline shows them", () => {
     expect(trackDetails({ name: "BLUE ONE", label_interval: { value: 10, unit: "min" } }, "09:00 to 10:00Z", true)).toBe(
-      "BLUE ONE: 09:00 to 10:00Z\nPlotted by dead reckoning (DR), from its first fix by each fix's course and speed\nLabels every 10 min · Symbols default · Arrows default",
+      "BLUE ONE: 09:00 to 10:00Z\nPlotted by dead reckoning (DR), from its first fix by each fix's course and speed\nLabels every 10 min · Symbols off · Arrows default",
     );
   });
   it("names every preset so it reads back", () => {

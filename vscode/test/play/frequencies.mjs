@@ -102,7 +102,7 @@ export async function playFrequencies(page, shot) {
   assert.deepEqual(await overlaps(), [], "time labels clear of one another and of names");
   // Held per track, and said in the outline: the intervals set, and all three when pointed at.
   assert.equal(await row("track-blue-one").locator(".freq-detail").innerText(), "Labels every 10 min · Arrows every 5 min");
-  assert.match(await row("track-red-one").getAttribute("title"), /Labels every 10 min · Symbols default · Arrows every 5 min$/);
+  assert.match(await row("track-red-one").getAttribute("title"), /Labels every 10 min · Symbols off · Arrows every 5 min$/);
   // The selection's outline and handles off the picture.
   await mapFrame.locator("#map").focus();
   await page.keyboard.press("Escape");
