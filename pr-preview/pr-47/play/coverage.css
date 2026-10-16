@@ -1,0 +1,56 @@
+/* Coverage (coveragecontrol.ts): collation with coverage visible (CAP-08 to CAP-12).
+   Interface colours only from the theme (CON-06, DEV-07); the dot beside a platform is
+   its track's own data colour. Marks never rely on colour alone: a symbol and words.
+   Every width from 210 px: bars take the room there is, words wrap, nothing scrolls sideways. */
+.cov { --cov-now: -1; display: flex; flex-direction: column; gap: 6px; min-width: 0; font-size: 12px; color: var(--vscode-foreground); overflow-wrap: anywhere; }
+.cov-body { display: flex; flex-direction: column; gap: 8px; min-width: 0; }
+.cov-body[hidden], .cov-empty[hidden] { display: none; }
+.cov-empty, .cov-quiet { color: var(--vscode-descriptionForeground); margin: 0; }
+.cov p { margin: 0; }
+.cov h3 { margin: 0; font-size: 12px; font-weight: 600; }
+.cov ul { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 6px; }
+.cov button { font: inherit; height: 22px; padding: 0 8px; color: var(--vscode-button-secondaryForeground); background: var(--vscode-button-secondaryBackground); border: 1px solid var(--vscode-button-border, transparent); border-radius: 2px; cursor: pointer; }
+.cov button:hover { background: var(--vscode-button-secondaryHoverBackground); }
+.cov button.cov-take, .cov button.cov-reviewed { color: var(--vscode-button-foreground); background: var(--vscode-button-background); }
+.cov button.cov-take:hover, .cov button.cov-reviewed:hover { background: var(--vscode-button-hoverBackground); }
+.cov button:focus-visible, .cov select:focus-visible { outline: 1px solid var(--vscode-focusBorder); outline-offset: 1px; }
+.cov-actions { display: flex; flex-wrap: wrap; gap: 4px; }
+
+/* May need review, and new data: boxes that stand out without colour alone. */
+.cov-review { display: flex; flex-direction: column; gap: 4px; padding: 6px 8px; border: 1px solid var(--vscode-inputValidation-warningBorder, var(--vscode-editorWarning-foreground)); background: var(--vscode-inputValidation-warningBackground, transparent); }
+.cov-review button { align-self: flex-start; }
+.cov-flag { color: var(--vscode-editorWarning-foreground); }
+.cov-new { display: flex; flex-direction: column; gap: 4px; }
+.cov-item { display: flex; flex-direction: column; gap: 3px; padding: 4px 6px; border-left: 2px solid var(--vscode-focusBorder); background: var(--vscode-textBlockQuote-background, transparent); }
+.cov-name { font-weight: 600; }
+.cov-spark { color: var(--vscode-charts-yellow, var(--vscode-editorWarning-foreground)); }
+.cov-tag { display: inline-block; padding: 0 4px; border-radius: 2px; font-size: 11px; font-weight: normal; color: var(--vscode-badge-foreground); background: var(--vscode-badge-background); }
+.cov-why { color: var(--vscode-descriptionForeground); }
+
+/* Platforms: a heading, then a line and a bar for each source. */
+.cov-axis { display: flex; justify-content: space-between; gap: 6px; color: var(--vscode-descriptionForeground); font-variant-numeric: tabular-nums; }
+.cov-platform { padding-top: 4px; border-top: 1px solid var(--vscode-widget-border, var(--vscode-panel-border, transparent)); }
+.cov-head { display: flex; align-items: baseline; gap: 4px; flex-wrap: wrap; cursor: pointer; list-style: none; font-weight: 600; }
+.cov-head::-webkit-details-marker { display: none; }
+.cov-head::before { content: "▸"; color: var(--vscode-descriptionForeground); font-weight: normal; }
+.cov-platform[open] > .cov-head::before { content: "▾"; }
+.cov-head:focus-visible { outline: 1px solid var(--vscode-focusBorder); outline-offset: 1px; }
+.cov-head .cov-quiet { font-weight: normal; }
+.cov-platform[open] { display: flex; flex-direction: column; gap: 3px; }
+.cov-swatch { flex: none; display: inline-block; width: 8px; height: 8px; border-radius: 50%; align-self: center; }
+.cov-source { display: flex; flex-direction: column; gap: 1px; }
+.cov-label { display: flex; flex-wrap: wrap; align-items: baseline; gap: 2px 6px; min-width: 0; }
+.cov-title { min-width: 0; }
+.cov-proposed .cov-title { font-style: italic; }
+.cov-bar { position: relative; height: 10px; min-width: 0; background: var(--vscode-input-background); border: 1px solid var(--vscode-widget-border, transparent); cursor: pointer; overflow: hidden; }
+/* Data a source has, outlined; the periods it supplies the track, filled. Single fixes stay visible. */
+.cov-span { position: absolute; top: 1px; bottom: 1px; min-width: 2px; box-sizing: border-box; border: 1px solid var(--vscode-descriptionForeground); }
+.cov-supplied { position: absolute; top: 1px; bottom: 1px; min-width: 2px; background: var(--vscode-foreground); opacity: .8; }
+.cov-has-now .cov-bar::after { content: ""; position: absolute; top: 0; bottom: 0; width: 1px; left: calc(var(--cov-now) * 100%); background: var(--vscode-focusBorder); }
+
+/* Which source supplies each period with a choice: a list a period. */
+.cov-choices { display: flex; flex-direction: column; gap: 3px; margin-top: 2px; }
+.cov-choice { display: flex; flex-wrap: wrap; align-items: center; gap: 2px 6px; min-width: 0; }
+.cov-when { color: var(--vscode-descriptionForeground); font-variant-numeric: tabular-nums; }
+.cov-choice select { flex: 1 1 8em; min-width: 0; max-width: 100%; height: 22px; font: inherit; color: var(--vscode-dropdown-foreground, var(--vscode-foreground)); background: var(--vscode-dropdown-background); border: 1px solid var(--vscode-dropdown-border, transparent); }
+.cov-status { margin: 0; min-height: 1em; color: var(--vscode-descriptionForeground); }
