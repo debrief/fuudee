@@ -59,7 +59,7 @@ Sometimes one time matters more than the rest: the moment of a turn, a weapon fi
 
 ## In VS Code
 
-**Frequencies: labels, symbols and arrows…** is on the outline's menu for tracks, and in the Command Palette: three short lists, one after another, each starting at what the selected tracks have now; type an interval and it's offered at the top. A track's tooltip in the outline ends with its intervals, *Labels every 10 min · Symbols off · Arrows every 5 min*.
+**Frequencies: labels, symbols and arrows…** is on the outline's menu for tracks, and in the Command Palette: three short lists, one after another, each starting at what the selected tracks have now; type an interval and it's offered at the top, and **Back** returns to the list before. A track's tooltip in the outline ends with its intervals, *Labels every 10 min · Symbols off · Arrows every 5 min*.
 
 ![VS Code, dark theme: RED ONE zoomed in, labelled 0810, 0813 (one fix forced on), 0820 and 0830, with arrows along it; 0830 sits on the far side of the track from the fix's own label, Turn 1, rather than on it; the outline beside](images/phase-3/freq-07-vscode.png)
 

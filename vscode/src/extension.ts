@@ -1047,22 +1047,26 @@ export function activate(context: vscode.ExtensionContext): DebriefApi {
   /**
    * The Frequencies form in VS Code's own lists: Labels, then Symbols, then Arrows, each
    * offering what the tracks have now first (or Mixed, left as they are), the default for
-   * arrows, Off and the presets; typing an interval ("90 s", "1h30") offers it. Escape
+   * arrows, Off and the presets; typing an interval ("90 s", "1h30") offers it. Back
+   * returns to the list before, its choice kept (product owner, 16 Oct 2026). Escape
    * stops, changing nothing.
    */
   async function askFrequencies(tracks: TrackFeature[]): Promise<Partial<Record<Field, FieldState>> | undefined> {
     const state = formState(tracks.map((t) => t.properties));
     const who = tracks.length === 1 ? tracks[0].properties.name : `${tracks.length} tracks`;
     const chosen: Partial<Record<Field, FieldState>> = {};
-    for (const [n, field] of FIELDS.entries()) {
+    for (let n = 0; n < FIELDS.length; ) {
+      const field = FIELDS[n];
       const now = state[field];
       const items = choicesFor(field, now).map((c) => ({ label: c.label, value: c.value, description: c.value === String(now) ? "as now" : "" }));
-      const picked = await new Promise<FieldState | undefined>((resolve) => {
+      const already = field in chosen ? String(chosen[field]) : String(now);
+      const picked = await new Promise<FieldState | "back" | undefined>((resolve) => {
         const pick = vscode.window.createQuickPick<{ label: string; value: string; description?: string; alwaysShow?: boolean }>();
         pick.title = `${FIELD_NAMES[field]} on ${who} (${n + 1} of ${FIELDS.length})`;
         pick.placeholder = "Choose, or type an interval such as 90 s or 1h30";
         pick.items = items;
-        pick.activeItems = items.filter((i) => i.value === String(now));
+        pick.activeItems = items.filter((i) => i.value === already);
+        if (n > 0) pick.buttons = [vscode.QuickInputButtons.Back];
         pick.onDidChangeValue((text) => {
           const read = text.trim() ? readInterval(text) : undefined;
           // Off and All are in the list already, found by typing them; arrows have no All.
@@ -1075,6 +1079,12 @@ export function activate(context: vscode.ExtensionContext): DebriefApi {
           pick.items = [...typed, ...items];
         });
         let done = false;
+        pick.onDidTriggerButton((button) => {
+          if (button !== vscode.QuickInputButtons.Back) return;
+          done = true;
+          resolve("back");
+          pick.hide();
+        });
         pick.onDidAccept(() => {
           const item = pick.selectedItems[0];
           if (!item?.value) return; // a problem said, not a choice
@@ -1089,7 +1099,12 @@ export function activate(context: vscode.ExtensionContext): DebriefApi {
         pick.show();
       });
       if (picked === undefined) return undefined;
+      if (picked === "back") {
+        n -= 1;
+        continue;
+      }
       chosen[field] = picked;
+      n += 1;
     }
     return chosen;
   }

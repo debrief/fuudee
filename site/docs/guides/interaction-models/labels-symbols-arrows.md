@@ -51,7 +51,7 @@ sequenceDiagram
 
 ## Keyboard and touch
 
-The form is a form: `Tab` between choosers, arrow keys within one, `Enter` applies, `Escape` cancels. In VS Code the lists are VS Code's own. A fix's menu opens by right-click, press and hold on a touch screen, or the fix list from **Fixes…** ([keyboard equivalents](keyboard-equivalents.md)).
+The form is a form: `Tab` between choosers, arrow keys within one, `Enter` applies, `Escape` cancels. In VS Code the lists are VS Code's own, one after another, with **Back** to the list before (product owner, 16 Oct 2026). A fix's menu opens by right-click, press and hold on a touch screen, or the fix list from **Fixes…** ([keyboard equivalents](keyboard-equivalents.md)).
 
 ## Reference implementation
 
