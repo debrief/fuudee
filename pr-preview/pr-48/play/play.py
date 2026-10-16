@@ -470,7 +470,11 @@ def tote(item: str, request_json: str) -> str:
     request = json.loads(request_json)
     started = time.perf_counter()
     try:
-        result = tote_at(_cat(), item, request["time"], request.get("tote"))
+        # An earlier revision shown read-only: the Tote of the plot as it was then, so the
+        # traced view matches the image (decision, product owner, 16 Oct 2026).
+        revision = request.get("revision")
+        revision = revision if isinstance(revision, str) else None
+        result = tote_at(_cat(), item, request["time"], request.get("tote"), revision)
     except (CatalogueError, HistoryError, ValueError) as error:
         return json.dumps({"error": str(error)})
     return json.dumps({"tote": result, "compute_ms": (time.perf_counter() - started) * 1000})
@@ -873,14 +877,25 @@ def export_image(item: str, request_json: str, data: bytes) -> str:
     plot's export log (its island, never a step); the image comes back for the reader to
     save, as base 64."""
     request = json.loads(request_json)
-    members = ("format", "footer", "preset", "theme", "width", "height", "viewport", "time", "file")
+    members = (
+        "format",
+        "footer",
+        "preset",
+        "theme",
+        "width",
+        "height",
+        "viewport",
+        "time",
+        "tote",
+        "file",
+    )
     details = {k: request.get(k) for k in members}
     details.update(by=YOU.name, at=format_utc(int(time.time() * 1000)))
     try:
         stamped, entry = figures.prepare_export(_cat(), item, request["id"], bytes(data), details)
     except (CatalogueError, HistoryError, ValueError) as error:
         return json.dumps({"error": str(error)})
-    note = figures.log_export(_cat(), item, entry)
+    logged = figures.log_export(_cat(), item, entry)
     view, view_hash = _cat().read_view(item)  # the island has the export log now
     return json.dumps(
         {
@@ -889,8 +904,8 @@ def export_image(item: str, request_json: str, data: bytes) -> str:
             "view_hash": view_hash,
             "id": entry.id,
             "short": figures.parse_figure_id(entry.id).short,
-            "recorded": note is None,
-            **({"note": note} if note else {}),
+            "recorded": logged.where == "plot",
+            **({"note": logged.note} if logged.note else {}),
         }
     )
 
@@ -900,17 +915,22 @@ def find_image_source(name: str | None, data: bytes | None, typed: str | None) -
     the pictures in a Word or PowerPoint file), or by an ID typed from a footer."""
     typed = typed if isinstance(typed, str) else None  # JavaScript's null is not None
     name = name if isinstance(name, str) else None
+    skipped: list[dict[str, str]] = []
     try:
         if typed:
             refs = [(figures.parse_figure_id(typed), "typed")]
         else:
             found = figures.figure_ids_in(bytes(data), name or "the image")
+            # A picture that could not be read (encrypted, say): said, never an error.
+            skipped = [{"where": w, "why": why} for w, why in found.skipped]
+            unread = " ".join(f"{s['where']} was not read: {s['why']}." for s in skipped)
             if not found.ids:
                 return json.dumps(
                     {
                         "images": [],
+                        "skipped": skipped,
                         "problem": f"{name} carries no Debrief image ID: its metadata may have "
-                        "been removed. Type the ID from the image's footer instead.",
+                        "been removed. Type the ID from the image's footer instead. " + unread,
                     }
                 )
             refs = [(figures.parse_figure_id(t), where) for t, where in found.ids]
@@ -927,7 +947,7 @@ def find_image_source(name: str | None, data: bytes | None, typed: str | None) -
                 "sources": [s.model().model_dump(mode="json", exclude_none=True) for s in sources],
             }
         )
-    out: dict[str, Any] = {"images": images}
+    out: dict[str, Any] = {"images": images, "skipped": skipped}
     if not any(i["sources"] for i in images):
         out["problem"] = "No plot in this catalogue has the revision this image was exported at."
     return json.dumps(out)
