@@ -19,7 +19,7 @@ The product owner settled what a "source" is: a catalogue item. A serial, a navi
 
 ## New data, marked
 
-New data comes in only through Debrief's import: no folder is watched, nothing polled. Import a navigation log for BLUE ONE into the catalogue, and it is marked **New data** for the open plot, with a sparkle and the words, never colour alone. Its reason, *New data for Serial 1: BLUE ONE, within its period*, is its tooltip and what a screen reader says. Only items in the folders the plot draws from are marked.
+New data comes in only through Debrief's import: no folder is watched, nothing polled. Import a navigation log for BLUE ONE into the catalogue, and it is marked **New data** for the open plot, with a sparkle and the words, never colour alone. Its reason, *New data for Serial 1: BLUE ONE, within its period*, is its tooltip and what a screen reader says. Only files imported are marked, and only when they share a platform with the plot and have data within its period, in the folders the plot draws from: never a plot made from this one, nor one that is itself a collation of others. A colleague's copy of the plot is marked only once it adds data.
 
 ![The playground's Catalogue panel: Serial 1, open; below it BLUE ONE navigation log, with a sparkle and the words New data, 15 Jun 2023 09:20:00Z to 12:20:00Z, 2 tracks, and Open, Take and Not now. The Coverage panel below repeats it with Take and Not now](images/phase-3/collation-01-new-data.png)
 
@@ -29,7 +29,7 @@ The log's track is called *Blue One*. Debrief proposes it as the plot's BLUE ONE
 
 **Take** is one step, named for the item: *New data from BLUE ONE navigation log*. BLUE ONE gains the log's fixes where the plot had none, here its twenty minutes after the plot's track ended; WATCHER, a contact the plot had never seen, is added. Where the plot already has data, it stays the plot's, and the step's record says the log has data then too. The mark clears; the item is now *drawn from*. Undo takes all of it back.
 
-The analyst's work on the plot comes through: annotations, the narrative, marks on fixes, colours. A track moved, sheared, stretched or smoothed carries the same correction onto the new fixes, worked out from each existing fix's offset from where its source puts it. A track plotted by dead reckoning carries its corrections to course and speed.
+The analyst's work on the plot comes through: annotations, the narrative, marks on fixes, colours. A track moved, rotated, sheared, stretched or smoothed carries the same correction onto the new fixes, worked out from each existing fix's offset from where its source puts it, their courses and speeds changed with it. A fix dragged on its own moves only the new fix at its time. A track plotted by dead reckoning carries its corrections to course and speed.
 
 ![Coverage after taking: BLUE ONE with four sources, the plot's own bar filled from 08:00 to 12:00, the log's filled for its twenty minutes after, Serial 2 and Serial 3 proposed by name with Same platform and Not this platform, and a list of periods with a choice for each](images/phase-3/collation-02-taken.png)
 
@@ -37,7 +37,7 @@ The Timeline lists each period of data as an entry, by the item supplying it (*U
 
 ## Which source, period by period
 
-The log and the serial both have BLUE ONE from 09:20 to 10:20. Which is right? Per period, the analyst decides: Coverage cuts each platform's time wherever the sources with data change and offers a list for each period. Choose the log for that hour, and BLUE ONE is stitched: the serial's fixes before, the log's in the hour, the serial's after. One step, *BLUE ONE 09:20:00Z to 10:20:00Z from BLUE ONE navigation log*, whose record says what the period had and has. Clicking a source's bar in a period chooses it too.
+The log and the serial both have BLUE ONE from 09:20 to 10:20. Which is right? Per period, the analyst decides: Coverage cuts each platform's time, within the plot's own period, wherever the sources with data change, and offers a list for each period. Pick the log for that hour and press **Set** (or `Enter`; moving through the list changes nothing), and BLUE ONE is stitched: the serial's fixes before, the log's in the hour, the serial's after. One step, *BLUE ONE 09:20:00Z to 10:20:00Z from BLUE ONE navigation log*, whose record says what the period had and has. Clicking a source's bar in a period chooses it too.
 
 ![Coverage with the log chosen for 09:20 to 10:20: its bar filled there and for its last twenty minutes, Serial 1's filled either side, the period's list showing BLUE ONE navigation log](images/phase-3/collation-03-chosen.png)
 
@@ -45,7 +45,7 @@ Serial 2's BLUE ONE turns out to be a different ship. **Not this platform** is o
 
 ## Revised since taken
 
-A colleague corrects the navigation log. Any recorded change to an item is a new revision, so Serial 1, which took data from it, **may need review**. The playground says so in a note, VS Code in a notification with **Show in Catalogues**, and the plot is flagged in Catalogue and Coverage until the analyst presses **Reviewed**. **Take again** reads the periods the log supplies from its latest revision, carrying the analyst's edits again.
+A colleague corrects the navigation log. Any recorded change to an item is a new revision, so Serial 1, which took data from it, **may need review**. The playground says so in a note, VS Code in a notification with **Show in Catalogues**, and the plot is flagged in Catalogue and Coverage until the analyst presses **Reviewed**. **Take again** reads the periods the log supplies from its latest revision, carrying the analyst's edits again. Each period remembers the revision it was read at, so a plot that took one hour of the log before the correction and another after says so, and stays flagged until the older hour is read again. Taking a revision that changed nothing the plot took makes no step at all.
 
 ![Catalogue and Coverage: Serial 1 flagged May need review with Reviewed; Coverage says May need review: BLUE ONE navigation log was revised since Serial 1 took data from it, with Reviewed, and lists the log under Revised since taken with Take again](images/phase-3/collation-04-review.png)
 
@@ -75,4 +75,4 @@ Under *Try*, **New data arrives for this plot** imports a navigation log for the
 
 - **The Tote's study measures** (groups of measures, course and speed rates, Doppler, range rate, time) wait for multi-plot bulk analysis, as the product owner decided.
 - **Folders aren't watched.** New data comes only through Debrief's import, by decision.
-- **Reviewed isn't a step.** Clearing a review flag is view state, kept with the plot, not in its history.
+- **Reviewed isn't a step.** Clearing a review flag is view state, kept with the plot with who cleared it and when, not in its history, as the product owner decided.

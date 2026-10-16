@@ -82,9 +82,9 @@ In collation, a source is a **catalogue item**: an imported file, kept as a plot
 
 **Source preference.** Which catalogue item supplies each period of a track where more than one has data then: the analyst's choice, per period, one step each. The track is stitched from the chosen periods (CAP-09).
 
-**New data.** A catalogue item that came in after the plot, within the folders it draws from, with data for its platforms or within its period, not yet taken or set aside: marked with a sparkle and the words *New data* (CAP-10). Taking it is one step (CAP-11); **Not now** sets it aside until it is revised.
+**New data.** A file imported into the catalogue after the plot, within the folders it draws from, sharing a platform with it and with data within its period, not yet taken or set aside (a colleague's copy of the plot, only once it adds data; never a plot made from it or from other items): marked with a sparkle and the words *New data* (CAP-10). Taking it is one step (CAP-11); **Not now** sets it aside until it is revised.
 
-**Revision** (of a catalogue item). Its content after any recorded change, of data or details; known by the content's checksum, so undo brings a revision back. A plot that drew from an item at an earlier revision **may need review** until the analyst marks it **Reviewed** (CAP-12).
+**Revision** (of a catalogue item). Its content after any recorded change, of data or details; known by the content's checksum, so undo brings a revision back. A plot with a period it took from an item at an earlier revision **may need review** until the analyst marks it **Reviewed** (CAP-12).
 
 **Folder tree** (a plot draws from). The catalogue a plot is in, and the catalogues of the items it has taken data from: where its new data is looked for (CAP-10).
 

@@ -42,12 +42,13 @@ export function describeStep(
   // So is a collation step: "New data from Nav log", "BLUE ONE 09:00:00Z to 09:30:00Z from Nav log".
   const collation = step.tool === COLLATION_TOOL;
   const named = !step.tool || step.tool === NARRATIVE_IMPORTER || collation;
-  const note = (step.kind === "edit" || step.kind === "import") && named ? step.notes?.[0] : undefined;
+  // Collation's steps are a tool's (kind "tool"), told apart from a file's import.
+  const note = (step.kind === "edit" || step.kind === "import" || collation) && named ? step.notes?.[0] : undefined;
   const label =
     note && note.length <= STEP_NAME_LENGTH
       ? note
       : collation
-        ? step.kind === "import"
+        ? step.notes?.[0]?.startsWith("New data from")
           ? "New data taken"
           : "Source or platform chosen"
         : step.kind === "import"

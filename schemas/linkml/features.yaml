@@ -825,11 +825,16 @@ classes:
         multivalued: true
         inlined_as_list: true
   ItemRevision:
-    description: One revision of a catalogue item.
+    description: >-
+      One revision of a catalogue item; for an answer the analyst gave
+      (Not now, Reviewed), who gave it and when, a light audit trail kept
+      in the island (decision, product owner, 16 Oct 2026).
     attributes:
       catalogue: {required: true}
       item: {required: true}
       revision: {range: ContentHash, required: true}
+      by: {description: "Who gave the answer: the agent's name."}
+      at: {range: UtcTimestamp, description: "When the answer was given."}
 
   # --- Named sets and the collection ---------------------------------------
   NamedSet:

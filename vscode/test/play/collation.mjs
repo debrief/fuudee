@@ -74,9 +74,19 @@ export async function playCollation(page, shot) {
   const label = await choice.getAttribute("aria-label");
   assert.match(label, /^Source for BLUE ONE \d\d:\d\d:\d\dZ to \d\d:\d\d:\d\dZ$/);
   const period = label.replace("Source for BLUE ONE ", "");
+  // Real keys: the arrow keys move through the list (a change at every one) and make no
+  // step; Enter makes the one chosen. Focus stays on the list as Coverage is drawn again.
+  const stepsBefore = await page.locator("#history li").count();
   await choice.focus();
-  await choice.selectOption({ label: "BLUE ONE navigation log" });
+  const picked = () => choice.evaluate((s) => s.options[s.selectedIndex].text);
+  for (let i = 0; i < 4 && (await picked()) !== "BLUE ONE navigation log"; i++) await page.keyboard.press("ArrowDown");
+  assert.equal(await picked(), "BLUE ONE navigation log");
+  await page.waitForTimeout(300);
+  assert.equal(await page.locator("#history li").count(), stepsBefore, "moving through the list makes no step");
+  assert.equal(await choice.locator("xpath=following-sibling::button[1]").isDisabled(), false, "Set is ready once another source is picked");
+  await page.keyboard.press("Enter");
   await stepNamed(`BLUE ONE ${period} from BLUE ONE navigation log`);
+  await page.waitForFunction((l) => document.activeElement?.getAttribute("aria-label") === l, label, { timeout: 10000 });
   // The panel redraws once the step is saved: waited for, not read the moment the step shows.
   const logBar = blue.locator(".cov-source", { hasText: "BLUE ONE navigation log" }).locator(".cov-bar .cov-supplied");
   await logBar.nth(1).waitFor({ timeout: 10000 }).catch(() => undefined);
@@ -207,10 +217,32 @@ export async function vscodeCoverageView(browser, files, errors, shot, repo) {
     for (let i = 0; i < 20 && !posted.some((m) => m.kind === kind); i++) await view.waitForTimeout(50);
     return posted.findLast((m) => m.kind === kind);
   };
-  // The list, from the keyboard: the log supplies 09:00 to 09:30.
+  // Touch: every button and list, and every bar, at least 24 px tall at a phone's width.
+  await view.setViewportSize({ width: 390, height: 560 });
+  await view.waitForTimeout(150);
+  const short = await view.evaluate(() =>
+    [...document.querySelectorAll(".cov button, .cov select, .cov-bar")].flatMap((el) => {
+      const h = el.getBoundingClientRect().height;
+      return h && h < 24 ? [`${el.className || el.tagName} ${h}px`] : [];
+    }),
+  );
+  assert.deepEqual(short, [], "touch targets at least 24 px");
+  await view.setViewportSize({ width: 280, height: 560 });
+  await view.waitForTimeout(150);
+  // The list, from the keyboard: picking the log asks nothing; Enter makes it supply 09:00 to 09:30.
   const list = view.locator("select").first();
   await list.focus();
   await list.selectOption("1");
+  await view.waitForTimeout(200);
+  assert.equal(posted.filter((m) => m.kind === "source_chosen").length, 0, "picking on the list makes no step");
+  // Refused (here, said by the host): the list goes back to what supplies the period.
+  await view.evaluate(() => window.postMessage({ kind: "show_coverage", message: "Refused, for the test." }, "*"));
+  await view.locator(".cov-status", { hasText: "Refused, for the test." }).waitFor();
+  assert.equal(await view.locator("select").first().inputValue(), "0", "a refused choice resets its list");
+  assert.ok(await view.locator(".cov-set").first().isDisabled(), "and Set waits for another pick");
+  await view.locator("select").first().focus();
+  await view.locator("select").first().selectOption("1");
+  await view.keyboard.press("Enter");
   const chosen = await asked("source_chosen");
   assert.deepEqual(chosen, { kind: "source_chosen", feature_id: "track-blue-one", time_range: { start: "2023-06-15T09:00:00.000Z", end: "2023-06-15T09:30:00.000Z" }, source: { catalogue: "debrief-sample", item: "blue-one-nav-log", track: "track-blue-one", name: "Blue One" } });
   // The host answers; drawn again, the page asks once more on a bar click.

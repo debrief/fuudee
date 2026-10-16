@@ -2852,7 +2852,7 @@ class CollationView(ConfiguredBaseModel):
 
 class ItemRevision(ConfiguredBaseModel):
     """
-    One revision of a catalogue item.
+    One revision of a catalogue item; for an answer the analyst gave (Not now, Reviewed), who gave it and when, a light audit trail kept in the island (decision, product owner, 16 Oct 2026).
     """
     linkml_meta: ClassVar[LinkMLMeta] = LinkMLMeta({'from_schema': 'https://debrief.info/schemas/debrief'})
 
@@ -2877,6 +2877,8 @@ class ItemRevision(ConfiguredBaseModel):
                        'ItemRevision',
                        'CoverageItem',
                        'NewDataMark']} })
+    by: Optional[str] = Field(default=None, description="""Who gave the answer: the agent's name.""", json_schema_extra = { "linkml_meta": {'domain_of': ['ItemRevision']} })
+    at: Optional[str] = Field(default=None, description="""When the answer was given.""", json_schema_extra = { "linkml_meta": {'domain_of': ['ItemRevision']} })
 
     @field_validator('revision')
     def pattern_revision(cls, v):
@@ -2888,6 +2890,19 @@ class ItemRevision(ConfiguredBaseModel):
                     raise ValueError(err_msg)
         elif isinstance(v, str) and not pattern.search(v):
             err_msg = f"Invalid revision format: {v}"
+            raise ValueError(err_msg)
+        return v
+
+    @field_validator('at')
+    def pattern_at(cls, v):
+        pattern=re.compile(r"^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}Z$")
+        if isinstance(v, list):
+            for element in v:
+                if isinstance(element, str) and not pattern.search(element):
+                    err_msg = f"Invalid at format: {element}"
+                    raise ValueError(err_msg)
+        elif isinstance(v, str) and not pattern.search(v):
+            err_msg = f"Invalid at format: {v}"
             raise ValueError(err_msg)
         return v
 
@@ -3112,7 +3127,9 @@ class StacItemProperties(ConfiguredBaseModel):
     created: Optional[str] = Field(default=None, description="""When the item came into the catalogue (STAC common metadata): by import, as a received plot file, or as a copy. Items that came in after a plot can be new data for it (CAP-10).""", json_schema_extra = { "linkml_meta": {'domain_of': ['StacItemProperties', 'CoverageItem']} })
     debrief_revision: Optional[str] = Field(default=None, alias="debrief:revision", description="""The content hash of the item's plot, its whole-plot details included, so any recorded change to the item is a new revision (CAP-12). Derived at each change, never authoritative, as the extent is.""", json_schema_extra = { "linkml_meta": {'domain_of': ['StacItemProperties']} })
     debrief_coverage: Optional[list[TrackCoverage]] = Field(default=None, alias="debrief:coverage", description="""The periods each of the item's tracks has data for (CAP-08), so a catalogue's coverage is read from its items alone. Derived at each change, never authoritative.""", json_schema_extra = { "linkml_meta": {'domain_of': ['StacItemProperties']} })
-    debrief_drawn_from: Optional[list[ItemRef]] = Field(default=None, alias="debrief:drawn_from", description="""The catalogue items the plot took data from, each at the latest revision taken (CAP-12), from its provenance. Derived at each change, never authoritative.""", json_schema_extra = { "linkml_meta": {'domain_of': ['StacItemProperties']} })
+    debrief_drawn_from: Optional[list[ItemRef]] = Field(default=None, alias="debrief:drawn_from", description="""The catalogue items the plot's tracks take data from now, each at every revision a period of it was read at (CAP-12), from its tracks' supplies. Derived at each change, never authoritative.""", json_schema_extra = { "linkml_meta": {'domain_of': ['StacItemProperties']} })
+    debrief_imported: Optional[bool] = Field(default=None, alias="debrief:imported", description="""Whether the item came in by importing source files: its history starts with a record naming the files it read. Only such items can be new data for a plot (CAP-10; decision, product owner, 16 Oct 2026). Derived at each change, never authoritative.""", json_schema_extra = { "linkml_meta": {'domain_of': ['StacItemProperties']} })
+    debrief_origin: Optional[str] = Field(default=None, alias="debrief:origin", description="""The step_hash of the first step of the item's history: items that share it are copies of one plot, forked where their histories part (CAP-10). Derived at each change, never authoritative.""", json_schema_extra = { "linkml_meta": {'domain_of': ['StacItemProperties']} })
 
     @field_validator('datetime')
     def pattern_datetime(cls, v):
@@ -3189,6 +3206,19 @@ class StacItemProperties(ConfiguredBaseModel):
                     raise ValueError(err_msg)
         elif isinstance(v, str) and not pattern.search(v):
             err_msg = f"Invalid debrief_revision format: {v}"
+            raise ValueError(err_msg)
+        return v
+
+    @field_validator('debrief_origin')
+    def pattern_debrief_origin(cls, v):
+        pattern=re.compile(r"^sha256:[0-9a-f]{64}$")
+        if isinstance(v, list):
+            for element in v:
+                if isinstance(element, str) and not pattern.search(element):
+                    err_msg = f"Invalid debrief_origin format: {element}"
+                    raise ValueError(err_msg)
+        elif isinstance(v, str) and not pattern.search(v):
+            err_msg = f"Invalid debrief_origin format: {v}"
             raise ValueError(err_msg)
         return v
 

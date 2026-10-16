@@ -104,6 +104,14 @@ def test_collation_coverage_new_data_preference_links_and_review(client, tmp_pat
     assert [(f["item"], f["store"]) for f in flags] == [("serial", "exercise")]
     cleared = rpc(client, "debrief/clear_review_flag", where).json()["result"]
     assert cleared["changed"]
+    # Who cleared it and when, in the island: never a step (decision, 16 Oct 2026).
+    answer = cleared["view"]["collation"]["reviewed"][0]
+    assert answer["by"] == "analyst" and answer["at"]
     assert rpc(client, "debrief/review_flags").json()["result"]["flags"] == []
+    # Taking the log again changes nothing the plot has: no step, and said so.
+    before = rpc(client, "debrief/history", where).json()["result"]["steps"]
+    again = rpc(client, "debrief/take_new_data", {**where, "source": item_ref}).json()["result"]
+    assert again["changed"] is False and "already has this item's data" in again["message"]
+    assert rpc(client, "debrief/history", where).json()["result"]["steps"] == before
     missing = rpc(client, "debrief/take_new_data", {**where, "source": "log"}).json()["error"]
     assert missing["code"] == -32602

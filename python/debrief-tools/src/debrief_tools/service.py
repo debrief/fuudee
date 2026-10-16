@@ -909,12 +909,14 @@ class ToolService:
         (linked true), or refuses or unlinks (linked false), a track in another item as
         the platform of the plot's track (feature, source), one step. dismiss_new_data
         sets an item's new data aside (source with its revision), and clear_review_flag
-        clears the plot's review flag: both in the plot's island, never steps."""
+        clears the plot's review flag: both in the plot's island, never steps, with who
+        answered and when. take_new_data makes no step when the plot has the item's data
+        as it is now already: changed false, and a message saying so."""
         agent = _agent(params)
         others = self._other_catalogues(catalogue)
         source = params.get("source")
         if method == "debrief/clear_review_flag":
-            return {"changed": catalogue.clear_review_flag(item, others) > 0}
+            return {"changed": catalogue.clear_review_flag(item, others, agent) > 0}
         if not isinstance(source, dict):
             raise RpcError(INVALID_PARAMS, f"{method} needs the source: its catalogue and item")
         if method == "debrief/take_new_data":
@@ -933,6 +935,13 @@ class ToolService:
                 revision=revision if isinstance(revision, str) and revision else None,
                 allow_newer_schema=allow,
             )
+            if step is None:
+                # Nothing to take: the plot has the item's data as it is now already.
+                return {
+                    "changed": False,
+                    "message": "The plot already has this item's data as it is now: nothing "
+                    "was taken, and it is marked as reviewed against this revision.",
+                }
             return {"changed": True, "step": step}
         if method == "debrief/dismiss_new_data":
             fields = ("catalogue", "item", "revision")
@@ -940,7 +949,7 @@ class ToolService:
                 raise RpcError(
                     INVALID_PARAMS, "dismiss_new_data needs source {catalogue, item, revision}"
                 )
-            catalogue.dismiss_new_data(item, *(source[f] for f in fields))
+            catalogue.dismiss_new_data(item, *(source[f] for f in fields), agent)
             return {"changed": True}
         feature = params.get("feature")
         if not isinstance(feature, str):

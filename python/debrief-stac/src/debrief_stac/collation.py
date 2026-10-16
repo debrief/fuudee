@@ -21,29 +21,43 @@ the catalogue browser, with coverage visible:
   the same period, the analyst chooses which supplies it. The track is stitched from
   the chosen periods (``supplies``: which item supplies which period, in time order),
   as one recorded step naming the items and the period.
-- **New data.** Data arrives only through Debrief's import. An item that came into
-  the folder tree the plot draws from after the plot did, with data for its
-  platforms or within its period, is marked as new data for it, until the analyst
-  takes it or sets it aside.
+- **New data** (decisions, product owner, 16 Oct 2026). Data arrives only through
+  Debrief's import. An item that came into the folder tree the plot draws from after
+  the plot did is marked as new data for it, until the analyst takes it or sets it
+  aside, when it shares a platform with the plot (linked or proposed), has data within
+  the plot's period, and is not made from the plot's data; and either it came in by
+  importing files (its first record names them) and is no product of other items, or
+  it is a copy of the plot (their histories share their first step) with steps since
+  they parted that add data. Items made by hand and products are never new data.
 - **Taking new data** is the analyst's choice: one recorded step naming the item. A
   matched track gains the item's fixes where it has none (and, where the item
   already supplies a period, that period is read again from the item's latest
   revision); periods supplied by another item stay theirs, as the analyst chose;
-  tracks that match none of the plot's are added.
+  tracks that match none of the plot's are added. Taking an item whose data the plot
+  has already, as it is now, makes no step: the plot is marked as reviewed against
+  that revision instead.
 - **Revisions.** Any recorded change to an item, of its data or its details, is a new
-  revision (its plot's content hash). A product whose provenance names an item at
-  an older revision may need review, until the analyst clears its flag.
+  revision (its plot's content hash). Each period a track takes from an item names
+  the revision it was read at, so periods of one item read at two revisions say so.
+  A product with a period read at a revision the item no longer has may need review,
+  until the analyst clears its flag; who cleared it and when are kept in its island.
+
+Coverage is worked out within the plot's own period: items far outside it cost
+nothing and offer no choice, though tracks of the same name are still proposed.
 
 Edits survive. Fixes taken into a track the analyst has changed (moved, rotated,
-sheared, stretched, smoothed, single fixes dragged) follow the change made around
-them: each existing fix's offset from where its source puts it is worked out, and a
-new fix is offset by the offsets of the fixes either side of it in time, in
-proportion to its time between them (beyond the first or last, as the nearest). A
-move is carried exactly; a shear, being proportional to time, exactly within the
-period it covered; the rest closely. On a track plotted by dead reckoning, its
-courses and speeds are what edits change, so a new fix's course gains the change
-in course of the fixes either side and its speed their change in proportion, and
-the positions are worked out again by dead reckoning. Marks stay with their fixes,
+sheared, stretched, smoothed) follow the change made around them: each existing
+fix's offset from where its source, at the revision it was read at, puts it is
+worked out, and a new fix is offset by the offsets of the fixes either side of it in
+time, in proportion to its time between them (beyond the first or last, as the
+nearest). Its course and speed are carried through the same change, as a shear or a
+stretch carries a fix's own: a rotation turns the course, a stretch scales the
+speed. A move is carried exactly; a shear, being proportional to time, exactly
+within the period it covered; the rest closely. A fix dragged on its own moves only
+a new fix at its very time. On a track plotted by dead reckoning, its courses and
+speeds are what edits change, so a new fix's course gains the change in course of
+the fixes either side and its speed their change in proportion, and the positions
+are worked out again by dead reckoning. Marks stay with their fixes,
 by time; frequencies, colour and hiding are the track's own and are kept;
 annotations and narrative are untouched. Replay is unaffected: each step records
 its output, so undo and redo never read an item again (SUB-19, SUB-21).
@@ -52,13 +66,15 @@ its output, so undo and redo never read an item again (SUB-19, SUB-21).
 from __future__ import annotations
 
 import bisect
+import logging
 import math
+from collections import OrderedDict
 from collections.abc import Callable, Iterable, Sequence
 from dataclasses import dataclass, field, replace
 from typing import TYPE_CHECKING
 
 from debrief_kernel.formatting import DEFAULT_SETTINGS, format_time
-from debrief_kernel.geodesy import WGS84
+from debrief_kernel.geodesy import WGS84, Position, destination, range_bearing
 from debrief_kernel.time import format_utc, parse_utc
 from debrief_kernel.units import Quantity
 from debrief_schemas import DebriefFeatureCollection, models
@@ -162,28 +178,59 @@ def periods(sources: Sequence[Sequence[Span]]) -> list[Period]:
     sources that meet joined. A source whose span is a single instant inside another
     source's period is not counted in it (one fix is no choice); alone, it is a
     period of its own."""
+    # A sweep along the time: each source's spans open and close at their bounds, so
+    # the work grows with the number of spans, not with spans times bounds (NFR-01).
     bounds = sorted({t for spans_ in sources for span in spans_ for t in span})
+    index = {t: k for k, t in enumerate(bounds)}
+    opening: list[list[int]] = [[] for _ in bounds]
+    closing: list[list[int]] = [[] for _ in bounds]
+    for i, spans_ in enumerate(sources):
+        for s, e in spans_:
+            if s < e:
+                opening[index[s]].append(i)
+                closing[index[e]].append(i)
+    open_count = [0] * len(sources)
+    active: set[int] = set()
     out: list[Period] = []
-    for a, b in zip(bounds, bounds[1:], strict=False):
-        covering = tuple(
-            i
-            for i, spans_ in enumerate(sources)
-            if any(s <= a and b <= e and s < e for s, e in spans_)
-        )
-        if not covering:
+    for k in range(len(bounds) - 1):
+        for i in closing[k]:
+            open_count[i] -= 1
+            if not open_count[i]:
+                active.discard(i)
+        for i in opening[k]:
+            open_count[i] += 1
+            active.add(i)
+        if not active:
             continue
+        a, b = bounds[k], bounds[k + 1]
+        covering = tuple(sorted(active))
         last = out[-1] if out else None
         if last is not None and last.sources == covering and last.end == a:
             out[-1] = Period(last.start, b, covering)
         else:
             out.append(Period(a, b, covering))
+    # Single instants: a period of their own, unless inside one already.
+    starts = [p.start for p in out]
+    flat = [sorted(spans_) for spans_ in sources]
+    flat_starts = [[s for s, _ in spans_] for spans_ in flat]
+
+    def holds(j: int, t: int) -> bool:
+        n = bisect.bisect_right(flat_starts[j], t)
+        return any(flat[j][m][0] <= t <= flat[j][m][1] for m in range(max(0, n - 2), n))
+
+    instants: list[Period] = []
     for i, spans_ in enumerate(sources):
         for s, e in spans_:
-            if s == e and not any(p.start <= s <= p.end for p in out):
-                at = tuple(
-                    j for j, other in enumerate(sources) if any(x <= s <= y for x, y in other)
-                )
-                out.append(Period(s, s, at or (i,)))
+            if s != e:
+                continue
+            n = bisect.bisect_right(starts, s)
+            if any(out[m].start <= s <= out[m].end for m in range(max(0, n - 2), n)):
+                continue
+            if any(p.start == s for p in instants):
+                continue
+            at = tuple(j for j in range(len(sources)) if holds(j, s))
+            instants.append(Period(s, s, at or (i,)))
+    out.extend(instants)
     out.sort(key=lambda p: (p.start, p.end))
     return out
 
@@ -235,15 +282,51 @@ def plot_coverage(plot: DebriefFeatureCollection) -> list[models.TrackCoverage]:
     return [track_coverage(f) for f in plot.features if f.properties.kind == "track"]
 
 
-def drawn_from(plot: DebriefFeatureCollection) -> list[models.ItemRef]:
-    """The items the plot took data from, each at the latest revision taken, from the
-    provenance of the steps it holds now (an undone step's records are not in it)."""
+def taken_from(plot: DebriefFeatureCollection) -> list[models.ItemRef]:
+    """The items the plot ever took data from, each at the latest revision taken, from
+    the provenance of the steps it holds now (an undone step's records are not in it).
+    An item taken from is no longer new data for it, even once none of its data is left."""
     found: dict[tuple[str, str], models.ItemRef] = {}
     for record in plot.provenance or []:
         for ref in record.drawn_from or []:
             found.pop((ref.catalogue, ref.item), None)
             found[(ref.catalogue, ref.item)] = ref
     return list(found.values())
+
+
+def drawn_from(plot: DebriefFeatureCollection) -> list[models.ItemRef]:
+    """The items the plot's tracks take data from now, each at every revision a period
+    was read at, from the tracks' supplies (CAP-12): what a review flag is judged by. An
+    item whose periods have all gone back to other sources is no longer drawn from, and
+    a period read at an older revision than the rest is named at that revision."""
+    found: dict[tuple[str, str, str], models.ItemRef] = {}
+    for feature in plot.features:
+        if feature.properties.kind != "track":
+            continue
+        for s in feature.properties.supplies or []:
+            if s.revision is None:  # the plot's own data
+                continue
+            key = (s.catalogue, s.item, s.revision)
+            if key not in found:
+                found[key] = models.ItemRef(
+                    catalogue=s.catalogue, item=s.item, title=s.title, revision=s.revision
+                )
+    return list(found.values())
+
+
+def first_recorded_at(plot: DebriefFeatureCollection) -> str | None:
+    """When the plot's first step was made: when an item saved before items kept their
+    arrival came in, near enough (CAP-10)."""
+    first = (plot.provenance or [None])[0]
+    return first.started_at if first is not None else None
+
+
+def imported(plot: DebriefFeatureCollection) -> bool:
+    """Whether the plot came in by importing source files: its first record names the
+    files it read (CAP-10). A plot made by hand, a copy or a product's first record names
+    none."""
+    first = (plot.provenance or [None])[0]
+    return bool(first is not None and first.used)
 
 
 @dataclass
@@ -259,6 +342,16 @@ class ItemInfo:
     drawn_from: list[models.ItemRef]
     start: str | None = None
     end: str | None = None
+    imported: bool = False
+    origin: str | None = None
+    # Each track's spans in milliseconds, worked out once while the item is unchanged.
+    _spans_ms: dict[str, list[Span]] = field(default_factory=dict, repr=False, compare=False)
+
+    def spans_ms(self, cov: models.TrackCoverage) -> list[Span]:
+        found = self._spans_ms.get(cov.track)
+        if found is None:
+            found = self._spans_ms[cov.track] = _spans_of(cov)
+        return found
 
     @property
     def catalogue_id(self) -> str:
@@ -293,30 +386,46 @@ def item_info(catalogue: Catalogue, item_id: str) -> ItemInfo:
     coverage = props.debrief_coverage
     revision = props.debrief_revision
     refs = props.debrief_drawn_from
-    if revision is None:
+    created = props.created
+    was_imported = bool(props.debrief_imported)
+    origin = props.debrief_origin
+    whole = revision is not None and props.debrief_imported is not None
+    if not whole:
+        # Saved before collation kept these in the item: worked out from its plot, and
+        # when it came in from its first step, so it can still be new data (CAP-10).
         try:
             history = catalogue.history(item_id)
-            plot = history.plot()
-            revision = history.head().plot_hash
+            plot, revision = history.plot_and_revision()
             coverage, refs = plot_coverage(plot), drawn_from(plot)
+            was_imported, origin = imported(plot), history.origin()
+            created = created or first_recorded_at(plot)
         except (HistoryError, OSError, ValueError):
             coverage, refs = [], []
     info = ItemInfo(
         catalogue,
         item_id,
         props.title or item_id,
-        props.created,
+        created,
         revision,
         list(coverage or []),
         list(refs or []),
         props.start_datetime or props.datetime,
         props.end_datetime or props.datetime,
+        was_imported,
+        origin,
     )
-    if version is not None and props.debrief_revision is not None:
+    if version is not None and whole:
         if len(_READ) >= _READ_KEPT:
             _READ.clear()
         _READ[key] = (version, info)
     return info
+
+
+_LOG = logging.getLogger(__name__)
+
+
+def _where(catalogue: Catalogue) -> str:
+    return str(getattr(catalogue.store, "root", id(catalogue)))
 
 
 class Catalogues:
@@ -325,8 +434,20 @@ class Catalogues:
 
     def __init__(self, catalogues: Iterable[Catalogue]):
         self.by_id: dict[str, Catalogue] = {}
+        # Two folders with one catalogue id (a catalogue copied, say): provenance names
+        # items by catalogue id, so only the first is looked in, and the analyst is told.
+        self.duplicates: list[str] = []
         for catalogue in catalogues:
-            self.by_id.setdefault(catalogue.id, catalogue)
+            kept = self.by_id.setdefault(catalogue.id, catalogue)
+            if kept is not catalogue and _where(kept) != _where(catalogue):
+                self.duplicates.append(catalogue.id)
+                _LOG.warning(
+                    "Two catalogues have the id %r: %s and %s. Collation looks only in the "
+                    "first; give the other its own id.",
+                    catalogue.id,
+                    _where(kept),
+                    _where(catalogue),
+                )
         self._infos: dict[tuple[str, str], ItemInfo | None] = {}
         self._ids: dict[str, set[str]] = {}
 
@@ -381,6 +502,9 @@ class Fix:
     logged_position: list[float] | None = None
     logged_course: float | None = None
     logged_speed: float | None = None
+    # The revision of the item it came from, when it came from another item: fixes read
+    # at different revisions of one item are told apart (CAP-12).
+    revision: str | None = None
 
 
 @dataclass(frozen=True)
@@ -390,8 +514,9 @@ class Units:
     depth: str = "m"
 
 
-# Where a source puts a track's fixes, by time, in the units given: for carrying edits.
-Reference = Callable[[Key, Units], dict[int, Fix]]
+# Where a source, at a revision (None for the plot's own data), puts a track's fixes, by
+# time, in the units given: for carrying edits.
+Reference = Callable[[Key, str | None, Units], dict[int, Fix]]
 
 
 def _series(props, name: str) -> list[float] | None:
@@ -489,19 +614,23 @@ def _key(supply) -> Key:
     return (supply.catalogue, supply.item, supply.track)
 
 
-def source_by_time(track: models.TrackFeature, plot: Plot) -> Callable[[int], Key]:
-    """Which source each fix of the track came from, by its time."""
-    supplies = [(ms_of(s.start), ms_of(s.end), _key(s)) for s in supplies_of(track, plot)]
+def current_fixes(track: models.TrackFeature, plot: Plot, units: Units) -> list[Fix]:
+    """The track's fixes, each with the source and the revision it came from, by the
+    period of the track's supplies its time is in. A fix outside every period (one added
+    by hand since) is the plot's own."""
+    supplies = sorted(
+        (ms_of(s.start), ms_of(s.end), _key(s), s.revision) for s in supplies_of(track, plot)
+    )
+    starts = [s[0] for s in supplies]
     own = plot.own(track.id)
-
-    def tag(ms: int) -> Key:
-        for start, end, key in supplies:
-            if start <= ms <= end:
-                return key
-        # A fix outside every period (one added by hand since): the plot's own.
-        return own
-
-    return tag
+    fixes = fixes_of(track, own, units)
+    for fix in fixes:
+        i = bisect.bisect_right(starts, fix.ms) - 1
+        if i >= 0 and supplies[i][0] <= fix.ms <= supplies[i][1]:
+            _, _, key, revision = supplies[i]
+            fix.source = key
+            fix.revision = None if plot.is_own(key) else revision
+    return fixes
 
 
 # --- Carrying the analyst's edits to new fixes -----------------------------------------
@@ -541,6 +670,10 @@ class Edits:
     ratios: list[float] = field(default_factory=list)
     largest_m: float = 0.0
     dr: bool = False
+    units: Units = field(default_factory=Units)
+    # Single fixes dragged on their own, by time: their offsets go to a new fix at that
+    # very time only, never spread to the fixes about them.
+    single: dict[int, tuple[float, float]] = field(default_factory=dict)
 
     def _at(self, values: list[float], ms: int) -> float:
         times = self.times
@@ -561,14 +694,22 @@ class Edits:
         return values[lo] + f * (values[hi] - values[lo])
 
     def any(self) -> bool:
-        return bool(self.times)
+        return bool(self.times) or bool(self.single)
+
+    def _offsets_at(self, ms: int) -> tuple[float, float]:
+        if not self.times:
+            return 0.0, 0.0
+        return self._at(self.east, ms), self._at(self.north, ms)
 
     def place(self, fix: Fix) -> None:
-        """Move a new fix as the fixes about it were moved (over the ground), or change
-        its course and speed as theirs were (by dead reckoning)."""
-        if not self.times:
+        """Move a new fix as the fixes about it were moved (over the ground), its course
+        and speed changed as the move changes them; or change its course and speed as
+        theirs were (by dead reckoning)."""
+        if not self.any():
             return
         if self.dr:
+            if not self.times:
+                return
             if fix.course is not None and self.turns:
                 fix.course = (fix.course + self._at(self.turns, fix.ms)) % 360.0
             if fix.speed is not None and self.ratios:
@@ -577,19 +718,68 @@ class Edits:
             # starts where the track's start was moved to, as the first fix was.
             fix.position = _offset_by(fix.position, self.east[0], self.north[0])
             return
-        fix.position = _offset_by(
-            fix.position, self._at(self.east, fix.ms), self._at(self.north, fix.ms)
+        raw = list(fix.position)
+        if fix.ms in self.single:
+            # A fix dragged on its own: the new fix at its time goes where it was dragged.
+            # Its course and speed stay as recorded, as a dragged fix's do.
+            fix.position = _offset_by(raw, *self.single[fix.ms])
+            return
+        east, north = self._offsets_at(fix.ms)
+        fix.position = _offset_by(raw, east, north)
+        if fix.course is None and fix.speed is None:
+            return
+        # The velocity carried through the same change, as tracks._carried carries a
+        # shear's or a stretch's: where the recorded velocity reaches a moment later,
+        # moved as a fix then would be; the new course and speed are from the moved fix
+        # to it. A move leaves them as they were; a rotation turns the course; a shear
+        # or a stretch changes both, exactly on a straight, steady leg.
+        u = self.units
+        later = fix.ms + int(tracks.VELOCITY_STEP_S * 1000)
+        east_later, north_later = self._offsets_at(later)
+        if math.hypot(east_later - east, north_later - north) < 1e-6:
+            return  # moved, not turned or stretched here: the velocity is as recorded
+        course = Quantity(fix.course if fix.course is not None else 0.0, u.course).to("deg").value
+        metres_per_s = (
+            Quantity(fix.speed, u.speed).to("m/s").value if fix.speed is not None else 0.0
         )
+        if metres_per_s <= 0 and fix.course is None:
+            return
+        reach = max(metres_per_s, 1.0) * tracks.VELOCITY_STEP_S
+        ahead = destination(Position(raw[0], raw[1]), Quantity(course, "deg"), Quantity(reach, "m"))
+        moved_ahead = _offset_by([ahead.longitude, ahead.latitude], east_later, north_later)
+        distance, bearing = range_bearing(
+            Position(fix.position[0], fix.position[1]),
+            Position(moved_ahead[0], moved_ahead[1]),
+        )
+        if fix.course is not None and distance.value > 0:
+            fix.course = Quantity(bearing.value % 360.0, "deg").to(u.course).value
+        if fix.speed is not None and metres_per_s > 0:
+            fix.speed = Quantity(distance.value / tracks.VELOCITY_STEP_S, "m/s").to(u.speed).value
 
 
-def edits_of(current: list[Fix], reference: Reference, dr: bool, units: Units) -> Edits:
-    """The offsets of a track's fixes from where their sources put them. reference
-    gives a source's fixes by time; fixes whose source cannot be read are left out."""
-    edits = Edits(dr=dr)
+def edits_of(
+    current: list[Fix],
+    reference: Reference,
+    dr: bool,
+    units: Units,
+    single: Iterable[int] = (),
+) -> Edits:
+    """The offsets of a track's fixes from where their sources, at the revision each was
+    read at, put them. reference gives a source's fixes by time; fixes whose source
+    cannot be read are left out. single are the times of fixes dragged on their own:
+    their offsets are kept for their own time, not spread to new fixes about them."""
+    edits = Edits(dr=dr, units=units)
+    alone = set(single)
     for fix in current:
-        found = reference(fix.source, units).get(fix.ms)
+        found = reference(fix.source, fix.revision, units).get(fix.ms)
         if found is None:
             continue
+        if not dr and fix.ms in alone:
+            east, north = _offset(found.position, fix.position)
+            if math.hypot(east, north) >= EDITED_M:
+                edits.single[fix.ms] = (east, north)
+                edits.largest_m = max(edits.largest_m, math.hypot(east, north))
+                continue
         if dr:
             # On a DR track edits change courses and speeds; the source's as logged.
             course = found.logged_course if found.logged_course is not None else found.course
@@ -617,11 +807,26 @@ def edits_of(current: list[Fix], reference: Reference, dr: bool, units: Units) -
             or edits.largest_m >= EDITED_M
         )
         if not changed:
-            return Edits(dr=True)
+            return Edits(dr=True, units=units)
         return edits
     if edits.largest_m < EDITED_M:
-        return Edits()
+        return Edits(units=units)
     return edits
+
+
+def single_moves(plot: DebriefFeatureCollection, track_id: str) -> set[int]:
+    """The times of a track's fixes dragged on their own, from the records of the steps
+    the plot holds now: a fix moved by distance and bearing or to a position."""
+    out: set[int] = set()
+    for record in plot.provenance or []:
+        if track_id not in (record.selected or []):
+            continue
+        names = {p.name: p.value for p in record.parameters or []}
+        if "fix_time" in names and ("longitude" in names or "distance" in names):
+            value = names["fix_time"]
+            if isinstance(value, str):
+                out.add(ms_of(value))
+    return out
 
 
 # --- Building a track from fixes ----------------------------------------------------
@@ -639,16 +844,21 @@ class Source:
     def fixes(self, units: Units) -> list[Fix]:
         if self.track is None:
             return []
-        return fixes_of(self.track, self.key, units)
+        fixes = fixes_of(self.track, self.key, units)
+        for fix in fixes:
+            fix.revision = self.revision
+        return fixes
 
 
-def _runs(fixes: list[Fix]) -> list[tuple[Key, Fix, Fix]]:
-    runs: list[tuple[Key, Fix, Fix]] = []
+def _runs(fixes: list[Fix]) -> list[tuple[Key, str | None, Fix, Fix]]:
+    """The track's fixes in runs from one source at one revision: fixes of one item read
+    at two revisions are two runs, each naming its revision (CAP-12)."""
+    runs: list[tuple[Key, str | None, Fix, Fix]] = []
     for fix in fixes:
-        if runs and runs[-1][0] == fix.source:
-            runs[-1] = (fix.source, runs[-1][1], fix)
+        if runs and runs[-1][0] == fix.source and runs[-1][1] == fix.revision:
+            runs[-1] = (fix.source, fix.revision, runs[-1][2], fix)
         else:
-            runs.append((fix.source, fix, fix))
+            runs.append((fix.source, fix.revision, fix, fix))
     return runs
 
 
@@ -656,7 +866,7 @@ def rebuilt(
     track: models.TrackFeature,
     fixes: list[Fix],
     plot: Plot,
-    titles: dict[Key, tuple[str, str | None]],
+    titles: dict[Key, str],
     notes: list[str],
 ) -> models.TrackFeature:
     """The track with these fixes (in time order), every series with them where every
@@ -720,7 +930,7 @@ def rebuilt(
         )
     update["fix_marks"] = [marks[t] for t in sorted(marks)] or None
     runs = _runs(fixes)
-    if all(plot.is_own(key) and key[2] == track.id for key, _, _ in runs):
+    if all(plot.is_own(key) and key[2] == track.id for key, _, _, _ in runs):
         update["supplies"] = None
     else:
         update["supplies"] = [
@@ -728,12 +938,12 @@ def rebuilt(
                 catalogue=key[0],
                 item=key[1],
                 track=key[2],
-                title=titles.get(key, (plot.title, None))[0],
-                revision=None if plot.is_own(key) else titles.get(key, ("", None))[1],
+                title=titles.get(key, plot.title),
+                revision=None if plot.is_own(key) else revision,
                 start=first.time,
                 end=last.time,
             )
-            for key, first, last in runs
+            for key, revision, first, last in runs
         ]
     properties = props.model_copy(update=update)
     geometry = track.geometry.model_copy(update={"coordinates": [f.position for f in fixes]})
@@ -785,13 +995,19 @@ def matches(track: models.TrackFeature, key: Key, name: str) -> str | None:
 
 @dataclass
 class Taken:
-    """What taking an item's data did, for the step's record and the analyst."""
+    """What taking an item's data did, for the step's record and the analyst. changes
+    is empty when the plot already has the item's data as it is now (taken before, or
+    a revision that changed nothing the plot took): nothing to record."""
 
     changes: Changes
     note: str
     notes: list[str]
-    matched: dict[str, int]  # the plot's track names, and fixes each gained or replaced
+    matched: dict[str, int]  # the plot's track names, and fixes each gained or changed
     added: list[str]
+
+    @property
+    def unchanged(self) -> bool:
+        return not self.changes.touched()
 
 
 def take(
@@ -813,6 +1029,10 @@ def take(
     added: list[models.TrackFeature] = []
     notes: list[str] = []
     matched: dict[str, int] = {}
+    supplied_before = False
+    # Tracks whose data from the item is unchanged, only the revision it names newer:
+    # relabelled when the step changes something else, never a step on their own.
+    relabels: dict[str, models.TrackFeature] = {}
     for theirs_track in theirs:
         key = (*item_key, theirs_track.id)
         candidates = [
@@ -834,25 +1054,45 @@ def take(
                 f"{theirs_track.properties.name} matches more than one track; taken into "
                 f"{candidates[0].properties.name}, not {names}"
             )
-        target = modified.get(candidates[0].id, candidates[0])
+        target = modified.get(candidates[0].id, relabels.get(candidates[0].id, candidates[0]))
+        supplied_before = supplied_before or any(
+            _key(s) == key for s in target.properties.supplies or []
+        )
         result = _take_into(
-            target, theirs_track, key, me, title, revision, reference, notes, plot_tracks
+            target,
+            theirs_track,
+            key,
+            me,
+            title,
+            revision,
+            reference,
+            notes,
+            single_moves(plot, target.id),
         )
         if result is None:
             continue
-        built, gained = result
+        built, changed, relabelled = result
+        if relabelled:
+            relabels[target.id] = built
+            continue
         modified[target.id] = built
-        matched[target.properties.name] = matched.get(target.properties.name, 0) + gained
+        matched[target.properties.name] = matched.get(target.properties.name, 0) + changed
+    note = f"New data from {title}"
     if not modified and not added:
+        if supplied_before:
+            # Taken before, and nothing has changed in what the plot took: no step, so
+            # no new revision of the plot and no products flagged for nothing.
+            return Taken(Changes(), note, [], {}, [])
         raise CollationError(
             f"{title} has nothing the plot hasn't: every fix it has is in a period another "
             "item supplies, or it has no tracks. Choose its periods in Coverage, or set it "
             "aside with Not now."
         )
+    for track_id, built in relabels.items():
+        modified.setdefault(track_id, built)
     parts = [f"{name} {_fixes(n)}" for name, n in matched.items()]
     parts += [f"{t.properties.name} added" for t in added]
     # Named shortly, as the History view names a step; what it did, in the next note.
-    note = f"New data from {title}"
     notes.insert(0, ", ".join(parts))
     return Taken(
         Changes(added=added, modified=list(modified.values())),
@@ -901,6 +1141,23 @@ def _copied(
     )
 
 
+def _fix_data(fix: Fix) -> tuple:
+    """What a fix says, to tell a fix changed from one taken again as it was."""
+    return (
+        fix.ms,
+        tuple(round(v, 9) for v in fix.position),
+        None if fix.course is None else round(fix.course, 9),
+        None if fix.speed is None else round(fix.speed, 9),
+        None if fix.depth is None else round(fix.depth, 9),
+    )
+
+
+def changed_fixes(before: list[Fix], after: list[Fix]) -> int:
+    """How many fixes after has that before had not, as they are: added or changed."""
+    was = {_fix_data(f) for f in before}
+    return sum(1 for f in after if _fix_data(f) not in was)
+
+
 def _take_into(
     track: models.TrackFeature,
     theirs: models.TrackFeature,
@@ -910,13 +1167,18 @@ def _take_into(
     revision: str | None,
     reference: Reference,
     notes: list[str],
-    plot_tracks: list[models.TrackFeature],
-) -> tuple[models.TrackFeature, int] | None:
+    single: set[int],
+) -> tuple[models.TrackFeature, int, bool] | None:
+    """The track with the item's track taken into it, how many of its fixes were added
+    or changed, and whether only the revision its periods name changed (the item's data
+    as the plot has it already); None if nothing is taken."""
     name = track.properties.name
     units = units_of(track)
     dr = tracks.plotting_mode(track) == "dr"
-    current = fixes_of(track, source_by_time(track, me), units)
+    current = current_fixes(track, me, units)
     their_fixes = fixes_of(theirs, key, units)
+    for fix in their_fixes:
+        fix.revision = revision
     if dr and (theirs.properties.courses is None or theirs.properties.speeds is None):
         notes.append(
             f"Nothing taken into {name}: it is plotted by dead reckoning, and "
@@ -935,13 +1197,34 @@ def _take_into(
     fresh = [f for f in their_fixes if inside(f.ms, refreshed) or not inside(f.ms, covered)]
     if not fresh:
         return None
-    edits = edits_of(current, reference, dr, units)
+    edits = edits_of(current, reference, dr, units, single)
     for fix in fresh:
         _as_logged(fix)
         edits.place(fix)
     kept = [f for f in current if not inside(f.ms, refreshed)]
     fixes = merged(kept, fresh)
-    gained = sum(1 for f in fixes if f.source == key) - sum(1 for f in kept if f.source == key)
+    titles = _titles(track, me)
+    titles[key] = title
+    scratch: list[str] = []
+    built = rebuilt(track, fixes, me, titles, scratch)
+    links = list(track.properties.platform_links or [])
+    newly_linked = not linked(track, key)
+    if newly_linked:
+        links.append(
+            models.SourceTrackRef(
+                catalogue=key[0], item=key[1], track=key[2], name=theirs.properties.name
+            )
+        )
+    built = built.model_copy(
+        update={"properties": built.properties.model_copy(update={"platform_links": links})}
+    )
+    changed = changed_fixes(fixes_of(track, key, units), fixes_of(built, key, units))
+    if not changed and not newly_linked and _same_but_revisions(track, built):
+        # The item's data as the plot has it already: a revision that changed nothing
+        # taken (its details, another track), or the same revision taken again. Only the
+        # revision its periods name would change: worth no step of its own.
+        return built, 0, True
+    notes.extend(scratch)
     if refreshed:
         notes.append(
             f"{name}'s periods from {title} read again from its latest revision: "
@@ -955,22 +1238,33 @@ def _take_into(
         )
     if edits.any():
         notes.append(_describe_edits(name, edits))
-    titles = _titles(track, me)
-    titles[key] = (title, revision)
-    built = rebuilt(track, fixes, me, titles, notes)
-    links = list(track.properties.platform_links or [])
-    if not linked(track, key):
-        links.append(
-            models.SourceTrackRef(
-                catalogue=key[0], item=key[1], track=key[2], name=theirs.properties.name
-            )
-        )
-        if platform_key(theirs.properties.name) == platform_key(name):
-            notes.append(f"{theirs.properties.name} in {title} confirmed as {name}")
-    built = built.model_copy(
-        update={"properties": built.properties.model_copy(update={"platform_links": links})}
-    )
-    return built, gained
+    if newly_linked and platform_key(theirs.properties.name) == platform_key(name):
+        notes.append(f"{theirs.properties.name} in {title} confirmed as {name}")
+    return built, changed, False
+
+
+def _same_but_revisions(a: models.TrackFeature, b: models.TrackFeature) -> bool:
+    """Whether two versions of a track differ at most in the revisions their supplies
+    name: the data is the same."""
+
+    def plain(track: models.TrackFeature) -> object:
+        data = track.model_dump(mode="json", exclude_none=True)
+        for s in data.get("properties", {}).get("supplies") or []:
+            s.pop("revision", None)
+        return _rounded(data)
+
+    return plain(a) == plain(b)
+
+
+def _rounded(value: object) -> object:
+    """Numbers to nine places, so the same data worked out again compares equal."""
+    if isinstance(value, float):
+        return round(value, 9)
+    if isinstance(value, list):
+        return [_rounded(v) for v in value]
+    if isinstance(value, dict):
+        return {k: _rounded(v) for k, v in value.items()}
+    return value
 
 
 def _as_logged(fix: Fix) -> None:
@@ -987,10 +1281,10 @@ def _as_logged(fix: Fix) -> None:
     fix.logged_speed = fix.speed
 
 
-def _titles(track: models.TrackFeature, me: Plot) -> dict[Key, tuple[str, str | None]]:
-    titles = {me.own(track.id): (me.title, None)}
+def _titles(track: models.TrackFeature, me: Plot) -> dict[Key, str]:
+    titles = {me.own(track.id): me.title}
     for s in track.properties.supplies or []:
-        titles[_key(s)] = (s.title, s.revision)
+        titles[_key(s)] = s.title
     return titles
 
 
@@ -1037,15 +1331,21 @@ def prefer(
     name = track.properties.name
     units = units_of(track)
     dr = tracks.plotting_mode(track) == "dr"
-    current = fixes_of(track, source_by_time(track, me), units)
+    current = current_fixes(track, me, units)
     inside = [f for f in current if start <= f.ms <= end]
     theirs = [f for f in source.fixes(units) if start <= f.ms <= end]
+    own = me.is_own(source.key)
+    revision = None if own else source.revision
     if not theirs:
         raise CollationError(
             f"{source.title} has no data for {name} {describe_span(start, end)}, so nothing "
             "was changed."
         )
-    if inside and all(f.source == source.key for f in inside) and len(inside) >= len(theirs):
+    if (
+        inside
+        and all(f.source == source.key and f.revision == revision for f in inside)
+        and len(inside) >= len(theirs)
+    ):
         return None
     if (
         dr
@@ -1056,9 +1356,9 @@ def prefer(
             f"{name} is plotted by dead reckoning, and {source.title} records no courses and "
             "speeds for it, so it cannot supply a period of it."
         )
-    edits = edits_of(current, reference, dr, units)
-    own = me.is_own(source.key)
+    edits = edits_of(current, reference, dr, units, single_moves(plot, track_id))
     for fix in theirs:
+        fix.revision = revision
         if not own:
             _as_logged(fix)
         else:
@@ -1070,9 +1370,9 @@ def prefer(
     fixes = merged(kept, theirs)
     was = sorted({f.source for f in inside})
     titles = _titles(track, me)
-    titles[source.key] = (source.title, None if own else source.revision)
+    titles[source.key] = source.title
     notes: list[str] = []
-    was_titles = [titles.get(k, (k[1], None))[0] for k in was]
+    was_titles = [titles.get(k, k[1]) for k in was]
     if was_titles:
         notes.append(f"Was {', '.join(was_titles)}: {_fixes(len(inside))}")
     notes.append(f"Now {source.title}: {_fixes(len(theirs))}")
@@ -1167,6 +1467,19 @@ def folder_tree(catalogues: Catalogues, home: Catalogue, ids: Iterable[str]) -> 
     return out
 
 
+def clipped(spans_: Iterable[Span], within: Span | None) -> list[Span]:
+    """Spans cut to a period: what lies outside it left out."""
+    if within is None:
+        return list(spans_)
+    lo, hi = within
+    return [(max(a, lo), min(b, hi)) for a, b in spans_ if a <= hi and b >= lo]
+
+
+# Whether an item that shares this plot's first step (a copy of it, forked where their
+# histories part) has steps since that add data: asked only of such items.
+AddsData = Callable[["ItemInfo"], bool]
+
+
 def coverage(
     catalogues: Catalogues,
     home: Catalogue,
@@ -1174,29 +1487,40 @@ def coverage(
     plot: DebriefFeatureCollection,
     view: models.PlotView | None,
     first_recorded: Callable[[str], models.TrackFeature | None],
+    adds_data: AddsData | None = None,
 ) -> models.CoverageReport:
     """The plot's coverage (CAP-08, CAP-09): for each of its tracks, its own data and
     the data of tracks in other items linked or proposed as its platform, with the
-    periods each covers and which supplies each; the items in the folder tree it draws
-    from, marked as new data where they are (CAP-10) or as revised since taken (CAP-12)."""
+    periods each covers within the plot's own period and which supplies each; the items
+    in the folder tree it draws from, marked as new data where they are (CAP-10) or as
+    revised since taken (CAP-12)."""
     mine = catalogues.info(home.id, item_id) or item_info(home, item_id)
     plot_details = next((f for f in plot.features if f.properties.kind == "plot"), None)
     title = (plot_details.properties.title if plot_details else None) or mine.title
     me = Plot(home.id, item_id, title)
-    refs = drawn_from(plot)
+    supplied = drawn_from(plot)  # what the tracks take from other items now, by revision
+    ever = taken_from(plot)  # every item a step took data from
     plot_tracks = [f for f in plot.features if f.properties.kind == "track"]
-    supply_keys = {(s.catalogue, s.item) for t in plot_tracks for s in t.properties.supplies or []}
     tree = folder_tree(
-        catalogues, home, [r.catalogue for r in refs] + [c for c, _ in sorted(supply_keys)]
+        catalogues,
+        home,
+        sorted({r.catalogue for r in ever} | {r.catalogue for r in supplied}),
     )
     others = [
         info for catalogue in tree for info in catalogues.items(catalogue) if info.key != mine.key
     ]
     by_key = {info.key: info for info in others}
-    taken = {(r.catalogue, r.item): r.revision for r in refs}
+    drawn_keys = {(r.catalogue, r.item) for r in ever} | {(r.catalogue, r.item) for r in supplied}
     said = (view.collation if view is not None else None) or models.CollationView()
     reviewed = {(r.catalogue, r.item, r.revision) for r in said.reviewed or []}
     dismissed = {(r.catalogue, r.item, r.revision) for r in said.dismissed or []}
+
+    # The plot's own period: the computation is clipped to it (decision, product owner,
+    # 16 Oct 2026), so items far outside it cost nothing and offer no choice.
+    plot_spans = [s for t in plot_tracks for s in spans([ms_of(x) for x in t.properties.times])]
+    p_start = min((a for a, _ in plot_spans), default=None)
+    p_end = max((b for _, b in plot_spans), default=None)
+    window = (p_start, p_end) if p_start is not None and p_end is not None else None
 
     platforms: list[models.CoveragePlatform] = []
     lo: int | None = None
@@ -1204,6 +1528,7 @@ def coverage(
     for track in plot_tracks:
         props = track.properties
         sources: list[models.CoverageSource] = []
+        source_spans: list[list[Span]] = []  # each source's spans, in milliseconds
         keys: list[Key] = []
         supplies = supplies_of(track, me)
         own_supplies = [s for s in supplies if me.is_own(_key(s))]
@@ -1226,6 +1551,7 @@ def coverage(
                     spans=[_range(a, b) for a, b in own_spans],
                 )
             )
+            source_spans.append(own_spans)
             keys.append(me.own(own_id))
         candidates: list[tuple[Key, str, str]] = []
         for s in supplies:
@@ -1244,11 +1570,11 @@ def coverage(
                 continue
             info = by_key.get(key[:2]) or catalogues.info(key[0], key[1])
             cov = next((c for c in info.coverage if c.track == key[2]), None) if info else None
-            supplied = [s for s in supplies if _key(s) == key]
+            from_it = [s for s in supplies if _key(s) == key]
             revised = bool(
                 info
                 and info.revision
-                and any(s.revision and s.revision != info.revision for s in supplied)
+                and any(s.revision and s.revision != info.revision for s in from_it)
             )
             sources.append(
                 models.CoverageSource(
@@ -1260,6 +1586,7 @@ def coverage(
                     else next(
                         (r.name for r in props.platform_links or [] if _same(r, key)), props.name
                     ),
+                    # The item's title as it is now, where it can be found.
                     title=info.title if info else fallback or key[1],
                     link=link,
                     fixes=cov.fixes if cov else 0,
@@ -1267,45 +1594,18 @@ def coverage(
                     revised=revised or None,
                 )
             )
+            source_spans.append(info.spans_ms(cov) if info and cov else [])
             keys.append(key)
-        cut = periods([[(ms_of(s.start), ms_of(s.end)) for s in src.spans] for src in sources])
-        supply_spans = [(ms_of(s.start), ms_of(s.end), _key(s)) for s in supplies]
-        times = [ms_of(t) for t in props.times]
-        track_spans = spans(times)
-        rows = []
-        for p in cut:
-            middle = (p.start + p.end) // 2
-            chosen = next(
-                (keys.index(k) for a, b, k in supply_spans if a <= middle <= b and k in keys),
-                None,
-            )
-            if chosen is None:
-                # A period between two supplied ones: whichever supplies its fixes.
-                chosen = next(
-                    (keys.index(k) for a, b, k in supply_spans if a <= p.start <= b and k in keys),
-                    None,
-                )
-            if chosen is not None and chosen not in p.sources:
-                chosen = None
-            if (
-                chosen is None
-                and any(a <= p.start and p.end <= b for a, b in track_spans)
-                and bisect.bisect_right(times, p.start) == bisect.bisect_left(times, p.end)
-            ):
-                # Between two fixes of the stitched track where one source hands over to
-                # the next (seconds, usually): the track has no gap there, and taking
-                # another source for it would replace no fix, so it is not offered.
-                continue
-            rows.append(
-                models.CoveragePeriod(
-                    start=format_utc(p.start),
-                    end=format_utc(p.end),
-                    sources=list(p.sources),
-                    chosen=chosen,
-                )
-            )
-            lo = p.start if lo is None else min(lo, p.start)
-            hi = p.end if hi is None else max(hi, p.end)
+        supply_spans = sorted((ms_of(s.start), ms_of(s.end), _key(s)) for s in supplies)
+        rows, first, last = _period_rows(
+            [clipped(spans_, window) for spans_ in source_spans],
+            supply_spans,
+            keys,
+            [ms_of(t) for t in props.times],
+        )
+        if first is not None:
+            lo = first if lo is None else min(lo, first)
+            hi = last if hi is None else max(hi, last)
         colour = props.style.colour if props.style else None
         platforms.append(
             models.CoveragePlatform(
@@ -1313,11 +1613,6 @@ def coverage(
             )
         )
 
-    # The plot's period, and the names of its platforms, for marking new data.
-    plot_spans = [s for t in plot_tracks for s in spans([ms_of(x) for x in t.properties.times])]
-    p_start = min((a for a, _ in plot_spans), default=None)
-    p_end = max((b for _, b in plot_spans), default=None)
-    own_created = mine.created
     items = [
         models.CoverageItem(
             catalogue=me.catalogue,
@@ -1332,20 +1627,20 @@ def coverage(
         )
     ]
     for info in others:
-        role = "drawn_from" if info.key in taken or info.key in supply_keys else "other"
-        revised = (
-            info.key in taken and info.revision is not None and taken[info.key] != info.revision
+        role = "drawn_from" if info.key in drawn_keys else "other"
+        revised = info.revision is not None and any(
+            (r.catalogue, r.item) == info.key and r.revision != info.revision for r in supplied
         )
         mark = None
         if (
             role == "other"
             and info.revision is not None
-            and own_created is not None
+            and mine.created is not None
             and info.created is not None
-            and info.created > own_created
+            and info.created > mine.created
             and (*info.key, info.revision) not in dismissed
         ):
-            mark = _new_data(info, plot_tracks, me, p_start, p_end)
+            mark = _new_data(info, mine, plot_tracks, me, window, adds_data)
         items.append(
             models.CoverageItem(
                 catalogue=info.catalogue_id,
@@ -1361,7 +1656,7 @@ def coverage(
                 revised=revised or None,
             )
         )
-    review = _review(me, refs, catalogues, reviewed)
+    review = _review(me, supplied, catalogues, reviewed)
     return models.CoverageReport(
         catalogue=me.catalogue,
         item=me.item,
@@ -1374,34 +1669,141 @@ def coverage(
     )
 
 
+# A platform's period rows, by everything they are worked out from: asked again at each
+# change to the plot, a platform whose sources have not changed is not cut again (NFR-01).
+_ROWS: OrderedDict[tuple, tuple[list[models.CoveragePeriod], int | None, int | None]] = (
+    OrderedDict()
+)
+_ROWS_KEPT = 64
+
+
+def _period_rows(
+    source_spans: list[list[Span]],
+    supply_spans: list[tuple[int, int, Key]],
+    keys: list[Key],
+    times: list[int],
+) -> tuple[list[models.CoveragePeriod], int | None, int | None]:
+    """A platform's periods, each with its sources and the one supplying it, and the
+    first and last time of them. Between two fixes of the stitched track where one source
+    hands over to the next (seconds, usually), no period is offered: the track has no gap
+    there, and taking another source for it would replace no fix."""
+    signature = (
+        tuple(tuple(s) for s in source_spans),
+        tuple(supply_spans),
+        tuple(keys),
+        hash(tuple(times)),
+        len(times),
+    )
+    found = _ROWS.get(signature)
+    if found is not None:
+        _ROWS.move_to_end(signature)
+        return found
+    supply_starts = [s[0] for s in supply_spans]
+    track_spans = spans(times)
+    span_starts = [a for a, _ in track_spans]
+    rows: list[models.CoveragePeriod] = []
+    lo: int | None = None
+    hi: int | None = None
+    for p in periods(source_spans):
+        chosen = _supplier((p.start + p.end) // 2, supply_starts, supply_spans, keys)
+        if chosen is None:
+            # A period between two supplied ones: whichever supplies its fixes.
+            chosen = _supplier(p.start, supply_starts, supply_spans, keys)
+        if chosen is not None and chosen not in p.sources:
+            chosen = None
+        if (
+            chosen is None
+            and _within(p.start, p.end, span_starts, track_spans)
+            and bisect.bisect_right(times, p.start) == bisect.bisect_left(times, p.end)
+        ):
+            continue
+        # Built as checked already: a study's thousands of periods, each valid by
+        # construction, are not validated again one by one (NFR-01).
+        rows.append(
+            models.CoveragePeriod.model_construct(
+                start=_utc(p.start), end=_utc(p.end), sources=list(p.sources), chosen=chosen
+            )
+        )
+        lo = p.start if lo is None else min(lo, p.start)
+        hi = p.end if hi is None else max(hi, p.end)
+    _ROWS[signature] = (rows, lo, hi)
+    while len(_ROWS) > _ROWS_KEPT:
+        _ROWS.popitem(last=False)
+    return rows, lo, hi
+
+
+def _within(start: int, end: int, starts: list[int], spans_: list[Span]) -> bool:
+    """Whether one of the spans (in time order, apart) holds the whole of start to end."""
+    i = bisect.bisect_right(starts, start) - 1
+    return i >= 0 and spans_[i][0] <= start and end <= spans_[i][1]
+
+
+# Times written as the schema writes them, by epoch milliseconds: a study's periods share
+# their bounds, and are asked for again at every change (NFR-01).
+_UTC: dict[int, str] = {}
+_UTC_KEPT = 65_536
+
+
+def _utc(ms: int) -> str:
+    found = _UTC.get(ms)
+    if found is None:
+        if len(_UTC) >= _UTC_KEPT:
+            _UTC.clear()
+        found = _UTC[ms] = format_utc(ms)
+    return found
+
+
+def _supplier(
+    ms: int, starts: list[int], supplied: list[tuple[int, int, Key]], keys: list[Key]
+) -> int | None:
+    """Which of the sources, by place, supplies the track at a time; None for none."""
+    i = bisect.bisect_right(starts, ms) - 1
+    if i >= 0 and supplied[i][0] <= ms <= supplied[i][1]:
+        k = supplied[i][2]
+        return keys.index(k) if k in keys else None
+    return None
+
+
 def _new_data(
     info: ItemInfo,
+    mine: ItemInfo,
     plot_tracks: list[models.TrackFeature],
     me: Plot,
-    start: int | None,
-    end: int | None,
+    window: Span | None,
+    adds_data: AddsData | None,
 ) -> models.NewDataMark | None:
+    """Whether an item that came in after the plot is new data for it (CAP-10; decision,
+    product owner, 16 Oct 2026): it shares a platform with the plot and has data within
+    its period; it is not derived from the plot; and either it came in by importing
+    files and is no product of other items, or it is a copy of the plot with steps
+    since they parted that add data."""
+    if any((r.catalogue, r.item) == (me.catalogue, me.item) for r in info.drawn_from):
+        return None  # made from this plot's data
+    fork = info.origin is not None and info.origin == mine.origin
+    if fork:
+        if adds_data is None or not adds_data(info):
+            return None  # a copy of this plot with nothing added since they parted
+    elif not info.imported or info.drawn_from:
+        return None  # made by hand, or a product of other items: never new data
     names: list[str] = []
-    within = False
     for cov in info.coverage:
         key = (*info.key, cov.track)
         for track in plot_tracks:
             if matches(track, key, cov.name) in ("linked", "proposed"):
                 if track.properties.name not in names:
                     names.append(track.properties.name)
-        if start is not None and end is not None:
-            within = within or any(a <= end and b >= start for a, b in _spans_of(cov))
-    if not names and not within:
+    within = window is not None and any(
+        a <= window[1] and b >= window[0] for cov in info.coverage for a, b in _spans_of(cov)
+    )
+    if not names or not within:
         return None
     said = ", ".join(names[:4]) + (f" and {len(names) - 4} more" if len(names) > 4 else "")
-    if names and within:
-        note = f"New data for {me.title}: {said}, within its period"
-    elif names:
-        note = f"New data for {me.title}: {said}"
+    if fork:
+        note = f"Data added to a copy of {me.title} since it was made: {said}, within its period"
     else:
-        note = f"New data for {me.title}, within its period"
+        note = f"New data for {me.title}: {said}, within its period"
     return models.NewDataMark(
-        revision=info.revision, platforms=names or None, within_period=within or None, note=note
+        revision=info.revision, platforms=names, within_period=True, note=note
     )
 
 
@@ -1411,29 +1813,33 @@ def _review(
     catalogues: Catalogues,
     reviewed: set[tuple[str, str, str]],
 ) -> models.ReviewFlag | None:
-    revised = []
+    """The plot's review flag: the items its tracks take data from at a revision other
+    than the item's now, unless reviewed against that revision."""
+    revised: dict[tuple[str, str], models.ItemRef] = {}
     for ref in refs:
         info = catalogues.info(ref.catalogue, ref.item)
         if info is None or info.revision is None or info.revision == ref.revision:
             continue
         if (ref.catalogue, ref.item, info.revision) in reviewed:
             continue
-        revised.append(
+        revised.setdefault(
+            (ref.catalogue, ref.item),
             models.ItemRef(
                 catalogue=ref.catalogue, item=ref.item, title=info.title, revision=info.revision
-            )
+            ),
         )
     if not revised:
         return None
-    names = ", ".join(r.title or r.item for r in revised)
-    verb = "was" if len(revised) == 1 else "were"
+    found = list(revised.values())
+    names = ", ".join(r.title or r.item for r in found)
+    verb = "was" if len(found) == 1 else "were"
     return models.ReviewFlag(
         catalogue=me.catalogue,
         item=me.item,
         title=me.title,
-        revised=revised,
+        revised=found,
         note=f"May need review: {names} {verb} revised since {me.title} took data from "
-        f"{'it' if len(revised) == 1 else 'them'}",
+        f"{'it' if len(found) == 1 else 'them'}",
     )
 
 

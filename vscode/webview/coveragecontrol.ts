@@ -20,11 +20,16 @@
  *   track takes from it are solid, the rest outlined. Proposed sources have **Same
  *   platform** and **Not this platform**; linked ones not supplying anything, **Unlink**.
  *   Under the bars, each period in which two or more sources have data (or one the plot
- *   has not taken) has a list choosing which supplies it. Choosing on the list, or
- *   clicking a source's bar in that period, is one step.
+ *   has not taken) has a list choosing which supplies it, and **Set**. Picking on the
+ *   list and pressing Set (or Enter on the list), or clicking a source's bar in that
+ *   period, is one step; moving through the list with the arrow keys is none. A
+ *   platform with more periods than MAX_ROWS lists the first of them and says how many
+ *   more: their bars choose them.
  * - Narrow (a sidebar, a phone): bars take the width there is, words wrap, and nothing
  *   scrolls sideways. Current time is a thin line across every bar.
- * - Keyboard: Tab reaches every button and list; the lists choose with the arrow keys.
+ * - Keyboard: Tab reaches every button and list; a list's arrow keys pick a source, and
+ *   Enter or Set chooses it. Focus stays where it was when the view is drawn again.
+ * - Touch: every button, list and bar is at least 24 px tall.
  */
 import { DEFAULT_SETTINGS, formatTime, type FormatSettings } from "@debrief/kernel";
 import type { CoverageItem, CoveragePeriod, CoveragePlatform, CoverageReport, CoverageSource, ItemRevision, SourceTrackRef, TimeRange } from "@debrief/schemas";
@@ -46,6 +51,9 @@ export interface CoverageControlHost {
 const escape = (text: string) => text.replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[c]!);
 const refOf = (s: CoverageSource): SourceTrackRef => ({ catalogue: s.catalogue, item: s.item, track: s.track, name: s.name });
 const plural = (n: number, one: string, many = `${one}s`) => `${n} ${n === 1 ? one : many}`;
+
+/** The most period lists a platform shows: the rest are chosen on their bars. */
+export const MAX_ROWS = 40;
 
 export class CoverageControl {
   private report?: CoverageReport;
@@ -72,6 +80,7 @@ export class CoverageControl {
     this.status = element.querySelector(".cov-status")!;
     this.body.addEventListener("click", (event) => this.clicked(event));
     this.body.addEventListener("change", (event) => this.changed(event));
+    this.body.addEventListener("keydown", (event) => this.keyed(event));
     this.body.addEventListener(
       "toggle",
       (event) => {
@@ -90,7 +99,15 @@ export class CoverageControl {
     this.status.textContent = "";
     this.empty.hidden = !!report;
     this.body.hidden = !report;
-    this.body.innerHTML = report ? this.html(report) : "";
+    this.draw();
+  }
+
+  /** Draw the report again, keeping focus on the control that had it, found by its key. */
+  private draw(): void {
+    const active = this.element.ownerDocument.activeElement as HTMLElement | null;
+    const focused = active && this.body.contains(active) ? active.dataset.key : undefined;
+    this.body.innerHTML = this.report ? this.html(this.report) : "";
+    if (focused) Array.from(this.body.querySelectorAll<HTMLElement>("[data-key]")).find((el) => el.dataset.key === focused)?.focus();
   }
 
   /** Current time, as a line across every bar; outside the bars, none. */
@@ -104,6 +121,8 @@ export class CoverageControl {
   /** Something the host has to say once it has answered: why a choice was refused, say. */
   say(text: string): void {
     this.busy = false;
+    // A choice refused, or nothing to do: each list goes back to what supplies its period.
+    this.draw();
     this.status.textContent = text;
   }
 
@@ -167,8 +186,12 @@ export class CoverageControl {
     const swatch = platform.colour ? `<i class="cov-swatch" style="background:${escape(platform.colour)}"></i>` : "";
     const sources = platform.sources.map((s, i) => this.source(platform, s, i)).join("");
     const choices = platform.periods.filter((p) => p.sources.length > 1 || p.chosen === undefined || p.chosen === null);
+    const shown = choices.slice(0, MAX_ROWS);
+    const more = choices.length - shown.length;
     const list = choices.length
-      ? `<div class="cov-choices" role="group" aria-label="${escape(`Which source supplies ${platform.name}`)}">${choices.map((p) => this.choice(platform, p)).join("")}</div>`
+      ? `<div class="cov-choices" role="group" aria-label="${escape(`Which source supplies ${platform.name}`)}">${shown.map((p) => this.choice(platform, p)).join("")}` +
+        (more ? `<p class="cov-more">${escape(`${plural(more, "more period")} to choose: click a source's bar in one to choose its source.`)}</p>` : "") +
+        `</div>`
       : "";
     // Open where there is a choice to make (two sources with data for one period), unless the
     // analyst folded it; folded otherwise, so a study of fifty items stays readable.
@@ -226,9 +249,12 @@ export class CoverageControl {
       .join("");
     const none = period.chosen === undefined || period.chosen === null ? `<option value="" selected>Not taken</option>` : "";
     const data = escape(JSON.stringify(rangeOf(period)));
+    const key = escape(`${platform.track}|${period.start}|${period.end}`);
+    const chosen = period.chosen === undefined || period.chosen === null ? "" : String(period.chosen);
     return (
-      `<label class="cov-choice"><span class="cov-when">${escape(this.period(period))}</span>` +
-      `<select data-track="${escape(platform.track)}" data-period="${data}" aria-label="${escape(label)}">${none}${options}</select></label>`
+      `<div class="cov-choice"><span class="cov-when">${escape(this.period(period))}</span>` +
+      `<select data-key="list|${key}" data-track="${escape(platform.track)}" data-period="${data}" data-chosen="${chosen}" aria-label="${escape(label)}">${none}${options}</select>` +
+      `<button type="button" class="cov-set" data-key="set|${key}" disabled title="${escape(`Make the source picked supply ${platform.name} ${this.period(period)}: one step`)}" aria-label="${escape(`Set the source for ${platform.name} ${this.period(period)}`)}">Set</button></div>`
     );
   }
 
@@ -246,6 +272,11 @@ export class CoverageControl {
       const ref = button.dataset.ref ? JSON.parse(button.dataset.ref) : undefined;
       if (button.classList.contains("cov-take")) return this.ask("Taking the new data…", () => this.host.take(ref as ItemRevision));
       if (button.classList.contains("cov-dismiss")) return this.ask("Setting it aside…", () => this.host.dismiss(ref as ItemRevision));
+      if (button.classList.contains("cov-set")) {
+        const select = button.parentElement?.querySelector("select");
+        if (select) this.set(select);
+        return;
+      }
       if (button.classList.contains("cov-link")) {
         const platform = this.platformOf(button);
         if (platform) this.ask("Saving…", () => this.host.link(platform.track, ref as SourceTrackRef, button.dataset.linked === "true"));
@@ -268,9 +299,28 @@ export class CoverageControl {
     this.ask(`${source.title} supplies ${platform.name} ${this.period(period)}…`, () => this.host.choose(platform.track, rangeOf(period), refOf(source)));
   }
 
+  /**
+   * A source picked on a period's list: nothing is changed yet. The arrow keys move through
+   * a list firing a change at every step, so a change only readies Set; Set, or Enter on
+   * the list, makes the choice.
+   */
   private changed(event: Event): void {
     const select = event.target as HTMLSelectElement;
-    if (select.tagName !== "SELECT" || !select.value) return;
+    if (select.tagName !== "SELECT") return;
+    const set = select.parentElement?.querySelector<HTMLButtonElement>(".cov-set");
+    if (set) set.disabled = !select.value || select.value === select.dataset.chosen;
+  }
+
+  private keyed(event: KeyboardEvent): void {
+    const select = event.target as HTMLSelectElement;
+    if (select.tagName !== "SELECT" || event.key !== "Enter") return;
+    event.preventDefault();
+    this.set(select);
+  }
+
+  /** The source picked on a period's list supplies it: one step, unless it already does. */
+  private set(select: HTMLSelectElement): void {
+    if (this.busy || !select.value || select.value === select.dataset.chosen) return;
     const platform = this.platformOf(select);
     if (!platform) return;
     const source = platform.sources[Number(select.value)];

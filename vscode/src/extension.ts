@@ -821,7 +821,7 @@ export function activate(context: vscode.ExtensionContext): DebriefApi {
           }
           if (!done.changed) {
             await refreshCollation();
-            return "Nothing to change: it is so already.";
+            return done.message ?? "Nothing to change: it is so already.";
           }
           const problem = await reloadPlot(true);
           await refreshHistory();
@@ -2113,9 +2113,20 @@ export function activate(context: vscode.ExtensionContext): DebriefApi {
     return problem;
   });
   command("debrief.dismissNewData", async (node?: PlotNode) => {
-    if (node?.kind !== "plot") return undefined;
+    // Said, not silently ignored: nothing chosen, or an item Coverage has not listed.
+    if (node?.kind !== "plot") {
+      const problem = "Choose an item marked New data in Catalogues to set aside, or use Not now in Coverage.";
+      say(problem, "");
+      return problem;
+    }
     const source = itemOf(node);
-    if (!source.revision) return undefined;
+    if (!source.revision) {
+      const problem = session.current
+        ? `${node.plot.title} is not marked as new data for the open plot, so there is nothing to set aside.`
+        : "Open the plot the new data is for first.";
+      say(problem, "");
+      return problem;
+    }
     const problem = await collate({ kind: "dismiss", source: { catalogue: source.catalogue, item: source.item, revision: source.revision } });
     say(problem, `${node.plot.title} set aside. It is marked again if it is revised.`);
     return problem;

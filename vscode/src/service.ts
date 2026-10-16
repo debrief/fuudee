@@ -603,7 +603,7 @@ export class ToolService {
    * a period of a track, or link or unlink a track in another item as a platform; each a
    * recorded, undoable step. Fails with CONFLICT if the plot changed since base.
    */
-  collate(store: string, item: string, base: Base, agent: Agent, change: CollationChange, allowNewerSchema = false): Promise<Opened & { changed: boolean }> {
+  collate(store: string, item: string, base: Base, agent: Agent, change: CollationChange, allowNewerSchema = false): Promise<Opened & { changed: boolean; message?: string }> {
     const { kind, ...params } = change;
     const method = { take: "debrief/take_new_data", prefer: "debrief/set_source_preference", link: "debrief/link_tracks" }[kind];
     return this.request(method, { store, item, base, agent, ...params, ...(allowNewerSchema && { allow_newer_schema: true }) });

@@ -7,7 +7,7 @@ import { readFileSync } from "node:fs";
 import path from "node:path";
 import { describe, expect, it } from "vitest";
 import type { CoverageReport, DebriefFeatureCollection, TrackSupply } from "@debrief/schemas";
-import { along, choices, coveragePieces, extentOf, linkWords, nextSource, periods, platformKey, plotTitleOf, spans, untaken } from "../../webview/coveragelogic.js";
+import { along, choices, coveragePieces, extentOf, linkWords, periods, platformKey, plotTitleOf, spans, untaken, type Span } from "../../webview/coveragelogic.js";
 import { coverageId, timelineEntries } from "../../src/timeline.js";
 import { checkMessage } from "../../src/messages.js";
 
@@ -22,6 +22,58 @@ const iso = (ms: number) => new Date(ms).toISOString();
 describe("spans, as Python works them out (schemas/vectors/collation.json)", () => {
   it.each(vectors.spans)("$name", (c) => {
     expect(spans(c.times.map(Date.parse)).map(([a, b]) => [iso(a), iso(b)])).toEqual(c.spans);
+  });
+});
+
+describe("periods of gappy sources, swept along the time (NFR-01)", () => {
+  // Fifty sources of a hundred bursts each, every source offset a little: 10,000 bounds.
+  const sources: Span[][] = Array.from({ length: 50 }, (_, n) =>
+    Array.from({ length: 100 }, (_, b): Span => [b * 600_000 + n * 7_000, b * 600_000 + n * 7_000 + 40_000]),
+  );
+  /** The periods as worked out bound by bound against every span: slow, but plainly right. */
+  const plainly = (all: Span[][]) => {
+    const bounds = [...new Set(all.flat(2))].sort((a, b) => a - b);
+    const out: { start: number; end: number; sources: number[] }[] = [];
+    for (let k = 1; k < bounds.length; k++) {
+      const [a, b] = [bounds[k - 1], bounds[k]];
+      const covering = all.flatMap((s, i) => (s.some(([x, y]) => x <= a && b <= y && x < y) ? [i] : []));
+      if (!covering.length) continue;
+      const last = out.at(-1);
+      if (last && last.end === a && last.sources.join() === covering.join()) last.end = b;
+      else out.push({ start: a, end: b, sources: covering });
+    }
+    return out;
+  };
+  it("cuts them as the plain way does", () => {
+    expect(periods(sources.slice(0, 8).map((s) => s.slice(0, 20)))).toEqual(plainly(sources.slice(0, 8).map((s) => s.slice(0, 20))));
+  });
+  it("in well under a tenth of a second", () => {
+    const started = performance.now();
+    const cut = periods(sources);
+    const took = performance.now() - started;
+    expect(cut.length).toBeGreaterThan(5_000);
+    expect(took).toBeLessThan(100);
+  });
+  it("finds a long track's pieces in one pass", () => {
+    // 2,000 spans of 10 fixes, each from the next supplier: 20,000 fixes, each with its
+    // supplier found by halving, in one pass over the spans.
+    const times = Array.from({ length: 2000 }, (_, b) => Array.from({ length: 10 }, (_, k) => iso(Date.parse("2023-06-15T00:00:00.000Z") + b * 3_600_000 + k * 10_000))).flat();
+    const supplies: TrackSupply[] = Array.from({ length: 2000 }, (_, b) => ({
+      catalogue: "c",
+      item: b % 2 ? "log" : "plot",
+      track: "t",
+      title: b % 2 ? "Log" : "Plot",
+      ...(b % 2 ? { revision: `sha256:${"a".repeat(64)}` } : {}),
+      start: times[b * 10],
+      end: times[b * 10 + 9],
+    }));
+    const started = performance.now();
+    const pieces = coveragePieces(times, supplies);
+    const took = performance.now() - started;
+    expect(pieces).toHaveLength(2000);
+    expect(pieces[1]).toMatchObject({ source: "Log", fixes: 10 });
+    expect(pieces[0].source).toBeUndefined();
+    expect(took).toBeLessThan(60);
   });
 });
 
@@ -134,8 +186,6 @@ describe("Coverage's bars and choices", () => {
     const [platform] = report.platforms;
     expect(choices(platform).map((p) => p.start)).toEqual([T("09:00")]);
     expect(untaken(platform).map((p) => p.start)).toEqual([T("10:00")]);
-    expect(nextSource(platform.periods[1])).toBe(1);
-    expect(nextSource(platform.periods[1], -1)).toBe(1);
     expect(linkWords(platform.sources[1])).toBe("proposed: same name");
   });
   it("sends only messages the schema allows", () => {

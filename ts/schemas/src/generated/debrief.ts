@@ -695,12 +695,20 @@ export interface CollationView {
   reviewed?: ItemRevision[] | null;
 }
 /**
- * One revision of a catalogue item.
+ * One revision of a catalogue item; for an answer the analyst gave (Not now, Reviewed), who gave it and when, a light audit trail kept in the island (decision, product owner, 16 Oct 2026).
  *
  * This interface was referenced by `DebriefSchemaDefinitions`'s JSON-Schema
  * via the `definition` "ItemRevision".
  */
 export interface ItemRevision {
+  /**
+   * When the answer was given.
+   */
+  at?: string | null;
+  /**
+   * Who gave the answer: the agent's name.
+   */
+  by?: string | null;
   catalogue: string;
   item: string;
   revision: string;
@@ -1846,9 +1854,17 @@ export interface StacItemProperties {
    */
   "debrief:coverage"?: TrackCoverage[] | null;
   /**
-   * The catalogue items the plot took data from, each at the latest revision taken (CAP-12), from its provenance. Derived at each change, never authoritative.
+   * The catalogue items the plot's tracks take data from now, each at every revision a period of it was read at (CAP-12), from its tracks' supplies. Derived at each change, never authoritative.
    */
   "debrief:drawn_from"?: ItemRef[] | null;
+  /**
+   * Whether the item came in by importing source files: its history starts with a record naming the files it read. Only such items can be new data for a plot (CAP-10; decision, product owner, 16 Oct 2026). Derived at each change, never authoritative.
+   */
+  "debrief:imported"?: boolean | null;
+  /**
+   * The step_hash of the first step of the item's history: items that share it are copies of one plot, forked where their histories part (CAP-10). Derived at each change, never authoritative.
+   */
+  "debrief:origin"?: string | null;
   /**
    * Platform names, for catalogue search (SUB-16).
    */

@@ -1036,6 +1036,8 @@ async function playCollation(api: DebriefApi, store: { id: string; location: str
   await screenshot("39-review-flag", true);
   assert.equal(await vscode.commands.executeCommand("debrief.clearReviewFlag"), undefined);
   await waitFor("the flag to clear", () => !api.catalogueMarks().flags.length || undefined);
+  // Not now with nothing chosen says why it did nothing, rather than nothing at all.
+  assert.match(String(await vscode.commands.executeCommand("debrief.dismissNewData")), /^Choose an item marked New data in Catalogues/);
   // The three steps undone, so the tests after start as before.
   assert.equal((await steps()).length, before + 3);
   for (let i = 0; i < 3; i++) assert.equal(await vscode.commands.executeCommand("debrief.undo"), undefined);

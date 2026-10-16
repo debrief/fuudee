@@ -51,27 +51,52 @@ export interface Period {
   sources: number[];
 }
 
-/** A platform's time cut where the sources with data change, as Python's collation.periods. */
+/**
+ * A platform's time cut where the sources with data change, as Python's collation.periods:
+ * a sweep along the time, each source's spans opening and closing at their bounds, so the
+ * work grows with the number of spans, not spans times bounds.
+ */
 export function periods(sources: readonly (readonly Span[])[]): Period[] {
   const bounds = [...new Set(sources.flatMap((s) => s.flatMap((span) => span)))].sort((a, b) => a - b);
+  const index = new Map(bounds.map((t, k) => [t, k]));
+  const opening: number[][] = bounds.map(() => []);
+  const closing: number[][] = bounds.map(() => []);
+  sources.forEach((spans_, i) => {
+    for (const [s, e] of spans_) {
+      if (s < e) {
+        opening[index.get(s)!].push(i);
+        closing[index.get(e)!].push(i);
+      }
+    }
+  });
+  const count = sources.map(() => 0);
+  const active = new Set<number>();
   const out: Period[] = [];
-  for (let k = 1; k < bounds.length; k++) {
-    const a = bounds[k - 1];
-    const b = bounds[k];
-    const covering = sources.flatMap((spans_, i) => (spans_.some(([s, e]) => s <= a && b <= e && s < e) ? [i] : []));
-    if (!covering.length) continue;
+  for (let k = 0; k < bounds.length - 1; k++) {
+    for (const i of closing[k]) if (--count[i] === 0) active.delete(i);
+    for (const i of opening[k]) {
+      count[i]++;
+      active.add(i);
+    }
+    if (!active.size) continue;
+    const a = bounds[k];
+    const b = bounds[k + 1];
+    const covering = [...active].sort((x, y) => x - y);
     const last = out.at(-1);
     if (last && last.end === a && last.sources.join() === covering.join()) last.end = b;
     else out.push({ start: a, end: b, sources: covering });
   }
+  const holds = (spans_: readonly Span[], t: number) => spans_.some(([x, y]) => x <= t && t <= y);
+  const instants: Period[] = [];
   sources.forEach((spans_, i) => {
     for (const [s, e] of spans_) {
-      if (s !== e || out.some((p) => p.start <= s && s <= p.end)) continue;
-      const at = sources.flatMap((other, j) => (other.some(([x, y]) => x <= s && s <= y) ? [j] : []));
-      out.push({ start: s, end: s, sources: at.length ? at : [i] });
+      if (s !== e) continue;
+      if (out.some((p) => p.start <= s && s <= p.end) || instants.some((p) => p.start === s)) continue;
+      const at = sources.flatMap((other, j) => (holds(other, s) ? [j] : []));
+      instants.push({ start: s, end: s, sources: at.length ? at : [i] });
     }
   });
-  return out.sort((p, q) => p.start - q.start || p.end - q.end);
+  return [...out, ...instants].sort((p, q) => p.start - q.start || p.end - q.end);
 }
 
 /** A track's data coverage for the Timeline: each period it has data for, cut where the item supplying it changes. */
@@ -85,8 +110,21 @@ export interface CoveragePiece {
 
 /** Which item supplies each fix, by time: as the track's supplies say, or none (the plot's own). */
 function supplierAt(supplies: readonly TrackSupply[] | null | undefined): (ms: number) => TrackSupply | undefined {
-  const ranges = (supplies ?? []).map((s) => ({ s, start: Date.parse(s.start), end: Date.parse(s.end) }));
-  return (ms) => ranges.find((r) => r.start <= ms && ms <= r.end)?.s;
+  const ranges = (supplies ?? []).map((s) => ({ s, start: Date.parse(s.start), end: Date.parse(s.end) })).sort((a, b) => a.start - b.start);
+  return (ms) => {
+    // The last period starting at or before the time, found by halving: thousands of periods at most.
+    let lo = 0;
+    let hi = ranges.length - 1;
+    let at = -1;
+    while (lo <= hi) {
+      const mid = (lo + hi) >> 1;
+      if (ranges[mid].start <= ms) {
+        at = mid;
+        lo = mid + 1;
+      } else hi = mid - 1;
+    }
+    return at >= 0 && ms <= ranges[at].end ? ranges[at].s : undefined;
+  };
 }
 
 /**
@@ -100,10 +138,12 @@ export function coveragePieces(times: readonly string[], supplies: readonly Trac
   const out: CoveragePiece[] = [];
   // Another item's period carries the revision taken; the plot's own has none.
   const own = (s: TrackSupply | undefined) => (s?.revision ? s.title : undefined);
+  // The fixes are in time order, and so are the spans: one pass over each.
+  let i = 0;
   for (const [start, end] of spans(ms)) {
     let piece: CoveragePiece | undefined;
-    for (let i = 0; i < ms.length; i++) {
-      if (ms[i] < start || ms[i] > end) continue;
+    while (i < ms.length && ms[i] < start) i++;
+    for (; i < ms.length && ms[i] <= end; i++) {
       const source = own(supplier(ms[i]));
       if (piece && piece.source === source) {
         piece.end = ms[i];
@@ -151,10 +191,3 @@ export function linkWords(source: CoverageSource): string {
 
 /** A period as a range of times, for the message saying which source supplies it. */
 export const rangeOf = (period: CoveragePeriod): TimeRange => ({ start: period.start, end: period.end });
-
-/** The next source to offer for a period (the keyboard's way round them), after the one chosen. */
-export function nextSource(period: CoveragePeriod, step: 1 | -1 = 1): number {
-  const at = period.chosen === undefined || period.chosen === null ? -1 : period.sources.indexOf(period.chosen);
-  const n = period.sources.length;
-  return period.sources[(((at + step) % n) + n) % n];
-}

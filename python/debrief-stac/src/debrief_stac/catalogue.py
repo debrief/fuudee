@@ -24,8 +24,9 @@ import json
 import re
 import time as clock
 import uuid
+from collections import OrderedDict
 from collections.abc import Callable, Iterable, Iterator
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, replace
 from importlib.metadata import version
 from pathlib import Path, PurePosixPath
 
@@ -424,10 +425,13 @@ class Catalogue:
         text: str,
         *,
         revision: str | None = None,
+        origin: str | None = None,
     ) -> None:
         """Write the materialised plot atomically and refresh the item's extent (NFR-11),
         and what collation reads of it (CAP-08 to CAP-12): its revision (the content's
-        hash), each track's coverage, and the items it took data from.
+        hash), each track's coverage, the items its tracks take data from, whether it
+        came in by importing files, its history's first step, and, for an item from
+        before items kept it, when it came in (its first step's time).
 
         Only the history calls this: every change goes through a delta first.
         """
@@ -441,6 +445,9 @@ class Catalogue:
         props.debrief_revision = revision or history_content_hash(text)
         props.debrief_coverage = collation.plot_coverage(plot) or None
         props.debrief_drawn_from = collation.drawn_from(plot) or None
+        props.debrief_imported = collation.imported(plot)
+        props.debrief_origin = origin or props.debrief_origin
+        props.created = props.created or collation.first_recorded_at(plot)
         self._write_item(item)
 
     def commit(
@@ -1788,8 +1795,20 @@ class Catalogue:
         plot = history.plot()  # with its island
         details = plot_feature(plot)
         view = details.properties.view if details is not None else None
+        shared: set[str] | None = None
+
+        def adds_data(info: collation.ItemInfo) -> bool:
+            # A copy of this plot: whether it has steps since they parted that add data.
+            nonlocal shared
+            if shared is None:
+                shared = set(history.step_hashes())
+            try:
+                return info.catalogue.history(info.item).adds_data_after(shared)
+            except (HistoryError, OSError, ValueError):
+                return False
+
         return collation.coverage(
-            self._collated(others), self, item_id, plot, view, history.first_recorded
+            self._collated(others), self, item_id, plot, view, history.first_recorded, adds_data
         )
 
     def _me(self, item_id: str, plot: DebriefFeatureCollection) -> collation.Plot:
@@ -1803,48 +1822,55 @@ class Catalogue:
         self, item_id: str, plot: DebriefFeatureCollection, catalogues: collation.Catalogues
     ):
         """Where each source puts a track's fixes, by time, as the plot took them: the
-        plot's own as it first recorded them, another item's at the revision taken (its
-        history replayed to it, where it has moved on since)."""
+        plot's own as it first recorded them, another item's at the revision each period
+        was read at (its history replayed to it, where it has moved on since)."""
         me = self._me(item_id, plot)
         history = self.history(item_id)
-        revisions = {
-            (s.catalogue, s.item, s.track): s.revision
-            for f in plot.features
-            if f.properties.kind == "track"
-            for s in f.properties.supplies or []
-        }
         found: dict[tuple, dict[int, collation.Fix]] = {}
 
-        def reference(key: collation.Key, units: collation.Units) -> dict[int, collation.Fix]:
-            if (key, units) in found:
-                return found[(key, units)]
+        def reference(
+            key: collation.Key, revision: str | None, units: collation.Units
+        ) -> dict[int, collation.Fix]:
+            if (key, revision, units) in found:
+                return found[(key, revision, units)]
             track = None
             if me.is_own(key):
                 track = history.first_recorded(key[2])
             else:
                 other = catalogues.find(key[0])
-                if other is not None and key[1] in other.item_ids():
-                    source = other._plot_at_revision(key[1], revisions.get(key))
+                if other is not None and key[1] in catalogues.item_ids(other):
+                    source = other._plot_at_revision(key[1], revision)
                     track = _track_in(source, key[2]) if source is not None else None
             fixes_ = collation.fixes_of(track, key, units) if track is not None else []
-            found[(key, units)] = {f.ms: f for f in fixes_}
-            return found[(key, units)]
+            found[(key, revision, units)] = {f.ms: f for f in fixes_}
+            return found[(key, revision, units)]
 
         return me, reference
 
     def _plot_at_revision(
         self, item_id: str, revision: str | None
     ) -> DebriefFeatureCollection | None:
-        """An item's plot at a revision, or as it is now where that cannot be found."""
+        """An item's plot at a revision, or as it is now where that cannot be found. A
+        plot at a revision never changes, so it is kept once replayed."""
+        cache_key = (_where_of(self), item_id, revision)
+        if revision is not None and cache_key in _AT_REVISION:
+            _AT_REVISION.move_to_end(cache_key)
+            return _AT_REVISION[cache_key]
         history = self.history(item_id)
         try:
-            if revision is not None and history.head().plot_hash != revision:
+            plot, now = history.plot_and_revision()
+            if revision is not None and now != revision:
                 earlier = history.at_revision(revision)
-                if earlier is not None:
-                    return earlier
-            return history.plot()
+                if earlier is None:
+                    return plot
+                plot = earlier
         except (HistoryError, OSError, ValueError):
             return None
+        if revision is not None:
+            _AT_REVISION[cache_key] = plot
+            while len(_AT_REVISION) > _AT_REVISION_KEPT:
+                _AT_REVISION.popitem(last=False)
+        return plot
 
     def take_new_data(
         self,
@@ -1857,11 +1883,13 @@ class Catalogue:
         others: Iterable[Catalogue] | None = None,
         revision: str | None = None,
         allow_newer_schema: bool = False,
-    ) -> int:
+    ) -> int | None:
         """Take a catalogue item's data into the plot, as one recorded step naming the
         item (CAP-11): see debrief_stac.collation. revision, when given, is the revision
         the analyst saw: if the item has changed since, nothing is taken and they are
-        told. Returns the step."""
+        told. Returns the step; None if the plot has the item's data as it is now already
+        (taken before, or a revision that changed nothing the plot took), when no step is
+        made and the plot is marked as reviewed against that revision instead."""
         catalogues = self._collated(others)
         info = catalogues.info(source_catalogue, source_item)
         if info is None:
@@ -1871,34 +1899,44 @@ class Catalogue:
             )
         if (source_catalogue, source_item) == (self.id, item_id):
             raise CatalogueError("A plot cannot take data from itself.")
-        if revision is not None and info.revision != revision:
+        # The source and its revision read together: the revision recorded is the data read.
+        source, now = info.catalogue.history(source_item).plot_and_revision()
+        if revision is not None and now != revision:
             raise CatalogueError(
                 f"{info.title} has changed since you saw it. Look at its coverage again, "
                 "then take it."
             )
-        source = info.catalogue.history(source_item).plot()
+        info = replace(info, revision=now)
+        unchanged = False
 
         def change(plot: DebriefFeatureCollection):
+            nonlocal unchanged
             me, reference = self._references(item_id, plot, catalogues)
             taken = collation.take(plot, me, source, info, reference)
+            if taken.unchanged:
+                unchanged = True
+                return None
             record = {
                 "notes": taken.notes,
-                "kind": "import",
+                "kind": "tool",
                 "tool": _collation_tool(),
                 "drawn_from": [
                     models.ItemRef(
                         catalogue=info.catalogue_id,
                         item=info.item,
                         title=info.title,
-                        revision=info.revision,
+                        revision=now,
                     )
                 ],
             }
             return taken.changes, taken.note, None, record
 
         result = self._change(item_id, change, agent, base, allow_newer_schema)
-        if result is None:  # pragma: no cover - take always changes something or refuses
-            raise CatalogueError("Nothing was taken.")
+        if result is None:
+            if unchanged:
+                # Nothing to take: the plot is as it would be, so reviewed against it.
+                self._mark_reviewed(item_id, [(info.catalogue_id, info.item, now)], agent)
+            return None
         return result[0]
 
     def set_source_preference(
@@ -1945,10 +1983,8 @@ class Catalogue:
                         f"There is no item {source.item!r} in a catalogue of yours with the id "
                         f"{source.catalogue!r}."
                     )
-                theirs = info.catalogue.history(source.item).plot()
-                chosen = collation.Source(
-                    key, info.title, info.revision, _track_in(theirs, source.track)
-                )
+                theirs, now = info.catalogue.history(source.item).plot_and_revision()
+                chosen = collation.Source(key, info.title, now, _track_in(theirs, source.track))
             done = collation.prefer(plot, me, feature_id, (start, end), chosen, reference)
             if done is None:
                 return None
@@ -1961,6 +1997,7 @@ class Catalogue:
                     models.ParameterValue(name="source_track", value=source.track),
                 ],
                 "selected": [feature_id],
+                "kind": "tool",
                 "tool": _collation_tool(),
                 "drawn_from": [done.drawn] if done.drawn else None,
             }
@@ -2030,11 +2067,17 @@ class Catalogue:
                     raise
 
     def dismiss_new_data(
-        self, item_id: str, source_catalogue: str, source_item: str, revision: str
+        self,
+        item_id: str,
+        source_catalogue: str,
+        source_item: str,
+        revision: str,
+        agent: models.AgentRef | None = None,
     ) -> None:
         """Set an item's new data aside for the plot (Not now): its mark clears until the
-        item is revised (CAP-10). View state in the plot's island, never a step."""
-        mark = models.ItemRevision(catalogue=source_catalogue, item=source_item, revision=revision)
+        item is revised (CAP-10). View state in the plot's island, never a step; who set
+        it aside and when are kept with it."""
+        mark = _answer(source_catalogue, source_item, revision, agent)
 
         def change(view: models.CollationView) -> models.CollationView:
             kept = [
@@ -2046,25 +2089,38 @@ class Catalogue:
 
         self._collation_view(item_id, change)
 
-    def clear_review_flag(self, item_id: str, others: Iterable[Catalogue] | None = None) -> int:
+    def clear_review_flag(
+        self,
+        item_id: str,
+        others: Iterable[Catalogue] | None = None,
+        agent: models.AgentRef | None = None,
+    ) -> int:
         """The analyst reviewed the plot against the items revised since it drew from them
         (CAP-12): its flag clears until one is revised again. View state in the plot's
-        island, never a step. Returns how many revisions were reviewed."""
+        island, never a step (decision, product owner, 16 Oct 2026); who cleared it and
+        when are kept with it, a light audit trail. Returns how many revisions were
+        reviewed."""
         report = self.coverage(item_id, others)
         if report.review is None:
             return 0
-        revisions = [
-            models.ItemRevision(catalogue=r.catalogue, item=r.item, revision=r.revision)
-            for r in report.review.revised
-        ]
+        revised = [(r.catalogue, r.item, r.revision) for r in report.review.revised]
+        self._mark_reviewed(item_id, revised, agent)
+        return len(revised)
+
+    def _mark_reviewed(
+        self,
+        item_id: str,
+        revisions: list[tuple[str, str, str]],
+        agent: models.AgentRef | None,
+    ) -> None:
+        answers = [_answer(c, i, r, agent) for c, i, r in revisions]
 
         def change(view: models.CollationView) -> models.CollationView:
-            done = {(r.catalogue, r.item) for r in revisions}
+            done = {(r.catalogue, r.item) for r in answers}
             kept = [r for r in view.reviewed or [] if (r.catalogue, r.item) not in done]
-            return view.model_copy(update={"reviewed": [*kept, *revisions]})
+            return view.model_copy(update={"reviewed": [*kept, *answers]})
 
         self._collation_view(item_id, change)
-        return len(revisions)
 
     def reviewed(self, item_id: str) -> set[tuple[str, str, str]]:
         """The revisions the analyst reviewed the plot against (CAP-12)."""
@@ -2377,6 +2433,31 @@ def _track_in(plot: DebriefFeatureCollection, track_id: str) -> models.TrackFeat
 
 def _collation_tool() -> models.ToolRef:
     return models.ToolRef(name=collation.TOOL, version=version("debrief-stac"))
+
+
+def _answer(
+    catalogue_id: str, item: str, revision: str, agent: models.AgentRef | None
+) -> models.ItemRevision:
+    """An answer the analyst gave to a collation mark, for one revision of an item: who
+    gave it and when, a light audit trail in the island (decision, product owner, 16 Oct
+    2026)."""
+    return models.ItemRevision(
+        catalogue=catalogue_id,
+        item=item,
+        revision=revision,
+        by=agent.name if agent is not None else None,
+        at=format_utc(int(clock.time() * 1000)),
+    )
+
+
+# Plots replayed to an earlier revision, by catalogue folder, item and revision: a plot
+# at a revision never changes, and carrying edits reads it at each choice (NFR-01).
+_AT_REVISION: OrderedDict[tuple[str, str, str | None], DebriefFeatureCollection] = OrderedDict()
+_AT_REVISION_KEPT = 16
+
+
+def _where_of(catalogue: Catalogue) -> str:
+    return str(getattr(catalogue.store, "root", id(catalogue)))
 
 
 def review_flags(catalogues: Iterable[Catalogue]) -> list[models.ReviewFlag]:

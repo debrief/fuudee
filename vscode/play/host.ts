@@ -1843,7 +1843,7 @@ function renderItems(): void {
 async function collateStep(change: CollationStep): Promise<void> {
   if (!opened || !pythonReady) return;
   status("Collating…", true);
-  const outcome = await pythonJson<{ error?: string; changed?: boolean; notes?: string[] }>("collate", opened.item.id, JSON.stringify({ base: opened.base, change }));
+  const outcome = await pythonJson<{ error?: string; changed?: boolean; notes?: string[]; message?: string }>("collate", opened.item.id, JSON.stringify({ base: opened.base, change }));
   status("Ready. Everything runs in your browser; nothing is sent anywhere.");
   if (outcome.error) {
     toast(outcome.error, "warning");
@@ -1851,7 +1851,12 @@ async function collateStep(change: CollationStep): Promise<void> {
     return;
   }
   if (!outcome.changed) {
-    coverageControl.say("Nothing to change: it is so already.");
+    if (outcome.message) {
+      // Nothing taken, but the plot's island may say it is reviewed now: show collation again.
+      await refreshCollation();
+      toast(outcome.message);
+    }
+    coverageControl.say(outcome.message ?? "Nothing to change: it is so already.");
     return;
   }
   // The plot, its island or another plot's island changed: show the latest, and with it collation.

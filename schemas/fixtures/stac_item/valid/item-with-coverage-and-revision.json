@@ -50,6 +50,8 @@
     },
     "created": "2026-10-16T09:00:00.000Z",
     "debrief:revision": "sha256:1111111111111111111111111111111111111111111111111111111111111111",
+    "debrief:imported": true,
+    "debrief:origin": "sha256:3333333333333333333333333333333333333333333333333333333333333333",
     "debrief:coverage": [
       {
         "track": "track-blue-one",

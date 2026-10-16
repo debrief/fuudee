@@ -9,7 +9,7 @@
 .cov p { margin: 0; }
 .cov h3 { margin: 0; font-size: 12px; font-weight: 600; }
 .cov ul { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 6px; }
-.cov button { font: inherit; height: 22px; padding: 0 8px; color: var(--vscode-button-secondaryForeground); background: var(--vscode-button-secondaryBackground); border: 1px solid var(--vscode-button-border, transparent); border-radius: 2px; cursor: pointer; }
+.cov button { font: inherit; min-height: 24px; min-width: 24px; padding: 0 8px; color: var(--vscode-button-secondaryForeground); background: var(--vscode-button-secondaryBackground); border: 1px solid var(--vscode-button-border, transparent); border-radius: 2px; cursor: pointer; }
 .cov button:hover { background: var(--vscode-button-secondaryHoverBackground); }
 .cov button.cov-take, .cov button.cov-reviewed { color: var(--vscode-button-foreground); background: var(--vscode-button-background); }
 .cov button.cov-take:hover, .cov button.cov-reviewed:hover { background: var(--vscode-button-hoverBackground); }
@@ -52,5 +52,13 @@
 .cov-choices { display: flex; flex-direction: column; gap: 3px; margin-top: 2px; }
 .cov-choice { display: flex; flex-wrap: wrap; align-items: center; gap: 2px 6px; min-width: 0; }
 .cov-when { color: var(--vscode-descriptionForeground); font-variant-numeric: tabular-nums; }
-.cov-choice select { flex: 1 1 8em; min-width: 0; max-width: 100%; height: 22px; font: inherit; color: var(--vscode-dropdown-foreground, var(--vscode-foreground)); background: var(--vscode-dropdown-background); border: 1px solid var(--vscode-dropdown-border, transparent); }
+.cov-choice select { flex: 1 1 8em; min-width: 0; max-width: 100%; min-height: 24px; font: inherit; color: var(--vscode-dropdown-foreground, var(--vscode-foreground)); background: var(--vscode-dropdown-background); border: 1px solid var(--vscode-dropdown-border, transparent); }
+.cov-choice button { flex: none; }
+.cov-more { color: var(--vscode-descriptionForeground); }
+/* Touch, or a phone's width: every bar a target 24 px tall, its band drawn in the middle. */
+@media (pointer: coarse), (max-width: 400px) {
+  .cov-bar { height: 24px; border: none; background: transparent; }
+  .cov-bar::before { content: ""; position: absolute; left: 0; right: 0; top: 7px; bottom: 7px; background: var(--vscode-input-background); border: 1px solid var(--vscode-widget-border, transparent); }
+  .cov-span, .cov-supplied { top: 8px; bottom: 8px; }
+}
 .cov-status { margin: 0; min-height: 1em; color: var(--vscode-descriptionForeground); }
