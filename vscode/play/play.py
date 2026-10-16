@@ -9,6 +9,7 @@ crash happens there and is gone when the page is closed.
 
 from __future__ import annotations
 
+import base64
 import json
 import math
 import shutil
@@ -49,6 +50,7 @@ from debrief_stac import (
     Conflict,
     History,
     HistoryError,
+    figures,
 )
 from debrief_stac.catalogue import review_flags
 from debrief_stac.fixes import describe_largest
@@ -848,3 +850,115 @@ def revise(item: str) -> str:
     _cat().edit_track(source, tracks[0].id, {"action": "move", **move}, COLLEAGUE)
     title = _cat().read_item(source).properties.title or source
     return json.dumps({"item": source, "title": title})
+
+
+# --- Exported images (SUB-25): as debrief/figure_id, export_image, find_image_source and
+# open_revision do, the file handed to the reader to save instead of written here ----------
+
+
+def figure_id(item: str, revision: str | None = None) -> str:
+    """A fresh image ID for an export of the plot, at its current revision or the one
+    shown read-only."""
+    revision = revision if isinstance(revision, str) else None  # JavaScript's null is not None
+    try:
+        figure = figures.figure_for(_cat(), item, revision)
+    except (CatalogueError, HistoryError, ValueError) as error:
+        return json.dumps({"error": str(error)})
+    shown = revision or _cat().history(item).head().plot_hash
+    return json.dumps({"id": figure.text, "short": figure.short, "revision": shown})
+
+
+def export_image(item: str, request_json: str, data: bytes) -> str:
+    """The image the map drew, with its ID in its metadata and the export recorded in the
+    plot's export log (its island, never a step); the image comes back for the reader to
+    save, as base 64."""
+    request = json.loads(request_json)
+    members = ("format", "footer", "preset", "theme", "width", "height", "viewport", "time", "file")
+    details = {k: request.get(k) for k in members}
+    details.update(by=YOU.name, at=format_utc(int(time.time() * 1000)))
+    try:
+        stamped, entry = figures.prepare_export(_cat(), item, request["id"], bytes(data), details)
+    except (CatalogueError, HistoryError, ValueError) as error:
+        return json.dumps({"error": str(error)})
+    note = figures.log_export(_cat(), item, entry)
+    view, view_hash = _cat().read_view(item)  # the island has the export log now
+    return json.dumps(
+        {
+            "data": base64.b64encode(stamped).decode("ascii"),
+            "view": view.model_dump(mode="json", exclude_none=True) if view else None,
+            "view_hash": view_hash,
+            "id": entry.id,
+            "short": figures.parse_figure_id(entry.id).short,
+            "recorded": note is None,
+            **({"note": note} if note else {}),
+        }
+    )
+
+
+def find_image_source(name: str | None, data: bytes | None, typed: str | None) -> str:
+    """The plots an image came from: by the IDs in a file the reader chose (an image, or
+    the pictures in a Word or PowerPoint file), or by an ID typed from a footer."""
+    typed = typed if isinstance(typed, str) else None  # JavaScript's null is not None
+    name = name if isinstance(name, str) else None
+    try:
+        if typed:
+            refs = [(figures.parse_figure_id(typed), "typed")]
+        else:
+            found = figures.figure_ids_in(bytes(data), name or "the image")
+            if not found.ids:
+                return json.dumps(
+                    {
+                        "images": [],
+                        "problem": f"{name} carries no Debrief image ID: its metadata may have "
+                        "been removed. Type the ID from the image's footer instead.",
+                    }
+                )
+            refs = [(figures.parse_figure_id(t), where) for t, where in found.ids]
+    except figures.FigureIdError as error:
+        return json.dumps({"images": [], "problem": str(error)})
+    images = []
+    for ref, where in refs:
+        sources = figures.find_sources([("play", "Sample exercise", _cat())], ref)
+        images.append(
+            {
+                "id": ref.text,
+                "short": ref.short,
+                "where": where,
+                "sources": [s.model().model_dump(mode="json", exclude_none=True) for s in sources],
+            }
+        )
+    out: dict[str, Any] = {"images": images}
+    if not any(i["sources"] for i in images):
+        out["problem"] = "No plot in this catalogue has the revision this image was exported at."
+    return json.dumps(out)
+
+
+def open_revision(item: str, revision: str, figure: str | None = None) -> str:
+    """The plot as it was at a revision, rebuilt by replay and checked, to show read-only;
+    with its item, history and the export log entry for the image figure names."""
+    figure = figure if isinstance(figure, str) else None  # JavaScript's null is not None
+    try:
+        plot, step = _cat().revision_shown(item, revision)
+    except (CatalogueError, HistoryError, ValueError) as error:
+        return json.dumps({"error": str(error)})
+    history = _cat().history(item)
+    head = history.head()
+    view, view_hash = history.view()
+    export = next((e for e in (view.exports or []) if e.id == figure), None) if view else None
+    return json.dumps(
+        {
+            "item": _json(DocumentKind.STAC_ITEM, _cat().read_item(item)),
+            "plot": _json(DocumentKind.PLOT, plot),
+            "base": {"current": head.current, "plot_hash": head.plot_hash},
+            "view_hash": view_hash,
+            "steps": _steps(history),
+            "recovered": [],
+            "revision": {
+                "step": step,
+                "latest": head.current,
+                "revision": revision,
+                **({"figure": figures.parse_figure_id(figure).short} if figure else {}),
+            },
+            **({"export": export.model_dump(mode="json", exclude_none=True)} if export else {}),
+        }
+    )

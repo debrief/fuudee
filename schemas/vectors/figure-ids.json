@@ -1,0 +1,142 @@
+{
+  "description": "Image IDs (SUB-25): an exported image's ID in full and its short form, and an ID as typed or read. Crockford base 32 (0-9, A-Z without I, L, O, U), most significant bit first. plot_key is the first 40 bits of SHA-256 of '<catalogue>/<item>' in UTF-8; the revision's symbols are the first 80 bits of the content hash; the export's are export_hex's 40 bits. The check symbol is Luhn mod 32 over the symbols before it. Typing: case, spaces, dashes and an ellipsis do not matter; O reads as 0, I and L as 1. Problems: not_an_id (not the shape of an ID) and mistyped (its check symbol is wrong). debrief_stac.figures and @debrief/kernel's figureid both hold to this file.",
+  "alphabet": "0123456789ABCDEFGHJKMNPQRSTVWXYZ",
+  "encode": [
+    {
+      "catalogue": "sample",
+      "item": "serial-1",
+      "revision": "sha256:0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef",
+      "export_hex": "0000000000",
+      "plot_key": "24BPMEFG",
+      "id": "DBF1-24BPMEFG-04HMASW9NF6YY093-00000000-E",
+      "short": "DBF-24BP-04HM-ASWB"
+    },
+    {
+      "catalogue": "sample",
+      "item": "serial-2",
+      "revision": "sha256:ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff",
+      "export_hex": "ffffffffff",
+      "plot_key": "9NQ7XFAJ",
+      "id": "DBF1-9NQ7XFAJ-ZZZZZZZZZZZZZZZZ-ZZZZZZZZ-N",
+      "short": "DBF-9NQ7-ZZZZ-ZZZA"
+    },
+    {
+      "catalogue": "exercise-blue-dragon",
+      "item": "rep-2026-10-16-a",
+      "revision": "sha256:9c1185a5c5e9fc54612808977ee8f548b2258d31a5c4bb7b6bd7e7cb1c1b3a8e",
+      "export_hex": "a1b2c3d4e5",
+      "plot_key": "PTETVDX3",
+      "id": "DBF1-PTETVDX3-KG8RB9E5X7Y58R98-M6SC7N75-Z",
+      "short": "DBF-PTET-KG8R-B9E9"
+    },
+    {
+      "catalogue": "ö-catalogue",
+      "item": "item.with_dots-1",
+      "revision": "sha256:5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a",
+      "export_hex": "0102030405",
+      "plot_key": "7343XY2Y",
+      "id": "DBF1-7343XY2Y-B9D5MPJTB9D5MPJT-04106105-X",
+      "short": "DBF-7343-B9D5-MPJ2"
+    }
+  ],
+  "parse": [
+    {
+      "typed": "DBF1-24BPMEFG-04HMASW9NF6YY093-00000000-E",
+      "kind": "full",
+      "id": "DBF1-24BPMEFG-04HMASW9NF6YY093-00000000-E",
+      "short": "DBF-24BP-04HM-ASWB"
+    },
+    {
+      "typed": "dbf1-24bpmefg-04hmasw9nf6yy093-00000000-e",
+      "kind": "full",
+      "id": "DBF1-24BPMEFG-04HMASW9NF6YY093-00000000-E",
+      "short": "DBF-24BP-04HM-ASWB"
+    },
+    {
+      "typed": "DBF1 24BPMEFG 04HMASW9NF6YY093 00000000 E",
+      "kind": "full",
+      "id": "DBF1-24BPMEFG-04HMASW9NF6YY093-00000000-E",
+      "short": "DBF-24BP-04HM-ASWB"
+    },
+    {
+      "typed": "DBF-24BP-04HM-ASWB",
+      "kind": "short",
+      "id": "DBF-24BP-04HM-ASWB",
+      "short": "DBF-24BP-04HM-ASWB"
+    },
+    {
+      "typed": "dbf24bp04hmaswb",
+      "kind": "short",
+      "id": "DBF-24BP-04HM-ASWB",
+      "short": "DBF-24BP-04HM-ASWB"
+    },
+    {
+      "typed": " DBF 24BP 04HM ASWB ",
+      "kind": "short",
+      "id": "DBF-24BP-04HM-ASWB",
+      "short": "DBF-24BP-04HM-ASWB"
+    },
+    {
+      "typed": "24BP-04HM-ASWB",
+      "kind": "short",
+      "id": "DBF-24BP-04HM-ASWB",
+      "short": "DBF-24BP-04HM-ASWB"
+    },
+    {
+      "typed": "DBF-24BP-O4HM-ASWB",
+      "kind": "short",
+      "id": "DBF-24BP-04HM-ASWB",
+      "short": "DBF-24BP-04HM-ASWB"
+    },
+    {
+      "typed": "DBF-7343-B9D5-MPJ2",
+      "kind": "short",
+      "id": "DBF-7343-B9D5-MPJ2",
+      "short": "DBF-7343-B9D5-MPJ2"
+    },
+    {
+      "typed": "DBF–PTET–KG8R–B9E9",
+      "kind": "short",
+      "id": "DBF-PTET-KG8R-B9E9",
+      "short": "DBF-PTET-KG8R-B9E9"
+    },
+    {
+      "typed": "DBF-PTET-KG8R-B9E9…",
+      "kind": "short",
+      "id": "DBF-PTET-KG8R-B9E9",
+      "short": "DBF-PTET-KG8R-B9E9"
+    },
+    {
+      "typed": "DBF-7Q3K-M2XA-9TP",
+      "problem": "not_an_id"
+    },
+    {
+      "typed": "",
+      "problem": "not_an_id"
+    },
+    {
+      "typed": "hello",
+      "problem": "not_an_id"
+    },
+    {
+      "typed": "DBF-UUUU-UUUU-UUUU",
+      "problem": "not_an_id"
+    },
+    {
+      "typed": "DBF1-24BPMEFG-04HMASW9NF6YY093-00000000-",
+      "problem": "not_an_id"
+    },
+    {
+      "typed": "DBF-2ZBP-04HM-ASWB",
+      "problem": "mistyped"
+    },
+    {
+      "typed": "DBF42BP04HMASWB",
+      "problem": "mistyped"
+    },
+    {
+      "typed": "DBF1-24BPMZFG-04HMASW9NF6YY093-00000000-E",
+      "problem": "mistyped"
+    }
+  ]
+}

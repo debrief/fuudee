@@ -997,6 +997,21 @@ class History:
                     return models.TrackFeature.model_validate(raw)
         return None
 
+    def revisions(self) -> list[tuple[int, str]]:
+        """Each step and the plot's revision after it (its content hash), oldest first:
+        what an exported image's ID names (SUB-25)."""
+        file = self._trusted()
+        return [(step.seq, step.result_hash) for step in file.steps]
+
+    def replay_checked(self, seq: int) -> DebriefFeatureCollection:
+        """The plot's content as of a step, rebuilt by replay and checked to be the
+        content that step recorded, as undo checks it: an earlier revision shown
+        read-only is exactly what was on screen then. Content only: no island."""
+        file = self._trusted()
+        if not 0 <= seq <= file.latest:
+            raise HistoryError(f"Step {seq} is not in the plot's history.")
+        return self._rebuilt(file, seq)[0]
+
     def at_revision(self, revision: str) -> DebriefFeatureCollection | None:
         """The plot's content as it was when its content hash was revision (an earlier
         revision of a catalogue item), replayed; None if no step recorded it."""

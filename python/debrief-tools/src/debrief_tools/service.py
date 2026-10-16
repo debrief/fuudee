@@ -39,6 +39,13 @@ a track, and linking or unlinking a track in another item as a platform, each a 
 (debrief/take_new_data, debrief/set_source_preference, debrief/link_tracks); setting new
 data aside and clearing a review flag, in the plot's island (debrief/dismiss_new_data,
 debrief/clear_review_flag); and every plot that may need review (debrief/review_flags).
+Exported images (SUB-25): a fresh image ID for an export of the plot, at its current
+revision or an earlier one shown read-only (debrief/figure_id); the image a host drew, or
+one an agent has, with its ID in its metadata, written to file and recorded in the plot's
+export log, its island, never a step (debrief/export_image); the plots an image came from,
+by its file or its ID typed from its footer (debrief/find_image_source); and a plot as it
+was at a revision, rebuilt by replay, to show read-only (debrief/open_revision). See
+figures.py.
 
 Security (SEC-06 to SEC-08):
 - runs as the user who started it, so it can read only what they can;
@@ -112,13 +119,15 @@ from debrief_stac import (
 from debrief_stac.catalogue import review_flags
 from debrief_stac.fixes import describe_largest
 from debrief_stac.tote import measure_groups, tote
-from debrief_tools import diagnostics
+from debrief_tools import diagnostics, figures
 from debrief_tools.registry import applies
 from debrief_tools.worker import ToolWorker
 
 PROTOCOL_VERSION = "2025-06-18"
 SUPPORTED_VERSIONS = ("2025-06-18", "2025-03-26")
-MAX_BODY_BYTES = 10 * 1024 * 1024
+# An exported image travels in its request (debrief/export_image): an A4 PNG at twice its
+# size on screen is a few megabytes, as base 64 a third more.
+MAX_BODY_BYTES = 48 * 1024 * 1024
 DEFAULT_TIMEOUT_S = 120.0
 MIN_TOKEN_LENGTH = 32
 log = logging.getLogger("debrief_tools")
@@ -210,6 +219,14 @@ WRITING_METHODS = (
 HISTORY_METHODS = READING_METHODS + CHECKING_METHODS + WRITING_METHODS
 # The Tote reads a plot at one time; it never changes it, and is asked again at each time.
 TOTE_METHODS = ("debrief/tote", "debrief/measure_groups")
+# Exported images (SUB-25): an ID for an export, the image stamped, written and logged in the
+# plot's island (never a step), an image traced to its plot, and a plot shown as it was then.
+FIGURE_METHODS = (
+    "debrief/figure_id",
+    "debrief/export_image",
+    "debrief/find_image_source",
+    "debrief/open_revision",
+)
 KNOWN_METHODS = frozenset(
     (
         "initialize",
@@ -225,6 +242,7 @@ KNOWN_METHODS = frozenset(
         "debrief/add_plot_file",
         "debrief/review_flags",
         *TOTE_METHODS,
+        *FIGURE_METHODS,
         *HISTORY_METHODS,
     )
 )
@@ -373,6 +391,8 @@ class ToolService:
             return self._tote(params)
         if method == "debrief/review_flags":
             return self._review_flags()
+        if method in FIGURE_METHODS:
+            return figures.handle(self, method, params)
         if method in HISTORY_METHODS:
             return self._history(method, params)
         raise RpcError(METHOD_NOT_FOUND, f"Unknown method {method}")

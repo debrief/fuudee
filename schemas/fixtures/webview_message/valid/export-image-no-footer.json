@@ -1,0 +1,8 @@
+{
+  "kind": "export_image",
+  "image_request": {
+    "format": "svg",
+    "preset": "screen",
+    "theme": "current"
+  }
+}

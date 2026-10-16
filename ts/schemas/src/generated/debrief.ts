@@ -200,6 +200,27 @@ export type NarrativeKindEnum = "narrative";
  */
 export type PlotKindEnum = "plot";
 /**
+ * How an image is written (decision, product owner, 16 Oct 2026; no JPEG).
+ *
+ * This interface was referenced by `DebriefSchemaDefinitions`'s JSON-Schema
+ * via the `definition` "ImageFormatEnum".
+ */
+export type ImageFormatEnum = "png" | "svg";
+/**
+ * The size an image is drawn at.
+ *
+ * This interface was referenced by `DebriefSchemaDefinitions`'s JSON-Schema
+ * via the `definition` "ImagePresetEnum".
+ */
+export type ImagePresetEnum = "screen" | "slide" | "a4_landscape";
+/**
+ * The colours an image is drawn in.
+ *
+ * This interface was referenced by `DebriefSchemaDefinitions`'s JSON-Schema
+ * via the `definition` "ImageThemeEnum".
+ */
+export type ImageThemeEnum = "current" | "light";
+/**
  * Applied, undone or abandoned: what the after links and the history's current step say. Not part of step_hash, since undo changes it.
  */
 export type StepStateEnum = "applied" | "undone" | "abandoned";
@@ -364,7 +385,10 @@ export type WebviewMessageKindEnum =
   | "link_changed"
   | "take_asked"
   | "dismiss_asked"
-  | "review_cleared";
+  | "review_cleared"
+  | "export_image"
+  | "image_rendered"
+  | "latest_asked";
 
 export interface DebriefSchemaDefinitions {}
 /**
@@ -1284,6 +1308,10 @@ export interface PlotView {
    */
   context_tracks?: ContextTracksEnum | null;
   /**
+   * The plot's export log: each image exported from it, with its ID, the revision exported, when, by whom, the view and the time, the format and the file's name (SUB-25; decision, product owner, 16 Oct 2026). View state: never a step, so an export changes neither the plot's revision nor any product that drew from it.
+   */
+  exports?: ImageExport[] | null;
+  /**
    * Whether the map shows the narrative entry current time is at in a small box beside its track, for ten minutes of plot time; left out means it does. Turned off and on in the Timeline. View state, like the Tote's lines: never a step in the history (decision, product owner, 15 Oct 2026).
    */
   narrative_on_map?: boolean | null;
@@ -1295,6 +1323,76 @@ export interface PlotView {
    * Which tracks the Tote compares, and through which measure group (CAP-06, CAP-07). View state, like the window: changing it is never a step in the history (decision, 14 Oct 2026).
    */
   tote?: ToteView | null;
+}
+/**
+ * One image exported from a plot, as the plot's export log records it in its island: view state, never a step (decision, product owner, 16 Oct 2026). What the analyst exported, so the image can be traced and its view shown again.
+ *
+ * This interface was referenced by `DebriefSchemaDefinitions`'s JSON-Schema
+ * via the `definition` "ImageExport".
+ */
+export interface ImageExport {
+  /**
+   * When it was exported.
+   */
+  at: string;
+  /**
+   * Who exported it: the agent's name.
+   */
+  by?: string | null;
+  /**
+   * The file's name, without its folder.
+   */
+  file?: string | null;
+  /**
+   * Whether the image shows its ID in a footer.
+   */
+  footer: boolean;
+  format: ImageFormatEnum;
+  /**
+   * Its height in pixels.
+   */
+  height?: number | null;
+  /**
+   * The image's ID, in full.
+   */
+  id: string;
+  preset?: ImagePresetEnum | null;
+  /**
+   * The plot's revision exported (its content hash): the step it was exported at.
+   */
+  revision: string;
+  theme?: ImageThemeEnum | null;
+  /**
+   * Current time and the time window when it was exported.
+   */
+  time?: TimeState | null;
+  /**
+   * The area of the map exported.
+   */
+  viewport?: Viewport | null;
+  /**
+   * Its width in pixels.
+   */
+  width?: number | null;
+}
+/**
+ * This interface was referenced by `DebriefSchemaDefinitions`'s JSON-Schema
+ * via the `definition` "TimeState".
+ */
+export interface TimeState {
+  current: string;
+  range: TimeRange;
+}
+/**
+ * This interface was referenced by `DebriefSchemaDefinitions`'s JSON-Schema
+ * via the `definition` "Viewport".
+ */
+export interface Viewport {
+  /**
+   * @minItems 4
+   * @maxItems 4
+   */
+  bbox: [number, number, number, number];
 }
 /**
  * Which tracks the Tote compares, and through which measure group: view state in the plot's island, like the time window, so it travels with the plot file but is never a step in its history and never undone (SUB-22; decision, 14 Oct 2026). Ids of tracks no longer in the plot are shown as missing, not refused, because a change to content never changes the island.
@@ -1443,6 +1541,42 @@ export interface Delta {
   seq: number;
 }
 /**
+ * Where an image came from: a plot in one of the analyst's catalogues, at the revision the image was exported at (Find source of image).
+ *
+ * This interface was referenced by `DebriefSchemaDefinitions`'s JSON-Schema
+ * via the `definition` "FigureSource".
+ */
+export interface FigureSource {
+  /**
+   * The catalogue's own id, from its catalog.json.
+   */
+  catalogue: string;
+  /**
+   * The image's plot key names another plot: this is a copy of it with the same content at that revision (a colleague's, or one moved to another catalogue).
+   */
+  copied?: boolean | null;
+  /**
+   * The plot's current step now.
+   */
+  current: number;
+  /**
+   * The export log entry for the image, when the plot has one.
+   */
+  export?: ImageExport | null;
+  item: string;
+  revision: string;
+  /**
+   * The step at that revision.
+   */
+  step: number;
+  /**
+   * The catalogue's id in the analyst's configuration.
+   */
+  store?: string | null;
+  store_title?: string | null;
+  title: string;
+}
+/**
  * This interface was referenced by `DebriefSchemaDefinitions`'s JSON-Schema
  * via the `definition` "FormatSettings".
  */
@@ -1487,6 +1621,21 @@ export interface HistoryHead {
    */
   plot_hash: string;
   schema_version: string;
+}
+/**
+ * What the host asks the map to draw for an export (export_image).
+ *
+ * This interface was referenced by `DebriefSchemaDefinitions`'s JSON-Schema
+ * via the `definition` "ImageRequest".
+ */
+export interface ImageRequest {
+  /**
+   * The image's ID in its short form, to draw in a corner; left out for no footer.
+   */
+  footer_text?: string | null;
+  format: ImageFormatEnum;
+  preset: ImagePresetEnum;
+  theme: ImageThemeEnum;
 }
 /**
  * This interface was referenced by `DebriefSchemaDefinitions`'s JSON-Schema
@@ -1680,6 +1829,50 @@ export interface ParameterDeclaration {
   title: string;
 }
 /**
+ * The image the map drew (image_rendered), before its ID goes into its metadata.
+ *
+ * This interface was referenced by `DebriefSchemaDefinitions`'s JSON-Schema
+ * via the `definition` "RenderedImage".
+ */
+export interface RenderedImage {
+  /**
+   * A PNG as base 64, or an SVG as its text.
+   */
+  data: string;
+  format: ImageFormatEnum;
+  height: number;
+  /**
+   * What the image leaves out that the map shows, for the analyst: reference tiles that could not be read, say.
+   */
+  notes?: string[] | null;
+  /**
+   * The area of the map drawn.
+   */
+  viewport?: Viewport | null;
+  width: number;
+}
+/**
+ * The plot is shown as it was at an earlier revision, read-only: the one an image was exported at (show_plot).
+ *
+ * This interface was referenced by `DebriefSchemaDefinitions`'s JSON-Schema
+ * via the `definition` "RevisionShown".
+ */
+export interface RevisionShown {
+  /**
+   * The image's ID, in its short form, when one was traced.
+   */
+  figure?: string | null;
+  /**
+   * The plot's current step now.
+   */
+  latest: number;
+  revision: string;
+  /**
+   * The step whose revision is shown.
+   */
+  step: number;
+}
+/**
  * This interface was referenced by `DebriefSchemaDefinitions`'s JSON-Schema
  * via the `definition` "Selection".
  */
@@ -1698,25 +1891,6 @@ export interface SharedState {
   selection: Selection;
   time: TimeState;
   viewport: Viewport;
-}
-/**
- * This interface was referenced by `DebriefSchemaDefinitions`'s JSON-Schema
- * via the `definition` "TimeState".
- */
-export interface TimeState {
-  current: string;
-  range: TimeRange;
-}
-/**
- * This interface was referenced by `DebriefSchemaDefinitions`'s JSON-Schema
- * via the `definition` "Viewport".
- */
-export interface Viewport {
-  /**
-   * @minItems 4
-   * @maxItems 4
-   */
-  bbox: [number, number, number, number];
 }
 /**
  * A change to some or all of shared state, as set by a view or returned by a tool (TL-10, TL-11).
@@ -2156,6 +2330,14 @@ export interface WebviewMessage {
    */
   hidden_count?: number | null;
   /**
+   * The image the map drew (image_rendered).
+   */
+  image?: RenderedImage | null;
+  /**
+   * What image to draw, and how (export_image).
+   */
+  image_request?: ImageRequest | null;
+  /**
    * The item, at the revision the analyst saw (take_asked, dismiss_asked).
    */
   item_revision?: ItemRevision | null;
@@ -2194,6 +2376,10 @@ export interface WebviewMessage {
   preview?: LineStringGeometry | null;
   result?: ToolResult | null;
   result_title?: string | null;
+  /**
+   * The plot shown is an earlier revision, read-only (show_plot).
+   */
+  revision_shown?: RevisionShown | null;
   /**
    * The time window as saved in the plot, so the time controller can say when the window shown differs from it (CAP-28).
    */

@@ -10,7 +10,7 @@
  *
  * Query parameters choose what an embedded demo shows:
  *   plot=serial-1         the sample serial to open
- *   panels=tote,timeline,tools,history,try,import   the side panels, in this order (all by default;
+ *   panels=tote,timeline,tools,history,export,try,import   the side panels, in this order (all by default;
  *                         the Tote, when listed, is always under the time controller)
  *
  * Every side panel folds away by its heading (fold.ts). The playground remembers which are
@@ -41,7 +41,10 @@ import { chooseModes, MODE_LABELS, modeChoices, modeQuestion, REMEMBER_LABEL, RE
 import { describeJump, describeMark, describeWindow, DR_TAG, fixRows, isDeadReckoned, jumpsFound, markAt, readThreshold, readWindow, smoothingNote, type Jump } from "../webview/fixes.js";
 import { FIX_COLOURS } from "../webview/palette.js";
 import { ALL_PROBLEM, AT_EVERY_FIX, changesOf, choiceFromValue, choicesFor, describeChanges, describeInterval, describeSetFrequencies, FIELD_NAMES, FIELDS, formState, readInterval, trackDetails, type Field, type FieldState } from "../webview/frequencies.js";
-import { formatQuantity } from "@debrief/kernel";
+import { formatQuantity, figureIdProblem } from "@debrief/kernel";
+import type { FigureSource, ImageExport, RenderedImage, RevisionShown } from "@debrief/schemas";
+import { fileNameFor, PRESETS, type ImageFormat, type ImagePreset, type ImageTheme } from "../webview/exportlogic.js";
+import { DEFAULT_EXPORT, describeExported, describeSource, READ_ONLY, revisionOf, type ExportChoice } from "../src/figures.js";
 
 type Feature = PlotFeature;
 interface Step {
@@ -62,10 +65,14 @@ interface Opened {
   view_hash: string;
   steps: Step[];
   recovered: string[];
+  /** An earlier revision, shown read-only: the one an image was exported at (SUB-25). */
+  revision?: RevisionShown;
+  /** The export log entry for that image, with the view and time it was exported at. */
+  export?: ImageExport;
 }
 
 const params = new URLSearchParams(location.search);
-const panelOrder = (params.get("panels") ?? "tote,timeline,catalogue,coverage,tools,history,try,import").split(",");
+const panelOrder = (params.get("panels") ?? "tote,timeline,catalogue,coverage,tools,history,export,try,import").split(",");
 const panels = new Set(panelOrder);
 const startPlot = params.get("plot") ?? "serial-1";
 /** Every side panel folds by its heading; remembered in this browser, except in a demo that chooses its panels. */
@@ -85,7 +92,10 @@ worker.onmessage = ({ data }) => {
   if (data.error) call?.reject(new Error(data.error));
   else call?.resolve(data.result);
 };
+/** Calls that change the open plot, its history or its island: refused while an earlier revision is shown read-only. */
+const CHANGES_PLOT = new Set(["run", "move", "restyle", "frequencies", "annotate", "track", "clean", "narrative", "set_view", "collate", "glitches", "crash", "colleague", "colleague_window"]);
 function python(call: string, ...args: unknown[]): Promise<string> {
+  if (opened?.revision && CHANGES_PLOT.has(call)) return Promise.resolve(JSON.stringify({ error: READ_ONLY }));
   const id = nextId++;
   worker.postMessage({ id, call, args, base: new URL(".", location.href).href });
   return new Promise((resolve, reject) => waiting.set(id, { resolve, reject }));
@@ -187,13 +197,14 @@ const toteRequests = new ToteRequests<{ item: string; time: string; tote: ToteVi
 /** Ask for the Tote at current time, while it is showing and has tracks to compare. */
 function refreshTote(): void {
   if (!opened || !time || !pythonReady || !panels.has("tote") || !folds.isOpen(totePanel.id)) return;
+  if (opened.revision) return; // worked out on the plot as it is now: not for an earlier revision
   const tote = toteChoice();
   if (!tote.primary && !tote.secondaries?.length) return;
   toteRequests.request({ item: opened.item.id, time: time.current, tote });
 }
 /** The tracks and the choice, on opening a plot and when its view changes; then the values. */
 function showTote(): void {
-  toteControl.show(opened ? { tracks: toteTracks(opened.plot), view: toteChoice() } : undefined);
+  toteControl.show(opened && !opened.revision ? { tracks: toteTracks(opened.plot), view: toteChoice() } : undefined);
   toteToMap();
   refreshTote();
 }
@@ -313,6 +324,7 @@ function showPlot(): void {
     hidden_count: hiddenIds(opened.plot).length, // hiding is shared: the map says how many, with "Show all"
     context_tracks: contextShown(contextOf(), false),
     ...(time && { time }),
+    ...(opened.revision && { revision_shown: opened.revision }),
   });
   narrativeShown = undefined;
   narrativeToMap();
@@ -322,7 +334,8 @@ async function openPlot(item: string, keep = false): Promise<void> {
   const previousTime = keep ? time : undefined;
   if (opened && opened.item.id !== item) closeSide();
   // The plot as the map last drew it: if Python's is the same, it isn't sent again.
-  const shown = opened?.item.id === item && opened.base.plot_hash ? opened.base.plot_hash : undefined;
+  // (An earlier revision shown read-only is never the plot as it is: drawn again.)
+  const shown = opened?.item.id === item && opened.base.plot_hash && !opened.revision ? opened.base.plot_hash : undefined;
   if (opened?.item.id !== item) {
     toteRequests.reset();
     toteChoosing = undefined;
@@ -398,6 +411,8 @@ window.addEventListener("message", (event) => {
       });
     }
     if (message.kind === "fix_chosen") void openFixes(message.feature_id as string, message.fix_time as string);
+    if (message.kind === "image_rendered") imageRendered?.(message as { image?: RenderedImage; message?: string });
+    if (message.kind === "latest_asked" && opened) void openPlot(opened.item.id);
     if (message.kind === "annotation_drawn") {
       // Drawn on the map: the form, filled in with what was drawn, to name it and add it as one step.
       openAnnotationForm({ spec: { ...(message.annotation as AnnotationSpec), name: "" } });
@@ -1660,13 +1675,14 @@ function renderHistory(): void {
       const { label, status } = describeStep(step, title);
       const row = document.createElement("li");
       const current = step.seq === opened?.base.current;
-      row.className = `step ${step.status}`;
-      const marker = current ? "current" : step.status === "undone" ? "undone" : step.status === "abandoned" ? "replaced" : "";
+      const shown = step.seq === opened?.revision?.step;
+      row.className = `step ${step.status}${shown ? " shown" : ""}`;
+      const marker = [current ? "current" : step.status === "undone" ? "undone" : step.status === "abandoned" ? "replaced" : "", shown ? "shown read-only" : ""].filter(Boolean).join(", ");
       row.innerHTML = `<span class="name"></span> <span class="detail"></span>`;
       row.querySelector(".name")!.textContent = label;
       row.querySelector(".detail")!.textContent = [`step ${step.seq}`, marker, describePeriod(step.at), step.agent].filter(Boolean).join(" · ");
       row.title = status;
-      if (!current && step.status !== "abandoned") {
+      if (!current && step.status !== "abandoned" && !opened?.revision) {
         const back = document.createElement("button");
         back.className = "link";
         back.textContent = step.status === "undone" ? "Redo up to here" : "Go back here";
@@ -1864,14 +1880,170 @@ async function collateStep(change: CollationStep): Promise<void> {
   if (outcome.notes?.length) toast(`${outcome.notes[0]}. Undo takes it back.`);
 }
 
+// --- Exported images (SUB-25): the map drawn as an image with its ID, and traced back -----
+let imageRendered: ((message: { image?: RenderedImage; message?: string }) => void) | undefined;
+/** The map draws the image; resolved by its image_rendered. */
+function drawImage(request: { format: ImageFormat; preset: ImagePreset; theme: ImageTheme; footer_text?: string }): Promise<RenderedImage> {
+  return new Promise((resolve, reject) => {
+    const timer = setTimeout(() => reject(new Error("the map did not draw it in time")), 60000);
+    imageRendered = (message) => {
+      clearTimeout(timer);
+      imageRendered = undefined;
+      if (message.image) resolve(message.image);
+      else reject(new Error(message.message ?? "the map could not draw it"));
+    };
+    post(map, { kind: "export_image", image_request: request });
+  });
+}
+/** What the reader chose for an export, remembered in this browser. */
+function exportChoice(): ExportChoice {
+  return {
+    format: $<HTMLSelectElement>("export-format").value as ImageFormat,
+    preset: $<HTMLSelectElement>("export-preset").value as ImagePreset,
+    theme: $<HTMLSelectElement>("export-theme").value as ImageTheme,
+    footer: $<HTMLInputElement>("export-footer").checked,
+  };
+}
+const EXPORT_KEY = "debrief.play.export";
+function rememberExport(choice: ExportChoice): void {
+  try {
+    localStorage.setItem(EXPORT_KEY, JSON.stringify(choice));
+  } catch {
+    // a private window: not remembered
+  }
+}
+function recalledExport(): ExportChoice {
+  try {
+    return { ...DEFAULT_EXPORT, ...(JSON.parse(localStorage.getItem(EXPORT_KEY) ?? "{}") as Partial<ExportChoice>) };
+  } catch {
+    return DEFAULT_EXPORT;
+  }
+}
+/**
+ * Export the map as the reader sees it: an image ID for the plot at the revision shown,
+ * the map drawn at the size and in the colours chosen with the ID's short form in a
+ * corner, the ID put into its metadata and the export recorded in the plot's export log
+ * (its island, never a step), then the file handed to the reader to save.
+ */
+async function exportMap(): Promise<void> {
+  if (!opened || !pythonReady) return;
+  const choice = exportChoice();
+  rememberExport(choice);
+  const said = $("export-said");
+  const item = opened.item.id;
+  said.textContent = "Preparing the image…";
+  const button = $<HTMLButtonElement>("export-image");
+  button.disabled = true; // one image at a time
+  try {
+    const figure = await pythonJson<{ id: string; short: string; revision: string; error?: string }>("figure_id", item, opened.revision?.revision ?? (opened.base.plot_hash || null));
+    if (figure.error) throw new Error(figure.error);
+    const shown = opened;
+    const image = await drawImage({ format: choice.format, preset: choice.preset, theme: choice.theme, ...(choice.footer && { footer_text: figure.short }) });
+    // Drawn as it was shown: read again meanwhile (changed elsewhere), the image is not of the revision its ID names.
+    if (opened !== shown) throw new Error("the plot changed while the image was being drawn. Export it again.");
+    const file = fileNameFor(opened.item.properties.title ?? item, figure.short, choice.format);
+    const bytes = choice.format === "png" ? Uint8Array.from(atob(image.data), (c) => c.charCodeAt(0)) : new TextEncoder().encode(image.data);
+    const request = { id: figure.id, file, footer: choice.footer, format: choice.format, preset: choice.preset, theme: choice.theme, width: image.width, height: image.height, viewport: image.viewport, time };
+    const done = await pythonJson<{ data?: string; short: string; recorded: boolean; note?: string; error?: string; view?: PlotView | null; view_hash?: string }>("export_image", item, JSON.stringify(request), bytes);
+    if (done.error || !done.data) throw new Error(done.error ?? "it could not be saved");
+    // The plot's island has the export log now: kept, so the next change to the view is not taken for a colleague's.
+    if (opened?.item.id === item && !opened.revision && done.view_hash) {
+      opened.view_hash = done.view_hash;
+      setViewOf(opened.plot, done.view ?? null);
+    }
+    const blob = new Blob([Uint8Array.from(atob(done.data), (c) => c.charCodeAt(0))], { type: choice.format === "png" ? "image/png" : "image/svg+xml" });
+    const link = Object.assign(document.createElement("a"), { href: URL.createObjectURL(blob), download: file });
+    link.click();
+    setTimeout(() => URL.revokeObjectURL(link.href), 60000);
+    said.textContent = [describeExported({ file, short: done.short, recorded: done.recorded, note: done.note }, choice.footer), ...(image.notes ?? [])].join(" ");
+  } catch (error) {
+    said.textContent = `The image was not exported: ${(error as Error).message}`;
+  } finally {
+    button.disabled = false;
+  }
+}
+/** The plots an image came from, by a file's metadata or an ID typed from its corner; one found is opened as it was then. */
+async function findSource(how: { file: File } | { typed: string }): Promise<void> {
+  if (!pythonReady) return;
+  const list = $("find-results");
+  list.replaceChildren();
+  $("find-said").textContent = "Looking…";
+  const answer =
+    "file" in how
+      ? await pythonJson<{ images: { id: string; short: string; where: string; sources: FigureSource[] }[]; problem?: string }>("find_image_source", how.file.name, new Uint8Array(await how.file.arrayBuffer()), null)
+      : await pythonJson<{ images: { id: string; short: string; where: string; sources: FigureSource[] }[]; problem?: string }>("find_image_source", null, null, how.typed);
+  $("find-said").textContent = answer.problem ?? "";
+  const found = answer.images.flatMap((image) => image.sources.map((source) => ({ image, source })));
+  for (const { image, source } of found) {
+    const row = document.createElement("li");
+    const { label, detail } = describeSource(source);
+    const words = Object.assign(document.createElement("span"), { textContent: `${image.short}: ${label}` });
+    const where = Object.assign(document.createElement("span"), { className: "detail", textContent: [detail, image.where === "typed" ? "" : image.where].filter(Boolean).join(" · ") });
+    const open = Object.assign(document.createElement("button"), { textContent: "Open as exported", title: "Show the plot as it was when the image was exported, read-only" });
+    open.onclick = () => void openRevision(source, image.id, image.short);
+    row.append(words, " ", open, where);
+    list.append(row);
+  }
+  if (found.length === 1) await openRevision(found[0].source, found[0].image.id, found[0].image.short);
+}
+/** Show a plot as it was at an image's revision, read-only, with the view and time it was exported at. */
+async function openRevision(source: FigureSource, id: string, short: string): Promise<void> {
+  const shown = await pythonJson<Opened & { error?: string }>("open_revision", source.item, source.revision, id.startsWith("DBF1") ? id : source.export?.id ?? null);
+  if (shown.error) return toast(shown.error, "warning");
+  if (opened && opened.item.id !== source.item) closeSide();
+  shown.revision = { ...revisionOf(source, short), ...shown.revision, figure: short };
+  opened = shown;
+  selection = [];
+  $<HTMLSelectElement>("plots").value = source.item;
+  $("plot-title").textContent = `${opened.item.properties.title ?? source.item} (read-only)`;
+  const exported = shown.export ?? source.export;
+  if (exported?.time) savedWindow = exported.time.range; // the window this revision is shown in, not one beyond a saved window
+  showTime(exported?.time ?? timeOf(opened.item, opened.plot));
+  showPlot();
+  if (exported?.viewport) post(map, { kind: "set_viewport", viewport: exported.viewport });
+  renderOutline();
+  renderTimeline();
+  renderHistory();
+  showTote();
+  $("find-said").textContent = `Showing ${opened.item.properties.title ?? source.item} at step ${source.step}, as when ${short} was exported. Read-only: Go to latest on the map to change it.`;
+}
+function setUpExport(): void {
+  const presets = $<HTMLSelectElement>("export-preset");
+  presets.replaceChildren(...PRESETS.map((p) => Object.assign(new Option(p.label, p.id), { title: p.detail })));
+  const recalled = recalledExport();
+  $<HTMLSelectElement>("export-format").value = recalled.format;
+  presets.value = recalled.preset;
+  $<HTMLSelectElement>("export-theme").value = recalled.theme;
+  $<HTMLInputElement>("export-footer").checked = recalled.footer;
+  $("export-image").onclick = () => void exportMap();
+  $<HTMLInputElement>("find-file").onchange = (event) => {
+    const file = (event.target as HTMLInputElement).files?.[0];
+    if (file) void findSource({ file });
+    (event.target as HTMLInputElement).value = "";
+  };
+  const typed = $<HTMLInputElement>("find-id");
+  const problem = $("find-id-problem");
+  typed.oninput = () => {
+    problem.textContent = typed.value.trim() ? (figureIdProblem(typed.value) ?? "") : "";
+    typed.setAttribute("aria-invalid", String(!!problem.textContent));
+  };
+  $<HTMLFormElement>("find-id-form").onsubmit = (event) => {
+    event.preventDefault();
+    const why = figureIdProblem(typed.value);
+    problem.textContent = why ?? "";
+    if (!why) void findSource({ typed: typed.value });
+  };
+}
+setUpExport();
+
 // --- Wiring -----------------------------------------------------------------------
-const OPTIONAL = ["tote", "timeline", "catalogue", "coverage", "tools", "history", "try", "import"];
+const OPTIONAL = ["tote", "timeline", "catalogue", "coverage", "tools", "history", "export", "try", "import"];
 for (const panel of OPTIONAL) $(`panel-${panel}`).hidden = !panels.has(panel);
 // The panels in the order the demo lists them, after the plot and its outline; the Tote stays
 // under the time controller, since both follow current time.
 for (const panel of panelOrder) if (OPTIONAL.includes(panel) && panel !== "tote") $("side").append($(`panel-${panel}`));
 /** History, Try and Import need Python: off until it is ready. */
-const NEEDS_PYTHON = ["new-data", "revise", "undo", "redo", "track-frequencies", "move-track", "rotate-track", "shear-track", "stretch-track", "split-track", "merge-tracks", "find-jumps", "smooth-track", "fix-list", "plotting-mode", "ask-again", "glitches", "crash", "colleague", "colleague-window", "colleague-during", "file", "narrative-file", "colour", "hide", "show", "add-annotation", "edit-annotation", "delete-annotation", "north-arrow"];
+const NEEDS_PYTHON = ["export-image", "find-file", "find-id", "find-id-go", "new-data", "revise", "undo", "redo", "track-frequencies", "move-track", "rotate-track", "shear-track", "stretch-track", "split-track", "merge-tracks", "find-jumps", "smooth-track", "fix-list", "plotting-mode", "ask-again", "glitches", "crash", "colleague", "colleague-window", "colleague-during", "file", "narrative-file", "colour", "hide", "show", "add-annotation", "edit-annotation", "delete-annotation", "north-arrow"];
 function needsPython(on: boolean): void {
   for (const id of NEEDS_PYTHON) $<HTMLButtonElement | HTMLInputElement>(id).disabled = !on;
 }

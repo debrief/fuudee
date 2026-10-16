@@ -31,17 +31,22 @@ export class HistoryProvider implements vscode.TreeDataProvider<Node> {
 
   constructor(private readonly toolTitle: (name: string) => string | undefined) {}
 
-  update(steps: HistoryStep[], current: number, open = true, problem?: string): void {
-    Object.assign(this, { steps, current, open, problem });
+  /** The step shown read-only, when an earlier revision is shown (an image traced to its plot). */
+  shown?: number;
+
+  update(steps: HistoryStep[], current: number, open = true, problem?: string, shown?: number): void {
+    Object.assign(this, { steps, current, open, problem, shown });
     this.changed.fire();
   }
 
   canUndo(): boolean {
+    if (this.shown !== undefined) return false; // read-only
     const step = this.steps.find((s) => s.seq === this.current);
     return !!step && this.steps.indexOf(step) > 0;
   }
 
   canRedo(): boolean {
+    if (this.shown !== undefined) return false; // read-only
     return this.steps.some((s) => s.status === "undone");
   }
 
@@ -68,7 +73,8 @@ export class HistoryProvider implements vscode.TreeDataProvider<Node> {
     const item = new vscode.TreeItem(label);
     item.id = `step-${step.seq}`;
     const marker = node.current ? "current" : step.status === "undone" ? "undone" : step.status === "abandoned" ? "replaced" : "";
-    item.description = [`step ${step.seq}`, marker, node.nextToUndo ? NEXT : "", describePeriod(step.at), step.agent]
+    const shown = step.seq === this.shown ? "shown read-only" : "";
+    item.description = [`step ${step.seq}`, marker, shown, this.shown === undefined && node.nextToUndo ? NEXT : "", describePeriod(step.at), step.agent]
       .filter(Boolean)
       .join(" · ");
     item.tooltip = `Step ${step.seq}: ${label}\n${status}\nBy ${step.agent}, ${describePeriod(step.at)}`;
@@ -77,7 +83,7 @@ export class HistoryProvider implements vscode.TreeDataProvider<Node> {
       step.status === "abandoned" ? new vscode.ThemeColor("disabledForeground") : undefined,
     );
     // Which actions the step's context menu offers.
-    item.contextValue = step.status === "abandoned" || node.current ? `step-${step.status}-fixed` : `step-${step.status}`;
+    item.contextValue = step.status === "abandoned" || node.current || this.shown !== undefined ? `step-${step.status}-fixed` : `step-${step.status}`;
     return item;
   }
 }

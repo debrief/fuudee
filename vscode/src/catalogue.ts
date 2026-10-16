@@ -13,6 +13,8 @@ import {
   parseDocument,
   validateDocument,
   type DebriefFeatureCollection,
+  type ImageExport,
+  type RevisionShown,
   type KnownStore,
   type StacItem,
   type TrackCoverage,
@@ -50,6 +52,10 @@ export interface OpenedPlot {
   latest?: number;
   /** The hash of the plot's view (its island, SUB-22) when it was read, to pass back when changing it. */
   viewHash?: string;
+  /** An earlier revision of the plot, shown read-only: the one an image was exported at (SUB-25). */
+  revision?: RevisionShown;
+  /** The export log entry for that image: the view and time it was exported at. */
+  exported?: ImageExport;
 }
 
 /**

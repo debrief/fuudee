@@ -29,3 +29,25 @@ export const FIX_COLOURS: { name: string; colour: string }[] = [...TRACK_COLOURS
 
 /** Colours an analyst can give an annotation by name: the annotation colour, then the track colours. Any other may be typed. */
 export const ANNOTATION_COLOURS: { name: string; colour: string }[] = [{ name: "Amber", colour: DATA_COLOURS.annotation }, ...TRACK_COLOURS];
+
+/**
+ * The colours an image is drawn in when the analyst asks for light (SUB-25): VS Code's
+ * Light Modern, whatever the editor's theme, so a figure prints and sits on a white slide.
+ * Only the theme variables the map draws with; data colours stay as they are.
+ */
+export const LIGHT_EXPORT_THEME: Record<string, string> = {
+  "--vscode-editor-background": "#ffffff",
+  "--vscode-editor-foreground": "#3b3b3b",
+  "--vscode-foreground": "#3b3b3b",
+  "--vscode-descriptionForeground": "#6b6b6b",
+  "--vscode-editorWidget-background": "#f8f8f8",
+  "--vscode-editorWidget-foreground": "#3b3b3b",
+  "--vscode-editorWidget-border": "#e5e5e5",
+  "--vscode-widget-border": "#e5e5e5",
+  "--vscode-panel-border": "#e5e5e5",
+  "--vscode-editorHoverWidget-background": "#f8f8f8",
+  "--vscode-editorHoverWidget-foreground": "#3b3b3b",
+  "--vscode-editorHoverWidget-border": "#c8c8c8",
+  "--vscode-editorWarning-foreground": "#bf8803",
+  "--vscode-focusBorder": "#005fb8",
+};

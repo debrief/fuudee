@@ -100,7 +100,10 @@
       {"command": "debrief.setTote", "title": "Set the Tote's tracks", "category": "Debrief"},
       {"command": "debrief.contextTracks.visible", "title": "Context tracks: Visible", "category": "Debrief", "enablement": "debrief.contextTracks", "toggled": {"condition": "debrief.contextTracks == visible"}},
       {"command": "debrief.contextTracks.faint", "title": "Context tracks: Faint", "category": "Debrief", "enablement": "debrief.contextTracks", "toggled": {"condition": "debrief.contextTracks == faint"}},
-      {"command": "debrief.contextTracks.hidden", "title": "Context tracks: Hidden", "category": "Debrief", "enablement": "debrief.contextTracks", "toggled": {"condition": "debrief.contextTracks == hidden"}}
+      {"command": "debrief.contextTracks.hidden", "title": "Context tracks: Hidden", "category": "Debrief", "enablement": "debrief.contextTracks", "toggled": {"condition": "debrief.contextTracks == hidden"}},
+      {"command": "debrief.exportImage", "title": "Export image…", "category": "Debrief", "icon": "$(device-camera)", "enablement": "debrief.plotOpen"},
+      {"command": "debrief.findImageSource", "title": "Find source of image…", "category": "Debrief", "icon": "$(search)"},
+      {"command": "debrief.openLatestRevision", "title": "Go to latest revision of the plot", "category": "Debrief", "icon": "$(arrow-right)", "enablement": "debrief.revisionShown"}
     ],
     "menus": {
       "view/title": [
@@ -119,7 +122,14 @@
         {"command": "debrief.addAnnotation", "when": "view == debrief.timeline", "group": "navigation@2"},
         {"command": "debrief.importNarrative", "when": "view == debrief.timeline", "group": "navigation@3"},
         {"command": "debrief.undo", "when": "view == debrief.history", "group": "navigation@1"},
-        {"command": "debrief.redo", "when": "view == debrief.history", "group": "navigation@2"}
+        {"command": "debrief.redo", "when": "view == debrief.history", "group": "navigation@2"},
+        {"command": "debrief.exportImage", "when": "view == debrief.outline && debrief.plotOpen", "group": "3_export@1"},
+        {"command": "debrief.findImageSource", "when": "view == debrief.catalogues", "group": "2_trace@1"},
+        {"command": "debrief.openLatestRevision", "when": "view == debrief.history && debrief.revisionShown", "group": "navigation@0"}
+      ],
+      "editor/title": [
+        {"command": "debrief.exportImage", "when": "activeWebviewPanelId == 'debrief.map'", "group": "navigation@1"},
+        {"command": "debrief.openLatestRevision", "when": "activeWebviewPanelId == 'debrief.map' && debrief.revisionShown", "group": "navigation@0"}
       ],
       "view/item/context": [
         {"command": "debrief.importRep", "when": "view == debrief.catalogues && viewItem == catalogue", "group": "1_import"},
@@ -168,7 +178,8 @@
         {"command": "debrief.collate", "when": "false"},
         {"command": "debrief.dismissNewData", "when": "false"},
         {"command": "debrief.linkTrack", "when": "false"},
-        {"command": "debrief.unlinkTrack", "when": "false"}
+        {"command": "debrief.unlinkTrack", "when": "false"},
+        {"command": "debrief.openLatestRevision", "when": "debrief.revisionShown"}
       ]
     },
     "keybindings": [

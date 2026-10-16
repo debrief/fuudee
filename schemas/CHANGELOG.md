@@ -2,6 +2,17 @@
 
 The data-file schema is versioned independently of Debrief (SUB-12). Before 1.0.0 there is no migration guarantee (SUB-13).
 
+## 0.0.22 (16 Oct 2026)
+
+- Exported images (SUB-25, EXT-05, OUT-04; decisions, product owner, 16 Oct 2026), in a new module, `figures.yaml`:
+  - `FigureId` (`DBF1-PPPPPPPP-RRRRRRRRRRRRRRRR-EEEEEEEE-C`: the plot key, the revision, the export and a check symbol, in Crockford's base 32) and `ShortFigureId` (`DBF-PPPP-RRRR-RRRC`, the footer's): an image's ID, naming the plot, the exact revision exported and the export.
+  - `ImageExport` (`id`, `revision`, `at`, `by`, `format` (`ImageFormatEnum`: `png`, `svg`), `file`, `footer`, `preset` (`ImagePresetEnum`: `screen`, `slide`, `a4_landscape`), `theme` (`ImageThemeEnum`: `current`, `light`), `width`, `height`, `viewport`, `time`): one image exported, as the plot's export log records it.
+  - `ImageRequest` (`format`, `preset`, `theme`, `footer_text`), `RenderedImage` (`format`, `data`, `width`, `height`, `viewport`, `notes`), `RevisionShown` (`step`, `latest`, `revision`, `figure`) and `FigureSource` (`store`, `store_title`, `catalogue`, `item`, `title`, `revision`, `step`, `current`, `copied`, `export`): what the map is asked to draw and draws, an earlier revision shown read-only, and a plot an image came from.
+- The plot's island gains `exports` (a list of `ImageExport`): its export log; view state, never a step, so an export changes neither the plot's revision nor any product that drew from it. Rules: each image recorded once; its time within its window; its viewport on the globe.
+- Webview messages `export_image` (host to map: `image_request`), `image_rendered` (map to host: `image`, or `message` alone, why none) and `latest_asked` (map to host, no members); `show_plot` may carry `revision_shown`, the plot shown being an earlier revision, read-only.
+- Shared vectors `schemas/vectors/figure-ids.json`: image IDs encoded from a plot, a revision and an export, and read as typed (case, spaces and dashes ignored, O as 0, I and L as 1; not an ID; mistyped), held by Python and TypeScript.
+- Before 1.0.0 only an exact version opens (SUB-13): plots written as 0.0.21 must be imported or built again.
+
 ## 0.0.21 (16 Oct 2026)
 
 - Collation (CAP-05, CAP-08 to CAP-12; decisions, product owner, 16 Oct 2026). A source is a catalogue item.

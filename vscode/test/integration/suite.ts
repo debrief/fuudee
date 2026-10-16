@@ -1045,4 +1045,76 @@ async function playCollation(api: DebriefApi, store: { id: string; location: str
   assert.equal(restored.properties.supplies, undefined);
   assert.equal(restored.properties.platform_unlinks, undefined);
   await vscode.commands.executeCommand("notifications.clearAll");
+
+  // --- Exported images (SUB-25, OUT-04): an ID in each, the export never a step; traced back, read-only ---
+  await exportedImages(api, steps);
+}
+
+/**
+ * Export the map as a PNG for a slide and an SVG, each read back from its file for the ID
+ * in its metadata (PNG iTXt and XMP, SVG metadata), the export logged in the plot's island and
+ * never a step; then the plot changes, and the PNG is traced back by its file and by its ID
+ * typed from the footer: the plot shown as it was at that step, read-only, a change refused,
+ * until Go to latest.
+ */
+async function exportedImages(api: DebriefApi, steps: () => Thenable<unknown[]>): Promise<void> {
+  const folder = mkdtempSync(path.join(tmpdir(), "debrief-figures-"));
+  const opened = api.session.current!;
+  const base = opened.base!;
+  const count = (await steps()).length;
+  type Exported = { file: string; id: string; short: string; recorded: boolean };
+  const png = (await vscode.commands.executeCommand<Exported>("debrief.exportImage", { format: "png", preset: "slide", theme: "light", footer: true, file: path.join(folder, "serial-1.png") }))!;
+  assert.ok(png.recorded, "the plot's export log has it");
+  const data = readFileSync(png.file);
+  assert.equal(data.readUInt32BE(16), 1600, "a slide is 1600 pixels wide");
+  assert.equal(data.readUInt32BE(20), 900, "and 900 high");
+  const text = data.toString("latin1");
+  assert.ok(text.includes(`debrief:figure\0\0\0\0\0${png.id}`), "the ID in its own iTXt chunk");
+  assert.ok(text.includes(`<dc:identifier>${png.id}</dc:identifier>`), "and in XMP");
+  assert.ok(text.indexOf("iTXt") < text.indexOf("IDAT"), "before the image data");
+  // The export is in the island: the same revision, no step.
+  assert.deepEqual(api.session.current!.base, base, "an export is never a step");
+  assert.equal((await steps()).length, count);
+  const plotPath = path.join(opened.store.location, "serial-1", "plot.geojson");
+  const logged = JSON.parse(readFileSync(plotPath, "utf8")).features.find((f: { properties: { kind: string } }) => f.properties.kind === "plot").properties.view.exports;
+  assert.deepEqual(logged.map((e: { id: string }) => e.id), [png.id]);
+  assert.equal(logged[0].revision, base.plot_hash);
+  assert.equal(logged[0].file, "serial-1.png");
+  const svg = (await vscode.commands.executeCommand<Exported>("debrief.exportImage", { format: "svg", preset: "screen", theme: "current", footer: false, file: path.join(folder, "serial-1.svg") }))!;
+  const svgText = readFileSync(svg.file, "utf8");
+  assert.ok(svgText.includes(`<dc:identifier>${svg.id}</dc:identifier>`), "the SVG's ID in its metadata");
+  assert.ok(!svgText.includes("debrief-footer"), "no footer, as asked");
+  assert.ok(svgText.includes(">BLUE ONE</text>"), "track names as text");
+  await sleep(500);
+  await screenshot("40-exported");
+
+  // The analyst carries on: RED ONE coloured green, one step.
+  assert.equal(await vscode.commands.executeCommand("debrief.setColour", { feature: { id: "track-red-one" } }, "Green"), undefined);
+  assert.equal((await steps()).length, count + 1);
+  const colourOf = () => (api.session.current!.plot.features.find((f) => f.id === "track-red-one") as unknown as { properties: { style?: { colour?: string } } }).properties.style?.colour;
+  const green = colourOf();
+  const now = api.session.current!.base!;
+
+  // Traced by its file: the plot as it was at that step, read-only.
+  assert.equal(await vscode.commands.executeCommand("debrief.findImageSource", { file: png.file }), undefined);
+  const shown = await waitFor("the earlier revision on the map", () => api.mapRevision());
+  assert.deepEqual([shown.step, shown.latest, shown.figure], [base.current, now.current, png.short]);
+  assert.notEqual(colourOf(), green, "RED ONE as it was then");
+  assert.deepEqual(api.getState()!.viewport.bbox.map((x) => Math.round(x * 100)), logged[0].viewport.bbox.map((x: number) => Math.round(x * 100)), "at the view exported");
+  // Nothing can be changed: undo is refused and said; the history is as it was.
+  assert.match(String(await vscode.commands.executeCommand("debrief.undo")), /shown read-only, so it cannot be changed/);
+  assert.equal((await steps()).length, count + 1);
+  await sleep(1000);
+  await screenshot("41-traced-read-only", true);
+  // Go to latest: the plot as it is.
+  await vscode.commands.executeCommand("debrief.openLatestRevision");
+  await waitFor("the latest revision", () => (!api.session.current?.revision && colourOf() === green) || undefined);
+  // Traced by its ID, typed from the footer as a reader might.
+  assert.equal(await vscode.commands.executeCommand("debrief.findImageSource", { id: png.short.toLowerCase().replace(/-/g, " ") }), undefined);
+  await waitFor("the earlier revision again", () => api.session.current?.revision?.step === base.current || undefined);
+  await vscode.commands.executeCommand("debrief.openLatestRevision");
+  await waitFor("the latest revision again", () => !api.session.current?.revision || undefined);
+  // Put back as it was for anything after.
+  assert.equal(await vscode.commands.executeCommand("debrief.undo"), undefined);
+  await vscode.commands.executeCommand("notifications.clearAll");
 }

@@ -1,0 +1,9 @@
+{
+  "kind": "export_image",
+  "image_request": {
+    "format": "png",
+    "preset": "slide",
+    "theme": "light",
+    "footer_text": "DBF-PTET-KG8R-B9E9"
+  }
+}

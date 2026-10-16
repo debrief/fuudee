@@ -30,6 +30,10 @@ export function checkMessage(raw: unknown): WebviewMessage {
   if (saved && !(Date.parse(saved.start) <= Date.parse(saved.end))) problems.push("saved_window: time range starts after it ends");
   if (message.track_edit) problems.push(...trackEditProblems(message.track_edit));
   if (message.tote_view) problems.push(...toteViewProblems(message.tote_view));
+  // The rules Python's validation applies to an image drawn (debrief_schemas.documents).
+  if (message.kind === "image_rendered" && !message.image === !message.message) problems.push("image_rendered carries either the image or why there is none (message)");
+  const imageBox = message.image?.viewport && viewportProblem(message.image.viewport);
+  if (imageBox) problems.push(`image viewport: ${imageBox}`);
   if (problems.length) throw new DocumentValidationError(problems);
   return message;
 }

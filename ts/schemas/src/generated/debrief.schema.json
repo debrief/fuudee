@@ -1133,6 +1133,77 @@
       "title": "FeatureTypeEnum",
       "type": "string"
     },
+    "FigureSource": {
+      "additionalProperties": false,
+      "description": "Where an image came from: a plot in one of the analyst's catalogues, at the revision the image was exported at (Find source of image).",
+      "properties": {
+        "catalogue": {
+          "description": "The catalogue's own id, from its catalog.json.",
+          "type": "string"
+        },
+        "copied": {
+          "description": "The image's plot key names another plot: this is a copy of it with the same content at that revision (a colleague's, or one moved to another catalogue).",
+          "type": [
+            "boolean",
+            "null"
+          ]
+        },
+        "current": {
+          "description": "The plot's current step now.",
+          "minimum": 0,
+          "type": "integer"
+        },
+        "export": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/ImageExport"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": "The export log entry for the image, when the plot has one."
+        },
+        "item": {
+          "type": "string"
+        },
+        "revision": {
+          "pattern": "^sha256:[0-9a-f]{64}$",
+          "type": "string"
+        },
+        "step": {
+          "description": "The step at that revision.",
+          "minimum": 0,
+          "type": "integer"
+        },
+        "store": {
+          "description": "The catalogue's id in the analyst's configuration.",
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "store_title": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "title": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "catalogue",
+        "item",
+        "title",
+        "revision",
+        "step",
+        "current"
+      ],
+      "title": "FigureSource",
+      "type": "object"
+    },
     "FixIntervalAllEnum": {
       "description": "A track's time labels or symbols at every recorded fix (CAP-32), legacy Debrief's \"All\" (decision, product owner, 15 Oct 2026): still thinned when zoomed out. Not for arrows.",
       "enum": [
@@ -1451,6 +1522,173 @@
       ],
       "title": "HistoryStep",
       "type": "object"
+    },
+    "ImageExport": {
+      "additionalProperties": false,
+      "description": "One image exported from a plot, as the plot's export log records it in its island: view state, never a step (decision, product owner, 16 Oct 2026). What the analyst exported, so the image can be traced and its view shown again.",
+      "properties": {
+        "at": {
+          "description": "When it was exported.",
+          "pattern": "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}\\.\\d{3}Z$",
+          "type": "string"
+        },
+        "by": {
+          "description": "Who exported it: the agent's name.",
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "file": {
+          "description": "The file's name, without its folder.",
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "footer": {
+          "description": "Whether the image shows its ID in a footer.",
+          "type": "boolean"
+        },
+        "format": {
+          "$ref": "#/$defs/ImageFormatEnum"
+        },
+        "height": {
+          "description": "Its height in pixels.",
+          "minimum": 1,
+          "type": [
+            "integer",
+            "null"
+          ]
+        },
+        "id": {
+          "description": "The image's ID, in full.",
+          "pattern": "^DBF1-[0-9A-HJKMNP-TV-Z]{8}-[0-9A-HJKMNP-TV-Z]{16}-[0-9A-HJKMNP-TV-Z]{8}-[0-9A-HJKMNP-TV-Z]$",
+          "type": "string"
+        },
+        "preset": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/ImagePresetEnum"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "revision": {
+          "description": "The plot's revision exported (its content hash): the step it was exported at.",
+          "pattern": "^sha256:[0-9a-f]{64}$",
+          "type": "string"
+        },
+        "theme": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/ImageThemeEnum"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "time": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/TimeState"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": "Current time and the time window when it was exported."
+        },
+        "viewport": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/Viewport"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": "The area of the map exported."
+        },
+        "width": {
+          "description": "Its width in pixels.",
+          "minimum": 1,
+          "type": [
+            "integer",
+            "null"
+          ]
+        }
+      },
+      "required": [
+        "id",
+        "revision",
+        "at",
+        "format",
+        "footer"
+      ],
+      "title": "ImageExport",
+      "type": "object"
+    },
+    "ImageFormatEnum": {
+      "description": "How an image is written (decision, product owner, 16 Oct 2026; no JPEG).",
+      "enum": [
+        "png",
+        "svg"
+      ],
+      "title": "ImageFormatEnum",
+      "type": "string"
+    },
+    "ImagePresetEnum": {
+      "description": "The size an image is drawn at.",
+      "enum": [
+        "screen",
+        "slide",
+        "a4_landscape"
+      ],
+      "title": "ImagePresetEnum",
+      "type": "string"
+    },
+    "ImageRequest": {
+      "additionalProperties": false,
+      "description": "What the host asks the map to draw for an export (export_image).",
+      "properties": {
+        "footer_text": {
+          "description": "The image's ID in its short form, to draw in a corner; left out for no footer.",
+          "pattern": "^DBF-[0-9A-HJKMNP-TV-Z]{4}-[0-9A-HJKMNP-TV-Z]{4}-[0-9A-HJKMNP-TV-Z]{4}$",
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "format": {
+          "$ref": "#/$defs/ImageFormatEnum"
+        },
+        "preset": {
+          "$ref": "#/$defs/ImagePresetEnum"
+        },
+        "theme": {
+          "$ref": "#/$defs/ImageThemeEnum"
+        }
+      },
+      "required": [
+        "format",
+        "preset",
+        "theme"
+      ],
+      "title": "ImageRequest",
+      "type": "object"
+    },
+    "ImageThemeEnum": {
+      "description": "The colours an image is drawn in.",
+      "enum": [
+        "current",
+        "light"
+      ],
+      "title": "ImageThemeEnum",
+      "type": "string"
     },
     "InnerSchemaRef": {
       "additionalProperties": false,
@@ -2504,6 +2742,16 @@
           ],
           "description": "How tracks outside the time window are drawn (CAP-29). Left out means visible."
         },
+        "exports": {
+          "description": "The plot's export log: each image exported from it, with its ID, the revision exported, when, by whom, the view and the time, the format and the file's name (SUB-25; decision, product owner, 16 Oct 2026). View state: never a step, so an export changes neither the plot's revision nor any product that drew from it.",
+          "items": {
+            "$ref": "#/$defs/ImageExport"
+          },
+          "type": [
+            "array",
+            "null"
+          ]
+        },
         "narrative_on_map": {
           "description": "Whether the map shows the narrative entry current time is at in a small box beside its track, for ten minutes of plot time; left out means it does. Turned off and on in the Timeline. View state, like the Tote's lines: never a step in the history (decision, product owner, 15 Oct 2026).",
           "type": [
@@ -2750,6 +2998,56 @@
       "title": "QuantityKindEnum",
       "type": "string"
     },
+    "RenderedImage": {
+      "additionalProperties": false,
+      "description": "The image the map drew (image_rendered), before its ID goes into its metadata.",
+      "properties": {
+        "data": {
+          "description": "A PNG as base 64, or an SVG as its text.",
+          "type": "string"
+        },
+        "format": {
+          "$ref": "#/$defs/ImageFormatEnum"
+        },
+        "height": {
+          "minimum": 1,
+          "type": "integer"
+        },
+        "notes": {
+          "description": "What the image leaves out that the map shows, for the analyst: reference tiles that could not be read, say.",
+          "items": {
+            "type": "string"
+          },
+          "type": [
+            "array",
+            "null"
+          ]
+        },
+        "viewport": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/Viewport"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": "The area of the map drawn."
+        },
+        "width": {
+          "minimum": 1,
+          "type": "integer"
+        }
+      },
+      "required": [
+        "format",
+        "data",
+        "width",
+        "height"
+      ],
+      "title": "RenderedImage",
+      "type": "object"
+    },
     "ResultColumn": {
       "additionalProperties": false,
       "description": "One column; exactly one of numbers or strings is given.",
@@ -2842,6 +3140,41 @@
         "note"
       ],
       "title": "ReviewFlag",
+      "type": "object"
+    },
+    "RevisionShown": {
+      "additionalProperties": false,
+      "description": "The plot is shown as it was at an earlier revision, read-only: the one an image was exported at (show_plot).",
+      "properties": {
+        "figure": {
+          "description": "The image's ID, in its short form, when one was traced.",
+          "pattern": "^DBF-[0-9A-HJKMNP-TV-Z]{4}-[0-9A-HJKMNP-TV-Z]{4}-[0-9A-HJKMNP-TV-Z]{4}$",
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "latest": {
+          "description": "The plot's current step now.",
+          "minimum": 0,
+          "type": "integer"
+        },
+        "revision": {
+          "pattern": "^sha256:[0-9a-f]{64}$",
+          "type": "string"
+        },
+        "step": {
+          "description": "The step whose revision is shown.",
+          "minimum": 0,
+          "type": "integer"
+        }
+      },
+      "required": [
+        "step",
+        "latest",
+        "revision"
+      ],
+      "title": "RevisionShown",
       "type": "object"
     },
     "Selection": {
@@ -4711,6 +5044,28 @@
             "null"
           ]
         },
+        "image": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/RenderedImage"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": "The image the map drew (image_rendered)."
+        },
+        "image_request": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/ImageRequest"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": "What image to draw, and how (export_image)."
+        },
         "item_revision": {
           "anyOf": [
             {
@@ -4828,6 +5183,17 @@
             "string",
             "null"
           ]
+        },
+        "revision_shown": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/RevisionShown"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": "The plot shown is an earlier revision, read-only (show_plot)."
         },
         "saved_window": {
           "anyOf": [
@@ -5047,7 +5413,10 @@
         "link_changed",
         "take_asked",
         "dismiss_asked",
-        "review_cleared"
+        "review_cleared",
+        "export_image",
+        "image_rendered",
+        "latest_asked"
       ],
       "title": "WebviewMessageKindEnum",
       "type": "string"
@@ -5123,5 +5492,5 @@
   ],
   "title": "debrief",
   "type": "object",
-  "version": "0.0.21"
+  "version": "0.0.22"
 }

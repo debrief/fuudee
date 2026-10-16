@@ -9,7 +9,8 @@
       "time?",
       "viewport?",
       "hidden_count?",
-      "context_tracks?"
+      "context_tracks?",
+      "revision_shown?"
     ],
     "set_selection": [
       "selection"
@@ -169,6 +170,14 @@
     "dismiss_asked": [
       "item_revision"
     ],
-    "review_cleared": []
+    "review_cleared": [],
+    "export_image": [
+      "image_request"
+    ],
+    "image_rendered": [
+      "image?",
+      "message?"
+    ],
+    "latest_asked": []
   }
 }

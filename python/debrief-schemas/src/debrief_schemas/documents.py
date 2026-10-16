@@ -875,6 +875,7 @@ MESSAGE_MEMBERS: dict[str, tuple[str, ...]] = {
         "viewport?",
         "hidden_count?",
         "context_tracks?",
+        "revision_shown?",
     ),
     "set_selection": ("selection",),
     "selection_changed": ("selection",),
@@ -933,6 +934,9 @@ MESSAGE_MEMBERS: dict[str, tuple[str, ...]] = {
     "take_asked": ("item_revision",),
     "dismiss_asked": ("item_revision",),
     "review_cleared": (),
+    "export_image": ("image_request",),
+    "image_rendered": ("image?", "message?"),
+    "latest_asked": (),
 }
 
 
@@ -955,6 +959,10 @@ def _webview_message_problems(message: g.WebviewMessage, raw: dict[str, Any]) ->
     if message.track_edit is not None:
         problems += track_edit_problems(message.track_edit)
     problems += tote_view_problems(message.tote_view)
+    if kind == "image_rendered" and (message.image is None) == (message.message is None):
+        problems.append("image_rendered carries either the image or why there is none (message)")
+    if message.image is not None and message.image.viewport is not None:
+        problems += _bbox_problems("image viewport", message.image.viewport.bbox)
     return problems
 
 
@@ -1079,9 +1087,28 @@ def view_problems(view: g.PlotView | None, where: str = "view") -> list[str]:
     """Rules for the plot's island (its view) that JSON Schema cannot express."""
     if view is None:
         return []
-    return _time_range_problems(f"{where} time window", view.time_window) + tote_view_problems(
-        view.tote, f"{where} tote"
+    return (
+        _time_range_problems(f"{where} time window", view.time_window)
+        + tote_view_problems(view.tote, f"{where} tote")
+        + export_log_problems(view.exports, f"{where} exports")
     )
+
+
+def export_log_problems(exports: list[g.ImageExport] | None, where: str = "exports") -> list[str]:
+    """Rules for the plot's export log (SUB-25): each image recorded once, its time
+    within its window and its area on the globe."""
+    problems = []
+    for n, export in enumerate(exports or []):
+        at = f"{where}[{n}]"
+        if export.time is not None:
+            problems += _time_range_problems(f"{at} time", export.time.range)
+            if not export.time.range.start <= export.time.current <= export.time.range.end:
+                problems.append(f"{at} time: current time is outside the range")
+        if export.viewport is not None:
+            problems += _bbox_problems(f"{at} viewport", export.viewport.bbox)
+    twice = sorted(i for i, n in Counter(e.id for e in exports or []).items() if n > 1)
+    problems += [f"{where}: image {i} is recorded more than once" for i in twice]
+    return problems
 
 
 def load_view(source: dict[str, Any] | None) -> g.PlotView | None:

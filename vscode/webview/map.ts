@@ -69,9 +69,12 @@ import { MapEditor } from "./mapedit.js";
 import { PressHold } from "./presshold.js";
 import { TrackEditor } from "./trackmap.js";
 import { describeFix as describeFixOnly, marksByIndex, trackLabel } from "./fixes.js";
-import { DATA_COLOURS } from "./palette.js";
+import { DATA_COLOURS, LIGHT_EXPORT_THEME } from "./palette.js";
 import { host, onMessage } from "./vscode.js";
 import { toteOf, toteMapLines } from "./totelogic.js";
+import { composeSvg, rasterise, readTiles, type PaintedMark } from "./exportimage.js";
+import { layoutFor, pixelsOf, type ImageFormat, type ImagePreset, type ImageTheme } from "./exportlogic.js";
+import type { RenderedImage, RevisionShown } from "@debrief/schemas";
 
 type Feature = DebriefFeatureCollection["features"][number];
 type Track = Extract<Feature, { properties: { kind: "track" } }>;
@@ -79,7 +82,7 @@ const settings = DEFAULT_SETTINGS;
 const WGS84 = geodesic.Geodesic.WGS84;
 
 const root = document.getElementById("root")!;
-root.innerHTML = `<div id="map" tabindex="0" aria-label="Plot map"></div><div id="status" class="status"></div><div id="empty" class="empty" hidden></div>`;
+root.innerHTML = `<div id="map" tabindex="0" aria-label="Plot map"></div><div id="status" class="status"></div><div id="empty" class="empty" hidden></div><div id="revision" class="revision-banner" role="status" hidden><span class="revision-text"></span><button type="button" class="revision-latest"></button></div><div id="exporting" class="exporting-note" role="status" hidden>Preparing the image…</div>`;
 const status = document.getElementById("status")!;
 const mapElement = document.getElementById("map")!;
 
@@ -89,6 +92,8 @@ const map = L.map(mapElement, { zoomControl: true, attributionControl: false, wo
 map.setView([50, -4], 6);
 
 const css = (name: string) => getComputedStyle(document.body).getPropertyValue(name).trim();
+/** Drawing an image (exportImage): the map is laid out at the image's size for a moment, which is no pan or zoom of the analyst's. */
+let exporting = false;
 const toLatLng = ([lon, lat]: LonLat) => L.latLng(lat, lon);
 
 /** Text for Leaflet tooltips, as a text node so plot content can never be markup. */
@@ -1481,7 +1486,7 @@ let reporting: ReturnType<typeof setTimeout> | undefined;
 let settingViewport = false; // a move made to show a viewport set elsewhere is not reported back
 map.on("moveend", () => {
   clearTimeout(reporting);
-  if (settingViewport) return;
+  if (settingViewport || exporting) return;
   reporting = setTimeout(() => {
     const bounds = map.getBounds();
     const whole = bounds.getEast() - bounds.getWest() >= 360;
@@ -1532,6 +1537,7 @@ map.on("resize", (event: L.ResizeEvent) => {
 });
 // When a form or results panel opens beside the map, keep the plot in view.
 new ResizeObserver(() => {
+  if (exporting) return; // laid out at an image's size for a moment: exportImage puts the view back
   if (!mapElement.clientWidth || !mapElement.clientHeight) return; // hidden: nothing to fit
   fitting = true; // resizing moves the map, but the analyst didn't
   map.invalidateSize({ animate: false });
@@ -1610,6 +1616,138 @@ const trackEditor = new TrackEditor({
   drawing: () => editor.active,
 });
 
+// --- Exporting the map as an image (SUB-25, exportimage.ts) -------------------------------
+const frame = () => new Promise<void>((resolve) => requestAnimationFrame(() => resolve()));
+/** Wait for the map to draw what it draws after a frame: its grid of labels, its labels' room. */
+async function settle(): Promise<void> {
+  await frame();
+  await frame();
+  drawGrid();
+  placeLabels();
+  await frame();
+}
+/** The map's own colours swapped for light ones (LIGHT_EXPORT_THEME); returns how to put them back. */
+function lightTheme(): () => void {
+  const style = document.documentElement.style;
+  const before = Object.keys(LIGHT_EXPORT_THEME).map((name) => [name, style.getPropertyValue(name)] as const);
+  const classes = document.body.className;
+  for (const [name, value] of Object.entries(LIGHT_EXPORT_THEME)) style.setProperty(name, value);
+  document.body.classList.remove("vscode-dark", "vscode-high-contrast");
+  document.body.classList.add("vscode-light");
+  return () => {
+    for (const [name, value] of before) {
+      if (value) style.setProperty(name, value);
+      else style.removeProperty(name);
+    }
+    document.body.className = classes;
+  };
+}
+/** Symbols and arrows from the canvas, where they are on the map now. */
+function paintedMarks(): PaintedMark[] {
+  const scale = crs.scale(map.getZoom());
+  const origin = map.getPixelOrigin();
+  return marks.map((mark) => {
+    const at = map.layerPointToContainerPoint(L.point(mark.x * scale - origin.x, mark.y * scale - origin.y));
+    return { kind: mark.kind, x: at.x, y: at.y, colour: mark.colour, course: mark.course };
+  });
+}
+/**
+ * Draw the map as an image: laid out at the size asked for (the view kept: the same area,
+ * fitted), in the theme asked for, the selection's outline and dimming off, then put back
+ * exactly as it was. What is drawn is what the map draws at that size: its labels kept
+ * clear of one another as on screen.
+ */
+async function exportImage(request: { format: ImageFormat; preset: ImagePreset; theme: ImageTheme; footer_text?: string }): Promise<RenderedImage> {
+  if (!shownPlot) throw new Error("The map has no plot to draw.");
+  if (exporting) throw new Error("The map is preparing another image. Try again when it has finished.");
+  const restore: (() => void)[] = [];
+  const note = document.getElementById("exporting")!;
+  exporting = true;
+  note.hidden = false;
+  try {
+    const kept = selection;
+    selection = new Set();
+    restyle();
+    restore.push(() => {
+      selection = kept;
+      restyle();
+    });
+    if (request.theme === "light") {
+      restore.push(lightTheme());
+      applyContext();
+    }
+    const view = { centre: map.getCenter(), zoom: map.getZoom(), bounds: map.getBounds(), size: map.getSize() };
+    const wasMoved = moved; // laying out at the image's size is no pan or zoom of the analyst's
+    restore.push(() => (moved = wasMoved));
+    const layout = layoutFor(request.preset, { width: view.size.x, height: view.size.y });
+    if (layout.width !== view.size.x || layout.height !== view.size.y) {
+      const snap = map.options.zoomSnap;
+      const overflow = document.body.style.overflow;
+      document.body.style.overflow = "hidden";
+      mapElement.classList.add("export-sizing");
+      mapElement.style.width = `${layout.width}px`;
+      mapElement.style.height = `${layout.height}px`;
+      map.invalidateSize({ animate: false, pan: false });
+      map.options.zoomSnap = 0;
+      map.fitBounds(view.bounds, { animate: false, padding: [0, 0] });
+      restore.push(() => {
+        mapElement.classList.remove("export-sizing");
+        mapElement.style.width = "";
+        mapElement.style.height = "";
+        document.body.style.overflow = overflow;
+        map.invalidateSize({ animate: false, pan: false });
+        map.options.zoomSnap = snap;
+        map.setView(view.centre, view.zoom, { animate: false });
+      });
+    }
+    await settle();
+    const size = map.getSize();
+    const background = css("--vscode-editor-background");
+    const composed = composeSvg({
+      root: mapElement,
+      width: size.x,
+      height: size.y,
+      scale: layout.scale,
+      background,
+      marks: paintedMarks(),
+      footer: request.footer_text ? { text: request.footer_text, colour: css("--vscode-descriptionForeground") || css("--vscode-editor-foreground"), halo: background } : undefined,
+      tiles: await readTiles(mapElement),
+      tickSize: TICK_SIZE,
+    });
+    const pixels = pixelsOf({ width: size.x, height: size.y, scale: layout.scale });
+    const bounds = map.getBounds();
+    const wrap = (lon: number) => L.Util.wrapNum(lon, [-180, 180], true);
+    const round = (x: number) => Math.round(x * 1e6) / 1e6;
+    const whole = bounds.getEast() - bounds.getWest() >= 360;
+    const bbox = [whole ? -180 : wrap(bounds.getWest()), Math.max(-90, bounds.getSouth()), whole ? 180 : wrap(bounds.getEast()), Math.min(90, bounds.getNorth())].map(round) as [number, number, number, number];
+    const data = request.format === "png" ? await rasterise(composed.svg, pixels.width, pixels.height) : composed.svg;
+    return { format: request.format, data, width: pixels.width, height: pixels.height, viewport: { bbox }, ...(composed.notes.length && { notes: composed.notes }) };
+  } finally {
+    for (const undo of restore.reverse()) undo();
+    if (request.theme === "light") applyContext();
+    await settle();
+    exporting = false;
+    note.hidden = true;
+  }
+}
+
+// --- An earlier revision, shown read-only (an image traced to its plot) --------------------
+const revisionBanner = document.getElementById("revision")!;
+revisionBanner.querySelector("button")!.addEventListener("click", () => host.postMessage({ kind: "latest_asked" }));
+function showRevision(shown: RevisionShown | undefined): void {
+  revisionBanner.hidden = !shown;
+  root.classList.toggle("read-only", !!shown);
+  if (!shown) return;
+  const image = shown.figure ? `image ${shown.figure}` : "the image";
+  revisionBanner.querySelector(".revision-text")!.textContent =
+    shown.step === shown.latest
+      ? `The plot as it is now, as when ${image} was exported (step ${shown.step}). Read-only here.`
+      : `The plot at step ${shown.step} of ${shown.latest}, as when ${image} was exported. Read-only.`;
+  const button = revisionBanner.querySelector("button")!;
+  button.textContent = shown.step === shown.latest ? "Edit the plot" : "Go to latest";
+  button.title = "Leave this earlier revision and show the plot as it is now, to change it";
+}
+
 let shownPlot = "";
 onMessage((message) => {
   if (message.kind === "show_plot") {
@@ -1625,8 +1763,15 @@ onMessage((message) => {
     editor.plotDrawn();
     trackEditor.plotDrawn([...selection]);
     showHidden(typeof message.hidden_count === "number" ? message.hidden_count : 0);
+    showRevision(message.revision_shown as RevisionShown | undefined);
     if (firstShow) fit(plotBounds);
     pageShown(true);
+  } else if (message.kind === "export_image") {
+    const request = message.image_request as Parameters<typeof exportImage>[0];
+    exportImage(request).then(
+      (image) => host.postMessage({ kind: "image_rendered", image }),
+      (error: Error) => host.postMessage({ kind: "image_rendered", message: `The image could not be drawn: ${error.message}` }),
+    );
   } else if (message.kind === "set_selection") {
     selection = new Set((message.selection as { feature_ids: string[] }).feature_ids);
     restyle();

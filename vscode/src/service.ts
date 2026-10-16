@@ -10,7 +10,7 @@ import { randomBytes } from "node:crypto";
 import { request as httpRequest } from "node:http";
 import { tmpdir } from "node:os";
 import { createInterface } from "node:readline";
-import type { AnnotationSpec, CoverageReport, DebriefFeatureCollection, ItemRevision, NarrativeSpec, MeasureDefinition, MeasureGroup, PlotView, ReviewFlag, SharedState, SourceTrackRef, TimeRange, ToolDeclaration, ToolResult, ToteResult, ToteView, TrackEdit } from "@debrief/schemas";
+import type { AnnotationSpec, CoverageReport, DebriefFeatureCollection, FigureSource, ImageExport, ItemRevision, NarrativeSpec, MeasureDefinition, MeasureGroup, PlotView, ReviewFlag, SharedState, SourceTrackRef, TimeRange, TimeState, ToolDeclaration, ToolResult, ToteResult, ToteView, TrackEdit, Viewport } from "@debrief/schemas";
 import type { ToolOutcome } from "./diagnostics.js";
 import type { NarrativeChoices, NarrativePreview } from "./narrativeimport.js";
 
@@ -273,8 +273,16 @@ export class ToolService {
     this.process.kill();
   }
 
+  /**
+   * Why a method may not be called now, if it may not: the extension refuses every change
+   * while an earlier revision of a plot is shown read-only (SUB-25), here, in one place.
+   */
+  guard?: (method: string) => string | undefined;
+
   /** One JSON-RPC request. No time limit here: the service stops tools that overrun. */
   private request<T>(method: string, params: Record<string, unknown> = {}): Promise<T> {
+    const refused = this.guard?.(method);
+    if (refused) return Promise.reject(new ServiceError(refused, READ_ONLY_CODE));
     const body = JSON.stringify({ jsonrpc: "2.0", id: this.nextId++, method, params });
     return new Promise((resolve, reject) => {
       const req = httpRequest(
@@ -619,4 +627,53 @@ export class ToolService {
   reviewFlags(): Promise<{ flags: (ReviewFlag & { store?: string })[] }> {
     return this.request("debrief/review_flags");
   }
+
+  /** A fresh image ID for an export of the plot (SUB-25): at its current revision, or the earlier one shown. Reads only. */
+  figureId(store: string, item: string, revision?: string): Promise<{ id: string; short: string; revision: string }> {
+    return this.request("debrief/figure_id", { store, item, ...(revision && { revision }) });
+  }
+
+  /**
+   * The image the map drew, with its ID put into its metadata, written to file and the
+   * export recorded in the plot's export log (its island, never a step).
+   */
+  exportImage(
+    store: string,
+    item: string,
+    agent: Agent,
+    request: { id: string; image: string; file: string; overwrite: boolean; format: string; footer: boolean; preset: string; theme: string; width: number; height: number; viewport?: Viewport; time?: TimeState },
+  ): Promise<ExportedImage> {
+    return this.request("debrief/export_image", { store, item, agent, ...request });
+  }
+
+  /** The plots an image came from: by a file's metadata, or an ID typed from its footer. Reads only. */
+  findImageSource(where: { file: string } | { id: string }): Promise<{ images: TracedImage[]; problem?: string }> {
+    return this.request("debrief/find_image_source", where);
+  }
+
+  /** The plot as it was at a revision, rebuilt by replay and checked, to show read-only; with the export log entry for the image id names. */
+  openRevision(store: string, item: string, revision: string, id?: string): Promise<{ plot: DebriefFeatureCollection; step: number; current: number; latest: number; revision: string; export?: ImageExport }> {
+    return this.request("debrief/open_revision", { store, item, revision, ...(id && { id }) });
+  }
 }
+
+/** What exporting an image said: where it went, its ID, and whether the plot's export log has it. */
+export interface ExportedImage {
+  file: string;
+  id: string;
+  short: string;
+  revision: string;
+  recorded: boolean;
+  note?: string;
+}
+
+/** An image ID read from a file (or typed), and the plots it names. */
+export interface TracedImage {
+  id: string;
+  short: string;
+  where: string;
+  sources: FigureSource[];
+}
+
+/** The error for a change asked of a plot shown read-only: refused in the extension, never sent. */
+export const READ_ONLY_CODE = -32010;

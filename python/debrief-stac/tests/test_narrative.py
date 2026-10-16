@@ -106,7 +106,7 @@ def test_the_order_does_not_depend_on_which_source_was_imported_first() -> None:
 def test_a_query_by_source_type_text_and_period() -> None:
     plot = models.DebriefFeatureCollection(
         type="FeatureCollection",
-        schema_version="0.0.21",
+        schema_version="0.0.22",
         provenance=[],
         features=[
             entry(
