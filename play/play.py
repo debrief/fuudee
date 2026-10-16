@@ -212,6 +212,27 @@ def restyle(item: str, request_json: str) -> str:
     return json.dumps({"ok": True})
 
 
+def frequencies(item: str, request_json: str) -> str:
+    """How often tracks are labelled, marked with a symbol and given a direction arrow
+    (CAP-32): one recorded, undoable step for every track chosen, as
+    debrief/set_track_frequencies does. request: base, features, and any of
+    label_interval, symbol_interval and arrow_interval (a duration, "off", or null)."""
+    request = json.loads(request_json)
+    base = Base(**request["base"]) if request.get("base") else None
+    changes = {
+        f: request[f]
+        for f in ("label_interval", "symbol_interval", "arrow_interval")
+        if f in request
+    }
+    try:
+        step = _cat().set_track_frequencies(item, request["features"], changes, YOU, base)
+    except Conflict:
+        return json.dumps({"error": "The plot was changed elsewhere, so nothing was changed."})
+    except (CatalogueError, HistoryError) as error:
+        return json.dumps({"error": str(error)})
+    return json.dumps({"ok": True, "changed": step is not None})
+
+
 def annotate(item: str, request_json: str) -> str:
     """Add, change or delete annotations, or show or remove the north arrow: each a
     recorded, undoable step (CAP-03), as debrief/add_annotation, debrief/edit_annotation,
