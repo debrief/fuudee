@@ -457,10 +457,18 @@ def _build_serial(
     }
 
 
-def build(root: Path, *, seed: int = DEFAULT_SEED, recorded_at: str = RECORDED_AT) -> BuildReport:
-    """Build the sample catalogue at root, which must not already hold one."""
+def build(
+    root: Path,
+    *,
+    seed: int = DEFAULT_SEED,
+    recorded_at: str = RECORDED_AT,
+    catalogue_id: str = CATALOGUE_ID,
+    title: str = CATALOGUE_TITLE,
+) -> BuildReport:
+    """Build the sample catalogue at root, which must not already hold one. A walkthrough's
+    copy has an id and title of its own, so it is never taken for the sample."""
     root = Path(root)
-    catalogue = Catalogue.create(root, CATALOGUE_ID, CATALOGUE_TITLE, CATALOGUE_DESCRIPTION)
+    catalogue = Catalogue.create(root, catalogue_id, title, CATALOGUE_DESCRIPTION)
     clock = FixedClock(recorded_at)
     vessels = ais.read_extract(extract_path())
     report = BuildReport(root, seed)

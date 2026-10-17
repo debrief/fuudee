@@ -6,14 +6,14 @@
  */
 import { userInfo } from "node:os";
 import * as vscode from "vscode";
-import type { AnnotationSpec, ContextTracksEnum, CoverageReport, FigureSource, RevisionShown, NarrativeSpec, ReviewFlag, SourceTrackRef, TimelineEntry, ParameterValue, PlotView, SharedState, SharedStateChange, TimeRange, ToolDeclaration, ToteResult, ToteView as ToteChoice, TrackEdit } from "@debrief/schemas";
+import type { AnnotationSpec, ContextTracksEnum, CoverageReport, KnownStore, FigureSource, RevisionShown, NarrativeSpec, ReviewFlag, SourceTrackRef, TimelineEntry, ParameterValue, PlotView, SharedState, SharedStateChange, TimeRange, ToolDeclaration, ToteResult, ToteView as ToteChoice, TrackEdit } from "@debrief/schemas";
 import { figureIdProblem, formatBearing, formatPosition, formatQuantity, parsePosition, POSITION_EXAMPLE, UNIT_LABELS } from "@debrief/kernel";
 import { defaultPivotIndex, describeDistance, describeSpeed, describeTurn, FIX_PROMPT, FIX_PROMPT_DR, fixIndexAt, fixMeans, fixToEdit, jumpSpeed, legNow, mergedName, mergePlan, periodIndices, readBearing, readDistance, readSpeed, readTurn, reckoningOf, type Anchor } from "../webview/trackedit.js";
 import { chooseModes, MODE_LABELS, modeChoices, modeQuestion, REMEMBERED_IN_VSCODE, rememberItem, type ModeChoice, type PlottingMode } from "./importmode.js";
-import { loadConfig, narrativeAnswers, trackImportMode, updateConfig, withNarrativeAnswers, withTrackImportMode, type TrackImportMode } from "@debrief/config";
+import { addStore, loadConfig, narrativeAnswers, removeStore, sameLocation, trackImportMode, updateConfig, withNarrativeAnswers, withTrackImportMode, type TrackImportMode } from "@debrief/config";
 import { changedSince, historyOnDisk, knownStores, openPlot, plotFile, type OpenedPlot } from "./catalogue.js";
-import { statSync, unwatchFile, watchFile } from "node:fs";
-import { realpath, rename, stat, unlink, writeFile } from "node:fs/promises";
+import { existsSync, statSync, unwatchFile, watchFile } from "node:fs";
+import { mkdir, realpath, rename, rm, stat, unlink, writeFile } from "node:fs/promises";
 import path from "node:path";
 import { count, describePeriod, describeTimes, describeToolRun, settings as displaySettings } from "./format.js";
 import { answersToRemember, choicesOf, describeAnswers, duplicateQuestion, NARRATIVE_FILES, periodChoices, questionsFor, readSummary, rememberedAnswers, typeWords, type NarrativeAnswers, type NarrativeChoices, type NarrativePreview } from "./narrativeimport.js";
@@ -44,6 +44,7 @@ import { Session, timeProblem } from "./session.js";
 import { CataloguesProvider, type CollationMarks } from "./views/catalogues.js";
 import { featureIdsOf, OutlineProvider } from "./views/outline.js";
 import { ToolsProvider } from "./views/tools.js";
+import { BY_HAND, openedEvent, prepare, serviceEvent, toteCompares, TOURS, WalkthroughProgress } from "./walkthroughs.js";
 
 /** What the integration tests and agents can inspect. */
 export interface DebriefApi {
@@ -103,6 +104,8 @@ export interface DebriefApi {
   toteLatency: () => { count: number; p50: number; p95: number; max: number };
   /** When the extension activated and each webview loaded and was first shown something (docs/notes/webview-startup.md). */
   startupTimings: () => StartupSnapshot;
+  /** The walkthrough steps the analyst has done, by their events (CAP-25), for tests and agents. */
+  walkthroughEvents: () => string[];
   /**
    * For tests only: act on a message as if the map had sent it (drawing or dragging an
    * annotation, say). Present only when the extension runs under test, so no other
@@ -111,6 +114,8 @@ export interface DebriefApi {
   fromMap?: (message: unknown) => Promise<void>;
   /** For tests only: a request to the tool service as an agent sends it (an agent's export, drawn by the map). */
   asAgent?: (method: string, params: Record<string, unknown>) => Promise<unknown>;
+  /** For tests only: the walkthroughs as if nothing were done yet, every step unticked. */
+  forgetWalkthroughs?: () => void;
 }
 
 export function activate(context: vscode.ExtensionContext): DebriefApi {
@@ -121,6 +126,14 @@ export function activate(context: vscode.ExtensionContext): DebriefApi {
   const log = (line: string) => diagnostics.write("info", line);
   const configFile = process.env.DEBRIEF_CONFIG || undefined;
   const session = new Session();
+  // Walkthroughs (CAP-25): each step ticks when the analyst does it, by its context key.
+  const walkthroughs = new WalkthroughProgress((command, ...args) => vscode.commands.executeCommand(command, ...args), context.extension.id);
+  // A time or a selection the analyst made (not one a plot opening or a tool set).
+  session.onState((change, origin) => {
+    if (!BY_HAND.has(origin)) return;
+    if (change.time) walkthroughs.said("timeMoved");
+    if (change.selection?.feature_ids.length) walkthroughs.said("selected");
+  });
   const agent: Agent = { kind: "person", name: userInfo().username };
 
   const catalogues = new CataloguesProvider(configFile);
@@ -189,6 +202,7 @@ export function activate(context: vscode.ExtensionContext): DebriefApi {
   );
   // Coverage, below Catalogues: collation with coverage visible (CAP-08 to CAP-12).
   const coverageView = new CoverageView(context.extensionUri, session, (ask) => collate(ask), log);
+  coverageView.shown = () => walkthroughs.said("coverageShown");
   context.subscriptions.push(
     vscode.window.registerWebviewViewProvider(COVERAGE_VIEW, coverageView),
     vscode.window.registerWebviewViewProvider(TIMELINE_VIEW, timeline, { webviewOptions: { retainContextWhenHidden: true } }),
@@ -242,6 +256,8 @@ export function activate(context: vscode.ExtensionContext): DebriefApi {
           service = undefined;
           tools.update(undefined, [], "The tool service stopped. Run 'Debrief: Restart tool service'.");
         });
+        // A change the analyst made through the service ticks the walkthrough step that asks for it (CAP-25).
+        started.done = (method, params) => walkthroughs.said(serviceEvent(method, params));
         // Nothing is changed while an earlier revision is shown read-only (SUB-25): refused here, in one place.
         started.shownReadOnly = () => (session.current?.revision ? { store: session.current.store.id, item: session.current.item.id } : undefined);
         service = started;
@@ -704,6 +720,9 @@ export function activate(context: vscode.ExtensionContext): DebriefApi {
       needsService: "Saving the Tote's tracks needs Debrief's tool service. Run 'Debrief: Restart tool service'.",
       notSaved: "The Tote's tracks were not saved.",
       conflict: "Someone else changed this plot's view, so your choice of Tote tracks was not saved. Debrief is showing theirs; choose again if you still want yours.",
+    }).then((problem) => {
+      if (!problem && toteCompares(tote)) walkthroughs.said("toteChosen");
+      return problem;
     });
 
   /**
@@ -2157,6 +2176,7 @@ export function activate(context: vscode.ExtensionContext): DebriefApi {
     const within = start >= Date.parse(range.start) && start <= Date.parse(range.end);
     const time = { current: at, range: within ? range : { start: at < range.start ? at : range.start, end: at > range.end ? at : range.end } };
     applyToolState({ time }, "timeline", false);
+    walkthroughs.said("timelineChosen");
     return undefined;
   });
   // The plot's Timeline for agents and tests: every entry, and the one current time is at
@@ -2752,6 +2772,88 @@ export function activate(context: vscode.ExtensionContext): DebriefApi {
     }
   });
 
+  // --- Walkthroughs (CAP-25): the Get Started page, each on a fresh copy of the sample -----------
+  // The steps are package.json's contributes.walkthroughs, written from walkthroughs/tours.json.
+  /** Which walkthrough: the one named, or one the analyst picks. */
+  const pickTour = async (tour?: string) =>
+    TOURS.find((t) => t.id === tour) ??
+    (
+      await vscode.window.showQuickPick(
+        TOURS.map((t) => ({ label: t.title, detail: t.description, t })),
+        { title: "Debrief walkthroughs", placeHolder: "Each works on a fresh copy of the sample exercise; the sample itself never changes" },
+      )
+    )?.t;
+  command("debrief.walkthroughs", async (tour?: string) => {
+    const chosen = await pickTour(tour);
+    if (chosen) await vscode.commands.executeCommand("workbench.action.openWalkthrough", `${context.extension.id}#${chosen.id}`, false);
+  });
+  /** Where a walkthrough's copy is kept: this extension's own storage, a folder for each walkthrough, never the analyst's catalogues. */
+  const walkthroughFolder = (tour: string) => path.join(context.globalStorageUri.fsPath, "walkthroughs", tour);
+  const walkthroughStore = (tour: string): KnownStore | undefined =>
+    knownStores(configFile).stores.find((s) => sameLocation(s.location, path.join(walkthroughFolder(tour), "catalogue")));
+  /**
+   * Open the copy of serial 1 a walkthrough works on: a fresh one, built by debrief-sample
+   * into a catalogue of its own (Walkthrough: …), or the analyst's copy from before, as they
+   * choose. Agents and tests pass fresh. Returns the problem, if there is one.
+   */
+  command("debrief.walkthrough.open", async (tour?: string, given?: { fresh?: boolean }) => {
+    const chosen = await pickTour(tour);
+    if (!chosen) return undefined;
+    if (!needService()) return "Debrief's tool service is not running.";
+    const folder = walkthroughFolder(chosen.id);
+    let store = walkthroughStore(chosen.id);
+    let fresh = !store || !existsSync(path.join(folder, "catalogue"));
+    if (!fresh) {
+      if (given?.fresh !== undefined) fresh = given.fresh;
+      else {
+        const again = "Start again with a fresh copy";
+        const choice = await vscode.window.showInformationMessage(
+          `You have a copy of serial 1 for ${chosen.title} already.`,
+          { modal: true, detail: "A fresh copy starts the walkthrough again, and your changes to the old copy are lost. The sample itself never changes." },
+          again,
+          "Carry on with my copy",
+        );
+        if (!choice) return undefined;
+        fresh = choice === again;
+      }
+    }
+    if (fresh) {
+      try {
+        if (store) {
+          const old = store.id;
+          updateConfig((c) => removeStore(c, old), configFile);
+        }
+        await rm(folder, { recursive: true, force: true });
+        await mkdir(path.dirname(folder), { recursive: true });
+        const made = await vscode.window.withProgress(
+          { location: vscode.ProgressLocation.Notification, title: `Making a fresh copy of serial 1 for ${chosen.title}…` },
+          () => prepare(python(), folder, chosen.id),
+        );
+        updateConfig((c) => {
+          const [next, added] = addStore(c, { title: made.catalogue_title, location: made.catalogue });
+          store = added;
+          return next;
+        }, configFile);
+      } catch (error) {
+        return report(`The walkthrough's copy could not be made: ${(error as Error).message}.`);
+      }
+    }
+    catalogues.refresh();
+    const item = `serial-1-${chosen.id}`;
+    await vscode.commands.executeCommand("debrief.openPlot", store!.id, item);
+    const opened = session.current;
+    if (opened?.store.id !== store!.id || opened.item.id !== item) return "The walkthrough's copy could not be opened.";
+    walkthroughs.said(openedEvent(chosen.id));
+    return undefined;
+  });
+  /** Import and collate: import BLUE ONE's navigation log, waiting beside the walkthrough's catalogue, as any REP file is imported. */
+  command("debrief.walkthrough.importLog", async (given?: { modes?: string }) => {
+    const store = walkthroughStore("collate");
+    const log = path.join(walkthroughFolder("collate"), "blue-one-nav-log.rep");
+    if (!store || !existsSync(log)) return report("Open the copy of serial 1 for Import and collate first: it brings the navigation log with it.");
+    return vscode.commands.executeCommand("debrief.importRep", undefined, { store: store.id, path: log, ...given });
+  });
+
   startup.mark("extension", "activate_end");
   return {
     session,
@@ -2778,12 +2880,14 @@ export function activate(context: vscode.ExtensionContext): DebriefApi {
     tote: () => toteView.last,
     toteLatency: () => toteView.latency(),
     startupTimings: () => startup.snapshot(),
+    walkthroughEvents: () => walkthroughs.seen(),
     mapContext: () => map.context,
     mapTote: () => map.tote,
     viewChecks: () => viewChecks,
     ...(context.extensionMode === vscode.ExtensionMode.Test && {
       fromMap: (message: unknown) => map.receive(message),
       asAgent: (method: string, params: Record<string, unknown>) => (service ? service.raw(method, params) : Promise.reject(new Error("The tool service is not running."))),
+      forgetWalkthroughs: () => walkthroughs.forget(),
     }),
   };
 }

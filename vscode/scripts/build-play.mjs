@@ -2,7 +2,8 @@
 // webviews, unchanged, plus the page that hosts them and the Python worker.
 // scripts/build_playground.sh adds the wheels and the sample exercise.
 import { build } from "esbuild";
-import { cpSync, mkdirSync } from "node:fs";
+import { cpSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
+import { demoPage } from "../play/demo.mjs";
 import path from "node:path";
 
 const out = path.resolve(process.argv[2] ?? "dist/play");
@@ -42,4 +43,10 @@ cpSync("webview/tote.css", path.join(out, "tote.css"));
 cpSync("webview/timeline.css", path.join(out, "timeline.css"));
 cpSync("webview/coverage.css", path.join(out, "coverage.css"));
 cpSync("media/land.geojson", path.join(out, "land.geojson"));
-console.log(`Playground bundled into ${out}`);
+// The walkthroughs' pictures, the same as VS Code's Get Started page shows (CAP-25).
+cpSync("media/walkthroughs", path.join(out, "walkthroughs"), { recursive: true });
+// The web demo, full screen at /demo/ beside the playground (DEP-06).
+const demo = path.join(out, "..", "demo");
+mkdirSync(demo, { recursive: true });
+writeFileSync(path.join(demo, "index.html"), demoPage(readFileSync(path.join("play", "index.html"), "utf8"), `../${path.basename(out)}/`));
+console.log(`Playground bundled into ${out}, and the web demo into ${demo}`);

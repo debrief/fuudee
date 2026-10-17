@@ -37,9 +37,9 @@ from debrief_io import (
 )
 from debrief_io.document_import import SUFFIXES as DOCUMENT_SUFFIXES
 from debrief_io.importer import rep_track_names
-from debrief_kernel.geodesy import Position, TrackPath, destination, range_bearing
 from debrief_kernel.time import format_utc, parse_utc
 from debrief_kernel.units import Quantity
+from debrief_sample import walkthrough
 from debrief_schemas import DocumentKind, dump_document, models
 from debrief_stac import (
     Base,
@@ -414,36 +414,11 @@ def glitches(item: str, feature: str) -> str:
     """Put three GPS glitches into a track, to try jump removal on: two fixes in a row
     three miles off to the north, and one four miles off to the south. Recorded as a step
     of its own, by the playground, so it is never mistaken for real data and Undo takes
-    it out."""
-    plot = _cat().read_plot(item)
-    track = next((f for f in plot.features if f.id == feature), None)
-    if track is None or track.properties.kind != "track" or len(track.properties.times) < 12:
-        return json.dumps({"error": "Select a track of at least 12 fixes to put glitches in."})
-    n = len(track.properties.times)
-    positions = [list(p) for p in track.geometry.coordinates]
-    for index, bearing, metres in (
-        (n // 3, 0, 3 * 1852),
-        (n // 3 + 1, 0, 3 * 1852),
-        (2 * n // 3, 180, 4 * 1852),
-    ):
-        lon, lat = positions[index]
-        to = destination(Position(lon, lat), Quantity(bearing, "deg"), Quantity(metres, "m"))
-        positions[index] = [to.longitude, to.latitude]
-    glitched = track.model_copy(
-        update={"geometry": track.geometry.model_copy(update={"coordinates": positions})}
-    )
-    at = format_utc(int(time.time() * 1000))
-    record = models.ProvRecord(
-        id=f"edit-glitches-{at}",
-        kind="edit",
-        started_at=at,
-        agent=PLAYGROUND,
-        notes=[
-            f"GPS glitches put into {track.properties.name}",
-            "Three fixes moved off the track, to try jump removal on",
-        ],
-    )
-    _cat().commit(item, [record], Changes(modified=[glitched]))
+    it out (debrief_sample.walkthrough, as Tidy a track's copy has them)."""
+    try:
+        walkthrough.put_glitches(_cat(), item, feature, PLAYGROUND)
+    except ValueError as error:
+        return json.dumps({"error": str(error)})
     return json.dumps({"ok": True})
 
 
@@ -754,77 +729,21 @@ def collate(item: str, request_json: str) -> str:
     return json.dumps({"ok": True, "changed": True, "notes": list(record.notes or [])})
 
 
-def _dms(value: float, positive: str, negative: str, width: int) -> str:
-    hemisphere = positive if value >= 0 else negative
-    hundredths = round(abs(value) * 360_000)
-    degrees, rest = divmod(hundredths, 360_000)
-    minutes, rest = divmod(rest, 6_000)
-    return f"{degrees:0{width}d} {minutes:02d} {rest / 100:05.2f} {hemisphere}"
-
-
-def _rep(name: str, ms: int, position: Position, course: float, knots: float) -> str:
-    when = format_utc(ms)
-    stamp = f"{when[2:4]}{when[5:7]}{when[8:10]} {when[11:13]}{when[14:16]}{when[17:19]}.000"
-    quoted = f'"{name}"' if " " in name else name
-    lat = _dms(position.latitude, "N", "S", 2)
-    lon = _dms(position.longitude, "E", "W", 3)
-    return f"{stamp} {quoted} @A {lat} {lon} {course:05.1f} {knots:.1f} 0"
-
-
-def _course(track_path: TrackPath, ms: int) -> float:
-    leg = track_path.leg_at(ms)
-    i = min(leg[0] if leg else 0, len(track_path.positions) - 2)
-    a, b = track_path.positions[i], track_path.positions[i + 1]
-    return range_bearing(a, b)[1].value
-
-
-def _knots(track_path: TrackPath, ms: int) -> float:
-    leg = track_path.leg_at(ms)
-    i = min(leg[0] if leg else 0, len(track_path.positions) - 2)
-    a, b = track_path.positions[i], track_path.positions[i + 1]
-    seconds = max((track_path.times_ms[i + 1] - track_path.times_ms[i]) / 1000, 1)
-    return range_bearing(a, b)[0].value / seconds * 3600 / 1852
-
-
 def new_data(item: str) -> str:
     """New data arrives for the open plot, as an analyst would bring it in: a REP file
     written here (fiction, like the sample) and imported through Debrief's import into the
-    same catalogue (CAP-10). It is the plot's first track's own navigation log, a fix
-    every 10 s over part of its period and on for 20 minutes after it ends, 120 m from
-    where the plot has it, under its name in other letters; and a contact the plot has
-    never seen."""
-    plot = _cat().read_plot(item)
-    tracks = [
-        f for f in plot.features if f.properties.kind == "track" and len(f.properties.times) > 2
-    ]
-    if not tracks:
-        return json.dumps({"error": "The open plot has no track to bring new data for."})
-    own = tracks[0]
-    path_of = TrackPath.from_feature(own)
-    start, end = path_of.start_ms, path_of.end_ms
-    name = own.properties.name.title()
-    lines = [";; A navigation log, made up for the playground: not a record of any real platform."]
-    first = start + (end - start) // 3 // 60_000 * 60_000
-    last = first + (end - start) // 4 // 60_000 * 60_000
-    north = Quantity(120, "m")
-    for ms in range(first, last + 1, 10_000):
-        at = destination(path_of.position_at(ms), Quantity(0, "deg"), north)
-        lines.append(_rep(name, ms, at, _course(path_of, ms), _knots(path_of, ms)))
-    course, knots = _course(path_of, end), _knots(path_of, end)
-    tail = path_of.position_at(end)
-    for i in range(1, 121):
-        metres = knots * 1852 / 3600 * i * 10
-        at = destination(tail, Quantity(course, "deg"), Quantity(metres, "m"))
-        lines.append(_rep(name, end + i * 10_000, at, course, knots))
-    origin = destination(path_of.position_at(first), Quantity(225, "deg"), Quantity(6000, "m"))
-    for i in range(31):
-        at = destination(origin, Quantity(80, "deg"), Quantity(i * 300, "m"))
-        lines.append(_rep("WATCHER", first + i * 60_000, at, 80.0, 9.7))
+    same catalogue (CAP-10). It is the plot's first track's own navigation log (see
+    debrief_sample.walkthrough.navigation_log: part of its period, 120 m off, and on after
+    it ends, under its name in other letters) and a contact the plot has never seen."""
+    try:
+        own = walkthrough.log_track(_cat(), item)
+    except ValueError as error:
+        return json.dumps({"error": str(error)})
     work = Path("/play/uploads")
     work.mkdir(parents=True, exist_ok=True)
     stem = f"{own.properties.name.lower().replace(' ', '-')}-nav-log"
     source = work / f"{stem}.rep"
-    source.write_text("\n".join(lines) + "\n")
+    source.write_text(walkthrough.navigation_log(own))
     taken, item_id, n = set(_cat().item_ids()), stem, 2
     while item_id in taken:
         item_id, n = f"{stem}-{n}", n + 1
@@ -980,5 +899,68 @@ def open_revision(item: str, revision: str, figure: str | None = None) -> str:
                 **({"figure": figures.parse_figure_id(figure).short} if figure else {}),
             },
             **({"export": export.model_dump(mode="json", exclude_none=True)} if export else {}),
+        }
+    )
+
+
+# --- Walkthroughs (CAP-25): a fresh copy of serial 1 for each; the sample never changes ---
+
+#: The sample as the site shipped it, never changed: what each walkthrough copies.
+PRISTINE = Path("/play/pristine")
+#: BLUE ONE's navigation log for Import and collate, written when that walkthrough starts.
+TOUR_LOG = Path("/play/tours") / walkthrough.LOG_FILE
+NO_TOUR_LOG = "Start Import and collate first: its first step makes the log."
+
+
+def tour_copy(tour: str) -> str:
+    """A fresh copy of the sample's serial 1 for a walkthrough, made from the sample as the
+    site shipped it (never the reader's changed one), as VS Code makes it: titled after the
+    walkthrough, with RED ONE's GPS glitches for Tidy a track. For Import and collate,
+    BLUE ONE's navigation log is written, ready to import."""
+    try:
+        item = walkthrough.copy_for_tour(_cat(), PRISTINE, tour)
+        if tour == "collate":
+            TOUR_LOG.parent.mkdir(parents=True, exist_ok=True)
+            TOUR_LOG.write_text(walkthrough.navigation_log(walkthrough.log_track(_cat(), item)))
+    except (ValueError, CatalogueError, HistoryError, OSError) as error:
+        return json.dumps({"error": f"The walkthrough's copy could not be made: {error}"})
+    return json.dumps({"item": item, "title": _cat().read_item(item).properties.title})
+
+
+def tour_log_tracks() -> str:
+    """The tracks of the walkthrough's navigation log, to ask how each is plotted."""
+    if not TOUR_LOG.exists():
+        return json.dumps(
+            {"error": "Start Import and collate first: its first step makes the log."}
+        )
+    return json.dumps({"name": TOUR_LOG.name, "tracks": rep_track_names(TOUR_LOG)})
+
+
+def import_tour_log(modes_json: str | None = None, remembered: str | None = None) -> str:
+    """Import the walkthrough's navigation log into the catalogue, as a REP file the reader
+    chose would be: a file shipped with the sample, never one of the reader's own."""
+    if not TOUR_LOG.exists():
+        return json.dumps(
+            {"error": "Start Import and collate first: its first step makes the log."}
+        )
+    stem = TOUR_LOG.stem
+    taken, item_id, n = set(_cat().item_ids()), stem, 2
+    while item_id in taken:
+        item_id, n = f"{stem}-{n}", n + 1
+    modes = json.loads(modes_json) if modes_json else None
+    try:
+        report = import_rep(
+            _cat(), TOUR_LOG, item_id=item_id, agent=YOU, modes=modes, remembered=remembered
+        )
+    except Exception as error:  # noqa: BLE001 - shown to the reader as the import's failure
+        return json.dumps({"error": f"{TOUR_LOG.name} could not be imported: {error}"})
+    return json.dumps(
+        {
+            "item": report.item_id,
+            "tracks": report.tracks,
+            "fixes": report.fixes,
+            "annotations": 0,
+            "omitted": report.omitted,
+            "notes": report.notes,
         }
     )
