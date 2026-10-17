@@ -56,6 +56,10 @@ To see the history of a serial, open its `plot.geojson` and read `provenance`. E
 
 The background traffic comes from the US national AIS archive, published by NOAA's Office for Coastal Management on MarineCadastre.gov from the US Coast Guard's receiver network. It is a US Government work, in the public domain in the United States. One day was reduced to a small area, the serial windows and 16 vessels, thinned to one fix a minute, with military, law-enforcement, pilot and search-and-rescue vessels left out. Every identifier was removed. The reduction and the licence are described beside the extract, in `python/debrief-sample/data/README.md`.
 
+## For walkthroughs
+
+Debrief's walkthroughs (CAP-25) never change the sample: each works on a copy of serial 1, titled after it, made by `debrief_sample.walkthrough`. VS Code builds a fresh sample for each walkthrough into a catalogue of its own, `python -m debrief_sample walkthrough FOLDER TOUR`; the playground copies the sample as the site shipped it. *Tidy a track*'s copy has three GPS glitches in RED ONE, as a step of their own; *Import and collate*'s comes with BLUE ONE's navigation log, a REP file of fiction like the rest. The walkthroughs' pictures are drawn from serial 1 by `python -m debrief_sample media vscode/media/walkthroughs`. See [Walkthroughs](interaction-models/walkthroughs.md).
+
 ## Not yet in it
 
 - **Ambiguous bearings** from a towed array (CAP-22): the sonar is a bow sonar, so its bearings are not ambiguous.

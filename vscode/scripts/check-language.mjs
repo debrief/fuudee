@@ -21,20 +21,21 @@ const walk = (value, where) => {
   else if (value && typeof value === "object") for (const [k, v] of Object.entries(value)) walk(v, `${where}.${k}`);
 };
 for (const key of ["displayName", "description"]) walk(manifest[key], `package.json ${key}`);
-for (const part of ["viewsContainers", "views", "viewsWelcome", "commands", "configuration"]) {
+for (const part of ["viewsContainers", "views", "viewsWelcome", "walkthroughs", "commands", "configuration"]) {
   walk(manifest.contributes[part], `package.json ${part}`);
 }
-for (const folder of ["src", "webview"]) {
-  for (const name of readdirSync(folder, { recursive: true })) {
-    const file = path.join(folder, String(name));
-    if (!/\.(ts|tsx)$/.test(file)) continue;
-    readFileSync(file, "utf8").split("\n").forEach((line, index) => {
-      if (/^\s*(\/\/|\*|\/\*|import )/.test(line) || line.includes("// not user-facing")) return;
-      for (const m of line.matchAll(/"([^"\n]*)"|`([^`\n]*)`|>([^<>{}\n]+)</g)) {
-        texts.push({ where: `${file}:${index + 1}`, text: m[1] ?? m[2] ?? m[3] });
-      }
-    });
-  }
+// The walkthroughs' one source, the playground's words included (CAP-25).
+walk(JSON.parse(readFileSync("walkthroughs/tours.json", "utf8")).tours, "walkthroughs/tours.json");
+// The extension and webviews; of the playground, which plays the part of VS Code, its walkthroughs panel.
+const sources = [...["src", "webview"].flatMap((folder) => readdirSync(folder, { recursive: true }).map((name) => path.join(folder, String(name)))), "play/tours.ts"];
+for (const file of sources) {
+  if (!/\.(ts|tsx)$/.test(file)) continue;
+  readFileSync(file, "utf8").split("\n").forEach((line, index) => {
+    if (/^\s*(\/\/|\*|\/\*|import )/.test(line) || line.includes("// not user-facing")) return;
+    for (const m of line.matchAll(/"([^"\n]*)"|`([^`\n]*)`|>([^<>{}\n]+)</g)) {
+      texts.push({ where: `${file}:${index + 1}`, text: m[1] ?? m[2] ?? m[3] });
+    }
+  });
 }
 
 const problems = [];

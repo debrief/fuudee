@@ -22,11 +22,12 @@ import { playWordNarrative } from "./narrativeword.mjs";
 import { playFrequencies } from "./frequencies.mjs";
 import { playCollation, vscodeCoverageView } from "./collation.mjs";
 import { playExport } from "./export.mjs";
+import { playDemo, playTours, speedRun } from "./onboarding.mjs";
 
 const root = path.resolve(process.argv[2] ?? "../site/docs/play");
 const site = process.argv[3] ? path.resolve(process.argv[3]) : undefined;
 const shots = process.env.DEBRIEF_SCREENSHOTS;
-const TYPES = { ".html": "text/html", ".js": "text/javascript", ".css": "text/css", ".json": "application/json", ".py": "text/plain", ".whl": "application/octet-stream", ".geojson": "application/json" };
+const TYPES = { ".html": "text/html", ".js": "text/javascript", ".css": "text/css", ".json": "application/json", ".py": "text/plain", ".whl": "application/octet-stream", ".geojson": "application/json", ".svg": "image/svg+xml" };
 function serve(folder) {
   return createServer(async (req, res) => {
     let file = path.join(folder, decodeURIComponent(new URL(req.url, "http://x").pathname));
@@ -67,10 +68,13 @@ try {
   assert.equal(await page.locator("#undo").isEnabled(), true);
   assert.match(await history(), /step 1/);
   await shot("play-01-ready");
+  // The walkthroughs folded away, as a reader who knows Debrief would: what follows is laid out as
+  // before them, and their steps, ticking as it plays, move nothing. Played in onboarding.mjs.
+  await page.locator("#panel-tour button.fold").click();
 
   // The time controller is at the top of the side column; the map has no control of its own.
   const timeLabel = () => text("#timebar .time-label");
-  assert.equal(await page.locator("#side section").first().getAttribute("id"), "panel-time");
+  assert.equal(await page.locator("#side section:not(#panel-tour)").first().getAttribute("id"), "panel-time"); // below the walkthroughs
   assert.equal(await page.frameLocator(".frame-map").locator(".tc-window, .tc-current").count(), 0);
   const timeBefore = await timeLabel();
   const markers = () => page.frameLocator(".frame-map").locator(".now").count();
@@ -409,12 +413,25 @@ try {
   }
   await cdnBlocked();
   if (site) await playFromThePost();
+  // The walkthroughs, each start to finish on a fresh copy, then the onboarding trial's tasks
+  // as a speed run, each from a fresh page (CAP-25, NFR-09); then the web demo (DEP-06, DEP-07).
+  await page.goto(`${BASE}/index.html`);
+  await ready();
+  await playTours(page, shot, root);
+  await page.goto(`${BASE}/index.html`);
+  await ready();
+  await speedRun(page, root);
+  if (site) {
+    const siteServer = serve(site);
+    await playDemo(browser, `http://127.0.0.1:${siteServer.address().port}`, shot);
+    siteServer.close();
+  }
   // Last, as it fills a plot with sixty thousand entries: the Timeline at scale (NFR-06).
   await page.goto(`${BASE}/index.html`);
   await ready();
   await playNarrativeAtScale(page, shot);
   assert.deepEqual(errors, []);
-  console.log(`Playground played: map selection, keyboard, the Tote, tools, undo, crash recovery, conflict, annotations, drawing, tracks, shear and stretch, cleaning, single fixes, the narrative in the Timeline (and at 60,000 entries), narrative from Word and the Timeline's extras, labels, symbols and arrows, collation, import, narrow, CDN blocked${site ? ", and from a blog post" : ""}.`);
+  console.log(`Playground played: map selection, keyboard, the Tote, tools, undo, crash recovery, conflict, annotations, drawing, tracks, shear and stretch, cleaning, single fixes, the narrative in the Timeline (and at 60,000 entries), narrative from Word and the Timeline's extras, labels, symbols and arrows, collation, import, narrow, CDN blocked, the walkthroughs and the onboarding speed run${site ? ", from a blog post, and the web demo" : ""}.`);
 
   /**
    * The time controller (CAP-28): drag the window and the map shows only it, at

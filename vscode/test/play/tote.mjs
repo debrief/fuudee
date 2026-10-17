@@ -327,7 +327,8 @@ export async function playFolding(page) {
   // History's Undo and Redo stay beside its heading, folded or not.
   assert.equal(await page.locator("#undo").isVisible(), true);
   await page.locator("#side").evaluate((s) => (s.scrollTop = 0));
-  assert.deepEqual(await folded(), Object.keys(PANELS).map((id) => `panel-${id}`).sort());
+  // The walkthroughs too: play.mjs folds them first (onboarding.mjs plays them).
+  assert.deepEqual(await folded(), [...Object.keys(PANELS), "tour"].map((id) => `panel-${id}`).sort());
 
   // Remembered: the playground opened again in this browser has them folded.
   // (A second window on the same storage: the browser's state carried over.)
@@ -358,7 +359,7 @@ export async function playFolding(page) {
     await side.getByRole("heading", { level: 2, name: named(name) }).getByRole("button").focus();
     await page.keyboard.press("Enter");
   }
-  assert.deepEqual(await folded(), []);
+  assert.deepEqual(await folded(), ["panel-tour"]); // the walkthroughs stay folded, as play.mjs left them
   for (const id of Object.keys(PANELS)) assert.equal(await page.locator(`#body-${id}`).evaluate((body) => body.hidden), false, `panel-${id} open`);
 }
 

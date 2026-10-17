@@ -4,6 +4,8 @@ This is Debrief v4 running in your browser: the same map, tool forms and results
 
 <div class="debrief-demo" data-demo=""></div>
 
+New to Debrief? Start with **Walkthroughs**, at the top of the side column: four short walkthroughs, each on a fresh copy of the sample, each step ticked as you do it. The same page runs full screen as the <a href="../demo/">web demo</a>.
+
 ## Things to try
 
 - **Select and run a tool.** Click **BLUE ONE** in the outline, then Ctrl-click **RED ONE**. **Closest approach** is now on offer. Run it: the line appears on the map, the result opens beside it, and current time moves to the moment it found.

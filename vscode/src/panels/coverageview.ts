@@ -33,6 +33,8 @@ export class CoverageView implements vscode.WebviewViewProvider {
   private ready = false;
   /** The coverage last shown, for tests and agents. */
   report?: CoverageReport;
+  /** Told when the analyst can see a plot's coverage: the view on screen, showing it (a walkthrough's step, CAP-25). */
+  shown?: () => void;
 
   constructor(
     private readonly extension: vscode.Uri,
@@ -116,5 +118,6 @@ export class CoverageView implements vscode.WebviewViewProvider {
     if (!this.view || !this.ready) return;
     void this.view.webview.postMessage(checkMessage(message));
     if (message.kind === "show_coverage" && !("message" in message)) startup.shown(COVERAGE_VIEW, !!message.coverage);
+    if (message.kind === "show_coverage" && message.coverage && this.view.visible) this.shown?.();
   }
 }

@@ -21,6 +21,7 @@ Worked patterns applied the same way across hosts, tools and agents (DEV-08). Ea
 | [Timeline and narrative](timeline.md) | Phase 3 | Written (part A: narrative entries, REP and .dpf import, the Timeline following current time, filter, search, editing, scale) |
 | [Collation](collation.md) | Phase 3 | Written (coverage, platforms across items, source preference per period, new data, taking it, review flags) |
 | [Exported images](export.md) | Phase 3 | Written (the map as an image with an ID naming the plot and the revision, the footer, the export log; finding an image's source, read-only) |
+| [Walkthroughs](walkthroughs.md) | Phase 3 | Written (four walkthroughs on fresh copies of the sample, each step ticked by doing it; the same words in VS Code's Get Started page and the playground; the web demo) |
 | [Keyboard equivalents](keyboard-equivalents.md) | Phase 3 | Partly written (annotations, tracks, the Tote, the Timeline, collation, exported images) |
 
 Analysts review the Phase 1 models before they are built.

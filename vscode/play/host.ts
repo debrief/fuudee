@@ -10,8 +10,12 @@
  *
  * Query parameters choose what an embedded demo shows:
  *   plot=serial-1         the sample serial to open
- *   panels=tote,timeline,tools,history,export,try,import   the side panels, in this order (all by default;
- *                         the Tote, when listed, is always under the time controller)
+ *   panels=tour,tote,timeline,tools,history,export,try,import   the side panels, in this order (all by default;
+ *                         the Tote, when listed, is always under the time controller, and the
+ *                         walkthroughs always above it)
+ *
+ * The web demo (demo.mjs) is this page, full screen at /demo/, using the playground's files.
+ * Files the reader opens, there and here, are read in the browser only (DEP-07).
  *
  * Every side panel folds away by its heading (fold.ts). The playground remembers which are
  * folded in this browser; a demo that chooses its panels starts with them all open, and
@@ -45,6 +49,7 @@ import { formatQuantity, figureIdProblem } from "@debrief/kernel";
 import type { FigureSource, ImageExport, RenderedImage, RevisionShown } from "@debrief/schemas";
 import { fileNameFor, PRESETS, type ImageFormat, type ImagePreset, type ImageTheme } from "../webview/exportlogic.js";
 import { describeExported, describeSource, READ_ONLY, rememberedOf, revisionOf, startingChoice, type ExportChoice } from "../src/figures.js";
+import { callEvent, TourPanel, type TourAction } from "./tours.js";
 
 type Feature = PlotFeature;
 interface Step {
@@ -72,7 +77,7 @@ interface Opened {
 }
 
 const params = new URLSearchParams(location.search);
-const panelOrder = (params.get("panels") ?? "tote,timeline,catalogue,coverage,tools,history,export,try,import").split(",");
+const panelOrder = (params.get("panels") ?? "tour,tote,timeline,catalogue,coverage,tools,history,export,try,import").split(",");
 const panels = new Set(panelOrder);
 const startPlot = params.get("plot") ?? "serial-1";
 /** Every side panel folds by its heading; remembered in this browser, except in a demo that chooses its panels. */
@@ -80,9 +85,12 @@ const folds = new Folds(Array.from(document.querySelectorAll<HTMLElement>("#side
 const theme = matchMedia("(prefers-color-scheme: light)").matches || params.get("theme") === "light" ? "light" : "dark";
 if (theme === "light") document.documentElement.classList.add("light");
 const $ = <T extends HTMLElement>(id: string) => document.getElementById(id) as T;
+/** An element that may not be on the page, or undefined. */
+const optional = <T extends HTMLElement>(id: string) => (document.getElementById(id) as T | null) ?? undefined;
 
 // --- Python, in a worker ----------------------------------------------------------
-const worker = new Worker(new URL("python.worker.js", location.href), { type: "module" });
+// From the page's base: the web demo at /demo/ runs the playground's files (its <base>).
+const worker = new Worker(new URL("python.worker.js", document.baseURI), { type: "module" });
 let nextId = 0;
 const waiting = new Map<number, { resolve: (v: string) => void; reject: (e: Error) => void }>();
 worker.onmessage = ({ data }) => {
@@ -97,8 +105,12 @@ const CHANGES_PLOT = new Set(["run", "move", "restyle", "frequencies", "annotate
 function python(call: string, ...args: unknown[]): Promise<string> {
   if (opened?.revision && CHANGES_PLOT.has(call)) return Promise.resolve(JSON.stringify({ error: READ_ONLY }));
   const id = nextId++;
-  worker.postMessage({ id, call, args, base: new URL(".", location.href).href });
-  return new Promise((resolve, reject) => waiting.set(id, { resolve, reject }));
+  worker.postMessage({ id, call, args, base: new URL(".", document.baseURI).href });
+  return new Promise<string>((resolve, reject) => waiting.set(id, { resolve, reject })).then((result) => {
+    // What the reader did, for the walkthroughs: a change that succeeded ticks its step (CAP-25).
+    tourEvent(callEvent(call, args, result));
+    return result;
+  });
 }
 const pythonJson = async <T>(call: string, ...args: unknown[]) => JSON.parse(await python(call, ...args)) as T;
 /** Whether Python has started: until then, only the map and outline work. */
@@ -134,6 +146,7 @@ let timePending = false;
 const timeControl = new TimeControl($("timebar"), {
   moved: (moved) => {
     time = moved;
+    tourEvent("timeMoved");
     refreshTote(); // asked at once: the Tote keeps pace by never queueing (NFR-04)
     timelineControl.setTime(time); // the Timeline follows; it draws at most once a frame
     coverageControl.setTime(Date.parse(moved.current)); // a line across Coverage's bars
@@ -221,6 +234,7 @@ async function chooseTote(view: ToteView): Promise<void> {
   toteToMap();
   refreshTote();
   await saveView({ tote: view });
+  if (view.primary && view.secondaries?.length && sameTote(toteOf(opened?.plot), view)) tourEvent("toteChosen");
   // Saved (the island has it now) or not (what is saved is shown again); unless the reader
   // has chosen again meanwhile, which is still being saved and stays on screen.
   if (toteChoosing !== view) return;
@@ -384,8 +398,15 @@ window.addEventListener("message", (event) => {
     return;
   }
   if (name === "map") {
-    if (message.kind === "selection_changed") void select((message.selection as { feature_ids: string[] }).feature_ids, true);
-    if (message.kind === "time_changed") showTime(message.time as TimeState);
+    if (message.kind === "selection_changed") {
+      const ids = (message.selection as { feature_ids: string[] }).feature_ids;
+      if (ids.length) tourEvent("selected");
+      void select(ids, true);
+    }
+    if (message.kind === "time_changed") {
+      tourEvent("timeMoved");
+      showTime(message.time as TimeState);
+    }
     if (message.kind === "viewport_changed") viewport = (message.viewport as { bbox: number[] }).bbox;
     if (message.kind === "show_hidden" && opened) void restyle(hiddenIds(opened.plot), { hidden: false });
     if (message.kind === "edit_annotation" && message.annotation) {
@@ -1450,6 +1471,7 @@ function goToTime(id: string): void {
   const range = time.range;
   const span = { start: at < range.start ? at : range.start, end: at > range.end ? at : range.end };
   showToolTime({ time: { current: at, range: span } }, opened.item.id, false);
+  tourEvent("timelineChosen");
 }
 /** Add, change or delete narrative entries, or read a REP file's narrative in, as debrief/add_narrative and the rest do. */
 async function narrate(change: Record<string, unknown>): Promise<{ error?: string; feature?: string; entries?: number; omitted?: string[] }> {
@@ -1523,8 +1545,10 @@ function renderOutline(): void {
           const set = describeSetFrequencies(f.properties);
           if (set) row.append(Object.assign(document.createElement("span"), { className: "detail freq-detail", textContent: set }));
         }
-        const choose = (add: boolean) =>
+        const choose = (add: boolean) => {
+          tourEvent("selected");
           void select(add ? (selection.includes(f.id) ? selection.filter((i) => i !== f.id) : [...selection, f.id]) : [f.id]);
+        };
         row.onclick = (e) => choose(e.ctrlKey || e.metaKey || e.shiftKey);
         if (f.properties.kind === "track") {
           // Its menu: right-click, press and hold on a touch screen, or Shift+F10 (the Tote, CAP-06).
@@ -1778,6 +1802,7 @@ async function refreshCollation(): Promise<void> {
   reviewFlags = answer.flags ?? [];
   coverageControl.show(coverage);
   coverageControl.setTime(time ? Date.parse(time.current) : undefined);
+  coverageSeen();
   renderItems();
   const fresh = reviewFlags.filter((f) => !flagsSaid.has(`${f.item}:${f.revised.map((r) => r.revision).join()}`));
   for (const f of fresh) flagsSaid.add(`${f.item}:${f.revised.map((r) => r.revision).join()}`);
@@ -2054,17 +2079,19 @@ function setUpExport(): void {
 setUpExport();
 
 // --- Wiring -----------------------------------------------------------------------
-const OPTIONAL = ["tote", "timeline", "catalogue", "coverage", "tools", "history", "export", "try", "import"];
+const OPTIONAL = ["tour", "tote", "timeline", "catalogue", "coverage", "tools", "history", "export", "try", "import"];
 for (const panel of OPTIONAL) $(`panel-${panel}`).hidden = !panels.has(panel);
 // The panels in the order the demo lists them, after the plot and its outline; the Tote stays
-// under the time controller, since both follow current time.
-for (const panel of panelOrder) if (OPTIONAL.includes(panel) && panel !== "tote") $("side").append($(`panel-${panel}`));
+// under the time controller, since both follow current time, and the walkthroughs above them.
+for (const panel of panelOrder) if (OPTIONAL.includes(panel) && panel !== "tote" && panel !== "tour") $("side").append($(`panel-${panel}`));
 /** History, Try and Import need Python: off until it is ready. */
 const NEEDS_PYTHON = ["export-image", "find-file", "find-id", "find-id-go", "new-data", "revise", "undo", "redo", "track-frequencies", "move-track", "rotate-track", "shear-track", "stretch-track", "split-track", "merge-tracks", "find-jumps", "smooth-track", "fix-list", "plotting-mode", "ask-again", "glitches", "crash", "colleague", "colleague-window", "colleague-during", "file", "narrative-file", "colour", "hide", "show", "add-annotation", "edit-annotation", "delete-annotation", "north-arrow"];
 function needsPython(on: boolean): void {
   for (const id of NEEDS_PYTHON) $<HTMLButtonElement | HTMLInputElement>(id).disabled = !on;
 }
 needsPython(false);
+// The walkthroughs above the time controller: where a newcomer starts.
+if (panels.has("tour")) $("side").prepend($("panel-tour"));
 $("undo").onclick = () => void move("undo");
 $("redo").onclick = () => void move("redo");
 $<HTMLSelectElement>("plots").onchange = (e) => void openPlot((e.target as HTMLSelectElement).value);
@@ -2144,8 +2171,7 @@ $("ask-again").onclick = async () => {
   toast("Debrief will ask how each track you import is plotted.");
 };
 /** How each track of a REP file is plotted: asked, one track at a time, unless a choice is remembered. Undefined if the reader stopped. */
-async function askModes(name: string, data: Uint8Array): Promise<{ modes: Record<string, PlottingMode>; remembered: boolean } | undefined> {
-  const tracks = await pythonJson<string[]>("rep_tracks", name, data);
+async function askModes(tracks: string[]): Promise<{ modes: Record<string, PlottingMode>; remembered: boolean } | undefined> {
   const remembered = (await python("import_mode")) as "ask" | PlottingMode;
   // As legacy Debrief asked: over the ground or by dead reckoning, and apart from that a box to tick.
   return chooseModes(
@@ -2266,7 +2292,7 @@ $<HTMLInputElement>("file").onchange = async (e) => {
       trackName = values.name;
     }
   }
-  const asked = await askModes(file.name, data);
+  const asked = await askModes(await pythonJson<string[]>("rep_tracks", file.name, data));
   if (!asked) return toast("Nothing was imported.");
   status(`Importing ${file.name}…`, true);
   const report = await pythonJson<{
@@ -2289,6 +2315,11 @@ $<HTMLInputElement>("file").onchange = async (e) => {
     // A Debrief plot file: its whole history came with it (decision 13 Oct).
     return toast(`Added ${file.name} with its history: ${count(report.steps ?? 0, "step")}, undo and redo included.`);
   }
+  showImported(file.name, report);
+};
+
+/** What an import brought in, beside the map; nothing is dropped silently (EXT-15). */
+function showImported(name: string, report: { tracks: string[]; fixes: number; annotations?: number; narrative_entries?: number; omitted: string[]; notes?: string[] }): void {
   const parts = [count(report.tracks.length, "track"), count(report.fixes, "fix", "fixes")];
   if (report.annotations) parts.push(count(report.annotations, "annotation"));
   if (report.narrative_entries) parts.push(count(report.narrative_entries, "narrative entry", "narrative entries"));
@@ -2296,7 +2327,7 @@ $<HTMLInputElement>("file").onchange = async (e) => {
   const panel = document.createElement("div");
   panel.className = "omitted-panel";
   const heading = document.createElement("h2");
-  heading.textContent = `${file.name}: imported ${parts.join(", ")}`;
+  heading.textContent = `${name}: imported ${parts.join(", ")}`;
   const lead = document.createElement("p");
   lead.textContent = report.omitted.length
     ? `Not imported (${report.omitted.length}), and recorded in the plot's provenance:`
@@ -2309,7 +2340,112 @@ $<HTMLInputElement>("file").onchange = async (e) => {
   modes.replaceChildren(...(report.notes ?? []).map((line) => Object.assign(document.createElement("li"), { textContent: line })));
   panel.append(heading, modes, lead, list);
   showSide("Import", panel);
-};
+}
+
+// --- Walkthroughs (CAP-25): VS Code's Get Started page, as a panel; the same words -----------
+// Each step ticks when the reader does it (tourEvent, from what happened). Its button takes
+// the reader to the right place, or opens a fresh copy of serial 1 for the walkthrough.
+const READY = "Ready. Everything runs in your browser; nothing is sent anywhere.";
+const TOUR_KEY = "debrief.play.tour";
+const tourPanel = panels.has("tour")
+  ? new TourPanel($("tour"), (actions) => tourAct(actions), params.has("panels") ? undefined : {
+      load: () => {
+        try {
+          return window.localStorage.getItem(TOUR_KEY) ?? undefined;
+        } catch {
+          return undefined;
+        }
+      },
+      save: (tour) => {
+        try {
+          window.localStorage.setItem(TOUR_KEY, tour);
+        } catch {
+          // Not remembered: the walkthrough is still shown on this visit.
+        }
+      },
+    }, (file) => fetch(new URL(`walkthroughs/${file}`, document.baseURI)).then((r) => (r.ok ? r.text() : Promise.reject(new Error(file)))))
+  : undefined;
+function tourEvent(event: string | undefined): void {
+  tourPanel?.doneWith(event);
+}
+(window as unknown as { debriefTours: () => unknown }).debriefTours = () => ({ tour: tourPanel?.current, events: tourPanel?.events ?? [], coverageOnScreen, coverage: !!coverage, open: folds.isOpen("panel-coverage") });
+/** Coverage on screen, showing the open plot's: a walkthrough's step is to look at it. */
+let coverageOnScreen = false;
+function coverageSeen(): void {
+  if (coverageOnScreen && coverage && folds.isOpen("panel-coverage") && !$("panel-coverage").hidden) tourEvent("coverageShown");
+}
+new IntersectionObserver((entries) => {
+  // Enough of it in sight to read a track or two: a study's Coverage can be far taller than the screen.
+  coverageOnScreen = entries.some((e) => e.isIntersecting && e.intersectionRect.height >= Math.min(120, e.boundingClientRect.height));
+  coverageSeen();
+}, { threshold: [0, 0.02, 0.05, 0.1, 0.25, 0.5, 1] }).observe($("coverage"));
+$("panel-coverage").addEventListener("fold", () => coverageSeen());
+
+/** Bring a panel or a control into view, opening its panel; click it, or put the keyboard on it. */
+function reveal(id: string, click: boolean): void {
+  const element = optional(id);
+  if (!element) return toast("That is not on this page.", "warning");
+  const section = element.matches("section.panel") ? element : element.closest<HTMLElement>("section.panel");
+  if (section) {
+    section.hidden = false;
+    folds.setOpen(section.id, true);
+  }
+  // A panel: its heading; a list: its first row; otherwise the control itself.
+  const target =
+    element.matches("section.panel")
+      ? (element.querySelector<HTMLElement>("button.fold") ?? element)
+      : element.matches("button, input, select, textarea, [tabindex]")
+        ? element
+        : (element.querySelector<HTMLElement>("button, input, select, [tabindex]") ?? element);
+  // A panel shown from its top, so what it holds is in sight; a control just brought into sight.
+  if (element === section) section.scrollIntoView({ block: "start" });
+  else target.scrollIntoView({ block: "nearest" });
+  if (click) target.click();
+  else target.focus({ preventScroll: true });
+}
+/** What a step's button does, in order. */
+async function tourAct(actions: TourAction[]): Promise<void> {
+  for (const action of actions) {
+    if (action.verb === "open") await openTourCopy(action.target);
+    else if (action.verb === "focus") reveal(action.target, false);
+    else if (action.verb === "click") reveal(action.target, true);
+    else if (action.verb === "select") await select(action.target.split(",").filter((id) => features().some((f) => f.id === id)));
+    else if (action.verb === "import-log") await importTourLog();
+  }
+}
+/** A fresh copy of serial 1 for a walkthrough, made from the sample as shipped, opened. */
+async function openTourCopy(tour: string): Promise<void> {
+  if (!pythonReady) return toast("The walkthrough's copy can be made once Python is ready.", "warning");
+  status("Making a copy of serial 1 for the walkthrough…", true);
+  const made = await pythonJson<{ item?: string; title?: string; error?: string }>("tour_copy", tour);
+  status(READY);
+  if (made.error || !made.item) return toast(made.error ?? "The walkthrough's copy could not be made.", "warning");
+  await refreshPlots();
+  await openPlot(made.item);
+  toast(`${made.title}: a copy of serial 1 for this walkthrough, under Plot. The sample itself is unchanged.`);
+  tourEvent(`${tour}Opened`);
+}
+/** Import and collate: the navigation log that came with the walkthrough's copy, imported as a REP file is, into the catalogue. */
+async function importTourLog(): Promise<void> {
+  if (!pythonReady || !opened) return;
+  const log = await pythonJson<{ name?: string; tracks?: string[]; error?: string }>("tour_log_tracks");
+  if (log.error || !log.tracks) return toast(log.error ?? "The navigation log could not be read.", "warning");
+  const asked = await askModes(log.tracks);
+  if (!asked) return toast("Nothing was imported.");
+  status(`Importing ${log.name}…`, true);
+  const report = await pythonJson<{ item?: string; tracks: string[]; fixes: number; omitted: string[]; notes?: string[]; error?: string }>(
+    "import_tour_log",
+    Object.keys(asked.modes).length ? JSON.stringify(asked.modes) : null,
+    asked.remembered ? REMEMBERED_IN_PLAYGROUND : null,
+  );
+  status(READY);
+  if (report.error || !report.item) return toast(report.error ?? "The navigation log could not be imported.", "warning");
+  // The plot stays open: the log is new data for it, in the catalogue.
+  await refreshPlots();
+  await refreshCollation();
+  folds.setOpen("panel-catalogue", true);
+  showImported(log.name ?? "The navigation log", report);
+}
 
 /** Show the sample plot straight from the site while Python starts, so the map is never empty. */
 async function preview(item: string): Promise<void> {

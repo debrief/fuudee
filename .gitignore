@@ -165,3 +165,5 @@ vscode/.vscode-test/
 
 # The blog playground, built by scripts/build_playground.sh
 site/docs/play/
+# The web demo beside it, made from the playground's page by vscode/scripts/build-play.mjs
+site/docs/demo/

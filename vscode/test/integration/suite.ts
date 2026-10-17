@@ -12,6 +12,7 @@ import path from "node:path";
 import * as vscode from "vscode";
 import type { AnnotationProperties } from "@debrief/schemas";
 import type { DebriefApi } from "../../src/extension.js";
+import { playWalkthroughs } from "./walkthroughs.js";
 
 const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
 
@@ -878,6 +879,9 @@ export async function run(): Promise<void> {
   await vscode.commands.executeCommand("debrief.outline.focus");
   await sleep(2000);
   await screenshot("17-imported-dpf");
+
+  // --- Walkthroughs (CAP-25): the Get Started page, each on a fresh copy, each step ticked by doing it ---
+  await playWalkthroughs(api, current.store, { waitFor, screenshot, sleep });
 }
 
 /**

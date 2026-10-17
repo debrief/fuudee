@@ -289,7 +289,7 @@ Capabilities are replaceable and are where feature requests land. Each shall be 
 
 - **CAP-23** Analysts should be able to ask for an operation in plain English. Debrief shall show the proposed tool and its parameters, and require confirmation before applying them. The language model shall run locally, so the feature works offline (PRN-06). Until a local model is available, OUT-05 shall be met by CAP-24 and CAP-25 alone. Analyst machines are laptops without GPUs, so a local model is unlikely soon (proxy; section 12.3).
 - **CAP-24** Each tool's declaration (TL-06) shall carry a short user-facing explanation of what it does and any judgement it involves, shown on its parameter form. This applies to core tools and domain packs; scientist libraries should follow it.
-- **CAP-25** Debrief shall provide guided first-use walkthroughs for common tasks, using the demonstration sample data. They depend on convincing sample data replacing the 1995 serial (DEP-07).
+- **CAP-25** Debrief shall provide guided first-use walkthroughs for common tasks, using the demonstration sample data. They depend on convincing sample data replacing the 1995 serial (DEP-07). *Note (product owner, 17 Oct 2026):* four walkthroughs (open and explore a serial; import and collate; tidy a track; annotate and export a figure), each on a fresh copy of the sample, never the sample itself; native in each host (VS Code's walkthroughs on its Get Started page, a matching panel in the web build) from one source of words, each step ticked when the analyst does it.
 
 ### 7.10 Cross-plot analysis
 
@@ -370,7 +370,7 @@ Analysts accept a visible lag on busy plots, but not a stall. Requirements are s
 
 ### 10.5 Onboarding
 
-- **NFR-09** An analyst with domain knowledge but no Debrief training should import a sample serial, compose a storyboard and export it within an hour (OUT-02, OUT-05).
+- **NFR-09** An analyst with domain knowledge but no Debrief training should import a sample serial, compose a storyboard and export it within an hour (OUT-02, OUT-05). *Note (product owner, 17 Oct 2026):* until the storyboard exists (Phase 4), a trial of what exists (import, tidy, annotate and export a traceable figure) against a provisional 40 minutes; the full one-hour trial reruns in Phase 4. The trial is pending (docs/notes/onboarding-trial.md).
 
 ### 10.6 Data integrity and recovery
 
@@ -412,8 +412,8 @@ Legacy Debrief is already accredited on the target network, so the path is a kno
 
 ### 11.4 Public demonstration instance
 
-- **DEP-06** An unclassified web-hosted instance shall be available to anyone during development, for review and demonstration.
-- **DEP-07** The public instance shall never hold real data. It shall ship with fixed sample data and have no upload capability.
+- **DEP-06** An unclassified web-hosted instance shall be available to anyone during development, for review and demonstration. *Note (17 Oct 2026):* the web demo, full screen at /demo/ on the documentation site, with every panel and the walkthroughs.
+- **DEP-07** The public instance shall ship with fixed sample data. It may open files the analyst chooses, read only in the browser, never sent or stored. *(Amended by the product owner, 17 Oct 2026; it said the instance shall never hold real data and have no upload capability. Nothing the analyst opens leaves their browser or outlives the tab, which is tested.)*
 - **DEP-08** Sample data shall be a hybrid: open AIS data for the background picture, with a synthesised blue, red and sensor layer and a scripted narrative on top, covering several serials. It replaces the 1995 single-serial sample. It shall be built before the first graphical milestone, since the demonstration instance (DEP-06), the walkthroughs (CAP-25) and blog examples (DEV-06) depend on it, and shall carry its own provenance as a worked example of SUB-18.
 
 ### 11.5 Development practice
