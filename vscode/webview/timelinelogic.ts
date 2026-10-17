@@ -377,6 +377,19 @@ export function parseHighlights(text: string): string[] {
 }
 
 /** The view kept from an earlier visit, checked: anything unreadable is the default. */
+/**
+ * What of the reader's Timeline may be kept where nothing that came from a plot may be (the web
+ * demo, whose files are the reader's own; panel review, 17 Oct 2026): the kinds of entry shown and
+ * the view's own settings (text size, wrapping, columns, choosing moving time). Never sources,
+ * types or highlighted phrases, which are words from the plot.
+ */
+export function contentFree(saved: unknown): { kinds: string[]; view: Omit<ViewSettings, "highlights"> } {
+  const raw = saved && typeof saved === "object" ? (saved as { kinds?: unknown; view?: unknown }) : {};
+  const kinds = Array.isArray(raw.kinds) ? raw.kinds.filter((k): k is string => typeof k === "string") : [];
+  const { highlights: _, ...view } = readView(raw.view);
+  return { kinds, view };
+}
+
 export function readView(raw: unknown): ViewSettings {
   if (!raw || typeof raw !== "object") return { ...DEFAULT_VIEW };
   const value = raw as Record<string, unknown>;

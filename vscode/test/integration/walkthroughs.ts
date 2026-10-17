@@ -30,7 +30,7 @@ function snapshot(folder: string): Record<string, string> {
   return out;
 }
 
-export async function playWalkthroughs(api: DebriefApi, others: { location: string }, { waitFor, screenshot, sleep }: Helpers): Promise<void> {
+export async function playWalkthroughs(api: DebriefApi, others: { id: string; location: string }, { waitFor, screenshot, sleep }: Helpers): Promise<void> {
   const extension = vscode.extensions.getExtension<DebriefApi>("debrief.debrief")!;
   const contributed = extension.packageJSON.contributes.walkthroughs as { id: string; title: string; steps: Step[] }[];
   assert.deepEqual(contributed.map((w) => w.title), ["Open and explore a serial", "Import and collate", "Tidy a track", "Annotate and export a figure"]);
@@ -48,32 +48,59 @@ export async function playWalkthroughs(api: DebriefApi, others: { location: stri
     }
   }
   assert.equal(new Set(events).size, 20);
+  // The Get Started page's own commands the extension also ticks steps with: not VS Code's API, so checked here.
+  const known = await vscode.commands.getCommands(true);
+  assert.ok(known.includes("welcome.markStepComplete") && known.includes("welcome.markStepIncomplete"), "VS Code still has the commands that mark a walkthrough's step");
   // Nothing is ticked until it is done (this window has not opened a walkthrough's copy).
   const seen = () => api.walkthroughEvents();
   const said = (event: string) => waitFor(`the step's event ${event}`, () => seen().includes(event) || undefined, 60000);
+  /** Not ticked, after the time a tick would take. */
+  const notSaid = async (event: string, why: string) => {
+    await sleep(800);
+    assert.ok(!seen().includes(event), why);
+  };
+  /** As the map sends it when the analyst selects or moves time there. */
+  const byHand = (message: Record<string, unknown>) => api.fromMap!(message);
   for (const tour of ["explore", "collate", "tidy", "annotate"]) assert.ok(!seen().includes(`${tour}Opened`));
 
   // The other catalogues, the analyst's own, are never touched by a walkthrough.
-  const before = snapshot(others.location);
+  let before = snapshot(others.location);
   const steps = () => vscode.commands.executeCommand<{ notes?: string[] }[]>("debrief.historySteps");
   const open = async (tour: string, fresh = true) => {
     assert.equal(await vscode.commands.executeCommand("debrief.walkthrough.open", tour, { fresh }), undefined);
+    return opened(tour);
+  };
+  const opened = async (tour: string) => {
     await waitFor(`the copy for ${tour}`, () => (api.session.current?.item.id === `serial-1-${tour}` && api.mapShowing() === `serial-1-${tour}`) || undefined, 120000);
     await said(`${tour}Opened`);
-    const opened = api.session.current!;
-    assert.equal(opened.item.properties.title, `Serial 1: ${contributed.find((w) => w.id === tour)!.title}`);
-    assert.equal(opened.store.title, `Walkthrough: ${contributed.find((w) => w.id === tour)!.title}`);
-    return opened;
+    const copy = api.session.current!;
+    assert.equal(copy.item.properties.title, `Serial 1: ${contributed.find((w) => w.id === tour)!.title}`);
+    assert.equal(copy.store.title, `Walkthrough: ${contributed.find((w) => w.id === tour)!.title}`);
+    return copy;
   };
+  // A step's button before its walkthrough's copy exists acts on nothing, and says why.
+  assert.match(String(await vscode.commands.executeCommand("debrief.walkthrough.do", "explore", "debrief.outline.focus")), /^Open a copy of serial 1 for Open and explore a serial first/);
 
   // --- Open and explore a serial ---
-  const explore = await open("explore");
+  // Pressed twice at once: one copy made, the second press told so.
+  const twice = await Promise.all([vscode.commands.executeCommand("debrief.walkthrough.open", "explore", { fresh: true }), vscode.commands.executeCommand("debrief.walkthrough.open", "explore", { fresh: true })]);
+  assert.deepEqual(twice.map(String).sort(), ["The copy is being made already.", "undefined"]);
+  const explore = await opened("explore");
   const period = api.getState()!.time.range;
-  // Looking does not tick: a time a tool or the plot set is not the analyst's.
+  // Looking does not tick: a time a tool, a command or the plot set is not the analyst's.
   assert.ok(!seen().includes("timeMoved"));
-  assert.equal(await vscode.commands.executeCommand("debrief.setState", { time: { current: new Date(Date.parse(period.start) + 3_600_000).toISOString(), range: period } }), undefined);
+  const later = { current: new Date(Date.parse(period.start) + 3_600_000).toISOString(), range: period };
+  assert.equal(await vscode.commands.executeCommand("debrief.setState", { time: later }), undefined);
+  await notSaid("timeMoved", "a time set by a command is not the analyst moving it");
+  // A different time: the same one again would change nothing.
+  await byHand({ kind: "time_changed", time: { ...later, current: new Date(Date.parse(later.current) + 60_000).toISOString() } });
   await said("timeMoved");
+  // Debrief's own selections (by command, as after adding an annotation) and one track are not the step.
   await vscode.commands.executeCommand("debrief.select", ["track-blue-one", "track-red-one"]);
+  await notSaid("selected", "a selection made by command");
+  await byHand({ kind: "selection_changed", selection: { plot: explore.item.id, feature_ids: ["track-blue-one"] } });
+  await notSaid("selected", "one track selected");
+  await byHand({ kind: "selection_changed", selection: { plot: explore.item.id, feature_ids: ["track-blue-one", "track-red-one"] } });
   await said("selected");
   assert.ok(!seen().includes("toteChosen"));
   assert.equal(await vscode.commands.executeCommand("debrief.setTote", { primary: "track-blue-one", secondaries: [] }), undefined);
@@ -98,6 +125,9 @@ export async function playWalkthroughs(api: DebriefApi, others: { location: stri
   // --- Import and collate ---
   assert.match(String(await vscode.commands.executeCommand("debrief.walkthrough.importLog")), /^Open the copy of serial 1 for Import and collate first/);
   const collate = await open("collate");
+  // Coverage before the log is imported is not the step.
+  await vscode.commands.executeCommand("debrief.showCoverage");
+  await notSaid("coverageShown", "Coverage before the log is imported");
   const imported = await vscode.commands.executeCommand<{ item?: string }>("debrief.walkthrough.importLog", { modes: "otg" });
   assert.equal(imported?.item, "blue-one-nav-log");
   await said("imported");
@@ -117,12 +147,23 @@ export async function playWalkthroughs(api: DebriefApi, others: { location: stri
   await screenshot("51-walkthrough-collate");
 
   // --- Tidy a track ---
-  await open("tidy");
+  const tidy = await open("tidy");
   assert.equal((await steps()).at(-1)?.notes?.[0], "GPS glitches put into RED ONE");
   const found = await vscode.commands.executeCommand<{ found?: string[] }>("debrief.removeJumps", "track-red-one", {});
   assert.equal(found?.found?.length, 3, "the three glitches, found");
   assert.ok(!seen().includes("jumpsRemoved"), "finding them removes nothing, and ticks nothing");
-  await vscode.commands.executeCommand("debrief.removeJumps", "track-red-one", { times: "all" });
+  // The same change to the analyst's own plot ticks nothing; the step's button then works on the copy.
+  await vscode.commands.executeCommand("debrief.openPlot", others.id, "serial-1");
+  await waitFor("the analyst's serial 1", () => (api.session.current?.store.id === others.id && api.session.current.item.id === "serial-1") || undefined);
+  const theirs = (await steps()).length;
+  await vscode.commands.executeCommand("debrief.smoothTrack", "track-red-one", { window: 5 });
+  await waitFor("their plot smoothed", async () => (await steps()).length > theirs || undefined);
+  await notSaid("smoothed", "smoothing the analyst's own plot is not the step");
+  assert.equal(await vscode.commands.executeCommand("debrief.undo"), undefined);
+  // Their plot changed by this test's own hand, and back: from here on no walkthrough may change it.
+  before = snapshot(others.location);
+  await vscode.commands.executeCommand("debrief.walkthrough.do", "tidy", "debrief.removeJumps", "track-red-one", { times: "all" });
+  assert.equal(api.session.current?.item.id, tidy.item.id, "the step's button opened the walkthrough's copy first");
   await said("jumpsRemoved");
   await vscode.commands.executeCommand("debrief.smoothTrack", "track-red-one", { window: 5, apply: false });
   await sleep(500);
@@ -134,13 +175,25 @@ export async function playWalkthroughs(api: DebriefApi, others: { location: stri
   await said("fixMarked");
   assert.ok(!seen().includes("sheared"));
   await vscode.commands.executeCommand("debrief.moveTrack", "track-blue-one", { distance: { value: 0.1, unit: "[nmi_i]" }, bearing: { value: 90, unit: "deg" } });
-  await sleep(500);
-  assert.ok(!seen().includes("sheared"), "a move is not a shear");
+  await notSaid("sheared", "a move is not a shear");
+  await vscode.commands.executeCommand("debrief.stretchTrack", "track-blue-one", { anchor: "start", speed: { value: 9, unit: "[kn_i]" } });
+  await notSaid("sheared", "a stretch is not the shear the step asks for");
   await vscode.commands.executeCommand("debrief.shearTrack", "track-blue-one", { anchor: "start", course: { value: 200, unit: "deg" }, speed: { value: 6, unit: "[kn_i]" } });
   await said("sheared");
   await vscode.commands.executeCommand("debrief.outline.focus");
   await sleep(1500);
   await screenshot("52-walkthrough-tidy");
+  // Started again: its steps unticked, so they tick again on the fresh copy; other walkthroughs' stay.
+  await open("tidy");
+  for (const event of ["jumpsRemoved", "smoothed", "fixMarked", "sheared"]) assert.ok(!seen().includes(event), `${event} unticked by starting again`);
+  assert.ok(seen().includes("timelineChosen"), "another walkthrough's steps stay ticked");
+  assert.equal((await steps()).at(-1)?.notes?.[0], "GPS glitches put into RED ONE", "a fresh copy, its glitches back");
+  await vscode.commands.executeCommand("debrief.walkthrough.do", "tidy", "debrief.removeJumps", "track-red-one", { times: "all" });
+  await said("jumpsRemoved");
+  await vscode.commands.executeCommand("debrief.smoothTrack", "track-red-one", { window: 5 });
+  await vscode.commands.executeCommand("debrief.markFix", "track-red-one", red.properties.times[60], { label: "Turned away" });
+  await vscode.commands.executeCommand("debrief.shearTrack", "track-blue-one", { anchor: "start", course: { value: 200, unit: "deg" }, speed: { value: 6, unit: "[kn_i]" } });
+  await said("sheared");
 
   // --- Annotate and export a figure ---
   const annotate = await open("annotate");

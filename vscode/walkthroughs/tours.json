@@ -34,7 +34,7 @@
           "title": "Select tracks in the Outline",
           "text": "Click **BLUE ONE** in the Outline, then Ctrl-click **RED ONE** to add it. The map outlines what is selected, and the tools offered change with the selection: with two tracks, **Closest approach** is on offer.",
           "keys": "Move through the Outline and select from the keyboard; adding to the selection takes `Ctrl` too.",
-          "vscode": { "where": "**Outline** is in the Debrief sidebar.", "keys": "`↑` and `↓` move through the Outline; `Space` selects, `Ctrl+Space` adds to the selection.", "button": "Show the Outline", "command": "debrief.outline.focus" },
+          "vscode": { "where": "**Outline** is in the Debrief sidebar.", "keys": "`↑` and `↓` move through the Outline; `Enter` selects, `Ctrl+Shift+Enter` adds to the selection (`Cmd+Shift+Enter` on macOS).", "button": "Show the Outline", "command": "debrief.outline.focus" },
           "play": { "where": "**Outline** is in the side column, under *Plot*.", "keys": "`Tab` moves through the Outline; `Enter` selects, `Ctrl+Enter` adds to the selection.", "button": "Show the Outline", "action": "focus:outline" },
           "media": "explore-select.svg",
           "alt": "BLUE ONE and RED ONE selected on the map, the other tracks dimmed."

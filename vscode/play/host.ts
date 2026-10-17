@@ -49,7 +49,8 @@ import { formatQuantity, figureIdProblem } from "@debrief/kernel";
 import type { FigureSource, ImageExport, RenderedImage, RevisionShown } from "@debrief/schemas";
 import { fileNameFor, PRESETS, type ImageFormat, type ImagePreset, type ImageTheme } from "../webview/exportlogic.js";
 import { describeExported, describeSource, READ_ONLY, rememberedOf, revisionOf, startingChoice, type ExportChoice } from "../src/figures.js";
-import { callEvent, TourPanel, type TourAction } from "./tours.js";
+import { callEvent, counts, TourPanel, tourOfEvent, type TourAction } from "./tours.js";
+import { contentFree } from "../webview/timelinelogic.js";
 
 type Feature = PlotFeature;
 interface Step {
@@ -77,6 +78,8 @@ interface Opened {
 }
 
 const params = new URLSearchParams(location.search);
+/** The web demo (demo.mjs): this page full screen at /demo/. It keeps nothing derived from a plot's content (panel review, 17 Oct 2026). */
+const demo = !!document.querySelector('meta[name="debrief-demo"]');
 const panelOrder = (params.get("panels") ?? "tour,tote,timeline,catalogue,coverage,tools,history,export,try,import").split(",");
 const panels = new Set(panelOrder);
 const startPlot = params.get("plot") ?? "serial-1";
@@ -107,8 +110,9 @@ function python(call: string, ...args: unknown[]): Promise<string> {
   const id = nextId++;
   worker.postMessage({ id, call, args, base: new URL(".", document.baseURI).href });
   return new Promise<string>((resolve, reject) => waiting.set(id, { resolve, reject })).then((result) => {
-    // What the reader did, for the walkthroughs: a change that succeeded ticks its step (CAP-25).
-    tourEvent(callEvent(call, args, result));
+    // What the reader did, for the walkthroughs: a change that succeeded ticks its step (CAP-25),
+    // if it was to the walkthrough's copy: the plot named, or for the log's import the plot open.
+    tourEvent(callEvent(call, args, result), typeof args[0] === "string" && call !== "import_tour_log" ? args[0] : opened?.item.id);
     return result;
   });
 }
@@ -146,7 +150,7 @@ let timePending = false;
 const timeControl = new TimeControl($("timebar"), {
   moved: (moved) => {
     time = moved;
-    tourEvent("timeMoved");
+    tourEvent("timeMoved", opened?.item.id);
     refreshTote(); // asked at once: the Tote keeps pace by never queueing (NFR-04)
     timelineControl.setTime(time); // the Timeline follows; it draws at most once a frame
     coverageControl.setTime(Date.parse(moved.current)); // a line across Coverage's bars
@@ -234,7 +238,7 @@ async function chooseTote(view: ToteView): Promise<void> {
   toteToMap();
   refreshTote();
   await saveView({ tote: view });
-  if (view.primary && view.secondaries?.length && sameTote(toteOf(opened?.plot), view)) tourEvent("toteChosen");
+  if (view.primary && view.secondaries?.length && sameTote(toteOf(opened?.plot), view)) tourEvent("toteChosen", opened?.item.id);
   // Saved (the island has it now) or not (what is saved is shown again); unless the reader
   // has chosen again meanwhile, which is still being saved and stays on screen.
   if (toteChoosing !== view) return;
@@ -400,11 +404,11 @@ window.addEventListener("message", (event) => {
   if (name === "map") {
     if (message.kind === "selection_changed") {
       const ids = (message.selection as { feature_ids: string[] }).feature_ids;
-      if (ids.length) tourEvent("selected");
+      selectedByHand(ids);
       void select(ids, true);
     }
     if (message.kind === "time_changed") {
-      tourEvent("timeMoved");
+      tourEvent("timeMoved", opened?.item.id);
       showTime(message.time as TimeState);
     }
     if (message.kind === "viewport_changed") viewport = (message.viewport as { bbox: number[] }).bbox;
@@ -1441,7 +1445,9 @@ const timelineControl = new TimelineControl(
     history: (how) => void move(how),
   },
   undefined,
-  params.has("panels") ? undefined : timelineMemory,
+  // The web demo keeps the kinds shown and the view's own settings, never sources, types or
+  // phrases, which come from what was opened (panel review, 17 Oct 2026); an embedded demo, nothing.
+  params.has("panels") ? undefined : demo ? { load: timelineMemory.load, save: (value: unknown) => timelineMemory.save(contentFree(value)) } : timelineMemory,
 );
 (window as unknown as { debriefTimeline: () => unknown }).debriefTimeline = () => ({ ...timelineControl.state, drawTimes: timelineControl.drawTimes.slice(-20) });
 let narrativeOnMap = new NarrativeOnMap([]);
@@ -1471,7 +1477,7 @@ function goToTime(id: string): void {
   const range = time.range;
   const span = { start: at < range.start ? at : range.start, end: at > range.end ? at : range.end };
   showToolTime({ time: { current: at, range: span } }, opened.item.id, false);
-  tourEvent("timelineChosen");
+  tourEvent("timelineChosen", opened.item.id);
 }
 /** Add, change or delete narrative entries, or read a REP file's narrative in, as debrief/add_narrative and the rest do. */
 async function narrate(change: Record<string, unknown>): Promise<{ error?: string; feature?: string; entries?: number; omitted?: string[] }> {
@@ -1546,8 +1552,9 @@ function renderOutline(): void {
           if (set) row.append(Object.assign(document.createElement("span"), { className: "detail freq-detail", textContent: set }));
         }
         const choose = (add: boolean) => {
-          tourEvent("selected");
-          void select(add ? (selection.includes(f.id) ? selection.filter((i) => i !== f.id) : [...selection, f.id]) : [f.id]);
+          const ids = add ? (selection.includes(f.id) ? selection.filter((i) => i !== f.id) : [...selection, f.id]) : [f.id];
+          selectedByHand(ids);
+          void select(ids);
         };
         row.onclick = (e) => choose(e.ctrlKey || e.metaKey || e.shiftKey);
         if (f.properties.kind === "track") {
@@ -2090,8 +2097,11 @@ function needsPython(on: boolean): void {
   for (const id of NEEDS_PYTHON) $<HTMLButtonElement | HTMLInputElement>(id).disabled = !on;
 }
 needsPython(false);
-// The walkthroughs above the time controller: where a newcomer starts.
+// The walkthroughs above the time controller: where a newcomer starts. Open in the web demo;
+// folded in the playground and the blog's demos, whose readers came for something else (product
+// owner, 17 Oct 2026).
 if (panels.has("tour")) $("side").prepend($("panel-tour"));
+if (!demo) folds.setOpen("panel-tour", false);
 $("undo").onclick = () => void move("undo");
 $("redo").onclick = () => void move("redo");
 $<HTMLSelectElement>("plots").onchange = (e) => void openPlot((e.target as HTMLSelectElement).value);
@@ -2365,14 +2375,25 @@ const tourPanel = panels.has("tour")
       },
     }, (file) => fetch(new URL(`walkthroughs/${file}`, document.baseURI)).then((r) => (r.ok ? r.text() : Promise.reject(new Error(file)))))
   : undefined;
-function tourEvent(event: string | undefined): void {
-  tourPanel?.doneWith(event);
+/** Each walkthrough's copy of serial 1, by walkthrough: made here, gone when the page closes. */
+const tourCopies = new Map<string, string>();
+/** Something the reader did, to a plot: it ticks its step only in the walkthrough shown, on its copy (counts). */
+function tourEvent(event: string | undefined, item: string | undefined): void {
+  if (!event || !tourPanel) return;
+  const tour = tourOfEvent(event);
+  if (tour && counts(event, { active: tourPanel.current, copy: tourCopies.get(tour), item, done: new Set(tourPanel.events) })) tourPanel.doneWith(event);
 }
-(window as unknown as { debriefTours: () => unknown }).debriefTours = () => ({ tour: tourPanel?.current, events: tourPanel?.events ?? [], coverageOnScreen, coverage: !!coverage, open: folds.isOpen("panel-coverage") });
+/** Tracks selected by hand: the step asks for two, so a click that leaves one, or none, is not it. */
+function selectedByHand(ids: string[]): void {
+  if (ids.filter((id) => features().find((f) => f.id === id)?.properties.kind === "track").length >= 2) tourEvent("selected", opened?.item.id);
+}
+(window as unknown as { debriefTours: () => unknown }).debriefTours = () => ({ tour: tourPanel?.current, events: tourPanel?.events ?? [], copies: Object.fromEntries(tourCopies) });
+/** For the tests: how many steps a plot's history has, read from Python. */
+(window as unknown as { debriefStepsOf: (item: string) => Promise<number> }).debriefStepsOf = async (item) => (await pythonJson<Opened>("open_plot", item)).steps.length;
 /** Coverage on screen, showing the open plot's: a walkthrough's step is to look at it. */
 let coverageOnScreen = false;
 function coverageSeen(): void {
-  if (coverageOnScreen && coverage && folds.isOpen("panel-coverage") && !$("panel-coverage").hidden) tourEvent("coverageShown");
+  if (coverageOnScreen && coverage && folds.isOpen("panel-coverage") && !$("panel-coverage").hidden) tourEvent("coverageShown", opened?.item.id);
 }
 new IntersectionObserver((entries) => {
   // Enough of it in sight to read a track or two: a study's Coverage can be far taller than the screen.
@@ -2403,8 +2424,16 @@ function reveal(id: string, click: boolean): void {
   if (click) target.click();
   else target.focus({ preventScroll: true });
 }
-/** What a step's button does, in order. */
+/** What a step's button does, in order: on the walkthrough's copy, which is opened first if another plot is open. */
 async function tourAct(actions: TourAction[]): Promise<void> {
+  if (actions[0]?.verb !== "open" && tourPanel) {
+    const copy = tourCopies.get(tourPanel.current);
+    if (!copy) return toast("Open a copy of serial 1 first: this walkthrough's first step.", "warning");
+    if (opened?.item.id !== copy) {
+      await openPlot(copy);
+      toast(`${opened?.item.properties.title ?? copy} is open again: the walkthrough works on its copy, not on the plot that was open.`);
+    }
+  }
   for (const action of actions) {
     if (action.verb === "open") await openTourCopy(action.target);
     else if (action.verb === "focus") reveal(action.target, false);
@@ -2413,17 +2442,30 @@ async function tourAct(actions: TourAction[]): Promise<void> {
     else if (action.verb === "import-log") await importTourLog();
   }
 }
-/** A fresh copy of serial 1 for a walkthrough, made from the sample as shipped, opened. */
+/**
+ * A fresh copy of serial 1 for a walkthrough, made from the sample as shipped, opened. Again,
+ * it starts the walkthrough again: the old copy goes and its steps are unticked (panel review,
+ * 17 Oct 2026). One at a time, however often the button is pressed.
+ */
+let copying = false;
 async function openTourCopy(tour: string): Promise<void> {
   if (!pythonReady) return toast("The walkthrough's copy can be made once Python is ready.", "warning");
-  status("Making a copy of serial 1 for the walkthrough…", true);
-  const made = await pythonJson<{ item?: string; title?: string; error?: string }>("tour_copy", tour);
-  status(READY);
-  if (made.error || !made.item) return toast(made.error ?? "The walkthrough's copy could not be made.", "warning");
-  await refreshPlots();
-  await openPlot(made.item);
-  toast(`${made.title}: a copy of serial 1 for this walkthrough, under Plot. The sample itself is unchanged.`);
-  tourEvent(`${tour}Opened`);
+  if (copying) return;
+  copying = true;
+  try {
+    status("Making a copy of serial 1 for the walkthrough…", true);
+    const made = await pythonJson<{ item?: string; title?: string; error?: string }>("tour_copy", tour, tourCopies.get(tour) ?? null);
+    status(READY);
+    if (made.error || !made.item) return toast(made.error ?? "The walkthrough's copy could not be made.", "warning");
+    tourCopies.set(tour, made.item);
+    tourPanel?.restart(tour);
+    await refreshPlots();
+    await openPlot(made.item);
+    toast(`${made.title}: a fresh copy of serial 1 for this walkthrough, under Plot. The sample itself is unchanged.`);
+    tourEvent(`${tour}Opened`, made.item);
+  } finally {
+    copying = false;
+  }
 }
 /** Import and collate: the navigation log that came with the walkthrough's copy, imported as a REP file is, into the catalogue. */
 async function importTourLog(): Promise<void> {

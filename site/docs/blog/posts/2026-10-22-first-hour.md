@@ -22,11 +22,11 @@ An analyst new to Debrief should be producing something useful within an hour of
 | Tidy a track | Removing GPS glitches; smoothing; marking and labelling a fix; shearing a leg, the drag analysts use most in TMA |
 | Annotate and export a figure | Drawing an annotation; labelling tracks with their times; exporting an image that traces back to its plot; finding that plot from the image |
 
-Each takes about ten minutes and works on **a fresh copy** of the sample's serial 1, titled after it (*Serial 1: Tidy a track*), so the sample itself never changes and a walkthrough can always start again clean. *Tidy a track*'s copy comes with three GPS glitches in RED ONE, put in as a step of their own in its history so they are never mistaken for real data; *Import and collate*'s comes with BLUE ONE's navigation log, a REP file waiting to be imported.
+Each takes about ten minutes and works on **a fresh copy** of the sample's serial 1, titled after it (*Serial 1: Tidy a track*), so the sample itself never changes. A walkthrough can always start again clean: its copy is replaced and its steps unticked. *Tidy a track*'s copy comes with three GPS glitches in RED ONE, put in as a step of their own in its history so they are never mistaken for real data; *Import and collate*'s comes with BLUE ONE's navigation log, a REP file waiting to be imported.
 
 ## Ticked by doing, not by clicking
 
-Every step says what to do, where it is, and how to do it from the keyboard, with a picture drawn from the sample. Its button only takes you there: it opens the copy, or brings the panel or the command to hand. The step ticks itself off when you have actually done it, however you did it: from the form, on the map, from the keyboard. Finding the jumps ticks nothing; removing them does. A preview of smoothing is not smoothing; moving a track is not shearing it.
+Every step says what to do, where it is, and how to do it from the keyboard, with a picture drawn from the sample. Its button only takes you there: it opens the copy, or brings the panel or the command to hand. The step ticks itself off when you have actually done it, however you did it: from the form, on the map, from the keyboard. Finding the jumps ticks nothing; removing them does. A preview of smoothing is not smoothing; moving or stretching a track is not shearing it. And only the walkthrough's own copy counts: the same change to another of your plots ticks nothing, and with another plot open a step's button opens the walkthrough's copy before it does anything.
 
 ![The playground's Walkthroughs panel at the top of the side column: Tidy a track chosen, all five steps ticked, and the line Done: Shear a leg, as in TMA. That is the whole of Tidy a track; the map shows Serial 1: Tidy a track, RED ONE's fix labelled Turned away and BLUE ONE sheared](images/phase-3/onboarding-tidy-done.png)
 
@@ -40,17 +40,17 @@ The words of every step live in one file, which VS Code's walkthroughs are writt
 
 ## The web demo
 
-The <a href="../../../../../demo/">web demo</a> is Debrief full screen in your browser: every panel, the walkthroughs first, and the three serials of the sample exercise. The Python tools run in the page, under Pyodide, as in the blog's demos. You can open a file of your own there too, a REP file or a legacy plot: it is read in your browser and nowhere else. The demo's test watches every request the page makes while it imports a file, and none carries it; nothing of it is kept in the browser's storage, so it is gone when you close the tab.
+The <a href="../../../../../demo/">web demo</a> is Debrief full screen in your browser: every panel, the walkthroughs first, and the three serials of the sample exercise. The Python tools run in the page, under Pyodide, as in the blog's demos. You can open a file of your own there too, a REP file, a legacy plot or a Word narrative: it is read in your browser and nowhere else. The demo's test opens such files, filters and highlights them in the Timeline, and exports and traces an image, watching every request the page makes. None carries the files, nothing is sent at all, not even as the tab closes, and nothing derived from them is kept in any of the browser's stores, so they are gone when you close the tab. The page also carries a strict Content-Security-Policy. One thing it cannot vouch for: Python itself, Pyodide, comes from the jsDelivr CDN without an integrity check, a risk we have accepted.
 
 ![The web demo, full screen: the Walkthroughs panel above the time controller, the sample's Serial 1 on the map](images/phase-3/onboarding-demo.png)
 
 ## Is an hour enough?
 
-The SRD's target (NFR-09) is an hour to import a serial, compose a storyboard and export it. The storyboard comes in Phase 4, so for now the product owner will trial what exists: import a REP file, tidy a track, annotate, and export a figure traced back to its plot, against a provisional 40 minutes, with analysts who know the domain but have never used Debrief. The protocol is written; the trial itself is still to be run. Meanwhile the playground's test does the trial's four tasks as a speed run, as fast as the page answers: 28 actions in all.
+The SRD's target (NFR-09) is an hour to import a serial, compose a storyboard and export it. The storyboard comes in Phase 4, so for now the product owner will trial what exists: import a REP file and a legacy plot, tidy a track, annotate, and export a figure traced back to its plot, against a provisional 40 minutes, with analysts who know the domain but have never used Debrief. It is a formative trial, its pass rule written down before it starts: four in five finish without help, the median quiet run within 40 minutes, no one over an hour. The protocol is written; the trial itself is still to be run. Meanwhile the playground's test does the trial's four tasks as a speed run, as fast as the page answers: 32 actions in all.
 
 ## Try it
 
-Choose a walkthrough under **Walkthroughs** and press its first button:
+Open **Walkthroughs**, at the top of the side column, choose one and press its first button:
 
 <div class="debrief-demo" data-demo="?panels=tour,tote,timeline,coverage,catalogue,history,export" data-height="760px" data-caption="Four walkthroughs on a fresh copy of the sample exercise, each step ticked as you do it. Everything runs in your browser."></div>
 

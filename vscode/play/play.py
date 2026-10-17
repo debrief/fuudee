@@ -912,12 +912,19 @@ TOUR_LOG = Path("/play/tours") / walkthrough.LOG_FILE
 NO_TOUR_LOG = "Start Import and collate first: its first step makes the log."
 
 
-def tour_copy(tour: str) -> str:
+def tour_copy(tour: str, previous: str | None = None) -> str:
     """A fresh copy of the sample's serial 1 for a walkthrough, made from the sample as the
     site shipped it (never the reader's changed one), as VS Code makes it: titled after the
     walkthrough, with RED ONE's GPS glitches for Tidy a track. For Import and collate,
-    BLUE ONE's navigation log is written, ready to import."""
+    BLUE ONE's navigation log is written, ready to import. The walkthrough's previous copy,
+    if it had one, goes: starting again starts afresh, as in VS Code."""
     try:
+        if (
+            previous
+            and previous.startswith(f"{walkthrough.PLOT}-{tour}")
+            and previous in _cat().item_ids()
+        ):
+            _cat().discard_plot(previous)
         item = walkthrough.copy_for_tour(_cat(), PRISTINE, tour)
         if tour == "collate":
             TOUR_LOG.parent.mkdir(parents=True, exist_ok=True)
