@@ -39,9 +39,9 @@
     "start_datetime": "2023-06-15T17:00:00.000Z",
     "end_datetime": "2023-06-15T23:00:00.000Z",
     "title": "Serial 3",
-    "debrief:schema_version": "0.0.21",
+    "debrief:schema_version": "0.0.22",
     "created": "2026-10-11T00:00:00.000Z",
-    "debrief:revision": "sha256:1a30c5d6c2d7c27e280d04e286c02db32eba226721b20684874ebe10b342e24d",
+    "debrief:revision": "sha256:9573d55cfb725cb420f761cda974b54fed911276cfd3cee0dba58766bbfd668c",
     "debrief:coverage": [
       {
         "track": "track-blue-one",
@@ -166,7 +166,10 @@
       }
     ],
     "debrief:imported": false,
-    "debrief:origin": "sha256:99b2a269145ea0f25b218c00e2697fba501cd448a1d4021de9c06e1a58a30998",
+    "debrief:origin": "sha256:6640a41fea0b9c8ffb4fc3ca58ed2b5761550c598a9c3a99386a8f3a27e18dec",
+    "debrief:revisions": [
+      "JNSXAQ7VE9EB887Q"
+    ],
     "datetime": null
   },
   "links": [

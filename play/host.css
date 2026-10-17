@@ -148,3 +148,20 @@ dialog::backdrop { background: #0006; }
 .freq-form .buttons { margin-top: 12px; }
 .fix-actions .toggle[aria-pressed="true"] { background: var(--vscode-button-background); color: var(--vscode-button-foreground); }
 #outline .freq-detail { display: block; font-size: 11px; }
+/* Export image (SUB-25): four short choices, then the button; finding an image's source by its file or its ID. Narrow: one column, nothing sideways. */
+.export-form { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 4px 8px; margin-bottom: 6px; }
+.export-form label { display: flex; flex-direction: column; gap: 2px; min-width: 0; font-size: 12px; }
+.export-form label.check { flex-direction: row; align-items: center; gap: 6px; }
+.export-said { margin: 4px 0 2px; overflow-wrap: anywhere; }
+.side h3.sub { font-size: 12px; margin: 12px 0 4px; color: var(--vscode-foreground); font-weight: 600; }
+.find-id { display: flex; flex-direction: column; gap: 2px; margin: 6px 0; font-size: 12px; }
+.find-id-row { display: flex; gap: 4px; min-width: 0; }
+.find-id input { flex: 1; min-width: 0; font: inherit; font-family: var(--vscode-editor-font-family); background: var(--vscode-input-background); color: var(--vscode-input-foreground); border: 1px solid var(--vscode-input-border, var(--vscode-widget-border)); padding: 3px 4px; }
+.find-id input[aria-invalid="true"] { border-color: var(--vscode-inputValidation-errorBorder, var(--vscode-errorForeground)); }
+.find-id .problem { color: var(--vscode-errorForeground); }
+.find-results { list-style: none; margin: 4px 0; padding: 0; }
+.find-results li { padding: 3px 0; overflow-wrap: anywhere; }
+.find-results li .detail { display: block; }
+#history li.shown { outline: 1px dashed var(--vscode-editorWarning-foreground, var(--vscode-focusBorder)); outline-offset: -1px; }
+#body-export input[type="file"] { max-width: 100%; min-width: 0; }
+.export-form { grid-template-columns: repeat(auto-fit, minmax(min(150px, 100%), 1fr)); }
