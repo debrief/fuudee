@@ -1,0 +1,41 @@
+{
+ "shots": [
+  {
+   "source": "blog/posts/2026-10-22-first-hour.md",
+   "url": "blog/2026/10/22/first-hour/",
+   "title": "The first hour: walkthroughs, and a web demo to try them in",
+   "file": "blog-posts-2026-10-22-first-hour.png"
+  },
+  {
+   "source": "guides/interaction-models/index.md",
+   "url": "guides/interaction-models/",
+   "title": "Interaction models",
+   "file": "guides-interaction-models-index.png"
+  },
+  {
+   "source": "guides/interaction-models/keyboard-equivalents.md",
+   "url": "guides/interaction-models/keyboard-equivalents/",
+   "title": "Keyboard equivalents",
+   "file": "guides-interaction-models-keyboard-equivalents.png"
+  },
+  {
+   "source": "guides/interaction-models/walkthroughs.md",
+   "url": "guides/interaction-models/walkthroughs/",
+   "title": "Walkthroughs",
+   "file": "guides-interaction-models-walkthroughs.png"
+  },
+  {
+   "source": "guides/sample-data.md",
+   "url": "guides/sample-data/",
+   "title": "Sample data",
+   "file": "guides-sample-data.png"
+  },
+  {
+   "source": "index.md",
+   "url": "",
+   "title": "Debrief v4",
+   "file": "index.png"
+  }
+ ],
+ "more": 1
+}
