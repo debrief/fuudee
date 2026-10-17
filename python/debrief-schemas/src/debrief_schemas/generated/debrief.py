@@ -32,7 +32,7 @@ from pydantic import (
 
 
 metamodel_version = "1.12.0"
-version = "0.0.21"
+version = "0.0.22"
 
 
 class ConfiguredBaseModel(BaseModel):
@@ -101,11 +101,40 @@ linkml_meta = LinkMLMeta({'default_prefix': 'debrief',
                                'name': 'ContentHash',
                                'pattern': '^sha256:[0-9a-f]{64}$',
                                'typeof': 'string'},
+               'FigureId': {'description': 'An image ID in full: DBF1, then the '
+                                           'plot key (8 symbols: the first 40 bits '
+                                           "of the SHA-256 of the catalogue's id "
+                                           "and the item's id), the revision (16 "
+                                           'symbols: the first 80 bits of the '
+                                           "plot's content hash), the export (8 "
+                                           'random symbols) and a check symbol '
+                                           '(Luhn mod 32 over the rest), in '
+                                           "Crockford's base 32, for example "
+                                           'DBF1-PTETVDX3-KG8RB9E5X7Y58R98-M6SC7N75-Z. '
+                                           "Its short form, the footer's, is DBF, "
+                                           'four symbols of the plot key, seven of '
+                                           'the revision, two of the export and a '
+                                           'check symbol: DBF-PTET-KG8R-B9EM-69.',
+                            'from_schema': 'https://debrief.info/schemas/debrief',
+                            'name': 'FigureId',
+                            'pattern': '^DBF1-[0-9A-HJKMNP-TV-Z]{8}-[0-9A-HJKMNP-TV-Z]{16}-[0-9A-HJKMNP-TV-Z]{8}-[0-9A-HJKMNP-TV-Z]$',
+                            'typeof': 'string'},
                'SchemaVersion': {'description': 'Semantic version of the data-file '
                                                 'schema (SUB-12).',
                                  'from_schema': 'https://debrief.info/schemas/debrief',
                                  'name': 'SchemaVersion',
                                  'pattern': '^\\d+\\.\\d+\\.\\d+$',
+                                 'typeof': 'string'},
+               'ShortFigureId': {'description': "An image ID's short form, as the "
+                                                'footer shows it and an analyst '
+                                                'types it: 4 symbols of the plot '
+                                                'key, 7 of the revision, 2 of the '
+                                                'export and a check symbol, so two '
+                                                'exports of one revision have '
+                                                'different footers.',
+                                 'from_schema': 'https://debrief.info/schemas/debrief',
+                                 'name': 'ShortFigureId',
+                                 'pattern': '^DBF-[0-9A-HJKMNP-TV-Z]{4}-[0-9A-HJKMNP-TV-Z]{4}-[0-9A-HJKMNP-TV-Z]{4}-[0-9A-HJKMNP-TV-Z]{2}$',
                                  'typeof': 'string'},
                'UtcTimestamp': {'description': 'Instant in UTC with exactly '
                                                'millisecond precision (SUB-01), '
@@ -955,6 +984,52 @@ class CoverageItemRoleEnum(str, Enum):
     """
 
 
+class ImageFormatEnum(str, Enum):
+    """
+    How an image is written (decision, product owner, 16 Oct 2026; no JPEG).
+    """
+    png = "png"
+    """
+    A raster image, its ID in an iTXt chunk and in XMP.
+    """
+    svg = "svg"
+    """
+    A vector image, its ID in its metadata element; reference tiles embedded as images.
+    """
+
+
+class ImageThemeEnum(str, Enum):
+    """
+    The colours an image is drawn in.
+    """
+    current = "current"
+    """
+    As the analyst sees the map: the editor's theme.
+    """
+    light = "light"
+    """
+    Light, for print and white slides, whatever the editor's theme.
+    """
+
+
+class ImagePresetEnum(str, Enum):
+    """
+    The size an image is drawn at.
+    """
+    screen = "screen"
+    """
+    The map as it is on screen, at twice its size for sharpness.
+    """
+    slide = "slide"
+    """
+    1600 by 900 pixels: a 16:9 slide.
+    """
+    a4_landscape = "a4_landscape"
+    """
+    A4 landscape at twice its size on screen: 1754 by 1240 pixels (150 dots an inch).
+    """
+
+
 class TimelineEntryKindEnum(str, Enum):
     """
     What a Timeline row is.
@@ -984,7 +1059,7 @@ class WebviewMessageKindEnum(str, Enum):
     """
     show_plot = "show_plot"
     """
-    Host to map: draw this plot (plot, plot_title, selection, and current time and viewport if known, and how many features are hidden).
+    Host to map: draw this plot (plot, plot_title, selection, and current time and viewport if known, and how many features are hidden); with revision_shown, an earlier revision of the plot, shown read-only.
     """
     set_selection = "set_selection"
     """
@@ -1165,6 +1240,18 @@ class WebviewMessageKindEnum(str, Enum):
     review_cleared = "review_cleared"
     """
     Coverage to host: the analyst reviewed the plot against the items revised since it drew from them; clear its review flag (CAP-12).
+    """
+    export_image = "export_image"
+    """
+    Host to map: draw the map as an image (image_request), as the analyst sees it, at the size, in the theme and with the footer asked for (SUB-25).
+    """
+    image_rendered = "image_rendered"
+    """
+    Map to host: the image drawn (image), for its ID to go into its metadata; or, with message alone, why it could not be drawn.
+    """
+    latest_asked = "latest_asked"
+    """
+    Map to host: the analyst asked to leave the earlier revision shown read-only and go to the plot's latest (no members).
     """
 
 
@@ -1542,6 +1629,7 @@ class ProvRecord(ConfiguredBaseModel):
                        'MeasureGroup',
                        'ToteTrack',
                        'KnownStore',
+                       'ImageExport',
                        'TimelineEntry']} })
     kind: ProvActivityKindEnum = Field(default=..., json_schema_extra = { "linkml_meta": {'domain_of': ['ProvRecord',
                        'AgentRef',
@@ -1562,7 +1650,7 @@ class ProvRecord(ConfiguredBaseModel):
     selected: Optional[list[str]] = Field(default=None, description="""Ids of the features the operation was applied to, in selection order, so replay can repeat it (SUB-19).""", json_schema_extra = { "linkml_meta": {'domain_of': ['ProvRecord']} })
     used: Optional[list[SourceRef]] = Field(default=None, json_schema_extra = { "linkml_meta": {'domain_of': ['ProvRecord']} })
     seed: Optional[int] = Field(default=None, description="""Random seed, for operations that use randomness (SUB-20).""", json_schema_extra = { "linkml_meta": {'domain_of': ['ProvRecord']} })
-    notes: Optional[list[str]] = Field(default=None, description="""Free-text notes such as truncations or omitted content (EXT-14, EXT-15).""", json_schema_extra = { "linkml_meta": {'domain_of': ['ProvRecord']} })
+    notes: Optional[list[str]] = Field(default=None, description="""Free-text notes such as truncations or omitted content (EXT-14, EXT-15).""", json_schema_extra = { "linkml_meta": {'domain_of': ['ProvRecord', 'RenderedImage']} })
     drawn_from: Optional[list[ItemRef]] = Field(default=None, description="""Catalogue items the operation took data from, each at the revision it read (CAP-09 to CAP-12): PROV's wasDerivedFrom. A product whose provenance names an item at a revision it no longer has may need review (CAP-12).""", json_schema_extra = { "linkml_meta": {'domain_of': ['ProvRecord']} })
 
     @field_validator('started_at')
@@ -1698,7 +1786,9 @@ class ItemRef(ConfiguredBaseModel):
                        'CoverageReport',
                        'CoverageSource',
                        'CoverageItem',
-                       'ReviewFlag']} })
+                       'ReviewFlag',
+                       'FigureSource',
+                       'LoggedExport']} })
     item: str = Field(default=..., description="""The item's id in that catalogue.""", json_schema_extra = { "linkml_meta": {'domain_of': ['ItemRef',
                        'SourceTrackRef',
                        'TrackSupply',
@@ -1706,7 +1796,9 @@ class ItemRef(ConfiguredBaseModel):
                        'CoverageReport',
                        'CoverageSource',
                        'CoverageItem',
-                       'ReviewFlag']} })
+                       'ReviewFlag',
+                       'FigureSource',
+                       'LoggedExport']} })
     title: Optional[str] = Field(default=None, description="""The item's title when it was read, to name it if it has gone.""", json_schema_extra = { "linkml_meta": {'domain_of': ['ItemRef',
                        'TrackSupply',
                        'PlotProperties',
@@ -1723,12 +1815,16 @@ class ItemRef(ConfiguredBaseModel):
                        'CoverageReport',
                        'CoverageSource',
                        'CoverageItem',
-                       'ReviewFlag']} })
+                       'ReviewFlag',
+                       'FigureSource']} })
     revision: str = Field(default=..., description="""The item's revision when it was read: the content hash of its plot (its whole-plot details included), so any recorded change to the item, of data or details, is a new revision.""", json_schema_extra = { "linkml_meta": {'domain_of': ['ItemRef',
                        'TrackSupply',
                        'ItemRevision',
                        'CoverageItem',
-                       'NewDataMark']} })
+                       'NewDataMark',
+                       'ImageExport',
+                       'RevisionShown',
+                       'FigureSource']} })
 
     @field_validator('revision')
     def pattern_revision(cls, v):
@@ -1776,6 +1872,7 @@ class TrackFeature(ConfiguredBaseModel):
                        'MeasureGroup',
                        'ToteTrack',
                        'KnownStore',
+                       'ImageExport',
                        'TimelineEntry']} })
     geometry: LineStringGeometry = Field(default=..., json_schema_extra = { "linkml_meta": {'domain_of': ['TrackFeature',
                        'AnnotationFeature',
@@ -1885,7 +1982,9 @@ class SourceTrackRef(ConfiguredBaseModel):
                        'CoverageReport',
                        'CoverageSource',
                        'CoverageItem',
-                       'ReviewFlag']} })
+                       'ReviewFlag',
+                       'FigureSource',
+                       'LoggedExport']} })
     item: str = Field(default=..., json_schema_extra = { "linkml_meta": {'domain_of': ['ItemRef',
                        'SourceTrackRef',
                        'TrackSupply',
@@ -1893,7 +1992,9 @@ class SourceTrackRef(ConfiguredBaseModel):
                        'CoverageReport',
                        'CoverageSource',
                        'CoverageItem',
-                       'ReviewFlag']} })
+                       'ReviewFlag',
+                       'FigureSource',
+                       'LoggedExport']} })
     track: str = Field(default=..., description="""The track's feature id in that item.""", json_schema_extra = { "linkml_meta": {'domain_of': ['SourceTrackRef',
                        'TrackSupply',
                        'TrackCoverage',
@@ -1936,7 +2037,9 @@ class TrackSupply(ConfiguredBaseModel):
                        'CoverageReport',
                        'CoverageSource',
                        'CoverageItem',
-                       'ReviewFlag']} })
+                       'ReviewFlag',
+                       'FigureSource',
+                       'LoggedExport']} })
     item: str = Field(default=..., json_schema_extra = { "linkml_meta": {'domain_of': ['ItemRef',
                        'SourceTrackRef',
                        'TrackSupply',
@@ -1944,7 +2047,9 @@ class TrackSupply(ConfiguredBaseModel):
                        'CoverageReport',
                        'CoverageSource',
                        'CoverageItem',
-                       'ReviewFlag']} })
+                       'ReviewFlag',
+                       'FigureSource',
+                       'LoggedExport']} })
     track: str = Field(default=..., description="""The supplying track's feature id in that item.""", json_schema_extra = { "linkml_meta": {'domain_of': ['SourceTrackRef',
                        'TrackSupply',
                        'TrackCoverage',
@@ -1969,12 +2074,16 @@ class TrackSupply(ConfiguredBaseModel):
                        'CoverageReport',
                        'CoverageSource',
                        'CoverageItem',
-                       'ReviewFlag']} })
+                       'ReviewFlag',
+                       'FigureSource']} })
     revision: Optional[str] = Field(default=None, description="""The item's revision when the period was taken from it; left out where the plot supplies it itself.""", json_schema_extra = { "linkml_meta": {'domain_of': ['ItemRef',
                        'TrackSupply',
                        'ItemRevision',
                        'CoverageItem',
-                       'NewDataMark']} })
+                       'NewDataMark',
+                       'ImageExport',
+                       'RevisionShown',
+                       'FigureSource']} })
     start: str = Field(default=..., json_schema_extra = { "linkml_meta": {'domain_of': ['TimeRange',
                        'TrackSupply',
                        'CoverageReport',
@@ -2071,6 +2180,7 @@ class FixMark(ConfiguredBaseModel):
                        'SharedState',
                        'SharedStateChange',
                        'ToteResult',
+                       'ImageExport',
                        'WebviewMessage']} })
     colour: Optional[str] = Field(default=None, description="""The fix's own colour, lower-case hex RGB: its marker and the line from it to the next fix are drawn in it.""", json_schema_extra = { "linkml_meta": {'domain_of': ['TrackStyle',
                        'FixMark',
@@ -2177,6 +2287,7 @@ class AnnotationFeature(ConfiguredBaseModel):
                        'MeasureGroup',
                        'ToteTrack',
                        'KnownStore',
+                       'ImageExport',
                        'TimelineEntry']} })
     geometry: Optional[Union[LineStringGeometry, PointGeometry, PolygonGeometry]] = Field(default=None, json_schema_extra = { "linkml_meta": {'any_of': [{'range': 'PointGeometry'},
                     {'range': 'LineStringGeometry'},
@@ -2242,6 +2353,7 @@ class AnnotationProperties(ConfiguredBaseModel):
                        'SharedState',
                        'SharedStateChange',
                        'ToteResult',
+                       'ImageExport',
                        'WebviewMessage']} })
     time_range: Optional[TimeRange] = Field(default=None, json_schema_extra = { "linkml_meta": {'domain_of': ['AnnotationProperties',
                        'AnnotationSpec',
@@ -2374,6 +2486,7 @@ class AnnotationSpec(ConfiguredBaseModel):
                        'SharedState',
                        'SharedStateChange',
                        'ToteResult',
+                       'ImageExport',
                        'WebviewMessage']} })
     time_range: Optional[TimeRange] = Field(default=None, json_schema_extra = { "linkml_meta": {'domain_of': ['AnnotationProperties',
                        'AnnotationSpec',
@@ -2427,6 +2540,7 @@ class NarrativeFeature(ConfiguredBaseModel):
                        'MeasureGroup',
                        'ToteTrack',
                        'KnownStore',
+                       'ImageExport',
                        'TimelineEntry']} })
     geometry: Optional[PointGeometry] = Field(default=None, description="""Always null.""", json_schema_extra = { "linkml_meta": {'domain_of': ['TrackFeature',
                        'AnnotationFeature',
@@ -2464,6 +2578,7 @@ class NarrativeProperties(ConfiguredBaseModel):
                        'SharedState',
                        'SharedStateChange',
                        'ToteResult',
+                       'ImageExport',
                        'WebviewMessage']} })
     source: str = Field(default=..., description="""Who wrote it: the platform, person or document whose log it is (legacy Debrief's track name on an entry), such as \"BLUE ONE\".""", json_schema_extra = { "linkml_meta": {'domain_of': ['NarrativeProperties',
                        'NarrativeSpec',
@@ -2510,6 +2625,7 @@ class NarrativeSpec(ConfiguredBaseModel):
                        'SharedState',
                        'SharedStateChange',
                        'ToteResult',
+                       'ImageExport',
                        'WebviewMessage']} })
     source: Optional[str] = Field(default=None, json_schema_extra = { "linkml_meta": {'domain_of': ['NarrativeProperties',
                        'NarrativeSpec',
@@ -2569,6 +2685,7 @@ class SensorObservationsFeature(ConfiguredBaseModel):
                        'MeasureGroup',
                        'ToteTrack',
                        'KnownStore',
+                       'ImageExport',
                        'TimelineEntry']} })
     geometry: Optional[PointGeometry] = Field(default=None, description="""Always null.""", json_schema_extra = { "linkml_meta": {'domain_of': ['TrackFeature',
                        'AnnotationFeature',
@@ -2644,7 +2761,7 @@ class PayloadRef(ConfiguredBaseModel):
     linkml_meta: ClassVar[LinkMLMeta] = LinkMLMeta({'from_schema': 'https://debrief.info/schemas/debrief'})
 
     href: str = Field(default=..., description="""Path relative to the referencing file.""", json_schema_extra = { "linkml_meta": {'domain_of': ['SourceRef', 'PayloadRef', 'StacLink', 'StacAsset']} })
-    format: PayloadFormatEnum = Field(default=..., json_schema_extra = { "linkml_meta": {'domain_of': ['PayloadRef']} })
+    format: PayloadFormatEnum = Field(default=..., json_schema_extra = { "linkml_meta": {'domain_of': ['PayloadRef', 'ImageExport', 'ImageRequest', 'RenderedImage']} })
     inner_schema: InnerSchemaRef = Field(default=..., json_schema_extra = { "linkml_meta": {'domain_of': ['PayloadRef']} })
     columns: list[PayloadColumn] = Field(default=..., json_schema_extra = { "linkml_meta": {'domain_of': ['PayloadRef', 'NonSpatialResult']} })
     crs: str = Field(default=..., description="""Coordinate reference system of any positions in the payload.""", json_schema_extra = { "linkml_meta": {'domain_of': ['PayloadRef']} })
@@ -2774,6 +2891,7 @@ class PlotFeature(ConfiguredBaseModel):
                        'MeasureGroup',
                        'ToteTrack',
                        'KnownStore',
+                       'ImageExport',
                        'TimelineEntry']} })
     geometry: Optional[PointGeometry] = Field(default=None, description="""Always null.""", json_schema_extra = { "linkml_meta": {'domain_of': ['TrackFeature',
                        'AnnotationFeature',
@@ -2819,7 +2937,8 @@ class PlotProperties(ConfiguredBaseModel):
                        'CoverageReport',
                        'CoverageSource',
                        'CoverageItem',
-                       'ReviewFlag']} })
+                       'ReviewFlag',
+                       'FigureSource']} })
     description: Optional[str] = Field(default=None, description="""What the plot is for. Content.""", json_schema_extra = { "linkml_meta": {'domain_of': ['PlotProperties',
                        'StacItemProperties',
                        'StacCatalog',
@@ -2835,9 +2954,10 @@ class PlotView(ConfiguredBaseModel):
 
     time_window: Optional[TimeRange] = Field(default=None, description="""The plot's time window: the period shown, one for the whole plot (CAP-28, CAP-29). Start shall not be after end.""", json_schema_extra = { "linkml_meta": {'domain_of': ['PlotView']} })
     context_tracks: Optional[ContextTracksEnum] = Field(default=None, description="""How tracks outside the time window are drawn (CAP-29). Left out means visible.""", json_schema_extra = { "linkml_meta": {'domain_of': ['PlotView', 'WebviewMessage']} })
-    tote: Optional[ToteView] = Field(default=None, description="""Which tracks the Tote compares, and through which measure group (CAP-06, CAP-07). View state, like the window: changing it is never a step in the history (decision, 14 Oct 2026).""", json_schema_extra = { "linkml_meta": {'domain_of': ['PlotView', 'WebviewMessage']} })
+    tote: Optional[ToteView] = Field(default=None, description="""Which tracks the Tote compares, and through which measure group (CAP-06, CAP-07). View state, like the window: changing it is never a step in the history (decision, 14 Oct 2026).""", json_schema_extra = { "linkml_meta": {'domain_of': ['PlotView', 'ImageExport', 'WebviewMessage']} })
     narrative_on_map: Optional[bool] = Field(default=None, description="""Whether the map shows the narrative entry current time is at in a small box beside its track, for ten minutes of plot time; left out means it does. Turned off and on in the Timeline. View state, like the Tote's lines: never a step in the history (decision, product owner, 15 Oct 2026).""", json_schema_extra = { "linkml_meta": {'domain_of': ['PlotView', 'WebviewMessage']} })
     collation: Optional[CollationView] = Field(default=None, description="""What the analyst has said of catalogue items while collating (CAP-10, CAP-12): new data set aside for now, and revisions reviewed. View state: never a step in the history.""", json_schema_extra = { "linkml_meta": {'domain_of': ['PlotView']} })
+    exports: Optional[list[ImageExport]] = Field(default=None, description="""The plot's export log: each image exported from it, with its ID, the revision exported, when, by whom, the view and the time, the format and the file's name (SUB-25; decision, product owner, 16 Oct 2026). View state: never a step, so an export changes neither the plot's revision nor any product that drew from it.""", json_schema_extra = { "linkml_meta": {'domain_of': ['PlotView', 'ExportLog']} })
 
 
 class CollationView(ConfiguredBaseModel):
@@ -2863,7 +2983,9 @@ class ItemRevision(ConfiguredBaseModel):
                        'CoverageReport',
                        'CoverageSource',
                        'CoverageItem',
-                       'ReviewFlag']} })
+                       'ReviewFlag',
+                       'FigureSource',
+                       'LoggedExport']} })
     item: str = Field(default=..., json_schema_extra = { "linkml_meta": {'domain_of': ['ItemRef',
                        'SourceTrackRef',
                        'TrackSupply',
@@ -2871,14 +2993,19 @@ class ItemRevision(ConfiguredBaseModel):
                        'CoverageReport',
                        'CoverageSource',
                        'CoverageItem',
-                       'ReviewFlag']} })
+                       'ReviewFlag',
+                       'FigureSource',
+                       'LoggedExport']} })
     revision: str = Field(default=..., json_schema_extra = { "linkml_meta": {'domain_of': ['ItemRef',
                        'TrackSupply',
                        'ItemRevision',
                        'CoverageItem',
-                       'NewDataMark']} })
-    by: Optional[str] = Field(default=None, description="""Who gave the answer: the agent's name.""", json_schema_extra = { "linkml_meta": {'domain_of': ['ItemRevision']} })
-    at: Optional[str] = Field(default=None, description="""When the answer was given.""", json_schema_extra = { "linkml_meta": {'domain_of': ['ItemRevision']} })
+                       'NewDataMark',
+                       'ImageExport',
+                       'RevisionShown',
+                       'FigureSource']} })
+    by: Optional[str] = Field(default=None, description="""Who gave the answer: the agent's name.""", json_schema_extra = { "linkml_meta": {'domain_of': ['ItemRevision', 'ImageExport']} })
+    at: Optional[str] = Field(default=None, description="""When the answer was given.""", json_schema_extra = { "linkml_meta": {'domain_of': ['ItemRevision', 'ImageExport']} })
 
     @field_validator('revision')
     def pattern_revision(cls, v):
@@ -2926,6 +3053,7 @@ class NamedSet(ConfiguredBaseModel):
                        'MeasureGroup',
                        'ToteTrack',
                        'KnownStore',
+                       'ImageExport',
                        'TimelineEntry']} })
     name: str = Field(default=..., json_schema_extra = { "linkml_meta": {'domain_of': ['ParameterValue',
                        'ToolRef',
@@ -3037,7 +3165,8 @@ class StacLink(ConfiguredBaseModel):
                        'CoverageReport',
                        'CoverageSource',
                        'CoverageItem',
-                       'ReviewFlag']} })
+                       'ReviewFlag',
+                       'FigureSource']} })
 
 
 class StacAsset(ConfiguredBaseModel):
@@ -3075,7 +3204,8 @@ class StacAsset(ConfiguredBaseModel):
                        'CoverageReport',
                        'CoverageSource',
                        'CoverageItem',
-                       'ReviewFlag']} })
+                       'ReviewFlag',
+                       'FigureSource']} })
     roles: Optional[list[str]] = Field(default=None, json_schema_extra = { "linkml_meta": {'domain_of': ['StacAsset']} })
     debrief_asset_kind: AssetKindEnum = Field(default=..., alias="debrief:asset_kind", json_schema_extra = { "linkml_meta": {'domain_of': ['StacAsset']} })
     debrief_content_hash: Optional[str] = Field(default=None, alias="debrief:content_hash", description="""Required for sources (SUB-11).""", json_schema_extra = { "linkml_meta": {'domain_of': ['StacAsset']} })
@@ -3117,7 +3247,8 @@ class StacItemProperties(ConfiguredBaseModel):
                        'CoverageReport',
                        'CoverageSource',
                        'CoverageItem',
-                       'ReviewFlag']} })
+                       'ReviewFlag',
+                       'FigureSource']} })
     description: Optional[str] = Field(default=None, json_schema_extra = { "linkml_meta": {'domain_of': ['PlotProperties',
                        'StacItemProperties',
                        'StacCatalog',
@@ -3130,6 +3261,7 @@ class StacItemProperties(ConfiguredBaseModel):
     debrief_drawn_from: Optional[list[ItemRef]] = Field(default=None, alias="debrief:drawn_from", description="""The catalogue items the plot's tracks take data from now, each at every revision a period of it was read at (CAP-12), from its tracks' supplies. Derived at each change, never authoritative.""", json_schema_extra = { "linkml_meta": {'domain_of': ['StacItemProperties']} })
     debrief_imported: Optional[bool] = Field(default=None, alias="debrief:imported", description="""Whether the item came in by importing source files: its history starts with a record naming the files it read. Only such items can be new data for a plot (CAP-10; decision, product owner, 16 Oct 2026). Derived at each change, never authoritative.""", json_schema_extra = { "linkml_meta": {'domain_of': ['StacItemProperties']} })
     debrief_origin: Optional[str] = Field(default=None, alias="debrief:origin", description="""The step_hash of the first step of the item's history: items that share it are copies of one plot, forked where their histories part (CAP-10). Derived at each change, never authoritative.""", json_schema_extra = { "linkml_meta": {'domain_of': ['StacItemProperties']} })
+    debrief_revisions: Optional[list[str]] = Field(default=None, alias="debrief:revisions", description="""Every revision the item's history has had, each as the 16 symbols an image ID names it by (the first 80 bits of the content hash after each step, in Crockford's base 32), so an exported image is traced to its plot from the catalogue's items alone, never reading a plot that never had its revision (SUB-25). Derived at each change, never authoritative.""", json_schema_extra = { "linkml_meta": {'domain_of': ['StacItemProperties']} })
 
     @field_validator('datetime')
     def pattern_datetime(cls, v):
@@ -3222,6 +3354,19 @@ class StacItemProperties(ConfiguredBaseModel):
             raise ValueError(err_msg)
         return v
 
+    @field_validator('debrief_revisions')
+    def pattern_debrief_revisions(cls, v):
+        pattern=re.compile(r"^[0-9A-HJKMNP-TV-Z]{16}$")
+        if isinstance(v, list):
+            for element in v:
+                if isinstance(element, str) and not pattern.search(element):
+                    err_msg = f"Invalid debrief_revisions format: {element}"
+                    raise ValueError(err_msg)
+        elif isinstance(v, str) and not pattern.search(v):
+            err_msg = f"Invalid debrief_revisions format: {v}"
+            raise ValueError(err_msg)
+        return v
+
 
 class TrackCoverage(ConfiguredBaseModel):
     """
@@ -3294,6 +3439,7 @@ class StacItem(ConfiguredBaseModel):
                        'MeasureGroup',
                        'ToteTrack',
                        'KnownStore',
+                       'ImageExport',
                        'TimelineEntry']} })
     geometry: Optional[Union[LineStringGeometry, PointGeometry, PolygonGeometry]] = Field(default=None, json_schema_extra = { "linkml_meta": {'any_of': [{'range': 'PointGeometry'},
                     {'range': 'LineStringGeometry'},
@@ -3351,6 +3497,7 @@ class StacCatalog(ConfiguredBaseModel):
                        'MeasureGroup',
                        'ToteTrack',
                        'KnownStore',
+                       'ImageExport',
                        'TimelineEntry']} })
     title: Optional[str] = Field(default=None, json_schema_extra = { "linkml_meta": {'domain_of': ['ItemRef',
                        'TrackSupply',
@@ -3368,7 +3515,8 @@ class StacCatalog(ConfiguredBaseModel):
                        'CoverageReport',
                        'CoverageSource',
                        'CoverageItem',
-                       'ReviewFlag']} })
+                       'ReviewFlag',
+                       'FigureSource']} })
     description: str = Field(default=..., json_schema_extra = { "linkml_meta": {'domain_of': ['PlotProperties',
                        'StacItemProperties',
                        'StacCatalog',
@@ -3393,7 +3541,7 @@ class StacCatalog(ConfiguredBaseModel):
 class TimeState(ConfiguredBaseModel):
     linkml_meta: ClassVar[LinkMLMeta] = LinkMLMeta({'from_schema': 'https://debrief.info/schemas/debrief'})
 
-    current: str = Field(default=..., json_schema_extra = { "linkml_meta": {'domain_of': ['TimeState', 'PlotHistory', 'HistoryHead']} })
+    current: str = Field(default=..., json_schema_extra = { "linkml_meta": {'domain_of': ['TimeState', 'FigureSource', 'PlotHistory', 'HistoryHead']} })
     range: TimeRange = Field(default=..., json_schema_extra = { "linkml_meta": {'domain_of': ['TimeState']} })
 
     @field_validator('current')
@@ -3436,9 +3584,14 @@ class SharedState(ConfiguredBaseModel):
                        'SharedState',
                        'SharedStateChange',
                        'ToteResult',
+                       'ImageExport',
                        'WebviewMessage']} })
     selection: Selection = Field(default=..., json_schema_extra = { "linkml_meta": {'domain_of': ['SharedState', 'SharedStateChange', 'WebviewMessage']} })
-    viewport: Viewport = Field(default=..., json_schema_extra = { "linkml_meta": {'domain_of': ['SharedState', 'SharedStateChange', 'WebviewMessage']} })
+    viewport: Viewport = Field(default=..., json_schema_extra = { "linkml_meta": {'domain_of': ['SharedState',
+                       'SharedStateChange',
+                       'ImageExport',
+                       'RenderedImage',
+                       'WebviewMessage']} })
 
 
 class SharedStateChange(ConfiguredBaseModel):
@@ -3455,9 +3608,14 @@ class SharedStateChange(ConfiguredBaseModel):
                        'SharedState',
                        'SharedStateChange',
                        'ToteResult',
+                       'ImageExport',
                        'WebviewMessage']} })
     selection: Optional[Selection] = Field(default=None, json_schema_extra = { "linkml_meta": {'domain_of': ['SharedState', 'SharedStateChange', 'WebviewMessage']} })
-    viewport: Optional[Viewport] = Field(default=None, json_schema_extra = { "linkml_meta": {'domain_of': ['SharedState', 'SharedStateChange', 'WebviewMessage']} })
+    viewport: Optional[Viewport] = Field(default=None, json_schema_extra = { "linkml_meta": {'domain_of': ['SharedState',
+                       'SharedStateChange',
+                       'ImageExport',
+                       'RenderedImage',
+                       'WebviewMessage']} })
     save_window: Optional[bool] = Field(default=None, description="""From a tool whose purpose is to set the time window: save time's range as the plot's window. Honoured only when the analyst ran the tool by hand on this plot; otherwise, and without it, a range beyond the saved window is shown, never saved (CAP-28). Needs time.""", json_schema_extra = { "linkml_meta": {'domain_of': ['SharedStateChange']} })
 
 
@@ -3503,7 +3661,8 @@ class ToolDeclaration(ConfiguredBaseModel):
                        'CoverageReport',
                        'CoverageSource',
                        'CoverageItem',
-                       'ReviewFlag']} })
+                       'ReviewFlag',
+                       'FigureSource']} })
     explanation: str = Field(default=..., description="""Short user-facing explanation of what the tool does (CAP-24).""", json_schema_extra = { "linkml_meta": {'domain_of': ['ToolDeclaration', 'ParameterDeclaration', 'MeasureDefinition']} })
     judgement: Optional[str] = Field(default=None, description="""Any judgement the tool involves, shown on its form (CAP-24).""", json_schema_extra = { "linkml_meta": {'domain_of': ['ToolDeclaration']} })
     applies_to: list[str] = Field(default=..., description="""Feature kinds from the taxonomy, or \"*\" for any (TL-06). Debrief offers a tool only if every selected item matches (TL-08).""", json_schema_extra = { "linkml_meta": {'domain_of': ['ToolDeclaration']} })
@@ -3578,7 +3737,8 @@ class ParameterDeclaration(ConfiguredBaseModel):
                        'CoverageReport',
                        'CoverageSource',
                        'CoverageItem',
-                       'ReviewFlag']} })
+                       'ReviewFlag',
+                       'FigureSource']} })
     explanation: Optional[str] = Field(default=None, description="""Shown beside the field on the form (CAP-24).""", json_schema_extra = { "linkml_meta": {'domain_of': ['ToolDeclaration', 'ParameterDeclaration', 'MeasureDefinition']} })
     kind: ParameterKindEnum = Field(default=..., json_schema_extra = { "linkml_meta": {'domain_of': ['ProvRecord',
                        'AgentRef',
@@ -3670,7 +3830,8 @@ class NonSpatialResult(ConfiguredBaseModel):
                        'CoverageReport',
                        'CoverageSource',
                        'CoverageItem',
-                       'ReviewFlag']} })
+                       'ReviewFlag',
+                       'FigureSource']} })
     presentation: ResultPresentationEnum = Field(default=..., json_schema_extra = { "linkml_meta": {'domain_of': ['NonSpatialResult']} })
     columns: list[ResultColumn] = Field(default=..., json_schema_extra = { "linkml_meta": {'domain_of': ['PayloadRef', 'NonSpatialResult']} })
 
@@ -3768,6 +3929,7 @@ class MeasureDefinition(ConfiguredBaseModel):
                        'MeasureGroup',
                        'ToteTrack',
                        'KnownStore',
+                       'ImageExport',
                        'TimelineEntry']} })
     title: str = Field(default=..., description="""Its name in full, for hover text and screen readers.""", json_schema_extra = { "linkml_meta": {'domain_of': ['ItemRef',
                        'TrackSupply',
@@ -3785,7 +3947,8 @@ class MeasureDefinition(ConfiguredBaseModel):
                        'CoverageReport',
                        'CoverageSource',
                        'CoverageItem',
-                       'ReviewFlag']} })
+                       'ReviewFlag',
+                       'FigureSource']} })
     label: str = Field(default=..., description="""Its row heading in the Tote, before the unit, short enough for a narrow view.""", json_schema_extra = { "linkml_meta": {'domain_of': ['FixMark', 'MeasureDefinition']} })
     subject: MeasureSubjectEnum = Field(default=..., json_schema_extra = { "linkml_meta": {'domain_of': ['MeasureDefinition']} })
     quantity_kind: QuantityKindEnum = Field(default=..., json_schema_extra = { "linkml_meta": {'domain_of': ['PayloadColumn',
@@ -3828,6 +3991,7 @@ class MeasureGroup(ConfiguredBaseModel):
                        'MeasureGroup',
                        'ToteTrack',
                        'KnownStore',
+                       'ImageExport',
                        'TimelineEntry']} })
     title: str = Field(default=..., json_schema_extra = { "linkml_meta": {'domain_of': ['ItemRef',
                        'TrackSupply',
@@ -3845,7 +4009,8 @@ class MeasureGroup(ConfiguredBaseModel):
                        'CoverageReport',
                        'CoverageSource',
                        'CoverageItem',
-                       'ReviewFlag']} })
+                       'ReviewFlag',
+                       'FigureSource']} })
     description: Optional[str] = Field(default=None, json_schema_extra = { "linkml_meta": {'domain_of': ['PlotProperties',
                        'StacItemProperties',
                        'StacCatalog',
@@ -3982,6 +4147,7 @@ class ToteResult(ConfiguredBaseModel):
                        'SharedState',
                        'SharedStateChange',
                        'ToteResult',
+                       'ImageExport',
                        'WebviewMessage']} })
     group: MeasureGroup = Field(default=..., json_schema_extra = { "linkml_meta": {'domain_of': ['ToteResult']} })
     measures: list[MeasureDefinition] = Field(default=..., description="""The definitions of the group's measures, in its order.""", json_schema_extra = { "linkml_meta": {'domain_of': ['MeasureGroup', 'ToteResult']} })
@@ -4026,6 +4192,7 @@ class ToteTrack(ConfiguredBaseModel):
                        'MeasureGroup',
                        'ToteTrack',
                        'KnownStore',
+                       'ImageExport',
                        'TimelineEntry']} })
     name: str = Field(default=..., json_schema_extra = { "linkml_meta": {'domain_of': ['ParameterValue',
                        'ToolRef',
@@ -4135,6 +4302,7 @@ class KnownStore(ConfiguredBaseModel):
                        'MeasureGroup',
                        'ToteTrack',
                        'KnownStore',
+                       'ImageExport',
                        'TimelineEntry']} })
     title: str = Field(default=..., description="""The name the analyst sees.""", json_schema_extra = { "linkml_meta": {'domain_of': ['ItemRef',
                        'TrackSupply',
@@ -4152,7 +4320,8 @@ class KnownStore(ConfiguredBaseModel):
                        'CoverageReport',
                        'CoverageSource',
                        'CoverageItem',
-                       'ReviewFlag']} })
+                       'ReviewFlag',
+                       'FigureSource']} })
     kind: StoreKindEnum = Field(default=..., json_schema_extra = { "linkml_meta": {'domain_of': ['ProvRecord',
                        'AgentRef',
                        'TrackProperties',
@@ -4207,7 +4376,9 @@ class CoverageReport(ConfiguredBaseModel):
                        'CoverageReport',
                        'CoverageSource',
                        'CoverageItem',
-                       'ReviewFlag']} })
+                       'ReviewFlag',
+                       'FigureSource',
+                       'LoggedExport']} })
     item: str = Field(default=..., description="""The plot's item id.""", json_schema_extra = { "linkml_meta": {'domain_of': ['ItemRef',
                        'SourceTrackRef',
                        'TrackSupply',
@@ -4215,7 +4386,9 @@ class CoverageReport(ConfiguredBaseModel):
                        'CoverageReport',
                        'CoverageSource',
                        'CoverageItem',
-                       'ReviewFlag']} })
+                       'ReviewFlag',
+                       'FigureSource',
+                       'LoggedExport']} })
     title: str = Field(default=..., json_schema_extra = { "linkml_meta": {'domain_of': ['ItemRef',
                        'TrackSupply',
                        'PlotProperties',
@@ -4232,7 +4405,8 @@ class CoverageReport(ConfiguredBaseModel):
                        'CoverageReport',
                        'CoverageSource',
                        'CoverageItem',
-                       'ReviewFlag']} })
+                       'ReviewFlag',
+                       'FigureSource']} })
     start: Optional[str] = Field(default=None, description="""The earliest time any source shown has data.""", json_schema_extra = { "linkml_meta": {'domain_of': ['TimeRange',
                        'TrackSupply',
                        'CoverageReport',
@@ -4351,7 +4525,9 @@ class CoverageSource(ConfiguredBaseModel):
                        'CoverageReport',
                        'CoverageSource',
                        'CoverageItem',
-                       'ReviewFlag']} })
+                       'ReviewFlag',
+                       'FigureSource',
+                       'LoggedExport']} })
     item: str = Field(default=..., json_schema_extra = { "linkml_meta": {'domain_of': ['ItemRef',
                        'SourceTrackRef',
                        'TrackSupply',
@@ -4359,7 +4535,9 @@ class CoverageSource(ConfiguredBaseModel):
                        'CoverageReport',
                        'CoverageSource',
                        'CoverageItem',
-                       'ReviewFlag']} })
+                       'ReviewFlag',
+                       'FigureSource',
+                       'LoggedExport']} })
     track: str = Field(default=..., json_schema_extra = { "linkml_meta": {'domain_of': ['SourceTrackRef',
                        'TrackSupply',
                        'TrackCoverage',
@@ -4403,7 +4581,8 @@ class CoverageSource(ConfiguredBaseModel):
                        'CoverageReport',
                        'CoverageSource',
                        'CoverageItem',
-                       'ReviewFlag']} })
+                       'ReviewFlag',
+                       'FigureSource']} })
     link: CoverageLinkEnum = Field(default=..., json_schema_extra = { "linkml_meta": {'domain_of': ['CoverageSource']} })
     fixes: int = Field(default=..., ge=0, json_schema_extra = { "linkml_meta": {'domain_of': ['TrackCoverage', 'CoverageSource']} })
     spans: list[TimeRange] = Field(default=..., json_schema_extra = { "linkml_meta": {'domain_of': ['TrackCoverage', 'CoverageSource']} })
@@ -4471,7 +4650,9 @@ class CoverageItem(ConfiguredBaseModel):
                        'CoverageReport',
                        'CoverageSource',
                        'CoverageItem',
-                       'ReviewFlag']} })
+                       'ReviewFlag',
+                       'FigureSource',
+                       'LoggedExport']} })
     item: str = Field(default=..., json_schema_extra = { "linkml_meta": {'domain_of': ['ItemRef',
                        'SourceTrackRef',
                        'TrackSupply',
@@ -4479,7 +4660,9 @@ class CoverageItem(ConfiguredBaseModel):
                        'CoverageReport',
                        'CoverageSource',
                        'CoverageItem',
-                       'ReviewFlag']} })
+                       'ReviewFlag',
+                       'FigureSource',
+                       'LoggedExport']} })
     title: str = Field(default=..., json_schema_extra = { "linkml_meta": {'domain_of': ['ItemRef',
                        'TrackSupply',
                        'PlotProperties',
@@ -4496,7 +4679,8 @@ class CoverageItem(ConfiguredBaseModel):
                        'CoverageReport',
                        'CoverageSource',
                        'CoverageItem',
-                       'ReviewFlag']} })
+                       'ReviewFlag',
+                       'FigureSource']} })
     role: CoverageItemRoleEnum = Field(default=..., json_schema_extra = { "linkml_meta": {'domain_of': ['CoverageItem']} })
     created: Optional[str] = Field(default=None, json_schema_extra = { "linkml_meta": {'domain_of': ['StacItemProperties', 'CoverageItem']} })
     start: Optional[str] = Field(default=None, json_schema_extra = { "linkml_meta": {'domain_of': ['TimeRange',
@@ -4515,7 +4699,10 @@ class CoverageItem(ConfiguredBaseModel):
                        'TrackSupply',
                        'ItemRevision',
                        'CoverageItem',
-                       'NewDataMark']} })
+                       'NewDataMark',
+                       'ImageExport',
+                       'RevisionShown',
+                       'FigureSource']} })
     tracks: Optional[list[TrackCoverage]] = Field(default=None, json_schema_extra = { "linkml_meta": {'domain_of': ['NarrativeImportAnswers', 'CoverageItem']} })
     new_data: Optional[NewDataMark] = Field(default=None, description="""Marked as new data for the plot (CAP-10).""", json_schema_extra = { "linkml_meta": {'domain_of': ['CoverageItem']} })
     revised: Optional[bool] = Field(default=None, description="""The plot took data from this item at a revision it no longer has (CAP-12).""", json_schema_extra = { "linkml_meta": {'domain_of': ['CoverageSource', 'CoverageItem', 'ReviewFlag']} })
@@ -4583,7 +4770,10 @@ class NewDataMark(ConfiguredBaseModel):
                        'TrackSupply',
                        'ItemRevision',
                        'CoverageItem',
-                       'NewDataMark']} })
+                       'NewDataMark',
+                       'ImageExport',
+                       'RevisionShown',
+                       'FigureSource']} })
     platforms: Optional[list[str]] = Field(default=None, description="""The plot's tracks it has data for.""", json_schema_extra = { "linkml_meta": {'domain_of': ['CoverageReport', 'NewDataMark']} })
     within_period: Optional[bool] = Field(default=None, description="""It has data within the plot's period.""", json_schema_extra = { "linkml_meta": {'domain_of': ['NarrativeImportAnswers', 'NewDataMark']} })
     note: str = Field(default=..., description="""What the mark says, for its tooltip and screen readers.""", json_schema_extra = { "linkml_meta": {'domain_of': ['ToteRow',
@@ -4619,7 +4809,9 @@ class ReviewFlag(ConfiguredBaseModel):
                        'CoverageReport',
                        'CoverageSource',
                        'CoverageItem',
-                       'ReviewFlag']} })
+                       'ReviewFlag',
+                       'FigureSource',
+                       'LoggedExport']} })
     item: str = Field(default=..., json_schema_extra = { "linkml_meta": {'domain_of': ['ItemRef',
                        'SourceTrackRef',
                        'TrackSupply',
@@ -4627,7 +4819,9 @@ class ReviewFlag(ConfiguredBaseModel):
                        'CoverageReport',
                        'CoverageSource',
                        'CoverageItem',
-                       'ReviewFlag']} })
+                       'ReviewFlag',
+                       'FigureSource',
+                       'LoggedExport']} })
     title: str = Field(default=..., json_schema_extra = { "linkml_meta": {'domain_of': ['ItemRef',
                        'TrackSupply',
                        'PlotProperties',
@@ -4644,13 +4838,308 @@ class ReviewFlag(ConfiguredBaseModel):
                        'CoverageReport',
                        'CoverageSource',
                        'CoverageItem',
-                       'ReviewFlag']} })
+                       'ReviewFlag',
+                       'FigureSource']} })
     revised: list[ItemRef] = Field(default=..., description="""Each item revised since the product took data from it, at its revision now.""", json_schema_extra = { "linkml_meta": {'domain_of': ['CoverageSource', 'CoverageItem', 'ReviewFlag']} })
     note: str = Field(default=..., description="""What the flag says, for its tooltip and screen readers.""", json_schema_extra = { "linkml_meta": {'domain_of': ['ToteRow',
                        'ToteResult',
                        'CoverageReport',
                        'NewDataMark',
                        'ReviewFlag']} })
+
+
+class ImageExport(ConfiguredBaseModel):
+    """
+    One image exported from a plot, as the plot's export log records it in its island: view state, never a step (decision, product owner, 16 Oct 2026). What the analyst exported, so the image can be traced and its view shown again.
+    """
+    linkml_meta: ClassVar[LinkMLMeta] = LinkMLMeta({'from_schema': 'https://debrief.info/schemas/debrief'})
+
+    id: str = Field(default=..., description="""The image's ID, in full.""", json_schema_extra = { "linkml_meta": {'domain_of': ['ProvRecord',
+                       'TrackFeature',
+                       'AnnotationFeature',
+                       'NarrativeFeature',
+                       'SensorObservationsFeature',
+                       'PlotFeature',
+                       'NamedSet',
+                       'StacItem',
+                       'StacCatalog',
+                       'MeasureDefinition',
+                       'MeasureGroup',
+                       'ToteTrack',
+                       'KnownStore',
+                       'ImageExport',
+                       'TimelineEntry']} })
+    revision: str = Field(default=..., description="""The plot's revision exported (its content hash): the step it was exported at.""", json_schema_extra = { "linkml_meta": {'domain_of': ['ItemRef',
+                       'TrackSupply',
+                       'ItemRevision',
+                       'CoverageItem',
+                       'NewDataMark',
+                       'ImageExport',
+                       'RevisionShown',
+                       'FigureSource']} })
+    at: str = Field(default=..., description="""When it was exported.""", json_schema_extra = { "linkml_meta": {'domain_of': ['ItemRevision', 'ImageExport']} })
+    by: Optional[str] = Field(default=None, description="""Who exported it: the agent's name.""", json_schema_extra = { "linkml_meta": {'domain_of': ['ItemRevision', 'ImageExport']} })
+    format: ImageFormatEnum = Field(default=..., json_schema_extra = { "linkml_meta": {'domain_of': ['PayloadRef', 'ImageExport', 'ImageRequest', 'RenderedImage']} })
+    file: Optional[str] = Field(default=None, description="""The file's name, without its folder.""", json_schema_extra = { "linkml_meta": {'domain_of': ['ImageExport']} })
+    footer: bool = Field(default=..., description="""Whether the image shows its ID in a footer.""", json_schema_extra = { "linkml_meta": {'domain_of': ['ImageExport']} })
+    preset: Optional[ImagePresetEnum] = Field(default=None, json_schema_extra = { "linkml_meta": {'domain_of': ['ImageExport', 'ImageRequest']} })
+    theme: Optional[ImageThemeEnum] = Field(default=None, json_schema_extra = { "linkml_meta": {'domain_of': ['ImageExport', 'ImageRequest']} })
+    width: Optional[int] = Field(default=None, description="""Its width in pixels.""", ge=1, json_schema_extra = { "linkml_meta": {'domain_of': ['ImageExport', 'RenderedImage']} })
+    height: Optional[int] = Field(default=None, description="""Its height in pixels.""", ge=1, json_schema_extra = { "linkml_meta": {'domain_of': ['ImageExport', 'RenderedImage']} })
+    viewport: Optional[Viewport] = Field(default=None, description="""The area of the map exported.""", json_schema_extra = { "linkml_meta": {'domain_of': ['SharedState',
+                       'SharedStateChange',
+                       'ImageExport',
+                       'RenderedImage',
+                       'WebviewMessage']} })
+    time: Optional[TimeState] = Field(default=None, description="""Current time and the time window when it was exported.""", json_schema_extra = { "linkml_meta": {'domain_of': ['FixMark',
+                       'AnnotationProperties',
+                       'AnnotationSpec',
+                       'NarrativeProperties',
+                       'NarrativeSpec',
+                       'SharedState',
+                       'SharedStateChange',
+                       'ToteResult',
+                       'ImageExport',
+                       'WebviewMessage']} })
+    tote: Optional[ToteView] = Field(default=None, description="""Which tracks the Tote compared when it was exported, so the plot traced from the image shows the Tote, and its lines on the map, as the figure did (decision, product owner, 16 Oct 2026).""", json_schema_extra = { "linkml_meta": {'domain_of': ['PlotView', 'ImageExport', 'WebviewMessage']} })
+
+    @field_validator('id')
+    def pattern_id(cls, v):
+        pattern=re.compile(r"^DBF1-[0-9A-HJKMNP-TV-Z]{8}-[0-9A-HJKMNP-TV-Z]{16}-[0-9A-HJKMNP-TV-Z]{8}-[0-9A-HJKMNP-TV-Z]$")
+        if isinstance(v, list):
+            for element in v:
+                if isinstance(element, str) and not pattern.search(element):
+                    err_msg = f"Invalid id format: {element}"
+                    raise ValueError(err_msg)
+        elif isinstance(v, str) and not pattern.search(v):
+            err_msg = f"Invalid id format: {v}"
+            raise ValueError(err_msg)
+        return v
+
+    @field_validator('revision')
+    def pattern_revision(cls, v):
+        pattern=re.compile(r"^sha256:[0-9a-f]{64}$")
+        if isinstance(v, list):
+            for element in v:
+                if isinstance(element, str) and not pattern.search(element):
+                    err_msg = f"Invalid revision format: {element}"
+                    raise ValueError(err_msg)
+        elif isinstance(v, str) and not pattern.search(v):
+            err_msg = f"Invalid revision format: {v}"
+            raise ValueError(err_msg)
+        return v
+
+    @field_validator('at')
+    def pattern_at(cls, v):
+        pattern=re.compile(r"^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}Z$")
+        if isinstance(v, list):
+            for element in v:
+                if isinstance(element, str) and not pattern.search(element):
+                    err_msg = f"Invalid at format: {element}"
+                    raise ValueError(err_msg)
+        elif isinstance(v, str) and not pattern.search(v):
+            err_msg = f"Invalid at format: {v}"
+            raise ValueError(err_msg)
+        return v
+
+
+class ImageRequest(ConfiguredBaseModel):
+    """
+    What the host asks the map to draw for an export (export_image).
+    """
+    linkml_meta: ClassVar[LinkMLMeta] = LinkMLMeta({'from_schema': 'https://debrief.info/schemas/debrief'})
+
+    format: ImageFormatEnum = Field(default=..., json_schema_extra = { "linkml_meta": {'domain_of': ['PayloadRef', 'ImageExport', 'ImageRequest', 'RenderedImage']} })
+    preset: ImagePresetEnum = Field(default=..., json_schema_extra = { "linkml_meta": {'domain_of': ['ImageExport', 'ImageRequest']} })
+    theme: ImageThemeEnum = Field(default=..., json_schema_extra = { "linkml_meta": {'domain_of': ['ImageExport', 'ImageRequest']} })
+    footer_text: Optional[str] = Field(default=None, description="""The image's ID in its short form, to draw in a corner; left out for no footer.""", json_schema_extra = { "linkml_meta": {'domain_of': ['ImageRequest']} })
+
+    @field_validator('footer_text')
+    def pattern_footer_text(cls, v):
+        pattern=re.compile(r"^DBF-[0-9A-HJKMNP-TV-Z]{4}-[0-9A-HJKMNP-TV-Z]{4}-[0-9A-HJKMNP-TV-Z]{4}-[0-9A-HJKMNP-TV-Z]{2}$")
+        if isinstance(v, list):
+            for element in v:
+                if isinstance(element, str) and not pattern.search(element):
+                    err_msg = f"Invalid footer_text format: {element}"
+                    raise ValueError(err_msg)
+        elif isinstance(v, str) and not pattern.search(v):
+            err_msg = f"Invalid footer_text format: {v}"
+            raise ValueError(err_msg)
+        return v
+
+
+class RenderedImage(ConfiguredBaseModel):
+    """
+    The image the map drew (image_rendered), before its ID goes into its metadata.
+    """
+    linkml_meta: ClassVar[LinkMLMeta] = LinkMLMeta({'from_schema': 'https://debrief.info/schemas/debrief'})
+
+    format: ImageFormatEnum = Field(default=..., json_schema_extra = { "linkml_meta": {'domain_of': ['PayloadRef', 'ImageExport', 'ImageRequest', 'RenderedImage']} })
+    data: str = Field(default=..., description="""A PNG as base 64, or an SVG as its text.""", json_schema_extra = { "linkml_meta": {'domain_of': ['RenderedImage']} })
+    width: int = Field(default=..., ge=1, json_schema_extra = { "linkml_meta": {'domain_of': ['ImageExport', 'RenderedImage']} })
+    height: int = Field(default=..., ge=1, json_schema_extra = { "linkml_meta": {'domain_of': ['ImageExport', 'RenderedImage']} })
+    viewport: Optional[Viewport] = Field(default=None, description="""The area of the map drawn.""", json_schema_extra = { "linkml_meta": {'domain_of': ['SharedState',
+                       'SharedStateChange',
+                       'ImageExport',
+                       'RenderedImage',
+                       'WebviewMessage']} })
+    notes: Optional[list[str]] = Field(default=None, description="""What the image leaves out that the map shows, for the analyst: reference tiles that could not be read, say.""", json_schema_extra = { "linkml_meta": {'domain_of': ['ProvRecord', 'RenderedImage']} })
+
+
+class RevisionShown(ConfiguredBaseModel):
+    """
+    The plot is shown as it was at an earlier revision, read-only: the one an image was exported at (show_plot).
+    """
+    linkml_meta: ClassVar[LinkMLMeta] = LinkMLMeta({'from_schema': 'https://debrief.info/schemas/debrief'})
+
+    step: int = Field(default=..., description="""The step whose revision is shown.""", ge=0, json_schema_extra = { "linkml_meta": {'domain_of': ['RevisionShown', 'FigureSource']} })
+    latest: int = Field(default=..., description="""The plot's current step now.""", ge=0, json_schema_extra = { "linkml_meta": {'domain_of': ['RevisionShown', 'HistoryHead']} })
+    revision: str = Field(default=..., json_schema_extra = { "linkml_meta": {'domain_of': ['ItemRef',
+                       'TrackSupply',
+                       'ItemRevision',
+                       'CoverageItem',
+                       'NewDataMark',
+                       'ImageExport',
+                       'RevisionShown',
+                       'FigureSource']} })
+    figure: Optional[str] = Field(default=None, description="""The image's ID, in its short form, when one was traced.""", json_schema_extra = { "linkml_meta": {'domain_of': ['RevisionShown']} })
+
+    @field_validator('revision')
+    def pattern_revision(cls, v):
+        pattern=re.compile(r"^sha256:[0-9a-f]{64}$")
+        if isinstance(v, list):
+            for element in v:
+                if isinstance(element, str) and not pattern.search(element):
+                    err_msg = f"Invalid revision format: {element}"
+                    raise ValueError(err_msg)
+        elif isinstance(v, str) and not pattern.search(v):
+            err_msg = f"Invalid revision format: {v}"
+            raise ValueError(err_msg)
+        return v
+
+    @field_validator('figure')
+    def pattern_figure(cls, v):
+        pattern=re.compile(r"^DBF-[0-9A-HJKMNP-TV-Z]{4}-[0-9A-HJKMNP-TV-Z]{4}-[0-9A-HJKMNP-TV-Z]{4}-[0-9A-HJKMNP-TV-Z]{2}$")
+        if isinstance(v, list):
+            for element in v:
+                if isinstance(element, str) and not pattern.search(element):
+                    err_msg = f"Invalid figure format: {element}"
+                    raise ValueError(err_msg)
+        elif isinstance(v, str) and not pattern.search(v):
+            err_msg = f"Invalid figure format: {v}"
+            raise ValueError(err_msg)
+        return v
+
+
+class FigureSource(ConfiguredBaseModel):
+    """
+    Where an image came from: a plot in one of the analyst's catalogues, at the revision the image was exported at (Find source of image).
+    """
+    linkml_meta: ClassVar[LinkMLMeta] = LinkMLMeta({'from_schema': 'https://debrief.info/schemas/debrief'})
+
+    store: Optional[str] = Field(default=None, description="""The catalogue's id in the analyst's configuration.""", json_schema_extra = { "linkml_meta": {'domain_of': ['FigureSource']} })
+    store_title: Optional[str] = Field(default=None, json_schema_extra = { "linkml_meta": {'domain_of': ['FigureSource']} })
+    catalogue: str = Field(default=..., description="""The catalogue's own id, from its catalog.json.""", json_schema_extra = { "linkml_meta": {'domain_of': ['ItemRef',
+                       'SourceTrackRef',
+                       'TrackSupply',
+                       'ItemRevision',
+                       'CoverageReport',
+                       'CoverageSource',
+                       'CoverageItem',
+                       'ReviewFlag',
+                       'FigureSource',
+                       'LoggedExport']} })
+    item: str = Field(default=..., json_schema_extra = { "linkml_meta": {'domain_of': ['ItemRef',
+                       'SourceTrackRef',
+                       'TrackSupply',
+                       'ItemRevision',
+                       'CoverageReport',
+                       'CoverageSource',
+                       'CoverageItem',
+                       'ReviewFlag',
+                       'FigureSource',
+                       'LoggedExport']} })
+    title: str = Field(default=..., json_schema_extra = { "linkml_meta": {'domain_of': ['ItemRef',
+                       'TrackSupply',
+                       'PlotProperties',
+                       'StacLink',
+                       'StacAsset',
+                       'StacItemProperties',
+                       'StacCatalog',
+                       'ToolDeclaration',
+                       'ParameterDeclaration',
+                       'NonSpatialResult',
+                       'MeasureDefinition',
+                       'MeasureGroup',
+                       'KnownStore',
+                       'CoverageReport',
+                       'CoverageSource',
+                       'CoverageItem',
+                       'ReviewFlag',
+                       'FigureSource']} })
+    revision: str = Field(default=..., json_schema_extra = { "linkml_meta": {'domain_of': ['ItemRef',
+                       'TrackSupply',
+                       'ItemRevision',
+                       'CoverageItem',
+                       'NewDataMark',
+                       'ImageExport',
+                       'RevisionShown',
+                       'FigureSource']} })
+    step: int = Field(default=..., description="""The step at that revision.""", ge=0, json_schema_extra = { "linkml_meta": {'domain_of': ['RevisionShown', 'FigureSource']} })
+    current: int = Field(default=..., description="""The plot's current step now.""", ge=0, json_schema_extra = { "linkml_meta": {'domain_of': ['TimeState', 'FigureSource', 'PlotHistory', 'HistoryHead']} })
+    copied: Optional[bool] = Field(default=None, description="""The image's plot key names another plot: this is a copy of it with the same content at that revision (a colleague's, or one moved to another catalogue).""", json_schema_extra = { "linkml_meta": {'domain_of': ['FigureSource']} })
+    export: Optional[ImageExport] = Field(default=None, description="""The export log entry for the image, where the plot's log or the analyst's own has one. A footer's short form may name several exports of one revision: each is a source of its own, to choose from.""", json_schema_extra = { "linkml_meta": {'domain_of': ['FigureSource', 'LoggedExport']} })
+
+    @field_validator('revision')
+    def pattern_revision(cls, v):
+        pattern=re.compile(r"^sha256:[0-9a-f]{64}$")
+        if isinstance(v, list):
+            for element in v:
+                if isinstance(element, str) and not pattern.search(element):
+                    err_msg = f"Invalid revision format: {element}"
+                    raise ValueError(err_msg)
+        elif isinstance(v, str) and not pattern.search(v):
+            err_msg = f"Invalid revision format: {v}"
+            raise ValueError(err_msg)
+        return v
+
+
+class LoggedExport(ConfiguredBaseModel):
+    """
+    An export recorded in the analyst's own export log, beside their Debrief configuration, where the plot's could not be written (a read-only catalogue, say), so every export stays traceable (decision, product owner, 16 Oct 2026).
+    """
+    linkml_meta: ClassVar[LinkMLMeta] = LinkMLMeta({'from_schema': 'https://debrief.info/schemas/debrief'})
+
+    catalogue: str = Field(default=..., description="""The catalogue's own id, from its catalog.json.""", json_schema_extra = { "linkml_meta": {'domain_of': ['ItemRef',
+                       'SourceTrackRef',
+                       'TrackSupply',
+                       'ItemRevision',
+                       'CoverageReport',
+                       'CoverageSource',
+                       'CoverageItem',
+                       'ReviewFlag',
+                       'FigureSource',
+                       'LoggedExport']} })
+    item: str = Field(default=..., json_schema_extra = { "linkml_meta": {'domain_of': ['ItemRef',
+                       'SourceTrackRef',
+                       'TrackSupply',
+                       'ItemRevision',
+                       'CoverageReport',
+                       'CoverageSource',
+                       'CoverageItem',
+                       'ReviewFlag',
+                       'FigureSource',
+                       'LoggedExport']} })
+    export: ImageExport = Field(default=..., json_schema_extra = { "linkml_meta": {'domain_of': ['FigureSource', 'LoggedExport']} })
+
+
+class ExportLog(ConfiguredBaseModel):
+    """
+    The analyst's own export log, exports.json beside their Debrief configuration: the newest 2,000 exports their plots could not keep.
+    """
+    linkml_meta: ClassVar[LinkMLMeta] = LinkMLMeta({'from_schema': 'https://debrief.info/schemas/debrief'})
+
+    exports: Optional[list[LoggedExport]] = Field(default=None, json_schema_extra = { "linkml_meta": {'domain_of': ['PlotView', 'ExportLog']} })
 
 
 class TimelineEntry(ConfiguredBaseModel):
@@ -4672,6 +5161,7 @@ class TimelineEntry(ConfiguredBaseModel):
                        'MeasureGroup',
                        'ToteTrack',
                        'KnownStore',
+                       'ImageExport',
                        'TimelineEntry']} })
     kind: TimelineEntryKindEnum = Field(default=..., json_schema_extra = { "linkml_meta": {'domain_of': ['ProvRecord',
                        'AgentRef',
@@ -4784,7 +5274,11 @@ class WebviewMessage(ConfiguredBaseModel):
     plot_title: Optional[str] = Field(default=None, json_schema_extra = { "linkml_meta": {'domain_of': ['WebviewMessage']} })
     hidden_count: Optional[int] = Field(default=None, description="""How many of the plot's features are hidden on the map (SUB-22), so the map can say so.""", ge=0, json_schema_extra = { "linkml_meta": {'domain_of': ['WebviewMessage']} })
     selection: Optional[Selection] = Field(default=None, json_schema_extra = { "linkml_meta": {'domain_of': ['SharedState', 'SharedStateChange', 'WebviewMessage']} })
-    viewport: Optional[Viewport] = Field(default=None, json_schema_extra = { "linkml_meta": {'domain_of': ['SharedState', 'SharedStateChange', 'WebviewMessage']} })
+    viewport: Optional[Viewport] = Field(default=None, json_schema_extra = { "linkml_meta": {'domain_of': ['SharedState',
+                       'SharedStateChange',
+                       'ImageExport',
+                       'RenderedImage',
+                       'WebviewMessage']} })
     time: Optional[TimeState] = Field(default=None, json_schema_extra = { "linkml_meta": {'domain_of': ['FixMark',
                        'AnnotationProperties',
                        'AnnotationSpec',
@@ -4793,6 +5287,7 @@ class WebviewMessage(ConfiguredBaseModel):
                        'SharedState',
                        'SharedStateChange',
                        'ToteResult',
+                       'ImageExport',
                        'WebviewMessage']} })
     saved_window: Optional[TimeRange] = Field(default=None, description="""The time window as saved in the plot, so the time controller can say when the window shown differs from it (CAP-28).""", json_schema_extra = { "linkml_meta": {'domain_of': ['WebviewMessage']} })
     context_tracks: Optional[ContextTracksEnum] = Field(default=None, description="""How tracks outside the time window are drawn (CAP-29).""", json_schema_extra = { "linkml_meta": {'domain_of': ['PlotView', 'WebviewMessage']} })
@@ -4815,7 +5310,7 @@ class WebviewMessage(ConfiguredBaseModel):
     fix_times: Optional[list[str]] = Field(default=None, description="""The times of the fixes the map rings (show_fixes).""", json_schema_extra = { "linkml_meta": {'domain_of': ['WebviewMessage']} })
     fix_time: Optional[str] = Field(default=None, description="""The time of the fix the analyst chose on the map (fix_chosen).""", json_schema_extra = { "linkml_meta": {'domain_of': ['TrackEdit', 'WebviewMessage']} })
     preview: Optional[LineStringGeometry] = Field(default=None, description="""A track as a change would leave it, one position per fix, drawn beside it until the analyst applies or cancels the change (show_fixes).""", json_schema_extra = { "linkml_meta": {'domain_of': ['WebviewMessage']} })
-    tote: Optional[ToteResult] = Field(default=None, description="""The Tote's values at current time (show_tote).""", json_schema_extra = { "linkml_meta": {'domain_of': ['PlotView', 'WebviewMessage']} })
+    tote: Optional[ToteResult] = Field(default=None, description="""The Tote's values at current time (show_tote).""", json_schema_extra = { "linkml_meta": {'domain_of': ['PlotView', 'ImageExport', 'WebviewMessage']} })
     tote_view: Optional[ToteView] = Field(default=None, description="""Which tracks the Tote compares, as saved in the plot (show_tote, set_tote) or as the analyst chose (tote_changed).""", json_schema_extra = { "linkml_meta": {'domain_of': ['WebviewMessage']} })
     timeline_entries: Optional[list[TimelineEntry]] = Field(default=None, description="""The Timeline's rows, in its order (show_timeline).""", json_schema_extra = { "linkml_meta": {'domain_of': ['WebviewMessage']} })
     timeline_entry: Optional[TimelineEntry] = Field(default=None, description="""The narrative entry current time is at, to show on the map beside its track (set_narrative).""", json_schema_extra = { "linkml_meta": {'domain_of': ['WebviewMessage']} })
@@ -4832,6 +5327,9 @@ class WebviewMessage(ConfiguredBaseModel):
                        'WebviewMessage']} })
     linked: Optional[bool] = Field(default=None, description="""Whether the source is the track's platform (link_changed).""", json_schema_extra = { "linkml_meta": {'domain_of': ['WebviewMessage']} })
     item_revision: Optional[ItemRevision] = Field(default=None, description="""The item, at the revision the analyst saw (take_asked, dismiss_asked).""", json_schema_extra = { "linkml_meta": {'domain_of': ['WebviewMessage']} })
+    image_request: Optional[ImageRequest] = Field(default=None, description="""What image to draw, and how (export_image).""", json_schema_extra = { "linkml_meta": {'domain_of': ['WebviewMessage']} })
+    image: Optional[RenderedImage] = Field(default=None, description="""The image the map drew (image_rendered).""", json_schema_extra = { "linkml_meta": {'domain_of': ['WebviewMessage']} })
+    revision_shown: Optional[RevisionShown] = Field(default=None, description="""The plot shown is an earlier revision, read-only (show_plot).""", json_schema_extra = { "linkml_meta": {'domain_of': ['WebviewMessage']} })
 
     @field_validator('current_time')
     def pattern_current_time(cls, v):
@@ -4879,7 +5377,7 @@ class PlotHistory(ConfiguredBaseModel):
     """
     linkml_meta: ClassVar[LinkMLMeta] = LinkMLMeta({'from_schema': 'https://debrief.info/schemas/debrief'})
 
-    current: int = Field(default=..., description="""The step the plot's content reflects; 0 for none (an empty plot). Never an abandoned step.""", ge=0, json_schema_extra = { "linkml_meta": {'domain_of': ['TimeState', 'PlotHistory', 'HistoryHead']} })
+    current: int = Field(default=..., description="""The step the plot's content reflects; 0 for none (an empty plot). Never an abandoned step.""", ge=0, json_schema_extra = { "linkml_meta": {'domain_of': ['TimeState', 'FigureSource', 'PlotHistory', 'HistoryHead']} })
     head_hash: str = Field(default=..., description="""The last step's step_hash, or the starting value for a history with no steps, so a step removed from the end is noticed.""", json_schema_extra = { "linkml_meta": {'domain_of': ['PlotHistory']} })
     steps: list[HistoryStep] = Field(default=..., json_schema_extra = { "linkml_meta": {'domain_of': ['PlotHistory']} })
 
@@ -5021,8 +5519,8 @@ class HistoryHead(ConfiguredBaseModel):
     linkml_meta: ClassVar[LinkMLMeta] = LinkMLMeta({'from_schema': 'https://debrief.info/schemas/debrief'})
 
     schema_version: str = Field(default=..., json_schema_extra = { "linkml_meta": {'domain_of': ['DebriefFeatureCollection', 'Delta', 'HistoryHead']} })
-    current: int = Field(default=..., description="""Sequence number of the last delta the plot reflects; 0 for none.""", ge=0, json_schema_extra = { "linkml_meta": {'domain_of': ['TimeState', 'PlotHistory', 'HistoryHead']} })
-    latest: int = Field(default=..., description="""Highest sequence number written.""", ge=0, json_schema_extra = { "linkml_meta": {'domain_of': ['HistoryHead']} })
+    current: int = Field(default=..., description="""Sequence number of the last delta the plot reflects; 0 for none.""", ge=0, json_schema_extra = { "linkml_meta": {'domain_of': ['TimeState', 'FigureSource', 'PlotHistory', 'HistoryHead']} })
+    latest: int = Field(default=..., description="""Highest sequence number written.""", ge=0, json_schema_extra = { "linkml_meta": {'domain_of': ['RevisionShown', 'HistoryHead']} })
     abandoned: Optional[list[int]] = Field(default=None, description="""Deltas undone and then superseded by a new change.""", json_schema_extra = { "linkml_meta": {'domain_of': ['HistoryHead']} })
     plot_hash: str = Field(default=..., description="""Content hash the plot file has when it reflects current, island left out.""", json_schema_extra = { "linkml_meta": {'domain_of': ['HistoryHead']} })
 
@@ -5134,6 +5632,13 @@ CoveragePeriod.model_rebuild()
 CoverageItem.model_rebuild()
 NewDataMark.model_rebuild()
 ReviewFlag.model_rebuild()
+ImageExport.model_rebuild()
+ImageRequest.model_rebuild()
+RenderedImage.model_rebuild()
+RevisionShown.model_rebuild()
+FigureSource.model_rebuild()
+LoggedExport.model_rebuild()
+ExportLog.model_rebuild()
 TimelineEntry.model_rebuild()
 WebviewMessage.model_rebuild()
 PlotHistory.model_rebuild()

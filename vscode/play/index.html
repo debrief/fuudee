@@ -97,6 +97,28 @@
         <ul id="history" class="list"></ul>
       </div>
     </section>
+    <section class="panel" id="panel-export">
+      <h2><button type="button" class="fold" aria-expanded="true" aria-controls="body-export"><span class="arrow" aria-hidden="true"></span>Export image</button></h2>
+      <div class="panel-body" id="body-export">
+        <div class="export-form">
+          <label>Format <select id="export-format"><option value="png">PNG</option><option value="svg">SVG</option></select></label>
+          <label>Size <select id="export-preset"></select></label>
+          <label>Colours <select id="export-theme"><option value="current">As on screen</option><option value="light">Light, for print</option></select></label>
+          <label class="check"><input type="checkbox" id="export-footer" checked> Image ID in a corner</label>
+        </div>
+        <button id="export-image" class="primary" title="Save the map as you see it, as an image carrying an ID that traces it to this plot as it is now">Export image…</button>
+        <div id="export-said" class="detail export-said" role="status"></div>
+        <h3 class="sub">Find source of image</h3>
+        <label class="file">An image, or a Word or PowerPoint file of them <input id="find-file" type="file" accept=".png,.svg,.docx,.pptx,.odt,.odp,image/png,image/svg+xml"></label>
+        <form id="find-id-form" class="find-id">
+          <label for="find-id">Or the ID from its corner</label>
+          <span class="find-id-row"><input id="find-id" type="text" autocomplete="off" spellcheck="false" placeholder="DBF-PTET-KG8R-B9EM-69" aria-describedby="find-id-problem"><button id="find-id-go" type="submit">Find</button></span>
+          <span id="find-id-problem" class="detail problem" aria-live="polite"></span>
+        </form>
+        <div id="find-said" class="detail" role="status"></div>
+        <ul id="find-results" class="find-results"></ul>
+      </div>
+    </section>
     <section class="panel" id="panel-try">
       <h2><button type="button" class="fold" aria-expanded="true" aria-controls="body-try"><span class="arrow" aria-hidden="true"></span>Try</button></h2>
       <div class="panel-body" id="body-try">

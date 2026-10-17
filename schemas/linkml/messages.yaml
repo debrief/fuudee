@@ -15,6 +15,7 @@ imports:
   - tools
   - measures
   - collation
+  - figures
 
 description: >-
   Every message the VS Code extension host and its webviews (map, time
@@ -34,7 +35,7 @@ enums:
   WebviewMessageKindEnum:
     permissible_values:
       ready: {description: "Webview to host: loaded and listening."}
-      show_plot: {description: "Host to map: draw this plot (plot, plot_title, selection, and current time and viewport if known, and how many features are hidden)."}
+      show_plot: {description: "Host to map: draw this plot (plot, plot_title, selection, and current time and viewport if known, and how many features are hidden); with revision_shown, an earlier revision of the plot, shown read-only."}
       set_selection: {description: "Host to map: the selection changed elsewhere (selection)."}
       selection_changed: {description: "Map to host: the analyst changed the selection (selection)."}
       set_time: {description: "Host to map: current time changed elsewhere (time)."}
@@ -80,6 +81,9 @@ enums:
       take_asked: {description: "Coverage to host: take the new data in this item into the plot (item_revision), as one recorded step (CAP-11)."}
       dismiss_asked: {description: "Coverage to host: set this item's new data aside for now (item_revision): its mark clears until it is revised (CAP-10)."}
       review_cleared: {description: "Coverage to host: the analyst reviewed the plot against the items revised since it drew from them; clear its review flag (CAP-12)."}
+      export_image: {description: "Host to map: draw the map as an image (image_request), as the analyst sees it, at the size, in the theme and with the footer asked for (SUB-25)."}
+      image_rendered: {description: "Map to host: the image drawn (image), for its ID to go into its metadata; or, with message alone, why it could not be drawn."}
+      latest_asked: {description: "Map to host: the analyst asked to leave the earlier revision shown read-only and go to the plot's latest (no members)."}
 
 classes:
   TimelineEntry:
@@ -243,4 +247,16 @@ classes:
       item_revision:
         description: The item, at the revision the analyst saw (take_asked, dismiss_asked).
         range: ItemRevision
+        inlined: true
+      image_request:
+        description: What image to draw, and how (export_image).
+        range: ImageRequest
+        inlined: true
+      image:
+        description: The image the map drew (image_rendered).
+        range: RenderedImage
+        inlined: true
+      revision_shown:
+        description: The plot shown is an earlier revision, read-only (show_plot).
+        range: RevisionShown
         inlined: true

@@ -10,7 +10,7 @@ import { checkMessage } from "../messages.js";
 import { webviewHtml } from "./html.js";
 import { startup } from "../startup.js";
 import { displayed, hiddenIds } from "../hidden.js";
-import type { TimelineEntry, ToteView } from "@debrief/schemas";
+import type { ImageRequest, RenderedImage, RevisionShown, TimelineEntry, ToteView } from "@debrief/schemas";
 import { NarrativeOnMap, narrativeOnMapOf, timelineEntries } from "../timeline.js";
 import { toteOf } from "../../webview/totelogic.js";
 
@@ -29,6 +29,8 @@ export class MapPanel {
   fixesShown?: { feature_id: string; fix_times?: string[]; preview?: { type: "LineString"; coordinates: number[][] }; message?: string };
   /** The narrative entry the map shows beside its track at current time, for tests and agents (CAP-20). */
   narrative?: TimelineEntry;
+  /** The earlier revision the map was last told it shows read-only, for tests and agents (SUB-25). */
+  revisionShown?: RevisionShown;
   private narrativeOnMap = new NarrativeOnMap([]);
 
   constructor(
@@ -131,7 +133,43 @@ export class MapPanel {
     } else if (message.kind === "annotation_drawn") {
       // Drawn on the map: the form, to name it and add it as one step.
       await vscode.commands.executeCommand("debrief.addDrawnAnnotation", message.annotation);
+    } else if (message.kind === "image_rendered") {
+      this.rendered?.(message.image ? { image: message.image } : { problem: message.message ?? "The map could not draw the image." });
+    } else if (message.kind === "latest_asked") {
+      // An earlier revision shown read-only: the analyst asked for the plot as it is now.
+      await vscode.commands.executeCommand("debrief.openLatestRevision");
     }
+  }
+
+  private rendered?: (answer: { image: RenderedImage } | { problem: string }) => void;
+
+  /**
+   * The map drawn as an image (SUB-25): as the analyst sees it, at the size, in the colours
+   * and with the footer asked for. The map is shown first if it is hidden: it draws itself.
+   */
+  renderImage(request: ImageRequest): Promise<RenderedImage> {
+    this.reveal();
+    return new Promise((resolve, reject) => {
+      const waited = Date.now();
+      const send = () => {
+        if (!this.panel || !this.ready) {
+          if (Date.now() - waited > 30000) return reject(new Error("The map did not open in time."));
+          return void setTimeout(send, 100);
+        }
+        const timer = setTimeout(() => {
+          this.rendered = undefined;
+          reject(new Error("The map did not draw the image in time."));
+        }, 60000);
+        this.rendered = (answer) => {
+          clearTimeout(timer);
+          this.rendered = undefined;
+          if ("image" in answer) resolve(answer.image);
+          else reject(new Error(answer.problem));
+        };
+        this.post({ kind: "export_image", image_request: request });
+      };
+      send();
+    });
   }
 
   /** Ring fixes of a track for the analyst to check, with any change previewed and a note; nothing takes them away. */
@@ -159,7 +197,10 @@ export class MapPanel {
       hidden_count: hidden,
       context_tracks: this.session.contextShown(),
       ...(this.session.time && { time: this.session.time }),
+      // An earlier revision, shown read-only: the map says so, with a way to the latest (SUB-25).
+      ...(opened.revision && { revision_shown: opened.revision }),
     });
+    this.revisionShown = opened.revision;
     this.showNarrative(true);
     if (this.ready) {
       startup.shown("map", true);

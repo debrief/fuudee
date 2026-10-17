@@ -20,6 +20,7 @@ Worked patterns applied the same way across hosts, tools and agents (DEV-08). Ea
 | [Tote](tote.md) | Phase 3 | Written (part A: primary and secondaries, the core measures, latency) |
 | [Timeline and narrative](timeline.md) | Phase 3 | Written (part A: narrative entries, REP and .dpf import, the Timeline following current time, filter, search, editing, scale) |
 | [Collation](collation.md) | Phase 3 | Written (coverage, platforms across items, source preference per period, new data, taking it, review flags) |
-| [Keyboard equivalents](keyboard-equivalents.md) | Phase 3 | Partly written (annotations, tracks, the Tote, the Timeline, collation) |
+| [Exported images](export.md) | Phase 3 | Written (the map as an image with an ID naming the plot and the revision, the footer, the export log; finding an image's source, read-only) |
+| [Keyboard equivalents](keyboard-equivalents.md) | Phase 3 | Partly written (annotations, tracks, the Tote, the Timeline, collation, exported images) |
 
 Analysts review the Phase 1 models before they are built.

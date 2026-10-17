@@ -71,15 +71,7 @@ def _prepared(catalogue: Catalogue, item: str) -> _Tracks:
     if cached is not None and cached.plot_hash == plot_hash:  # the island changed, not the plot
         cached.version = version
         return cached
-    plot = catalogue.read_plot(item)
-    tracks = [f for f in plot.features if f.properties.kind == "track"]
-    prepared = _Tracks(
-        version,
-        plot_hash,
-        {t.id: TrackMotion.from_feature(t) for t in tracks},
-        {t.id: t.properties.name for t in tracks},
-        {t.id: t.properties.style.colour if t.properties.style else None for t in tracks},
-    )
+    prepared = _tracks_of(catalogue.read_plot(item), version, plot_hash)
     if len(_CACHE) >= _CACHE_LIMIT and key not in _CACHE:
         _CACHE.pop(next(iter(_CACHE)))
     _CACHE[key] = prepared
@@ -112,17 +104,50 @@ def tote(
     item: str,
     time: str | int,
     view: models.ToteView | dict[str, Any] | None = None,
+    revision: str | None = None,
 ) -> dict[str, Any]:
     """The Tote at a time (a ToteResult as JSON). view says which tracks and which group;
-    left out, the plot's island says (none chosen: no rows)."""
+    left out, the plot's island says (none chosen: no rows). revision, an earlier revision
+    of the plot shown read-only (an image traced to its plot, SUB-25): the Tote of the plot
+    as it was then, rebuilt by replay, so the traced view matches the figure (decision,
+    product owner, 16 Oct 2026)."""
     time_ms = parse_utc(time) if isinstance(time, str) else int(time)
     if view is None:
         island, _ = catalogue.read_view(item)
         view = island.tote if island is not None else None
     if isinstance(view, dict):
         view = models.ToteView.model_validate(view)
-    tracks = _prepared(catalogue, item)
+    tracks = (
+        _prepared(catalogue, item) if revision is None else _at_revision(catalogue, item, revision)
+    )
     return evaluate(tracks, time_ms, view)
+
+
+def _at_revision(catalogue: Catalogue, item: str, revision: str) -> _Tracks:
+    """A plot's tracks as they were at a revision, prepared once and kept by revision."""
+    key = f"{getattr(catalogue.store, 'root', id(catalogue.store))}/{item}@{revision}"
+    cached = _CACHE.get(key)
+    if cached is not None:
+        return cached
+    plot, _ = catalogue.revision_shown(item, revision)
+    prepared = _tracks_of(plot, None, revision)
+    if len(_CACHE) >= _CACHE_LIMIT:
+        _CACHE.pop(next(iter(_CACHE)))
+    _CACHE[key] = prepared
+    return prepared
+
+
+def _tracks_of(
+    plot: models.DebriefFeatureCollection, version: tuple[int, ...] | None, plot_hash: str
+) -> _Tracks:
+    tracks = [f for f in plot.features if f.properties.kind == "track"]
+    return _Tracks(
+        version,
+        plot_hash,
+        {t.id: TrackMotion.from_feature(t) for t in tracks},
+        {t.id: t.properties.name for t in tracks},
+        {t.id: t.properties.style.colour if t.properties.style else None for t in tracks},
+    )
 
 
 def evaluate(tracks: _Tracks, time_ms: int, view: models.ToteView | None) -> dict[str, Any]:

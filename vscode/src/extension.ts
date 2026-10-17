@@ -6,13 +6,15 @@
  */
 import { userInfo } from "node:os";
 import * as vscode from "vscode";
-import type { AnnotationSpec, ContextTracksEnum, CoverageReport, NarrativeSpec, ReviewFlag, SourceTrackRef, TimelineEntry, ParameterValue, PlotView, SharedState, SharedStateChange, TimeRange, ToolDeclaration, ToteResult, ToteView as ToteChoice, TrackEdit } from "@debrief/schemas";
-import { formatBearing, formatPosition, formatQuantity, parsePosition, POSITION_EXAMPLE, UNIT_LABELS } from "@debrief/kernel";
+import type { AnnotationSpec, ContextTracksEnum, CoverageReport, FigureSource, RevisionShown, NarrativeSpec, ReviewFlag, SourceTrackRef, TimelineEntry, ParameterValue, PlotView, SharedState, SharedStateChange, TimeRange, ToolDeclaration, ToteResult, ToteView as ToteChoice, TrackEdit } from "@debrief/schemas";
+import { figureIdProblem, formatBearing, formatPosition, formatQuantity, parsePosition, POSITION_EXAMPLE, UNIT_LABELS } from "@debrief/kernel";
 import { defaultPivotIndex, describeDistance, describeSpeed, describeTurn, FIX_PROMPT, FIX_PROMPT_DR, fixIndexAt, fixMeans, fixToEdit, jumpSpeed, legNow, mergedName, mergePlan, periodIndices, readBearing, readDistance, readSpeed, readTurn, reckoningOf, type Anchor } from "../webview/trackedit.js";
 import { chooseModes, MODE_LABELS, modeChoices, modeQuestion, REMEMBERED_IN_VSCODE, rememberItem, type ModeChoice, type PlottingMode } from "./importmode.js";
 import { loadConfig, narrativeAnswers, trackImportMode, updateConfig, withNarrativeAnswers, withTrackImportMode, type TrackImportMode } from "@debrief/config";
 import { changedSince, historyOnDisk, knownStores, openPlot, plotFile, type OpenedPlot } from "./catalogue.js";
 import { statSync, unwatchFile, watchFile } from "node:fs";
+import { realpath, rename, stat, unlink, writeFile } from "node:fs/promises";
+import path from "node:path";
 import { count, describePeriod, describeTimes, describeToolRun, settings as displaySettings } from "./format.js";
 import { answersToRemember, choicesOf, describeAnswers, duplicateQuestion, NARRATIVE_FILES, periodChoices, questionsFor, readSummary, rememberedAnswers, typeWords, type NarrativeAnswers, type NarrativeChoices, type NarrativePreview } from "./narrativeimport.js";
 import { placeToolTime } from "../webview/timelogic.js";
@@ -27,11 +29,13 @@ import { TIMELINE_VIEW, TimelineView } from "./panels/timelineview.js";
 import { COVERAGE_VIEW, CoverageView, type CoverageAsk } from "./panels/coverageview.js";
 import { startup, type StartupSnapshot } from "./startup.js";
 import { withMapLines, withPrimary, withSecondaries, withoutSecondary } from "../webview/totelogic.js";
-import { CONFLICT, NEEDS_CONFIRMATION, NEWER_SCHEMA, ServiceError, ToolService, type Agent, type AnnotationChange, type CallOutcome, type CollationChange, type NarrativeChange, type OpenedView, type ToolListing, type TrackChange } from "./service.js";
+import { CONFLICT, NEEDS_CONFIRMATION, NEWER_SCHEMA, ServiceError, ToolService, type Agent, type AnnotationChange, type CallOutcome, type CollationChange, type NarrativeChange, type ExportedImage, type HostRequest, type OpenedView, type ToolListing, type TracedImage, type TrackChange } from "./service.js";
 import type { CleanChange } from "./service.js";
 import { ALL_PROBLEM, AT_EVERY_FIX, changesOf, choiceFromValue, choicesFor, describeInterval, FIELD_NAMES, FIELDS, formState, readInterval, type Field, type FieldState } from "../webview/frequencies.js";
 import { describeJump, describeMark, describeWindow, fixRows, isDeadReckoned, jumpsFound, markAt, readThreshold, readWindow, smoothingNote, trackLabel } from "../webview/fixes.js";
 import { HistoryProvider } from "./views/history.js";
+import { describeExported, describeSource, insideFolders, NOT_FOUND, OUTSIDE_FOLDERS, rememberedOf, revisionOf, startingChoice, type ExportChoice } from "./figures.js";
+import { fileNameFor, PRESETS, type ImageFormat } from "../webview/exportlogic.js";
 import { DiagnosticLog, hashed, logKey, serviceLine, toolRunLine, type ToolOutcome } from "./diagnostics.js";
 import { hiddenIds, hiddenNotice, isFeature, setViewOf, timeWindowOf, viewOf, type PlotFeature } from "./hidden.js";
 import { specOfFeature } from "../webview/annotationlook.js";
@@ -90,6 +94,10 @@ export interface DebriefApi {
   catalogueMarks: () => CollationMarks;
   /** The narrative entry the map shows beside its track at current time, for tests and agents (CAP-20). */
   mapNarrative: () => TimelineEntry | undefined;
+  /** The earlier revision the map shows read-only, if it does (an image traced to its plot, SUB-25), for tests and agents. */
+  mapRevision: () => RevisionShown | undefined;
+  /** What the last export said: its file, its ID and whether the plot's export log has it, for tests and agents. */
+  lastExport: () => ExportedImage | undefined;
   /** The Tote's values last shown, and how long answers took to show (CAP-06, NFR-04), for tests and agents. */
   tote: () => ToteResult | undefined;
   toteLatency: () => { count: number; p50: number; p95: number; max: number };
@@ -101,6 +109,8 @@ export interface DebriefApi {
    * extension can pose as the map.
    */
   fromMap?: (message: unknown) => Promise<void>;
+  /** For tests only: a request to the tool service as an agent sends it (an agent's export, drawn by the map). */
+  asAgent?: (method: string, params: Record<string, unknown>) => Promise<unknown>;
 }
 
 export function activate(context: vscode.ExtensionContext): DebriefApi {
@@ -149,7 +159,9 @@ export function activate(context: vscode.ExtensionContext): DebriefApi {
     async (plot, time, tote) => {
       const opened = session.current;
       if (!service || opened?.item.id !== plot) return undefined;
-      return service.tote(opened.store.id, plot, time, tote);
+      // An earlier revision shown read-only: the Tote of the plot as it was then, so the
+      // traced view matches the image (decision, product owner, 16 Oct 2026).
+      return service.tote(opened.store.id, plot, time, tote, opened.revision?.revision);
     },
     (tote) => saveTote(tote).then(resync),
     log,
@@ -230,7 +242,10 @@ export function activate(context: vscode.ExtensionContext): DebriefApi {
           service = undefined;
           tools.update(undefined, [], "The tool service stopped. Run 'Debrief: Restart tool service'.");
         });
+        // Nothing is changed while an earlier revision is shown read-only (SUB-25): refused here, in one place.
+        started.shownReadOnly = () => (session.current?.revision ? { store: session.current.store.id, item: session.current.item.id } : undefined);
         service = started;
+        void answerTheService(started); // an agent's export, drawn by the open map
         await refreshTools();
         // A plot opened before the service started: open it again, finishing any interrupted change.
         if (session.current) await serially(() => reloadPlot(true));
@@ -858,7 +873,7 @@ export function activate(context: vscode.ExtensionContext): DebriefApi {
    */
   async function refreshView(): Promise<boolean> {
     const opened = session.current;
-    if (!opened || !service) return false;
+    if (!opened || !service || opened.revision) return false;
     viewChecks++;
     let answer: OpenedView;
     try {
@@ -934,6 +949,7 @@ export function activate(context: vscode.ExtensionContext): DebriefApi {
   async function reloadPlot(keep: boolean): Promise<string | undefined> {
     const opened = session.current;
     if (!opened) return undefined;
+    if (opened.revision) return undefined; // an earlier revision, read-only: it never changes
     try {
       await loadPlot(opened.store, opened.item.id, keep);
       return undefined;
@@ -992,6 +1008,7 @@ export function activate(context: vscode.ExtensionContext): DebriefApi {
       checking = false;
       const current = session.current;
       if (writing || !current || plotFile(current.store, current.item) !== file) return;
+      if (current.revision) return; // an earlier revision, read-only: the latest is one Go to latest away
       // A step made, undone or redone elsewhere moves the history's current step, its
       // length or the content's hash; a new time window moves none of them.
       const plotChanged = changedSince(historyOnDisk(file), current);
@@ -1021,7 +1038,7 @@ export function activate(context: vscode.ExtensionContext): DebriefApi {
       try {
         const listed = await service.history(opened.store.id, opened.item.id);
         if (request !== historyRequest) return; // a later refresh has the newer answer
-        history.update(listed.steps, listed.base.current, true);
+        history.update(listed.steps, listed.base.current, true, undefined, opened.revision?.step);
       } catch (error) {
         if (request !== historyRequest) return;
         history.update([], 0, true, (error as Error).message);
@@ -1103,6 +1120,284 @@ export function activate(context: vscode.ExtensionContext): DebriefApi {
     const problem = await move("redo");
     await refreshHistory();
     return report(problem);
+  });
+
+  // --- Exported images (SUB-25, EXT-05, OUT-04) -------------------------------------
+  const EXPORT_KEY = "debrief.export";
+  /** What an export is asked with, by an agent, a test or the tool service for an agent: the choices and the file, nothing asked of the analyst. */
+  type ExportAsk = Partial<ExportChoice> & { file?: string; overwrite?: boolean; agent?: Agent; store?: string; item?: string };
+  /**
+   * Export the map as the analyst sees it, as an image carrying an ID that traces it to the
+   * plot at the revision shown: the size and colours chosen (remembered for next time), the
+   * footer (on, each time), then where to save it. The map draws it; the tool service puts
+   * its ID into its metadata and records the export in the plot's export log (its island,
+   * never a step); the extension writes the file. Agents and tests pass the choices and the
+   * file and are asked nothing, but may write only into the workspace's folders or the
+   * exports folder set, and never over a file without the analyst's say. Returns what was
+   * exported, or why not.
+   */
+  command("debrief.exportImage", async (given?: ExportAsk) => {
+    const done = await exportMap(given);
+    return typeof done === "string" ? report(`The image was not exported: ${done}`) : done;
+  });
+
+  async function exportMap(given?: ExportAsk): Promise<ExportedImage | string | undefined> {
+    const opened = session.current;
+    if (!opened) return "no plot is open on Debrief's map. Open the plot first.";
+    if (!service) return "exporting an image needs Debrief's tool service. Run 'Debrief: Restart tool service'.";
+    if ((given?.store && given.store !== opened.store.id) || (given?.item && given.item !== opened.item.id)) {
+      return "Debrief's map shows another plot. Open the plot to export first.";
+    }
+    const asked = !given?.file;
+    let choice: ExportChoice = { ...startingChoice(context.globalState.get(EXPORT_KEY)), ...given };
+    let file = given?.file;
+    // The ID names the revision the map shows: the plot as the session has it, whatever is on disk by now.
+    const shownRevision = opened.revision?.revision ?? opened.base?.plot_hash;
+    let figure: { id: string; short: string; revision: string };
+    try {
+      figure = await service.figureId(opened.store.id, opened.item.id, shownRevision);
+    } catch (error) {
+      return (error as Error).message;
+    }
+    if (!file) {
+      const size = await vscode.window.showQuickPick(
+        PRESETS.map((p) => ({ label: p.label, detail: p.detail, id: p.id, picked: p.id === choice.preset })),
+        { title: "Export image (1 of 3): size", placeHolder: "The size to draw the map at" },
+      );
+      if (!size) return undefined;
+      const footerItem = { label: "Image ID in a corner", detail: "A small ID, for when Word or PowerPoint drops an image's metadata", picked: choice.footer };
+      const lightItem = { label: "Light colours, for print", detail: "Whatever the editor's theme", picked: choice.theme === "light" };
+      const options = await vscode.window.showQuickPick([footerItem, lightItem], { title: "Export image (2 of 3): what it shows", canPickMany: true });
+      if (!options) return undefined;
+      choice = { ...choice, preset: size.id, footer: options.includes(footerItem), theme: options.includes(lightItem) ? "light" : "current" };
+      const folder = context.globalState.get<string>(`${EXPORT_KEY}.folder`);
+      const name = fileNameFor(opened.item.properties.title ?? opened.item.id, figure.short, choice.format);
+      const target = await vscode.window.showSaveDialog({
+        title: "Export image (3 of 3): where to save it, as PNG or SVG",
+        defaultUri: folder ? vscode.Uri.joinPath(vscode.Uri.file(folder), name) : vscode.workspace.workspaceFolders?.[0] ? vscode.Uri.joinPath(vscode.workspace.workspaceFolders[0].uri, name) : undefined,
+        filters: choice.format === "svg" ? { "SVG image": ["svg"], "PNG image": ["png"] } : { "PNG image": ["png"], "SVG image": ["svg"] },
+        saveLabel: "Export",
+      });
+      if (!target) return undefined;
+      file = target.fsPath;
+      const suffix = /\.(png|svg)$/i.exec(file)?.[1]?.toLowerCase();
+      if (suffix) choice.format = suffix as ImageFormat;
+      else file = `${file}.${choice.format}`;
+      void context.globalState.update(`${EXPORT_KEY}.folder`, path.dirname(file));
+      // Only the size and colours are remembered: the footer is on again next time (expert panel, 16 Oct 2026).
+      void context.globalState.update(EXPORT_KEY, rememberedOf(choice));
+    } else {
+      const suffix = /\.(png|svg)$/i.exec(file)?.[1]?.toLowerCase();
+      if (!suffix) return "the file's name must end .png or .svg.";
+      choice.format = suffix as ImageFormat;
+      const problem = await mayWrite(file, given?.overwrite === true, given?.agent);
+      if (problem) return problem;
+    }
+    const by = given?.agent ?? agent;
+    try {
+      // Ours: the export log is written to the plot file, which is no change made elsewhere to say.
+      const done = await serially(() => ourChange(async () => await vscode.window.withProgress({ location: vscode.ProgressLocation.Notification, title: "Exporting image…" }, async () => {
+        if (session.current !== opened) throw new Error("another plot, or a later revision of this one, is shown now. Export it again.");
+        const image = await map.renderImage({ format: choice.format, preset: choice.preset, theme: choice.theme, ...(choice.footer && { footer_text: figure.short }) });
+        // Drawn as the session had it: if the plot was read again meanwhile (changed elsewhere), the image is not of the revision its ID names.
+        if (session.current !== opened) throw new Error("the plot changed while the image was being drawn. Export it again.");
+        const tote = toteView.choice();
+        const stamped = await service!.exportImage(opened.store.id, opened.item.id, by, {
+          id: figure.id,
+          image: image.data,
+          file: file!,
+          format: choice.format,
+          footer: choice.footer,
+          preset: choice.preset,
+          theme: choice.theme,
+          width: image.width,
+          height: image.height,
+          viewport: image.viewport ?? undefined,
+          time: session.time,
+          ...(tote.primary && { tote }),
+        });
+        await writeWhole(file!, choice.format === "png" ? Buffer.from(stamped.image, "base64") : Buffer.from(stamped.image, "utf8"));
+        // The plot's island has the export log now: read it, so what the plot shows is what it holds.
+        if (!opened.revision && session.current === opened && stamped.logged === "plot") {
+          const view = await service!.open(opened.store.id, opened.item.id, agent).catch(() => undefined);
+          if (view && session.current === opened) showView(opened, view, true);
+        }
+        const answer: ExportedImage = { file: file!, id: stamped.id, short: stamped.short, revision: stamped.revision, recorded: stamped.recorded, ...(stamped.note && { note: stamped.note }) };
+        return { answer, notes: image.notes ?? [] };
+      })));
+      lastExport = done.answer;
+      const said = [describeExported(done.answer, choice.footer), ...done.notes].join(" ");
+      if (asked) {
+        void vscode.window.showInformationMessage(said, "Copy ID", "Show in folder").then((button) => {
+          if (button === "Copy ID") void vscode.env.clipboard.writeText(done.answer.id);
+          if (button === "Show in folder") void vscode.commands.executeCommand("revealFileInOS", vscode.Uri.file(done.answer.file));
+        });
+      }
+      return done.answer;
+    } catch (error) {
+      return (error as Error).message;
+    }
+  }
+  let lastExport: ExportedImage | undefined;
+
+  /**
+   * Why an export the analyst did not save through the dialog (an agent's, a test's) may
+   * not write the file, if it may not: only into the workspace's folders or the folder set
+   * in Debrief: Export folder, resolved through any link; over a file only when overwrite
+   * was asked and the analyst agrees (expert panel, 16 Oct 2026).
+   */
+  async function mayWrite(file: string, overwrite: boolean, by?: Agent): Promise<string | undefined> {
+    if (!path.isAbsolute(file)) return "the file must be a full path.";
+    const real = async (p: string) => await realpath(p).catch(() => undefined);
+    const folder = await real(path.dirname(file));
+    if (!folder) return `there is no folder ${path.dirname(file)}.`;
+    const exportFolder = settings().get<string>("exportFolder")?.trim();
+    const allowed = (await Promise.all([...(vscode.workspace.workspaceFolders ?? []).map((f) => f.uri.fsPath), ...(exportFolder ? [exportFolder] : [])].map(real))).filter((f): f is string => !!f);
+    if (!insideFolders(path.join(folder, path.basename(file)), allowed, process.platform === "win32")) return OUTSIDE_FOLDERS;
+    const there = await stat(file).catch(() => undefined);
+    if (!there) return undefined;
+    const name = path.basename(file);
+    if (!overwrite) return `${name} is there already. Choose another name.`;
+    const replace = "Replace";
+    const who = by?.name ? `${by.name} wants` : "Debrief was asked";
+    const yes = await vscode.window.showWarningMessage(`${who} to replace ${name} with an exported image of the map.`, { modal: true }, replace);
+    return yes === replace ? undefined : `${name} is there already, and you chose not to replace it.`;
+  }
+
+  /** Written whole or not at all: to a file beside it, then renamed over it. */
+  async function writeWhole(file: string, data: Buffer): Promise<void> {
+    const temporary = path.join(path.dirname(file), `.debrief-${process.pid}-${Date.now()}${path.extname(file)}`);
+    try {
+      await writeFile(temporary, data);
+      await rename(temporary, file);
+    } catch (error) {
+      await unlink(temporary).catch(() => undefined);
+      throw error;
+    }
+  }
+
+  /**
+   * The tool service's requests of the open map: an agent's export (SUB-25; decision,
+   * product owner, 16 Oct 2026). Polled while the service runs, which is what tells the
+   * service a map is open; each export runs as the analyst's does, with the agent's
+   * choices, its file checked as any agent's is. Drawing briefly resizes the map.
+   */
+  async function answerTheService(started: ToolService): Promise<void> {
+    while (service === started && started.running) {
+      let requests: HostRequest[];
+      try {
+        ({ requests } = await started.hostPoll(20));
+      } catch {
+        await new Promise((resolve) => setTimeout(resolve, 2000));
+        continue;
+      }
+      for (const request of requests) {
+        void (async () => {
+          const { id, kind: _kind, ...ask } = request;
+          const done = await exportMap(ask as ExportAsk).catch((error: Error) => error.message);
+          const answer = done && typeof done === "object" ? { result: done } : { problem: `The image was not exported: ${done ?? "it was cancelled."}` };
+          await started.hostAnswer(id, answer).catch(() => undefined);
+        })();
+      }
+    }
+  }
+
+  /**
+   * Find the plot an image came from (OUT-04): by its file (an image, or a Word or
+   * PowerPoint file of them, read for their IDs) or by the ID typed from its footer; then
+   * show that plot as it was when the image was exported, read-only. Agents and tests pass
+   * the file or the ID, and the first plot found is shown.
+   */
+  command("debrief.findImageSource", async (given?: { file?: string; id?: string; choose?: number }) => {
+    if (!service) return report("Finding an image's source needs Debrief's tool service. Run 'Debrief: Restart tool service'.");
+    let where: { file: string } | { id: string } | undefined = given?.file ? { file: given.file } : given?.id ? { id: given.id } : undefined;
+    if (!where) {
+      const byFile = { label: "$(file-media) Choose an image file…", detail: "A PNG or SVG, or a Word or PowerPoint file with images in it" };
+      const byId = { label: "$(symbol-key) Type the ID from the image's corner…", detail: "Such as DBF-PTET-KG8R-B9EM-69" };
+      const how = await vscode.window.showQuickPick([byFile, byId], { title: "Find source of image" });
+      if (!how) return undefined;
+      if (how === byFile) {
+        const picked = await vscode.window.showOpenDialog({ title: "Find source of image", canSelectMany: false, filters: { Images: ["png", "svg"], "Word and PowerPoint": ["docx", "pptx", "odt", "odp"], "All files": ["*"] }, openLabel: "Find source" });
+        if (!picked?.[0]) return undefined;
+        where = { file: picked[0].fsPath };
+      } else {
+        const typed = await vscode.window.showInputBox({ title: "Find source of image", prompt: "The ID in the image's corner", placeHolder: "DBF-PTET-KG8R-B9EM-69", validateInput: (text) => (text.trim() ? figureIdProblem(text) : undefined) });
+        if (!typed?.trim()) return undefined;
+        where = { id: typed };
+      }
+    }
+    let answer: Awaited<ReturnType<ToolService["findImageSource"]>>;
+    try {
+      answer = await service.findImageSource(where);
+    } catch (error) {
+      return report((error as Error).message);
+    }
+    // A picture in a document that could not be read (encrypted, say): said, the others still traced.
+    const unread = (answer.skipped ?? []).map((s) => `${s.where} was not read: ${s.why}.`).join(" ");
+    const found = answer.images.flatMap((image) => image.sources.map((source) => ({ image, source })));
+    if (!found.length) return report(answer.problem ?? NOT_FOUND);
+    if (unread) void vscode.window.showWarningMessage(unread);
+    // Several exports, or plots, match: the analyst chooses, by when each was exported and what
+    // it showed; never the first or the last silently (expert panel, 16 Oct 2026). An agent or
+    // a test that has seen the list may name one (choose, counting from 0).
+    const named = given?.choose !== undefined ? found[given.choose] : undefined;
+    if (given?.choose !== undefined && !named) return report(`There are ${found.length} to choose from.`);
+    const chosen =
+      named ??
+      (found.length === 1
+        ? found[0]
+        : (
+            await vscode.window.showQuickPick(
+              found.map((f) => ({ ...describeSource(f.source), description: f.image.short, found: f })),
+              { title: "Find source of image: which export", placeHolder: `${found.length} exports or plots match this image's ID: choose by when it was exported and what it showed` },
+            )
+          )?.found);
+    if (!chosen) return undefined;
+    return serially(() => showRevision(chosen.source, chosen.image));
+  });
+
+  /** Show a plot as it was when an image was exported: rebuilt by replay, read-only, at the view and time exported. */
+  async function showRevision(source: FigureSource, image: TracedImage): Promise<string | undefined> {
+    const store = source.store ? storeById(source.store) : undefined;
+    if (!store || !service) return report(NOT_FOUND);
+    let shown: Awaited<ReturnType<ToolService["openRevision"]>>;
+    let head: OpenedView;
+    try {
+      shown = await service.openRevision(store.id, source.item, source.revision, image.id.startsWith("DBF1") ? image.id : source.export?.id);
+      head = await service.open(store.id, source.item, agent, true);
+    } catch (error) {
+      return report((error as Error).message);
+    }
+    const read = openPlot(store, source.item);
+    const exported = shown.export ?? source.export ?? undefined;
+    // The plot's view as now, with the Tote's tracks as exported, so its lines and values on
+    // the map are the image's (decision, product owner, 16 Oct 2026).
+    setViewOf(shown.plot, head.view || exported?.tote ? { ...(head.view ?? {}), ...(exported?.tote && { tote: exported.tote }) } : null);
+    const opened: OpenedPlot = { ...read, plot: shown.plot, base: head.base, latest: head.latest, viewHash: head.view_hash, revision: revisionOf(source, image.short), exported };
+    session.setPlot(opened);
+    watch(opened);
+    if (exported?.time) {
+      // The window exported is the one this revision is shown in: not a window beyond a saved one.
+      session.savedWindow = exported.time.range;
+      session.setTime(exported.time, "figure");
+      session.viewChanged();
+    }
+    map.reveal();
+    if (exported?.viewport) session.setViewport(exported.viewport, "figure");
+    await refreshHistory();
+    void vscode.commands.executeCommand("setContext", "debrief.revisionShown", true);
+    const title = read.item.properties.title ?? source.item;
+    void vscode.window.showInformationMessage(`${title} at step ${source.step}, as when image ${image.short} was exported. It is shown read-only.`, "Go to latest").then((go) => go && vscode.commands.executeCommand("debrief.openLatestRevision"));
+    return undefined;
+  }
+  session.onPlot((opened) => void vscode.commands.executeCommand("setContext", "debrief.revisionShown", !!opened?.revision));
+
+  /** Leave an earlier revision shown read-only: the plot as it is now, to change. */
+  command("debrief.openLatestRevision", async () => {
+    const opened = session.current;
+    if (!opened?.revision) return undefined;
+    await serially(() => loadPlot(opened.store, opened.item.id));
+    return undefined;
   });
 
   // Colour and hiding (SUB-22): content, so each is a step in the plot's history.
@@ -2478,13 +2773,18 @@ export function activate(context: vscode.ExtensionContext): DebriefApi {
     catalogueMarks: () => catalogues.marks(),
     timelineMessage: (message) => timeline.receive(message),
     mapNarrative: () => map.narrative,
+    mapRevision: () => map.revisionShown,
+    lastExport: () => lastExport,
     tote: () => toteView.last,
     toteLatency: () => toteView.latency(),
     startupTimings: () => startup.snapshot(),
     mapContext: () => map.context,
     mapTote: () => map.tote,
     viewChecks: () => viewChecks,
-    ...(context.extensionMode === vscode.ExtensionMode.Test && { fromMap: (message: unknown) => map.receive(message) }),
+    ...(context.extensionMode === vscode.ExtensionMode.Test && {
+      fromMap: (message: unknown) => map.receive(message),
+      asAgent: (method: string, params: Record<string, unknown>) => (service ? service.raw(method, params) : Promise.reject(new Error("The tool service is not running."))),
+    }),
   };
 }
 

@@ -35,6 +35,10 @@ The schema is `UserConfig` in `schemas/linkml/config.yaml`.
 - **No protection marking.** That belongs to the catalogue itself (SEC-02), so every analyst sees the same marking, not one each typed into their own configuration.
 - **`read_only` is advisory.** It hides write actions in the interface. Filesystem permissions are what actually protect the store.
 
+## The analyst's own export log
+
+`exports.json`, beside the configuration file (`debrief_config.exports`): the images exported from plots whose own export log cannot be written, a read-only catalogue's (SUB-25; decision, product owner, 16 Oct 2026). Each entry names the catalogue (its own id), the item and the export (`LoggedExport`; the file is an `ExportLog`). **Find source of image…** reads it as it reads the plots' logs, so every export stays traceable. Changed under the configuration's lock and written atomically; the newest 2,000 entries are kept (`EXPORT_LOG_LIMIT`), the oldest dropped first.
+
 ## Versioning
 
 The file carries its own `config_version`, not the data-file schema version. Configuration isn't data, so it has to survive data-file schema changes.

@@ -88,6 +88,14 @@ In collation, a source is a **catalogue item**: an imported file, kept as a plot
 
 **Folder tree** (a plot draws from). The catalogue a plot is in, and the catalogues of the items it has taken data from: where its new data is looked for (CAP-10).
 
+**Image ID** (in the SRD, **GUID**). What an image exported from Debrief carries to trace it to its plot: the plot, the exact revision exported and the export itself (SUB-25; decision, product owner, 16 Oct 2026). In full, `DBF1-PTETVDX3-KG8RB9E5X7Y58R98-M6SC7N75-Z`, in the image's metadata; its short form, `DBF-PTET-KG8R-B9EM-69`, in the image's **footer** and what an analyst types into **Find source of image…**: 4 symbols of the plot, 7 of the revision and 2 of the export, so two exports of one view have different footers. Digits and capital letters without I, L, O or U, with a check symbol, so a mistyped one is caught.
+
+**Footer** (of an exported image). The image's short ID, haloed, 1.4% of the image's width high, in the corner it covers least of; on for every export, turned off for one with **Image ID in a corner**. The main trace, since an office program may drop an image's metadata.
+
+**Export log.** The record, in a plot's island, of each image exported from it: its ID, the revision, when, who, the area and the time shown, the Tote's tracks, the format, size and colours, the file's name and whether it had a footer; its newest 500. Never a step: exporting changes neither the plot's revision nor anything that drew from it. A read-only catalogue's exports go into the analyst's **own export log** instead, `exports.json` beside their Debrief configuration (its newest 2,000), which **Find source of image…** reads too.
+
+**Shown read-only** (an earlier revision). A plot as it was at an earlier step, rebuilt from its history, shown so it cannot be changed: what **Find source of image…** opens. **Go to latest** shows the plot as it is now.
+
 **Named set.** A saved selection of features, reusable as a selection or as a tool's input (TL-11).
 
 **Narrative.** The log of events from each platform, imported from REP files, legacy plots and Word or PDF documents, and combined on one Zulu time axis (CAP-19, CAP-20). A plot's narrative is all its narrative entries; it is read in the Timeline.

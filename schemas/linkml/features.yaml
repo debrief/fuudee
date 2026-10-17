@@ -16,6 +16,7 @@ imports:
   - geojson
   - prov
   - measures
+  - figures
 
 description: >-
   A plot is a GeoJSON FeatureCollection (SUB-05). Every feature carries its
@@ -805,6 +806,16 @@ classes:
           reviewed. View state: never a step in the history.
         range: CollationView
         inlined: true
+      exports:
+        description: >-
+          The plot's export log: each image exported from it, with its ID,
+          the revision exported, when, by whom, the view and the time, the
+          format and the file's name (SUB-25; decision, product owner, 16 Oct
+          2026). View state: never a step, so an export changes neither the
+          plot's revision nor any product that drew from it.
+        range: ImageExport
+        multivalued: true
+        inlined_as_list: true
   CollationView:
     description: >-
       The analyst's answers to collation's marks, each for one revision of

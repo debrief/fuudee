@@ -1,0 +1,103 @@
+{
+  "type": "FeatureCollection",
+  "schema_version": "0.0.22",
+  "features": [
+    {
+      "type": "Feature",
+      "id": "plot",
+      "geometry": null,
+      "properties": {
+        "kind": "plot",
+        "title": "Serial 1: towed array trial",
+        "description": "Blue force tracking a submarine through the exercise area.",
+        "view": {
+          "time_window": {
+            "start": "2026-10-11T09:30:00.000Z",
+            "end": "2026-10-11T09:31:30.000Z"
+          },
+          "context_tracks": "faint",
+          "narrative_on_map": false,
+          "tote": {
+            "primary": "track-nelson",
+            "secondaries": [
+              "track-no-longer-here"
+            ],
+            "measure_group": "core"
+          },
+          "exports": [
+            {
+              "id": "DBF1-PTETVDX3-KG8RB9E5X7Y58R98-M6SC7N75-Z",
+              "revision": "sha256:9c1185a5c5e9fc54612808977ee8f548b2258d31a5c4bb7b6bd7e7cb1c1b3a8e",
+              "at": "2026-10-16T14:05:00.000Z",
+              "by": "analyst",
+              "format": "png",
+              "file": "serial-1-cpa.png",
+              "footer": true,
+              "preset": "slide",
+              "theme": "light",
+              "width": 1600,
+              "height": 900,
+              "viewport": {
+                "bbox": [
+                  -4.2,
+                  50.1,
+                  -3.8,
+                  50.4
+                ]
+              },
+              "time": {
+                "current": "2026-10-11T09:31:00.000Z",
+                "range": {
+                  "start": "2026-10-11T09:30:00.000Z",
+                  "end": "2026-10-11T09:31:30.000Z"
+                }
+              }
+            },
+            {
+              "id": "DBF1-24BPMEFG-04HMASW9NF6YY093-00000000-E",
+              "revision": "sha256:9c1185a5c5e9fc54612808977ee8f548b2258d31a5c4bb7b6bd7e7cb1c1b3a8e",
+              "at": "2026-10-16T14:07:00.000Z",
+              "format": "svg",
+              "footer": false
+            }
+          ]
+        }
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "track-nelson",
+      "geometry": {
+        "type": "LineString",
+        "coordinates": [
+          [
+            -4.1201,
+            50.3502
+          ],
+          [
+            -4.1155,
+            50.3471
+          ],
+          [
+            -4.1098,
+            50.344
+          ]
+        ]
+      },
+      "properties": {
+        "kind": "track",
+        "name": "NELSON",
+        "times": [
+          "2026-10-11T09:30:00.000Z",
+          "2026-10-11T09:31:00.000Z",
+          "2026-10-11T09:32:00.000Z"
+        ],
+        "style": {
+          "colour": "#e01c3e"
+        },
+        "hidden": true
+      }
+    }
+  ],
+  "provenance": []
+}

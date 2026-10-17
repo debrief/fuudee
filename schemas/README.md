@@ -15,6 +15,7 @@ Every type that crosses a process or language boundary is defined here in LinkML
 | `tools.yaml` | Tool declarations, parameter declarations, tool results | TL-04 to TL-13, CAP-24 |
 | `formatting.yaml` | The analyst's display formatting settings | SUB-04 |
 | `collation.yaml` | What the catalogue browser shows while collating: a plot's coverage, platforms and their sources, periods, items marked as new data, review flags | CAP-05, CAP-08 to CAP-12 |
+| `figures.yaml` | Exported images: an image's ID and its short form, the plot's export log (`ImageExport`, in its island), what the map is asked to draw and draws, an earlier revision shown read-only, a plot an image came from | SUB-25, EXT-05, OUT-04 |
 | `history.yaml` | A plot's history, kept in its plot file (`PlotHistory`, `HistoryStep`), and the earlier history-folder layout (`Delta`, `HistoryHead`) | SUB-19 to SUB-21, NFR-10, NFR-11 |
 | `debrief.yaml` | Root: imports the modules and holds the schema version | SUB-12 |
 

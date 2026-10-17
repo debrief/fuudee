@@ -1,0 +1,188 @@
+id: https://debrief.info/schemas/debrief/figures
+name: debrief_figures
+title: "Exported images and the IDs that trace them to their plot (SUB-25, EXT-05, OUT-04)"
+license: EPL-2.0
+prefixes:
+  linkml: https://w3id.org/linkml/
+  debrief: https://debrief.info/schemas/debrief/
+default_prefix: debrief
+default_range: string
+imports:
+  - linkml:types
+  - core
+  - state
+  - measures
+
+description: >-
+  An image exported from Debrief carries an image ID: one plot, at the exact
+  revision exported (its content hash), and the export itself (decision,
+  product owner, 16 Oct 2026). The ID is in the image's metadata (PNG iTXt
+  and XMP, SVG metadata) and, unless turned off, in a short form in a small
+  footer in a corner of the image, for when an office program strips the
+  metadata. Each export is recorded in the plot's island as an export log
+  entry: view state, never a step, so it changes neither the revision nor
+  any product that drew from the plot. The format is worked out in Python
+  (debrief_stac.figures) and held to schemas/vectors/figure-ids.json by
+  Python and TypeScript; the images are drawn by the map.
+
+types:
+  FigureId:
+    typeof: string
+    description: >-
+      An image ID in full: DBF1, then the plot key (8 symbols: the first 40
+      bits of the SHA-256 of the catalogue's id and the item's id), the
+      revision (16 symbols: the first 80 bits of the plot's content hash),
+      the export (8 random symbols) and a check symbol (Luhn mod 32 over the
+      rest), in Crockford's base 32, for example
+      DBF1-PTETVDX3-KG8RB9E5X7Y58R98-M6SC7N75-Z. Its short form, the footer's,
+      is DBF, four symbols of the plot key, seven of the revision, two of the
+      export and a check symbol: DBF-PTET-KG8R-B9EM-69.
+    pattern: "^DBF1-[0-9A-HJKMNP-TV-Z]{8}-[0-9A-HJKMNP-TV-Z]{16}-[0-9A-HJKMNP-TV-Z]{8}-[0-9A-HJKMNP-TV-Z]$"
+  ShortFigureId:
+    typeof: string
+    description: >-
+      An image ID's short form, as the footer shows it and an analyst types it:
+      4 symbols of the plot key, 7 of the revision, 2 of the export and a check
+      symbol, so two exports of one revision have different footers.
+    pattern: "^DBF-[0-9A-HJKMNP-TV-Z]{4}-[0-9A-HJKMNP-TV-Z]{4}-[0-9A-HJKMNP-TV-Z]{4}-[0-9A-HJKMNP-TV-Z]{2}$"
+
+enums:
+  ImageFormatEnum:
+    description: How an image is written (decision, product owner, 16 Oct 2026; no JPEG).
+    permissible_values:
+      png: {description: "A raster image, its ID in an iTXt chunk and in XMP."}
+      svg: {description: "A vector image, its ID in its metadata element; reference tiles embedded as images."}
+  ImageThemeEnum:
+    description: "The colours an image is drawn in."
+    permissible_values:
+      current: {description: "As the analyst sees the map: the editor's theme."}
+      light: {description: "Light, for print and white slides, whatever the editor's theme."}
+  ImagePresetEnum:
+    description: The size an image is drawn at.
+    permissible_values:
+      screen: {description: "The map as it is on screen, at twice its size for sharpness."}
+      slide: {description: "1600 by 900 pixels: a 16:9 slide."}
+      a4_landscape: {description: "A4 landscape at twice its size on screen: 1754 by 1240 pixels (150 dots an inch)."}
+
+classes:
+  ImageExport:
+    description: >-
+      One image exported from a plot, as the plot's export log records it in
+      its island: view state, never a step (decision, product owner, 16 Oct
+      2026). What the analyst exported, so the image can be traced and its
+      view shown again.
+    attributes:
+      id: {range: FigureId, required: true, description: "The image's ID, in full."}
+      revision:
+        description: "The plot's revision exported (its content hash): the step it was exported at."
+        range: ContentHash
+        required: true
+      at: {range: UtcTimestamp, required: true, description: "When it was exported."}
+      by: {description: "Who exported it: the agent's name."}
+      format: {range: ImageFormatEnum, required: true}
+      file: {description: "The file's name, without its folder."}
+      footer: {range: boolean, required: true, description: "Whether the image shows its ID in a footer."}
+      preset: {range: ImagePresetEnum}
+      theme: {range: ImageThemeEnum}
+      width: {range: integer, minimum_value: 1, description: "Its width in pixels."}
+      height: {range: integer, minimum_value: 1, description: "Its height in pixels."}
+      viewport:
+        description: The area of the map exported.
+        range: Viewport
+        inlined: true
+      time:
+        description: Current time and the time window when it was exported.
+        range: TimeState
+        inlined: true
+      tote:
+        description: >-
+          Which tracks the Tote compared when it was exported, so the plot
+          traced from the image shows the Tote, and its lines on the map, as
+          the figure did (decision, product owner, 16 Oct 2026).
+        range: ToteView
+        inlined: true
+
+  ImageRequest:
+    description: What the host asks the map to draw for an export (export_image).
+    attributes:
+      format: {range: ImageFormatEnum, required: true}
+      preset: {range: ImagePresetEnum, required: true}
+      theme: {range: ImageThemeEnum, required: true}
+      footer_text:
+        description: The image's ID in its short form, to draw in a corner; left out for no footer.
+        range: ShortFigureId
+
+  RenderedImage:
+    description: "The image the map drew (image_rendered), before its ID goes into its metadata."
+    attributes:
+      format: {range: ImageFormatEnum, required: true}
+      data:
+        description: "A PNG as base 64, or an SVG as its text."
+        required: true
+      width: {range: integer, minimum_value: 1, required: true}
+      height: {range: integer, minimum_value: 1, required: true}
+      viewport:
+        description: The area of the map drawn.
+        range: Viewport
+        inlined: true
+      notes:
+        description: "What the image leaves out that the map shows, for the analyst: reference tiles that could not be read, say."
+        multivalued: true
+
+  RevisionShown:
+    description: >-
+      The plot is shown as it was at an earlier revision, read-only: the
+      one an image was exported at (show_plot).
+    attributes:
+      step: {range: integer, minimum_value: 0, required: true, description: "The step whose revision is shown."}
+      latest: {range: integer, minimum_value: 0, required: true, description: "The plot's current step now."}
+      revision: {range: ContentHash, required: true}
+      figure: {range: ShortFigureId, description: "The image's ID, in its short form, when one was traced."}
+
+  FigureSource:
+    description: >-
+      Where an image came from: a plot in one of the analyst's catalogues,
+      at the revision the image was exported at (Find source of image).
+    attributes:
+      store: {description: "The catalogue's id in the analyst's configuration."}
+      store_title: {}
+      catalogue: {required: true, description: "The catalogue's own id, from its catalog.json."}
+      item: {required: true}
+      title: {required: true}
+      revision: {range: ContentHash, required: true}
+      step: {range: integer, minimum_value: 0, required: true, description: "The step at that revision."}
+      current: {range: integer, minimum_value: 0, required: true, description: "The plot's current step now."}
+      copied:
+        description: >-
+          The image's plot key names another plot: this is a copy of it with
+          the same content at that revision (a colleague's, or one moved to
+          another catalogue).
+        range: boolean
+      export:
+        description: >-
+          The export log entry for the image, where the plot's log or the
+          analyst's own has one. A footer's short form may name several exports
+          of one revision: each is a source of its own, to choose from.
+        range: ImageExport
+        inlined: true
+
+  LoggedExport:
+    description: >-
+      An export recorded in the analyst's own export log, beside their Debrief
+      configuration, where the plot's could not be written (a read-only
+      catalogue, say), so every export stays traceable (decision, product
+      owner, 16 Oct 2026).
+    attributes:
+      catalogue: {required: true, description: "The catalogue's own id, from its catalog.json."}
+      item: {required: true}
+      export: {range: ImageExport, required: true, inlined: true}
+
+  ExportLog:
+    description: >-
+      The analyst's own export log, exports.json beside their Debrief
+      configuration: the newest 2,000 exports their plots could not keep.
+    attributes:
+      exports:
+        range: LoggedExport
+        multivalued: true
+        inlined_as_list: true

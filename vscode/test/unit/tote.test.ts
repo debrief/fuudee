@@ -54,7 +54,7 @@ describe("the map places a track at current time where the Tote measures it (SUB
 
 const plot = {
   type: "FeatureCollection",
-  schema_version: "0.0.21",
+  schema_version: "0.0.22",
   provenance: [],
   features: [
     { type: "Feature", id: "plot", geometry: null, properties: { kind: "plot", title: "P", view: { tote: { primary: "blue", secondaries: ["red"] } } } },

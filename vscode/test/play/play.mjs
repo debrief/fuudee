@@ -21,6 +21,7 @@ import { playNarrative, playNarrativeAtScale, vscodeTimelineView } from "./narra
 import { playWordNarrative } from "./narrativeword.mjs";
 import { playFrequencies } from "./frequencies.mjs";
 import { playCollation, vscodeCoverageView } from "./collation.mjs";
+import { playExport } from "./export.mjs";
 
 const root = path.resolve(process.argv[2] ?? "../site/docs/play");
 const site = process.argv[3] ? path.resolve(process.argv[3]) : undefined;
@@ -298,6 +299,9 @@ try {
   // Collation: new data marked and taken, a period's source chosen, a proposal refused, an item
   // revised and the plot flagged for review until reviewed; narrow and in a wide font (CAP-08 to CAP-12).
   await playCollation(page, shot);
+  // Exported images: PNG and SVG read back for their ID, the footer and not, labels where the
+  // map put them, never a step; traced back by file and by typed ID, read-only until Go to latest (SUB-25).
+  await playExport(page, shot);
 
   // Import a legacy plot file.
   const dpf = path.resolve("../python/debrief-io/tests/data/shapes.dpf");

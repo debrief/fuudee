@@ -60,7 +60,7 @@ describe("marked fixes", () => {
   it("show their comments in the Timeline, at their fix's time, with the narrative", () => {
     const plot = {
       type: "FeatureCollection",
-      schema_version: "0.0.21",
+      schema_version: "0.0.22",
       provenance: [],
       features: [
         { type: "Feature", id: "note", geometry: null, properties: { kind: "annotation", style: "note", name: "Contact", time: T(1) } },

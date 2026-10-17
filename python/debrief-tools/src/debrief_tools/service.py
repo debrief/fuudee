@@ -39,6 +39,13 @@ a track, and linking or unlinking a track in another item as a platform, each a 
 (debrief/take_new_data, debrief/set_source_preference, debrief/link_tracks); setting new
 data aside and clearing a review flag, in the plot's island (debrief/dismiss_new_data,
 debrief/clear_review_flag); and every plot that may need review (debrief/review_flags).
+Exported images (SUB-25): a fresh image ID for an export of the plot, at its current
+revision or an earlier one shown read-only (debrief/figure_id); the image a host drew, or
+one an agent has, with its ID in its metadata, written to file and recorded in the plot's
+export log, its island, never a step (debrief/export_image); the plots an image came from,
+by its file or its ID typed from its footer (debrief/find_image_source); and a plot as it
+was at a revision, rebuilt by replay, to show read-only (debrief/open_revision). See
+figures.py.
 
 Security (SEC-06 to SEC-08):
 - runs as the user who started it, so it can read only what they can;
@@ -112,13 +119,18 @@ from debrief_stac import (
 from debrief_stac.catalogue import review_flags
 from debrief_stac.fixes import describe_largest
 from debrief_stac.tote import measure_groups, tote
-from debrief_tools import diagnostics
+from debrief_tools import diagnostics, figures
 from debrief_tools.registry import applies
 from debrief_tools.worker import ToolWorker
 
 PROTOCOL_VERSION = "2025-06-18"
 SUPPORTED_VERSIONS = ("2025-06-18", "2025-03-26")
 MAX_BODY_BYTES = 10 * 1024 * 1024
+# Only an exported image travels in its request (debrief/export_image): an A4 PNG at twice
+# its size on screen is a few megabytes, as base 64 a third more. Every other method keeps
+# MAX_BODY_BYTES (expert panel, 16 Oct 2026).
+MAX_IMAGE_BODY_BYTES = 48 * 1024 * 1024
+IMAGE_METHODS = ("debrief/export_image",)
 DEFAULT_TIMEOUT_S = 120.0
 MIN_TOKEN_LENGTH = 32
 log = logging.getLogger("debrief_tools")
@@ -210,6 +222,17 @@ WRITING_METHODS = (
 HISTORY_METHODS = READING_METHODS + CHECKING_METHODS + WRITING_METHODS
 # The Tote reads a plot at one time; it never changes it, and is asked again at each time.
 TOTE_METHODS = ("debrief/tote", "debrief/measure_groups")
+# Exported images (SUB-25): an ID for an export, the image stamped, written and logged in the
+# plot's island (never a step), an image traced to its plot, and a plot shown as it was then.
+FIGURE_METHODS = (
+    "debrief/figure_id",
+    "debrief/export_image",
+    "debrief/find_image_source",
+    "debrief/open_revision",
+)
+# A host (VS Code) waiting for what the service asks of it, and answering: an agent's
+# export, drawn by an open map (SUB-25).
+HOST_METHODS = ("debrief/host_poll", "debrief/host_answer")
 KNOWN_METHODS = frozenset(
     (
         "initialize",
@@ -219,12 +242,15 @@ KNOWN_METHODS = frozenset(
         "debrief/tools_for_selection",
         "debrief/stores",
         "debrief/create_catalogue",
+        "debrief/import",
         "debrief/import_rep",
         "debrief/rep_tracks",
         "debrief/preview_narrative",
         "debrief/add_plot_file",
         "debrief/review_flags",
         *TOTE_METHODS,
+        *FIGURE_METHODS,
+        *HOST_METHODS,
         *HISTORY_METHODS,
     )
 )
@@ -309,6 +335,7 @@ class ToolService:
     def __init__(self, worker: ToolWorker, config_path: str | None = None):
         self.worker = worker
         self.config_path = config_path
+        self.bridge = figures.Bridge()
         self.refresh()
 
     def refresh(self) -> None:
@@ -373,6 +400,8 @@ class ToolService:
             return self._tote(params)
         if method == "debrief/review_flags":
             return self._review_flags()
+        if method in FIGURE_METHODS or method in HOST_METHODS:
+            return figures.handle(self, method, params)
         if method in HISTORY_METHODS:
             return self._history(method, params)
         raise RpcError(METHOD_NOT_FOUND, f"Unknown method {method}")
@@ -398,7 +427,10 @@ class ToolService:
         store = self._store(params.get("store"), writing=False)
         try:
             catalogue = Catalogue.open(Path(store.location))
-            return tote(catalogue, item, time_ms, view)
+            revision = params.get("revision")
+            return tote(
+                catalogue, item, time_ms, view, revision if isinstance(revision, str) else None
+            )
         except FileNotFoundError:
             raise RpcError(INVALID_PARAMS, f"There is no plot {item!r} in {store.title}.") from None
         except (CatalogueError, HistoryError, OSError, ValueError) as error:
@@ -466,7 +498,10 @@ class ToolService:
             if item not in catalogue.item_ids():
                 raise RpcError(INVALID_PARAMS, f"There is no plot {item!r} in {store.title}.")
             history = catalogue.history(item)
-            recovered = history.open()
+            # Opened to show read-only (an earlier revision): an interrupted change is not
+            # recovered, which would write to the plot (expert panel, 16 Oct 2026).
+            reading_only = method == "debrief/open" and params.get("read_only") is True
+            recovered = False if reading_only else history.open()
             expected = Base(base["current"], base["plot_hash"]) if base else None
             allow = params.get("allow_newer_schema") is True
             out: dict[str, Any] = {"recovered": recovered}
@@ -1353,7 +1388,7 @@ def build_app(service: ToolService, token: str, port: int) -> Starlette:
         if header_version is not None and header_version not in SUPPORTED_VERSIONS:
             return Response(f"Unsupported MCP protocol version {header_version}.", status_code=400)
         body = await request.body()
-        if len(body) > MAX_BODY_BYTES:
+        if len(body) > MAX_IMAGE_BODY_BYTES:
             return Response("Request too large.", status_code=413)
         try:
             message = json.loads(body)
@@ -1361,6 +1396,8 @@ def build_app(service: ToolService, token: str, port: int) -> Starlette:
             return _error(None, -32700, "Parse error")
         if not isinstance(message, dict) or message.get("jsonrpc") != "2.0":
             return _error(None, INVALID_REQUEST, "Not a JSON-RPC 2.0 request")
+        if len(body) > MAX_BODY_BYTES and message.get("method") not in IMAGE_METHODS:
+            return Response("Request too large.", status_code=413)
         if "id" not in message or "method" not in message:
             return Response(status_code=202)  # a notification, or a response to us
         params = message.get("params", {})
