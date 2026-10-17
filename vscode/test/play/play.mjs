@@ -49,6 +49,8 @@ const browser = await chromium.launch({
 const page = await browser.newPage({ viewport: { width: 1400, height: 820 } });
 const errors = [];
 page.on("pageerror", (e) => errors.push(String(e)));
+// Every page under its Content-Security-Policy (product owner, 17 Oct 2026): anything it refuses is a failure.
+page.on("console", (m) => /Content Security Policy|Refused to (load|connect|execute|apply|create|frame)/.test(m.text()) && errors.push(`refused by the page's policy: ${m.text()}`));
 const shot = async (name, on = page) => shots && (await on.waitForTimeout(800), await on.screenshot({ path: path.join(shots, `${name}.png`) }));
 const text = (selector) => page.locator(selector).innerText();
 const selected = () => page.$$eval("#outline li.selected .name", (rows) => rows.map((r) => r.textContent));
@@ -68,9 +70,9 @@ try {
   assert.equal(await page.locator("#undo").isEnabled(), true);
   assert.match(await history(), /step 1/);
   await shot("play-01-ready");
-  // The walkthroughs folded away, as a reader who knows Debrief would: what follows is laid out as
-  // before them, and their steps, ticking as it plays, move nothing. Played in onboarding.mjs.
-  await page.locator("#panel-tour button.fold").click();
+  // The walkthroughs start folded in the playground (product owner, 17 Oct 2026): what follows is
+  // laid out as before them. Played in onboarding.mjs.
+  assert.equal(await page.locator("#panel-tour button.fold").getAttribute("aria-expanded"), "false");
 
   // The time controller is at the top of the side column; the map has no control of its own.
   const timeLabel = () => text("#timebar .time-label");
@@ -418,9 +420,7 @@ try {
   await page.goto(`${BASE}/index.html`);
   await ready();
   await playTours(page, shot, root);
-  await page.goto(`${BASE}/index.html`);
-  await ready();
-  await speedRun(page, root);
+  await speedRun(page, root); // on the same page: Python started once for both
   if (site) {
     const siteServer = serve(site);
     await playDemo(browser, `http://127.0.0.1:${siteServer.address().port}`, shot);

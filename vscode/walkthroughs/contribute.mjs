@@ -26,10 +26,23 @@ export function stepParts(step, host) {
  */
 export const plainForVSCode = (text) => text.replace(/`([^`]+)`/g, "$1").replace(/(^|[^*])\*([^*]+)\*(?!\*)/g, "$1$2");
 
+/** The command that opens a walkthrough's copy: its first step's button. */
+export const OPEN = "debrief.walkthrough.open";
+
+/**
+ * A step's button on VS Code's Get Started page. Every step after the first runs through
+ * debrief.walkthrough.do, which opens the walkthrough's copy first if another plot is open, so
+ * a button never acts on the analyst's own plot (panel review, 17 Oct 2026).
+ */
+export function vscodeButton(step, tour) {
+  const { command, args = [] } = step.vscode;
+  return command === OPEN ? commandLink(command, args) : commandLink("debrief.walkthrough.do", [tour, command, ...args]);
+}
+
 /** A step's description on VS Code's Get Started page: Markdown, the button a link alone on its line. */
-export function vscodeDescription(step) {
+export function vscodeDescription(step, tour) {
   const { text, where, keys, button } = stepParts(step, "vscode");
-  return [text, where, `**Keyboard:** ${keys}`].filter(Boolean).map(plainForVSCode).concat(`[${button}](${commandLink(step.vscode.command, step.vscode.args)})`).join("\n\n");
+  return [text, where, `**Keyboard:** ${keys}`].filter(Boolean).map(plainForVSCode).concat(`[${button}](${vscodeButton(step, tour)})`).join("\n\n");
 }
 
 /** contributes.walkthroughs, from tours.json. */
@@ -41,7 +54,7 @@ export function walkthroughsContribution(tours) {
     steps: tour.steps.map((step) => ({
       id: `${tour.id}.${step.id}`,
       title: step.title,
-      description: vscodeDescription(step),
+      description: vscodeDescription(step, tour.id),
       media: { svg: `${MEDIA}/${step.media}`, altText: step.alt },
       completionEvents: [`onContext:${contextKey(step.event)}`],
     })),

@@ -57,13 +57,14 @@ export function callEvent(call: string, args: unknown[], result: string): string
       return ({ remove_jumps: "jumpsRemoved", smooth: "smoothed", mark: "fixMarked" } as Record<string, string>)[String(change().kind)];
     case "track": {
       const action = (change().edit as { action?: string } | undefined)?.action;
-      return change().kind === "edit" && (action === "shear" || action === "stretch") ? "sheared" : undefined;
+      // A shear, not a stretch: the step asks for a shear (panel review, 17 Oct 2026).
+      return change().kind === "edit" && action === "shear" ? "sheared" : undefined;
     }
     case "annotate":
       return change().kind === "add" ? "annotationAdded" : undefined;
     case "frequencies":
       return "frequenciesSet";
-    case "import_file":
+    // The walkthrough's log only: a file of the reader's own is not the step's import.
     case "import_tour_log":
       return outcome.item ? "imported" : undefined;
     case "collate":
@@ -76,6 +77,20 @@ export function callEvent(call: string, args: unknown[], result: string): string
     default:
       return undefined;
   }
+}
+
+/** The walkthrough an event belongs to: each step waits for an event of its own. */
+export const tourOfEvent = (event: string): string | undefined => TOURS.find((t) => t.steps.some((s) => s.event === event))?.id;
+
+/**
+ * Whether something the reader did counts for a walkthrough's step (panel review, 17 Oct 2026):
+ * only in the walkthrough shown, only on its copy of serial 1, and Coverage only once its log is
+ * imported. A change to another plot, or in a walkthrough not shown, ticks nothing.
+ */
+export function counts(event: string, at: { active: string; copy: string | undefined; item: string | undefined; done: ReadonlySet<string> }): boolean {
+  if (tourOfEvent(event) !== at.active || !at.copy || at.item !== at.copy) return false;
+  if (event === "coverageShown") return at.done.has("imported");
+  return true;
 }
 
 /** How far through a walkthrough the reader is: steps done, and the first not done. */
@@ -149,6 +164,17 @@ export class TourPanel {
   /** The events done so far, for tests. */
   get events(): string[] {
     return [...this.done];
+  }
+
+  /** Start a walkthrough again: none of its steps done (a fresh copy is made). */
+  restart(id: string): void {
+    const tour = TOURS.find((t) => t.id === id);
+    for (const step of tour?.steps ?? []) this.done.delete(step.event);
+    this.open.clear();
+    if (id === this.tour.id) {
+      this.said.textContent = "";
+      this.render();
+    }
   }
 
   /** Show another walkthrough: its next step open. */

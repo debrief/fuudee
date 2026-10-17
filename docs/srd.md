@@ -370,7 +370,7 @@ Analysts accept a visible lag on busy plots, but not a stall. Requirements are s
 
 ### 10.5 Onboarding
 
-- **NFR-09** An analyst with domain knowledge but no Debrief training should import a sample serial, compose a storyboard and export it within an hour (OUT-02, OUT-05). *Note (product owner, 17 Oct 2026):* until the storyboard exists (Phase 4), a trial of what exists (import, tidy, annotate and export a traceable figure) against a provisional 40 minutes; the full one-hour trial reruns in Phase 4. The trial is pending (docs/notes/onboarding-trial.md).
+- **NFR-09** An analyst with domain knowledge but no Debrief training should import a sample serial, compose a storyboard and export it within an hour (OUT-02, OUT-05). *Note (product owner, 17 Oct 2026):* until the storyboard exists (Phase 4), a trial of what exists (import, tidy, annotate and export a traceable figure) against a provisional 40 minutes; the full one-hour trial reruns in Phase 4. The trial is formative, its pass rule pre-registered (at least 80% complete unaided, a median silent run within 40 minutes, none over 60); it imports a REP file and a legacy .dpf plot; it is pending (docs/notes/onboarding-trial.md).
 
 ### 10.6 Data integrity and recovery
 
@@ -413,7 +413,7 @@ Legacy Debrief is already accredited on the target network, so the path is a kno
 ### 11.4 Public demonstration instance
 
 - **DEP-06** An unclassified web-hosted instance shall be available to anyone during development, for review and demonstration. *Note (17 Oct 2026):* the web demo, full screen at /demo/ on the documentation site, with every panel and the walkthroughs.
-- **DEP-07** The public instance shall ship with fixed sample data. It may open files the analyst chooses, read only in the browser, never sent or stored. *(Amended by the product owner, 17 Oct 2026; it said the instance shall never hold real data and have no upload capability. Nothing the analyst opens leaves their browser or outlives the tab, which is tested.)*
+- **DEP-07** The public instance shall ship with fixed sample data. It may open files the analyst chooses, read only in the browser, never sent or stored. *(Amended by the product owner, 17 Oct 2026; it said the instance shall never hold real data and have no upload capability. Nothing the analyst opens leaves their browser or outlives the tab, which is tested. Its pages carry a strict Content-Security-Policy; Pyodide is loaded from jsDelivr with no integrity check, a risk the product owner accepts, 17 Oct 2026.)*
 - **DEP-08** Sample data shall be a hybrid: open AIS data for the background picture, with a synthesised blue, red and sensor layer and a scripted narrative on top, covering several serials. It replaces the 1995 single-serial sample. It shall be built before the first graphical milestone, since the demonstration instance (DEP-06), the walkthroughs (CAP-25) and blog examples (DEV-06) depend on it, and shall carry its own provenance as a worked example of SUB-18.
 
 ### 11.5 Development practice

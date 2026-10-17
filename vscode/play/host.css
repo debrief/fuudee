@@ -45,7 +45,8 @@ button:focus-visible, li:focus-visible { outline: 1px solid var(--vscode-focusBo
 .item-actions { display: flex; flex-wrap: wrap; gap: 2px 4px; }
 .item-actions button { margin: 2px 0 0; padding: 1px 6px; }
 .tools li { display: flex; align-items: baseline; gap: 6px; flex-wrap: wrap; }
-.file input { display: block; margin: 4px 0; color: var(--vscode-foreground); font: inherit; }
+.file input { display: block; margin: 4px 0; color: var(--vscode-foreground); font: inherit; max-width: 100%; min-width: 0; }
+.file { display: block; overflow-wrap: anywhere; }
 .omitted-panel { padding: 10px 14px; overflow-y: auto; font-size: 13px; }
 .omitted-panel h2 { font-size: 15px; margin: 4px 0 8px; }
 .omitted-panel ul { padding-left: 18px; }

@@ -44,7 +44,7 @@ import { Session, timeProblem } from "./session.js";
 import { CataloguesProvider, type CollationMarks } from "./views/catalogues.js";
 import { featureIdsOf, OutlineProvider } from "./views/outline.js";
 import { ToolsProvider } from "./views/tools.js";
-import { BY_HAND, openedEvent, prepare, serviceEvent, toteCompares, TOURS, WalkthroughProgress } from "./walkthroughs.js";
+import { BY_HAND, LOG_FILE, openedEvent, prepare, serviceEvent, toteCompares, TOURS, tourOfEvent, WalkthroughProgress } from "./walkthroughs.js";
 
 /** What the integration tests and agents can inspect. */
 export interface DebriefApi {
@@ -127,12 +127,34 @@ export function activate(context: vscode.ExtensionContext): DebriefApi {
   const configFile = process.env.DEBRIEF_CONFIG || undefined;
   const session = new Session();
   // Walkthroughs (CAP-25): each step ticks when the analyst does it, by its context key.
-  const walkthroughs = new WalkthroughProgress((command, ...args) => vscode.commands.executeCommand(command, ...args), context.extension.id);
-  // A time or a selection the analyst made (not one a plot opening or a tool set).
+  const walkthroughs = new WalkthroughProgress((command, ...args) => vscode.commands.executeCommand(command, ...args), context.extension.id, (line) => log(line));
+  /** Where a walkthrough's copy is kept: this extension's own storage, a folder for each walkthrough, never the analyst's catalogues. */
+  function walkthroughFolder(tour: string): string {
+    return path.join(context.globalStorageUri.fsPath, "walkthroughs", tour);
+  }
+  function walkthroughStore(tour: string): KnownStore | undefined {
+    return knownStores(configFile).stores.find((s) => sameLocation(s.location, path.join(walkthroughFolder(tour), "catalogue")));
+  }
+  /**
+   * Something done to a plot ticks its walkthrough's step only on that walkthrough's copy, and
+   * Coverage only once the log is imported (panel review, 17 Oct 2026): the same change to the
+   * analyst's own plot, or to another walkthrough's copy, ticks nothing.
+   */
+  function tick(event: string | undefined, store: string | undefined, item: string | undefined): void {
+    const tour = event && tourOfEvent(event);
+    if (!event || !tour || !store || !item) return;
+    if (walkthroughStore(tour)?.id !== store || item !== `serial-1-${tour}`) return;
+    if (event === "coverageShown" && !walkthroughs.seen().includes("imported")) return;
+    walkthroughs.said(event);
+  }
+  const tickHere = (event: string) => tick(event, session.current?.store.id, session.current?.item.id);
+  // A time or a selection the analyst made (not one a plot opening, a tool or a command set):
+  // the step asks for two tracks, so a selection of fewer is not it.
   session.onState((change, origin) => {
     if (!BY_HAND.has(origin)) return;
-    if (change.time) walkthroughs.said("timeMoved");
-    if (change.selection?.feature_ids.length) walkthroughs.said("selected");
+    if (change.time) tickHere("timeMoved");
+    const tracks = session.current?.plot.features.filter((f) => f.properties.kind === "track").map((f) => f.id) ?? [];
+    if ((change.selection?.feature_ids.filter((id) => tracks.includes(id)).length ?? 0) >= 2) tickHere("selected");
   });
   const agent: Agent = { kind: "person", name: userInfo().username };
 
@@ -202,7 +224,7 @@ export function activate(context: vscode.ExtensionContext): DebriefApi {
   );
   // Coverage, below Catalogues: collation with coverage visible (CAP-08 to CAP-12).
   const coverageView = new CoverageView(context.extensionUri, session, (ask) => collate(ask), log);
-  coverageView.shown = () => walkthroughs.said("coverageShown");
+  coverageView.shown = () => tickHere("coverageShown");
   context.subscriptions.push(
     vscode.window.registerWebviewViewProvider(COVERAGE_VIEW, coverageView),
     vscode.window.registerWebviewViewProvider(TIMELINE_VIEW, timeline, { webviewOptions: { retainContextWhenHidden: true } }),
@@ -257,7 +279,14 @@ export function activate(context: vscode.ExtensionContext): DebriefApi {
           tools.update(undefined, [], "The tool service stopped. Run 'Debrief: Restart tool service'.");
         });
         // A change the analyst made through the service ticks the walkthrough step that asks for it (CAP-25).
-        started.done = (method, params) => walkthroughs.said(serviceEvent(method, params));
+        // Only to the walkthrough's copy: the plot the request names, or for the log's import, the log beside its catalogue.
+        started.done = (method, params) => {
+          const event = serviceEvent(method, params);
+          if (!event) return;
+          const log = path.join(walkthroughFolder("collate"), LOG_FILE);
+          const item = method === "debrief/import" ? (sameLocation(String(params.path ?? ""), log) && session.current?.item.id === "serial-1-collate" ? "serial-1-collate" : undefined) : (params.item as string | undefined);
+          tick(event, params.store as string | undefined, item);
+        };
         // Nothing is changed while an earlier revision is shown read-only (SUB-25): refused here, in one place.
         started.shownReadOnly = () => (session.current?.revision ? { store: session.current.store.id, item: session.current.item.id } : undefined);
         service = started;
@@ -721,7 +750,7 @@ export function activate(context: vscode.ExtensionContext): DebriefApi {
       notSaved: "The Tote's tracks were not saved.",
       conflict: "Someone else changed this plot's view, so your choice of Tote tracks was not saved. Debrief is showing theirs; choose again if you still want yours.",
     }).then((problem) => {
-      if (!problem && toteCompares(tote)) walkthroughs.said("toteChosen");
+      if (!problem && toteCompares(tote)) tickHere("toteChosen");
       return problem;
     });
 
@@ -2176,7 +2205,7 @@ export function activate(context: vscode.ExtensionContext): DebriefApi {
     const within = start >= Date.parse(range.start) && start <= Date.parse(range.end);
     const time = { current: at, range: within ? range : { start: at < range.start ? at : range.start, end: at > range.end ? at : range.end } };
     applyToolState({ time }, "timeline", false);
-    walkthroughs.said("timelineChosen");
+    tickHere("timelineChosen");
     return undefined;
   });
   // The plot's Timeline for agents and tests: every entry, and the one current time is at
@@ -2787,19 +2816,26 @@ export function activate(context: vscode.ExtensionContext): DebriefApi {
     const chosen = await pickTour(tour);
     if (chosen) await vscode.commands.executeCommand("workbench.action.openWalkthrough", `${context.extension.id}#${chosen.id}`, false);
   });
-  /** Where a walkthrough's copy is kept: this extension's own storage, a folder for each walkthrough, never the analyst's catalogues. */
-  const walkthroughFolder = (tour: string) => path.join(context.globalStorageUri.fsPath, "walkthroughs", tour);
-  const walkthroughStore = (tour: string): KnownStore | undefined =>
-    knownStores(configFile).stores.find((s) => sameLocation(s.location, path.join(walkthroughFolder(tour), "catalogue")));
   /**
    * Open the copy of serial 1 a walkthrough works on: a fresh one, built by debrief-sample
    * into a catalogue of its own (Walkthrough: …), or the analyst's copy from before, as they
    * choose. Agents and tests pass fresh. Returns the problem, if there is one.
    */
+  /** Walkthroughs whose copy is being made: pressing the button again meanwhile makes no second one. */
+  const making = new Set<string>();
   command("debrief.walkthrough.open", async (tour?: string, given?: { fresh?: boolean }) => {
     const chosen = await pickTour(tour);
     if (!chosen) return undefined;
     if (!needService()) return "Debrief's tool service is not running.";
+    if (making.has(chosen.id)) return "The copy is being made already.";
+    making.add(chosen.id);
+    try {
+      return await openWalkthroughCopy(chosen, given);
+    } finally {
+      making.delete(chosen.id);
+    }
+  });
+  async function openWalkthroughCopy(chosen: (typeof TOURS)[number], given?: { fresh?: boolean }): Promise<string | undefined> {
     const folder = walkthroughFolder(chosen.id);
     let store = walkthroughStore(chosen.id);
     let fresh = !store || !existsSync(path.join(folder, "catalogue"));
@@ -2818,6 +2854,8 @@ export function activate(context: vscode.ExtensionContext): DebriefApi {
       }
     }
     if (fresh) {
+      // Starting again: its steps unticked, on the Get Started page too (panel review, 17 Oct 2026).
+      walkthroughs.forgetTour(chosen.id);
       try {
         if (store) {
           const old = store.id;
@@ -2843,13 +2881,31 @@ export function activate(context: vscode.ExtensionContext): DebriefApi {
     await vscode.commands.executeCommand("debrief.openPlot", store!.id, item);
     const opened = session.current;
     if (opened?.store.id !== store!.id || opened.item.id !== item) return "The walkthrough's copy could not be opened.";
-    walkthroughs.said(openedEvent(chosen.id));
+    tickHere(openedEvent(chosen.id));
     return undefined;
+  }
+  /**
+   * A walkthrough step's button: on the walkthrough's copy, opened first if another plot is open,
+   * then the command the step names (panel review, 17 Oct 2026). Refused, and said, before the
+   * copy is made.
+   */
+  command("debrief.walkthrough.do", async (tour?: string, name?: string, ...args: unknown[]) => {
+    const chosen = TOURS.find((t) => t.id === tour);
+    const store = chosen && walkthroughStore(chosen.id);
+    if (!chosen || !name?.startsWith("debrief.")) return report("That is not a walkthrough's step.");
+    if (!store || !existsSync(path.join(walkthroughFolder(chosen.id), "catalogue"))) return report(`Open a copy of serial 1 for ${chosen.title} first: its first step.`);
+    const item = `serial-1-${chosen.id}`;
+    if (session.current?.store.id !== store.id || session.current.item.id !== item) {
+      await vscode.commands.executeCommand("debrief.openPlot", store.id, item);
+      if (session.current?.item.id !== item) return report("The walkthrough's copy could not be opened.");
+      void vscode.window.showInformationMessage(`${session.current.item.properties.title ?? item} is open: the walkthrough works on its copy, not on the plot that was open.`);
+    }
+    return vscode.commands.executeCommand(name, ...args);
   });
   /** Import and collate: import BLUE ONE's navigation log, waiting beside the walkthrough's catalogue, as any REP file is imported. */
   command("debrief.walkthrough.importLog", async (given?: { modes?: string }) => {
     const store = walkthroughStore("collate");
-    const log = path.join(walkthroughFolder("collate"), "blue-one-nav-log.rep");
+    const log = path.join(walkthroughFolder("collate"), LOG_FILE);
     if (!store || !existsSync(log)) return report("Open the copy of serial 1 for Import and collate first: it brings the navigation log with it.");
     return vscode.commands.executeCommand("debrief.importRep", undefined, { store: store.id, path: log, ...given });
   });

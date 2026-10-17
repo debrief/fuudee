@@ -166,7 +166,7 @@ export async function playTracks(page, shot) {
   await stepAdded(n);
   assert.match(await latest(), /^BLUE ONE split at \d\d:\d\d:\d\dZ$/);
   // Both parts selected once the plot is shown again (the selection follows the step).
-  await page.waitForFunction(() => document.querySelectorAll("#outline li.selected").length === 2, null, { timeout: 10000 }).catch(() => undefined);
+  await page.waitForFunction(() => document.querySelectorAll("#outline li.selected").length === 2, null, { timeout: 10000 });
   assert.deepEqual(await selected(), ["BLUE ONE (1)", "BLUE ONE (2)"]);
   await page.mouse.move(2, 2);
   // The colleague's notice gone first: the pictures are for the post.

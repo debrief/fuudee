@@ -50,7 +50,8 @@ export function serviceEvent(method: string, params: Record<string, unknown> = {
       return "fixMarked";
     case "debrief/edit_track": {
       const action = (params.edit as { action?: string } | undefined)?.action;
-      return action === "shear" || action === "stretch" ? "sheared" : undefined;
+      // A shear, not a stretch: the step asks for a shear (panel review, 17 Oct 2026).
+      return action === "shear" ? "sheared" : undefined;
     }
     case "debrief/add_annotation":
       return "annotationAdded";
@@ -69,8 +70,18 @@ export function serviceEvent(method: string, params: Record<string, unknown> = {
 /** A Tote with something to compare: a primary and at least one secondary. */
 export const toteCompares = (tote: { primary?: string | null; secondaries?: string[] | null } | undefined) => !!tote?.primary && !!tote.secondaries?.length;
 
-/** Where a selection or a time came from that the analyst made: the map, the Outline, the time controller, a command. */
-export const BY_HAND = new Set(["map", "outline", "debrief.time", "command"]);
+/**
+ * Where a selection or a time came from that the analyst made: the map, the Outline, the time
+ * controller. Not a command: Debrief selects what it has just added that way (panel review,
+ * 17 Oct 2026).
+ */
+export const BY_HAND = new Set(["map", "outline", "debrief.time"]);
+
+/** The walkthrough an event belongs to: each step waits for an event of its own. */
+export const tourOfEvent = (event: string): string | undefined => TOURS.find((t) => t.steps.some((s) => s.event === event))?.id;
+
+/** Import and collate's navigation log, beside the walkthrough's catalogue (debrief_sample.walkthrough.LOG_FILE). */
+export const LOG_FILE = "blue-one-nav-log.rep";
 
 /** The Get Started page's id for each step waiting for an event: extension#walkthrough#step. */
 export function stepsFor(extension: string, event: string): string[] {
@@ -89,6 +100,7 @@ export class WalkthroughProgress {
   constructor(
     private readonly run: (command: string, ...args: unknown[]) => Thenable<unknown>,
     private readonly extension: string,
+    private readonly log: (line: string) => void = () => undefined,
   ) {}
 
   /** The analyst did what a step asks: tick it (and every step waiting for the same event). */
@@ -98,6 +110,15 @@ export class WalkthroughProgress {
     this.tell(event, true);
   }
 
+  /** A walkthrough started again: its steps unticked, so each ticks again on its fresh copy. */
+  forgetTour(tour: string): void {
+    for (const step of TOURS.find((t) => t.id === tour)?.steps ?? []) {
+      // Unticked on the page too, whatever this session saw: progress there outlives a session.
+      this.done.delete(step.event);
+      this.tell(step.event, false);
+    }
+  }
+
   /** Nothing done: every step unticked again (for tests, which play the walkthroughs after much else). */
   forget(): void {
     for (const event of this.done) this.tell(event, false);
@@ -105,10 +126,13 @@ export class WalkthroughProgress {
   }
 
   private tell(event: string, done: boolean): void {
-    void Promise.resolve(this.run("setContext", contextKey(event), done)).catch(() => undefined);
+    // The context key is how a step is ticked (completionEvents); it is VS Code's documented way.
+    void Promise.resolve(this.run("setContext", contextKey(event), done)).catch(() => this.log(`walkthrough_context_failed event=${event}`));
     for (const step of stepsFor(this.extension, event)) {
-      // VS Code's own command; an older VS Code without it still has the context key.
-      void Promise.resolve(this.run(done ? "welcome.markStepComplete" : "welcome.markStepIncomplete", step)).catch(() => undefined);
+      // VS Code's own command, not part of its API: it may change. Said in the log when it fails;
+      // the context key still ticks the step whenever the page's service is running.
+      const command = done ? "welcome.markStepComplete" : "welcome.markStepIncomplete";
+      void Promise.resolve(this.run(command, step)).catch(() => this.log(`walkthrough_mark_failed command=${command}`));
     }
   }
 
@@ -127,15 +151,18 @@ export interface Prepared {
   log?: string;
 }
 
+/** Why the copy could not be made, as the analyst can act on it: the sample's packages missing from Debrief's Python, or Python's own last line. */
+export function whyNotPrepared(stderr: string, fallback: string): string {
+  if (/No module named .?(debrief_sample|pyarrow)/.test(stderr)) return "Debrief's sample data (the debrief-sample Python package and its pyarrow) is not installed with Debrief's Python";
+  return stderr.trim().split("\n").pop() || fallback;
+}
+
 /** Build a fresh copy of the sample for a walkthrough into folder, with the analyst's Python (debrief-sample). */
 export function prepare(python: string, folder: string, tour: string): Promise<Prepared> {
   return new Promise((resolve, reject) => {
     execFile(python, ["-m", "debrief_sample", "walkthrough", folder, tour], { timeout: 120_000 }, (error, stdout, stderr) => {
       if (error) {
-        const why = /No module named .?debrief_sample/.test(stderr)
-          ? "Debrief's sample data (the debrief-sample Python package) is not installed with Debrief's Python"
-          : (stderr.trim().split("\n").pop() ?? error.message);
-        return reject(new Error(why));
+        return reject(new Error(whyNotPrepared(stderr, error.message)));
       }
       try {
         resolve(JSON.parse(stdout.trim().split("\n").pop() ?? "") as Prepared);
