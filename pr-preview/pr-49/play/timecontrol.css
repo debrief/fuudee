@@ -4,7 +4,8 @@
 .timebar[hidden] { display: none; }
 /* The window's ends and its length on one line (and, in the playground, how context tracks are drawn). */
 .tc-caption { display: flex; flex-wrap: wrap; align-items: center; column-gap: 6px; row-gap: 2px; color: var(--vscode-descriptionForeground); }
-.tc-ends { font-family: var(--vscode-editor-font-family); font-size: 11px; white-space: nowrap; }
+/* The window's ends wrap at a space where a narrow column (210 px, a wide font) has no room for them on one line. */
+.tc-ends { font-family: var(--vscode-editor-font-family); font-size: 11px; white-space: normal; overflow-wrap: anywhere; min-width: 0; }
 .tc-to { margin: 0 3px; font-family: var(--vscode-font-family); }
 .tc-window-length { margin-left: auto; font-size: 11px; white-space: nowrap; font-variant-numeric: tabular-nums; }
 /* The window: a rail for the plot's period, a band for the window, a handle at each end. */
