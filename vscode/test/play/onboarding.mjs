@@ -61,6 +61,36 @@ async function ticked(page, index, title) {
   assert.equal(await row.locator(".tour-mark").innerText(), "✓");
 }
 
+/** How wide the map is, in pixels. */
+const mapWidth = async (page) => (await page.locator(".frame-map").boundingBox()).width;
+/** Wholly in sight in the walkthroughs' column on the right, not scrolled away in it or off the screen. */
+const inSight = (locator) =>
+  locator.evaluate((el) => {
+    const r = el.getBoundingClientRect();
+    const g = document.getElementById("guide").getBoundingClientRect();
+    return r.height > 0 && r.top >= Math.max(0, g.top) - 1 && r.bottom <= Math.min(innerHeight, g.bottom) + 1 && r.left >= g.left - 1 && r.right <= g.right + 1;
+  });
+/** The page itself scrolls sideways. */
+const pageSideways = (page) => page.evaluate(() => document.documentElement.scrollWidth > innerWidth);
+
+/**
+ * On a wide screen the walkthroughs are a column of their own on the right of the map, a
+ * labelled landmark; folded, a narrow tab, and the map takes the rest (product owner, 22 Oct 2026).
+ */
+async function rightColumn(page, open) {
+  assert.equal(await page.locator("#panel-tour").evaluate((s) => s.parentElement.id), "guide", "the walkthroughs in the right-hand column");
+  assert.equal(await page.getByRole("complementary", { name: "Walkthroughs" }).getByRole("heading", { level: 2, name: /^Walkthroughs$/i }).count(), 1);
+  const map = await page.locator(".frame-map").boundingBox();
+  const guide = await page.locator("#guide").boundingBox();
+  assert.ok(guide.x >= map.x + map.width - 1, "right of the map");
+  assert.ok(Math.abs(guide.x + guide.width - (page.viewportSize()?.width ?? 0)) <= 1, "at the right edge of the window");
+  assert.equal(await page.locator("#panel-tour button.fold").getAttribute("aria-expanded"), String(open));
+  if (open) assert.ok(guide.width >= 240 && guide.width <= 302, `open, the column is 240 to 300 px wide: ${guide.width}`);
+  else assert.ok(guide.width <= 40, `folded, the column is a narrow tab: ${guide.width}`);
+  assert.equal(await page.locator("#side > #panel-tour").count(), 0);
+  assert.equal(await page.locator("#side > section:not([hidden])").first().getAttribute("id"), "panel-time", "the side column starts with the time controller");
+}
+
 /** The walkthroughs' panel open: it starts folded in the playground (product owner, 17 Oct 2026). */
 async function openTours(page) {
   const fold = page.locator("#panel-tour button.fold");
@@ -108,12 +138,23 @@ export async function playTours(page, shot, root) {
   const side = page.locator("#side-frame");
   const serial1 = await stepsOf(page, "serial-1");
 
-  // In the playground the walkthroughs are the first panel, above the time controller, folded:
-  // its readers came for something else (product owner, 17 Oct 2026).
-  assert.equal(await page.locator("#side > section:not([hidden])").first().getAttribute("id"), "panel-tour");
-  assert.equal(await page.locator("#side > section:not([hidden])").nth(1).getAttribute("id"), "panel-time");
-  assert.equal(await page.locator("#panel-tour button.fold").getAttribute("aria-expanded"), "false");
+  // In the playground the walkthroughs start folded: its readers came for something else (product
+  // owner, 17 Oct 2026). On a wide screen they are a column on the right of the map, folded to a
+  // narrow tab; opened, the map narrows by the column's width, and folded again, widens back, from
+  // the pointer or the keyboard (product owner, 22 Oct 2026).
+  await rightColumn(page, false);
+  const wideMap = await mapWidth(page);
   await openTours(page);
+  await rightColumn(page, true);
+  const narrowMap = await mapWidth(page);
+  assert.ok(wideMap - narrowMap >= 200, `the map narrows as the walkthroughs open: ${wideMap} to ${narrowMap} px`);
+  await page.locator("#panel-tour button.fold").focus();
+  await page.keyboard.press("Enter");
+  await rightColumn(page, false);
+  assert.ok(Math.abs((await mapWidth(page)) - wideMap) <= 1, "folded, the map widens back");
+  await page.keyboard.press("Space");
+  await rightColumn(page, true);
+  assert.equal(await page.evaluate(() => document.activeElement?.closest("section")?.id), "panel-tour", "the keyboard stays on its heading");
   assert.equal(await stepRow(page, 0).locator(".tour-head").getAttribute("aria-expanded"), "true");
   await stepRow(page, 0).locator(".tour-media svg").waitFor({ timeout: 15000 }); // the same picture as VS Code's
   assert.equal(await stepRow(page, 0).locator(".tour-media").getAttribute("role"), "img");
@@ -134,8 +175,18 @@ export async function playTours(page, shot, root) {
   assert.equal(await copiesTitled(page, "Serial 1: Open and explore a serial"), 1, "a double click makes one copy");
   await ticked(page, 0, "Open a copy of serial 1");
   await shot("tour-01-explore-open");
+  // The step's words stay in sight while the side column is scrolled to its end, and while the
+  // step is done there: its button scrolls the side column to the time controller, never the column
+  // on the right, nor the page.
+  await page.locator("#side").evaluate((s) => (s.scrollTop = s.scrollHeight));
+  assert.ok((await page.locator("#side").evaluate((s) => s.scrollTop)) > 300, "the side column scrolled down");
+  const stepWords = stepRow(page, 1).locator(".tour-body p").first();
+  assert.ok(await inSight(stepWords), "the step's words in sight, the side column scrolled to its end");
+  assert.ok(await inSight(go(page, 1)), "and its button");
   // Its button only takes the reader there: pressing it ticks nothing.
   await go(page, 1).click();
+  assert.ok(await inSight(stepWords), "the step's words in sight as it is done");
+  assert.equal(await page.evaluate(() => scrollY), 0, "the page itself does not scroll");
   assert.equal(await page.evaluate(() => document.activeElement?.closest("section")?.id), "panel-time");
   assert.equal(await stepRow(page, 1).getAttribute("class"), "tour-step next");
   await page.locator("#timebar .tc-current").focus();
@@ -158,7 +209,10 @@ export async function playTours(page, shot, root) {
   }
   await done(page, "toteChosen");
   await ticked(page, 3, "Compare tracks in the Tote");
+  assert.ok(await inSight(stepRow(page, 4).locator(".tour-body p").first()), "the Timeline step's words in sight");
   await page.locator('#timeline .tl-row[data-kind="narrative"]').nth(3).click();
+  assert.ok((await page.locator("#side").evaluate((s) => s.scrollTop)) > 0, "the side column scrolled to the Timeline");
+  assert.ok(await inSight(stepRow(page, 4).locator(".tour-head")), "the step still in sight, the side column scrolled to the Timeline");
   await done(page, "timelineChosen");
   await ticked(page, 4, "Read the narrative in the Timeline");
   assert.match(await page.locator("#tour .tour-said").innerText(), /That is the whole of Open and explore a serial/);
@@ -185,7 +239,9 @@ export async function playTours(page, shot, root) {
   const log = page.locator("#items > li", { has: page.locator(".item-title", { hasText: "blue-one-nav-log" }) });
   await log.locator(".item-mark").waitFor({ timeout: 60000 });
   await page.locator(".side-bar button", { hasText: "Close" }).click();
-  await go(page, 2).click();
+  // With the walkthroughs in their own column, Coverage may already be in sight in the side column
+  // once the log is in, which is the step done; if not, its button brings it into sight.
+  if (!(await events(page)).includes("coverageShown")) await go(page, 2).click();
   await done(page, "coverageShown");
   const coverage = page.locator("#coverage");
   let n = await steps(page);
@@ -293,22 +349,33 @@ export async function playTours(page, shot, root) {
   // Serial 1 itself, read from Python: no step was added to it by any walkthrough.
   assert.equal(await stepsOf(page, "serial-1"), serial1, "Serial 1's history gained no step");
 
-  // The panel at a phone's and a blog's widths, and in the side column of a 650 to 750 px window
-  // (210 px wide there), in a wider font too: nothing scrolls sideways, Import's file boxes neither.
+  // The panel at laptops' widths, in its column on the right; at a phone's and a blog's widths, and
+  // in the side column of a 650 to 750 px window (210 px wide there), first in the side column as
+  // before; in a wider font too: nothing scrolls sideways, the page, Import's file boxes neither.
+  // From 1200 px the map keeps 640 px or more beside the two columns.
   const widths = [];
   for (const wide of [false, true]) {
-    const style = wide ? await page.addStyleTag({ content: "#side * { letter-spacing: 0.1em !important; font-size: 15px !important }" }) : undefined;
-    for (const width of [750, 700, 650, 390, 280, 210]) {
+    const style = wide ? await page.addStyleTag({ content: "#side *, #guide * { letter-spacing: 0.1em !important; font-size: 15px !important }" }) : undefined;
+    for (const width of [1440, 1366, 1280, 1200, 1199, 1024, 750, 700, 650, 390, 280, 210]) {
       await page.setViewportSize({ width, height: 800 });
       await page.waitForTimeout(300);
+      if (width >= 1200) {
+        await rightColumn(page, true);
+        assert.ok((await mapWidth(page)) >= 640, `at ${width} px the map keeps 640 px: ${await mapWidth(page)}`);
+      } else {
+        assert.equal(await page.locator("#guide").isHidden(), true, `no right-hand column at ${width} px`);
+        assert.equal(await page.locator("#side > section:not([hidden])").first().getAttribute("id"), "panel-tour", `at ${width} px the walkthroughs are first in the side column`);
+        assert.equal(await page.locator("#side > section:not([hidden])").nth(1).getAttribute("id"), "panel-time");
+      }
+      assert.equal(await pageSideways(page), false, `at ${width} px the page does not scroll sideways`);
       const over = await page.evaluate(() =>
-        ["#side", "#body-tour", "#tour", ".tour-steps", ".tour-pick", "#body-import", ...[...document.querySelectorAll(".tour-body")].map((_, i) => `.tour-step:nth-child(${i + 1}) .tour-body`)].flatMap((s) => {
+        ["#side", "#guide", "#body-tour", "#tour", ".tour-steps", ".tour-pick", "#body-import", ...[...document.querySelectorAll(".tour-body")].map((_, i) => `.tour-step:nth-child(${i + 1}) .tour-body`)].flatMap((s) => {
           const el = document.querySelector(s);
           return el && el.offsetParent && el.scrollWidth > el.clientWidth + 1 ? [`${s} ${el.scrollWidth}/${el.clientWidth}`] : [];
         }),
       );
       widths.push(`${wide ? "wide font, " : ""}${width} px: ${over.length ? over.join(", ") : "fits"}`);
-      assert.deepEqual(over, [], `${wide ? "in a wide font, " : ""}at ${width} px the side column never scrolls sideways`);
+      assert.deepEqual(over, [], `${wide ? "in a wide font, " : ""}at ${width} px neither column scrolls sideways`);
       if (width === 280 && !wide) {
         await page.locator("#panel-tour").scrollIntoViewIfNeeded();
         await shot("tour-06-narrow");
@@ -317,7 +384,8 @@ export async function playTours(page, shot, root) {
     await style?.evaluate((s) => s.remove());
   }
   await page.setViewportSize({ width: 1400, height: 820 });
-  console.log(`Walkthroughs played, every step ticked by what was done on its copy, none by the same thing done elsewhere: ${(await events(page)).length} of 20 (Tidy a track started again). Side column sideways scroll: ${widths.join("; ")}.`);
+  await rightColumn(page, true);
+  console.log(`Walkthroughs played, every step ticked by what was done on its copy, none by the same thing done elsewhere: ${(await events(page)).length} of 20 (Tidy a track started again). In the right-hand column from 1200 px, the step's words in sight while the side column scrolls; sideways scroll: ${widths.join("; ")}.`);
 }
 
 /** The most the trial's tasks may take in the playground before the speed run fails: a regression in what they ask. */
@@ -442,10 +510,18 @@ export async function playDemo(browser, siteUrl, shot) {
   // Its policy, before anything it loads, in the page and in each frame (product owner, 17 Oct 2026).
   assert.equal(await page.locator('meta[http-equiv="Content-Security-Policy"]').getAttribute("content"), CSP);
   for (const frame of page.frames().slice(1)) assert.equal(await frame.locator('meta[http-equiv="Content-Security-Policy"]').getAttribute("content"), CSP, frame.url());
-  // Full screen, every panel, the walkthroughs first and open; the sample serials by default.
-  const shown = await page.$$eval("#side > section", (all) => all.filter((s) => !s.hidden).map((s) => s.id));
-  assert.deepEqual(shown, ["panel-tour", "panel-time", "panel-tote", "panel-plot", "panel-outline", "panel-timeline", "panel-catalogue", "panel-coverage", "panel-tools", "panel-history", "panel-export", "panel-try", "panel-import"]);
-  assert.equal(await page.locator("#panel-tour button.fold").getAttribute("aria-expanded"), "true", "open in the web demo");
+  // Full screen, every panel, the walkthroughs open in their column on the right; the sample serials by default.
+  const shown = async () => page.$$eval("#side > section", (all) => all.filter((s) => !s.hidden).map((s) => s.id));
+  const others = ["panel-time", "panel-tote", "panel-plot", "panel-outline", "panel-timeline", "panel-catalogue", "panel-coverage", "panel-tools", "panel-history", "panel-export", "panel-try", "panel-import"];
+  assert.deepEqual(await shown(), others);
+  await rightColumn(page, true);
+  // On a phone, first in the one column, as before; and back on the right when wide again.
+  await page.setViewportSize({ width: 390, height: 844 });
+  assert.deepEqual(await shown(), ["panel-tour", ...others]);
+  assert.equal(await page.locator("#guide").isHidden(), true);
+  assert.equal(await pageSideways(page), false, "at 390 px the demo does not scroll sideways");
+  await page.setViewportSize({ width: 1400, height: 820 });
+  await rightColumn(page, true);
   assert.equal(await page.locator("#plots").inputValue(), "serial-1");
   assert.deepEqual(await page.locator("#plots option").allInnerTexts(), ["Serial 1", "Serial 2", "Serial 3"]);
   assert.ok((await page.locator("#tools button").count()) > 3);

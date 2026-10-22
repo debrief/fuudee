@@ -28,7 +28,7 @@ Each takes about ten minutes and works on **a fresh copy** of the sample's seria
 
 Every step says what to do, where it is, and how to do it from the keyboard, with a picture drawn from the sample. Its button only takes you there: it opens the copy, or brings the panel or the command to hand. The step ticks itself off when you have actually done it, however you did it: from the form, on the map, from the keyboard. Finding the jumps ticks nothing; removing them does. A preview of smoothing is not smoothing; moving or stretching a track is not shearing it. And only the walkthrough's own copy counts: the same change to another of your plots ticks nothing, and with another plot open a step's button opens the walkthrough's copy before it does anything.
 
-![The playground's Walkthroughs panel at the top of the side column: Tidy a track chosen, all five steps ticked, and the line Done: Shear a leg, as in TMA. That is the whole of Tidy a track; the map shows Serial 1: Tidy a track, RED ONE's fix labelled Turned away and BLUE ONE sheared](images/phase-3/onboarding-tidy-done.png)
+![The playground's Walkthroughs in their column on the right of the map: Tidy a track chosen, all five steps ticked, and the line Done: Shear a leg, as in TMA. That is the whole of Tidy a track; the map shows Serial 1: Tidy a track, RED ONE's fix labelled Turned away and BLUE ONE sheared](images/phase-3/onboarding-tidy-done.png)
 
 ## In VS Code: the Get Started page
 
@@ -40,9 +40,9 @@ The words of every step live in one file, which VS Code's walkthroughs are writt
 
 ## The web demo
 
-The <a href="../../../../../demo/">web demo</a> is Debrief full screen in your browser: every panel, the walkthroughs first, and the three serials of the sample exercise. The Python tools run in the page, under Pyodide, as in the blog's demos. You can open a file of your own there too, a REP file, a legacy plot or a Word narrative: it is read in your browser and nowhere else. The demo's test opens such files, filters and highlights them in the Timeline, and exports and traces an image, watching every request the page makes. None carries the files, nothing is sent at all, not even as the tab closes, and nothing derived from them is kept in any of the browser's stores, so they are gone when you close the tab. The page also carries a strict Content-Security-Policy. One thing it cannot vouch for: Python itself, Pyodide, comes from the jsDelivr CDN without an integrity check, a risk we have accepted.
+The <a href="../../../../../demo/">web demo</a> is Debrief full screen in your browser: every panel, the walkthroughs open in a column of their own on the right of the map, and the three serials of the sample exercise. With the steps beside the map, a step's words stay in sight while you do it in the side panels and on the map; fold the column and the map takes its place. On a phone the walkthroughs are the first panel instead. The Python tools run in the page, under Pyodide, as in the blog's demos. You can open a file of your own there too, a REP file, a legacy plot or a Word narrative: it is read in your browser and nowhere else. The demo's test opens such files, filters and highlights them in the Timeline, and exports and traces an image, watching every request the page makes. None carries the files, nothing is sent at all, not even as the tab closes, and nothing derived from them is kept in any of the browser's stores, so they are gone when you close the tab. The page also carries a strict Content-Security-Policy. One thing it cannot vouch for: Python itself, Pyodide, comes from the jsDelivr CDN without an integrity check, a risk we have accepted.
 
-![The web demo, full screen: the Walkthroughs panel above the time controller, the sample's Serial 1 on the map](images/phase-3/onboarding-demo.png)
+![The web demo, full screen: the side panels on the left, the sample's Serial 1 on the map, the Walkthroughs open in their column on the right](images/phase-3/onboarding-demo.png)
 
 ## Is an hour enough?
 
@@ -50,7 +50,7 @@ The SRD's target (NFR-09) is an hour to import a serial, compose a storyboard an
 
 ## Try it
 
-Open **Walkthroughs**, at the top of the side column, choose one and press its first button:
+Open **Walkthroughs**, at the top of the side column (in the web demo, on the right), choose one and press its first button:
 
 <div class="debrief-demo" data-demo="?panels=tour,tote,timeline,coverage,catalogue,history,export" data-height="760px" data-caption="Four walkthroughs on a fresh copy of the sample exercise, each step ticked as you do it. Everything runs in your browser."></div>
 

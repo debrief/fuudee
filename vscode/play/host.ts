@@ -12,7 +12,8 @@
  *   plot=serial-1         the sample serial to open
  *   panels=tour,tote,timeline,tools,history,export,try,import   the side panels, in this order (all by default;
  *                         the Tote, when listed, is always under the time controller, and the
- *                         walkthroughs always above it)
+ *                         walkthroughs always above it, or, on a wide screen, in a column of
+ *                         their own on the right of the map)
  *
  * The web demo (demo.mjs) is this page, full screen at /demo/, using the playground's files.
  * Files the reader opens, there and here, are read in the browser only (DEP-07).
@@ -1232,7 +1233,8 @@ $("find-jumps").onclick = async () => {
       remove.disabled = false;
       return toast(outcome.error, "warning");
     }
-    closeSide();
+    // Only this panel: the next walkthrough step's button, in sight beside the map, may have opened another meanwhile.
+    if ($("side-frame").contains(remove)) closeSide();
   };
 };
 
@@ -1277,7 +1279,8 @@ $("smooth-track").onclick = async () => {
       apply.disabled = false;
       return toast(outcome.error, "warning");
     }
-    closeSide();
+    // Only this panel: the next walkthrough step's button, in sight beside the map, may have opened another meanwhile.
+    if ($("side-frame").contains(apply)) closeSide();
   };
 };
 
@@ -2097,10 +2100,27 @@ function needsPython(on: boolean): void {
   for (const id of NEEDS_PYTHON) $<HTMLButtonElement | HTMLInputElement>(id).disabled = !on;
 }
 needsPython(false);
-// The walkthroughs above the time controller: where a newcomer starts. Open in the web demo;
-// folded in the playground and the blog's demos, whose readers came for something else (product
-// owner, 17 Oct 2026).
-if (panels.has("tour")) $("side").prepend($("panel-tour"));
+// The walkthroughs: where a newcomer starts. On a wide screen, a column of their own on the right
+// of the map, so a step's words stay in sight while it is done in the side panels and on the map;
+// folded, the column narrows to its heading, and the map widens (product owner, 22 Oct 2026).
+// Narrower, first in the side column, above the time controller, as before. Open in the web
+// demo; folded in the playground and the blog's demos, whose readers came for something else
+// (product owner, 17 Oct 2026).
+/** Wide enough for the walkthroughs' column: the map keeps about 290 px beside it with a tool's form open too. */
+const GUIDE_WIDE = matchMedia("(min-width: 1200px)");
+function placeTour(): void {
+  if (!panels.has("tour")) return;
+  const tour = $("panel-tour");
+  const into = GUIDE_WIDE.matches ? $("guide") : $("side");
+  $("guide").hidden = !GUIDE_WIDE.matches;
+  if (tour.parentElement === into) return;
+  // Moved with the keyboard on it, the keyboard stays on it.
+  const focused = tour.contains(document.activeElement) ? (document.activeElement as HTMLElement) : undefined;
+  into.prepend(tour);
+  focused?.focus({ preventScroll: true });
+}
+placeTour();
+GUIDE_WIDE.addEventListener("change", placeTour);
 if (!demo) folds.setOpen("panel-tour", false);
 $("undo").onclick = () => void move("undo");
 $("redo").onclick = () => void move("redo");
