@@ -77,6 +77,15 @@ const pageSideways = (page) => page.evaluate(() => document.documentElement.scro
  * On a wide screen the walkthroughs are a column of their own on the right of the map, a
  * labelled landmark; folded, a narrow tab, and the map takes the rest (product owner, 22 Oct 2026).
  */
+/**
+ * The window resized, once the walkthroughs' panel has moved for it: a media query's change
+ * arrives after the resize, later on a slow machine, so where it sits is read only after.
+ */
+async function resize(page, width, height) {
+  await page.setViewportSize({ width, height });
+  await page.waitForFunction((into) => document.getElementById("panel-tour")?.parentElement?.id === into, width >= 1200 ? "guide" : "side");
+}
+
 async function rightColumn(page, open) {
   assert.equal(await page.locator("#panel-tour").evaluate((s) => s.parentElement.id), "guide", "the walkthroughs in the right-hand column");
   assert.equal(await page.getByRole("complementary", { name: "Walkthroughs" }).getByRole("heading", { level: 2, name: /^Walkthroughs$/i }).count(), 1);
@@ -357,7 +366,7 @@ export async function playTours(page, shot, root) {
   for (const wide of [false, true]) {
     const style = wide ? await page.addStyleTag({ content: "#side *, #guide * { letter-spacing: 0.1em !important; font-size: 15px !important }" }) : undefined;
     for (const width of [1440, 1366, 1280, 1200, 1199, 1024, 750, 700, 650, 390, 280, 210]) {
-      await page.setViewportSize({ width, height: 800 });
+      await resize(page, width, 800);
       await page.waitForTimeout(300);
       if (width >= 1200) {
         await rightColumn(page, true);
@@ -383,7 +392,7 @@ export async function playTours(page, shot, root) {
     }
     await style?.evaluate((s) => s.remove());
   }
-  await page.setViewportSize({ width: 1400, height: 820 });
+  await resize(page, 1400, 820);
   await rightColumn(page, true);
   console.log(`Walkthroughs played, every step ticked by what was done on its copy, none by the same thing done elsewhere: ${(await events(page)).length} of 20 (Tidy a track started again). In the right-hand column from 1200 px, the step's words in sight while the side column scrolls; sideways scroll: ${widths.join("; ")}.`);
 }
@@ -516,11 +525,11 @@ export async function playDemo(browser, siteUrl, shot) {
   assert.deepEqual(await shown(), others);
   await rightColumn(page, true);
   // On a phone, first in the one column, as before; and back on the right when wide again.
-  await page.setViewportSize({ width: 390, height: 844 });
+  await resize(page, 390, 844);
   assert.deepEqual(await shown(), ["panel-tour", ...others]);
   assert.equal(await page.locator("#guide").isHidden(), true);
   assert.equal(await pageSideways(page), false, "at 390 px the demo does not scroll sideways");
-  await page.setViewportSize({ width: 1400, height: 820 });
+  await resize(page, 1400, 820);
   await rightColumn(page, true);
   assert.equal(await page.locator("#plots").inputValue(), "serial-1");
   assert.deepEqual(await page.locator("#plots option").allInnerTexts(), ["Serial 1", "Serial 2", "Serial 3"]);
