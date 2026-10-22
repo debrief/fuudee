@@ -174,7 +174,9 @@ dialog::backdrop { background: #0006; }
 .tour-step { min-width: 0; }
 .side .tour-head { display: flex; align-items: baseline; gap: 6px; width: 100%; margin: 0; padding: 3px 2px; text-align: left; background: none; border: 0; border-radius: 2px; color: inherit; white-space: normal; overflow-wrap: anywhere; }
 .side .tour-head:hover:not(:disabled) { background: var(--vscode-list-hoverBackground); }
-.tour-mark { flex: none; display: inline-flex; justify-content: center; align-items: center; min-width: 1.4em; height: 1.4em; border-radius: 50%; border: 1px solid var(--vscode-descriptionForeground); font-size: 11px; }
+.tour-mark { flex: none; display: inline-flex; justify-content: center; align-items: center; min-width: 1.4em; height: 1.4em; border-radius: 50%; border: 1px solid var(--debrief-guide-accent); color: var(--debrief-guide-accent); font-size: 11px; font-weight: 600; }
+/* The step to do next: its number in a disc of the accent, the panel's background as its text. */
+.tour-step.next .tour-mark { background: var(--debrief-guide-accent); color: var(--vscode-sideBar-background); border-color: var(--debrief-guide-accent); }
 .tour-step.done .tour-mark { background: var(--vscode-button-background); color: var(--vscode-button-foreground); border-color: var(--vscode-button-background); }
 .tour-step.next .tour-title { font-weight: 600; }
 .tour-step.done .tour-title { color: var(--vscode-descriptionForeground); }
@@ -191,9 +193,10 @@ dialog::backdrop { background: #0006; }
    It scrolls on its own. Folded, it is its heading on its side, a narrow tab, and the map takes the
    rest (product owner, 22 Oct 2026). Narrower than 1200 px it is not shown: the walkthroughs are the
    side column's first panel, as before (host.ts moves them). */
-.side.guide { grid-row: 1; grid-column: 3; min-height: 0; border-right: 0; border-left: 1px solid var(--vscode-panel-border); }
+.side.guide { grid-row: 1; grid-column: 3; min-height: 0; border-right: 0; border-left: 0; }
 .guide > .panel { width: clamp(240px, 20vw, 300px); box-sizing: border-box; padding-left: 14px; border-bottom: 0; }
 .guide > .panel.folded { width: auto; padding: 8px 5px; }
+.guide > .panel.folded { background: var(--debrief-guide-tint); }
 .guide > .panel.folded h2 { margin: 0; }
 .guide > .panel.folded h2 button.fold { writing-mode: vertical-rl; padding: 2px 0; white-space: nowrap; }
 .guide > .panel.folded h2 button.fold .arrow { position: static; display: inline-block; width: auto; margin-bottom: 6px; text-orientation: upright; }
@@ -201,3 +204,20 @@ dialog::backdrop { background: #0006; }
 /* A note shows over the map, not over the walkthroughs' column. */
 body:has(#guide:not([hidden]) > .panel:not(.folded)) .toasts { right: calc(clamp(240px, 20vw, 300px) + 12px); }
 body:has(#guide:not([hidden]) > .panel.folded) .toasts { right: 44px; }
+/* The guidance accent (style guide, Theme; product owner, 22 Oct 2026): the walkthroughs are where a
+   newcomer gains an overall understanding, so they stand apart from the panels around them, in the
+   theme's link colour (its focus colour where a theme has none): a 3 px edge, a heading bar tinted
+   with it, and the steps' numbers in it, the next step's a disc of it. Folded, the tab carries it too.
+   Interface, not data: the tracks' colours are untouched. */
+:root {
+  --debrief-guide-accent: var(--vscode-textLink-foreground, var(--vscode-focusBorder));
+  --debrief-guide-tint: color-mix(in srgb, var(--debrief-guide-accent) 14%, var(--vscode-sideBar-background));
+}
+#panel-tour { border-left: 3px solid var(--debrief-guide-accent); }
+/* In the right-hand column the edge runs the column's full height, open or folded. */
+.guide > #panel-tour { min-height: 100%; }
+#panel-tour > h2 { background: var(--debrief-guide-tint); margin: -6px -10px 6px; padding: 6px 10px; }
+#panel-tour.folded > h2 { margin-bottom: 0; }
+.guide > #panel-tour:not(.folded) > h2 { margin-left: -14px; padding-left: 14px; }
+/* Folded on the right, the whole tab is the tinted bar. */
+.guide > #panel-tour.folded > h2 { margin: 0; padding: 0; background: none; }

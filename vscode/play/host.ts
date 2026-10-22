@@ -2103,9 +2103,11 @@ needsPython(false);
 // The walkthroughs: where a newcomer starts. On a wide screen, a column of their own on the right
 // of the map, so a step's words stay in sight while it is done in the side panels and on the map;
 // folded, the column narrows to its heading, and the map widens (product owner, 22 Oct 2026).
-// Narrower, first in the side column, above the time controller, as before. Open in the web
-// demo; folded in the playground and the blog's demos, whose readers came for something else
-// (product owner, 17 Oct 2026).
+// Narrower, first in the side column, above the time controller, as before. Open on first load
+// everywhere they appear, the web demo, the playground and the blog's demos: they are where a
+// newcomer gains an overall understanding (product owner, 22 Oct 2026, superseding 17 Oct's
+// folded outside the demo). A reader who folds them in the playground or the demo finds them
+// folded next time (fold.ts); a post's demo starts open every time.
 /** Wide enough for the walkthroughs' column: the map keeps about 290 px beside it with a tool's form open too. */
 const GUIDE_WIDE = matchMedia("(min-width: 1200px)");
 function placeTour(): void {
@@ -2121,7 +2123,6 @@ function placeTour(): void {
 }
 placeTour();
 GUIDE_WIDE.addEventListener("change", placeTour);
-if (!demo) folds.setOpen("panel-tour", false);
 $("undo").onclick = () => void move("undo");
 $("redo").onclick = () => void move("redo");
 $<HTMLSelectElement>("plots").onchange = (e) => void openPlot((e.target as HTMLSelectElement).value);

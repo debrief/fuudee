@@ -51,6 +51,7 @@
   --vscode-editor-findMatchHighlightBackground: rgba(234, 92, 0, 0.33);
   --vscode-list-focusOutline: #0078d4;
   --vscode-list-highlightForeground: #2aaaff;
+  --vscode-textLink-foreground: #4daafc;
   --vscode-textBlockQuote-background: #2b2b2b;
   --vscode-textBlockQuote-border: #616161;
   --vscode-toolbar-hoverBackground: #5a5d5e50;
@@ -101,6 +102,7 @@
   --vscode-list-inactiveSelectionBackground: #e4e6f1;
   --vscode-editor-findMatchHighlightBackground: rgba(234, 92, 0, 0.33);
   --vscode-list-highlightForeground: #0066bf;
+  --vscode-textLink-foreground: #005fb8;
   --vscode-textBlockQuote-background: #f8f8f8;
   --vscode-textBlockQuote-border: #e5e5e5;
   --vscode-panel-border: #e5e5e5;

@@ -5,7 +5,7 @@ import { existsSync, readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
 import tours from "../../walkthroughs/tours.json";
 import { commandLink, contextKey, OPEN, plainForVSCode, stepParts, vscodeButton, vscodeDescription, walkthroughsContribution, withWalkthroughs } from "../../walkthroughs/contribute.mjs";
-import { BY_HAND, EVENTS, openedEvent, serviceEvent, stepsFor, toteCompares, TOURS, tourOfEvent, WalkthroughProgress, whyNotPrepared } from "../../src/walkthroughs.js";
+import { BY_HAND, EVENTS, FIRST_RUN_KEY, FIRST_TOUR, openedEvent, openOnFirstRun, serviceEvent, stepsFor, toteCompares, TOURS, tourOfEvent, WalkthroughProgress, whyNotPrepared } from "../../src/walkthroughs.js";
 import { callEvent, counts, parseActions, progressOf } from "../../play/tours.js";
 import { DEMO_META, demoPage } from "../../play/demo.mjs";
 import { CSP, CSP_META, CSP_PAGES } from "../../play/csp.mjs";
@@ -231,5 +231,39 @@ describe("the web demo's page", () => {
     expect(kept.kinds).toEqual(["narrative"]);
     expect(kept.view).toMatchObject({ textSize: 14, wrap: false });
     expect(contentFree(undefined).kinds).toEqual([]);
+  });
+});
+
+describe("the first walkthrough, opened on install (product owner, 22 Oct 2026)", () => {
+  const memento = () => {
+    const values = new Map<string, unknown>();
+    return { get: <T>(key: string) => values.get(key) as T | undefined, update: async (key: string, value: unknown) => void values.set(key, value), values };
+  };
+
+  it("opens Open and explore a serial on the first activation, and never on a later one", async () => {
+    const state = memento();
+    const calls: unknown[][] = [];
+    const run = async (...args: unknown[]) => void calls.push(args);
+    expect(FIRST_TOUR).toBe(TOURS[0].id);
+    expect(await openOnFirstRun(state, run, "debrief.debrief")).toBe(true);
+    expect(calls).toEqual([["workbench.action.openWalkthrough", "debrief.debrief#explore", false]]);
+    expect(state.values.get(FIRST_RUN_KEY)).toBe(true);
+    expect(await openOnFirstRun(state, run, "debrief.debrief")).toBe(false);
+    expect(await openOnFirstRun(state, run, "debrief.debrief")).toBe(false);
+    expect(calls).toHaveLength(1);
+  });
+
+  it("asks once even if the page fails to open, and says so in the log", async () => {
+    const state = memento();
+    const lines: string[] = [];
+    let asked = 0;
+    const failing = async () => {
+      asked++;
+      throw new Error("no Get Started page");
+    };
+    expect(await openOnFirstRun(state, failing, "debrief.debrief", (l) => lines.push(l))).toBe(false);
+    expect(await openOnFirstRun(state, failing, "debrief.debrief", (l) => lines.push(l))).toBe(false);
+    expect(asked).toBe(1);
+    expect(lines).toEqual(["walkthrough_open_on_install_failed"]);
   });
 });

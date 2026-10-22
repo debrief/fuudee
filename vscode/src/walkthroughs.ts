@@ -80,6 +80,39 @@ export const BY_HAND = new Set(["map", "outline", "debrief.time"]);
 /** The walkthrough an event belongs to: each step waits for an event of its own. */
 export const tourOfEvent = (event: string): string | undefined => TOURS.find((t) => t.steps.some((s) => s.event === event))?.id;
 
+/**
+ * The walkthrough a newcomer starts with: opened on the Get Started page on Debrief's first
+ * activation after install, once only (product owner, 22 Oct 2026). Where a newcomer gains an
+ * overall understanding, so it is put in front of them; never again on later starts.
+ */
+export const FIRST_TOUR = "explore";
+/** The flag in VS Code's global state that says the first walkthrough has been opened: set once, never cleared. */
+export const FIRST_RUN_KEY = "debrief.walkthrough.openedOnInstall";
+
+/** The parts of an extension's globalState this needs (vscode.Memento), or a stand-in in tests. */
+export interface FlagState {
+  get<T>(key: string): T | undefined;
+  update(key: string, value: unknown): Thenable<void>;
+}
+
+/**
+ * On the first activation after install, open the first walkthrough on the Get Started page;
+ * on every later one, nothing. The flag is set before the page is asked for, so a page that
+ * fails to open is not asked for again on every start. Says whether it opened the page.
+ */
+export async function openOnFirstRun(state: FlagState, run: (command: string, ...args: unknown[]) => Thenable<unknown>, extension: string, log: (line: string) => void = () => undefined): Promise<boolean> {
+  if (state.get<boolean>(FIRST_RUN_KEY)) return false;
+  await state.update(FIRST_RUN_KEY, true);
+  try {
+    await run("workbench.action.openWalkthrough", `${extension}#${FIRST_TOUR}`, false);
+    log(`walkthrough_opened_on_install tour=${FIRST_TOUR}`);
+    return true;
+  } catch {
+    log("walkthrough_open_on_install_failed");
+    return false;
+  }
+}
+
 /** Import and collate's navigation log, beside the walkthrough's catalogue (debrief_sample.walkthrough.LOG_FILE). */
 export const LOG_FILE = "blue-one-nav-log.rep";
 

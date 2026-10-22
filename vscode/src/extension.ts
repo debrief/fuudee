@@ -44,7 +44,7 @@ import { Session, timeProblem } from "./session.js";
 import { CataloguesProvider, type CollationMarks } from "./views/catalogues.js";
 import { featureIdsOf, OutlineProvider } from "./views/outline.js";
 import { ToolsProvider } from "./views/tools.js";
-import { BY_HAND, LOG_FILE, openedEvent, prepare, serviceEvent, toteCompares, TOURS, tourOfEvent, WalkthroughProgress } from "./walkthroughs.js";
+import { BY_HAND, LOG_FILE, openedEvent, openOnFirstRun, prepare, serviceEvent, toteCompares, TOURS, tourOfEvent, WalkthroughProgress } from "./walkthroughs.js";
 
 /** What the integration tests and agents can inspect. */
 export interface DebriefApi {
@@ -116,6 +116,10 @@ export interface DebriefApi {
   asAgent?: (method: string, params: Record<string, unknown>) => Promise<unknown>;
   /** For tests only: the walkthroughs as if nothing were done yet, every step unticked. */
   forgetWalkthroughs?: () => void;
+  /** Whether this activation opened the first walkthrough on the Get Started page (the first after install), once it has decided. */
+  walkthroughOnActivation: () => Promise<boolean>;
+  /** For tests only: activation's first-run check again, on the same global state, as the next start would make it. */
+  walkthroughOnNextStart?: () => Promise<boolean>;
 }
 
 export function activate(context: vscode.ExtensionContext): DebriefApi {
@@ -2816,6 +2820,11 @@ export function activate(context: vscode.ExtensionContext): DebriefApi {
     const chosen = await pickTour(tour);
     if (chosen) await vscode.commands.executeCommand("workbench.action.openWalkthrough", `${context.extension.id}#${chosen.id}`, false);
   });
+  // The first activation after install opens the first walkthrough on the Get Started page, once
+  // only, by a flag in global state: where a newcomer gains an overall understanding (product
+  // owner, 22 Oct 2026). Later starts leave it closed.
+  const firstRun = () => openOnFirstRun(context.globalState, (command, ...args) => vscode.commands.executeCommand(command, ...args), context.extension.id, (line) => log(line));
+  const openedOnActivation = firstRun();
   /**
    * Open the copy of serial 1 a walkthrough works on: a fresh one, built by debrief-sample
    * into a catalogue of its own (Walkthrough: …), or the analyst's copy from before, as they
@@ -2937,6 +2946,7 @@ export function activate(context: vscode.ExtensionContext): DebriefApi {
     toteLatency: () => toteView.latency(),
     startupTimings: () => startup.snapshot(),
     walkthroughEvents: () => walkthroughs.seen(),
+    walkthroughOnActivation: () => openedOnActivation,
     mapContext: () => map.context,
     mapTote: () => map.tote,
     viewChecks: () => viewChecks,
@@ -2944,6 +2954,7 @@ export function activate(context: vscode.ExtensionContext): DebriefApi {
       fromMap: (message: unknown) => map.receive(message),
       asAgent: (method: string, params: Record<string, unknown>) => (service ? service.raw(method, params) : Promise.reject(new Error("The tool service is not running."))),
       forgetWalkthroughs: () => walkthroughs.forget(),
+      walkthroughOnNextStart: firstRun,
     }),
   };
 }
