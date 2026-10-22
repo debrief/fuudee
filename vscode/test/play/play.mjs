@@ -22,11 +22,12 @@ import { playWordNarrative } from "./narrativeword.mjs";
 import { playFrequencies } from "./frequencies.mjs";
 import { playCollation, vscodeCoverageView } from "./collation.mjs";
 import { playExport } from "./export.mjs";
+import { playDemo, playTours, speedRun } from "./onboarding.mjs";
 
 const root = path.resolve(process.argv[2] ?? "../site/docs/play");
 const site = process.argv[3] ? path.resolve(process.argv[3]) : undefined;
 const shots = process.env.DEBRIEF_SCREENSHOTS;
-const TYPES = { ".html": "text/html", ".js": "text/javascript", ".css": "text/css", ".json": "application/json", ".py": "text/plain", ".whl": "application/octet-stream", ".geojson": "application/json" };
+const TYPES = { ".html": "text/html", ".js": "text/javascript", ".css": "text/css", ".json": "application/json", ".py": "text/plain", ".whl": "application/octet-stream", ".geojson": "application/json", ".svg": "image/svg+xml" };
 function serve(folder) {
   return createServer(async (req, res) => {
     let file = path.join(folder, decodeURIComponent(new URL(req.url, "http://x").pathname));
@@ -48,6 +49,8 @@ const browser = await chromium.launch({
 const page = await browser.newPage({ viewport: { width: 1400, height: 820 } });
 const errors = [];
 page.on("pageerror", (e) => errors.push(String(e)));
+// Every page under its Content-Security-Policy (product owner, 17 Oct 2026): anything it refuses is a failure.
+page.on("console", (m) => /Content Security Policy|Refused to (load|connect|execute|apply|create|frame)/.test(m.text()) && errors.push(`refused by the page's policy: ${m.text()}`));
 const shot = async (name, on = page) => shots && (await on.waitForTimeout(800), await on.screenshot({ path: path.join(shots, `${name}.png`) }));
 const text = (selector) => page.locator(selector).innerText();
 const selected = () => page.$$eval("#outline li.selected .name", (rows) => rows.map((r) => r.textContent));
@@ -67,10 +70,13 @@ try {
   assert.equal(await page.locator("#undo").isEnabled(), true);
   assert.match(await history(), /step 1/);
   await shot("play-01-ready");
+  // The walkthroughs start folded in the playground (product owner, 17 Oct 2026): what follows is
+  // laid out as before them. Played in onboarding.mjs.
+  assert.equal(await page.locator("#panel-tour button.fold").getAttribute("aria-expanded"), "false");
 
   // The time controller is at the top of the side column; the map has no control of its own.
   const timeLabel = () => text("#timebar .time-label");
-  assert.equal(await page.locator("#side section").first().getAttribute("id"), "panel-time");
+  assert.equal(await page.locator("#side section:not(#panel-tour)").first().getAttribute("id"), "panel-time"); // below the walkthroughs
   assert.equal(await page.frameLocator(".frame-map").locator(".tc-window, .tc-current").count(), 0);
   const timeBefore = await timeLabel();
   const markers = () => page.frameLocator(".frame-map").locator(".now").count();
@@ -409,12 +415,23 @@ try {
   }
   await cdnBlocked();
   if (site) await playFromThePost();
+  // The walkthroughs, each start to finish on a fresh copy, then the onboarding trial's tasks
+  // as a speed run, each from a fresh page (CAP-25, NFR-09); then the web demo (DEP-06, DEP-07).
+  await page.goto(`${BASE}/index.html`);
+  await ready();
+  await playTours(page, shot, root);
+  await speedRun(page, root); // on the same page: Python started once for both
+  if (site) {
+    const siteServer = serve(site);
+    await playDemo(browser, `http://127.0.0.1:${siteServer.address().port}`, shot);
+    siteServer.close();
+  }
   // Last, as it fills a plot with sixty thousand entries: the Timeline at scale (NFR-06).
   await page.goto(`${BASE}/index.html`);
   await ready();
   await playNarrativeAtScale(page, shot);
   assert.deepEqual(errors, []);
-  console.log(`Playground played: map selection, keyboard, the Tote, tools, undo, crash recovery, conflict, annotations, drawing, tracks, shear and stretch, cleaning, single fixes, the narrative in the Timeline (and at 60,000 entries), narrative from Word and the Timeline's extras, labels, symbols and arrows, collation, import, narrow, CDN blocked${site ? ", and from a blog post" : ""}.`);
+  console.log(`Playground played: map selection, keyboard, the Tote, tools, undo, crash recovery, conflict, annotations, drawing, tracks, shear and stretch, cleaning, single fixes, the narrative in the Timeline (and at 60,000 entries), narrative from Word and the Timeline's extras, labels, symbols and arrows, collation, import, narrow, CDN blocked, the walkthroughs and the onboarding speed run${site ? ", from a blog post, and the web demo" : ""}.`);
 
   /**
    * The time controller (CAP-28): drag the window and the map shows only it, at

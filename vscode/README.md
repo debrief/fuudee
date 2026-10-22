@@ -31,7 +31,7 @@ How these behave is set out in the [interaction models](../site/docs/guides/inte
 
 ## Running it
 
-Needs Node 22, and a Python with Debrief's packages installed. From the repository root, `uv sync` provides one.
+Needs Node 22, and a Python with Debrief's packages installed. From the repository root, `uv sync` provides one. The walkthroughs build their copies of the sample with that Python, so it needs `debrief-sample` and its `pyarrow` too (both are in `uv sync`); without them, **Open a copy of serial 1** says so.
 
 ```bash
 for p in schemas kernel config; do npm ci --prefix ts/$p && npm run --prefix ts/$p build; done

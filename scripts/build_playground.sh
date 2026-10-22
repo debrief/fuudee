@@ -1,5 +1,6 @@
 #!/usr/bin/env bash
-# Builds the blog's playground into site/docs/play: Debrief's webviews and the
+# Builds the blog's playground into site/docs/play, and the web demo beside it in
+# site/docs/demo (the same page, full screen): Debrief's webviews and the
 # page that hosts them, wheels of the Debrief Python packages for Pyodide, and
 # the sample exercise. Needs the TypeScript packages built (ts/*) and vscode's
 # node modules installed.
@@ -8,7 +9,7 @@ root="$(cd "$(dirname "$0")/.." && pwd)"
 out="${1:-$root/site/docs/play}"
 rm -rf "$out" && mkdir -p "$out/wheels"
 
-for package in debrief-schemas debrief-kernel debrief-config debrief-stac debrief-io debrief-tools; do
+for package in debrief-schemas debrief-kernel debrief-config debrief-stac debrief-io debrief-tools debrief-sample; do
   uv build --project "$root" --package "$package" --wheel --out-dir "$out/wheels" -q
 done
 uv run --project "$root" --with pip python -m pip download --no-deps --only-binary :all: \

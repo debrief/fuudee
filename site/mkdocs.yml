@@ -83,6 +83,7 @@ nav:
           - Timeline and narrative: guides/interaction-models/timeline.md
           - Collation: guides/interaction-models/collation.md
           - Exported images: guides/interaction-models/export.md
+          - Walkthroughs: guides/interaction-models/walkthroughs.md
           - Keyboard equivalents: guides/interaction-models/keyboard-equivalents.md
       - Tool-author guide: guides/tool-author/index.md
       - Sample data: guides/sample-data.md

@@ -63,9 +63,12 @@ async function start(base: string, say: (text: string) => void) {
   await Promise.all(
     manifest.sample.map(async (file) => {
       const data = new Uint8Array(await (await get(base, `sample/${file}`)).arrayBuffer());
-      const target = `/play/catalogue/${file}`;
-      pyodide.FS.mkdirTree(target.slice(0, target.lastIndexOf("/")));
-      pyodide.FS.writeFile(target, data);
+      // Twice: the catalogue the reader works in, and the sample as shipped, which only the
+      // walkthroughs read, to copy (CAP-25): never changed, whatever the reader does.
+      for (const target of [`/play/catalogue/${file}`, `/play/pristine/${file}`]) {
+        pyodide.FS.mkdirTree(target.slice(0, target.lastIndexOf("/")));
+        pyodide.FS.writeFile(target, data);
+      }
     }),
   );
   pyodide.FS.mkdirTree("/play/code");

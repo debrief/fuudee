@@ -2,6 +2,7 @@
 <html lang="en-GB">
 <head>
 <meta charset="utf-8">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; connect-src 'self' https://cdn.jsdelivr.net; worker-src 'self' blob:; script-src 'self' 'wasm-unsafe-eval' https://cdn.jsdelivr.net; img-src 'self' data: blob:; style-src 'self' 'unsafe-inline'; font-src 'self' data:; object-src 'none'; form-action 'none'; base-uri 'self'">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <meta name="color-scheme" content="dark light">
 <title>Debrief in your browser</title>
@@ -15,6 +16,12 @@
 <body>
 <div class="app">
   <aside id="side" class="side">
+    <section class="panel" id="panel-tour">
+      <h2><button type="button" class="fold" aria-expanded="true" aria-controls="body-tour"><span class="arrow" aria-hidden="true"></span>Walkthroughs</button></h2>
+      <div class="panel-body" id="body-tour">
+        <div id="tour" class="tour"></div>
+      </div>
+    </section>
     <section class="panel" id="panel-time">
       <h2><button type="button" class="fold" aria-expanded="true" aria-controls="body-time"><span class="arrow" aria-hidden="true"></span>Time</button></h2>
       <div class="panel-body" id="body-time">
@@ -145,6 +152,8 @@
   <main id="main">
     <div id="side-frame" class="side-frame" hidden></div>
   </main>
+  <!-- A wide screen's walkthroughs, beside the map on the right (host.ts places them; product owner, 22 Oct 2026). -->
+  <aside id="guide" class="side guide" aria-label="Walkthroughs" hidden></aside>
   <footer><span id="status" class="status"></span></footer>
 </div>
 <div id="toasts" class="toasts" aria-live="polite"></div>
