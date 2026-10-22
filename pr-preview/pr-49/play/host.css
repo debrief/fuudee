@@ -2,7 +2,7 @@
 html, body { height: 100%; margin: 0; }
 [hidden] { display: none !important; }
 body { background: var(--vscode-editor-background); color: var(--vscode-foreground); font-family: var(--vscode-font-family); font-size: var(--vscode-font-size); }
-.app { display: grid; grid-template-columns: clamp(210px, 28vw, 290px) 1fr; grid-template-rows: 1fr auto; height: 100%; }
+.app { display: grid; grid-template-columns: clamp(210px, 28vw, 290px) minmax(0, 1fr) auto; grid-template-rows: 1fr auto; height: 100%; }
 .side { grid-row: 1; overflow-y: auto; background: var(--vscode-sideBar-background); border-right: 1px solid var(--vscode-panel-border); }
 .side section { padding: 6px 10px 10px; border-bottom: 1px solid var(--vscode-sideBarSectionHeader-border); }
 .side h2 { font-size: 11px; text-transform: uppercase; letter-spacing: .04em; margin: 4px 0 6px; display: flex; justify-content: space-between; align-items: center; color: var(--vscode-sideBarSectionHeader-foreground); }
@@ -62,7 +62,7 @@ main { grid-row: 1; display: flex; min-width: 0; min-height: 0; position: relati
 .side-bar button { text-transform: none; letter-spacing: 0; }
 .unavailable h2 { color: var(--vscode-disabledForeground); }
 .status.problem { color: var(--vscode-errorForeground); }
-footer { grid-column: 1 / span 2; padding: 3px 10px; background: var(--vscode-editorWidget-background); border-top: 1px solid var(--vscode-panel-border); font-size: 12px; }
+footer { grid-column: 1 / -1; padding: 3px 10px; background: var(--vscode-editorWidget-background); border-top: 1px solid var(--vscode-panel-border); font-size: 12px; }
 .status.busy::before { content: "⟳ "; display: inline-block; animation: spin 1.2s linear infinite; }
 @keyframes spin { to { transform: rotate(360deg); } }
 .toasts { position: fixed; right: 12px; bottom: 34px; display: flex; flex-direction: column; gap: 6px; max-width: 380px; z-index: 10; }
@@ -186,3 +186,18 @@ dialog::backdrop { background: #0006; }
 .tour-body kbd { font-family: var(--vscode-editor-font-family); font-size: 0.92em; padding: 0 3px; border: 1px solid var(--vscode-widget-border, var(--vscode-panel-border)); border-radius: 3px; }
 .tour-said { margin: 6px 0 0; min-height: 1em; overflow-wrap: anywhere; }
 .visually-hidden { position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; border: 0; }
+/* On a wide screen the walkthroughs have a column of their own, on the right of the map: a step's
+   words stay in sight, whatever the side column is scrolled to, while it is done there and on the map.
+   It scrolls on its own. Folded, it is its heading on its side, a narrow tab, and the map takes the
+   rest (product owner, 22 Oct 2026). Narrower than 1200 px it is not shown: the walkthroughs are the
+   side column's first panel, as before (host.ts moves them). */
+.side.guide { grid-row: 1; grid-column: 3; min-height: 0; border-right: 0; border-left: 1px solid var(--vscode-panel-border); }
+.guide > .panel { width: clamp(240px, 20vw, 300px); box-sizing: border-box; padding-left: 14px; border-bottom: 0; }
+.guide > .panel.folded { width: auto; padding: 8px 5px; }
+.guide > .panel.folded h2 { margin: 0; }
+.guide > .panel.folded h2 button.fold { writing-mode: vertical-rl; padding: 2px 0; white-space: nowrap; }
+.guide > .panel.folded h2 button.fold .arrow { position: static; display: inline-block; width: auto; margin-bottom: 6px; text-orientation: upright; }
+.guide > .panel.folded h2 button.fold .arrow::before { content: "◂"; }
+/* A note shows over the map, not over the walkthroughs' column. */
+body:has(#guide:not([hidden]) > .panel:not(.folded)) .toasts { right: calc(clamp(240px, 20vw, 300px) + 12px); }
+body:has(#guide:not([hidden]) > .panel.folded) .toasts { right: 44px; }
