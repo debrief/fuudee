@@ -899,6 +899,8 @@
       
         
       
+        
+      
     
     
     
@@ -1383,6 +1385,34 @@
   
   
     <li class="md-nav__item">
+      <a href="../interaction-models/walkthroughs/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Walkthroughs
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
       <a href="../interaction-models/keyboard-equivalents/" class="md-nav__link">
         
   
@@ -1551,6 +1581,17 @@
 </li>
       
         <li class="md-nav__item">
+  <a href="#for-walkthroughs" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        For walkthroughs
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
   <a href="#not-yet-in-it" class="md-nav__link">
     <span class="md-ellipsis">
       
@@ -1676,6 +1717,17 @@
 </li>
       
         <li class="md-nav__item">
+  <a href="#for-walkthroughs" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        For walkthroughs
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
   <a href="#not-yet-in-it" class="md-nav__link">
     <span class="md-ellipsis">
       
@@ -1767,6 +1819,8 @@
 <p>To see the history of a serial, open its <code>plot.geojson</code> and read <code>provenance</code>. Each source sits in the plot's <code>sources</code> folder, read-only; checking the sources reports nothing when none has changed.</p>
 <h2 id="the-ais-data">The AIS data<a class="headerlink" href="#the-ais-data" title="Permanent link">&para;</a></h2>
 <p>The background traffic comes from the US national AIS archive, published by NOAA's Office for Coastal Management on MarineCadastre.gov from the US Coast Guard's receiver network. It is a US Government work, in the public domain in the United States. One day was reduced to a small area, the serial windows and 16 vessels, thinned to one fix a minute, with military, law-enforcement, pilot and search-and-rescue vessels left out. Every identifier was removed. The reduction and the licence are described beside the extract, in <code>python/debrief-sample/data/README.md</code>.</p>
+<h2 id="for-walkthroughs">For walkthroughs<a class="headerlink" href="#for-walkthroughs" title="Permanent link">&para;</a></h2>
+<p>Debrief's walkthroughs (CAP-25) never change the sample: each works on a copy of serial 1, titled after it, made by <code>debrief_sample.walkthrough</code>. VS Code builds a fresh sample for each walkthrough into a catalogue of its own, <code>python -m debrief_sample walkthrough FOLDER TOUR</code>; the playground copies the sample as the site shipped it. <em>Tidy a track</em>'s copy has three GPS glitches in RED ONE, as a step of their own; <em>Import and collate</em>'s comes with BLUE ONE's navigation log, a REP file of fiction like the rest. The walkthroughs' pictures are drawn from serial 1 by <code>python -m debrief_sample media vscode/media/walkthroughs</code>. See <a href="../interaction-models/walkthroughs/">Walkthroughs</a>.</p>
 <h2 id="not-yet-in-it">Not yet in it<a class="headerlink" href="#not-yet-in-it" title="Permanent link">&para;</a></h2>
 <ul>
 <li><strong>Ambiguous bearings</strong> from a towed array (CAP-22): the sonar is a bow sonar, so its bearings are not ambiguous.</li>
