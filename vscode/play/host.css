@@ -221,3 +221,12 @@ body:has(#guide:not([hidden]) > .panel.folded) .toasts { right: 44px; }
 .guide > #panel-tour:not(.folded) > h2 { margin-left: -14px; padding-left: 14px; }
 /* Folded on the right, the whole tab is the tinted bar. */
 .guide > #panel-tour.folded > h2 { margin: 0; padding: 0; background: none; }
+/* What comes after a walkthrough (product owner, 23 Oct 2026): done, the next is a button in the
+   accent, its text the panel's background (the next step's disc's colours); before then, a quiet
+   link in the accent. After the last, that all are done, and a link to start again. */
+.tour-ahead { margin: 8px 0 0; overflow-wrap: anywhere; min-width: 0; }
+.tour-complete { margin: 4px 0 6px; }
+#tour button.tour-next { display: block; width: 100%; margin: 0; padding: 6px 10px; text-align: left; white-space: normal; font-weight: 600; background: var(--debrief-guide-accent); color: var(--vscode-sideBar-background); border: 1px solid var(--debrief-guide-accent); border-radius: 3px; }
+#tour button.tour-next:hover { background: color-mix(in srgb, var(--debrief-guide-accent) 88%, var(--vscode-editor-foreground)); }
+#tour button.tour-next:focus-visible { outline: 2px solid var(--vscode-focusBorder); outline-offset: 2px; }
+#tour button.tour-skip, #tour button.tour-again { padding: 0; margin: 0; text-align: left; white-space: normal; color: var(--debrief-guide-accent); text-decoration: underline; text-underline-offset: 2px; }

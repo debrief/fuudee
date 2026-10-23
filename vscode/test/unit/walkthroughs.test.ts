@@ -4,7 +4,7 @@
 import { existsSync, readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
 import tours from "../../walkthroughs/tours.json";
-import { commandLink, contextKey, OPEN, plainForVSCode, stepParts, vscodeButton, vscodeDescription, walkthroughsContribution, withWalkthroughs } from "../../walkthroughs/contribute.mjs";
+import { ALL_DONE, commandLink, contextKey, nextLabel, nextTour, OPEN, plainForVSCode, stepParts, vscodeButton, vscodeDescription, walkthroughsContribution, withWalkthroughs } from "../../walkthroughs/contribute.mjs";
 import { BY_HAND, EVENTS, FIRST_RUN_KEY, FIRST_TOUR, openedEvent, openOnFirstRun, serviceEvent, stepsFor, toteCompares, TOURS, tourOfEvent, WalkthroughProgress, whyNotPrepared } from "../../src/walkthroughs.js";
 import { callEvent, counts, parseActions, progressOf } from "../../play/tours.js";
 import { DEMO_META, demoPage } from "../../play/demo.mjs";
@@ -51,6 +51,28 @@ describe("one source for both hosts", () => {
     }
     expect(commands.has("debrief.walkthrough.do")).toBe(true);
     expect(commandLink("debrief.walkthrough.open", ["tidy"])).toBe("command:debrief.walkthrough.open?%5B%22tidy%22%5D");
+  });
+
+  it("ends each walkthrough's last VS Code step with a link to the next, from tours.json's order; the last says all are done (product owner, 23 Oct 2026)", () => {
+    const pkg = JSON.parse(manifest);
+    const contributed = pkg.contributes.walkthroughs as { id: string; steps: { description: string }[] }[];
+    expect(contributed.map((w) => w.id)).toEqual(tours.tours.map((t) => t.id));
+    contributed.forEach((walkthrough, i) => {
+      const last = walkthrough.steps.at(-1)!.description;
+      const after = tours.tours[i + 1];
+      expect(nextTour(tours, walkthrough.id)?.id).toBe(after?.id);
+      if (after) {
+        const link = commandLink("workbench.action.openWalkthrough", [`${pkg.publisher}.${pkg.name}#${after.id}`, false]);
+        expect(last.endsWith(`\n\n[${nextLabel(after)}](${link})`), walkthrough.id).toBe(true);
+        expect(link).toContain(encodeURIComponent(`debrief.debrief#${after.id}`));
+      } else {
+        expect(last).toMatch(new RegExp(`\\*\\*${ALL_DONE}\\*\\* once this step is done`));
+        expect(last).not.toContain("openWalkthrough");
+      }
+      // Only the last step offers the next walkthrough.
+      for (const step of walkthrough.steps.slice(0, -1)) expect(step.description).not.toContain("openWalkthrough");
+    });
+    expect(nextTour(tours, "nowhere")).toBeUndefined();
   });
 
   it("ticks each VS Code step by its own context key, set by the analyst's doing it", () => {

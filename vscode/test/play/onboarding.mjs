@@ -266,6 +266,60 @@ async function startTour(page, tour) {
   await ticked(page, 0, "Open a copy of serial 1");
 }
 
+/**
+ * What comes after a walkthrough (product owner, 23 Oct 2026). Before its steps are done, a quiet
+ * link skips to the next; once they are, a button in the accent offers it, the keyboard on it and
+ * the status line saying so; after the last walkthrough, that all are done, and a link to start again.
+ */
+async function nextOffered(page, title) {
+  const ahead = page.locator("#tour .tour-ahead");
+  const next = ahead.locator("button.tour-next");
+  await next.waitFor({ timeout: 30000 });
+  assert.equal(await next.innerText(), `Next walkthrough: ${title}`);
+  assert.equal(await ahead.locator(".tour-skip").count(), 0, "done, the quiet link gives way to the button");
+  assert.match(await ahead.locator(".tour-complete").innerText(), /: done\. Every step is ticked\./);
+  await page.waitForFunction(() => document.activeElement?.classList.contains("tour-next"), null, { timeout: 5000 });
+  assert.match(await page.locator("#tour .tour-said").innerText(), new RegExp(`Next walkthrough: ${title}: the button below the steps`));
+  // In the accent: the next step's disc's colours, the panel's background as its text.
+  const [bg, fg, accent, sideBar] = await next.evaluate((b) => {
+    const probe = document.createElement("span");
+    probe.style.color = "var(--vscode-textLink-foreground)";
+    probe.style.backgroundColor = "var(--vscode-sideBar-background)";
+    document.body.append(probe);
+    const out = [getComputedStyle(b).backgroundColor, getComputedStyle(b).color, getComputedStyle(probe).color, getComputedStyle(probe).backgroundColor];
+    probe.remove();
+    return out;
+  });
+  assert.ok(near(rgba(bg), rgba(accent)) && near(rgba(fg), rgba(sideBar)), `the button in the accent: ${bg} and ${fg}`);
+  assert.ok(contrast(rgba(fg), rgba(bg)) >= 4.5, "its text at WCAG AA's 4.5:1");
+  return next;
+}
+/** The walkthrough's quiet link to the next, before its steps are done. */
+async function skipOffered(page, title) {
+  const skip = page.locator("#tour .tour-ahead button.tour-skip");
+  assert.equal(await skip.innerText(), `Skip to next walkthrough: ${title}`);
+  assert.equal(await page.locator("#tour .tour-ahead button.tour-next").count(), 0, "no button in the accent until the steps are done");
+}
+/** Nothing in the panel's end, or the panel, wider than its column, at laptop's and phone's widths. */
+async function nextFits(page) {
+  for (const width of [1366, 390]) {
+    await resize(page, width, 800);
+    await page.waitForTimeout(300);
+    assert.equal(await pageSideways(page), false, `at ${width} px the page does not scroll sideways`);
+    const over = await page.evaluate(() =>
+      ["#tour", ".tour-ahead", ".tour-ahead button", ".tour-complete"].flatMap((s) => {
+        const el = document.querySelector(s);
+        if (!el || !el.offsetParent) return [];
+        const r = el.getBoundingClientRect();
+        const tour = document.getElementById("tour").getBoundingClientRect();
+        return el.scrollWidth > el.clientWidth + 1 || r.right > tour.right + 1 || r.left < tour.left - 1 ? [`${s} ${el.scrollWidth}/${el.clientWidth}`] : [];
+      }),
+    );
+    assert.deepEqual(over, [], `at ${width} px the next walkthrough's button fits its column`);
+  }
+  await resize(page, 1400, 820);
+}
+
 /** Over the ground, for each track of a REP file, as legacy Debrief asked: each question answered once it is asked. */
 async function answerImport(page) {
   const dialog = page.locator("dialog.track-form[open]");
@@ -333,6 +387,7 @@ export async function playTours(page, shot, root) {
   await page.waitForTimeout(500);
   assert.equal(await copiesTitled(page, "Serial 1: Open and explore a serial"), 1, "a double click makes one copy");
   await ticked(page, 0, "Open a copy of serial 1");
+  await skipOffered(page, "Import and collate");
   await shot("tour-01-explore-open");
   // The step's words stay in sight while the side column is scrolled to its end, and while the
   // step is done there: its button scrolls the side column to the time controller, never the column
@@ -375,8 +430,19 @@ export async function playTours(page, shot, root) {
   await done(page, "timelineChosen");
   await ticked(page, 4, "Read the narrative in the Timeline");
   assert.match(await page.locator("#tour .tour-said").innerText(), /That is the whole of Open and explore a serial/);
+  // Done: the next walkthrough offered, the keyboard on it; pressed, it is the walkthrough shown,
+  // as if chosen from the list (which stays), the keyboard on its first step's button.
+  const toCollate = await nextOffered(page, "Import and collate");
   await page.locator("#panel-tour").scrollIntoViewIfNeeded();
   await shot("tour-02-explore-done");
+  await shot("next-01-explore-done");
+  await nextFits(page);
+  await toCollate.focus();
+  await page.keyboard.press("Enter");
+  await page.waitForFunction(() => window.debriefTours().tour === "collate");
+  assert.equal(await page.locator("#tour-pick").inputValue(), "collate", "the list shows it too");
+  assert.equal(await page.evaluate(() => document.activeElement?.dataset.focus), "go-open", "the keyboard on its first step's button");
+  await skipOffered(page, "Tidy a track");
 
   // --- Import and collate ------------------------------------------------------------
   await startTour(page, "collate");
@@ -418,6 +484,7 @@ export async function playTours(page, shot, root) {
   await done(page, "sourceChosen");
   await stepAdded(page, n);
   await ticked(page, 4, "Choose a source for a period");
+  await nextOffered(page, "Tidy a track");
   await page.locator("#panel-tour").scrollIntoViewIfNeeded();
   await shot("tour-03-collate-done");
 
@@ -468,6 +535,7 @@ export async function playTours(page, shot, root) {
   await dialog.getByRole("button", { name: "Shear" }).click();
   await done(page, "sheared");
   await ticked(page, 4, "Shear a leg, as in TMA");
+  await nextOffered(page, "Annotate and export a figure");
   await page.locator("#panel-tour").scrollIntoViewIfNeeded();
   await shot("tour-04-tidy-done");
   // Started again: one fresh copy, its steps unticked; the old copy gone.
@@ -501,8 +569,17 @@ export async function playTours(page, shot, root) {
   await done(page, "imageTraced");
   await mapFrame.locator(".revision-banner").waitFor({ state: "visible", timeout: 60000 });
   await ticked(page, 4, "Find the image's source");
+  // The last: all done, no next to offer, and a link to start again, the keyboard on it.
+  const ahead = page.locator("#tour .tour-ahead");
+  await ahead.locator("button.tour-again").waitFor({ timeout: 30000 });
+  assert.match(await ahead.locator(".tour-complete").innerText(), /^All walkthroughs done\./);
+  assert.equal(await ahead.locator("button.tour-next, button.tour-skip").count(), 0);
+  assert.equal(await ahead.locator("button.tour-again").innerText(), "Start again: Open and explore a serial");
+  await page.waitForFunction(() => document.activeElement?.classList.contains("tour-again"), null, { timeout: 5000 });
+  assert.match(await page.locator("#tour .tour-said").innerText(), /All walkthroughs done\.$/);
   await page.locator("#panel-tour").scrollIntoViewIfNeeded();
   await shot("tour-05-annotate-done");
+  await shot("next-02-all-done");
   await mapFrame.locator(".revision-banner button", { hasText: "Go to latest" }).click();
 
   // Serial 1 itself, read from Python: no step was added to it by any walkthrough.
@@ -528,7 +605,7 @@ export async function playTours(page, shot, root) {
       }
       assert.equal(await pageSideways(page), false, `at ${width} px the page does not scroll sideways`);
       const over = await page.evaluate(() =>
-        ["#side", "#guide", "#body-tour", "#tour", ".tour-steps", ".tour-pick", "#body-import", ...[...document.querySelectorAll(".tour-body")].map((_, i) => `.tour-step:nth-child(${i + 1}) .tour-body`)].flatMap((s) => {
+        ["#side", "#guide", "#body-tour", "#tour", ".tour-steps", ".tour-pick", ".tour-ahead", "#body-import", ...[...document.querySelectorAll(".tour-body")].map((_, i) => `.tour-step:nth-child(${i + 1}) .tour-body`)].flatMap((s) => {
           const el = document.querySelector(s);
           return el && el.offsetParent && el.scrollWidth > el.clientWidth + 1 ? [`${s} ${el.scrollWidth}/${el.clientWidth}`] : [];
         }),
@@ -544,6 +621,10 @@ export async function playTours(page, shot, root) {
   }
   await resize(page, 1400, 820);
   await rightColumn(page, true);
+  // Started again from the all-done state: the first walkthrough shown, as if chosen from the list.
+  await page.locator("#tour .tour-ahead button.tour-again").click();
+  await page.waitForFunction(() => window.debriefTours().tour === "explore");
+  assert.equal(await page.locator("#tour-pick").inputValue(), "explore");
   console.log(`Walkthroughs played, every step ticked by what was done on its copy, none by the same thing done elsewhere: ${(await events(page)).length} of 20 (Tidy a track started again). In the right-hand column from 1200 px, the step's words in sight while the side column scrolls; sideways scroll: ${widths.join("; ")}.`);
 }
 

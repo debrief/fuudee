@@ -45,16 +45,44 @@ export function vscodeDescription(step, tour) {
   return [text, where, `**Keyboard:** ${keys}`].filter(Boolean).map(plainForVSCode).concat(`[${button}](${vscodeButton(step, tour)})`).join("\n\n");
 }
 
+/**
+ * The walkthrough after this one, in tours.json's order; none after the last. Both hosts offer
+ * it when a walkthrough ends (product owner, 23 Oct 2026): the next is never left to be found
+ * in a list.
+ */
+export function nextTour(tours, id) {
+  const at = tours.tours.findIndex((t) => t.id === id);
+  return at >= 0 ? tours.tours[at + 1] : undefined;
+}
+
+/** The words that offer the next walkthrough, the same in both hosts. */
+export const nextLabel = (tour) => `Next walkthrough: ${tour.title}`;
+export const ALL_DONE = "All walkthroughs done";
+
+/** The extension's id, as VS Code names its walkthroughs: publisher.name. */
+export const EXTENSION = "debrief.debrief";
+
+/**
+ * What a walkthrough's last step adds on VS Code's Get Started page: a link that opens the next
+ * walkthrough there, alone on its line so the page draws it as a button; after the last, that all are done.
+ */
+export function vscodeNext(tours, tour, extension = EXTENSION) {
+  const next = nextTour(tours, tour.id);
+  return next
+    ? `[${nextLabel(next)}](${commandLink("workbench.action.openWalkthrough", [`${extension}#${next.id}`, false])})`
+    : `**${ALL_DONE}** once this step is done: this is the last walkthrough.`;
+}
+
 /** contributes.walkthroughs, from tours.json. */
-export function walkthroughsContribution(tours) {
+export function walkthroughsContribution(tours, extension = EXTENSION) {
   return tours.tours.map((tour) => ({
     id: tour.id,
     title: tour.title,
     description: tour.description,
-    steps: tour.steps.map((step) => ({
+    steps: tour.steps.map((step, index) => ({
       id: `${tour.id}.${step.id}`,
       title: step.title,
-      description: vscodeDescription(step, tour.id),
+      description: index === tour.steps.length - 1 ? `${vscodeDescription(step, tour.id)}\n\n${vscodeNext(tours, tour, extension)}` : vscodeDescription(step, tour.id),
       media: { svg: `${MEDIA}/${step.media}`, altText: step.alt },
       completionEvents: [`onContext:${contextKey(step.event)}`],
     })),
