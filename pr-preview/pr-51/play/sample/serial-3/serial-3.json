@@ -1,0 +1,242 @@
+{
+  "type": "Feature",
+  "stac_version": "1.1.0",
+  "id": "serial-3",
+  "geometry": {
+    "type": "Polygon",
+    "coordinates": [
+      [
+        [
+          -75.9,
+          36.7
+        ],
+        [
+          -75.2,
+          36.7
+        ],
+        [
+          -75.2,
+          37.2
+        ],
+        [
+          -75.9,
+          37.2
+        ],
+        [
+          -75.9,
+          36.7
+        ]
+      ]
+    ]
+  },
+  "bbox": [
+    -75.9,
+    36.7,
+    -75.2,
+    37.2
+  ],
+  "properties": {
+    "start_datetime": "2023-06-15T17:00:00.000Z",
+    "end_datetime": "2023-06-15T23:00:00.000Z",
+    "title": "Serial 3",
+    "debrief:schema_version": "0.0.22",
+    "created": "2026-10-11T00:00:00.000Z",
+    "debrief:revision": "sha256:9573d55cfb725cb420f761cda974b54fed911276cfd3cee0dba58766bbfd668c",
+    "debrief:coverage": [
+      {
+        "track": "track-blue-one",
+        "name": "BLUE ONE",
+        "fixes": 361,
+        "spans": [
+          {
+            "start": "2023-06-15T17:00:00.000Z",
+            "end": "2023-06-15T23:00:00.000Z"
+          }
+        ]
+      },
+      {
+        "track": "track-red-one",
+        "name": "RED ONE",
+        "fixes": 361,
+        "spans": [
+          {
+            "start": "2023-06-15T17:00:00.000Z",
+            "end": "2023-06-15T23:00:00.000Z"
+          }
+        ]
+      },
+      {
+        "track": "track-ais-cargo-01",
+        "name": "Cargo 01",
+        "fixes": 309,
+        "spans": [
+          {
+            "start": "2023-06-15T17:01:11.000Z",
+            "end": "2023-06-15T22:59:11.000Z"
+          }
+        ]
+      },
+      {
+        "track": "track-ais-cargo-02",
+        "name": "Cargo 02",
+        "fixes": 132,
+        "spans": [
+          {
+            "start": "2023-06-15T17:01:15.000Z",
+            "end": "2023-06-15T19:33:44.000Z"
+          }
+        ]
+      },
+      {
+        "track": "track-ais-cargo-03",
+        "name": "Cargo 03",
+        "fixes": 120,
+        "spans": [
+          {
+            "start": "2023-06-15T17:01:11.000Z",
+            "end": "2023-06-15T22:58:10.000Z"
+          }
+        ]
+      },
+      {
+        "track": "track-ais-cargo-05",
+        "name": "Cargo 05",
+        "fixes": 148,
+        "spans": [
+          {
+            "start": "2023-06-15T17:01:04.000Z",
+            "end": "2023-06-15T22:59:44.000Z"
+          }
+        ]
+      },
+      {
+        "track": "track-ais-towing-01",
+        "name": "Towing 01",
+        "fixes": 39,
+        "spans": [
+          {
+            "start": "2023-06-15T17:01:19.000Z",
+            "end": "2023-06-15T17:45:39.000Z"
+          }
+        ]
+      },
+      {
+        "track": "track-ais-pleasure-craft-02",
+        "name": "Pleasure craft 02",
+        "fixes": 107,
+        "spans": [
+          {
+            "start": "2023-06-15T17:35:31.000Z",
+            "end": "2023-06-15T20:09:02.000Z"
+          }
+        ]
+      },
+      {
+        "track": "track-ais-sailing-02",
+        "name": "Sailing 02",
+        "fixes": 122,
+        "spans": [
+          {
+            "start": "2023-06-15T18:19:10.000Z",
+            "end": "2023-06-15T21:12:11.000Z"
+          }
+        ]
+      },
+      {
+        "track": "track-ais-cargo-08",
+        "name": "Cargo 08",
+        "fixes": 150,
+        "spans": [
+          {
+            "start": "2023-06-15T18:34:40.000Z",
+            "end": "2023-06-15T21:26:31.000Z"
+          }
+        ]
+      },
+      {
+        "track": "track-ais-pleasure-craft-03",
+        "name": "Pleasure craft 03",
+        "fixes": 163,
+        "spans": [
+          {
+            "start": "2023-06-15T19:15:47.000Z",
+            "end": "2023-06-15T22:58:47.000Z"
+          }
+        ]
+      }
+    ],
+    "debrief:imported": false,
+    "debrief:origin": "sha256:6640a41fea0b9c8ffb4fc3ca58ed2b5761550c598a9c3a99386a8f3a27e18dec",
+    "debrief:revisions": [
+      "JNSXAQ7VE9EB887Q"
+    ],
+    "datetime": null
+  },
+  "links": [
+    {
+      "rel": "parent",
+      "href": "../catalog.json",
+      "type": "application/json"
+    },
+    {
+      "rel": "root",
+      "href": "../catalog.json",
+      "type": "application/json"
+    }
+  ],
+  "assets": {
+    "plot": {
+      "href": "./plot.geojson",
+      "type": "application/geo+json",
+      "roles": [
+        "data"
+      ],
+      "debrief:asset_kind": "plot"
+    },
+    "source-blue-one.rep": {
+      "href": "./sources/blue-one.rep",
+      "type": "text/plain",
+      "roles": [
+        "source"
+      ],
+      "debrief:asset_kind": "source",
+      "debrief:content_hash": "sha256:a270832db1ed3de6c04895884fff997779fc87f5b21b3242b61a21b84a20d005"
+    },
+    "source-red-one.rep": {
+      "href": "./sources/red-one.rep",
+      "type": "text/plain",
+      "roles": [
+        "source"
+      ],
+      "debrief:asset_kind": "source",
+      "debrief:content_hash": "sha256:10db6486c20f59575af042ff47206fbf0dfd0fa5da6d68cc0822f93b0835b100"
+    },
+    "source-ais-2023-06-15-chesapeake-approaches.csv": {
+      "href": "./sources/ais-2023-06-15-chesapeake-approaches.csv",
+      "type": "text/csv",
+      "roles": [
+        "source"
+      ],
+      "debrief:asset_kind": "source",
+      "debrief:content_hash": "sha256:6c9ff3d6fd59a9de619d9e079cfe8560514f4e48e7d96e86d136c719bd54b344"
+    },
+    "payload-bow-sonar-bearings.parquet": {
+      "href": "./payloads/bow-sonar-bearings.parquet",
+      "type": "application/vnd.apache.parquet",
+      "roles": [
+        "data"
+      ],
+      "debrief:asset_kind": "payload",
+      "debrief:content_hash": "sha256:d5d2c4aefa1b8a367dbaa28ae2f6d84d0409f1fadd37eda52c9522a76fe01bc3"
+    },
+    "supporting_file-narrative.txt": {
+      "href": "./media/narrative.txt",
+      "type": "text/plain",
+      "roles": [
+        "metadata"
+      ],
+      "debrief:asset_kind": "supporting_file",
+      "debrief:content_hash": "sha256:8ca111a2827b14f7bc06ef265e741f82e84404cdbe929558bb07ce09d14be039"
+    }
+  }
+}
