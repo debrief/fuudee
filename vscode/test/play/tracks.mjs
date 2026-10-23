@@ -9,7 +9,7 @@ import assert from "node:assert/strict";
 export async function playTracks(page, shot) {
   const mapFrame = page.frameLocator(".frame-map");
   const steps = () => page.locator("#history li").count();
-  const latest = () => page.locator("#history li").first().locator(".name").innerText();
+  const latest = () => page.locator("#history li").first().locator(".name").textContent();
   const stepAdded = (count) => page.waitForFunction((c) => document.querySelectorAll("#history li").length > c, count, { timeout: 60000 });
   const status = mapFrame.locator(".drawing-status");
   const handle = (role) => mapFrame.locator(`.track-handle[data-role="${role}"]`);

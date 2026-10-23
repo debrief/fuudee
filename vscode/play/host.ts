@@ -10,17 +10,22 @@
  *
  * Query parameters choose what an embedded demo shows:
  *   plot=serial-1         the sample serial to open
- *   panels=tour,tote,timeline,tools,history,export,try,import   the side panels, in this order (all by default;
- *                         the Tote, when listed, is always under the time controller, and the
- *                         walkthroughs always above it, or, on a wide screen, in a column of
- *                         their own on the right of the map)
+ *   panels=tour,tote,timeline,tools,history,export,try,import   the panels, in this order (all by default;
+ *                         Time, the Outline and the top bar's Plot are always there). 900 px wide and
+ *                         more, they are docked around the map in a layout made from the panels
+ *                         listed, the same every time (dock.ts); narrower, in the side column, the
+ *                         Tote under the time controller and the walkthroughs above it. Export, Try
+ *                         and Import are menus in the top bar.
  *
  * The web demo (demo.mjs) is this page, full screen at /demo/, using the playground's files.
  * Files the reader opens, there and here, are read in the browser only (DEP-07).
  *
- * Every side panel folds away by its heading (fold.ts). The playground remembers which are
- * folded in this browser; a demo that chooses its panels starts with them all open, and
- * folding there is not remembered, so a post's demo always shows what the post describes.
+ * 900 px wide and more, the panels are docked around the map, in tab groups the reader drags to
+ * rearrange (dock.ts; product owner, 23 Oct 2026). Narrower, they are one side column as before,
+ * each folding away by its heading (fold.ts). The playground and the web demo remember the layout
+ * and which panels are folded in this browser; a demo that chooses its panels starts from the same
+ * layout every time, with every panel open, and remembers neither, so a post's demo always shows
+ * what the post describes.
  */
 import type { AnnotationSpec, CoverageReport, DebriefFeatureCollection, ItemRevision, NarrativeSpec, ParameterValue, PlotView, ReviewFlag, SharedStateChange, SourceTrackRef, StacItem, TimeRange, TimeState, ToolDeclaration, ToolResult, ToteResult, ToteView } from "@debrief/schemas";
 import { CoverageControl } from "../webview/coveragecontrol.js";
@@ -39,7 +44,8 @@ import { TimeControl } from "../webview/timecontrol.js";
 import { ToteControl } from "../webview/totecontrol.js";
 import { latencySummary, sameTote, toteOf, ToteRequests, toteTracks, withoutSecondary, withPrimary, withSecondaries } from "../webview/totelogic.js";
 import { PressHold } from "../webview/presshold.js";
-import { Folds } from "./fold.js";
+import { browserStorage, Folds } from "./fold.js";
+import { Dock, MAP_ID } from "./dock.js";
 import { formatBearing, formatPosition, parsePosition } from "@debrief/kernel";
 import { defaultPivotIndex, describeDistance, describeSpeed, describeTurn, FIX_PROMPT, FIX_PROMPT_DR, fixIndexAt, fixMeans, fixToEdit, jumpSpeed, legNow, mergedName, mergePlan, periodIndices, readBearing, readDistance, readSpeed, readTurn, reckoningOf } from "../webview/trackedit.js";
 import { chooseModes, MODE_LABELS, modeChoices, modeQuestion, REMEMBER_LABEL, REMEMBERED_IN_PLAYGROUND, type PlottingMode } from "../src/importmode.js";
@@ -86,6 +92,18 @@ const panels = new Set(panelOrder);
 const startPlot = params.get("plot") ?? "serial-1";
 /** Every side panel folds by its heading; remembered in this browser, except in a demo that chooses its panels. */
 const folds = new Folds(Array.from(document.querySelectorAll<HTMLElement>("#side > section.panel")), !params.has("panels"));
+/** The docked layout, 900 px wide and more; undefined in the narrow one (see "The layout" below). */
+let dock: Dock | undefined;
+/** Whether a panel is in view: its tab in front when docked, open (not folded) in the side column. */
+function isShown(id: string): boolean {
+  const section = document.getElementById(id);
+  return !!section && !section.hidden && (dock ? dock.isShown(id) : folds.isOpen(id));
+}
+/** Bring a panel into view: its tab to the front when docked, unfolded in the side column. */
+function showPanel(id: string): void {
+  if (dock) dock.show(id);
+  else folds.setOpen(id, true);
+}
 const theme = matchMedia("(prefers-color-scheme: light)").matches || params.get("theme") === "light" ? "light" : "dark";
 if (theme === "light") document.documentElement.classList.add("light");
 const $ = <T extends HTMLElement>(id: string) => document.getElementById(id) as T;
@@ -216,7 +234,7 @@ const toteRequests = new ToteRequests<{ item: string; time: string; tote: ToteVi
 (window as unknown as { debriefToteLatency: () => unknown }).debriefToteLatency = () => ({ shown: latencySummary(toteRequests.timings), compute: latencySummary(toteCompute) });
 /** Ask for the Tote at current time, while it is showing and has tracks to compare. */
 function refreshTote(): void {
-  if (!opened || !time || !pythonReady || !panels.has("tote") || !folds.isOpen(totePanel.id)) return;
+  if (!opened || !time || !pythonReady || !panels.has("tote") || !isShown(totePanel.id)) return;
   const tote = toteChoice();
   if (!tote.primary && !tote.secondaries?.length) return;
   toteRequests.request({ item: opened.item.id, time: time.current, tote });
@@ -246,7 +264,7 @@ async function chooseTote(view: ToteView): Promise<void> {
   toteChoosing = undefined;
   showTote();
 }
-totePanel.addEventListener("fold", () => folds.isOpen(totePanel.id) && refreshTote());
+totePanel.addEventListener("fold", () => isShown(totePanel.id) && refreshTote());
 let tools: ToolDeclaration[] = [];
 let offered: string[] = [];
 let formTool: ToolDeclaration | undefined;
@@ -366,6 +384,7 @@ async function openPlot(item: string, keep = false): Promise<void> {
   selection = keep ? selection.filter((id) => ids.has(id)) : [];
   showTime(timeOf(opened.item, opened.plot, previousTime));
   $("plot-title").textContent = opened.item.properties.title ?? item;
+  $("plot-title").classList.remove("read-only");
   if (opened.base.plot_hash !== shown) showPlot();
   else {
     post(map, { kind: "set_selection", selection: { plot: item, feature_ids: selection } });
@@ -1615,7 +1634,7 @@ function trackMenu(id: string, x: number, y: number, from: HTMLElement): void {
     button.tabIndex = -1;
     button.onclick = () => {
       closeMenu();
-      folds.setOpen(totePanel.id, true);
+      showPanel(totePanel.id);
       void chooseTote(change());
     };
     return button;
@@ -2046,6 +2065,7 @@ async function openRevision(source: FigureSource, id: string, short: string): Pr
   selection = [];
   $<HTMLSelectElement>("plots").value = source.item;
   $("plot-title").textContent = `${opened.item.properties.title ?? source.item} (read-only)`;
+  $("plot-title").classList.add("read-only"); // shown beside the list only then: otherwise it says what the list says
   const exported = shown.export ?? source.export;
   // The Tote's tracks as exported, so its lines and values are the image's (product owner, 16 Oct 2026).
   if (exported?.tote) setViewOf(opened.plot, { ...(viewOf(opened.plot) ?? {}), tote: exported.tote });
@@ -2090,39 +2110,201 @@ setUpExport();
 
 // --- Wiring -----------------------------------------------------------------------
 const OPTIONAL = ["tour", "tote", "timeline", "catalogue", "coverage", "tools", "history", "export", "try", "import"];
-for (const panel of OPTIONAL) $(`panel-${panel}`).hidden = !panels.has(panel);
-// The panels in the order the demo lists them, after the plot and its outline; the Tote stays
-// under the time controller, since both follow current time, and the walkthroughs above them.
-for (const panel of panelOrder) if (OPTIONAL.includes(panel) && panel !== "tote" && panel !== "tour") $("side").append($(`panel-${panel}`));
+// A panel not listed is not shown; a menu (Export, Try, Import) is shown only when opened.
+for (const panel of OPTIONAL) $(`panel-${panel}`).hidden = !panels.has(panel) || $(`panel-${panel}`).classList.contains("menu-panel");
+// The top bar's menus, and the Catalogue's Import…, only where their panels are listed.
+$("open-export").hidden = !panels.has("export");
+$("open-try").hidden = !panels.has("try");
+$("open-import").hidden = !panels.has("import");
+$("catalogue-import").hidden = !panels.has("import");
+// The side column (the narrow layout): the walkthroughs, time controller, Tote and Outline first,
+// then the panels in the order the demo lists them.
+const SIDE_FIRST = ["panel-tour", "panel-time", "panel-tote", "panel-outline"];
+const SIDE_ORDER = [...SIDE_FIRST, ...panelOrder.map((p) => `panel-${p}`).filter((id) => !SIDE_FIRST.includes(id) && optional(id)?.matches("#side > section.panel"))];
+for (const id of SIDE_ORDER) $("side").append($(id));
 /** History, Try and Import need Python: off until it is ready. */
 const NEEDS_PYTHON = ["export-image", "find-file", "find-id", "find-id-go", "new-data", "revise", "undo", "redo", "track-frequencies", "move-track", "rotate-track", "shear-track", "stretch-track", "split-track", "merge-tracks", "find-jumps", "smooth-track", "fix-list", "plotting-mode", "ask-again", "glitches", "crash", "colleague", "colleague-window", "colleague-during", "file", "narrative-file", "colour", "hide", "show", "add-annotation", "edit-annotation", "delete-annotation", "north-arrow"];
 function needsPython(on: boolean): void {
   for (const id of NEEDS_PYTHON) $<HTMLButtonElement | HTMLInputElement>(id).disabled = !on;
 }
 needsPython(false);
-// The walkthroughs: where a newcomer starts. On a wide screen, a column of their own on the right
-// of the map, so a step's words stay in sight while it is done in the side panels and on the map;
-// folded, the column narrows to its heading, and the map widens (product owner, 22 Oct 2026).
-// Narrower, first in the side column, above the time controller, as before. Open on first load
-// everywhere they appear, the web demo, the playground and the blog's demos: they are where a
-// newcomer gains an overall understanding (product owner, 22 Oct 2026, superseding 17 Oct's
-// folded outside the demo). A reader who folds them in the playground or the demo finds them
-// folded next time (fold.ts); a post's demo starts open every time.
-/** Wide enough for the walkthroughs' column: the map keeps about 290 px beside it with a tool's form open too. */
-const GUIDE_WIDE = matchMedia("(min-width: 1200px)");
-function placeTour(): void {
-  if (!panels.has("tour")) return;
-  const tour = $("panel-tour");
-  const into = GUIDE_WIDE.matches ? $("guide") : $("side");
-  $("guide").hidden = !GUIDE_WIDE.matches;
-  if (tour.parentElement === into) return;
-  // Moved with the keyboard on it, the keyboard stays on it.
-  const focused = tour.contains(document.activeElement) ? (document.activeElement as HTMLElement) : undefined;
-  into.prepend(tour);
-  focused?.focus({ preventScroll: true });
+
+// --- The layout (product owner, 23 Oct 2026) ---------------------------------------
+// 900 px wide and more (and 480 high), the panels are docked around the map in tab groups,
+// "A, task-grouped": Time, Tote, and Outline with Catalogue on the left; Timeline with Coverage
+// under the map; Walkthroughs with Tools and History on the right, the walkthroughs in front (they
+// are where a newcomer starts). The reader drags tabs to rearrange them, or moves them from a
+// tab's menu; the layout is remembered in this browser, except in a blog's demo (dock.ts).
+// Narrower, and on phones, where docking is impractical by touch, the panels are the one side
+// column as before, each folding by its heading (engineering decision, 23 Oct 2026).
+// The map and the form beside it (in <main>) never move in the page, docked or not: moving a frame
+// reloads it. Docked, <main> is laid over the map's empty place in the layout.
+const DOCKED = matchMedia("(min-width: 900px) and (min-height: 480px)");
+const PANEL_TITLES: Record<string, string> = {
+  "panel-tour": "Walkthroughs",
+  "panel-time": "Time",
+  "panel-tote": "Tote",
+  "panel-outline": "Outline",
+  "panel-catalogue": "Catalogue",
+  "panel-timeline": "Timeline",
+  "panel-coverage": "Coverage",
+  "panel-tools": "Tools",
+  "panel-history": "History",
+};
+const mapSlot = document.createElement("div");
+mapSlot.className = "map-slot";
+/** Docked: <main> over the map's place; and the notes over the map, not over the right-hand panels. */
+function placeMain(): void {
+  const main = $("main");
+  if (!dock) {
+    main.removeAttribute("style");
+    document.body.style.removeProperty("--map-right");
+    return;
+  }
+  const slot = mapSlot.getBoundingClientRect();
+  const app = $("app").getBoundingClientRect();
+  Object.assign(main.style, { left: `${slot.left - app.left}px`, top: `${slot.top - app.top}px`, width: `${slot.width}px`, height: `${slot.height}px` });
+  document.body.style.setProperty("--map-right", `${Math.max(0, innerWidth - slot.right)}px`);
 }
-placeTour();
-GUIDE_WIDE.addEventListener("change", placeTour);
+let placing = false;
+const placeSoon = () => {
+  placeMain();
+  if (placing) return;
+  placing = true;
+  // Dockview places its panels a frame after a change: placed again then, and a frame after.
+  requestAnimationFrame(() =>
+    requestAnimationFrame(() => {
+      placing = false;
+      placeMain();
+    }),
+  );
+};
+/** The docked layout: as remembered, or fresh (the default, remembered from now on). */
+function makeDock(fresh: boolean): Dock {
+  const sections = new Map(Object.keys(PANEL_TITLES).filter((id) => !$(id).hidden).map((id) => [id, $(id)] as const));
+  return new Dock({
+    container: $("dock"),
+    sections,
+    titles: PANEL_TITLES,
+    slot: mapSlot,
+    remember: !params.has("panels"),
+    fresh,
+    storage: browserStorage,
+    shown: (id, shown) => sections.get(id)?.dispatchEvent(new CustomEvent("fold", { detail: { open: shown } })),
+    changed: placeSoon,
+    dragging: (on) => document.body.classList.toggle("dock-dragging", on),
+    reset: resetLayout,
+  });
+}
+/** The panels back in the side column, and the layout gone. */
+function unDock(): void {
+  for (const id of SIDE_ORDER) $("side").append($(id));
+  dock?.dispose();
+  dock = undefined;
+}
+/** Reset layout: the default, made afresh; the keyboard on the button that asked, or the time controller's tab. */
+function resetLayout(): void {
+  if (!dock) return;
+  const focused = document.activeElement;
+  unDock();
+  dock = makeDock(true);
+  placeSoon();
+  refreshTote();
+  if (!(focused instanceof HTMLElement && focused.isConnected)) dock.focusTab("panel-time");
+}
+/** Docked or not, as the window is now; the keyboard stays where it was. */
+function setLayout(): void {
+  const docked = DOCKED.matches;
+  if (docked === !!dock) return;
+  const focused = document.activeElement instanceof HTMLElement && document.activeElement !== document.body ? document.activeElement : undefined;
+  closeMenuPanel(false);
+  if (docked) {
+    document.body.classList.add("docked");
+    $("dock").hidden = false;
+    folds.suspend(true);
+    dock = makeDock(false);
+  } else {
+    unDock();
+    $("dock").hidden = true;
+    document.body.classList.remove("docked", "dock-dragging");
+    folds.suspend(false);
+  }
+  $("reset-layout").hidden = !dock;
+  placeMain();
+  if (focused?.isConnected && document.activeElement !== focused) focused.focus({ preventScroll: true });
+  // What shows only in view (the Tote's values, Coverage's step) as the panels now are.
+  refreshTote();
+  coverageSeen();
+}
+setLayout();
+DOCKED.addEventListener("change", setLayout);
+addEventListener("resize", placeSoon);
+$("reset-layout").onclick = () => dock?.reset();
+/** For the tests: the layout as it is. */
+(window as unknown as { debriefLayout: () => unknown }).debriefLayout = () => ({ docked: !!dock, groups: dock?.groups() ?? [], map: MAP_ID });
+
+// --- The top bar's menus: Export, Try and Import, each under its button ---------------
+/** The menu open, and the button that opened it. */
+let menuShown: { panel: HTMLElement; from: HTMLElement } | undefined;
+const menuButtons = (id: string) => Array.from(document.querySelectorAll<HTMLElement>(`[aria-controls="${id}"].menu-button`));
+/** Open a menu under the button that opened it (or its top bar button), within the window. */
+function openMenuPanel(id: string, from?: HTMLElement): void {
+  const panel = $(id);
+  const button = from ?? menuButtons(id).find((b) => !b.hidden && b.offsetParent) ?? menuButtons(id)[0];
+  if (menuShown?.panel === panel) return;
+  closeMenuPanel(false);
+  panel.hidden = false;
+  menuShown = { panel, from: button };
+  for (const b of menuButtons(id)) b.setAttribute("aria-expanded", String(b === button));
+  const box = button.getBoundingClientRect();
+  const width = panel.getBoundingClientRect().width;
+  panel.style.left = `${Math.max(4, Math.min(box.left, innerWidth - width - 4))}px`;
+  panel.style.top = `${box.bottom + 2}px`;
+  panel.style.maxHeight = `${Math.max(160, innerHeight - box.bottom - 10)}px`;
+}
+function closeMenuPanel(focus: boolean): void {
+  const was = menuShown;
+  if (!was) return;
+  menuShown = undefined;
+  was.panel.hidden = true;
+  for (const b of menuButtons(was.panel.id)) b.setAttribute("aria-expanded", "false");
+  if (focus && was.from.isConnected) was.from.focus();
+}
+for (const button of Array.from(document.querySelectorAll<HTMLElement>(".menu-button"))) {
+  button.addEventListener("click", () => {
+    const id = button.getAttribute("aria-controls") ?? "";
+    if (menuShown && menuShown.panel.id === id && menuShown.from === button) closeMenuPanel(false);
+    else {
+      openMenuPanel(id, button);
+      firstControl($(id)).focus({ preventScroll: true });
+    }
+  });
+}
+for (const panel of Array.from(document.querySelectorAll<HTMLElement>(".menu-panel"))) {
+  panel.addEventListener("keydown", (e) => {
+    if (e.key !== "Escape") return;
+    e.stopPropagation();
+    closeMenuPanel(true);
+  });
+}
+// A pointer pressed outside the menu closes it; not in a question it asked (a dialog), nor on a note.
+document.addEventListener(
+  "pointerdown",
+  (e) => {
+    const target = e.target as HTMLElement;
+    if (!menuShown || menuShown.panel.contains(target) || menuShown.from.contains(target) || target.closest("dialog, .toasts")) return;
+    closeMenuPanel(false);
+  },
+  true,
+);
+// A click in a frame (the map, a form) reaches no listener here: the page losing focus to it closes the menu.
+addEventListener("blur", () => setTimeout(() => document.activeElement instanceof HTMLIFrameElement && closeMenuPanel(false)));
+// A file chosen to import: the menu has done its part.
+for (const id of ["file", "narrative-file"]) $(id).addEventListener("change", () => closeMenuPanel(false));
+addEventListener("resize", () => {
+  if (menuShown) closeMenuPanel(false);
+});
+
 $("undo").onclick = () => void move("undo");
 $("redo").onclick = () => void move("redo");
 $<HTMLSelectElement>("plots").onchange = (e) => void openPlot((e.target as HTMLSelectElement).value);
@@ -2168,8 +2350,8 @@ $("new-data").onclick = async () => {
   if (made.error) return toast(made.error, "warning");
   await refreshPlots();
   await refreshCollation();
-  folds.setOpen("panel-catalogue", true);
-  folds.setOpen("panel-coverage", true);
+  showPanel("panel-catalogue");
+  showPanel("panel-coverage");
   toast(`${made.title} was imported into the catalogue: ${count(made.fixes ?? 0, "fix", "fixes")}. It has data for this plot, so it is marked New data.`);
 };
 // An item the plot drew from is revised (CAP-12): a colleague corrects it, as one step in that item.
@@ -2178,7 +2360,7 @@ $("revise").onclick = async () => {
   const revised = await pythonJson<{ item?: string; title?: string; error?: string }>("revise", opened.item.id);
   if (revised.error) return toast(revised.error, "warning");
   await refreshCollation();
-  folds.setOpen("panel-catalogue", true);
+  showPanel("panel-catalogue");
 };
 $("colleague-during").onclick = (e) => {
   colleagueDuringNextRun = true;
@@ -2262,7 +2444,7 @@ $<HTMLInputElement>("narrative-file").onchange = async (e) => {
   status("");
   if (outcome.error) return toast(outcome.error, "warning");
   await openPlot(opened.item.id, true);
-  folds.setOpen("panel-timeline", true);
+  showPanel("panel-timeline");
   toast(readSummary(outcome, count));
 };
 type Again = NonNullable<ReturnType<typeof duplicateQuestion>>;
@@ -2414,7 +2596,7 @@ function selectedByHand(ids: string[]): void {
 /** Coverage on screen, showing the open plot's: a walkthrough's step is to look at it. */
 let coverageOnScreen = false;
 function coverageSeen(): void {
-  if (coverageOnScreen && coverage && folds.isOpen("panel-coverage") && !$("panel-coverage").hidden) tourEvent("coverageShown", opened?.item.id);
+  if (coverageOnScreen && coverage && isShown("panel-coverage")) tourEvent("coverageShown", opened?.item.id);
 }
 new IntersectionObserver((entries) => {
   // Enough of it in sight to read a track or two: a study's Coverage can be far taller than the screen.
@@ -2423,27 +2605,54 @@ new IntersectionObserver((entries) => {
 }, { threshold: [0, 0.02, 0.05, 0.1, 0.25, 0.5, 1] }).observe($("coverage"));
 $("panel-coverage").addEventListener("fold", () => coverageSeen());
 
-/** Bring a panel or a control into view, opening its panel; click it, or put the keyboard on it. */
+/** Bring a panel or a control into view, opening its panel or its menu; click it, or put the keyboard on it. */
 function reveal(id: string, click: boolean): void {
   const element = optional(id);
   if (!element) return toast("That is not on this page.", "warning");
+  // In a menu of the top bar (Export, Try, Import): the menu opened under its button.
+  const menuPanel = element.closest<HTMLElement>(".menu-panel");
+  if (menuPanel) {
+    openMenuPanel(menuPanel.id);
+    const target = element === menuPanel ? firstControl(menuPanel) : element.matches("button, input, select, textarea, [tabindex]") ? element : firstControl(element);
+    if (click) target.click();
+    else target.focus({ preventScroll: true });
+    return;
+  }
   const section = element.matches("section.panel") ? element : element.closest<HTMLElement>("section.panel");
   if (section) {
     section.hidden = false;
-    folds.setOpen(section.id, true);
+    showPanel(section.id);
   }
-  // A panel: its heading; a list: its first row; otherwise the control itself.
+  // A panel: its heading, or docked, its tab; a list: its first row; otherwise the control itself.
+  if (element === section && dock) {
+    section.parentElement?.scrollTo({ top: 0 });
+    if (click) return;
+    return dock.focusTab(section.id);
+  }
   const target =
     element.matches("section.panel")
       ? (element.querySelector<HTMLElement>("button.fold") ?? element)
       : element.matches("button, input, select, textarea, [tabindex]")
         ? element
-        : (element.querySelector<HTMLElement>("button, input, select, [tabindex]") ?? element);
+        : firstControl(element);
   // A panel shown from its top, so what it holds is in sight; a control just brought into sight.
-  if (element === section) section.scrollIntoView({ block: "start" });
+  // Docked, only the panel scrolls: the layout itself never does.
+  if (dock) scrollWithin(target);
+  else if (element === section) section.scrollIntoView({ block: "start" });
   else target.scrollIntoView({ block: "nearest" });
   if (click) target.click();
   else target.focus({ preventScroll: true });
+}
+/** A control in an element, or the element. */
+const firstControl = (element: HTMLElement): HTMLElement => element.querySelector<HTMLElement>("button:not([hidden]), input, select, [tabindex]") ?? element;
+/** Scroll a docked panel so an element in it is in sight, scrolling nothing else. */
+function scrollWithin(element: HTMLElement): void {
+  const panel = element.closest<HTMLElement>(".dock-panel");
+  if (!panel) return;
+  const box = element.getBoundingClientRect();
+  const view = panel.getBoundingClientRect();
+  if (box.top < view.top) panel.scrollTop -= view.top - box.top + 8;
+  else if (box.bottom > view.bottom) panel.scrollTop += Math.min(box.top - view.top - 8, box.bottom - view.bottom + 8);
 }
 /** What a step's button does, in order: on the walkthrough's copy, which is opened first if another plot is open. */
 async function tourAct(actions: TourAction[]): Promise<void> {
@@ -2506,7 +2715,7 @@ async function importTourLog(): Promise<void> {
   // The plot stays open: the log is new data for it, in the catalogue.
   await refreshPlots();
   await refreshCollation();
-  folds.setOpen("panel-catalogue", true);
+  showPanel("panel-catalogue");
   showImported(log.name ?? "The navigation log", report);
 }
 

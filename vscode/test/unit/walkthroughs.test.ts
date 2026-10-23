@@ -230,7 +230,9 @@ describe("the web demo's page", () => {
     const page = demoPage(index);
     expect(page).toContain('<base href="../play/">');
     expect(page).toContain("<title>Debrief web demo</title>");
-    for (const panel of ["tour", "time", "tote", "plot", "outline", "timeline", "catalogue", "coverage", "tools", "history", "export", "try", "import"]) expect(page).toContain(`id="panel-${panel}"`);
+    for (const panel of ["tour", "time", "tote", "outline", "timeline", "catalogue", "coverage", "tools", "history", "export", "try", "import"]) expect(page).toContain(`id="panel-${panel}"`);
+    // The plot list, Import…, Export and Try in the top bar (product owner, 23 Oct 2026).
+    for (const control of ["plots", "open-import", "open-export", "open-try", "reset-layout"]) expect(page).toContain(`id="${control}"`);
     expect(() => demoPage("<html></html>")).toThrow();
     expect(page).toContain(DEMO_META);
   });

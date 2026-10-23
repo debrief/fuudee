@@ -7,12 +7,13 @@
 // Move… form, with the position typed. Then Plot as dead reckoning (DR…), one step; on the DR track
 // a fix dragged changes the leg into it and every later fix follows, and a rotation turns its
 // courses (product owner, 14 Oct 2026); over the ground again asks first; all undone.
+import { showPanel } from "./dock.mjs";
 import assert from "node:assert/strict";
 
 export async function playFixDrag(page, shot) {
   const mapFrame = page.frameLocator(".frame-map");
   const steps = () => page.locator("#history li").count();
-  const latest = () => page.locator("#history li").first().locator(".name").innerText();
+  const latest = () => page.locator("#history li").first().locator(".name").textContent();
   const stepAdded = (count) => page.waitForFunction((c) => document.querySelectorAll("#history li").length > c, count, { timeout: 60000 });
   const status = mapFrame.locator(".drawing-status");
   const rings = mapFrame.locator(".track-handle-fix");
@@ -337,17 +338,21 @@ export async function playFixDrag(page, shot) {
   await notes.getByText("Track 'NELSON' plotted by dead reckoning (DR).").waitFor({ timeout: 60000 });
   await notes.getByText("Track 'BLUE' plotted over the ground (OTG).").waitFor();
   await notes.getByText(/^Track '"?TRAWLER.*plotted over the ground \(OTG\)\.$/).waitFor();
+  await showPanel(page, "import"); // Import, a menu in the top bar
   await page.locator("#import-mode-text", { hasText: "plotted over the ground (OTG), as you chose for future imports" }).waitFor();
   assert.equal(await page.locator("#ask-again").isVisible(), true);
+  await page.keyboard.press("Escape"); // the menu closed, from the keyboard, back to its button
+  await page.locator("#panel-import").waitFor({ state: "hidden" });
   // Remembered: the next import asks nothing, and its notes say how to be asked again.
   await page.locator(".side-bar button", { hasText: "Close" }).click();
   await page.locator("#file").setInputFiles(rep);
   await notes.getByText("Tracks were plotted over the ground (OTG) as you chose for future imports. To be asked again for each track, choose Ask again under Import.").waitFor({ timeout: 60000 });
   assert.equal(await dialog.count(), 0, "not asked");
   await page.locator(".side-bar button", { hasText: "Close" }).click();
+  await showPanel(page, "import");
   await page.locator("#ask-again").click();
   await page.locator("#ask-again").waitFor({ state: "hidden" });
-  assert.match(await page.locator("#import-mode-text").innerText(), /^Debrief asks, for each track/);
+  assert.match(await page.locator("#import-mode-text").textContent(), /^Debrief asks, for each track/);
   // Asked again, and stopping imports nothing.
   await page.locator("#file").setInputFiles(rep);
   await dialog.waitFor();

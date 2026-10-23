@@ -6,6 +6,7 @@
 // and the image is traced back by its file and by its ID typed from the footer: the plot is
 // shown as it was at that step, read-only (a change refused, and said), until Go to latest.
 // Down to 210 px, in a wider font, the panel never scrolls sideways.
+import { resizeTo, showPanel } from "./dock.mjs";
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import { inflateSync } from "node:zlib";
@@ -43,11 +44,13 @@ export async function playExport(page, shot) {
   const historyRows = () => page.locator("#history li").count();
   const stepNow = async () => Number((await page.locator("#history li .detail", { hasText: "current" }).first().innerText()).match(/step (\d+)/)[1]);
   await page.selectOption("#plots", "serial-1");
+  await showPanel(page, "outline");
   await page.locator('#outline li[data-id="track-blue-one"]').waitFor();
   await page.waitForTimeout(500);
-  await page.locator("#panel-export").scrollIntoViewIfNeeded();
+  await showPanel(page, "export");
   const timings = [];
   const exportImage = async ({ format, preset, theme, footer }) => {
+    await showPanel(page, "export"); // a menu in the top bar, closed by a click elsewhere
     await page.selectOption("#export-format", format);
     await page.selectOption("#export-preset", preset);
     await page.selectOption("#export-theme", theme);
@@ -173,6 +176,7 @@ export async function playExport(page, shot) {
 
   // A track selected while an image is drawn stays selected once the map is put back: the
   // map's own putting back never undoes it.
+  await showPanel(page, "export");
   await page.selectOption("#export-preset", "a4_landscape");
   await Promise.all([
     page.waitForEvent("download", { timeout: 90000 }),
@@ -195,7 +199,7 @@ export async function playExport(page, shot) {
   assert.ok(latest > step, "a new step, current now");
 
   // Traced by its file: the plot as it was when exported, read-only.
-  await page.locator("#panel-export").scrollIntoViewIfNeeded();
+  await showPanel(page, "export");
   await page.locator("#find-file").setInputFiles({ name: png.name, mimeType: "image/png", buffer: png.data });
   const banner = map.locator(".revision-banner");
   await banner.waitFor({ state: "visible", timeout: 60000 });
@@ -210,7 +214,7 @@ export async function playExport(page, shot) {
   assert.match(await page.locator("#history li.shown .detail").innerText(), new RegExp(`step ${step} .*shown read-only`));
   const teal = `path.leaflet-interactive[stroke="#00a3a3"]`; // BLUE ONE as the plot has it now; no other feature is teal
   await page.waitForFunction((s) => !document.querySelector(".frame-map").contentDocument.querySelector(s), teal, { timeout: 10000 }); // not teal: as it was
-  await page.locator("#panel-export").scrollIntoViewIfNeeded();
+  await showPanel(page, "export");
   await shot("export-02-traced");
   // Nothing can be changed here: Undo is refused, and said; the history is as it was.
   await page.locator("#selected-count").click();
@@ -227,7 +231,7 @@ export async function playExport(page, shot) {
   await map.locator(teal).first().waitFor({ timeout: 10000 }); // teal: as it is now
 
   // Traced by its ID, typed from the footer as a reader might: lower case, spaces, O for 0.
-  await page.locator("#panel-export").scrollIntoViewIfNeeded();
+  await showPanel(page, "export");
   const typed = page.locator("#find-id");
   await typed.fill("DBF-PTET-KG8R-B9EM-68");
   assert.equal(await page.locator("#find-id-problem").innerText(), "That image ID has a character wrong: check it against the image.");
@@ -242,6 +246,7 @@ export async function playExport(page, shot) {
   await banner.waitFor({ state: "hidden" });
 
   // A file with no ID in it is said to have none.
+  await showPanel(page, "export");
   await page.locator("#find-file").setInputFiles({ name: "plain.svg", mimeType: "image/svg+xml", buffer: Buffer.from('<svg xmlns="http://www.w3.org/2000/svg"/>') });
   await page.locator("#find-said", { hasText: "carries no Debrief image ID" }).waitFor();
 
@@ -259,15 +264,16 @@ export async function playExport(page, shot) {
     );
   const widths = [];
   for (const wide of [false, true]) {
-    const style = wide ? await page.addStyleTag({ content: "#side * { letter-spacing: 0.1em !important; font-size: 15px !important }" }) : undefined;
+    const style = wide ? await page.addStyleTag({ content: "#side *, .menu-panel * { letter-spacing: 0.1em !important; font-size: 15px !important }" }) : undefined;
     for (const width of [390, 280, 210]) {
-      await page.setViewportSize({ width, height: 800 });
+      await resizeTo(page, width, 800);
+      await showPanel(page, "export");
       await page.waitForTimeout(300);
       const over = await sideways();
       widths.push(`${wide ? "wide font, " : ""}${width} px: ${over.length ? over.join(", ") : "fits"}`);
       assert.deepEqual(over, [], `${wide ? "in a wide font, " : ""}at ${width} px nothing scrolls sideways`);
       if (width === 390 && !wide) {
-        await page.locator("#panel-export").scrollIntoViewIfNeeded();
+        await showPanel(page, "export");
         await shot("export-03-phone");
       }
     }
@@ -275,5 +281,5 @@ export async function playExport(page, shot) {
   }
   console.log(`Export panel (sideways scroll): ${widths.join("; ")}.`);
   console.log(`Exports in the playground, from Export to the file: ${timings.join("; ")}.`);
-  await page.setViewportSize({ width: 1400, height: 820 });
+  await resizeTo(page, 1400, 820);
 }

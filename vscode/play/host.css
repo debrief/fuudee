@@ -2,8 +2,8 @@
 html, body { height: 100%; margin: 0; }
 [hidden] { display: none !important; }
 body { background: var(--vscode-editor-background); color: var(--vscode-foreground); font-family: var(--vscode-font-family); font-size: var(--vscode-font-size); }
-.app { display: grid; grid-template-columns: clamp(210px, 28vw, 290px) minmax(0, 1fr) auto; grid-template-rows: 1fr auto; height: 100%; }
-.side { grid-row: 1; overflow-y: auto; background: var(--vscode-sideBar-background); border-right: 1px solid var(--vscode-panel-border); }
+.app { display: grid; grid-template-columns: clamp(210px, 28vw, 290px) minmax(0, 1fr); grid-template-rows: auto minmax(0, 1fr) auto; height: 100%; position: relative; }
+.side { grid-row: 2; overflow-y: auto; background: var(--vscode-sideBar-background); border-right: 1px solid var(--vscode-panel-border); }
 .side section { padding: 6px 10px 10px; border-bottom: 1px solid var(--vscode-sideBarSectionHeader-border); }
 .side h2 { font-size: 11px; text-transform: uppercase; letter-spacing: .04em; margin: 4px 0 6px; display: flex; justify-content: space-between; align-items: center; color: var(--vscode-sideBarSectionHeader-foreground); }
 .side select { width: 100%; background: var(--vscode-dropdown-background); color: var(--vscode-foreground); border: 1px solid var(--vscode-dropdown-border); padding: 3px; font: inherit; }
@@ -51,7 +51,7 @@ button:focus-visible, li:focus-visible { outline: 1px solid var(--vscode-focusBo
 .omitted-panel h2 { font-size: 15px; margin: 4px 0 8px; }
 .omitted-panel ul { padding-left: 18px; }
 .omitted-panel li { margin: 2px 0; }
-main { grid-row: 1; display: flex; min-width: 0; min-height: 0; position: relative; }
+main { grid-row: 2; display: flex; min-width: 0; min-height: 0; position: relative; }
 .frame { border: 0; display: block; }
 .frame-map { flex: 1; min-width: 0; height: 100%; }
 .side-frame { width: clamp(260px, 34vw, 380px); border-left: 1px solid var(--vscode-panel-border); display: flex; flex-direction: column; min-height: 0; }
@@ -66,10 +66,10 @@ footer { grid-column: 1 / -1; padding: 3px 10px; background: var(--vscode-editor
 .status.busy::before { content: "⟳ "; display: inline-block; animation: spin 1.2s linear infinite; }
 @keyframes spin { to { transform: rotate(360deg); } }
 .toasts { position: fixed; right: 12px; bottom: 34px; display: flex; flex-direction: column; gap: 6px; max-width: 380px; z-index: 10; }
-.toast { background: var(--vscode-editorWidget-background); color: var(--vscode-editorWidget-foreground); border: 1px solid var(--vscode-editorWidget-border); border-left: 3px solid var(--vscode-focusBorder); padding: 8px 10px; box-shadow: 0 2px 8px #0005; }
+.toast { background: var(--vscode-editorWidget-background); color: var(--vscode-editorWidget-foreground); border: 1px solid var(--vscode-editorWidget-border); border-left: 3px solid var(--vscode-focusBorder); padding: 8px 10px; box-shadow: 0 2px 8px var(--vscode-widget-shadow, transparent); }
 .toast.warning { border-left-color: var(--vscode-inputValidation-errorBorder); }
 dialog { background: var(--vscode-editorWidget-background); color: var(--vscode-editorWidget-foreground); border: 1px solid var(--vscode-editorWidget-border); max-width: 460px; }
-dialog::backdrop { background: #0006; }
+dialog::backdrop { background: color-mix(in srgb, var(--vscode-editor-background) 60%, transparent); }
 .buttons { display: flex; gap: 6px; justify-content: flex-end; flex-wrap: wrap; }
 /* Narrower: the form or results go under the map, not beside it. */
 @media (max-width: 900px) {
@@ -81,11 +81,11 @@ dialog::backdrop { background: #0006; }
 @media (max-width: 600px) {
   html, body { height: auto; }
   /* minmax(0, ...): a wide Tote scrolls inside itself; it never widens the page. */
-  .app { grid-template-columns: minmax(0, 1fr); grid-template-rows: auto auto auto; height: auto; min-height: 100vh; }
-  main { grid-row: 1; }
+  .app { grid-template-columns: minmax(0, 1fr); grid-template-rows: auto auto auto auto; height: auto; min-height: 100vh; }
+  main { grid-row: 2; }
   .frame-map { flex: none; height: 55vh; }
   .side-frame { height: 460px; }
-  .side { grid-row: 2; border-right: 0; overflow: visible; min-width: 0; }
+  .side { grid-row: 3; border-right: 0; overflow: visible; min-width: 0; }
   footer { grid-column: 1; position: sticky; bottom: 0; }
 }
 /* The Timeline (webview/timeline.css): narrative, notes and periods in time order (CAP-05, CAP-20).
@@ -154,7 +154,7 @@ dialog::backdrop { background: #0006; }
 .export-form label { display: flex; flex-direction: column; gap: 2px; min-width: 0; font-size: 12px; }
 .export-form label.check { flex-direction: row; align-items: center; gap: 6px; }
 .export-said { margin: 4px 0 2px; overflow-wrap: anywhere; }
-.side h3.sub { font-size: 12px; margin: 12px 0 4px; color: var(--vscode-foreground); font-weight: 600; }
+.side h3.sub, .menu-panel h3.sub { font-size: 12px; margin: 12px 0 4px; color: var(--vscode-foreground); font-weight: 600; }
 .find-id { display: flex; flex-direction: column; gap: 2px; margin: 6px 0; font-size: 12px; }
 .find-id-row { display: flex; gap: 4px; min-width: 0; }
 .find-id input { flex: 1; min-width: 0; font: inherit; font-family: var(--vscode-editor-font-family); background: var(--vscode-input-background); color: var(--vscode-input-foreground); border: 1px solid var(--vscode-input-border, var(--vscode-widget-border)); padding: 3px 4px; }
@@ -188,22 +188,6 @@ dialog::backdrop { background: #0006; }
 .tour-body kbd { font-family: var(--vscode-editor-font-family); font-size: 0.92em; padding: 0 3px; border: 1px solid var(--vscode-widget-border, var(--vscode-panel-border)); border-radius: 3px; }
 .tour-said { margin: 6px 0 0; min-height: 1em; overflow-wrap: anywhere; }
 .visually-hidden { position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; border: 0; }
-/* On a wide screen the walkthroughs have a column of their own, on the right of the map: a step's
-   words stay in sight, whatever the side column is scrolled to, while it is done there and on the map.
-   It scrolls on its own. Folded, it is its heading on its side, a narrow tab, and the map takes the
-   rest (product owner, 22 Oct 2026). Narrower than 1200 px it is not shown: the walkthroughs are the
-   side column's first panel, as before (host.ts moves them). */
-.side.guide { grid-row: 1; grid-column: 3; min-height: 0; border-right: 0; border-left: 0; }
-.guide > .panel { width: clamp(240px, 20vw, 300px); box-sizing: border-box; padding-left: 14px; border-bottom: 0; }
-.guide > .panel.folded { width: auto; padding: 8px 5px; }
-.guide > .panel.folded { background: var(--debrief-guide-tint); }
-.guide > .panel.folded h2 { margin: 0; }
-.guide > .panel.folded h2 button.fold { writing-mode: vertical-rl; padding: 2px 0; white-space: nowrap; }
-.guide > .panel.folded h2 button.fold .arrow { position: static; display: inline-block; width: auto; margin-bottom: 6px; text-orientation: upright; }
-.guide > .panel.folded h2 button.fold .arrow::before { content: "◂"; }
-/* A note shows over the map, not over the walkthroughs' column. */
-body:has(#guide:not([hidden]) > .panel:not(.folded)) .toasts { right: calc(clamp(240px, 20vw, 300px) + 12px); }
-body:has(#guide:not([hidden]) > .panel.folded) .toasts { right: 44px; }
 /* The guidance accent (style guide, Theme; product owner, 22 Oct 2026): the walkthroughs are where a
    newcomer gains an overall understanding, so they stand apart from the panels around them, in the
    theme's link colour (its focus colour where a theme has none): a 3 px edge, a heading bar tinted
@@ -214,13 +198,8 @@ body:has(#guide:not([hidden]) > .panel.folded) .toasts { right: 44px; }
   --debrief-guide-tint: color-mix(in srgb, var(--debrief-guide-accent) 14%, var(--vscode-sideBar-background));
 }
 #panel-tour { border-left: 3px solid var(--debrief-guide-accent); }
-/* In the right-hand column the edge runs the column's full height, open or folded. */
-.guide > #panel-tour { min-height: 100%; }
 #panel-tour > h2 { background: var(--debrief-guide-tint); margin: -6px -10px 6px; padding: 6px 10px; }
 #panel-tour.folded > h2 { margin-bottom: 0; }
-.guide > #panel-tour:not(.folded) > h2 { margin-left: -14px; padding-left: 14px; }
-/* Folded on the right, the whole tab is the tinted bar. */
-.guide > #panel-tour.folded > h2 { margin: 0; padding: 0; background: none; }
 /* What comes after a walkthrough (product owner, 23 Oct 2026): done, the next is a button in the
    accent, its text the panel's background (the next step's disc's colours); before then, a quiet
    link in the accent. After the last, that all are done, and a link to start again. */

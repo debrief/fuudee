@@ -6,12 +6,13 @@
 // interval typed ("90 s", "1h30") says what it means, or what is wrong. Undo takes a change
 // back. A single fix always showing its time label and symbol (force on only, product
 // owner, 15 Oct 2026), from the fix list. The form fits a phone, and down to 210 px.
+import { resizeTo } from "./dock.mjs";
 import assert from "node:assert/strict";
 
 export async function playFrequencies(page, shot) {
   const mapFrame = page.frameLocator(".frame-map");
   const steps = () => page.locator("#history li").count();
-  const latest = () => page.locator("#history li").first().locator(".name").innerText();
+  const latest = () => page.locator("#history li").first().locator(".name").textContent();
   const stepAdded = (count) => page.waitForFunction((c) => document.querySelectorAll("#history li").length > c, count, { timeout: 60000 });
   const dialog = page.locator("dialog.freq-form");
   const labels = () => mapFrame.locator(".fix-time-text").allInnerTexts();
@@ -164,7 +165,7 @@ export async function playFrequencies(page, shot) {
 
   // Undo takes the last change back, for both tracks at once.
   await undo();
-  assert.match(await page.locator("#history li.undone").first().innerText(), /Symbols every 1 h 30 min/);
+  assert.match(await page.locator("#history li.undone").first().textContent(), /Symbols every 1 h 30 min/);
   await mapFrame.locator("canvas.freq-marks[data-symbols='0']").waitFor({ state: "attached" });
   assert.equal(await row("track-red-one").locator(".freq-detail").innerText(), "Labels every 10 min · Arrows every 5 min");
 
@@ -226,7 +227,7 @@ export async function playFrequencies(page, shot) {
 
   // On a phone, and down to 210 px: the form fits and never scrolls sideways.
   for (const width of [390, 280, 210]) {
-    await page.setViewportSize({ width, height: 844 });
+    await resizeTo(page, width, 844);
     await row("track-blue-one").click();
     await row("track-red-one").click({ modifiers: ["Control"] });
     await page.locator("#track-frequencies").scrollIntoViewIfNeeded();
@@ -243,7 +244,7 @@ export async function playFrequencies(page, shot) {
     await dialog.getByRole("button", { name: "Cancel" }).click();
     await dialog.waitFor({ state: "detached" });
   }
-  await page.setViewportSize({ width: 1400, height: 820 });
+  await resizeTo(page, 1400, 820);
 
   // Back as it was, so what follows starts the same: the symbols at every fix, the fix's marks and label, then the intervals, undone.
   for (let i = 0; i < 6; i++) await undo();

@@ -24,6 +24,7 @@ import assert from "node:assert/strict";
 import { existsSync, readFileSync } from "node:fs";
 import path from "node:path";
 import { CSP } from "../../play/csp.mjs";
+import { DOCKED_PANELS, layoutOf, mapPlaced, resizeTo, showPanel } from "./dock.mjs";
 
 const ready = (page) => page.waitForFunction(() => document.getElementById("status")?.textContent?.startsWith("Ready"), null, { timeout: 240000 });
 const events = (page) => page.evaluate(() => window.debriefTours().events);
@@ -63,60 +64,59 @@ async function ticked(page, index, title) {
 
 /** How wide the map is, in pixels. */
 const mapWidth = async (page) => (await page.locator(".frame-map").boundingBox()).width;
-/** Wholly in sight in the walkthroughs' column on the right, not scrolled away in it or off the screen. */
+/** Wholly in sight in the walkthroughs' panel, docked on the right, not scrolled away in it or off the screen. */
 const inSight = (locator) =>
   locator.evaluate((el) => {
     const r = el.getBoundingClientRect();
-    const g = document.getElementById("guide").getBoundingClientRect();
+    const g = document.getElementById("panel-tour").closest(".dock-panel").getBoundingClientRect();
     return r.height > 0 && r.top >= Math.max(0, g.top) - 1 && r.bottom <= Math.min(innerHeight, g.bottom) + 1 && r.left >= g.left - 1 && r.right <= g.right + 1;
   });
 /** The page itself scrolls sideways. */
 const pageSideways = (page) => page.evaluate(() => document.documentElement.scrollWidth > innerWidth);
 
+/** Docked: the page fills the window from 900 px wide (dock.ts). */
+const isDocked = (page) => page.evaluate(() => document.body.classList.contains("docked"));
+
 /**
- * On a wide screen the walkthroughs are a column of their own on the right of the map, a
- * labelled landmark; folded, a narrow tab, and the map takes the rest (product owner, 22 Oct 2026).
+ * The window resized, once the layout has followed: docked from 900 px wide, the side column
+ * narrower (dock.ts; product owner, 23 Oct 2026). A media query's change arrives after the resize.
  */
+export const resize = resizeTo;
+
 /**
- * The window resized, once the walkthroughs' panel has moved for it: a media query's change
- * arrives after the resize, later on a slow machine, so where it sits is read only after.
+ * Docked, the walkthroughs are a tab in the right-hand group, in front from the start, the map left
+ * of them (product owner, 23 Oct 2026); the panels on the left start with the time controller.
  */
-export async function resize(page, width, height) {
-  await page.setViewportSize({ width, height });
-  await page.waitForFunction((into) => document.getElementById("panel-tour")?.parentElement?.id === into, width >= 1200 ? "guide" : "side");
+async function rightColumn(page) {
+  const groups = (await layoutOf(page)).groups;
+  const tour = groups.find((g) => g.panels.includes("panel-tour"));
+  assert.equal(tour?.place, "right", "the walkthroughs in the right-hand group");
+  assert.equal(tour.active, "panel-tour", "in front");
+  assert.equal(groups.find((g) => g.place === "left")?.panels[0], "panel-time", "the left-hand panels start with the time controller");
+  await mapPlaced(page);
+  const map = await page.locator("#main").boundingBox();
+  const panel = await page.locator(".dock-panel", { has: page.locator("#panel-tour") }).boundingBox();
+  assert.ok(panel.x >= map.x + map.width - 1, "right of the map");
+  assert.ok(Math.abs(panel.x + panel.width - (page.viewportSize()?.width ?? 0)) <= 1, "at the right edge of the window");
 }
 
-async function rightColumn(page, open) {
-  assert.equal(await page.locator("#panel-tour").evaluate((s) => s.parentElement.id), "guide", "the walkthroughs in the right-hand column");
-  assert.equal(await page.getByRole("complementary", { name: "Walkthroughs" }).getByRole("heading", { level: 2, name: /^Walkthroughs$/i }).count(), 1);
-  const map = await page.locator(".frame-map").boundingBox();
-  const guide = await page.locator("#guide").boundingBox();
-  assert.ok(guide.x >= map.x + map.width - 1, "right of the map");
-  assert.ok(Math.abs(guide.x + guide.width - (page.viewportSize()?.width ?? 0)) <= 1, "at the right edge of the window");
-  assert.equal(await page.locator("#panel-tour button.fold").getAttribute("aria-expanded"), String(open));
-  if (open) assert.ok(guide.width >= 240 && guide.width <= 302, `open, the column is 240 to 300 px wide: ${guide.width}`);
-  else assert.ok(guide.width <= 40, `folded, the column is a narrow tab: ${guide.width}`);
-  assert.equal(await page.locator("#side > #panel-tour").count(), 0);
-  assert.equal(await page.locator("#side > section:not([hidden])").first().getAttribute("id"), "panel-time", "the side column starts with the time controller");
-}
-
-/** The walkthroughs' panel open, if this reader folded it (it starts open everywhere: product owner, 22 Oct 2026). */
-async function openTours(page) {
-  const fold = page.locator("#panel-tour button.fold");
-  if ((await fold.getAttribute("aria-expanded")) === "false") await fold.click();
-}
+/** The walkthroughs' panel in view: its tab in front, docked; unfolded, narrow. */
+const openTours = (page) => showPanel(page, "tour");
 
 /**
  * Open on first load, wherever the panel is (product owner, 22 Oct 2026, superseding 17 Oct's
- * folded outside the web demo): in the right-hand column from 1200 px, else first in the side column.
+ * folded outside the web demo): docked, the right-hand group's tab in front; narrow, first in the side column.
  */
 export async function openOnFirstLoad(page, where) {
-  await page.locator("#panel-tour button.fold").waitFor();
-  assert.equal(await page.locator("#panel-tour button.fold").getAttribute("aria-expanded"), "true", `${where}: the walkthroughs open on first load`);
+  await page.locator("#panel-tour").waitFor({ state: "attached" });
+  await page.waitForFunction(() => !!window.debriefLayout);
+  if (await isDocked(page)) {
+    await rightColumn(page);
+  } else {
+    assert.equal(await page.locator("#panel-tour button.fold").getAttribute("aria-expanded"), "true", `${where}: the walkthroughs open on first load`);
+    assert.equal(await page.locator("#side > section:not([hidden])").first().getAttribute("id"), "panel-tour", `${where}: first in the side column`);
+  }
   assert.equal(await page.locator("#body-tour").isVisible(), true, `${where}: their steps in sight`);
-  const wide = (page.viewportSize()?.width ?? 0) >= 1200;
-  if (wide) await rightColumn(page, true);
-  else assert.equal(await page.locator("#side > section:not([hidden])").first().getAttribute("id"), "panel-tour", `${where}: first in the side column`);
 }
 
 /** A colour as the browser computes it (rgb(), rgba() or color(srgb ...)), as [r, g, b, a] in 0 to 255 and 0 to 1. */
@@ -145,8 +145,10 @@ const near = (a, b, by = 2) => a.slice(0, 3).every((v, i) => Math.abs(v - b[i]) 
 /**
  * The guidance accent (style guide, Theme; product owner, 22 Oct 2026): the theme's link colour
  * (--vscode-textLink-foreground) as a 3 px edge on the panel, a heading bar tinted with it, the
- * steps' numbers in it and the next step's a disc of it; folded, the tab carries it too. Its
- * heading and step text keep WCAG AA contrast, 4.5:1, on the theme given. Returns the ratios.
+ * steps' numbers in it and the next step's a disc of it; folded, the tab carries it too. Docked,
+ * the panel's tab is its heading, and carries the tint and an edge of the accent (product owner,
+ * 23 Oct 2026). Its heading or tab and step text keep WCAG AA contrast, 4.5:1, on the theme given.
+ * Returns the ratios.
  */
 export async function guidanceAccent(page, scheme) {
   await page.locator("#tour .tour-step.next .tour-mark").waitFor();
@@ -169,20 +171,23 @@ export async function guidanceAccent(page, scheme) {
         return layers;
       };
       const panel = document.getElementById("panel-tour");
-      const heading = panel.querySelector(":scope > h2");
+      const docked = document.body.classList.contains("docked");
+      // Docked, the heading is the panel's tab.
+      const heading = docked ? document.querySelector('.dv-tab[data-panel="panel-tour"]') : panel.querySelector(":scope > h2");
       const text = (el) => ({ color: css(el, "color"), behind: behind(el), what: el.className || el.tagName });
       return {
         theme,
         light: document.documentElement.classList.contains("light"),
-        folded: panel.classList.contains("folded"),
-        inGuide: panel.parentElement.id === "guide",
+        folded: !docked && panel.classList.contains("folded"),
+        docked,
+        tabEdge: docked ? css(heading, "box-shadow") : "",
         edge: { width: css(panel, "border-left-width"), colour: css(panel, "border-left-color"), style: css(panel, "border-left-style") },
         bar: css(heading, "background-color"),
         tab: css(panel, "background-color"),
         texts: panel.classList.contains("folded")
           ? [text(heading.querySelector("button.fold"))]
           : [
-              text(heading.querySelector("button.fold")),
+              text(docked ? heading.querySelector(".dv-default-tab-content") : heading.querySelector("button.fold")),
               ...[...panel.querySelectorAll(".tour-title, .tour-summary, .tour-step:not(.done) .tour-mark, .tour-body:not([hidden]) p")].map(text),
             ],
         marks: [...panel.querySelectorAll(".tour-step:not(.done):not(.next) .tour-mark")].map((m) => ({ color: css(m, "color"), border: css(m, "border-top-color") })),
@@ -205,10 +210,11 @@ export async function guidanceAccent(page, scheme) {
     assert.equal(got.edge.width, "3px", `${scheme}: a 3 px edge`);
     assert.equal(got.edge.style, "solid");
     assert.ok(near(rgba(got.edge.colour), accent), `${scheme}: the edge in the accent (${got.edge.colour}, ${got.theme.accent})`);
-    if (folded && got.inGuide) {
-      assert.ok(near(rgba(got.tab), tint), `${scheme}: the folded tab tinted with the accent (${got.tab})`);
-    } else {
-      assert.ok(near(rgba(got.bar), tint), `${scheme}: the heading bar tinted with the accent (${got.bar})`);
+    assert.ok(near(rgba(got.bar), tint), `${scheme}: the ${got.docked ? "tab" : "heading bar"} tinted with the accent (${got.bar})`);
+    if (got.docked) {
+      // As the browser writes it: the colour, then "3px 0px 0px 0px inset".
+      assert.match(got.tabEdge, /3px 0px 0px 0px inset/, `${scheme}: the tab's 3 px edge`);
+      assert.ok(near(rgba(got.tabEdge.match(/^(rgba?\([^)]*\)|color\([^)]*\))/)[1]), accent), `${scheme}: the tab's edge in the accent (${got.tabEdge})`);
     }
     if (!folded) {
       for (const mark of got.marks) assert.ok(near(rgba(mark.color), accent) && near(rgba(mark.border), accent), `${scheme}: a step's number in the accent`);
@@ -224,6 +230,12 @@ export async function guidanceAccent(page, scheme) {
       assert.ok(ratio >= 4.5, `${scheme}${folded ? ", folded" : ""}: ${t.what} at ${ratio.toFixed(2)}:1, under WCAG AA's 4.5:1 (${t.color} on ${t.behind.join(" over ")})`);
     }
   };
+  // Docked, tabs replace folding: in front, the panel is open.
+  if (await isDocked(page)) {
+    await openTours(page);
+    await check(false);
+    return { least: Math.min(...ratios), count: ratios.length };
+  }
   const fold = page.locator("#panel-tour button.fold");
   const wasOpen = (await fold.getAttribute("aria-expanded")) === "true";
   if (!wasOpen) await fold.click();
@@ -244,7 +256,9 @@ export async function playTourInThePost(browser, siteUrl, shot) {
   assert.match(await demo.getAttribute("data-demo"), /panels=tour/, "the post's demo includes the walkthroughs");
   await demo.getByRole("button", { name: "Start the demo" }).click();
   const frame = post.frameLocator(".debrief-demo-frame");
-  await frame.locator("#panel-tour button.fold").waitFor({ timeout: 60000 });
+  await frame.locator("#body-tour").waitFor({ timeout: 60000 });
+  // The post's column is narrower than 900 px: the side column, as before (product owner, 23 Oct 2026).
+  assert.equal(await frame.locator("body.docked").count(), 0, "the post's demo is not docked");
   assert.equal(await frame.locator("#panel-tour button.fold").getAttribute("aria-expanded"), "true", "in the post's demo the walkthroughs open on first load");
   assert.equal(await frame.locator("#body-tour").isVisible(), true);
   assert.equal(await frame.locator("#side > section:not([hidden])").first().getAttribute("id"), "panel-tour", "first in the demo's side column");
@@ -258,12 +272,13 @@ export async function playTourInThePost(browser, siteUrl, shot) {
 
 /** Start a walkthrough: chosen in the panel, its first step's button makes and opens the copy. */
 async function startTour(page, tour) {
-  await page.locator("#panel-tour").scrollIntoViewIfNeeded();
+  await openTours(page);
   await page.selectOption("#tour-pick", tour);
   await go(page, 0).click();
   await done(page, `${tour}Opened`);
   assert.equal(await page.locator("#plots").inputValue(), `serial-1-${tour}`);
   await ticked(page, 0, "Open a copy of serial 1");
+  await showPanel(page, "outline"); // in front, whatever the walkthrough before brought forward
 }
 
 /**
@@ -338,8 +353,9 @@ async function drawArea(page, act = async (x) => x) {
   await act(mapFrame.getByRole("toolbar", { name: "Draw an annotation" }).getByRole("button", { name: "Area", exact: true }).click());
   const box = await page.locator(".frame-map").boundingBox();
   const at = (fx, fy) => [box.x + box.width * fx, box.y + box.height * fy];
-  for (const [fx, fy] of [[0.72, 0.1], [0.84, 0.1], [0.84, 0.2]]) await act(page.mouse.click(...at(fx, fy)));
-  await act(page.mouse.dblclick(...at(0.72, 0.2)));
+  // Below the drawing note across the map's top, which on the docked layout's map reaches this far.
+  for (const [fx, fy] of [[0.72, 0.24], [0.84, 0.24], [0.84, 0.34]]) await act(page.mouse.click(...at(fx, fy)));
+  await act(page.mouse.dblclick(...at(0.72, 0.34)));
   const form = page.frameLocator(".frame-annotation");
   await act(form.locator("#field-name input").fill("Search area"));
   await act(form.getByRole("button", { name: "Add" }).click());
@@ -351,23 +367,24 @@ export async function playTours(page, shot, root) {
   const side = page.locator("#side-frame");
   const serial1 = await stepsOf(page, "serial-1");
 
-  // The walkthroughs start open, here as everywhere (product owner, 22 Oct 2026); this reader
-  // folded them at the start of play.mjs, and folded they stay, remembered in this browser. On a
-  // wide screen they are a column on the right of the map, folded to a narrow tab; opened, the map
-  // narrows by the column's width, and folded again, widens back, from the pointer or the keyboard.
-  await rightColumn(page, false);
-  const wideMap = await mapWidth(page);
+  // The walkthroughs start open, here as everywhere (product owner, 22 Oct 2026). Docked, they
+  // are a tab in the right-hand group, in front from the start (product owner, 23 Oct 2026). This
+  // reader rearranged the panels at the start of play.mjs, remembered in this browser: Reset
+  // layout puts them back. Another tab brought to the front and back again, by the keyboard,
+  // leaves the map as it was.
+  await page.locator("#reset-layout").click();
   await openTours(page);
-  await rightColumn(page, true);
-  const narrowMap = await mapWidth(page);
-  assert.ok(wideMap - narrowMap >= 200, `the map narrows as the walkthroughs open: ${wideMap} to ${narrowMap} px`);
-  await page.locator("#panel-tour button.fold").focus();
+  await rightColumn(page);
+  const wideMap = await mapWidth(page);
+  await page.locator('.dv-tab[data-panel="panel-tour"]').focus();
+  await page.keyboard.press("ArrowRight");
   await page.keyboard.press("Enter");
-  await rightColumn(page, false);
-  assert.ok(Math.abs((await mapWidth(page)) - wideMap) <= 1, "folded, the map widens back");
+  assert.equal(await page.locator('.dv-tab[data-panel="panel-tour"]').getAttribute("aria-selected"), "false");
+  await page.keyboard.press("ArrowLeft");
   await page.keyboard.press("Space");
-  await rightColumn(page, true);
-  assert.equal(await page.evaluate(() => document.activeElement?.closest("section")?.id), "panel-tour", "the keyboard stays on its heading");
+  await rightColumn(page);
+  assert.equal(await page.evaluate(() => document.activeElement?.dataset?.panel), "panel-tour", "the keyboard stays on its tab");
+  assert.ok(Math.abs((await mapWidth(page)) - wideMap) <= 1, "the map as it was");
   assert.equal(await stepRow(page, 0).locator(".tour-head").getAttribute("aria-expanded"), "true");
   await stepRow(page, 0).locator(".tour-media svg").waitFor({ timeout: 15000 }); // the same picture as VS Code's
   assert.equal(await stepRow(page, 0).locator(".tour-media").getAttribute("role"), "img");
@@ -389,19 +406,20 @@ export async function playTours(page, shot, root) {
   await ticked(page, 0, "Open a copy of serial 1");
   await skipOffered(page, "Import and collate");
   await shot("tour-01-explore-open");
-  // The step's words stay in sight while the side column is scrolled to its end, and while the
-  // step is done there: its button scrolls the side column to the time controller, never the column
-  // on the right, nor the page.
-  await page.locator("#side").evaluate((s) => (s.scrollTop = s.scrollHeight));
-  assert.ok((await page.locator("#side").evaluate((s) => s.scrollTop)) > 300, "the side column scrolled down");
+  // The step's words stay in sight while another panel is scrolled to its end, and while the step
+  // is done there: its button puts the keyboard on the time controller's tab, never scrolling the
+  // walkthroughs, nor the page.
+  const outlinePanel = page.locator(".dock-panel", { has: page.locator("#panel-outline") });
+  await outlinePanel.evaluate((s) => (s.scrollTop = s.scrollHeight));
+  assert.ok((await outlinePanel.evaluate((s) => s.scrollTop)) > 100, "the Outline scrolled down");
   const stepWords = stepRow(page, 1).locator(".tour-body p").first();
-  assert.ok(await inSight(stepWords), "the step's words in sight, the side column scrolled to its end");
+  assert.ok(await inSight(stepWords), "the step's words in sight, the Outline scrolled to its end");
   assert.ok(await inSight(go(page, 1)), "and its button");
   // Its button only takes the reader there: pressing it ticks nothing.
   await go(page, 1).click();
   assert.ok(await inSight(stepWords), "the step's words in sight as it is done");
   assert.equal(await page.evaluate(() => scrollY), 0, "the page itself does not scroll");
-  assert.equal(await page.evaluate(() => document.activeElement?.closest("section")?.id), "panel-time");
+  assert.equal(await page.evaluate(() => document.activeElement?.dataset?.panel), "panel-time", "the keyboard on the time controller's tab");
   assert.equal(await stepRow(page, 1).getAttribute("class"), "tour-step next");
   await page.locator("#timebar .tc-current").focus();
   await page.keyboard.press("ArrowRight");
@@ -425,15 +443,14 @@ export async function playTours(page, shot, root) {
   await ticked(page, 3, "Compare tracks in the Tote");
   assert.ok(await inSight(stepRow(page, 4).locator(".tour-body p").first()), "the Timeline step's words in sight");
   await page.locator('#timeline .tl-row[data-kind="narrative"]').nth(3).click();
-  assert.ok((await page.locator("#side").evaluate((s) => s.scrollTop)) > 0, "the side column scrolled to the Timeline");
-  assert.ok(await inSight(stepRow(page, 4).locator(".tour-head")), "the step still in sight, the side column scrolled to the Timeline");
+  assert.ok(await inSight(stepRow(page, 4).locator(".tour-head")), "the step still in sight, the Timeline used under the map");
   await done(page, "timelineChosen");
   await ticked(page, 4, "Read the narrative in the Timeline");
   assert.match(await page.locator("#tour .tour-said").innerText(), /That is the whole of Open and explore a serial/);
   // Done: the next walkthrough offered, the keyboard on it; pressed, it is the walkthrough shown,
   // as if chosen from the list (which stays), the keyboard on its first step's button.
   const toCollate = await nextOffered(page, "Import and collate");
-  await page.locator("#panel-tour").scrollIntoViewIfNeeded();
+  await openTours(page);
   await shot("tour-02-explore-done");
   await shot("next-01-explore-done");
   await nextFits(page);
@@ -464,8 +481,8 @@ export async function playTours(page, shot, root) {
   const log = page.locator("#items > li", { has: page.locator(".item-title", { hasText: "blue-one-nav-log" }) });
   await log.locator(".item-mark").waitFor({ timeout: 60000 });
   await page.locator(".side-bar button", { hasText: "Close" }).click();
-  // With the walkthroughs in their own column, Coverage may already be in sight in the side column
-  // once the log is in, which is the step done; if not, its button brings it into sight.
+  // Coverage may already be in front once the log is in, which is the step done; if not, its
+  // button brings its tab to the front.
   if (!(await events(page)).includes("coverageShown")) await go(page, 2).click();
   await done(page, "coverageShown");
   const coverage = page.locator("#coverage");
@@ -485,12 +502,12 @@ export async function playTours(page, shot, root) {
   await stepAdded(page, n);
   await ticked(page, 4, "Choose a source for a period");
   await nextOffered(page, "Tidy a track");
-  await page.locator("#panel-tour").scrollIntoViewIfNeeded();
+  await openTours(page);
   await shot("tour-03-collate-done");
 
   // --- Tidy a track ------------------------------------------------------------------
   await startTour(page, "tidy");
-  assert.match(await page.locator("#history li .name").first().innerText(), /^GPS glitches put into RED ONE$/);
+  assert.match(await page.locator("#history li .name").first().textContent(), /^GPS glitches put into RED ONE$/);
   // The same change to another plot ticks nothing: serial 2's RED ONE smoothed by hand.
   await page.selectOption("#plots", "serial-2");
   await page.waitForFunction(() => document.getElementById("plot-title")?.textContent === "Serial 2", null, { timeout: 60000 });
@@ -536,19 +553,20 @@ export async function playTours(page, shot, root) {
   await done(page, "sheared");
   await ticked(page, 4, "Shear a leg, as in TMA");
   await nextOffered(page, "Annotate and export a figure");
-  await page.locator("#panel-tour").scrollIntoViewIfNeeded();
+  await openTours(page);
   await shot("tour-04-tidy-done");
   // Started again: one fresh copy, its steps unticked; the old copy gone.
   await press(page, 0);
   await page.waitForFunction(() => { const e = window.debriefTours().events; return e.includes("tidyOpened") && !e.includes("jumpsRemoved") && !e.includes("sheared"); }, null, { timeout: 60000 });
   assert.equal(await copiesTitled(page, "Serial 1: Tidy a track"), 1, "starting again leaves one copy");
-  assert.match(await page.locator("#history li .name").first().innerText(), /^GPS glitches put into RED ONE$/, "the fresh copy has its glitches again");
+  assert.match(await page.locator("#history li .name").first().textContent(), /^GPS glitches put into RED ONE$/, "the fresh copy has its glitches again");
   assert.equal(await stepRow(page, 1).getAttribute("class"), "tour-step next");
 
   // --- Annotate and export a figure --------------------------------------------------
   await startTour(page, "annotate");
   await drawArea(page);
   await done(page, "annotationAdded");
+  await page.locator(".frame-annotation").waitFor({ state: "detached" }); // its form closed, the plot saved
   await go(page, 2).click(); // selects BLUE ONE and RED ONE and opens Frequencies…
   await page.locator("#freq-label_interval").selectOption({ label: "Every 10 min" });
   await dialog.getByRole("button", { name: "Apply" }).click();
@@ -577,7 +595,7 @@ export async function playTours(page, shot, root) {
   assert.equal(await ahead.locator("button.tour-again").innerText(), "Start again: Open and explore a serial");
   await page.waitForFunction(() => document.activeElement?.classList.contains("tour-again"), null, { timeout: 5000 });
   assert.match(await page.locator("#tour .tour-said").innerText(), /All walkthroughs done\.$/);
-  await page.locator("#panel-tour").scrollIntoViewIfNeeded();
+  await openTours(page);
   await shot("tour-05-annotate-done");
   await shot("next-02-all-done");
   await mapFrame.locator(".revision-banner button", { hasText: "Go to latest" }).click();
@@ -585,33 +603,34 @@ export async function playTours(page, shot, root) {
   // Serial 1 itself, read from Python: no step was added to it by any walkthrough.
   assert.equal(await stepsOf(page, "serial-1"), serial1, "Serial 1's history gained no step");
 
-  // The panel at laptops' widths, in its column on the right; at a phone's and a blog's widths, and
-  // in the side column of a 650 to 750 px window (210 px wide there), first in the side column as
-  // before; in a wider font too: nothing scrolls sideways, the page, Import's file boxes neither.
-  // From 1200 px the map keeps 640 px or more beside the two columns.
+  // The panel at laptops' widths, docked on the right; at a phone's and a blog's widths, and in the
+  // side column of a 650 to 750 px window (210 px wide there), first in the side column as before;
+  // in a wider font too: nothing scrolls sideways, the page, Import's file boxes neither. Docked,
+  // the map keeps half the width or more.
   const widths = [];
   for (const wide of [false, true]) {
-    const style = wide ? await page.addStyleTag({ content: "#side *, #guide * { letter-spacing: 0.1em !important; font-size: 15px !important }" }) : undefined;
-    for (const width of [1440, 1366, 1280, 1200, 1199, 1024, 750, 700, 650, 390, 280, 210]) {
+    const style = wide ? await page.addStyleTag({ content: "#side *, .dock-panel * { letter-spacing: 0.1em !important; font-size: 15px !important }" }) : undefined;
+    for (const width of [1440, 1366, 1280, 1200, 1024, 900, 899, 750, 700, 650, 390, 280, 210]) {
       await resize(page, width, 800);
       await page.waitForTimeout(300);
-      if (width >= 1200) {
-        await rightColumn(page, true);
-        assert.ok((await mapWidth(page)) >= 640, `at ${width} px the map keeps 640 px: ${await mapWidth(page)}`);
+      if (width >= 900) {
+        await openTours(page);
+        await rightColumn(page);
+        assert.ok((await page.locator("#main").boundingBox()).width >= width * 0.5, `at ${width} px the map keeps half the width: ${(await page.locator("#main").boundingBox()).width}`);
       } else {
-        assert.equal(await page.locator("#guide").isHidden(), true, `no right-hand column at ${width} px`);
+        assert.equal(await page.locator("#dock").isHidden(), true, `not docked at ${width} px`);
         assert.equal(await page.locator("#side > section:not([hidden])").first().getAttribute("id"), "panel-tour", `at ${width} px the walkthroughs are first in the side column`);
         assert.equal(await page.locator("#side > section:not([hidden])").nth(1).getAttribute("id"), "panel-time");
       }
       assert.equal(await pageSideways(page), false, `at ${width} px the page does not scroll sideways`);
       const over = await page.evaluate(() =>
-        ["#side", "#guide", "#body-tour", "#tour", ".tour-steps", ".tour-pick", ".tour-ahead", "#body-import", ...[...document.querySelectorAll(".tour-body")].map((_, i) => `.tour-step:nth-child(${i + 1}) .tour-body`)].flatMap((s) => {
+        ["#side", ".dock-panel:has(#panel-tour)", "#body-tour", "#tour", ".tour-steps", ".tour-pick", ".tour-ahead", "#body-import", ...[...document.querySelectorAll(".tour-body")].map((_, i) => `.tour-step:nth-child(${i + 1}) .tour-body`)].flatMap((s) => {
           const el = document.querySelector(s);
           return el && el.offsetParent && el.scrollWidth > el.clientWidth + 1 ? [`${s} ${el.scrollWidth}/${el.clientWidth}`] : [];
         }),
       );
       widths.push(`${wide ? "wide font, " : ""}${width} px: ${over.length ? over.join(", ") : "fits"}`);
-      assert.deepEqual(over, [], `${wide ? "in a wide font, " : ""}at ${width} px neither column scrolls sideways`);
+      assert.deepEqual(over, [], `${wide ? "in a wide font, " : ""}at ${width} px the walkthroughs do not scroll sideways`);
       if (width === 280 && !wide) {
         await page.locator("#panel-tour").scrollIntoViewIfNeeded();
         await shot("tour-06-narrow");
@@ -620,12 +639,12 @@ export async function playTours(page, shot, root) {
     await style?.evaluate((s) => s.remove());
   }
   await resize(page, 1400, 820);
-  await rightColumn(page, true);
+  await rightColumn(page);
   // Started again from the all-done state: the first walkthrough shown, as if chosen from the list.
   await page.locator("#tour .tour-ahead button.tour-again").click();
   await page.waitForFunction(() => window.debriefTours().tour === "explore");
   assert.equal(await page.locator("#tour-pick").inputValue(), "explore");
-  console.log(`Walkthroughs played, every step ticked by what was done on its copy, none by the same thing done elsewhere: ${(await events(page)).length} of 20 (Tidy a track started again). In the right-hand column from 1200 px, the step's words in sight while the side column scrolls; sideways scroll: ${widths.join("; ")}.`);
+  console.log(`Walkthroughs played, every step ticked by what was done on its copy, none by the same thing done elsewhere: ${(await events(page)).length} of 20 (Tidy a track started again). Docked on the right from 900 px, the step's words in sight while another panel scrolls; sideways scroll: ${widths.join("; ")}.`);
 }
 
 /** The most the trial's tasks may take in the playground before the speed run fails: a regression in what they ask. */
@@ -669,7 +688,7 @@ export async function speedRun(page, root) {
   // 2. Tidy RED ONE: the walkthrough's copy, its jumps removed, smoothed over 5 fixes.
   t = Date.now();
   c = actions;
-  await page.locator("#panel-tour").scrollIntoViewIfNeeded();
+  await openTours(page);
   await act(page.selectOption("#tour-pick", "tidy"));
   if ((await stepRow(page, 0).locator(".tour-head").getAttribute("aria-expanded")) === "false") await act(stepRow(page, 0).locator(".tour-head").click());
   await act(go(0).click());
@@ -685,7 +704,7 @@ export async function speedRun(page, root) {
   await act(dialog.getByRole("button", { name: "Preview" }).click());
   await act(side.getByRole("button", { name: "Apply" }).click());
   await stepAdded(page, n);
-  assert.match(await page.locator("#history li .name").first().innerText(), /^RED ONE smoothed over 5 fixes$/);
+  assert.match(await page.locator("#history li .name").first().textContent(), /^RED ONE smoothed over 5 fixes$/);
   lap("Tidy", t, c);
 
   // 3. Annotate: an area drawn and named; both tracks labelled every 10 minutes.
@@ -706,7 +725,8 @@ export async function speedRun(page, root) {
   // 4. Export a traceable figure: a slide PNG with its ID, then found again by the ID.
   t = Date.now();
   c = actions;
-  await page.locator("#panel-export").scrollIntoViewIfNeeded();
+  // Export is a menu in the top bar now: opening it is one more action (product owner, 23 Oct 2026).
+  await act(showPanel(page, "export"));
   await act(page.selectOption("#export-preset", "slide"));
   await act(Promise.all([page.waitForEvent("download", { timeout: 90000 }), page.locator("#export-image").click()]));
   await page.waitForFunction(() => document.getElementById("export-said")?.textContent?.startsWith("Exported"), null, { timeout: 60000 });
@@ -750,18 +770,25 @@ export async function playDemo(browser, siteUrl, shot) {
   // Its policy, before anything it loads, in the page and in each frame (product owner, 17 Oct 2026).
   assert.equal(await page.locator('meta[http-equiv="Content-Security-Policy"]').getAttribute("content"), CSP);
   for (const frame of page.frames().slice(1)) assert.equal(await frame.locator('meta[http-equiv="Content-Security-Policy"]').getAttribute("content"), CSP, frame.url());
-  // Full screen, every panel, the walkthroughs open in their column on the right; the sample serials by default.
-  const shown = async () => page.$$eval("#side > section", (all) => all.filter((s) => !s.hidden).map((s) => s.id));
-  const others = ["panel-time", "panel-tote", "panel-plot", "panel-outline", "panel-timeline", "panel-catalogue", "panel-coverage", "panel-tools", "panel-history", "panel-export", "panel-try", "panel-import"];
-  assert.deepEqual(await shown(), others);
-  await rightColumn(page, true);
-  // On a phone, first in the one column, as before; and back on the right when wide again.
+  // Full screen, docked: every panel a tab, the walkthroughs in front on the right; Plot, Import…,
+  // Export and Try in the top bar; the sample serials by default.
+  const tabs = async () => page.$$eval(".dv-tab[data-panel]", (all) => all.map((t) => t.dataset.panel).filter((id) => id !== "map").sort()); // the map has no tab shown
+  assert.deepEqual(await tabs(), [...DOCKED_PANELS].sort());
+  for (const id of ["open-import", "open-export", "open-try", "reset-layout"]) assert.equal(await page.locator(`#${id}`).isVisible(), true, id);
+  await rightColumn(page);
+  // On a phone, the one column as before, the walkthroughs first; and docked again when wide.
   await resize(page, 390, 844);
-  assert.deepEqual(await shown(), ["panel-tour", ...others]);
-  assert.equal(await page.locator("#guide").isHidden(), true);
+  const shown = async () => page.$$eval("#side > section", (all) => all.filter((s) => !s.hidden).map((s) => s.id));
+  assert.deepEqual(await shown(), ["panel-tour", "panel-time", "panel-tote", "panel-outline", "panel-timeline", "panel-catalogue", "panel-coverage", "panel-tools", "panel-history"]);
+  assert.equal(await page.locator("#dock").isHidden(), true);
   assert.equal(await pageSideways(page), false, "at 390 px the demo does not scroll sideways");
   await resize(page, 1400, 820);
-  await rightColumn(page, true);
+  await rightColumn(page);
+  // The reader moves Coverage beside the walkthroughs, by its tab's menu: a layout to remember.
+  await page.locator('.dv-tab[data-panel="panel-coverage"]').focus();
+  await page.keyboard.press("Shift+F10");
+  await page.getByRole("menuitem", { name: "Move to right: Walkthroughs, Tools, History" }).click();
+  await page.waitForFunction(() => window.debriefLayout().groups.some((g) => g.panels.includes("panel-tour") && g.panels.includes("panel-coverage")));
   assert.equal(await page.locator("#plots").inputValue(), "serial-1");
   assert.deepEqual(await page.locator("#plots option").allInnerTexts(), ["Serial 1", "Serial 2", "Serial 3"]);
   assert.ok((await page.locator("#tools button").count()) > 3);
@@ -795,7 +822,7 @@ export async function playDemo(browser, siteUrl, shot) {
   await page.locator("dialog.track-form[open] button.primary").click({ timeout: 60000 });
   await page.waitForFunction(() => !document.querySelector("dialog.track-form[open]"), null, { timeout: 60000 });
   // An image exported, and found again from its file.
-  await page.locator("#panel-export").scrollIntoViewIfNeeded();
+  await showPanel(page, "export");
   const [download] = await Promise.all([page.waitForEvent("download", { timeout: 90000 }), page.locator("#export-image").click()]);
   const png = readFileSync(await download.path());
   await page.locator("#find-file").setInputFiles({ name: "figure.png", mimeType: "image/png", buffer: png });
@@ -830,6 +857,22 @@ export async function playDemo(browser, siteUrl, shot) {
     }, marker);
   const none = { local: [], session: [], indexedDB: [], caches: [], opfs: [] };
   assert.deepEqual(await kept(page), none);
+  // The layout is remembered, and only its shape: panels' ids and names, sizes and Dockview's own
+  // words; nothing from a plot, a file or a narrative (product owner, 23 Oct 2026).
+  const layout = await page.evaluate(() => localStorage.getItem("debrief.play.layout"));
+  assert.ok(layout, "the layout is remembered");
+  assert.ok(JSON.parse(layout).layout.grid, "Dockview's description of it");
+  const words = [];
+  const walk = (value, key) => {
+    if (key !== undefined) words.push(key);
+    if (typeof value === "string") words.push(value);
+    else if (value && typeof value === "object") for (const [k, v] of Object.entries(value)) walk(v, Array.isArray(value) ? undefined : k);
+  };
+  walk(JSON.parse(layout));
+  const allowed = new Set(["map", "Map", ...DOCKED_PANELS, "Walkthroughs", "Time", "Tote", "Outline", "Catalogue", "Timeline", "Coverage", "Tools", "History"]);
+  const unexpected = [...new Set(words)].filter((w) => !allowed.has(w) && !/^\d+$/.test(w) && !/^[a-zA-Z]+$/.test(w));
+  assert.deepEqual(unexpected, [], "the layout holds only panels' ids and names, numbers and Dockview's words");
+  assert.doesNotMatch(layout, new RegExp(`${marker}|BLUE ONE|RED ONE|Serial|SEEN`, "i"), "nothing from a plot in the layout");
   // The Timeline's filter is remembered all the same, without the words: its kinds and view only.
   const remembered = await page.evaluate(() => localStorage.getItem("debrief.play.timelineFilter"));
   assert.ok(remembered && !/sources|types|highlights/.test(remembered), `the Timeline keeps no words: ${remembered}`);
@@ -847,15 +890,18 @@ export async function playDemo(browser, siteUrl, shot) {
   assert.deepEqual(await page.locator("#plots option").allInnerTexts(), ["Serial 1", "Serial 2", "Serial 3"]);
   assert.doesNotMatch(await page.locator("#outline").innerText(), new RegExp(marker));
   assert.deepEqual(await kept(page), none);
-  // A walkthrough runs here as in the playground.
+  // The layout as the reader left it, in this browser.
+  assert.ok((await layoutOf(page)).groups.some((g) => g.panels.includes("panel-tour") && g.panels.includes("panel-coverage")), "the layout remembered");
+  // A walkthrough runs here as in the playground: its tab to the front (Coverage, moved beside it, was).
+  await openTours(page);
   await page.selectOption("#tour-pick", "explore");
   await go(page, 0).click();
   await done(page, "exploreOpened");
-  await page.locator("#panel-tour").scrollIntoViewIfNeeded();
+  await openTours(page);
   await shot("demo-02-walkthrough", page);
   assert.deepEqual(sockets, []);
   assert.deepEqual(violations, [], "nothing the page needs is refused by its policy");
-  console.log(`Web demo: every panel, the walkthroughs open, its policy in the page and every frame; a REP file, a Word narrative and an image of the reader's own read in the browser: ${requests.length} requests, none carrying them or sending anything, no WebSocket, nothing as the tab closed; nothing derived from them kept after.`);
+  console.log(`Web demo: every panel, docked, the walkthroughs open, its policy in the page and every frame; a REP file, a Word narrative and an image of the reader's own read in the browser: ${requests.length} requests, none carrying them or sending anything, no WebSocket, nothing as the tab closed; nothing derived from them kept after; the layout remembered, its shape only.`);
   assert.deepEqual(errors, []);
   await context.close();
 }

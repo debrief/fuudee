@@ -2,6 +2,7 @@
 // circle through the form, restyle it, undo, add an ellipse, an area and a label,
 // show the north arrow, and move current time from the Timeline. Shared by play.mjs
 // and, while working on it, explore.mjs.
+import { showPanel } from "./dock.mjs";
 import { timelineRow } from "./timelinerows.mjs";
 import assert from "node:assert/strict";
 
@@ -12,7 +13,7 @@ async function choose(form, field, label) {
 }
 
 export async function playAnnotations(page, shot) {
-  const history = () => page.locator("#history").innerText();
+  const history = () => page.locator("#history").textContent();
   const mapFrame = page.frameLocator(".frame-map");
   const historySays = (text) => page.waitForFunction((t) => document.getElementById("history")?.textContent?.includes(t), text, { timeout: 60000 });
   const form = page.frameLocator(".frame-annotation");
@@ -124,7 +125,7 @@ export async function playAnnotations(page, shot) {
   await page.waitForFunction((w) => document.querySelector("#timebar .time-label")?.textContent?.includes(w), when);
   await page.waitForFunction(() => document.querySelector("#timeline .tl-row.tl-current") !== null);
   assert.equal(await page.locator("#timeline .tl-row.tl-current").getAttribute("data-id"), await target.getAttribute("data-id"));
-  await page.locator("#panel-timeline").scrollIntoViewIfNeeded();
+  await showPanel(page, "timeline");
   await page.mouse.move(2, 2);
   await shot("annot-04-timeline");
 

@@ -6,6 +6,22 @@ import { cpSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { demoPage } from "../play/demo.mjs";
 import path from "node:path";
 
+/** A stylesheet's top-level rules, less those only for Dockview's own themes (.dockview-theme-*). */
+function withoutThemes(css) {
+  const rules = [];
+  let depth = 0;
+  let start = 0;
+  for (let i = 0; i < css.length; i++) {
+    if (css[i] === "{") depth++;
+    else if (css[i] === "}" && --depth === 0) {
+      rules.push(css.slice(start, i + 1));
+      start = i + 1;
+    }
+  }
+  const themed = (rule) => rule.trim().split("{")[0].split(",").every((selector) => /^\s*\.dockview-theme-/.test(selector));
+  return rules.filter((rule) => !themed(rule)).join("") + "\n";
+}
+
 const out = path.resolve(process.argv[2] ?? "dist/play");
 mkdirSync(out, { recursive: true });
 const common = { bundle: true, minify: true, sourcemap: false, logLevel: "warning", target: "es2022" };
@@ -35,9 +51,12 @@ await build({
   format: "esm",
   external: ["https://*"],
 });
-for (const file of ["index.html", "geodesic.html", "frame-map.html", "frame-form.html", "frame-annotation.html", "frame-results.html", "theme.css", "host.css", "play.py"]) {
+for (const file of ["index.html", "geodesic.html", "frame-map.html", "frame-form.html", "frame-annotation.html", "frame-results.html", "theme.css", "host.css", "dock.css", "play.py"]) {
   cpSync(path.join("play", file), path.join(out, file));
 }
+// Dockview's own styles (dockview-core, pinned in package.json), served from here like everything else,
+// without its own themes: the page has one of its own, from the theme's variables (play/dock.css).
+writeFileSync(path.join(out, "dockview.css"), withoutThemes(readFileSync("node_modules/dockview-core/dist/styles/dockview.css", "utf8")));
 cpSync("webview/timecontrol.css", path.join(out, "timecontrol.css"));
 cpSync("webview/tote.css", path.join(out, "tote.css"));
 cpSync("webview/timeline.css", path.join(out, "timeline.css"));

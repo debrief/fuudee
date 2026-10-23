@@ -13,7 +13,7 @@
           "text": "Serial 1 of the sample exercise, 15 Jun 2023 from 08:00Z to 12:00Z: BLUE ONE gains RED ONE, a submarine, among merchant traffic east of Chesapeake Bay. You work on a copy, titled *Serial 1: Open and explore a serial*, so the sample itself never changes.",
           "keys": "`Tab` to the button and press `Enter`.",
           "vscode": { "where": "The copy goes into a catalogue of its own, *Walkthrough: Open and explore a serial*, in Catalogues.", "button": "Open a copy of serial 1", "command": "debrief.walkthrough.open", "args": ["explore"] },
-          "play": { "where": "The copy is added to the plots under *Plot*.", "button": "Open a copy of serial 1", "action": "open:explore" },
+          "play": { "where": "The copy is added to the plots under *Plot*, in the top bar.", "button": "Open a copy of serial 1", "action": "open:explore" },
           "media": "explore-open.svg",
           "alt": "The map of serial 1: BLUE ONE in blue and RED ONE in red among grey merchant tracks."
         },
@@ -24,7 +24,7 @@
           "text": "Drag **Current time** in the time controller. Each track's position at that time is marked on the map with a square in its colour. **▶** plays; at 60× a minute of the exercise passes each second. The two handles of **Time window** narrow what is drawn in full.",
           "keys": "`Tab` to **Current time**; `←` and `→` step it, `Page Up` and `Page Down` step further, `Home` and `End` go to the window's ends. `Space` plays and pauses.",
           "vscode": { "where": "The time controller is **Time**, at the top of the Debrief sidebar.", "button": "Show the time controller", "command": "debrief.time.focus" },
-          "play": { "where": "The time controller is **Time**, at the top of the side column.", "button": "Show the time controller", "action": "focus:panel-time" },
+          "play": { "where": "The time controller is **Time**, first of the panels on the left (on a narrow screen, of the side column).", "button": "Show the time controller", "action": "focus:panel-time" },
           "media": "explore-time.svg",
           "alt": "The time controller under the map, with each track's position at current time marked by a square."
         },
@@ -35,7 +35,7 @@
           "text": "Click **BLUE ONE** in the Outline, then Ctrl-click **RED ONE** to add it. The map outlines what is selected, and the tools offered change with the selection: with two tracks, **Closest approach** is on offer.",
           "keys": "Move through the Outline and select from the keyboard; adding to the selection takes `Ctrl` too.",
           "vscode": { "where": "**Outline** is in the Debrief sidebar.", "keys": "`↑` and `↓` move through the Outline; `Enter` selects, `Ctrl+Shift+Enter` adds to the selection (`Cmd+Shift+Enter` on macOS).", "button": "Show the Outline", "command": "debrief.outline.focus" },
-          "play": { "where": "**Outline** is in the side column, under *Plot*.", "keys": "`Tab` moves through the Outline; `Enter` selects, `Ctrl+Enter` adds to the selection.", "button": "Show the Outline", "action": "focus:outline" },
+          "play": { "where": "**Outline** is on the left, below the Tote.", "keys": "`Tab` moves through the Outline; `Enter` selects, `Ctrl+Enter` adds to the selection.", "button": "Show the Outline", "action": "focus:outline" },
           "media": "explore-select.svg",
           "alt": "BLUE ONE and RED ONE selected on the map, the other tracks dimmed."
         },
@@ -57,7 +57,7 @@
           "text": "The Timeline lists BLUE ONE's, RED ONE's and exercise control's logs in one time order. Choose an entry: current time moves to it, and the entry is shown beside its track on the map. While playing, the list follows current time.",
           "keys": "`↑` and `↓` move through the list; `Enter` chooses an entry; `/` searches.",
           "vscode": { "where": "**Timeline** is in the Debrief sidebar.", "button": "Show the Timeline", "command": "debrief.timeline.focus" },
-          "play": { "where": "**Timeline** is in the side column.", "button": "Show the Timeline", "action": "focus:panel-timeline" },
+          "play": { "where": "**Timeline** is under the map (on a narrow screen, in the side column).", "button": "Show the Timeline", "action": "focus:panel-timeline" },
           "media": "explore-timeline.svg",
           "alt": "The Timeline's entries in time order, the one at current time marked, and its text beside RED ONE on the map."
         }
@@ -75,7 +75,7 @@
           "text": "A fresh copy of serial 1, titled *Serial 1: Import and collate*, with BLUE ONE's navigation log ready to import beside it: a fix every 10 s for part of the serial, as new data would arrive after an exercise. The sample itself never changes.",
           "keys": "`Tab` to the button and press `Enter`.",
           "vscode": { "where": "The copy goes into a catalogue of its own, *Walkthrough: Import and collate*.", "button": "Open a copy of serial 1", "command": "debrief.walkthrough.open", "args": ["collate"] },
-          "play": { "where": "The copy is added to the plots under *Plot*.", "button": "Open a copy of serial 1", "action": "open:collate" },
+          "play": { "where": "The copy is added to the plots under *Plot*, in the top bar.", "button": "Open a copy of serial 1", "action": "open:collate" },
           "media": "collate-open.svg",
           "alt": "The map of serial 1, BLUE ONE's track highlighted."
         },
@@ -97,7 +97,7 @@
           "text": "In the catalogue, the log is marked **✦ New data**: imported after the plot, sharing a platform with it and with data in its period. **Coverage** shows each of the plot's tracks with a bar for every source of its data, the periods each covers filled in.",
           "keys": "`Tab` moves through Coverage's tracks, bars and lists.",
           "vscode": { "where": "**Coverage** is below Catalogues; it starts folded.", "button": "Show Coverage", "command": "debrief.showCoverage" },
-          "play": { "where": "**Catalogue** and **Coverage** are in the side column.", "button": "Show Coverage", "action": "focus:panel-coverage" },
+          "play": { "where": "**Catalogue** is a tab beside the Outline, **Coverage** a tab beside the Timeline (on a narrow screen, both are in the side column).", "button": "Show Coverage", "action": "focus:panel-coverage" },
           "media": "collate-coverage.svg",
           "alt": "Coverage: BLUE ONE with two bars, the plot's own data and the navigation log's, overlapping for part of the serial."
         },
@@ -137,7 +137,7 @@
           "text": "A fresh copy of serial 1, titled *Serial 1: Tidy a track*. Three of RED ONE's fixes have been moved miles off its track, as GPS glitches would put them; the step that did it is in History, so it is never mistaken for real data. The sample itself never changes.",
           "keys": "`Tab` to the button and press `Enter`.",
           "vscode": { "where": "The copy goes into a catalogue of its own, *Walkthrough: Tidy a track*.", "button": "Open a copy of serial 1", "command": "debrief.walkthrough.open", "args": ["tidy"] },
-          "play": { "where": "The copy is added to the plots under *Plot*.", "button": "Open a copy of serial 1", "action": "open:tidy" },
+          "play": { "where": "The copy is added to the plots under *Plot*, in the top bar.", "button": "Open a copy of serial 1", "action": "open:tidy" },
           "media": "tidy-open.svg",
           "alt": "RED ONE's track with three spikes where its glitched fixes are."
         },
@@ -199,7 +199,7 @@
           "text": "A fresh copy of serial 1, titled *Serial 1: Annotate and export a figure*. The sample itself never changes.",
           "keys": "`Tab` to the button and press `Enter`.",
           "vscode": { "where": "The copy goes into a catalogue of its own, *Walkthrough: Annotate and export a figure*.", "button": "Open a copy of serial 1", "command": "debrief.walkthrough.open", "args": ["annotate"] },
-          "play": { "where": "The copy is added to the plots under *Plot*.", "button": "Open a copy of serial 1", "action": "open:annotate" },
+          "play": { "where": "The copy is added to the plots under *Plot*, in the top bar.", "button": "Open a copy of serial 1", "action": "open:annotate" },
           "media": "annotate-open.svg",
           "alt": "The map of serial 1, ready to annotate."
         },
@@ -232,7 +232,7 @@
           "text": "Export the map as a PNG, as a 1600 × 900 slide. It is the map as you see it, labels where the map put them. The image carries an ID naming this plot and the exact step it shows: in its metadata, and in a small footer, such as `DBF-PTET-KG8R-B9EM-69`, for when Word or PowerPoint drops the metadata. Exporting is never a step.",
           "keys": "Each choice is a list or a box to tick: `↓`, `Space`, `Enter`.",
           "vscode": { "where": "**Export image…** is the camera on the map's title bar.", "button": "Export image", "command": "debrief.exportImage" },
-          "play": { "where": "**Export image** is in the side column; your browser saves the file.", "button": "Show Export image", "action": "focus:panel-export" },
+          "play": { "where": "**Export** is in the top bar; your browser saves the file.", "button": "Show Export image", "action": "focus:panel-export" },
           "media": "annotate-export.svg",
           "alt": "The exported image: the map with the image's ID in its least busy corner."
         },
@@ -243,7 +243,7 @@
           "text": "Change the plot, then find the image's source: type the ID from its corner (or choose the image file). Debrief opens the plot as it was when the image was exported, read-only, at the view and time exported. **Go to latest** returns to the plot as it is now.",
           "keys": "Type the ID and press `Enter`; on the map, `Tab` to **Go to latest** and press `Enter`.",
           "vscode": { "where": "**Find source of image…** is on Catalogues' title bar menu.", "button": "Find source of image", "command": "debrief.findImageSource" },
-          "play": { "where": "Under **Find source of image**, in the *Export image* panel.", "button": "Type the ID", "action": "focus:find-id" },
+          "play": { "where": "Under **Find source of image**, in the top bar's *Export* menu.", "button": "Type the ID", "action": "focus:find-id" },
           "media": "annotate-trace.svg",
           "alt": "The image's ID leading back to the plot, shown read-only at the step it was exported."
         }

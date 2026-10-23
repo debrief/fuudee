@@ -5,6 +5,12 @@ const frame = (scroller) => scroller.evaluate(() => new Promise((resolve) => req
 
 /** The Timeline's row holding text, scrolled into the list's view; on is the page or a demo's frame. */
 export async function timelineRow(on, text, kind) {
+  // Docked, the Timeline's tab to the front first, as a reader would (dock.ts).
+  const tab = on.locator('.dv-tab[data-panel="panel-timeline"]');
+  if ((await tab.count()) && (await tab.getAttribute("aria-selected")) !== "true") {
+    await tab.click();
+    await on.locator("#timeline .tl-scroll").waitFor({ state: "visible" });
+  }
   const scroller = on.locator("#timeline .tl-scroll");
   const rows = on.locator("#timeline .tl-row[data-id]", { hasText: text });
   const found = () => (kind ? rows.and(on.locator(`#timeline .tl-row[data-kind="${kind}"]`)) : rows).first();

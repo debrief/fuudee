@@ -22,6 +22,7 @@ Worked patterns applied the same way across hosts, tools and agents (DEV-08). Ea
 | [Collation](collation.md) | Phase 3 | Written (coverage, platforms across items, source preference per period, new data, taking it, review flags) |
 | [Exported images](export.md) | Phase 3 | Written (the map as an image with an ID naming the plot and the revision, the footer, the export log; finding an image's source, read-only) |
 | [Walkthroughs](walkthroughs.md) | Phase 3 | Written (four walkthroughs on fresh copies of the sample, each step ticked by doing it; the same words in VS Code's Get Started page and the playground; the web demo) |
-| [Keyboard equivalents](keyboard-equivalents.md) | Phase 3 | Partly written (annotations, tracks, the Tote, the Timeline, collation, exported images) |
+| [Browser layout](browser-layout.md) | Phase 3 | Written (the playground's and the web demo's panels docked in tab groups around the map, from 900 px; the top bar; remembered per browser; the side column narrower) |
+| [Keyboard equivalents](keyboard-equivalents.md) | Phase 3 | Partly written (annotations, tracks, the Tote, the Timeline, collation, exported images, the browser's layout) |
 
 Analysts review the Phase 1 models before they are built.

@@ -8,6 +8,7 @@
 // plot's island, never a step; and the latency while playing, reported.
 import { timelineRow } from "./timelinerows.mjs";
 import assert from "node:assert/strict";
+import { resizeTo, showPanel } from "./dock.mjs";
 
 const BUDGET_MS = 100;
 
@@ -46,7 +47,7 @@ export async function playTote(page, shot) {
   await page.keyboard.press("Home");
   await page.waitForTimeout(500);
 
-  // A panel of its own that folds away, open at first; nothing chosen yet, and it says how.
+  // A panel of its own (docked, a tab; narrow, folding away), open at first; nothing chosen yet, and it says how.
   const fold = panel.locator("h2 button.fold");
   assert.equal(await fold.getAttribute("aria-expanded"), "true");
   assert.equal(await page.locator("#body-tote").isVisible(), true);
@@ -193,7 +194,7 @@ export async function playTote(page, shot) {
   // On a phone (390 px): one column, the page never scrolls sideways; the names break onto two
   // lines, so five tracks usually fit. Whether they do depends on the fonts, so where they don't,
   // they scroll inside the table under row headings that stay put.
-  await page.setViewportSize({ width: 390, height: 844 });
+  await resizeTo(page, 390, 844);
   await page.waitForTimeout(300);
   assert.ok(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth), "the page does not scroll sideways");
   const phone = await scroll.evaluate((s) => [s.scrollWidth, s.clientWidth]);
@@ -205,7 +206,7 @@ export async function playTote(page, shot) {
   await page.locator("#panel-time").evaluate((p) => p.scrollIntoView({ block: "start" }));
   await shot("tote-phone");
   await page.evaluate(() => scrollTo(0, 0));
-  await page.setViewportSize({ width: 1400, height: 820 });
+  await resizeTo(page, 1400, 820);
   await page.waitForTimeout(300);
 
   // Tug 01's last fix is at 10:35:17: current time at the window's end, it says it has ended.
@@ -242,6 +243,7 @@ export async function playTote(page, shot) {
   // BLUE ONE at 0.53 nmi; the Timeline's note of it moves current time there.
   await tote(".tote-primary").selectOption({ label: "BLUE ONE" });
   await tote(".tote-add").selectOption({ label: "Towing 01" });
+  await showPanel(page, "timeline");
   await (await timelineRow(page, "Towing 01 passed clear")).click();
   await page.waitForFunction(() => /^\d+ yd$/.test(document.querySelector('#tote td[data-measure="range"]:not(.tote-col-primary)')?.textContent ?? ""), null, { timeout: 30000 });
   const close = Number((await (await cell("Towing 01", "range")).innerText()).replace(" yd", ""));
@@ -259,8 +261,10 @@ export async function playTote(page, shot) {
   assert.equal(await primaryName(), "RED ONE");
   assert.equal(await column("RED ONE").getAttribute("title"), "RED ONE, the primary");
   assert.deepEqual(await secondaries(), ["Cargo 04"]);
-  // The panel folds away by its heading's button, which the keyboard reaches: Enter toggles it.
-  // Folded, the Tote asks for nothing; opened again, it is up to date.
+  // Narrower than 900 px, in the side column, the panel folds away by its heading's button, which
+  // the keyboard reaches: Enter toggles it. Folded, the Tote asks for nothing; opened again, it is
+  // up to date. (Docked, tabs replace folding: product owner, 23 Oct 2026.)
+  await resizeTo(page, 700, 820);
   await fold.focus();
   await page.keyboard.press("Enter");
   assert.equal(await fold.getAttribute("aria-expanded"), "false");
@@ -269,6 +273,7 @@ export async function playTote(page, shot) {
   assert.equal(await fold.getAttribute("aria-expanded"), "true");
   await column("Cargo 04").waitFor();
   await playFolding(page);
+  await resizeTo(page, 1400, 820);
   // Nothing chosen again, so what follows starts with the side column as it was.
   await removeButton("Cargo 04").click();
   await tote(".tote-primary").selectOption({ value: "" });
@@ -300,12 +305,13 @@ export async function stickyHeadings(scroll, where) {
   await scroll.evaluate((s) => (s.scrollLeft = 0));
 }
 
-const PANELS = { time: "Time", tote: "Tote", plot: "Plot", outline: "Outline", timeline: "Timeline", tools: "Tools", history: "History", try: "Try", import: "Import your own" };
+const PANELS = { time: "Time", tote: "Tote", outline: "Outline", timeline: "Timeline", catalogue: "Catalogue", coverage: "Coverage", tools: "Tools", history: "History" };
 
 /**
- * Every side panel folds away as the Tote does (decision, 14 Oct 2026): each heading is still a
- * heading a screen reader lists, holding a button that says whether its panel is open. Which are
- * folded is remembered in this browser; where storage is refused, they fold all the same.
+ * Narrower than 900 px, every panel of the side column folds away as the Tote does (decision,
+ * 14 Oct 2026; docked, tabs replace folding, 23 Oct 2026): each heading is still a heading a screen
+ * reader lists, holding a button that says whether its panel is open. Which are folded is
+ * remembered in this browser; where storage is refused, they fold all the same.
  */
 // The stylesheet writes headings in capitals, which a browser may pass on to a screen reader.
 const named = (name) => new RegExp(`^${name}$`, "i");
@@ -327,13 +333,12 @@ export async function playFolding(page) {
   // History's Undo and Redo stay beside its heading, folded or not.
   assert.equal(await page.locator("#undo").isVisible(), true);
   await page.locator("#side").evaluate((s) => (s.scrollTop = 0));
-  // The walkthroughs too: play.mjs folds them first (onboarding.mjs plays them).
-  assert.deepEqual(await folded(), [...Object.keys(PANELS), "tour"].map((id) => `panel-${id}`).sort());
+  assert.deepEqual(await folded(), Object.keys(PANELS).map((id) => `panel-${id}`).sort());
 
   // Remembered: the playground opened again in this browser has them folded.
   // (A second window on the same storage: the browser's state carried over.)
   const browser = page.context().browser();
-  const later = await browser.newContext({ storageState: await page.context().storageState(), viewport: { width: 1400, height: 820 } });
+  const later = await browser.newContext({ storageState: await page.context().storageState(), viewport: { width: 700, height: 820 } });
   const again = await later.newPage();
   await again.goto(page.url());
   await again.locator("#panel-outline.folded").waitFor();
@@ -341,7 +346,7 @@ export async function playFolding(page) {
   await later.close();
 
   // A browser that refuses storage: every panel starts open and still folds.
-  const refusing = await browser.newPage({ viewport: { width: 1400, height: 820 } });
+  const refusing = await browser.newPage({ viewport: { width: 700, height: 820 } });
   const errors = [];
   refusing.on("pageerror", (e) => errors.push(String(e)));
   await refusing.addInitScript(() => Object.defineProperty(window, "localStorage", { get: () => { throw new DOMException("refused", "SecurityError"); } }));
@@ -359,7 +364,7 @@ export async function playFolding(page) {
     await side.getByRole("heading", { level: 2, name: named(name) }).getByRole("button").focus();
     await page.keyboard.press("Enter");
   }
-  assert.deepEqual(await folded(), ["panel-tour"]); // the walkthroughs stay folded, as play.mjs left them
+  assert.deepEqual(await folded(), []);
   for (const id of Object.keys(PANELS)) assert.equal(await page.locator(`#body-${id}`).evaluate((body) => body.hidden), false, `panel-${id} open`);
 }
 
