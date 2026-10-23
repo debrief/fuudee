@@ -2179,33 +2179,62 @@ function makeDock(fresh: boolean): Dock {
  * list in it back at its top: a browser forgets an element's scroll when it moves. So each scroll
  * is kept, inside the panels (the Timeline's list, the Outline's) and of each docked panel itself,
  * and given back once moved (panel review, 23 Oct 2026).
+ *
+ * Given back as each list gets its size, not at a set frame (CI, 23 Oct 2026): docked, a panel's
+ * content has no height until Dockview places it, a frame or more later on a slow machine, and a
+ * scroll given to a list with nothing to scroll is lost. So a list that has not got its scroll back
+ * is given it again each time it is resized, until every list has its own, or the reader scrolls,
+ * clicks or types, or the layout moves again. A list that something else has placed meanwhile (the
+ * Timeline keeps the entry at its top) is left where that put it.
  */
 const panelScroll = new Map<string, number>();
+/** Stops giving scrolls back from the last move. */
+let stopKeeping: (() => void) | undefined;
+/** How long, at most, to keep giving a scroll back after a move. */
+const KEEP_SCROLL_FOR = 5000;
 function keepingScroll(move: () => void): void {
-  const kept: [Element, number, number][] = [];
+  stopKeeping?.();
+  const kept: { el: Element; top: number; left: number; given?: [number, number] }[] = [];
   for (const id of Object.keys(PANEL_TITLES)) {
     const section = $(id);
-    for (const el of [section, ...Array.from(section.querySelectorAll("*"))]) if (el.scrollTop || el.scrollLeft) kept.push([el, el.scrollTop, el.scrollLeft]);
+    for (const el of [section, ...Array.from(section.querySelectorAll("*"))]) if (el.scrollTop || el.scrollLeft) kept.push({ el, top: el.scrollTop, left: el.scrollLeft });
     const content = dock?.contentOf(id);
     if (content) panelScroll.set(id, content.scrollTop);
   }
   move();
-  // At once, before a list that keeps its own place (the Timeline: the entry at its top) lays itself
-  // out for its new width; and a frame later only where a scroll was lost again (a docked panel's
-  // content, placed by Dockview then), never undoing what such a list did meanwhile.
-  const give = (lostOnly: boolean) => {
-    for (const [el, top, left] of kept) {
-      if (lostOnly && (el.scrollTop || el.scrollLeft)) continue;
-      el.scrollTop = top;
-      el.scrollLeft = left;
+  for (const [id, top] of panelScroll) {
+    const content = dock?.contentOf(id);
+    if (content && top) kept.push({ el: content, top, left: content.scrollLeft });
+  }
+  /** Gives each list its scroll, if it has not got it yet; true when every list has. */
+  const give = (): boolean => {
+    for (const k of kept.slice()) {
+      const { el, top, left, given } = k;
+      const has = el.scrollTop === top && el.scrollLeft === left;
+      const placedElsewhere = given !== undefined && (el.scrollTop || el.scrollLeft) && (el.scrollTop !== given[0] || el.scrollLeft !== given[1]);
+      if (!has && !placedElsewhere) {
+        el.scrollTop = top;
+        el.scrollLeft = left;
+        k.given = [el.scrollTop, el.scrollLeft];
+      }
+      if ((el.scrollTop === top && el.scrollLeft === left) || placedElsewhere) kept.splice(kept.indexOf(k), 1);
     }
-    for (const [id, top] of panelScroll) {
-      const content = dock?.contentOf(id);
-      if (content && (!lostOnly || !content.scrollTop)) content.scrollTop = top;
-    }
+    return !kept.length;
   };
-  give(false);
-  requestAnimationFrame(() => give(true));
+  // At once, before a list that keeps its own place lays itself out for its new width.
+  if (give()) return;
+  const resized = new ResizeObserver(() => void (give() && stop()));
+  for (const { el } of kept) resized.observe(el);
+  const readerActs = ["wheel", "pointerdown", "keydown", "touchstart"];
+  const stop = () => {
+    resized.disconnect();
+    for (const type of readerActs) removeEventListener(type, stop, true);
+    clearTimeout(timer);
+    if (stopKeeping === stop) stopKeeping = undefined;
+  };
+  for (const type of readerActs) addEventListener(type, stop, { capture: true, passive: true });
+  const timer = setTimeout(stop, KEEP_SCROLL_FOR);
+  stopKeeping = stop;
 }
 /** The panels back in the side column, and the layout gone. */
 function unDock(): void {

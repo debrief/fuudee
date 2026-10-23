@@ -325,8 +325,26 @@ export async function playDock(browser, base, shot, ready, errors) {
   assert.ok(scrolled.timeline !== "top" && scrolled.outline === 8, `scrolled: ${JSON.stringify(scrolled)}`);
   await resizeTo(page, 700, 768);
   assert.deepEqual(await scrolls(), scrolled, "narrow, the lists where they were");
+  // As on a slow machine (CI, 23 Oct 2026): Dockview places a panel's content some frames after the
+  // layout is made, so a list has nothing to scroll for a while; its scroll still comes back.
+  await page.evaluate(() => {
+    const frame = window.requestAnimationFrame.bind(window);
+    window.requestAnimationFrame = (callback) => {
+      if (!String(callback).includes("pendingUpdates")) return frame(callback);
+      window.slowed = (window.slowed ?? 0) + 1;
+      let frames = 8;
+      const later = (time) => (--frames ? frame(later) : callback(time));
+      return frame(later);
+    };
+    window.slowDock = () => (window.requestAnimationFrame = frame);
+  });
   await resizeTo(page, 1366, 768);
-  assert.deepEqual(await scrolls(), scrolled, "docked again, the lists where they were");
+  assert.ok(await page.evaluate(() => (window.slowDock(), window.slowed)), "Dockview's placing was slowed");
+  // Polled: given back as each list gets its size, however late that is.
+  const want = JSON.stringify(scrolled);
+  let back;
+  for (let i = 0; i < 50 && JSON.stringify((back = await scrolls())) !== want; i++) await frames(page);
+  assert.deepEqual(back, scrolled, "docked again, the lists where they were");
 
   // The keyboard kept across 900 px (panel review, 23 Oct 2026): a tab becomes its fold button and back;
   // a menu of the top bar closes, back to its button.
