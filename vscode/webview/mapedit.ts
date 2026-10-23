@@ -684,6 +684,13 @@ export class MapEditor {
     this.statusHint.setAttribute("aria-live", this.saying === "selection" ? "off" : "polite");
     this.statusBox.classList.toggle("selection-note", this.saying === "selection");
     this.statusHint.textContent = text;
+    // One line at a time, never a block over the map (product owner, 23 Oct 2026): how to draw until
+    // the first point, its whole text in the note's tooltip; then the readout, how to draw still
+    // said to screen readers (map.css, .starting and .placing); the keys' line under it while the map has the keyboard.
+    this.statusBox.title = text;
+    this.statusBox.classList.toggle("placing", !!this.drawing?.points.length);
+    // Before the first point, how to draw, not yet the readout of where the pointer is.
+    this.statusBox.classList.toggle("starting", !!this.drawing && !this.drawing.points.length);
     if (readoutText !== undefined) this.statusReadout.textContent = readoutText;
     else if (!this.drawing) this.statusReadout.textContent = "";
     this.statusBox.hidden = !text && !this.statusReadout.textContent;

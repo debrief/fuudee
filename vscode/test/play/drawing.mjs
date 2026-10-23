@@ -262,11 +262,10 @@ export async function playDrawing(page, shot) {
   assert.ok(Math.abs(panned - 80) < 3, `the map panned 80 px for the arrow key, not ${panned}`);
 
   // Escape cancels a drawing part-way; Backspace removes the last point.
-  // Clear of labels and of the note at the top: the docked map is narrower than the page.
   await tool("Line").click();
-  await click(0.12, 0.15);
-  await click(0.17, 0.22);
-  await click(0.22, 0.15);
+  await click(0.4, 0.2);
+  await click(0.5, 0.25);
+  await click(0.6, 0.2);
   await status.getByText(/^3 positions placed/).waitFor();
   await page.keyboard.press("Backspace");
   await status.getByText(/^2 positions placed/).waitFor();

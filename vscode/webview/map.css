@@ -64,8 +64,13 @@ body { background: var(--vscode-editor-background); color: var(--vscode-foregrou
 .draw-toolbar .draw-button:focus-visible { outline: 1px solid var(--vscode-focusBorder); outline-offset: -1px; }
 #map.drawing-mode, #map.drawing-mode .leaflet-interactive { cursor: crosshair; }
 #map.drawing-mode { outline: 2px solid var(--vscode-focusBorder); outline-offset: -2px; }
-.drawing-status { position: absolute; left: 50%; transform: translateX(-50%); top: 8px; z-index: 1000; max-width: min(640px, calc(100% - 200px)); padding: 4px 8px; background: var(--vscode-editorWidget-background); color: var(--vscode-editorWidget-foreground); border: 1px solid var(--vscode-focusBorder); font-size: 12px; line-height: 1.4; }
+.drawing-status { position: absolute; left: 50%; transform: translateX(-50%); top: 8px; z-index: 1000; max-width: min(640px, calc(100% - 140px)); padding: 3px 8px; background: var(--vscode-editorWidget-background); color: var(--vscode-editorWidget-foreground); border: 1px solid var(--vscode-focusBorder); font-size: 12px; line-height: 1.4; }
 .drawing-status[hidden] { display: none; }
+/* One line each: how to draw, the readout, the keys; the note never covers the top of the map
+   (product owner, 23 Oct 2026). Once a point is placed, how to draw is said to screen readers only. */
+.drawing-status > div { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.drawing-status.starting > .drawing-readout { display: none; }
+.drawing-status.placing > [role="status"] { position: absolute; width: 1px; height: 1px; margin: -1px; overflow: hidden; clip: rect(0 0 0 0); }
 .drawing-readout { font-family: var(--vscode-editor-font-family); }
 .drawing-readout:empty { display: none; }
 .drawing-keys { display: none; color: var(--vscode-descriptionForeground); }

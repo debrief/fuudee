@@ -44,8 +44,10 @@ import { TimeControl } from "../webview/timecontrol.js";
 import { ToteControl } from "../webview/totecontrol.js";
 import { latencySummary, sameTote, toteOf, ToteRequests, toteTracks, withoutSecondary, withPrimary, withSecondaries } from "../webview/totelogic.js";
 import { PressHold } from "../webview/presshold.js";
-import { browserStorage, Folds } from "./fold.js";
-import { Dock, MAP_ID } from "./dock.js";
+import { Folds } from "./fold.js";
+import { Dock, MAP_ID, type LayoutStorage } from "./dock.js";
+import { PANEL_TITLES, SIDE_FIRST } from "./panels.mjs";
+import { openMenu } from "./menu.js";
 import { formatBearing, formatPosition, parsePosition } from "@debrief/kernel";
 import { defaultPivotIndex, describeDistance, describeSpeed, describeTurn, FIX_PROMPT, FIX_PROMPT_DR, fixIndexAt, fixMeans, fixToEdit, jumpSpeed, legNow, mergedName, mergePlan, periodIndices, readBearing, readDistance, readSpeed, readTurn, reckoningOf } from "../webview/trackedit.js";
 import { chooseModes, MODE_LABELS, modeChoices, modeQuestion, REMEMBER_LABEL, REMEMBERED_IN_PLAYGROUND, type PlottingMode } from "../src/importmode.js";
@@ -1606,59 +1608,26 @@ function renderOutline(): void {
 }
 
 // --- The outline's menu for a track (the Tote, CAP-06) ----------------------------------
-let menu: HTMLElement | undefined;
-let menuReturn: HTMLElement | undefined;
-function closeMenu(focus = true): void {
-  const was = menu;
-  menu = undefined;
-  was?.remove();
-  if (was && focus) menuReturn?.focus();
-}
-/** What can be done to a track from the outline: put it in the Tote, as the primary or a secondary, or take it out. */
+/** What can be done to a track from the outline: put it in the Tote, as the primary or a secondary, or take it out (menu.ts). */
 function trackMenu(id: string, x: number, y: number, from: HTMLElement): void {
-  closeMenu(false);
-  menuReturn = from;
   const tote = toteChoice();
   const items: [string, () => ToteView][] = [];
   if (tote.primary !== id) items.push(["Set as Tote primary", () => withPrimary(toteChoice(), id)]);
   if (tote.primary === id || tote.secondaries?.includes(id)) {
     items.push(["Remove from Tote", () => (toteChoice().primary === id ? withPrimary(toteChoice(), undefined) : withoutSecondary(toteChoice(), id))]);
   } else items.push(["Add to Tote", () => withSecondaries(toteChoice(), [id])]);
-  const element = document.createElement("div");
-  element.className = "context-menu";
-  element.setAttribute("role", "menu");
-  element.setAttribute("aria-label", `${features().find((f) => f.id === id)?.properties.name ?? id}: Tote`);
-  const buttons = items.map(([label, change]) => {
-    const button = Object.assign(document.createElement("button"), { textContent: label });
-    button.setAttribute("role", "menuitem");
-    button.tabIndex = -1;
-    button.onclick = () => {
-      closeMenu();
-      showPanel(totePanel.id);
-      void chooseTote(change());
-    };
-    return button;
-  });
-  element.append(...buttons);
-  element.onkeydown = (e) => {
-    const at = buttons.indexOf(document.activeElement as HTMLButtonElement);
-    if (e.key === "Escape" || e.key === "Tab") {
-      e.preventDefault();
-      closeMenu();
-    } else if (e.key === "ArrowDown" || e.key === "ArrowUp") {
-      e.preventDefault();
-      buttons[(at + (e.key === "ArrowDown" ? 1 : buttons.length - 1)) % buttons.length].focus();
-    }
-  };
-  document.body.append(element);
-  // Within the window, however near its edge the track was.
-  const box = element.getBoundingClientRect();
-  element.style.left = `${Math.max(0, Math.min(x, innerWidth - box.width - 4))}px`;
-  element.style.top = `${Math.max(0, Math.min(y, innerHeight - box.height - 4))}px`;
-  menu = element;
-  buttons[0].focus();
+  openMenu(
+    items.map(([label, change]) => ({
+      label,
+      act: () => {
+        from.focus();
+        showPanel(totePanel.id);
+        void chooseTote(change());
+      },
+    })),
+    { label: `${features().find((f) => f.id === id)?.properties.name ?? id}: Tote`, x, y, from },
+  );
 }
-document.addEventListener("pointerdown", (e) => void (menu && !menu.contains(e.target as Node) && closeMenu(false)), true);
 // Press and hold a track in the outline on a touch screen: its menu, as a right-click (presshold.ts).
 const outlineHold = new PressHold((x, y) =>
   document.elementFromPoint(x, y)?.closest("#outline li")?.dispatchEvent(new MouseEvent("contextmenu", { bubbles: true, cancelable: true, clientX: x, clientY: y })),
@@ -2119,7 +2088,6 @@ $("open-import").hidden = !panels.has("import");
 $("catalogue-import").hidden = !panels.has("import");
 // The side column (the narrow layout): the walkthroughs, time controller, Tote and Outline first,
 // then the panels in the order the demo lists them.
-const SIDE_FIRST = ["panel-tour", "panel-time", "panel-tote", "panel-outline"];
 const SIDE_ORDER = [...SIDE_FIRST, ...panelOrder.map((p) => `panel-${p}`).filter((id) => !SIDE_FIRST.includes(id) && optional(id)?.matches("#side > section.panel"))];
 for (const id of SIDE_ORDER) $("side").append($(id));
 /** History, Try and Import need Python: off until it is ready. */
@@ -2131,39 +2099,44 @@ needsPython(false);
 
 // --- The layout (product owner, 23 Oct 2026) ---------------------------------------
 // 900 px wide and more (and 480 high), the panels are docked around the map in tab groups,
-// "A, task-grouped": Time, Tote, and Outline with Catalogue on the left; Timeline with Coverage
-// under the map; Walkthroughs with Tools and History on the right, the walkthroughs in front (they
-// are where a newcomer starts). The reader drags tabs to rearrange them, or moves them from a
-// tab's menu; the layout is remembered in this browser, except in a blog's demo (dock.ts).
-// Narrower, and on phones, where docking is impractical by touch, the panels are the one side
+// "A, task-grouped" (panels.mjs): Time, Tote, Outline with Catalogue, and Tools with History on the
+// left; Timeline with Coverage under the map; the walkthroughs alone on the right, where a newcomer
+// starts and a step's words are never hidden behind another tab. The reader drags tabs to rearrange
+// them, or moves them from a tab's menu (the way by touch, too); the layout is remembered in this
+// browser, except in a blog's demo (dock.ts). Narrower, and on phones, the panels are the one side
 // column as before, each folding by its heading (engineering decision, 23 Oct 2026).
 // The map and the form beside it (in <main>) never move in the page, docked or not: moving a frame
 // reloads it. Docked, <main> is laid over the map's empty place in the layout.
 const DOCKED = matchMedia("(min-width: 900px) and (min-height: 480px)");
-const PANEL_TITLES: Record<string, string> = {
-  "panel-tour": "Walkthroughs",
-  "panel-time": "Time",
-  "panel-tote": "Tote",
-  "panel-outline": "Outline",
-  "panel-catalogue": "Catalogue",
-  "panel-timeline": "Timeline",
-  "panel-coverage": "Coverage",
-  "panel-tools": "Tools",
-  "panel-history": "History",
-};
 const mapSlot = document.createElement("div");
 mapSlot.className = "map-slot";
-/** Docked: <main> over the map's place; and the notes over the map, not over the right-hand panels. */
+/** The browser's local storage, or none where reading it throws. */
+const layoutStorage = (): LayoutStorage | undefined => {
+  try {
+    return window.localStorage;
+  } catch {
+    return undefined;
+  }
+};
+/**
+ * Below this width the map's place is too narrow for a tool's form beside the map: the form goes
+ * under it, as in the narrow layout (panel review, 23 Oct 2026). The form beside the map is 34% of
+ * the place, 260 to 380 px; 640 px keeps the map at least 380 px wide beside it.
+ */
+const FORM_BESIDE_FROM = 640;
+/** Docked: <main> over the map's place; the form beside the map or under it, by the place's width; the notes over the map. */
 function placeMain(): void {
   const main = $("main");
   if (!dock) {
     main.removeAttribute("style");
+    main.classList.remove("form-under");
     document.body.style.removeProperty("--map-right");
     return;
   }
   const slot = mapSlot.getBoundingClientRect();
   const app = $("app").getBoundingClientRect();
   Object.assign(main.style, { left: `${slot.left - app.left}px`, top: `${slot.top - app.top}px`, width: `${slot.width}px`, height: `${slot.height}px` });
+  main.classList.toggle("form-under", slot.width < FORM_BESIDE_FROM);
   document.body.style.setProperty("--map-right", `${Math.max(0, innerWidth - slot.right)}px`);
 }
 let placing = false;
@@ -2179,6 +2152,8 @@ const placeSoon = () => {
     }),
   );
 };
+/** The top bar's controls the keyboard reaches, in order: before the layout's first group and after its last. */
+const topBarControls = () => Array.from(document.querySelectorAll<HTMLElement>("#topbar select, #topbar button")).filter((el) => !el.hidden && !(el as HTMLButtonElement).disabled && el.offsetParent !== null);
 /** The docked layout: as remembered, or fresh (the default, remembered from now on). */
 function makeDock(fresh: boolean): Dock {
   const sections = new Map(Object.keys(PANEL_TITLES).filter((id) => !$(id).hidden).map((id) => [id, $(id)] as const));
@@ -2187,14 +2162,50 @@ function makeDock(fresh: boolean): Dock {
     sections,
     titles: PANEL_TITLES,
     slot: mapSlot,
+    overSlot: $("main"),
+    before: () => topBarControls().at(-1),
+    after: () => topBarControls()[0],
     remember: !params.has("panels"),
     fresh,
-    storage: browserStorage,
+    storage: layoutStorage,
     shown: (id, shown) => sections.get(id)?.dispatchEvent(new CustomEvent("fold", { detail: { open: shown } })),
     changed: placeSoon,
     dragging: (on) => document.body.classList.toggle("dock-dragging", on),
     reset: resetLayout,
   });
+}
+/**
+ * Moving a panel between the layout and the side column (narrow and back, Reset) would put every
+ * list in it back at its top: a browser forgets an element's scroll when it moves. So each scroll
+ * is kept, inside the panels (the Timeline's list, the Outline's) and of each docked panel itself,
+ * and given back once moved (panel review, 23 Oct 2026).
+ */
+const panelScroll = new Map<string, number>();
+function keepingScroll(move: () => void): void {
+  const kept: [Element, number, number][] = [];
+  for (const id of Object.keys(PANEL_TITLES)) {
+    const section = $(id);
+    for (const el of [section, ...Array.from(section.querySelectorAll("*"))]) if (el.scrollTop || el.scrollLeft) kept.push([el, el.scrollTop, el.scrollLeft]);
+    const content = dock?.contentOf(id);
+    if (content) panelScroll.set(id, content.scrollTop);
+  }
+  move();
+  // At once, before a list that keeps its own place (the Timeline: the entry at its top) lays itself
+  // out for its new width; and a frame later only where a scroll was lost again (a docked panel's
+  // content, placed by Dockview then), never undoing what such a list did meanwhile.
+  const give = (lostOnly: boolean) => {
+    for (const [el, top, left] of kept) {
+      if (lostOnly && (el.scrollTop || el.scrollLeft)) continue;
+      el.scrollTop = top;
+      el.scrollLeft = left;
+    }
+    for (const [id, top] of panelScroll) {
+      const content = dock?.contentOf(id);
+      if (content && (!lostOnly || !content.scrollTop)) content.scrollTop = top;
+    }
+  };
+  give(false);
+  requestAnimationFrame(() => give(true));
 }
 /** The panels back in the side column, and the layout gone. */
 function unDock(): void {
@@ -2206,32 +2217,58 @@ function unDock(): void {
 function resetLayout(): void {
   if (!dock) return;
   const focused = document.activeElement;
-  unDock();
-  dock = makeDock(true);
+  keepingScroll(() => {
+    unDock();
+    dock = makeDock(true);
+  });
   placeSoon();
   refreshTote();
-  if (!(focused instanceof HTMLElement && focused.isConnected)) dock.focusTab("panel-time");
+  if (!(focused instanceof HTMLElement && focused.isConnected)) dock?.focusTab("panel-time");
 }
-/** Docked or not, as the window is now; the keyboard stays where it was. */
+/**
+ * Where the keyboard goes when the layout changes under it (panel review, 23 Oct 2026): a panel's
+ * tab becomes its heading's fold button going narrow, and the fold button its tab going docked;
+ * what was inside a panel stays where it was; a menu of the top bar closes, back to its button.
+ */
+function focusAfterLayout(focused: HTMLElement | undefined): void {
+  if (!focused) return;
+  const panelId = focused.dataset.panel ?? (focused.matches("button.fold") ? focused.closest("section.panel")?.id : undefined);
+  if (focused.matches(".dv-tab") && panelId) {
+    if (dock) dock.focusTab(panelId);
+    else optional(panelId)?.querySelector<HTMLElement>("button.fold")?.focus({ preventScroll: true });
+    return;
+  }
+  if (focused.matches("button.fold") && panelId && dock) return dock.focusTab(panelId);
+  if (focused.isConnected && document.activeElement !== focused) focused.focus({ preventScroll: true });
+}
+/** Docked or not, as the window is now; the keyboard stays where it was, or on its equivalent. */
 function setLayout(): void {
   const docked = DOCKED.matches;
   if (docked === !!dock) return;
   const focused = document.activeElement instanceof HTMLElement && document.activeElement !== document.body ? document.activeElement : undefined;
-  closeMenuPanel(false);
-  if (docked) {
-    document.body.classList.add("docked");
-    $("dock").hidden = false;
-    folds.suspend(true);
-    dock = makeDock(false);
-  } else {
-    unDock();
-    $("dock").hidden = true;
-    document.body.classList.remove("docked", "dock-dragging");
-    folds.suspend(false);
+  if (menuShown) {
+    closeMenuPanel(!!focused && menuShown.panel.contains(focused));
+    return finishLayout(docked, undefined);
   }
+  finishLayout(docked, focused);
+}
+function finishLayout(docked: boolean, focused: HTMLElement | undefined): void {
+  keepingScroll(() => {
+    if (docked) {
+      document.body.classList.add("docked");
+      $("dock").hidden = false;
+      folds.suspend(true);
+      dock = makeDock(false);
+    } else {
+      unDock();
+      $("dock").hidden = true;
+      document.body.classList.remove("docked", "dock-dragging");
+      folds.suspend(false);
+    }
+  });
   $("reset-layout").hidden = !dock;
   placeMain();
-  if (focused?.isConnected && document.activeElement !== focused) focused.focus({ preventScroll: true });
+  focusAfterLayout(focused);
   // What shows only in view (the Tote's values, Coverage's step) as the panels now are.
   refreshTote();
   coverageSeen();
@@ -2301,9 +2338,19 @@ document.addEventListener(
 addEventListener("blur", () => setTimeout(() => document.activeElement instanceof HTMLIFrameElement && closeMenuPanel(false)));
 // A file chosen to import: the menu has done its part.
 for (const id of ["file", "narrative-file"]) $(id).addEventListener("change", () => closeMenuPanel(false));
-addEventListener("resize", () => {
-  if (menuShown) closeMenuPanel(false);
-});
+// The window resized (the menu's place moved with its button) or, narrow, the page scrolled (the menu
+// stays where it was put, its button scrolls away): the menu closes, the keyboard back on its
+// button if it was in the menu. Tabbing out of a menu closes it too.
+const closeIfMoved = () => menuShown && closeMenuPanel(menuShown.panel.contains(document.activeElement));
+addEventListener("resize", closeIfMoved);
+addEventListener("scroll", () => !dock && closeIfMoved(), { passive: true });
+for (const panel of Array.from(document.querySelectorAll<HTMLElement>(".menu-panel"))) {
+  panel.addEventListener("keydown", (e) => {
+    if (e.key !== "Tab") return;
+    // Once the keyboard has gone where Tab takes it: out of the menu (to the page or past it), the menu closes.
+    setTimeout(() => menuShown?.panel === panel && !panel.contains(document.activeElement) && closeMenuPanel(false));
+  });
+}
 
 $("undo").onclick = () => void move("undo");
 $("redo").onclick = () => void move("redo");

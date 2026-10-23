@@ -353,9 +353,8 @@ async function drawArea(page, act = async (x) => x) {
   await act(mapFrame.getByRole("toolbar", { name: "Draw an annotation" }).getByRole("button", { name: "Area", exact: true }).click());
   const box = await page.locator(".frame-map").boundingBox();
   const at = (fx, fy) => [box.x + box.width * fx, box.y + box.height * fy];
-  // Below the drawing note across the map's top, which on the docked layout's map reaches this far.
-  for (const [fx, fy] of [[0.72, 0.24], [0.84, 0.24], [0.84, 0.34]]) await act(page.mouse.click(...at(fx, fy)));
-  await act(page.mouse.dblclick(...at(0.72, 0.34)));
+  for (const [fx, fy] of [[0.72, 0.1], [0.84, 0.1], [0.84, 0.2]]) await act(page.mouse.click(...at(fx, fy)));
+  await act(page.mouse.dblclick(...at(0.72, 0.2)));
   const form = page.frameLocator(".frame-annotation");
   await act(form.locator("#field-name input").fill("Search area"));
   await act(form.getByRole("button", { name: "Add" }).click());
@@ -367,24 +366,17 @@ export async function playTours(page, shot, root) {
   const side = page.locator("#side-frame");
   const serial1 = await stepsOf(page, "serial-1");
 
-  // The walkthroughs start open, here as everywhere (product owner, 22 Oct 2026). Docked, they
-  // are a tab in the right-hand group, in front from the start (product owner, 23 Oct 2026). This
-  // reader rearranged the panels at the start of play.mjs, remembered in this browser: Reset
-  // layout puts them back. Another tab brought to the front and back again, by the keyboard,
-  // leaves the map as it was.
+  // The walkthroughs start open, here as everywhere (product owner, 22 Oct 2026). Docked, they are
+  // alone on the right (product owner, 23 Oct 2026, second round): no other tab can hide a step's
+  // words. This reader rearranged the panels at the start of play.mjs, remembered in this browser:
+  // Reset layout puts them back. From their tab, the keyboard goes into the walkthroughs.
   await page.locator("#reset-layout").click();
   await openTours(page);
   await rightColumn(page);
-  const wideMap = await mapWidth(page);
+  assert.deepEqual((await layoutOf(page)).groups.find((g) => g.panels.includes("panel-tour"))?.panels, ["panel-tour"], "alone in their group");
   await page.locator('.dv-tab[data-panel="panel-tour"]').focus();
-  await page.keyboard.press("ArrowRight");
-  await page.keyboard.press("Enter");
-  assert.equal(await page.locator('.dv-tab[data-panel="panel-tour"]').getAttribute("aria-selected"), "false");
-  await page.keyboard.press("ArrowLeft");
-  await page.keyboard.press("Space");
-  await rightColumn(page);
-  assert.equal(await page.evaluate(() => document.activeElement?.dataset?.panel), "panel-tour", "the keyboard stays on its tab");
-  assert.ok(Math.abs((await mapWidth(page)) - wideMap) <= 1, "the map as it was");
+  await page.keyboard.press("Tab");
+  assert.equal(await page.evaluate(() => document.activeElement?.closest("section.panel")?.id), "panel-tour", "Tab from their tab goes into the walkthroughs");
   assert.equal(await stepRow(page, 0).locator(".tour-head").getAttribute("aria-expanded"), "true");
   await stepRow(page, 0).locator(".tour-media svg").waitFor({ timeout: 15000 }); // the same picture as VS Code's
   assert.equal(await stepRow(page, 0).locator(".tour-media").getAttribute("role"), "img");
@@ -409,9 +401,9 @@ export async function playTours(page, shot, root) {
   // The step's words stay in sight while another panel is scrolled to its end, and while the step
   // is done there: its button puts the keyboard on the time controller's tab, never scrolling the
   // walkthroughs, nor the page.
-  const outlinePanel = page.locator(".dock-panel", { has: page.locator("#panel-outline") });
-  await outlinePanel.evaluate((s) => (s.scrollTop = s.scrollHeight));
-  assert.ok((await outlinePanel.evaluate((s) => s.scrollTop)) > 100, "the Outline scrolled down");
+  const outlineList = page.locator("#outline");
+  await outlineList.evaluate((s) => (s.scrollTop = s.scrollHeight));
+  assert.ok((await outlineList.evaluate((s) => s.scrollTop)) > 40, "the Outline's list scrolled down");
   const stepWords = stepRow(page, 1).locator(".tour-body p").first();
   assert.ok(await inSight(stepWords), "the step's words in sight, the Outline scrolled to its end");
   assert.ok(await inSight(go(page, 1)), "and its button");
@@ -670,17 +662,24 @@ export async function speedRun(page, root) {
   const go = (index) => stepRow(page, index).locator(".tour-body > button");
 
   await openTours(page);
+  // A file chosen as a reader does: Import… in the top bar, then the file box, then the file in the
+  // browser's chooser; each a counted action (panel review, 23 Oct 2026).
+  const chooseFile = async (file) => {
+    await act(page.locator("#open-import").click());
+    const [chooser] = await Promise.all([page.waitForEvent("filechooser"), page.locator("#file").click()]);
+    await act(chooser.setFiles(file));
+  };
   // 1. Import a REP file (serial 2's RED ONE, over the ground) and a legacy .dpf plot (product owner, 17 Oct 2026).
   let t = Date.now();
   let c = actions;
-  await act(page.locator("#file").setInputFiles(path.join(root, "sample", "serial-2", "sources", "red-one.rep")));
+  await chooseFile(path.join(root, "sample", "serial-2", "sources", "red-one.rep"));
   await dialog.waitFor({ timeout: 60000 });
   await act(dialog.getByRole("button", { name: "Import" }).click());
   await page.locator(".omitted-panel h2", { hasText: "red-one.rep: imported 1 track" }).waitFor({ timeout: 60000 });
   await act(page.locator(".side-bar button", { hasText: "Close" }).click());
   const dpf = path.resolve("../python/debrief-io/tests/data/shapes.dpf");
   assert.ok(existsSync(dpf), "the legacy plot the speed run imports");
-  await act(page.locator("#file").setInputFiles(dpf));
+  await chooseFile(dpf);
   await page.locator(".omitted-panel h2", { hasText: "shapes.dpf: imported" }).waitFor({ timeout: 60000 });
   await act(page.locator(".side-bar button", { hasText: "Close" }).click());
   lap("Import (REP and .dpf)", t, c);
@@ -787,7 +786,7 @@ export async function playDemo(browser, siteUrl, shot) {
   // The reader moves Coverage beside the walkthroughs, by its tab's menu: a layout to remember.
   await page.locator('.dv-tab[data-panel="panel-coverage"]').focus();
   await page.keyboard.press("Shift+F10");
-  await page.getByRole("menuitem", { name: "Move to right: Walkthroughs, Tools, History" }).click();
+  await page.getByRole("menuitem", { name: "Move to right: Walkthroughs" }).click();
   await page.waitForFunction(() => window.debriefLayout().groups.some((g) => g.panels.includes("panel-tour") && g.panels.includes("panel-coverage")));
   assert.equal(await page.locator("#plots").inputValue(), "serial-1");
   assert.deepEqual(await page.locator("#plots option").allInnerTexts(), ["Serial 1", "Serial 2", "Serial 3"]);

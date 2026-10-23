@@ -4,9 +4,9 @@
  * (dockview-core, plain TypeScript, MIT; pinned and bundled into host.js, never from a CDN).
  * VS Code is unaffected: it has its own sidebar and panels.
  *
- * The default is "A, task-grouped": Time, Tote, and Outline with Catalogue down the left; the map
- * in the middle with Timeline and Coverage under it; Walkthroughs, Tools and History on the right,
- * the walkthroughs in front. The layout is remembered in this browser (its shape only, never
+ * The default is "A, task-grouped" (panels.mjs): Time, Tote, Outline with Catalogue, and Tools with
+ * History down the left; the map in the middle with Timeline and Coverage under it; the
+ * walkthroughs alone on the right. The layout is remembered in this browser (its shape only, never
  * anything from a plot), unless the page is a blog's demo, which always starts from a layout made
  * from the panels it lists.
  *
@@ -17,66 +17,106 @@
  * controls, its scroll and what it shows stay as they were.
  */
 import { createDockview, type DockviewApi, type DockviewGroupPanel, type IContentRenderer, type IDockviewPanel, type SerializedDockview } from "dockview-core";
+import { DEFAULT_GROUPS, type Place } from "./panels.mjs";
+import { closeMenu, openMenu } from "./menu.js";
+
+export type { Place };
 
 /** Where the layout is remembered, per browser. */
 export const LAYOUT_KEY = "debrief.play.layout";
-/** Raised whenever the panels or the layout's meaning change: an older layout is then not used. */
-export const LAYOUT_VERSION = 1;
+/**
+ * Raised whenever the panels or the layout's meaning change: an older layout is then not used.
+ * 2: the second round's default (product owner, 23 Oct 2026): walkthroughs alone on the right.
+ */
+export const LAYOUT_VERSION = 2;
 /** The map's place in the layout: an empty slot the map is laid over. */
 export const MAP_ID = "map";
 
 /** The parts of browser storage this needs. */
-export type LayoutStorage = Pick<Storage, "getItem" | "setItem">;
+export type LayoutStorage = Pick<Storage, "getItem" | "setItem" | "removeItem">;
 
-/** The default layout, group by group: where it goes, and its panels as tabs, the first in front. */
-export type Place = "left" | "centre" | "right";
-export const DEFAULT_GROUPS: { place: Place; panels: string[] }[] = [
-  { place: "left", panels: ["panel-time"] },
-  { place: "left", panels: ["panel-tote"] },
-  { place: "left", panels: ["panel-outline", "panel-catalogue"] },
-  { place: "centre", panels: ["panel-timeline", "panel-coverage"] },
-  { place: "right", panels: ["panel-tour", "panel-tools", "panel-history"] },
-];
+/** The height Time needs for the sample, its tab included: no scroll inside it. */
+const TIME_HEIGHT = 172;
 
 /**
  * The default's sizes for a dock of this size, in pixels. The side columns take about a fifth of
- * the width each, so at 1366 px the map keeps more than half; the Timeline and Coverage under the
- * map take 30% of its height. Time and Tote are as tall as the sample needs (no scroll inside them
- * at 768 px high), Outline and Catalogue the rest.
+ * the width each; the Timeline and Coverage under the map 22% of its height (product owner, 23 Oct
+ * 2026, second round), so the map keeps more. On the left, Time as tall as it needs, the Tote a
+ * quarter of the height and at least what the sample needs at 1280 px, and of the rest, the
+ * Outline's group two thirds (its list and its track tools) and Tools with History one third.
  */
-export function defaultSizes(width: number, height: number): { left: number; right: number; time: number; tote: number; strip: number } {
+export function defaultSizes(width: number, height: number): { left: number; right: number; time: number; tote: number; outline: number; strip: number } {
   const clamp = (value: number, low: number, high: number) => Math.round(Math.max(low, Math.min(high, value)));
+  const time = TIME_HEIGHT;
+  const tote = clamp(height * 0.25, 188, 230);
   return {
     left: clamp(width * 0.21, 250, 360),
     right: clamp(width * 0.21, 270, 380),
-    time: clamp(height * 0.24, 150, 190),
-    tote: clamp(height * 0.27, 150, 230),
-    strip: clamp(height * 0.3, 140, 420),
+    time,
+    tote,
+    outline: clamp((height - time - tote) * 0.66, 120, 600),
+    strip: clamp(height * 0.22, 110, 380),
   };
 }
 
-/** The panel ids a serialised layout holds, or undefined if it is not one. */
-function panelIdsOf(layout: unknown): string[] | undefined {
-  if (!layout || typeof layout !== "object") return undefined;
-  const { grid, panels } = layout as { grid?: unknown; panels?: unknown };
-  if (!grid || typeof grid !== "object" || !panels || typeof panels !== "object" || Array.isArray(panels)) return undefined;
-  return Object.keys(panels);
+/** The most a size may be: larger is not a screen. */
+const MOST = 20_000;
+const sizeOk = (value: unknown) => value === undefined || (typeof value === "number" && Number.isFinite(value) && value >= 1 && value <= MOST);
+
+/**
+ * Why a remembered layout cannot be used, or undefined if it can: this version's, holding exactly
+ * the panels this page has and the map, each in one group once, the map alone in its own, with sizes
+ * a screen could have, nothing floating or popped out, and every panel rendered always.
+ */
+export function layoutProblem(layout: unknown, panels: readonly string[]): string | undefined {
+  if (!layout || typeof layout !== "object") return "not a layout";
+  const { grid, panels: states, floatingGroups, popoutGroups } = layout as { grid?: { root?: unknown; width?: unknown; height?: unknown }; panels?: unknown; floatingGroups?: unknown[]; popoutGroups?: unknown[] };
+  if (!grid || typeof grid !== "object" || !grid.root) return "no grid";
+  if (!sizeOk(grid.width) || !sizeOk(grid.height) || grid.width === undefined || grid.height === undefined) return "the grid's size";
+  if (!states || typeof states !== "object" || Array.isArray(states)) return "no panels";
+  if (floatingGroups?.length || popoutGroups?.length) return "a floating or popped-out group";
+  const expected = new Set([MAP_ID, ...panels]);
+  const ids = Object.keys(states);
+  if (ids.length !== expected.size || !ids.every((id) => expected.has(id))) return "its panels are not this page's";
+  for (const [id, state] of Object.entries(states as Record<string, { id?: unknown; contentComponent?: unknown; renderer?: unknown }>)) {
+    if (!state || typeof state !== "object" || state.id !== id) return `panel ${id}`;
+    if (state.contentComponent !== undefined && state.contentComponent !== id) return `panel ${id}'s component`;
+    if (state.renderer !== undefined && state.renderer !== "always") return `panel ${id} is not rendered always`;
+  }
+  // The grid: every view in one group once; the map alone in its group.
+  const seen: string[] = [];
+  let problem: string | undefined;
+  const walk = (node: unknown, depth: number): void => {
+    if (problem) return;
+    if (!node || typeof node !== "object" || depth > 50) return void (problem = "the grid's shape");
+    const { type, data, size } = node as { type?: unknown; data?: unknown; size?: unknown };
+    if (!sizeOk(size)) return void (problem = "a size");
+    if (type === "branch") {
+      if (!Array.isArray(data) || !data.length) return void (problem = "an empty branch");
+      for (const child of data) walk(child, depth + 1);
+    } else if (type === "leaf") {
+      const views = (data as { views?: unknown } | undefined)?.views;
+      if (!Array.isArray(views) || !views.length || !views.every((v) => typeof v === "string")) return void (problem = "a group without panels");
+      if (views.includes(MAP_ID) && views.length > 1) return void (problem = "the map shares a group");
+      seen.push(...views);
+    } else problem = "the grid's shape";
+  };
+  walk(grid.root, 0);
+  if (problem) return problem;
+  if (seen.length !== expected.size || new Set(seen).size !== seen.length || !seen.every((id) => expected.has(id))) return "the grid's panels";
+  return undefined;
 }
 
 /**
- * A remembered layout, if it can be used: this version's, holding exactly the panels this page
- * has (and the map). Anything else, unreadable, from an older version or with a panel missing or
- * unknown, is not used: the default is (product owner, 23 Oct 2026).
+ * A remembered layout, if it can be used (layoutProblem). Anything else, unreadable, from another
+ * version, incomplete or absurd, is not used: the default is (product owner, 23 Oct 2026).
  */
 export function readLayout(text: string | null | undefined, panels: readonly string[]): SerializedDockview | undefined {
   if (!text) return undefined;
   try {
     const saved = JSON.parse(text) as { version?: unknown; layout?: unknown };
     if (!saved || saved.version !== LAYOUT_VERSION) return undefined;
-    const ids = panelIdsOf(saved.layout);
-    const expected = new Set([MAP_ID, ...panels]);
-    if (!ids || ids.length !== expected.size || !ids.every((id) => expected.has(id))) return undefined;
-    return saved.layout as SerializedDockview;
+    return layoutProblem(saved.layout, panels) ? undefined : (saved.layout as SerializedDockview);
   } catch {
     return undefined;
   }
@@ -91,6 +131,17 @@ export function placeOf(group: { left: number; width: number }, dock: { left: nu
   return middle < 1 / 3 ? "left" : middle > 2 / 3 ? "right" : "centre";
 }
 
+const PLACE_ORDER: Record<Place, number> = { left: 0, centre: 1, right: 2 };
+const FOCUSABLE = 'button, input, select, textarea, a[href], iframe, [tabindex]:not([tabindex="-1"])';
+/** What the keyboard can reach in an element, in its order: shown, and not switched off. */
+function focusables(root: HTMLElement): HTMLElement[] {
+  return Array.from(root.querySelectorAll<HTMLElement>(FOCUSABLE)).filter((el) => {
+    if ((el as HTMLButtonElement).disabled || el.closest("[hidden], [inert]")) return false;
+    const check = (el as HTMLElement & { checkVisibility?: (o?: object) => boolean }).checkVisibility;
+    return check ? check.call(el, { checkVisibilityCSS: true }) : el.offsetParent !== null;
+  });
+}
+
 export interface DockOptions {
   /** The element the layout fills. */
   container: HTMLElement;
@@ -100,6 +151,11 @@ export interface DockOptions {
   titles: Record<string, string>;
   /** The map's empty place, which the map is laid over. */
   slot: HTMLElement;
+  /** What is laid over the slot (<main>: the map and the form beside it), for the keyboard's order. */
+  overSlot: HTMLElement;
+  /** Where the keyboard goes before the first group and after the last: the top bar. */
+  before: () => HTMLElement | undefined;
+  after: () => HTMLElement | undefined;
   /** Remember the layout in this browser: not in a blog's demo. */
   remember: boolean;
   storage: () => LayoutStorage | undefined;
@@ -123,8 +179,6 @@ export class Dock {
   readonly api: DockviewApi;
   private readonly ids: string[];
   private saving: number | undefined;
-  private menu: HTMLElement | undefined;
-  private menuReturn: HTMLElement | undefined;
   private readonly observer: ResizeObserver;
   private readonly cleanups: (() => void)[] = [];
   private disposed = false;
@@ -144,8 +198,7 @@ export class Dock {
       createComponent: ({ id }) => this.content(id),
       createRightHeaderActionComponent: (group) => this.groupMenuButton(group),
     });
-    const layout = options.remember && !options.fresh ? readLayout(this.read(), this.ids) : undefined;
-    if (!layout || !this.load(layout)) this.buildDefault();
+    this.build();
     this.decorate();
     if (options.fresh) this.save(true);
     this.api.onDidLayoutChange(() => {
@@ -162,47 +215,50 @@ export class Dock {
     // A panel taken out by any means (none is offered) is put back, so none is ever lost.
     this.api.onDidRemovePanel((panel) => queueMicrotask(() => this.restore(panel.id)));
     const ended = () => options.dragging(false);
-    for (const type of ["dragend", "drop", "pointerup", "pointercancel"]) {
-      window.addEventListener(type, ended, true);
-      this.cleanups.push(() => window.removeEventListener(type, ended, true));
-    }
+    for (const type of ["dragend", "drop", "pointerup", "pointercancel"]) this.listen(window, type, ended, true);
     // Delete and Backspace close a tab in Dockview: here every panel stays, so they do nothing.
     // Shift+F10 and the context-menu key open the tab's menu, as a right-click does.
-    const keys = (event: KeyboardEvent) => {
-      const tab = (event.target as HTMLElement | null)?.closest<HTMLElement>(".dv-tab");
-      if (!tab) return;
-      if (event.key === "Delete" || event.key === "Backspace") {
+    this.listen(
+      container,
+      "keydown",
+      (event: KeyboardEvent) => {
+        const tab = (event.target as HTMLElement | null)?.closest<HTMLElement>(".dv-tab");
+        if (!tab) return;
+        if (event.key === "Delete" || event.key === "Backspace") {
+          event.preventDefault();
+          event.stopImmediatePropagation();
+        } else if ((event.key === "F10" && event.shiftKey) || event.key === "ContextMenu") {
+          event.preventDefault();
+          event.stopImmediatePropagation();
+          const box = tab.getBoundingClientRect();
+          if (tab.dataset.panel) this.openMenu(tab.dataset.panel, box.left, box.bottom, tab);
+        }
+      },
+      true,
+    );
+    this.listen(
+      container,
+      "contextmenu",
+      (event: MouseEvent) => {
+        const tab = (event.target as HTMLElement | null)?.closest<HTMLElement>(".dv-tab");
+        if (!tab?.dataset.panel) return;
         event.preventDefault();
         event.stopImmediatePropagation();
-      } else if ((event.key === "F10" && event.shiftKey) || event.key === "ContextMenu") {
-        event.preventDefault();
-        event.stopImmediatePropagation();
-        const id = tab.dataset.panel;
-        const box = tab.getBoundingClientRect();
-        if (id) this.openMenu(id, box.left, box.bottom, tab);
-      }
-    };
-    const contextMenu = (event: MouseEvent) => {
-      const tab = (event.target as HTMLElement | null)?.closest<HTMLElement>(".dv-tab");
-      if (!tab?.dataset.panel) return;
-      event.preventDefault();
-      event.stopImmediatePropagation();
-      this.openMenu(tab.dataset.panel, event.clientX, event.clientY, tab);
-    };
-    container.addEventListener("keydown", keys, true);
-    container.addEventListener("contextmenu", contextMenu, true);
-    // The container outlives this layout (narrow and back, Reset): its listeners go with it.
-    this.cleanups.push(() => container.removeEventListener("keydown", keys, true));
-    this.cleanups.push(() => container.removeEventListener("contextmenu", contextMenu, true));
-    const outside = (event: Event) => void (this.menu && !this.menu.contains(event.target as Node) && this.closeMenu(false));
-    document.addEventListener("pointerdown", outside, true);
-    this.cleanups.push(() => document.removeEventListener("pointerdown", outside, true));
-    // A click in a frame (the map) reaches no listener here: the page losing focus to it closes the menu.
-    const blurred = () => setTimeout(() => document.activeElement instanceof HTMLIFrameElement && this.closeMenu(false));
-    window.addEventListener("blur", blurred);
-    this.cleanups.push(() => window.removeEventListener("blur", blurred));
+        this.openMenu(tab.dataset.panel, event.clientX, event.clientY, tab);
+      },
+      true,
+    );
+    // The keyboard's order: each group's tab, then what its panel holds, group by group from the
+    // left column down, the map (and the form beside it), under it, then the right (keyboardOrder).
+    this.listen(document, "keydown", (event: KeyboardEvent) => this.keyboardOrder(event), true);
     this.observer = new ResizeObserver(() => options.changed());
     this.observer.observe(options.slot);
+  }
+
+  /** A listener that goes with this layout: the container and the page outlive it (narrow and back, Reset). */
+  private listen<E extends Event>(target: EventTarget, type: string, handler: (event: E) => void, capture = false): void {
+    target.addEventListener(type, handler as EventListener, capture);
+    this.cleanups.push(() => target.removeEventListener(type, handler as EventListener, capture));
   }
 
   /** Whether a panel is in view: its tab in front. */
@@ -224,13 +280,18 @@ export class Dock {
     });
   }
 
+  /** Each group's panel content element, by panel id: for the host, which keeps their scroll. */
+  contentOf(id: string): HTMLElement | undefined {
+    return this.options.sections.get(id)?.parentElement ?? undefined;
+  }
+
   /**
    * The default layout again, remembered as the layout from now on. The host disposes of this
    * layout and makes a fresh one: Dockview, cleared and built again in place, can leave a panel
    * drawn where it was.
    */
   reset(): void {
-    this.closeMenu(false);
+    closeMenu(false);
     this.options.reset();
   }
 
@@ -266,9 +327,14 @@ export class Dock {
     queueMicrotask(() => this.tabOf(id)?.focus());
   }
 
+  /** A panel's tab, if it has one shown. */
+  tabOf(id: string): HTMLElement | undefined {
+    return this.api.getPanel(id)?.view.tab.element.closest<HTMLElement>(".dv-tab") ?? undefined;
+  }
+
   dispose(): void {
     this.disposed = true;
-    this.closeMenu(false);
+    closeMenu(false);
     // A change not yet written is written now: going narrow and back keeps it.
     if (this.saving !== undefined) this.save(true);
     this.observer.disconnect();
@@ -279,10 +345,31 @@ export class Dock {
 
   // --- Building ----------------------------------------------------------------------
 
+  /**
+   * The remembered layout, or the default. A remembered layout that cannot be built, whatever is
+   * wrong with it, is forgotten and the default built instead: the page always comes up.
+   */
+  private build(): void {
+    const text = this.options.remember && !this.options.fresh ? this.read() : null;
+    const layout = readLayout(text, this.ids);
+    if (text && !layout) this.forget(); // not this version's, or not whole: never tried again
+    if (layout) {
+      try {
+        this.load(layout);
+        return;
+      } catch {
+        this.forget();
+      }
+    }
+    this.api.clear();
+    this.buildDefault();
+  }
+
   private content(id: string): IContentRenderer {
     const element = document.createElement("div");
     // "side": the panel keeps the side column's look, docked or not.
     element.className = id === MAP_ID ? "dock-panel dock-map" : "dock-panel side";
+    element.id = `dock-${id}`;
     let disposable: { dispose(): void } | undefined;
     return {
       element,
@@ -311,44 +398,42 @@ export class Dock {
     const sizes = defaultSizes(width || 1366, height || 700);
     const groups = DEFAULT_GROUPS.map((g) => ({ ...g, panels: g.panels.filter((id) => this.options.sections.has(id)) })).filter((g) => g.panels.length);
     // Under the map first, so the side columns run the full height beside both.
-    let firstLeft: IDockviewPanel | undefined;
-    let lastLeft: IDockviewPanel | undefined;
+    const lefts: IDockviewPanel[] = [];
     let right: IDockviewPanel | undefined;
     for (const group of groups) {
       const [first, ...rest] = group.panels;
       let lead: IDockviewPanel;
+      const lastLeft = lefts[lefts.length - 1];
       if (group.place === "centre") lead = this.add(first, { referencePanel: map, direction: "below" });
       else if (group.place === "left") lead = this.add(first, lastLeft ? { referencePanel: lastLeft, direction: "below" } : { direction: "left" });
       else lead = this.add(first, { direction: "right" });
       for (const id of rest) this.add(id, { referencePanel: lead, direction: "within" }, true);
       lead.api.setActive();
-      if (group.place === "left") {
-        firstLeft ??= lead;
-        lastLeft = lead;
-      } else if (group.place === "right") right = lead;
+      if (group.place === "left") lefts.push(lead);
+      else if (group.place === "right") right = lead;
       else lead.group.api.setSize({ height: sizes.strip });
     }
-    // Sizes: the columns' widths, then Time's and the Tote's heights (the last left group takes the rest).
-    firstLeft?.group.api.setSize({ width: sizes.left });
+    // Sizes: the columns' widths, then the left groups' heights from the top (the last takes the rest).
+    lefts[0]?.group.api.setSize({ width: sizes.left });
     right?.group.api.setSize({ width: sizes.right });
-    const time = this.api.getPanel("panel-time");
-    const tote = this.api.getPanel("panel-tote");
-    const leftGroups = groups.filter((g) => g.place === "left").length;
-    if (time && leftGroups > 1) time.group.api.setSize({ height: sizes.time });
-    if (tote && leftGroups > 2) tote.group.api.setSize({ height: sizes.tote });
+    const heights: Record<string, number> = { "panel-time": sizes.time, "panel-tote": sizes.tote, "panel-outline": sizes.outline };
+    // Twice: setting one group's height gives or takes from its neighbours, the ones set before too.
+    for (let pass = 0; pass < 2; pass++) {
+      for (const lead of lefts.slice(0, -1)) {
+        const height = heights[lead.id];
+        if (height) lead.group.api.setSize({ height });
+      }
+    }
     map.api.setActive();
   }
 
-  private load(layout: SerializedDockview): boolean {
-    try {
-      this.api.fromJSON(layout);
-      // Names as this version has them, whatever was remembered.
-      for (const panel of this.api.panels) panel.api.setTitle(this.options.titles[panel.id] ?? panel.id);
-      return this.ids.every((id) => this.api.getPanel(id)) && !!this.api.getPanel(MAP_ID);
-    } catch {
-      this.api.clear();
-      return false;
-    }
+  /** A remembered layout, checked (readLayout) and built: throws if it does not come out whole. */
+  private load(layout: SerializedDockview): void {
+    this.api.fromJSON(layout);
+    // Names as this version has them, whatever was remembered.
+    for (const panel of this.api.panels) panel.api.setTitle(this.options.titles[panel.id] ?? panel.id);
+    const map = this.api.getPanel(MAP_ID);
+    if (!map || map.group.panels.length !== 1 || !this.ids.every((id) => this.api.getPanel(id))) throw new Error("The remembered layout did not come out whole");
   }
 
   /** A panel that went (it should not) is put back, into the group of the first panel there is beside the map. */
@@ -366,6 +451,15 @@ export class Dock {
       return this.options.storage()?.getItem(LAYOUT_KEY) ?? null;
     } catch {
       return null;
+    }
+  }
+
+  /** A remembered layout that could not be built is forgotten, so the next visit starts well. */
+  private forget(): void {
+    try {
+      this.options.storage()?.removeItem(LAYOUT_KEY);
+    } catch {
+      // Nothing to forget where nothing can be remembered.
     }
   }
 
@@ -390,10 +484,6 @@ export class Dock {
 
   // --- Accessibility -----------------------------------------------------------------
 
-  private tabOf(id: string): HTMLElement | undefined {
-    return this.api.getPanel(id)?.view.tab.element.closest<HTMLElement>(".dv-tab") ?? undefined;
-  }
-
   private mapGroup(): DockviewGroupPanel | undefined {
     return this.groupById(this.api.getPanel(MAP_ID)?.group.id);
   }
@@ -403,23 +493,30 @@ export class Dock {
   }
 
   /**
-   * After every change: the map's group has no tabs and takes no panels as tabs (splitting
-   * beside it is allowed); each group is named for screen readers by where it is and what it
-   * holds; each tab says which panel it is, for its menu and the tests.
+   * After every change: the map's group has no tabs and takes no panels as tabs (splitting beside it
+   * is allowed). Screen readers get one tab list per group, named by where it is and what it holds,
+   * and one tab panel per panel, named by its tab. Rendered always, a panel's content is not inside
+   * its group's element, so the group is no region of its own, and Dockview's own, empty, tab panel
+   * is no tab panel.
    */
   private decorate(): void {
     const mapGroup = this.mapGroup();
     if (mapGroup) {
       if (!mapGroup.header.hidden) mapGroup.header.hidden = true;
       if (mapGroup.locked !== true) mapGroup.locked = true;
-      mapGroup.element.setAttribute("aria-label", "Map");
     }
     for (const group of this.groups()) {
       const element = this.groupById(group.id)?.element;
-      if (!element || group.panels.includes(MAP_ID)) continue;
-      const titles = group.panels.map((id) => this.options.titles[id] ?? id);
-      element.setAttribute("aria-label", `Panels, ${group.place}: ${titles.join(", ")}`);
+      if (!element) continue;
+      element.removeAttribute("role");
+      element.removeAttribute("aria-label");
       element.dataset.place = group.place;
+      const empty = element.querySelector<HTMLElement>(".dv-content-container");
+      empty?.removeAttribute("role");
+      empty?.removeAttribute("aria-labelledby");
+      if (group.panels.includes(MAP_ID)) continue;
+      const titles = group.panels.map((id) => this.options.titles[id] ?? id);
+      element.querySelector('[role="tablist"]')?.setAttribute("aria-label", `Panels, ${group.place}: ${titles.join(", ")}`);
       element.querySelector(".dock-menu-button")?.setAttribute("aria-label", `Move ${this.options.titles[group.active ?? ""] ?? "panel"}…`);
     }
     for (const panel of this.api.panels) {
@@ -427,12 +524,61 @@ export class Dock {
       if (!tab) continue;
       tab.dataset.panel = panel.id;
       tab.title = `${this.options.titles[panel.id] ?? panel.id}: drag to move; right-click, Shift+F10 or ⋯ for more`;
-      const content = this.options.sections.get(panel.id)?.parentElement;
+      const content = this.contentOf(panel.id);
       if (content) {
         content.setAttribute("role", "tabpanel");
         content.setAttribute("aria-labelledby", tab.id);
+        tab.setAttribute("aria-controls", content.id);
       }
     }
+  }
+
+  /**
+   * The keyboard's order through the layout (WCAG 2.4.3). Rendered always, every panel's content
+   * comes after every tab strip in the page, so Tab would go through all the tabs before any panel.
+   * Instead: a group's tab, then what its panel holds, then the next group's tab, from the left
+   * column down, the map (and the form beside it) and what is under it, then the right; before the
+   * first and after the last, the top bar. Inside a panel the page's own order holds. From inside
+   * the map's frame the browser's order holds: the frame is another page.
+   */
+  private keyboardOrder(event: KeyboardEvent): void {
+    if (event.key !== "Tab" || event.altKey || event.ctrlKey || event.metaKey || this.disposed) return;
+    const target = event.target as HTMLElement | null;
+    if (!target || target.closest(".context-menu, .menu-panel, dialog")) return;
+    const stops = this.stops();
+    const at = stops.findIndex((s) => s.tab === target || s.content.includes(target));
+    if (at < 0) return;
+    const stop = stops[at];
+    const go = (el: HTMLElement | undefined) => {
+      if (!el) return;
+      event.preventDefault();
+      event.stopPropagation();
+      el.focus();
+    };
+    const firstOf = (s: (typeof stops)[number] | undefined) => s?.tab ?? s?.content[0];
+    const lastOf = (s: (typeof stops)[number] | undefined) => (s ? (s.content[s.content.length - 1] ?? s.tab) : undefined);
+    if (!event.shiftKey) {
+      if (target === stop.tab) go(stop.content[0] ?? firstOf(stops[at + 1]) ?? this.options.after());
+      else if (target === stop.content[stop.content.length - 1]) go(firstOf(stops[at + 1]) ?? this.options.after());
+    } else {
+      if (target === stop.tab) go(lastOf(stops[at - 1]) ?? this.options.before());
+      else if (target === stop.content[0]) go(stop.tab ?? lastOf(stops[at - 1]) ?? this.options.before());
+    }
+  }
+
+  /** Each group in reading order (columns left to right, each top down): its tab in front, and what its panel holds. */
+  private stops(): { tab: HTMLElement | undefined; content: HTMLElement[] }[] {
+    const dock = this.options.container.getBoundingClientRect();
+    return this.api.groups
+      .map((group) => {
+        const box = group.element.getBoundingClientRect();
+        const active = group.activePanel?.id;
+        const isMap = active === MAP_ID;
+        const content = isMap ? this.options.overSlot : active ? this.contentOf(active) : undefined;
+        return { place: placeOf(box, dock), top: box.top, left: box.left, tab: !isMap && active ? this.tabOf(active) : undefined, content: content ? focusables(content) : [] };
+      })
+      .sort((a, b) => PLACE_ORDER[a.place] - PLACE_ORDER[b.place] || a.top - b.top || a.left - b.left)
+      .map(({ tab, content }) => ({ tab, content }));
   }
 
   // --- The menu: moving a panel without a pointer -------------------------------------
@@ -445,11 +591,9 @@ export class Dock {
     button.type = "button";
     button.className = "dock-menu-button";
     button.textContent = "⋯";
-    const label = () => `Move ${this.options.titles[group.activePanel?.id ?? ""] ?? "panel"}…`;
     button.setAttribute("aria-haspopup", "menu");
-    button.setAttribute("aria-label", label());
+    button.setAttribute("aria-label", "Move panel…");
     button.title = "Move this panel to another group, or reset the layout";
-    button.addEventListener("focus", () => button.setAttribute("aria-label", label()));
     button.addEventListener("pointerdown", (e) => e.stopPropagation()); // not the start of a drag
     button.addEventListener("click", () => {
       const id = group.activePanel?.id;
@@ -461,60 +605,17 @@ export class Dock {
     return { element, init: () => undefined, dispose: () => element.remove() };
   }
 
-  /** The menu for a panel: move it to each other group, or a group of its own; reset the layout. */
+  /** The menu for a panel: move it to each other group, or a group of its own; reset the layout (menu.ts). */
   openMenu(id: string, x: number, y: number, from: HTMLElement): void {
-    this.closeMenu(false);
     const panel = this.api.getPanel(id);
     if (!panel || id === MAP_ID) return;
-    this.menuReturn = from;
-    const title = this.options.titles[id] ?? id;
-    const items: [string, () => void][] = [];
+    const items: { label: string; act: () => void }[] = [];
     for (const group of this.groups()) {
       if (group.id === panel.group.id || group.panels.includes(MAP_ID)) continue;
-      items.push([`Move to ${group.place}: ${group.panels.map((p) => this.options.titles[p] ?? p).join(", ")}`, () => this.moveTo(id, group.id)]);
+      items.push({ label: `Move to ${group.place}: ${group.panels.map((p) => this.options.titles[p] ?? p).join(", ")}`, act: () => this.moveTo(id, group.id) });
     }
-    if (panel.group.panels.length > 1) items.push(["Move to a group of its own", () => this.moveTo(id, "own")]);
-    items.push(["Reset layout", () => this.reset()]);
-    const element = document.createElement("div");
-    element.className = "context-menu dock-menu";
-    element.setAttribute("role", "menu");
-    element.setAttribute("aria-label", `${title}: move`);
-    const buttons = items.map(([text, act]) => {
-      const button = Object.assign(document.createElement("button"), { textContent: text, type: "button" });
-      button.setAttribute("role", "menuitem");
-      button.tabIndex = -1;
-      button.onclick = () => {
-        this.closeMenu(false);
-        act();
-      };
-      return button;
-    });
-    element.append(...buttons);
-    element.onkeydown = (e) => {
-      const at = buttons.indexOf(document.activeElement as HTMLButtonElement);
-      if (e.key === "Escape" || e.key === "Tab") {
-        e.preventDefault();
-        this.closeMenu(true);
-      } else if (e.key === "ArrowDown" || e.key === "ArrowUp") {
-        e.preventDefault();
-        buttons[(at + (e.key === "ArrowDown" ? 1 : buttons.length - 1)) % buttons.length].focus();
-      } else if (e.key === "Home" || e.key === "End") {
-        e.preventDefault();
-        buttons[e.key === "Home" ? 0 : buttons.length - 1].focus();
-      }
-    };
-    document.body.append(element);
-    const box = element.getBoundingClientRect();
-    element.style.left = `${Math.max(0, Math.min(x, innerWidth - box.width - 4))}px`;
-    element.style.top = `${Math.max(0, Math.min(y, innerHeight - box.height - 4))}px`;
-    this.menu = element;
-    buttons[0].focus();
-  }
-
-  private closeMenu(focus: boolean): void {
-    const was = this.menu;
-    this.menu = undefined;
-    was?.remove();
-    if (was && focus && this.menuReturn?.isConnected) this.menuReturn.focus();
+    if (panel.group.panels.length > 1) items.push({ label: "Move to a group of its own", act: () => this.moveTo(id, "own") });
+    items.push({ label: "Reset layout", act: () => this.reset() });
+    openMenu(items, { label: `${this.options.titles[id] ?? id}: move`, x, y, from, className: "dock-menu" });
   }
 }

@@ -23,7 +23,7 @@ import { playFrequencies } from "./frequencies.mjs";
 import { playCollation, vscodeCoverageView } from "./collation.mjs";
 import { playExport } from "./export.mjs";
 import { guidanceAccent, openOnFirstLoad, playDemo, playTourInThePost, playTours, resize, speedRun } from "./onboarding.mjs";
-import { playDock, resizeTo, showPanel } from "./dock.mjs";
+import { mapPlaced, playDock, resizeTo, showPanel } from "./dock.mjs";
 
 const root = path.resolve(process.argv[2] ?? "../site/docs/play");
 const site = process.argv[3] ? path.resolve(process.argv[3]) : undefined;
@@ -73,11 +73,12 @@ try {
   assert.match(await history(), /step 1/);
   await shot("play-01-ready");
   // The walkthroughs start open in the playground, as everywhere (product owner, 22 Oct 2026,
-  // superseding 17 Oct's folded here): docked, in front in the right-hand group (product owner,
-  // 23 Oct 2026). This reader wants the map as wide as can be, and Tools and History in sight while
-  // working: from each tab's menu, by the keyboard, History and Tools go to groups of their own on
-  // the left, and the walkthroughs join Tools; the right-hand column goes, and the map takes its
-  // place. The layout is remembered in this browser; onboarding.mjs resets it.
+  // superseding 17 Oct's folded here): docked, alone on the right (product owner, 23 Oct 2026).
+  // This reader wants the map as wide and tall as can be, with Tools and History both in sight
+  // while working: from each tab's menu, by the keyboard, History gets a group of its own, the
+  // walkthroughs join Tools on the left, the Timeline joins them and Coverage the Tote; the right
+  // column and the strip under the map go, and the map takes their place. The layout is remembered
+  // in this browser; onboarding.mjs resets it.
   await openOnFirstLoad(page, "the playground");
   const moveByMenu = async (id, item) => {
     await page.locator(`.dv-tab[data-panel="${id}"]`).focus();
@@ -85,21 +86,17 @@ try {
     await page.getByRole("menuitem", { name: item, exact: true }).click();
     await page.waitForFunction((tab) => document.activeElement?.dataset?.panel === tab, id);
   };
-  const mapBefore = (await page.locator("#main").boundingBox()).width;
-  await moveByMenu("panel-history", "Move to left: Outline, Catalogue");
+  const mapAtFirst = await page.locator("#main").boundingBox();
   await moveByMenu("panel-history", "Move to a group of its own");
-  await moveByMenu("panel-tools", "Move to left: History");
-  await moveByMenu("panel-tools", "Move to a group of its own");
   await moveByMenu("panel-tour", "Move to left: Tools");
-  // And the map its full height: the Timeline joins Tools, and Coverage the Tote.
-  const mapHeight = (await page.locator("#main").boundingBox()).height;
   await moveByMenu("panel-timeline", "Move to left: Tools, Walkthroughs");
   await moveByMenu("panel-coverage", "Move to left: Tote");
   for (const id of ["tools", "outline", "tote"]) await showPanel(page, id);
   assert.ok((await page.evaluate(() => window.debriefLayout().groups)).every((g) => g.place === "left" || g.panels.includes("map")), "every panel on the left");
-  await page.waitForTimeout(300);
-  assert.ok((await page.locator("#main").boundingBox()).width > mapBefore + 250, "the map takes the right-hand column's place");
-  assert.ok((await page.locator("#main").boundingBox()).height > mapHeight + 150, "and the Timeline's");
+  await mapPlaced(page);
+  const mapNow = await page.locator("#main").boundingBox();
+  assert.ok(mapNow.width > mapAtFirst.width + 250, `the map takes the right-hand column's place: ${mapAtFirst.width} to ${mapNow.width}`);
+  assert.ok(mapNow.height > mapAtFirst.height + 120, `and the strip's under it: ${mapAtFirst.height} to ${mapNow.height}`);
   assert.equal(await page.locator("#history").isVisible(), true);
   assert.equal(await page.locator("#tools").isVisible(), true);
 

@@ -374,6 +374,9 @@ async function pressAndHold(page, selector) {
   // land on whatever is drawn there (fonts differ between machines, so rows do too).
   const row = page.locator(selector);
   await row.scrollIntoViewIfNeeded();
+  // The list's scroll event comes a frame later, and a scroll cancels a hold (as a finger's would):
+  // the hold starts once the list has settled.
+  await page.evaluate(() => new Promise((done) => requestAnimationFrame(() => requestAnimationFrame(done))));
   const box = await row.boundingBox();
   const x = box.x + 30;
   const y = box.y + box.height / 2;

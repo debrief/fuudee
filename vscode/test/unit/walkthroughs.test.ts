@@ -225,6 +225,16 @@ describe("package.json", () => {
   });
 });
 
+describe("the playground's hints on where things are", () => {
+  // Panel review, 23 Oct 2026: the reader moves the panels, so a hint names the panel, and the
+  // step's button brings it into view; it never says where the panel sits.
+  it("name panels, never their place in the layout", () => {
+    const where = TOURS.flatMap((t) => t.steps.map((s) => (s as { play?: { where?: string } }).play?.where ?? ""));
+    expect(where.length).toBeGreaterThan(10);
+    for (const text of where) expect(text, text).not.toMatch(/on the left|on the right|under the map|below the (Outline|Tote|time controller)|side column|right-hand/);
+  });
+});
+
 describe("the web demo's page", () => {
   it("is the playground's page, every panel and the walkthroughs, on the playground's files", () => {
     const page = demoPage(index);

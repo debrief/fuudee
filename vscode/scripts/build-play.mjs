@@ -4,23 +4,8 @@
 import { build } from "esbuild";
 import { cpSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { demoPage } from "../play/demo.mjs";
+import { withoutThemes } from "./csstrim.mjs";
 import path from "node:path";
-
-/** A stylesheet's top-level rules, less those only for Dockview's own themes (.dockview-theme-*). */
-function withoutThemes(css) {
-  const rules = [];
-  let depth = 0;
-  let start = 0;
-  for (let i = 0; i < css.length; i++) {
-    if (css[i] === "{") depth++;
-    else if (css[i] === "}" && --depth === 0) {
-      rules.push(css.slice(start, i + 1));
-      start = i + 1;
-    }
-  }
-  const themed = (rule) => rule.trim().split("{")[0].split(",").every((selector) => /^\s*\.dockview-theme-/.test(selector));
-  return rules.filter((rule) => !themed(rule)).join("") + "\n";
-}
 
 const out = path.resolve(process.argv[2] ?? "dist/play");
 mkdirSync(out, { recursive: true });

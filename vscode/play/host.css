@@ -71,11 +71,12 @@ footer { grid-column: 1 / -1; padding: 3px 10px; background: var(--vscode-editor
 dialog { background: var(--vscode-editorWidget-background); color: var(--vscode-editorWidget-foreground); border: 1px solid var(--vscode-editorWidget-border); max-width: 460px; }
 dialog::backdrop { background: color-mix(in srgb, var(--vscode-editor-background) 60%, transparent); }
 .buttons { display: flex; gap: 6px; justify-content: flex-end; flex-wrap: wrap; }
-/* Narrower: the form or results go under the map, not beside it. */
+/* Narrower: the form or results go under the map, not beside it.
+   (Docked, by the width of the map's place instead: dock.css, main.form-under.) */
 @media (max-width: 900px) {
-  main { flex-direction: column; }
-  .frame-map { flex: 1; height: auto; min-height: 240px; }
-  .side-frame { width: auto; height: min(440px, 55%); border-left: 0; border-top: 1px solid var(--vscode-panel-border); }
+  body:not(.docked) main { flex-direction: column; }
+  body:not(.docked) .frame-map { flex: 1; height: auto; min-height: 240px; }
+  body:not(.docked) .side-frame { width: auto; height: min(440px, 55%); border-left: 0; border-top: 1px solid var(--vscode-panel-border); }
 }
 /* Phone-sized: one column, the page scrolls; the map first, then the panels. */
 @media (max-width: 600px) {
