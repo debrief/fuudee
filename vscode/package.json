@@ -101,7 +101,7 @@
           {
             "id": "explore.timeline",
             "title": "Read the narrative in the Timeline",
-            "description": "The Timeline lists BLUE ONE's, RED ONE's and exercise control's logs in one time order. Choose an entry: current time moves to it, and the entry is shown beside its track on the map. While playing, the list follows current time.\n\n**Timeline** is in the Debrief sidebar.\n\n**Keyboard:** ↑ and ↓ move through the list; Enter chooses an entry; / searches.\n\n[Show the Timeline](command:debrief.walkthrough.do?%5B%22explore%22%2C%22debrief.timeline.focus%22%5D)",
+            "description": "The Timeline lists BLUE ONE's, RED ONE's and exercise control's logs in one time order. Choose an entry: current time moves to it, and the entry is shown beside its track on the map. While playing, the list follows current time.\n\n**Timeline** is in the Debrief sidebar.\n\n**Keyboard:** ↑ and ↓ move through the list; Enter chooses an entry; / searches.\n\n[Show the Timeline](command:debrief.walkthrough.do?%5B%22explore%22%2C%22debrief.timeline.focus%22%5D)\n\n[Next walkthrough: Import and collate](command:workbench.action.openWalkthrough?%5B%22debrief.debrief%23collate%22%2Cfalse%5D)",
             "media": {
               "svg": "media/walkthroughs/explore-timeline.svg",
               "altText": "The Timeline's entries in time order, the one at current time marked, and its text beside RED ONE on the map."
@@ -168,7 +168,7 @@
           {
             "id": "collate.prefer",
             "title": "Choose a source for a period",
-            "description": "Where the plot and the log both have data for BLUE ONE, choose which supplies that period: the log's fixes are every 10 s, the plot's every minute. Pick the log in the period's list and press **Set**, or click its bar. One step, naming the item and the period.\n\nIn **Coverage**, under BLUE ONE.\n\n**Keyboard:** Tab to the period's list, ↑ and ↓ to pick (nothing changes yet), then Enter or **Set**.\n\n[Show Coverage](command:debrief.walkthrough.do?%5B%22collate%22%2C%22debrief.coverage.focus%22%5D)",
+            "description": "Where the plot and the log both have data for BLUE ONE, choose which supplies that period: the log's fixes are every 10 s, the plot's every minute. Pick the log in the period's list and press **Set**, or click its bar. One step, naming the item and the period.\n\nIn **Coverage**, under BLUE ONE.\n\n**Keyboard:** Tab to the period's list, ↑ and ↓ to pick (nothing changes yet), then Enter or **Set**.\n\n[Show Coverage](command:debrief.walkthrough.do?%5B%22collate%22%2C%22debrief.coverage.focus%22%5D)\n\n[Next walkthrough: Tidy a track](command:workbench.action.openWalkthrough?%5B%22debrief.debrief%23tidy%22%2Cfalse%5D)",
             "media": {
               "svg": "media/walkthroughs/collate-prefer.svg",
               "altText": "Coverage with the log chosen to supply the period where the two overlap."
@@ -235,7 +235,7 @@
           {
             "id": "tidy.shear",
             "title": "Shear a leg, as in TMA",
-            "description": "Shear holds one end of a track and moves the other: every fix moves in proportion to its time from the held end, so a straight leg stays straight with a new course and speed. It is the drag analysts use most on TMA legs. Select BLUE ONE and drag the diamond beside its last fix; the map gives the new course and speed. Letting go is one step.\n\n**Shear track…** is on the track's menu in the Outline.\n\n**Keyboard:** Tab to the diamond and use the arrow keys. Or shear by typing the course and speed made good.\n\n[Shear BLUE ONE](command:debrief.walkthrough.do?%5B%22tidy%22%2C%22debrief.shearTrack%22%2C%22track-blue-one%22%5D)",
+            "description": "Shear holds one end of a track and moves the other: every fix moves in proportion to its time from the held end, so a straight leg stays straight with a new course and speed. It is the drag analysts use most on TMA legs. Select BLUE ONE and drag the diamond beside its last fix; the map gives the new course and speed. Letting go is one step.\n\n**Shear track…** is on the track's menu in the Outline.\n\n**Keyboard:** Tab to the diamond and use the arrow keys. Or shear by typing the course and speed made good.\n\n[Shear BLUE ONE](command:debrief.walkthrough.do?%5B%22tidy%22%2C%22debrief.shearTrack%22%2C%22track-blue-one%22%5D)\n\n[Next walkthrough: Annotate and export a figure](command:workbench.action.openWalkthrough?%5B%22debrief.debrief%23annotate%22%2Cfalse%5D)",
             "media": {
               "svg": "media/walkthroughs/tidy-shear.svg",
               "altText": "BLUE ONE's leg sheared: the start held, the end dragged by its diamond to a new position."
@@ -302,7 +302,7 @@
           {
             "id": "annotate.trace",
             "title": "Find the image's source",
-            "description": "Change the plot, then find the image's source: type the ID from its corner (or choose the image file). Debrief opens the plot as it was when the image was exported, read-only, at the view and time exported. **Go to latest** returns to the plot as it is now.\n\n**Find source of image…** is on Catalogues' title bar menu.\n\n**Keyboard:** Type the ID and press Enter; on the map, Tab to **Go to latest** and press Enter.\n\n[Find source of image](command:debrief.walkthrough.do?%5B%22annotate%22%2C%22debrief.findImageSource%22%5D)",
+            "description": "Change the plot, then find the image's source: type the ID from its corner (or choose the image file). Debrief opens the plot as it was when the image was exported, read-only, at the view and time exported. **Go to latest** returns to the plot as it is now.\n\n**Find source of image…** is on Catalogues' title bar menu.\n\n**Keyboard:** Type the ID and press Enter; on the map, Tab to **Go to latest** and press Enter.\n\n[Find source of image](command:debrief.walkthrough.do?%5B%22annotate%22%2C%22debrief.findImageSource%22%5D)\n\n**All walkthroughs done** once this step is done: this is the last walkthrough.",
             "media": {
               "svg": "media/walkthroughs/annotate-trace.svg",
               "altText": "The image's ID leading back to the plot, shown read-only at the step it was exported."

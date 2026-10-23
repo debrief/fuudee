@@ -22,7 +22,7 @@ import { playWordNarrative } from "./narrativeword.mjs";
 import { playFrequencies } from "./frequencies.mjs";
 import { playCollation, vscodeCoverageView } from "./collation.mjs";
 import { playExport } from "./export.mjs";
-import { playDemo, playTours, speedRun } from "./onboarding.mjs";
+import { guidanceAccent, openOnFirstLoad, playDemo, playTourInThePost, playTours, resize, speedRun } from "./onboarding.mjs";
 
 const root = path.resolve(process.argv[2] ?? "../site/docs/play");
 const site = process.argv[3] ? path.resolve(process.argv[3]) : undefined;
@@ -70,8 +70,12 @@ try {
   assert.equal(await page.locator("#undo").isEnabled(), true);
   assert.match(await history(), /step 1/);
   await shot("play-01-ready");
-  // The walkthroughs start folded in the playground (product owner, 17 Oct 2026): what follows is
-  // laid out as before them. Played in onboarding.mjs.
+  // The walkthroughs start open in the playground, as everywhere (product owner, 22 Oct 2026,
+  // superseding 17 Oct's folded here): in their column on the right of the map at this width. This
+  // reader folds them, so what follows is laid out as before them; folded they stay, remembered in
+  // this browser (onboarding.mjs plays them, opened again).
+  await openOnFirstLoad(page, "the playground");
+  await page.locator("#panel-tour button.fold").click();
   assert.equal(await page.locator("#panel-tour button.fold").getAttribute("aria-expanded"), "false");
 
   // The time controller is at the top of the side column; the map has no control of its own.
@@ -414,6 +418,7 @@ try {
     files.close();
   }
   await cdnBlocked();
+  await accentOn(`${BASE}/index.html`, "playground");
   if (site) await playFromThePost();
   // The walkthroughs, each start to finish on a fresh copy, then the onboarding trial's tasks
   // as a speed run, each from a fresh page (CAP-25, NFR-09); then the web demo (DEP-06, DEP-07).
@@ -423,7 +428,10 @@ try {
   await speedRun(page, root); // on the same page: Python started once for both
   if (site) {
     const siteServer = serve(site);
-    await playDemo(browser, `http://127.0.0.1:${siteServer.address().port}`, shot);
+    const siteUrl = `http://127.0.0.1:${siteServer.address().port}`;
+    await playDemo(browser, siteUrl, shot);
+    await accentOn(`${siteUrl}/demo/`, "demo");
+    await playTourInThePost(browser, siteUrl, shot);
     siteServer.close();
   }
   // Last, as it fills a plot with sixty thousand entries: the Timeline at scale (NFR-06).
@@ -734,6 +742,32 @@ try {
     await view.locator(".empty", { hasText: "Open a plot" }).waitFor();
     await view.close();
     files.close();
+  }
+
+  /**
+   * The walkthroughs on a first visit, at a laptop's 1366 px, in the dark and light themes: open,
+   * in their column on the right, with the guidance accent and AA contrast; then at 900 px, first
+   * in the side column, the same (product owner, 22 Oct 2026).
+   */
+  async function accentOn(url, name) {
+    const said = [];
+    for (const scheme of ["dark", "light"]) {
+      const on = await browser.newPage({ viewport: { width: 1366, height: 820 }, colorScheme: scheme });
+      on.on("pageerror", (e) => errors.push(String(e)));
+      await on.goto(url);
+      await openOnFirstLoad(on, `${name}, ${scheme}`);
+      const wide = await guidanceAccent(on, scheme);
+      if (shots) {
+        await ready(on);
+        await on.mouse.move(2, 2);
+        await shot(`accent-${name}-${scheme}`, on);
+      }
+      await resize(on, 900, 800);
+      const narrow = await guidanceAccent(on, scheme);
+      said.push(`${scheme}: ${wide.count + narrow.count} texts, the least ${Math.min(wide.least, narrow.least).toFixed(2)}:1`);
+      await on.close();
+    }
+    console.log(`Walkthroughs in the ${name} on first load: open, the guidance accent on edge, heading bar, step numbers and the folded tab; contrast (WCAG AA 4.5:1) ${said.join("; ")}.`);
   }
 
   /** With the CDN blocked, the page says so plainly; the map still works. */

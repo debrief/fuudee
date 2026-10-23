@@ -6,7 +6,8 @@ import { walkthroughsContribution, withWalkthroughs } from "../walkthroughs/cont
 
 const tours = JSON.parse(readFileSync("walkthroughs/tours.json", "utf8"));
 const before = readFileSync("package.json", "utf8");
-const after = withWalkthroughs(before, walkthroughsContribution(tours));
+const { publisher, name } = JSON.parse(before);
+const after = withWalkthroughs(before, walkthroughsContribution(tours, `${publisher}.${name}`));
 JSON.parse(after); // still valid JSON
 if (process.argv.includes("--check")) {
   if (after !== before) {

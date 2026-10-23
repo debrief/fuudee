@@ -4,8 +4,8 @@
 import { existsSync, readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
 import tours from "../../walkthroughs/tours.json";
-import { commandLink, contextKey, OPEN, plainForVSCode, stepParts, vscodeButton, vscodeDescription, walkthroughsContribution, withWalkthroughs } from "../../walkthroughs/contribute.mjs";
-import { BY_HAND, EVENTS, openedEvent, serviceEvent, stepsFor, toteCompares, TOURS, tourOfEvent, WalkthroughProgress, whyNotPrepared } from "../../src/walkthroughs.js";
+import { ALL_DONE, commandLink, contextKey, nextLabel, nextTour, OPEN, plainForVSCode, stepParts, vscodeButton, vscodeDescription, walkthroughsContribution, withWalkthroughs } from "../../walkthroughs/contribute.mjs";
+import { BY_HAND, EVENTS, FIRST_RUN_KEY, FIRST_TOUR, openedEvent, openOnFirstRun, serviceEvent, stepsFor, toteCompares, TOURS, tourOfEvent, WalkthroughProgress, whyNotPrepared } from "../../src/walkthroughs.js";
 import { callEvent, counts, parseActions, progressOf } from "../../play/tours.js";
 import { DEMO_META, demoPage } from "../../play/demo.mjs";
 import { CSP, CSP_META, CSP_PAGES } from "../../play/csp.mjs";
@@ -51,6 +51,28 @@ describe("one source for both hosts", () => {
     }
     expect(commands.has("debrief.walkthrough.do")).toBe(true);
     expect(commandLink("debrief.walkthrough.open", ["tidy"])).toBe("command:debrief.walkthrough.open?%5B%22tidy%22%5D");
+  });
+
+  it("ends each walkthrough's last VS Code step with a link to the next, from tours.json's order; the last says all are done (product owner, 23 Oct 2026)", () => {
+    const pkg = JSON.parse(manifest);
+    const contributed = pkg.contributes.walkthroughs as { id: string; steps: { description: string }[] }[];
+    expect(contributed.map((w) => w.id)).toEqual(tours.tours.map((t) => t.id));
+    contributed.forEach((walkthrough, i) => {
+      const last = walkthrough.steps.at(-1)!.description;
+      const after = tours.tours[i + 1];
+      expect(nextTour(tours, walkthrough.id)?.id).toBe(after?.id);
+      if (after) {
+        const link = commandLink("workbench.action.openWalkthrough", [`${pkg.publisher}.${pkg.name}#${after.id}`, false]);
+        expect(last.endsWith(`\n\n[${nextLabel(after)}](${link})`), walkthrough.id).toBe(true);
+        expect(link).toContain(encodeURIComponent(`debrief.debrief#${after.id}`));
+      } else {
+        expect(last).toMatch(new RegExp(`\\*\\*${ALL_DONE}\\*\\* once this step is done`));
+        expect(last).not.toContain("openWalkthrough");
+      }
+      // Only the last step offers the next walkthrough.
+      for (const step of walkthrough.steps.slice(0, -1)) expect(step.description).not.toContain("openWalkthrough");
+    });
+    expect(nextTour(tours, "nowhere")).toBeUndefined();
   });
 
   it("ticks each VS Code step by its own context key, set by the analyst's doing it", () => {
@@ -231,5 +253,39 @@ describe("the web demo's page", () => {
     expect(kept.kinds).toEqual(["narrative"]);
     expect(kept.view).toMatchObject({ textSize: 14, wrap: false });
     expect(contentFree(undefined).kinds).toEqual([]);
+  });
+});
+
+describe("the first walkthrough, opened on install (product owner, 22 Oct 2026)", () => {
+  const memento = () => {
+    const values = new Map<string, unknown>();
+    return { get: <T>(key: string) => values.get(key) as T | undefined, update: async (key: string, value: unknown) => void values.set(key, value), values };
+  };
+
+  it("opens Open and explore a serial on the first activation, and never on a later one", async () => {
+    const state = memento();
+    const calls: unknown[][] = [];
+    const run = async (...args: unknown[]) => void calls.push(args);
+    expect(FIRST_TOUR).toBe(TOURS[0].id);
+    expect(await openOnFirstRun(state, run, "debrief.debrief")).toBe(true);
+    expect(calls).toEqual([["workbench.action.openWalkthrough", "debrief.debrief#explore", false]]);
+    expect(state.values.get(FIRST_RUN_KEY)).toBe(true);
+    expect(await openOnFirstRun(state, run, "debrief.debrief")).toBe(false);
+    expect(await openOnFirstRun(state, run, "debrief.debrief")).toBe(false);
+    expect(calls).toHaveLength(1);
+  });
+
+  it("asks once even if the page fails to open, and says so in the log", async () => {
+    const state = memento();
+    const lines: string[] = [];
+    let asked = 0;
+    const failing = async () => {
+      asked++;
+      throw new Error("no Get Started page");
+    };
+    expect(await openOnFirstRun(state, failing, "debrief.debrief", (l) => lines.push(l))).toBe(false);
+    expect(await openOnFirstRun(state, failing, "debrief.debrief", (l) => lines.push(l))).toBe(false);
+    expect(asked).toBe(1);
+    expect(lines).toEqual(["walkthrough_open_on_install_failed"]);
   });
 });

@@ -8,9 +8,15 @@
  * opens it (aria-expanded), the step to do next open; a status line says each step done
  * and what comes next, for screen readers too. Its buttons only take the reader to the right
  * place, or open the walkthrough's copy of serial 1: the reader does the step.
+ *
+ * When a walkthrough's steps are all done, the next walkthrough is offered by a button in the
+ * accent, the keyboard put on it; after the last, that all are done (product owner, 23 Oct 2026).
+ * Before then, a quieter link skips to it: a reader stuck on a step, or who knows it already, is
+ * never left to find the next in the list. Steps tick only from what was done, so there is no
+ * skipping a step to wait for; the link is always there instead, below the steps.
  */
 import tours from "../walkthroughs/tours.json";
-import { stepParts, type TourSource, type TourStep } from "../walkthroughs/contribute.mjs";
+import { ALL_DONE, nextLabel, nextTour, stepParts, type TourSource, type TourStep } from "../walkthroughs/contribute.mjs";
 
 export const TOURS: TourSource[] = tours.tours;
 export type { TourSource, TourStep };
@@ -130,6 +136,8 @@ export class TourPanel {
   private readonly summary: HTMLElement;
   private readonly said: HTMLElement;
   private readonly picker: HTMLSelectElement;
+  /** Below the steps: the next walkthrough, or that all are done. */
+  private readonly ahead: HTMLElement;
 
   constructor(
     private readonly element: HTMLElement,
@@ -150,9 +158,10 @@ export class TourPanel {
     label.append(this.picker);
     this.summary = Object.assign(document.createElement("p"), { className: "detail tour-summary" });
     this.list = Object.assign(document.createElement("ol"), { className: "tour-steps" });
+    this.ahead = Object.assign(document.createElement("div"), { className: "tour-ahead" });
     this.said = Object.assign(document.createElement("p"), { className: "detail tour-said" });
     this.said.setAttribute("role", "status");
-    element.replaceChildren(label, this.summary, this.list, this.said);
+    element.replaceChildren(label, this.summary, this.list, this.ahead, this.said);
     this.render();
   }
 
@@ -197,12 +206,44 @@ export class TourPanel {
     if (!step) return this.render();
     const progress = progressOf(this.tour, this.done);
     const next = progress.next !== undefined ? this.tour.steps[progress.next] : undefined;
+    const after = nextTour({ tours: TOURS }, this.tour.id);
     this.said.textContent = next
       ? `Done: ${step.title}. Next: ${next.title}.`
-      : `Done: ${step.title}. That is the whole of ${this.tour.title}.`;
+      : `Done: ${step.title}. That is the whole of ${this.tour.title}. ${after ? `${nextLabel(after)}: the button below the steps.` : `${ALL_DONE}.`}`;
     // The step done closes, and the next to do opens, unless the reader opened others.
     this.open.delete(step.id);
     this.render();
+    // The walkthrough just finished: the keyboard goes to what comes next, if the panel is in sight.
+    if (!next) {
+      const button = this.ahead.querySelector<HTMLElement>("button");
+      if (button && (button.checkVisibility?.() ?? button.offsetParent !== null)) button.focus();
+    }
+  }
+
+  /** What comes after this walkthrough: the next offered, quietly until its steps are all done; after the last, that all are. */
+  private renderAhead(complete: boolean): void {
+    const document = this.element.ownerDocument;
+    const after = nextTour({ tours: TOURS }, this.tour.id);
+    const button = (text: string, className: string, to: string) => {
+      const b = Object.assign(document.createElement("button"), { type: "button", className, textContent: text });
+      b.onclick = () => {
+        this.choose(to);
+        // On to its first step's button, which opens its copy, as choosing it from the list would.
+        this.list.querySelector<HTMLElement>(".tour-step.next .tour-body > button")?.focus();
+      };
+      return b;
+    };
+    if (!complete) {
+      this.ahead.replaceChildren(...(after ? [button(`Skip to next walkthrough: ${after.title}`, "link tour-skip", after.id)] : []));
+      return;
+    }
+    const said = Object.assign(document.createElement("p"), { className: "tour-complete" });
+    said.append(Object.assign(document.createElement("strong"), { textContent: after ? `${this.tour.title}: done.` : `${ALL_DONE}.` }));
+    said.append(after ? ` Every step is ticked. Go on to the next, or choose any walkthrough above.` : ` Every step of the last walkthrough is ticked.`);
+    this.ahead.replaceChildren(
+      said,
+      after ? button(nextLabel(after), "tour-next", after.id) : button(`Start again: ${TOURS[0].title}`, "link tour-again", TOURS[0].id),
+    );
   }
 
   private readonly pictures = new Map<string, Promise<SVGElement | undefined>>();
@@ -281,5 +322,6 @@ export class TourPanel {
       }),
     );
     if (focused) this.list.querySelector<HTMLElement>(`[data-focus="${focused}"]`)?.focus();
+    this.renderAhead(next === undefined);
   }
 }

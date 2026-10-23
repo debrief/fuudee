@@ -4,7 +4,7 @@ This is Debrief v4 running in your browser: the same map, tool forms and results
 
 <div class="debrief-demo" data-demo=""></div>
 
-New to Debrief? Open **Walkthroughs**, folded at the top of the side column (on a wide screen, a column of its own on the right of the map): four short walkthroughs, each on a fresh copy of the sample, each step ticked as you do it. The same page runs full screen as the <a href="../demo/">web demo</a>.
+New to Debrief? Start with **Walkthroughs**, open at the top of the side column (on a wide screen, a column of its own on the right of the map), picked out in the theme's link colour: four short walkthroughs, each on a fresh copy of the sample, each step ticked as you do it. The same page runs full screen as the <a href="../demo/">web demo</a>.
 
 ## Things to try
 

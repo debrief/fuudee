@@ -12,7 +12,7 @@ import path from "node:path";
 import * as vscode from "vscode";
 import type { AnnotationProperties } from "@debrief/schemas";
 import type { DebriefApi } from "../../src/extension.js";
-import { playWalkthroughs } from "./walkthroughs.js";
+import { firstRunWalkthrough, playWalkthroughs } from "./walkthroughs.js";
 
 const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
 
@@ -39,6 +39,8 @@ export async function run(): Promise<void> {
   const extension = vscode.extensions.getExtension<DebriefApi>("debrief.debrief")!;
   const api = await extension.activate();
   await api.ready;
+  // Before anything closes the editors: the first walkthrough opened on this first activation, once only.
+  await firstRunWalkthrough(api, { waitFor, screenshot, sleep });
   const listing = await waitFor("tools", () => {
     if (api.toolsProblem()) throw new Error(`Tools did not start: ${api.toolsProblem()}`);
     return api.tools();

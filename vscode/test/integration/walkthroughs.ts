@@ -30,6 +30,29 @@ function snapshot(folder: string): Record<string, string> {
   return out;
 }
 
+/** The Get Started page's tabs open now, by their labels. */
+const startedTabs = () =>
+  vscode.window.tabGroups.all.flatMap((g) => g.tabs).filter((t) => !(t.input instanceof vscode.TabInputText) && /Welcome|Walkthrough|Get Started|Open and explore a serial/i.test(t.label));
+
+/**
+ * The first activation after install opens the first walkthrough, Open and explore a serial, on
+ * the Get Started page, once only, by a flag in global state (product owner, 22 Oct 2026). This
+ * window's profile is fresh, so its activation was the first; the next start is the same check
+ * again on the same global state, and opens nothing.
+ */
+export async function firstRunWalkthrough(api: DebriefApi, { waitFor, screenshot, sleep }: Helpers): Promise<void> {
+  assert.equal(await api.walkthroughOnActivation(), true, "the first activation opened the first walkthrough");
+  const tabs = await waitFor("the Get Started page", () => (startedTabs().length ? startedTabs() : undefined), 15000);
+  assert.ok(tabs.some((t) => t.isActive), `the Get Started page is in front: ${tabs.map((t) => t.label).join(", ")}`);
+  await screenshot("walkthrough-00-first-activation");
+  await vscode.commands.executeCommand("workbench.action.closeAllEditors");
+  await waitFor("the page closed", () => !startedTabs().length || undefined);
+  assert.equal(await api.walkthroughOnNextStart!(), false, "a later start opens nothing");
+  await sleep(1500);
+  assert.deepEqual(startedTabs().map((t) => t.label), [], "nor does the page open again");
+  assert.equal(await api.walkthroughOnNextStart!(), false, "nor on the start after");
+}
+
 export async function playWalkthroughs(api: DebriefApi, others: { id: string; location: string }, { waitFor, screenshot, sleep }: Helpers): Promise<void> {
   const extension = vscode.extensions.getExtension<DebriefApi>("debrief.debrief")!;
   const contributed = extension.packageJSON.contributes.walkthroughs as { id: string; title: string; steps: Step[] }[];
