@@ -31,6 +31,14 @@ body.docked #side { display: none; }
 /* The map and the form beside it, laid over the map's place (host.ts sets where). */
 body.docked main { position: absolute; z-index: 2; grid-row: auto; grid-column: auto; }
 .map-slot { width: 100%; height: 100%; }
+/* A tool's form beside the map takes a third of the map's place, 260 to 380 px; where that place is
+   narrower than 640 px (from 900 to about 1280 px wide with the default columns), the form goes
+   under the map instead, as in the narrow layout, so the map is never squeezed (panel review,
+   23 Oct 2026; host.ts sets form-under from the place's width). */
+body.docked .side-frame { width: clamp(260px, 34%, 380px); }
+body.docked main.form-under { flex-direction: column; }
+body.docked main.form-under .frame-map { flex: 1; height: auto; min-height: 160px; }
+body.docked main.form-under .side-frame { width: auto; height: min(440px, 55%); border-left: 0; border-top: 1px solid var(--vscode-panel-border); }
 /* While a panel is dragged the map lets it through, faded, so the drop places over it show. */
 body.dock-dragging main { pointer-events: none; opacity: .3; }
 /* The notes over the map, not over the right-hand panels. */
@@ -43,6 +51,18 @@ body.docked .toasts { right: calc(var(--map-right, 0px) + 12px); }
 .dock-panel > section.panel { border-bottom: 0; min-height: 100%; box-sizing: border-box; }
 body.docked .dock-panel > .panel > h2, body.docked .dock-panel > .panel > .panel-head > h2 { display: none; }
 body.docked .dock-panel > .panel > .panel-head { justify-content: flex-end; }
+/* The Outline, docked: its list scrolls above, and what can be done to the selection (Colour, Hide,
+   Show, the Track and Annotation buttons) stays in sight below it, compact, never scrolled away with
+   the list (panel review, 23 Oct 2026). Narrow, it is as before, under the list. */
+.dock-panel:has(> #panel-outline) { overflow: hidden; }
+body.docked .dock-panel > #panel-outline { display: flex; flex-direction: column; height: 100%; min-height: 0; padding-bottom: 4px; }
+body.docked #body-outline { flex: 1; min-height: 0; display: flex; flex-direction: column; }
+body.docked #body-outline > #outline { flex: 1 1 48px; min-height: 40px; overflow-y: auto; }
+body.docked .outline-tools { flex: 0 1 auto; max-height: 74%; overflow-y: auto; margin-top: 4px; padding-top: 2px; border-top: 1px solid var(--vscode-panel-border); }
+body.docked .outline-tools .outline-actions { margin-top: 2px; gap: 3px; }
+body.docked .outline-tools .action-group { grid-template-columns: repeat(auto-fill, minmax(54px, 1fr)); gap: 2px; margin-top: 2px; }
+body.docked .outline-tools .action-group button { padding-left: 2px; padding-right: 2px; }
+body.docked .outline-tools button, body.docked .outline-tools select { padding-top: 1px; padding-bottom: 1px; font-size: 12px; }
 /* Docked, lists use the panel's height, not a fixed one. */
 body.docked .dock-panel .list, body.docked .dock-panel .items { max-height: none; }
 body.docked .dock-panel #timeline { height: calc(100% - 4px); }
@@ -108,5 +128,16 @@ body.docked .dock-panel > #panel-timeline > .panel-body { flex: 1; min-height: 0
 .dock-menu-button:focus-visible { outline: 1px solid var(--vscode-focusBorder); }
 /* Over Dockview's sashes and drop places (z-index up to 9999): the menus, the outline's and the notes. */
 .context-menu, .dock-menu { z-index: 10001; }
+/* By touch (pointer: coarse), docked too (product owner, 23 Oct 2026): targets of 24 px or more,
+   a tab strip of 32, the sashes a 24 px grip (their 4 px and 10 px either side), and panels moved
+   from the ⋯ menu as well as by dragging. */
+@media (pointer: coarse) {
+  .dockview-theme-debrief { --dv-tabs-and-actions-container-height: 32px; }
+  .dockview-theme-debrief .dv-tab { min-width: 44px; min-height: 32px; }
+  .dock-menu-button { min-width: 32px; min-height: 32px; font-size: 16px; }
+  .dv-split-view-container.dv-horizontal > .dv-sash-container > .dv-sash:not(.dv-disabled)::before { content: ""; position: absolute; top: 0; bottom: 0; left: -10px; right: -10px; }
+  .dv-split-view-container.dv-vertical > .dv-sash-container > .dv-sash:not(.dv-disabled)::before { content: ""; position: absolute; left: 0; right: 0; top: -10px; bottom: -10px; }
+  .context-menu button { min-height: 32px; }
+}
 .toasts { z-index: 10000; }
 .dockview-theme-debrief .dv-sash { background: transparent; }
