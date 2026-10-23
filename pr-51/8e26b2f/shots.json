@@ -1,0 +1,41 @@
+{
+ "shots": [
+  {
+   "source": "blog/posts/2026-10-24-browser-layout.md",
+   "url": "blog/2026/10/24/browser-layout/",
+   "title": "Panels where you need them: a docked layout in the browser",
+   "file": "blog-posts-2026-10-24-browser-layout.png"
+  },
+  {
+   "source": "guides/interaction-models/browser-layout.md",
+   "url": "guides/interaction-models/browser-layout/",
+   "title": "Browser layout",
+   "file": "guides-interaction-models-browser-layout.png"
+  },
+  {
+   "source": "guides/interaction-models/index.md",
+   "url": "guides/interaction-models/",
+   "title": "Interaction models",
+   "file": "guides-interaction-models-index.png"
+  },
+  {
+   "source": "guides/interaction-models/keyboard-equivalents.md",
+   "url": "guides/interaction-models/keyboard-equivalents/",
+   "title": "Keyboard equivalents",
+   "file": "guides-interaction-models-keyboard-equivalents.png"
+  },
+  {
+   "source": "guides/interaction-models/walkthroughs.md",
+   "url": "guides/interaction-models/walkthroughs/",
+   "title": "Walkthroughs",
+   "file": "guides-interaction-models-walkthroughs.png"
+  },
+  {
+   "source": "guides/style-guide/ui.md",
+   "url": "guides/style-guide/ui/",
+   "title": "User interface",
+   "file": "guides-style-guide-ui.png"
+  }
+ ],
+ "more": 1
+}
