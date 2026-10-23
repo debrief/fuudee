@@ -1,0 +1,29 @@
+{
+ "shots": [
+  {
+   "source": "blog/posts/2026-10-22-first-hour.md",
+   "url": "blog/2026/10/22/first-hour/",
+   "title": "The first hour: walkthroughs, and a web demo to try them in",
+   "file": "blog-posts-2026-10-22-first-hour.png"
+  },
+  {
+   "source": "guides/interaction-models/walkthroughs.md",
+   "url": "guides/interaction-models/walkthroughs/",
+   "title": "Walkthroughs",
+   "file": "guides-interaction-models-walkthroughs.png"
+  },
+  {
+   "source": "guides/style-guide/theme.md",
+   "url": "guides/style-guide/theme/",
+   "title": "Theme",
+   "file": "guides-style-guide-theme.png"
+  },
+  {
+   "source": "try.md",
+   "url": "try/",
+   "title": "Try Debrief",
+   "file": "try.png"
+  }
+ ],
+ "more": 0
+}
