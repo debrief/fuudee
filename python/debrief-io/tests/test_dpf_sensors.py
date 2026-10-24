@@ -78,6 +78,9 @@ def test_sensors_come_into_the_plot_with_their_cuts() -> None:
     assert sensor.properties.name == "Towed"
     assert sensor.properties.host_track_id == "track-nelson"
     assert sensor.properties.colour == "#0064bd"
+    # Legacy's Offset (-200 m: astern) and its default mode, worm in the hole (M5).
+    assert sensor.properties.array_offset.value == pytest.approx(200.0)
+    assert str(sensor.properties.array_mode) == "worm_in_hole"
     cuts = plot_sensors.cuts(plot, sensor.id)
     assert [c.properties.bearing.value for c in cuts] == [45.0, 59.3, 70.0, 80.0, 20.0]
     # Unresolved; resolved by hand in legacy (it kept 59.3); never ambiguous.
@@ -98,7 +101,8 @@ def test_sensors_come_into_the_plot_with_their_cuts() -> None:
         "Track 'NELSON': sensor 'Towed': 1 cut giving no bearing not imported.",
         "Track 'NELSON': sensor 'Towed': 2 cuts gave a frequency and its base frequency 150 Hz: "
         "not imported.",
-        "Track 'NELSON': sensor 'Towed': its array offset of -200 m not imported",
+        "Track 'NELSON': sensor 'Towed': its array 200 m astern (worm in the hole): its cuts "
+        "are drawn, and their port and starboard told, from the array.",
         "how its cuts were drawn not imported (1 label shown on the map; line styles dotted (1); "
         "line thickness 2)",
         "1 cut gave an ambiguous bearing of 0.000 and was not ambiguous",
@@ -107,3 +111,43 @@ def test_sensors_come_into_the_plot_with_their_cuts() -> None:
     ]:
         assert expected in said, expected
     assert "(sensor, " not in said  # no longer listed as not imported
+
+
+def overlapping(mode: str = "") -> str:
+    """Track T with two overlapping legs (05:00-05:20 and 05:10-05:30), its sensor's cuts
+    in both, and maybe an array mode."""
+    legs = (
+        f'<TrackSegment Name="a">{fix("050000", "-4.0")}{fix("052000", "-3.8")}</TrackSegment>'
+        f'<TrackSegment Name="b">{fix("051000", "-3.0")}{fix("053000", "-2.8")}</TrackSegment>'
+    )
+    cut = '<sensor_contact Bearing="{b}" Dtg="951212 {t}" Visible="true"/>'
+    cuts = cut.format(b="10.000", t="050500") + cut.format(b="20.000", t="052500")
+    return (
+        '<?xml version="1.0" encoding="UTF-8"?><plot Name="O"><session><layers>'
+        f'<track Name="T" Visible="true"><colour Value="RED"/>{legs}'
+        f'<sensor Name="Hull" Visible="true" TrackName="T" {mode}><colour Value="BLUE"/>'
+        f'<Offset Units="m" Value="-150"/>{cuts}</sensor></track></layers></session></plot>'
+    )
+
+
+def test_a_track_of_overlapping_legs_gives_each_leg_its_own_cuts() -> None:
+    """M3: every cut used to go with the leg holding the sensor's first cut, so the 05:25
+    cut, after that leg's last fix, was never drawn."""
+    plot, report = build_plot_from_dpf(overlapping().encode(), SOURCE, AGENT)
+    hosts = {
+        plot_sensors.cuts(plot, s.id)[0].properties.time[11:16]: s.properties.host_track_id
+        for s in plot_sensors.sensors(plot)
+    }
+    assert len(hosts) == 2 and hosts["05:05"] != hosts["05:25"]
+    tracks = {f.id: f for f in plot.features if f.properties.kind == "track"}
+    for time, host in hosts.items():
+        times = [t[11:16] for t in tracks[host].properties.times]
+        assert times[0] <= time <= times[-1]
+    assert "its cuts are a sensor of each of the 2 parts" in "\n".join(report.omitted)
+
+
+def test_a_plain_array_comes_in_plain_and_none_said_is_legacys_worm() -> None:
+    plot, _ = build_plot_from_dpf(overlapping('ArrayMode="Plain"').encode(), SOURCE, AGENT)
+    assert {str(s.properties.array_mode) for s in plot_sensors.sensors(plot)} == {"plain"}
+    plot, _ = build_plot_from_dpf(overlapping().encode(), SOURCE, AGENT)
+    assert {str(s.properties.array_mode) for s in plot_sensors.sensors(plot)} == {"worm_in_hole"}

@@ -19,6 +19,7 @@
     "debrief/redo",
     "debrief/remove_jumps",
     "debrief/resolve_ambiguity",
+    "debrief/set_array_offset",
     "debrief/set_colour",
     "debrief/set_hidden",
     "debrief/set_north_arrow",

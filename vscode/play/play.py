@@ -318,7 +318,8 @@ def sensor(item: str, request_json: str, data: bytes | None = None) -> str:
     """Keep a side of ambiguous cuts, or make them ambiguous again, or read a file's
     sensor lines into the plot: each one recorded, undoable step (CAP-22), as
     debrief/resolve_ambiguity and debrief/import_sensor do. request: base, and change:
-    {kind: "resolve", resolution} or {kind: "import", name, hosts, again}."""
+    {kind: "resolve", resolution}, {kind: "array_offset", sensor_ids, offset, mode} (as
+    debrief/set_array_offset) or {kind: "import", name, hosts, again}."""
     request = json.loads(request_json)
     base = Base(**request["base"]) if request.get("base") else None
     change = request["change"]
@@ -327,6 +328,19 @@ def sensor(item: str, request_json: str, data: bytes | None = None) -> str:
             step = _cat().resolve_ambiguity(item, change["resolution"], YOU, base)
             notes = _cat().history(item).steps()[step - 1].records[0].notes or []
             return json.dumps({"ok": True, "notes": list(notes)})
+        if change["kind"] == "array_offset":
+            step = _cat().set_array_offset(
+                item,
+                change["sensor_ids"],
+                change.get("offset"),
+                YOU,
+                base,
+                mode=change.get("mode") or "worm_in_hole",
+            )
+            if step is None:
+                return json.dumps({"ok": True, "changed": False, "notes": []})
+            notes = _cat().history(item).steps()[step - 1].records[0].notes or []
+            return json.dumps({"ok": True, "changed": True, "notes": list(notes)})
         done = import_sensor(
             _cat(),
             item,

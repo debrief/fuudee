@@ -736,44 +736,40 @@ def _sensors(
             if not usable:
                 notes.append(f"{label} not imported: none of its cuts gives a bearing.")
                 continue
-            # A track whose legs overlap is imported a track a leg: the sensor goes with the
-            # part its first cut falls in.
-            first = usable[0].time_ms
-            host = next(
-                (i for i, fx in parts[track.name] if fx[0].time_ms <= first <= fx[-1].time_ms),
-                parts[track.name][0][0],
-            )
-            colour = sensor.colour or colours.get(host) or DEFAULT_COLOUR
-            span = next(fixes for i, fixes in parts[track.name] if i == host)
-            outside = sum(1 for c in usable if not span[0].time_ms <= c.time_ms <= span[-1].time_ms)
+            # A track whose legs overlap is imported a track a leg: each cut goes with the
+            # part whose fixes it falls among (the nearest part where none), a sensor of the
+            # same name on each part, as a split track's sensors are.
+            by_part: dict[str, list] = {}
+            outside = 0
+            for c in usable:
+                within = [
+                    i for i, fx in parts[track.name] if fx[0].time_ms <= c.time_ms <= fx[-1].time_ms
+                ]
+                if within:
+                    host = within[0]
+                else:
+                    outside += 1
+                    host = min(
+                        parts[track.name],
+                        key=lambda p, t=c.time_ms: min(
+                            abs(p[1][0].time_ms - t), abs(p[1][-1].time_ms - t)
+                        ),
+                    )[0]
+                by_part.setdefault(host, []).append(c)
             if outside:
                 notes.append(
                     f"{label}: {_plural(outside, 'cut')} outside the track's fixes: kept, but "
                     "not drawn, as legacy Debrief drew none there."
                 )
-            read.append(
-                ReadSensor(
-                    name=sensor.name,
-                    host_track_id=host,
-                    colour=colour,
-                    hidden=not sensor.visible,
-                    cuts=[
-                        ReadCut(
-                            time_ms=c.time_ms,
-                            bearing=c.bearing,
-                            ambiguous=c.ambiguous,
-                            resolved=None if c.has_ambiguous or c.ambiguous is None else "bearing",
-                            range_m=c.range_m,
-                            origin=c.origin,
-                            label=c.label,
-                            comment=c.comment,
-                            colour=c.colour,
-                            hidden=not c.visible,
-                        )
-                        for c in usable
-                    ],
+            if len(by_part) > 1:
+                notes.append(
+                    f"{label}: its cuts are a sensor of each of the {len(by_part)} parts of "
+                    f"{track.name!r} they fall in, as its legs overlap."
                 )
-            )
+            array_m, array_mode = _array(sensor)
+            for host, cuts_here in by_part.items():
+                colour = sensor.colour or colours.get(host) or DEFAULT_COLOUR
+                read.append(_read_sensor(sensor, host, colour, cuts_here, array_m, array_mode))
             notes += _sensor_notes(label, sensor, usable)
     if not read:
         return [], notes, 0
@@ -781,6 +777,42 @@ def _sensors(
     taken.update(f.id for f in built)
     notes.insert(0, sensors_note(read, names))
     return built, notes, sum(len(s.cuts) for s in read)
+
+
+def _array(sensor) -> tuple[float | None, str | None]:
+    """A legacy sensor's array offset astern (legacy wrote it negative: behind the ship)
+    and its mode, as v4 holds them; legacy's default mode is worm in the hole."""
+    if sensor.offset_m is None or sensor.offset_m >= 0:
+        return None, None
+    if sensor.array_mode not in (None, "Plain", "Worm in hole"):
+        return None, None  # an array centre from measured data: not imported, said
+    return -sensor.offset_m, "plain" if sensor.array_mode == "Plain" else "worm_in_hole"
+
+
+def _read_sensor(sensor, host, colour, usable, array_m, array_mode) -> ReadSensor:
+    return ReadSensor(
+        name=sensor.name,
+        host_track_id=host,
+        colour=colour,
+        hidden=not sensor.visible,
+        array_offset_m=array_m,
+        array_mode=array_mode,
+        cuts=[
+            ReadCut(
+                time_ms=c.time_ms,
+                bearing=c.bearing,
+                ambiguous=c.ambiguous,
+                resolved=None if c.has_ambiguous or c.ambiguous is None else "bearing",
+                range_m=c.range_m,
+                origin=c.origin,
+                label=c.label,
+                comment=c.comment,
+                colour=c.colour,
+                hidden=not c.visible,
+            )
+            for c in usable
+        ],
+    )
 
 
 def _sensor_notes(label: str, sensor, usable: list) -> list[str]:
@@ -798,10 +830,17 @@ def _sensor_notes(label: str, sensor, usable: list) -> list[str]:
             "and acoustic analysis stay in the acoustic replay application (CAP-22, EXT-03)."
         )
     measured = sensor.array_mode not in (None, "Plain", "Worm in hole")
-    if sensor.offset_m or measured:
+    array_m, array_mode = _array(sensor)
+    if array_m:
+        how = "plain: straight astern" if array_mode == "plain" else "worm in the hole"
+        notes.append(
+            f"{label}: its array {array_m:,.0f} m astern ({how}): its cuts are drawn, and "
+            "their port and starboard told, from the array."
+        )
+    elif sensor.offset_m or measured:
         parts = []
-        if sensor.offset_m:
-            parts.append(f"its array offset of {sensor.offset_m:,.0f} m")
+        if sensor.offset_m and sensor.offset_m > 0:
+            parts.append(f"its array offset of {sensor.offset_m:,.0f} m ahead of the ship")
         if measured:
             parts.append(f"its array centre from the measured data {sensor.array_mode!r}")
         notes.append(

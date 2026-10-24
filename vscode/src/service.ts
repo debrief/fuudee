@@ -549,6 +549,16 @@ export class ToolService {
     return this.request("debrief/resolve_ambiguity", { store, item, base, agent, ...resolution, ...(allowNewerSchema && { allow_newer_schema: true }) });
   }
 
+  /**
+   * How far astern of the ship a towed array is (offset, or null for at the ship) and how
+   * it follows (worm in the hole, legacy's default, or plain), for sensors (CAP-22): their
+   * cuts are then drawn, and their sides told, from the array. One recorded, undoable step,
+   * named like "Towed array: 300 yd astern, worm in the hole"; changed false if so already.
+   */
+  setArrayOffset(store: string, item: string, base: Base, agent: Agent, asked: { sensor_ids: string[]; offset: { value: number; unit: string } | null; mode?: "worm_in_hole" | "plain" }, allowNewerSchema = false): Promise<Opened & { changed: boolean; notes?: string[] }> {
+    return this.request("debrief/set_array_offset", { store, item, base, agent, ...asked, ...(allowNewerSchema && { allow_newer_schema: true }) });
+  }
+
   /** What a .dsf or REP file's sensor lines hold, before they are read into the plot: which track would carry each sensor (CAP-22). Changes nothing. */
   previewSensor(path: string, plot: { store: string; item: string }): Promise<SensorPreview> {
     return this.request("debrief/preview_sensor", { path, ...plot });

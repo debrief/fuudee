@@ -100,6 +100,15 @@ def match_host(name: str, tracks: dict[str, str]) -> str | None:
     return found
 
 
+def matched_by(name: str, tracks: dict[str, str]) -> str | None:
+    """How match_host found the plot's track: "name" (ignoring case), "prefix" (by the
+    first six letters only, which the host asks the analyst to confirm), or None."""
+    folded = {n.casefold() for n in tracks}
+    if name.strip().casefold() in folded:
+        return "name"
+    return "prefix" if match_host(name, tracks) is not None else None
+
+
 def sensor_name(name: str, file_name: str) -> str:
     """A sensor's name: UNKNOWN is named after the file, as legacy Debrief offered."""
     return Path(file_name).stem if name.strip().upper() == "UNKNOWN" else name
@@ -140,16 +149,17 @@ def sensor_lines(parsed: RepFile) -> SensorLines:
     accuracy = Counter(c.bearing_accuracy for c in cuts if c.bearing_accuracy is not None)
     if accuracy:
         said = ", ".join(f"{a}" for a, _ in accuracy.most_common(3))
-        out.omitted.append(
+        out.notes.append(
             f"{_plural(accuracy.total(), ';SENSOR3: line')} gave a bearing accuracy ({said}): "
-            "not imported. Legacy Debrief read it and threw it away, and no format says what "
-            "it means; cuts are drawn as lines (decision, product owner, 24 Oct 2026)."
+            "kept with each cut as written, not drawn. Legacy Debrief read it and threw it "
+            "away, and no format says what it means; cuts are drawn as lines (decision, "
+            "product owner, 24 Oct 2026)."
         )
     zero = sum(1 for c in cuts if c.zero_range)
     if zero:
         out.notes.append(
-            f"{_plural(zero, 'cut')} gave a range of 0: drawn without a range, past the edge "
-            "of the view (legacy Debrief drew them as a point)."
+            f"{_plural(zero, 'cut')} gave a range of 0: drawn as a point where the cut was "
+            "taken, as legacy Debrief drew them."
         )
     styles = Counter(
         LINE_STYLES[c.symbology[0].upper()]
@@ -238,7 +248,12 @@ def read_sensors(
                         time_ms=c.time_ms,
                         bearing=c.bearing,
                         ambiguous=c.ambiguous,
-                        range_m=c.range_yd * YARD_M if c.range_yd else None,
+                        range_m=0.0
+                        if c.zero_range
+                        else c.range_yd * YARD_M
+                        if c.range_yd
+                        else None,
+                        bearing_accuracy=c.bearing_accuracy,
                         origin=c.origin,
                         label=c.label,
                         comment=c.comment,
@@ -332,6 +347,7 @@ def preview_sensor(
                 "end": format_utc(max(c.time_ms for c in cuts)),
                 "host_track_id": host,
                 "host": ids.get(host) if host else None,
+                "matched_by": matched_by(track, names),
             }
         )
     return {

@@ -15,6 +15,7 @@ from debrief_kernel.time import format_utc, parse_utc
 from debrief_kernel.units import Quantity
 from debrief_schemas import SCHEMA_VERSION, models
 from debrief_stac import Catalogue, CatalogueError, Changes, collation
+from debrief_stac import sensors as plot_sensors
 from debrief_stac.catalogue import review_flags
 
 VECTORS = Path(__file__).resolve().parents[3] / "schemas" / "vectors" / "collation.json"
@@ -946,3 +947,46 @@ def test_coverage_of_gappy_sources_stays_responsive(tmp_path: Path) -> None:
     nelson = platform(report, "NELSON")
     assert len(nelson.sources) == 50 and len(nelson.periods) > 1000
     assert cold < 0.5 and warm < 0.1
+
+
+def sensor_lines(track_name: str, start_min: int, count: int, step_min: int, sensor: str) -> list:
+    """;SENSOR2: lines for a track: an ambiguous bearing every step_min minutes."""
+    lines = []
+    for i in range(count):
+        t = format_utc(T0 + (start_min + i * step_min) * 60_000)
+        date, clock = t[2:4] + t[5:7] + t[8:10], t[11:13] + t[14:16] + t[17:19] + ".000"
+        lines.append(
+            f";SENSOR2: {date} {clock} {track_name} @A NULL {40 + i}.0 {140 - i}.0 NULL NULL "
+            f'"{sensor}" L{i}'
+        )
+    return lines
+
+
+def test_taking_new_data_carries_its_sensors_in_the_periods_it_supplies(
+    catalogue: Catalogue, tmp_path: Path
+) -> None:
+    """H3: take() carried tracks only, so a log's sensor cuts were silently dropped."""
+    time.sleep(0.002)
+    lines = (
+        rep_lines("Nelson", 30, 361, 10)
+        + rep_lines("MERCHANT", 10, 20, 60, (-4.0, 50.2))
+        + sensor_lines("Nelson", 30, 13, 5, "Towed array")  # 05:30 to 06:30
+        + sensor_lines("MERCHANT", 12, 3, 5, "Radar")
+    )
+    item = import_rep(catalogue, write_rep(tmp_path, "log", lines), title="NELSON nav log").item_id
+    step = catalogue.take_new_data("serial", catalogue.id, item, AGENT)
+    plot = catalogue.read_plot("serial")
+    by_name = {s.properties.name: s for s in plot_sensors.sensors(plot)}
+    towed, radar = by_name["Towed array"], by_name["Radar"]
+    assert towed.properties.host_track_id == "track-nelson"
+    times = [c.properties.time[11:16] for c in plot_sensors.cuts(plot, towed.id)]
+    # Only where the log supplies NELSON (06:00:10 on): the half hour both have is the plot's.
+    assert times == ["06:05", "06:10", "06:15", "06:20", "06:25", "06:30"]
+    merchant = track(catalogue, "serial", "MERCHANT")
+    assert radar.properties.host_track_id == merchant.id
+    assert len(plot_sensors.cuts(plot, radar.id)) == 3
+    notes = catalogue.history("serial").steps()[step - 1].records[0].notes
+    assert "Towed array: 6 cuts taken with NELSON" in notes
+    # One step: undone as one.
+    catalogue.history("serial").undo()
+    assert not plot_sensors.sensors(catalogue.read_plot("serial"))

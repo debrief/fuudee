@@ -31,7 +31,7 @@ from importlib.metadata import version
 from pathlib import Path, PurePosixPath
 
 from debrief_kernel.formatting import DEFAULT_SETTINGS, format_position, format_time
-from debrief_kernel.geodesy import Position, destination, range_bearing
+from debrief_kernel.geodesy import Position, TrackPath, destination, range_bearing
 from debrief_kernel.time import IntervalError, format_utc, parse_utc
 from debrief_kernel.units import Quantity
 from debrief_schemas import (
@@ -833,6 +833,56 @@ class Catalogue:
             allow_newer_schema=allow_newer_schema,
         )
 
+    def set_array_offset(
+        self,
+        item_id: str,
+        sensor_ids: list[str],
+        offset: Quantity | models.Length | dict | None,
+        agent: models.AgentRef,
+        base: Base | None = None,
+        *,
+        mode: str = "worm_in_hole",
+        allow_newer_schema: bool = False,
+    ) -> int | None:
+        """How far astern of the ship a sensor (a towed array) is, and how it follows the
+        ship: worm in the hole (back along its own track, legacy's default) or plain
+        (straight astern); None or 0, at the ship. Its cuts are then drawn, and their port
+        and starboard told, from the array (CAP-22; product owner, 24 Oct 2026). One
+        recorded, undoable step, named like "Towed array: 300 m astern, worm in the
+        hole", the length in the unit it was given in. See set_colour."""
+        try:
+            length = sensors.array_length(offset)
+        except (sensors.SensorError, ValueError) as error:
+            raise CatalogueError(str(error)) from None
+        if mode not in ("worm_in_hole", "plain"):
+            raise CatalogueError("An array follows the ship worm_in_hole or plain.")
+
+        def reposition(feature):
+            props = feature.properties
+            if props.kind != "sensor":
+                raise CatalogueError(
+                    f"Only a sensor has an array offset; {sensors.name_of(feature, {})} is not one."
+                )
+            new_mode = mode if length is not None else None
+            if props.array_offset == length and (
+                props.array_mode is None
+                and new_mode is None
+                or props.array_mode is not None
+                and str(props.array_mode) == new_mode
+            ):
+                return None
+            return props.model_copy(update={"array_offset": length, "array_mode": new_mode})
+
+        return self._edit_features(
+            item_id,
+            sensor_ids,
+            reposition,
+            lambda who: f"{who}: {sensors.describe_array(length, mode)}",
+            agent,
+            base,
+            allow_newer_schema,
+        )
+
     def _edit_features(
         self, item_id, feature_ids, change, describe, agent, base, allow_newer_schema
     ) -> int | None:
@@ -1594,6 +1644,40 @@ class Catalogue:
                     f"{sensor.properties.name}: its {len(later):,} cuts from the split on are a "
                     f"sensor of {chosen[1]}'s"
                 )
+            # Cuts between the first part's last fix and the second's first are outside
+            # both parts' spans: each keeps the position it was drawn from, recorded with
+            # it, so it is still drawn (it no longer moves with either part).
+            gap = (parse_utc(first.properties.times[-1]), parse_utc(second.properties.times[0]))
+            whole = TrackPath.lazy_from_feature(track)
+            where = {f.id: i for i, f in enumerate(modified)}
+            pinned = 0
+            for sensor in sensors.sensors(plot):
+                if sensor.properties.host_track_id != feature_id:
+                    continue
+                for c in sensors.cuts(plot, sensor.id):
+                    t = parse_utc(c.properties.time)
+                    if not gap[0] < t < gap[1] or c.properties.origin is not None:
+                        continue
+                    place = sensors.place_of(c, whole, sensor, t)
+                    if place is None:
+                        continue
+                    i = where.get(c.id)
+                    cut = modified[i] if i is not None else c
+                    origin = [place.position.longitude, place.position.latitude]
+                    cut = cut.model_copy(
+                        update={"properties": cut.properties.model_copy(update={"origin": origin})}
+                    )
+                    if i is None:
+                        modified.append(cut)
+                    else:
+                        modified[i] = cut
+                    pinned += 1
+            if pinned:
+                moved.append(
+                    f"{pinned:,} cut{'s' if pinned != 1 else ''} between the parts' fixes keep "
+                    "the position they were drawn from, so they are still drawn; they no longer "
+                    "move with either part."
+                )
             sets = [
                 s.model_copy(update={"feature_ids": _after(s.feature_ids, feature_id, second_id)})
                 for s in plot.named_sets or []
@@ -1658,25 +1742,40 @@ class Catalogue:
             # Sensors (CAP-22): carried by the merged track; sensors of one name are one
             # again, their cuts on the first (legacy TrackWrapper.add), so a split and
             # merged track's sensors are as they were.
-            keepers: dict[str, str] = {}
+            keepers: dict[str, list] = {}  # name: [the sensor kept, its properties now]
             for feature in plot.features:
                 props = feature.properties
                 if props.kind == "sensor" and props.host_track_id in {merged.id, *gone}:
                     keeper = keepers.get(props.name)
                     if keeper is None:
-                        keepers[props.name] = feature.id
-                        if props.host_track_id != merged.id:
-                            hosted = props.model_copy(update={"host_track_id": merged.id})
-                            modified.append(feature.model_copy(update={"properties": hosted}))
+                        keepers[props.name] = [
+                            feature,
+                            props.model_copy(update={"host_track_id": merged.id}),
+                        ]
                         continue
                     removed.append(feature.id)
                     joined.append(props.name)
+                    kept_props = keeper[1]
+                    # What the joined sensor had of its own is kept: its colour on its cuts
+                    # (unless a cut has its own), its symbology where the first had none.
+                    if kept_props.legacy_symbology is None and props.legacy_symbology:
+                        keeper[1] = kept_props.model_copy(
+                            update={"legacy_symbology": props.legacy_symbology}
+                        )
+                    own_colour = props.colour if props.colour != kept_props.colour else None
                     for cut in sensors.cuts(plot, feature.id):
-                        moved = cut.properties.model_copy(update={"sensor_id": keeper})
+                        update: dict = {"sensor_id": keeper[0].id}
+                        if own_colour and cut.properties.colour is None:
+                            update["colour"] = own_colour
+                        moved = cut.properties.model_copy(update=update)
                         modified.append(cut.model_copy(update={"properties": moved}))
+                    continue
                 elif props.kind == "sensor_observations" and props.host_track_id in gone:
                     hosted = props.model_copy(update={"host_track_id": merged.id})
                     modified.append(feature.model_copy(update={"properties": hosted}))
+            for sensor, props in keepers.values():
+                if props != sensor.properties:
+                    modified.append(sensor.model_copy(update={"properties": props}))
             sets = []
             for s in plot.named_sets or []:
                 if set(gone) & set(s.feature_ids):

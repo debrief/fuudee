@@ -7,13 +7,15 @@ import { readFileSync } from "node:fs";
 import path from "node:path";
 import { describe, expect, it } from "vitest";
 import type { DebriefFeatureCollection } from "@debrief/schemas";
-import type { LonLat } from "../../webview/geodesic.js";
+import { pointAt, rangeBearing, travel, type LonLat } from "../../webview/geodesic.js";
 import {
+  arrayPlace,
+  cutClick,
   currentCut,
   cutChoices,
   cutNow,
   cutEnd,
-  cutOrigin,
+  cutPlace,
   cutsInScope,
   KEEP_CHOICES,
   resolutionFor,
@@ -32,7 +34,7 @@ import {
   sideOf,
   type Kept,
 } from "../../webview/sensors.js";
-import { describeSensorInFile, hostsToAsk, sensorReadSummary, type SensorPreview } from "../../src/sensorimport.js";
+import { describeSensorInFile, hostChoices, hostQuestion, hostsToAsk, sensorReadSummary, type SensorPreview } from "../../src/sensorimport.js";
 import { describeStep, SENSOR_IMPORTER } from "../../src/wording.js";
 
 const repo = path.resolve(__dirname, "../../..");
@@ -41,7 +43,8 @@ const vectors = JSON.parse(readFileSync(path.join(repo, "schemas/vectors/sensor-
   default_length: { width_m: number; height_m: number; expected_m: number }[];
   cases: {
     name: string;
-    host: { coordinates: LonLat[]; times: string[] };
+    host: { coordinates: LonLat[]; times: string[]; courses?: number[] };
+    sensor?: { array_offset_m: number; array_mode: "worm_in_hole" | "plain" };
     cuts: {
       time: string;
       bearing: number;
@@ -79,11 +82,12 @@ describe("sides as legacy Debrief's relBearing tells them, every case of its own
 describe("a cut's origin, its host's course, its lines and keeping a side (CAP-22)", () => {
   const cuts = vectors.cases.flatMap((c) => c.cuts.map((cut) => [`${c.name} ${cut.time.slice(11, 19)}`, c, cut] as const));
   it.each(cuts)("%s", (_name, c, cut) => {
-    const times = c.host.times.map(Date.parse);
+    const host = { coordinates: c.host.coordinates, times: c.host.times.map(Date.parse), ...(c.host.courses && { courses: c.host.courses }) };
     const at = Date.parse(cut.time);
-    const origin = cutOrigin(c.host.coordinates, times, at, cut.origin);
+    const place = cutPlace(host, at, cut.origin, c.sensor?.array_offset_m ?? 0, c.sensor?.array_mode ?? "worm_in_hole");
+    const origin = place?.position;
     samePlace(origin, cut.expected.origin, "origin");
-    const course = hostCourse(c.host.coordinates, times, at);
+    const course = place?.course;
     if (cut.expected.course === null) expect(course).toBeUndefined();
     else {
       expect(course!).toBeCloseTo(cut.expected.course, 9);
@@ -159,9 +163,17 @@ describe("keeping a side for the cut at the current time, the time window, the s
     expect(resolutionFor("all", "ambiguous", context)).toEqual({ keep: "ambiguous", sensor_ids: ["sensor-ta"] });
     expect(cutsInScope("selected", { ...context, selected: ["sensor-ta"] })).toHaveLength(0); // a sensor selected is All cuts
   });
+  it("leaves hidden cuts, and a hidden sensor's, out of the window and all, as the service does", () => {
+    const hiddenCut = { ...entry, cuts: entry.cuts.map((c, i) => (i === 0 ? { ...c, properties: { ...c.properties, hidden: true } } : c)) };
+    expect(cutsInScope("all", { ...context, entries: [hiddenCut] }).map((c) => c.id)).toEqual(["cut-00002", "cut-00003"]);
+    expect(cutsInScope("window", { ...context, entries: [hiddenCut] }).map((c) => c.id)).toEqual(["cut-00002"]);
+    expect(cutsInScope("selected", { ...context, entries: [hiddenCut], selected: ["cut-00001"] }).map((c) => c.id)).toEqual(["cut-00001"]);
+    const hiddenSensor = { ...entry, sensor: { ...entry.sensor, properties: { ...entry.sensor.properties, hidden: true } } };
+    expect(cutsInScope("all", { ...context, entries: [hiddenSensor] })).toHaveLength(0);
+  });
   it("says why when there is nothing to resolve", () => {
     expect(resolutionFor("selected", "port", context)).toBe("None of these cuts has two bearings.");
-    expect(resolutionFor("selected", "port", { ...context, selected: [] })).toBe("Select cuts on the map first (Ctrl-click a line).");
+    expect(resolutionFor("selected", "port", { ...context, selected: [] })).toBe("Select cuts on the map first (click a line; Ctrl-click for more).");
     expect(resolutionFor("current", "port", { ...context, at: t("09:05") })).toBe("No cut is at the current time.");
   });
   it("a cut's own menu: the bearings not kept, with their sides; ambiguous again once resolved", () => {
@@ -201,7 +213,64 @@ describe("asking which track carries a file's sensors, as legacy asked", () => {
     expect(describeSensorInFile(preview.sensors[1])).toBe("Hull on ALPHA: 1 cut, 1 ambiguous");
     expect(sensorReadSummary({ sensors: ["a", "b"], cuts: 1604 }, "ALPHA_CUTS.dsf")).toBe("1,604 cuts of 2 sensors read from ALPHA_CUTS.dsf.");
   });
+  it("asks to confirm a track matched by its first six letters only, offering it first", () => {
+    const prefixed: SensorPreview = {
+      ...preview,
+      sensors: [{ track: "NELSONX", sensor: "TA", name: "TA", cuts: 3, ambiguous: 3, lines: 3, start: "", end: "", host_track_id: "track-nelson", host: "NELSON", matched_by: "prefix" }, { ...preview.sensors[2], matched_by: "name" }],
+      tracks: [{ id: "track-blue", name: "BLUE" }, { id: "track-nelson", name: "NELSON" }],
+    };
+    const [asked, ...more] = hostsToAsk(prefixed);
+    expect(more).toEqual([]);
+    expect(asked.matched).toEqual({ id: "track-nelson", name: "NELSON" });
+    expect(hostChoices(prefixed, asked).map((t) => t.name)).toEqual(["NELSON", "BLUE"]);
+    expect(hostQuestion(asked)).toBe("NELSONX matches NELSON by its first six letters only: which track carries NELSONX's sensors?");
+    expect(hostQuestion({ track: "ALPHA" })).toBe("Which track carries ALPHA's sensors?");
+  });
   it("names the step by its note in the History", () => {
     expect(describeStep({ kind: "import", tool: SENSOR_IMPORTER, status: "applied", notes: ["Sensor data read from ALPHA_CUTS.dsf"] }, () => undefined).label).toBe("Sensor data read from ALPHA_CUTS.dsf");
+  });
+});
+
+describe("a click on a cut's line (product owner, 24 Oct 2026)", () => {
+  const plain = { detail: 1, alt: false, add: false };
+  it("selects on a plain click or a tap, even an ambiguous cut", () => {
+    expect(cutClick(plain, true, false)).toBe("select");
+    expect(cutClick(plain, false, false)).toBe("select");
+  });
+  it("keeps the line's bearing only with Alt, on an ambiguous cut, not read-only", () => {
+    expect(cutClick({ ...plain, alt: true }, true, false)).toBe("keep");
+    expect(cutClick({ ...plain, alt: true }, false, false)).toBe("select");
+    expect(cutClick({ ...plain, alt: true }, true, true)).toBe("select");
+  });
+  it("adds with Ctrl, and ignores a double-click's second click", () => {
+    expect(cutClick({ ...plain, add: true, alt: true }, true, false)).toBe("add");
+    expect(cutClick({ ...plain, detail: 2 }, true, false)).toBe("ignore");
+    expect(cutClick({ detail: 2, alt: true, add: false }, true, false)).toBe("ignore");
+  });
+});
+
+describe("a worm on a dense track (M1)", () => {
+  it("walks short legs on the local ellipsoid to within a millimetre of the geodesics", () => {
+    const coordinates: LonLat[] = [];
+    const times: number[] = [];
+    for (let i = 0; i <= 2000; i++) {
+      coordinates.push([-4 + 0.00007 * i, 50 + 0.00003 * (i % 40)]);
+      times.push(i * 1000);
+    }
+    const at = 1_500_500;
+    const place = arrayPlace({ coordinates, times }, at, 500)!;
+    // The same walk, every leg a geodesic.
+    let behind = pointAt(coordinates, times, at)!.position;
+    let remaining = 500;
+    for (let j = 1500; j >= 0; j--) {
+      const leg = rangeBearing(behind, coordinates[j]);
+      if (leg.metres >= remaining) {
+        behind = travel(behind, leg.bearing, remaining);
+        break;
+      }
+      remaining -= leg.metres;
+      behind = coordinates[j];
+    }
+    expect(rangeBearing(place.position, behind).metres).toBeLessThan(1e-3);
   });
 });

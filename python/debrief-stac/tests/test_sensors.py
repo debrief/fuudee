@@ -7,7 +7,7 @@ from pathlib import Path
 
 import pytest
 
-from debrief_kernel.geodesy import Position, destination
+from debrief_kernel.geodesy import Position, TrackPath, destination
 from debrief_kernel.time import format_utc, parse_utc
 from debrief_kernel.units import Quantity
 from debrief_schemas import models
@@ -345,3 +345,172 @@ def test_a_split_and_merged_track_has_its_sensors_as_they_were(catalogue: Catalo
     catalogue.merge_tracks("p", [first, second], AGENT)
     assert [s.id for s in plot_sensors.sensors(plot(catalogue))] == sensors_before
     assert sorted(cut_ids(catalogue)) == sorted(cuts_before)
+
+
+# --- Round 2: the panel's findings (24 Oct 2026) ------------------------------------------
+
+
+def test_a_split_keeps_cuts_between_the_parts_drawable(catalogue: Catalogue) -> None:
+    """M2: a split at 09:20:30 leaves the 09:20:00 fix the first part's last and 09:21:00
+    the second's first; cuts between were outside both spans, so never drawn."""
+    record = models.ProvRecord(id="op-9", kind="import", started_at=at(0), agent=AGENT)
+    gap = ReadSensor(
+        name="Hull", host_track_id="track-blue", cuts=[ReadCut(T0 + int(20.4 * MINUTE), 10.0)]
+    )
+    catalogue.add_sensors("p", [gap], record)
+    before = plot(catalogue)
+    (cut,) = plot_sensors.cuts(before, "sensor-blue-one-hull")
+    host = next(f for f in before.features if f.id == "track-blue")
+    place = plot_sensors.place_of(cut, TrackPath.from_feature(host), None)
+    catalogue.split_track("p", "track-blue", at(20.5), AGENT)
+    after = plot(catalogue)
+    (cut,) = [c for c in plot_sensors.cuts(after) if c.properties.bearing.value == 10.0]
+    assert cut.properties.origin == pytest.approx(
+        [place.position.longitude, place.position.latitude]
+    )
+    notes = last_record(catalogue).notes
+    assert any(
+        "between the parts' fixes keep the position they were drawn from" in n for n in notes
+    )
+
+
+def test_merging_keeps_a_joined_sensors_colour_and_symbology(catalogue: Catalogue) -> None:
+    origin = models.ProvRecord(id="op-3", kind="import", started_at=at(0), agent=AGENT)
+    catalogue.commit("p", [origin], Changes(added=[track("track-later", "BLUE TWO", 5, 40)]))
+    record = models.ProvRecord(id="op-4", kind="import", started_at=at(0), agent=AGENT)
+    later = towed("track-later", range(40, 44))
+    later.colour, later.legacy_symbology = "#00a000", "@G"
+    catalogue.add_sensors("p", [later], record)
+    catalogue.merge_tracks("p", ["track-blue", "track-later"], AGENT)
+    merged = plot(catalogue)
+    sensor = next(s for s in plot_sensors.sensors(merged) if s.properties.name == "Towed array")
+    assert sensor.properties.legacy_symbology == "@G"  # the first had none
+    joined = [c for c in plot_sensors.cuts(merged, sensor.id) if c.properties.time >= at(40)]
+    assert [c.properties.colour for c in joined] == ["#00a000"] * 4
+
+
+def test_hidden_cuts_are_left_out_of_a_period_and_said(catalogue: Catalogue) -> None:
+    ids = cut_ids(catalogue)
+    catalogue.set_hidden("p", ids[:2], True, AGENT)
+    sensor = plot_sensors.sensors(plot(catalogue))[0].id
+    catalogue.resolve_ambiguity("p", {"keep": "port", "sensor_ids": [sensor]}, AGENT)
+    assert resolved(catalogue)[:3] == [None, None, "bearing"]
+    assert (
+        "2 hidden cuts left as they are: show them to resolve them." in last_record(catalogue).notes
+    )
+    # Named, a hidden cut is resolved.
+    catalogue.resolve_ambiguity("p", {"keep": "port", "cut_ids": ids[:1]}, AGENT)
+    assert resolved(catalogue)[0] == "bearing"
+
+
+def test_keeping_bearings_on_both_sides_says_mixed(catalogue: Catalogue) -> None:
+    ids = cut_ids(catalogue)
+    catalogue.resolve_ambiguity(
+        "p", {"keep": "bearing", "cut_ids": ids[:1]}, AGENT
+    )  # port, to the north-east of course 090
+    catalogue.resolve_ambiguity("p", {"keep": "ambiguous_bearing", "cut_ids": ids[1:2]}, AGENT)
+    catalogue.history("p").undo()
+    catalogue.history("p").undo()
+    # Two at once, of either side: not named for the first.
+    first = plot_sensors.resolve(
+        plot(catalogue), models.AmbiguityResolution(keep="bearing", cut_ids=ids[:2])
+    )
+    assert first.note.startswith("Port kept: 2 Towed array cuts")
+    plot_now = plot(catalogue)
+    flipped = [
+        c.model_copy(
+            update={
+                "properties": c.properties.model_copy(
+                    update={
+                        "bearing": c.properties.ambiguous_bearing,
+                        "ambiguous_bearing": c.properties.bearing,
+                    }
+                )
+            }
+        )
+        if c.id == ids[1]
+        else c
+        for c in plot_now.features
+    ]
+    mixed = plot_sensors.resolve(
+        plot_now.model_copy(update={"features": flipped}),
+        models.AmbiguityResolution(keep="bearing", cut_ids=ids[:2]),
+    )
+    assert mixed.note.startswith("Mixed-side kept: 2 Towed array cuts")
+
+
+def test_a_cut_resolved_so_already_is_not_resolved_again(catalogue: Catalogue) -> None:
+    """The guard against a step that changes a cut to what it is."""
+    ids = cut_ids(catalogue)
+    catalogue.resolve_ambiguity("p", {"keep": "port", "cut_ids": ids[:3]}, AGENT)
+    steps = len(catalogue.history("p").steps())
+    catalogue.resolve_ambiguity("p", {"keep": "port", "cut_ids": ids[:4]}, AGENT)
+    assert len(catalogue.history("p").steps()) == steps + 1
+    record = last_record(catalogue)
+    assert record.notes[0] == "Port bearing kept on Towed array cut at 09:03:00Z"
+    assert "3 cuts already resolved so." in record.notes
+    with pytest.raises(CatalogueError, match="already resolved so"):
+        catalogue.resolve_ambiguity("p", {"keep": "port", "cut_ids": ids[:4]}, AGENT)
+
+
+def test_an_array_offset_is_one_step_and_moves_where_cuts_are_drawn(catalogue: Catalogue) -> None:
+    sensor = plot_sensors.sensors(plot(catalogue))[0].id
+    before = plot_sensors.describe(plot(catalogue), with_cuts=True)[0]["cut_list"][10]["origin"]
+    catalogue.set_array_offset("p", [sensor], Quantity(300, "[yd_i]"), AGENT)
+    assert last_record(catalogue).notes[0] == "Towed array: 300 yd astern, worm in the hole"
+    described = plot_sensors.describe(plot(catalogue), with_cuts=True)[0]
+    assert described["array_offset_m"] == pytest.approx(300 * 0.9144)
+    after = described["cut_list"][10]["origin"]
+    # Heading east: the array is west of the ship, as far as 300 yd.
+    assert after[0] < before[0] and after[1] == pytest.approx(before[1], abs=1e-5)
+    distance = range_of(after, before)
+    assert distance == pytest.approx(300 * 0.9144, abs=0.5)
+    assert catalogue.set_array_offset("p", [sensor], Quantity(300, "[yd_i]"), AGENT) is None
+    catalogue.set_array_offset("p", [sensor], Quantity(300, "[yd_i]"), AGENT, mode="plain")
+    assert last_record(catalogue).notes[0] == "Towed array: 300 yd straight astern"
+    catalogue.set_array_offset("p", [sensor], None, AGENT)
+    assert last_record(catalogue).notes[0] == "Towed array: at the ship"
+    for _ in range(3):
+        catalogue.history("p").undo()
+    assert plot_sensors.sensors(plot(catalogue))[0].properties.array_offset is None
+    with pytest.raises(CatalogueError, match="distance astern"):
+        catalogue.set_array_offset("p", [sensor], Quantity(-5, "m"), AGENT)
+
+
+def range_of(a, b):
+    from debrief_kernel.geodesy import range_bearing
+
+    reach, _ = range_bearing(Position(*a), Position(*b))
+    return reach.to("m").value
+
+
+def test_port_is_told_by_the_logged_course_as_legacy(tmp_path) -> None:
+    """H1 (legs_20.rep): the fix after a cut logs 090 where the line between fixes runs
+    000. Legacy kept the north-east bearing as port; the line's course called it
+    starboard."""
+    catalogue = Catalogue.create(tmp_path / "cat", "ex", "Exercise", "Test")
+    catalogue.create_plot("p", "Plot")
+    north = models.TrackFeature(
+        type="Feature",
+        id="track-blue",
+        geometry=models.LineStringGeometry(
+            type="LineString", coordinates=[[-4.0, 50.0], [-4.0, 50.05]]
+        ),
+        properties=models.TrackProperties(
+            kind="track",
+            name="BLUE ONE",
+            times=[at(0), at(10)],
+            courses=models.AngleSeries(unit="deg", values=[0.0, 90.0]),
+            style={"colour": "#0064bd"},
+        ),
+    )
+    origin = models.ProvRecord(id="op-1", kind="import", started_at=at(0), agent=AGENT)
+    catalogue.commit("p", [origin], Changes(added=[north]))
+    record = models.ProvRecord(id="op-2", kind="import", started_at=at(0), agent=AGENT)
+    one = ReadSensor(
+        name="Towed array", host_track_id="track-blue", cuts=[ReadCut(T0 + 5 * MINUTE, 45.0, 315.0)]
+    )
+    catalogue.add_sensors("p", [one], record)
+    catalogue.resolve_ambiguity("p", {"keep": "port", "cut_ids": ["cut-00001"]}, AGENT)
+    (cut,) = plot_sensors.cuts(plot(catalogue))
+    assert str(cut.properties.resolved) == "bearing"

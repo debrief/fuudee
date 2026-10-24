@@ -120,13 +120,15 @@ In collation, a source is a **catalogue item**: an imported file, kept as a plot
 
 **Sensor.** A device on a platform that observes others: sonar, radar or visual. In a plot, a sensor is carried by its platform's track, its **host**, and shows in the Outline under it, saying how many cuts it has and how many are ambiguous (CAP-22).
 
-**Cut** (**sensor cut**, **contact**). One observation by a sensor: a bearing at a time, and perhaps an ambiguous bearing, a range, a label and a comment. Drawn on the map as a line from where its host was at its time, only in the time window. The **current cut** is each sensor's last cut at or before current time, drawn wider.
+**Cut** (**sensor cut**, **contact**). One observation by a sensor: a bearing at a time, and perhaps an ambiguous bearing, a range, a label and a comment. Drawn on the map as a line from where its sensor was at its time (its host's position, or its towed array's astern), only in the time window; a cut of range 0 is a point. The **current cut** is each sensor's last cut at or before current time, drawn wider.
 
 **Sensor observations.** Measurements from a sensor held as one opaque set (CON-02), for observation kinds Debrief does not yet draw cut by cut.
 
 **Bearing.** The direction from one position to another, measured clockwise from true north. A **relative bearing** is measured from the platform's own heading; the Tote takes the primary's course as its heading, and writes relative bearings red to port and green to starboard: `R045.0°`, `G120.0°`. Debrief displays true bearings as three figures: `045.0°T`.
 
-**Ambiguous bearing.** A towed-array bearing that could be on either side of the array: two candidate bearings mirrored about the array's axis, drawn as two lines, the starboard one darker and dashed. The analyst **resolves** each to one side, by clicking the line to keep or for a period at once, as one step; **Make ambiguous again** brings both back (CAP-22). Port and starboard are told from the host's course at the cut's time.
+**Ambiguous bearing.** A towed-array bearing that could be on either side of the array: two candidate bearings mirrored about the array's axis, drawn as two lines, the starboard one darker and dashed. The analyst **resolves** each to one side, a cut at a time (a click on it offers the choices; `Alt`-click keeps the line clicked) or for a period at once, as one step; **Make ambiguous again** brings both back (CAP-22). Port and starboard are told from the course logged at the first fix at or after the cut's time, where the sensor is, as legacy Debrief told them.
+
+**Array offset** (**towed array offset**). How far astern of its ship a towed array is, set per sensor: its cuts are drawn, and their sides told, from the array. **Worm in the hole**, legacy Debrief's default: the array follows back along the ship's own track, so it lags through a turn. **Plain**: straight astern along the ship's course.
 
 **Bearing error.** The uncertainty of a bearing. Debrief draws bearings as lines; none of the formats it reads gives an error it could draw (`;SENSOR3:`'s bearing accuracy has no agreed meaning), so wedges wait for a field agreed with the acoustic replay application's owners (product owner, 24 Oct 2026; CAP-22).
 

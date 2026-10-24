@@ -40,8 +40,8 @@ import { contextTracksOf, displayed, hiddenIds, isFeature, isHidden, setViewOf, 
 import { contextShown, type ContextTracks } from "../webview/contrast.js";
 import { placeToolTime } from "../webview/timelogic.js";
 import { TRACK_COLOURS } from "../webview/palette.js";
-import { cutChoices, cutNow, describeCut, featureName, hostCourse, KEEP_CHOICES, resolutionFor, scopeChoices, sensorDetail, sensorsOf, type Keep, type ResolveContext, type SensorEntry } from "../webview/sensors.js";
-import { describeSensorInFile, hostsToAsk, sensorReadSummary, type SensorPreview } from "../src/sensorimport.js";
+import { cutChoices, cutNow, describeCut, featureName, KEEP_CHOICES, placeOfCut, resolutionFor, scopeChoices, sensorDetail, sensorsOf, type Keep, type ResolveContext, type SensorEntry } from "../webview/sensors.js";
+import { describeSensorInFile, hostChoices, hostQuestion, hostsToAsk, sensorReadSummary, type SensorPreview } from "../src/sensorimport.js";
 import { TimeControl } from "../webview/timecontrol.js";
 import { ToteControl } from "../webview/totecontrol.js";
 import { latencySummary, sameTote, toteOf, ToteRequests, toteTracks, withoutSecondary, withPrimary, withSecondaries } from "../webview/totelogic.js";
@@ -56,7 +56,7 @@ import { chooseModes, MODE_LABELS, modeChoices, modeQuestion, REMEMBER_LABEL, RE
 import { describeJump, describeMark, describeWindow, DR_TAG, fixRows, isDeadReckoned, jumpsFound, markAt, readThreshold, readWindow, smoothingNote, type Jump } from "../webview/fixes.js";
 import { FIX_COLOURS } from "../webview/palette.js";
 import { ALL_PROBLEM, AT_EVERY_FIX, changesOf, choiceFromValue, choicesFor, describeChanges, describeInterval, describeSetFrequencies, FIELD_NAMES, FIELDS, formState, readInterval, trackDetails, type Field, type FieldState } from "../webview/frequencies.js";
-import { formatQuantity, figureIdProblem } from "@debrief/kernel";
+import { formatQuantity, figureIdProblem, UNIT_LABELS } from "@debrief/kernel";
 import type { FigureSource, ImageExport, RenderedImage, RevisionShown } from "@debrief/schemas";
 import { fileNameFor, PRESETS, type ImageFormat, type ImagePreset, type ImageTheme } from "../webview/exportlogic.js";
 import { describeExported, describeSource, READ_ONLY, rememberedOf, revisionOf, startingChoice, type ExportChoice } from "../src/figures.js";
@@ -1743,9 +1743,48 @@ function sensorMenu(id: string, x: number, y: number, from: HTMLElement): void {
     [
       ...KEEP_CHOICES.map((c) => ({ label: `${c.label}…`, act: () => chooseCuts(c.keep, from, x, y, [id]) })),
       { label: "Cut at current time…", act: () => void currentCutMenu(id) },
+      { label: "Towed array offset…", act: () => void arrayOffsetForm(id) },
     ],
     { label: `${featureNameOf(id)}: ambiguous bearings`, x, y, from },
   );
+}
+/**
+ * A towed array's offset astern of the ship, and how it follows (product owner, 24 Oct
+ * 2026), as debrief/set_array_offset: typed in the analyst's length unit, 0 for at the
+ * ship; worm in the hole (legacy's default) or plain. One step.
+ */
+async function arrayOffsetForm(id: string): Promise<void> {
+  const entry = opened && sensorsOf(opened.plot).find((e) => e.sensor.id === id);
+  if (!entry) return;
+  const props = entry.sensor.properties;
+  const now = props.array_offset;
+  const values = await trackForm(`Towed array: ${props.name}`, "Set", [
+    {
+      id: "offset",
+      label: "Distance astern of the ship (0 for at the ship)",
+      value: now ? `${now.value} ${UNIT_LABELS[now.unit] ?? now.unit}` : "",
+      read: (t) => {
+        const read = readDistance(t);
+        return shown(read, () => ((read as { value: number }).value === 0 ? "at the ship" : `${describeDistance(read as { value: number; unit: string })} astern`));
+      },
+    },
+    {
+      id: "mode",
+      label: "How it follows the ship",
+      value: props.array_mode === "plain" ? "plain" : "worm_in_hole",
+      options: [
+        { value: "worm_in_hole", label: "Worm in the hole: back along the ship's own track (legacy's default)" },
+        { value: "plain", label: "Plain: straight astern, along the ship's course" },
+      ],
+    },
+  ]);
+  if (!values) return;
+  const read = readDistance(values.offset) as { value: number; unit: string };
+  status("Saving…", true);
+  const outcome = await sense<{ changed?: boolean }>({ kind: "array_offset", sensor_ids: [id], offset: read.value === 0 ? null : read, mode: values.mode });
+  status("");
+  if (outcome.error) return toast(outcome.error, "warning");
+  toast(outcome.notes?.length ? outcome.notes.join(" ") : `${props.name} is so already.`);
 }
 /** The cut current time is at for a sensor: its bearings said, and its menu, so the keyboard reaches the cut the map emphasises. */
 async function currentCutMenu(id: string): Promise<void> {
@@ -1765,9 +1804,8 @@ async function cutMenu(id: string): Promise<void> {
   const entry = opened && sensorsOf(opened.plot).find((e) => e.cuts.some((c) => c.id === id));
   const cut = entry?.cuts.find((c) => c.id === id);
   if (!entry || !cut) return;
-  const props = cut.properties;
-  const host = entry.host;
-  const course = host?.geometry ? hostCourse(host.geometry.coordinates as [number, number][], host.properties.times.map(Date.parse), Date.parse(props.time)) : undefined;
+  // The course its sides are told by, where its sensor was (its array astern, if it has one).
+  const course = placeOfCut(entry, cut)?.course;
   const choices = new Map<string, () => unknown>();
   for (const choice of cutChoices(cut, course)) choices.set(choice.label, () => resolveSensor({ keep: choice.keep, cut_ids: [id] }));
   choices.set("Select this cut", () => void select([id]));
@@ -1795,8 +1833,8 @@ $<HTMLInputElement>("sensor-file").onchange = async (e) => {
   }
   const hosts: Record<string, string | null> = {};
   for (const asked of hostsToAsk(preview)) {
-    const names = preview.tracks.map((t) => t.name);
-    const chosen = await ask(`Which track carries ${asked.track}'s sensors? ${asked.sensors.map(describeSensorInFile).join("; ")}.`, [...names, "Do not read these"]);
+    const names = hostChoices(preview, asked).map((t) => t.name);
+    const chosen = await ask(`${hostQuestion(asked)} ${asked.sensors.map(describeSensorInFile).join("; ")}.`, [...names, "Do not read these"]);
     if (!chosen) return toast("Nothing was read.");
     hosts[asked.track] = preview.tracks.find((t) => t.name === chosen)?.id ?? null;
   }

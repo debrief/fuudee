@@ -22,6 +22,8 @@ export interface SensorInFile {
   /** The plot's track that carries it, matched by name as legacy matched it; null: the analyst is asked. */
   host_track_id: string | null;
   host: string | null;
+  /** How the track was matched: by name (ignoring case), or by its first six letters only, which is asked to be confirmed (as legacy matched a mangled name). */
+  matched_by?: "name" | "prefix" | null;
 }
 
 /** What a file's sensor lines hold, said before they are read in. */
@@ -38,14 +40,32 @@ export interface SensorPreview {
   earlier: EarlierRead[];
 }
 
-/** The track names the plot has no track for, each asked once: which of the plot's tracks carries it. */
-export function hostsToAsk(preview: SensorPreview): { track: string; sensors: SensorInFile[] }[] {
-  const asked = new Map<string, SensorInFile[]>();
+/**
+ * The track names to ask about, each once: those the plot has no track for, and those
+ * matched only by their first six letters (to be confirmed, the matched track offered
+ * first). Which of the plot's tracks carries it.
+ */
+export function hostsToAsk(preview: SensorPreview): { track: string; sensors: SensorInFile[]; matched?: { id: string; name: string } }[] {
+  const asked = new Map<string, { track: string; sensors: SensorInFile[]; matched?: { id: string; name: string } }>();
   for (const sensor of preview.sensors) {
-    if (sensor.host_track_id || !sensor.cuts) continue;
-    asked.set(sensor.track, [...(asked.get(sensor.track) ?? []), sensor]);
+    if (!sensor.cuts) continue;
+    if (sensor.host_track_id && sensor.matched_by !== "prefix") continue;
+    const known = asked.get(sensor.track);
+    if (known) known.sensors.push(sensor);
+    else asked.set(sensor.track, { track: sensor.track, sensors: [sensor], ...(sensor.host_track_id && { matched: { id: sensor.host_track_id, name: sensor.host ?? sensor.host_track_id } }) });
   }
-  return [...asked].map(([track, sensors]) => ({ track, sensors }));
+  return [...asked.values()];
+}
+
+/** The plot's tracks to choose from for a track name asked about: one matched by its first six letters first. */
+export function hostChoices(preview: SensorPreview, ask: { matched?: { id: string } }): { id: string; name: string; matched: boolean }[] {
+  const tracks = preview.tracks.map((t) => ({ ...t, matched: t.id === ask.matched?.id }));
+  return [...tracks.filter((t) => t.matched), ...tracks.filter((t) => !t.matched)];
+}
+
+/** The question asked about a track name: which track carries it, or whether the one matched by its first six letters does. */
+export function hostQuestion(ask: { track: string; matched?: { name: string } }): string {
+  return ask.matched ? `${ask.track} matches ${ask.matched.name} by its first six letters only: which track carries ${ask.track}'s sensors?` : `Which track carries ${ask.track}'s sensors?`;
 }
 
 /** A sensor in the file in a list: "Towed array on BLUE ONE: 132 cuts, 40 ambiguous". */

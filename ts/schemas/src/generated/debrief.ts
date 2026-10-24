@@ -112,6 +112,13 @@ export type AnnotationStyleEnum = "label" | "shape" | "chart_furniture" | "note"
  */
 export type FeatureTypeEnum = "Feature";
 /**
+ * How a towed array's position follows the ship (CAP-22; product owner, 24 Oct 2026), legacy Debrief's array centre modes.
+ *
+ * This interface was referenced by `DebriefSchemaDefinitions`'s JSON-Schema
+ * via the `definition` "ArrayModeEnum".
+ */
+export type ArrayModeEnum = "worm_in_hole" | "plain";
+/**
  * What an asset holds in Debrief terms.
  *
  * This interface was referenced by `DebriefSchemaDefinitions`'s JSON-Schema
@@ -1292,6 +1299,14 @@ export interface SensorFeature {
  */
 export interface SensorProperties {
   /**
+   * How the array follows the ship: back along its past track (worm in the hole, the default, as legacy's) or straight astern (plain). Only with array_offset.
+   */
+  array_mode?: ArrayModeEnum | null;
+  /**
+   * How far astern of the ship the sensor is (a towed array), so its cuts are drawn, and port and starboard told, from the array's position, not the ship's (product owner, 24 Oct 2026). Left out, the sensor is at the ship. Set by the analyst as a recorded, undoable step, or read from a legacy plot (its Offset, astern).
+   */
+  array_offset?: Length | null;
+  /**
    * The colour its cuts are drawn in, lower-case hex RGB, unless a cut has its own. Content, like a track's colour: each change is a recorded, undoable step (SUB-22).
    */
   colour: string;
@@ -1300,7 +1315,7 @@ export interface SensorProperties {
    */
   hidden?: boolean | null;
   /**
-   * The track carrying the sensor (ownship): its cuts are drawn from that track's position at each cut's time. A track split keeps its sensors on its first part; tracks merged take their sensors with them.
+   * The track carrying the sensor (ownship): its cuts are drawn from that track's position at each cut's time (or its array's, astern). A track split: the cuts from the split on go with the second part, as a sensor of its own (a new id) where the sensor had cuts before it too; cuts between the parts' fixes keep the position they were drawn from. Tracks merged: sensors of one name are one again, the merged track's.
    */
   host_track_id: string;
   kind: SensorKindEnum;
@@ -1340,6 +1355,10 @@ export interface SensorCutProperties {
   ambiguous_bearing?: Angle | null;
   bearing: Angle1;
   /**
+   * The bearing accuracy a ;SENSOR3: line gives, kept exactly as written: no format says what it means (a standard deviation, a half-width), so it is not drawn (product owner, 24 Oct 2026).
+   */
+  bearing_accuracy?: string | null;
+  /**
    * The cut's own colour, lower-case hex RGB; left out, its sensor's, as legacy Debrief lets a cut take its sensor's colour.
    */
   colour?: string | null;
@@ -1362,7 +1381,7 @@ export interface SensorCutProperties {
    */
   origin?: [number, number];
   /**
-   * How far the target was, where the source says: the cut is drawn to that range. Left out, drawn past the edge of the view.
+   * How far the target was, where the source says: the cut is drawn to that range. Left out, drawn past the edge of the view. A range of 0 (a ;SENSOR2: or ;SENSOR3: line's, as legacy read it) is drawn as a point where the cut was taken, as legacy drew it.
    */
   range?: Length | null;
   /**
