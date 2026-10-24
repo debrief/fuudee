@@ -51,7 +51,7 @@ import { Dock, MAP_ID, type LayoutStorage } from "./dock.js";
 import { PANEL_TITLES, SIDE_FIRST } from "./panels.mjs";
 import { openMenu } from "./menu.js";
 import { formatBearing, formatPosition, parsePosition } from "@debrief/kernel";
-import { defaultPivotIndex, describeDistance, describeSpeed, describeTurn, FIX_PROMPT, FIX_PROMPT_DR, fixIndexAt, fixMeans, fixToEdit, jumpSpeed, legNow, mergedName, mergePlan, periodIndices, readBearing, readDistance, readSpeed, readTurn, reckoningOf } from "../webview/trackedit.js";
+import { defaultPivotIndex, describeDistance, describeSpeed, describeTurn, FIX_PROMPT, FIX_PROMPT_DR, fixIndexAt, fixMeans, fixToEdit, jumpSpeed, legNow, mergedName, mergePlan, periodIndices, readArrayOffset, arrayOffsetTitle, readBearing, readDistance, readSpeed, readTurn, reckoningOf } from "../webview/trackedit.js";
 import { chooseModes, MODE_LABELS, modeChoices, modeQuestion, REMEMBER_LABEL, REMEMBERED_IN_PLAYGROUND, type PlottingMode } from "../src/importmode.js";
 import { describeJump, describeMark, describeWindow, DR_TAG, fixRows, isDeadReckoned, jumpsFound, markAt, readThreshold, readWindow, smoothingNote, type Jump } from "../webview/fixes.js";
 import { FIX_COLOURS } from "../webview/palette.js";
@@ -893,6 +893,8 @@ interface FormField {
   id: string;
   label: string;
   value?: string;
+  /** Shown in an empty text box, such as "such as 300 m". */
+  placeholder?: string;
   options?: { value: string; label: string }[];
   /** What the text means, or what is wrong with it. */
   read?: (text: string) => { means: string } | { problem: string };
@@ -936,7 +938,7 @@ function trackForm(title: string, action: string, fields: FormField[], warning?:
         input = document.createElement("select");
         input.append(...field.options.map((o) => new Option(o.label, o.value)));
       } else {
-        input = Object.assign(document.createElement("input"), { type: "text", autocomplete: "off" });
+        input = Object.assign(document.createElement("input"), { type: "text", autocomplete: "off", ...(field.placeholder && { placeholder: field.placeholder }) });
       }
       input.name = field.id;
       input.id = `track-form-${field.id}`;
@@ -1758,14 +1760,17 @@ async function arrayOffsetForm(id: string): Promise<void> {
   if (!entry) return;
   const props = entry.sensor.properties;
   const now = props.array_offset;
-  const values = await trackForm(`Towed array: ${props.name}`, "Set", [
+  const values = await trackForm(arrayOffsetTitle(props.name, entry.host?.properties.name), "Set", [
     {
       id: "offset",
-      label: "Distance astern of the ship (0 for at the ship)",
+      label: "Distance astern of the ship, metres unless you give a unit (0 for at the ship)",
       value: now ? `${now.value} ${UNIT_LABELS[now.unit] ?? now.unit}` : "",
+      placeholder: "such as 300 m",
       read: (t) => {
-        const read = readDistance(t);
-        return shown(read, () => ((read as { value: number }).value === 0 ? "at the ship" : `${describeDistance(read as { value: number; unit: string })} astern`));
+        const read = readArrayOffset(t);
+        if ("problem" in read) return read;
+        const means = read.value === 0 ? "at the ship" : `${describeDistance(read)} astern`;
+        return { means: read.warning ? `${means}. ${read.warning}` : means };
       },
     },
     {
@@ -1779,9 +1784,9 @@ async function arrayOffsetForm(id: string): Promise<void> {
     },
   ]);
   if (!values) return;
-  const read = readDistance(values.offset) as { value: number; unit: string };
+  const read = readArrayOffset(values.offset) as { value: number; unit: string };
   status("Saving…", true);
-  const outcome = await sense<{ changed?: boolean }>({ kind: "array_offset", sensor_ids: [id], offset: read.value === 0 ? null : read, mode: values.mode });
+  const outcome = await sense<{ changed?: boolean }>({ kind: "array_offset", sensor_ids: [id], offset: read.value === 0 ? null : { value: read.value, unit: read.unit }, mode: values.mode });
   status("");
   if (outcome.error) return toast(outcome.error, "warning");
   toast(outcome.notes?.length ? outcome.notes.join(" ") : `${props.name} is so already.`);

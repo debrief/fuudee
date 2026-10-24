@@ -934,6 +934,27 @@ export function readDistance(text: string, settings: FormatSettings = DEFAULT_SE
   return { value: Number(match[1]), unit };
 }
 
+/** A towed array is hundreds of metres astern: past this, the analyst is asked to check (round 3, M-4). */
+export const LONG_ARRAY_M = 5000;
+
+/**
+ * A towed array's offset astern as typed: metres unless a unit is given ("300" is 300 m,
+ * whatever the display's length unit, as arrays are measured), and a warning past
+ * LONG_ARRAY_M, which is likely a unit mistyped.
+ */
+export function readArrayOffset(text: string): { value: number; unit: string; warning?: string } | { problem: string } {
+  const read = readDistance(text, { ...DEFAULT_SETTINGS, length_unit: "m" });
+  if ("problem" in read) return { problem: read.problem.replace(/such as 1\.2 [^;]+;/, "such as 300 m;") };
+  const metres = convert(read, "m").value;
+  if (metres > LONG_ARRAY_M) return { ...read, warning: `${formatQuantity(read)} astern is longer than any towed array: check the unit (a number alone is metres).` };
+  return read;
+}
+
+/** The array offset prompt's title: "Array offset: Towed array on BLUE ONE". */
+export function arrayOffsetTitle(sensor: string, host?: string): string {
+  return host ? `Array offset: ${sensor} on ${host}` : `Array offset: ${sensor}`;
+}
+
 /** A bearing as typed, true: "045", "45°T", "45.5". */
 export function readBearing(text: string): number | { problem: string } {
   const match = /^\s*(\d+(?:\.\d*)?|\.\d+)\s*(?:°|deg)?\s*T?\s*$/i.exec(text);

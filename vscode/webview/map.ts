@@ -1040,6 +1040,9 @@ map.on("mouseout movestart zoomstart", () => {
  */
 const cutPopover = Object.assign(document.createElement("div"), { className: "cut-popover", hidden: true });
 cutPopover.setAttribute("role", "dialog");
+// The dialog itself takes focus first, so a screen reader reads what the cut is before
+// any choice, and Enter keeps nothing by accident (round 3, L-3).
+cutPopover.tabIndex = -1;
 mapElement.append(cutPopover);
 L.DomEvent.disableClickPropagation(cutPopover);
 L.DomEvent.disableScrollPropagation(cutPopover);
@@ -1056,7 +1059,10 @@ function openCutPopover(found: NonNullable<ReturnType<SensorLayer["hit"]>>, poin
   cutPopover.setAttribute("aria-label", text[0]);
   cutPopover.dataset.cut = cut.id;
   const title = Object.assign(document.createElement("strong"), { textContent: text[0] });
-  cutPopover.append(title, ...text.slice(1).map((line) => Object.assign(document.createElement("div"), { textContent: line })));
+  const details = Object.assign(document.createElement("div"), { id: "cut-popover-details" });
+  details.append(...text.slice(1).map((line) => Object.assign(document.createElement("div"), { textContent: line })));
+  cutPopover.setAttribute("aria-describedby", details.id);
+  cutPopover.append(title, details);
   const buttons = document.createElement("div");
   buttons.className = "choices";
   const readOnly = root.classList.contains("read-only");
@@ -1084,12 +1090,22 @@ function openCutPopover(found: NonNullable<ReturnType<SensorLayer["hit"]>>, poin
   const height = cutPopover.offsetHeight;
   cutPopover.style.left = `${Math.max(4, Math.min(size.x - width - 4, point.x + 12))}px`;
   cutPopover.style.top = `${Math.max(4, Math.min(size.y - height - 4, point.y + 12))}px`;
-  buttons.querySelector("button")?.focus({ preventScroll: true });
+  cutPopover.focus({ preventScroll: true });
 }
 cutPopover.addEventListener("keydown", (event) => {
-  if (event.key !== "Escape") return;
-  event.stopPropagation();
-  closeCutPopover(true);
+  if (event.key === "Escape") {
+    event.stopPropagation();
+    closeCutPopover(true);
+    return;
+  }
+  // Tab stays among the choices while they are shown (a focus trap), from the dialog to the first.
+  if (event.key !== "Tab") return;
+  const choices = Array.from(cutPopover.querySelectorAll<HTMLButtonElement>("button"));
+  if (!choices.length) return;
+  const at = choices.indexOf(document.activeElement as HTMLButtonElement);
+  const next = event.shiftKey ? (at <= 0 ? choices.length - 1 : at - 1) : at < 0 || at === choices.length - 1 ? 0 : at + 1;
+  event.preventDefault();
+  choices[next].focus();
 });
 map.on("movestart zoomstart", () => closeCutPopover());
 /** A cut's menu, from a right-click or a press and hold on its line: the host shows it. */

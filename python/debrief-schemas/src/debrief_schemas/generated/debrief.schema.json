@@ -3439,6 +3439,17 @@
             "null"
           ]
         },
+        "course": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/Angle"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": "The course, true, the cut's port and starboard are told by, pinned with a derived origin when its track was split (the course logged where the sensor was then). Left out, the host's logged course at the cut's time. Only with origin."
+        },
         "hidden": {
           "description": "Not drawn on the map. Content, like hiding any feature (SUB-22).",
           "type": [
@@ -3458,12 +3469,19 @@
         },
         "origin": {
           "items": {
-            "description": "[longitude, latitude] of the sensor, where the source recorded it with the cut (legacy Debrief's absolute origin): the cut is drawn from there instead of from the host track. Left out, from the host track's position at the cut's time.",
+            "description": "[longitude, latitude] of the sensor, where the source recorded it with the cut (legacy Debrief's absolute origin): the cut is drawn from there instead of from the host track. Left out, from the host track's position at the cut's time. Where origin_derived is true, Debrief worked it out (where the sensor was, pinned when its track was split) and the source did not record it.",
             "type": "number"
           },
           "maxItems": 2,
           "minItems": 2,
           "type": "array"
+        },
+        "origin_derived": {
+          "description": "True where origin is not recorded by the source but derived by Debrief: where the sensor (its array astern, if it has one) was before its track was split, pinned so the cut is drawn, and its side told, as before (round 3 review, 24 Oct 2026). A TMA residual can tell a recorded origin from a derived one by it. Only with origin.",
+          "type": [
+            "boolean",
+            "null"
+          ]
         },
         "range": {
           "anyOf": [

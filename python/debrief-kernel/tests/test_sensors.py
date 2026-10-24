@@ -68,7 +68,12 @@ def test_cut_origin_course_side_lines_and_keeping(path: TrackPath, sensor: dict,
     at = parse_utc(cut["time"])
     own = Position(*cut["origin"]) if cut.get("origin") else None
     place = cut_place(
-        path, at, own, sensor.get("array_offset_m", 0.0), sensor.get("array_mode", "worm_in_hole")
+        path,
+        at,
+        own,
+        sensor.get("array_offset_m", 0.0),
+        sensor.get("array_mode", "worm_in_hole"),
+        cut.get("course"),
     )
     origin = place.position if place else None
     same_position(origin, expected["origin"])
@@ -121,18 +126,27 @@ def test_a_worm_lags_round_a_turn_and_is_extrapolated_before_the_first_fix() -> 
     assert first is not None and first.position.latitude < north.latitude
 
 
-def test_a_worm_on_a_dense_track_takes_one_geodesic_not_one_a_fix(monkeypatch) -> None:
-    """M1: ALPHA.rep logs a fix a second; a 500 m worm walked a geodesic per fix, some 70
-    per cut, and resolving 600 cuts took over 2 s. Short legs are measured on the local
-    ellipsoid, to well under a millimetre over the walk."""
-    import debrief_kernel.sensors as sensors
-    from debrief_kernel.geodesy import WGS84, range_bearing
+def exact_worm(path: TrackPath, at: int, offset: float) -> Position:
+    """The worm walked leg by leg along geodesics, as round 1 did: the reference."""
+    from debrief_kernel.geodesy import WGS84
 
-    path = TrackPath(
-        [i * 1000 for i in range(2001)],
-        [Position(-4.0 + 0.00007 * i, 50.0 + 0.00003 * (i % 40)) for i in range(2001)],
-    )
-    calls = []
+    behind = path.position_at(at)
+    remaining = offset
+    for j in range(sum(1 for t in path.times_ms if t < at) - 1, -1, -1):
+        fix = path.positions[j]
+        leg = WGS84.Inverse(behind.latitude, behind.longitude, fix.latitude, fix.longitude)
+        if leg["s12"] >= remaining:
+            p = WGS84.Direct(behind.latitude, behind.longitude, leg["azi1"], remaining)
+            return Position(p["lon2"], p["lat2"])
+        remaining -= leg["s12"]
+        behind = fix
+    raise AssertionError("past the first fix")
+
+
+def counting_geodesics(monkeypatch) -> list:
+    from debrief_kernel.geodesy import WGS84
+
+    calls: list = []
     real = WGS84.Inverse
 
     def counted(*args, **kwargs):
@@ -140,11 +154,43 @@ def test_a_worm_on_a_dense_track_takes_one_geodesic_not_one_a_fix(monkeypatch) -
         return real(*args, **kwargs)
 
     monkeypatch.setattr(WGS84, "Inverse", counted)
+    return calls
+
+
+def test_a_worm_on_a_dense_track_takes_one_geodesic_not_one_a_fix(monkeypatch) -> None:
+    """M1: ALPHA.rep logs a fix a second; a 500 m worm walked a geodesic per fix, some 70
+    per cut, and resolving 600 cuts took over 2 s. Legs are measured on the local
+    ellipsoid, to well under a millimetre over the walk."""
+    from debrief_kernel.geodesy import range_bearing
+
+    path = TrackPath(
+        [i * 1000 for i in range(2001)],
+        [Position(-4.0 + 0.00007 * i, 50.0 + 0.00003 * (i % 40)) for i in range(2001)],
+    )
+    calls = counting_geodesics(monkeypatch)
     fast = array_place(path, 1_500_500, 500.0)
     assert len(calls) <= 2
-    monkeypatch.setattr(sensors, "_short_leg_m", lambda a, b: None)
-    exact = array_place(path, 1_500_500, 500.0)
-    assert len(calls) > 50
-    assert fast is not None and exact is not None
-    apart, _ = range_bearing(fast.position, exact.position)
+    assert fast is not None
+    apart, _ = range_bearing(fast.position, exact_worm(path, 1_500_500, 500.0))
     assert apart.to("m").value < 1e-3
+
+
+def test_a_worm_on_a_track_that_sat_still_bisects_rather_than_walks(monkeypatch) -> None:
+    """Round 3, M-5: a host still for three-quarters of 20,000 fixes; a worm walked every
+    still leg (600 cuts, 2.7 s; 26 s at 200,000 fixes). The track's along-track distance
+    is worked out once and bisected: a geodesic or two a cut, wherever it is."""
+    from debrief_kernel.geodesy import range_bearing
+
+    n, still = 20_000, 15_000
+    positions = [Position(-4.0, 50.0 + max(0, i - still) * 5 / 111_000) for i in range(n)]
+    path = TrackPath([i * 1000 for i in range(n)], positions, [0.0] * n)
+    calls = counting_geodesics(monkeypatch)
+    cuts = [k * (n - 1) * 1000 // 600 for k in range(600)]
+    places = [array_place(path, t, 500.0) for t in cuts]
+    assert len(calls) <= 2 * len(cuts)
+    for t, place in zip(cuts, places, strict=True):
+        if t > (still + 101) * 1000:  # far enough along to have run 500 m
+            apart, _ = range_bearing(place.position, exact_worm(path, t, 500.0))
+            assert apart.to("m").value < 1e-3, t
+        else:  # still, or not yet 500 m from where it sat: astern of the first fix
+            assert place.position.latitude < 50.0 + 1e-9, t

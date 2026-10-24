@@ -1644,11 +1644,13 @@ class Catalogue:
                     f"{sensor.properties.name}: its {len(later):,} cuts from the split on are a "
                     f"sensor of {chosen[1]}'s"
                 )
-            # Cuts between the first part's last fix and the second's first are outside
-            # both parts' spans: each keeps the position it was drawn from, recorded with
-            # it, so it is still drawn (it no longer moves with either part).
-            gap = (parse_utc(first.properties.times[-1]), parse_utc(second.properties.times[0]))
+            # Cuts the split would move: those between the parts' fixes (outside both
+            # parts' spans), those of a towed array whose worm reached back past the split,
+            # and those whose logged course was at a fix now in the other part. Each keeps
+            # where it was drawn from and the course its side was told by, pinned and marked
+            # derived (not recorded), so it is drawn and resolved as before the split.
             whole = TrackPath.lazy_from_feature(track)
+            parts = (TrackPath.lazy_from_feature(first), TrackPath.lazy_from_feature(second))
             where = {f.id: i for i, f in enumerate(modified)}
             pinned = 0
             for sensor in sensors.sensors(plot):
@@ -1656,16 +1658,24 @@ class Catalogue:
                     continue
                 for c in sensors.cuts(plot, sensor.id):
                     t = parse_utc(c.properties.time)
-                    if not gap[0] < t < gap[1] or c.properties.origin is not None:
+                    before = sensors.place_of(c, whole, sensor, t)
+                    if before is None:
                         continue
-                    place = sensors.place_of(c, whole, sensor, t)
-                    if place is None:
+                    after = sensors.place_of(c, parts[t >= at_ms], sensor, t)
+                    if after is not None and _same_place(before, after):
                         continue
                     i = where.get(c.id)
                     cut = modified[i] if i is not None else c
-                    origin = [place.position.longitude, place.position.latitude]
+                    update: dict = {
+                        "course": models.Angle(value=before.course, unit="deg")
+                        if before.course is not None
+                        else None
+                    }
+                    if c.properties.origin is None:
+                        update["origin"] = [before.position.longitude, before.position.latitude]
+                        update["origin_derived"] = True
                     cut = cut.model_copy(
-                        update={"properties": cut.properties.model_copy(update={"origin": origin})}
+                        update={"properties": cut.properties.model_copy(update=update)}
                     )
                     if i is None:
                         modified.append(cut)
@@ -1674,9 +1684,10 @@ class Catalogue:
                     pinned += 1
             if pinned:
                 moved.append(
-                    f"{pinned:,} cut{'s' if pinned != 1 else ''} between the parts' fixes keep "
-                    "the position they were drawn from, so they are still drawn; they no longer "
-                    "move with either part."
+                    f"{pinned:,} cut{'s' if pinned != 1 else ''} near the split keep the "
+                    "position they were drawn from and the course their side was told by, "
+                    "pinned (marked derived, not recorded): they no longer move with either "
+                    "part."
                 )
             sets = [
                 s.model_copy(update={"feature_ids": _after(s.feature_ids, feature_id, second_id)})
@@ -1739,6 +1750,7 @@ class Catalogue:
             modified: list = [merged]
             removed: list[str] = []
             joined: list[str] = []
+            apart: list[str] = []
             # Sensors (CAP-22): carried by the merged track; sensors of one name are one
             # again, their cuts on the first (legacy TrackWrapper.add), so a split and
             # merged track's sensors are as they were.
@@ -1752,6 +1764,18 @@ class Catalogue:
                             feature,
                             props.model_copy(update={"host_track_id": merged.id}),
                         ]
+                        continue
+                    # A towed array whose offset or mode differs is another array, as
+                    # drawn: kept apart, each with its own cuts, so none moves.
+                    if sensors.array_of(feature) != sensors.array_of(keeper[0]):
+                        hosted = props.model_copy(update={"host_track_id": merged.id})
+                        modified.append(feature.model_copy(update={"properties": hosted}))
+                        apart.append(
+                            f"{props.name}: kept as two sensors, as their arrays differ "
+                            f"({sensors.describe_array(*sensors.array_props(keeper[0]))}; "
+                            f"{sensors.describe_array(*sensors.array_props(feature))}), so "
+                            "each keeps its own cuts, drawn as before."
+                        )
                         continue
                     removed.append(feature.id)
                     joined.append(props.name)
@@ -1787,6 +1811,7 @@ class Catalogue:
             if joined:
                 names_joined = _who(list(dict.fromkeys(joined)))
                 lost = [*lost, f"{names_joined}: one sensor again, with every cut."]
+            lost = [*lost, *apart]
             record = {
                 "notes": [f"Into {merged.properties.name}", *lost],
                 "parameters": [models.ParameterValue(name="name", value=merged.properties.name)],
@@ -2227,6 +2252,7 @@ class Catalogue:
 
         def change(plot: DebriefFeatureCollection):
             me, reference = self._references(item_id, plot, catalogues)
+            theirs = None
             if me.is_own(key):
                 track = self.history(item_id).first_recorded(source.track)
                 chosen = collation.Source(key, me.title, None, track)
@@ -2242,8 +2268,18 @@ class Catalogue:
             done = collation.prefer(plot, me, feature_id, (start, end), chosen, reference)
             if done is None:
                 return None
+            notes = list(done.notes)
+            # The period's cuts come with its fixes (CAP-22): the chosen item's sensors on
+            # that track, joined to the plot's of the same name.
+            carried = (
+                collation.sensors_for_period(
+                    plot, theirs, source.track, feature_id, (start, end), notes
+                )
+                if theirs is not None
+                else []
+            )
             record = {
-                "notes": done.notes,
+                "notes": notes,
                 "parameters": [
                     models.ParameterValue(name="period_start", value=period.start),
                     models.ParameterValue(name="period_end", value=period.end),
@@ -2255,7 +2291,7 @@ class Catalogue:
                 "tool": _collation_tool(),
                 "drawn_from": [done.drawn] if done.drawn else None,
             }
-            return Changes(modified=[done.track]), done.note, None, record
+            return Changes(added=carried, modified=[done.track]), done.note, None, record
 
         result = self._change(item_id, change, agent, base, allow_newer_schema)
         return None if result is None else result[0]
@@ -2665,6 +2701,17 @@ def _dr_moved_notes(
 def _quantity(quantity: Quantity, decimals: int):
     """A quantity worked out, as a step's parameters record it: rounded, with its unit."""
     return Quantity(round(quantity.value, decimals), quantity.unit).to_model()
+
+
+def _same_place(a, b) -> bool:
+    """Two places the same, to well under a millimetre and a millidegree of course."""
+    if abs(a.position.latitude - b.position.latitude) > 1e-9:
+        return False
+    if abs(a.position.longitude - b.position.longitude) > 1e-9:
+        return False
+    if (a.course is None) != (b.course is None):
+        return False
+    return a.course is None or abs((a.course - b.course + 180) % 360 - 180) < 1e-6
 
 
 def _after(ids: list[str], existing: str, added: str) -> list[str]:

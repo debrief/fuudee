@@ -8,7 +8,7 @@ import { userInfo } from "node:os";
 import * as vscode from "vscode";
 import type { AmbiguityResolution, AnnotationSpec, ContextTracksEnum, CoverageReport, KnownStore, FigureSource, RevisionShown, NarrativeSpec, ReviewFlag, SourceTrackRef, TimelineEntry, ParameterValue, PlotView, SharedState, SharedStateChange, TimeRange, ToolDeclaration, ToteResult, ToteView as ToteChoice, TrackEdit } from "@debrief/schemas";
 import { figureIdProblem, formatBearing, formatPosition, formatQuantity, parsePosition, POSITION_EXAMPLE, UNIT_LABELS } from "@debrief/kernel";
-import { defaultPivotIndex, describeDistance, describeSpeed, describeTurn, FIX_PROMPT, FIX_PROMPT_DR, fixIndexAt, fixMeans, fixToEdit, jumpSpeed, legNow, mergedName, mergePlan, periodIndices, readBearing, readDistance, readSpeed, readTurn, reckoningOf, type Anchor } from "../webview/trackedit.js";
+import { defaultPivotIndex, describeDistance, describeSpeed, describeTurn, FIX_PROMPT, FIX_PROMPT_DR, fixIndexAt, fixMeans, fixToEdit, jumpSpeed, legNow, mergedName, mergePlan, periodIndices, readArrayOffset, arrayOffsetTitle, readBearing, readDistance, readSpeed, readTurn, reckoningOf, type Anchor } from "../webview/trackedit.js";
 import { chooseModes, MODE_LABELS, modeChoices, modeQuestion, REMEMBERED_IN_VSCODE, rememberItem, type ModeChoice, type PlottingMode } from "./importmode.js";
 import { addStore, loadConfig, narrativeAnswers, removeStore, sameLocation, trackImportMode, updateConfig, withNarrativeAnswers, withTrackImportMode, type TrackImportMode } from "@debrief/config";
 import { changedSince, historyOnDisk, knownStores, openPlot, plotFile, type OpenedPlot } from "./catalogue.js";
@@ -2343,23 +2343,25 @@ export function activate(context: vscode.ExtensionContext): DebriefApi {
       chosen = [picked.entry];
     }
     const sensorWords = chosen.length === 1 ? chosen[0].sensor.properties.name : `${chosen.length} sensors`;
+    const title = chosen.length === 1 ? arrayOffsetTitle(sensorWords, chosen[0].host?.properties.name) : arrayOffsetTitle(sensorWords);
     let offset = offsetGiven;
     if (offset === undefined) {
       const now = chosen[0].sensor.properties.array_offset;
       const text = await vscode.window.showInputBox({
-        title: `Towed array: how far astern of the ship is ${sensorWords}?`,
-        prompt: "Its cuts are drawn, and their port and starboard told, from there. 0 for at the ship.",
-        placeHolder: `such as 300 ${UNIT_LABELS[displaySettings.length_unit]}`,
+        title,
+        prompt: "How far astern of the ship, in metres unless you give a unit; 0 for at the ship. Its cuts are drawn, and their port and starboard told, from there.",
+        placeHolder: "such as 300 m",
         ...(now && { value: `${now.value} ${UNIT_LABELS[now.unit] ?? now.unit}` }),
         validateInput: (typed) => {
-          const read = readDistance(typed, displaySettings);
-          return meaning(read, () => ((read as { value: number }).value === 0 ? "At the ship" : `${describeDistance(read as { value: number; unit: string }, displaySettings)} astern`));
+          const read = readArrayOffset(typed);
+          if (!("problem" in read) && read.warning) return { message: read.warning, severity: vscode.InputBoxValidationSeverity.Warning };
+          return meaning(read, () => ((read as { value: number }).value === 0 ? "at the ship" : `${describeDistance(read as { value: number; unit: string }, displaySettings)} astern`));
         },
       });
       if (text === undefined) return undefined;
-      const read = readDistance(text, displaySettings);
+      const read = readArrayOffset(text);
       if ("problem" in read) return report(read.problem);
-      offset = read.value === 0 ? null : read;
+      offset = read.value === 0 ? null : { value: read.value, unit: read.unit };
     }
     let mode = modeGiven;
     if (!mode && offset) {
@@ -2367,7 +2369,7 @@ export function activate(context: vscode.ExtensionContext): DebriefApi {
         { label: "Worm in the hole", detail: "Back along the ship's own track, so it lags through a turn (as legacy Debrief, by default)", mode: "worm_in_hole" as const },
         { label: "Plain", detail: "Straight astern of the ship, along its course then", mode: "plain" as const },
       ];
-      mode = (await vscode.window.showQuickPick(modes, { title: `${sensorWords}: how does the array follow the ship?` }))?.mode;
+      mode = (await vscode.window.showQuickPick(modes, { title: `${title}: how does the array follow the ship?` }))?.mode;
       if (!mode) return undefined;
     }
     const sent = { sensor_ids: chosen.map((e) => e.sensor.id), offset: offset ?? null, mode: mode ?? "worm_in_hole" };

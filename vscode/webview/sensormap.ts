@@ -39,6 +39,7 @@ import {
   drawnBearings,
   hostPathOf,
   inPeriod,
+  pinnedCourse,
   metres,
   sensorsOf,
   sideOf,
@@ -211,10 +212,10 @@ export class SensorLayer {
 
   private originOf(entry: Entry, cut: CutFeature, at: number): Origin | null {
     const own = cut.properties.origin as LonLat | undefined | null;
-    const key = `${entry.print}|${at}|${own ? own.join(",") : ""}`;
+    const key = `${entry.print}|${at}|${own ? own.join(",") : ""}|${pinnedCourse(cut) ?? ""}`;
     let found = this.origins.get(key);
     if (found !== undefined) return found;
-    const place = cutPlace(entry.path, at, own, entry.offsetM, entry.mode);
+    const place = cutPlace(entry.path, at, own, entry.offsetM, entry.mode, pinnedCourse(cut));
     if (!place) found = null;
     else {
       const where = place.position;

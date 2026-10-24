@@ -639,12 +639,13 @@ def _degrees(angle: Any) -> float:
 def cut_problems(where: str, feature: Any) -> list[str]:
     """Rules for a sensor cut (CAP-22): no geometry of its own; bearings from 0 up to
     360 degrees; resolved only where there is an ambiguous bearing to resolve; a range,
-    when given, 0 (a point) or more; an origin, when given, on the globe."""
+    when given, 0 (a point) or more; an origin, when given, on the globe, and a pinned
+    course and origin_derived only with one."""
     props = feature.properties
     problems = []
     if feature.geometry is not None:
         problems.append(f"{where}: a sensor cut has null geometry")
-    for name in ("bearing", "ambiguous_bearing"):
+    for name in ("bearing", "ambiguous_bearing", "course"):
         angle = getattr(props, name)
         if angle is not None:
             degrees = _degrees(angle)
@@ -659,6 +660,8 @@ def cut_problems(where: str, feature: Any) -> list[str]:
         longitude, latitude = props.origin
         if not (-180 <= longitude <= 180 and -90 <= latitude <= 90):
             problems.append(f"{where}: origin {list(props.origin)} is not on the globe")
+    elif props.origin_derived is not None or props.course is not None:
+        problems.append(f"{where}: origin_derived and course are only with an origin")
     if props.label is not None and not props.label.strip():
         problems.append(f"{where}: a cut's label, when given, is not empty")
     if props.bearing_accuracy is not None and not props.bearing_accuracy.strip():

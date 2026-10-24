@@ -15,7 +15,7 @@
  */
 import { DEFAULT_SETTINGS, formatTime, fixed, formatRange, type FormatSettings } from "@debrief/kernel";
 import type { AmbiguityResolution, DebriefFeatureCollection } from "@debrief/schemas";
-import { pointAt, rangeBearing, travel, type LonLat } from "./geodesic.js";
+import { alongOf, legLengthM, pointAt, rangeBearing, travel, type LonLat } from "./geodesic.js";
 
 type Feature = DebriefFeatureCollection["features"][number];
 export type SensorFeature = Extract<Feature, { properties: { kind: "sensor" } }>;
@@ -128,67 +128,55 @@ export interface Place {
   course?: number;
 }
 
-const SHORT_DEG = 0.01;
-const SHORT_MARGIN_M = 0.01;
-const A = 6378137.0;
-const E2 = (1 / 298.257223563) * (2 - 1 / 298.257223563);
-
-/**
- * The length of a short leg on the ellipsoid's local plane at its middle latitude (to a
- * part in 10^7), or undefined for a longer one: the worm skips a dense track's legs this
- * way and takes the geodesic of the one that holds the end, as the Python does.
- */
-function shortLegM(a: LonLat, b: LonLat): number | undefined {
-  const dLat = b[1] - a[1];
-  const dLon = ((((b[0] - a[0] + 540) % 360) + 360) % 360) - 180;
-  if (Math.abs(dLat) >= SHORT_DEG || Math.abs(dLon) >= SHORT_DEG || Math.abs(a[1]) > 89) return undefined;
-  const phi = (((a[1] + b[1]) / 2) * Math.PI) / 180;
-  const w = 1 - E2 * Math.sin(phi) ** 2;
-  const north = ((dLat * Math.PI) / 180) * A * (1 - E2) / (w * Math.sqrt(w));
-  const east = (((dLon * Math.PI) / 180) * A) / Math.sqrt(w) * Math.cos(phi);
-  return Math.hypot(east, north);
-}
-
 /**
  * Where a sensor offsetM astern of the ship was at a time, and the course there; none
  * outside the host's span. Worm in the hole (legacy's default): back along the ship's own
- * past track, leg by leg along geodesics, then astern of the first fix along its course;
- * plain: straight astern along the course then. As debrief_kernel.sensors.array_place,
- * held to schemas/vectors/sensor-cuts.json.
+ * past track, by its along-track distance (alongOf, worked out once per track and
+ * bisected), then astern of the first fix along its course; plain: straight astern along
+ * the course then. As debrief_kernel.sensors.array_place, held to
+ * schemas/vectors/sensor-cuts.json.
  */
 export function arrayPlace(host: HostPath, at: number, offsetM = 0, mode: ArrayMode = "worm_in_hole"): Place | undefined {
-  const point = pointAt(host.coordinates, host.times, at);
+  // The position only: with courses logged, no course is looked for along the track.
+  const point = pointAt(host.coordinates, host.times, at, !host.courses);
   if (!point) return undefined;
-  if (!(offsetM > 0)) return { position: point.position, course: reportedCourse(host, at) };
+  if (!(offsetM > 0)) return { position: point.position, course: host.courses ? reportedCourse(host, at) : point.course };
   if (mode === "plain") {
-    const course = reportedCourse(host, at);
+    const course = host.courses ? reportedCourse(host, at) : point.course;
     if (course === undefined) return { position: point.position };
     return { position: travel(point.position, (course + 180) % 360, offsetM), course };
   }
   const { coordinates, times } = host;
-  let remaining = offsetM;
-  let behind = point.position;
-  let behindAt = at;
-  for (let j = atOrAfter(times, at) - 1; j >= 0; j--) {
-    const short = shortLegM(behind, coordinates[j]);
-    if (short !== undefined && short < remaining - SHORT_MARGIN_M) {
-      remaining -= short;
-      behind = coordinates[j];
-      behindAt = times[j];
-      continue;
-    }
-    const leg = rangeBearing(behind, coordinates[j]);
-    if (leg.metres >= remaining) {
-      const when = behindAt - (behindAt - times[j]) * (remaining / leg.metres);
-      return { position: travel(behind, leg.bearing, remaining), course: reportedCourse(host, Math.round(when)) };
-    }
-    remaining -= leg.metres;
-    behind = coordinates[j];
-    behindAt = times[j];
+  const j = atOrAfter(times, at) - 1; // the last fix before the time
+  if (j < 0) return asternOfFirst(host, point.position, offsetM);
+  const first = legLengthM(point.position, coordinates[j]);
+  if (first >= offsetM) return onLeg(host, point.position, at, j, offsetM);
+  const along = alongOf(coordinates);
+  const target = along[j] - (offsetM - first);
+  if (target <= 0) return asternOfFirst(host, coordinates[0], -target);
+  let low = 1;
+  let high = j + 1;
+  while (low < high) {
+    const middle = (low + high) >> 1;
+    if (along[middle] < target) low = middle + 1;
+    else high = middle;
   }
-  const course = reportedCourse(host, times[0]);
-  if (course === undefined) return { position: behind };
-  return { position: travel(behind, (course + 180) % 360, remaining), course };
+  const k = Math.max(1, low);
+  return onLeg(host, coordinates[k], times[k], k - 1, along[k] - target);
+}
+
+/** run metres from behind towards fix j, along the geodesic between them. */
+function onLeg(host: HostPath, behind: LonLat, behindAt: number, j: number, run: number): Place {
+  const leg = rangeBearing(behind, host.coordinates[j]);
+  const when = leg.metres > 0 ? behindAt - (behindAt - host.times[j]) * (Math.min(run, leg.metres) / leg.metres) : behindAt;
+  return { position: travel(behind, leg.bearing, run), course: reportedCourse(host, Math.round(when)) };
+}
+
+/** Past the start of the track: run metres astern of its first fix, along its course. */
+function asternOfFirst(host: HostPath, first: LonLat, run: number): Place {
+  const course = reportedCourse(host, host.times[0]);
+  if (course === undefined) return { position: first };
+  return { position: travel(first, (course + 180) % 360, run), course };
 }
 
 /**
@@ -196,8 +184,8 @@ export function arrayPlace(host: HostPath, at: number, offsetM = 0, mode: ArrayM
  * with it, wherever its host is (legacy's absolute origin, never moved with the track),
  * its course the host's then if known; or else where its sensor was (arrayPlace).
  */
-export function cutPlace(host: HostPath | undefined, at: number, own?: LonLat | null, offsetM = 0, mode: ArrayMode = "worm_in_hole"): Place | undefined {
-  if (own) return { position: own, course: host ? reportedCourse(host, at) : undefined };
+export function cutPlace(host: HostPath | undefined, at: number, own?: LonLat | null, offsetM = 0, mode: ArrayMode = "worm_in_hole", pinned?: number | null): Place | undefined {
+  if (own) return { position: own, course: pinned ?? (host ? reportedCourse(host, at) : undefined) };
   if (!host) return undefined;
   return arrayPlace(host, at, offsetM, mode);
 }
@@ -219,11 +207,17 @@ export function arrayOf(sensor: SensorFeature): { offsetM: number; mode: ArrayMo
   return { offsetM: props.array_offset ? metres(props.array_offset) : 0, mode: props.array_mode === "plain" ? "plain" : "worm_in_hole" };
 }
 
+/** The course pinned with a cut's derived origin (at a split), in degrees, if any. */
+export function pinnedCourse(cut: CutFeature): number | undefined {
+  const course = cut.properties.course;
+  return course ? degrees(course) : undefined;
+}
+
 /** The place a cut is drawn from, for a sensor entry: its own position, or its sensor's at its time. */
 export function placeOfCut(entry: SensorEntry, cut: CutFeature, host?: HostPath): Place | undefined {
   const path = host ?? (entry.host?.geometry ? hostPathOf(entry.host) : undefined);
   const { offsetM, mode } = arrayOf(entry.sensor);
-  return cutPlace(path, Date.parse(cut.properties.time), (cut.properties.origin as LonLat | null | undefined) ?? undefined, offsetM, mode);
+  return cutPlace(path, Date.parse(cut.properties.time), (cut.properties.origin as LonLat | null | undefined) ?? undefined, offsetM, mode, pinnedCourse(cut));
 }
 
 /** Where a cut's line ends: along the geodesic from its origin at its bearing. */

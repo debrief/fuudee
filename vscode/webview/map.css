@@ -45,8 +45,9 @@ body { background: var(--vscode-editor-background); color: var(--vscode-foregrou
 /* A cut's details when pointed at: in the theme's hover colours, never in the way. */
 .cut-tip { position: absolute; z-index: 700; pointer-events: none; white-space: pre; max-width: 22rem; padding: 3px 6px; font-size: 12px; background: var(--vscode-editorHoverWidget-background); color: var(--vscode-editorHoverWidget-foreground); border: 1px solid var(--vscode-editorHoverWidget-border); border-radius: 3px; }
 .leaflet-container.on-cut { cursor: pointer; }
-.cut-popover { position: absolute; z-index: 710; white-space: pre; max-width: 24rem; padding: 6px 8px; font-size: 12px; background: var(--vscode-editorHoverWidget-background); color: var(--vscode-editorHoverWidget-foreground); border: 1px solid var(--vscode-editorHoverWidget-border); border-radius: 3px; box-shadow: 0 2px 8px var(--vscode-widget-shadow, transparent); }
+.cut-popover { position: absolute; z-index: 710; white-space: normal; overflow-wrap: anywhere; max-width: min(24rem, calc(100% - 8px)); padding: 6px 8px; font-size: 12px; background: var(--vscode-editorHoverWidget-background); color: var(--vscode-editorHoverWidget-foreground); border: 1px solid var(--vscode-editorHoverWidget-border); border-radius: 3px; box-shadow: 0 2px 8px var(--vscode-widget-shadow, transparent); }
 .cut-popover[hidden] { display: none; }
+.cut-popover:focus-visible { outline: 1px solid var(--vscode-focusBorder); }
 .cut-popover .choices { display: flex; flex-wrap: wrap; gap: 4px; margin-top: 6px; }
 .cut-popover button { background: var(--vscode-button-secondaryBackground); color: var(--vscode-button-secondaryForeground); border: none; padding: 3px 8px; cursor: pointer; font: inherit; }
 .cut-popover button:first-child { background: var(--vscode-button-background); color: var(--vscode-button-foreground); }

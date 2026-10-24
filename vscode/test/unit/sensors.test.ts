@@ -36,6 +36,7 @@ import {
 } from "../../webview/sensors.js";
 import { describeSensorInFile, hostChoices, hostQuestion, hostsToAsk, sensorReadSummary, type SensorPreview } from "../../src/sensorimport.js";
 import { describeStep, SENSOR_IMPORTER } from "../../src/wording.js";
+import { arrayOffsetTitle, readArrayOffset } from "../../webview/trackedit.js";
 
 const repo = path.resolve(__dirname, "../../..");
 const vectors = JSON.parse(readFileSync(path.join(repo, "schemas/vectors/sensor-cuts.json"), "utf8")) as {
@@ -53,6 +54,7 @@ const vectors = JSON.parse(readFileSync(path.join(repo, "schemas/vectors/sensor-
       range_m?: number;
       length_m?: number;
       origin?: LonLat;
+      course?: number;
       expected: { origin: LonLat | null; course: number | null; side: string | null; lines?: { which: Kept; end: LonLat }[]; keep_port: Kept | null; keep_starboard: Kept | null };
     }[];
   }[];
@@ -84,7 +86,7 @@ describe("a cut's origin, its host's course, its lines and keeping a side (CAP-2
   it.each(cuts)("%s", (_name, c, cut) => {
     const host = { coordinates: c.host.coordinates, times: c.host.times.map(Date.parse), ...(c.host.courses && { courses: c.host.courses }) };
     const at = Date.parse(cut.time);
-    const place = cutPlace(host, at, cut.origin, c.sensor?.array_offset_m ?? 0, c.sensor?.array_mode ?? "worm_in_hole");
+    const place = cutPlace(host, at, cut.origin, c.sensor?.array_offset_m ?? 0, c.sensor?.array_mode ?? "worm_in_hole", cut.course);
     const origin = place?.position;
     samePlace(origin, cut.expected.origin, "origin");
     const course = place?.course;
@@ -272,5 +274,43 @@ describe("a worm on a dense track (M1)", () => {
       behind = coordinates[j];
     }
     expect(rangeBearing(place.position, behind).metres).toBeLessThan(1e-3);
+  });
+});
+
+describe("a worm on a track that sat still (round 3, M-5)", () => {
+  it("bisects the track's along-track distance rather than walking every still fix", () => {
+    const n = 20000;
+    const still = 15000;
+    const coordinates: LonLat[] = [];
+    const times: number[] = [];
+    for (let i = 0; i < n; i++) {
+      coordinates.push([-4, 50 + (Math.max(0, i - still) * 5) / 111000]);
+      times.push(i * 1000);
+    }
+    const host = { coordinates, times, courses: new Array<number>(n).fill(0) };
+    const at = (k: number) => Math.floor(((n - 1) * 1000 * k) / 600);
+    const began = performance.now();
+    const places = Array.from({ length: 600 }, (_, k) => arrayPlace(host, at(k), 500)!);
+    // 3.2 s before (every still leg walked, and a course looked for behind each).
+    expect(performance.now() - began).toBeLessThan(1000);
+    for (const [k, place] of places.entries()) {
+      if (at(k) <= (still + 101) * 1000) expect(place.position[1]).toBeLessThan(50 + 1e-9);
+    }
+  });
+});
+
+describe("an array offset as typed (round 3, M-4 and L-4)", () => {
+  it("is metres unless a unit is given, whatever the display's unit", () => {
+    expect(readArrayOffset("300")).toEqual({ value: 300, unit: "m" });
+    expect(readArrayOffset("300 yd")).toEqual({ value: 300, unit: "[yd_i]" });
+    expect(readArrayOffset("0")).toEqual({ value: 0, unit: "m" });
+    expect(readArrayOffset("far")).toEqual({ problem: expect.stringContaining("such as 300 m") });
+  });
+  it("warns past 5 km, likely a unit mistyped", () => {
+    expect(readArrayOffset("5000")).toEqual({ value: 5000, unit: "m" });
+    expect(readArrayOffset("3 nmi")).toMatchObject({ value: 3, warning: expect.stringMatching(/^3\.00 nmi astern is longer than any towed array/) });
+  });
+  it("names the sensor and its host", () => {
+    expect(arrayOffsetTitle("Towed array", "BLUE ONE")).toBe("Array offset: Towed array on BLUE ONE");
   });
 });

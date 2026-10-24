@@ -1,5 +1,5 @@
 {
-  "description": "Shared vectors for sensor cuts (CAP-22): where a cut is drawn from and to, which side of its course a bearing is on, and which bearing keeping port or starboard keeps. debrief_kernel.sensors (with geodesy.TrackPath) and vscode/webview/sensors.ts must agree. relative: legacy Debrief's relBearing (the bearing less the course, within ±180°; every case of legacy's own test), port when below zero. default_length: a cut without a range is drawn twice the view's larger side, at most five degrees of arc (555,600 m). cases: a host track (coordinates, times, and courses where it records them, degrees), perhaps a sensor (array_offset_m astern, array_mode worm_in_hole or plain), and cuts. Each cut's origin is the position recorded with it (wherever the host is), or where its sensor was: the host's position at its time (as the map places tracks), or the array's, offset back along the host's own track (worm in the hole: leg by leg along geodesics, then astern of the first fix along its course) or straight astern (plain); null outside the host's span. course is the course recorded at the first fix at or after the time the ship was there, as legacy's isBearingToPort took it, or where the host records none its direction of travel then, as the map's pointAt gives it (null when it never moved). side is that of the bearing recorded first; lines are what is drawn (both bearings until resolved, then the one kept), each ending along the geodesic at its range (range_m; 0 is a point) or the length it is drawn to (length_m); keep_port and keep_starboard say which bearing each keeps (null where there is no ambiguous bearing, or no course). Positions are [longitude, latitude] to within 1e-9 degrees, longitudes compared modulo 360; courses to within 1e-9 degrees.",
+  "description": "Shared vectors for sensor cuts (CAP-22): where a cut is drawn from and to, which side of its course a bearing is on, and which bearing keeping port or starboard keeps. debrief_kernel.sensors (with geodesy.TrackPath) and vscode/webview/sensors.ts must agree. relative: legacy Debrief's relBearing (the bearing less the course, within ±180°; every case of legacy's own test), port when below zero. default_length: a cut without a range is drawn twice the view's larger side, at most five degrees of arc (555,600 m). cases: a host track (coordinates, times, and courses where it records them, degrees), perhaps a sensor (array_offset_m astern, array_mode worm_in_hole or plain), and cuts. Each cut's origin is the position recorded with it (wherever the host is), or where its sensor was: the host's position at its time (as the map places tracks), or the array's, offset back along the host's own track (worm in the hole: leg by leg along geodesics, then astern of the first fix along its course) or straight astern (plain); null outside the host's span. A cut's own course (pinned with a derived origin when its track was split) is the course its side is told by; else course is the course recorded at the first fix at or after the time the ship was there, as legacy's isBearingToPort took it, or where the host records none its direction of travel then, as the map's pointAt gives it (null when it never moved). side is that of the bearing recorded first; lines are what is drawn (both bearings until resolved, then the one kept), each ending along the geodesic at its range (range_m; 0 is a point) or the length it is drawn to (length_m); keep_port and keep_starboard say which bearing each keeps (null where there is no ambiguous bearing, or no course). Positions are [longitude, latitude] to within 1e-9 degrees, longitudes compared modulo 360; courses to within 1e-9 degrees.",
   "relative": [
     {
       "course": 0,
@@ -638,6 +638,43 @@
             ],
             "keep_port": null,
             "keep_starboard": null
+          }
+        },
+        {
+          "time": "2023-06-15T09:30:00.000Z",
+          "bearing": 20.0,
+          "ambiguous_bearing": 160.0,
+          "origin": [
+            -75.4,
+            36.9
+          ],
+          "course": 90.0,
+          "length_m": 5000.0,
+          "expected": {
+            "origin": [
+              -75.4,
+              36.9
+            ],
+            "course": 90.0,
+            "side": "port",
+            "lines": [
+              {
+                "which": "bearing",
+                "end": [
+                  -75.38080239367423,
+                  36.94233603687419
+                ]
+              },
+              {
+                "which": "ambiguous_bearing",
+                "end": [
+                  -75.38082359246671,
+                  36.85766056235005
+                ]
+              }
+            ],
+            "keep_port": "bearing",
+            "keep_starboard": "ambiguous_bearing"
           }
         }
       ]

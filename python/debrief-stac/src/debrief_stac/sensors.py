@@ -154,6 +154,9 @@ class ReadCut:
     hidden: bool = False
     # ;SENSOR3:'s bearing accuracy, as written: kept, not drawn.
     bearing_accuracy: str | None = None
+    # A derived origin (pinned at a split) and the course pinned with it.
+    origin_derived: bool = False
+    course: float | None = None
 
 
 @dataclass
@@ -248,6 +251,8 @@ def read_cut_of(cut) -> ReadCut:
         colour=props.colour,
         hidden=bool(props.hidden),
         bearing_accuracy=props.bearing_accuracy,
+        origin_derived=bool(props.origin_derived),
+        course=degrees(props.course) if props.course is not None else None,
     )
 
 
@@ -267,6 +272,10 @@ def cut_feature(feature_id: str, sensor_id: str, cut: ReadCut, sensor_colour: st
             resolved=cut.resolved if cut.ambiguous is not None else None,
             range=models.Length(value=cut.range_m, unit="m") if cut.range_m is not None else None,
             origin=list(cut.origin) if cut.origin is not None else None,
+            origin_derived=True if cut.origin is not None and cut.origin_derived else None,
+            course=angle(normalised(cut.course))
+            if cut.origin is not None and cut.course is not None
+            else None,
             bearing_accuracy=cut.bearing_accuracy or None,
             label=cut.label or None,
             comment=cut.comment or None,
@@ -606,6 +615,11 @@ def array_of(sensor) -> tuple[float, str]:
     return metres, mode
 
 
+def array_props(sensor) -> tuple[models.Length | None, str]:
+    """A sensor's array offset as it holds it, and its mode, for describe_array."""
+    return sensor.properties.array_offset, array_of(sensor)[1]
+
+
 def place_of(cut, path: TrackPath | None, sensor, at: int | None = None) -> Place | None:
     """Where a cut is drawn from and the course its sides are told by (cut_place), for
     its sensor's array."""
@@ -613,7 +627,8 @@ def place_of(cut, path: TrackPath | None, sensor, at: int | None = None) -> Plac
     own = Position(*props.origin) if props.origin is not None else None
     offset, mode = array_of(sensor) if sensor is not None else (0.0, "worm_in_hole")
     when = parse_utc(props.time) if at is None else at
-    return cut_place(path, when, own, offset, mode)  # type: ignore[arg-type]
+    pinned = degrees(props.course) if props.course is not None and own is not None else None
+    return cut_place(path, when, own, offset, mode, pinned)  # type: ignore[arg-type]
 
 
 def _array_entry(sensor) -> dict:
@@ -632,6 +647,8 @@ def _cut_entry(cut, path: TrackPath | None, at: int, sensor=None) -> dict:
         "bearing": degrees(props.bearing),
         "origin": [origin.longitude, origin.latitude] if origin is not None else None,
     }
+    if props.origin_derived:
+        entry["origin_derived"] = True  # worked out by Debrief, not recorded (for TMA)
     if props.ambiguous_bearing is not None:
         entry["ambiguous_bearing"] = degrees(props.ambiguous_bearing)
         entry["resolved"] = str(props.resolved) if props.resolved is not None else None

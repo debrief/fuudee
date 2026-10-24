@@ -1367,6 +1367,10 @@ export interface SensorCutProperties {
    */
   comment?: string | null;
   /**
+   * The course, true, the cut's port and starboard are told by, pinned with a derived origin when its track was split (the course logged where the sensor was then). Left out, the host's logged course at the cut's time. Only with origin.
+   */
+  course?: Angle | null;
+  /**
    * Not drawn on the map. Content, like hiding any feature (SUB-22).
    */
   hidden?: boolean | null;
@@ -1380,6 +1384,10 @@ export interface SensorCutProperties {
    * @maxItems 2
    */
   origin?: [number, number];
+  /**
+   * True where origin is not recorded by the source but derived by Debrief: where the sensor (its array astern, if it has one) was before its track was split, pinned so the cut is drawn, and its side told, as before (round 3 review, 24 Oct 2026). A TMA residual can tell a recorded origin from a derived one by it. Only with origin.
+   */
+  origin_derived?: boolean | null;
   /**
    * How far the target was, where the source says: the cut is drawn to that range. Left out, drawn past the edge of the view. A range of 0 (a ;SENSOR2: or ;SENSOR3: line's, as legacy read it) is drawn as a point where the cut was taken, as legacy drew it.
    */

@@ -110,6 +110,12 @@ export async function playSensors(page, shot) {
   const offered = await popover.locator("button").allInnerTexts();
   assert.match(offered.join("|"), /^Keep \d{3}\.\d° \((port|starboard)\)\|Keep \d{3}\.\d° \((port|starboard)\)\|More…$/);
   assert.match(await popover.innerText(), /cut at \d\d:\d\d:\d\dZ/);
+  // The dialog itself has the keyboard first (a screen reader reads the cut), not a choice; Tab stays among the choices.
+  assert.equal(await popover.evaluate((p) => p.ownerDocument.activeElement === p), true, "the dialog has focus first");
+  assert.equal(await popover.getAttribute("aria-describedby"), "cut-popover-details");
+  const buttonsShown = await popover.locator("button").count();
+  for (let i = 0; i <= buttonsShown; i++) await page.keyboard.press("Tab");
+  assert.equal(await popover.evaluate((p) => p.contains(p.ownerDocument.activeElement)), true, "Tab stays in the choices");
   await page.waitForTimeout(300);
   assert.equal(await steps(), n, "a plain click changes nothing");
   assert.equal(await drawn("lines"), lines, "both bearings still drawn");
