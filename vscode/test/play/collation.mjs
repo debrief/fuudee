@@ -9,15 +9,19 @@
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import path from "node:path";
+import { resizeTo, showPanel } from "./dock.mjs";
 
 export async function playCollation(page, shot) {
-  const latest = () => page.locator("#history li").first().locator(".name").innerText();
+  const latest = () => page.locator("#history li").first().locator(".name").textContent();
   const stepNamed = (name) => page.waitForFunction((n) => document.querySelector("#history li .name")?.textContent === n, name, { timeout: 60000 });
   const coverage = page.locator("#coverage");
   const blue = coverage.locator('.cov-platform[data-track="track-blue-one"]');
   const item = (title) => page.locator("#items > li", { has: page.locator(".item-title", { hasText: title }) });
 
   await page.selectOption("#plots", "serial-1");
+  // Catalogue and Coverage in view: docked, their tabs to the front (behind the Outline and the Timeline by default).
+  await showPanel(page, "catalogue");
+  await showPanel(page, "coverage");
   await blue.waitFor();
   // The sample's other serials have BLUE ONE too: proposed, by name, as the same platform.
   assert.match(await blue.locator(".cov-head").innerText(), /BLUE ONE\s+3 sources/);
@@ -26,6 +30,7 @@ export async function playCollation(page, shot) {
   assert.equal(await blue.getAttribute("open"), null);
 
   // New data arrives, through Debrief's import: a navigation log for BLUE ONE.
+  await showPanel(page, "try");
   await page.locator("#new-data").click();
   const log = item("BLUE ONE navigation log");
   await log.locator(".item-mark").waitFor({ timeout: 60000 });
@@ -37,7 +42,7 @@ export async function playCollation(page, shot) {
   assert.equal(await fresh.locator(".cov-tag").innerText(), "New data");
   // Its BLUE ONE, named "Blue One", proposed as the plot's.
   assert.match(await blue.locator(".cov-source", { hasText: "BLUE ONE navigation log" }).innerText(), /proposed: same name · Blue One/);
-  await page.locator("#panel-catalogue").scrollIntoViewIfNeeded();
+  await showPanel(page, "catalogue");
   await shot("collation-01-new-data");
 
   // Taken from the keyboard: one step, named for the item.
@@ -52,6 +57,7 @@ export async function playCollation(page, shot) {
   assert.ok(await page.locator('#outline li[data-id="track-watcher"]').count(), "WATCHER, matching none of the plot's tracks, added");
   // The Timeline lists the periods of data, by the item supplying each (CAP-05).
   // The list draws only the rows in sight: found by searching for them, as a reader would.
+  await showPanel(page, "timeline");
   const search = page.locator("#timeline .tl-search");
   await search.fill("navigation log");
   const rows = page.locator('#timeline .tl-row[data-kind="coverage"]', { hasText: "navigation log" });
@@ -59,7 +65,7 @@ export async function playCollation(page, shot) {
   const supplied = await rows.evaluateAll((all) => all.map((r) => r.getAttribute("aria-label")));
   assert.ok(supplied.some((label) => /BLUE ONE navigation log, Data: Until .*BLUE ONE: 120 fixes/.test(label)), supplied.join("\n"));
   await search.fill("");
-  await page.locator("#panel-coverage").scrollIntoViewIfNeeded();
+  await showPanel(page, "coverage");
   await shot("collation-02-taken");
 
   // Undo takes it all back; redo puts it again.
@@ -67,7 +73,7 @@ export async function playCollation(page, shot) {
   await page.waitForFunction(() => document.querySelector("#history li .detail")?.textContent?.includes("undone"));
   await page.waitForFunction(() => !document.querySelector('#outline li[data-id="track-watcher"]'));
   await page.locator("#redo").click();
-  await page.locator('#outline li[data-id="track-watcher"]').waitFor();
+  await page.locator('#outline li[data-id="track-watcher"]').waitFor({ state: "attached" }); // in the Outline, behind the Catalogue's tab
 
   // Which source supplies the period both have: chosen on its list, then on the bar.
   const choice = blue.locator("select", { has: page.locator("option", { hasText: "BLUE ONE navigation log" }) }).first();
@@ -91,7 +97,7 @@ export async function playCollation(page, shot) {
   const logBar = blue.locator(".cov-source", { hasText: "BLUE ONE navigation log" }).locator(".cov-bar .cov-supplied");
   await logBar.nth(1).waitFor({ timeout: 10000 }).catch(() => undefined);
   assert.ok((await logBar.count()) >= 2, `the log supplies its period of overlap and its hour after the plot's (${await logBar.count()} shown)`);
-  await page.locator("#panel-coverage").scrollIntoViewIfNeeded();
+  await showPanel(page, "coverage");
   await shot("collation-03-chosen");
   // Back to Serial 1 by clicking its bar in the middle of that period.
   const [from, to] = period.split(" to ").map((t) => Date.parse(`2023-06-15T${t.replace("Z", "")}.000Z`));
@@ -109,13 +115,14 @@ export async function playCollation(page, shot) {
   await page.waitForFunction(() => ![...document.querySelectorAll('#coverage .cov-platform[data-track="track-blue-one"] .cov-title')].some((t) => t.textContent === "Serial 2"));
 
   // A colleague revises the log: said once, and the plot flagged until reviewed (CAP-12).
+  await showPanel(page, "try");
   await page.locator("#revise").click();
   await page.locator(".toast", { hasText: "May need review: BLUE ONE navigation log was revised since Serial 1 took data from it" }).waitFor({ timeout: 60000 });
   const serial = item("Serial 1");
   await serial.locator(".item-flag").waitFor();
   assert.match(await serial.getAttribute("aria-label"), /May need review/);
   assert.match(await coverage.locator(".cov-review").innerText(), /May need review: BLUE ONE navigation log was revised/);
-  await page.locator("#panel-catalogue").scrollIntoViewIfNeeded();
+  await showPanel(page, "catalogue");
   await shot("collation-04-review");
   const steps = await page.locator("#history li").count();
   await coverage.locator(".cov-reviewed").click();
@@ -136,13 +143,13 @@ export async function playCollation(page, shot) {
   for (const wide of [false, true]) {
     const style = wide ? await page.addStyleTag({ content: "#side * { letter-spacing: 0.1em !important } .cov, .cov *, .items, .items * { font-size: 15px !important }" }) : undefined;
     for (const width of [390, 280, 210]) {
-      await page.setViewportSize({ width, height: 800 });
+      await resizeTo(page, width, 800);
       await page.waitForTimeout(300);
       const over = await sideways();
       widths.push(`${wide ? "wide font, " : ""}${width} px: ${over.length ? over.join(", ") : "fits"}`);
       assert.deepEqual(over, [], `${wide ? "in a wide font, " : ""}at ${width} px nothing scrolls sideways`);
       if (width === 390 && !wide) {
-        await page.locator("#panel-coverage").scrollIntoViewIfNeeded();
+        await showPanel(page, "coverage");
         await shot("collation-05-phone");
       }
     }
@@ -152,7 +159,8 @@ export async function playCollation(page, shot) {
   const times = (await page.evaluate(() => window.debriefCoverage())).times.map((t) => Math.round(t)).sort((a, b) => a - b);
   console.log(`Coverage in the playground (Pyodide), asking to answer: ${times.join(", ")} ms over ${times.length} asks.`);
   assert.ok(times[Math.floor(times.length / 2)] < 1500, "coverage answers within budget (generously, for a slow machine)");
-  await page.setViewportSize({ width: 1400, height: 820 });
+  await resizeTo(page, 1400, 820);
+  await showPanel(page, "outline"); // in front again, as the tests after this one expect
 }
 
 /**

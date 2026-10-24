@@ -225,12 +225,24 @@ describe("package.json", () => {
   });
 });
 
+describe("the playground's hints on where things are", () => {
+  // Panel review, 23 Oct 2026: the reader moves the panels, so a hint names the panel, and the
+  // step's button brings it into view; it never says where the panel sits.
+  it("name panels, never their place in the layout", () => {
+    const where = TOURS.flatMap((t) => t.steps.map((s) => (s as { play?: { where?: string } }).play?.where ?? ""));
+    expect(where.length).toBeGreaterThan(10);
+    for (const text of where) expect(text, text).not.toMatch(/on the left|on the right|under the map|below the (Outline|Tote|time controller)|side column|right-hand/);
+  });
+});
+
 describe("the web demo's page", () => {
   it("is the playground's page, every panel and the walkthroughs, on the playground's files", () => {
     const page = demoPage(index);
     expect(page).toContain('<base href="../play/">');
     expect(page).toContain("<title>Debrief web demo</title>");
-    for (const panel of ["tour", "time", "tote", "plot", "outline", "timeline", "catalogue", "coverage", "tools", "history", "export", "try", "import"]) expect(page).toContain(`id="panel-${panel}"`);
+    for (const panel of ["tour", "time", "tote", "outline", "timeline", "catalogue", "coverage", "tools", "history", "export", "try", "import"]) expect(page).toContain(`id="panel-${panel}"`);
+    // The plot list, Import…, Export and Try in the top bar (product owner, 23 Oct 2026).
+    for (const control of ["plots", "open-import", "open-export", "open-try", "reset-layout"]) expect(page).toContain(`id="${control}"`);
     expect(() => demoPage("<html></html>")).toThrow();
     expect(page).toContain(DEMO_META);
   });

@@ -6,6 +6,7 @@
 // each one step, undone like any other; all of it from the keyboard too; the entry on the
 // map beside its track; a phone. And at the track-heavy volume (60,000 entries), how long
 // each part takes, reported.
+import { resizeTo, showPanel } from "./dock.mjs";
 import assert from "node:assert/strict";
 import { narrativeLog } from "./narrativelog.mjs";
 import { searchTimeline, timelineRow } from "./timelinerows.mjs";
@@ -33,19 +34,25 @@ async function currentInView(page) {
   });
 }
 
-/** Fold the panels above the Timeline away, as a reader would, and open it; returns how to put them back. */
+/**
+ * The Timeline in view, as a reader would bring it: docked, its tab to the front (it has a place
+ * of its own under the map); narrow, the panels above it folded away and it opened. Returns how to
+ * put them back.
+ */
 async function openTimeline(page) {
+  if (await page.evaluate(() => document.body.classList.contains("docked"))) {
+    await showPanel(page, "timeline");
+    return async () => undefined;
+  }
   const folded = [];
-  for (const id of ["panel-tote", "panel-outline", "panel-tools", "panel-try"]) {
+  for (const id of ["panel-tote", "panel-outline", "panel-tools"]) {
     const fold = page.locator(`#${id} button.fold`);
     if ((await fold.count()) && (await fold.getAttribute("aria-expanded")) === "true") {
       await fold.click();
       folded.push(fold);
     }
   }
-  const fold = page.locator("#panel-timeline button.fold");
-  if ((await fold.getAttribute("aria-expanded")) === "false") await fold.click();
-  await page.locator("#panel-timeline").scrollIntoViewIfNeeded();
+  await showPanel(page, "timeline");
   return async () => {
     for (const button of folded) if ((await button.getAttribute("aria-expanded")) === "false") await button.click();
   };
@@ -97,7 +104,7 @@ export async function playNarrative(page, shot) {
   // Resizing never stops it following: only the reader's own scroll does.
   await page.setViewportSize({ width: 1400, height: 560 });
   await page.waitForTimeout(300);
-  await page.setViewportSize({ width: 1400, height: 820 });
+  await resizeTo(page, 1400, 820);
   await page.waitForTimeout(300);
   assert.equal((await state(page)).following, true, "resizing the page does not stop following");
 
@@ -299,13 +306,14 @@ export async function playNarrative(page, shot) {
   await page.waitForFunction((n) => document.querySelectorAll("#history li").length > n, stepsNow);
   await page.waitForFunction((id) => window.debriefTimeline().active === id, place.next);
   assert.equal(await page.evaluate(() => document.activeElement?.classList.contains("tl-scroll")), true, "the list keeps the keyboard");
+  await showPanel(page, "history");
   await page.locator("#undo").click();
   await page.waitForFunction((id) => window.debriefTimeline().entries > 0 && document.querySelector(`#timeline .tl-row[data-id="${id}"]`) !== null, place.gone).catch(() => undefined);
 
   // On a phone: one column for the text under time, source and type; the page never
   // scrolls sideways; a tap moves current time.
-  await page.setViewportSize({ width: 390, height: 844 });
-  await page.locator("#panel-timeline").scrollIntoViewIfNeeded();
+  await resizeTo(page, 390, 844);
+  await showPanel(page, "timeline");
   await page.waitForTimeout(300);
   assert.equal(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth), true, "the page does not scroll sideways on a phone");
   assert.equal(await timeline(".tl-scroll").evaluate((el) => el.scrollWidth <= el.clientWidth), true, "nor the list");
@@ -315,7 +323,7 @@ export async function playNarrative(page, shot) {
   await page.waitForFunction(() => document.querySelector("#timebar .time-label")?.textContent?.includes("17:00:00Z"));
   await page.mouse.move(2, 2);
   await shot("narrative-08-phone");
-  await page.setViewportSize({ width: 1400, height: 820 });
+  await resizeTo(page, 1400, 820);
   await unfold(); // the panels as the tests after this one expect them
   console.log(`Timeline: ${initial.entries} entries in serial 3, ${initial.drawn} drawn; followed while playing through ${seen.size} entries; an entry added through the form and shown in ${smallAddMs} ms.`);
 }
@@ -346,6 +354,7 @@ export async function playNarrativeAtScale(page, shot) {
   await page.waitForFunction((n) => window.debriefTimeline().entries === n + 1, entriesBefore);
   const typicalAddMs = Date.now() - started;
   started = Date.now();
+  await showPanel(page, "history");
   await page.locator("#undo").click();
   await page.waitForFunction((n) => window.debriefTimeline().entries === n, entriesBefore);
   const typicalUndoMs = Date.now() - started;
@@ -356,6 +365,7 @@ export async function playNarrativeAtScale(page, shot) {
   assert.ok(typicalImportS < 15, `a typical narrative is read in ${typicalImportS} s`);
   // The typical log out again: the large one repeats its first entry, which the reader would
   // be asked about as already in the plot (product owner, 15 Oct 2026).
+  await showPanel(page, "history");
   await page.locator("#undo").click();
   await page.waitForFunction((n) => window.debriefTimeline().entries === n, entriesBefore - typical);
 

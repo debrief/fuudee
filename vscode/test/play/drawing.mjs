@@ -3,12 +3,13 @@
 // the form, undo; drag a corner (and cancel a drag with Escape); nudge the area with the
 // arrow keys; remove a corner from the keyboard; draw an ellipse; place a marker without
 // a pointer at all; cancel. Each finished annotation, and each release, is one step.
+import { resizeTo } from "./dock.mjs";
 import assert from "node:assert/strict";
 
 export async function playDrawing(page, shot) {
   const mapFrame = page.frameLocator(".frame-map");
   const form = page.frameLocator(".frame-annotation");
-  const history = () => page.locator("#history").innerText();
+  const history = () => page.locator("#history").textContent();
   const steps = () => page.locator("#history li").count();
   const stepAdded = (count) => page.waitForFunction((c) => document.querySelectorAll("#history li").length > c, count, { timeout: 60000 });
   const historySays = (text) => page.waitForFunction((t) => document.getElementById("history")?.textContent?.includes(t), text, { timeout: 60000 });
@@ -283,10 +284,10 @@ export async function playDrawing(page, shot) {
   await page.locator(`#outline li[data-id="annotation-patrol-box"]`).click();
   await status.getByText("Area 'Patrol box': drag a handle, or Tab to one and use the arrow keys.").waitFor();
   const wide = page.viewportSize();
-  await page.setViewportSize({ width: 640, height: wide.height }); // the map about 430 px wide
+  await resizeTo(page, 640, wide.height); // the map about 430 px wide
   await status.waitFor({ state: "hidden" });
   await handle("move").waitFor();
-  await page.setViewportSize(wide);
+  await resizeTo(page, wide.width, wide.height);
   await status.waitFor({ state: "visible" });
 
   // Drawing never moved current time or the window.

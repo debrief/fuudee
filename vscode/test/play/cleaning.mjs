@@ -6,13 +6,14 @@
 // step; the label is drawn on the map, the comment shows when pointing at the fix and in the
 // Timeline; a right-click on a fix on the map chooses it in the list, and so, on a touch screen,
 // does pressing and holding it (a tap or a moving finger does not); the list works from the keyboard.
+import { showPanel } from "./dock.mjs";
 import { searchTimeline, timelineRow } from "./timelinerows.mjs";
 import assert from "node:assert/strict";
 
 export async function playCleaning(page, shot) {
   const mapFrame = page.frameLocator(".frame-map");
   const steps = () => page.locator("#history li").count();
-  const latest = () => page.locator("#history li").first().locator(".name").innerText();
+  const latest = () => page.locator("#history li").first().locator(".name").textContent();
   const stepAdded = (count) => page.waitForFunction((c) => document.querySelectorAll("#history li").length > c, count, { timeout: 60000 });
   const dialog = page.locator("dialog.track-form");
   const rings = () => mapFrame.locator("path.fix-check").count();
@@ -29,6 +30,7 @@ export async function playCleaning(page, shot) {
 
   // Glitches, as a step of their own by the playground: never mistaken for real data.
   let n = await steps();
+  await showPanel(page, "try");
   await page.locator("#glitches").click();
   await stepAdded(n);
   assert.equal(await latest(), "GPS glitches put into RED ONE");

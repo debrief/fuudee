@@ -54,6 +54,8 @@ export const browserStorage = (): FoldStorage | undefined => {
  */
 export class Folds {
   private readonly folded: Set<string>;
+  /** In the docked layout (dock.ts) tabs show and hide the panels: every body is shown, and what was folded is kept for the narrow layout. */
+  private suspended = false;
 
   /** remember false: start every panel open, and keep folding to this visit (an embedded demo). */
   constructor(
@@ -79,9 +81,16 @@ export class Folds {
     else this.folded.add(id);
     if (this.remember) writeFolded(this.storage, this.folded);
     const section = this.sections.find((s) => s.id === id);
-    if (!section) return;
+    if (!section || this.suspended) return;
     this.show(section);
     section.dispatchEvent(new CustomEvent("fold", { detail: { open } }));
+  }
+
+  /** Suspend folding (the docked layout), or take it up again as it was (the narrow one). */
+  suspend(on: boolean): void {
+    if (on === this.suspended) return;
+    this.suspended = on;
+    for (const section of this.sections) this.show(section);
   }
 
   private buttonOf(section: HTMLElement): HTMLButtonElement {
@@ -91,7 +100,7 @@ export class Folds {
   }
 
   private show(section: HTMLElement): void {
-    const open = this.isOpen(section.id);
+    const open = this.suspended || this.isOpen(section.id);
     section.classList.toggle("folded", !open);
     this.buttonOf(section).setAttribute("aria-expanded", String(open));
     const body = section.querySelector<HTMLElement>(":scope > .panel-body");

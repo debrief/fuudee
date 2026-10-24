@@ -23,6 +23,7 @@ import { playFrequencies } from "./frequencies.mjs";
 import { playCollation, vscodeCoverageView } from "./collation.mjs";
 import { playExport } from "./export.mjs";
 import { guidanceAccent, openOnFirstLoad, playDemo, playTourInThePost, playTours, resize, speedRun } from "./onboarding.mjs";
+import { mapPlaced, playDock, resizeTo, showPanel } from "./dock.mjs";
 
 const root = path.resolve(process.argv[2] ?? "../site/docs/play");
 const site = process.argv[3] ? path.resolve(process.argv[3]) : undefined;
@@ -54,7 +55,8 @@ page.on("console", (m) => /Content Security Policy|Refused to (load|connect|exec
 const shot = async (name, on = page) => shots && (await on.waitForTimeout(800), await on.screenshot({ path: path.join(shots, `${name}.png`) }));
 const text = (selector) => page.locator(selector).innerText();
 const selected = () => page.$$eval("#outline li.selected .name", (rows) => rows.map((r) => r.textContent));
-const history = () => text("#history");
+// Its text whether or not History's tab is in front (innerText is empty for what is hidden).
+const history = () => page.locator("#history").textContent();
 const ready = (on = page) => on.waitForFunction(() => document.getElementById("status")?.textContent?.startsWith("Ready"), null, { timeout: 240000 });
 
 try {
@@ -71,16 +73,37 @@ try {
   assert.match(await history(), /step 1/);
   await shot("play-01-ready");
   // The walkthroughs start open in the playground, as everywhere (product owner, 22 Oct 2026,
-  // superseding 17 Oct's folded here): in their column on the right of the map at this width. This
-  // reader folds them, so what follows is laid out as before them; folded they stay, remembered in
-  // this browser (onboarding.mjs plays them, opened again).
+  // superseding 17 Oct's folded here): docked, alone on the right (product owner, 23 Oct 2026).
+  // This reader wants the map as wide and tall as can be, with Tools and History both in sight
+  // while working: from each tab's menu, by the keyboard, Tools and History each get a group of their
+  // own (they share the Tote's, product owner, 24 Oct 2026), the walkthroughs join Tools on the left, the Timeline joins them and Coverage the Tote; the right
+  // column and the strip under the map go, and the map takes their place. The layout is remembered
+  // in this browser; onboarding.mjs resets it.
   await openOnFirstLoad(page, "the playground");
-  await page.locator("#panel-tour button.fold").click();
-  assert.equal(await page.locator("#panel-tour button.fold").getAttribute("aria-expanded"), "false");
+  const moveByMenu = async (id, item) => {
+    await page.locator(`.dv-tab[data-panel="${id}"]`).focus();
+    await page.keyboard.press("Shift+F10");
+    await page.getByRole("menuitem", { name: item, exact: true }).click();
+    await page.waitForFunction((tab) => document.activeElement?.dataset?.panel === tab, id);
+  };
+  const mapAtFirst = await page.locator("#main").boundingBox();
+  await moveByMenu("panel-tools", "Move to a group of its own");
+  await moveByMenu("panel-history", "Move to a group of its own");
+  await moveByMenu("panel-tour", "Move to left: Tools");
+  await moveByMenu("panel-timeline", "Move to left: Tools, Walkthroughs");
+  await moveByMenu("panel-coverage", "Move to left: Tote");
+  for (const id of ["tools", "outline", "tote"]) await showPanel(page, id);
+  assert.ok((await page.evaluate(() => window.debriefLayout().groups)).every((g) => g.place === "left" || g.panels.includes("map")), "every panel on the left");
+  await mapPlaced(page);
+  const mapNow = await page.locator("#main").boundingBox();
+  assert.ok(mapNow.width > mapAtFirst.width + 250, `the map takes the right-hand column's place: ${mapAtFirst.width} to ${mapNow.width}`);
+  assert.ok(mapNow.height > mapAtFirst.height + 120, `and the strip's under it: ${mapAtFirst.height} to ${mapNow.height}`);
+  assert.equal(await page.locator("#history").isVisible(), true);
+  assert.equal(await page.locator("#tools").isVisible(), true);
 
-  // The time controller is at the top of the side column; the map has no control of its own.
+  // The time controller is first on the left, alone in its group; the map has no control of its own.
   const timeLabel = () => text("#timebar .time-label");
-  assert.equal(await page.locator("#side section:not(#panel-tour)").first().getAttribute("id"), "panel-time"); // below the walkthroughs
+  assert.equal((await page.evaluate(() => window.debriefLayout().groups.find((g) => g.place === "left")))?.panels.join(), "panel-time");
   assert.equal(await page.frameLocator(".frame-map").locator(".tc-window, .tc-current").count(), 0);
   const timeBefore = await timeLabel();
   const markers = () => page.frameLocator(".frame-map").locator(".now").count();
@@ -134,6 +157,7 @@ try {
   await page.locator(`#outline li[data-id="track-blue-one"]`).click();
   await page.locator(`#outline li[data-id="track-red-one"]`).click({ modifiers: ["Control"] });
   // Offered once Python has checked the selection, which takes a moment.
+  await showPanel(page, "tools");
   await page.waitForFunction(() => [...document.querySelectorAll("#tools button")].some((b) => b.textContent === "Closest approach" && !b.disabled));
   await page.locator("#tools button", { hasText: "Closest approach" }).click();
   const form = page.frameLocator(".frame-form");
@@ -218,6 +242,7 @@ try {
   // Crash part-way through a save, then reopen: the plot is whole, as it was before that save,
   // and only the change in progress is lost (NFR-10, NFR-11).
   const beforeCrash = await history();
+  await showPanel(page, "try");
   await page.locator("#crash").click();
   await page.locator("#reopen").click();
   await page.locator(".toast", { hasText: "A save was interrupted before it finished" }).waitFor();
@@ -227,6 +252,7 @@ try {
 
   // A colleague's change while a tool runs: Debrief asks. Escape is Cancel.
   // (Closest approach changes the plot; a tool that only returns a table saves nothing to conflict with.)
+  await showPanel(page, "try");
   await page.locator("#colleague-during").click();
   await page.locator(`#outline li[data-id="track-blue-one"]`).click();
   await page.locator(`#outline li[data-id="track-red-one"]`).click({ modifiers: ["Control"] });
@@ -239,6 +265,7 @@ try {
   await page.frameLocator(".frame-form").getByText("was not run").waitFor();
   assert.match(await history(), /Note added by a colleague/);
   // Again, and combine the changes this time.
+  await showPanel(page, "try");
   await page.locator("#colleague-during").click();
   await page.frameLocator(".frame-form").getByRole("button", { name: "Run" }).click();
   await page.locator("#ask").waitFor({ state: "visible" });
@@ -373,7 +400,8 @@ try {
   assert.match(await text("#toasts"), /'this is' is not a date and time/);
 
   // Narrow: the form goes under the map, not beside it, and fits.
-  await page.setViewportSize({ width: 400, height: 800 });
+  await resizeTo(page, 400, 800);
+  await showPanel(page, "tools");
   await page.selectOption("#plots", "serial-1");
   await page.locator(`#outline li[data-id="track-blue-one"]`).click();
   await page.locator("#tools button", { hasText: "Range rings" }).click();
@@ -386,7 +414,7 @@ try {
   assert.equal(await page.frameLocator(".frame-form").locator("html").evaluate((html) => html.scrollWidth <= html.clientWidth), true, "form doesn't scroll sideways");
   await page.locator(".side-frame").scrollIntoViewIfNeeded();
   await shot("play-08-narrow-form");
-  await page.setViewportSize({ width: 1400, height: 820 });
+  await resizeTo(page, 1400, 820);
   await shot("play-08b-form-current-time");
 
   // The geodesic demo: drag B and the two answers change; the arrow keys move a pin too.
@@ -418,6 +446,9 @@ try {
     files.close();
   }
   await cdnBlocked();
+  // The docked layout: default, drag, split, keyboard, remembered, Reset, frames never reloaded,
+  // the narrow fallback, a post's fixed layout (product owner, 23 Oct 2026).
+  await playDock(browser, BASE, shot, ready, errors);
   await accentOn(`${BASE}/index.html`, "playground");
   if (site) await playFromThePost();
   // The walkthroughs, each start to finish on a fresh copy, then the onboarding trial's tasks
@@ -556,6 +587,7 @@ try {
 
     // A colleague changes the window: Debrief shows theirs and says so; still no step.
     const ours = await text("#timebar .tc-window-start");
+    await showPanel(page, "try");
     await page.locator("#colleague-window").click();
     await page.locator(".toast", { hasText: "time window of Serial 1 was changed elsewhere" }).waitFor();
     assert.notEqual(await text("#timebar .tc-window-start"), ours);
@@ -746,8 +778,8 @@ try {
 
   /**
    * The walkthroughs on a first visit, at a laptop's 1366 px, in the dark and light themes: open,
-   * in their column on the right, with the guidance accent and AA contrast; then at 900 px, first
-   * in the side column, the same (product owner, 22 Oct 2026).
+   * docked in front on the right, with the guidance accent on their tab and AA contrast; then at
+   * 800 px, first in the side column, the same (product owners, 22 and 23 Oct 2026).
    */
   async function accentOn(url, name) {
     const said = [];
@@ -762,7 +794,7 @@ try {
         await on.mouse.move(2, 2);
         await shot(`accent-${name}-${scheme}`, on);
       }
-      await resize(on, 900, 800);
+      await resize(on, 800, 800);
       const narrow = await guidanceAccent(on, scheme);
       said.push(`${scheme}: ${wide.count + narrow.count} texts, the least ${Math.min(wide.least, narrow.least).toFixed(2)}:1`);
       await on.close();
@@ -778,7 +810,7 @@ try {
     await blocked.goto(`${BASE}/index.html`);
     await blocked.locator("#status", { hasText: "cdn.jsdelivr.net" }).waitFor({ timeout: 60000 });
     assert.match(await blocked.locator("#status").innerText(), /Python couldn't be downloaded from cdn\.jsdelivr\.net; your network may block it\. The map still works/);
-    assert.match(await blocked.locator("#tools").innerText(), /Needs Python/);
+    assert.match(await blocked.locator("#tools").textContent(), /Needs Python/);
     assert.equal(await blocked.locator("#crash").isDisabled(), true);
     await blocked.locator(`#outline li[data-id="track-blue-one"]`).click();
     assert.equal(await blocked.locator("#outline li.selected .name").innerText(), "BLUE ONE");
@@ -854,6 +886,7 @@ try {
     const cleaning = post.frameLocator(".debrief-demo-frame");
     await cleaning.locator("#status", { hasText: "Ready" }).waitFor({ timeout: 240000 });
     await cleaning.locator(`#outline li[data-id="track-red-one"]`).click();
+    await cleaning.locator("#open-try").click(); // Try, a menu in the top bar
     await cleaning.locator("#glitches").click();
     await cleaning.locator("#history li", { hasText: "GPS glitches put into RED ONE" }).waitFor();
     await cleaning.locator("#find-jumps").click();

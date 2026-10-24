@@ -4,6 +4,7 @@
 // step, undone like any other; then the Timeline's extras, the reader's own: highlighted
 // phrases, choosing an entry without moving current time, text size and wrapping, which
 // columns show, on a phone too. The log is synthetic, made up for the sample (DEV-05).
+import { resizeTo, showPanel } from "./dock.mjs";
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import path from "node:path";
@@ -13,19 +14,25 @@ const state = (page) => page.evaluate(() => window.debriefTimeline());
 const timeLabel = (page) => page.locator("#timebar .time-label").innerText();
 const LOG = path.join(import.meta.dirname, "red-one-log.docx");
 
-/** Fold the panels above the Timeline away, and open it; returns how to put them back. */
+/**
+ * The Timeline in view, as a reader would bring it: docked, its tab to the front (it has a place
+ * of its own under the map); narrow, the panels above it folded away and it opened. Returns how to
+ * put them back.
+ */
 async function openTimeline(page) {
+  if (await page.evaluate(() => document.body.classList.contains("docked"))) {
+    await showPanel(page, "timeline");
+    return async () => undefined;
+  }
   const folded = [];
-  for (const id of ["panel-tote", "panel-outline", "panel-tools", "panel-try"]) {
+  for (const id of ["panel-tote", "panel-outline", "panel-tools"]) {
     const fold = page.locator(`#${id} button.fold`);
     if ((await fold.count()) && (await fold.getAttribute("aria-expanded")) === "true") {
       await fold.click();
       folded.push(fold);
     }
   }
-  const fold = page.locator("#panel-timeline button.fold");
-  if ((await fold.getAttribute("aria-expanded")) === "false") await fold.click();
-  await page.locator("#panel-timeline").scrollIntoViewIfNeeded();
+  await showPanel(page, "timeline");
   return async () => {
     for (const button of folded) if ((await button.getAttribute("aria-expanded")) === "false") await button.click();
   };
@@ -40,7 +47,6 @@ export async function playWordNarrative(page, shot) {
   const steps = await page.locator("#history li").count();
 
   // The file chosen under Import: the reader is asked what legacy Debrief asked.
-  await page.locator("#panel-import").scrollIntoViewIfNeeded();
   const started = Date.now();
   await page.locator("#narrative-file").setInputFiles(LOG);
   const dialog = page.locator("dialog.track-form[open]");
@@ -68,7 +74,7 @@ export async function playWordNarrative(page, shot) {
   assert.match(await sonar.innerText(), /SONAR/);
   assert.match(await sonar.locator(".tl-text").innerText(), /Contact held on the towed array/);
   assert.equal(await sonar.locator(".tl-swatch").count(), 1, "RED ONE's entry has its track's colour");
-  await page.locator("#panel-timeline").scrollIntoViewIfNeeded();
+  await showPanel(page, "timeline");
   await page.mouse.move(2, 2);
   await shot("narrative-b-02-word-read");
 
@@ -103,14 +109,12 @@ export async function playWordNarrative(page, shot) {
 async function playReadAgain(page, shot, before) {
   const dialog = page.locator("dialog.track-form[open]");
   const steps = await page.locator("#history li").count();
-  await page.locator("#panel-import").scrollIntoViewIfNeeded();
   await page.locator("#narrative-file").setInputFiles(LOG);
   await dialog.waitFor({ timeout: 60000 });
   assert.equal(await dialog.locator(".form-warning").count(), 0, "a document new to the plot is not said to be in it");
   await dialog.locator("button.primary").click(); // as last time: five entries
   await page.waitForFunction((n) => window.debriefTimeline().entries === n + 5, before);
   const copy = { name: "red-one-log (2).docx", mimeType: "application/vnd.openxmlformats-officedocument.wordprocessingml.document", buffer: readFileSync(LOG) };
-  await page.locator("#panel-import").scrollIntoViewIfNeeded();
   await page.locator("#narrative-file").setInputFiles(copy);
   await dialog.waitFor({ timeout: 60000 });
   const said = await dialog.locator(".form-warning").innerText();
@@ -208,9 +212,9 @@ async function playTimelineExtras(page, shot) {
   assert.deepEqual(kept, { highlights: ["contact", "towed array"], moveTime: true, textSize: 16, wrap: false, hidden: ["type"] });
 
   // On a phone, with the menu open.
-  await page.setViewportSize({ width: 390, height: 844 });
+  await resizeTo(page, 390, 844);
   await timeline('input[data-view="wrap"]').check();
-  await page.locator("#panel-timeline").scrollIntoViewIfNeeded();
+  await showPanel(page, "timeline");
   await noSideways("on a phone, the menu open");
   // The row worked with keeps its Edit and Delete in sight, above the list's foot.
   await page.waitForTimeout(300);
@@ -230,5 +234,5 @@ async function playTimelineExtras(page, shot) {
   assert.equal(await menu.isHidden(), true);
   assert.equal(await page.evaluate(() => document.activeElement?.classList.contains("tl-view-button")), true, "Escape returns the keyboard to the button");
   assert.deepEqual((await state(page)).view, { highlights: [], moveTime: true, textSize: 12, wrap: true, hidden: [] });
-  await page.setViewportSize({ width: 1400, height: 820 });
+  await resizeTo(page, 1400, 820);
 }

@@ -4,6 +4,7 @@
 import { build } from "esbuild";
 import { cpSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { demoPage } from "../play/demo.mjs";
+import { withoutThemes } from "./csstrim.mjs";
 import path from "node:path";
 
 const out = path.resolve(process.argv[2] ?? "dist/play");
@@ -35,9 +36,12 @@ await build({
   format: "esm",
   external: ["https://*"],
 });
-for (const file of ["index.html", "geodesic.html", "frame-map.html", "frame-form.html", "frame-annotation.html", "frame-results.html", "theme.css", "host.css", "play.py"]) {
+for (const file of ["index.html", "geodesic.html", "frame-map.html", "frame-form.html", "frame-annotation.html", "frame-results.html", "theme.css", "host.css", "dock.css", "play.py"]) {
   cpSync(path.join("play", file), path.join(out, file));
 }
+// Dockview's own styles (dockview-core, pinned in package.json), served from here like everything else,
+// without its own themes: the page has one of its own, from the theme's variables (play/dock.css).
+writeFileSync(path.join(out, "dockview.css"), withoutThemes(readFileSync("node_modules/dockview-core/dist/styles/dockview.css", "utf8")));
 cpSync("webview/timecontrol.css", path.join(out, "timecontrol.css"));
 cpSync("webview/tote.css", path.join(out, "tote.css"));
 cpSync("webview/timeline.css", path.join(out, "timeline.css"));
