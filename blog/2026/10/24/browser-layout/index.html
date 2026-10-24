@@ -1752,16 +1752,16 @@
 <p>The browser version of Debrief, the playground and the <a href="../../../../../demo/">web demo</a>, had grown thirteen panels in one column beside the map, and analysts scrolled up and down to find them. Now, on any screen 900 pixels wide or more, the panels sit in tab groups around the map, grouped by task, and you can drag them where you want them.</p>
 <!-- more -->
 
-<p><em>The pictures are the pull request's screenshots, taken by the playground's test on the sample exercise, which is made up. The site's other pictures of the browser are refreshed once the layout is agreed.</em></p>
+<p><em>The pictures are taken by the playground's test on the sample exercise, which is made up; the first is the layout before the change, from its pull request.</em></p>
 <h2 id="before-and-after">Before and after<a class="headerlink" href="#before-and-after" title="Permanent link">&para;</a></h2>
 <p>Before, at a laptop's 1366 pixels: one long column of panels on the left, the walkthroughs in a column of their own on the right.</p>
-<p><img alt="The playground before: a long side column of panels beside the map" src="https://raw.githubusercontent.com/debrief/fuudee/pr-screenshots/manual/dock/before-1366.png" /></p>
+<p><img alt="The playground before, at 1366 pixels: Time, Tote, Plot and Outline in one long column on the left, more panels below them out of sight, the walkthroughs in a column of their own on the right of the map" src="../../../../images/phase-3/layout-before-1366.png" /></p>
 <p>After, the same screen: Time, the Tote with Tools and History as tabs beside it, and the Outline with the Catalogue on the left; the map with the Timeline and Coverage in a strip under it; the walkthroughs alone on the right, so a step's words are never hidden behind another tab. Nothing scrolls the page, and the map is 791 by 556 pixels, more than half the width.</p>
-<p><img alt="The playground's default layout at 1366 pixels, dark theme" src="https://raw.githubusercontent.com/debrief/fuudee/pr-screenshots/manual/dock/r3-dock-01-default-1366-dark.png" /></p>
+<p><img alt="The playground's default layout at 1366 by 768 pixels, dark theme: the Plot list and Import, Export, Try and Reset layout in the top bar; Time, the Tote with Tools and History, and the Outline with the Catalogue on the left; the map with the Timeline and Coverage under it; the walkthroughs on the right" src="../../../../images/phase-3/layout-default-1366-dark.png" /></p>
 <p>The same in the light theme. The tabs, borders and handles take their colours from the theme, like everything else in Debrief.</p>
-<p><img alt="The default layout at 1366 pixels, light theme" src="https://raw.githubusercontent.com/debrief/fuudee/pr-screenshots/manual/dock/r3-dock-03-default-1366-light.png" /></p>
+<p><img alt="The same default layout at 1366 by 768 pixels in the light theme" src="../../../../images/phase-3/layout-default-1366-light.png" /></p>
 <p>On a smaller laptop screen, 1280 by 720, the same layout, the map 740 by 519 pixels:</p>
-<p><img alt="The default layout at 1280 by 720 pixels" src="https://raw.githubusercontent.com/debrief/fuudee/pr-screenshots/manual/dock/r3-dock-05-default-1280x720.png" /></p>
+<p><img alt="The default layout at 1280 by 720 pixels, dark theme: the same groups, the Outline showing 4 rows" src="../../../../images/phase-3/layout-default-1280x720.png" /></p>
 <h2 id="fewer-panels-and-a-top-bar">Fewer panels, and a top bar<a class="headerlink" href="#fewer-panels-and-a-top-bar" title="Permanent link">&para;</a></h2>
 <p>Four panels were things used now and then, so they moved to a slim bar along the top: the <strong>Plot</strong> list, <strong>Import…</strong>, <strong>Export</strong> and <strong>Try</strong>, each a menu that opens under its button. <strong>Import…</strong> is in the Catalogue panel too, where new files arrive. Every control is where it was inside them, by the same name.</p>
 <p>That leaves nine panels, grouped by task:</p>
@@ -1794,16 +1794,16 @@
 <p>The Outline takes the rest of the column, so its list shows 7 of the sample's 11 rows on a 1366 by 768 laptop, with its track and annotation buttons in sight below it. While playing, the Tote is one tab away from Tools, and its lines still show on the map.</p>
 <h2 id="make-it-yours">Make it yours<a class="headerlink" href="#make-it-yours" title="Permanent link">&para;</a></h2>
 <p>Drag a tab onto another group to join it, or onto a group's edge to split it. Here History has its own group under the Outline, and Coverage sits beside the walkthroughs, while a tool's form is open beside the map:</p>
-<p><img alt="A rearranged layout: History under the Outline, Coverage beside the walkthroughs, a tool's form beside the map" src="https://raw.githubusercontent.com/debrief/fuudee/pr-screenshots/manual/dock/r3-dock-02-rearranged.png" /></p>
+<p><img alt="A rearranged layout: History under the Outline, Coverage beside the walkthroughs, a tool's form beside the map" src="../../../../images/phase-3/layout-rearranged.png" /></p>
 <p>Where the map's place is narrower, as on a 1024 pixel screen, a tool's form goes under the map rather than squeezing it:</p>
-<p><img alt="A tool's form under the map at 1024 pixels" src="https://raw.githubusercontent.com/debrief/fuudee/pr-screenshots/manual/dock/r3-dock-06-form-1024.png" /></p>
+<p><img alt="At 1024 pixels, the Range rings form open under the map, the Timeline below it and the walkthroughs on the right" src="../../../../images/phase-3/layout-form-1024.png" /></p>
 <p>Your layout is kept in your browser, its shape only, never anything from a plot. <strong>Reset layout</strong>, in the top bar, puts it back as it started. Lists keep their place as you go, the Timeline at the entry you were reading.</p>
 <p>Nothing reloads as you do it. The map, a tool's form and its results each run in a frame, and a frame moved in a web page starts again, losing what it showed. So they never move: the map stays where it is and the layout is drawn around it, and Python, running in the background, never notices.</p>
 <h2 id="without-a-mouse">Without a mouse<a class="headerlink" href="#without-a-mouse" title="Permanent link">&para;</a></h2>
 <p>The keyboard goes through the layout group by group: <code>Tab</code> reaches a group's tab, then what its panel holds, then the next group; <code>←</code> and <code>→</code> move along a group's tabs, <code>Enter</code> bringing one to the front. <code>Shift+F10</code> on a tab, or the <strong>⋯</strong> at the end of each group, opens a menu to move the panel to another group (<em>Move to left: Outline, Catalogue</em>), or to a group of its own, or to reset the layout. Screen readers hear each group named by where it is and what it holds.</p>
 <h2 id="tablets-and-phones">Tablets and phones<a class="headerlink" href="#tablets-and-phones" title="Permanent link">&para;</a></h2>
 <p>On a touch screen 900 pixels wide or more, as a tablet on its side, the layout is docked too, with bigger tabs and handles; the ⋯ at the end of each group moves its panel without dragging. Narrower, on a phone and in the blog's demos, the panels are one column as before, each folding away by its heading, with the top bar above.</p>
-<p><img alt="The narrow layout at 390 pixels: the top bar, the map, then the panels in one column" src="https://raw.githubusercontent.com/debrief/fuudee/pr-screenshots/manual/dock/r3-dock-04-narrow-390.png" /></p>
+<p><img alt="The narrow layout at 390 pixels: the top bar, the map, then the walkthroughs first in the one column of folding panels" src="../../../../images/phase-3/layout-narrow-390.png" /></p>
 <p>Drawing on the map, the note on how to draw is now one line at the top, and once you place a point it gives way to the distances and bearings.</p>
 <p>The layout is built with <a href="https://dockview.dev">Dockview</a>, a small open-source docking library, in the browser only: VS Code arranges its own views. More in the guides: the <a href="../../../../../guides/interaction-models/browser-layout/">browser layout</a> and its <a href="../../../../../guides/interaction-models/keyboard-equivalents/">keyboard equivalents</a>.</p>
 
