@@ -47,7 +47,7 @@ The activity bar icon (`vscode/media/debrief.svg`) is drawn in one colour, which
 The same layout rules apply to native views, webviews and the web build (CON-05, CON-07).
 
 - **Debrief's side bar.** Catalogues, then the outline of the open plot, then tools: browse, inspect, act.
-- **The browser.** A top bar (the plot, menus for import, export and the demonstrations, Reset layout) over the panels docked around the map, task-grouped: time, the Tote, the outline and catalogue, and the tools and history on the left; the Timeline under the map; the walkthroughs alone on the right ([browser layout](../interaction-models/browser-layout.md)).
+- **The browser.** A top bar (the plot, menus for import, export and the demonstrations, Reset layout) over the panels docked around the map, task-grouped: time, the Tote with the tools and history as tabs beside it, and the outline and catalogue on the left; the Timeline under the map; the walkthroughs alone on the right ([browser layout](../interaction-models/browser-layout.md)).
 - **The map.** It takes the main editor area. Tool forms and results open beside it, so the map stays in view while the analyst works.
 - **Forms.** A single column, at most about 34 characters wide for each field. The explanation comes first, then the judgement, then the fields; buttons go last, primary first.
 - **Messages.** Short ones go in VS Code notifications. Anything longer, such as what an import left out, goes in the **Debrief** output channel, opened from the notification.

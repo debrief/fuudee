@@ -75,8 +75,8 @@ try {
   // The walkthroughs start open in the playground, as everywhere (product owner, 22 Oct 2026,
   // superseding 17 Oct's folded here): docked, alone on the right (product owner, 23 Oct 2026).
   // This reader wants the map as wide and tall as can be, with Tools and History both in sight
-  // while working: from each tab's menu, by the keyboard, History gets a group of its own, the
-  // walkthroughs join Tools on the left, the Timeline joins them and Coverage the Tote; the right
+  // while working: from each tab's menu, by the keyboard, Tools and History each get a group of their
+  // own (they share the Tote's, product owner, 24 Oct 2026), the walkthroughs join Tools on the left, the Timeline joins them and Coverage the Tote; the right
   // column and the strip under the map go, and the map takes their place. The layout is remembered
   // in this browser; onboarding.mjs resets it.
   await openOnFirstLoad(page, "the playground");
@@ -87,6 +87,7 @@ try {
     await page.waitForFunction((tab) => document.activeElement?.dataset?.panel === tab, id);
   };
   const mapAtFirst = await page.locator("#main").boundingBox();
+  await moveByMenu("panel-tools", "Move to a group of its own");
   await moveByMenu("panel-history", "Move to a group of its own");
   await moveByMenu("panel-tour", "Move to left: Tools");
   await moveByMenu("panel-timeline", "Move to left: Tools, Walkthroughs");

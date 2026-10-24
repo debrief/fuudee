@@ -19,17 +19,17 @@ Before, at a laptop's 1366 pixels: one long column of panels on the left, the wa
 
 ![The playground before: a long side column of panels beside the map](https://raw.githubusercontent.com/debrief/fuudee/pr-screenshots/manual/dock/before-1366.png)
 
-After, the same screen: Time, the Tote, the Outline with the Catalogue, and Tools with History on the left; the map with the Timeline and Coverage in a strip under it; the walkthroughs alone on the right, so a step's words are never hidden behind another tab. Nothing scrolls the page, and the map is 791 by 556 pixels, more than half the width.
+After, the same screen: Time, the Tote with Tools and History as tabs beside it, and the Outline with the Catalogue on the left; the map with the Timeline and Coverage in a strip under it; the walkthroughs alone on the right, so a step's words are never hidden behind another tab. Nothing scrolls the page, and the map is 791 by 556 pixels, more than half the width.
 
-![The playground's default layout at 1366 pixels, dark theme](https://raw.githubusercontent.com/debrief/fuudee/pr-screenshots/manual/dock/r2-dock-01-default-1366-dark.png)
+![The playground's default layout at 1366 pixels, dark theme](https://raw.githubusercontent.com/debrief/fuudee/pr-screenshots/manual/dock/r3-dock-01-default-1366-dark.png)
 
 The same in the light theme. The tabs, borders and handles take their colours from the theme, like everything else in Debrief.
 
-![The default layout at 1366 pixels, light theme](https://raw.githubusercontent.com/debrief/fuudee/pr-screenshots/manual/dock/r2-dock-03-default-1366-light.png)
+![The default layout at 1366 pixels, light theme](https://raw.githubusercontent.com/debrief/fuudee/pr-screenshots/manual/dock/r3-dock-03-default-1366-light.png)
 
 On a smaller laptop screen, 1280 by 720, the same layout, the map 740 by 519 pixels:
 
-![The default layout at 1280 by 720 pixels](https://raw.githubusercontent.com/debrief/fuudee/pr-screenshots/manual/dock/r2-dock-05-default-1280x720.png)
+![The default layout at 1280 by 720 pixels](https://raw.githubusercontent.com/debrief/fuudee/pr-screenshots/manual/dock/r3-dock-05-default-1280x720.png)
 
 ## Fewer panels, and a top bar
 
@@ -39,21 +39,21 @@ That leaves nine panels, grouped by task:
 
 | Where | Panels | For |
 | --- | --- | --- |
-| Left | Time; Tote; Outline and Catalogue; Tools and History | When, what is where, what is in the plot, and doing and what was done |
+| Left | Time; Tote, Tools and History; Outline and Catalogue | When, what is where, what is in the plot, and doing and what was done |
 | Under the map | Timeline and Coverage | The narrative and the data, in time |
 | Right | Walkthroughs | Learning, a step's words always in sight |
 
-The Outline keeps its track and annotation buttons in sight below its list, which scrolls on its own.
+The Outline takes the rest of the column, so its list shows 7 of the sample's 11 rows on a 1366 by 768 laptop, with its track and annotation buttons in sight below it. While playing, the Tote is one tab away from Tools, and its lines still show on the map.
 
 ## Make it yours
 
 Drag a tab onto another group to join it, or onto a group's edge to split it. Here History has its own group under the Outline, and Coverage sits beside the walkthroughs, while a tool's form is open beside the map:
 
-![A rearranged layout: History under the Outline, Coverage beside the walkthroughs, a tool's form beside the map](https://raw.githubusercontent.com/debrief/fuudee/pr-screenshots/manual/dock/r2-dock-02-rearranged.png)
+![A rearranged layout: History under the Outline, Coverage beside the walkthroughs, a tool's form beside the map](https://raw.githubusercontent.com/debrief/fuudee/pr-screenshots/manual/dock/r3-dock-02-rearranged.png)
 
 Where the map's place is narrower, as on a 1024 pixel screen, a tool's form goes under the map rather than squeezing it:
 
-![A tool's form under the map at 1024 pixels](https://raw.githubusercontent.com/debrief/fuudee/pr-screenshots/manual/dock/r2-dock-06-form-1024.png)
+![A tool's form under the map at 1024 pixels](https://raw.githubusercontent.com/debrief/fuudee/pr-screenshots/manual/dock/r3-dock-06-form-1024.png)
 
 Your layout is kept in your browser, its shape only, never anything from a plot. **Reset layout**, in the top bar, puts it back as it started. Lists keep their place as you go, the Timeline at the entry you were reading.
 
@@ -67,7 +67,7 @@ The keyboard goes through the layout group by group: `Tab` reaches a group's tab
 
 On a touch screen 900 pixels wide or more, as a tablet on its side, the layout is docked too, with bigger tabs and handles; the ⋯ at the end of each group moves its panel without dragging. Narrower, on a phone and in the blog's demos, the panels are one column as before, each folding away by its heading, with the top bar above.
 
-![The narrow layout at 390 pixels: the top bar, the map, then the panels in one column](https://raw.githubusercontent.com/debrief/fuudee/pr-screenshots/manual/dock/r2-dock-04-narrow-390.png)
+![The narrow layout at 390 pixels: the top bar, the map, then the panels in one column](https://raw.githubusercontent.com/debrief/fuudee/pr-screenshots/manual/dock/r3-dock-04-narrow-390.png)
 
 Drawing on the map, the note on how to draw is now one line at the top, and once you place a point it gives way to the distances and bearings.
 

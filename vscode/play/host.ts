@@ -2192,21 +2192,47 @@ const panelScroll = new Map<string, number>();
 let stopKeeping: (() => void) | undefined;
 /** How long, at most, to keep giving a scroll back after a move. */
 const KEEP_SCROLL_FOR = 5000;
-/** For the tests: what giving scrolls back did, with the Outline's list as it was then (CI, 24 Oct 2026). */
-const scrollLog: unknown[] = [];
-function noteScroll(event: string, extra?: unknown): void {
-  const o = document.getElementById("outline");
-  scrollLog.push({ t: Math.round(performance.now()), event, outline: o && [o.scrollTop, o.clientHeight, o.scrollHeight], extra });
-  if (scrollLog.length > 60) scrollLog.shift();
+/**
+ * Each list's last scroll, with its size then (CI, 24 Oct 2026). Before the panels move, the page may
+ * already be laid out at the new width: the side column wider, a list's rows no longer wrap, it has
+ * less to scroll, and the browser pulls it back to the end of what is left (its top, when nothing is).
+ * That is not the reader's scroll: a scroll back to a list's end that comes with its change of size is
+ * not kept here, and the scroll before it is given back once the panels have moved.
+ */
+type ScrollPlace = { top: number; left: number; size: string };
+const scrollPlaces = new Map<Element, ScrollPlace>();
+const sizeOf = (el: Element) => `${el.clientWidth}×${el.clientHeight} of ${el.scrollWidth}×${el.scrollHeight}`;
+/** The scroll the browser has taken from a list, down or across (pulled back to the end of what is left), if it has. */
+function scrollTaken(el: Element): ScrollPlace | undefined {
+  const was = scrollPlaces.get(el);
+  if (!was) return undefined;
+  const down = was.top > el.scrollTop && el.scrollTop >= el.scrollHeight - el.clientHeight - 1;
+  const across = was.left > el.scrollLeft && el.scrollLeft >= el.scrollWidth - el.clientWidth - 1;
+  return (down || across) && was.top >= el.scrollTop && was.left >= el.scrollLeft ? was : undefined;
 }
-(window as unknown as { debriefScrollLog: () => unknown }).debriefScrollLog = () => scrollLog.slice();
+document.addEventListener(
+  "scroll",
+  (e) => {
+    const el = e.target;
+    if (!(el instanceof Element) || !el.closest("section.panel")) return;
+    const was = scrollPlaces.get(el);
+    const now = { top: el.scrollTop, left: el.scrollLeft, size: sizeOf(el) };
+    const pulledBack = was && was.size !== now.size && !!scrollTaken(el);
+    scrollPlaces.set(el, pulledBack ? { ...was, size: now.size } : now);
+  },
+  { capture: true, passive: true },
+);
 function keepingScroll(move: () => void): void {
-  if (stopKeeping) noteScroll("stopped by a new move");
   stopKeeping?.();
   const kept: { el: Element; top: number; left: number; given?: [number, number] }[] = [];
   for (const id of Object.keys(PANEL_TITLES)) {
     const section = $(id);
-    for (const el of [section, ...Array.from(section.querySelectorAll("*"))]) if (el.scrollTop || el.scrollLeft) kept.push({ el, top: el.scrollTop, left: el.scrollLeft });
+    for (const el of [section, ...Array.from(section.querySelectorAll("*"))]) {
+      // Its scroll now, or, where the browser has already taken some of it, the one before.
+      const taken = scrollTaken(el);
+      if (taken) kept.push({ el, top: taken.top, left: taken.left });
+      else if (el.scrollTop || el.scrollLeft) kept.push({ el, top: el.scrollTop, left: el.scrollLeft });
+    }
     const content = dock?.contentOf(id);
     if (content) panelScroll.set(id, content.scrollTop);
   }
@@ -2230,16 +2256,10 @@ function keepingScroll(move: () => void): void {
     }
     return !kept.length;
   };
-  const keptIds = () => kept.map(({ el, top }) => `${el.id || el.className}:${top}`);
-  noteScroll("moved", keptIds());
+  for (const el of scrollPlaces.keys()) if (!el.isConnected) scrollPlaces.delete(el);
   // At once, before a list that keeps its own place lays itself out for its new width.
-  if (give()) return noteScroll("all given at once");
-  noteScroll("given at once; waiting", keptIds());
-  const resized = new ResizeObserver(() => {
-    const done = give();
-    noteScroll(done ? "resized; all given" : "resized; waiting", keptIds());
-    if (done) stop();
-  });
+  if (give()) return;
+  const resized = new ResizeObserver(() => void (give() && stop()));
   for (const { el } of kept) resized.observe(el);
   const readerActs = ["wheel", "pointerdown", "keydown", "touchstart"];
   const stop = () => {
@@ -2248,9 +2268,8 @@ function keepingScroll(move: () => void): void {
     clearTimeout(timer);
     if (stopKeeping === stop) stopKeeping = undefined;
   };
-  for (const type of readerActs) addEventListener(type, (e) => kept.length && noteScroll(`reader: ${e.type}`), { capture: true, passive: true, once: true });
   for (const type of readerActs) addEventListener(type, stop, { capture: true, passive: true });
-  const timer = setTimeout(() => (noteScroll("timed out", keptIds()), stop()), KEEP_SCROLL_FOR);
+  const timer = setTimeout(stop, KEEP_SCROLL_FOR);
   stopKeeping = stop;
 }
 /** The panels back in the side column, and the layout gone. */

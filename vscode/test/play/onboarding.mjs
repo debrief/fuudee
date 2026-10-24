@@ -403,7 +403,9 @@ export async function playTours(page, shot, root) {
   // walkthroughs, nor the page.
   const outlineList = page.locator("#outline");
   await outlineList.evaluate((s) => (s.scrollTop = s.scrollHeight));
-  assert.ok((await outlineList.evaluate((s) => s.scrollTop)) > 40, "the Outline's list scrolled down");
+  // To its end, however far that is: the Outline's group takes the rest of its column (product owner, 24 Oct 2026).
+  const outlineEnd = await outlineList.evaluate((s) => [s.scrollTop, s.scrollHeight - s.clientHeight]);
+  assert.ok(outlineEnd[0] > 0 && outlineEnd[0] >= outlineEnd[1] - 1, `the Outline's list scrolled to its end: [scrollTop, its end] ${outlineEnd}`);
   const stepWords = stepRow(page, 1).locator(".tour-body p").first();
   assert.ok(await inSight(stepWords), "the step's words in sight, the Outline scrolled to its end");
   assert.ok(await inSight(go(page, 1)), "and its button");

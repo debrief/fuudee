@@ -111,7 +111,15 @@ describe("the panels' one table", () => {
     const grouped = DEFAULT_GROUPS.flatMap((g) => g.panels);
     expect(grouped.sort()).toEqual(PANELS.map((p) => p.id).sort());
     expect(DEFAULT_GROUPS.filter((g) => g.place === "right")).toEqual([{ place: "right", panels: ["panel-tour"] }]);
-    expect(DEFAULT_GROUPS.every((g) => g.panels.length <= 2)).toBe(true); // no tab overflow in a side column
+    expect(DEFAULT_GROUPS.every((g) => g.panels.length <= 3)).toBe(true); // no tab overflow in a side column
+  });
+  // Product owner, 24 Oct 2026: three groups on the left; the Outline's last, so it has the rest.
+  it("puts Time, then the Tote with Tools and History, then the Outline with the Catalogue on the left", () => {
+    expect(DEFAULT_GROUPS.filter((g) => g.place === "left").map((g) => g.panels)).toEqual([
+      ["panel-time"],
+      ["panel-tote", "panel-tools", "panel-history"],
+      ["panel-outline", "panel-catalogue"],
+    ]);
   });
   it("names every panel, and starts the side column with the walkthroughs and the time controller", () => {
     for (const p of PANELS) expect(PANEL_TITLES[p.id]).toBe(p.title);

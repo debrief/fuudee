@@ -140,7 +140,17 @@ async function defaultAt(page, width, height) {
     });
   });
   assert.deepEqual(hidden, [], `at ${width} × ${height} the track tools in sight in the Outline`);
-  return { width: Math.round(main.width), height: Math.round(main.height), share: main.width / width };
+  // The Outline's group takes the rest of the left column (product owner, 24 Oct 2026): its list
+  // shows several rows, all the sample's on a large screen.
+  const rows = await page.evaluate(() => {
+    const list = document.getElementById("outline");
+    const box = list.getBoundingClientRect();
+    const all = [...list.children];
+    return { all: all.length, seen: all.filter((r) => { const b = r.getBoundingClientRect(); return b.top >= box.top - 1 && b.bottom <= box.bottom + 1; }).length };
+  });
+  const enough = height >= 1000 ? rows.all : height >= 768 ? 6 : 4;
+  assert.ok(rows.seen >= enough, `at ${width} × ${height} the Outline shows ${enough} rows or more: ${rows.seen} of ${rows.all}`);
+  return { width: Math.round(main.width), height: Math.round(main.height), share: main.width / width, rows: rows.seen };
 }
 
 /**
@@ -303,8 +313,8 @@ export async function playDock(browser, base, shot, ready, errors) {
   await page.keyboard.press("Delete");
   assert.equal(await page.locator('.dv-tab[data-panel="panel-tools"]').count(), 1, "Delete closes no panel");
 
-  // Scroll kept across the narrow layout and Reset (panel review and CI, 23 Oct 2026): a panel moved
-  // in the page forgets its scroll; the Timeline's list, the Outline's list and a docked panel keep theirs.
+  // Scroll kept across the narrow layout and Reset (panel review and CI, 23 and 24 Oct 2026): a panel
+  // moved in the page forgets its scroll; the Timeline's list, the Outline's list and a docked panel keep theirs.
   await showPanel(page, "timeline");
   await showPanel(page, "history");
   // The Timeline's place is the entry at the top of its list (its rows wrap differently at another width).
@@ -315,20 +325,31 @@ export async function playDock(browser, base, shot, ready, errors) {
       const row = [...list.querySelectorAll(".tl-row[data-id]")].find((r) => r.getBoundingClientRect().bottom > top + 2);
       return { timeline: list.scrollTop > 0 ? row?.dataset.id : "top", outline: document.getElementById("outline").scrollTop };
     });
+  // The Outline's list as [scrollTop, clientHeight, scrollHeight] at each step, for a failure's message.
+  const outlineAt = {};
+  const outlineNow = () => page.evaluate(() => ["scrollTop", "clientHeight", "scrollHeight"].map((k) => document.getElementById("outline")[k]));
+  const said = () => `the Outline [scrollTop, clientHeight, scrollHeight] ${JSON.stringify(outlineAt)}`;
   await page.evaluate(() => {
     const list = document.querySelector("#timeline .tl-scroll");
     list.dispatchEvent(new WheelEvent("wheel")); // as a reader scrolls it: it stops following current time
     list.scrollTop = 160;
-    document.getElementById("outline").scrollTop = 8; // narrow, the whole list is all but in sight: little to scroll
+    document.getElementById("outline").scrollTop = 8;
   });
-  const outlineAt = {};
-  const outlineNow = () => page.evaluate(() => { const o = document.getElementById("outline"); return [o.scrollTop, o.clientHeight, o.scrollHeight]; });
-  const scrolled = await scrolls();
+  await frames(page);
   outlineAt.before = await outlineNow();
-  assert.ok(scrolled.timeline !== "top" && scrolled.outline === 8, `scrolled: ${JSON.stringify(scrolled)}`);
+  const scrolled = await scrolls();
+  assert.ok(scrolled.timeline !== "top" && scrolled.outline === 8, `scrolled: ${JSON.stringify(scrolled)}; ${said()}`);
   await resizeTo(page, 700, 768);
   outlineAt.narrow = await outlineNow();
-  assert.deepEqual(await scrolls(), scrolled, `narrow, the lists where they were; the Outline [scrollTop, clientHeight, scrollHeight] ${JSON.stringify(outlineAt)}`);
+  assert.deepEqual(await scrolls(), scrolled, `narrow, the lists where they were; ${said()}`);
+  // Narrow, the Outline's rows wrap, so its list is taller and scrolls further: scrolled 40 px, more
+  // than is left to scroll once the page is laid out at 1366 px with the side column still in place
+  // (no rows wrapping; CI's fonts left nothing at all, 24 Oct 2026), and less than it has docked.
+  await page.evaluate(() => (document.getElementById("outline").scrollTop = 40));
+  await frames(page); // scrolled, then the window resized later, as a reader does
+  outlineAt.narrowScrolled = await outlineNow();
+  const narrowed = await scrolls();
+  assert.equal(narrowed.outline, 40, `narrow, the Outline scrolled 40 px; ${said()}`);
   // As on a slow machine (CI, 23 Oct 2026): Dockview places a panel's content some frames after the
   // layout is made, so a list has nothing to scroll for a while; its scroll still comes back.
   await page.evaluate(() => {
@@ -341,22 +362,18 @@ export async function playDock(browser, base, shot, ready, errors) {
       return frame(later);
     };
     window.slowDock = () => (window.requestAnimationFrame = frame);
+    // And the page laid out at the new width as the window resizes, before the panels move, as on CI.
+    addEventListener("resize", () => void document.body.offsetHeight, { once: true, capture: true });
   });
   await resizeTo(page, 1366, 768);
   assert.ok(await page.evaluate(() => (window.slowDock(), window.slowed)), "Dockview's placing was slowed");
   // Polled: given back as each list gets its size, however late that is.
-  const want = JSON.stringify(scrolled);
+  const want = JSON.stringify(narrowed);
   let back;
-  const outlineBox = () =>
-    page.evaluate(() => {
-      const o = document.getElementById("outline");
-      const group = o.closest(".dv-groupview");
-      return { scrollTop: o.scrollTop, scrollHeight: o.scrollHeight, clientHeight: o.clientHeight, rows: o.children.length, front: o.checkVisibility(), group: group?.getBoundingClientRect().height };
-    });
-  const polls = [];
-  for (let i = 0; i < 50 && JSON.stringify((back = await scrolls())) !== want; i++) polls.push(await outlineBox()), await frames(page);
+  for (let i = 0; i < 50 && JSON.stringify((back = await scrolls())) !== want; i++) await frames(page);
   outlineAt.docked = await outlineNow();
-  assert.deepEqual(back, scrolled, `docked again, the lists where they were; the Outline [scrollTop, clientHeight, scrollHeight] ${JSON.stringify(outlineAt)}; as polled ${JSON.stringify([polls[0], polls.at(-1)])}, ${polls.length} polls; giving back: ${JSON.stringify(await page.evaluate(() => window.debriefScrollLog()))}`);
+  assert.ok(outlineAt.docked[2] - outlineAt.docked[1] >= 40, `docked, the Outline has 40 px or more to scroll; ${said()}`);
+  assert.deepEqual(back, narrowed, `docked again, the lists where they were; ${said()}`);
 
   // The keyboard kept across 900 px (panel review, 23 Oct 2026): a tab becomes its fold button and back;
   // a menu of the top bar closes, back to its button.
@@ -399,7 +416,7 @@ export async function playDock(browser, base, shot, ready, errors) {
   await dragTab(page, "panel-history", { x: outlineAgain.x + outlineAgain.width / 2, y: outlineAgain.y + outlineAgain.height - 12 });
   const split = await groupsOf(page);
   const saved = JSON.parse(await savedAfter(page, was));
-  assert.equal(saved.version, 2);
+  assert.equal(saved.version, 3);
   assert.deepEqual(Object.keys(saved.layout.panels).sort(), ["map", ...DOCKED_PANELS].sort());
   await page.reload();
   await ready(page);
@@ -412,12 +429,13 @@ export async function playDock(browser, base, shot, ready, errors) {
   const edit = (change) => {
     const copy = JSON.parse(JSON.stringify(whole));
     change(copy);
-    return JSON.stringify({ version: 2, layout: copy });
+    return JSON.stringify({ version: saved.version, layout: copy });
   };
   const leafOf = (node, id) => (node.type === "leaf" ? (node.data.views.includes(id) ? node : undefined) : node.data.map((n) => leafOf(n, id)).find(Boolean));
   const broken = {
     unreadable: "{not json",
     "the first round's": JSON.stringify({ version: 1, layout: whole }),
+    "the second round's": JSON.stringify({ version: 2, layout: whole }),
     "only the map in the grid": edit((l) => (l.grid.root = leafOf(l.grid.root, "map"))),
     "the map sharing a group": edit((l) => {
       const map = leafOf(l.grid.root, "map");
@@ -501,6 +519,7 @@ export async function playDock(browser, base, shot, ready, errors) {
   assert.ok(targets.more.every((s) => s >= 24), `⋯ at least 24 px: ${targets.more}`);
   assert.ok(targets.tabs.every((h) => h >= 24), `tabs at least 24 px high: ${targets.tabs}`);
   assert.ok(targets.grip >= 12, `a sash's grip at least 12 px: ${targets.grip}`);
+  await tablet.locator('.dv-tab[data-panel="panel-tools"]').tap(); // in front of its group (the Tote's)
   await tablet.locator(".dv-groupview", { has: tablet.locator('.dv-tab[data-panel="panel-tools"]') }).locator(".dock-menu-button").tap();
   await tablet.getByRole("menuitem", { name: "Move to right: Walkthroughs" }).tap();
   await tablet.waitForFunction(() => window.debriefLayout().groups.some((g) => g.panels.join() === "panel-tour,panel-tools"));
@@ -512,7 +531,8 @@ export async function playDock(browser, base, shot, ready, errors) {
   post.on("pageerror", (e) => errors.push(String(e)));
   await post.goto(`${base}/index.html?panels=tote,timeline,history,try`);
   await ready(post);
-  const fixed = ["centre:map", "left:panel-time", "left:panel-tote", "left:panel-outline", "left:panel-history", "centre:panel-timeline"];
+  // The default's groups with only the listed panels: History a tab beside the Tote, as in the default.
+  const fixed = ["centre:map", "left:panel-time", "left:panel-tote,panel-history", "left:panel-outline", "centre:panel-timeline"];
   assert.deepEqual(await groupsOf(post), fixed);
   assert.equal(await post.locator("#open-try").isVisible(), true);
   assert.equal(await post.locator("#open-export").isHidden(), true, "Export is not listed");
@@ -524,7 +544,7 @@ export async function playDock(browser, base, shot, ready, errors) {
   await ready(post);
   assert.deepEqual(await groupsOf(post), fixed, "the same layout every time");
   await embed.close();
-  const size = (s) => `${s.width} × ${s.height} px (${(s.share * 100).toFixed(0)}% of the width)`;
+  const size = (s) => `${s.width} × ${s.height} px (${(s.share * 100).toFixed(0)}% of the width; the Outline ${s.rows} rows)`;
   console.log(
     `Docked layout: the default's map at 1366 × 768 ${size(sizes["1366×768"])}, at 1280 × 720 ${size(sizes["1280×720"])}, at 1024 × 768 ${size(sizes["1024×768"])}, at 1920 × 1080 ${size(sizes["1920×1080"])}; no page scroll, no tab overflow, the track tools in sight; tab panels and the keyboard's order; the drawing note one line; with a tool's form open, the map ${Object.entries(formAt).map(([w, s]) => `at ${w} px ${s}`).join(", ")}; dragged, split, moved by keyboard and by touch; scroll and focus kept across 900 px and Reset; the map's and form's frames never reloaded and the plot's ${steps} steps kept; remembered across a reload, and ${Object.keys(broken).length} broken layouts each giving the default, forgotten; narrow at ${narrow.join(", ")} px; a post's fixed layout, never remembered.`,
   );

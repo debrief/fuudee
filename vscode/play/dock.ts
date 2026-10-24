@@ -27,8 +27,9 @@ export const LAYOUT_KEY = "debrief.play.layout";
 /**
  * Raised whenever the panels or the layout's meaning change: an older layout is then not used.
  * 2: the second round's default (product owner, 23 Oct 2026): walkthroughs alone on the right.
+ * 3: three groups on the left (product owner, 24 Oct 2026): Tools and History beside the Tote.
  */
-export const LAYOUT_VERSION = 2;
+export const LAYOUT_VERSION = 3;
 /** The map's place in the layout: an empty slot the map is laid over. */
 export const MAP_ID = "map";
 
@@ -42,10 +43,11 @@ const TIME_HEIGHT = 172;
  * The default's sizes for a dock of this size, in pixels. The side columns take about a fifth of
  * the width each; the Timeline and Coverage under the map 22% of its height (product owner, 23 Oct
  * 2026, second round), so the map keeps more. On the left, Time as tall as it needs, the Tote a
- * quarter of the height and at least what the sample needs at 1280 px, and of the rest, the
- * Outline's group two thirds (its list and its track tools) and Tools with History one third.
+ * quarter of the height and at least what the sample needs at 1280 px (Tools and History as tabs
+ * beside it), and the rest to the Outline's group, its list and its track tools (product owner,
+ * 24 Oct 2026).
  */
-export function defaultSizes(width: number, height: number): { left: number; right: number; time: number; tote: number; outline: number; strip: number } {
+export function defaultSizes(width: number, height: number): { left: number; right: number; time: number; tote: number; strip: number } {
   const clamp = (value: number, low: number, high: number) => Math.round(Math.max(low, Math.min(high, value)));
   const time = TIME_HEIGHT;
   const tote = clamp(height * 0.25, 188, 230);
@@ -54,7 +56,6 @@ export function defaultSizes(width: number, height: number): { left: number; rig
     right: clamp(width * 0.21, 270, 380),
     time,
     tote,
-    outline: clamp((height - time - tote) * 0.66, 120, 600),
     strip: clamp(height * 0.22, 110, 380),
   };
 }
@@ -416,7 +417,7 @@ export class Dock {
     // Sizes: the columns' widths, then the left groups' heights from the top (the last takes the rest).
     lefts[0]?.group.api.setSize({ width: sizes.left });
     right?.group.api.setSize({ width: sizes.right });
-    const heights: Record<string, number> = { "panel-time": sizes.time, "panel-tote": sizes.tote, "panel-outline": sizes.outline };
+    const heights: Record<string, number> = { "panel-time": sizes.time, "panel-tote": sizes.tote };
     // Twice: setting one group's height gives or takes from its neighbours, the ones set before too.
     for (let pass = 0; pass < 2; pass++) {
       for (const lead of lefts.slice(0, -1)) {
