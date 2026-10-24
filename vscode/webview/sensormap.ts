@@ -29,18 +29,23 @@ import L from "leaflet";
 import geodesic from "geographiclib-geodesic";
 import type { DebriefFeatureCollection } from "@debrief/schemas";
 import type { LonLat } from "./geodesic.js";
-import { pointAt } from "./geodesic.js";
 import {
+  arrayOf,
+  cutPlace,
   currentCut,
   DEFAULT_LENGTH_CAP_M,
   defaultLengthM,
   degrees,
   drawnBearings,
+  hostPathOf,
   inPeriod,
+  pinnedCourse,
   metres,
   sensorsOf,
   sideOf,
+  type ArrayMode,
   type CutFeature,
+  type HostPath,
   type Kept,
   type SensorEntry,
 } from "./sensors.js";
@@ -67,6 +72,8 @@ export interface Line {
 interface Origin {
   x: number;
   y: number;
+  /** Where on the earth, and the course its sides are told by (cutPlace). */
+  position: LonLat;
   course?: number;
 }
 /** A line as painted, for hit testing: its points on the screen, its cut and which bearing. */
@@ -80,6 +87,10 @@ export interface Painted {
   alpha: number;
   /** Where the cut is drawn from, on the canvas. */
   origin: [number, number];
+  /** The course its sides are told by, worked out when it was first drawn (for the pointer's tip, without reading the host again). */
+  course?: number;
+  /** A cut of range 0: a point where it was taken, as legacy drew one. */
+  point?: boolean;
 }
 /** A line in the image an export draws (exportimage.ts), on the screen. */
 export interface PaintedLine {
@@ -120,13 +131,16 @@ export interface SensorLayerOptions {
 /** A cut's origin and lines, worked out once per plot shown (null: outside its host's span). */
 interface Prepared {
   from: Origin;
+  /** Range 0: drawn as a point (lines empty). */
+  point?: Kept;
   /** Each line, and whether it is the starboard one of two (drawn darker and dashed). */
   lines: { which: Kept; line: Line; starboard: boolean }[];
 }
 type Entry = SensorEntry & {
   print: string;
-  coordinates: LonLat[];
-  hostTimes: number[];
+  path: HostPath;
+  offsetM: number;
+  mode: ArrayMode;
   prepared: (Prepared | null | undefined)[];
   /** The cuts painted last: the first's index, and where each cut's lines start in painted (one more than there are cuts). */
   paintedFirst: number;
@@ -171,8 +185,11 @@ export class SensorLayer {
     this.entries = sensorsOf(plot)
       .filter((e) => e.host?.geometry && e.cuts.length)
       .map((e) => {
-        const coordinates = e.host!.geometry.coordinates as LonLat[];
-        return { ...e, coordinates, hostTimes: e.host!.properties.times.map(Date.parse), print: `${e.host!.id}|${fingerprint(coordinates, e.host!.properties.times)}`, prepared: new Array(e.cuts.length), paintedFirst: 0, paintedAt: new Int32Array(1) };
+        const path = hostPathOf(e.host!);
+        const { offsetM, mode } = arrayOf(e.sensor);
+        const courses = path.courses ? `${path.courses.length}|${path.courses.reduce((a, c, i) => a + c * ((i % 9973) + 1), 0)}` : "";
+        const print = `${e.host!.id}|${fingerprint(path.coordinates, e.host!.properties.times)}|${courses}|${offsetM}|${mode}`;
+        return { ...e, path, offsetM, mode, print, prepared: new Array(e.cuts.length), paintedFirst: 0, paintedAt: new Int32Array(1) };
       });
     if (this.lines.size > 400_000) this.lines.clear();
     if (this.origins.size > 200_000) this.origins.clear();
@@ -195,29 +212,26 @@ export class SensorLayer {
 
   private originOf(entry: Entry, cut: CutFeature, at: number): Origin | null {
     const own = cut.properties.origin as LonLat | undefined | null;
-    const key = `${entry.print}|${at}|${own ? own.join(",") : ""}`;
+    const key = `${entry.print}|${at}|${own ? own.join(",") : ""}|${pinnedCourse(cut) ?? ""}`;
     let found = this.origins.get(key);
     if (found !== undefined) return found;
-    const point = pointAt(entry.coordinates, entry.hostTimes, at);
-    if (!point) found = null;
+    const place = cutPlace(entry.path, at, own, entry.offsetM, entry.mode, pinnedCourse(cut));
+    if (!place) found = null;
     else {
-      const where = own ?? point.position;
+      const where = place.position;
       const p = this.crs.latLngToPoint(L.latLng(where[1], where[0]), this.options.unitZoom);
-      found = { x: p.x, y: p.y, course: point.course };
+      found = { x: p.x, y: p.y, position: where, course: place.course };
     }
     this.origins.set(key, found);
     return found;
   }
 
-  private lineOf(entry: Entry, cut: CutFeature, at: number, bearing: number): Line | undefined {
-    const own = cut.properties.origin as LonLat | undefined | null;
+  private lineOf(from: Origin, cut: CutFeature, bearing: number): Line | undefined {
     const range = cut.properties.range ? metres(cut.properties.range) : undefined;
-    const key = `${entry.print}|${at}|${own ? own.join(",") : ""}|${bearing}|${range ?? ""}`;
+    const [lon, lat] = from.position;
+    const key = `${lon},${lat}|${bearing}|${range ?? ""}`;
     let line = this.lines.get(key);
     if (line) return line;
-    const point = pointAt(entry.coordinates, entry.hostTimes, at);
-    if (!point) return undefined;
-    const [lon, lat] = own ?? point.position;
     const length = range ?? DEFAULT_LENGTH_CAP_M;
     const pieces = Math.max(1, Math.min(MAX_PIECES, Math.ceil(length / PIECE_M)));
     const xy = new Float64Array((pieces + 1) * 2);
@@ -250,8 +264,9 @@ export class SensorLayer {
     const props = cut.properties;
     const lines: Prepared["lines"] = [];
     const drawn = drawnBearings(degrees(props.bearing), props.ambiguous_bearing ? degrees(props.ambiguous_bearing) : undefined, props.resolved);
+    if (props.range && metres(props.range) === 0) return { from, lines, point: drawn[0].which };
     for (const { which, bearing } of drawn) {
-      const line = this.lineOf(entry, cut, at, bearing);
+      const line = this.lineOf(from, cut, bearing);
       if (line) lines.push({ which, line, starboard: drawn.length === 2 && from.course !== undefined && sideOf(from.course, bearing) === "starboard" });
     }
     return { from, lines };
@@ -331,6 +346,7 @@ export class SensorLayer {
       return four[(dim ? 2 : 0) + (starboard ? 1 : 0)];
     };
     const selected: Float32Array[] = [];
+    const points: { x: number; y: number; colour: string; alpha: number }[] = [];
     const pad = 4;
     let count = 0;
     for (const entry of this.entries) {
@@ -352,11 +368,22 @@ export class SensorLayer {
         const dim = any && !sensorChosen && !selection.has(cut.id);
         const from = prepared.from;
         count++;
+        const origin: [number, number] = [from.x * scale - ox, from.y * scale - oy];
+        if (prepared.point) {
+          const [x, y] = origin;
+          if (x < -pad || y < -pad || x > width + pad || y > height + pad) continue;
+          const alpha = dim ? 0.25 : 0.9;
+          points.push({ x, y, colour, alpha });
+          const dot = Float32Array.of(x, y, x, y);
+          this.painted.push({ cut, entry, which: prepared.point, points: dot, colour, dash: NO_DASH, alpha, origin, course: from.course, point: true });
+          if (selection.size && selection.has(cut.id)) selected.push(dot);
+          continue;
+        }
         for (const { which, line, starboard } of prepared.lines) {
           const points = screenPoints(line, line.ranged ? line.length : Math.min(viewLength, line.length), scale, ox, oy);
           if (!points || !onCanvas(points, width, height, pad)) continue;
           const group = groupOf(colour, starboard, dim);
-          this.painted.push({ cut, entry, which, points, colour: group.colour, dash: group.dash, alpha: group.alpha, origin: [from.x * scale - ox, from.y * scale - oy] });
+          this.painted.push({ cut, entry, which, points, colour: group.colour, dash: group.dash, alpha: group.alpha, origin, course: from.course });
           group.paths.push(points);
           if (selection.size && selection.has(cut.id)) selected.push(points);
         }
@@ -372,6 +399,14 @@ export class SensorLayer {
       context.strokeStyle = group.colour;
       context.setLineDash(group.dash);
       stroke(context, group.paths);
+    }
+    // Cuts of range 0: a dot where each was taken.
+    for (const p of points) {
+      context.globalAlpha = p.alpha;
+      context.fillStyle = p.colour;
+      context.beginPath();
+      context.arc(p.x, p.y, 2.5, 0, 2 * Math.PI);
+      context.fill();
     }
     // Selected cuts: haloed in the theme's text colour, as the map outlines a selection.
     if (selected.length) {
@@ -503,7 +538,7 @@ export class SensorLayer {
     const line = (p: Painted, now: boolean): PaintedLine => {
       const list: [number, number][] = [];
       for (let k = 0; k < p.points.length; k += 2) list.push([p.points[k] + offset.x, p.points[k + 1] + offset.y]);
-      return { points: list, colour: p.colour, width: now ? 3 : 1.25, ...(p.dash.length && { dash: p.dash }), opacity: now ? 1 : p.alpha };
+      return { points: list, colour: p.colour, width: p.point ? 5 : now ? 3 : 1.25, ...(p.dash.length && { dash: p.dash }), opacity: now ? 1 : p.alpha };
     };
     return [...this.painted.filter((p) => !this.emphasised.has(p.cut.id)).map((p) => line(p, false)), ...this.painted.filter((p) => this.emphasised.has(p.cut.id)).map((p) => line(p, true))];
   }

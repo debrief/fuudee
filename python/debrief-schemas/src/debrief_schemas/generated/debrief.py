@@ -665,6 +665,20 @@ class SensorCutKindEnum(str, Enum):
     sensor_cut = "sensor_cut"
 
 
+class ArrayModeEnum(str, Enum):
+    """
+    How a towed array's position follows the ship (CAP-22; product owner, 24 Oct 2026), legacy Debrief's array centre modes.
+    """
+    worm_in_hole = "worm_in_hole"
+    """
+    The array is its offset back along the ship's own past track, so it lags through a turn (legacy Worm in hole, its default). Before the track's first fix, astern along the first fix's course.
+    """
+    plain = "plain"
+    """
+    The array is its offset straight astern of the ship's position, along its course at that time (legacy Plain).
+    """
+
+
 class SensorCutKeptEnum(str, Enum):
     """
     Which of an ambiguous cut's two recorded bearings the analyst kept (CAP-22): the side resolved. Recorded as the bearing kept, not as port or starboard, because which side a bearing is on depends on the host track's course at the cut's time, which a later edit of the track (a move, dead reckoning) can change; what the analyst judged is which bearing was the target's. Debrief says it as port or starboard.
@@ -1311,7 +1325,7 @@ class WebviewMessageKindEnum(str, Enum):
     """
     resolve_asked = "resolve_asked"
     """
-    Map to host: the analyst clicked one of an ambiguous cut's two lines (feature_id, the cut), keeping that bearing (keep: bearing or ambiguous_bearing), as one recorded step (CAP-22; product owner, 24 Oct 2026).
+    Map to host: the analyst Alt-clicked one of an ambiguous cut's two lines (feature_id, the cut), keeping that bearing (keep: bearing or ambiguous_bearing), or chose a Keep or Make ambiguous again button in the popover a plain click on the cut shows (keep: bearing, ambiguous_bearing or ambiguous), as one recorded step (CAP-22; product owner, 24 Oct 2026: a plain click only selects).
     """
     cut_chosen = "cut_chosen"
     """
@@ -2333,7 +2347,7 @@ class TrackEdit(ConfiguredBaseModel):
     angle: Optional[Angle] = Field(default=None, description="""How far a rotation turns the fixes about the pivot; positive is clockwise.""", json_schema_extra = { "linkml_meta": {'domain_of': ['TrackEdit']} })
     pivot: Optional[list[float]] = Field(default=None, description="""[longitude, latitude] of the position a rotation turns about. Left out, the fix nearest current time in the period, or the period's first fix.""", min_length=2, max_length=2, json_schema_extra = { "linkml_meta": {'domain_of': ['TrackEdit']} })
     anchor: Optional[TrackEditAnchorEnum] = Field(default=None, description="""The end of the period a shear or a stretch holds fixed.""", json_schema_extra = { "linkml_meta": {'domain_of': ['TrackEdit']} })
-    course: Optional[Angle] = Field(default=None, description="""The course made good a shear gives the period: the true bearing, at its first fix, of the geodesic from its first fix to its last. With speed, instead of a distance and a bearing for the dragged end.""", json_schema_extra = { "linkml_meta": {'domain_of': ['TrackEdit']} })
+    course: Optional[Angle] = Field(default=None, description="""The course made good a shear gives the period: the true bearing, at its first fix, of the geodesic from its first fix to its last. With speed, instead of a distance and a bearing for the dragged end.""", json_schema_extra = { "linkml_meta": {'domain_of': ['TrackEdit', 'SensorCutProperties']} })
     speed: Optional[Speed] = Field(default=None, description="""The speed made good a shear or a stretch gives the period: the geodesic range from its first fix to its last over the time between.""", json_schema_extra = { "linkml_meta": {'domain_of': ['TrackEdit']} })
     fix_time: Optional[str] = Field(default=None, description="""The time of the one fix a move_fix moves: the fix is found by its time, as a mark is (where two fixes share a time, the first).""", json_schema_extra = { "linkml_meta": {'domain_of': ['TrackEdit', 'WebviewMessage']} })
     position: Optional[list[float]] = Field(default=None, description="""[longitude, latitude] a move_fix puts the fix at, instead of a distance and a bearing from where it is.""", min_length=2, max_length=2, json_schema_extra = { "linkml_meta": {'domain_of': ['TrackEdit']} })
@@ -2876,7 +2890,7 @@ class SensorProperties(ConfiguredBaseModel):
                        'ToteTrack',
                        'CoveragePlatform',
                        'CoverageSource']} })
-    host_track_id: str = Field(default=..., description="""The track carrying the sensor (ownship): its cuts are drawn from that track's position at each cut's time. A track split keeps its sensors on its first part; tracks merged take their sensors with them.""", json_schema_extra = { "linkml_meta": {'domain_of': ['SensorProperties', 'SensorObservationsProperties']} })
+    host_track_id: str = Field(default=..., description="""The track carrying the sensor (ownship): its cuts are drawn from that track's position at each cut's time (or its array's, astern). A track split: the cuts from the split on go with the second part, as a sensor of its own (a new id) where the sensor had cuts before it too; cuts between the parts' fixes keep the position they were drawn from. Tracks merged: sensors of one name are one again, the merged track's.""", json_schema_extra = { "linkml_meta": {'domain_of': ['SensorProperties', 'SensorObservationsProperties']} })
     colour: str = Field(default=..., description="""The colour its cuts are drawn in, lower-case hex RGB, unless a cut has its own. Content, like a track's colour: each change is a recorded, undoable step (SUB-22).""", json_schema_extra = { "linkml_meta": {'domain_of': ['TrackStyle',
                        'FixMark',
                        'AnnotationAppearance',
@@ -2887,6 +2901,8 @@ class SensorProperties(ConfiguredBaseModel):
                        'CoveragePlatform',
                        'TimelineEntry']} })
     legacy_symbology: Optional[str] = Field(default=None, description="""The REP symbology code its colour came from, such as \"@A\", kept for export.""", json_schema_extra = { "linkml_meta": {'domain_of': ['TrackStyle', 'SensorProperties']} })
+    array_offset: Optional[Length] = Field(default=None, description="""How far astern of the ship the sensor is (a towed array), so its cuts are drawn, and port and starboard told, from the array's position, not the ship's (product owner, 24 Oct 2026). Left out, the sensor is at the ship. Set by the analyst as a recorded, undoable step, or read from a legacy plot (its Offset, astern).""", json_schema_extra = { "linkml_meta": {'domain_of': ['SensorProperties']} })
+    array_mode: Optional[ArrayModeEnum] = Field(default=None, description="""How the array follows the ship: back along its past track (worm in the hole, the default, as legacy's) or straight astern (plain). Only with array_offset.""", json_schema_extra = { "linkml_meta": {'domain_of': ['SensorProperties']} })
     hidden: Optional[bool] = Field(default=None, description="""None of its cuts drawn on the map. Still listed, and still selectable, in the outline, under its track. Content: hiding is a recorded, undoable change (SUB-22).""", json_schema_extra = { "linkml_meta": {'domain_of': ['TrackProperties',
                        'AnnotationProperties',
                        'SensorProperties',
@@ -3001,10 +3017,13 @@ class SensorCutProperties(ConfiguredBaseModel):
     bearing: Angle = Field(default=..., description="""The bearing to the target, true, clockwise from north, from 0 up to 360 degrees.""", json_schema_extra = { "linkml_meta": {'domain_of': ['TrackEdit', 'SensorCutProperties']} })
     ambiguous_bearing: Optional[Angle] = Field(default=None, description="""A towed array's ambiguous bearing: the mirror image of bearing about the array, on the other side of the host's course. Left out for a cut that was never ambiguous.""", json_schema_extra = { "linkml_meta": {'domain_of': ['SensorCutProperties']} })
     resolved: Optional[SensorCutKeptEnum] = Field(default=None, description="""Which of the two bearings the analyst kept, for a cut with an ambiguous bearing; left out while it is unresolved, when both are drawn. Each resolution, of one cut or of every cut in a period, is one recorded, undoable step with provenance (product owner, 24 Oct 2026), and can be undone or reset to ambiguous.""", json_schema_extra = { "linkml_meta": {'domain_of': ['SensorCutProperties']} })
-    range: Optional[Length] = Field(default=None, description="""How far the target was, where the source says: the cut is drawn to that range. Left out, drawn past the edge of the view.""", json_schema_extra = { "linkml_meta": {'domain_of': ['SensorCutProperties', 'TimeState']} })
-    origin: Optional[conlist(min_length=2, max_length=2, item_type=float)] = Field(default=None, description="""[longitude, latitude] of the sensor, where the source recorded it with the cut (legacy Debrief's absolute origin): the cut is drawn from there instead of from the host track. Left out, from the host track's position at the cut's time.""", json_schema_extra = { "linkml_meta": {'array': {'dimensions': [{'exact_cardinality': 2}],
+    range: Optional[Length] = Field(default=None, description="""How far the target was, where the source says: the cut is drawn to that range. Left out, drawn past the edge of the view. A range of 0 (a ;SENSOR2: or ;SENSOR3: line's, as legacy read it) is drawn as a point where the cut was taken, as legacy drew it.""", json_schema_extra = { "linkml_meta": {'domain_of': ['SensorCutProperties', 'TimeState']} })
+    origin: Optional[conlist(min_length=2, max_length=2, item_type=float)] = Field(default=None, description="""[longitude, latitude] of the sensor, where the source recorded it with the cut (legacy Debrief's absolute origin): the cut is drawn from there instead of from the host track. Left out, from the host track's position at the cut's time. Where origin_derived is true, Debrief worked it out (where the sensor was, pinned when its track was split) and the source did not record it.""", json_schema_extra = { "linkml_meta": {'array': {'dimensions': [{'exact_cardinality': 2}],
                    'exact_number_dimensions': 1},
          'domain_of': ['SensorCutProperties']} })
+    origin_derived: Optional[bool] = Field(default=None, description="""True where origin is not recorded by the source but derived by Debrief: where the sensor (its array astern, if it has one) was before its track was split, pinned so the cut is drawn, and its side told, as before (round 3 review, 24 Oct 2026). A TMA residual can tell a recorded origin from a derived one by it. Only with origin.""", json_schema_extra = { "linkml_meta": {'domain_of': ['SensorCutProperties']} })
+    course: Optional[Angle] = Field(default=None, description="""The course, true, the cut's port and starboard are told by, pinned with a derived origin when its track was split (the course logged where the sensor was then). Left out, the host's logged course at the cut's time. Only with origin.""", json_schema_extra = { "linkml_meta": {'domain_of': ['TrackEdit', 'SensorCutProperties']} })
+    bearing_accuracy: Optional[str] = Field(default=None, description="""The bearing accuracy a ;SENSOR3: line gives, kept exactly as written: no format says what it means (a standard deviation, a half-width), so it is not drawn (product owner, 24 Oct 2026).""", json_schema_extra = { "linkml_meta": {'domain_of': ['SensorCutProperties']} })
     label: Optional[str] = Field(default=None, description="""Text the source gives the cut, such as legacy Debrief's label.""", json_schema_extra = { "linkml_meta": {'domain_of': ['FixMark', 'SensorCutProperties', 'MeasureDefinition']} })
     comment: Optional[str] = Field(default=None, description="""Free text about the cut.""", json_schema_extra = { "linkml_meta": {'domain_of': ['FixMark', 'SensorCutProperties']} })
     colour: Optional[str] = Field(default=None, description="""The cut's own colour, lower-case hex RGB; left out, its sensor's, as legacy Debrief lets a cut take its sensor's colour.""", json_schema_extra = { "linkml_meta": {'domain_of': ['TrackStyle',

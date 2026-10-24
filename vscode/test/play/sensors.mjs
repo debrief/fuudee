@@ -1,7 +1,9 @@
 // Sensor bearings in the playground (CAP-22), played as a reader would: the sample's two
 // sensors drawn as cuts from BLUE ONE, only in the time window, the cut current time is at
-// emphasised; each sensor in the Outline under its track. One of an ambiguous cut's two
-// lines clicked on the map keeps it, one step, undone by Undo; a sensor's menu from the
+// emphasised; each sensor in the Outline under its track. A plain click on a cut's line
+// selects it and shows its choices, changing nothing; a choice keeps a bearing, one step,
+// undone by Undo; Alt-click keeps the line clicked; a double-click's second click does
+// nothing. A towed array's offset astern set from its menu, one step. A sensor's menu from the
 // keyboard keeps port for the cuts in the window, one step named for what it did; Both
 // again makes them ambiguous again. A cut's menu by right-click; a sensor coloured and
 // hidden, each a step. A .dsf file read in, the reader asked which track carries a sensor
@@ -88,7 +90,8 @@ export async function playSensors(page, shot) {
   await page.keyboard.press("Home");
   await page.waitForTimeout(300);
 
-  // Pointing at a cut says its bearings and sides; clicking one of an ambiguous cut's lines keeps it: one step.
+  // Pointing at a cut says its bearings and sides; a plain click selects it and shows its
+  // choices, changing nothing (product owner, 24 Oct 2026); a choice keeps a bearing: one step.
   const box = await frameBox();
   const ambiguous = (await probes()).find((p) => p.ambiguous);
   assert.ok(ambiguous, "an ambiguous cut's line to click");
@@ -96,10 +99,34 @@ export async function playSensors(page, shot) {
   const tip = mapFrame.locator(".cut-tip");
   await tip.waitFor({ state: "visible" });
   assert.match(await tip.innerText(), /cut at \d\d:\d\d:\d\dZ\nAmbiguous: \d{3}\.\d° \((port|starboard)\) or \d{3}\.\d° \((port|starboard)\)/);
+  assert.match(await tip.innerText(), /Click for its choices; Alt-click this line to keep it$/);
   await shot("sensors-02-pointed");
   let n = await steps();
   const lines = await drawn("lines");
   await page.mouse.click(box.x + ambiguous.x, box.y + ambiguous.y);
+  const popover = mapFrame.locator(".cut-popover");
+  await popover.waitFor({ state: "visible" });
+  await page.locator("#sensor-group").waitFor(); // a cut selected: the Sensor actions shown
+  const offered = await popover.locator("button").allInnerTexts();
+  assert.match(offered.join("|"), /^Keep \d{3}\.\d° \((port|starboard)\)\|Keep \d{3}\.\d° \((port|starboard)\)\|More…$/);
+  assert.match(await popover.innerText(), /cut at \d\d:\d\d:\d\dZ/);
+  // The dialog itself has the keyboard first (a screen reader reads the cut), not a choice; Tab stays among the choices.
+  assert.equal(await popover.evaluate((p) => p.ownerDocument.activeElement === p), true, "the dialog has focus first");
+  assert.equal(await popover.getAttribute("aria-describedby"), "cut-popover-details");
+  const buttonsShown = await popover.locator("button").count();
+  for (let i = 0; i <= buttonsShown; i++) await page.keyboard.press("Tab");
+  assert.equal(await popover.evaluate((p) => p.contains(p.ownerDocument.activeElement)), true, "Tab stays in the choices");
+  await page.waitForTimeout(300);
+  assert.equal(await steps(), n, "a plain click changes nothing");
+  assert.equal(await drawn("lines"), lines, "both bearings still drawn");
+  await shot("sensors-02b-popover");
+  // Escape closes the choices, the map has the keyboard again.
+  await page.keyboard.press("Escape");
+  await popover.waitFor({ state: "hidden" });
+  // A choice keeps that bearing: one step.
+  await page.mouse.click(box.x + ambiguous.x, box.y + ambiguous.y);
+  await popover.waitFor({ state: "visible" });
+  await popover.locator("button").first().click();
   await stepAdded(n);
   assert.match(await latest(), /^(Port|Starboard) bearing kept on (Towed array|Bow sonar) cut at \d\d:\d\d:\d\dZ$/);
   await page.waitForFunction((l) => document.querySelector(".frame-map").contentDocument.querySelector("canvas.sensor-cuts").dataset.lines < l, lines);
@@ -107,13 +134,38 @@ export async function playSensors(page, shot) {
   // Undo: ambiguous again, both lines drawn.
   await undo();
   await page.waitForFunction((l) => Number(document.querySelector(".frame-map").contentDocument.querySelector("canvas.sensor-cuts").dataset.lines) === l, lines);
+  // Alt-click keeps the line clicked, at once: one step.
+  await page.waitForTimeout(300);
+  const altTarget = (await probes()).find((p) => p.ambiguous);
+  n = await steps();
+  await page.keyboard.down("Alt");
+  await page.mouse.click(box.x + altTarget.x, box.y + altTarget.y);
+  await page.keyboard.up("Alt");
+  await stepAdded(n);
+  assert.match(await latest(), /^(Port|Starboard) bearing kept on (Towed array|Bow sonar) cut at \d\d:\d\d:\d\dZ$/);
+  await undo();
+  await page.waitForFunction((l) => Number(document.querySelector(".frame-map").contentDocument.querySelector("canvas.sensor-cuts").dataset.lines) === l, lines);
+  // A double-click's second click does nothing (its first selects, as any click does).
+  await page.waitForTimeout(300);
+  const twice = (await probes()).find((p) => p.ambiguous);
+  n = await steps();
+  await mapFrame.locator("#map").evaluate((_, p) => {
+    const target = document.elementFromPoint(p.x, p.y);
+    target.dispatchEvent(new MouseEvent("click", { bubbles: true, cancelable: true, clientX: p.x, clientY: p.y, detail: 2, view: window }));
+  }, twice);
+  await page.waitForTimeout(500);
+  assert.equal(await steps(), n, "a double-click's second click changes nothing");
+  assert.equal(await popover.isVisible(), false, "nor shows the choices");
+  await mapFrame.locator("#map").focus();
+  await page.keyboard.press("Escape");
+  await page.waitForFunction(() => !document.querySelector("#outline li.selected"));
 
   // From the keyboard: the Towed array's menu (Shift+F10), Keep port, the cuts in the window: one step.
   await row("sensor-blue-one-towed-array").focus();
   await page.keyboard.press("Shift+F10");
   const menu = page.locator(".context-menu");
   await menu.waitFor();
-  assert.deepEqual(await menu.locator("button").allInnerTexts(), ["Keep port bearing…", "Keep starboard bearing…", "Make ambiguous again…", "Cut at current time…"]);
+  assert.deepEqual(await menu.locator("button").allInnerTexts(), ["Keep port bearing…", "Keep starboard bearing…", "Make ambiguous again…", "Cut at current time…", "Towed array offset…"]);
   await page.keyboard.press("Enter");
   await page.waitForFunction(() => document.querySelector(".context-menu")?.getAttribute("aria-label") === "Keep port bearing: which cuts?");
   const scopes = await menu.locator("button").allInnerTexts();
@@ -155,11 +207,32 @@ export async function playSensors(page, shot) {
   await page.keyboard.press("Shift+F10");
   await menu.waitFor();
   await page.keyboard.press("End");
+  await page.keyboard.press("ArrowUp");
   await page.keyboard.press("Enter");
   await asked.waitFor();
   assert.match(await asked.locator("#ask-text").innerText(), /^Towed array cut at \d\d:\d\d:\d\dZ\. Ambiguous: /);
   await page.keyboard.press("Escape");
   await asked.waitFor({ state: "hidden" });
+
+  // A towed array 300 m astern, worm in the hole, from its menu: one step; its cuts drawn from the array.
+  await row("sensor-blue-one-towed-array").focus();
+  await page.keyboard.press("Shift+F10");
+  await menu.waitFor();
+  await page.keyboard.press("End");
+  await page.keyboard.press("Enter");
+  const form = page.locator("dialog.track-form");
+  await form.waitFor();
+  await form.locator("input[name=offset]").fill("300 m");
+  assert.match(await form.locator("#track-form-offset-note").innerText(), /^Means .+ astern$/);
+  assert.equal(await form.locator("select[name=mode]").inputValue(), "worm_in_hole");
+  n = await steps();
+  await form.getByRole("button", { name: "Set" }).click();
+  await stepAdded(n);
+  assert.equal(await latest(), "Towed array: 300 m astern, worm in the hole");
+  await page.waitForTimeout(300);
+  await page.mouse.move(2, 2);
+  await shot("sensors-08-array-astern");
+  await undo();
 
   // A sensor coloured and hidden: each a step; hidden, its cuts are not drawn.
   await row("sensor-blue-one-bow-sonar").click();

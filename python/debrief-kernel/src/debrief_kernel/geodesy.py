@@ -9,7 +9,7 @@ true, clockwise from north, in [0, 360).
 from __future__ import annotations
 
 import math
-from bisect import bisect_right
+from bisect import bisect_left, bisect_right
 from collections.abc import Sequence
 from dataclasses import dataclass
 
@@ -167,27 +167,80 @@ def _wrap_longitude(longitude: float) -> float:
     return wrapped - 180.0
 
 
+class _Parsed(Sequence):
+    """A plot's fix times or positions, each read from its text or coordinates only when
+    first asked for: a track of 200,000 fixes is searched by bisection, so finding where a
+    cut falls reads a few dozen of them, not every one (3 s on such a track before)."""
+
+    def __init__(self, raw: Sequence, read) -> None:
+        self._raw = raw
+        self._read = read
+        self._done: dict[int, object] = {}
+
+    def __len__(self) -> int:
+        return len(self._raw)
+
+    def __getitem__(self, index):  # type: ignore[override]
+        if isinstance(index, slice):
+            return [self[i] for i in range(*index.indices(len(self)))]
+        if index < 0:
+            index += len(self._raw)
+        found = self._done.get(index)
+        if found is None:
+            found = self._done[index] = self._read(self._raw[index])
+        return found
+
+
 class TrackPath:
     """A track's positions over time, interpolated along geodesics between fixes."""
 
-    def __init__(self, times_ms: Sequence[int], positions: Sequence[Position]):
+    def __init__(
+        self,
+        times_ms: Sequence[int],
+        positions: Sequence[Position],
+        courses: Sequence[float] | None = None,
+        *,
+        checked: bool = False,
+    ):
         if len(times_ms) != len(positions):
             raise ValueError("times and positions differ in length")
-        if not times_ms:
+        if not len(times_ms):
             raise ValueError("a track needs at least one position")
-        if any(a > b for a, b in zip(times_ms, times_ms[1:], strict=False)):
+        if courses is not None and len(courses) != len(times_ms):
+            raise ValueError("courses and times differ in length")
+        if not checked and any(a > b for a, b in zip(times_ms, times_ms[1:], strict=False)):
             raise ValueError("times are not in order")
-        self.times_ms = list(times_ms)
-        self.positions = list(positions)
+        self.times_ms = times_ms if checked else list(times_ms)
+        self.positions = positions if checked else list(positions)
+        # The course recorded at each fix, degrees true, where the track has them: what
+        # legacy Debrief told port and starboard by (reported_course_at).
+        self.courses = courses
         # The geodesic between each pair of fixes, worked out once: closest approach
         # asks for many positions along the same few legs.
         self._lines: dict[int, GeodesicLine] = {}
 
     @classmethod
     def from_feature(cls, feature: schema.TrackFeature) -> TrackPath:
-        times = [parse_utc(t) for t in feature.properties.times]
-        positions = [Position(lon, lat) for lon, lat in feature.geometry.coordinates]
-        return cls(times, positions)
+        """A plot's track: its times, positions and recorded courses, all read."""
+        lazy = cls.lazy_from_feature(feature)
+        return cls(list(lazy.times_ms), list(lazy.positions), lazy.courses, checked=True)
+
+    @classmethod
+    def lazy_from_feature(cls, feature: schema.TrackFeature) -> TrackPath:
+        """A plot's track, its times and positions read as they are asked for (the plot
+        was checked when read: its times are in order): where a few cuts are placed on a
+        track of 200,000 fixes, a few dozen are read, not all."""
+        props = feature.properties
+        courses = None
+        if props.courses is not None:
+            radians = str(props.courses.unit) == "rad"
+            courses = [math.degrees(c) if radians else c for c in props.courses.values]
+        return cls(
+            _Parsed(props.times, parse_utc),
+            _Parsed(feature.geometry.coordinates, lambda c: Position(c[0], c[1])),
+            courses,
+            checked=True,
+        )
 
     @property
     def start_ms(self) -> int:
@@ -233,7 +286,7 @@ class TrackPath:
         A cut's port and starboard are told by it (CAP-22), held to
         schemas/vectors/sensor-cuts.json."""
         times = self.times_ms
-        if not times or time_ms < times[0] or time_ms > times[-1] or len(times) == 1:
+        if not len(times) or time_ms < times[0] or time_ms > times[-1] or len(times) == 1:
             return None
         low, high = 0, len(times) - 1
         while high - low > 1:  # the later of fixes sharing a time, as pointAt brackets
@@ -253,6 +306,18 @@ class TrackPath:
             return self._course_before(low)
         point = line.Position(fraction * line.s13, Geodesic.AZIMUTH)
         return normalise_bearing(point["azi2"])
+
+    def reported_course_at(self, time_ms: int) -> float | None:
+        """The course port and starboard are told by, as legacy Debrief's isBearingToPort
+        took it: the course recorded at the first fix at or after the time (the host's
+        getNearestTo, not interpolated); where the track records no courses, its
+        direction of travel there (course_at). None outside the track's span."""
+        times = self.times_ms
+        if not len(times) or time_ms < times[0] or time_ms > times[-1]:
+            return None
+        if self.courses is not None:
+            return normalise_bearing(self.courses[bisect_left(times, time_ms)])
+        return self.course_at(time_ms)
 
     def _leg_course(self, i: int, j: int) -> float | None:
         a, b = self.positions[i], self.positions[j]

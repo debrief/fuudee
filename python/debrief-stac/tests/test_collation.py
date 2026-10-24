@@ -15,6 +15,7 @@ from debrief_kernel.time import format_utc, parse_utc
 from debrief_kernel.units import Quantity
 from debrief_schemas import SCHEMA_VERSION, models
 from debrief_stac import Catalogue, CatalogueError, Changes, collation
+from debrief_stac import sensors as plot_sensors
 from debrief_stac.catalogue import review_flags
 
 VECTORS = Path(__file__).resolve().parents[3] / "schemas" / "vectors" / "collation.json"
@@ -946,3 +947,108 @@ def test_coverage_of_gappy_sources_stays_responsive(tmp_path: Path) -> None:
     nelson = platform(report, "NELSON")
     assert len(nelson.sources) == 50 and len(nelson.periods) > 1000
     assert cold < 0.5 and warm < 0.1
+
+
+def sensor_lines(track_name: str, start_min: int, count: int, step_min: int, sensor: str) -> list:
+    """;SENSOR2: lines for a track: an ambiguous bearing every step_min minutes."""
+    lines = []
+    for i in range(count):
+        t = format_utc(T0 + (start_min + i * step_min) * 60_000)
+        date, clock = t[2:4] + t[5:7] + t[8:10], t[11:13] + t[14:16] + t[17:19] + ".000"
+        lines.append(
+            f";SENSOR2: {date} {clock} {track_name} @A NULL {40 + i}.0 {140 - i}.0 NULL NULL "
+            f'"{sensor}" L{i}'
+        )
+    return lines
+
+
+def test_taking_new_data_carries_its_sensors_in_the_periods_it_supplies(
+    catalogue: Catalogue, tmp_path: Path
+) -> None:
+    """H3: take() carried tracks only, so a log's sensor cuts were silently dropped."""
+    time.sleep(0.002)
+    lines = (
+        rep_lines("Nelson", 30, 361, 10)
+        + rep_lines("MERCHANT", 10, 20, 60, (-4.0, 50.2))
+        + sensor_lines("Nelson", 30, 13, 5, "Towed array")  # 05:30 to 06:30
+        + sensor_lines("MERCHANT", 12, 3, 5, "Radar")
+    )
+    item = import_rep(catalogue, write_rep(tmp_path, "log", lines), title="NELSON nav log").item_id
+    step = catalogue.take_new_data("serial", catalogue.id, item, AGENT)
+    plot = catalogue.read_plot("serial")
+    by_name = {s.properties.name: s for s in plot_sensors.sensors(plot)}
+    towed, radar = by_name["Towed array"], by_name["Radar"]
+    assert towed.properties.host_track_id == "track-nelson"
+    times = [c.properties.time[11:16] for c in plot_sensors.cuts(plot, towed.id)]
+    # Only where the log supplies NELSON (06:00:10 on): the half hour both have is the plot's.
+    assert times == ["06:05", "06:10", "06:15", "06:20", "06:25", "06:30"]
+    merchant = track(catalogue, "serial", "MERCHANT")
+    assert radar.properties.host_track_id == merchant.id
+    assert len(plot_sensors.cuts(plot, radar.id)) == 3
+    notes = catalogue.history("serial").steps()[step - 1].records[0].notes
+    assert "Towed array: 6 cuts taken with NELSON" in notes
+    # Those left out are said, not dropped silently (panel, round 3).
+    assert (
+        "Towed array: 7 cuts 05:30:00Z to 06:00:00Z not taken: another item supplies NELSON then"
+        in notes
+    )
+    # One step: undone as one.
+    catalogue.history("serial").undo()
+    assert not plot_sensors.sensors(catalogue.read_plot("serial"))
+
+
+def test_a_revision_adding_only_cuts_is_new_data(catalogue: Catalogue, tmp_path: Path) -> None:
+    """Round 3, H-1: a log revised with more cuts and the same fixes took the relabel
+    path, its sensors never given a host, and was "nothing new": the cuts were dropped."""
+    from debrief_io.sensor_import import import_sensor
+
+    time.sleep(0.002)
+    lines = rep_lines("Nelson", 30, 361, 10) + sensor_lines("Nelson", 70, 3, 5, "Towed array")
+    item = import_rep(catalogue, write_rep(tmp_path, "log", lines), title="NELSON nav log").item_id
+    catalogue.take_new_data("serial", catalogue.id, item, AGENT)
+    before = len(plot_sensors.cuts(catalogue.read_plot("serial")))
+    assert before == 3
+    dsf = tmp_path / "more.dsf"
+    dsf.write_text("\n".join(sensor_lines("Nelson", 82, 4, 2, "Towed array")) + "\n")
+    import_sensor(catalogue, item, dsf, AGENT)
+    step = catalogue.take_new_data("serial", catalogue.id, item, AGENT)
+    assert step is not None, "new cuts are new data"
+    plot = catalogue.read_plot("serial")
+    assert len(plot_sensors.cuts(plot)) == before + 4
+    (towed,) = plot_sensors.sensors(plot)
+    assert len(plot_sensors.cuts(plot, towed.id)) == 7  # joined to the sensor taken before
+    notes = catalogue.history("serial").steps()[step - 1].records[0].notes
+    assert notes[:2] == ["New data from NELSON nav log", "4 new cuts"]
+    assert "Towed array: 4 cuts taken with NELSON" in notes
+    # Taken again with nothing new: no step.
+    assert catalogue.take_new_data("serial", catalogue.id, item, AGENT) is None
+
+
+def test_choosing_a_period_from_another_item_carries_its_cuts(
+    catalogue: Catalogue, tmp_path: Path
+) -> None:
+    """Round 3, H-1: a period chosen from another item in Coverage took its fixes only."""
+    time.sleep(0.002)
+    lines = (
+        rep_lines("Nelson", 30, 361, 10)
+        + rep_lines("MERCHANT", 10, 20, 60, (-4.0, 50.2))
+        + sensor_lines("Nelson", 35, 3, 5, "Towed array")  # 05:35 to 05:45
+    )
+    item = import_rep(catalogue, write_rep(tmp_path, "log", lines), title="NELSON nav log").item_id
+    step = catalogue.take_new_data("serial", catalogue.id, item, AGENT)
+    notes = catalogue.history("serial").steps()[step - 1].records[0].notes
+    assert any(n.startswith("Towed array: 3 cuts 05:35:00Z to 05:45:00Z not taken") for n in notes)
+    assert not plot_sensors.cuts(catalogue.read_plot("serial"))
+    nelson = platform(catalogue.coverage("serial"), "NELSON")
+    log = next(s for s in nelson.sources if s.item == item)
+    period = {"start": "1995-12-12T05:30:00.000Z", "end": "1995-12-12T06:00:00.000Z"}
+    source = {"catalogue": log.catalogue, "item": log.item, "track": log.track, "name": log.name}
+    step = catalogue.set_source_preference("serial", "track-nelson", period, source, AGENT)
+    plot = catalogue.read_plot("serial")
+    assert len(plot_sensors.cuts(plot)) == 3
+    (towed,) = plot_sensors.sensors(plot)
+    assert towed.properties.host_track_id == "track-nelson"
+    notes = catalogue.history("serial").steps()[step - 1].records[0].notes
+    assert "Towed array: 3 cuts taken with NELSON" in notes
+    catalogue.history("serial").undo()
+    assert not plot_sensors.cuts(catalogue.read_plot("serial"))

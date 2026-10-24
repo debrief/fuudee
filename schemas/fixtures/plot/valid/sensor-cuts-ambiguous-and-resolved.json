@@ -41,7 +41,12 @@
         "name": "Towed array",
         "host_track_id": "track-nelson",
         "colour": "#0064bd",
-        "legacy_symbology": "@A"
+        "legacy_symbology": "@A",
+        "array_offset": {
+          "value": 300.0,
+          "unit": "m"
+        },
+        "array_mode": "worm_in_hole"
       }
     },
     {
@@ -55,7 +60,8 @@
         "bearing": {
           "value": 45.0,
           "unit": "deg"
-        }
+        },
+        "bearing_accuracy": "1.5"
       }
     },
     {
@@ -118,7 +124,39 @@
           -4.11,
           50.345
         ],
-        "hidden": true
+        "hidden": true,
+        "range": {
+          "value": 0.0,
+          "unit": "[yd_i]"
+        }
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "cut-00005",
+      "geometry": null,
+      "properties": {
+        "kind": "sensor_cut",
+        "sensor_id": "sensor-nelson-towed-array",
+        "time": "2026-10-11T09:32:00.000Z",
+        "bearing": {
+          "value": 52.0,
+          "unit": "deg"
+        },
+        "origin": [
+          -4.11,
+          50.345
+        ],
+        "hidden": true,
+        "range": {
+          "value": 0.0,
+          "unit": "[yd_i]"
+        },
+        "origin_derived": true,
+        "course": {
+          "value": 92.5,
+          "unit": "deg"
+        }
       }
     }
   ],

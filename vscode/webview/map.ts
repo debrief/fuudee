@@ -74,7 +74,7 @@ import { host, onMessage } from "./vscode.js";
 import { toteOf, toteMapLines } from "./totelogic.js";
 import { composeSvg, rasterise, type PaintedMark } from "./exportimage.js";
 import { SensorLayer } from "./sensormap.js";
-import { describeCut } from "./sensors.js";
+import { cutChoices, cutClick, describeCut } from "./sensors.js";
 import { clipIdFor, footerFontSize, layoutFor, pixelsOf, type ImageFormat, type ImagePreset, type ImageTheme } from "./exportlogic.js";
 import type { RenderedImage, RevisionShown } from "@debrief/schemas";
 
@@ -541,6 +541,7 @@ function draw(plot: DebriefFeatureCollection): void {
   empty.textContent = plot.features.length ? "This plot has nothing with a position." : "This plot is empty. Import a REP file to add tracks.";
   setTracks(plot.features.filter((f): f is Track => f.properties.kind === "track" && !!f.geometry));
   sensorLayer.setPlot(plot);
+  closeCutPopover();
   showCutKey();
   drawnWindow = undefined;
   drawWindow();
@@ -1015,13 +1016,12 @@ map.on("mousemove", (event: L.LeafletMouseEvent) => {
     tipPending = false;
     const found = editor.active ? undefined : sensorLayer.hit(event.containerPoint);
     mapElement.classList.toggle("on-cut", !!found);
-    cutTip.hidden = !found;
+    // While a cut's choices are shown, they say what it is: no tip over them.
+    cutTip.hidden = !found || !cutPopover.hidden;
     if (!found) return;
-    const at = Date.parse(found.cut.properties.time);
-    const host = found.entry.host!;
-    const course = pointAt(host.geometry.coordinates as LonLat[], host.properties.times.map(Date.parse), at)?.course;
-    const more = found.cut.properties.ambiguous_bearing && !found.cut.properties.resolved ? "\nClick this line to keep it; right-click for more" : "";
-    cutTip.textContent = describeCut(found.cut, found.entry.sensor.properties.name, course, settings) + more;
+    // The course found when the line was drawn: no host fixes read as the pointer moves.
+    const more = found.cut.properties.ambiguous_bearing && !found.cut.properties.resolved ? "\nClick for its choices; Alt-click this line to keep it" : "";
+    cutTip.textContent = describeCut(found.cut, found.entry.sensor.properties.name, found.course, settings) + more;
     const size = map.getSize();
     const left = event.containerPoint.x > size.x - 260;
     cutTip.style.left = left ? "" : `${event.containerPoint.x + 14}px`;
@@ -1033,6 +1033,81 @@ map.on("mouseout movestart zoomstart", () => {
   cutTip.hidden = true;
   mapElement.classList.remove("on-cut");
 });
+/**
+ * A cut's choices, beside it, from a plain click or a tap on its line: what it is (its
+ * label too), and buttons to keep either bearing (with its side), make it ambiguous
+ * again, or open its menu. Escape, a click elsewhere, or moving the map closes it.
+ */
+const cutPopover = Object.assign(document.createElement("div"), { className: "cut-popover", hidden: true });
+cutPopover.setAttribute("role", "dialog");
+// The dialog itself takes focus first, so a screen reader reads what the cut is before
+// any choice, and Enter keeps nothing by accident (round 3, L-3).
+cutPopover.tabIndex = -1;
+mapElement.append(cutPopover);
+L.DomEvent.disableClickPropagation(cutPopover);
+L.DomEvent.disableScrollPropagation(cutPopover);
+function closeCutPopover(focusMap = false): void {
+  if (cutPopover.hidden) return;
+  cutPopover.hidden = true;
+  cutPopover.replaceChildren();
+  if (focusMap) mapElement.focus();
+}
+function openCutPopover(found: NonNullable<ReturnType<SensorLayer["hit"]>>, point: L.Point): void {
+  const { cut, entry } = found;
+  const text = describeCut(cut, entry.sensor.properties.name, found.course, settings).split("\n");
+  cutPopover.replaceChildren();
+  cutPopover.setAttribute("aria-label", text[0]);
+  cutPopover.dataset.cut = cut.id;
+  const title = Object.assign(document.createElement("strong"), { textContent: text[0] });
+  const details = Object.assign(document.createElement("div"), { id: "cut-popover-details" });
+  details.append(...text.slice(1).map((line) => Object.assign(document.createElement("div"), { textContent: line })));
+  cutPopover.setAttribute("aria-describedby", details.id);
+  cutPopover.append(title, details);
+  const buttons = document.createElement("div");
+  buttons.className = "choices";
+  const readOnly = root.classList.contains("read-only");
+  for (const choice of readOnly ? [] : cutChoices(cut, found.course)) {
+    const button = Object.assign(document.createElement("button"), { type: "button", textContent: choice.label });
+    button.dataset.keep = choice.keep;
+    if (choice.detail) button.title = choice.detail;
+    button.addEventListener("click", () => {
+      closeCutPopover(true);
+      host.postMessage({ kind: "resolve_asked", feature_id: cut.id, keep: choice.keep });
+    });
+    buttons.append(button);
+  }
+  const menu = Object.assign(document.createElement("button"), { type: "button", textContent: "More…", title: "The cut's menu" });
+  menu.addEventListener("click", () => {
+    closeCutPopover(true);
+    host.postMessage({ kind: "cut_chosen", feature_id: cut.id });
+  });
+  buttons.append(menu);
+  cutPopover.append(buttons);
+  cutPopover.hidden = false;
+  cutTip.hidden = true;
+  const size = map.getSize();
+  const width = cutPopover.offsetWidth;
+  const height = cutPopover.offsetHeight;
+  cutPopover.style.left = `${Math.max(4, Math.min(size.x - width - 4, point.x + 12))}px`;
+  cutPopover.style.top = `${Math.max(4, Math.min(size.y - height - 4, point.y + 12))}px`;
+  cutPopover.focus({ preventScroll: true });
+}
+cutPopover.addEventListener("keydown", (event) => {
+  if (event.key === "Escape") {
+    event.stopPropagation();
+    closeCutPopover(true);
+    return;
+  }
+  // Tab stays among the choices while they are shown (a focus trap), from the dialog to the first.
+  if (event.key !== "Tab") return;
+  const choices = Array.from(cutPopover.querySelectorAll<HTMLButtonElement>("button"));
+  if (!choices.length) return;
+  const at = choices.indexOf(document.activeElement as HTMLButtonElement);
+  const next = event.shiftKey ? (at <= 0 ? choices.length - 1 : at - 1) : at < 0 || at === choices.length - 1 ? 0 : at + 1;
+  event.preventDefault();
+  choices[next].focus();
+});
+map.on("movestart zoomstart", () => closeCutPopover());
 /** A cut's menu, from a right-click or a press and hold on its line: the host shows it. */
 function chooseCut(point: L.Point): boolean {
   const found = sensorLayer.hit(point);
@@ -1623,24 +1698,33 @@ new ResizeObserver(() => {
 }).observe(mapElement);
 
 map.on("click", (event: L.LeafletMouseEvent) => {
+  closeCutPopover();
   if (trackEditor.endingDrag(event)) return;
   if (editor.active || editor.endingDrag(event)) return;
   if (clickCut(event)) return;
   select(undefined, false);
 });
 /**
- * A click on a sensor cut's line (CAP-22): on one of an ambiguous cut's two lines it keeps
- * that bearing, one step (product owner, 24 Oct 2026); on any other cut, or with Ctrl, it
- * selects the cut. False if no cut's line is under the click.
+ * A click on a sensor cut's line (CAP-22; product owner, 24 Oct 2026, sensors.ts
+ * cutClick): a plain click or a tap selects the cut and shows its choices; Ctrl adds it to
+ * the selection; Alt on one of an ambiguous cut's lines keeps that bearing, one step; a
+ * double-click's second click does nothing. False if no cut's line is under the click.
  */
 function clickCut(event: L.LeafletMouseEvent): boolean {
   const found = sensorLayer.hit(event.containerPoint);
   if (!found) return false;
-  const add = event.originalEvent.ctrlKey || event.originalEvent.metaKey;
+  const original = event.originalEvent;
   const ambiguous = !!found.cut.properties.ambiguous_bearing && !found.cut.properties.resolved;
-  if (ambiguous && !add && !root.classList.contains("read-only")) {
+  const action = cutClick({ detail: original.detail, alt: original.altKey, add: original.ctrlKey || original.metaKey }, ambiguous, root.classList.contains("read-only"));
+  if (action === "ignore") return true;
+  if (action === "keep") {
+    closeCutPopover();
     host.postMessage({ kind: "resolve_asked", feature_id: found.cut.id, keep: found.which });
-  } else select(found.cut.id, add);
+    return true;
+  }
+  select(found.cut.id, action === "add");
+  if (action === "select") openCutPopover(found, event.containerPoint);
+  else closeCutPopover();
   return true;
 }
 mapElement.addEventListener("keydown", (event) => {

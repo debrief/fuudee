@@ -8,7 +8,7 @@ import { userInfo } from "node:os";
 import * as vscode from "vscode";
 import type { AmbiguityResolution, AnnotationSpec, ContextTracksEnum, CoverageReport, KnownStore, FigureSource, RevisionShown, NarrativeSpec, ReviewFlag, SourceTrackRef, TimelineEntry, ParameterValue, PlotView, SharedState, SharedStateChange, TimeRange, ToolDeclaration, ToteResult, ToteView as ToteChoice, TrackEdit } from "@debrief/schemas";
 import { figureIdProblem, formatBearing, formatPosition, formatQuantity, parsePosition, POSITION_EXAMPLE, UNIT_LABELS } from "@debrief/kernel";
-import { defaultPivotIndex, describeDistance, describeSpeed, describeTurn, FIX_PROMPT, FIX_PROMPT_DR, fixIndexAt, fixMeans, fixToEdit, jumpSpeed, legNow, mergedName, mergePlan, periodIndices, readBearing, readDistance, readSpeed, readTurn, reckoningOf, type Anchor } from "../webview/trackedit.js";
+import { defaultPivotIndex, describeDistance, describeSpeed, describeTurn, FIX_PROMPT, FIX_PROMPT_DR, fixIndexAt, fixMeans, fixToEdit, jumpSpeed, legNow, mergedName, mergePlan, periodIndices, readArrayOffset, arrayOffsetTitle, readBearing, readDistance, readSpeed, readTurn, reckoningOf, type Anchor } from "../webview/trackedit.js";
 import { chooseModes, MODE_LABELS, modeChoices, modeQuestion, REMEMBERED_IN_VSCODE, rememberItem, type ModeChoice, type PlottingMode } from "./importmode.js";
 import { addStore, loadConfig, narrativeAnswers, removeStore, sameLocation, trackImportMode, updateConfig, withNarrativeAnswers, withTrackImportMode, type TrackImportMode } from "@debrief/config";
 import { changedSince, historyOnDisk, knownStores, openPlot, plotFile, type OpenedPlot } from "./catalogue.js";
@@ -18,8 +18,8 @@ import path from "node:path";
 import { count, describePeriod, describeTimes, describeToolRun, settings as displaySettings } from "./format.js";
 import { answersToRemember, choicesOf, describeAnswers, duplicateQuestion, NARRATIVE_FILES, periodChoices, questionsFor, readSummary, rememberedAnswers, typeWords, type NarrativeAnswers, type NarrativeChoices, type NarrativePreview } from "./narrativeimport.js";
 import { placeToolTime } from "../webview/timelogic.js";
-import { cutChoices, cutNow, cutTitle, describeCut, featureName, hostCourse, KEEP_CHOICES, resolutionFor, scopeChoices, sensorsOf, type CutScope, type Keep, type ResolveContext } from "../webview/sensors.js";
-import { describeSensorInFile, hostsToAsk, sensorReadSummary, type SensorPreview } from "./sensorimport.js";
+import { cutChoices, cutNow, cutTitle, describeCut, featureName, KEEP_CHOICES, placeOfCut, resolutionFor, type ArrayMode, scopeChoices, sensorsOf, type CutScope, type Keep, type ResolveContext } from "../webview/sensors.js";
+import { describeSensorInFile, hostChoices, hostQuestion, hostsToAsk, sensorReadSummary, type SensorPreview } from "./sensorimport.js";
 import { resolveTimes } from "./timeinput.js";
 import { AnnotationPanel } from "./panels/annotation.js";
 import { FormPanel } from "./panels/form.js";
@@ -2282,8 +2282,9 @@ export function activate(context: vscode.ExtensionContext): DebriefApi {
   // Sensors (CAP-22). Keeping a side of ambiguous cuts: for the cut at the current time,
   // those in the time window, those selected, or all of a sensor's cuts; port and
   // starboard for every cut, as legacy offered them (product owner, 24 Oct 2026). From the
-  // Outline's sensor menu, the Command Palette, or the map (a click on one of a cut's two
-  // lines keeps it). Given a resolution (agents, the map and tests), it asks nothing.
+  // Outline's sensor menu, the Command Palette, or the map (Alt-click on one of a cut's two
+  // lines keeps it; a plain click selects the cut and shows its choices). Given a
+  // resolution (agents, the map and tests), it asks nothing.
   command("debrief.resolveAmbiguity", async (target?: Target | AmbiguityResolution, keepGiven?: Keep, scopeGiven?: CutScope) => {
     const opened = session.current;
     if (!opened) return report("Open a plot first.");
@@ -2324,6 +2325,59 @@ export function activate(context: vscode.ExtensionContext): DebriefApi {
     if (notes.length) void vscode.window.showInformationMessage(notes.join(" "));
     return done;
   });
+  // A towed array's offset astern of the ship, and how it follows (CAP-22; product owner,
+  // 24 Oct 2026): typed in the analyst's length unit, 0 for at the ship, then worm in the
+  // hole (back along the ship's own track, legacy's default) or plain. One step. Given an
+  // offset (null for none) and a mode (agents and tests), it asks nothing.
+  command("debrief.setArrayOffset", async (target?: Target | string, offsetGiven?: { value: number; unit: string } | null, modeGiven?: ArrayMode) => {
+    const opened = session.current;
+    if (!opened) return report("Open a plot first.");
+    const entries = sensorsOf(opened.plot);
+    if (!entries.length) return report("This plot has no sensors.");
+    const asked = typeof target === "string" ? [target] : targets(target);
+    let chosen = entries.filter((e) => asked.includes(e.sensor.id));
+    if (!chosen.length && entries.length === 1) chosen = entries;
+    if (!chosen.length) {
+      const picked = await vscode.window.showQuickPick(entries.map((e) => ({ label: e.sensor.properties.name, description: e.host?.properties.name, entry: e })), { placeHolder: "Which sensor?" });
+      if (!picked) return undefined;
+      chosen = [picked.entry];
+    }
+    const sensorWords = chosen.length === 1 ? chosen[0].sensor.properties.name : `${chosen.length} sensors`;
+    const title = chosen.length === 1 ? arrayOffsetTitle(sensorWords, chosen[0].host?.properties.name) : arrayOffsetTitle(sensorWords);
+    let offset = offsetGiven;
+    if (offset === undefined) {
+      const now = chosen[0].sensor.properties.array_offset;
+      const text = await vscode.window.showInputBox({
+        title,
+        prompt: "How far astern of the ship, in metres unless you give a unit; 0 for at the ship. Its cuts are drawn, and their port and starboard told, from there.",
+        placeHolder: "such as 300 m",
+        ...(now && { value: `${now.value} ${UNIT_LABELS[now.unit] ?? now.unit}` }),
+        validateInput: (typed) => {
+          const read = readArrayOffset(typed);
+          if (!("problem" in read) && read.warning) return { message: read.warning, severity: vscode.InputBoxValidationSeverity.Warning };
+          return meaning(read, () => ((read as { value: number }).value === 0 ? "at the ship" : `${describeDistance(read as { value: number; unit: string }, displaySettings)} astern`));
+        },
+      });
+      if (text === undefined) return undefined;
+      const read = readArrayOffset(text);
+      if ("problem" in read) return report(read.problem);
+      offset = read.value === 0 ? null : { value: read.value, unit: read.unit };
+    }
+    let mode = modeGiven;
+    if (!mode && offset) {
+      const modes = [
+        { label: "Worm in the hole", detail: "Back along the ship's own track, so it lags through a turn (as legacy Debrief, by default)", mode: "worm_in_hole" as const },
+        { label: "Plain", detail: "Straight astern of the ship, along its course then", mode: "plain" as const },
+      ];
+      mode = (await vscode.window.showQuickPick(modes, { title: `${title}: how does the array follow the ship?` }))?.mode;
+      if (!mode) return undefined;
+    }
+    const sent = { sensor_ids: chosen.map((e) => e.sensor.id), offset: offset ?? null, mode: mode ?? "worm_in_hole" };
+    const done = await sense((o, allow) => service!.setArrayOffset(o.store.id, o.item.id, o.base!, agent, sent, allow));
+    if (done.problem) return (report(done.problem), done);
+    if (done.answer && !done.answer.changed) void vscode.window.showInformationMessage(`${sensorWords} is so already.`);
+    return done;
+  });
   // A cut's menu (right-click, or press and hold, on one of its lines on the map): keep
   // either of its bearings, make it ambiguous again, select it, or keep a side for more.
   command("debrief.cutMenu", async (cutId?: string) => {
@@ -2332,8 +2386,8 @@ export function activate(context: vscode.ExtensionContext): DebriefApi {
     const cut = entry?.cuts.find((c) => c.id === cutId);
     if (!entry || !cut) return report("There is no such cut in this plot.");
     const props = cut.properties;
-    const host = entry.host;
-    const course = host?.geometry ? hostCourse(host.geometry.coordinates as [number, number][], host.properties.times.map(Date.parse), Date.parse(props.time)) : undefined;
+    // The course its sides are told by, where its sensor was (its array astern, if it has one).
+    const course = placeOfCut(entry, cut)?.course;
     type Pick = vscode.QuickPickItem & { run: () => Thenable<unknown> };
     const picks: Pick[] = [];
     for (const choice of cutChoices(cut, course)) {
@@ -2413,8 +2467,8 @@ export function activate(context: vscode.ExtensionContext): DebriefApi {
       }
       for (const ask of hostsToAsk(preview)) {
         const picked = await vscode.window.showQuickPick(
-          [...preview.tracks.map((t) => ({ label: t.name, id: t.id as string | null })), { label: "Do not read these", id: null }],
-          { title: `Which track carries ${ask.track}'s sensors?`, placeHolder: ask.sensors.map(describeSensorInFile).join("; "), ignoreFocusOut: true },
+          [...hostChoices(preview, ask).map((t) => ({ label: t.name, id: t.id as string | null, ...(t.matched && { description: "matched by its first six letters" }) })), { label: "Do not read these", id: null }],
+          { title: hostQuestion(ask), placeHolder: ask.sensors.map(describeSensorInFile).join("; "), ignoreFocusOut: true },
         );
         if (!picked) return report("Nothing was read.");
         hosts = { ...hosts, [ask.track]: picked.id };

@@ -605,6 +605,11 @@ def _feature_problems(
             problems.append(f"{where}: a sensor has null geometry")
         if not props.name.strip():
             problems.append(f"{where}: a sensor has a name")
+        offset = props.array_offset
+        if offset is not None and not (math.isfinite(offset.value) and offset.value >= 0):
+            problems.append(f"{where}: an array offset is a distance astern, 0 or more")
+        if props.array_mode is not None and offset is None:
+            problems.append(f"{where}: an array mode goes with an array offset")
         if track_ids is not None and props.host_track_id not in track_ids:
             problems.append(f"{where}: host track {props.host_track_id!r} is not in the plot")
 
@@ -634,12 +639,13 @@ def _degrees(angle: Any) -> float:
 def cut_problems(where: str, feature: Any) -> list[str]:
     """Rules for a sensor cut (CAP-22): no geometry of its own; bearings from 0 up to
     360 degrees; resolved only where there is an ambiguous bearing to resolve; a range,
-    when given, more than nothing; an origin, when given, on the globe."""
+    when given, 0 (a point) or more; an origin, when given, on the globe, and a pinned
+    course and origin_derived only with one."""
     props = feature.properties
     problems = []
     if feature.geometry is not None:
         problems.append(f"{where}: a sensor cut has null geometry")
-    for name in ("bearing", "ambiguous_bearing"):
+    for name in ("bearing", "ambiguous_bearing", "course"):
         angle = getattr(props, name)
         if angle is not None:
             degrees = _degrees(angle)
@@ -647,14 +653,19 @@ def cut_problems(where: str, feature: Any) -> list[str]:
                 problems.append(f"{where}: {name} {degrees:g}° is not from 0 up to 360°")
     if props.resolved is not None and props.ambiguous_bearing is None:
         problems.append(f"{where}: only a cut with an ambiguous bearing can be resolved")
-    if props.range is not None and not (math.isfinite(props.range.value) and props.range.value > 0):
-        problems.append(f"{where}: a cut's range, when given, is more than nothing")
+    reach = props.range
+    if reach is not None and not (math.isfinite(reach.value) and reach.value >= 0):
+        problems.append(f"{where}: a cut's range, when given, is 0 (a point) or more")
     if props.origin is not None:
         longitude, latitude = props.origin
         if not (-180 <= longitude <= 180 and -90 <= latitude <= 90):
             problems.append(f"{where}: origin {list(props.origin)} is not on the globe")
+    elif props.origin_derived is not None or props.course is not None:
+        problems.append(f"{where}: origin_derived and course are only with an origin")
     if props.label is not None and not props.label.strip():
         problems.append(f"{where}: a cut's label, when given, is not empty")
+    if props.bearing_accuracy is not None and not props.bearing_accuracy.strip():
+        problems.append(f"{where}: a cut's bearing accuracy, when given, is not empty")
     return problems
 
 

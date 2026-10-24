@@ -112,3 +112,33 @@ def test_a_dsf_is_previewed_read_in_and_resolved_by_an_agent(client, catalogue, 
         client, "debrief/resolve_ambiguity", {**WHERE, "keep": "left", "cut_ids": ["cut-00001"]}
     ).json()["error"]
     assert bad["code"] == INVALID_PARAMS and "keep is port" in bad["message"]
+
+
+def test_an_agent_sets_a_towed_arrays_offset_as_one_step(client, catalogue, tmp_path) -> None:
+    dsf = tmp_path / "s2046.dsf"
+    dsf.write_text(DSF)
+    rpc(client, "debrief/import_sensor", {**WHERE, "path": str(dsf), "hosts": {"GHOST": None}})
+    ids = {"sensor_ids": ["sensor-nelson-ta"]}
+    before = rpc(client, "debrief/sensors", {**WHERE, "cuts": True}).json()["result"]
+    done = rpc(
+        client,
+        "debrief/set_array_offset",
+        {**WHERE, **ids, "offset": {"value": 300, "unit": "[yd_i]"}},
+    ).json()["result"]
+    assert done["changed"] and done["notes"] == ["TA: 300 yd astern, worm in the hole"]
+    after = rpc(client, "debrief/sensors", {**WHERE, "cuts": True}).json()["result"]
+    (sensor,) = after["sensors"]
+    assert sensor["array_offset_m"] == pytest.approx(274.32)
+    assert sensor["array_mode"] == "worm_in_hole"
+    # NELSON heads east: the array, and the cuts drawn from it, are west of the ship.
+    assert sensor["cut_list"][2]["origin"][0] < before["sensors"][0]["cut_list"][2]["origin"][0]
+    again = rpc(
+        client,
+        "debrief/set_array_offset",
+        {**WHERE, **ids, "offset": {"value": 300, "unit": "[yd_i]"}},
+    ).json()["result"]
+    assert again["changed"] is False
+    plain = rpc(client, "debrief/set_array_offset", {**WHERE, **ids, "offset": None}).json()
+    assert plain["result"]["notes"] == ["TA: at the ship"]
+    bad = rpc(client, "debrief/set_array_offset", {**WHERE, "offset": None}).json()["error"]
+    assert bad["code"] == INVALID_PARAMS and "sensor_ids" in bad["message"]

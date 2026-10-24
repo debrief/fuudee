@@ -559,6 +559,14 @@ export async function run(): Promise<void> {
     assert.equal(await vscode.commands.executeCommand("debrief.undo"), undefined);
     assert.equal(await vscode.commands.executeCommand("debrief.undo"), undefined);
     assert.ok(!cutsOf(towed).some(resolved), "undone: ambiguous as read");
+    // The Towed array 300 yd astern, worm in the hole: one step, the sensor's own; undone.
+    const astern = await vscode.commands.executeCommand<Sensed>("debrief.setArrayOffset", towed, { value: 300, unit: "[yd_i]" }, "worm_in_hole");
+    assert.equal(astern.problem, undefined);
+    assert.equal((await steps()).at(-1)?.notes?.[0], "Towed array: 300 yd astern, worm in the hole");
+    const array = api.session.current!.plot.features.find((f) => f.id === towed)!.properties as { array_offset?: { value: number; unit: string }; array_mode?: string };
+    assert.deepEqual([array.array_offset, array.array_mode], [{ value: 300, unit: "[yd_i]" }, "worm_in_hole"]);
+    assert.equal(await vscode.commands.executeCommand("debrief.undo"), undefined);
+    assert.equal((api.session.current!.plot.features.find((f) => f.id === towed)!.properties as { array_offset?: unknown }).array_offset ?? null, null, "undone: at the ship");
     const scratch = mkdtempSync(path.join(tmpdir(), "debrief-sensor-"));
     const dsf = path.join(scratch, "nelson.dsf");
     (await import("node:fs")).writeFileSync(dsf, ';SENSOR2: 20230615 090000.000 NELSON @A NULL 45.0 135.0 NULL NULL "Hull array" 0900\n;SENSOR: 20230615 091000.000 NELSON @A NULL 50.0 NULL "Hull array" 0910\n');

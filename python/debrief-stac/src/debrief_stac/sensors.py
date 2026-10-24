@@ -18,6 +18,7 @@ depends on the host's course, which a later edit of the track can change.
 
 from __future__ import annotations
 
+import math
 import re
 from collections import Counter
 from collections.abc import Iterable
@@ -25,7 +26,7 @@ from dataclasses import dataclass, field
 
 from debrief_kernel.formatting import DEFAULT_SETTINGS, format_time
 from debrief_kernel.geodesy import Position, TrackPath
-from debrief_kernel.sensors import KEEPS, cut_origin, kept_for, side_of
+from debrief_kernel.sensors import KEEPS, Place, cut_place, kept_for, side_of
 from debrief_kernel.time import format_utc, parse_utc
 from debrief_kernel.units import Quantity
 from debrief_schemas import DebriefFeatureCollection, models
@@ -151,6 +152,11 @@ class ReadCut:
     comment: str | None = None
     colour: str | None = None
     hidden: bool = False
+    # ;SENSOR3:'s bearing accuracy, as written: kept, not drawn.
+    bearing_accuracy: str | None = None
+    # A derived origin (pinned at a split) and the course pinned with it.
+    origin_derived: bool = False
+    course: float | None = None
 
 
 @dataclass
@@ -163,6 +169,9 @@ class ReadSensor:
     legacy_symbology: str | None = None
     hidden: bool = False
     cuts: list[ReadCut] = field(default_factory=list)
+    # A towed array's offset astern, metres, and how it follows the ship (a legacy plot's).
+    array_offset_m: float | None = None
+    array_mode: str | None = None
 
 
 def build(
@@ -202,6 +211,12 @@ def build(
                     colour=sensor.colour,
                     legacy_symbology=sensor.legacy_symbology,
                     hidden=True if sensor.hidden else None,
+                    array_offset=models.Length(value=sensor.array_offset_m, unit="m")
+                    if sensor.array_offset_m
+                    else None,
+                    array_mode=(sensor.array_mode or "worm_in_hole")
+                    if sensor.array_offset_m
+                    else None,
                 ),
             )
         )
@@ -219,6 +234,28 @@ def existing_sensors(plot: DebriefFeatureCollection) -> dict[tuple[str, str], tu
     return out
 
 
+def read_cut_of(cut) -> ReadCut:
+    """A cut feature as an importer would have read it, to be added to another plot."""
+    props = cut.properties
+    return ReadCut(
+        time_ms=parse_utc(props.time),
+        bearing=degrees(props.bearing),
+        ambiguous=degrees(props.ambiguous_bearing) if props.ambiguous_bearing else None,
+        resolved=str(props.resolved) if props.resolved is not None else None,
+        range_m=Quantity(props.range.value, str(props.range.unit)).to("m").value
+        if props.range is not None
+        else None,
+        origin=tuple(props.origin) if props.origin is not None else None,
+        label=props.label,
+        comment=props.comment,
+        colour=props.colour,
+        hidden=bool(props.hidden),
+        bearing_accuracy=props.bearing_accuracy,
+        origin_derived=bool(props.origin_derived),
+        course=degrees(props.course) if props.course is not None else None,
+    )
+
+
 def cut_feature(feature_id: str, sensor_id: str, cut: ReadCut, sensor_colour: str):
     return models.SensorCutFeature(
         type="Feature",
@@ -233,8 +270,13 @@ def cut_feature(feature_id: str, sensor_id: str, cut: ReadCut, sensor_colour: st
             if cut.ambiguous is not None
             else None,
             resolved=cut.resolved if cut.ambiguous is not None else None,
-            range=models.Length(value=cut.range_m, unit="m") if cut.range_m else None,
+            range=models.Length(value=cut.range_m, unit="m") if cut.range_m is not None else None,
             origin=list(cut.origin) if cut.origin is not None else None,
+            origin_derived=True if cut.origin is not None and cut.origin_derived else None,
+            course=angle(normalised(cut.course))
+            if cut.origin is not None and cut.course is not None
+            else None,
+            bearing_accuracy=cut.bearing_accuracy or None,
             label=cut.label or None,
             comment=cut.comment or None,
             colour=cut.colour if cut.colour and cut.colour != sensor_colour else None,
@@ -339,6 +381,18 @@ def resolve(plot: DebriefFeatureCollection, asked: models.AmbiguityResolution) -
     and its notes (cuts left as they were, and why)."""
     keep = str(asked.keep)
     chosen = _chosen_cuts(plot, asked)
+    hidden = 0
+    if not asked.cut_ids:
+        # A sensor's cuts in a period, or all of them: those drawn. Hidden cuts, and those
+        # of a sensor hidden, are left as they are, and said; named, they are resolved.
+        sensors_hidden = {f.id for f in sensors(plot) if f.properties.hidden}
+        shown = [
+            c
+            for c in chosen
+            if not c.properties.hidden and c.properties.sensor_id not in sensors_hidden
+        ]
+        hidden = len(chosen) - len(shown)
+        chosen = shown
     if not chosen:
         raise SensorError(
             "There are no cuts to resolve there: none of the sensor's cuts fall in the period."
@@ -351,7 +405,7 @@ def resolve(plot: DebriefFeatureCollection, asked: models.AmbiguityResolution) -
             sensor = by_id.get(sensor_id)
             track = by_id.get(sensor.properties.host_track_id) if sensor is not None else None
             paths[sensor_id] = (
-                TrackPath.from_feature(track)
+                TrackPath.lazy_from_feature(track)
                 if track is not None and track.properties.kind == "track"
                 else None
             )
@@ -374,8 +428,8 @@ def resolve(plot: DebriefFeatureCollection, asked: models.AmbiguityResolution) -
             )
             continue
         path = host_path(props.sensor_id)
-        at = parse_utc(props.time)
-        course = path.course_at(at) if path is not None else None
+        place = place_of(cut, path, by_id.get(props.sensor_id))
+        course = place.course if place is not None else None
         kept = kept_for(keep, degrees(props.bearing), degrees(props.ambiguous_bearing), course)
         if kept is None:
             no_course += 1
@@ -398,6 +452,8 @@ def resolve(plot: DebriefFeatureCollection, asked: models.AmbiguityResolution) -
         )
     )
     notes = []
+    if hidden:
+        notes.append(f"{_count(hidden, 'hidden cut')} left as they are: show them to resolve them.")
     if plain:
         notes.append(f"{_count(plain, 'cut')} had no ambiguous bearing, so nothing to keep.")
     if no_course:
@@ -432,7 +488,8 @@ def _step_name(keep, modified, sensor_names, sides, by_id) -> tuple[str, str | N
     leave out its period, a note saying it in full."""
     if keep in ("bearing", "ambiguous_bearing"):
         # A line clicked: say the side it is on, where the course tells it.
-        keep_said = next(iter(sides), None)
+        # Lines clicked on both sides (an agent naming several cuts): said so.
+        keep_said = next(iter(sides), None) if len(sides) <= 1 else "mixed-side"
         words = f"{keep_said.capitalize()} bearing kept" if keep_said else KEEP_WORDS[keep]
     else:
         words = KEEP_WORDS[keep]
@@ -485,7 +542,7 @@ def describe(
         own = cuts(plot, sensor.id)
         host = by_id.get(sensor.properties.host_track_id)
         path = (
-            TrackPath.from_feature(host)
+            TrackPath.lazy_from_feature(host)
             if host is not None and host.properties.kind == "track"
             else None
         )
@@ -496,6 +553,7 @@ def describe(
             "host": host.properties.name if host is not None else None,
             "colour": sensor.properties.colour,
             "hidden": bool(sensor.properties.hidden),
+            **_array_entry(sensor),
             "cuts": len(own),
             "ambiguous": sum(1 for c in own if is_ambiguous(c)),
             "resolved": sum(1 for c in own if c.properties.resolved is not None),
@@ -508,23 +566,89 @@ def describe(
                 at = parse_utc(cut.properties.time)
                 if period is not None and not period[0] <= at <= period[1]:
                     continue
-                listed.append(_cut_entry(cut, path, at))
+                listed.append(_cut_entry(cut, path, at, sensor))
             entry["cut_list"] = listed
         out.append(entry)
     return out
 
 
-def _cut_entry(cut, path: TrackPath | None, at: int) -> dict:
+_LENGTH_WORDS = {"m": "m", "km": "km", "[yd_i]": "yd", "[nmi_i]": "nmi", "[ft_i]": "ft"}
+
+
+def array_length(offset) -> models.Length | None:
+    """An array offset as given (a Quantity, a Length, {value, unit}, or None or 0 for
+    none), as a sensor holds it: a Length astern, in the unit it was given in."""
+    if offset is None:
+        return None
+    if isinstance(offset, dict):
+        offset = models.Length.model_validate(offset)
+    value, unit = (offset.value, str(offset.unit))
+    if unit not in _LENGTH_WORDS:
+        raise SensorError(f"{unit!r} is not a length unit: give m, km, [yd_i], [nmi_i] or [ft_i].")
+    if not math.isfinite(value) or value < 0:
+        raise SensorError("An array offset is a distance astern: 0 or more.")
+    if value == 0:
+        return None
+    return models.Length(value=value, unit=unit)
+
+
+def describe_array(length: models.Length | None, mode: str) -> str:
+    """ "300 m astern, worm in the hole"; "300 m straight astern"; "at the ship"."""
+    if length is None:
+        return "at the ship"
+    distance = f"{length.value:g} {_LENGTH_WORDS[str(length.unit)]}"
+    if mode == "plain":
+        return f"{distance} straight astern"
+    return f"{distance} astern, worm in the hole"
+
+
+def array_of(sensor) -> tuple[float, str]:
+    """A sensor's array offset astern, metres, and its mode (worm in the hole unless plain)."""
+    props = sensor.properties
+    offset = props.array_offset
+    metres = Quantity(offset.value, str(offset.unit)).to("m").value if offset is not None else 0.0
+    mode = (
+        "plain"
+        if props.array_mode is not None and str(props.array_mode) == "plain"
+        else "worm_in_hole"
+    )
+    return metres, mode
+
+
+def array_props(sensor) -> tuple[models.Length | None, str]:
+    """A sensor's array offset as it holds it, and its mode, for describe_array."""
+    return sensor.properties.array_offset, array_of(sensor)[1]
+
+
+def place_of(cut, path: TrackPath | None, sensor, at: int | None = None) -> Place | None:
+    """Where a cut is drawn from and the course its sides are told by (cut_place), for
+    its sensor's array."""
     props = cut.properties
     own = Position(*props.origin) if props.origin is not None else None
-    origin = cut_origin(path, at, own)
-    course = path.course_at(at) if path is not None else None
+    offset, mode = array_of(sensor) if sensor is not None else (0.0, "worm_in_hole")
+    when = parse_utc(props.time) if at is None else at
+    pinned = degrees(props.course) if props.course is not None and own is not None else None
+    return cut_place(path, when, own, offset, mode, pinned)  # type: ignore[arg-type]
+
+
+def _array_entry(sensor) -> dict:
+    offset, mode = array_of(sensor)
+    return {"array_offset_m": offset, "array_mode": mode} if offset > 0 else {}
+
+
+def _cut_entry(cut, path: TrackPath | None, at: int, sensor=None) -> dict:
+    props = cut.properties
+    place = place_of(cut, path, sensor, at)
+    origin = place.position if place else None
+    course = place.course if place else None
     entry: dict = {
         "id": cut.id,
         "time": props.time,
         "bearing": degrees(props.bearing),
         "origin": [origin.longitude, origin.latitude] if origin is not None else None,
     }
+    if props.origin_derived:
+        entry["origin_derived"] = True  # worked out by Debrief, not recorded (for TMA)
     if props.ambiguous_bearing is not None:
         entry["ambiguous_bearing"] = degrees(props.ambiguous_bearing)
         entry["resolved"] = str(props.resolved) if props.resolved is not None else None

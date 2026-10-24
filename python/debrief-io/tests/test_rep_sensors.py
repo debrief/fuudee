@@ -299,6 +299,10 @@ def test_preview_says_each_sensor_and_the_track_it_would_have(
     by_track = {s["track"]: s for s in seen["sensors"]}
     assert by_track["nelson"]["host_track_id"] == "track-nelson"  # case ignored
     assert by_track["NELSON_GB"]["host_track_id"] == "track-nelson"  # first six letters
+    # A name matched by its first six letters only is said so, for the host to confirm.
+    assert by_track["NELSON_GB"]["matched_by"] == "prefix"
+    assert by_track["nelson"]["matched_by"] == "name"
+    assert by_track["FRIGATE"]["matched_by"] is None
     assert by_track["NELSON_GB"]["name"] == "s2046"  # UNKNOWN, named after the file
     assert by_track["FRIGATE"]["host_track_id"] is None
     assert by_track["nelson"]["ambiguous"] == 2

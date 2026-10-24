@@ -225,7 +225,7 @@ COLLATION_METHODS = (
 )
 # Sensors (CAP-22): ambiguous cuts resolved, or made ambiguous again, and a .dsf or REP
 # file's sensor lines read into the plot, each one step.
-SENSOR_METHODS = ("debrief/resolve_ambiguity", "debrief/import_sensor")
+SENSOR_METHODS = ("debrief/resolve_ambiguity", "debrief/import_sensor", "debrief/set_array_offset")
 # What the analyst said of collation's marks: the plot's island, never a step.
 COLLATION_VIEW_METHODS = ("debrief/dismiss_new_data", "debrief/clear_review_flag")
 WRITING_METHODS = (
@@ -782,11 +782,18 @@ class ToolService:
         """Sensors (CAP-22), each one recorded, undoable step.
 
         resolve_ambiguity keeps one side of ambiguous cuts, or makes them ambiguous
-        again: keep is port or starboard (of the host's course at each cut's time, as
-        legacy Debrief's Keep port bearing), bearing or ambiguous_bearing (the bearing
-        recorded first, or its twin), or ambiguous; the cuts are cut_ids, or sensor_ids
-        and perhaps a period ({start, end}: the time window, say). Named like "Port
-        kept: 42 Towed array cuts 09:00:00Z–09:59:30Z".
+        again: keep is port or starboard (of the course logged where the sensor was at
+        each cut's time, as legacy Debrief's Keep port bearing), bearing or
+        ambiguous_bearing (the bearing recorded first, or its twin), or ambiguous; the
+        cuts are cut_ids, or sensor_ids and perhaps a period ({start, end}: the time
+        window, say), hidden cuts left out unless named. Named like "Port kept: 42 Towed
+        array cuts 09:00:00Z–09:59:30Z".
+
+        set_array_offset says how far astern a towed array is (offset {value, unit}, or
+        null for at the ship) and how it follows (mode worm_in_hole, legacy's default, or
+        plain), for sensor_ids; the cuts are then drawn, and their sides told, from the
+        array. Named like "Towed array: 300 yd astern, worm in the hole"; changed false
+        if the sensors were so already.
 
         import_sensor reads a .dsf (or REP) file's ;SENSOR:, ;SENSOR2: and ;SENSOR3:
         lines into the plot (path), the file kept as its source. hosts gives, for a track
@@ -796,6 +803,22 @@ class ToolService:
         (NEEDS_CONFIRMATION, naming the plot's tracks), as is a file read in before
         unless again is true. debrief/preview_sensor says what a file holds first."""
         agent = _agent(params)
+        if method == "debrief/set_array_offset":
+            # A towed array's offset astern ({value, unit}, or null for none) and its mode.
+            ids = params.get("sensor_ids")
+            if not (isinstance(ids, list) and ids and all(isinstance(i, str) for i in ids)):
+                raise RpcError(INVALID_PARAMS, "set_array_offset needs sensor_ids")
+            offset = params.get("offset")
+            if offset is not None and not isinstance(offset, dict):
+                raise RpcError(INVALID_PARAMS, "offset is {value, unit}, or null for none")
+            mode = params.get("mode", "worm_in_hole")
+            step = catalogue.set_array_offset(
+                item, ids, offset, agent, base, mode=mode, allow_newer_schema=allow
+            )
+            if step is None:
+                return {"changed": False}
+            notes = catalogue.history(item).steps()[step - 1].records[0].notes
+            return {"changed": True, "notes": notes}
         if method == "debrief/resolve_ambiguity":
             asked = {
                 k: params[k] for k in ("keep", "cut_ids", "sensor_ids", "period") if k in params
