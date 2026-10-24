@@ -1,0 +1,83 @@
+{
+  "kind": "show_tma",
+  "tma": {
+    "plot_id": "serial-1",
+    "sensors": [
+      {
+        "id": "sensor-nelson-bow-sonar",
+        "name": "Bow sonar",
+        "host": "NELSON",
+        "colour": "#0064bd",
+        "cuts": 4,
+        "ambiguous": 1
+      }
+    ],
+    "sensor_id": "sensor-nelson-bow-sonar",
+    "cuts": [
+      {
+        "id": "cut-00003",
+        "sensor_id": "sensor-nelson-bow-sonar",
+        "sensor": "Bow sonar",
+        "colour": "#0064bd",
+        "time": "2026-10-11T09:32:00.000Z",
+        "bearing": 44.0,
+        "ambiguous_bearing": 196.0,
+        "side": "port",
+        "origin": [
+          -4.1098,
+          50.344
+        ]
+      }
+    ],
+    "solutions": [
+      {
+        "id": "track-contact-1-solution",
+        "name": "Contact 1 solution",
+        "contact": "Contact 1",
+        "colour": "#c7820a",
+        "period": {
+          "start": "2026-10-11T09:30:00.000Z",
+          "end": "2026-10-11T09:33:00.000Z"
+        },
+        "times": [
+          "2026-10-11T09:30:00.000Z",
+          "2026-10-11T09:31:00.000Z",
+          "2026-10-11T09:32:00.000Z",
+          "2026-10-11T09:33:00.000Z"
+        ],
+        "leg_starts": [
+          "2026-10-11T09:32:00.000Z"
+        ],
+        "cuts": 4
+      }
+    ],
+    "solution_id": "track-contact-1-solution",
+    "residuals": {
+      "solution_id": "track-contact-1-solution",
+      "rows": [
+        {
+          "id": "cut-00003",
+          "sensor_id": "sensor-nelson-bow-sonar",
+          "time": "2026-10-11T09:32:00.000Z",
+          "bearing": 44.0,
+          "ambiguous_bearing": 196.0,
+          "origin": [
+            -4.1098,
+            50.344
+          ],
+          "measured": 44.0,
+          "used": "bearing",
+          "nearer_side": true,
+          "calculated": 43.2,
+          "residual": 0.8,
+          "leg": 2
+        }
+      ],
+      "rms": 0.8,
+      "counted": 1,
+      "excluded": 0,
+      "without": 0,
+      "nearer_side": 1
+    }
+  }
+}

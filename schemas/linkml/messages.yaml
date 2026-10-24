@@ -16,6 +16,7 @@ imports:
   - measures
   - collation
   - figures
+  - tma
 
 description: >-
   Every message the VS Code extension host and its webviews (map, time
@@ -86,6 +87,15 @@ enums:
       latest_asked: {description: "Map to host: the analyst asked to leave the earlier revision shown read-only and go to the plot's latest (no members)."}
       resolve_asked: {description: "Map to host: the analyst Alt-clicked one of an ambiguous cut's two lines (feature_id, the cut), keeping that bearing (keep: bearing or ambiguous_bearing), or chose a Keep or Make ambiguous again button in the popover a plain click on the cut shows (keep: bearing, ambiguous_bearing or ambiguous), as one recorded step (CAP-22; product owner, 24 Oct 2026: a plain click only selects)."}
       cut_chosen: {description: "Map to host: the analyst asked for a cut's menu (feature_id, the cut), by right-clicking it or pressing and holding it on a touch screen: keep port, keep starboard, ambiguous again, or select it."}
+      show_tma: {description: "Host to bearing view: the plot's sensors and TMA solutions, the cuts of the sensor chosen, and the residuals of the solution shown (tma); none when no plot is open (CAP-21)."}
+      tma_chosen: {description: "Bearing view to host: the analyst chose a sensor, to list its cuts, or a solution, to show its residuals (feature_id)."}
+      tma_create: {description: "Bearing view to host: make a TMA solution as asked (tma_request: the cuts, and a first guess by form), as one recorded step (CAP-21; product owner, 24 Oct 2026)."}
+      tma_guess: {description: "Host to map: the analyst asked to make a TMA solution by two clicks (tma_request: the cuts), one on the first cut's line and one on the last's; with no tma_request, stop asking."}
+      tma_guessed: {description: "Map to host: the two clicks made (tma_request, with first_position and last_position), so the solution is made as one recorded step; with no tma_request, the analyst cancelled."}
+      tma_preview: {description: "Map to host, and host to bearing view: a TMA solution as a drag on the map now leaves it (feature_id, preview: one position per fix), so its residuals are worked out again as it moves; with no preview, the drag ended or was put back."}
+      tma_exclude: {description: "Bearing view to host: leave these rooted cuts out of the solution's RMS error (excluded true), or count them again (excluded false) (feature_id, the solution; cut_ids), as one recorded step."}
+      tma_split: {description: "Bearing view to host: split the solution into legs at this time (feature_id, the solution; current_time), as one recorded step."}
+      tma_time_asked: {description: "Bearing view to host: move current time to this cut's time (current_time), so the map emphasises it."}
 
 classes:
   TimelineEntry:
@@ -265,3 +275,17 @@ classes:
       keep:
         description: Which of an ambiguous cut's bearings the analyst clicked, to keep (resolve_asked).
         range: AmbiguityKeepEnum
+      tma:
+        description: What the bearing view shows (show_tma).
+        range: TmaView
+        inlined: true
+      tma_request:
+        description: A TMA solution asked for (tma_create, tma_guess, tma_guessed).
+        range: TmaRequest
+        inlined: true
+      cut_ids:
+        description: The rooted cuts left out of a solution's RMS error, or counted again (tma_exclude).
+        multivalued: true
+      excluded:
+        description: Whether the cuts are left out (tma_exclude).
+        range: boolean

@@ -1,0 +1,193 @@
+id: https://debrief.info/schemas/debrief/tma
+name: debrief_tma
+title: "TMA: the bearing view's cuts, solutions and residuals"
+license: EPL-2.0
+prefixes:
+  linkml: https://w3id.org/linkml/
+  debrief: https://debrief.info/schemas/debrief/
+default_prefix: debrief
+default_range: string
+imports:
+  - linkml:types
+  - core
+  - features
+
+description: >-
+  What the bearing view shows (CAP-21, CAP-22; product owner, 24 Oct 2026):
+  a sensor's cuts, in a list a solution's period is chosen from; the plot's
+  TMA solutions; and a solution's bearing residuals, after legacy Debrief's
+  Stacked Dots. Worked out in Python (debrief_stac.tma, debrief/tma_residuals)
+  and sent to the view as it is. While a solution is dragged the view works
+  its residuals out again from the solution as the map draws it, held to
+  the same shared vectors (schemas/vectors/tma-residuals.json), and they are
+  exact again from Python once the drag ends (NFR-04). Bearings and
+  residuals are degrees, true.
+
+enums:
+  SideEnum:
+    description: Which side of the host's course a bearing is on (CAP-22).
+    permissible_values:
+      port: {}
+      starboard: {}
+
+classes:
+  TmaSensorRow:
+    description: A sensor whose cuts the bearing view can list.
+    attributes:
+      id: {required: true}
+      name: {required: true}
+      host:
+        description: The name of the track carrying it.
+      colour:
+        pattern: "^#[0-9a-f]{6}$"
+      cuts: {range: integer, required: true, description: "How many cuts it has."}
+      ambiguous: {range: integer, description: "How many of them are still ambiguous."}
+
+  TmaCut:
+    description: One cut, as the bearing view lists it.
+    attributes:
+      id: {required: true, description: "The cut's feature id."}
+      sensor_id: {required: true}
+      sensor:
+        description: Its sensor's name.
+      colour:
+        description: The colour it is drawn in (its own, or its sensor's).
+        pattern: "^#[0-9a-f]{6}$"
+      time: {range: UtcTimestamp, required: true}
+      bearing: {range: float, required: true, description: "The bearing recorded first, degrees true."}
+      ambiguous_bearing: {range: float, description: "Its ambiguous twin, degrees true, where it has one."}
+      resolved:
+        description: Which bearing the analyst kept, if resolved.
+        range: SensorCutKeptEnum
+      side:
+        description: The side of the host's course its first bearing is on, where it has a twin and the side can be told.
+        range: SideEnum
+      origin:
+        description: >-
+          [longitude, latitude] it was taken from: its own origin, else its
+          sensor's position at its time (its array's, astern); left out
+          outside its host's fixes, where it gives no residual.
+        range: float
+        array:
+          exact_number_dimensions: 1
+          dimensions:
+            - exact_cardinality: 2
+      origin_derived:
+        description: >-
+          Its origin was worked out by Debrief (pinned when its track was
+          split), not recorded by the source (round 3 review, 24 Oct 2026).
+        range: boolean
+      label: {}
+      hidden: {range: boolean}
+
+  TmaResidualRow:
+    is_a: TmaCut
+    description: >-
+      One rooted cut's residual: its measured bearing less the bearing from
+      its origin to where the solution was at its time, within plus or
+      minus 180 degrees, as legacy Doublet.calculateBearingError.
+    attributes:
+      measured:
+        description: >-
+          The bearing measured: the one kept, the cut's only one, or, for an
+          ambiguous cut not yet resolved, the one nearer the solution
+          (nearer_side), which the view says.
+        range: float
+      used:
+        description: Which of the cut's bearings measured is.
+        range: SensorCutKeptEnum
+      nearer_side:
+        description: >-
+          True for an ambiguous cut not yet resolved: measured is the bearing
+          nearer the solution, chosen afresh as it moves (product owner, 24
+          Oct 2026).
+        range: boolean
+      calculated:
+        description: The bearing from its origin to the solution at its time, along the geodesic.
+        range: float
+      residual:
+        description: measured less calculated, degrees, within (-180, 180]; left out where there is none.
+        range: float
+      excluded:
+        description: Left out of the RMS error by the analyst.
+        range: boolean
+      leg:
+        description: Which leg of the solution it falls in, from 1.
+        range: integer
+
+  TmaResiduals:
+    description: >-
+      A solution's bearing residuals (debrief/tma_residuals): a row per
+      rooted cut in time order, and the RMS error of those counted.
+    attributes:
+      solution_id: {required: true}
+      rows:
+        range: TmaResidualRow
+        multivalued: true
+        inlined_as_list: true
+        required: true
+      rms:
+        description: >-
+          The root mean square of the residuals counted (degrees): every
+          rooted cut with a residual, less those left out. Left out when
+          none is counted.
+        range: float
+      counted: {range: integer, required: true, description: "How many residuals the RMS counts."}
+      excluded: {range: integer, required: true, description: "How many cuts the analyst left out."}
+      without:
+        description: >-
+          How many rooted cuts give no residual: outside their host's fixes,
+          or outside the solution's, or no longer in the plot.
+        range: integer
+        required: true
+      nearer_side: {range: integer, description: "How many ambiguous cuts use the bearing nearer the solution."}
+      derived_origins: {range: integer, description: "How many cuts are taken from an origin Debrief worked out."}
+
+  TmaSolutionRow:
+    description: A TMA solution in the plot, as the bearing view lists it and draws it.
+    attributes:
+      id: {required: true}
+      name: {required: true}
+      contact: {required: true}
+      colour:
+        pattern: "^#[0-9a-f]{6}$"
+      period: {range: TimeRange, required: true, inlined: true}
+      times:
+        description: Its fixes' times, for the view to place it as a drag moves it.
+        range: UtcTimestamp
+        multivalued: true
+      leg_starts:
+        range: UtcTimestamp
+        multivalued: true
+      cuts: {range: integer, required: true, description: "How many cuts it is rooted in."}
+
+  TmaView:
+    description: >-
+      What the host sends the bearing view (show_tma): the plot's sensors and
+      solutions; the cuts of the sensor chosen, in time order; and, for the
+      solution shown, its residuals.
+    attributes:
+      plot_id:
+        description: Which plot is open, as its host knows it.
+      read_only:
+        description: An earlier revision is shown read-only, so nothing can be changed.
+        range: boolean
+      sensors:
+        range: TmaSensorRow
+        multivalued: true
+        inlined_as_list: true
+      sensor_id:
+        description: "The sensor whose cuts are listed."
+      cuts:
+        range: TmaCut
+        multivalued: true
+        inlined_as_list: true
+      solutions:
+        range: TmaSolutionRow
+        multivalued: true
+        inlined_as_list: true
+      solution_id:
+        description: "The solution shown: the one selected on the map or in the Outline, or chosen in the view."
+      residuals:
+        range: TmaResiduals
+        inlined: true

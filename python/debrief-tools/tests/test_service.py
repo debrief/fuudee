@@ -1126,6 +1126,7 @@ def test_every_method_that_writes_is_known_and_reading_ones_do_not_write() -> No
         service.COLLATION_METHODS,
         service.COLLATION_VIEW_METHODS,
         service.SENSOR_METHODS,
+        service.TMA_METHODS,
     )
     assert set(service.WRITING_METHODS) == {m for g in groups for m in g}
     assert "debrief/coverage" in service.READING_METHODS
@@ -1139,6 +1140,8 @@ def test_every_method_that_writes_is_known_and_reading_ones_do_not_write() -> No
     assert "debrief/narrative" in service.READING_METHODS
     assert "debrief/sensors" in service.READING_METHODS
     assert "debrief/resolve_ambiguity" in service.SENSOR_METHODS
+    assert "debrief/tma_residuals" in service.READING_METHODS
+    assert "debrief/tma_create" in service.TMA_METHODS
     assert not set(service.TOTE_METHODS) & set(service.WRITING_METHODS)
 
 

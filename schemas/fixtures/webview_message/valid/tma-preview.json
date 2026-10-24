@@ -1,0 +1,17 @@
+{
+  "kind": "tma_preview",
+  "feature_id": "track-contact-1-solution",
+  "preview": {
+    "type": "LineString",
+    "coordinates": [
+      [
+        -4.02,
+        50.41
+      ],
+      [
+        -4.03,
+        50.42
+      ]
+    ]
+  }
+}

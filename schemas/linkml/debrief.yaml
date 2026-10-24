@@ -5,7 +5,7 @@ description: >-
   Every type that crosses a process or language boundary in Debrief v4,
   generated into Python, JSON Schema and TypeScript (PRN-04). The version
   below is the data-file schema version (SUB-12); see schemas/CHANGELOG.md.
-version: 0.0.23
+version: 0.0.24
 license: EPL-2.0
 prefixes:
   linkml: https://w3id.org/linkml/
@@ -26,5 +26,6 @@ imports:
   - config
   - collation
   - figures
+  - tma
   - messages
   - history

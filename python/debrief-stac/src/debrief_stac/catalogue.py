@@ -52,6 +52,7 @@ from debrief_stac import (
     narrative,
     reckoning,
     sensors,
+    tma,
     tracks,
 )
 from debrief_stac.figures import PLOT_LOG_LIMIT, revision_symbols
@@ -1267,6 +1268,106 @@ class Catalogue:
 
         return self._change(item_id, change, agent, base, allow_newer_schema)[0]
 
+    # --- TMA solutions (CAP-21; product owner, 24 Oct 2026) -------------------
+
+    def create_tma(
+        self,
+        item_id: str,
+        request: models.TmaRequest | dict,
+        agent: models.AgentRef,
+        base: Base | None = None,
+        *,
+        allow_newer_schema: bool = False,
+    ) -> tuple[int, str]:
+        """Make a TMA solution of a contact, rooted in a period of bearing cuts, as one
+        recorded, undoable step: "Contact 1 solution made: 120 Bow sonar cuts
+        09:00:00Z–09:59:30Z". A track plotted by dead reckoning with a fix at each cut's
+        time, on one course at one speed from the first guess: by form (a range along the
+        first cut's bearing, a course and a speed; Debrief's guess, 10,000 yd, across the
+        bearing, 8 kn, where none is given) or by two positions (on the first cut's line
+        and the last's). Returns the step and the solution's id."""
+
+        def change(plot: DebriefFeatureCollection):
+            made = tma.create(plot, request)
+            record = {
+                "notes": made.notes,
+                "parameters": made.parameters,
+                "selected": list(made.track.properties.tma.sensor_ids),
+            }
+            return Changes(added=[made.track]), made.note, made.track.id, record
+
+        return self._change(item_id, change, agent, base, allow_newer_schema)
+
+    def tma_residuals(self, item_id: str, feature_id: str, base: Base | None = None) -> dict:
+        """A TMA solution's bearing residuals and RMS error (debrief_stac.tma), reading only."""
+        try:
+            return tma.residual_report(self._plot_at(item_id, base), feature_id)
+        except tma.TmaError as error:
+            raise CatalogueError(str(error)) from None
+
+    def tma_exclude(
+        self,
+        item_id: str,
+        feature_id: str,
+        cut_ids: list[str],
+        excluded: bool,
+        agent: models.AgentRef,
+        base: Base | None = None,
+        *,
+        allow_newer_schema: bool = False,
+    ) -> int | None:
+        """Leave rooted cuts out of a solution's RMS error (excluded), such as wild
+        bearings, or count them again, as one recorded, undoable step: "Contact 1
+        solution: cut at 09:21:00Z left out of the RMS". None if nothing would change."""
+
+        def change(plot: DebriefFeatureCollection):
+            done = tma.excluded(plot, feature_id, cut_ids, excluded)
+            if done is None:
+                return None
+            record = {
+                "notes": done.notes,
+                "parameters": [
+                    models.ParameterValue(name="excluded", value=excluded),
+                    models.ParameterValue(name="cuts", value=len(cut_ids)),
+                ],
+                "selected": [feature_id, *cut_ids],
+            }
+            return Changes(modified=[done.track]), done.note, None, record
+
+        result = self._change(item_id, change, agent, base, allow_newer_schema)
+        return None if result is None else result[0]
+
+    def tma_split_leg(
+        self,
+        item_id: str,
+        feature_id: str,
+        at: str,
+        agent: models.AgentRef,
+        base: Base | None = None,
+        *,
+        join: bool = False,
+        allow_newer_schema: bool = False,
+    ) -> int:
+        """Split a TMA solution into legs at a time (the fix at or after it starts the later
+        leg), or, with join, join the leg starting then to the one before, as one recorded,
+        undoable step: "Contact 1 solution split into legs at 09:30:00Z". It stays one
+        track: each leg is dragged on its own and the later legs follow on."""
+        at_ms = parse_utc(at)
+
+        def change(plot: DebriefFeatureCollection):
+            done = (tma.joined_legs if join else tma.split_leg)(plot, feature_id, at_ms)
+            record = {
+                "notes": done.notes,
+                "parameters": [
+                    models.ParameterValue(name="at", value=at),
+                    *([models.ParameterValue(name="join", value=True)] if join else []),
+                ],
+                "selected": [feature_id],
+            }
+            return Changes(modified=[done.track]), done.note, None, record
+
+        return self._change(item_id, change, agent, base, allow_newer_schema)[0]
+
     # --- Tracks: moved, rotated, split and merged by hand (CAP-01, CAP-02) ------
 
     def edit_track(
@@ -1603,6 +1704,8 @@ class Catalogue:
                 raise tracks.TrackError("Give the two parts of the split track a name each.")
             second_id = tracks.new_track_id(chosen[1], {f.id for f in plot.features})
             first, second = tracks.split(track, at_ms, chosen, second_id)
+            # A TMA solution (CAP-21): each part a solution, rooted in its own cuts.
+            first, second, solution_notes = tma.split_parts(plot, first, second)
             modified: list = [first]
             across: list[str] = []
             for feature in plot.features:
@@ -1707,6 +1810,7 @@ class Catalogue:
                         for n in across
                     ),
                     *moved,
+                    *solution_notes,
                 ],
                 "parameters": [
                     models.ParameterValue(name="at", value=at),
@@ -1746,6 +1850,15 @@ class Catalogue:
         def change(plot: DebriefFeatureCollection):
             members = [self._track(plot, i) for i in chosen]
             merged, lost = tracks.merge(members, name)
+            # TMA solutions (CAP-21): the merged track is one, each solution merged a leg.
+            tag, tag_notes = tma.merged_tag(
+                sorted(members, key=lambda t: (tracks.times_of(t)[0], tracks.times_of(t)[-1]))
+            )
+            if tag is not None:
+                merged = merged.model_copy(
+                    update={"properties": merged.properties.model_copy(update={"tma": tag})}
+                )
+                lost = [*lost, *tag_notes]
             gone = [t.id for t in members if t.id != merged.id]
             modified: list = [merged]
             removed: list[str] = []
@@ -2042,6 +2155,7 @@ class Catalogue:
             tracks.TrackError,
             collation.CollationError,
             sensors.SensorError,
+            tma.TmaError,
         ) as error:
             raise CatalogueError(str(error)) from None
         if made is None:
