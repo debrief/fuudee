@@ -44,7 +44,7 @@ import { Session, timeProblem } from "./session.js";
 import { CataloguesProvider, type CollationMarks } from "./views/catalogues.js";
 import { featureIdsOf, OutlineProvider } from "./views/outline.js";
 import { ToolsProvider } from "./views/tools.js";
-import { BY_HAND, LOG_FILE, openedEvent, openOnFirstRun, prepare, serviceEvent, toteCompares, TOURS, tourOfEvent, WalkthroughProgress } from "./walkthroughs.js";
+import { BESIDE, BY_HAND, LOG_FILE, openedEvent, openOnFirstRun, prepare, serviceEvent, toteCompares, TOURS, tourOfEvent, WalkthroughProgress } from "./walkthroughs.js";
 
 /** What the integration tests and agents can inspect. */
 export interface DebriefApi {
@@ -2818,7 +2818,7 @@ export function activate(context: vscode.ExtensionContext): DebriefApi {
     )?.t;
   command("debrief.walkthroughs", async (tour?: string) => {
     const chosen = await pickTour(tour);
-    if (chosen) await vscode.commands.executeCommand("workbench.action.openWalkthrough", `${context.extension.id}#${chosen.id}`, false);
+    if (chosen) await vscode.commands.executeCommand("workbench.action.openWalkthrough", `${context.extension.id}#${chosen.id}`, BESIDE);
   });
   // The first activation after install opens the first walkthrough on the Get Started page, once
   // only, by a flag in global state: where a newcomer gains an overall understanding (product
