@@ -26,6 +26,7 @@ export interface TourSource {
 }
 export declare const contextKey: (event: string) => string;
 export declare const MEDIA: string;
+export declare const BESIDE: boolean;
 export declare function commandLink(command: string, args?: unknown[]): string;
 export declare function stepParts(step: TourStep, host: "vscode" | "play"): { text: string; where?: string; keys: string; button: string };
 export declare const plainForVSCode: (text: string) => string;

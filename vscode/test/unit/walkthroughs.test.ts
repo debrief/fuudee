@@ -62,7 +62,7 @@ describe("one source for both hosts", () => {
       const after = tours.tours[i + 1];
       expect(nextTour(tours, walkthrough.id)?.id).toBe(after?.id);
       if (after) {
-        const link = commandLink("workbench.action.openWalkthrough", [`${pkg.publisher}.${pkg.name}#${after.id}`, false]);
+        const link = commandLink("workbench.action.openWalkthrough", [`${pkg.publisher}.${pkg.name}#${after.id}`, true]);
         expect(last.endsWith(`\n\n[${nextLabel(after)}](${link})`), walkthrough.id).toBe(true);
         expect(link).toContain(encodeURIComponent(`debrief.debrief#${after.id}`));
       } else {
@@ -280,7 +280,7 @@ describe("the first walkthrough, opened on install (product owner, 22 Oct 2026)"
     const run = async (...args: unknown[]) => void calls.push(args);
     expect(FIRST_TOUR).toBe(TOURS[0].id);
     expect(await openOnFirstRun(state, run, "debrief.debrief")).toBe(true);
-    expect(calls).toEqual([["workbench.action.openWalkthrough", "debrief.debrief#explore", false]]);
+    expect(calls).toEqual([["workbench.action.openWalkthrough", "debrief.debrief#explore", true]]);
     expect(state.values.get(FIRST_RUN_KEY)).toBe(true);
     expect(await openOnFirstRun(state, run, "debrief.debrief")).toBe(false);
     expect(await openOnFirstRun(state, run, "debrief.debrief")).toBe(false);

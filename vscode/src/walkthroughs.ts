@@ -14,7 +14,7 @@
  */
 import { execFile } from "node:child_process";
 import tours from "../walkthroughs/tours.json";
-import { contextKey } from "../walkthroughs/contribute.mjs";
+import { BESIDE, contextKey } from "../walkthroughs/contribute.mjs";
 
 export interface Tour {
   id: string;
@@ -27,7 +27,7 @@ export const TOURS: Tour[] = tours.tours;
 export const EVENTS: ReadonlySet<string> = new Set(TOURS.flatMap((t) => t.steps.map((s) => s.event)));
 /** The event the first step of each walkthrough waits for: its copy opened. */
 export const openedEvent = (tour: string) => `${tour}Opened`;
-export { contextKey };
+export { BESIDE, contextKey };
 
 /**
  * The walkthrough step a successful request to the tool service completes, if any: the
@@ -104,7 +104,7 @@ export async function openOnFirstRun(state: FlagState, run: (command: string, ..
   if (state.get<boolean>(FIRST_RUN_KEY)) return false;
   await state.update(FIRST_RUN_KEY, true);
   try {
-    await run("workbench.action.openWalkthrough", `${extension}#${FIRST_TOUR}`, false);
+    await run("workbench.action.openWalkthrough", `${extension}#${FIRST_TOUR}`, BESIDE);
     log(`walkthrough_opened_on_install tour=${FIRST_TOUR}`);
     return true;
   } catch {
