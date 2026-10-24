@@ -5,6 +5,13 @@
  */
 export type AgentKindEnum = "person" | "software_agent";
 /**
+ * What the analyst asks of ambiguous cuts (CAP-22): keep the bearing to port or to starboard of the host track's course at each cut's time, as legacy Debrief's Keep port bearing and Keep starboard bearing decide it (by the side of the bearing recorded first); keep the bearing recorded first, or its ambiguous twin, as the analyst clicked it on the map; or make the cuts ambiguous again.
+ *
+ * This interface was referenced by `DebriefSchemaDefinitions`'s JSON-Schema
+ * via the `definition` "AmbiguityKeepEnum".
+ */
+export type AmbiguityKeepEnum = "port" | "starboard" | "bearing" | "ambiguous_bearing" | "ambiguous";
+/**
  * Units an angle may be stored in (UCUM codes).
  *
  * This interface was referenced by `DebriefSchemaDefinitions`'s JSON-Schema
@@ -191,6 +198,23 @@ export type QuantityKindEnum = "length" | "speed" | "angle" | "duration" | "angu
 export type PayloadFormatEnum = "arrow" | "parquet" | "geojson";
 /**
  * This interface was referenced by `DebriefSchemaDefinitions`'s JSON-Schema
+ * via the `definition` "SensorKindEnum".
+ */
+export type SensorKindEnum = "sensor";
+/**
+ * This interface was referenced by `DebriefSchemaDefinitions`'s JSON-Schema
+ * via the `definition` "SensorCutKindEnum".
+ */
+export type SensorCutKindEnum = "sensor_cut";
+/**
+ * Which of an ambiguous cut's two recorded bearings the analyst kept (CAP-22): the side resolved. Recorded as the bearing kept, not as port or starboard, because which side a bearing is on depends on the host track's course at the cut's time, which a later edit of the track (a move, dead reckoning) can change; what the analyst judged is which bearing was the target's. Debrief says it as port or starboard.
+ *
+ * This interface was referenced by `DebriefSchemaDefinitions`'s JSON-Schema
+ * via the `definition` "SensorCutKeptEnum".
+ */
+export type SensorCutKeptEnum = "bearing" | "ambiguous_bearing";
+/**
+ * This interface was referenced by `DebriefSchemaDefinitions`'s JSON-Schema
  * via the `definition` "NarrativeKindEnum".
  */
 export type NarrativeKindEnum = "narrative";
@@ -235,7 +259,8 @@ export type FeatureCollectionTypeEnum = "FeatureCollection";
  * This interface was referenced by `DebriefSchemaDefinitions`'s JSON-Schema
  * via the `definition` "FeatureKindEnum".
  */
-export type FeatureKindEnum = "track" | "annotation" | "sensor_observations" | "plot" | "narrative";
+export type FeatureKindEnum =
+  "track" | "annotation" | "sensor_observations" | "plot" | "narrative" | "sensor" | "sensor_cut";
 /**
  * This interface was referenced by `DebriefSchemaDefinitions`'s JSON-Schema
  * via the `definition` "PositionNotationEnum".
@@ -388,7 +413,9 @@ export type WebviewMessageKindEnum =
   | "review_cleared"
   | "export_image"
   | "image_rendered"
-  | "latest_asked";
+  | "latest_asked"
+  | "resolve_asked"
+  | "cut_chosen";
 
 export interface DebriefSchemaDefinitions {}
 /**
@@ -401,6 +428,37 @@ export interface AgentRef {
   kind: AgentKindEnum;
   model?: string | null;
   name: string;
+}
+/**
+ * Ambiguous cuts resolved, or made ambiguous again, as the map, a menu or an agent asks (CAP-22): one recorded, undoable step (product owner, 24 Oct 2026). The cuts are those named, or else the cuts of the sensors named within a period (the time window, as the analyst sets it). Cuts with no ambiguous bearing are left as they are, and the step says how many.
+ *
+ * This interface was referenced by `DebriefSchemaDefinitions`'s JSON-Schema
+ * via the `definition` "AmbiguityResolution".
+ */
+export interface AmbiguityResolution {
+  /**
+   * The cuts to resolve, by feature id. Or give sensor_ids, and perhaps a period.
+   */
+  cut_ids?: string[] | null;
+  keep: AmbiguityKeepEnum;
+  /**
+   * The cuts whose times fall in it, ends included, of the sensors named.
+   */
+  period?: TimeRange | null;
+  /**
+   * Sensors whose cuts in the period are resolved; every cut of each, without a period.
+   */
+  sensor_ids?: string[] | null;
+}
+/**
+ * A closed interval of time. Start shall not be after end.
+ *
+ * This interface was referenced by `DebriefSchemaDefinitions`'s JSON-Schema
+ * via the `definition` "TimeRange".
+ */
+export interface TimeRange {
+  end: string;
+  start: string;
 }
 /**
  * This interface was referenced by `DebriefSchemaDefinitions`'s JSON-Schema
@@ -671,16 +729,6 @@ export interface SourceRef {
   href: string;
 }
 /**
- * A closed interval of time. Start shall not be after end.
- *
- * This interface was referenced by `DebriefSchemaDefinitions`'s JSON-Schema
- * via the `definition` "TimeRange".
- */
-export interface TimeRange {
-  end: string;
-  start: string;
-}
-/**
  * An annotation as the analyst describes it in a form, or an agent in a request: what is made into an annotation feature, recorded as one step in the plot's history (CAP-03, SUB-19). Positions are numbers here; forms read them in the analyst's notation and say what they mean.
  *
  * This interface was referenced by `DebriefSchemaDefinitions`'s JSON-Schema
@@ -925,7 +973,15 @@ export interface ReviewFlag {
  * via the `definition` "DebriefFeatureCollection".
  */
 export interface DebriefFeatureCollection {
-  features: (TrackFeature | AnnotationFeature | SensorObservationsFeature | NarrativeFeature | PlotFeature)[];
+  features: (
+    | TrackFeature
+    | AnnotationFeature
+    | SensorObservationsFeature
+    | SensorFeature
+    | SensorCutFeature
+    | NarrativeFeature
+    | PlotFeature
+  )[];
   /**
    * The plot's whole history: every step, with its provenance and whether it is applied, undone or abandoned, and the current step (SUB-19, SUB-21, decision 13 Oct). A GeoJSON foreign member, so other tools still read the file as GeoJSON. Not content: left out of every content hash. Last in the file. A plot sent to a view or a tool never carries it.
    */
@@ -1216,6 +1272,117 @@ export interface InnerSchemaRef {
   version: string;
 }
 /**
+ * A sensor carried by a track (CAP-22): a bow sonar, a towed array, the bearings read from a narrative. Its cuts are features of their own (SensorCutFeature), each naming it, so resolving one cut, or the cuts of a period, is one small recorded step (SUB-19), as each narrative entry is a feature of its own. Geometry is null: a cut is drawn from where the host track was at its time, so a track edited (moved, sheared, plotted by dead reckoning) carries its cuts with it, and a TMA solution (CAP-21) can be rooted in the cuts' times.
+ *
+ * This interface was referenced by `DebriefSchemaDefinitions`'s JSON-Schema
+ * via the `definition` "SensorFeature".
+ */
+export interface SensorFeature {
+  /**
+   * Always null.
+   */
+  geometry?: PointGeometry | null;
+  id: string;
+  properties: SensorProperties;
+  type: FeatureTypeEnum;
+}
+/**
+ * This interface was referenced by `DebriefSchemaDefinitions`'s JSON-Schema
+ * via the `definition` "SensorProperties".
+ */
+export interface SensorProperties {
+  /**
+   * The colour its cuts are drawn in, lower-case hex RGB, unless a cut has its own. Content, like a track's colour: each change is a recorded, undoable step (SUB-22).
+   */
+  colour: string;
+  /**
+   * None of its cuts drawn on the map. Still listed, and still selectable, in the outline, under its track. Content: hiding is a recorded, undoable change (SUB-22).
+   */
+  hidden?: boolean | null;
+  /**
+   * The track carrying the sensor (ownship): its cuts are drawn from that track's position at each cut's time. A track split keeps its sensors on its first part; tracks merged take their sensors with them.
+   */
+  host_track_id: string;
+  kind: SensorKindEnum;
+  /**
+   * The REP symbology code its colour came from, such as "@A", kept for export.
+   */
+  legacy_symbology?: string | null;
+  /**
+   * The sensor's name, as its source gives it, such as "Towed array" or "2087".
+   */
+  name: string;
+  provenance?: ProvRecord[] | null;
+}
+/**
+ * One cut of a sensor (CAP-22): a bearing from the host track at a time, perhaps with the ambiguous bearing a towed array cannot tell it from, and which of the two the analyst kept. Geometry is null: the cut is drawn from the host track's position at its time (as the map places tracks, along the geodesic between fixes), or from the position recorded with it, along the geodesic at its bearing to its range, or else past the edge of the map's view (twice the view's larger side, at most 5 degrees of arc, 300 nmi, as legacy Debrief draws it). Frequency is never imported (CAP-22, EXT-03). A bearing error is not held yet: no legacy format defines what one means (product owner, 24 Oct 2026); an optional bearing_error here is the way to add it, and wedges with it.
+ *
+ * This interface was referenced by `DebriefSchemaDefinitions`'s JSON-Schema
+ * via the `definition` "SensorCutFeature".
+ */
+export interface SensorCutFeature {
+  /**
+   * Always null.
+   */
+  geometry?: PointGeometry | null;
+  id: string;
+  properties: SensorCutProperties;
+  type: FeatureTypeEnum;
+}
+/**
+ * This interface was referenced by `DebriefSchemaDefinitions`'s JSON-Schema
+ * via the `definition` "SensorCutProperties".
+ */
+export interface SensorCutProperties {
+  /**
+   * A towed array's ambiguous bearing: the mirror image of bearing about the array, on the other side of the host's course. Left out for a cut that was never ambiguous.
+   */
+  ambiguous_bearing?: Angle | null;
+  bearing: Angle1;
+  /**
+   * The cut's own colour, lower-case hex RGB; left out, its sensor's, as legacy Debrief lets a cut take its sensor's colour.
+   */
+  colour?: string | null;
+  /**
+   * Free text about the cut.
+   */
+  comment?: string | null;
+  /**
+   * Not drawn on the map. Content, like hiding any feature (SUB-22).
+   */
+  hidden?: boolean | null;
+  kind: SensorCutKindEnum;
+  /**
+   * Text the source gives the cut, such as legacy Debrief's label.
+   */
+  label?: string | null;
+  /**
+   * @minItems 2
+   * @maxItems 2
+   */
+  origin?: [number, number];
+  /**
+   * How far the target was, where the source says: the cut is drawn to that range. Left out, drawn past the edge of the view.
+   */
+  range?: Length | null;
+  /**
+   * Which of the two bearings the analyst kept, for a cut with an ambiguous bearing; left out while it is unresolved, when both are drawn. Each resolution, of one cut or of every cut in a period, is one recorded, undoable step with provenance (product owner, 24 Oct 2026), and can be undone or reset to ambiguous.
+   */
+  resolved?: SensorCutKeptEnum | null;
+  /**
+   * The sensor the cut is from, a sensor feature in the plot.
+   */
+  sensor_id: string;
+  /**
+   * When the cut was taken, to the millisecond, Zulu (SUB-01).
+   */
+  time: string;
+}
+export interface Angle1 {
+  unit: AngleUnitEnum;
+  value: number;
+}
+/**
  * One narrative entry (CAP-19, CAP-20, EXT-14): what a platform, a person or a document logged at a time. A feature of its own with null geometry, as a time-only annotation is, so other GeoJSON tools read it, and each entry added, changed or deleted is one small recorded, undoable step (SUB-19). Every narrative feature in a plot together makes the plot's narrative: one combined Zulu time axis, however many sources it came from, in the order narrative_order gives (time; then source, ignoring case; then the plot's order, so a log's own order at one time is kept).
  *
  * This interface was referenced by `DebriefSchemaDefinitions`'s JSON-Schema
@@ -1449,7 +1616,17 @@ export interface HistoryStep {
   /**
    * Features added. A whole-plot feature here never carries its view: the island is not content (SUB-22).
    */
-  added?: (TrackFeature | AnnotationFeature | SensorObservationsFeature | NarrativeFeature | PlotFeature)[] | null;
+  added?:
+    | (
+        | TrackFeature
+        | AnnotationFeature
+        | SensorObservationsFeature
+        | SensorFeature
+        | SensorCutFeature
+        | NarrativeFeature
+        | PlotFeature
+      )[]
+    | null;
   /**
    * The step this one was applied on top of (0 for the first). Replay follows these links back from a step to the first.
    */
@@ -1459,7 +1636,17 @@ export interface HistoryStep {
   /**
    * Features changed, in full, replacing those with the same id.
    */
-  modified?: (TrackFeature | AnnotationFeature | SensorObservationsFeature | NarrativeFeature | PlotFeature)[] | null;
+  modified?:
+    | (
+        | TrackFeature
+        | AnnotationFeature
+        | SensorObservationsFeature
+        | SensorFeature
+        | SensorCutFeature
+        | NarrativeFeature
+        | PlotFeature
+      )[]
+    | null;
   /**
    * Named sets added or replaced, by id.
    */
@@ -1509,7 +1696,17 @@ export interface Delta {
   /**
    * Features added, never with the whole-plot feature's view.
    */
-  added?: (TrackFeature | AnnotationFeature | SensorObservationsFeature | NarrativeFeature | PlotFeature)[] | null;
+  added?:
+    | (
+        | TrackFeature
+        | AnnotationFeature
+        | SensorObservationsFeature
+        | SensorFeature
+        | SensorCutFeature
+        | NarrativeFeature
+        | PlotFeature
+      )[]
+    | null;
   /**
    * The delta this one was applied on top of (0 for the first).
    */
@@ -1519,7 +1716,17 @@ export interface Delta {
   /**
    * Features changed, in full, replacing those with the same id.
    */
-  modified?: (TrackFeature | AnnotationFeature | SensorObservationsFeature | NarrativeFeature | PlotFeature)[] | null;
+  modified?:
+    | (
+        | TrackFeature
+        | AnnotationFeature
+        | SensorObservationsFeature
+        | SensorFeature
+        | SensorCutFeature
+        | NarrativeFeature
+        | PlotFeature
+      )[]
+    | null;
   /**
    * Named sets added or replaced, by id.
    */
@@ -2172,9 +2379,27 @@ export interface ToolDeclaration {
  */
 export interface ToolResult {
   deleted_feature_ids?: string[] | null;
-  modified_features?: (TrackFeature | AnnotationFeature | SensorObservationsFeature | NarrativeFeature)[] | null;
+  modified_features?:
+    | (
+        | TrackFeature
+        | AnnotationFeature
+        | SensorObservationsFeature
+        | SensorFeature
+        | SensorCutFeature
+        | NarrativeFeature
+      )[]
+    | null;
   named_sets?: NamedSet[] | null;
-  new_features?: (TrackFeature | AnnotationFeature | SensorObservationsFeature | NarrativeFeature)[] | null;
+  new_features?:
+    | (
+        | TrackFeature
+        | AnnotationFeature
+        | SensorObservationsFeature
+        | SensorFeature
+        | SensorCutFeature
+        | NarrativeFeature
+      )[]
+    | null;
   non_spatial?: NonSpatialResult[] | null;
   state_change?: SharedStateChange | null;
 }
@@ -2372,6 +2597,10 @@ export interface WebviewMessage {
    * The item, at the revision the analyst saw (take_asked, dismiss_asked).
    */
   item_revision?: ItemRevision | null;
+  /**
+   * Which of an ambiguous cut's bearings the analyst clicked, to keep (resolve_asked).
+   */
+  keep?: AmbiguityKeepEnum | null;
   kind: WebviewMessageKindEnum;
   /**
    * Whether the source is the track's platform (link_changed).

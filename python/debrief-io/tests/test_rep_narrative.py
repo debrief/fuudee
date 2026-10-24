@@ -125,7 +125,7 @@ LOG = """\
 ;NARRATIVE2:\t110621\t093100\t"RED ONE"\tCSD\tC/C 180, S 5 kn, D 40 m.
 ;NARRATIVE:\t110621\t093100\tblue_one\tContact gained, bearing 045.
 ;NARRATIVE: 110621 093100 BLUE_ONE
-;SENSOR: 110621 093100 BLUE_ONE @A NULL 045.0 NULL NULL NULL NULL bow
+;CIRCLE: @A 50 20 00 N 004 07 00 W 2000 area
 """
 
 
@@ -138,7 +138,7 @@ def test_a_file_reads_every_narrative_line_in_order_and_reports_the_bad_ones() -
         ("blue_one", None, 7),
     ]
     assert parsed.errors == [(8, "a narrative line has no text")]
-    assert parsed.other_records == {";SENSOR:": 1}
+    assert parsed.other_records == {";CIRCLE:": 1}
 
 
 def test_an_imported_plot_holds_the_narrative_each_entry_on_its_track() -> None:

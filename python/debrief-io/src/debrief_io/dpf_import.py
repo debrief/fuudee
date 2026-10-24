@@ -36,6 +36,12 @@ What becomes what:
   legacy Debrief would have shown them at one of the intervals the forms offer (or at
   every fix); otherwise they are listed. Legacy Debrief keeps no frequency on a track
   in the file (TrackHandler writes none), only these.
+- Sensors (CAP-22): each track's sensors, with their cuts, on the track that
+  carries them: bearings, ambiguous bearings and whether the analyst resolved
+  them (legacy kept the discarded bearing as the ambiguous one), ranges, the
+  sensor's own position where a cut has one, labels, comments, colours and
+  hiding. Frequencies, base frequencies, array offsets and modes, and how cuts
+  were drawn (labels shown, line styles, thickness) are listed, not imported.
 - Narrative entries: narrative entries, each with its time, its source (the
   track the legacy entry names), its type and its text, belonging to the
   track of that name where there is one (CAP-20, schema 0.0.19).
@@ -62,11 +68,14 @@ from debrief_io.dpf import (
 )
 from debrief_io.importer import Clock, ImportReport, store_import, wall_clock
 from debrief_io.rep import DEFAULT_COLOUR
+from debrief_io.sensor_import import sensors_note
 from debrief_kernel.geodesy import Position, circle_ring, destination, ellipse_ring
 from debrief_kernel.time import format_utc
 from debrief_kernel.units import angle, length
 from debrief_schemas import SCHEMA_VERSION, DebriefFeatureCollection, models
 from debrief_stac import Catalogue, frequencies, narrative
+from debrief_stac import sensors as plot_sensors
+from debrief_stac.sensors import ReadCut, ReadSensor
 
 IMPORTER = "debrief-io.dpf"
 MEDIA_TYPE = "application/xml"
@@ -89,7 +98,6 @@ TMA_LEGS = {
 }
 
 CARRIED = {
-    "sensor": ("sensor", "cut"),
     "tma": ("TMA solution set", "solution"),
     "DynamicShapeSet": ("set of dynamic shapes", "shape"),
 }
@@ -283,14 +291,9 @@ def _track_notes(track: DpfTrack, joined: bool) -> list[str]:
     for item in track.carried:
         what, unit = CARRIED.get(item.kind, (item.kind, "item"))
         label = f"{what} {item.name!r}" if item.name else f"an unnamed {what}"
-        reason = (
-            "sensor data in plot files is not yet supported"
-            if item.kind == "sensor"
-            else "these are not yet supported"
-        )
         notes.append(
             f"Track {name!r}: {label} ({item.kind}, {_plural(item.count, unit)}) "
-            f"not imported: {reason}."
+            "not imported: these are not yet supported."
         )
     # Each fix's own colour, label and comment are imported as marked fixes (_fix_marks).
     fixes = [f for leg in track.legs for f in leg.fixes]
@@ -702,6 +705,147 @@ def _look_notes(shapes: list[DpfShape]) -> list[str]:
 # --- The plot ----------------------------------------------------------------------
 
 
+def _sensors(
+    parsed: DpfFile,
+    imported_tracks: list[tuple[int, str, str, list[DpfFix]]],
+    features: list,
+    taken: set[str],
+) -> tuple[list, list[str], int]:
+    """Each track's sensors as sensor features with their cuts (CAP-22), and what the
+    import says of them: what legacy kept that v4 does not draw, listed. A cut legacy's
+    analyst resolved (HasAmbiguousBearing false, its discarded bearing kept as the
+    ambiguous one, as ditchBearing left it) comes resolved, keeping its bearing."""
+    parts: dict[str, list[tuple[str, list[DpfFix]]]] = {}
+    for index, _, legacy_name, fixes in imported_tracks:
+        parts.setdefault(legacy_name, []).append((features[index].id, fixes))
+    names = {features[i].id: name for i, name, _, _ in imported_tracks}
+    colours = {f.id: f.properties.style.colour for f in features if f.properties.kind == "track"}
+    read: list[ReadSensor] = []
+    notes: list[str] = []
+    for track in parsed.tracks:
+        for sensor in track.sensors:
+            label = f"Track {track.name!r}: sensor {sensor.name!r}"
+            usable = [c for c in sensor.contacts if c.bearing is not None]
+            if not parts.get(track.name):
+                if sensor.contacts:
+                    notes.append(
+                        f"{label} ({_plural(len(sensor.contacts), 'cut')}) not imported: "
+                        "the track itself was not."
+                    )
+                continue
+            if not usable:
+                notes.append(f"{label} not imported: none of its cuts gives a bearing.")
+                continue
+            # A track whose legs overlap is imported a track a leg: the sensor goes with the
+            # part its first cut falls in.
+            first = usable[0].time_ms
+            host = next(
+                (i for i, fx in parts[track.name] if fx[0].time_ms <= first <= fx[-1].time_ms),
+                parts[track.name][0][0],
+            )
+            colour = sensor.colour or colours.get(host) or DEFAULT_COLOUR
+            span = next(fixes for i, fixes in parts[track.name] if i == host)
+            outside = sum(1 for c in usable if not span[0].time_ms <= c.time_ms <= span[-1].time_ms)
+            if outside:
+                notes.append(
+                    f"{label}: {_plural(outside, 'cut')} outside the track's fixes: kept, but "
+                    "not drawn, as legacy Debrief drew none there."
+                )
+            read.append(
+                ReadSensor(
+                    name=sensor.name,
+                    host_track_id=host,
+                    colour=colour,
+                    hidden=not sensor.visible,
+                    cuts=[
+                        ReadCut(
+                            time_ms=c.time_ms,
+                            bearing=c.bearing,
+                            ambiguous=c.ambiguous,
+                            resolved=None if c.has_ambiguous or c.ambiguous is None else "bearing",
+                            range_m=c.range_m,
+                            origin=c.origin,
+                            label=c.label,
+                            comment=c.comment,
+                            colour=c.colour,
+                            hidden=not c.visible,
+                        )
+                        for c in usable
+                    ],
+                )
+            )
+            notes += _sensor_notes(label, sensor, usable)
+    if not read:
+        return [], notes, 0
+    built = plot_sensors.build(read, taken, names)
+    taken.update(f.id for f in built)
+    notes.insert(0, sensors_note(read, names))
+    return built, notes, sum(len(s.cuts) for s in read)
+
+
+def _sensor_notes(label: str, sensor, usable: list) -> list[str]:
+    """What a sensor in a legacy plot had that v4 does not hold or draw, said."""
+    notes = []
+    dropped = len(sensor.contacts) - len(usable)
+    if dropped:
+        notes.append(f"{label}: {_plural(dropped, 'cut')} giving no bearing not imported.")
+    frequencies = sum(1 for c in sensor.contacts if c.frequency is not None)
+    if frequencies or sensor.base_frequency:
+        said = f"{_plural(frequencies, 'cut')} gave a frequency" if frequencies else ""
+        base = f"its base frequency {sensor.base_frequency:g} Hz" if sensor.base_frequency else ""
+        notes.append(
+            f"{label}: {' and '.join(s for s in (said, base) if s)}: not imported. Frequency "
+            "and acoustic analysis stay in the acoustic replay application (CAP-22, EXT-03)."
+        )
+    measured = sensor.array_mode not in (None, "Plain", "Worm in hole")
+    if sensor.offset_m or measured:
+        parts = []
+        if sensor.offset_m:
+            parts.append(f"its array offset of {sensor.offset_m:,.0f} m")
+        if measured:
+            parts.append(f"its array centre from the measured data {sensor.array_mode!r}")
+        notes.append(
+            f"{label}: {' and '.join(parts)} not imported: its cuts are drawn from the track's "
+            "position."
+        )
+    shown = sum(1 for c in usable if c.label_showing)
+    styled = Counter(
+        c.line_style.replace("_", " ").lower()
+        for c in usable
+        if c.line_style and c.line_style.upper() != "SOLID"
+    )
+    looks = []
+    if shown:
+        looks.append(f"{_plural(shown, 'label')} shown on the map")
+    if styled:
+        looks.append("line styles " + ", ".join(f"{s} ({n})" for s, n in styled.most_common()))
+    if sensor.line_thickness and sensor.line_thickness > 1:
+        looks.append(f"line thickness {sensor.line_thickness}")
+    if looks:
+        notes.append(
+            f"{label}: how its cuts were drawn not imported ({'; '.join(looks)}): drawn solid, "
+            "with labels and comments when pointed at."
+        )
+    hidden = sum(1 for c in usable if not c.visible)
+    if hidden:
+        notes.append(f"{label}: {_plural(hidden, 'cut')} hidden in the legacy plot, hidden here.")
+    placeholders = sum(1 for c in usable if c.zero_twin)
+    if placeholders:
+        notes.append(
+            f"{label}: {_plural(placeholders, 'cut')} gave an ambiguous bearing of 0.000 and "
+            f"{'was' if placeholders == 1 else 'were'} not ambiguous: older legacy Debrief's "
+            "placeholder, read as no ambiguous bearing."
+        )
+    resolved = sum(1 for c in usable if c.ambiguous is not None and not c.has_ambiguous)
+    if resolved:
+        notes.append(
+            f"{label}: {_plural(resolved, 'cut')} resolved in the legacy plot "
+            f"come{'s' if resolved == 1 else ''} resolved, "
+            "keeping the bearing legacy Debrief kept; Ambiguous again brings the other back."
+        )
+    return notes
+
+
 def build_plot_from_dpf(
     data: bytes | DpfFile,
     source: models.SourceRef,
@@ -784,6 +928,10 @@ def build_plot_from_dpf(
         notes += _track_notes(track, joined=imported and len(parts) == 1)
     # How often each is labelled, marked and arrowed: the plot's display rules, or its fixes.
     notes += _track_frequencies(imported_tracks, features, parsed.formatters)
+    # Sensors and their cuts, on the tracks that carry them (CAP-22).
+    added, sensor_notes, report.sensor_cuts = _sensors(parsed, imported_tracks, features, taken)
+    features += added
+    notes += sensor_notes
 
     # Annotations, grouped by layer.
     members: dict[str, list[str]] = {}

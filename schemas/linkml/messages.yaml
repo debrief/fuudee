@@ -84,6 +84,8 @@ enums:
       export_image: {description: "Host to map: draw the map as an image (image_request), as the analyst sees it, at the size, in the theme and with the footer asked for (SUB-25)."}
       image_rendered: {description: "Map to host: the image drawn (image), for its ID to go into its metadata; or, with message alone, why it could not be drawn."}
       latest_asked: {description: "Map to host: the analyst asked to leave the earlier revision shown read-only and go to the plot's latest (no members)."}
+      resolve_asked: {description: "Map to host: the analyst clicked one of an ambiguous cut's two lines (feature_id, the cut), keeping that bearing (keep: bearing or ambiguous_bearing), as one recorded step (CAP-22; product owner, 24 Oct 2026)."}
+      cut_chosen: {description: "Map to host: the analyst asked for a cut's menu (feature_id, the cut), by right-clicking it or pressing and holding it on a touch screen: keep port, keep starboard, ambiguous again, or select it."}
 
 classes:
   TimelineEntry:
@@ -260,3 +262,6 @@ classes:
         description: The plot shown is an earlier revision, read-only (show_plot).
         range: RevisionShown
         inlined: true
+      keep:
+        description: Which of an ambiguous cut's bearings the analyst clicked, to keep (resolve_asked).
+        range: AmbiguityKeepEnum

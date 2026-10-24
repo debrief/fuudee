@@ -17,7 +17,7 @@ REP = """\
 951212 050200.000 "HMS BLUE" @A 50 21 00.00 N 004 07 00.00 W 180.0 8.0 15.5
 951212 050100.000500 "HMS BLUE" @A 50 21 30.00 N 004 07 00.00 W 180.0 8.0 0
 951212 050000.000 LONER @F 50 00 00.00 N 004 00 00.00 W 000.0 0.0 0
-;SENSOR: 951212 050000 NELSON @A NULL 270.0 NULL NULL NULL NULL sonar
+;CIRCLE: @A 50 20 00 N 004 07 00 W 2000 exercise area
 garbage line
 """
 
@@ -82,7 +82,7 @@ def test_provenance_names_source_and_omissions(setup) -> None:
         "1 fix times",
         "'NELSON' gives a depth for only 2 of 3 fixes",
         "1 fixes had a label",
-        "1 ;SENSOR: line",
+        "1 ;CIRCLE: line",
         "Line 10 could not be read",
     ]:
         assert expected in notes, expected

@@ -43,6 +43,8 @@ enums:
       sensor_observations: {}
       plot: {description: "The whole plot: its own details and its view. At most one per plot."}
       narrative: {description: "A narrative entry: what a platform, a person or a document logged at a time, with no position (CAP-19, CAP-20)."}
+      sensor: {description: "A sensor carried by a track, such as a bow sonar or a towed array: its name, its host track, its colour (CAP-22)."}
+      sensor_cut: {description: "One cut of a sensor: a bearing (perhaps with its ambiguous twin) at a time, drawn from the host track's position then (CAP-22)."}
   PlotKindEnum: {permissible_values: {plot: {}}}
   ContextTracksEnum:
     description: >-
@@ -91,6 +93,33 @@ enums:
   AnnotationKindEnum: {permissible_values: {annotation: {}}}
   SensorObservationsKindEnum: {permissible_values: {sensor_observations: {}}}
   NarrativeKindEnum: {permissible_values: {narrative: {}}}
+  SensorKindEnum: {permissible_values: {sensor: {}}}
+  SensorCutKindEnum: {permissible_values: {sensor_cut: {}}}
+  SensorCutKeptEnum:
+    description: >-
+      Which of an ambiguous cut's two recorded bearings the analyst kept
+      (CAP-22): the side resolved. Recorded as the bearing kept, not as port
+      or starboard, because which side a bearing is on depends on the host
+      track's course at the cut's time, which a later edit of the track (a
+      move, dead reckoning) can change; what the analyst judged is which
+      bearing was the target's. Debrief says it as port or starboard.
+    permissible_values:
+      bearing: {description: "The bearing recorded first (bearing) is the target's; the other was its mirror image."}
+      ambiguous_bearing: {description: "The ambiguous bearing (ambiguous_bearing) is the target's: the cut is drawn along it."}
+  AmbiguityKeepEnum:
+    description: >-
+      What the analyst asks of ambiguous cuts (CAP-22): keep the bearing to
+      port or to starboard of the host track's course at each cut's time, as
+      legacy Debrief's Keep port bearing and Keep starboard bearing decide
+      it (by the side of the bearing recorded first); keep the bearing
+      recorded first, or its ambiguous twin, as the analyst clicked it on the
+      map; or make the cuts ambiguous again.
+    permissible_values:
+      port: {description: "Keep the bearing to port of the host's course."}
+      starboard: {description: "Keep the bearing to starboard of the host's course."}
+      bearing: {description: "Keep the bearing recorded first."}
+      ambiguous_bearing: {description: "Keep the ambiguous bearing."}
+      ambiguous: {description: "Undo the resolution: both bearings again, unresolved."}
   AnnotationStyleEnum:
     description: What an annotation depicts (CAP-03, CAP-04).
     permissible_values:
@@ -670,6 +699,159 @@ classes:
       text: {}
       track_id: {}
 
+  # --- Sensors and their cuts (CAP-22) -------------------------------------
+  SensorFeature:
+    description: >-
+      A sensor carried by a track (CAP-22): a bow sonar, a towed array, the
+      bearings read from a narrative. Its cuts are features of their own
+      (SensorCutFeature), each naming it, so resolving one cut, or the cuts
+      of a period, is one small recorded step (SUB-19), as each narrative
+      entry is a feature of its own. Geometry is null: a cut is drawn from
+      where the host track was at its time, so a track edited (moved,
+      sheared, plotted by dead reckoning) carries its cuts with it, and a TMA
+      solution (CAP-21) can be rooted in the cuts' times.
+    attributes:
+      type: {range: FeatureTypeEnum, required: true}
+      id: {required: true}
+      geometry:
+        description: Always null.
+        range: PointGeometry
+        inlined: true
+      properties: {range: SensorProperties, required: true, inlined: true}
+  SensorProperties:
+    attributes:
+      kind: {range: SensorKindEnum, required: true}
+      name:
+        description: The sensor's name, as its source gives it, such as "Towed array" or "2087".
+        required: true
+      host_track_id:
+        description: >-
+          The track carrying the sensor (ownship): its cuts are drawn from
+          that track's position at each cut's time. A track split keeps its
+          sensors on its first part; tracks merged take their sensors with
+          them.
+        required: true
+      colour:
+        description: >-
+          The colour its cuts are drawn in, lower-case hex RGB, unless a cut
+          has its own. Content, like a track's colour: each change is a
+          recorded, undoable step (SUB-22).
+        required: true
+        pattern: "^#[0-9a-f]{6}$"
+      legacy_symbology:
+        description: The REP symbology code its colour came from, such as "@A", kept for export.
+      hidden:
+        description: >-
+          None of its cuts drawn on the map. Still listed, and still
+          selectable, in the outline, under its track. Content: hiding is a
+          recorded, undoable change (SUB-22).
+        range: boolean
+      provenance:
+        range: ProvRecord
+        multivalued: true
+        inlined_as_list: true
+  SensorCutFeature:
+    description: >-
+      One cut of a sensor (CAP-22): a bearing from the host track at a time,
+      perhaps with the ambiguous bearing a towed array cannot tell it from,
+      and which of the two the analyst kept. Geometry is null: the cut is
+      drawn from the host track's position at its time (as the map places
+      tracks, along the geodesic between fixes), or from the position
+      recorded with it, along the geodesic at its bearing to its range, or
+      else past the edge of the map's view (twice the view's larger side, at
+      most 5 degrees of arc, 300 nmi, as legacy Debrief draws it). Frequency
+      is never imported (CAP-22, EXT-03). A bearing error is not held yet: no
+      legacy format defines what one means (product owner, 24 Oct 2026); an
+      optional bearing_error here is the way to add it, and wedges with it.
+    attributes:
+      type: {range: FeatureTypeEnum, required: true}
+      id: {required: true}
+      geometry:
+        description: Always null.
+        range: PointGeometry
+        inlined: true
+      properties: {range: SensorCutProperties, required: true, inlined: true}
+  SensorCutProperties:
+    attributes:
+      kind: {range: SensorCutKindEnum, required: true}
+      sensor_id:
+        description: The sensor the cut is from, a sensor feature in the plot.
+        required: true
+      time:
+        description: When the cut was taken, to the millisecond, Zulu (SUB-01).
+        range: UtcTimestamp
+        required: true
+      bearing:
+        description: The bearing to the target, true, clockwise from north, from 0 up to 360 degrees.
+        range: Angle
+        required: true
+        inlined: true
+      ambiguous_bearing:
+        description: >-
+          A towed array's ambiguous bearing: the mirror image of bearing about
+          the array, on the other side of the host's course. Left out for a
+          cut that was never ambiguous.
+        range: Angle
+        inlined: true
+      resolved:
+        description: >-
+          Which of the two bearings the analyst kept, for a cut with an
+          ambiguous bearing; left out while it is unresolved, when both are
+          drawn. Each resolution, of one cut or of every cut in a period, is
+          one recorded, undoable step with provenance (product owner, 24 Oct
+          2026), and can be undone or reset to ambiguous.
+        range: SensorCutKeptEnum
+      range:
+        description: >-
+          How far the target was, where the source says: the cut is drawn to
+          that range. Left out, drawn past the edge of the view.
+        range: Length
+        inlined: true
+      origin:
+        description: >-
+          [longitude, latitude] of the sensor, where the source recorded it
+          with the cut (legacy Debrief's absolute origin): the cut is drawn
+          from there instead of from the host track. Left out, from the host
+          track's position at the cut's time.
+        range: float
+        array:
+          exact_number_dimensions: 1
+          dimensions:
+            - exact_cardinality: 2
+      label:
+        description: Text the source gives the cut, such as legacy Debrief's label.
+      comment:
+        description: Free text about the cut.
+      colour:
+        description: >-
+          The cut's own colour, lower-case hex RGB; left out, its sensor's,
+          as legacy Debrief lets a cut take its sensor's colour.
+        pattern: "^#[0-9a-f]{6}$"
+      hidden:
+        description: Not drawn on the map. Content, like hiding any feature (SUB-22).
+        range: boolean
+
+  AmbiguityResolution:
+    description: >-
+      Ambiguous cuts resolved, or made ambiguous again, as the map, a menu or
+      an agent asks (CAP-22): one recorded, undoable step (product owner, 24
+      Oct 2026). The cuts are those named, or else the cuts of the sensors
+      named within a period (the time window, as the analyst sets it). Cuts
+      with no ambiguous bearing are left as they are, and the step says how
+      many.
+    attributes:
+      keep: {range: AmbiguityKeepEnum, required: true}
+      cut_ids:
+        description: The cuts to resolve, by feature id. Or give sensor_ids, and perhaps a period.
+        multivalued: true
+      sensor_ids:
+        description: Sensors whose cuts in the period are resolved; every cut of each, without a period.
+        multivalued: true
+      period:
+        description: The cuts whose times fall in it, ends included, of the sensors named.
+        range: TimeRange
+        inlined: true
+
   # --- Sensor observations --------------------------------------------------
   SensorObservationsFeature:
     description: >-
@@ -869,6 +1051,8 @@ classes:
           - range: TrackFeature
           - range: AnnotationFeature
           - range: SensorObservationsFeature
+          - range: SensorFeature
+          - range: SensorCutFeature
           - range: NarrativeFeature
           - range: PlotFeature
       named_sets:

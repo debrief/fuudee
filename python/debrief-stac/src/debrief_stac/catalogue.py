@@ -51,6 +51,7 @@ from debrief_stac import (
     frequencies,
     narrative,
     reckoning,
+    sensors,
     tracks,
 )
 from debrief_stac.figures import PLOT_LOG_LIMIT, revision_symbols
@@ -692,8 +693,14 @@ class Catalogue:
 
         def recolour(feature):
             props = feature.properties
+            if props.kind in ("sensor", "sensor_cut"):
+                # A sensor's cuts are drawn in its colour; a cut may have its own (CAP-22).
+                same = props.colour == colour
+                return None if same else props.model_copy(update={"colour": colour})
             if props.kind != "track":
-                raise CatalogueError(f"Only tracks have a colour; {props.name} is not a track.")
+                raise CatalogueError(
+                    f"Only tracks and sensors have a colour; {props.name} is neither."
+                )
             if props.style is not None and props.style.colour == colour:
                 return None
             style = (props.style or models.TrackStyle(colour=colour)).model_copy(
@@ -794,7 +801,7 @@ class Catalogue:
             feature = by_id.get(feature_id)
             if feature is None or feature.properties.kind == "plot":
                 raise CatalogueError(f"The plot has no feature {feature_id!r}.")
-            names.append(feature.properties.name)
+            names.append(sensors.name_of(feature, by_id))
             props = retime(feature)
             if props is not None:
                 modified.append(feature.model_copy(update={"properties": props}))
@@ -844,7 +851,7 @@ class Catalogue:
             feature = by_id.get(feature_id)
             if feature is None or feature.properties.kind == "plot":
                 raise CatalogueError(f"The plot has no feature {feature_id!r}.")
-            names.append(feature.properties.name)
+            names.append(sensors.name_of(feature, by_id))
             props = change(feature)
             if props is not None:
                 modified.append(feature.model_copy(update={"properties": props}))
@@ -1093,9 +1100,12 @@ class Catalogue:
         base: Base | None = None,
         *,
         allow_newer_schema: bool = False,
+        sensor_data: list[sensors.ReadSensor] | None = None,
     ) -> int:
         """Add entries read from a source (an importer's) to the plot, as one step with
-        the importer's record. Their ids are given new ones the plot does not use."""
+        the importer's record. Their ids are given new ones the plot does not use. A
+        document's bearings (a Rider's narrative, CAP-22) come in the same step as
+        sensor cuts (sensor_data)."""
         history = self.history(item_id)
         if base is None:
             base = history.base()
@@ -1105,6 +1115,8 @@ class Catalogue:
             plot = history.replay(base.current)
         ids = narrative.new_ids({f.id for f in plot.features}, len(features))
         added = [f.model_copy(update={"id": i}) for f, i in zip(features, ids, strict=True)]
+        if sensor_data:
+            added += self._sensors_added(plot, sensor_data, set(ids))
         return self.commit(
             item_id, [record], Changes(added=added), base, allow_newer_schema=allow_newer_schema
         )
@@ -1123,6 +1135,87 @@ class Catalogue:
                 else:
                     emptied.append(named.id)
         return Changes(deleted_ids=ids_list, named_sets=sets, deleted_named_set_ids=emptied)
+
+    # --- Sensors and their cuts (CAP-22) ------------------------------------------
+
+    def add_sensors(
+        self,
+        item_id: str,
+        read: list[sensors.ReadSensor],
+        record: models.ProvRecord,
+        base: Base | None = None,
+        *,
+        allow_newer_schema: bool = False,
+    ) -> tuple[int, list[str]]:
+        """Add sensors read from a source (an importer's), each with its cuts, to the plot
+        as one step with the importer's record: a .dsf or REP file's sensor lines read
+        into the open plot, say. Each names its host track by id. Returns the step and
+        the new sensors' ids."""
+        history = self.history(item_id)
+        if base is None:
+            base = history.base()
+            plot = history.plot()
+        else:
+            history.check_base(base)
+            plot = history.replay(base.current)
+        added = self._sensors_added(plot, read)
+        step = self.commit(
+            item_id, [record], Changes(added=added), base, allow_newer_schema=allow_newer_schema
+        )
+        touched = (
+            f.id if f.properties.kind == sensors.SENSOR else f.properties.sensor_id for f in added
+        )
+        return step, list(dict.fromkeys(touched))
+
+    @staticmethod
+    def _sensors_added(
+        plot: DebriefFeatureCollection,
+        read: list[sensors.ReadSensor],
+        taken: Iterable[str] = (),
+    ) -> list:
+        """Sensors read, as features to add: new sensors with their cuts, or cuts joining
+        the sensor of their name already on their track (legacy TrackWrapper.add)."""
+        names = {f.id: f.properties.name for f in plot.features if f.properties.kind == "track"}
+        for sensor in read:
+            if sensor.host_track_id not in names:
+                raise CatalogueError(
+                    f"The plot has no track {sensor.host_track_id!r} to carry {sensor.name}."
+                )
+        ids = {f.id for f in plot.features} | set(taken)
+        return sensors.build(read, ids, names, sensors.existing_sensors(plot))
+
+    def resolve_ambiguity(
+        self,
+        item_id: str,
+        resolution: models.AmbiguityResolution | dict,
+        agent: models.AgentRef,
+        base: Base | None = None,
+        *,
+        allow_newer_schema: bool = False,
+    ) -> int:
+        """Keep one side of ambiguous cuts, or make them ambiguous again (CAP-22): the cuts
+        named, or a sensor's cuts within a period (the time window), as one recorded,
+        undoable step (product owner, 24 Oct 2026), named like "Port bearings kept on 42
+        Towed array cuts, 09:00:00Z to 09:59:30Z", with what was asked in its record.
+        Port and starboard are of the host track's course at each cut's time, as the map
+        places it; the bearing recorded first decides, as legacy Debrief's did. Cuts with
+        no ambiguous bearing, or whose side cannot be told, are left, and the notes say
+        how many. SensorError (as CatalogueError) when nothing would change."""
+        try:
+            asked = sensors.resolution_from(resolution)
+        except sensors.SensorError as error:
+            raise CatalogueError(str(error)) from None
+
+        def change(plot: DebriefFeatureCollection):
+            done = sensors.resolve(plot, asked)
+            record = {
+                "notes": done.notes,
+                "parameters": sensors.resolution_parameters(asked),
+                "selected": list(asked.cut_ids or asked.sensor_ids or []),
+            }
+            return Changes(modified=done.modified), done.note, None, record
+
+        return self._change(item_id, change, agent, base, allow_newer_schema)[0]
 
     # --- Tracks: moved, rotated, split and merged by hand (CAP-01, CAP-02) ------
 
@@ -1471,6 +1564,36 @@ class Catalogue:
                     modified.append(feature.model_copy(update={"properties": hosted}))
                 elif parse_utc(props.time_range.end) >= at_ms:
                     across.append(props.name)
+            # Sensors (CAP-22): cuts from the split on go with the second part, a sensor of
+            # its own of the same name where the sensor had cuts before it too, so every
+            # cut is still drawn from its host.
+            added_sensors: list = []
+            moved: list[str] = []
+            taken = {f.id for f in plot.features} | {second_id}
+            for sensor in sensors.sensors(plot):
+                if sensor.properties.host_track_id != feature_id:
+                    continue
+                own = sensors.cuts(plot, sensor.id)
+                later = [c for c in own if parse_utc(c.properties.time) >= at_ms]
+                if not later:
+                    continue
+                if len(later) == len(own):
+                    hosted = sensor.properties.model_copy(update={"host_track_id": second_id})
+                    modified.append(sensor.model_copy(update={"properties": hosted}))
+                    continue
+                new_id = sensors.new_sensor_id(chosen[1], sensor.properties.name, taken)
+                hosted = sensor.properties.model_copy(update={"host_track_id": second_id})
+                added_sensors.append(sensor.model_copy(update={"id": new_id, "properties": hosted}))
+                modified += [
+                    c.model_copy(
+                        update={"properties": c.properties.model_copy(update={"sensor_id": new_id})}
+                    )
+                    for c in later
+                ]
+                moved.append(
+                    f"{sensor.properties.name}: its {len(later):,} cuts from the split on are a "
+                    f"sensor of {chosen[1]}'s"
+                )
             sets = [
                 s.model_copy(update={"feature_ids": _after(s.feature_ids, feature_id, second_id)})
                 for s in plot.named_sets or []
@@ -1488,6 +1611,7 @@ class Catalogue:
                         f"{n} runs past the split and stays with {first.properties.name}"
                         for n in across
                     ),
+                    *moved,
                 ],
                 "parameters": [
                     models.ParameterValue(name="at", value=at),
@@ -1496,7 +1620,10 @@ class Catalogue:
                 ],
                 "selected": [feature_id],
             }
-            changes = Changes(added=[second], modified=modified, named_sets=sets, order=order)
+            order += [s.id for s in added_sensors]
+            changes = Changes(
+                added=[second, *added_sensors], modified=modified, named_sets=sets, order=order
+            )
             return changes, note, [feature_id, second_id], record
 
         return self._change(item_id, change, agent, base, allow_newer_schema)
@@ -1528,7 +1655,7 @@ class Catalogue:
             modified: list = [merged]
             for feature in plot.features:
                 props = feature.properties
-                if props.kind == "sensor_observations" and props.host_track_id in gone:
+                if props.kind in ("sensor_observations", "sensor") and props.host_track_id in gone:
                     hosted = props.model_copy(update={"host_track_id": merged.id})
                     modified.append(feature.model_copy(update={"properties": hosted}))
             sets = []
@@ -1768,6 +1895,7 @@ class Catalogue:
             narrative.NarrativeError,
             tracks.TrackError,
             collation.CollationError,
+            sensors.SensorError,
         ) as error:
             raise CatalogueError(str(error)) from None
         if made is None:

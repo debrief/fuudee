@@ -102,6 +102,7 @@ class DocEntry:
     fcs: Fcs | None = None
     # A Rider entry's bearing (and its ambiguous twin): a sensor cut, in legacy Debrief.
     bearing: int | None = None
+    ambiguous: int | None = None
 
 
 @dataclass
@@ -691,7 +692,11 @@ def read_rider(doc: Document) -> DocumentRead:
                 out.problems.append(f"Row {number}: {bearing_text!r} is not a bearing.")
         beam = None if not beam_text or beam_text.upper() == "NO BM" else beam_text
         written = rider_text(remove_bad_chars(prefix + text), bearing, ambiguous, beam)
-        out.entries.append(DocEntry(when, platform, RIDER_TYPE, written, number, bearing=bearing))
+        out.entries.append(
+            DocEntry(
+                when, platform, RIDER_TYPE, written, number, bearing=bearing, ambiguous=ambiguous
+            )
+        )
     return out
 
 
