@@ -1,0 +1,41 @@
+{
+ "shots": [
+  {
+   "source": "blog/posts/2026-10-25-sensor-bearings.md",
+   "url": "blog/2026/10/25/sensor-bearings/",
+   "title": "Sensor bearings",
+   "file": "blog-posts-2026-10-25-sensor-bearings.png"
+  },
+  {
+   "source": "guides/glossary.md",
+   "url": "guides/glossary/",
+   "title": "Glossary",
+   "file": "guides-glossary.png"
+  },
+  {
+   "source": "guides/interaction-models/index.md",
+   "url": "guides/interaction-models/",
+   "title": "Interaction models",
+   "file": "guides-interaction-models-index.png"
+  },
+  {
+   "source": "guides/interaction-models/keyboard-equivalents.md",
+   "url": "guides/interaction-models/keyboard-equivalents/",
+   "title": "Keyboard equivalents",
+   "file": "guides-interaction-models-keyboard-equivalents.png"
+  },
+  {
+   "source": "guides/interaction-models/sensors.md",
+   "url": "guides/interaction-models/sensors/",
+   "title": "Sensors and bearings",
+   "file": "guides-interaction-models-sensors.png"
+  },
+  {
+   "source": "guides/interaction-models/timeline.md",
+   "url": "guides/interaction-models/timeline/",
+   "title": "Timeline and narrative",
+   "file": "guides-interaction-models-timeline.png"
+  }
+ ],
+ "more": 1
+}
