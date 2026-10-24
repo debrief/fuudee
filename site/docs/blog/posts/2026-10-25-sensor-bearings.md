@@ -17,7 +17,7 @@ Bearings are where TMA starts. Legacy Debrief drew a platform's sensor cuts as l
 
 The sample's BLUE ONE now carries two sensors: a **bow sonar** (teal) and a **towed array** (purple). Each shows in the Outline under its track, saying how many cuts it has and how many are still ambiguous. With a twenty-minute window, the map draws only that window's cuts, each from where BLUE ONE was when it was taken. The bow sonar's point at RED ONE. The towed array's come in pairs: the array can't tell left from right, so each cut is two bearings mirrored about BLUE ONE's course, the one to port solid and the one to starboard darker and dashed. The cut current time is at is wider, with a dot where it was taken from.
 
-![The playground, dark theme, at 1366 by 768 pixels: BLUE ONE and RED ONE in the middle of the map, teal bow-sonar lines from BLUE ONE through RED ONE to the west, purple towed-array lines both west through RED ONE (solid) and east (dashed); the Outline shows BLUE ONE with Bow sonar, 261 cuts, and Towed array, 132 cuts, 132 ambiguous, under it; Port, Starboard and Both again under Sensor below it](images/phase-4/sensors-01-window.png)
+![The playground, dark theme, at 1366 by 768 pixels: BLUE ONE and RED ONE in the middle of the map, teal bow-sonar lines from BLUE ONE through RED ONE to the west, purple towed-array lines both west through RED ONE (solid) and east (dashed); the Outline shows BLUE ONE with Bow sonar, 261 cuts, and Towed array, 132 cuts, 132 ambiguous, under it](images/phase-4/sensors-01-window.png)
 
 Point at a line and it says what it is: the sensor and time, both bearings and the side each is on.
 
@@ -27,7 +27,7 @@ Point at a line and it says what it is: the sensor and time, both bearings and t
 
 **One cut:** click the line you believe and the other goes, one step: *Port bearing kept on Towed array cut at 09:21:00Z*. Right-click (or press and hold on a touch screen) for the cut's menu: keep either bearing, make it ambiguous again, or select it.
 
-**A period:** the usual case after a turn, when the true bearings held steady and their mirrors swung. A sensor's menu in the Outline (right-click, or `Shift+F10`), or **Port…** and **Starboard…** under *Sensor*: choose the side, then which cuts, the one at current time, those in the time window, those you've selected, or all of them, each saying how many it holds.
+**A period:** the usual case after a turn, when the true bearings held steady and their mirrors swung. A sensor's menu in the Outline (right-click, or `Shift+F10`), or, with the sensor selected, **Port…** and **Starboard…** under *Sensor*: choose the side, then which cuts, the one at current time, those in the time window, those you've selected, or all of them, each saying how many it holds.
 
 ![The Towed array's menu from the keyboard: after Keep port bearing, a list: The cut at the current time (1 cut, 1 with two bearings), Cuts in the time window (19 cuts, 19 with two bearings), All cuts (132 cuts, 132 with two bearings)](images/phase-4/sensors-03-which-cuts.png)
 
@@ -66,9 +66,9 @@ The same, in VS Code's own way: sensors under their track in the Outline, **Ambi
 
 ## Try it
 
-Set a short window in *Time*, then click one of the towed array's dashed lines, or use **Port…** under *Sensor*:
+Set a short window in *Time*, then click one of the towed array's dashed lines, or select the Towed array in the Outline and use **Port…** under *Sensor*:
 
-<div class="debrief-demo" data-demo="?panels=history" data-height="820px" data-caption="Set a short time window, then click a towed-array line to keep it, or Port… under Sensor for the window. Undo takes it back. Everything runs in your browser."></div>
+<div class="debrief-demo" data-demo="?panels=history" data-height="820px" data-caption="Set a short time window, then click a towed-array line to keep it, or select the Towed array and use Port… under Sensor for the window. Undo takes it back. Everything runs in your browser."></div>
 
 ## Not yet
 

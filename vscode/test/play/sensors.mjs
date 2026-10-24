@@ -38,9 +38,15 @@ export async function playSensors(page, shot) {
   await page.locator("#timebar .tc-end").focus();
   await page.keyboard.press("End");
   // Current time an hour or so before the end, with cuts heard before it.
-  await page.locator("#timebar .tc-current").focus();
-  await page.keyboard.press("End");
-  await page.keyboard.press("PageDown"); // 50 min back, a step being 5 min
+  // Until it holds: a plot shown again after the tests before this one may put current time back.
+  const currentAt = () => page.locator("#timebar .tc-current").inputValue().then(Number);
+  for (let tries = 0; tries < 10; tries++) {
+    await page.locator("#timebar .tc-current").focus();
+    await page.keyboard.press("End");
+    await page.keyboard.press("PageDown"); // 50 min back, a step being 5 min
+    await page.waitForTimeout(500);
+    if ((await currentAt()) >= Date.parse("2023-06-15T10:30:00.000Z")) break;
+  }
   await mapFrame.locator("#map").focus();
   await page.keyboard.press("Escape");
   await page.waitForFunction(() => !document.querySelector("#outline li.selected"));
@@ -52,7 +58,12 @@ export async function playSensors(page, shot) {
   assert.deepEqual(rows.slice(blue + 1, blue + 3), ["sensor-blue-one-bow-sonar", "sensor-blue-one-towed-array"], "sensors under their host track");
   const towedDetail = await row("sensor-blue-one-towed-array").locator(".detail").innerText();
   assert.match(towedDetail, /^\d+ cuts · \d+ ambiguous/);
-  assert.equal(await page.locator("#sensor-group").isVisible(), true, "the Sensor actions, for a plot with sensors");
+  assert.equal(await page.locator("#sensor-group").isVisible(), false, "the Sensor actions only while a sensor or a cut is selected");
+  await row("sensor-blue-one-towed-array").click();
+  await page.locator("#sensor-group").waitFor();
+  await mapFrame.locator("#map").focus();
+  await page.keyboard.press("Escape");
+  await page.waitForFunction(() => !document.querySelector("#outline li.selected"));
 
   // On the map: every cut in the window, the current ones emphasised; the legend says what is what.
   const all = await drawn();
@@ -61,7 +72,9 @@ export async function playSensors(page, shot) {
 
   // One for each sensor with a cut heard by then (tests before this one may have split BLUE ONE, and with it its sensors).
   const sensorRows = await page.locator("#outline li.sensor").count();
-  assert.ok((await drawn("current")) >= 2 && (await drawn("current")) <= sensorRows, "one current cut for each sensor");
+  await page.waitForFunction(() => Number(document.querySelector(".frame-map").contentDocument.querySelector("canvas.sensor-cuts")?.dataset.current) >= 1, null, { timeout: 5000 }).catch(() => {});
+  const currentNow = await drawn("current");
+  assert.ok(currentNow >= 1 && currentNow <= sensorRows, `one current cut for each sensor with a cut heard by then: ${currentNow} of ${sensorRows} sensors, at ${new Date(await currentAt()).toISOString()}`);
   assert.equal(await mapFrame.locator(".swatch-cut-twin").evaluate((s) => s.parentElement.hidden), false, "the key has a row for a cut's other bearing");
   await page.mouse.move(2, 2);
   await shot("sensors-01-map");
@@ -206,6 +219,8 @@ export async function playSensors(page, shot) {
   assert.ok(median(windowed2) < 50, "moving the window repaints within budget (generously, for a slow machine)");
 
   // Narrow, and in a wide font: the Outline's rows and the Sensor actions never scroll sideways, nor cut a label short.
+  await row("sensor-blue-one-towed-array").click();
+  await page.locator("#sensor-group").waitFor();
   const sideways = () =>
     page.evaluate(() => [
       ...["#body-outline", "#outline", ".outline-tools"].flatMap((s) => {

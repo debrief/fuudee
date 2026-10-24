@@ -1560,7 +1560,10 @@ function renderOutline(): void {
   const carried = new Map<string, SensorEntry[]>();
   for (const entry of entries) carried.set(entry.sensor.properties.host_track_id, [...(carried.get(entry.sensor.properties.host_track_id) ?? []), entry]);
   const sensorEntry = new Map(entries.map((e) => [e.sensor.id, e]));
-  $("sensor-group").hidden = !entries.length;
+  // What can be done to a sensor, below the list as for a track: shown while a sensor or a cut is selected,
+  // so the list keeps its rows (a sensor's menu in the list has the same, whatever is selected).
+  const sensorChosen = new Set([...entries.map((e) => e.sensor.id), ...entries.flatMap((e) => e.cuts.map((c) => c.id))]);
+  $("sensor-group").hidden = !selection.some((id) => sensorChosen.has(id));
   list.replaceChildren(
     ...features()
       .filter((f) => f.properties.kind === "track" || f.geometry)
