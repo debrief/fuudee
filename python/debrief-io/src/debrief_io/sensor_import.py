@@ -36,8 +36,7 @@ from debrief_io.importer import Clock, _rep_text, wall_clock
 from debrief_io.narrative import _kept_source, earlier_words
 from debrief_io.narrative import earlier_reads as narrative_reads
 from debrief_io.rep import RepFile, RepSensorCut, colour_for, parse_rep
-from debrief_kernel.geodesy import TrackPath
-from debrief_kernel.time import format_utc
+from debrief_kernel.time import format_utc, parse_utc
 from debrief_schemas import DebriefFeatureCollection, models
 from debrief_stac import Base, Catalogue, CatalogueError, Conflict, History, HistoryError
 from debrief_stac import narrative as plot_narrative
@@ -176,11 +175,29 @@ def sensor_lines(parsed: RepFile) -> SensorLines:
     return out
 
 
+@dataclass(frozen=True)
+class Span:
+    """A host track's first and last fix times (ms): its cuts outside it are not drawn."""
+
+    start_ms: int
+    end_ms: int
+
+
+def spans(tracks) -> dict[str, Span]:
+    """Each track's span, from its first and last fix alone: parsing every fix time of a
+    track of 200,000 fixes took two seconds of a sensor import."""
+    return {
+        t.id: Span(parse_utc(t.properties.times[0]), parse_utc(t.properties.times[-1]))
+        for t in tracks
+        if t.properties.times
+    }
+
+
 def read_sensors(
     lines: SensorLines,
     hosts: dict[str, str | None],
     file_name: str,
-    paths: dict[str, TrackPath] | None = None,
+    paths: dict[str, Span] | None = None,
     track_names: dict[str, str] | None = None,
     *,
     in_file: bool = False,
@@ -431,7 +448,7 @@ def import_sensor(
             f"{path.name} is already in the plot: {earlier_words(earlier[-1])}. Nothing was "
             "read. Say again to read it in a second time."
         )
-    paths = {f.id: TrackPath.from_feature(f) for f in plot.features if f.properties.kind == "track"}
+    paths = spans(f for f in plot.features if f.properties.kind == "track")
     read, notes, omitted = read_sensors(lines, chosen, path.name, paths, ids)
     if not read:
         raise NoSensorDataError(f"Nothing would be read from {path.name}: {' '.join(omitted)}")

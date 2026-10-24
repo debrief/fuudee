@@ -335,7 +335,7 @@ KEEP_WORDS = {
 
 def resolve(plot: DebriefFeatureCollection, asked: models.AmbiguityResolution) -> Resolution:
     """The cuts asked for, resolved as asked (or made ambiguous again): those that change,
-    the step's name ("Port bearings kept on 42 Towed array cuts, 09:00:00Z to 09:59:30Z")
+    the step's name ("Port kept: 42 Towed array cuts 09:00:00Z–09:59:30Z")
     and its notes (cuts left as they were, and why)."""
     keep = str(asked.keep)
     chosen = _chosen_cuts(plot, asked)
@@ -412,17 +412,24 @@ def resolve(plot: DebriefFeatureCollection, asked: models.AmbiguityResolution) -
         raise SensorError(
             "Nothing to change: " + (" ".join(notes) or "the cuts are already as asked.")
         )
-    note = _step_name(keep, modified, sensor_names, sides, by_id)
-    return Resolution(modified, note, notes, [c.id for c in chosen])
+    note, span = _step_name(keep, modified, sensor_names, sides, by_id)
+    return Resolution(modified, note, [span, *notes] if span else notes, [c.id for c in chosen])
 
 
 def _count(n: int, noun: str) -> str:
     return f"{n:,} {noun}{'' if n == 1 else 's'}"
 
 
-def _step_name(keep, modified, sensor_names, sides, by_id) -> str:
-    """ "Port bearing kept on Towed array cut at 09:31:00Z"; "Starboard bearings kept on
-    42 Towed array cuts, 09:00:00Z to 09:59:30Z"; "3 cuts made ambiguous again"."""
+# The longest name the History shows a step by (the hosts' STEP_NAME_LENGTH); a longer one
+# leaves out its period, said in the step's next note instead.
+STEP_NAME_LENGTH = 64
+
+
+def _step_name(keep, modified, sensor_names, sides, by_id) -> tuple[str, str | None]:
+    """The step's name, short enough for the History: "Port bearing kept on Towed array
+    cut at 09:31:00Z"; "Starboard kept: 42 Towed array cuts 09:00:00Z–09:59:30Z";
+    "Ambiguous again: 3 Towed array cuts 09:00:00Z–09:02:00Z". And, if the name had to
+    leave out its period, a note saying it in full."""
     if keep in ("bearing", "ambiguous_bearing"):
         # A line clicked: say the side it is on, where the course tells it.
         keep_said = next(iter(sides), None)
@@ -433,14 +440,15 @@ def _step_name(keep, modified, sensor_names, sides, by_id) -> str:
     if len(modified) == 1:
         title = name_of(modified[0], by_id)
         if keep == "ambiguous":
-            return f"{title} made ambiguous again"
-        return f"{words} on {title}"
+            return f"{title} made ambiguous again", None
+        return f"{words} on {title}", None
     first, last = modified[0].properties.time, modified[-1].properties.time
-    span = f"{when(first)} to {when(last)}"
-    if keep == "ambiguous":
-        return f"{len(modified):,} {sensor} cuts made ambiguous again, {span}"
-    plural = words.replace("bearing kept", "bearings kept")
-    return f"{plural} on {len(modified):,} {sensor} cuts, {span}"
+    lead = "Ambiguous again" if keep == "ambiguous" else words.replace(" bearing kept", " kept")
+    cuts = f"{len(modified):,} {sensor} cuts"
+    name = f"{lead}: {cuts} {when(first)}–{when(last)}"
+    if len(name) <= STEP_NAME_LENGTH:
+        return name, None
+    return f"{lead}: {cuts}", f"{cuts} from {when(first)} to {when(last)}."
 
 
 def resolution_parameters(asked: models.AmbiguityResolution) -> list[models.ParameterValue]:

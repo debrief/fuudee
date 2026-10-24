@@ -786,7 +786,7 @@ class ToolService:
         legacy Debrief's Keep port bearing), bearing or ambiguous_bearing (the bearing
         recorded first, or its twin), or ambiguous; the cuts are cut_ids, or sensor_ids
         and perhaps a period ({start, end}: the time window, say). Named like "Port
-        bearings kept on 42 Towed array cuts, 09:00:00Z to 09:59:30Z".
+        kept: 42 Towed array cuts 09:00:00Z–09:59:30Z".
 
         import_sensor reads a .dsf (or REP) file's ;SENSOR:, ;SENSOR2: and ;SENSOR3:
         lines into the plot (path), the file kept as its source. hosts gives, for a track

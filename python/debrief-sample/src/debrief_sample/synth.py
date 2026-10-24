@@ -245,7 +245,8 @@ def towed_array_bearings(
 
     The truth is the geodesic bearing between the imported tracks; the noise is added to
     the angle off the array's axis, which both bearings share, so the twin is the exact
-    mirror image of the noisy bearing about ownship's course.
+    mirror image of the noisy bearing about ownship's course. Which of the two is given
+    first is random, as an array cannot tell them apart.
     """
     start = max(ownship.start_ms, target.start_ms)
     end = min(ownship.end_ms, target.end_ms)
@@ -271,5 +272,9 @@ def towed_array_bearings(
             continue
         measured = normalise_bearing(true_bearing.value + rng.gauss(0.0, model.bearing_sd_deg))
         mirror = normalise_bearing(2 * course - measured)
+        # An array cannot tell which is the true one, so neither comes first: the order is
+        # the toss of a coin seeded by the time alone, so the noise drawn is unchanged.
+        if random.Random(f"order:{time_ms}").random() < 0.5:
+            measured, mirror = mirror, measured
         out.append(AmbiguousBearing(time_ms, round(measured, 2), round(mirror, 2)))
     return out

@@ -94,7 +94,7 @@ def test_a_dsf_is_previewed_read_in_and_resolved_by_an_agent(client, catalogue, 
         "debrief/resolve_ambiguity",
         {**WHERE, "keep": "starboard", "sensor_ids": ["sensor-nelson-ta"], "period": period},
     ).json()["result"]
-    assert done["notes"][0] == "Starboard bearings kept on 2 TA cuts, 05:00:00Z to 05:05:00Z"
+    assert done["notes"][0] == "Starboard kept: 2 TA cuts 05:00:00Z–05:05:00Z"
     listed = rpc(client, "debrief/sensors", WHERE).json()["result"]["sensors"]
     assert (listed[0]["ambiguous"], listed[0]["resolved"]) == (1, 2)
     rpc(client, "debrief/undo", WHERE)

@@ -32,7 +32,7 @@ In collation, a source is a **catalogue item**: an imported file, kept as a plot
 
 **Island** (in guides). View state saved inside the plot file, so it travels with the plot, but outside its history: never recorded, never undone. The time window is the first, and the Tote's choice of tracks another. Everything else in a plot, a track's colour and what is hidden included, is part of its history (SUB-22).
 
-**Feature.** Anything in a plot: a track, an annotation, or a set of sensor observations. Used where a statement covers all three, as in "Plot features" in the outline; otherwise name the kind.
+**Feature.** Anything in a plot: a track, an annotation, a sensor, a sensor's cut, a narrative entry, or a set of sensor observations. Used where a statement covers them all, as in "Plot features" in the outline; otherwise name the kind.
 
 **Fix.** A single timestamped position of a platform, with course, speed and depth where known. Depth is positive down.
 
@@ -118,15 +118,17 @@ In collation, a source is a **catalogue item**: an imported file, kept as a plot
 
 ## Sensors and TMA
 
-**Sensor.** A device on a platform that observes others: sonar, radar or visual.
+**Sensor.** A device on a platform that observes others: sonar, radar or visual. In a plot, a sensor is carried by its platform's track, its **host**, and shows in the Outline under it, saying how many cuts it has and how many are ambiguous (CAP-22).
 
-**Sensor observations** (**contacts**, **cuts**). Measurements from a sensor, in Debrief usually bearings. Weeks of them may be held as one set (CON-02).
+**Cut** (**sensor cut**, **contact**). One observation by a sensor: a bearing at a time, and perhaps an ambiguous bearing, a range, a label and a comment. Drawn on the map as a line from where its host was at its time, only in the time window. The **current cut** is each sensor's last cut at or before current time, drawn wider.
+
+**Sensor observations.** Measurements from a sensor held as one opaque set (CON-02), for observation kinds Debrief does not yet draw cut by cut.
 
 **Bearing.** The direction from one position to another, measured clockwise from true north. A **relative bearing** is measured from the platform's own heading; the Tote takes the primary's course as its heading, and writes relative bearings red to port and green to starboard: `R045.0°`, `G120.0°`. Debrief displays true bearings as three figures: `045.0°T`.
 
-**Ambiguous bearing.** A towed-array bearing that could be on either side of the array: two candidate bearings mirrored about the array's axis. The analyst resolves each to one side (CAP-22).
+**Ambiguous bearing.** A towed-array bearing that could be on either side of the array: two candidate bearings mirrored about the array's axis, drawn as two lines, the starboard one darker and dashed. The analyst **resolves** each to one side, by clicking the line to keep or for a period at once, as one step; **Make ambiguous again** brings both back (CAP-22). Port and starboard are told from the host's course at the cut's time.
 
-**Bearing error.** The uncertainty of a bearing, where the sensor data supplies it. Debrief can draw such a bearing as a wedge of that width (CAP-22).
+**Bearing error.** The uncertainty of a bearing. Debrief draws bearings as lines; none of the formats it reads gives an error it could draw (`;SENSOR3:`'s bearing accuracy has no agreed meaning), so wedges wait for a field agreed with the acoustic replay application's owners (product owner, 24 Oct 2026; CAP-22).
 
 **TMA** (target motion analysis). Estimating a target's course and speed from bearings, typically bearing-only from passive sonar. A **solution** is rooted in a selected period of bearings, and its positions match the bearing times (CAP-21).
 

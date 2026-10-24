@@ -1195,7 +1195,7 @@ class Catalogue:
     ) -> int:
         """Keep one side of ambiguous cuts, or make them ambiguous again (CAP-22): the cuts
         named, or a sensor's cuts within a period (the time window), as one recorded,
-        undoable step (product owner, 24 Oct 2026), named like "Port bearings kept on 42
+        undoable step (product owner, 24 Oct 2026), named like "Port kept: 42
         Towed array cuts, 09:00:00Z to 09:59:30Z", with what was asked in its record.
         Port and starboard are of the host track's course at each cut's time, as the map
         places it; the bearing recorded first decides, as legacy Debrief's did. Cuts with

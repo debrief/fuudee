@@ -194,7 +194,7 @@ def test_a_period_is_one_step_for_every_cut_in_it(catalogue: Catalogue) -> None:
     )
     assert resolved(catalogue) == [None] * 10 + ["bearing"] * 10 + [None] * 10
     record = last_record(catalogue)
-    assert record.notes[0] == "Port bearings kept on 10 Towed array cuts, 09:10:00Z to 09:19:00Z"
+    assert record.notes[0] == "Port kept: 10 Towed array cuts 09:10:00Z–09:19:00Z"
     assert {p.name: p.value for p in record.parameters} == {
         "keep": "port",
         "sensors": sensor,
@@ -220,7 +220,7 @@ def test_cuts_can_be_made_ambiguous_again_as_a_step_of_their_own(catalogue: Cata
     catalogue.resolve_ambiguity("p", {"keep": "ambiguous", "cut_ids": ids[:5]}, AGENT)
     assert set(resolved(catalogue)) == {None}
     record = last_record(catalogue)
-    assert record.notes[0] == "3 Towed array cuts made ambiguous again, 09:00:00Z to 09:02:00Z"
+    assert record.notes[0] == "Ambiguous again: 3 Towed array cuts 09:00:00Z–09:02:00Z"
     assert "2 cuts already ambiguous." in record.notes
     assert len(catalogue.history("p").steps()) == 4
 

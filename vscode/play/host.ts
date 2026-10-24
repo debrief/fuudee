@@ -40,6 +40,8 @@ import { contextTracksOf, displayed, hiddenIds, isFeature, isHidden, setViewOf, 
 import { contextShown, type ContextTracks } from "../webview/contrast.js";
 import { placeToolTime } from "../webview/timelogic.js";
 import { TRACK_COLOURS } from "../webview/palette.js";
+import { cutChoices, cutNow, describeCut, featureName, hostCourse, KEEP_CHOICES, resolutionFor, scopeChoices, sensorDetail, sensorsOf, type Keep, type ResolveContext, type SensorEntry } from "../webview/sensors.js";
+import { describeSensorInFile, hostsToAsk, sensorReadSummary, type SensorPreview } from "../src/sensorimport.js";
 import { TimeControl } from "../webview/timecontrol.js";
 import { ToteControl } from "../webview/totecontrol.js";
 import { latencySummary, sameTote, toteOf, ToteRequests, toteTracks, withoutSecondary, withPrimary, withSecondaries } from "../webview/totelogic.js";
@@ -125,7 +127,7 @@ worker.onmessage = ({ data }) => {
   else call?.resolve(data.result);
 };
 /** Calls that change the open plot, its history or its island: refused while an earlier revision is shown read-only. */
-const CHANGES_PLOT = new Set(["run", "move", "restyle", "frequencies", "annotate", "track", "clean", "narrative", "set_view", "collate", "glitches", "crash", "colleague", "colleague_window"]);
+const CHANGES_PLOT = new Set(["run", "move", "restyle", "frequencies", "annotate", "track", "clean", "narrative", "sensor", "set_view", "collate", "glitches", "crash", "colleague", "colleague_window"]);
 function python(call: string, ...args: unknown[]): Promise<string> {
   if (opened?.revision && CHANGES_PLOT.has(call)) return Promise.resolve(JSON.stringify({ error: READ_ONLY }));
   const id = nextId++;
@@ -274,7 +276,8 @@ let colleagueDuringNextRun = false;
 
 /** The plot's features, without its whole-plot feature (the plot's own details and view). */
 const features = (): Feature[] => (opened?.plot.features ?? []).filter(isFeature);
-const selectedNames = () => selection.map((id) => features().find((f) => f.id === id)?.properties.name ?? id);
+const selectedNames = () => selection.map((id) => featureNameOf(id));
+const featureNameOf = (id: string) => { const f = features().find((g) => g.id === id); return f ? featureName(f, opened?.plot) : id; };
 
 /**
  * Current time over the plot's time window (its view, kept in the plot file outside
@@ -459,6 +462,9 @@ window.addEventListener("message", (event) => {
       });
     }
     if (message.kind === "fix_chosen") void openFixes(message.feature_id as string, message.fix_time as string);
+    // One of an ambiguous cut's two lines clicked: that bearing kept, as one step; right-click or press and hold: its menu (CAP-22).
+    if (message.kind === "resolve_asked") void resolveSensor({ keep: message.keep as Keep, cut_ids: [message.feature_id as string] });
+    if (message.kind === "cut_chosen") void cutMenu(message.feature_id as string);
     if (message.kind === "image_rendered") imageRendered?.(message as { image?: RenderedImage; message?: string });
     if (message.kind === "latest_asked" && opened) void openPlot(opened.item.id);
     if (message.kind === "annotation_drawn") {
@@ -670,14 +676,16 @@ async function restyle(ids: string[], change: { colour: string; colour_name: str
   await openPlot(opened.item.id, true);
 }
 const tracksSelected = () => selection.filter((id) => features().find((f) => f.id === id)?.properties.kind === "track");
+/** Tracks and sensors selected: what the Colour menu colours (a sensor's cuts are drawn in its colour, CAP-22). */
+const colourableSelected = () => selection.filter((id) => ["track", "sensor"].includes(features().find((f) => f.id === id)?.properties.kind ?? ""));
 $<HTMLSelectElement>("colour").append(...TRACK_COLOURS.map((c) => new Option(c.name, c.colour)));
 $<HTMLSelectElement>("colour").onchange = (e) => {
   const picker = e.target as HTMLSelectElement;
   const chosen = TRACK_COLOURS.find((c) => c.colour === picker.value);
   picker.value = "";
   if (!chosen) return;
-  if (!tracksSelected().length) return toast("Select one or more tracks to colour.", "warning");
-  void restyle(tracksSelected(), { colour: chosen.colour, colour_name: chosen.name.toLowerCase() });
+  if (!colourableSelected().length) return toast("Select one or more tracks or sensors to colour.", "warning");
+  void restyle(colourableSelected(), { colour: chosen.colour, colour_name: chosen.name.toLowerCase() });
 };
 $("hide").onclick = () => (selection.length ? void restyle(selection, { hidden: true }) : toast("Select what to hide.", "warning"));
 // With nothing selected, Show shows everything hidden, as the map's "Show all" does.
@@ -1547,27 +1555,37 @@ function renderOutline(): void {
   const list = $("outline");
   // Re-rendering replaces the rows: keep keyboard focus on the row that had it.
   const focused = list.contains(document.activeElement) ? (document.activeElement as HTMLElement).dataset.id : undefined;
+  // A sensor shows under its host track (CAP-22); its cuts, thousands of them, are on the map.
+  const entries = opened ? sensorsOf(opened.plot) : [];
+  const carried = new Map<string, SensorEntry[]>();
+  for (const entry of entries) carried.set(entry.sensor.properties.host_track_id, [...(carried.get(entry.sensor.properties.host_track_id) ?? []), entry]);
+  const sensorEntry = new Map(entries.map((e) => [e.sensor.id, e]));
+  $("sensor-group").hidden = !entries.length;
   list.replaceChildren(
     ...features()
       .filter((f) => f.properties.kind === "track" || f.geometry)
+      .flatMap((f) => [f, ...(carried.get(f.id) ?? []).map((e) => e.sensor as Feature)])
       .map((f) => {
         const row = document.createElement("li");
         const selected = selection.includes(f.id);
-        row.className = selected ? "selected" : "";
+        const isSensor = f.properties.kind === "sensor";
+        row.className = [selected ? "selected" : "", isSensor ? "sensor" : ""].filter(Boolean).join(" ");
         row.tabIndex = 0;
         row.dataset.id = f.id;
         row.setAttribute("role", "option");
         row.setAttribute("aria-selected", String(selected));
         const props = f.properties as { times?: string[]; time?: string };
         row.innerHTML = `<span class="name"></span> <span class="detail"></span>`;
-        row.querySelector(".name")!.textContent = f.properties.name;
+        row.querySelector(".name")!.textContent = featureName(f, opened?.plot);
         // A track plotted by dead reckoning: a small DR beside its name (decision, product owner, 14 Oct 2026).
         if (f.properties.kind === "track" && isDeadReckoned(f.properties)) {
           const tag = Object.assign(document.createElement("span"), { className: "tag", textContent: DR_TAG, title: "Plotted by dead reckoning (DR), from its first fix by each fix's course and speed" });
           tag.setAttribute("aria-label", "plotted by dead reckoning");
           row.querySelector(".name")!.after(" ", tag);
         }
-        const when = props.times ? describeTimes(props.times[0], props.times.at(-1)) : f.properties.kind;
+        const sensor = sensorEntry.get(f.id);
+        const when = sensor ? sensorDetail(sensor) : props.times ? describeTimes(props.times[0], props.times.at(-1)) : f.properties.kind;
+        if (sensor) row.title = `${featureName(f)}, a sensor of ${sensor.host ? sensor.host.properties.name : "a track not in the plot"}: ${when}. Right-click, press and hold, or Shift+F10 to keep port or starboard bearings`;
         row.querySelector(".detail")!.textContent = isHidden(f) ? `hidden on map · ${when}` : when;
         if (f.properties.kind === "track") {
           // Its details when pointed at, its labels, symbols and arrows among them; those set on a line of their own (CAP-32).
@@ -1581,18 +1599,20 @@ function renderOutline(): void {
           void select(ids);
         };
         row.onclick = (e) => choose(e.ctrlKey || e.metaKey || e.shiftKey);
-        if (f.properties.kind === "track") {
-          // Its menu: right-click, press and hold on a touch screen, or Shift+F10 (the Tote, CAP-06).
+        // Its menu: right-click, press and hold on a touch screen, or Shift+F10 (a track's: the
+        // Tote, CAP-06; a sensor's: keeping a side of its ambiguous cuts, CAP-22).
+        const menu = f.properties.kind === "track" ? trackMenu : isSensor ? sensorMenu : undefined;
+        if (menu) {
           row.oncontextmenu = (e) => {
             e.preventDefault();
-            trackMenu(f.id, e.clientX, e.clientY, row);
+            menu(f.id, e.clientX, e.clientY, row);
           };
         }
         row.onkeydown = (e) => {
-          if (f.properties.kind === "track" && (e.key === "ContextMenu" || (e.key === "F10" && e.shiftKey))) {
+          if (menu && (e.key === "ContextMenu" || (e.key === "F10" && e.shiftKey))) {
             e.preventDefault();
             const box = row.getBoundingClientRect();
-            return trackMenu(f.id, box.left + 24, box.bottom, row);
+            return menu(f.id, box.left + 24, box.bottom, row);
           }
           // Only Enter and Space select; every other key (Tab above all) does what it always does.
           if (e.key !== "Enter" && e.key !== " ") return;
@@ -1625,7 +1645,7 @@ function trackMenu(id: string, x: number, y: number, from: HTMLElement): void {
         void chooseTote(change());
       },
     })),
-    { label: `${features().find((f) => f.id === id)?.properties.name ?? id}: Tote`, x, y, from },
+    { label: `${featureNameOf(id)}: Tote`, x, y, from },
   );
 }
 // Press and hold a track in the outline on a touch screen: its menu, as a right-click (presshold.ts).
@@ -1664,6 +1684,126 @@ outlineList.addEventListener(
   },
   true,
 );
+
+// --- Sensors: ambiguous bearings resolved, sensor data read in (CAP-22) -------------------
+/** Keep a side of ambiguous cuts, or make them ambiguous again, or read a file's sensor lines in, as debrief/resolve_ambiguity and debrief/import_sensor do: one step each. */
+async function sense<T>(change: Record<string, unknown>, data?: Uint8Array): Promise<T & { error?: string; notes?: string[] }> {
+  if (!opened || !pythonReady) return { error: "Open a plot first." } as T & { error: string };
+  const outcome = await pythonJson<T & { error?: string; notes?: string[] }>("sensor", opened.item.id, JSON.stringify({ base: opened.base, change }), ...(data ? [data] : []));
+  if (!outcome.error) await openPlot(opened.item.id, true);
+  return outcome;
+}
+/** What the reader is looking at: the sensors asked about (else those selected or carrying selected cuts, else every sensor with ambiguous cuts), the selection, the window and current time. */
+function resolveContext(sensorIds?: string[]): ResolveContext | undefined {
+  if (!opened) return undefined;
+  const entries = sensorsOf(opened.plot);
+  const chosen = new Set(sensorIds ?? selection);
+  const byCut = new Map(entries.flatMap((e) => e.cuts.map((c) => [c.id, e.sensor.id] as const)));
+  const named = entries.filter((e) => chosen.has(e.sensor.id) || [...chosen].some((id) => byCut.get(id) === e.sensor.id));
+  const asked = named.length ? named : entries.filter((e) => e.cuts.some((c) => !!c.properties.ambiguous_bearing));
+  if (!asked.length) return undefined;
+  return {
+    entries: asked,
+    selected: selection,
+    ...(time && { window: { start: Date.parse(time.range.start), end: Date.parse(time.range.end) }, at: Date.parse(time.current) }),
+  };
+}
+/** Keep a side for the cut at the current time, those in the window, those selected or all: chosen from a menu at the control, then one step. */
+function chooseCuts(keep: Keep, from: HTMLElement, x: number, y: number, sensorIds?: string[]): void {
+  const context = resolveContext(sensorIds);
+  if (!context) return toast(opened && sensorsOf(opened.plot).length ? "No sensor in this plot has ambiguous cuts." : "This plot has no sensors.", "warning");
+  const keepLabel = KEEP_CHOICES.find((c) => c.keep === keep)!.label;
+  const scopes = scopeChoices(context);
+  if (!scopes.length) return toast("No cuts are in the time window.", "warning");
+  openMenu(
+    scopes.map((c) => ({
+      label: `${c.label} (${c.detail})`,
+      act: () => {
+        from.focus();
+        void resolveSensor(resolutionFor(c.scope, keep, context));
+      },
+    })),
+    { label: `${keepLabel}: which cuts?`, x, y, from },
+  );
+}
+async function resolveSensor(resolution: ReturnType<typeof resolutionFor>): Promise<void> {
+  if (typeof resolution === "string") return toast(resolution, "warning");
+  status("Resolving…", true);
+  const outcome = await sense<{ ok?: boolean }>({ kind: "resolve", resolution });
+  status("");
+  if (outcome.error) return toast(outcome.error, "warning");
+  if (outcome.notes?.length) toast(outcome.notes.join(" "));
+}
+/** A sensor's menu in the Outline: keep port or starboard bearings, or make its cuts ambiguous again; then which cuts. */
+function sensorMenu(id: string, x: number, y: number, from: HTMLElement): void {
+  openMenu(
+    [
+      ...KEEP_CHOICES.map((c) => ({ label: `${c.label}…`, act: () => chooseCuts(c.keep, from, x, y, [id]) })),
+      { label: "Cut at current time…", act: () => void currentCutMenu(id) },
+    ],
+    { label: `${featureNameOf(id)}: ambiguous bearings`, x, y, from },
+  );
+}
+/** The cut current time is at for a sensor: its bearings said, and its menu, so the keyboard reaches the cut the map emphasises. */
+async function currentCutMenu(id: string): Promise<void> {
+  const entry = opened && sensorsOf(opened.plot).find((e) => e.sensor.id === id);
+  const now = entry && time ? cutNow(entry, Date.parse(time.current), { start: Date.parse(time.range.start), end: Date.parse(time.range.end) }) : undefined;
+  if (!entry || !now) return toast(`${featureNameOf(id)} has no cut at or before current time in the time window.`, "warning");
+  await cutMenu(now.id);
+}
+for (const [button, keep] of [["keep-port", "port"], ["keep-starboard", "starboard"], ["keep-ambiguous", "ambiguous"]] as const) {
+  $(button).onclick = () => {
+    const box = $(button).getBoundingClientRect();
+    chooseCuts(keep, $(button), box.left, box.bottom);
+  };
+}
+/** A cut's menu (right-click, or press and hold, on one of its lines on the map): keep either bearing, make it ambiguous again, or select it. */
+async function cutMenu(id: string): Promise<void> {
+  const entry = opened && sensorsOf(opened.plot).find((e) => e.cuts.some((c) => c.id === id));
+  const cut = entry?.cuts.find((c) => c.id === id);
+  if (!entry || !cut) return;
+  const props = cut.properties;
+  const host = entry.host;
+  const course = host?.geometry ? hostCourse(host.geometry.coordinates as [number, number][], host.properties.times.map(Date.parse), Date.parse(props.time)) : undefined;
+  const choices = new Map<string, () => unknown>();
+  for (const choice of cutChoices(cut, course)) choices.set(choice.label, () => resolveSensor({ keep: choice.keep, cut_ids: [id] }));
+  choices.set("Select this cut", () => void select([id]));
+  const chosen = await ask(describeCut(cut, entry.sensor.properties.name, course).replace(/\n/g, ". "), [...choices.keys()]);
+  if (chosen) await choices.get(chosen)!();
+}
+// A .dsf or REP file's sensor lines read into the open plot (CAP-22), as one step, the file
+// kept as a source: a sensor whose track the plot has not is asked about, as legacy asked.
+$<HTMLInputElement>("sensor-file").onchange = async (e) => {
+  const input = e.target as HTMLInputElement;
+  const file = input.files?.[0];
+  input.value = "";
+  if (!file || !opened || !pythonReady) return;
+  const data = new Uint8Array(await file.arrayBuffer());
+  status(`Reading ${file.name}…`, true);
+  const preview = await pythonJson<SensorPreview & { error?: string }>("sensor_preview", opened.item.id, file.name, data);
+  status("");
+  if (preview.error) return toast(preview.error, "warning");
+  if (!preview.cuts) return toast(`No sensor cut could be read from ${preview.name}. ${preview.omitted.slice(0, 2).join(" ")}`.trim(), "warning");
+  let again = false;
+  if (preview.earlier.length) {
+    const last = preview.earlier[preview.earlier.length - 1];
+    if ((await ask(`${preview.name} was read into this plot before: ${last.how}, ${describePeriod(last.at)}.`, ["Read it again"])) !== "Read it again") return toast("Nothing was read.");
+    again = true;
+  }
+  const hosts: Record<string, string | null> = {};
+  for (const asked of hostsToAsk(preview)) {
+    const names = preview.tracks.map((t) => t.name);
+    const chosen = await ask(`Which track carries ${asked.track}'s sensors? ${asked.sensors.map(describeSensorInFile).join("; ")}.`, [...names, "Do not read these"]);
+    if (!chosen) return toast("Nothing was read.");
+    hosts[asked.track] = preview.tracks.find((t) => t.name === chosen)?.id ?? null;
+  }
+  status(`Reading ${file.name}…`, true);
+  const outcome = await sense<{ sensors: string[]; cuts: number; omitted: string[] }>({ kind: "import", name: file.name, hosts, again }, data);
+  status("");
+  if (outcome.error) return toast(outcome.error, "warning");
+  showPanel("panel-outline");
+  toast([sensorReadSummary(outcome, file.name), ...(outcome.notes ?? []), ...outcome.omitted].join(" "));
+};
 
 function renderTools(): void {
   const list = $("tools");
@@ -2091,7 +2231,7 @@ $("catalogue-import").hidden = !panels.has("import");
 const SIDE_ORDER = [...SIDE_FIRST, ...panelOrder.map((p) => `panel-${p}`).filter((id) => !SIDE_FIRST.includes(id) && optional(id)?.matches("#side > section.panel"))];
 for (const id of SIDE_ORDER) $("side").append($(id));
 /** History, Try and Import need Python: off until it is ready. */
-const NEEDS_PYTHON = ["export-image", "find-file", "find-id", "find-id-go", "new-data", "revise", "undo", "redo", "track-frequencies", "move-track", "rotate-track", "shear-track", "stretch-track", "split-track", "merge-tracks", "find-jumps", "smooth-track", "fix-list", "plotting-mode", "ask-again", "glitches", "crash", "colleague", "colleague-window", "colleague-during", "file", "narrative-file", "colour", "hide", "show", "add-annotation", "edit-annotation", "delete-annotation", "north-arrow"];
+const NEEDS_PYTHON = ["export-image", "find-file", "find-id", "find-id-go", "new-data", "revise", "undo", "redo", "track-frequencies", "move-track", "rotate-track", "shear-track", "stretch-track", "split-track", "merge-tracks", "find-jumps", "smooth-track", "fix-list", "plotting-mode", "ask-again", "glitches", "crash", "colleague", "colleague-window", "colleague-during", "file", "narrative-file", "sensor-file", "keep-port", "keep-starboard", "keep-ambiguous", "colour", "hide", "show", "add-annotation", "edit-annotation", "delete-annotation", "north-arrow"];
 function needsPython(on: boolean): void {
   for (const id of NEEDS_PYTHON) $<HTMLButtonElement | HTMLInputElement>(id).disabled = !on;
 }

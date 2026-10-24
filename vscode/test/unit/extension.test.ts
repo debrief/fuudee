@@ -91,7 +91,7 @@ describe("reading a catalogue Python wrote", () => {
   });
   it("opens a plot with its source", () => {
     const opened = openPlot(store, "serial-1");
-    expect(opened.plot.features.filter(isFeature).map((f) => f.properties.name)).toEqual(["NELSON", "BLUE", "TRAWLER 7"]);
+    expect(opened.plot.features.filter(isFeature).map((f) => (f.properties as { name?: string }).name)).toEqual(["NELSON", "BLUE", "TRAWLER 7"]);
     // The plot's own details, with its view: a time window over its period (SUB-22).
     expect(opened.plot.features.at(-1)?.properties.kind).toBe("plot");
     expect(timeWindowOf(opened.plot)).toEqual({ start: opened.item.properties.start_datetime, end: opened.item.properties.end_datetime });

@@ -278,7 +278,6 @@ def _sensor_features(parsed, features: list, report: ImportReport) -> list:
     its name (CAP-22); sensor lines for a track the file does not have are said, so they
     can be read into a plot that has it."""
     from debrief_io import sensor_import
-    from debrief_kernel.geodesy import TrackPath
     from debrief_stac import sensors
 
     lines = sensor_import.sensor_lines(parsed)
@@ -288,7 +287,7 @@ def _sensor_features(parsed, features: list, report: ImportReport) -> list:
     names = {f.properties.name: f.id for f in tracks.values()}
     hosts = {track: sensor_import.match_host(track, names) for track, _ in lines.groups}
     ids = {i: f.properties.name for i, f in tracks.items()}
-    paths = {i: TrackPath.from_feature(f) for i, f in tracks.items()}
+    paths = sensor_import.spans(tracks.values())
     read, notes, omitted = sensor_import.read_sensors(
         lines, hosts, report.item_id or "file", paths, ids, in_file=True
     )
