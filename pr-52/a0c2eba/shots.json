@@ -1,0 +1,23 @@
+{
+ "shots": [
+  {
+   "source": "blog/posts/2026-10-22-first-hour.md",
+   "url": "blog/2026/10/22/first-hour/",
+   "title": "The first hour: walkthroughs, and a web demo to try them in",
+   "file": "blog-posts-2026-10-22-first-hour.png"
+  },
+  {
+   "source": "blog/posts/2026-10-24-browser-layout.md",
+   "url": "blog/2026/10/24/browser-layout/",
+   "title": "Panels where you need them: a docked layout in the browser",
+   "file": "blog-posts-2026-10-24-browser-layout.png"
+  },
+  {
+   "source": "guides/style-guide/theme.md",
+   "url": "guides/style-guide/theme/",
+   "title": "Theme",
+   "file": "guides-style-guide-theme.png"
+  }
+ ],
+ "more": 0
+}
