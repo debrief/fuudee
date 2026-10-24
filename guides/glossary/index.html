@@ -901,6 +901,8 @@
       
         
       
+        
+      
     
     
     
@@ -1309,6 +1311,34 @@
     
   
     Timeline and narrative
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../interaction-models/sensors/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Sensors and bearings
   
 
     
@@ -1781,7 +1811,7 @@
 <p><strong>Saved window.</strong> The time window as saved in the plot. A tool that moves current time outside it shows a wider or moved window instead, without saving it; the time controller says so, with <strong>Keep</strong> to save the window shown and <strong>Revert</strong> to show the saved window again (CAP-28).</p>
 <p><strong>Context tracks.</strong> Each track's whole line outside the time window, drawn thin and quieter so the whole picture stays in view. A plot draws them visible (at least 3:1 against the map), faint or hidden (CAP-29).</p>
 <p><strong>Island</strong> (in guides). View state saved inside the plot file, so it travels with the plot, but outside its history: never recorded, never undone. The time window is the first, and the Tote's choice of tracks another. Everything else in a plot, a track's colour and what is hidden included, is part of its history (SUB-22).</p>
-<p><strong>Feature.</strong> Anything in a plot: a track, an annotation, or a set of sensor observations. Used where a statement covers all three, as in "Plot features" in the outline; otherwise name the kind.</p>
+<p><strong>Feature.</strong> Anything in a plot: a track, an annotation, a sensor, a sensor's cut, a narrative entry, or a set of sensor observations. Used where a statement covers them all, as in "Plot features" in the outline; otherwise name the kind.</p>
 <p><strong>Fix.</strong> A single timestamped position of a platform, with course, speed and depth where known. Depth is positive down.</p>
 <p><strong>Track.</strong> The movement of one platform over time: its fixes in order.</p>
 <p><strong>Annotation.</strong> A line, area, circle, ellipse, label, marker, note or period of interest drawn on or attached to a plot, or chart furniture such as the north arrow (CAP-03). An annotation with only a time, such as a note or a period, has no position (CAP-04). How it looks (colour, line, fill, label) is part of the plot: changing it is a step in its history. Write <em>annotation</em>, not <em>shape</em>, in the interface.</p>
@@ -1824,11 +1854,12 @@
 <p><strong>Highlighted phrases.</strong> Words or phrases the analyst names in the Timeline's menu (<strong>⋯</strong>), marked wherever they are in an entry's text. Like the filter, text size, wrapping and the columns shown, the analyst's own: kept in their view, never in the plot.</p>
 <p><strong>Serial.</strong> A period of an exercise, typically 4, 6, 12 or 24 hours.</p>
 <h2 id="sensors-and-tma">Sensors and TMA<a class="headerlink" href="#sensors-and-tma" title="Permanent link">&para;</a></h2>
-<p><strong>Sensor.</strong> A device on a platform that observes others: sonar, radar or visual.</p>
-<p><strong>Sensor observations</strong> (<strong>contacts</strong>, <strong>cuts</strong>). Measurements from a sensor, in Debrief usually bearings. Weeks of them may be held as one set (CON-02).</p>
+<p><strong>Sensor.</strong> A device on a platform that observes others: sonar, radar or visual. In a plot, a sensor is carried by its platform's track, its <strong>host</strong>, and shows in the Outline under it, saying how many cuts it has and how many are ambiguous (CAP-22).</p>
+<p><strong>Cut</strong> (<strong>sensor cut</strong>, <strong>contact</strong>). One observation by a sensor: a bearing at a time, and perhaps an ambiguous bearing, a range, a label and a comment. Drawn on the map as a line from where its host was at its time, only in the time window. The <strong>current cut</strong> is each sensor's last cut at or before current time, drawn wider.</p>
+<p><strong>Sensor observations.</strong> Measurements from a sensor held as one opaque set (CON-02), for observation kinds Debrief does not yet draw cut by cut.</p>
 <p><strong>Bearing.</strong> The direction from one position to another, measured clockwise from true north. A <strong>relative bearing</strong> is measured from the platform's own heading; the Tote takes the primary's course as its heading, and writes relative bearings red to port and green to starboard: <code>R045.0°</code>, <code>G120.0°</code>. Debrief displays true bearings as three figures: <code>045.0°T</code>.</p>
-<p><strong>Ambiguous bearing.</strong> A towed-array bearing that could be on either side of the array: two candidate bearings mirrored about the array's axis. The analyst resolves each to one side (CAP-22).</p>
-<p><strong>Bearing error.</strong> The uncertainty of a bearing, where the sensor data supplies it. Debrief can draw such a bearing as a wedge of that width (CAP-22).</p>
+<p><strong>Ambiguous bearing.</strong> A towed-array bearing that could be on either side of the array: two candidate bearings mirrored about the array's axis, drawn as two lines, the starboard one darker and dashed. The analyst <strong>resolves</strong> each to one side, by clicking the line to keep or for a period at once, as one step; <strong>Make ambiguous again</strong> brings both back (CAP-22). Port and starboard are told from the host's course at the cut's time.</p>
+<p><strong>Bearing error.</strong> The uncertainty of a bearing. Debrief draws bearings as lines; none of the formats it reads gives an error it could draw (<code>;SENSOR3:</code>'s bearing accuracy has no agreed meaning), so wedges wait for a field agreed with the acoustic replay application's owners (product owner, 24 Oct 2026; CAP-22).</p>
 <p><strong>TMA</strong> (target motion analysis). Estimating a target's course and speed from bearings, typically bearing-only from passive sonar. A <strong>solution</strong> is rooted in a selected period of bearings, and its positions match the bearing times (CAP-21).</p>
 <p><strong>Residual.</strong> The difference between a measured bearing and the bearing to the solution at the same time. Small, unpatterned residuals suggest a good solution.</p>
 <p><strong>Leg.</strong> A period of steady conditions. An <strong>ownship leg</strong> has steady course and speed; a <strong>bearing leg</strong> has a steady bearing rate. Changes of ownship leg give the geometry TMA needs.</p>

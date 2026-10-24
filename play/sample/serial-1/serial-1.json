@@ -39,9 +39,9 @@
     "start_datetime": "2023-06-15T08:00:00.000Z",
     "end_datetime": "2023-06-15T12:00:00.000Z",
     "title": "Serial 1",
-    "debrief:schema_version": "0.0.22",
+    "debrief:schema_version": "0.0.23",
     "created": "2026-10-11T00:00:00.000Z",
-    "debrief:revision": "sha256:3217b3fb130136991e54543658e0b3b111763d5c8ea6831ae002f07e28fcdff3",
+    "debrief:revision": "sha256:ffd0f4edf9b62219ae49d6ec00932f1d406818bb56950d663964a45c68299521",
     "debrief:coverage": [
       {
         "track": "track-blue-one",
@@ -159,9 +159,9 @@
       }
     ],
     "debrief:imported": false,
-    "debrief:origin": "sha256:22985368ca7db8f4a9a9465a773a5fa36b4c9d3954148167738d3d10f7e6bf14",
+    "debrief:origin": "sha256:08b7081c790bd0e0779588ef0498d2cff6b77af31b711e26fc4d8865820113c8",
     "debrief:revisions": [
-      "68BV7YRK04V9J7JM"
+      "ZZ8F9VFSPRH1KBJ9"
     ],
     "datetime": null
   },
@@ -212,15 +212,6 @@
       ],
       "debrief:asset_kind": "source",
       "debrief:content_hash": "sha256:6c9ff3d6fd59a9de619d9e079cfe8560514f4e48e7d96e86d136c719bd54b344"
-    },
-    "payload-bow-sonar-bearings.parquet": {
-      "href": "./payloads/bow-sonar-bearings.parquet",
-      "type": "application/vnd.apache.parquet",
-      "roles": [
-        "data"
-      ],
-      "debrief:asset_kind": "payload",
-      "debrief:content_hash": "sha256:6aa1379315d64bacaf19a2e37254da7d40fd2e9be604c6de8ea0ba14af9095f6"
     },
     "supporting_file-narrative.txt": {
       "href": "./media/narrative.txt",

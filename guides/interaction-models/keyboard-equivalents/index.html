@@ -905,6 +905,8 @@
       
         
       
+        
+      
     
     
     
@@ -1313,6 +1315,34 @@
     
   
     Timeline and narrative
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../sensors/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Sensors and bearings
   
 
     
@@ -1813,6 +1843,10 @@
 <td>The Timeline is a list: <code>Up</code>, <code>Down</code>, <code>Page Up</code>, <code>Page Down</code>, <code>Home</code> and <code>End</code> move through it, <code>Enter</code> or <code>Space</code> moves current time to the entry, <code>F2</code> changes a narrative entry, <code>Delete</code> deletes it, <code>N</code> adds one, <code>/</code> searches; <code>Ctrl+Z</code> undoes the plot's last step from the Timeline except in its text boxes (the search box and the form), where it undoes the typing (<a href="../timeline/#keyboard-and-touch">Timeline and narrative</a>). The entry on the map beside its track needs no gesture.</td>
 </tr>
 <tr>
+<td>Click one of an ambiguous cut's two lines to keep it; right-click (or press and hold) a cut for its menu; read a cut's bearings by pointing at it</td>
+<td>A sensor's menu in the Outline (<code>Shift+F10</code> or the menu key; press and hold on a touch screen): <strong>Ambiguous bearings: keep port or starboard…</strong>, then <strong>Keep port bearing</strong>, <strong>Keep starboard bearing</strong> or <strong>Make ambiguous again</strong>, then <strong>The cut at the current time</strong>, <strong>Cuts in the time window</strong>, <strong>Selected cuts</strong> or <strong>All cuts</strong>, each saying how many cuts it holds; one step. <strong>Cut at current time…</strong> on the same menu says the bearings and sides of the cut the map emphasises and opens its menu (keep either bearing, ambiguous again, select it): move current time to reach any cut. The Command Palette has both. In the playground, a sensor row's menu, and, with a sensor or a cut selected, <strong>Port…</strong>, <strong>Starboard…</strong> and <strong>Both again…</strong> under <em>Sensor</em> below the Outline. A sensor's details in the Outline say how many cuts are ambiguous and resolved (<a href="../sensors/">sensors and bearings</a>).</td>
+</tr>
+<tr>
 <td>Choose which catalogue item supplies a period of a track; take new data; confirm or refuse a platform</td>
 <td>Coverage: <code>Tab</code> to a period's list, pick with <code>↑</code> <code>↓</code> (no step yet) and press <code>Enter</code> or <strong>Set</strong>, the keyboard's way for clicking a source's bar; <strong>Take</strong>, <strong>Not now</strong>, <strong>Same platform</strong>, <strong>Not this platform</strong>, <strong>Unlink</strong> and <strong>Reviewed</strong> are buttons. In VS Code's Catalogues, an item's or a track's menu (<code>Shift+F10</code> or the menu key) has the same. There is no map gesture (<a href="../collation/#keyboard-and-touch">Collation</a>).</td>
 </tr>
@@ -1839,7 +1873,7 @@
 </tbody>
 </table>
 <h2 id="reference-implementation">Reference implementation<a class="headerlink" href="#reference-implementation" title="Permanent link">&para;</a></h2>
-<p><code>vscode/webview/mapedit.ts</code> (keys while drawing and on handles) and <code>vscode/webview/drawing.ts</code>; <code>vscode/webview/trackmap.ts</code> and <code>vscode/webview/trackedit.ts</code> for a track's handles. The playground tests <code>vscode/test/play/drawing.mjs</code> and <code>vscode/test/play/tracks.mjs</code> place a marker, change an area, move and rotate a track, <code>vscode/test/play/shear.mjs</code> shears and stretches one, and <code>vscode/test/play/fixdrag.mjs</code> moves a single fix, from the keyboard alone; <code>vscode/test/play/tote.mjs</code> chooses the Tote's tracks from the keyboard and by press and hold; <code>vscode/test/play/narrative.mjs</code> reads, chooses, adds, changes and deletes narrative entries from the keyboard.</p>
+<p><code>vscode/webview/mapedit.ts</code> (keys while drawing and on handles) and <code>vscode/webview/drawing.ts</code>; <code>vscode/webview/trackmap.ts</code> and <code>vscode/webview/trackedit.ts</code> for a track's handles. The playground tests <code>vscode/test/play/drawing.mjs</code> and <code>vscode/test/play/tracks.mjs</code> place a marker, change an area, move and rotate a track, <code>vscode/test/play/shear.mjs</code> shears and stretches one, and <code>vscode/test/play/fixdrag.mjs</code> moves a single fix, from the keyboard alone; <code>vscode/test/play/tote.mjs</code> chooses the Tote's tracks from the keyboard and by press and hold; <code>vscode/test/play/narrative.mjs</code> reads, chooses, adds, changes and deletes narrative entries from the keyboard; <code>vscode/test/play/sensors.mjs</code> keeps a side of a sensor's cuts in the window from the keyboard.</p>
 
 
 

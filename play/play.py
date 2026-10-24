@@ -28,12 +28,17 @@ from debrief_config import (
 )
 from debrief_io import (
     Choices,
+    HostNeeded,
     NoNarrativeError,
+    NoSensorDataError,
+    SensorReadBefore,
     import_document,
     import_dpf,
     import_narrative,
     import_rep,
+    import_sensor,
     preview_narrative,
+    preview_sensor,
 )
 from debrief_io.document_import import SUFFIXES as DOCUMENT_SUFFIXES
 from debrief_io.importer import rep_track_names
@@ -306,6 +311,61 @@ def narrative_preview(item: str | None, name: str, data: bytes) -> str:
             return json.dumps(preview_narrative(found, catalogue=_cat(), item_id=item))
         return json.dumps(preview_narrative(found))
     except (CatalogueError, HistoryError, NoNarrativeError, OSError) as error:
+        return json.dumps({"error": str(error)})
+
+
+def sensor(item: str, request_json: str, data: bytes | None = None) -> str:
+    """Keep a side of ambiguous cuts, or make them ambiguous again, or read a file's
+    sensor lines into the plot: each one recorded, undoable step (CAP-22), as
+    debrief/resolve_ambiguity and debrief/import_sensor do. request: base, and change:
+    {kind: "resolve", resolution} or {kind: "import", name, hosts, again}."""
+    request = json.loads(request_json)
+    base = Base(**request["base"]) if request.get("base") else None
+    change = request["change"]
+    try:
+        if change["kind"] == "resolve":
+            step = _cat().resolve_ambiguity(item, change["resolution"], YOU, base)
+            notes = _cat().history(item).steps()[step - 1].records[0].notes or []
+            return json.dumps({"ok": True, "notes": list(notes)})
+        done = import_sensor(
+            _cat(),
+            item,
+            _upload(change["name"], data or b""),
+            YOU,
+            base,
+            hosts=change.get("hosts") or {},
+            again=bool(change.get("again")),
+        )
+    except Conflict:
+        return json.dumps({"error": "The plot was changed elsewhere, so nothing was changed."})
+    except (
+        CatalogueError,
+        HistoryError,
+        HostNeeded,
+        SensorReadBefore,
+        NoSensorDataError,
+        OSError,
+        ValueError,
+    ) as error:
+        return json.dumps({"error": str(error)})
+    return json.dumps(
+        {
+            "ok": True,
+            "sensors": done.sensors,
+            "cuts": done.cuts,
+            "omitted": done.omitted,
+            "notes": done.notes,
+        }
+    )
+
+
+def sensor_preview(item: str, name: str, data: bytes) -> str:
+    """What a file's sensor lines hold, before they are read into the plot: which of
+    the plot's tracks carries each sensor, and whether it was read in before
+    (debrief/preview_sensor)."""
+    try:
+        return json.dumps(preview_sensor(_upload(name, data), catalogue=_cat(), item_id=item))
+    except (CatalogueError, HistoryError, OSError, ValueError) as error:
         return json.dumps({"error": str(error)})
 
 
