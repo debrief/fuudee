@@ -2385,7 +2385,7 @@ export function activate(context: vscode.ExtensionContext): DebriefApi {
         await vscode.window.showOpenDialog({
           canSelectMany: false,
           openLabel: "Read sensor data",
-          filters: { "Sensor data (DSF, REP)": ["dsf", "rep"], "All files": ["*"] },
+          filters: { "Sensor data (DSF, REP)": ["dsf", "DSF", "rep", "REP"], "All files": ["*"] },
         })
       )?.[0]?.fsPath;
     if (!path) return undefined;

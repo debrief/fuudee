@@ -546,9 +546,13 @@ export async function run(): Promise<void> {
     assert.match((await steps()).at(-1)?.notes?.[0] ?? "", /^Port kept: \d+ Towed array cuts \d\d:\d\d:\d\dZ–\d\d:\d\d:\d\dZ$/);
     assert.ok(cutsOf(towed).some(resolved), "resolved");
     assert.match(api.outlineChildren("track-blue-one")[1].description, / resolved$/);
+    // For the picture, a twenty-minute window, as an analyst reads bearings; then the window as it was.
+    const timeBefore = api.getState()?.time;
+    assert.equal(api.setState({ time: { current: "2023-06-15T09:33:00.000Z", range: { start: "2023-06-15T09:20:00.000Z", end: "2023-06-15T09:40:00.000Z" } } }), undefined);
     await vscode.commands.executeCommand("debrief.outline.focus");
     await sleep(1500);
     await screenshot("15d-sensors");
+    if (timeBefore) api.setState({ time: timeBefore });
     const again = await vscode.commands.executeCommand<Sensed>("debrief.resolveAmbiguity", { keep: "ambiguous", sensor_ids: [towed] });
     assert.equal(again.problem, undefined);
     assert.match((await steps()).at(-1)?.notes?.[0] ?? "", /^Ambiguous again: \d+ Towed array cuts /);
