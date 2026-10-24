@@ -8,7 +8,6 @@ dependencies = [
     "debrief-kernel",
     "debrief-schemas",
     "debrief-stac",
-    "pyarrow>=17",
 ]
 
 [tool.uv.sources]

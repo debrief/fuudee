@@ -10,7 +10,7 @@ What a walkthrough needs beyond the copy is made here too, so VS Code and the
 playground get the same: for *Tidy a track*, three GPS glitches in RED ONE as a
 step of their own; for *Import and collate*, BLUE ONE's navigation log as a REP
 file to import. The playground runs this module under Pyodide, so it imports
-nothing the browser lacks (no pyarrow: the package's builder is not imported).
+nothing it need not (the package's builder is not imported).
 """
 
 from __future__ import annotations
@@ -274,7 +274,7 @@ def prepare(folder: Path, tour: str) -> dict[str, str]:
     walkthrough there; for *Import and collate*, write the navigation log beside the
     catalogue (folder/blue-one-nav-log.rep), outside it, as a file waiting to be
     imported. Returns where things are, for the host to open."""
-    from debrief_sample.builder import build  # needs pyarrow: never imported in the browser
+    from debrief_sample.builder import build  # never imported in the browser
 
     if tour not in TOURS:
         raise ValueError(f"There is no walkthrough {tour!r}: choose one of {', '.join(TOURS)}.")
