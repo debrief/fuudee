@@ -1,0 +1,184 @@
+<!doctype html>
+<html lang="en-GB">
+<head>
+<meta charset="utf-8">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; connect-src 'self' https://cdn.jsdelivr.net; worker-src 'self' blob:; script-src 'self' 'wasm-unsafe-eval' https://cdn.jsdelivr.net; img-src 'self' data: blob:; style-src 'self' 'unsafe-inline'; font-src 'self' data:; object-src 'none'; form-action 'none'; base-uri 'self'">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="color-scheme" content="dark light">
+<title>Debrief in your browser</title>
+<link rel="stylesheet" href="theme.css">
+<link rel="stylesheet" href="timecontrol.css">
+<link rel="stylesheet" href="tote.css">
+<link rel="stylesheet" href="timeline.css">
+<link rel="stylesheet" href="coverage.css">
+<link rel="stylesheet" href="dockview.css">
+<link rel="stylesheet" href="host.css">
+<link rel="stylesheet" href="dock.css">
+</head>
+<body>
+<div class="app" id="app">
+  <!-- The top bar (product owner, 23 Oct 2026): the plot, and what is used now and then, as menus; the layout's reset. -->
+  <header id="topbar" class="topbar">
+    <div class="topbar-plot">
+      <label for="plots" class="topbar-label">Plot</label>
+      <select id="plots" aria-label="Plot" disabled><option>Loading…</option></select>
+      <span id="plot-title" class="detail topbar-title"></span>
+    </div>
+    <div class="topbar-actions">
+      <button type="button" id="open-import" class="menu-button" aria-expanded="false" aria-controls="panel-import" title="Import a REP file, a legacy plot, a narrative or a Debrief plot file: read in your browser, never uploaded">Import…</button>
+      <button type="button" id="open-export" class="menu-button" aria-expanded="false" aria-controls="panel-export" title="Export the map as an image, or find the source of one">Export<span class="menu-arrow" aria-hidden="true"></span></button>
+      <button type="button" id="open-try" class="menu-button" aria-expanded="false" aria-controls="panel-try" title="Things to try: a crash mid-save, a colleague's change, new data arriving">Try<span class="menu-arrow" aria-hidden="true"></span></button>
+      <button type="button" id="reset-layout" title="Put every panel back where it started" hidden>Reset layout</button>
+    </div>
+  </header>
+  <!-- The docked layout, 900 px wide and more (dock.ts); narrower, the side column below. -->
+  <div id="dock" class="dock" hidden></div>
+  <aside id="side" class="side">
+    <section class="panel" id="panel-tour">
+      <h2><button type="button" class="fold" aria-expanded="true" aria-controls="body-tour"><span class="arrow" aria-hidden="true"></span>Walkthroughs</button></h2>
+      <div class="panel-body" id="body-tour">
+        <div id="tour" class="tour"></div>
+      </div>
+    </section>
+    <section class="panel" id="panel-time">
+      <h2><button type="button" class="fold" aria-expanded="true" aria-controls="body-time"><span class="arrow" aria-hidden="true"></span>Time</button></h2>
+      <div class="panel-body" id="body-time">
+        <div id="timebar"></div>
+      </div>
+    </section>
+    <section class="panel" id="panel-tote">
+      <h2><button type="button" class="fold" aria-expanded="true" aria-controls="body-tote"><span class="arrow" aria-hidden="true"></span>Tote</button></h2>
+      <div class="panel-body" id="body-tote">
+        <div id="tote"></div>
+      </div>
+    </section>
+    <section class="panel" id="panel-outline">
+      <h2><button type="button" class="fold" aria-expanded="true" aria-controls="body-outline"><span class="arrow" aria-hidden="true"></span>Outline</button></h2>
+      <div class="panel-body" id="body-outline">
+        <div id="selected-count" class="detail"></div>
+        <ul id="outline" class="list" role="listbox" aria-multiselectable="true" aria-label="Features in the plot"></ul>
+        <!-- What can be done to the selection: docked, kept in sight below the list (dock.css). -->
+        <div class="outline-tools">
+          <div class="outline-actions" role="group" aria-label="The selected features">
+            <select id="colour" aria-label="Colour the selected tracks or sensors"><option value="">Colour…</option></select>
+            <button id="hide" title="Hide the selected features on the map">Hide</button>
+            <button id="show" title="Show the selected features, or every hidden feature, on the map">Show</button>
+          </div>
+          <div class="action-group" role="group" aria-labelledby="track-actions">
+            <span id="track-actions" class="action-label">Track</span>
+            <button id="move-track" title="Move the selected track, or its fixes in the time window, a distance along a bearing">Move…</button>
+            <button id="rotate-track" title="Rotate the selected track, or its fixes in the time window, about a pivot">Rotate…</button>
+            <button id="shear-track" title="Shear the selected track: hold one end, and give the rest a new course and speed">Shear…</button>
+            <button id="stretch-track" title="Stretch the selected track: hold one end, and give the rest a new speed on the same course">Stretch…</button>
+            <button id="split-track" title="Split the selected track into two at current time">Split…</button>
+            <button id="merge-tracks" title="Merge the selected tracks into one, in time order">Merge</button>
+            <button id="find-jumps" title="Find fixes the selected track could not have reached in time, check them, and remove those you choose">Jumps…</button>
+            <button id="smooth-track" title="Smooth the selected track, or its fixes in the time window, with a preview first">Smooth…</button>
+            <button id="fix-list" title="List the selected track's fixes, to colour, label, comment on or move one. Or right-click a fix on the map; on a touch screen, press and hold it">Fixes…</button>
+            <button id="plotting-mode" title="Plot the selected track over the ground (OTG), as logged, or by dead reckoning (DR), from its first fix by each fix's recorded course and speed">OTG/DR…</button>
+            <button id="track-frequencies" title="How often the selected tracks are labelled with the time, marked with a symbol and given a direction arrow: from every second to every 24 hours, or off">Frequencies…</button>
+          </div>
+          <div class="action-group" role="group" aria-labelledby="sensor-actions" id="sensor-group" hidden>
+            <span id="sensor-actions" class="action-label">Sensor</span>
+            <button id="keep-port" title="Keep the port bearing of ambiguous cuts: the cut at current time, those in the time window, those selected, or all. Or click one of a cut's two lines on the map">Port…</button>
+            <button id="keep-starboard" title="Keep the starboard bearing of ambiguous cuts: the cut at current time, those in the time window, those selected, or all">Starboard…</button>
+            <button id="keep-ambiguous" title="Make cuts ambiguous again: both bearings drawn, as read in">Both again…</button>
+          </div>
+          <div class="action-group" role="group" aria-labelledby="annotation-actions">
+            <span id="annotation-actions" class="action-label">Annotation</span>
+            <button id="add-annotation" title="Add a line, area, circle, ellipse, label, marker or note">Add…</button>
+            <button id="edit-annotation" title="Change the selected annotation: its position, size, time and style">Change…</button>
+            <button id="delete-annotation" title="Delete the selected annotations; Undo brings them back">Delete</button>
+            <button id="north-arrow" aria-pressed="false" title="Show or remove the north arrow on the map">North arrow</button>
+          </div>
+        </div>
+      </div>
+    </section>
+    <section class="panel" id="panel-timeline">
+      <h2><button type="button" class="fold" aria-expanded="true" aria-controls="body-timeline"><span class="arrow" aria-hidden="true"></span>Timeline</button></h2>
+      <div class="panel-body" id="body-timeline">
+        <div id="timeline" class="timeline"></div>
+      </div>
+    </section>
+    <section class="panel" id="panel-catalogue">
+      <h2><button type="button" class="fold" aria-expanded="true" aria-controls="body-catalogue"><span class="arrow" aria-hidden="true"></span>Catalogue</button></h2>
+      <div class="panel-body" id="body-catalogue">
+        <div class="catalogue-actions"><button type="button" id="catalogue-import" class="menu-button" aria-expanded="false" aria-controls="panel-import" title="Import a REP file, a legacy plot, a narrative or a Debrief plot file into the catalogue">Import…</button></div>
+        <ul id="items" class="items" aria-label="Items in the catalogue"></ul>
+      </div>
+    </section>
+    <section class="panel" id="panel-coverage">
+      <h2><button type="button" class="fold" aria-expanded="true" aria-controls="body-coverage"><span class="arrow" aria-hidden="true"></span>Coverage</button></h2>
+      <div class="panel-body" id="body-coverage">
+        <div id="coverage"></div>
+      </div>
+    </section>
+    <section class="panel" id="panel-tools">
+      <h2><button type="button" class="fold" aria-expanded="true" aria-controls="body-tools"><span class="arrow" aria-hidden="true"></span>Tools</button></h2>
+      <div class="panel-body" id="body-tools">
+        <ul id="tools" class="list tools"></ul>
+      </div>
+    </section>
+    <section class="panel" id="panel-history">
+      <div class="panel-head"><h2><button type="button" class="fold" aria-expanded="true" aria-controls="body-history"><span class="arrow" aria-hidden="true"></span>History</button></h2><span class="actions"><button id="undo" title="Undo (replay to the step before)">Undo</button><button id="redo" title="Redo">Redo</button></span></div>
+      <div class="panel-body" id="body-history">
+        <ul id="history" class="list"></ul>
+      </div>
+    </section>
+  </aside>
+  <main id="main" aria-label="Map">
+    <div id="side-frame" class="side-frame" hidden></div>
+  </main>
+  <footer><span id="status" class="status"></span></footer>
+</div>
+<!-- The top bar's menus: shown under their buttons, over the page. -->
+  <section class="menu-panel" id="panel-export" aria-labelledby="panel-export-heading" hidden>
+    <h2 id="panel-export-heading">Export image</h2>
+    <div class="panel-body" id="body-export">
+      <div class="export-form">
+        <label>Format <select id="export-format"><option value="png">PNG</option><option value="svg">SVG</option></select></label>
+        <label>Size <select id="export-preset"></select></label>
+        <label>Colours <select id="export-theme"><option value="current">As on screen</option><option value="light">Light, for print</option></select></label>
+        <label class="check"><input type="checkbox" id="export-footer" checked> Image ID in a corner</label>
+      </div>
+      <button id="export-image" class="primary" title="Save the map as you see it, as an image carrying an ID that traces it to this plot as it is now">Export image…</button>
+      <div id="export-said" class="detail export-said" role="status"></div>
+      <h3 class="sub">Find source of image</h3>
+      <label class="file">An image, or a Word or PowerPoint file of them <input id="find-file" type="file" accept=".png,.svg,.docx,.pptx,.odt,.odp,image/png,image/svg+xml"></label>
+      <form id="find-id-form" class="find-id">
+        <label for="find-id">Or the ID from its corner</label>
+        <span class="find-id-row"><input id="find-id" type="text" autocomplete="off" spellcheck="false" placeholder="DBF-PTET-KG8R-B9EM-69" aria-describedby="find-id-problem"><button id="find-id-go" type="submit">Find</button></span>
+        <span id="find-id-problem" class="detail problem" aria-live="polite"></span>
+      </form>
+      <div id="find-said" class="detail" role="status"></div>
+      <ul id="find-results" class="find-results"></ul>
+    </div>
+  </section>
+  <section class="menu-panel" id="panel-try" aria-labelledby="panel-try-heading" hidden>
+    <h2 id="panel-try-heading">Try</h2>
+    <div class="panel-body" id="body-try">
+      <button id="crash">Crash part-way through a save</button>
+      <button id="reopen" class="primary" hidden>Reopen the plot</button>
+      <button id="glitches">Put GPS glitches into the selected track</button>
+      <button id="colleague">A colleague changes the plot</button>
+      <button id="colleague-window">A colleague changes the time window</button>
+      <button id="colleague-during">A colleague changes it while your next tool runs</button>
+      <button id="new-data" title="A navigation log for this plot's first track is imported into the catalogue, as new data arrives">New data arrives for this plot</button>
+      <button id="revise" title="A colleague corrects an item this plot took data from: it may need review">A colleague revises an item this plot drew from</button>
+    </div>
+  </section>
+  <section class="menu-panel" id="panel-import" aria-labelledby="panel-import-heading" hidden>
+    <h2 id="panel-import-heading">Import your own</h2>
+    <div class="panel-body" id="body-import">
+      <label class="file">REP, legacy .dpf, a Word or PDF narrative, or a Debrief plot file <input id="file" type="file" accept=".rep,.REP,.dpf,.DPF,.xml,.geojson,.json,.docx,.doc,.pdf"></label>
+      <label class="file">A narrative into the open plot: REP <code>;NARRATIVE:</code> lines, Word (.docx, .doc) or PDF <input id="narrative-file" type="file" accept=".rep,.REP,.txt,.docx,.doc,.pdf"></label>
+      <label class="file">Sensor data into the open plot: a .dsf file, or REP <code>;SENSOR:</code> lines <input id="sensor-file" type="file" accept=".dsf,.DSF,.rep,.REP"></label>
+      <div class="detail">Read and imported in your browser; never uploaded.</div>
+      <div id="import-mode" class="detail import-mode"><span id="import-mode-text">Debrief asks, for each track of a REP file, whether it is plotted over the ground (OTG) or by dead reckoning (DR).</span> <button id="ask-again" hidden title="Forget the choice you made for future imports, and be asked for each track again">Ask again</button></div>
+    </div>
+  </section>
+<div id="toasts" class="toasts" aria-live="polite"></div>
+<dialog id="ask"><p id="ask-text"></p><div id="ask-buttons" class="buttons"></div></dialog>
+<script type="module" src="host.js"></script>
+</body>
+</html>
