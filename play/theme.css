@@ -16,6 +16,7 @@
   --vscode-icon-foreground: #cccccc;
   --vscode-contrastActiveBorder: transparent;
   --vscode-widget-border: #313131;
+  --vscode-widget-shadow: #0000005c;
   --vscode-editor-background: #1f1f1f;
   --vscode-editor-foreground: #cccccc;
   --vscode-editorWidget-background: #202020;
@@ -75,6 +76,7 @@
   --vscode-editorWarning-foreground: #bf8803;
   --vscode-icon-foreground: #3b3b3b;
   --vscode-widget-border: #e5e5e5;
+  --vscode-widget-shadow: #00000029;
   --vscode-editor-background: #ffffff;
   --vscode-editor-foreground: #3b3b3b;
   --vscode-editorWidget-background: #f8f8f8;

@@ -973,6 +973,8 @@
       
         
       
+        
+      
     
     
     
@@ -1482,6 +1484,34 @@
   
   
     <li class="md-nav__item">
+      <a href="../guides/interaction-models/browser-layout/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Browser layout
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
       <a href="../guides/interaction-models/keyboard-equivalents/" class="md-nav__link">
         
   
@@ -1685,11 +1715,12 @@
 <p>This is Debrief v4 running in your browser: the same map, tool forms and results panel as the VS Code extension, and the same Python catalogue, history, tools and importers. Nothing is installed, and nothing you do or import leaves your browser.</p>
 <div class="debrief-demo" data-demo=""></div>
 
-<p>New to Debrief? Start with <strong>Walkthroughs</strong>, open at the top of the side column (on a wide screen, a column of its own on the right of the map), picked out in the theme's link colour: four short walkthroughs, each on a fresh copy of the sample, each step ticked as you do it. The same page runs full screen as the <a href="../demo/">web demo</a>.</p>
+<p>New to Debrief? Start with <strong>Walkthroughs</strong>, picked out in the theme's link colour: four short walkthroughs, each on a fresh copy of the sample, each step ticked as you do it. The same page runs full screen as the <a href="../demo/">web demo</a>.</p>
+<p><strong>Finding your way.</strong> 900 pixels wide and more, as in the web demo, the panels sit in tab groups around the map: <strong>Time</strong>, <strong>Tote</strong>, <strong>Outline</strong> with <strong>Catalogue</strong>, and <strong>Tools</strong> with <strong>History</strong> on the left; <strong>Timeline</strong> with <strong>Coverage</strong> under the map; <strong>Walkthroughs</strong> on the right. Click a tab to bring its panel to the front, or drag it to another group, or to a group's edge to split it; your layout is kept in this browser, and <strong>Reset layout</strong> in the top bar puts it back. Without a mouse, or by touch, <code>Shift+F10</code> on a tab, or a group's <strong>⋯</strong>, moves its panel. The top bar holds <strong>Plot</strong>, and <strong>Import…</strong>, <strong>Export</strong> and <strong>Try</strong>, each a menu. Narrower, on a phone or in a post's demo, the panels are one column, each folding away by its heading (<a href="../guides/interaction-models/browser-layout/">browser layout</a>).</p>
 <h2 id="things-to-try">Things to try<a class="headerlink" href="#things-to-try" title="Permanent link">&para;</a></h2>
 <ul>
 <li><strong>Select and run a tool.</strong> Click <strong>BLUE ONE</strong> in the outline, then Ctrl-click <strong>RED ONE</strong>. <strong>Closest approach</strong> is now on offer. Run it: the line appears on the map, the result opens beside it, and current time moves to the moment it found.</li>
-<li><strong>Look at a moment.</strong> Drag <strong>Current time</strong> at the top of the side column. Each track's position at that time is a square in its colour.</li>
+<li><strong>Look at a moment.</strong> Drag <strong>Current time</strong> in <strong>Time</strong>. Each track's position at that time is a square in its colour.</li>
 <li><strong>Narrow the time window.</strong> Drag either handle of <strong>Time window</strong>, or the band between them. The map shows the window as you drag: tracks are drawn in full within it and faintly outside it, and the tug's track, which ends at 10:35, loses its label once the window starts after that. Let go and the window is saved in the plot, but it's not a step in <strong>History</strong>, and <strong>Undo</strong> leaves it alone.</li>
 <li><strong>Play.</strong> Press <strong>▶</strong>, or Space on any of the sliders. Choose a speed: at 60× a minute of the exercise passes each second. Playing stops at the end of the window.</li>
 <li><strong>A colleague changes the window.</strong> <strong>A colleague changes the time window</strong>, under <strong>Try</strong>, changes it as if from another computer: Debrief shows theirs and says so.</li>
@@ -1699,14 +1730,14 @@
 <li><strong>Clean a track.</strong> Select RED ONE and choose <strong>Put GPS glitches into the selected track</strong> under <strong>Try</strong>, then <strong>Jumps…</strong> under <em>Track</em>, below the outline: the jumps found are ringed on the map and listed, all ticked; untick any and <strong>Remove</strong> the rest as one step. <strong>Smooth…</strong> shows the track as smoothing would leave it before you apply it. <strong>Fixes…</strong> lists every fix: choose one (or right-click it on the map) to colour, label or comment on it.</li>
 <li><strong>Label the times.</strong> Select BLUE ONE and Ctrl-click RED ONE, then <strong>Frequencies…</strong> under <em>Track</em>: labels every 10 min and arrows every 5 min, one step for both. The times sit beside each track on the clock's tens; zoom out and they thin to round times, and the map says so. Choose <strong>Other…</strong> to type an interval such as <code>90 s</code> or <code>1h30</code>. In <strong>Fixes…</strong>, <strong>Time label</strong> makes one fix always show its time.</li>
 <li><strong>Move one fix.</strong> Select RED ONE and zoom in until each fix has a small ring: drag one, and only that fix moves; the map says how far, which way and how fast the track would now have to go to reach it and to go on, and warns when that is as fast as a jump. Letting go is one step. Or <code>Tab</code> to a ring and use the arrow keys, or choose <strong>Move…</strong> in <strong>Fixes…</strong> and type where it goes. <strong>OTG/DR…</strong> plots the track by dead reckoning, from its first fix by its recorded courses and speeds, or over the ground again.</li>
-<li><strong>Import a REP file.</strong> Under <em>Import your own</em>, choose a REP file: Debrief asks, for each track, whether it is plotted over the ground (OTG) or by dead reckoning (DR). Tick <em>Use this choice for future track imports</em> to be asked no more; <strong>Ask again</strong> clears it. A track plotted by dead reckoning is tagged <em>DR</em> in the outline and on the map.</li>
+<li><strong>Import a REP file.</strong> Under <strong>Import…</strong>, in the top bar or the Catalogue, choose a REP file: Debrief asks, for each track, whether it is plotted over the ground (OTG) or by dead reckoning (DR). Tick <em>Use this choice for future track imports</em> to be asked no more; <strong>Ask again</strong> clears it. A track plotted by dead reckoning is tagged <em>DR</em> in the outline and on the map.</li>
 <li><strong>Move a track.</strong> Select BLUE ONE and drag the filled square: the map says how far and which way, along geodesics. Drag the ring to rotate it about the pivot. Choose <strong>Time window</strong> on the map to move only the fixes in the window, and watch the joins jump. Drag the diamond beside a track's last fix to shear it: the first fix stays put, and the map gives the new course and speed. Choose <strong>Stretch</strong> on the map to change only its speed. <strong>Move…</strong>, <strong>Rotate…</strong>, <strong>Shear…</strong>, <strong>Stretch…</strong>, <strong>Split…</strong> (at current time) and <strong>Merge</strong> are under <em>Track</em>, below the outline. Each is one step in <strong>History</strong>.</li>
-<li><strong>Read the narrative.</strong> The <strong>Timeline</strong> lists every platform's log, with notes and periods, in one time order. Press play: the list follows current time, the entry it is at marked and shown beside its track on the map. Scroll the list and it stops following; <strong>Follow time</strong> starts it again. Choose an entry and current time moves to it. <strong>Filter</strong> leaves out sources and types; the search box finds words. <strong>+</strong> adds an entry: one step in <strong>History</strong>. Under <em>Import your own</em>, a REP file's <code>;NARRATIVE:</code> lines, or a Word (<code>.docx</code>, <code>.doc</code>) or PDF narrative, read into the open plot as one step; for a document you are asked first, as legacy Debrief asked, which types of entry to read, whether only those within the plot's period, and which track a platform with none of its name is. <strong>⋯</strong> beside <strong>Filter</strong> holds your own view: words to highlight, whether choosing an entry moves current time, text size and wrapping, and which columns show.</li>
+<li><strong>Read the narrative.</strong> The <strong>Timeline</strong> lists every platform's log, with notes and periods, in one time order. Press play: the list follows current time, the entry it is at marked and shown beside its track on the map. Scroll the list and it stops following; <strong>Follow time</strong> starts it again. Choose an entry and current time moves to it. <strong>Filter</strong> leaves out sources and types; the search box finds words. <strong>+</strong> adds an entry: one step in <strong>History</strong>. Under <strong>Import…</strong>, a REP file's <code>;NARRATIVE:</code> lines, or a Word (<code>.docx</code>, <code>.doc</code>) or PDF narrative, read into the open plot as one step; for a document you are asked first, as legacy Debrief asked, which types of entry to read, whether only those within the plot's period, and which track a platform with none of its name is. <strong>⋯</strong> beside <strong>Filter</strong> holds your own view: words to highlight, whether choosing an entry moves current time, text size and wrapping, and which columns show.</li>
 <li><strong>Undo.</strong> Every change is a step in <strong>History</strong>. <strong>Undo</strong> replays the plot to the step before. Nothing is deleted: the undone step stays listed, and <strong>Redo</strong> brings it back.</li>
-<li><strong>Crash part-way through a save.</strong> This stops a save after the new plot file is written but before it replaces the old one, as a power cut would. <strong>Reopen the plot</strong>: it is exactly as it was before that save, and Debrief says a save was interrupted.</li>
-<li><strong>Add a plot file.</strong> Under <strong>Import your own</strong>, choose a Debrief plot file (<code>.geojson</code>), such as one a colleague sent you. Its whole history comes with it: undo, redo and going back to a step work on what they did.</li>
-<li><strong>Work alongside a colleague.</strong> <strong>A colleague changes the plot</strong> shows what happens when someone else saves a change: Debrief shows the latest and tells you. <strong>…while your next tool runs</strong>, then run a tool: Debrief asks whether to combine the changes or save yours as a new plot. It never overwrites theirs.</li>
-<li><strong>Import your own file.</strong> Choose a REP file, a legacy Debrief <code>.dpf</code> plot, or a Word or PDF narrative. It's read and imported in your browser, and everything that couldn't be imported is listed.</li>
+<li><strong>Crash part-way through a save.</strong> Under <strong>Try</strong>, this stops a save after the new plot file is written but before it replaces the old one, as a power cut would. <strong>Reopen the plot</strong>: it is exactly as it was before that save, and Debrief says a save was interrupted.</li>
+<li><strong>Add a plot file.</strong> Under <strong>Import…</strong>, choose a Debrief plot file (<code>.geojson</code>), such as one a colleague sent you. Its whole history comes with it: undo, redo and going back to a step work on what they did.</li>
+<li><strong>Work alongside a colleague.</strong> Under <strong>Try</strong>, <strong>A colleague changes the plot</strong> shows what happens when someone else saves a change: Debrief shows the latest and tells you. <strong>…while your next tool runs</strong>, then run a tool: Debrief asks whether to combine the changes or save yours as a new plot. It never overwrites theirs.</li>
+<li><strong>Import your own file.</strong> <strong>Import…</strong>, in the top bar: choose a REP file, a legacy Debrief <code>.dpf</code> plot, or a Word or PDF narrative. It's read and imported in your browser, and everything that couldn't be imported is listed.</li>
 </ul>
 <h2 id="measuring-on-the-real-earth">Measuring on the real Earth<a class="headerlink" href="#measuring-on-the-real-earth" title="Permanent link">&para;</a></h2>
 <p>Drag two positions and compare the range and bearing Debrief v4 measures with what legacy Debrief gave:</p>

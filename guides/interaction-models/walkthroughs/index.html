@@ -16,7 +16,7 @@
         <link rel="prev" href="../export/">
       
       
-        <link rel="next" href="../keyboard-equivalents/">
+        <link rel="next" href="../browser-layout/">
       
       
         
@@ -903,6 +903,8 @@
       
         
       
+        
+      
     
     
     
@@ -1545,6 +1547,34 @@
   
   
     <li class="md-nav__item">
+      <a href="../browser-layout/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Browser layout
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
       <a href="../keyboard-equivalents/" class="md-nav__link">
         
   
@@ -1878,7 +1908,7 @@
 <p><strong>Each walkthrough's last step ends with a link to the next</strong>, alone on its line so the Get Started page draws it as a button: <strong>Next walkthrough: Import and collate</strong> runs <code>workbench.action.openWalkthrough</code> with <code>debrief.debrief#collate</code>, and so on. <em>Annotate and export a figure</em>'s last step says instead that, once it is done, all walkthroughs are done (decision, product owner, 23 Oct 2026).</p>
 <p><strong>Open a copy of serial 1</strong> (<code>debrief.walkthrough.open</code> with the walkthrough's id) builds the sample with the analyst's Python (<code>python -m debrief_sample walkthrough</code>) into the extension's own storage, one folder for each walkthrough, and adds it as a catalogue of its own, <em>Walkthrough: Tidy a track</em>. Pressed again, it asks: <strong>Start again with a fresh copy</strong> (the old copy and its catalogue go; the sample never changes) or <strong>Carry on with my copy</strong>. Agents pass <code>{fresh}</code>. <strong>Import the navigation log</strong> (<code>debrief.walkthrough.importLog</code>) imports the log waiting beside <em>Walkthrough: Import and collate</em>'s catalogue, as <strong>Import plot file…</strong> imports any REP file.</p>
 <h3 id="in-the-playground-and-the-web-demo">In the playground and the web demo<a class="headerlink" href="#in-the-playground-and-the-web-demo" title="Permanent link">&para;</a></h3>
-<p>A <strong>Walkthroughs</strong> panel, folding like every panel, and <strong>open on first load wherever it appears</strong>: the web demo, the playground and the blog's demos that include it (decision, product owner, 22 Oct 2026, superseding 17 Oct's folded outside the web demo), since it is where a newcomer gains an overall understanding. The reader can fold it; in the playground and the web demo, which remember folded panels in the browser, a reader who folded it finds it folded next time, while a blog's demo starts open every time. <strong>On a screen 1200 pixels wide or more it is a column of its own on the right of the map</strong> (decision, product owner, 22 Oct 2026): the side panels stay on the left and the map in the middle, so a step's words stay in sight while the analyst does it in the side panels and on the map. The column scrolls on its own, never with the side column or the page. Folded, it is a narrow tab holding its heading on its side, and the map takes the rest; the heading is the same button, from the pointer or the keyboard (<code>Enter</code> or <code>Space</code>), and the column is a landmark named <em>Walkthroughs</em>. Narrower, on a phone and in the blog's demos, it is the side column's first panel, above the time controller, as before. 1200 pixels keeps the map about 670 pixels wide beside both columns, and about 290 beside a tool's form too, which from 901 pixels opens beside the map; at 1280, 1366 and 1440 pixels the column is 256, 273 and 288 wide. It holds a list to choose the walkthrough, its steps (each a button that opens it, its number or a tick, <em>done</em> said to screen readers), the step to do next open, and a line saying what was done and what comes next. <strong>The guidance accent</strong> sets the panel apart from the panels around it, in the theme's link colour (<code>--vscode-textLink-foreground</code>, the focus colour <code>--vscode-focusBorder</code> where a theme has none; the playground's theme maps both): a 3 pixel edge on the panel or column, its heading bar tinted with the accent (14% over the panel's background), each step's number in the accent and the next step's number a disc of it. Folded, the tab carries the edge and the tint. Text keeps WCAG AA contrast (4.5:1) on the light and dark themes, tested; data colours are untouched (see the style guide's <a href="../../style-guide/theme/">Theme</a>). The copy is made in the browser from the sample as the site shipped it, kept apart from the reader's own changes, so a walkthrough always starts clean. The chosen walkthrough is remembered in the browser; ticks are not, since the copies go when the page closes (product owner, 17 Oct 2026).</p>
+<p>A <strong>Walkthroughs</strong> panel, <strong>open on first load wherever it appears</strong>: the web demo, the playground and the blog's demos that include it (decision, product owner, 22 Oct 2026, superseding 17 Oct's folded outside the web demo), since it is where a newcomer gains an overall understanding. <strong>900 pixels wide and more the panels are docked</strong> (<a href="../browser-layout/">browser layout</a>; decision, product owner, 23 Oct 2026, superseding 22 Oct's column of its own from 1200 pixels): the walkthroughs are a group of their own on the right, alone (second round, 23 Oct 2026), so a step's words are never hidden behind another tab and stay in sight while the analyst does it in the panels on the left, under the map and on the map; the step's own button brings the panel it names into view, wherever the analyst has put it. The panel scrolls on its own. A reader who brings another tab to the front, or moves the panel, finds the layout as they left it next time, in the playground and the web demo; a blog's demo starts as it was made every time. <strong>Narrower</strong>, on a phone and in the blog's demos, it is the side column's first panel, above the time controller, folding by its heading as every panel there does; a reader who folds it finds it folded next time, except in a blog's demo. At 1366 pixels the right-hand group is about 290 pixels wide and the map 791. It holds a list to choose the walkthrough, its steps (each a button that opens it, its number or a tick, <em>done</em> said to screen readers), the step to do next open, and a line saying what was done and what comes next. <strong>The guidance accent</strong> sets the panel apart from the panels around it, in the theme's link colour (<code>--vscode-textLink-foreground</code>, the focus colour <code>--vscode-focusBorder</code> where a theme has none; the playground's theme maps both): a 3 pixel edge on the panel, its heading bar tinted with the accent (14% over the panel's background), each step's number in the accent and the next step's number a disc of it. Docked, its tab is its heading, and carries the tint and a 3 pixel edge of the accent; folded, in the side column, its heading does. Text keeps WCAG AA contrast (4.5:1) on the light and dark themes, tested; data colours are untouched (see the style guide's <a href="../../style-guide/theme/">Theme</a>). The copy is made in the browser from the sample as the site shipped it, kept apart from the reader's own changes, so a walkthrough always starts clean. The chosen walkthrough is remembered in the browser; ticks are not, since the copies go when the page closes (product owner, 17 Oct 2026).</p>
 <p><strong>When a walkthrough's steps are all done</strong> (decision, product owner, 23 Oct 2026), the panel says so below the steps and offers <strong>Next walkthrough: <em>title</em></strong>, a button in the guidance accent (the next step's disc's colours: the accent behind, the panel's background as its text, at 4.5:1 or more). The keyboard moves to it, and the status line says it is there. Pressing it shows the next walkthrough as choosing it from the list does, the keyboard on its first step's button, which opens that walkthrough's own copy. <strong>Before then, a quieter link, Skip to next walkthrough: <em>title</em></strong>, is always below the steps, in the accent and underlined: a step ticks only when it is done, so there is no "done or skipped" to wait for, and a reader stuck on a step, or who knows it already, can still move on without hunting in the list. The list stays, to choose any walkthrough. After the last walkthrough: <strong>All walkthroughs done</strong>, and a link, <strong>Start again: Open and explore a serial</strong>, the keyboard on it.</p>
 <p>The <strong>web demo</strong> at <code>/demo/</code> is the playground's page full screen, every panel and the walkthroughs, opening the fixed sample serials. A file the analyst chooses opens there too, read in the browser only (decision, product owner, 17 Oct 2026, amending DEP-07). No request carries it, nothing is sent at all (nor as the tab closes), and no WebSocket opens. Nothing derived from it is stored either: in the web demo the Timeline keeps only the kinds of entry shown and its view's own settings, never sources, types or highlighted phrases. It is gone when the tab closes.</p>
 <p><strong>Content-Security-Policy.</strong> The web demo and the playground's pages (the page, each frame, the geodesic demo) carry a strict policy in a meta element (<code>vscode/play/csp.mjs</code>): only the site itself, and jsDelivr for Pyodide; no forms, plugins or other origins; <code>base-uri 'self'</code> for the demo's <code>&lt;base&gt;</code>. A meta element's policy does not reach the Python worker, and GitHub Pages cannot send one as a header. <strong>Pyodide's files come from jsDelivr with no integrity check, a risk the product owner accepts</strong> (17 Oct 2026).</p>
@@ -1902,9 +1932,14 @@
 <td><code>Tab</code> to the list, <code>↓</code> chooses a walkthrough; <code>Tab</code> to a step, <code>Enter</code> or <code>Space</code> opens it; <code>Tab</code> to its button, <code>Enter</code></td>
 <td>Every part a button or a list; a tap does the same</td>
 </tr>
+<tr>
+<td>The playground's panel, docked</td>
+<td><code>Tab</code> to its tab, <code>Enter</code>; <code>Shift+F10</code> on it moves it to another group</td>
+<td><a href="../browser-layout/">Browser layout</a></td>
+</tr>
 </tbody>
 </table>
-<p>The panel never scrolls sideways, nor the page, at 210, 280 or 390 pixels, in the side column of a 650 to 750 pixel window, or in its column at 1200 to 1440 pixels, in a wider font too.</p>
+<p>The panel never scrolls sideways, nor the page, at 210, 280 or 390 pixels, in the side column of a 650 to 899 pixel window, or docked at 900 to 1440 pixels, in a wider font too.</p>
 <pre class="mermaid"><code>sequenceDiagram
     actor Analyst
     participant Page as Get Started / Walkthroughs panel

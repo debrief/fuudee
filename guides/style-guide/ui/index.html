@@ -983,6 +983,8 @@
       
         
       
+        
+      
     
     
     
@@ -1495,6 +1497,34 @@
   
   
     <li class="md-nav__item">
+      <a href="../../interaction-models/browser-layout/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Browser layout
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
       <a href="../../interaction-models/keyboard-equivalents/" class="md-nav__link">
         
   
@@ -1734,6 +1764,16 @@
 </tr>
 </tbody>
 </table>
+<p><strong>The browser's layout: Dockview, browser only</strong> (decision, product owner, 23 Oct 2026). In the playground and the web demo, the panels are docked in tab groups with <a href="https://dockview.dev">Dockview</a> (<code>dockview-core</code>, plain TypeScript, MIT), only through <code>vscode/play/dock.ts</code>, so it can be replaced in one place. VS Code needs none: it lays out its own views. Its rules:</p>
+<ul>
+<li><strong>Pinned, bundled, upgraded on purpose.</strong> An exact version in <code>vscode/package.json</code>, bundled into the page, never loaded from a CDN, so the Content-Security-Policy is unchanged. An upgrade is its own pull request, with the layout's tests (<code>vscode/test/play/dock.mjs</code>) and the layout version (<code>LAYOUT_VERSION</code>) raised if a remembered layout would no longer read.</li>
+<li><strong>Never a frame inside it.</strong> Moving a frame reloads it: the map and the form beside it are laid over the map's place, and every panel is rendered always (<code>renderer: "always"</code>), only hidden when its tab is not in front.</li>
+<li><strong>Themed from the theme.</strong> Dockview's colours come only from <code>--vscode-*</code> variables (<code>vscode/play/dock.css</code>, held to it by <code>npm run check:theme</code>): tabs as VS Code's panel tabs, sashes and borders as its panel borders.</li>
+<li><strong>Every panel stays.</strong> No tab closes; none floats or pops out. A panel moves by drag, or by its tab's menu from the keyboard.</li>
+<li><strong>Docked from 900 pixels wide and 480 high</strong>, touch screens too (larger targets under <code>pointer: coarse</code>); narrower, the one side column with folding panels.</li>
+<li><strong>Its panels in one table</strong> (<code>vscode/play/panels.mjs</code>): their names, the default layout and the side column's order, read by the page and the tests alike.</li>
+<li><strong>A remembered layout is checked before it is built</strong> (<code>layoutProblem</code>), and a broken one forgotten: an upgrade that changes Dockview's saved form raises <code>LAYOUT_VERSION</code>.</li>
+</ul>
 <p><strong>Native or webview (CON-07).</strong> Lists and trees are native VS Code views: catalogues, outline, tools. They come with keyboard support, theming and accessibility for free. Webviews are for what native views can't draw: the map, forms and result tables.</p>
 <h2 id="icons">Icons<a class="headerlink" href="#icons" title="Permanent link">&para;</a></h2>
 <p>Codicons for interface actions; Debrief's own symbols for data.</p>
@@ -1780,6 +1820,7 @@
 <p>The same layout rules apply to native views, webviews and the web build (CON-05, CON-07).</p>
 <ul>
 <li><strong>Debrief's side bar.</strong> Catalogues, then the outline of the open plot, then tools: browse, inspect, act.</li>
+<li><strong>The browser.</strong> A top bar (the plot, menus for import, export and the demonstrations, Reset layout) over the panels docked around the map, task-grouped: time, the Tote with the tools and history as tabs beside it, and the outline and catalogue on the left; the Timeline under the map; the walkthroughs alone on the right (<a href="../../interaction-models/browser-layout/">browser layout</a>).</li>
 <li><strong>The map.</strong> It takes the main editor area. Tool forms and results open beside it, so the map stays in view while the analyst works.</li>
 <li><strong>Forms.</strong> A single column, at most about 34 characters wide for each field. The explanation comes first, then the judgement, then the fields; buttons go last, primary first.</li>
 <li><strong>Messages.</strong> Short ones go in VS Code notifications. Anything longer, such as what an import left out, goes in the <strong>Debrief</strong> output channel, opened from the notification.</li>
