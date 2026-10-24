@@ -2192,7 +2192,16 @@ const panelScroll = new Map<string, number>();
 let stopKeeping: (() => void) | undefined;
 /** How long, at most, to keep giving a scroll back after a move. */
 const KEEP_SCROLL_FOR = 5000;
+/** For the tests: what giving scrolls back did, with the Outline's list as it was then (CI, 24 Oct 2026). */
+const scrollLog: unknown[] = [];
+function noteScroll(event: string, extra?: unknown): void {
+  const o = document.getElementById("outline");
+  scrollLog.push({ t: Math.round(performance.now()), event, outline: o && [o.scrollTop, o.clientHeight, o.scrollHeight], extra });
+  if (scrollLog.length > 60) scrollLog.shift();
+}
+(window as unknown as { debriefScrollLog: () => unknown }).debriefScrollLog = () => scrollLog.slice();
 function keepingScroll(move: () => void): void {
+  if (stopKeeping) noteScroll("stopped by a new move");
   stopKeeping?.();
   const kept: { el: Element; top: number; left: number; given?: [number, number] }[] = [];
   for (const id of Object.keys(PANEL_TITLES)) {
@@ -2221,9 +2230,16 @@ function keepingScroll(move: () => void): void {
     }
     return !kept.length;
   };
+  const keptIds = () => kept.map(({ el, top }) => `${el.id || el.className}:${top}`);
+  noteScroll("moved", keptIds());
   // At once, before a list that keeps its own place lays itself out for its new width.
-  if (give()) return;
-  const resized = new ResizeObserver(() => void (give() && stop()));
+  if (give()) return noteScroll("all given at once");
+  noteScroll("given at once; waiting", keptIds());
+  const resized = new ResizeObserver(() => {
+    const done = give();
+    noteScroll(done ? "resized; all given" : "resized; waiting", keptIds());
+    if (done) stop();
+  });
   for (const { el } of kept) resized.observe(el);
   const readerActs = ["wheel", "pointerdown", "keydown", "touchstart"];
   const stop = () => {
@@ -2232,8 +2248,9 @@ function keepingScroll(move: () => void): void {
     clearTimeout(timer);
     if (stopKeeping === stop) stopKeeping = undefined;
   };
+  for (const type of readerActs) addEventListener(type, (e) => kept.length && noteScroll(`reader: ${e.type}`), { capture: true, passive: true, once: true });
   for (const type of readerActs) addEventListener(type, stop, { capture: true, passive: true });
-  const timer = setTimeout(stop, KEEP_SCROLL_FOR);
+  const timer = setTimeout(() => (noteScroll("timed out", keptIds()), stop()), KEEP_SCROLL_FOR);
   stopKeeping = stop;
 }
 /** The panels back in the side column, and the layout gone. */

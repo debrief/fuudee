@@ -321,10 +321,14 @@ export async function playDock(browser, base, shot, ready, errors) {
     list.scrollTop = 160;
     document.getElementById("outline").scrollTop = 8; // narrow, the whole list is all but in sight: little to scroll
   });
+  const outlineAt = {};
+  const outlineNow = () => page.evaluate(() => { const o = document.getElementById("outline"); return [o.scrollTop, o.clientHeight, o.scrollHeight]; });
   const scrolled = await scrolls();
+  outlineAt.before = await outlineNow();
   assert.ok(scrolled.timeline !== "top" && scrolled.outline === 8, `scrolled: ${JSON.stringify(scrolled)}`);
   await resizeTo(page, 700, 768);
-  assert.deepEqual(await scrolls(), scrolled, "narrow, the lists where they were");
+  outlineAt.narrow = await outlineNow();
+  assert.deepEqual(await scrolls(), scrolled, `narrow, the lists where they were; the Outline [scrollTop, clientHeight, scrollHeight] ${JSON.stringify(outlineAt)}`);
   // As on a slow machine (CI, 23 Oct 2026): Dockview places a panel's content some frames after the
   // layout is made, so a list has nothing to scroll for a while; its scroll still comes back.
   await page.evaluate(() => {
@@ -351,7 +355,8 @@ export async function playDock(browser, base, shot, ready, errors) {
     });
   const polls = [];
   for (let i = 0; i < 50 && JSON.stringify((back = await scrolls())) !== want; i++) polls.push(await outlineBox()), await frames(page);
-  assert.deepEqual(back, scrolled, `docked again, the lists where they were; the Outline as polled: ${JSON.stringify([polls[0], polls.at(-1), await outlineBox()])}`);
+  outlineAt.docked = await outlineNow();
+  assert.deepEqual(back, scrolled, `docked again, the lists where they were; the Outline [scrollTop, clientHeight, scrollHeight] ${JSON.stringify(outlineAt)}; as polled ${JSON.stringify([polls[0], polls.at(-1)])}, ${polls.length} polls; giving back: ${JSON.stringify(await page.evaluate(() => window.debriefScrollLog()))}`);
 
   // The keyboard kept across 900 px (panel review, 23 Oct 2026): a tab becomes its fold button and back;
   // a menu of the top bar closes, back to its button.
