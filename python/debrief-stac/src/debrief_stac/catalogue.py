@@ -1653,9 +1653,28 @@ class Catalogue:
             merged, lost = tracks.merge(members, name)
             gone = [t.id for t in members if t.id != merged.id]
             modified: list = [merged]
+            removed: list[str] = []
+            joined: list[str] = []
+            # Sensors (CAP-22): carried by the merged track; sensors of one name are one
+            # again, their cuts on the first (legacy TrackWrapper.add), so a split and
+            # merged track's sensors are as they were.
+            keepers: dict[str, str] = {}
             for feature in plot.features:
                 props = feature.properties
-                if props.kind in ("sensor_observations", "sensor") and props.host_track_id in gone:
+                if props.kind == "sensor" and props.host_track_id in {merged.id, *gone}:
+                    keeper = keepers.get(props.name)
+                    if keeper is None:
+                        keepers[props.name] = feature.id
+                        if props.host_track_id != merged.id:
+                            hosted = props.model_copy(update={"host_track_id": merged.id})
+                            modified.append(feature.model_copy(update={"properties": hosted}))
+                        continue
+                    removed.append(feature.id)
+                    joined.append(props.name)
+                    for cut in sensors.cuts(plot, feature.id):
+                        moved = cut.properties.model_copy(update={"sensor_id": keeper})
+                        modified.append(cut.model_copy(update={"properties": moved}))
+                elif props.kind == "sensor_observations" and props.host_track_id in gone:
                     hosted = props.model_copy(update={"host_track_id": merged.id})
                     modified.append(feature.model_copy(update={"properties": hosted}))
             sets = []
@@ -1666,12 +1685,15 @@ class Catalogue:
             in_order = sorted(members, key=lambda t: tracks.times_of(t)[0])
             names = [t.properties.name for t in in_order]
             note = f"{_who(names) if len(names) < 3 else f'{len(names)} tracks'} merged"
+            if joined:
+                names_joined = _who(list(dict.fromkeys(joined)))
+                lost = [*lost, f"{names_joined}: one sensor again, with every cut."]
             record = {
                 "notes": [f"Into {merged.properties.name}", *lost],
                 "parameters": [models.ParameterValue(name="name", value=merged.properties.name)],
                 "selected": chosen,
             }
-            changes = Changes(modified=modified, deleted_ids=gone, named_sets=sets)
+            changes = Changes(modified=modified, deleted_ids=[*gone, *removed], named_sets=sets)
             return changes, note, (merged.id, lost), record
 
         step, (merged_id, lost) = self._change(item_id, change, agent, base, allow_newer_schema)

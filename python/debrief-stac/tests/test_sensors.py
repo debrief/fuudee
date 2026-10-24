@@ -326,6 +326,22 @@ def test_merged_tracks_take_their_sensors(catalogue: Catalogue) -> None:
     catalogue.commit("p", [origin], Changes(added=[track("track-later", "BLUE TWO", 5, 40)]))
     record = models.ProvRecord(id="op-4", kind="import", started_at=at(0), agent=AGENT)
     _, (later,) = catalogue.add_sensors("p", [towed("track-later", range(40, 44))], record)
-    _, merged, _ = catalogue.merge_tracks("p", ["track-blue", "track-later"], AGENT)
-    sensor = next(f for f in plot(catalogue).features if f.id == later)
-    assert sensor.properties.host_track_id == merged == "track-blue"
+    before = len(plot_sensors.cuts(plot(catalogue), "sensor-blue-one-towed-array"))
+    _, merged, lost = catalogue.merge_tracks("p", ["track-blue", "track-later"], AGENT)
+    assert merged == "track-blue"
+    # Sensors of one name are one again, every cut on the first, as legacy joined them.
+    assert not any(f.id == later for f in plot(catalogue).features)
+    towed_now = plot_sensors.cuts(plot(catalogue), "sensor-blue-one-towed-array")
+    assert len(towed_now) == before + 4
+    assert "Towed array: one sensor again, with every cut." in lost
+    hosts = {s.properties.host_track_id for s in plot_sensors.sensors(plot(catalogue))}
+    assert hosts == {"track-blue"}
+
+
+def test_a_split_and_merged_track_has_its_sensors_as_they_were(catalogue: Catalogue) -> None:
+    sensors_before = [s.id for s in plot_sensors.sensors(plot(catalogue))]
+    cuts_before = cut_ids(catalogue)
+    _, (first, second) = catalogue.split_track("p", "track-blue", at(20), AGENT)
+    catalogue.merge_tracks("p", [first, second], AGENT)
+    assert [s.id for s in plot_sensors.sensors(plot(catalogue))] == sensors_before
+    assert sorted(cut_ids(catalogue)) == sorted(cuts_before)

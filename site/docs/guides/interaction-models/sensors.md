@@ -52,7 +52,7 @@ How bearings from a platform's sensors come into a plot, how the map draws them,
 
 ### Tracks edited
 
-20. **Splitting and merging.** Splitting a track gives its sensors' later cuts to the new second track, as a sensor of the same name, and the step's note says so (*Towed array: its 10 cuts from the split on are a sensor of BLUE ONE (2)'s*). Merging tracks moves their sensors to the merged track. Moving, rotating, shearing or stretching a track moves the origin of every cut it carries, as the cuts are drawn from it.
+20. **Splitting and merging.** Splitting a track gives its sensors' later cuts to the new second track, as a sensor of the same name, and the step's note says so (*Towed array: its 10 cuts from the split on are a sensor of BLUE ONE (2)'s*). Merging tracks moves their sensors to the merged track, and sensors of one name there are one again with every cut, as legacy Debrief joined them, so a track split and merged has its sensors as they were. Moving, rotating, shearing or stretching a track moves the origin of every cut it carries, as the cuts are drawn from it.
 
 ### Agents
 
