@@ -15,7 +15,7 @@ Interface colours come only from VS Code theme tokens (`--vscode-*` variables), 
 | Hover tooltips | `--vscode-editorHoverWidget-*` |
 | A tool's judgement | `--vscode-textBlockQuote-*` |
 | Errors on a form | `--vscode-errorForeground`, `--vscode-inputValidation-error*` |
-| Guidance accent: what guides a newcomer (the Walkthroughs panel or column), set apart from the panels around it: a 3 px edge, a heading bar tinted with it at 14% over the panel's background, step numbers in it, the next step's a disc of it with the panel's background as its text, and the folded tab edged and tinted the same | `--vscode-textLink-foreground`, or `--vscode-focusBorder` where a theme has none (`--debrief-guide-accent` in the playground's `host.css`). Text on it and beside it keeps WCAG AA, 4.5:1, on light and dark themes, tested |
+| Guidance accent: what guides a newcomer (the Walkthroughs panel), set apart from the panels around it: a 3 px edge, a heading bar tinted with it at 14% over the panel's background, step numbers in it, the next step's a disc of it with the panel's background as its text, and the folded tab edged and tinted the same | `--vscode-textLink-foreground`, or `--vscode-focusBorder` where a theme has none (`--debrief-guide-accent` in the playground's `host.css`). Text on it and beside it keeps WCAG AA, 4.5:1, on light and dark themes, tested |
 
 Native views (the catalogues, outline and tools views) use `ThemeIcon` and `ThemeColor`, never colours of their own.
 

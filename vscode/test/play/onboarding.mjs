@@ -548,7 +548,11 @@ export async function playTours(page, shot, root) {
   await ticked(page, 4, "Shear a leg, as in TMA");
   await nextOffered(page, "Annotate and export a figure");
   await openTours(page);
+  // The site's picture of it (the first hour post) at a laptop's 1366 × 768, docked, then back.
+  await resize(page, 1366, 768);
+  await rightColumn(page);
   await shot("tour-04-tidy-done");
+  await resize(page, 1400, 820);
   // Started again: one fresh copy, its steps unticked; the old copy gone.
   await press(page, 0);
   await page.waitForFunction(() => { const e = window.debriefTours().events; return e.includes("tidyOpened") && !e.includes("jumpsRemoved") && !e.includes("sheared"); }, null, { timeout: 60000 });
@@ -783,6 +787,11 @@ export async function playDemo(browser, siteUrl, shot) {
   assert.deepEqual(await shown(), ["panel-tour", "panel-time", "panel-tote", "panel-outline", "panel-timeline", "panel-catalogue", "panel-coverage", "panel-tools", "panel-history"]);
   assert.equal(await page.locator("#dock").isHidden(), true);
   assert.equal(await pageSideways(page), false, "at 390 px the demo does not scroll sideways");
+  // The site's picture of it (the first hour post), as it opens on a laptop's 1366 × 768.
+  await resize(page, 1366, 768);
+  await rightColumn(page);
+  await page.mouse.move(2, 2);
+  await shot("demo-00-default-1366", page);
   await resize(page, 1400, 820);
   await rightColumn(page);
   // The reader moves Coverage beside the walkthroughs, by its tab's menu: a layout to remember.
