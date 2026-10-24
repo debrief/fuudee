@@ -343,8 +343,15 @@ export async function playDock(browser, base, shot, ready, errors) {
   // Polled: given back as each list gets its size, however late that is.
   const want = JSON.stringify(scrolled);
   let back;
-  for (let i = 0; i < 50 && JSON.stringify((back = await scrolls())) !== want; i++) await frames(page);
-  assert.deepEqual(back, scrolled, "docked again, the lists where they were");
+  const outlineBox = () =>
+    page.evaluate(() => {
+      const o = document.getElementById("outline");
+      const group = o.closest(".dv-groupview");
+      return { scrollTop: o.scrollTop, scrollHeight: o.scrollHeight, clientHeight: o.clientHeight, rows: o.children.length, front: o.checkVisibility(), group: group?.getBoundingClientRect().height };
+    });
+  const polls = [];
+  for (let i = 0; i < 50 && JSON.stringify((back = await scrolls())) !== want; i++) polls.push(await outlineBox()), await frames(page);
+  assert.deepEqual(back, scrolled, `docked again, the lists where they were; the Outline as polled: ${JSON.stringify([polls[0], polls.at(-1), await outlineBox()])}`);
 
   // The keyboard kept across 900 px (panel review, 23 Oct 2026): a tab becomes its fold button and back;
   // a menu of the top bar closes, back to its button.
