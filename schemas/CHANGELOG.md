@@ -2,6 +2,18 @@
 
 The data-file schema is versioned independently of Debrief (SUB-12). Before 1.0.0 there is no migration guarantee (SUB-13).
 
+## 0.0.23 (24 Oct 2026)
+
+- Sensors and their bearings (CAP-22; decisions, product owner, 24 Oct 2026):
+  - `SensorFeature` (`kind: sensor`; `SensorProperties`: `name`, `host_track_id`, `colour`, `legacy_symbology`, `hidden`, `provenance`): a sensor carried by a track of the plot, its host. No geometry: its cuts are drawn from the host's position.
+  - `SensorCutFeature` (`kind: sensor_cut`; `SensorCutProperties`: `sensor_id`, `time`, `bearing`, `ambiguous_bearing`, `resolved` (`SensorCutKeptEnum`: `bearing`, `ambiguous_bearing`), `range`, `origin` (`[lon, lat]`), `label`, `comment`, `colour`, `hidden`): one observation, a feature of its own, as a narrative entry is, so resolving one cut, or a period's, is a small step. A resolved cut records which bearing was kept, not the side. No bearing error: bearings are drawn as lines; an optional error can be added later, once agreed with the acoustic replay application's owners.
+  - `AmbiguityResolution` (`keep`: `AmbiguityKeepEnum`, `port`, `starboard`, `bearing`, `ambiguous_bearing` or `ambiguous`; `cut_ids`, or `sensor_ids` and a `period`): what a resolution asks for, as an agent, a menu or the map asks it.
+  - `FeatureKindEnum` gains `sensor` and `sensor_cut`, and the plot's, the history's and the tools' feature unions both features.
+  - Rules: a sensor's host is a track of the plot; a cut's sensor is a sensor of the plot; bearings from 0 to under 360°; a cut resolved only if it has an ambiguous bearing; a range above 0; an origin on the globe; a label not empty; no geometry.
+- Webview messages `resolve_asked` (map to host: `feature_id`, `keep`, `bearing` or `ambiguous_bearing`: one of an ambiguous cut's lines clicked) and `cut_chosen` (map to host: `feature_id`: a cut's menu asked for).
+- Shared vectors `schemas/vectors/sensor-cuts.json`: which side of a course a bearing is on (legacy `relBearing`'s own test cases), the default length of a cut without a range, and cuts' origins, courses, ends and the bearing keeping port or starboard keeps, across a turn, for a stationary host, at the antimeridian and in the far north, held by Python and TypeScript. `schemas/vectors/service-methods.json` gains `debrief/resolve_ambiguity` and `debrief/import_sensor` (changing the plot) and `debrief/sensors` and `debrief/preview_sensor` (leaving it alone).
+- Before 1.0.0 only an exact version opens (SUB-13): plots written as 0.0.22 must be imported or built again.
+
 ## 0.0.22 (16 Oct 2026)
 
 - Exported images (SUB-25, EXT-05, OUT-04; decisions, product owner, 16 Oct 2026), in a new module, `figures.yaml`:

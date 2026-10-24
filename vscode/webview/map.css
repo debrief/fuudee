@@ -39,6 +39,12 @@ body { background: var(--vscode-editor-background); color: var(--vscode-foregrou
 .swatch-first { width: 8px; height: 8px; border-radius: 50%; border: 2px solid var(--vscode-editor-foreground); margin: 0 5px; }
 .swatch-latest { width: 9px; height: 9px; border-radius: 50%; background: var(--vscode-editor-foreground); margin: 0 5px; }
 .swatch-selected { border-top: 4px dotted var(--vscode-editor-foreground); }
+.swatch-cut { border-top: 1.5px solid var(--vscode-editor-foreground); opacity: 0.85; }
+.swatch-cut-twin { border-top: 1.5px dashed var(--vscode-descriptionForeground, var(--vscode-editor-foreground)); }
+.swatch-cut-now { border-top: 3px solid var(--vscode-editor-foreground); }
+/* A cut's details when pointed at: in the theme's hover colours, never in the way. */
+.cut-tip { position: absolute; z-index: 700; pointer-events: none; white-space: pre; max-width: 22rem; padding: 3px 6px; font-size: 12px; background: var(--vscode-editorHoverWidget-background); color: var(--vscode-editorHoverWidget-foreground); border: 1px solid var(--vscode-editorHoverWidget-border); border-radius: 3px; }
+.leaflet-container.on-cut { cursor: pointer; }
 .legend summary { cursor: pointer; }
 /* Current time: each track's position then, a square in its colour. The controller is beside the map. */
 .now { width: 10px; height: 10px; }
@@ -128,6 +134,8 @@ body { background: var(--vscode-editor-background); color: var(--vscode-foregrou
 .fix-time-text { position: absolute; white-space: nowrap; font-size: 10.5px; line-height: 12px; font-variant-numeric: tabular-nums; letter-spacing: 0.01em; color: var(--vscode-editor-foreground); text-shadow: 0 0 2px var(--vscode-editor-background), 0 0 2px var(--vscode-editor-background), 0 0 3px var(--vscode-editor-background); }
 /* Symbols and arrows, painted on one canvas (map.ts paintMarks): never in the way. */
 .freq-marks { pointer-events: none; }
+/* Sensor cuts are hit by the map (sensormap.ts hit), so clicks pass through to what is beneath. */
+.sensor-cuts, .sensor-cuts-now { pointer-events: none; }
 .swatch-time { width: auto; height: auto; font-size: 10px; font-variant-numeric: tabular-nums; margin: 0 1px; }
 .swatch-symbol { width: 5px; height: 5px; border-radius: 50%; background: var(--debrief-track); margin: 0 6.5px; }
 /* Thinned to fit the zoom: said quietly, above the key. */

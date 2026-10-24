@@ -178,6 +178,13 @@
       "image?",
       "message?"
     ],
-    "latest_asked": []
+    "latest_asked": [],
+    "resolve_asked": [
+      "feature_id",
+      "keep"
+    ],
+    "cut_chosen": [
+      "feature_id"
+    ]
   }
 }

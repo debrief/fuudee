@@ -16,6 +16,15 @@
 import { escapeXml, fitText, footerPlace, haloColour, n, svgFrame, textStyleAttributes, type Box } from "./exportlogic.js";
 
 /** A symbol or an arrow from the map's canvas, where it is on the map (container pixels). */
+/** A line painted on a canvas, such as a sensor cut (sensormap.ts), on the map's container. */
+export interface PaintedLine {
+  points: [number, number][];
+  colour: string;
+  width: number;
+  dash?: number[];
+  opacity: number;
+}
+
 export interface PaintedMark {
   kind: "symbol" | "arrow";
   x: number;
@@ -31,6 +40,8 @@ export interface ComposeOptions {
   scale: number;
   background: string;
   marks: PaintedMark[];
+  /** Lines painted on a canvas: sensor cuts. */
+  lines?: PaintedLine[];
   /** The footer's text, colours and font size (footerFontSize); none for no footer. */
   footer?: { text: string; colour: string; halo: string; size: number };
   /** The size of the chevron the map draws arrows with (map.ts TICK_SIZE). */
@@ -98,6 +109,15 @@ export function composeSvg(options: ComposeOptions): { svg: string; notes: strin
       }
     }
     out.push("</svg>");
+  }
+
+  // Sensor cuts, from their canvas, as vectors: beneath the tracks, as on the map.
+  for (const line of options.lines ?? []) {
+    if (line.points.length < 2) continue;
+    const d = line.points.map(([x, y], i) => `${i ? "L" : "M"}${n(x)} ${n(y)}`).join(" ");
+    const dash = line.dash?.length ? ` stroke-dasharray="${line.dash.map(n).join(" ")}"` : "";
+    out.push(`<path d="${d}" fill="none" stroke="${escapeXml(line.colour)}" stroke-width="${n(line.width)}" stroke-opacity="${n(line.opacity)}" stroke-linecap="round"${dash}/>`);
+    covered.push({ x: line.points[0][0], y: line.points[0][1] });
   }
 
   // Symbols and arrows, from the map's canvas, as vectors.

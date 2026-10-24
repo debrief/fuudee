@@ -14,7 +14,11 @@ that history like any change (debrief/set_colour, debrief/set_hidden,
 debrief/set_track_frequencies);
 annotations added, changed and deleted by hand, and the north arrow, recorded the
 same way (debrief/add_annotation, debrief/edit_annotation, debrief/delete_annotations,
-debrief/set_north_arrow); narrative entries on one Zulu time axis, read and filtered
+debrief/set_north_arrow); sensors and their cuts (CAP-22): read, with each cut's bearings
+and where it is drawn from (debrief/sensors), ambiguous cuts resolved one by one or a
+period at a time (debrief/resolve_ambiguity), and a .dsf file's sensor lines read into the
+plot, what it holds said first (debrief/preview_sensor, debrief/import_sensor), each a
+step; narrative entries on one Zulu time axis, read and filtered
 (debrief/narrative) and added, changed, deleted or read in from a REP file's narrative
 lines, recorded the same way (debrief/add_narrative, debrief/edit_narrative,
 debrief/delete_narrative, debrief/import_narrative), Word and PDF narrative among them,
@@ -85,12 +89,17 @@ from debrief_config import ConfigError, add_store, load_config, update_config
 from debrief_io import (
     AlreadyInPlotError,
     Choices,
+    HostNeeded,
     NoNarrativeError,
+    NoSensorDataError,
+    SensorReadBefore,
     import_document,
     import_dpf,
     import_narrative,
     import_rep,
+    import_sensor,
     preview_narrative,
+    preview_sensor,
 )
 from debrief_io.document_import import SUFFIXES as DOCUMENT_SUFFIXES
 from debrief_io.documents import sniff
@@ -115,6 +124,7 @@ from debrief_stac import (
     NewerSchemaError,
     frequencies,
     narrative,
+    sensors,
 )
 from debrief_stac.catalogue import review_flags
 from debrief_stac.fixes import describe_largest
@@ -176,7 +186,13 @@ NEWER_SCHEMA = -32002  # would write a newer schema into the catalogue: ask, the
 NEEDS_CONFIRMATION = -32003
 CONFIRM_HOW = "To go ahead, send the change again with discard_dr_changes: true."
 # Named groups, not slices of one list: a method added to one group cannot shift another.
-READING_METHODS = ("debrief/open", "debrief/history", "debrief/narrative", "debrief/coverage")
+READING_METHODS = (
+    "debrief/open",
+    "debrief/history",
+    "debrief/narrative",
+    "debrief/coverage",
+    "debrief/sensors",
+)
 STEP_METHODS = ("debrief/undo", "debrief/redo", "debrief/goto")
 PRESENTATION_METHODS = (
     "debrief/set_colour",
@@ -207,6 +223,9 @@ COLLATION_METHODS = (
     "debrief/set_source_preference",
     "debrief/link_tracks",
 )
+# Sensors (CAP-22): ambiguous cuts resolved, or made ambiguous again, and a .dsf or REP
+# file's sensor lines read into the plot, each one step.
+SENSOR_METHODS = ("debrief/resolve_ambiguity", "debrief/import_sensor")
 # What the analyst said of collation's marks: the plot's island, never a step.
 COLLATION_VIEW_METHODS = ("debrief/dismiss_new_data", "debrief/clear_review_flag")
 WRITING_METHODS = (
@@ -217,6 +236,7 @@ WRITING_METHODS = (
     + TRACK_METHODS
     + CLEANING_METHODS
     + COLLATION_METHODS
+    + SENSOR_METHODS
     + COLLATION_VIEW_METHODS
 )
 HISTORY_METHODS = READING_METHODS + CHECKING_METHODS + WRITING_METHODS
@@ -246,6 +266,7 @@ KNOWN_METHODS = frozenset(
         "debrief/import_rep",
         "debrief/rep_tracks",
         "debrief/preview_narrative",
+        "debrief/preview_sensor",
         "debrief/add_plot_file",
         "debrief/review_flags",
         *TOTE_METHODS,
@@ -394,6 +415,8 @@ class ToolService:
             return self._rep_tracks(params)
         if method == "debrief/preview_narrative":
             return self._preview_narrative(params)
+        if method == "debrief/preview_sensor":
+            return self._preview_sensor(params)
         if method == "debrief/measure_groups":
             return measure_groups()
         if method == "debrief/tote":
@@ -528,6 +551,10 @@ class ToolService:
                 out.update(self._narrate(catalogue, item, method, params, expected, allow))
             elif method == "debrief/narrative":
                 out.update(_narrative_query(history.plot(), params))
+            elif method == "debrief/sensors":
+                out.update(_sensor_query(history.plot(), params))
+            elif method in SENSOR_METHODS:
+                out.update(self._sense(catalogue, item, method, params, expected, allow))
             elif method in TRACK_METHODS:
                 out.update(self._track(catalogue, item, method, params, expected, allow))
             elif method in CHECKING_METHODS + CLEANING_METHODS:
@@ -739,6 +766,74 @@ class ToolService:
             "changed": True,
             "entries": done.entries,
             "sources": done.sources,
+            "omitted": done.omitted,
+            "notes": done.notes,
+        }
+
+    def _sense(
+        self,
+        catalogue: Catalogue,
+        item: str,
+        method: str,
+        params: dict[str, Any],
+        base: Base | None,
+        allow: bool,
+    ) -> dict[str, Any]:
+        """Sensors (CAP-22), each one recorded, undoable step.
+
+        resolve_ambiguity keeps one side of ambiguous cuts, or makes them ambiguous
+        again: keep is port or starboard (of the host's course at each cut's time, as
+        legacy Debrief's Keep port bearing), bearing or ambiguous_bearing (the bearing
+        recorded first, or its twin), or ambiguous; the cuts are cut_ids, or sensor_ids
+        and perhaps a period ({start, end}: the time window, say). Named like "Port
+        kept: 42 Towed array cuts 09:00:00Z–09:59:30Z".
+
+        import_sensor reads a .dsf (or REP) file's ;SENSOR:, ;SENSOR2: and ;SENSOR3:
+        lines into the plot (path), the file kept as its source. hosts gives, for a track
+        name the lines give, the id of the plot's track that carries its sensors (or
+        null: not read); names matching a track (ignoring case, or by their first six
+        letters) need not be said. A sensor whose track is neither is refused
+        (NEEDS_CONFIRMATION, naming the plot's tracks), as is a file read in before
+        unless again is true. debrief/preview_sensor says what a file holds first."""
+        agent = _agent(params)
+        if method == "debrief/resolve_ambiguity":
+            asked = {
+                k: params[k] for k in ("keep", "cut_ids", "sensor_ids", "period") if k in params
+            }
+            step = catalogue.resolve_ambiguity(item, asked, agent, base, allow_newer_schema=allow)
+            note = catalogue.history(item).steps()[step - 1].records[0].notes
+            return {"changed": True, "notes": note}
+        path, hosts, again = params.get("path"), params.get("hosts"), params.get("again", False)
+        if not isinstance(path, str):
+            raise RpcError(INVALID_PARAMS, "import_sensor needs the path of the file to read")
+        if hosts is not None and not (
+            isinstance(hosts, dict)
+            and all(
+                isinstance(k, str) and (v is None or isinstance(v, str)) for k, v in hosts.items()
+            )
+        ):
+            raise RpcError(INVALID_PARAMS, "hosts gives, for a track name, a track's id, or null")
+        if not isinstance(again, bool):
+            raise RpcError(INVALID_PARAMS, "again is true or false")
+        try:
+            done = import_sensor(
+                catalogue,
+                item,
+                Path(path),
+                agent,
+                base,
+                hosts=hosts,
+                again=again,
+                allow_newer_schema=allow,
+            )
+        except (HostNeeded, SensorReadBefore) as error:
+            raise RpcError(NEEDS_CONFIRMATION, str(error)) from None
+        except NoSensorDataError as error:
+            raise RpcError(INVALID_PARAMS, str(error)) from None
+        return {
+            "changed": True,
+            "sensors": done.sensors,
+            "cuts": done.cuts,
             "omitted": done.omitted,
             "notes": done.notes,
         }
@@ -1048,6 +1143,26 @@ class ToolService:
         except (NoNarrativeError, OSError, CatalogueError, HistoryError) as error:
             raise RpcError(INVALID_PARAMS, str(error)) from None
 
+    def _preview_sensor(self, params: dict[str, Any]) -> dict[str, Any]:
+        """What a .dsf or REP file's sensor lines hold, before they are read into a plot
+        (CAP-22), so the host can ask what legacy Debrief asked: each sensor (by track and
+        name) with its cuts, ambiguous ones and period, and the plot's track that would
+        carry it (null: ask, as legacy's "Sensor track not found"); the plot's tracks; what
+        will not be imported (frequencies, lines with no bearing, bearing accuracies);
+        whether the file was read into the plot before. Changes nothing."""
+        path, item = params.get("path"), params.get("item")
+        if not isinstance(path, str) or not Path(path).is_file():
+            raise RpcError(INVALID_PARAMS, f"{path} is not a file.")
+        if not isinstance(item, str):
+            raise RpcError(INVALID_PARAMS, "preview_sensor needs the plot (store and item)")
+        store = self._store(params.get("store"), writing=False)
+        try:
+            catalogue = Catalogue.open(Path(store.location))
+            catalogue.read_item(item)
+            return preview_sensor(Path(path), catalogue=catalogue, item_id=item)
+        except (CatalogueError, OSError, HistoryError) as error:
+            raise RpcError(INVALID_PARAMS, str(error)) from None
+
     def _import(self, params: dict[str, Any]) -> dict[str, Any]:
         """Import a REP file (EXT-01), a legacy plot file, .dpf (EXT-14, EXT-15), or a Word
         or PDF document (CAP-19, EXT-04: its narrative, or an ASW document's track, named
@@ -1292,6 +1407,44 @@ def _narrative_query(plot: DebriefFeatureCollection, params: dict[str, Any]) -> 
         index = narrative.current_index(times, at)
         out["current"] = matching[index].id if index >= 0 else None
     return out
+
+
+def _sensor_query(plot: DebriefFeatureCollection, params: dict[str, Any]) -> dict[str, Any]:
+    """debrief/sensors: the plot's sensors (CAP-22), each with its host track, colour,
+    whether it is hidden, how many cuts it has, how many are still ambiguous and how many
+    resolved, and its first and last cut's time. sensor_ids narrows them; cuts true also
+    lists each sensor's cuts within period ({start, end}, ends included; at most
+    CUT_LIMIT in all), each with its time, bearing, ambiguous bearing and which was kept,
+    the side its first bearing is on, its range, label and comment, and where it is drawn
+    from (the host's position then, as the map places it; null outside the host's span):
+    what a TMA solution (CAP-21) is rooted in."""
+    ids = params.get("sensor_ids")
+    if ids is not None and not (isinstance(ids, list) and all(isinstance(i, str) for i in ids)):
+        raise RpcError(INVALID_PARAMS, "sensor_ids must be a list of sensor ids")
+    with_cuts = params.get("cuts", False)
+    if not isinstance(with_cuts, bool):
+        raise RpcError(INVALID_PARAMS, "cuts is true or false")
+    period = _period(params.get("period"))
+    window = None
+    if period is not None:
+        try:
+            window = (parse_utc(period[0]), parse_utc(period[1]))
+        except ValueError as error:
+            raise RpcError(INVALID_PARAMS, f"period: {error}") from None
+    found = sensors.describe(plot, sensor_ids=ids, period=window, with_cuts=with_cuts)
+    if with_cuts:
+        total = sum(len(s["cut_list"]) for s in found)
+        if total > CUT_LIMIT:
+            raise RpcError(
+                INVALID_PARAMS,
+                f"{total:,} cuts match: ask for at most {CUT_LIMIT:,}, by a shorter period or "
+                "fewer sensors.",
+            )
+    return {"sensors": found}
+
+
+# The most cuts debrief/sensors lists in one call.
+CUT_LIMIT = 20_000
 
 
 def _period(value: Any) -> tuple[str, str] | None:

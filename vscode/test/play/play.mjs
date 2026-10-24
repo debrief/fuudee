@@ -20,6 +20,7 @@ import { playTote, stickyHeadings } from "./tote.mjs";
 import { playNarrative, playNarrativeAtScale, vscodeTimelineView } from "./narrative.mjs";
 import { playWordNarrative } from "./narrativeword.mjs";
 import { playFrequencies } from "./frequencies.mjs";
+import { playSensors } from "./sensors.mjs";
 import { playCollation, vscodeCoverageView } from "./collation.mjs";
 import { playExport } from "./export.mjs";
 import { guidanceAccent, openOnFirstLoad, playDemo, playTourInThePost, playTours, resize, speedRun } from "./onboarding.mjs";
@@ -333,6 +334,10 @@ try {
   // Labels, symbols and arrows at intervals for two tracks at once, one step; thinned when zoomed
   // out; mixed values left alone; an interval typed; undo; a fix always showing its label (CAP-32).
   await playFrequencies(page, shot);
+  // Sensor bearings: cuts in the window from their track, the current one emphasised; an ambiguous
+  // cut's line clicked keeps it, a sensor's menu keeps port for the window from the keyboard, each
+  // one step; coloured, hidden; a .dsf read in, its track asked for; narrow and in a wide font (CAP-22).
+  await playSensors(page, shot);
   // Collation: new data marked and taken, a period's source chosen, a proposal refused, an item
   // revised and the plot flagged for review until reviewed; narrow and in a wide font (CAP-08 to CAP-12).
   await playCollation(page, shot);
@@ -470,7 +475,7 @@ try {
   await ready();
   await playNarrativeAtScale(page, shot);
   assert.deepEqual(errors, []);
-  console.log(`Playground played: map selection, keyboard, the Tote, tools, undo, crash recovery, conflict, annotations, drawing, tracks, shear and stretch, cleaning, single fixes, the narrative in the Timeline (and at 60,000 entries), narrative from Word and the Timeline's extras, labels, symbols and arrows, collation, import, narrow, CDN blocked, the walkthroughs and the onboarding speed run${site ? ", from a blog post, and the web demo" : ""}.`);
+  console.log(`Playground played: map selection, keyboard, the Tote, tools, undo, crash recovery, conflict, annotations, drawing, tracks, shear and stretch, cleaning, single fixes, the narrative in the Timeline (and at 60,000 entries), narrative from Word and the Timeline's extras, labels, symbols and arrows, sensor bearings, collation, import, narrow, CDN blocked, the walkthroughs and the onboarding speed run${site ? ", from a blog post, and the web demo" : ""}.`);
 
   /**
    * The time controller (CAP-28): drag the window and the map shows only it, at

@@ -10,10 +10,11 @@ import { randomBytes } from "node:crypto";
 import { request as httpRequest } from "node:http";
 import { tmpdir } from "node:os";
 import { createInterface } from "node:readline";
-import type { AnnotationSpec, CoverageReport, DebriefFeatureCollection, FigureSource, ImageExport, ItemRevision, NarrativeSpec, MeasureDefinition, MeasureGroup, PlotView, ReviewFlag, SharedState, SourceTrackRef, TimeRange, TimeState, ToolDeclaration, ToolResult, ToteResult, ToteView, TrackEdit, Viewport } from "@debrief/schemas";
+import type { AmbiguityResolution, AnnotationSpec, CoverageReport, DebriefFeatureCollection, FigureSource, ImageExport, ItemRevision, NarrativeSpec, MeasureDefinition, MeasureGroup, PlotView, ReviewFlag, SharedState, SourceTrackRef, TimeRange, TimeState, ToolDeclaration, ToolResult, ToteResult, ToteView, TrackEdit, Viewport } from "@debrief/schemas";
 import { guardRequest, type ShownReadOnly } from "./figures.js";
 import type { ToolOutcome } from "./diagnostics.js";
 import type { NarrativeChoices, NarrativePreview } from "./narrativeimport.js";
+import type { SensorPreview } from "./sensorimport.js";
 
 export interface Unavailable {
   library: string;
@@ -536,6 +537,26 @@ export class ToolService {
           ? ["debrief/split_track", { feature: change.feature, at: change.at, ...(change.names && { names: change.names }) }]
           : ["debrief/merge_tracks", { features: change.features, ...(change.name && { name: change.name }) }];
     return this.request(method, { store, item, base, agent, ...params, ...(allowNewerSchema && { allow_newer_schema: true }) });
+  }
+
+  /**
+   * Keep one side of ambiguous cuts, or make them ambiguous again (CAP-22): the cuts
+   * named, or a sensor's cuts in a period (the time window). One recorded, undoable step,
+   * named like "Port kept: 42 Towed array cuts 09:00:00Z–09:59:30Z".
+   * Fails with CONFLICT if the plot changed since base.
+   */
+  resolveAmbiguity(store: string, item: string, base: Base, agent: Agent, resolution: AmbiguityResolution, allowNewerSchema = false): Promise<Opened & { changed: boolean; notes?: string[] }> {
+    return this.request("debrief/resolve_ambiguity", { store, item, base, agent, ...resolution, ...(allowNewerSchema && { allow_newer_schema: true }) });
+  }
+
+  /** What a .dsf or REP file's sensor lines hold, before they are read into the plot: which track would carry each sensor (CAP-22). Changes nothing. */
+  previewSensor(path: string, plot: { store: string; item: string }): Promise<SensorPreview> {
+    return this.request("debrief/preview_sensor", { path, ...plot });
+  }
+
+  /** Read a .dsf or REP file's sensor lines into the plot as one step; hosts names the track for a track name the plot has not. */
+  importSensor(store: string, item: string, base: Base, agent: Agent, path: string, hosts: Record<string, string | null>, again = false, allowNewerSchema = false): Promise<Opened & { changed: boolean; sensors: string[]; cuts: number; omitted: string[]; notes: string[] }> {
+    return this.request("debrief/import_sensor", { store, item, base, agent, path, hosts, ...(again && { again }), ...(allowNewerSchema && { allow_newer_schema: true }) });
   }
 
   /** A track's jumps, to show the analyst before any is removed: changes nothing (CAP-01). threshold left out: three times its median speed, at least 10 kn. */

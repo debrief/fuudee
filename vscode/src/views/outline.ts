@@ -11,12 +11,13 @@ import { count, describeTimes } from "../format.js";
 import { shapeOf } from "../../webview/annotationlook.js";
 import { DR_TAG, isDeadReckoned } from "../../webview/fixes.js";
 import { trackDetails } from "../../webview/frequencies.js";
+import { featureName, sensorDetail, sensorsOf } from "../../webview/sensors.js";
 
 type Feature = PlotFeature;
 export type Node =
   | { kind: "section"; id: "features" | "files" | "reference"; label: string; children: Node[] }
   | { kind: "group"; id: string; label: string; parent: Node; children: Node[] }
-  | { kind: "feature"; feature: Feature; parent: Node }
+  | { kind: "feature"; feature: Feature; parent: Node; children?: Node[]; detail?: string }
   | { kind: "file"; title: string; fileKind: string; href: string; parent: Node }
   | { kind: "narrative"; entries: number; sources: number; parent: Node }
   | { kind: "empty"; text: string; parent: Node };
@@ -48,14 +49,29 @@ function build(opened: OpenedPlot): { roots: Node[]; features: Map<string, Node>
     children: [],
   });
   const plotSection = section("features", "Plot features");
+  // A sensor shows under its host track (CAP-22): its cuts, thousands of them, are on the
+  // map, and its row says how many and how many are still ambiguous.
+  const sensors = new Map<string, ReturnType<typeof sensorsOf>>();
+  for (const entry of sensorsOf(opened.plot)) {
+    const host = entry.sensor.properties.host_track_id;
+    sensors.set(host, [...(sensors.get(host) ?? []), entry]);
+  }
   for (const g of GROUPS) {
     const members = opened.plot.features.filter(isFeature).filter((f) => f.properties.kind === g.kind);
     if (!members.length) continue;
     const group: Node & { kind: "group" } = { kind: "group", id: g.id, label: g.label, parent: plotSection, children: [] };
     for (const feature of members) {
-      const node: Node = { kind: "feature", feature, parent: group };
+      const node: Node & { kind: "feature" } = { kind: "feature", feature, parent: group };
       features.set(feature.id, node);
       group.children.push(node);
+      const carried = sensors.get(feature.id);
+      if (carried) {
+        node.children = carried.map((entry) => {
+          const child: Node = { kind: "feature", feature: entry.sensor, parent: node, detail: sensorDetail(entry) };
+          features.set(entry.sensor.id, child);
+          return child;
+        });
+      }
     }
     plotSection.children.push(group);
   }
@@ -105,7 +121,7 @@ export class OutlineProvider implements vscode.TreeDataProvider<Node> {
 
   getChildren(node?: Node): Node[] {
     if (!node) return this.tree.roots;
-    return node.kind === "section" || node.kind === "group" ? node.children : [];
+    return node.kind === "section" || node.kind === "group" ? node.children : node.kind === "feature" ? (node.children ?? []) : [];
   }
 
   getTreeItem(node: Node): vscode.TreeItem {
@@ -141,18 +157,19 @@ export class OutlineProvider implements vscode.TreeDataProvider<Node> {
       case "feature": {
         const { feature } = node;
         const selected = this.session.selection.includes(feature.id);
-        const item = new vscode.TreeItem(feature.properties.name);
+        const name = featureName(feature);
+        const item = new vscode.TreeItem(name, node.children?.length ? vscode.TreeItemCollapsibleState.Expanded : vscode.TreeItemCollapsibleState.None);
         item.id = `feature:${feature.id}`;
         const icon =
           feature.properties.kind === "annotation"
             ? feature.properties.furniture
               ? "compass"
               : ANNOTATION_ICONS[shapeOf(feature.properties, feature.geometry?.type)]
-            : { track: "pulse", sensor_observations: "radio-tower" }[feature.properties.kind];
+            : ({ track: "pulse", sensor_observations: "radio-tower", sensor: "radio-tower" } as Record<string, string>)[feature.properties.kind];
         item.iconPath = new vscode.ThemeIcon(icon ?? "circle", selected ? new vscode.ThemeColor("list.highlightForeground") : undefined);
         // Double-click is the map's way in; here it is Enter on the menu's "Change annotation…".
         if (feature.properties.kind === "annotation" && !feature.properties.furniture) {
-          item.tooltip = `${feature.properties.name}: right-click to change or delete it`;
+          item.tooltip = `${name}: right-click to change or delete it`;
         }
         const props = feature.properties as { times?: string[]; time?: string; time_range?: { start: string; end: string } };
         const when = props.times
@@ -163,10 +180,11 @@ export class OutlineProvider implements vscode.TreeDataProvider<Node> {
         const hidden = isHidden(feature);
         // A track plotted by dead reckoning: a small DR beside its name (decision, product owner, 14 Oct 2026).
         const dr = feature.properties.kind === "track" && isDeadReckoned(feature.properties);
-        if (dr) item.tooltip = `${feature.properties.name}: plotted by dead reckoning (DR), from its first fix by each fix's course and speed`;
+        if (dr) item.tooltip = `${name}: plotted by dead reckoning (DR), from its first fix by each fix's course and speed`;
         // A track's details say its labels, symbols and arrows (CAP-32; product owner, 15 Oct 2026).
         if (feature.properties.kind === "track") item.tooltip = trackDetails(feature.properties, when, dr);
-        item.description = [dr ? DR_TAG : "", selected ? "selected" : "", hidden ? "hidden on map" : "", when].filter(Boolean).join(" · ");
+        item.description = [dr ? DR_TAG : "", selected ? "selected" : "", hidden ? "hidden on map" : "", node.detail ?? when].filter(Boolean).join(" · ");
+        if (feature.properties.kind === "sensor") item.tooltip = `${name}, a sensor of this track: ${node.detail}. Right-click to keep port or starboard bearings, show, hide or recolour it`;
         // Chart furniture is shown or removed with the North arrow command, not changed through a form.
         const kind = feature.properties.kind === "annotation" && feature.properties.furniture ? "furniture" : feature.properties.kind;
         item.contextValue = `feature-${kind}${hidden ? "-hidden" : ""}`;

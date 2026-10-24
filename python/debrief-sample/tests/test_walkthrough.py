@@ -54,9 +54,10 @@ def test_each_copy_is_serial_1_titled_after_its_walkthrough(sample: Path, tmp_pa
         assert tracks == {
             f.properties.name for f in original.features if f.properties.kind == "track"
         }
-        # Its sources, payloads and supporting files came with it.
+        # Its sources and supporting files came with it; its sensors are in the plot.
         kinds = sorted(a.debrief_asset_kind for a in target.assets(item).values())
-        assert kinds.count("source") == 3 and "payload" in kinds and "supporting_file" in kinds
+        assert kinds.count("source") == 3 and "supporting_file" in kinds
+        assert sum(f.properties.kind == "sensor" for f in copy.features) == 2
         notes = [n for r in copy.provenance for n in (r.notes or [])]
         assert f"Copied from Serial 1 of the sample for the walkthrough {title}" in notes
     # Another copy of the same walkthrough is another plot, never over the first.
@@ -108,10 +109,11 @@ def test_the_command_line_prepares_a_walkthrough(tmp_path: Path) -> None:
     assert "log" not in made
 
 
-def test_the_walkthrough_module_runs_without_pyarrow() -> None:
-    # The playground imports it under Pyodide, where pyarrow is not installed.
+def test_the_walkthrough_module_does_not_import_the_builder() -> None:
+    # The playground imports it under Pyodide; the builder is never needed there.
     code = (
-        "import sys; sys.modules['pyarrow'] = None; import debrief_sample.walkthrough; print('ok')"
+        "import sys; import debrief_sample.walkthrough; "
+        "print('ok' if 'debrief_sample.builder' not in sys.modules else 'builder')"
     )
     out = subprocess.run([sys.executable, "-c", code], check=True, capture_output=True, text=True)
     assert out.stdout.strip() == "ok"

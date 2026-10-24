@@ -261,7 +261,12 @@ def test_track_legs_sensors_and_errors() -> None:
         "TrackSegment",
     ]
     assert [len(leg.fixes) for leg in track.legs] == [1, 1, 1]
-    assert [(c.kind, c.name, c.count) for c in track.carried] == [("sensor", "hull", 1)]
+    assert track.carried == []
+    ((sensor),) = track.sensors
+    assert (sensor.name, [(c.bearing, c.ambiguous) for c in sensor.contacts]) == (
+        "hull",
+        [(10.0, None)],
+    )
     assert parsed.truncated_times == 1
     ((line, problem),) = parsed.errors
     assert line == 17 and "NELSON" in problem

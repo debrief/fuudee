@@ -32,7 +32,7 @@ from pydantic import (
 
 
 metamodel_version = "1.12.0"
-version = "0.0.22"
+version = "0.0.23"
 
 
 class ConfiguredBaseModel(BaseModel):
@@ -531,6 +531,14 @@ class FeatureKindEnum(str, Enum):
     """
     A narrative entry: what a platform, a person or a document logged at a time, with no position (CAP-19, CAP-20).
     """
+    sensor = "sensor"
+    """
+    A sensor carried by a track, such as a bow sonar or a towed array: its name, its host track, its colour (CAP-22).
+    """
+    sensor_cut = "sensor_cut"
+    """
+    One cut of a sensor: a bearing (perhaps with its ambiguous twin) at a time, drawn from the host track's position then (CAP-22).
+    """
 
 
 class PlotKindEnum(str, Enum):
@@ -647,6 +655,54 @@ class SensorObservationsKindEnum(str, Enum):
 
 class NarrativeKindEnum(str, Enum):
     narrative = "narrative"
+
+
+class SensorKindEnum(str, Enum):
+    sensor = "sensor"
+
+
+class SensorCutKindEnum(str, Enum):
+    sensor_cut = "sensor_cut"
+
+
+class SensorCutKeptEnum(str, Enum):
+    """
+    Which of an ambiguous cut's two recorded bearings the analyst kept (CAP-22): the side resolved. Recorded as the bearing kept, not as port or starboard, because which side a bearing is on depends on the host track's course at the cut's time, which a later edit of the track (a move, dead reckoning) can change; what the analyst judged is which bearing was the target's. Debrief says it as port or starboard.
+    """
+    bearing = "bearing"
+    """
+    The bearing recorded first (bearing) is the target's; the other was its mirror image.
+    """
+    ambiguous_bearing = "ambiguous_bearing"
+    """
+    The ambiguous bearing (ambiguous_bearing) is the target's: the cut is drawn along it.
+    """
+
+
+class AmbiguityKeepEnum(str, Enum):
+    """
+    What the analyst asks of ambiguous cuts (CAP-22): keep the bearing to port or to starboard of the host track's course at each cut's time, as legacy Debrief's Keep port bearing and Keep starboard bearing decide it (by the side of the bearing recorded first); keep the bearing recorded first, or its ambiguous twin, as the analyst clicked it on the map; or make the cuts ambiguous again.
+    """
+    port = "port"
+    """
+    Keep the bearing to port of the host's course.
+    """
+    starboard = "starboard"
+    """
+    Keep the bearing to starboard of the host's course.
+    """
+    bearing = "bearing"
+    """
+    Keep the bearing recorded first.
+    """
+    ambiguous_bearing = "ambiguous_bearing"
+    """
+    Keep the ambiguous bearing.
+    """
+    ambiguous = "ambiguous"
+    """
+    Undo the resolution: both bearings again, unresolved.
+    """
 
 
 class AnnotationStyleEnum(str, Enum):
@@ -1253,6 +1309,14 @@ class WebviewMessageKindEnum(str, Enum):
     """
     Map to host: the analyst asked to leave the earlier revision shown read-only and go to the plot's latest (no members).
     """
+    resolve_asked = "resolve_asked"
+    """
+    Map to host: the analyst clicked one of an ambiguous cut's two lines (feature_id, the cut), keeping that bearing (keep: bearing or ambiguous_bearing), as one recorded step (CAP-22; product owner, 24 Oct 2026).
+    """
+    cut_chosen = "cut_chosen"
+    """
+    Map to host: the analyst asked for a cut's menu (feature_id, the cut), by right-clicking it or pressing and holding it on a touch screen: keep port, keep starboard, ambiguous again, or select it.
+    """
 
 
 class StepStateEnum(str, Enum):
@@ -1499,6 +1563,7 @@ class ParameterValue(ConfiguredBaseModel):
                        'SourceTrackRef',
                        'AnnotationProperties',
                        'AnnotationSpec',
+                       'SensorProperties',
                        'SensorObservationsProperties',
                        'InnerSchemaRef',
                        'PayloadColumn',
@@ -1550,6 +1615,8 @@ class PointGeometry(ConfiguredBaseModel):
                        'TrackFeature',
                        'AnnotationFeature',
                        'NarrativeFeature',
+                       'SensorFeature',
+                       'SensorCutFeature',
                        'SensorObservationsFeature',
                        'PlotFeature',
                        'DebriefFeatureCollection',
@@ -1571,6 +1638,8 @@ class LineStringGeometry(ConfiguredBaseModel):
                        'TrackFeature',
                        'AnnotationFeature',
                        'NarrativeFeature',
+                       'SensorFeature',
+                       'SensorCutFeature',
                        'SensorObservationsFeature',
                        'PlotFeature',
                        'DebriefFeatureCollection',
@@ -1595,6 +1664,8 @@ class PolygonGeometry(ConfiguredBaseModel):
                        'TrackFeature',
                        'AnnotationFeature',
                        'NarrativeFeature',
+                       'SensorFeature',
+                       'SensorCutFeature',
                        'SensorObservationsFeature',
                        'PlotFeature',
                        'DebriefFeatureCollection',
@@ -1620,6 +1691,8 @@ class ProvRecord(ConfiguredBaseModel):
                        'TrackFeature',
                        'AnnotationFeature',
                        'NarrativeFeature',
+                       'SensorFeature',
+                       'SensorCutFeature',
                        'SensorObservationsFeature',
                        'PlotFeature',
                        'NamedSet',
@@ -1636,6 +1709,8 @@ class ProvRecord(ConfiguredBaseModel):
                        'TrackProperties',
                        'AnnotationProperties',
                        'NarrativeProperties',
+                       'SensorProperties',
+                       'SensorCutProperties',
                        'SensorObservationsProperties',
                        'PlotProperties',
                        'ParameterDeclaration',
@@ -1693,6 +1768,7 @@ class ToolRef(ConfiguredBaseModel):
                        'SourceTrackRef',
                        'AnnotationProperties',
                        'AnnotationSpec',
+                       'SensorProperties',
                        'SensorObservationsProperties',
                        'InnerSchemaRef',
                        'PayloadColumn',
@@ -1720,6 +1796,8 @@ class AgentRef(ConfiguredBaseModel):
                        'TrackProperties',
                        'AnnotationProperties',
                        'NarrativeProperties',
+                       'SensorProperties',
+                       'SensorCutProperties',
                        'SensorObservationsProperties',
                        'PlotProperties',
                        'ParameterDeclaration',
@@ -1733,6 +1811,7 @@ class AgentRef(ConfiguredBaseModel):
                        'SourceTrackRef',
                        'AnnotationProperties',
                        'AnnotationSpec',
+                       'SensorProperties',
                        'SensorObservationsProperties',
                        'InnerSchemaRef',
                        'PayloadColumn',
@@ -1852,6 +1931,8 @@ class TrackFeature(ConfiguredBaseModel):
                        'TrackFeature',
                        'AnnotationFeature',
                        'NarrativeFeature',
+                       'SensorFeature',
+                       'SensorCutFeature',
                        'SensorObservationsFeature',
                        'PlotFeature',
                        'DebriefFeatureCollection',
@@ -1863,6 +1944,8 @@ class TrackFeature(ConfiguredBaseModel):
                        'TrackFeature',
                        'AnnotationFeature',
                        'NarrativeFeature',
+                       'SensorFeature',
+                       'SensorCutFeature',
                        'SensorObservationsFeature',
                        'PlotFeature',
                        'NamedSet',
@@ -1877,12 +1960,16 @@ class TrackFeature(ConfiguredBaseModel):
     geometry: LineStringGeometry = Field(default=..., json_schema_extra = { "linkml_meta": {'domain_of': ['TrackFeature',
                        'AnnotationFeature',
                        'NarrativeFeature',
+                       'SensorFeature',
+                       'SensorCutFeature',
                        'SensorObservationsFeature',
                        'PlotFeature',
                        'StacItem']} })
     properties: TrackProperties = Field(default=..., json_schema_extra = { "linkml_meta": {'domain_of': ['TrackFeature',
                        'AnnotationFeature',
                        'NarrativeFeature',
+                       'SensorFeature',
+                       'SensorCutFeature',
                        'SensorObservationsFeature',
                        'PlotFeature',
                        'StacItem']} })
@@ -1896,6 +1983,8 @@ class TrackProperties(ConfiguredBaseModel):
                        'TrackProperties',
                        'AnnotationProperties',
                        'NarrativeProperties',
+                       'SensorProperties',
+                       'SensorCutProperties',
                        'SensorObservationsProperties',
                        'PlotProperties',
                        'ParameterDeclaration',
@@ -1909,6 +1998,7 @@ class TrackProperties(ConfiguredBaseModel):
                        'SourceTrackRef',
                        'AnnotationProperties',
                        'AnnotationSpec',
+                       'SensorProperties',
                        'SensorObservationsProperties',
                        'InnerSchemaRef',
                        'PayloadColumn',
@@ -1944,6 +2034,8 @@ class TrackProperties(ConfiguredBaseModel):
          'domain_of': ['TrackProperties']} })
     hidden: Optional[bool] = Field(default=None, description="""Not drawn on the map. Still listed, and still selectable, in the outline. Content: hiding is a recorded, undoable change (SUB-22).""", json_schema_extra = { "linkml_meta": {'domain_of': ['TrackProperties',
                        'AnnotationProperties',
+                       'SensorProperties',
+                       'SensorCutProperties',
                        'SensorObservationsProperties',
                        'TimelineEntry']} })
     supplies: Optional[list[TrackSupply]] = Field(default=None, description="""Which catalogue item supplies each period of the track (CAP-09): where two items have data for the platform over the same period, the analyst chooses which supplies it, and the track is stitched from the chosen periods. In time order, not overlapping, each from its first fix to its last. Left out, the plot itself supplies the whole track, as imported. Content: each change is a recorded, undoable step (SUB-22), naming the items and periods.""", json_schema_extra = { "linkml_meta": {'domain_of': ['TrackProperties']} })
@@ -1952,6 +2044,7 @@ class TrackProperties(ConfiguredBaseModel):
     provenance: Optional[list[ProvRecord]] = Field(default=None, description="""Feature-level provenance where needed (SUB-18).""", json_schema_extra = { "linkml_meta": {'domain_of': ['TrackProperties',
                        'AnnotationProperties',
                        'NarrativeProperties',
+                       'SensorProperties',
                        'SensorObservationsProperties',
                        'DebriefFeatureCollection']} })
 
@@ -2010,6 +2103,7 @@ class SourceTrackRef(ConfiguredBaseModel):
                        'SourceTrackRef',
                        'AnnotationProperties',
                        'AnnotationSpec',
+                       'SensorProperties',
                        'SensorObservationsProperties',
                        'InnerSchemaRef',
                        'PayloadColumn',
@@ -2146,11 +2240,13 @@ class TrackStyle(ConfiguredBaseModel):
     colour: str = Field(default=..., description="""Lower-case hex RGB, for example \"#e01c3e\".""", json_schema_extra = { "linkml_meta": {'domain_of': ['TrackStyle',
                        'FixMark',
                        'AnnotationAppearance',
+                       'SensorProperties',
+                       'SensorCutProperties',
                        'ToteRow',
                        'ToteTrack',
                        'CoveragePlatform',
                        'TimelineEntry']} })
-    legacy_symbology: Optional[str] = Field(default=None, description="""The REP symbology code the colour came from, such as \"@C\", kept for export.""", json_schema_extra = { "linkml_meta": {'domain_of': ['TrackStyle']} })
+    legacy_symbology: Optional[str] = Field(default=None, description="""The REP symbology code the colour came from, such as \"@C\", kept for export.""", json_schema_extra = { "linkml_meta": {'domain_of': ['TrackStyle', 'SensorProperties']} })
 
     @field_validator('colour')
     def pattern_colour(cls, v):
@@ -2177,6 +2273,7 @@ class FixMark(ConfiguredBaseModel):
                        'AnnotationSpec',
                        'NarrativeProperties',
                        'NarrativeSpec',
+                       'SensorCutProperties',
                        'SharedState',
                        'SharedStateChange',
                        'ToteResult',
@@ -2185,12 +2282,14 @@ class FixMark(ConfiguredBaseModel):
     colour: Optional[str] = Field(default=None, description="""The fix's own colour, lower-case hex RGB: its marker and the line from it to the next fix are drawn in it.""", json_schema_extra = { "linkml_meta": {'domain_of': ['TrackStyle',
                        'FixMark',
                        'AnnotationAppearance',
+                       'SensorProperties',
+                       'SensorCutProperties',
                        'ToteRow',
                        'ToteTrack',
                        'CoveragePlatform',
                        'TimelineEntry']} })
-    label: Optional[str] = Field(default=None, description="""Text drawn on the map beside the fix.""", json_schema_extra = { "linkml_meta": {'domain_of': ['FixMark', 'MeasureDefinition']} })
-    comment: Optional[str] = Field(default=None, description="""Free text about the fix, shown when the analyst points at it and in the Timeline.""", json_schema_extra = { "linkml_meta": {'domain_of': ['FixMark']} })
+    label: Optional[str] = Field(default=None, description="""Text drawn on the map beside the fix.""", json_schema_extra = { "linkml_meta": {'domain_of': ['FixMark', 'SensorCutProperties', 'MeasureDefinition']} })
+    comment: Optional[str] = Field(default=None, description="""Free text about the fix, shown when the analyst points at it and in the Timeline.""", json_schema_extra = { "linkml_meta": {'domain_of': ['FixMark', 'SensorCutProperties']} })
     show_label: Optional[bool] = Field(default=None, description="""The fix always shows its time label, as the track's label_interval draws them, whatever that interval is and at any zoom (CAP-32; decision, product owner, 15 Oct 2026: force on only, so true when given). Never drawn twice where the interval falls on the same time.""", json_schema_extra = { "linkml_meta": {'domain_of': ['FixMark']} })
     show_symbol: Optional[bool] = Field(default=None, description="""The fix always shows its symbol, as the track's symbol_interval draws them, whatever that interval is and at any zoom (CAP-32); true when given.""", json_schema_extra = { "linkml_meta": {'domain_of': ['FixMark']} })
 
@@ -2228,9 +2327,9 @@ class TrackEdit(ConfiguredBaseModel):
     linkml_meta: ClassVar[LinkMLMeta] = LinkMLMeta({'from_schema': 'https://debrief.info/schemas/debrief'})
 
     action: TrackEditActionEnum = Field(default=..., json_schema_extra = { "linkml_meta": {'domain_of': ['TrackEdit']} })
-    period: Optional[TimeRange] = Field(default=None, description="""The fixes to change: those whose times fall in it, ends included. Left out, the whole track.""", json_schema_extra = { "linkml_meta": {'domain_of': ['TrackEdit']} })
+    period: Optional[TimeRange] = Field(default=None, description="""The fixes to change: those whose times fall in it, ends included. Left out, the whole track.""", json_schema_extra = { "linkml_meta": {'domain_of': ['TrackEdit', 'AmbiguityResolution']} })
     distance: Optional[Length] = Field(default=None, description="""How far a move takes each fix, a shear drags the end that is not held, or a single fix is moved.""", json_schema_extra = { "linkml_meta": {'domain_of': ['TrackEdit']} })
-    bearing: Optional[Angle] = Field(default=None, description="""Which way a move takes each fix, a shear drags the end that is not held, or a single fix is moved, true, clockwise from north.""", json_schema_extra = { "linkml_meta": {'domain_of': ['TrackEdit']} })
+    bearing: Optional[Angle] = Field(default=None, description="""Which way a move takes each fix, a shear drags the end that is not held, or a single fix is moved, true, clockwise from north.""", json_schema_extra = { "linkml_meta": {'domain_of': ['TrackEdit', 'SensorCutProperties']} })
     angle: Optional[Angle] = Field(default=None, description="""How far a rotation turns the fixes about the pivot; positive is clockwise.""", json_schema_extra = { "linkml_meta": {'domain_of': ['TrackEdit']} })
     pivot: Optional[list[float]] = Field(default=None, description="""[longitude, latitude] of the position a rotation turns about. Left out, the fix nearest current time in the period, or the period's first fix.""", min_length=2, max_length=2, json_schema_extra = { "linkml_meta": {'domain_of': ['TrackEdit']} })
     anchor: Optional[TrackEditAnchorEnum] = Field(default=None, description="""The end of the period a shear or a stretch holds fixed.""", json_schema_extra = { "linkml_meta": {'domain_of': ['TrackEdit']} })
@@ -2267,6 +2366,8 @@ class AnnotationFeature(ConfiguredBaseModel):
                        'TrackFeature',
                        'AnnotationFeature',
                        'NarrativeFeature',
+                       'SensorFeature',
+                       'SensorCutFeature',
                        'SensorObservationsFeature',
                        'PlotFeature',
                        'DebriefFeatureCollection',
@@ -2278,6 +2379,8 @@ class AnnotationFeature(ConfiguredBaseModel):
                        'TrackFeature',
                        'AnnotationFeature',
                        'NarrativeFeature',
+                       'SensorFeature',
+                       'SensorCutFeature',
                        'SensorObservationsFeature',
                        'PlotFeature',
                        'NamedSet',
@@ -2295,12 +2398,16 @@ class AnnotationFeature(ConfiguredBaseModel):
          'domain_of': ['TrackFeature',
                        'AnnotationFeature',
                        'NarrativeFeature',
+                       'SensorFeature',
+                       'SensorCutFeature',
                        'SensorObservationsFeature',
                        'PlotFeature',
                        'StacItem']} })
     properties: AnnotationProperties = Field(default=..., json_schema_extra = { "linkml_meta": {'domain_of': ['TrackFeature',
                        'AnnotationFeature',
                        'NarrativeFeature',
+                       'SensorFeature',
+                       'SensorCutFeature',
                        'SensorObservationsFeature',
                        'PlotFeature',
                        'StacItem']} })
@@ -2314,6 +2421,8 @@ class AnnotationProperties(ConfiguredBaseModel):
                        'TrackProperties',
                        'AnnotationProperties',
                        'NarrativeProperties',
+                       'SensorProperties',
+                       'SensorCutProperties',
                        'SensorObservationsProperties',
                        'PlotProperties',
                        'ParameterDeclaration',
@@ -2328,6 +2437,7 @@ class AnnotationProperties(ConfiguredBaseModel):
                        'SourceTrackRef',
                        'AnnotationProperties',
                        'AnnotationSpec',
+                       'SensorProperties',
                        'SensorObservationsProperties',
                        'InnerSchemaRef',
                        'PayloadColumn',
@@ -2350,6 +2460,7 @@ class AnnotationProperties(ConfiguredBaseModel):
                        'AnnotationSpec',
                        'NarrativeProperties',
                        'NarrativeSpec',
+                       'SensorCutProperties',
                        'SharedState',
                        'SharedStateChange',
                        'ToteResult',
@@ -2371,11 +2482,14 @@ class AnnotationProperties(ConfiguredBaseModel):
     appearance: Optional[AnnotationAppearance] = Field(default=None, description="""How it is drawn on the map. Left out, or any member of it left out, means Debrief's default for annotations. Content, like a track's colour: changing it is a recorded, undoable change (SUB-22).""", json_schema_extra = { "linkml_meta": {'domain_of': ['AnnotationProperties', 'AnnotationSpec']} })
     hidden: Optional[bool] = Field(default=None, description="""Not drawn on the map. Still listed, and still selectable, in the outline. Content: hiding is a recorded, undoable change (SUB-22).""", json_schema_extra = { "linkml_meta": {'domain_of': ['TrackProperties',
                        'AnnotationProperties',
+                       'SensorProperties',
+                       'SensorCutProperties',
                        'SensorObservationsProperties',
                        'TimelineEntry']} })
     provenance: Optional[list[ProvRecord]] = Field(default=None, json_schema_extra = { "linkml_meta": {'domain_of': ['TrackProperties',
                        'AnnotationProperties',
                        'NarrativeProperties',
+                       'SensorProperties',
                        'SensorObservationsProperties',
                        'DebriefFeatureCollection']} })
 
@@ -2402,6 +2516,8 @@ class AnnotationAppearance(ConfiguredBaseModel):
     colour: Optional[str] = Field(default=None, description="""Its line's colour, and a label's or a marker's dot. Lower-case hex RGB, for example \"#c7820a\". Label text is drawn in the theme's text colour, so it stays readable on any map.""", json_schema_extra = { "linkml_meta": {'domain_of': ['TrackStyle',
                        'FixMark',
                        'AnnotationAppearance',
+                       'SensorProperties',
+                       'SensorCutProperties',
                        'ToteRow',
                        'ToteTrack',
                        'CoveragePlatform',
@@ -2454,6 +2570,7 @@ class AnnotationSpec(ConfiguredBaseModel):
                        'SourceTrackRef',
                        'AnnotationProperties',
                        'AnnotationSpec',
+                       'SensorProperties',
                        'SensorObservationsProperties',
                        'InnerSchemaRef',
                        'PayloadColumn',
@@ -2483,6 +2600,7 @@ class AnnotationSpec(ConfiguredBaseModel):
                        'AnnotationSpec',
                        'NarrativeProperties',
                        'NarrativeSpec',
+                       'SensorCutProperties',
                        'SharedState',
                        'SharedStateChange',
                        'ToteResult',
@@ -2520,6 +2638,8 @@ class NarrativeFeature(ConfiguredBaseModel):
                        'TrackFeature',
                        'AnnotationFeature',
                        'NarrativeFeature',
+                       'SensorFeature',
+                       'SensorCutFeature',
                        'SensorObservationsFeature',
                        'PlotFeature',
                        'DebriefFeatureCollection',
@@ -2531,6 +2651,8 @@ class NarrativeFeature(ConfiguredBaseModel):
                        'TrackFeature',
                        'AnnotationFeature',
                        'NarrativeFeature',
+                       'SensorFeature',
+                       'SensorCutFeature',
                        'SensorObservationsFeature',
                        'PlotFeature',
                        'NamedSet',
@@ -2545,12 +2667,16 @@ class NarrativeFeature(ConfiguredBaseModel):
     geometry: Optional[PointGeometry] = Field(default=None, description="""Always null.""", json_schema_extra = { "linkml_meta": {'domain_of': ['TrackFeature',
                        'AnnotationFeature',
                        'NarrativeFeature',
+                       'SensorFeature',
+                       'SensorCutFeature',
                        'SensorObservationsFeature',
                        'PlotFeature',
                        'StacItem']} })
     properties: NarrativeProperties = Field(default=..., json_schema_extra = { "linkml_meta": {'domain_of': ['TrackFeature',
                        'AnnotationFeature',
                        'NarrativeFeature',
+                       'SensorFeature',
+                       'SensorCutFeature',
                        'SensorObservationsFeature',
                        'PlotFeature',
                        'StacItem']} })
@@ -2564,6 +2690,8 @@ class NarrativeProperties(ConfiguredBaseModel):
                        'TrackProperties',
                        'AnnotationProperties',
                        'NarrativeProperties',
+                       'SensorProperties',
+                       'SensorCutProperties',
                        'SensorObservationsProperties',
                        'PlotProperties',
                        'ParameterDeclaration',
@@ -2575,6 +2703,7 @@ class NarrativeProperties(ConfiguredBaseModel):
                        'AnnotationSpec',
                        'NarrativeProperties',
                        'NarrativeSpec',
+                       'SensorCutProperties',
                        'SharedState',
                        'SharedStateChange',
                        'ToteResult',
@@ -2594,6 +2723,7 @@ class NarrativeProperties(ConfiguredBaseModel):
     provenance: Optional[list[ProvRecord]] = Field(default=None, json_schema_extra = { "linkml_meta": {'domain_of': ['TrackProperties',
                        'AnnotationProperties',
                        'NarrativeProperties',
+                       'SensorProperties',
                        'SensorObservationsProperties',
                        'DebriefFeatureCollection']} })
 
@@ -2622,6 +2752,7 @@ class NarrativeSpec(ConfiguredBaseModel):
                        'AnnotationSpec',
                        'NarrativeProperties',
                        'NarrativeSpec',
+                       'SensorCutProperties',
                        'SharedState',
                        'SharedStateChange',
                        'ToteResult',
@@ -2653,9 +2784,9 @@ class NarrativeSpec(ConfiguredBaseModel):
         return v
 
 
-class SensorObservationsFeature(ConfiguredBaseModel):
+class SensorFeature(ConfiguredBaseModel):
     """
-    A set of sensor observations, such as weeks of bearings, held as an opaque payload (CON-02, NFR-06). Geometry is null; positions come from the host track at each observation time.
+    A sensor carried by a track (CAP-22): a bow sonar, a towed array, the bearings read from a narrative. Its cuts are features of their own (SensorCutFeature), each naming it, so resolving one cut, or the cuts of a period, is one small recorded step (SUB-19), as each narrative entry is a feature of its own. Geometry is null: a cut is drawn from where the host track was at its time, so a track edited (moved, sheared, plotted by dead reckoning) carries its cuts with it, and a TMA solution (CAP-21) can be rooted in the cuts' times.
     """
     linkml_meta: ClassVar[LinkMLMeta] = LinkMLMeta({'from_schema': 'https://debrief.info/schemas/debrief'})
 
@@ -2665,6 +2796,8 @@ class SensorObservationsFeature(ConfiguredBaseModel):
                        'TrackFeature',
                        'AnnotationFeature',
                        'NarrativeFeature',
+                       'SensorFeature',
+                       'SensorCutFeature',
                        'SensorObservationsFeature',
                        'PlotFeature',
                        'DebriefFeatureCollection',
@@ -2676,6 +2809,8 @@ class SensorObservationsFeature(ConfiguredBaseModel):
                        'TrackFeature',
                        'AnnotationFeature',
                        'NarrativeFeature',
+                       'SensorFeature',
+                       'SensorCutFeature',
                        'SensorObservationsFeature',
                        'PlotFeature',
                        'NamedSet',
@@ -2690,12 +2825,294 @@ class SensorObservationsFeature(ConfiguredBaseModel):
     geometry: Optional[PointGeometry] = Field(default=None, description="""Always null.""", json_schema_extra = { "linkml_meta": {'domain_of': ['TrackFeature',
                        'AnnotationFeature',
                        'NarrativeFeature',
+                       'SensorFeature',
+                       'SensorCutFeature',
+                       'SensorObservationsFeature',
+                       'PlotFeature',
+                       'StacItem']} })
+    properties: SensorProperties = Field(default=..., json_schema_extra = { "linkml_meta": {'domain_of': ['TrackFeature',
+                       'AnnotationFeature',
+                       'NarrativeFeature',
+                       'SensorFeature',
+                       'SensorCutFeature',
+                       'SensorObservationsFeature',
+                       'PlotFeature',
+                       'StacItem']} })
+
+
+class SensorProperties(ConfiguredBaseModel):
+    linkml_meta: ClassVar[LinkMLMeta] = LinkMLMeta({'from_schema': 'https://debrief.info/schemas/debrief'})
+
+    kind: SensorKindEnum = Field(default=..., json_schema_extra = { "linkml_meta": {'domain_of': ['ProvRecord',
+                       'AgentRef',
+                       'TrackProperties',
+                       'AnnotationProperties',
+                       'NarrativeProperties',
+                       'SensorProperties',
+                       'SensorCutProperties',
+                       'SensorObservationsProperties',
+                       'PlotProperties',
+                       'ParameterDeclaration',
+                       'KnownStore',
+                       'TimelineEntry',
+                       'WebviewMessage']} })
+    name: str = Field(default=..., description="""The sensor's name, as its source gives it, such as \"Towed array\" or \"2087\".""", json_schema_extra = { "linkml_meta": {'domain_of': ['ParameterValue',
+                       'ToolRef',
+                       'AgentRef',
+                       'TrackProperties',
+                       'SourceTrackRef',
+                       'AnnotationProperties',
+                       'AnnotationSpec',
+                       'SensorProperties',
+                       'SensorObservationsProperties',
+                       'InnerSchemaRef',
+                       'PayloadColumn',
+                       'NamedSet',
+                       'TrackCoverage',
+                       'ToolDeclaration',
+                       'ParameterDeclaration',
+                       'ResultColumn',
+                       'ToteRow',
+                       'ToteTrack',
+                       'CoveragePlatform',
+                       'CoverageSource']} })
+    host_track_id: str = Field(default=..., description="""The track carrying the sensor (ownship): its cuts are drawn from that track's position at each cut's time. A track split keeps its sensors on its first part; tracks merged take their sensors with them.""", json_schema_extra = { "linkml_meta": {'domain_of': ['SensorProperties', 'SensorObservationsProperties']} })
+    colour: str = Field(default=..., description="""The colour its cuts are drawn in, lower-case hex RGB, unless a cut has its own. Content, like a track's colour: each change is a recorded, undoable step (SUB-22).""", json_schema_extra = { "linkml_meta": {'domain_of': ['TrackStyle',
+                       'FixMark',
+                       'AnnotationAppearance',
+                       'SensorProperties',
+                       'SensorCutProperties',
+                       'ToteRow',
+                       'ToteTrack',
+                       'CoveragePlatform',
+                       'TimelineEntry']} })
+    legacy_symbology: Optional[str] = Field(default=None, description="""The REP symbology code its colour came from, such as \"@A\", kept for export.""", json_schema_extra = { "linkml_meta": {'domain_of': ['TrackStyle', 'SensorProperties']} })
+    hidden: Optional[bool] = Field(default=None, description="""None of its cuts drawn on the map. Still listed, and still selectable, in the outline, under its track. Content: hiding is a recorded, undoable change (SUB-22).""", json_schema_extra = { "linkml_meta": {'domain_of': ['TrackProperties',
+                       'AnnotationProperties',
+                       'SensorProperties',
+                       'SensorCutProperties',
+                       'SensorObservationsProperties',
+                       'TimelineEntry']} })
+    provenance: Optional[list[ProvRecord]] = Field(default=None, json_schema_extra = { "linkml_meta": {'domain_of': ['TrackProperties',
+                       'AnnotationProperties',
+                       'NarrativeProperties',
+                       'SensorProperties',
+                       'SensorObservationsProperties',
+                       'DebriefFeatureCollection']} })
+
+    @field_validator('colour')
+    def pattern_colour(cls, v):
+        pattern=re.compile(r"^#[0-9a-f]{6}$")
+        if isinstance(v, list):
+            for element in v:
+                if isinstance(element, str) and not pattern.search(element):
+                    err_msg = f"Invalid colour format: {element}"
+                    raise ValueError(err_msg)
+        elif isinstance(v, str) and not pattern.search(v):
+            err_msg = f"Invalid colour format: {v}"
+            raise ValueError(err_msg)
+        return v
+
+
+class SensorCutFeature(ConfiguredBaseModel):
+    """
+    One cut of a sensor (CAP-22): a bearing from the host track at a time, perhaps with the ambiguous bearing a towed array cannot tell it from, and which of the two the analyst kept. Geometry is null: the cut is drawn from the host track's position at its time (as the map places tracks, along the geodesic between fixes), or from the position recorded with it, along the geodesic at its bearing to its range, or else past the edge of the map's view (twice the view's larger side, at most 5 degrees of arc, 300 nmi, as legacy Debrief draws it). Frequency is never imported (CAP-22, EXT-03). A bearing error is not held yet: no legacy format defines what one means (product owner, 24 Oct 2026); an optional bearing_error here is the way to add it, and wedges with it.
+    """
+    linkml_meta: ClassVar[LinkMLMeta] = LinkMLMeta({'from_schema': 'https://debrief.info/schemas/debrief'})
+
+    type: FeatureTypeEnum = Field(default=..., json_schema_extra = { "linkml_meta": {'domain_of': ['PointGeometry',
+                       'LineStringGeometry',
+                       'PolygonGeometry',
+                       'TrackFeature',
+                       'AnnotationFeature',
+                       'NarrativeFeature',
+                       'SensorFeature',
+                       'SensorCutFeature',
+                       'SensorObservationsFeature',
+                       'PlotFeature',
+                       'DebriefFeatureCollection',
+                       'StacLink',
+                       'StacAsset',
+                       'StacItem',
+                       'StacCatalog']} })
+    id: str = Field(default=..., json_schema_extra = { "linkml_meta": {'domain_of': ['ProvRecord',
+                       'TrackFeature',
+                       'AnnotationFeature',
+                       'NarrativeFeature',
+                       'SensorFeature',
+                       'SensorCutFeature',
+                       'SensorObservationsFeature',
+                       'PlotFeature',
+                       'NamedSet',
+                       'StacItem',
+                       'StacCatalog',
+                       'MeasureDefinition',
+                       'MeasureGroup',
+                       'ToteTrack',
+                       'KnownStore',
+                       'ImageExport',
+                       'TimelineEntry']} })
+    geometry: Optional[PointGeometry] = Field(default=None, description="""Always null.""", json_schema_extra = { "linkml_meta": {'domain_of': ['TrackFeature',
+                       'AnnotationFeature',
+                       'NarrativeFeature',
+                       'SensorFeature',
+                       'SensorCutFeature',
+                       'SensorObservationsFeature',
+                       'PlotFeature',
+                       'StacItem']} })
+    properties: SensorCutProperties = Field(default=..., json_schema_extra = { "linkml_meta": {'domain_of': ['TrackFeature',
+                       'AnnotationFeature',
+                       'NarrativeFeature',
+                       'SensorFeature',
+                       'SensorCutFeature',
+                       'SensorObservationsFeature',
+                       'PlotFeature',
+                       'StacItem']} })
+
+
+class SensorCutProperties(ConfiguredBaseModel):
+    linkml_meta: ClassVar[LinkMLMeta] = LinkMLMeta({'from_schema': 'https://debrief.info/schemas/debrief'})
+
+    kind: SensorCutKindEnum = Field(default=..., json_schema_extra = { "linkml_meta": {'domain_of': ['ProvRecord',
+                       'AgentRef',
+                       'TrackProperties',
+                       'AnnotationProperties',
+                       'NarrativeProperties',
+                       'SensorProperties',
+                       'SensorCutProperties',
+                       'SensorObservationsProperties',
+                       'PlotProperties',
+                       'ParameterDeclaration',
+                       'KnownStore',
+                       'TimelineEntry',
+                       'WebviewMessage']} })
+    sensor_id: str = Field(default=..., description="""The sensor the cut is from, a sensor feature in the plot.""", json_schema_extra = { "linkml_meta": {'domain_of': ['SensorCutProperties']} })
+    time: str = Field(default=..., description="""When the cut was taken, to the millisecond, Zulu (SUB-01).""", json_schema_extra = { "linkml_meta": {'domain_of': ['FixMark',
+                       'AnnotationProperties',
+                       'AnnotationSpec',
+                       'NarrativeProperties',
+                       'NarrativeSpec',
+                       'SensorCutProperties',
+                       'SharedState',
+                       'SharedStateChange',
+                       'ToteResult',
+                       'ImageExport',
+                       'WebviewMessage']} })
+    bearing: Angle = Field(default=..., description="""The bearing to the target, true, clockwise from north, from 0 up to 360 degrees.""", json_schema_extra = { "linkml_meta": {'domain_of': ['TrackEdit', 'SensorCutProperties']} })
+    ambiguous_bearing: Optional[Angle] = Field(default=None, description="""A towed array's ambiguous bearing: the mirror image of bearing about the array, on the other side of the host's course. Left out for a cut that was never ambiguous.""", json_schema_extra = { "linkml_meta": {'domain_of': ['SensorCutProperties']} })
+    resolved: Optional[SensorCutKeptEnum] = Field(default=None, description="""Which of the two bearings the analyst kept, for a cut with an ambiguous bearing; left out while it is unresolved, when both are drawn. Each resolution, of one cut or of every cut in a period, is one recorded, undoable step with provenance (product owner, 24 Oct 2026), and can be undone or reset to ambiguous.""", json_schema_extra = { "linkml_meta": {'domain_of': ['SensorCutProperties']} })
+    range: Optional[Length] = Field(default=None, description="""How far the target was, where the source says: the cut is drawn to that range. Left out, drawn past the edge of the view.""", json_schema_extra = { "linkml_meta": {'domain_of': ['SensorCutProperties', 'TimeState']} })
+    origin: Optional[conlist(min_length=2, max_length=2, item_type=float)] = Field(default=None, description="""[longitude, latitude] of the sensor, where the source recorded it with the cut (legacy Debrief's absolute origin): the cut is drawn from there instead of from the host track. Left out, from the host track's position at the cut's time.""", json_schema_extra = { "linkml_meta": {'array': {'dimensions': [{'exact_cardinality': 2}],
+                   'exact_number_dimensions': 1},
+         'domain_of': ['SensorCutProperties']} })
+    label: Optional[str] = Field(default=None, description="""Text the source gives the cut, such as legacy Debrief's label.""", json_schema_extra = { "linkml_meta": {'domain_of': ['FixMark', 'SensorCutProperties', 'MeasureDefinition']} })
+    comment: Optional[str] = Field(default=None, description="""Free text about the cut.""", json_schema_extra = { "linkml_meta": {'domain_of': ['FixMark', 'SensorCutProperties']} })
+    colour: Optional[str] = Field(default=None, description="""The cut's own colour, lower-case hex RGB; left out, its sensor's, as legacy Debrief lets a cut take its sensor's colour.""", json_schema_extra = { "linkml_meta": {'domain_of': ['TrackStyle',
+                       'FixMark',
+                       'AnnotationAppearance',
+                       'SensorProperties',
+                       'SensorCutProperties',
+                       'ToteRow',
+                       'ToteTrack',
+                       'CoveragePlatform',
+                       'TimelineEntry']} })
+    hidden: Optional[bool] = Field(default=None, description="""Not drawn on the map. Content, like hiding any feature (SUB-22).""", json_schema_extra = { "linkml_meta": {'domain_of': ['TrackProperties',
+                       'AnnotationProperties',
+                       'SensorProperties',
+                       'SensorCutProperties',
+                       'SensorObservationsProperties',
+                       'TimelineEntry']} })
+
+    @field_validator('time')
+    def pattern_time(cls, v):
+        pattern=re.compile(r"^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}Z$")
+        if isinstance(v, list):
+            for element in v:
+                if isinstance(element, str) and not pattern.search(element):
+                    err_msg = f"Invalid time format: {element}"
+                    raise ValueError(err_msg)
+        elif isinstance(v, str) and not pattern.search(v):
+            err_msg = f"Invalid time format: {v}"
+            raise ValueError(err_msg)
+        return v
+
+    @field_validator('colour')
+    def pattern_colour(cls, v):
+        pattern=re.compile(r"^#[0-9a-f]{6}$")
+        if isinstance(v, list):
+            for element in v:
+                if isinstance(element, str) and not pattern.search(element):
+                    err_msg = f"Invalid colour format: {element}"
+                    raise ValueError(err_msg)
+        elif isinstance(v, str) and not pattern.search(v):
+            err_msg = f"Invalid colour format: {v}"
+            raise ValueError(err_msg)
+        return v
+
+
+class AmbiguityResolution(ConfiguredBaseModel):
+    """
+    Ambiguous cuts resolved, or made ambiguous again, as the map, a menu or an agent asks (CAP-22): one recorded, undoable step (product owner, 24 Oct 2026). The cuts are those named, or else the cuts of the sensors named within a period (the time window, as the analyst sets it). Cuts with no ambiguous bearing are left as they are, and the step says how many.
+    """
+    linkml_meta: ClassVar[LinkMLMeta] = LinkMLMeta({'from_schema': 'https://debrief.info/schemas/debrief'})
+
+    keep: AmbiguityKeepEnum = Field(default=..., json_schema_extra = { "linkml_meta": {'domain_of': ['AmbiguityResolution', 'WebviewMessage']} })
+    cut_ids: Optional[list[str]] = Field(default=None, description="""The cuts to resolve, by feature id. Or give sensor_ids, and perhaps a period.""", json_schema_extra = { "linkml_meta": {'domain_of': ['AmbiguityResolution']} })
+    sensor_ids: Optional[list[str]] = Field(default=None, description="""Sensors whose cuts in the period are resolved; every cut of each, without a period.""", json_schema_extra = { "linkml_meta": {'domain_of': ['AmbiguityResolution']} })
+    period: Optional[TimeRange] = Field(default=None, description="""The cuts whose times fall in it, ends included, of the sensors named.""", json_schema_extra = { "linkml_meta": {'domain_of': ['TrackEdit', 'AmbiguityResolution']} })
+
+
+class SensorObservationsFeature(ConfiguredBaseModel):
+    """
+    A set of sensor observations, such as weeks of bearings, held as an opaque payload (CON-02, NFR-06). Geometry is null; positions come from the host track at each observation time.
+    """
+    linkml_meta: ClassVar[LinkMLMeta] = LinkMLMeta({'from_schema': 'https://debrief.info/schemas/debrief'})
+
+    type: FeatureTypeEnum = Field(default=..., json_schema_extra = { "linkml_meta": {'domain_of': ['PointGeometry',
+                       'LineStringGeometry',
+                       'PolygonGeometry',
+                       'TrackFeature',
+                       'AnnotationFeature',
+                       'NarrativeFeature',
+                       'SensorFeature',
+                       'SensorCutFeature',
+                       'SensorObservationsFeature',
+                       'PlotFeature',
+                       'DebriefFeatureCollection',
+                       'StacLink',
+                       'StacAsset',
+                       'StacItem',
+                       'StacCatalog']} })
+    id: str = Field(default=..., json_schema_extra = { "linkml_meta": {'domain_of': ['ProvRecord',
+                       'TrackFeature',
+                       'AnnotationFeature',
+                       'NarrativeFeature',
+                       'SensorFeature',
+                       'SensorCutFeature',
+                       'SensorObservationsFeature',
+                       'PlotFeature',
+                       'NamedSet',
+                       'StacItem',
+                       'StacCatalog',
+                       'MeasureDefinition',
+                       'MeasureGroup',
+                       'ToteTrack',
+                       'KnownStore',
+                       'ImageExport',
+                       'TimelineEntry']} })
+    geometry: Optional[PointGeometry] = Field(default=None, description="""Always null.""", json_schema_extra = { "linkml_meta": {'domain_of': ['TrackFeature',
+                       'AnnotationFeature',
+                       'NarrativeFeature',
+                       'SensorFeature',
+                       'SensorCutFeature',
                        'SensorObservationsFeature',
                        'PlotFeature',
                        'StacItem']} })
     properties: SensorObservationsProperties = Field(default=..., json_schema_extra = { "linkml_meta": {'domain_of': ['TrackFeature',
                        'AnnotationFeature',
                        'NarrativeFeature',
+                       'SensorFeature',
+                       'SensorCutFeature',
                        'SensorObservationsFeature',
                        'PlotFeature',
                        'StacItem']} })
@@ -2709,6 +3126,8 @@ class SensorObservationsProperties(ConfiguredBaseModel):
                        'TrackProperties',
                        'AnnotationProperties',
                        'NarrativeProperties',
+                       'SensorProperties',
+                       'SensorCutProperties',
                        'SensorObservationsProperties',
                        'PlotProperties',
                        'ParameterDeclaration',
@@ -2722,6 +3141,7 @@ class SensorObservationsProperties(ConfiguredBaseModel):
                        'SourceTrackRef',
                        'AnnotationProperties',
                        'AnnotationSpec',
+                       'SensorProperties',
                        'SensorObservationsProperties',
                        'InnerSchemaRef',
                        'PayloadColumn',
@@ -2735,7 +3155,7 @@ class SensorObservationsProperties(ConfiguredBaseModel):
                        'CoveragePlatform',
                        'CoverageSource']} })
     sensor_name: str = Field(default=..., json_schema_extra = { "linkml_meta": {'domain_of': ['SensorObservationsProperties']} })
-    host_track_id: str = Field(default=..., description="""The track carrying the sensor.""", json_schema_extra = { "linkml_meta": {'domain_of': ['SensorObservationsProperties']} })
+    host_track_id: str = Field(default=..., description="""The track carrying the sensor.""", json_schema_extra = { "linkml_meta": {'domain_of': ['SensorProperties', 'SensorObservationsProperties']} })
     observation_type: ObservationTypeEnum = Field(default=..., json_schema_extra = { "linkml_meta": {'domain_of': ['SensorObservationsProperties']} })
     time_range: TimeRange = Field(default=..., json_schema_extra = { "linkml_meta": {'domain_of': ['AnnotationProperties',
                        'AnnotationSpec',
@@ -2745,11 +3165,14 @@ class SensorObservationsProperties(ConfiguredBaseModel):
     payload: PayloadRef = Field(default=..., json_schema_extra = { "linkml_meta": {'domain_of': ['SensorObservationsProperties']} })
     hidden: Optional[bool] = Field(default=None, description="""Not drawn on the map. Still listed, and still selectable, in the outline. Content: hiding is a recorded, undoable change (SUB-22).""", json_schema_extra = { "linkml_meta": {'domain_of': ['TrackProperties',
                        'AnnotationProperties',
+                       'SensorProperties',
+                       'SensorCutProperties',
                        'SensorObservationsProperties',
                        'TimelineEntry']} })
     provenance: Optional[list[ProvRecord]] = Field(default=None, json_schema_extra = { "linkml_meta": {'domain_of': ['TrackProperties',
                        'AnnotationProperties',
                        'NarrativeProperties',
+                       'SensorProperties',
                        'SensorObservationsProperties',
                        'DebriefFeatureCollection']} })
 
@@ -2792,6 +3215,7 @@ class InnerSchemaRef(ConfiguredBaseModel):
                        'SourceTrackRef',
                        'AnnotationProperties',
                        'AnnotationSpec',
+                       'SensorProperties',
                        'SensorObservationsProperties',
                        'InnerSchemaRef',
                        'PayloadColumn',
@@ -2830,6 +3254,7 @@ class PayloadColumn(ConfiguredBaseModel):
                        'SourceTrackRef',
                        'AnnotationProperties',
                        'AnnotationSpec',
+                       'SensorProperties',
                        'SensorObservationsProperties',
                        'InnerSchemaRef',
                        'PayloadColumn',
@@ -2871,6 +3296,8 @@ class PlotFeature(ConfiguredBaseModel):
                        'TrackFeature',
                        'AnnotationFeature',
                        'NarrativeFeature',
+                       'SensorFeature',
+                       'SensorCutFeature',
                        'SensorObservationsFeature',
                        'PlotFeature',
                        'DebriefFeatureCollection',
@@ -2882,6 +3309,8 @@ class PlotFeature(ConfiguredBaseModel):
                        'TrackFeature',
                        'AnnotationFeature',
                        'NarrativeFeature',
+                       'SensorFeature',
+                       'SensorCutFeature',
                        'SensorObservationsFeature',
                        'PlotFeature',
                        'NamedSet',
@@ -2896,12 +3325,16 @@ class PlotFeature(ConfiguredBaseModel):
     geometry: Optional[PointGeometry] = Field(default=None, description="""Always null.""", json_schema_extra = { "linkml_meta": {'domain_of': ['TrackFeature',
                        'AnnotationFeature',
                        'NarrativeFeature',
+                       'SensorFeature',
+                       'SensorCutFeature',
                        'SensorObservationsFeature',
                        'PlotFeature',
                        'StacItem']} })
     properties: PlotProperties = Field(default=..., json_schema_extra = { "linkml_meta": {'domain_of': ['TrackFeature',
                        'AnnotationFeature',
                        'NarrativeFeature',
+                       'SensorFeature',
+                       'SensorCutFeature',
                        'SensorObservationsFeature',
                        'PlotFeature',
                        'StacItem']} })
@@ -2915,6 +3348,8 @@ class PlotProperties(ConfiguredBaseModel):
                        'TrackProperties',
                        'AnnotationProperties',
                        'NarrativeProperties',
+                       'SensorProperties',
+                       'SensorCutProperties',
                        'SensorObservationsProperties',
                        'PlotProperties',
                        'ParameterDeclaration',
@@ -3044,6 +3479,8 @@ class NamedSet(ConfiguredBaseModel):
                        'TrackFeature',
                        'AnnotationFeature',
                        'NarrativeFeature',
+                       'SensorFeature',
+                       'SensorCutFeature',
                        'SensorObservationsFeature',
                        'PlotFeature',
                        'NamedSet',
@@ -3062,6 +3499,7 @@ class NamedSet(ConfiguredBaseModel):
                        'SourceTrackRef',
                        'AnnotationProperties',
                        'AnnotationSpec',
+                       'SensorProperties',
                        'SensorObservationsProperties',
                        'InnerSchemaRef',
                        'PayloadColumn',
@@ -3089,6 +3527,8 @@ class DebriefFeatureCollection(ConfiguredBaseModel):
                        'TrackFeature',
                        'AnnotationFeature',
                        'NarrativeFeature',
+                       'SensorFeature',
+                       'SensorCutFeature',
                        'SensorObservationsFeature',
                        'PlotFeature',
                        'DebriefFeatureCollection',
@@ -3097,9 +3537,11 @@ class DebriefFeatureCollection(ConfiguredBaseModel):
                        'StacItem',
                        'StacCatalog']} })
     schema_version: str = Field(default=..., json_schema_extra = { "linkml_meta": {'domain_of': ['DebriefFeatureCollection', 'Delta', 'HistoryHead']} })
-    features: list[Union[AnnotationFeature, NarrativeFeature, PlotFeature, SensorObservationsFeature, TrackFeature]] = Field(default=..., json_schema_extra = { "linkml_meta": {'any_of': [{'range': 'TrackFeature'},
+    features: list[Union[AnnotationFeature, NarrativeFeature, PlotFeature, SensorCutFeature, SensorFeature, SensorObservationsFeature, TrackFeature]] = Field(default=..., json_schema_extra = { "linkml_meta": {'any_of': [{'range': 'TrackFeature'},
                     {'range': 'AnnotationFeature'},
                     {'range': 'SensorObservationsFeature'},
+                    {'range': 'SensorFeature'},
+                    {'range': 'SensorCutFeature'},
                     {'range': 'NarrativeFeature'},
                     {'range': 'PlotFeature'}],
          'domain_of': ['DebriefFeatureCollection']} })
@@ -3110,6 +3552,7 @@ class DebriefFeatureCollection(ConfiguredBaseModel):
     provenance: list[ProvRecord] = Field(default=..., json_schema_extra = { "linkml_meta": {'domain_of': ['TrackProperties',
                        'AnnotationProperties',
                        'NarrativeProperties',
+                       'SensorProperties',
                        'SensorObservationsProperties',
                        'DebriefFeatureCollection']} })
     history: Optional[PlotHistory] = Field(default=None, description="""The plot's whole history: every step, with its provenance and whether it is applied, undone or abandoned, and the current step (SUB-19, SUB-21, decision 13 Oct). A GeoJSON foreign member, so other tools still read the file as GeoJSON. Not content: left out of every content hash. Last in the file. A plot sent to a view or a tool never carries it.""", json_schema_extra = { "linkml_meta": {'domain_of': ['DebriefFeatureCollection']} })
@@ -3142,6 +3585,8 @@ class StacLink(ConfiguredBaseModel):
                        'TrackFeature',
                        'AnnotationFeature',
                        'NarrativeFeature',
+                       'SensorFeature',
+                       'SensorCutFeature',
                        'SensorObservationsFeature',
                        'PlotFeature',
                        'DebriefFeatureCollection',
@@ -3181,6 +3626,8 @@ class StacAsset(ConfiguredBaseModel):
                        'TrackFeature',
                        'AnnotationFeature',
                        'NarrativeFeature',
+                       'SensorFeature',
+                       'SensorCutFeature',
                        'SensorObservationsFeature',
                        'PlotFeature',
                        'DebriefFeatureCollection',
@@ -3389,6 +3836,7 @@ class TrackCoverage(ConfiguredBaseModel):
                        'SourceTrackRef',
                        'AnnotationProperties',
                        'AnnotationSpec',
+                       'SensorProperties',
                        'SensorObservationsProperties',
                        'InnerSchemaRef',
                        'PayloadColumn',
@@ -3417,6 +3865,8 @@ class StacItem(ConfiguredBaseModel):
                        'TrackFeature',
                        'AnnotationFeature',
                        'NarrativeFeature',
+                       'SensorFeature',
+                       'SensorCutFeature',
                        'SensorObservationsFeature',
                        'PlotFeature',
                        'DebriefFeatureCollection',
@@ -3430,6 +3880,8 @@ class StacItem(ConfiguredBaseModel):
                        'TrackFeature',
                        'AnnotationFeature',
                        'NarrativeFeature',
+                       'SensorFeature',
+                       'SensorCutFeature',
                        'SensorObservationsFeature',
                        'PlotFeature',
                        'NamedSet',
@@ -3447,6 +3899,8 @@ class StacItem(ConfiguredBaseModel):
          'domain_of': ['TrackFeature',
                        'AnnotationFeature',
                        'NarrativeFeature',
+                       'SensorFeature',
+                       'SensorCutFeature',
                        'SensorObservationsFeature',
                        'PlotFeature',
                        'StacItem']} })
@@ -3456,6 +3910,8 @@ class StacItem(ConfiguredBaseModel):
     properties: StacItemProperties = Field(default=..., json_schema_extra = { "linkml_meta": {'domain_of': ['TrackFeature',
                        'AnnotationFeature',
                        'NarrativeFeature',
+                       'SensorFeature',
+                       'SensorCutFeature',
                        'SensorObservationsFeature',
                        'PlotFeature',
                        'StacItem']} })
@@ -3475,6 +3931,8 @@ class StacCatalog(ConfiguredBaseModel):
                        'TrackFeature',
                        'AnnotationFeature',
                        'NarrativeFeature',
+                       'SensorFeature',
+                       'SensorCutFeature',
                        'SensorObservationsFeature',
                        'PlotFeature',
                        'DebriefFeatureCollection',
@@ -3488,6 +3946,8 @@ class StacCatalog(ConfiguredBaseModel):
                        'TrackFeature',
                        'AnnotationFeature',
                        'NarrativeFeature',
+                       'SensorFeature',
+                       'SensorCutFeature',
                        'SensorObservationsFeature',
                        'PlotFeature',
                        'NamedSet',
@@ -3542,7 +4002,7 @@ class TimeState(ConfiguredBaseModel):
     linkml_meta: ClassVar[LinkMLMeta] = LinkMLMeta({'from_schema': 'https://debrief.info/schemas/debrief'})
 
     current: str = Field(default=..., json_schema_extra = { "linkml_meta": {'domain_of': ['TimeState', 'FigureSource', 'PlotHistory', 'HistoryHead']} })
-    range: TimeRange = Field(default=..., json_schema_extra = { "linkml_meta": {'domain_of': ['TimeState']} })
+    range: TimeRange = Field(default=..., json_schema_extra = { "linkml_meta": {'domain_of': ['SensorCutProperties', 'TimeState']} })
 
     @field_validator('current')
     def pattern_current(cls, v):
@@ -3581,6 +4041,7 @@ class SharedState(ConfiguredBaseModel):
                        'AnnotationSpec',
                        'NarrativeProperties',
                        'NarrativeSpec',
+                       'SensorCutProperties',
                        'SharedState',
                        'SharedStateChange',
                        'ToteResult',
@@ -3605,6 +4066,7 @@ class SharedStateChange(ConfiguredBaseModel):
                        'AnnotationSpec',
                        'NarrativeProperties',
                        'NarrativeSpec',
+                       'SensorCutProperties',
                        'SharedState',
                        'SharedStateChange',
                        'ToteResult',
@@ -3632,6 +4094,7 @@ class ToolDeclaration(ConfiguredBaseModel):
                        'SourceTrackRef',
                        'AnnotationProperties',
                        'AnnotationSpec',
+                       'SensorProperties',
                        'SensorObservationsProperties',
                        'InnerSchemaRef',
                        'PayloadColumn',
@@ -3709,6 +4172,7 @@ class ParameterDeclaration(ConfiguredBaseModel):
                        'SourceTrackRef',
                        'AnnotationProperties',
                        'AnnotationSpec',
+                       'SensorProperties',
                        'SensorObservationsProperties',
                        'InnerSchemaRef',
                        'PayloadColumn',
@@ -3745,6 +4209,8 @@ class ParameterDeclaration(ConfiguredBaseModel):
                        'TrackProperties',
                        'AnnotationProperties',
                        'NarrativeProperties',
+                       'SensorProperties',
+                       'SensorCutProperties',
                        'SensorObservationsProperties',
                        'PlotProperties',
                        'ParameterDeclaration',
@@ -3789,14 +4255,18 @@ class ToolResult(ConfiguredBaseModel):
     """
     linkml_meta: ClassVar[LinkMLMeta] = LinkMLMeta({'from_schema': 'https://debrief.info/schemas/debrief'})
 
-    new_features: Optional[list[Union[AnnotationFeature, NarrativeFeature, SensorObservationsFeature, TrackFeature]]] = Field(default=None, json_schema_extra = { "linkml_meta": {'any_of': [{'range': 'TrackFeature'},
+    new_features: Optional[list[Union[AnnotationFeature, NarrativeFeature, SensorCutFeature, SensorFeature, SensorObservationsFeature, TrackFeature]]] = Field(default=None, json_schema_extra = { "linkml_meta": {'any_of': [{'range': 'TrackFeature'},
                     {'range': 'AnnotationFeature'},
                     {'range': 'SensorObservationsFeature'},
+                    {'range': 'SensorFeature'},
+                    {'range': 'SensorCutFeature'},
                     {'range': 'NarrativeFeature'}],
          'domain_of': ['ToolResult']} })
-    modified_features: Optional[list[Union[AnnotationFeature, NarrativeFeature, SensorObservationsFeature, TrackFeature]]] = Field(default=None, json_schema_extra = { "linkml_meta": {'any_of': [{'range': 'TrackFeature'},
+    modified_features: Optional[list[Union[AnnotationFeature, NarrativeFeature, SensorCutFeature, SensorFeature, SensorObservationsFeature, TrackFeature]]] = Field(default=None, json_schema_extra = { "linkml_meta": {'any_of': [{'range': 'TrackFeature'},
                     {'range': 'AnnotationFeature'},
                     {'range': 'SensorObservationsFeature'},
+                    {'range': 'SensorFeature'},
+                    {'range': 'SensorCutFeature'},
                     {'range': 'NarrativeFeature'}],
          'domain_of': ['ToolResult']} })
     deleted_feature_ids: Optional[list[str]] = Field(default=None, json_schema_extra = { "linkml_meta": {'domain_of': ['ToolResult']} })
@@ -3849,6 +4319,7 @@ class ResultColumn(ConfiguredBaseModel):
                        'SourceTrackRef',
                        'AnnotationProperties',
                        'AnnotationSpec',
+                       'SensorProperties',
                        'SensorObservationsProperties',
                        'InnerSchemaRef',
                        'PayloadColumn',
@@ -3920,6 +4391,8 @@ class MeasureDefinition(ConfiguredBaseModel):
                        'TrackFeature',
                        'AnnotationFeature',
                        'NarrativeFeature',
+                       'SensorFeature',
+                       'SensorCutFeature',
                        'SensorObservationsFeature',
                        'PlotFeature',
                        'NamedSet',
@@ -3949,7 +4422,7 @@ class MeasureDefinition(ConfiguredBaseModel):
                        'CoverageItem',
                        'ReviewFlag',
                        'FigureSource']} })
-    label: str = Field(default=..., description="""Its row heading in the Tote, before the unit, short enough for a narrow view.""", json_schema_extra = { "linkml_meta": {'domain_of': ['FixMark', 'MeasureDefinition']} })
+    label: str = Field(default=..., description="""Its row heading in the Tote, before the unit, short enough for a narrow view.""", json_schema_extra = { "linkml_meta": {'domain_of': ['FixMark', 'SensorCutProperties', 'MeasureDefinition']} })
     subject: MeasureSubjectEnum = Field(default=..., json_schema_extra = { "linkml_meta": {'domain_of': ['MeasureDefinition']} })
     quantity_kind: QuantityKindEnum = Field(default=..., json_schema_extra = { "linkml_meta": {'domain_of': ['PayloadColumn',
                        'ParameterDeclaration',
@@ -3982,6 +4455,8 @@ class MeasureGroup(ConfiguredBaseModel):
                        'TrackFeature',
                        'AnnotationFeature',
                        'NarrativeFeature',
+                       'SensorFeature',
+                       'SensorCutFeature',
                        'SensorObservationsFeature',
                        'PlotFeature',
                        'NamedSet',
@@ -4092,6 +4567,7 @@ class ToteRow(ConfiguredBaseModel):
                        'SourceTrackRef',
                        'AnnotationProperties',
                        'AnnotationSpec',
+                       'SensorProperties',
                        'SensorObservationsProperties',
                        'InnerSchemaRef',
                        'PayloadColumn',
@@ -4107,6 +4583,8 @@ class ToteRow(ConfiguredBaseModel):
     colour: Optional[str] = Field(default=None, description="""The track's colour, lower-case hex, to key the row to the map.""", json_schema_extra = { "linkml_meta": {'domain_of': ['TrackStyle',
                        'FixMark',
                        'AnnotationAppearance',
+                       'SensorProperties',
+                       'SensorCutProperties',
                        'ToteRow',
                        'ToteTrack',
                        'CoveragePlatform',
@@ -4144,6 +4622,7 @@ class ToteResult(ConfiguredBaseModel):
                        'AnnotationSpec',
                        'NarrativeProperties',
                        'NarrativeSpec',
+                       'SensorCutProperties',
                        'SharedState',
                        'SharedStateChange',
                        'ToteResult',
@@ -4183,6 +4662,8 @@ class ToteTrack(ConfiguredBaseModel):
                        'TrackFeature',
                        'AnnotationFeature',
                        'NarrativeFeature',
+                       'SensorFeature',
+                       'SensorCutFeature',
                        'SensorObservationsFeature',
                        'PlotFeature',
                        'NamedSet',
@@ -4201,6 +4682,7 @@ class ToteTrack(ConfiguredBaseModel):
                        'SourceTrackRef',
                        'AnnotationProperties',
                        'AnnotationSpec',
+                       'SensorProperties',
                        'SensorObservationsProperties',
                        'InnerSchemaRef',
                        'PayloadColumn',
@@ -4216,6 +4698,8 @@ class ToteTrack(ConfiguredBaseModel):
     colour: Optional[str] = Field(default=None, json_schema_extra = { "linkml_meta": {'domain_of': ['TrackStyle',
                        'FixMark',
                        'AnnotationAppearance',
+                       'SensorProperties',
+                       'SensorCutProperties',
                        'ToteRow',
                        'ToteTrack',
                        'CoveragePlatform',
@@ -4293,6 +4777,8 @@ class KnownStore(ConfiguredBaseModel):
                        'TrackFeature',
                        'AnnotationFeature',
                        'NarrativeFeature',
+                       'SensorFeature',
+                       'SensorCutFeature',
                        'SensorObservationsFeature',
                        'PlotFeature',
                        'NamedSet',
@@ -4327,6 +4813,8 @@ class KnownStore(ConfiguredBaseModel):
                        'TrackProperties',
                        'AnnotationProperties',
                        'NarrativeProperties',
+                       'SensorProperties',
+                       'SensorCutProperties',
                        'SensorObservationsProperties',
                        'PlotProperties',
                        'ParameterDeclaration',
@@ -4476,6 +4964,7 @@ class CoveragePlatform(ConfiguredBaseModel):
                        'SourceTrackRef',
                        'AnnotationProperties',
                        'AnnotationSpec',
+                       'SensorProperties',
                        'SensorObservationsProperties',
                        'InnerSchemaRef',
                        'PayloadColumn',
@@ -4491,6 +4980,8 @@ class CoveragePlatform(ConfiguredBaseModel):
     colour: Optional[str] = Field(default=None, json_schema_extra = { "linkml_meta": {'domain_of': ['TrackStyle',
                        'FixMark',
                        'AnnotationAppearance',
+                       'SensorProperties',
+                       'SensorCutProperties',
                        'ToteRow',
                        'ToteTrack',
                        'CoveragePlatform',
@@ -4553,6 +5044,7 @@ class CoverageSource(ConfiguredBaseModel):
                        'SourceTrackRef',
                        'AnnotationProperties',
                        'AnnotationSpec',
+                       'SensorProperties',
                        'SensorObservationsProperties',
                        'InnerSchemaRef',
                        'PayloadColumn',
@@ -4858,6 +5350,8 @@ class ImageExport(ConfiguredBaseModel):
                        'TrackFeature',
                        'AnnotationFeature',
                        'NarrativeFeature',
+                       'SensorFeature',
+                       'SensorCutFeature',
                        'SensorObservationsFeature',
                        'PlotFeature',
                        'NamedSet',
@@ -4896,6 +5390,7 @@ class ImageExport(ConfiguredBaseModel):
                        'AnnotationSpec',
                        'NarrativeProperties',
                        'NarrativeSpec',
+                       'SensorCutProperties',
                        'SharedState',
                        'SharedStateChange',
                        'ToteResult',
@@ -5152,6 +5647,8 @@ class TimelineEntry(ConfiguredBaseModel):
                        'TrackFeature',
                        'AnnotationFeature',
                        'NarrativeFeature',
+                       'SensorFeature',
+                       'SensorCutFeature',
                        'SensorObservationsFeature',
                        'PlotFeature',
                        'NamedSet',
@@ -5168,6 +5665,8 @@ class TimelineEntry(ConfiguredBaseModel):
                        'TrackProperties',
                        'AnnotationProperties',
                        'NarrativeProperties',
+                       'SensorProperties',
+                       'SensorCutProperties',
                        'SensorObservationsProperties',
                        'PlotProperties',
                        'ParameterDeclaration',
@@ -5207,12 +5706,16 @@ class TimelineEntry(ConfiguredBaseModel):
     colour: Optional[str] = Field(default=None, description="""That track's colour, lower-case hex RGB.""", json_schema_extra = { "linkml_meta": {'domain_of': ['TrackStyle',
                        'FixMark',
                        'AnnotationAppearance',
+                       'SensorProperties',
+                       'SensorCutProperties',
                        'ToteRow',
                        'ToteTrack',
                        'CoveragePlatform',
                        'TimelineEntry']} })
     hidden: Optional[bool] = Field(default=None, description="""An annotation or track hidden on the map.""", json_schema_extra = { "linkml_meta": {'domain_of': ['TrackProperties',
                        'AnnotationProperties',
+                       'SensorProperties',
+                       'SensorCutProperties',
                        'SensorObservationsProperties',
                        'TimelineEntry']} })
 
@@ -5264,6 +5767,8 @@ class WebviewMessage(ConfiguredBaseModel):
                        'TrackProperties',
                        'AnnotationProperties',
                        'NarrativeProperties',
+                       'SensorProperties',
+                       'SensorCutProperties',
                        'SensorObservationsProperties',
                        'PlotProperties',
                        'ParameterDeclaration',
@@ -5284,6 +5789,7 @@ class WebviewMessage(ConfiguredBaseModel):
                        'AnnotationSpec',
                        'NarrativeProperties',
                        'NarrativeSpec',
+                       'SensorCutProperties',
                        'SharedState',
                        'SharedStateChange',
                        'ToteResult',
@@ -5330,6 +5836,7 @@ class WebviewMessage(ConfiguredBaseModel):
     image_request: Optional[ImageRequest] = Field(default=None, description="""What image to draw, and how (export_image).""", json_schema_extra = { "linkml_meta": {'domain_of': ['WebviewMessage']} })
     image: Optional[RenderedImage] = Field(default=None, description="""The image the map drew (image_rendered).""", json_schema_extra = { "linkml_meta": {'domain_of': ['WebviewMessage']} })
     revision_shown: Optional[RevisionShown] = Field(default=None, description="""The plot shown is an earlier revision, read-only (show_plot).""", json_schema_extra = { "linkml_meta": {'domain_of': ['WebviewMessage']} })
+    keep: Optional[AmbiguityKeepEnum] = Field(default=None, description="""Which of an ambiguous cut's bearings the analyst clicked, to keep (resolve_asked).""", json_schema_extra = { "linkml_meta": {'domain_of': ['AmbiguityResolution', 'WebviewMessage']} })
 
     @field_validator('current_time')
     def pattern_current_time(cls, v):
@@ -5405,15 +5912,19 @@ class HistoryStep(ConfiguredBaseModel):
     state: StepStateEnum = Field(default=..., description="""Applied, undone or abandoned: what the after links and the history's current step say. Not part of step_hash, since undo changes it.""", json_schema_extra = { "linkml_meta": {'domain_of': ['HistoryStep']} })
     after: int = Field(default=..., description="""The step this one was applied on top of (0 for the first). Replay follows these links back from a step to the first.""", ge=0, json_schema_extra = { "linkml_meta": {'domain_of': ['HistoryStep', 'Delta']} })
     records: list[ProvRecord] = Field(default=..., description="""The operation that made the change. Usually one; a baseline step, taken when a plot made outside Debrief is first opened, carries all the plot's earlier records.""", min_length=1, json_schema_extra = { "linkml_meta": {'domain_of': ['HistoryStep', 'Delta']} })
-    added: Optional[list[Union[AnnotationFeature, NarrativeFeature, PlotFeature, SensorObservationsFeature, TrackFeature]]] = Field(default=None, description="""Features added. A whole-plot feature here never carries its view: the island is not content (SUB-22).""", json_schema_extra = { "linkml_meta": {'any_of': [{'range': 'TrackFeature'},
+    added: Optional[list[Union[AnnotationFeature, NarrativeFeature, PlotFeature, SensorCutFeature, SensorFeature, SensorObservationsFeature, TrackFeature]]] = Field(default=None, description="""Features added. A whole-plot feature here never carries its view: the island is not content (SUB-22).""", json_schema_extra = { "linkml_meta": {'any_of': [{'range': 'TrackFeature'},
                     {'range': 'AnnotationFeature'},
                     {'range': 'SensorObservationsFeature'},
+                    {'range': 'SensorFeature'},
+                    {'range': 'SensorCutFeature'},
                     {'range': 'NarrativeFeature'},
                     {'range': 'PlotFeature'}],
          'domain_of': ['HistoryStep', 'Delta']} })
-    modified: Optional[list[Union[AnnotationFeature, NarrativeFeature, PlotFeature, SensorObservationsFeature, TrackFeature]]] = Field(default=None, description="""Features changed, in full, replacing those with the same id.""", json_schema_extra = { "linkml_meta": {'any_of': [{'range': 'TrackFeature'},
+    modified: Optional[list[Union[AnnotationFeature, NarrativeFeature, PlotFeature, SensorCutFeature, SensorFeature, SensorObservationsFeature, TrackFeature]]] = Field(default=None, description="""Features changed, in full, replacing those with the same id.""", json_schema_extra = { "linkml_meta": {'any_of': [{'range': 'TrackFeature'},
                     {'range': 'AnnotationFeature'},
                     {'range': 'SensorObservationsFeature'},
+                    {'range': 'SensorFeature'},
+                    {'range': 'SensorCutFeature'},
                     {'range': 'NarrativeFeature'},
                     {'range': 'PlotFeature'}],
          'domain_of': ['HistoryStep', 'Delta']} })
@@ -5464,15 +5975,19 @@ class Delta(ConfiguredBaseModel):
     seq: int = Field(default=..., description="""Position in the plot's history, from 1, with no gaps.""", ge=1, json_schema_extra = { "linkml_meta": {'domain_of': ['HistoryStep', 'Delta']} })
     after: int = Field(default=..., description="""The delta this one was applied on top of (0 for the first).""", ge=0, json_schema_extra = { "linkml_meta": {'domain_of': ['HistoryStep', 'Delta']} })
     records: list[ProvRecord] = Field(default=..., description="""The operation that made the change.""", min_length=1, json_schema_extra = { "linkml_meta": {'domain_of': ['HistoryStep', 'Delta']} })
-    added: Optional[list[Union[AnnotationFeature, NarrativeFeature, PlotFeature, SensorObservationsFeature, TrackFeature]]] = Field(default=None, description="""Features added, never with the whole-plot feature's view.""", json_schema_extra = { "linkml_meta": {'any_of': [{'range': 'TrackFeature'},
+    added: Optional[list[Union[AnnotationFeature, NarrativeFeature, PlotFeature, SensorCutFeature, SensorFeature, SensorObservationsFeature, TrackFeature]]] = Field(default=None, description="""Features added, never with the whole-plot feature's view.""", json_schema_extra = { "linkml_meta": {'any_of': [{'range': 'TrackFeature'},
                     {'range': 'AnnotationFeature'},
                     {'range': 'SensorObservationsFeature'},
+                    {'range': 'SensorFeature'},
+                    {'range': 'SensorCutFeature'},
                     {'range': 'NarrativeFeature'},
                     {'range': 'PlotFeature'}],
          'domain_of': ['HistoryStep', 'Delta']} })
-    modified: Optional[list[Union[AnnotationFeature, NarrativeFeature, PlotFeature, SensorObservationsFeature, TrackFeature]]] = Field(default=None, description="""Features changed, in full, replacing those with the same id.""", json_schema_extra = { "linkml_meta": {'any_of': [{'range': 'TrackFeature'},
+    modified: Optional[list[Union[AnnotationFeature, NarrativeFeature, PlotFeature, SensorCutFeature, SensorFeature, SensorObservationsFeature, TrackFeature]]] = Field(default=None, description="""Features changed, in full, replacing those with the same id.""", json_schema_extra = { "linkml_meta": {'any_of': [{'range': 'TrackFeature'},
                     {'range': 'AnnotationFeature'},
                     {'range': 'SensorObservationsFeature'},
+                    {'range': 'SensorFeature'},
+                    {'range': 'SensorCutFeature'},
                     {'range': 'NarrativeFeature'},
                     {'range': 'PlotFeature'}],
          'domain_of': ['HistoryStep', 'Delta']} })
@@ -5585,6 +6100,11 @@ AnnotationSpec.model_rebuild()
 NarrativeFeature.model_rebuild()
 NarrativeProperties.model_rebuild()
 NarrativeSpec.model_rebuild()
+SensorFeature.model_rebuild()
+SensorProperties.model_rebuild()
+SensorCutFeature.model_rebuild()
+SensorCutProperties.model_rebuild()
+AmbiguityResolution.model_rebuild()
 SensorObservationsFeature.model_rebuild()
 SensorObservationsProperties.model_rebuild()
 PayloadRef.model_rebuild()

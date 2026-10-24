@@ -174,6 +174,8 @@ _FEATURE_CLASSES = {
     "track": "TrackFeature",
     "annotation": "AnnotationFeature",
     "sensor_observations": "SensorObservationsFeature",
+    "sensor": "SensorFeature",
+    "sensor_cut": "SensorCutFeature",
     "narrative": "NarrativeFeature",
     "plot": "PlotFeature",
 }
@@ -183,6 +185,8 @@ def _feature_errors(check: Draft201909Validator, item: Any) -> list[Any]:
     props = item.get("properties") if isinstance(item, dict) else None
     kind = props.get("kind") if isinstance(props, dict) else None
     if kind == "narrative" and _plain_narrative(item):
+        return []
+    if kind == "sensor_cut" and _plain_cut(item):
         return []
     own = _FEATURE_CLASSES.get(kind) if isinstance(kind, str) else None
     if own is not None and _class_validator(own).is_valid(item):
@@ -230,6 +234,60 @@ def _plain_narrative(item: Any) -> bool:
     return _utc_pattern().search(time) is not None
 
 
+_CUT_REQUIRED = frozenset(("kind", "sensor_id", "time", "bearing"))
+_CUT_MEMBERS = _CUT_REQUIRED | {"ambiguous_bearing", "resolved", "label", "colour", "hidden"}
+_ANGLE_UNITS = frozenset(("deg", "rad"))
+
+
+def _plain_angle(value: Any) -> bool:
+    return (
+        isinstance(value, dict)
+        and value.keys() == {"value", "unit"}
+        and type(value["value"]) in (int, float)
+        and value["unit"] in _ANGLE_UNITS
+    )
+
+
+def _plain_cut(item: Any) -> bool:
+    """A sensor cut as importers write it, checked by hand: exactly what
+    SensorCutFeature's JSON Schema allows, less a range, an origin and a comment (a cut
+    carrying any is left to the schema). True only where the schema would pass it too, so
+    this can only make checking quicker, never more lenient. A dense sensor holds tens
+    of thousands of cuts (NFR-06), each checked once, as a narrative entry is."""
+    if not isinstance(item, dict) or not item.keys() <= {"type", "id", "geometry", "properties"}:
+        return False
+    props = item.get("properties")
+    if not isinstance(props, dict) or props.get("kind") != "sensor_cut":
+        return False
+    if item.get("type") != "Feature" or not isinstance(item.get("id"), str):
+        return False
+    if item.get("geometry") is not None:
+        return False
+    if not (_CUT_REQUIRED <= props.keys() <= _CUT_MEMBERS):
+        return False
+    if type(props["sensor_id"]) is not str or type(props["time"]) is not str:
+        return False
+    if not _plain_angle(props["bearing"]):
+        return False
+    if "ambiguous_bearing" in props and not _plain_angle(props["ambiguous_bearing"]):
+        return False
+    if props.get("resolved", "bearing") not in ("bearing", "ambiguous_bearing"):
+        return False
+    if not (props.get("label") is None or type(props["label"]) is str):
+        return False
+    if "label" in props and props["label"] is None:
+        return False
+    if "hidden" in props and type(props["hidden"]) is not bool:
+        return False
+    colour = props.get("colour")
+    if "colour" in props and not (type(colour) is str and _COLOUR.fullmatch(colour)):
+        return False
+    return _utc_pattern().search(props["time"]) is not None
+
+
+_COLOUR = re.compile(r"#[0-9a-f]{6}")
+
+
 def _schema_errors(
     name: str, document: Any, validator: Draft201909Validator | None = None
 ) -> list[str]:
@@ -251,7 +309,7 @@ def _schema_errors(
             rest[member] = []
             check = _item_validator(name, member)
             for index, item in enumerate(items):
-                if _plain_narrative(item):
+                if _plain_narrative(item) or _plain_cut(item):
                     continue  # checked by hand, quicker than looking it up
                 key = hashlib.sha256(json.dumps(item, separators=(",", ":")).encode()).digest()
                 if key in _FEATURES_PASSED:
@@ -480,8 +538,11 @@ def _curve_problems(where: str, shape: str, props: Any, geometry: Any) -> list[s
     return problems
 
 
-def _feature_problems(feature: Any, track_ids: set[str] | None) -> list[str]:
-    """track_ids is None where the containing plot is not known, as in a tool result."""
+def _feature_problems(
+    feature: Any, track_ids: set[str] | None, sensor_ids: set[str] | None = None
+) -> list[str]:
+    """track_ids and sensor_ids are None where the containing plot is not known, as in a
+    tool result."""
     where = feature.id
     props = feature.properties
     problems = _geometry_problems(where, feature.geometry)
@@ -539,6 +600,19 @@ def _feature_problems(feature: Any, track_ids: set[str] | None) -> list[str]:
     elif props.kind == "narrative":
         problems += narrative_problems(where, feature)
 
+    elif props.kind == "sensor":
+        if feature.geometry is not None:
+            problems.append(f"{where}: a sensor has null geometry")
+        if not props.name.strip():
+            problems.append(f"{where}: a sensor has a name")
+        if track_ids is not None and props.host_track_id not in track_ids:
+            problems.append(f"{where}: host track {props.host_track_id!r} is not in the plot")
+
+    elif props.kind == "sensor_cut":
+        problems += cut_problems(where, feature)
+        if sensor_ids is not None and props.sensor_id not in sensor_ids:
+            problems.append(f"{where}: sensor {props.sensor_id!r} is not in the plot")
+
     elif props.kind == "sensor_observations":
         if feature.geometry is not None:
             problems.append(f"{where}: sensor observations have null geometry")
@@ -550,6 +624,37 @@ def _feature_problems(feature: Any, track_ids: set[str] | None) -> list[str]:
                 f"{where} column {column.name}", column.quantity_kind, column.unit
             )
 
+    return problems
+
+
+def _degrees(angle: Any) -> float:
+    return angle.value if str(angle.unit) == "deg" else math.degrees(angle.value)
+
+
+def cut_problems(where: str, feature: Any) -> list[str]:
+    """Rules for a sensor cut (CAP-22): no geometry of its own; bearings from 0 up to
+    360 degrees; resolved only where there is an ambiguous bearing to resolve; a range,
+    when given, more than nothing; an origin, when given, on the globe."""
+    props = feature.properties
+    problems = []
+    if feature.geometry is not None:
+        problems.append(f"{where}: a sensor cut has null geometry")
+    for name in ("bearing", "ambiguous_bearing"):
+        angle = getattr(props, name)
+        if angle is not None:
+            degrees = _degrees(angle)
+            if not (math.isfinite(degrees) and 0 <= degrees < 360):
+                problems.append(f"{where}: {name} {degrees:g}° is not from 0 up to 360°")
+    if props.resolved is not None and props.ambiguous_bearing is None:
+        problems.append(f"{where}: only a cut with an ambiguous bearing can be resolved")
+    if props.range is not None and not (math.isfinite(props.range.value) and props.range.value > 0):
+        problems.append(f"{where}: a cut's range, when given, is more than nothing")
+    if props.origin is not None:
+        longitude, latitude = props.origin
+        if not (-180 <= longitude <= 180 and -90 <= latitude <= 90):
+            problems.append(f"{where}: origin {list(props.origin)} is not on the globe")
+    if props.label is not None and not props.label.strip():
+        problems.append(f"{where}: a cut's label, when given, is not empty")
     return problems
 
 
@@ -667,10 +772,11 @@ def _plot_problems(plot: g.DebriefFeatureCollection, raw: dict[str, Any]) -> lis
     duplicates = sorted(i for i, n in Counter(ids).items() if n > 1)
     problems += [f"feature id {i!r} is used more than once" for i in duplicates]
     track_ids = {f.id for f in plot.features if f.properties.kind == "track"}
+    sensor_ids = {f.id for f in plot.features if f.properties.kind == "sensor"}
     if sum(f.properties.kind == "plot" for f in plot.features) > 1:
         problems.append("a plot has at most one whole-plot feature (kind plot)")
     for feature in plot.features:
-        problems += _feature_problems(feature, track_ids)
+        problems += _feature_problems(feature, track_ids, sensor_ids)
     known = set(ids)
     for named_set in plot.named_sets or []:
         missing = [i for i in named_set.feature_ids if i not in known]
@@ -937,6 +1043,8 @@ MESSAGE_MEMBERS: dict[str, tuple[str, ...]] = {
     "export_image": ("image_request",),
     "image_rendered": ("image?", "message?"),
     "latest_asked": (),
+    "resolve_asked": ("feature_id", "keep"),
+    "cut_chosen": ("feature_id",),
 }
 
 
@@ -959,6 +1067,8 @@ def _webview_message_problems(message: g.WebviewMessage, raw: dict[str, Any]) ->
     if message.track_edit is not None:
         problems += track_edit_problems(message.track_edit)
     problems += tote_view_problems(message.tote_view)
+    if kind == "resolve_asked" and str(message.keep) not in ("bearing", "ambiguous_bearing"):
+        problems.append("resolve_asked keeps the bearing clicked: bearing or ambiguous_bearing")
     if kind == "image_rendered" and (message.image is None) == (message.message is None):
         problems.append("image_rendered carries either the image or why there is none (message)")
     if message.image is not None and message.image.viewport is not None:

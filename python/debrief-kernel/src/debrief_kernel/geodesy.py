@@ -224,6 +224,48 @@ class TrackPath:
             return index, 1.0
         return index, (time_ms - t0) / (t1 - t0)
 
+    def course_at(self, time_ms: int) -> float | None:
+        """The track's direction of travel at a time, degrees true, as the map's pointAt
+        gives it (vscode/webview/geodesic.ts): along the geodesic between the fixes either
+        side, the course at that point of it; at a fix, the course of the leg leaving it
+        (arriving, at the last fix); where the track did not move, the nearest leg before
+        it that did. None outside the track's span, and for a track that never moved.
+        A cut's port and starboard are told by it (CAP-22), held to
+        schemas/vectors/sensor-cuts.json."""
+        times = self.times_ms
+        if not times or time_ms < times[0] or time_ms > times[-1] or len(times) == 1:
+            return None
+        low, high = 0, len(times) - 1
+        while high - low > 1:  # the later of fixes sharing a time, as pointAt brackets
+            middle = (low + high) >> 1
+            if times[middle] <= time_ms:
+                low = middle
+            else:
+                high = middle
+        span = times[high] - times[low]
+        fraction = (time_ms - times[low]) / span if span > 0 else 1.0
+        if fraction <= 0 or fraction >= 1:
+            fix = low if fraction <= 0 else high
+            leaving = self._leg_course(fix, fix + 1) if fix + 1 < len(times) else None
+            return leaving if leaving is not None else self._course_before(fix)
+        line = self.line(low)
+        if line.s13 <= 0.01:
+            return self._course_before(low)
+        point = line.Position(fraction * line.s13, Geodesic.AZIMUTH)
+        return normalise_bearing(point["azi2"])
+
+    def _leg_course(self, i: int, j: int) -> float | None:
+        a, b = self.positions[i], self.positions[j]
+        g = WGS84.Inverse(a.latitude, a.longitude, b.latitude, b.longitude, _INVERSE)
+        return normalise_bearing(g["azi1"]) if g["s12"] > 0.01 else None
+
+    def _course_before(self, end: int) -> float | None:
+        for k in range(end, 0, -1):
+            course = self._leg_course(k - 1, k)
+            if course is not None:
+                return course
+        return None
+
     def line(self, index: int) -> GeodesicLine:
         """The geodesic from fix index to the next, worked out once."""
         line = self._lines.get(index)

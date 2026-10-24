@@ -130,6 +130,12 @@ export class MapPanel {
     } else if (message.kind === "fix_chosen") {
       // Right-clicked on the map: colour, label or comment on that fix (EXT-14).
       await vscode.commands.executeCommand("debrief.markFix", message.feature_id, message.fix_time);
+    } else if (message.kind === "resolve_asked" && message.feature_id && message.keep) {
+      // One of an ambiguous cut's two lines clicked: that bearing kept, as one step (CAP-22).
+      await vscode.commands.executeCommand("debrief.resolveAmbiguity", { keep: message.keep, cut_ids: [message.feature_id] });
+    } else if (message.kind === "cut_chosen") {
+      // Right-clicked, or pressed and held, on a cut: its menu.
+      await vscode.commands.executeCommand("debrief.cutMenu", message.feature_id);
     } else if (message.kind === "annotation_drawn") {
       // Drawn on the map: the form, to name it and add it as one step.
       await vscode.commands.executeCommand("debrief.addDrawnAnnotation", message.annotation);

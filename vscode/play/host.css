@@ -8,15 +8,20 @@ body { background: var(--vscode-editor-background); color: var(--vscode-foregrou
 .side h2 { font-size: 11px; text-transform: uppercase; letter-spacing: .04em; margin: 4px 0 6px; display: flex; justify-content: space-between; align-items: center; color: var(--vscode-sideBarSectionHeader-foreground); }
 .side select { width: 100%; background: var(--vscode-dropdown-background); color: var(--vscode-foreground); border: 1px solid var(--vscode-dropdown-border); padding: 3px; font: inherit; }
 .list { list-style: none; margin: 0; padding: 0; max-height: 210px; overflow-y: auto; }
+/* No scroll anchoring: rows unwrapping as a panel widens would move the list's place, which the layout keeps (dock). */
+.list { overflow-anchor: none; }
 .list li { padding: 2px 4px; cursor: default; border-radius: 2px; }
 #outline li { cursor: pointer; }
+/* A sensor, under its host track (CAP-22). */
+#outline li.sensor { padding-left: 18px; }
 .outline-actions { display: flex; flex-wrap: wrap; gap: 4px; margin-top: 6px; align-items: center; }
 .side .outline-actions select { width: auto; flex: 1; min-width: 0; }
 /* Under the outline: what can be done to a selected track, and to annotations, each a labelled group of equal buttons. */
 .action-group { display: grid; grid-template-columns: repeat(auto-fill, minmax(76px, 1fr)); gap: 4px; margin-top: 8px; }
 .action-label { grid-column: 1 / -1; font-size: 11px; color: var(--vscode-descriptionForeground); }
 .action-group button { margin: 0; padding: 3px 4px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.action-group #north-arrow, .action-group #track-frequencies { grid-column: span 2; }
+.action-group #north-arrow, .action-group #track-frequencies, .action-group #keep-starboard, .action-group #keep-ambiguous { grid-column: span 2; }
+.action-group[hidden] { display: none; }
 #outline li:hover { background: var(--vscode-list-hoverBackground); }
 #outline li.selected { background: var(--vscode-list-activeSelectionBackground); color: var(--vscode-list-activeSelectionForeground); }
 #outline .tag { font-size: 10px; padding: 0 3px; border: 1px solid currentColor; border-radius: 2px; opacity: 0.85; }

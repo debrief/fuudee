@@ -86,7 +86,9 @@ def test_shapes_sample_imports(catalogue: Catalogue) -> None:
     assert kinds[("shape", "Polygon")] > 0
     assert kinds[("shape", "LineString")] > 0
 
-    ellipse = next(f for f in plot.features if f.properties.name == "test ellipse")
+    ellipse = next(
+        f for f in plot.features if getattr(f.properties, "name", None) == "test ellipse"
+    )
     ring = ellipse.geometry.coordinates[0]
     assert len(ring) == 73 and ring[0] == ring[-1]  # for other GeoJSON tools
     assert ellipse.properties.time == "1995-12-12T06:02:00.000Z"
@@ -109,12 +111,14 @@ def test_shapes_sample_imports(catalogue: Catalogue) -> None:
 
     # Circles: centre and radius, line style, width and fill as legacy drew them.
     def look(name: str) -> dict:
-        found = next(f for f in plot.features if f.properties.name == name)
+        found = next(f for f in plot.features if getattr(f.properties, "name", None) == name)
         assert str(found.properties.shape) == "circle"
         return found.properties.appearance.model_dump(exclude_none=True)
 
     dot_dash = next(
-        f for f in plot.features if f.properties.name == "dot-dash 2px semi-transparent"
+        f
+        for f in plot.features
+        if getattr(f.properties, "name", None) == "dot-dash 2px semi-transparent"
     )
     assert dot_dash.properties.radius.value == pytest.approx(2000 * 1852 / 2025.371828, abs=0.001)
     assert look("dot-dash 2px semi-transparent") | {"label_size": 12} == {
@@ -133,7 +137,7 @@ def test_shapes_sample_imports(catalogue: Catalogue) -> None:
     labels = [f for f in plot.features if str(getattr(f.properties, "shape", "")) == "label"]
     assert labels and all(f.geometry.type == "Point" for f in labels)
 
-    poly = next(f for f in plot.features if f.properties.name == "test poly")
+    poly = next(f for f in plot.features if getattr(f.properties, "name", None) == "test poly")
     assert poly.properties.text == "test\npoly"
 
     sets = {s.name: s for s in plot.named_sets}
@@ -153,8 +157,8 @@ def test_provenance_names_source_and_every_omission(catalogue: Catalogue) -> Non
     assert record.notes == report.omitted
     notes = "\n".join(record.notes)
     for expected in [
-        "sensor 'Plain' (sensor, 1 cut) not imported",
-        "sensor 'SENSOR' (sensor, 4 cuts) not imported",
+        "Sensor data read: Plain on NEL_STYLE (1 cut); SENSOR on NEL_STYLE2 (4 cuts, 4 ambiguous).",
+        "Track 'NEL_STYLE2': sensor 'SENSOR': 4 cuts gave a frequency: not imported.",
         "TMA solution set 'TARGET' (tma, 4 solutions) not imported",
         "Track 'NEL_STYLE': 3 fix labels hidden in the legacy plot are imported and will be shown.",
         "14 text labels drawn with a symbol ('Carrier', 'Square'",
@@ -221,7 +225,7 @@ def test_sweep_of_legacy_samples(tmp_path: Path) -> None:
     """Every .dpf file in legacy Debrief's sample data, as for REP (EXT-14)."""
     catalogue = Catalogue.create(tmp_path / "cat", "sweep", "Sweep", "Legacy samples")
     files = sorted(LEGACY.rglob("*.dpf"))
-    tracks = fixes = 0
+    tracks = fixes = cuts = 0
     errors = []
     omitted: Counter[str] = Counter()
     for index, path in enumerate(files):
@@ -232,6 +236,7 @@ def test_sweep_of_legacy_samples(tmp_path: Path) -> None:
             continue
         tracks += len(report.tracks)
         fixes += report.fixes
+        cuts += report.sensor_cuts
         for note in report.omitted:
             if note.startswith("Line "):
                 errors.append(f"{path.name}: {note}")
@@ -245,7 +250,9 @@ def test_sweep_of_legacy_samples(tmp_path: Path) -> None:
     assert errors == [
         "BAD_sample.dpf: the file is not well-formed XML: mismatched tag: line 6, column 2"
     ]
-    assert omitted["sensor"] == 63
+    # Sensors come with their cuts now (CAP-22): none is listed as not imported.
+    assert omitted["sensor"] == 0
+    assert cuts == 17637
     assert omitted["satc_solution"] == 10
 
 
@@ -381,7 +388,7 @@ def test_fix_colours_labels_and_comments_become_marked_fixes(catalogue: Catalogu
     """The .dpf gap closed (EXT-14): each fix's own colour, label and comment, found by time."""
     report = import_dpf(catalogue, DATA / "shapes.dpf")
     plot = catalogue.read_plot("shapes")
-    track = next(f for f in plot.features if f.properties.name == "NEL_STYLE")
+    track = next(f for f in plot.features if getattr(f.properties, "name", None) == "NEL_STYLE")
     marks = {m.time[11:19]: m for m in track.properties.fix_marks}
     assert set(track.properties.times) >= {f"1995-12-12T{t}.000Z" for t in marks}
     own = track.properties.style.colour

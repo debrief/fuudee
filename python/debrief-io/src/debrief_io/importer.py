@@ -43,6 +43,7 @@ class ImportReport:
     fixes: int = 0
     annotations: int = 0
     narrative_entries: int = 0
+    sensor_cuts: int = 0
     # Everything not imported, in words an analyst can act on.
     omitted: list[str] = field(default_factory=list)
     # What the analyst should know that is not an omission: how each track is plotted.
@@ -244,6 +245,7 @@ def build_plot(
     labels = sum(1 for f in imported if f.label or f.comment)
     if labels:
         report.omitted.append(f"{labels} fixes had a label or comment; these are not yet imported.")
+    features += _sensor_features(parsed, features, report)
     for record, count in sorted(parsed.other_records.items()):
         report.omitted.append(
             f"{count} {record} line{'s' if count != 1 else ''} not imported (not yet supported)."
@@ -269,6 +271,33 @@ def build_plot(
         provenance=[record],
     )
     return plot, report
+
+
+def _sensor_features(parsed, features: list, report: ImportReport) -> list:
+    """The file's sensor lines as sensors and cuts, each carried by the file's track of
+    its name (CAP-22); sensor lines for a track the file does not have are said, so they
+    can be read into a plot that has it."""
+    from debrief_io import sensor_import
+    from debrief_stac import sensors
+
+    lines = sensor_import.sensor_lines(parsed)
+    if not lines.groups:
+        return []
+    tracks = {f.id: f for f in features if f.properties.kind == "track"}
+    names = {f.properties.name: f.id for f in tracks.values()}
+    hosts = {track: sensor_import.match_host(track, names) for track, _ in lines.groups}
+    ids = {i: f.properties.name for i, f in tracks.items()}
+    paths = sensor_import.spans(tracks.values())
+    read, notes, omitted = sensor_import.read_sensors(
+        lines, hosts, report.item_id or "file", paths, ids, in_file=True
+    )
+    report.omitted += lines.omitted + omitted
+    built = sensors.build(read, (f.id for f in features), ids)
+    if read:
+        report.notes.append(sensor_import.sensors_note(read, ids))
+    report.notes += lines.notes + notes
+    report.sensor_cuts = sum(len(s.cuts) for s in read)
+    return built
 
 
 class NoTracksError(ValueError):
@@ -369,6 +398,12 @@ def _with_tracks(
     make an empty plot. A file of narrative alone, a platform's log, makes a plot."""
     plot, report = built
     if not report.tracks and not report.narrative_entries:
+        if any("the file has no track" in o for o in report.omitted):
+            # A .dsf file: its host tracks are in another file (CAP-22, EXT-03).
+            raise NoTracksError(
+                "it holds sensor data only, with no track to carry it. Open the plot with "
+                "its host track and read the file into it: Read sensor data into the plot."
+            )
         why = " ".join(report.omitted[:3]) or "The file is empty."
         more = len(report.omitted) - 3
         raise NoTracksError(

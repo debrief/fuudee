@@ -33,6 +33,63 @@
       "title": "AgentRef",
       "type": "object"
     },
+    "AmbiguityKeepEnum": {
+      "description": "What the analyst asks of ambiguous cuts (CAP-22): keep the bearing to port or to starboard of the host track's course at each cut's time, as legacy Debrief's Keep port bearing and Keep starboard bearing decide it (by the side of the bearing recorded first); keep the bearing recorded first, or its ambiguous twin, as the analyst clicked it on the map; or make the cuts ambiguous again.",
+      "enum": [
+        "port",
+        "starboard",
+        "bearing",
+        "ambiguous_bearing",
+        "ambiguous"
+      ],
+      "title": "AmbiguityKeepEnum",
+      "type": "string"
+    },
+    "AmbiguityResolution": {
+      "additionalProperties": false,
+      "description": "Ambiguous cuts resolved, or made ambiguous again, as the map, a menu or an agent asks (CAP-22): one recorded, undoable step (product owner, 24 Oct 2026). The cuts are those named, or else the cuts of the sensors named within a period (the time window, as the analyst sets it). Cuts with no ambiguous bearing are left as they are, and the step says how many.",
+      "properties": {
+        "cut_ids": {
+          "description": "The cuts to resolve, by feature id. Or give sensor_ids, and perhaps a period.",
+          "items": {
+            "type": "string"
+          },
+          "type": [
+            "array",
+            "null"
+          ]
+        },
+        "keep": {
+          "$ref": "#/$defs/AmbiguityKeepEnum"
+        },
+        "period": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/TimeRange"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": "The cuts whose times fall in it, ends included, of the sensors named."
+        },
+        "sensor_ids": {
+          "description": "Sensors whose cuts in the period are resolved; every cut of each, without a period.",
+          "items": {
+            "type": "string"
+          },
+          "type": [
+            "array",
+            "null"
+          ]
+        }
+      },
+      "required": [
+        "keep"
+      ],
+      "title": "AmbiguityResolution",
+      "type": "object"
+    },
     "Angle": {
       "additionalProperties": false,
       "description": "",
@@ -892,6 +949,12 @@
                 "$ref": "#/$defs/SensorObservationsFeature"
               },
               {
+                "$ref": "#/$defs/SensorFeature"
+              },
+              {
+                "$ref": "#/$defs/SensorCutFeature"
+              },
+              {
                 "$ref": "#/$defs/NarrativeFeature"
               },
               {
@@ -962,6 +1025,12 @@
                 "$ref": "#/$defs/SensorObservationsFeature"
               },
               {
+                "$ref": "#/$defs/SensorFeature"
+              },
+              {
+                "$ref": "#/$defs/SensorCutFeature"
+              },
+              {
                 "$ref": "#/$defs/NarrativeFeature"
               },
               {
@@ -1009,6 +1078,12 @@
               },
               {
                 "$ref": "#/$defs/SensorObservationsFeature"
+              },
+              {
+                "$ref": "#/$defs/SensorFeature"
+              },
+              {
+                "$ref": "#/$defs/SensorCutFeature"
               },
               {
                 "$ref": "#/$defs/NarrativeFeature"
@@ -1137,7 +1212,9 @@
         "annotation",
         "sensor_observations",
         "plot",
-        "narrative"
+        "narrative",
+        "sensor",
+        "sensor_cut"
       ],
       "title": "FeatureKindEnum",
       "type": "string"
@@ -1420,6 +1497,12 @@
                 "$ref": "#/$defs/SensorObservationsFeature"
               },
               {
+                "$ref": "#/$defs/SensorFeature"
+              },
+              {
+                "$ref": "#/$defs/SensorCutFeature"
+              },
+              {
                 "$ref": "#/$defs/NarrativeFeature"
               },
               {
@@ -1467,6 +1550,12 @@
               },
               {
                 "$ref": "#/$defs/SensorObservationsFeature"
+              },
+              {
+                "$ref": "#/$defs/SensorFeature"
+              },
+              {
+                "$ref": "#/$defs/SensorCutFeature"
               },
               {
                 "$ref": "#/$defs/NarrativeFeature"
@@ -3250,6 +3339,198 @@
       "title": "Selection",
       "type": "object"
     },
+    "SensorCutFeature": {
+      "additionalProperties": false,
+      "description": "One cut of a sensor (CAP-22): a bearing from the host track at a time, perhaps with the ambiguous bearing a towed array cannot tell it from, and which of the two the analyst kept. Geometry is null: the cut is drawn from the host track's position at its time (as the map places tracks, along the geodesic between fixes), or from the position recorded with it, along the geodesic at its bearing to its range, or else past the edge of the map's view (twice the view's larger side, at most 5 degrees of arc, 300 nmi, as legacy Debrief draws it). Frequency is never imported (CAP-22, EXT-03). A bearing error is not held yet: no legacy format defines what one means (product owner, 24 Oct 2026); an optional bearing_error here is the way to add it, and wedges with it.",
+      "properties": {
+        "geometry": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/PointGeometry"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": "Always null."
+        },
+        "id": {
+          "type": "string"
+        },
+        "properties": {
+          "$ref": "#/$defs/SensorCutProperties"
+        },
+        "type": {
+          "$ref": "#/$defs/FeatureTypeEnum"
+        }
+      },
+      "required": [
+        "type",
+        "id",
+        "properties"
+      ],
+      "title": "SensorCutFeature",
+      "type": "object"
+    },
+    "SensorCutKeptEnum": {
+      "description": "Which of an ambiguous cut's two recorded bearings the analyst kept (CAP-22): the side resolved. Recorded as the bearing kept, not as port or starboard, because which side a bearing is on depends on the host track's course at the cut's time, which a later edit of the track (a move, dead reckoning) can change; what the analyst judged is which bearing was the target's. Debrief says it as port or starboard.",
+      "enum": [
+        "bearing",
+        "ambiguous_bearing"
+      ],
+      "title": "SensorCutKeptEnum",
+      "type": "string"
+    },
+    "SensorCutKindEnum": {
+      "description": "",
+      "enum": [
+        "sensor_cut"
+      ],
+      "title": "SensorCutKindEnum",
+      "type": "string"
+    },
+    "SensorCutProperties": {
+      "additionalProperties": false,
+      "description": "",
+      "properties": {
+        "ambiguous_bearing": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/Angle"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": "A towed array's ambiguous bearing: the mirror image of bearing about the array, on the other side of the host's course. Left out for a cut that was never ambiguous."
+        },
+        "bearing": {
+          "$ref": "#/$defs/Angle",
+          "description": "The bearing to the target, true, clockwise from north, from 0 up to 360 degrees."
+        },
+        "colour": {
+          "description": "The cut's own colour, lower-case hex RGB; left out, its sensor's, as legacy Debrief lets a cut take its sensor's colour.",
+          "pattern": "^#[0-9a-f]{6}$",
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "comment": {
+          "description": "Free text about the cut.",
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "hidden": {
+          "description": "Not drawn on the map. Content, like hiding any feature (SUB-22).",
+          "type": [
+            "boolean",
+            "null"
+          ]
+        },
+        "kind": {
+          "$ref": "#/$defs/SensorCutKindEnum"
+        },
+        "label": {
+          "description": "Text the source gives the cut, such as legacy Debrief's label.",
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "origin": {
+          "items": {
+            "description": "[longitude, latitude] of the sensor, where the source recorded it with the cut (legacy Debrief's absolute origin): the cut is drawn from there instead of from the host track. Left out, from the host track's position at the cut's time.",
+            "type": "number"
+          },
+          "maxItems": 2,
+          "minItems": 2,
+          "type": "array"
+        },
+        "range": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/Length"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": "How far the target was, where the source says: the cut is drawn to that range. Left out, drawn past the edge of the view."
+        },
+        "resolved": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/SensorCutKeptEnum"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": "Which of the two bearings the analyst kept, for a cut with an ambiguous bearing; left out while it is unresolved, when both are drawn. Each resolution, of one cut or of every cut in a period, is one recorded, undoable step with provenance (product owner, 24 Oct 2026), and can be undone or reset to ambiguous."
+        },
+        "sensor_id": {
+          "description": "The sensor the cut is from, a sensor feature in the plot.",
+          "type": "string"
+        },
+        "time": {
+          "description": "When the cut was taken, to the millisecond, Zulu (SUB-01).",
+          "pattern": "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}\\.\\d{3}Z$",
+          "type": "string"
+        }
+      },
+      "required": [
+        "kind",
+        "sensor_id",
+        "time",
+        "bearing"
+      ],
+      "title": "SensorCutProperties",
+      "type": "object"
+    },
+    "SensorFeature": {
+      "additionalProperties": false,
+      "description": "A sensor carried by a track (CAP-22): a bow sonar, a towed array, the bearings read from a narrative. Its cuts are features of their own (SensorCutFeature), each naming it, so resolving one cut, or the cuts of a period, is one small recorded step (SUB-19), as each narrative entry is a feature of its own. Geometry is null: a cut is drawn from where the host track was at its time, so a track edited (moved, sheared, plotted by dead reckoning) carries its cuts with it, and a TMA solution (CAP-21) can be rooted in the cuts' times.",
+      "properties": {
+        "geometry": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/PointGeometry"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": "Always null."
+        },
+        "id": {
+          "type": "string"
+        },
+        "properties": {
+          "$ref": "#/$defs/SensorProperties"
+        },
+        "type": {
+          "$ref": "#/$defs/FeatureTypeEnum"
+        }
+      },
+      "required": [
+        "type",
+        "id",
+        "properties"
+      ],
+      "title": "SensorFeature",
+      "type": "object"
+    },
+    "SensorKindEnum": {
+      "description": "",
+      "enum": [
+        "sensor"
+      ],
+      "title": "SensorKindEnum",
+      "type": "string"
+    },
     "SensorObservationsFeature": {
       "additionalProperties": false,
       "description": "A set of sensor observations, such as weeks of bearings, held as an opaque payload (CON-02, NFR-06). Geometry is null; positions come from the host track at each observation time.",
@@ -3349,6 +3630,59 @@
         "payload"
       ],
       "title": "SensorObservationsProperties",
+      "type": "object"
+    },
+    "SensorProperties": {
+      "additionalProperties": false,
+      "description": "",
+      "properties": {
+        "colour": {
+          "description": "The colour its cuts are drawn in, lower-case hex RGB, unless a cut has its own. Content, like a track's colour: each change is a recorded, undoable step (SUB-22).",
+          "pattern": "^#[0-9a-f]{6}$",
+          "type": "string"
+        },
+        "hidden": {
+          "description": "None of its cuts drawn on the map. Still listed, and still selectable, in the outline, under its track. Content: hiding is a recorded, undoable change (SUB-22).",
+          "type": [
+            "boolean",
+            "null"
+          ]
+        },
+        "host_track_id": {
+          "description": "The track carrying the sensor (ownship): its cuts are drawn from that track's position at each cut's time. A track split keeps its sensors on its first part; tracks merged take their sensors with them.",
+          "type": "string"
+        },
+        "kind": {
+          "$ref": "#/$defs/SensorKindEnum"
+        },
+        "legacy_symbology": {
+          "description": "The REP symbology code its colour came from, such as \"@A\", kept for export.",
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "name": {
+          "description": "The sensor's name, as its source gives it, such as \"Towed array\" or \"2087\".",
+          "type": "string"
+        },
+        "provenance": {
+          "items": {
+            "$ref": "#/$defs/ProvRecord"
+          },
+          "type": [
+            "array",
+            "null"
+          ]
+        }
+      },
+      "required": [
+        "kind",
+        "name",
+        "host_track_id",
+        "colour"
+      ],
+      "title": "SensorProperties",
       "type": "object"
     },
     "SharedState": {
@@ -4190,6 +4524,12 @@
                 "$ref": "#/$defs/SensorObservationsFeature"
               },
               {
+                "$ref": "#/$defs/SensorFeature"
+              },
+              {
+                "$ref": "#/$defs/SensorCutFeature"
+              },
+              {
                 "$ref": "#/$defs/NarrativeFeature"
               }
             ]
@@ -4219,6 +4559,12 @@
               },
               {
                 "$ref": "#/$defs/SensorObservationsFeature"
+              },
+              {
+                "$ref": "#/$defs/SensorFeature"
+              },
+              {
+                "$ref": "#/$defs/SensorCutFeature"
               },
               {
                 "$ref": "#/$defs/NarrativeFeature"
@@ -5139,6 +5485,17 @@
           ],
           "description": "The item, at the revision the analyst saw (take_asked, dismiss_asked)."
         },
+        "keep": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/AmbiguityKeepEnum"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": "Which of an ambiguous cut's bearings the analyst clicked, to keep (resolve_asked)."
+        },
         "kind": {
           "$ref": "#/$defs/WebviewMessageKindEnum"
         },
@@ -5478,7 +5835,9 @@
         "review_cleared",
         "export_image",
         "image_rendered",
-        "latest_asked"
+        "latest_asked",
+        "resolve_asked",
+        "cut_chosen"
       ],
       "title": "WebviewMessageKindEnum",
       "type": "string"
@@ -5501,6 +5860,12 @@
           },
           {
             "$ref": "#/$defs/SensorObservationsFeature"
+          },
+          {
+            "$ref": "#/$defs/SensorFeature"
+          },
+          {
+            "$ref": "#/$defs/SensorCutFeature"
           },
           {
             "$ref": "#/$defs/NarrativeFeature"
@@ -5554,5 +5919,5 @@
   ],
   "title": "debrief",
   "type": "object",
-  "version": "0.0.22"
+  "version": "0.0.23"
 }

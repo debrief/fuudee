@@ -73,6 +73,8 @@ import { DATA_COLOURS, LIGHT_EXPORT_THEME } from "./palette.js";
 import { host, onMessage } from "./vscode.js";
 import { toteOf, toteMapLines } from "./totelogic.js";
 import { composeSvg, rasterise, type PaintedMark } from "./exportimage.js";
+import { SensorLayer } from "./sensormap.js";
+import { describeCut } from "./sensors.js";
 import { clipIdFor, footerFontSize, layoutFor, pixelsOf, type ImageFormat, type ImagePreset, type ImageTheme } from "./exportlogic.js";
 import type { RenderedImage, RevisionShown } from "@debrief/schemas";
 
@@ -188,6 +190,9 @@ const Legend = L.Control.extend({
       ["symbol", "Symbol, at the interval set for the track"],
       ["marked", "Marked fix: its own colour, a label or a comment; right-click a fix to mark it"],
       ["check", "Fix to check, such as a jump found"],
+      ["cut", "Sensor cut in the time window, in its sensor's colour, from its track"],
+      ["cut-twin", "Ambiguous cut: port solid, starboard darker and dashed; click the line to keep"],
+      ["cut-now", "Cut at current time"],
       ["annotation", "Annotation, including what tools draw: dashed unless given a style"],
       ["selected", "Selected"],
     ];
@@ -197,6 +202,7 @@ const Legend = L.Control.extend({
       if (kind === "time") swatch.textContent = "0930";
       L.DomUtil.create("span", "", row).textContent = label;
       if (kind === "time" || kind === "symbol") row.hidden = true; // shown once a track has them
+      if (kind.startsWith("cut")) row.hidden = true; // shown once the plot has sensor cuts
     }
     return div;
   },
@@ -401,6 +407,7 @@ function restyle(): void {
     timeLabels?.forEach((marker) => marker.setOpacity(opacity));
   }
   paintMarks();
+  sensorLayer.paint();
   halo.clearLayers();
   const outline = css("--vscode-editor-foreground");
   for (const id of selection) {
@@ -495,9 +502,12 @@ function draw(plot: DebriefFeatureCollection): void {
     if (!geometry || feature.properties.kind === "plot") continue;
     const layers: L.Layer[] = [];
     const paths: L.Path[] = [];
+    // An area, circle or ellipse is filled: a cut's line across it is clicked through it (CAP-22).
+    const filled = feature.properties.kind === "annotation" && ["area", "circle", "ellipse"].includes(shapeOf(feature.properties as AnnotationProperties, geometry.type));
     const click = (event: L.LeafletMouseEvent) => {
       L.DomEvent.stopPropagation(event);
       if (editor.takeClick(event)) return; // drawing: a click places a point, even on a track
+      if (filled && clickCut(event)) return;
       select(feature.id, event.originalEvent.ctrlKey || event.originalEvent.metaKey);
     };
     const isTrack = feature.properties.kind === "track";
@@ -530,6 +540,8 @@ function draw(plot: DebriefFeatureCollection): void {
   empty.hidden = plot.features.some((f) => f.geometry);
   empty.textContent = plot.features.length ? "This plot has nothing with a position." : "This plot is empty. Import a REP file to add tracks.";
   setTracks(plot.features.filter((f): f is Track => f.properties.kind === "track" && !!f.geometry));
+  sensorLayer.setPlot(plot);
+  showCutKey();
   drawnWindow = undefined;
   drawWindow();
   drawGraticule();
@@ -703,7 +715,11 @@ let holding = false; // sending the hold on as a right-click
 const pressHold = new PressHold((x, y) => {
   if (editor.active) return; // drawing: a hold is not a choice of fix
   const target = document.elementFromPoint(x, y)?.closest(`.${HOLDABLE}`);
-  if (!target || !mapElement.contains(target)) return;
+  if (!target || !mapElement.contains(target)) {
+    const box = mapElement.getBoundingClientRect();
+    chooseCut(L.point(x - box.left, y - box.top));
+    return;
+  }
   holding = true;
   try {
     target.dispatchEvent(new MouseEvent("contextmenu", { bubbles: true, cancelable: true, clientX: x, clientY: y, button: 2, buttons: 0 }));
@@ -969,6 +985,65 @@ interface Projected {
 const projectedTracks = new WeakMap<Track, Projected>();
 const crs = map.options.crs ?? L.CRS.EPSG3857;
 const UNIT_ZOOM = crs.zoom(1);
+
+// --- Sensor cuts (CAP-22, sensormap.ts) -------------------------------------------------
+const sensorLayer = new SensorLayer({
+  map,
+  unitZoom: UNIT_ZOOM,
+  selection: () => selection,
+  background: () => css("--vscode-editor-background"),
+  outline: () => css("--vscode-editor-foreground"),
+});
+// For tests: where on the map each cut's line can be clicked.
+(window as unknown as { debriefCuts: () => ReturnType<SensorLayer["probe"]> }).debriefCuts = () => sensorLayer.probe();
+/** The legend's rows for cuts: shown once the plot has sensor cuts to draw. */
+function showCutKey(): void {
+  for (const kind of ["cut", "cut-twin", "cut-now"]) {
+    const row = document.querySelector<HTMLElement>(`.swatch-${kind}`)?.parentElement;
+    if (row) row.hidden = sensorLayer.sensorCount === 0;
+  }
+}
+/** A cut's details when pointed at, in a small box beside the pointer. */
+const cutTip = Object.assign(document.createElement("div"), { className: "cut-tip", hidden: true });
+cutTip.setAttribute("role", "tooltip");
+mapElement.append(cutTip);
+let tipPending = false;
+map.on("mousemove", (event: L.LeafletMouseEvent) => {
+  if (tipPending) return;
+  tipPending = true;
+  requestAnimationFrame(() => {
+    tipPending = false;
+    const found = editor.active ? undefined : sensorLayer.hit(event.containerPoint);
+    mapElement.classList.toggle("on-cut", !!found);
+    cutTip.hidden = !found;
+    if (!found) return;
+    const at = Date.parse(found.cut.properties.time);
+    const host = found.entry.host!;
+    const course = pointAt(host.geometry.coordinates as LonLat[], host.properties.times.map(Date.parse), at)?.course;
+    const more = found.cut.properties.ambiguous_bearing && !found.cut.properties.resolved ? "\nClick this line to keep it; right-click for more" : "";
+    cutTip.textContent = describeCut(found.cut, found.entry.sensor.properties.name, course, settings) + more;
+    const size = map.getSize();
+    const left = event.containerPoint.x > size.x - 260;
+    cutTip.style.left = left ? "" : `${event.containerPoint.x + 14}px`;
+    cutTip.style.right = left ? `${size.x - event.containerPoint.x + 14}px` : "";
+    cutTip.style.top = `${Math.max(4, event.containerPoint.y - 40)}px`;
+  });
+});
+map.on("mouseout movestart zoomstart", () => {
+  cutTip.hidden = true;
+  mapElement.classList.remove("on-cut");
+});
+/** A cut's menu, from a right-click or a press and hold on its line: the host shows it. */
+function chooseCut(point: L.Point): boolean {
+  const found = sensorLayer.hit(point);
+  if (!found) return false;
+  host.postMessage({ kind: "cut_chosen", feature_id: found.cut.id });
+  return true;
+}
+map.on("contextmenu", (event: L.LeafletMouseEvent) => {
+  if (editor.active) return;
+  if (chooseCut(event.containerPoint)) L.DomEvent.preventDefault(event.originalEvent);
+});
 function projectedOf(track: Track, times: number[]): Projected {
   const known = projectedTracks.get(track);
   if (known) return known;
@@ -1477,6 +1552,7 @@ function showTime(next: TimeState | undefined): void {
     timePending = false;
     drawWindow();
     drawNow();
+    sensorLayer.setTime(time ? { start: Date.parse(time.range.start), end: Date.parse(time.range.end) } : ALL, time ? Date.parse(time.current) : NaN);
     trackEditor.refresh(); // the default pivot is the fix nearest current time
   });
 }
@@ -1548,8 +1624,25 @@ new ResizeObserver(() => {
 
 map.on("click", (event: L.LeafletMouseEvent) => {
   if (trackEditor.endingDrag(event)) return;
-  if (!editor.active && !editor.endingDrag(event)) select(undefined, false);
+  if (editor.active || editor.endingDrag(event)) return;
+  if (clickCut(event)) return;
+  select(undefined, false);
 });
+/**
+ * A click on a sensor cut's line (CAP-22): on one of an ambiguous cut's two lines it keeps
+ * that bearing, one step (product owner, 24 Oct 2026); on any other cut, or with Ctrl, it
+ * selects the cut. False if no cut's line is under the click.
+ */
+function clickCut(event: L.LeafletMouseEvent): boolean {
+  const found = sensorLayer.hit(event.containerPoint);
+  if (!found) return false;
+  const add = event.originalEvent.ctrlKey || event.originalEvent.metaKey;
+  const ambiguous = !!found.cut.properties.ambiguous_bearing && !found.cut.properties.resolved;
+  if (ambiguous && !add && !root.classList.contains("read-only")) {
+    host.postMessage({ kind: "resolve_asked", feature_id: found.cut.id, keep: found.which });
+  } else select(found.cut.id, add);
+  return true;
+}
 mapElement.addEventListener("keydown", (event) => {
   if (event.key === "Escape" && !editor.active) select(undefined, false);
 });
@@ -1636,7 +1729,7 @@ async function settle(): Promise<void> {
 async function coverMap(): Promise<() => void> {
   const size = map.getSize();
   const r = mapElement.getBoundingClientRect();
-  const { svg } = composeSvg({ root: mapElement, width: size.x, height: size.y, scale: 1, background: css("--vscode-editor-background"), marks: paintedMarks(), tickSize: TICK_SIZE, clipId: clipIdFor() });
+  const { svg } = composeSvg({ root: mapElement, width: size.x, height: size.y, scale: 1, background: css("--vscode-editor-background"), marks: paintedMarks(), lines: sensorLayer.linesForExport(), tickSize: TICK_SIZE, clipId: clipIdFor() });
   const cover = Object.assign(document.createElement("img"), { className: "export-cover", alt: "", src: `data:image/svg+xml;charset=utf-8,${encodeURIComponent(svg)}` });
   Object.assign(cover.style, { left: `${r.left}px`, top: `${r.top}px`, width: `${r.width}px`, height: `${r.height}px` });
   document.body.append(cover);
@@ -1730,6 +1823,7 @@ async function exportImage(request: { format: ImageFormat; preset: ImagePreset; 
       scale: layout.scale,
       background,
       marks: paintedMarks(),
+      lines: sensorLayer.linesForExport(),
       footer: request.footer_text ? { text: request.footer_text, colour: css("--vscode-descriptionForeground") || css("--vscode-editor-foreground"), halo: background, size: footerFontSize({ width: size.x, height: size.y, scale: layout.scale }) } : undefined,
       tickSize: TICK_SIZE,
       clipId: clipIdFor(),

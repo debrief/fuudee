@@ -58,7 +58,7 @@ export async function run(): Promise<void> {
   // Open serial 1 of the sample exercise from the catalogue.
   await vscode.commands.executeCommand("debrief.openPlot", "sample-exercise", "serial-1");
   const opened = await waitFor("plot", () => api.session.current);
-  const names = opened.plot.features.flatMap((f) => (f.properties.kind === "plot" || f.properties.kind === "narrative" ? [] : [f.properties.name]));
+  const names = opened.plot.features.flatMap((f) => (f.properties.kind === "plot" || f.properties.kind === "narrative" ? [] : [(f.properties as { name?: string }).name]));
   assert.ok(names.includes("BLUE ONE") && names.includes("RED ONE"));
   await waitFor("the map to draw the plot", () => api.mapShowing() === "serial-1" || undefined);
   await sleep(1500); // let the map settle before the picture
@@ -526,6 +526,51 @@ export async function run(): Promise<void> {
     const refusedNarrative = await vscode.commands.executeCommand<Narrated>("debrief.addNarrative", { source: "X", text: "No time." });
     assert.match(refusedNarrative.problem ?? "", /time/);
   assert.equal((await steps()).length, narrativeSteps + 6);
+  }
+
+  // Sensor bearings (CAP-22): the sample's two sensors under BLUE ONE in the Outline; the Towed
+  // array's cuts kept to port, one step, as an agent or a menu asks; ambiguous again, one step;
+  // a .dsf file read in, its track named for a track the plot has not, one step; each undone.
+  {
+    type Sensed = { problem?: string; answer?: { notes?: string[]; sensors?: string[]; cuts?: number } };
+    const towed = "sensor-blue-one-towed-array";
+    const cutsOf = (sensor: string) => api.session.current!.plot.features.filter((f) => f.properties.kind === "sensor_cut" && f.properties.sensor_id === sensor);
+    const resolved = (f: { properties: { kind: string; resolved?: string | null } }) => f.properties.kind === "sensor_cut" && !!f.properties.resolved;
+    const children = api.outlineChildren("track-blue-one");
+    assert.deepEqual(children.map((c) => c.label), ["Bow sonar", "Towed array"], "the sensors under their track");
+    assert.match(children[1].description, /^\d+ cuts · \d+ ambiguous$/);
+    const before = (await steps()).length;
+    const port = await vscode.commands.executeCommand<Sensed>("debrief.resolveAmbiguity", { keep: "port", sensor_ids: [towed] });
+    assert.equal(port.problem, undefined);
+    assert.equal((await steps()).length, before + 1, "one step");
+    assert.match((await steps()).at(-1)?.notes?.[0] ?? "", /^Port kept: \d+ Towed array cuts \d\d:\d\d:\d\dZ–\d\d:\d\d:\d\dZ$/);
+    assert.ok(cutsOf(towed).some(resolved), "resolved");
+    assert.match(api.outlineChildren("track-blue-one")[1].description, / resolved$/);
+    // For the picture, a twenty-minute window, as an analyst reads bearings; then the window as it was.
+    const timeBefore = api.getState()?.time;
+    assert.equal(api.setState({ time: { current: "2023-06-15T09:33:00.000Z", range: { start: "2023-06-15T09:20:00.000Z", end: "2023-06-15T09:40:00.000Z" } } }), undefined);
+    await vscode.commands.executeCommand("debrief.outline.focus");
+    await sleep(1500);
+    await screenshot("15d-sensors");
+    if (timeBefore) api.setState({ time: timeBefore });
+    const again = await vscode.commands.executeCommand<Sensed>("debrief.resolveAmbiguity", { keep: "ambiguous", sensor_ids: [towed] });
+    assert.equal(again.problem, undefined);
+    assert.match((await steps()).at(-1)?.notes?.[0] ?? "", /^Ambiguous again: \d+ Towed array cuts /);
+    assert.equal(await vscode.commands.executeCommand("debrief.undo"), undefined);
+    assert.equal(await vscode.commands.executeCommand("debrief.undo"), undefined);
+    assert.ok(!cutsOf(towed).some(resolved), "undone: ambiguous as read");
+    const scratch = mkdtempSync(path.join(tmpdir(), "debrief-sensor-"));
+    const dsf = path.join(scratch, "nelson.dsf");
+    (await import("node:fs")).writeFileSync(dsf, ';SENSOR2: 20230615 090000.000 NELSON @A NULL 45.0 135.0 NULL NULL "Hull array" 0900\n;SENSOR: 20230615 091000.000 NELSON @A NULL 50.0 NULL "Hull array" 0910\n');
+    const unnamed = await vscode.commands.executeCommand<Sensed>("debrief.importSensor", dsf);
+    assert.match(unnamed.problem ?? "", /NELSON/, "a track the plot has not is asked for");
+    const read = await vscode.commands.executeCommand<Sensed>("debrief.importSensor", dsf, { NELSON: "track-red-one" });
+    assert.equal(read.problem, undefined);
+    assert.equal(read.answer?.cuts, 2);
+    assert.equal((await steps()).at(-1)?.notes?.[0], "Sensor data read from nelson.dsf");
+    assert.deepEqual(api.outlineChildren("track-red-one").map((c) => c.label), ["Hull array"]);
+    assert.equal(await vscode.commands.executeCommand("debrief.undo"), undefined);
+    assert.deepEqual(api.outlineChildren("track-red-one"), []);
   }
 
   // The properties form of the circle, as the map's double-click or the outline opens it.
