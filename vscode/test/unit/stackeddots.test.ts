@@ -24,6 +24,10 @@ import {
   inside,
   isZoomed,
   legCourses,
+  LEAST_SPAN_MS,
+  localCourse,
+  describeOffScale,
+  offScale,
   nearestPoint,
   niceTicks,
   noZoom,
@@ -103,13 +107,19 @@ describe("the time span: the sensors' whole coverage (product owner, 25 Oct 2026
 describe("the Error axis: fitted every frame, or held and widened, never clamped", () => {
   const rows = [row("2026-10-25T09:00:00Z", 2), row("2026-10-25T09:01:00Z", -1), row("2026-10-25T09:02:00Z", 50, { hidden: true }), row("2026-10-25T09:03:00Z", 0.5, { other_residual: -8 })];
   const times = rows.map((r) => Date.parse(r.time));
-  it("fits the errors drawn, zero included, as legacy's charts fitted theirs", () => {
-    const extent = errorExtent(rows, times);
-    // Hidden cuts are not drawn; an unresolved pair's other bearing is.
-    expect(extent).toEqual({ lo: -8, hi: 2 });
+  it("fits the errors counted, zero included, as legacy's charts fitted theirs", () => {
+    const extent = errorExtent([...rows, row("2026-10-25T09:04:00Z", 30, { excluded: true })], [...times, Date.parse("2026-10-25T09:04:00Z")]);
+    // Counted only (product owner, 25 Oct 2026): not hidden, not left out, not an unresolved pair's other bearing.
+    expect(extent).toEqual({ lo: -1, hi: 2 });
     const range = fitErrors(extent);
-    expect(range[0]).toBeLessThan(-8);
+    expect(range[0]).toBeLessThan(-1);
     expect(range[1]).toBeGreaterThan(2);
+    // The other bearing and the cut left out, off that axis, said as such.
+    const off = offScale([...rows, row("2026-10-25T09:04:00Z", 30, { excluded: true })], [...times, Date.parse("2026-10-25T09:04:00Z")], range);
+    expect(off).toEqual({ others: 1, leftOut: 1 });
+    expect(describeOffScale(off)).toBe("1 other bearing and 1 left out off scale");
+    expect(describeOffScale({ others: 3, leftOut: 0 })).toBe("3 other bearings off scale");
+    expect(describeOffScale({ others: 0, leftOut: 0 })).toBe("");
     // All positive: zero still shown, as legacy's 0 to 55.
     expect(fitRange(10, 55, { includeZero: true })[0]).toBeLessThan(0);
     // Within a period (a zoom): only its errors.
@@ -138,13 +148,14 @@ describe("the Error axis: fitted every frame, or held and widened, never clamped
 describe("the cut-off: green within, pink beyond (legacy's calculateErrorShadeFor)", () => {
   it("holds the largest error counted to the cut-off: left out, hidden and the other of a pair are not counted", () => {
     const rows = [row("t1", 1.2), row("t2", -2.9), row("t3", 40, { excluded: true }), row("t4", 30, { hidden: true }), row("t5", 0.1, { other_residual: 25 })];
-    expect(errorCue(rows, 3)).toEqual({ state: "within", largest: -2.9, cutOff: 3 });
-    expect(errorCue(rows, 2)).toEqual({ state: "beyond", largest: -2.9, cutOff: 2 });
+    expect(errorCue(rows, 3)).toEqual({ state: "within", largest: -2.9, counted: 3, beyond: 0, cutOff: 3 });
+    expect(errorCue(rows, 2)).toEqual({ state: "beyond", largest: -2.9, counted: 3, beyond: 1, cutOff: 2 });
+    expect(errorCue(rows, 1)).toMatchObject({ state: "beyond", beyond: 2 });
     expect(errorCue([row("t", undefined)], 3).state).toBe("none");
   });
   it("says it in words and a mark, never colour alone", () => {
     expect(describeCue({ state: "within", largest: 1, cutOff: 3 })).toBe("Every error within 3.0°");
-    expect(describeCue({ state: "beyond", largest: -12.44, cutOff: 3 })).toBe("Errors beyond 3.0°: the largest 12.4°");
+    expect(describeCue({ state: "beyond", largest: -4.44, counted: 60, beyond: 2, cutOff: 3 })).toBe("2 of 60 beyond 3.0°, the largest 4.4°");
     expect(cueMark({ state: "within", cutOff: 3 })).toBe("✓");
     expect(cueMark({ state: "beyond", cutOff: 3 })).toBe("✗");
   });
@@ -179,23 +190,28 @@ describe("the cut-off: green within, pink beyond (legacy's calculateErrorShadeFo
 });
 
 describe("zoom", () => {
-  const whole: [number, number] = [0, 1000];
+  const whole: [number, number] = [0, 1_000_000];
   it("zooms a box to its time and that pane's values, and Reset undoes it", () => {
     let zoom = noZoom();
     expect(isZoomed(zoom)).toBe(false);
-    zoom = zoomBox(zoom, "error", [800, 200], [3, -1]);
-    expect(zoom).toEqual({ time: [200, 800], values: { error: [-1, 3] } });
-    zoom = zoomBox(zoom, "bearing", [300, 400], [40, 50]);
+    zoom = zoomBox(zoom, "error", [800_000, 200_000], [3, -1]);
+    expect(zoom).toEqual({ time: [200_000, 800_000], values: { error: [-1, 3] } });
+    zoom = zoomBox(zoom, "bearing", [300_000, 400_000], [40, 50]);
     expect(zoom.values).toEqual({ error: [-1, 3], bearing: [40, 50] });
     expect(isZoomed(zoom)).toBe(true);
     expect(isZoomed(noZoom())).toBe(false);
   });
   it("zooms time in and out about a time, within the whole span, and out past it unzoomed", () => {
-    const zoom = zoomTime(noZoom(), whole, whole, 0.5, 900);
-    expect(zoom.time).toEqual([500, 1000]);
+    const zoom = zoomTime(noZoom(), whole, whole, 0.5, 900_000);
+    expect(zoom.time).toEqual([500_000, 1_000_000]);
+    // Never closer in than ten seconds.
+    const t0 = 1_000_000_000;
+    expect(zoomBox(noZoom(), "error", [t0, t0 + 2000], [0, 1]).time).toEqual([t0 - 4000, t0 + 6000]);
+    const tight = zoomTime(noZoom(), [t0, t0 + 12_000], [t0 - 1e6, t0 + 1e6], 0.25, t0 + 6000);
+    expect(tight.time![1] - tight.time![0]).toBe(LEAST_SPAN_MS);
     expect(zoomTime(zoom, zoom.time!, whole, 4).time).toBeUndefined();
-    expect(panTime({ ...zoom, time: [100, 200] }, whole, 0.5).time).toEqual([150, 250]);
-    expect(panTime({ ...zoom, time: [900, 1000] }, whole, 0.5).time).toEqual([900, 1000]);
+    expect(panTime({ ...zoom, time: [100_000, 200_000] }, whole, 0.5).time).toEqual([150_000, 250_000]);
+    expect(panTime({ ...zoom, time: [900_000, 1_000_000] }, whole, 0.5).time).toEqual([900_000, 1_000_000]);
     expect(zoomValues(noZoom(), "error", [-4, 4], 0.5).values.error).toEqual([-2, 2]);
   });
 });
@@ -227,9 +243,38 @@ describe("the Course/Speed pane", () => {
     expect(Math.abs(courses[0] - 90)).toBeLessThan(0.1);
     expect(about(courses[1], 0)).toBeCloseTo(0, 6);
     expect(courses[2]).toBe(courses[1]);
-    // On a sphere, near enough to draw: within half a percent of the geodesic.
-    expect(Math.abs(speeds[0] / (1852 / 3600) - 1)).toBeLessThan(0.005);
-    expect(Math.abs(speeds[1] / (3704 / 3600) - 1)).toBeLessThan(0.005);
+    expect(Math.abs(speeds[0] / (1852 / 3600) - 1)).toBeLessThan(0.0001);
+    expect(Math.abs(speeds[1] / (3704 / 3600) - 1)).toBeLessThan(0.0001);
+    // The first two fixes at one time: from the first to the next at a later time.
+    const shared = legCourses([start, start, travel(start, 90, 1852)], [0, 0, 3600_000]);
+    expect(Math.abs(shared.courses[0] - 90)).toBeLessThan(0.01);
+    expect(Math.abs(shared.speeds[0] / (1852 / 3600) - 1)).toBeLessThan(0.0001);
+  });
+  it("matches the ellipsoid's geodesic (geographiclib) closely enough to draw, to the worst case said in localCourse", () => {
+    let worstCourse = 0;
+    let worstSpeed = 0;
+    let worstFar = { course: 0, speed: 0 };
+    for (const lat of [0, 15, 30, 45, 60, 70, 75]) {
+      for (const bearing of [0, 30, 45, 90, 135, 200, 270, 315]) {
+        for (const metres of [100, 1000, 5000, 10_000, 20_000]) {
+          const a: LonLat = [-4, lat];
+          const b = travel(a, bearing, metres);
+          const got = localCourse(a, b, 1);
+          const dc = Math.abs(about(got.course, bearing) - bearing);
+          const ds = Math.abs(got.metresPerSecond / metres - 1);
+          if (lat <= 70 && metres <= 10_000) {
+            worstCourse = Math.max(worstCourse, dc);
+            worstSpeed = Math.max(worstSpeed, ds);
+          }
+          worstFar = { course: Math.max(worstFar.course, dc), speed: Math.max(worstFar.speed, ds) };
+        }
+      }
+    }
+    console.log(`localCourse against geographiclib: to 10 km and 70°, ${worstCourse.toFixed(5)}° and ${(worstSpeed * 100).toFixed(5)}%; to 20 km and 75°, ${worstFar.course.toFixed(5)}° and ${(worstFar.speed * 100).toFixed(5)}%`);
+    expect(worstCourse).toBeLessThan(0.0001);
+    expect(worstSpeed).toBeLessThan(0.000001);
+    expect(worstFar.course).toBeLessThan(0.0002);
+    expect(worstFar.speed).toBeLessThan(0.000006);
   });
   it("reads the solution's courses and speeds from its track, in degrees and metres a second", () => {
     const [solution] = tmaSolutionRows(samplePlot());
@@ -246,8 +291,10 @@ describe("the Course/Speed pane", () => {
     const big = samplePlot(20_000);
     const [thin] = ownshipOf(big, "solution");
     expect(thin.times.length).toBeLessThanOrEqual(OWNSHIP_MOST);
-    expect(Math.max(...thin.courses)).toBe(359);
-    expect(Math.min(...thin.courses)).toBe(0);
+    // Each turn through north keeps its extremes as angles (355° and 4.5°), not 0° and 359.5°.
+    expect(thin.courses).toContain(355);
+    expect(thin.courses).toContain(4.5);
+    expect(thin.courses).not.toContain(359.5);
   });
   it("draws a course through north as one line", () => {
     expect(about(2, 358)).toBe(362);
@@ -274,7 +321,7 @@ function samplePlot(hostFixes = 5): DebriefFeatureCollection {
   const t0 = Date.parse("2026-10-25T09:00:00Z");
   const iso = (ms: number) => new Date(ms).toISOString();
   const hostTimes = Array.from({ length: hostFixes }, (_, i) => iso(t0 + i * 30_000));
-  const hostCourses = hostTimes.map((_, i) => (hostFixes > 100 ? (i * 7) % 360 : 45));
+  const hostCourses = hostTimes.map((_, i) => (hostFixes > 100 ? (355 + (i % 20) * 0.5) % 360 : 45));
   const cut = (i: number, more: Record<string, unknown> = {}) => ({
     type: "Feature",
     id: `cut-${i}`,

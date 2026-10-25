@@ -52,6 +52,8 @@ export class BearingsView implements vscode.WebviewViewProvider {
   private focus?: TmaFocus;
   /** What the view was last sent, for tests and agents. */
   last?: TmaView;
+  /** The plot as the view last drew it, CSS pixels (tma_plot_drawn): for tests. */
+  plot?: { height: number; panes: number[] };
 
   constructor(
     private readonly extension: vscode.Uri,
@@ -153,6 +155,8 @@ export class BearingsView implements vscode.WebviewViewProvider {
       this.timeTo(message.current_time!);
     } else if (message.kind === "tma_cut_off") {
       this.act.cutOff(message.error_cut_off!);
+    } else if (message.kind === "tma_plot_drawn") {
+      this.plot = { height: message.plot_height!, panes: message.pane_widths ?? [] };
     }
   }
 

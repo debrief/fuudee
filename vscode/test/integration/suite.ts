@@ -602,8 +602,20 @@ export async function run(): Promise<void> {
     const shown = await waitFor("the Bearings view to show the solution's residuals", () => (api.bearings()?.solution_id === solution && api.bearings()?.residuals ? api.bearings() : undefined));
     assert.equal(shown.residuals!.counted, made.residuals!.counted);
     assert.ok(shown.residuals!.counted > 10, "its cuts counted");
+    // In the panel below the editor (product owner, 25 Oct 2026): wide and short, the panes side by
+    // side with room each, the time axis the panel's height; big enough to read at this window's size.
+    const plot = await waitFor("the Bearings plot drawn in the panel", () => {
+      const p = api.bearingsPlot();
+      return p && p.panes.length >= 2 ? p : undefined;
+    });
     await sleep(1500);
     await screenshot("15e-tma-bearings");
+    console.log(`Bearings in the panel: plot ${plot.height} px tall, panes ${plot.panes.join(" and ")} px wide`);
+    // VS Code 1.95's test window opens at 1024 × 768 (later ones maximized, 1440 × 900 here): its
+    // panel's default share leaves the plot's box about 215 px, the plot 181 px of it.
+    const least = /^1\.95\./.test(vscode.version) ? 175 : 200;
+    assert.ok(plot.height >= least, `the plot ${plot.height} px tall, at least ${least}`);
+    for (const w of plot.panes) assert.ok(w >= 200, `a pane ${w} px wide, at least 200`);
     const wild = shown.residuals!.rows[1].id;
     const left = await vscode.commands.executeCommand<{ problem?: string; notes?: string[] }>("debrief.tmaExclude", solution, [wild]);
     assert.equal(left.problem, undefined);

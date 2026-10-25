@@ -441,6 +441,7 @@ export type WebviewMessageKindEnum =
   | "tma_time_asked"
   | "tma_select"
   | "tma_cut_off"
+  | "tma_plot_drawn"
   | "tma_made";
 
 export interface DebriefSchemaDefinitions {}
@@ -3087,12 +3088,20 @@ export interface WebviewMessage {
    * Whether the map shows the narrative entry current time is at beside its track (show_timeline, narrative_on_map_changed): the plot's PlotView.narrative_on_map; left out means it does.
    */
   narrative_on_map?: boolean | null;
+  /**
+   * The width of each pane the Bearings view's plot shows, left to right, CSS pixels (tma_plot_drawn).
+   */
+  pane_widths?: number[] | null;
   parameters?: ParameterValue[] | null;
   /**
    * Whether current time is playing (playing_changed).
    */
   playing?: boolean | null;
   plot?: DebriefFeatureCollection | null;
+  /**
+   * The height of the Bearings view's plot, its panes' time axis, CSS pixels (tma_plot_drawn).
+   */
+  plot_height?: number | null;
   /**
    * Which plot is open, as its host knows it (show_timeline): a list read again for the same plot keeps the reader's place; another plot is read from current time.
    */

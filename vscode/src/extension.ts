@@ -113,6 +113,8 @@ export interface DebriefApi {
   /** What the bearing view was last sent: the sensors, cuts, solutions and residuals (CAP-21), for tests and agents. */
   bearings: () => TmaView | undefined;
   bearingsShowing: () => boolean;
+  /** The Bearings plot as last drawn, CSS pixels: its height and each pane's width (tma_plot_drawn), for tests. */
+  bearingsPlot: () => { height: number; panes: number[] } | undefined;
   /** The cuts the map is waiting for two clicks on, for a first guess. */
   mapGuessing: () => TmaRequest | undefined;
   /** When the extension activated and each webview loaded and was first shown something (docs/notes/webview-startup.md). */
@@ -3345,6 +3347,7 @@ export function activate(context: vscode.ExtensionContext): DebriefApi {
     toteLatency: () => toteView.latency(),
     bearings: () => bearingsView.last,
     bearingsShowing: () => bearingsView.showing,
+    bearingsPlot: () => bearingsView.plot,
     mapGuessing: () => map.guessing,
     startupTimings: () => startup.snapshot(),
     walkthroughEvents: () => walkthroughs.seen(),

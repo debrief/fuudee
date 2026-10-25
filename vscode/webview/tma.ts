@@ -481,16 +481,24 @@ export function ownshipOf(plot: DebriefFeatureCollection, solutionId: string, pe
     const keep: number[] = [];
     if (n <= OWNSHIP_MOST) for (let i = first; i < last; i++) keep.push(i);
     else {
-      // Buckets of fixes: the least and most course of each, in time order.
+      // Buckets of fixes: the least and most course of each, in time order, as angles about the
+      // bucket's mean course, so a turn through north keeps its extremes (359° and 1° are 2° apart).
       const buckets = Math.floor(OWNSHIP_MOST / 2);
       for (let b = 0; b < buckets; b++) {
         const lo = first + Math.floor((b * n) / buckets);
         const hi = first + Math.floor(((b + 1) * n) / buckets);
+        let sx = 0;
+        let sy = 0;
+        for (let i = lo; i < hi; i++) {
+          sx += Math.cos((courses[i] * Math.PI) / 180);
+          sy += Math.sin((courses[i] * Math.PI) / 180);
+        }
+        const mean = (Math.atan2(sy, sx) * 180) / Math.PI;
         let min = lo;
         let max = lo;
         for (let i = lo; i < hi; i++) {
-          if (courses[i] < courses[min]) min = i;
-          if (courses[i] > courses[max]) max = i;
+          if (wrap(courses[i] - mean) < wrap(courses[min] - mean)) min = i;
+          if (wrap(courses[i] - mean) > wrap(courses[max] - mean)) max = i;
         }
         keep.push(...(min === max ? [min] : min < max ? [min, max] : [max, min]));
       }
@@ -532,6 +540,14 @@ export interface ListedCut {
   origin_derived?: boolean;
   label?: string;
   hidden?: boolean;
+}
+
+/**
+ * The coverage the Bearing pane plots beside a solution's cuts: those not rooted in it, and never
+ * one hidden on the map, whatever a host sent (coverageOf leaves them out already).
+ */
+export function coverageOutside(coverage: readonly TmaCut[] | null | undefined, rooted: ReadonlySet<string>): TmaCut[] {
+  return (coverage ?? []).filter((c) => !rooted.has(c.id) && !c.hidden);
 }
 
 /** A sensor's cuts as debrief/sensors lists them, as the view's rows. */

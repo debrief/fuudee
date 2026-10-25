@@ -144,7 +144,7 @@ In collation, a source is a **catalogue item**: an imported file, kept as a plot
 
 **Error** (in the Bearings view; a cut's **residual**). The Error pane plots each residual against time. Its axis fits the errors every frame of a drag, as legacy's did, so they fill the pane; **Hold scale** keeps the axis as it is, widening it if an error falls outside.
 
-**Cut-off** (**error cut-off**). The analyst's limit for a fitted solution's errors, 3° unless they set another (in VS Code's Settings, `debrief.tma.errorCutOff`, or beside **Hold scale**). The Error pane is **green** while every error counted is within it and **pink** otherwise, as legacy shaded it, and says so in words: *Every error within 3.0°*, *Errors beyond 3.0°: the largest 12.4°*.
+**Cut-off** (**error cut-off**). The analyst's limit for a fitted solution's errors, 3° unless they set another (in VS Code's Settings, `debrief.tma.errorCutOff`, or under **⋯** in the Bearings view; 0.01° to 180°). The Error pane is **green** while every error counted is within it and **pink** otherwise, as legacy shaded it, and says so in words: *Every error within 3.0°*, *2 of 60 beyond 3.0°, the largest 4.4°*. An unresolved pair's other bearing is never counted (legacy's shading counted it).
 
 **Leg.** A period of steady conditions. An **ownship leg** has steady course and speed; a **bearing leg** has a steady bearing rate. Changes of ownship leg give the geometry TMA needs. A **solution's legs** are periods of it, split at a time and joined: each is dragged on its own (**This leg**, the leg clicked), the other legs staying where they are and the joins either side solved again.
 

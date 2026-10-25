@@ -16,6 +16,9 @@
     "viewsContainers": {
       "activitybar": [
         {"id": "debrief", "title": "Debrief", "icon": "media/debrief.svg"}
+      ],
+      "panel": [
+        {"id": "debrief-bearings", "title": "Bearings", "icon": "media/debrief.svg"}
       ]
     },
     "views": {
@@ -26,9 +29,11 @@
         {"type": "webview", "id": "debrief.coverage", "name": "Coverage", "visibility": "collapsed"},
         {"id": "debrief.outline", "name": "Outline"},
         {"type": "webview", "id": "debrief.timeline", "name": "Timeline"},
-        {"type": "webview", "id": "debrief.bearings", "name": "Bearings", "visibility": "collapsed"},
         {"id": "debrief.tools", "name": "Tools"},
         {"id": "debrief.history", "name": "History"}
+      ],
+      "debrief-bearings": [
+        {"type": "webview", "id": "debrief.bearings", "name": "Bearings"}
       ]
     },
     "viewsWelcome": [
@@ -322,7 +327,7 @@
           {
             "id": "tma.open",
             "title": "Open a copy of serial 1 and its bearings",
-            "description": "A fresh copy of serial 1, titled Serial 1: Bearings and TMA, with **Bearings** listing the cuts of BLUE ONE's towed array, drawn on the map in purple. A towed array cannot tell port from starboard, so each cut has two bearings, mirrored about BLUE ONE's course: two lines, the port one solid and the starboard one dashed, until you keep one. One cut has been turned 40° off, as a wild bearing would be; the step that did it is in History. The sample itself never changes.\n\nThe copy goes into a catalogue of its own, Walkthrough: Bearings and TMA. **Bearings** is in the Debrief sidebar, after the Timeline.\n\n**Keyboard:** Tab to the button and press Enter.\n\n[Open a copy of serial 1](command:debrief.walkthrough.open?%5B%22tma%22%5D)",
+            "description": "A fresh copy of serial 1, titled Serial 1: Bearings and TMA, with **Bearings** listing the cuts of BLUE ONE's towed array, drawn on the map in purple. A towed array cannot tell port from starboard, so each cut has two bearings, mirrored about BLUE ONE's course: two lines, the port one solid and the starboard one dashed, until you keep one. One cut has been turned 40° off, as a wild bearing would be; the step that did it is in History. The sample itself never changes.\n\nThe copy goes into a catalogue of its own, Walkthrough: Bearings and TMA. **Bearings** opens in the panel below the editor, beside the Terminal.\n\n**Keyboard:** Tab to the button and press Enter.\n\n[Open a copy of serial 1](command:debrief.walkthrough.open?%5B%22tma%22%5D)",
             "media": {
               "svg": "media/walkthroughs/tma-open.svg",
               "altText": "BLUE ONE's towed array cuts on the map, each a pair of lines: one solid to port, one dashed to starboard."

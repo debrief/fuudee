@@ -56,6 +56,8 @@ import {
   cueStyle,
   cueMark,
   describeCue,
+  describeOffScale,
+  offScale,
   errorCue,
   errorExtent,
   fitErrors,
@@ -108,6 +110,7 @@ import {
   sideOfRow,
   splitAllowed,
   wrap,
+  coverageOutside,
 } from "./tma.js";
 import { describeDistance, describeSpeed, readBearing, readDistance, readSpeed } from "./trackedit.js";
 
@@ -130,6 +133,8 @@ export interface TmaControlHost {
   select(featureId: string, time: string): void;
   /** Remember the analyst's error cut-off, degrees, in their Debrief configuration (tma_cut_off). */
   cutOff(degrees: number): void;
+  /** The plot as drawn, CSS pixels: its height and each pane's width, when either changes (tma_plot_drawn). */
+  drawn?(height: number, paneWidths: number[]): void;
 }
 
 /** Where the view remembers which panes show: the browser's storage, or the VS Code view's state. */
@@ -156,6 +161,8 @@ type Row = CutRow;
 
 export class TmaControl {
   private view?: TmaView;
+  /** The plot's size last told the host. */
+  private drawnSize = "";
   /** The residuals as a drag on the map now leaves them; undefined when not dragging. */
   private live?: TmaResiduals;
   private pending?: LonLat[];
@@ -259,13 +266,14 @@ export class TmaControl {
       `</div>` +
       `<div class="tma-more" id="tma-more" role="group" aria-label="More" hidden>` +
       `<span class="tma-more-sensor"></span>` +
-      `<label class="tma-cutoff" title="The Error pane is green while every error counted is within this, pink otherwise; kept with your Debrief settings"><span>Cut-off</span><input type="number" class="tma-cutoff-input" min="0.1" max="180" step="0.5" inputmode="decimal" aria-label="Error cut-off, degrees"><span aria-hidden="true">°</span></label>` +
+      `<label class="tma-cutoff" title="The Error pane is green while every error counted is within this, pink otherwise; kept with your Debrief settings"><span>Cut-off</span><input type="number" class="tma-cutoff-input" min="0.01" max="180" step="0.5" inputmode="decimal" aria-label="Error cut-off, degrees"><span aria-hidden="true">°</span></label>` +
       `<p class="tma-key" aria-hidden="true"></p>` +
       `</div>` +
-      `<div class="tma-plot" hidden><canvas class="tma-canvas" role="img" tabindex="0" aria-keyshortcuts="ArrowUp ArrowDown Enter + - [ ] 0 PageUp PageDown"></canvas><canvas class="tma-overlay" aria-hidden="true"></canvas><p class="tma-readout" aria-hidden="true"></p></div>` +
+      `<div class="tma-plot" hidden><canvas class="tma-canvas" role="img" tabindex="0" aria-keyshortcuts="ArrowUp ArrowDown Enter Space Delete S 1 2 + - [ ] 0 PageUp PageDown"></canvas><canvas class="tma-overlay" aria-hidden="true"></canvas><p class="tma-readout" aria-hidden="true"></p></div>` +
       `<div class="tma-statusline">` +
       `<p class="tma-cue" hidden aria-live="polite"><span class="tma-cue-mark" aria-hidden="true"></span> <span class="tma-cue-text"></span></p>` +
       `<p class="tma-rms" hidden></p>` +
+      `<p class="tma-offscale"></p>` +
       `</div>` +
       `<button type="button" class="tma-cuts-toggle" aria-expanded="false" aria-controls="tma-cut-list" hidden></button>` +
       `<div class="tma-below">` +
@@ -349,6 +357,17 @@ export class TmaControl {
       q<HTMLElement>(".tma-more").hidden = !open;
       if (open) this.element.querySelector<HTMLElement>(".tma-more select, .tma-more input")?.focus();
     });
+    const closeMore = (event: KeyboardEvent) => {
+      if (event.key !== "Escape" || more.getAttribute("aria-expanded") !== "true") return;
+      event.preventDefault();
+      event.stopPropagation();
+      // The keyboard back on ⋯ first: a field left so commits what was typed in it.
+      more.focus();
+      more.setAttribute("aria-expanded", "false");
+      q<HTMLElement>(".tma-more").hidden = true;
+    };
+    more.addEventListener("keydown", closeMore);
+    q<HTMLElement>(".tma-more").addEventListener("keydown", closeMore);
     q<HTMLButtonElement>(".tma-cuts-toggle").addEventListener("click", () => this.setCutsOpen(!this.cutsOpen, true));
     this.cutOffInput.addEventListener("change", () => this.setCutOff(Number(this.cutOffInput.value)));
     this.buttons.prev.addEventListener("click", () => this.ambiguous(-1));
@@ -722,6 +741,8 @@ export class TmaControl {
     this.cue.dataset.state = cue.state;
     this.cue.querySelector<HTMLElement>(".tma-cue-mark")!.textContent = cueMark(cue);
     this.cue.querySelector<HTMLElement>(".tma-cue-text")!.textContent = describeCue(cue, this.settings);
+    // Drawn but not counted, and off the axis fitted to the errors counted: said, never pinned at an edge.
+    this.element.querySelector<HTMLElement>(".tma-offscale")!.textContent = this.drawn_ ? describeOffScale(this.drawn_.off) : "";
   }
 
   /** A frame of a drag: the RMS, the residual cells of the rows in the page, the plots; nothing rebuilt. */
@@ -1099,7 +1120,7 @@ export class TmaControl {
       return;
     }
     const rooted = new Set(view.residuals.rows.map((r) => r.id));
-    const rows = (view.coverage ?? []).filter((c) => !rooted.has(c.id) && !c.hidden);
+    const rows = coverageOutside(view.coverage, rooted);
     const times = rows.map((c) => Date.parse(c.time));
     const rowTimes = view.residuals.rows.map((r) => Date.parse(r.time));
     const period: Range | undefined = solution ? [Date.parse(solution.period.start), Date.parse(solution.period.end)] : undefined;
@@ -1172,9 +1193,9 @@ export class TmaControl {
   }
 
   private setCutOff(degrees: number): void {
-    if (!(degrees >= 0.1 && degrees <= 180)) {
+    if (!(degrees >= 0.01 && degrees <= 180)) {
       this.cutOffInput.value = String(this.cutOffDegrees);
-      return this.say("The cut-off is from 0.1° to 180°.");
+      return this.say("The cut-off is from 0.01° to 180°.");
     }
     this.cutOffDegrees = degrees;
     this.host.cutOff(degrees);
@@ -1207,7 +1228,7 @@ export class TmaControl {
     const course = this.panes.course;
     const unit = UNIT_LABELS[this.settings.speed_unit] ?? this.settings.speed_unit;
     this.keyLine.innerHTML =
-      `<span>● measured</span><span>○ nearer of two</span><span class="tma-key-other">● other of two, faint</span><span>— calculated</span><span>◌ left out</span>` +
+      `<span>● measured</span><span>○ nearer of two</span><span class="tma-key-other">● other of two, faint</span><span>▲ calculated</span><span>◌ left out</span>` +
       (course ? `<span>— ownship course</span><span>— target course</span><span>┄ target speed (${escape(unit)})</span>` : "");
   }
 
@@ -1260,6 +1281,7 @@ export class TmaControl {
       muted,
       grid: token("--vscode-widget-border", "--vscode-panel-border") || muted,
       focus: token("--vscode-focusBorder", "--vscode-foreground"),
+      background: token("--vscode-sideBar-background", "--vscode-editor-background", "--vscode-panel-background") || "transparent",
       font,
       label,
       // The cut-off's shades, as VS Code shades lines added and removed; in a high-contrast
@@ -1423,7 +1445,7 @@ export class TmaControl {
     }
     const cue: Cue = errorCue(rows, this.cutOffDegrees);
     const panes = layout.panes.map((p) => ({ ...p, range: ranges[p.pane] }));
-    this.drawn_ = { span, top, height, panes, reference: ref, courseReference: courseRef, speed: speedRange, cue };
+    this.drawn_ = { span, top, height, panes, reference: ref, courseReference: courseRef, speed: speedRange, cue, off: layout.panes.some((p) => p.pane === "error") ? offScale(rows, times, ranges.error, span) : { others: 0, leftOut: 0 } };
     const pane = (name: Pane) => panes.find((p) => p.pane === name);
     const xOf = (p: { x: number; w: number; range: Range }, v: number) => valueToX(v, p.range, p.x, p.w);
 
@@ -1646,6 +1668,26 @@ export class TmaControl {
         else put(r.nearer_side ? rings : filled, r.nearer_side ? "r" : "f", colour, px, py);
       }
       drawDots(filled, rings, faints, out);
+      // The calculated bearings again over the dots, as legacy's triangles: in sight where the dots lie on the line.
+      ctx.beginPath();
+      let marked = -Infinity;
+      for (let i = 0; i < rows.length; i++) {
+        const r = rows[i];
+        if (!has(r.calculated) || !inSpan(times[i])) continue;
+        const py = y(times[i]);
+        if (Math.abs(py - marked) < 4) continue;
+        marked = py;
+        const px = xOf(bearing, about(r.calculated, ref));
+        ctx.moveTo(px, py - 3);
+        ctx.lineTo(px + 2.6, py + 1.6);
+        ctx.lineTo(px - 2.6, py + 1.6);
+        ctx.closePath();
+      }
+      ctx.fillStyle = lineColour;
+      ctx.strokeStyle = colours.background;
+      ctx.lineWidth = 0.8;
+      ctx.stroke();
+      ctx.fill();
       ctx.restore();
     }
     let outside = 0;
@@ -1659,14 +1701,15 @@ export class TmaControl {
       for (let i = 0; i < rows.length; i++) {
         const r = rows[i];
         if (r.hidden || !has(r.residual) || !inSpan(times[i])) continue;
-        // Never drawn at an edge it is not at: outside the axis (only ever a zoom's), not drawn.
-        if (!inside(r.residual, range)) {
-          outside++;
-          continue;
-        }
         const colour = r.colour ?? fg;
         const py = y(times[i]);
+        // An unresolved pair's other bearing drawn only inside the axis, fitted to the errors counted.
         if (has(r.other_residual) && inside(r.other_residual, range)) put(faints, "o", colour, xOf(errorPane, r.other_residual), py);
+        // Never drawn at an edge it is not at: outside the axis (a zoom's; a cut left out), not drawn.
+        if (!inside(r.residual, range)) {
+          if (!r.excluded) outside++;
+          continue;
+        }
         const px = xOf(errorPane, r.residual);
         if (r.excluded) out.push(px, py);
         else put(r.nearer_side ? rings : filled, r.nearer_side ? "r" : "f", colour, px, py);
@@ -1729,10 +1772,17 @@ export class TmaControl {
     }
     if (!this.live) {
       const others = faint ? ` The other bearing of ${faint.toLocaleString("en-GB")} ambiguous ${faint === 1 ? "cut is" : "cuts are"} drawn faint, not counted.` : "";
+      const size = `${Math.round(height)}:${panes.map((p) => Math.round(p.w)).join(",")}`;
+      if (size !== this.drawnSize) {
+        this.drawnSize = size;
+        this.host.drawn?.(Math.round(height), panes.map((p) => Math.round(p.w)));
+      }
       const names = panes.map((p) => PANE_NAMES[p.pane]).join(", ");
+      const offNote = describeOffScale(this.drawn_.off);
+      const off = offNote ? ` ${offNote[0].toUpperCase()}${offNote.slice(1)}.` : "";
       this.canvas.setAttribute(
         "aria-label",
-        `Bearings and residuals of ${solution?.name ?? "the solution"}, time upward from ${formatTime(span[0], this.settings)} to ${formatTime(span[1], this.settings)}; panes ${names}: ${describeRms(report, this.settings)}. ${describeCue(cue, this.settings)}.${others} The list gives each cut's residual; Up and Down choose a cut here, Enter selects it.`,
+        `Bearings and residuals of ${solution?.name ?? "the solution"}, time upward from ${formatTime(span[0], this.settings)} to ${formatTime(span[1], this.settings)}; panes ${names}: ${describeRms(report, this.settings)}. ${describeCue(cue, this.settings)}.${others}${off} The list gives each cut's residual; Up and Down choose a cut here, Enter selects it; Space or Delete leaves it out, S splits there, 1 and 2 keep an ambiguous cut's bearing.`,
       );
     }
     this.drawOverlay();
@@ -1935,12 +1985,22 @@ export class TmaControl {
     const rows = this.rows() as TmaResidualRow[];
     const r = rows[this.active];
     if (!r) {
-      this.readout.textContent = "Up and Down choose a cut; Enter selects it; + and − zoom time, [ and ] the errors; 0 resets.";
+      this.readout.textContent = "Up and Down choose a cut; Enter selects it; Space leaves it out; S splits; + and − zoom time, [ and ] the errors; 0 resets.";
       return;
     }
     const parts = [cutWhen(r, this.settings), `Bearing ${bearingText(r.measured ?? r.bearing)}`];
     if (r.residual !== undefined && r.residual !== null) parts.push(`Error ${residualText(r.residual, this.settings)}`);
+    if (r.excluded) parts.push("left out");
     this.readout.textContent = parts.join(" · ");
+    // Said in the live region too: the readout is drawn for the eye only.
+    this.say(parts.join(", "));
+  }
+
+  /** The zoom as it now is, said in the live region. */
+  private sayZoom(): void {
+    const d = this.drawn_;
+    if (!d) return;
+    this.say(isZoomed(this.zoom) ? `Zoomed: ${formatTime(d.span[0], this.settings)} to ${formatTime(d.span[1], this.settings)}.` : "Zoom reset: every cut of the sensors shown again.");
   }
 
   /** The plot from the keyboard: Up and Down choose a cut (Up later, as time runs up), Enter selects it; + and − zoom time about it, [ and ] the Error pane; Page Up and Page Down move along a zoom; 0 resets. */
@@ -1961,29 +2021,52 @@ export class TmaControl {
     if (event.key === "Enter" && rows[this.active]) {
       const r = rows[this.active];
       this.host.select(r.id, r.time);
-      this.say(`Cut at ${cutWhen(r, this.settings)} selected.`);
-      return done();
+      event.preventDefault();
+      return this.say(`Cut at ${cutWhen(r, this.settings)} selected.`);
     }
+    const zoomed = () => {
+      event.preventDefault();
+      this.sayZoom();
+    };
     if (event.key === "+" || event.key === "=") {
       this.setZoom(zoomTime(this.zoom, d.span, whole, 0.5, at));
-      return done();
+      return zoomed();
     }
     if (event.key === "-" || event.key === "_") {
       this.setZoom(zoomTime(this.zoom, d.span, whole, 2, at));
-      return done();
+      return zoomed();
     }
     if (event.key === "]" || event.key === "[") {
       const p = d.panes.find((q) => q.pane === "error") ?? d.panes[0];
       this.setZoom(zoomValues(this.zoom, p.pane, p.range, event.key === "]" ? 0.5 : 2));
-      return done();
+      event.preventDefault();
+      return this.say(`${PANE_NAMES[p.pane]} pane zoomed ${event.key === "]" ? "in" : "out"}.`);
     }
     if (event.key === "PageUp" || event.key === "PageDown") {
       this.setZoom(panTime(this.zoom, whole, event.key === "PageUp" ? 0.5 : -0.5));
-      return done();
+      return zoomed();
     }
     if (event.key === "0") {
-      this.resetZoom();
-      return done();
+      event.preventDefault();
+      return this.resetZoom();
+    }
+    // The cut chosen's buttons, from the plot (product owner, 25 Oct 2026, the panel's M3):
+    // Space or Delete leaves it out of the RMS or counts it again, as Space does in the list;
+    // S splits the solution into legs there; 1 and 2 keep an ambiguous cut's first or second bearing.
+    const row = rows[this.active];
+    if (!row) return;
+    if ((event.key === " " || event.key === "Delete") && this.mode() === "solution") {
+      event.preventDefault();
+      return this.toggleExcluded();
+    }
+    if (event.key === "s" || event.key === "S") {
+      event.preventDefault();
+      if (this.splitTime()) return this.split();
+      return this.say("No split here: each leg needs two fixes or more either side.");
+    }
+    if ((event.key === "1" || event.key === "2") && row.ambiguous_bearing !== undefined && row.ambiguous_bearing !== null && !row.resolved) {
+      event.preventDefault();
+      return this.keep(event.key === "1" ? "bearing" : "ambiguous_bearing");
     }
   }
 }
@@ -2000,4 +2083,6 @@ interface PlotLayout {
   /** The Course/Speed pane's speed axis, in the analyst's speed unit. */
   speed: Range;
   cue: Cue;
+  /** Errors drawn but not counted that fall off the Error axis. */
+  off: { others: number; leftOut: number };
 }

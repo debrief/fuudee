@@ -120,19 +120,38 @@ export function fitRange(lo: number, hi: number, { includeZero = false, least = 
 export function errorExtent(rows: readonly TmaResidualRow[], times: ArrayLike<number>, span?: Range): { lo: number; hi: number } | undefined {
   let lo = Infinity;
   let hi = -Infinity;
-  const take = (v: number | null | undefined) => {
-    if (v === undefined || v === null) return;
-    if (v < lo) lo = v;
-    if (v > hi) hi = v;
-  };
+  for (let i = 0; i < rows.length; i++) {
+    const r = rows[i];
+    // The errors counted only (product owner, 25 Oct 2026): an unresolved pair's other bearing,
+    // and a cut left out, are drawn where they fall inside the axis, never fitted to.
+    if (r.hidden || r.excluded || r.residual === undefined || r.residual === null) continue;
+    if (span && (times[i] < span[0] || times[i] > span[1])) continue;
+    if (r.residual < lo) lo = r.residual;
+    if (r.residual > hi) hi = r.residual;
+  }
+  return lo === Infinity ? undefined : { lo, hi };
+}
+
+/** How many of the errors drawn but not counted (an unresolved pair's other bearing; a cut left out) fall outside the Error axis, in a period. */
+export function offScale(rows: readonly TmaResidualRow[], times: ArrayLike<number>, range: Range, span?: Range): { others: number; leftOut: number } {
+  let others = 0;
+  let leftOut = 0;
   for (let i = 0; i < rows.length; i++) {
     const r = rows[i];
     if (r.hidden) continue;
     if (span && (times[i] < span[0] || times[i] > span[1])) continue;
-    take(r.residual);
-    take(r.other_residual);
+    if (r.other_residual !== undefined && r.other_residual !== null && !inside(r.other_residual, range)) others++;
+    if (r.excluded && r.residual !== undefined && r.residual !== null && !inside(r.residual, range)) leftOut++;
   }
-  return lo === Infinity ? undefined : { lo, hi };
+  return { others, leftOut };
+}
+
+/** The note beside the cue when some errors drawn but not counted are off the axis: "3 other bearings off scale". */
+export function describeOffScale(off: { others: number; leftOut: number }): string {
+  const parts = [];
+  if (off.others) parts.push(`${off.others.toLocaleString("en-GB")} other ${off.others === 1 ? "bearing" : "bearings"}`);
+  if (off.leftOut) parts.push(`${off.leftOut.toLocaleString("en-GB")} left out`);
+  return parts.length ? `${parts.join(" and ")} off scale` : "";
 }
 
 /** The Error axis as legacy fitted it: about the errors drawn, zero included. */
@@ -196,22 +215,31 @@ export interface Cue {
   state: "within" | "beyond" | "none";
   /** The largest error counted, signed. */
   largest?: number;
+  /** How many errors are counted, and how many of them are beyond the cut-off. */
+  counted?: number;
+  beyond?: number;
   cutOff: number;
 }
 
 /**
  * Green or pink, as legacy shaded the Error pane (StackedDotHelper.calculateErrorShadeFor):
- * the largest error counted against the cut-off. Counted as the RMS counts: a residual, of
- * a cut shown on the map, not left out; an unresolved pair's other bearing never.
+ * the largest error counted against the cut-off, and how many are beyond it (product owner,
+ * 25 Oct 2026). Counted as the RMS counts: a residual, of a cut shown on the map, not left out.
+ * An unresolved pair's other bearing is never counted, a deliberate departure from legacy, which
+ * counted it (its ambiguous error series was in the shaded plot).
  */
 export function errorCue(rows: readonly TmaResidualRow[], cutOff: number): Cue {
   let largest: number | undefined;
+  let counted = 0;
+  let beyond = 0;
   for (const r of rows) {
     if (r.residual === undefined || r.residual === null || r.excluded || r.hidden) continue;
+    counted++;
+    if (Math.abs(r.residual) > cutOff) beyond++;
     if (largest === undefined || Math.abs(r.residual) > Math.abs(largest)) largest = r.residual;
   }
   if (largest === undefined) return { state: "none", cutOff };
-  return { state: Math.abs(largest) <= cutOff ? "within" : "beyond", largest, cutOff };
+  return { state: Math.abs(largest) <= cutOff ? "within" : "beyond", largest, counted, beyond, cutOff };
 }
 
 /** The cue in words, beside its mark, so colour is never all that says it. */
@@ -220,7 +248,7 @@ export function describeCue(cue: Cue, settings: FormatSettings = DEFAULT_SETTING
   if (cue.state === "none") return `No errors to hold to the ${limit} cut-off`;
   if (cue.state === "within") return `Every error within ${limit}`;
   const largest = `${fixed(Math.abs(cue.largest!), settings.angle_decimals)}°`;
-  return `Errors beyond ${limit}: the largest ${largest}`;
+  return `${(cue.beyond ?? 0).toLocaleString("en-GB")} of ${(cue.counted ?? 0).toLocaleString("en-GB")} beyond ${limit}, the largest ${largest}`;
 }
 
 /** The theme's colours for the cue: VS Code's shades for lines added and removed, its passed and failed colours. */
@@ -261,13 +289,23 @@ export const isZoomed = (zoom: Zoom): boolean => !!zoom.time || Object.keys(zoom
 const ordered = (a: number, b: number): Range => (a <= b ? [a, b] : [b, a]);
 
 /** A box dragged in a pane: time to its height, that pane's values to its width. */
+/** The least time a zoom shows: ten seconds, a few cuts at the usual rates. */
+export const LEAST_SPAN_MS = 10_000;
+
+/** A time range at least LEAST_SPAN_MS long, widened about its middle. */
+const leastSpan = (r: Range): Range => {
+  if (r[1] - r[0] >= LEAST_SPAN_MS) return r;
+  const middle = (r[0] + r[1]) / 2;
+  return [middle - LEAST_SPAN_MS / 2, middle + LEAST_SPAN_MS / 2];
+};
+
 export function zoomBox(zoom: Zoom, pane: Pane, times: Range, values: Range): Zoom {
-  return { time: ordered(...times), values: { ...zoom.values, [pane]: ordered(...values) } };
+  return { time: leastSpan(ordered(...times)), values: { ...zoom.values, [pane]: ordered(...values) } };
 }
 
 /** Time zoomed in (factor below 1) or out about a time; out past the whole span, unzoomed. */
 export function zoomTime(zoom: Zoom, shown: Range, whole: Range, factor: number, about?: number): Zoom {
-  const half = ((shown[1] - shown[0]) / 2) * factor;
+  const half = Math.max(LEAST_SPAN_MS / 2, ((shown[1] - shown[0]) / 2) * factor);
   if (half * 2 >= whole[1] - whole[0]) {
     const { time: _time, ...rest } = zoom;
     return { ...rest, values: zoom.values };
@@ -319,14 +357,16 @@ export function legCourses(coordinates: readonly LonLat[], times: ArrayLike<numb
   const courses: number[] = [];
   const speeds: number[] = [];
   for (let i = 0; i + 1 < coordinates.length; i++) {
-    const { course, metresPerSecond } = sphericalCourse(coordinates[i], coordinates[i + 1], (times[i + 1] - times[i]) / 1000);
-    // Fixes sharing a time: the course and speed of the leg before.
-    if (times[i + 1] - times[i] <= 0 && i > 0) {
-      courses.push(courses[i - 1]);
-      speeds.push(speeds[i - 1]);
-    } else {
+    // Fixes sharing a time: from this fix to the next at a later time (the first fixes too), else the leg before's.
+    let j = i + 1;
+    while (j < coordinates.length && times[j] - times[i] <= 0) j++;
+    if (j < coordinates.length) {
+      const { course, metresPerSecond } = localCourse(coordinates[i], coordinates[j], (times[j] - times[i]) / 1000);
       courses.push(course);
       speeds.push(metresPerSecond);
+    } else {
+      courses.push(i > 0 ? courses[i - 1] : 0);
+      speeds.push(i > 0 ? speeds[i - 1] : 0);
     }
   }
   if (coordinates.length) {
@@ -337,24 +377,31 @@ export function legCourses(coordinates: readonly LonLat[], times: ArrayLike<numb
 }
 
 const RAD = Math.PI / 180;
-/** The mean Earth radius, metres. */
-const EARTH_M = 6371008.8;
+/** WGS84: the equatorial radius, metres, and the first eccentricity squared. */
+const WGS84_A = 6378137;
+const WGS84_E2 = 0.00669437999014;
 
 /**
- * The course and speed from a to b on a sphere: drawn while a drag goes on, a frame at a time,
- * where the ellipsoid's geodesic (tma.courseSpeed) would cost a frame's budget at 2,000 fixes.
- * Within a tenth of a degree and half a percent of it for a solution's legs; the
- * pane draws the track's own courses and speeds again once the drag is saved.
+ * The course and speed from a to b on the WGS84 ellipsoid, locally: the radii of curvature in the
+ * meridian (M) and the prime vertical (N) at the leg's middle latitude, so north and east are
+ * metres. Drawn while a drag goes on, a frame at a time, where the ellipsoid's geodesic
+ * (tma.courseSpeed, geographiclib) would cost a third of a frame's budget at 2,000 fixes. The
+ * course is the middle's less half the meridians' convergence, so the course from a. Against
+ * geographiclib (stackeddots.test.ts): within 0.0001° and 0.0001% for legs to 10 km at latitudes
+ * to 70°; the worst case measured there, a 20 km leg at 75°, 0.0002° and 0.0006%. The pane draws
+ * the track's own courses and speeds again once the drag is saved.
  */
-export function sphericalCourse(a: LonLat, b: LonLat, seconds: number): { course: number; metresPerSecond: number } {
-  const p1 = a[1] * RAD;
-  const p2 = b[1] * RAD;
-  const dl = (b[0] - a[0]) * RAD;
-  const y = Math.sin(dl) * Math.cos(p2);
-  const x = Math.cos(p1) * Math.sin(p2) - Math.sin(p1) * Math.cos(p2) * Math.cos(dl);
-  const course = ((Math.atan2(y, x) / RAD) % 360 + 360) % 360;
-  const h = Math.sin((p2 - p1) / 2) ** 2 + Math.cos(p1) * Math.cos(p2) * Math.sin(dl / 2) ** 2;
-  const metres = 2 * EARTH_M * Math.asin(Math.min(1, Math.sqrt(h)));
+export function localCourse(a: LonLat, b: LonLat, seconds: number): { course: number; metresPerSecond: number } {
+  const phi = ((a[1] + b[1]) / 2) * RAD;
+  const s = Math.sin(phi);
+  const w = 1 - WGS84_E2 * s * s;
+  const m = (WGS84_A * (1 - WGS84_E2)) / (w * Math.sqrt(w));
+  const n = WGS84_A / Math.sqrt(w);
+  const north = (b[1] - a[1]) * RAD * m;
+  const east = wrap(b[0] - a[0]) * RAD * n * Math.cos(phi);
+  // The course at the leg's middle, less half the meridians' convergence over it: the course from a, as the geodesic's.
+  const course = (((Math.atan2(east, north) - (wrap(b[0] - a[0]) * RAD * s) / 2) / RAD) % 360 + 360) % 360;
+  const metres = Math.hypot(north, east);
   return { course, metresPerSecond: seconds > 0 ? metres / seconds : 0 };
 }
 

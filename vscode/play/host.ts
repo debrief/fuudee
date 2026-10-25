@@ -1854,8 +1854,11 @@ async function chooseTma(id: string): Promise<void> {
     await refreshBearings();
   } else {
     tmaSolution = id;
-    await select([id]);
+    // Selected, so the map shows its handles; refreshed as bearingsWith does, since a solution
+    // already selected (chosen again from the view's Solution list) changes no selection to follow.
+    if (selection.length !== 1 || selection[0] !== id) await select([id]);
   }
+  await refreshBearings();
 }
 /**
  * A walkthrough's step (Bearings and TMA): Bearings in view, showing the sensor's cuts or the

@@ -1383,6 +1383,10 @@ class WebviewMessageKindEnum(str, Enum):
     """
     Bearing view to host: the analyst set their error cut-off (error_cut_off, degrees): remember it in their Debrief configuration (product owner, 25 Oct 2026).
     """
+    tma_plot_drawn = "tma_plot_drawn"
+    """
+    Bearing view to host: the plot as last drawn, CSS pixels (plot_height; pane_widths, left to right), so the host knows whether it is big enough to read; the integration suite asserts it in VS Code's panel (product owner, 25 Oct 2026).
+    """
     tma_made = "tma_made"
     """
     Host to bearing view: the solution asked for was made (feature_id), so the first guess's form closes; or, with message alone, why it was not, the form left open.
@@ -6844,6 +6848,8 @@ class WebviewMessage(ConfiguredBaseModel):
                        'AmbiguityResolution',
                        'WebviewMessage']} })
     excluded: Optional[bool] = Field(default=None, description="""Whether the cuts are left out (tma_exclude).""", json_schema_extra = { "linkml_meta": {'domain_of': ['TmaResidualRow', 'TmaResiduals', 'WebviewMessage']} })
+    plot_height: Optional[int] = Field(default=None, description="""The height of the Bearings view's plot, its panes' time axis, CSS pixels (tma_plot_drawn).""", ge=0, json_schema_extra = { "linkml_meta": {'domain_of': ['WebviewMessage']} })
+    pane_widths: Optional[list[int]] = Field(default=None, description="""The width of each pane the Bearings view's plot shows, left to right, CSS pixels (tma_plot_drawn).""", json_schema_extra = { "linkml_meta": {'domain_of': ['WebviewMessage']} })
     error_cut_off: Optional[float] = Field(default=None, description="""The analyst's error cut-off, degrees (tma_cut_off).""", ge=0.01, le=180, json_schema_extra = { "linkml_meta": {'domain_of': ['TmaView', 'WebviewMessage']} })
 
     @field_validator('current_time')

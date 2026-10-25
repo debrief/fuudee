@@ -112,6 +112,9 @@ describe("the default's sizes", () => {
       if (width >= 1280) expect(wide).toBeGreaterThanOrEqual(400);
     }
     expect(widenedWidth(1366, 287, 287)).toBe(533);
+    // Where 40% is under 400 px, the floor: two panes of 160 px beside the time axis, the map keeping its 40%.
+    expect(widenedWidth(950, 150, 270)).toBe(400);
+    expect(widenedWidth(900, 150, 270)).toBe(390);
   });
   it("gives Bearings most of the right-hand column and the walkthroughs a readable rest, at a laptop's sizes", () => {
     for (const height of [666, 714, 1030]) {

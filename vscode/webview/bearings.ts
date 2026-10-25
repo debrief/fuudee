@@ -1,5 +1,5 @@
 /**
- * The bearing view in VS Code's Debrief sidebar (CAP-21, CAP-22): the same component as
+ * The bearing view in VS Code's panel, beside the Terminal (CAP-21, CAP-22; product owner, 25 Oct 2026): the same component as
  * the playground's (tmacontrol.ts), in a view of its own. The extension host asks the tool
  * service for a sensor's cuts and a solution's residuals and makes every change; this page
  * shows them, works the residuals out again while a solution is dragged on the map, and
@@ -29,6 +29,7 @@ const control = new TmaControl(
     resolve: (feature_id, keep) => host.postMessage({ kind: "resolve_asked", feature_id, keep }),
     select: (feature_id, current_time) => host.postMessage({ kind: "tma_select", feature_id, current_time }),
     cutOff: (error_cut_off) => host.postMessage({ kind: "tma_cut_off", error_cut_off }),
+    drawn: (plot_height, pane_widths) => host.postMessage({ kind: "tma_plot_drawn", plot_height, pane_widths }),
   },
   undefined,
   // Which panes show: the view's own state, kept by VS Code (product owner, 25 Oct 2026).

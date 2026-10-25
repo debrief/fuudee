@@ -24,6 +24,8 @@ export type { Place };
 
 /** Where the layout is remembered, per browser. */
 export const LAYOUT_KEY = "debrief.play.layout";
+/** The groups folded to their tabs, with the height each had: remembered beside the layout, so a fold outlives a reload. */
+export const COLLAPSED_KEY = "debrief.play.layout.collapsed";
 /**
  * Raised whenever the panels or the layout's meaning change: an older layout is then not used.
  * 2: the second round's default (product owner, 23 Oct 2026): walkthroughs alone on the right.
@@ -218,7 +220,10 @@ export class Dock {
     });
     this.build();
     this.decorate();
-    if (options.fresh) this.save(true);
+    if (options.fresh) {
+      this.save(true);
+      this.saveFolds();
+    }
     this.api.onDidLayoutChange(() => {
       this.decorate();
       options.changed();
@@ -269,7 +274,37 @@ export class Dock {
     // The keyboard's order: each group's tab, then what its panel holds, group by group from the
     // left column down, the map (and the form beside it), under it, then the right (keyboardOrder).
     this.listen(document, "keydown", (event: KeyboardEvent) => this.keyboardOrder(event), true);
-    this.observer = new ResizeObserver(() => options.changed());
+    // The reader sizing the right-hand column by its sash: theirs from then on, never widened or put back.
+    let before: number | undefined;
+    this.listen(
+      container,
+      "pointerdown",
+      (event: PointerEvent) => {
+        if ((event.target as HTMLElement | null)?.closest(".dv-sash")) before = this.rightWidth();
+      },
+      true,
+    );
+    this.listen(
+      window,
+      "pointerup",
+      () => {
+        if (before === undefined) return;
+        const now = this.rightWidth();
+        if (now !== undefined && Math.abs(now - before) > 2) this.userSized = true;
+        before = undefined;
+      },
+      true,
+    );
+    let dockWidth = container.getBoundingClientRect().width;
+    this.observer = new ResizeObserver(() => {
+      options.changed();
+      // The window resized while widened (the dock's width changed, not a sash moved): the column
+      // kept at its share of the dock, not at the pixels it had.
+      const width = container.getBoundingClientRect().width;
+      if (Math.abs(width - dockWidth) < 1) return;
+      dockWidth = width;
+      if (this.widened && !this.userSized && before === undefined) requestAnimationFrame(() => this.rewiden());
+    });
     this.observer.observe(options.slot);
   }
 
@@ -322,13 +357,22 @@ export class Dock {
       if (group.panels.some((p) => p.id === MAP_ID)) continue;
       const box = group.element.getBoundingClientRect();
       const place = placeOf(box, this.options.container.getBoundingClientRect());
-      const wanted = place === "left" ? sizes.left : place === "right" ? (this.widened ? this.widened.to : sizes.right) : undefined;
+      const wanted = place === "left" ? sizes.left : place === "right" ? (this.widened ? widenedWidth(width, this.leftWidth(this.options.container.getBoundingClientRect()), sizes.right) : sizes.right) : undefined;
       if (wanted && box.width > wanted * 1.3) group.api.setSize({ width: wanted });
     }
   }
 
-  /** The column widened for a solution: the width it had and the width it was given, to put it back. */
-  private widened?: { from: number; to: number };
+  /**
+   * Whether the right-hand column is widened for a solution now: a state, not a width, so a window
+   * resized meanwhile keeps the column at its share of the dock (the panel's M1, 25 Oct 2026).
+   */
+  private widened = false;
+  /** The panel the column was widened for. */
+  private widenedFor?: string;
+  /** Whether the reader has sized the right-hand column by dragging its sash: only that is their choice. */
+  private userSized = false;
+  /** Whether the first call has read the layout it was given (remembered widened, or sized by the reader). */
+  private layoutRead = false;
 
   /** The left-hand column's width, as it is. */
   private leftWidth(dock: DOMRect): number {
@@ -336,10 +380,28 @@ export class Dock {
     return left.length ? Math.max(...left.map((b) => b.width)) : 0;
   }
 
+  /** The right-hand column's width, as it is, if there is one. */
+  private rightWidth(): number | undefined {
+    const dock = this.options.container.getBoundingClientRect();
+    const right = this.api.groups.map((g) => g.element.getBoundingClientRect()).filter((b) => placeOf(b, dock) === "right");
+    return right.length ? Math.max(...right.map((b) => b.width)) : undefined;
+  }
+
+  /** The widened column at its share of the dock as it now is. */
+  private rewiden(): void {
+    if (!this.widened || this.userSized || this.disposed || !this.widenedFor) return;
+    const group = this.api.getPanel(this.widenedFor)?.group;
+    const dock = this.options.container.getBoundingClientRect();
+    if (!group || placeOf(group.element.getBoundingClientRect(), dock) !== "right") return;
+    const to = widenedWidth(dock.width, this.leftWidth(dock), defaultSizes(dock.width, dock.height).right);
+    if (Math.abs(group.element.getBoundingClientRect().width - to) > 2) group.api.setSize({ width: to });
+  }
+
   /**
    * The column a panel is in, right of the map, widened while a TMA solution is open in it
-   * (product owner, 25 Oct 2026), and put back when none is. Only from and to the default widths:
-   * a column the reader has sized themselves is left as they made it. True if it changed.
+   * (product owner, 25 Oct 2026), and put back to the default width for the dock as it now is when
+   * none is. A column the reader has sized by dragging its sash, before or while widened, is left as
+   * they made it; a window resized is not their choice. True if it changed.
    */
   widenFor(id: string, wide: boolean): boolean {
     const group = this.api.getPanel(id)?.group;
@@ -349,18 +411,31 @@ export class Dock {
     if (placeOf(box, dock) !== "right") return false;
     const sizes = defaultSizes(dock.width, dock.height);
     const to = widenedWidth(dock.width, this.leftWidth(dock), sizes.right);
-    // A layout remembered while widened: widened still, so it is put back once no solution is open.
-    if (!this.widened && Math.abs(box.width - to) <= 2 && to > sizes.right + 2) this.widened = { from: sizes.right, to };
+    if (!this.layoutRead) {
+      // A layout remembered: widened (so put back once no solution is open), or sized by the reader.
+      this.layoutRead = true;
+      if (Math.abs(box.width - to) <= 2 && to > sizes.right + 2) this.widened = true;
+      else if (Math.abs(box.width - sizes.right) > 2) this.userSized = true;
+    }
+    // Don't fight the reader: a column they sized stays as they made it, widened or not.
+    if (this.userSized) {
+      this.widened = false;
+      return false;
+    }
     if (wide) {
-      if (this.widened || Math.abs(box.width - sizes.right) > 2 || to <= box.width + 2) return false;
-      this.widened = { from: box.width, to };
+      this.widenedFor = id;
+      if (Math.abs(box.width - to) <= 2 || (!this.widened && to <= box.width + 2)) {
+        this.widened = this.widened || Math.abs(box.width - to) <= 2;
+        return false;
+      }
+      this.widened = true;
       group.api.setSize({ width: to });
       return true;
     }
     const was = this.widened;
-    this.widened = undefined;
-    if (!was || Math.abs(box.width - was.to) > 2) return false;
-    group.api.setSize({ width: was.from });
+    this.widened = false;
+    if (!was || Math.abs(box.width - sizes.right) <= 2) return false;
+    group.api.setSize({ width: sizes.right });
     return true;
   }
 
@@ -416,6 +491,7 @@ export class Dock {
     if (layout) {
       try {
         this.load(layout);
+        this.refold();
         return;
       } catch {
         this.forget();
@@ -423,6 +499,8 @@ export class Dock {
     }
     this.api.clear();
     this.buildDefault();
+    // Built here at the default widths: nothing remembered to read.
+    this.layoutRead = true;
   }
 
   private content(id: string): IContentRenderer {
@@ -519,6 +597,7 @@ export class Dock {
   private forget(): void {
     try {
       this.options.storage()?.removeItem(LAYOUT_KEY);
+      this.options.storage()?.removeItem(COLLAPSED_KEY);
     } catch {
       // Nothing to forget where nothing can be remembered.
     }
@@ -700,7 +779,40 @@ export class Dock {
       group.api.setConstraints({ minimumHeight: 100 });
       group.api.setSize({ height: Math.max(was, 160) });
     }
+    this.saveFolds();
     this.focusTab(id);
+  }
+
+  /** The folds remembered, with the layout. */
+  private saveFolds(): void {
+    if (!this.options.remember) return;
+    try {
+      const storage = this.options.storage();
+      if (!this.collapsed.size) storage?.removeItem(COLLAPSED_KEY);
+      else storage?.setItem(COLLAPSED_KEY, JSON.stringify(Object.fromEntries(this.collapsed)));
+    } catch {
+      // Not remembered: the fold still works, for this visit.
+    }
+  }
+
+  /** A remembered layout's folds made again: each group folded still, if it is there and still shares its column. */
+  private refold(): void {
+    let folds: Record<string, unknown> = {};
+    try {
+      const text = this.options.storage()?.getItem(COLLAPSED_KEY);
+      folds = text ? JSON.parse(text) : {};
+    } catch {
+      folds = {};
+    }
+    if (!folds || typeof folds !== "object") return;
+    for (const [id, height] of Object.entries(folds)) {
+      const group = this.groupById(id);
+      if (!group || typeof height !== "number" || !Number.isFinite(height) || height <= 0 || height > MOST) continue;
+      const strip = Math.ceil(group.element.querySelector(".dv-tabs-and-actions-container")?.getBoundingClientRect().height || 35);
+      this.collapsed.set(id, height);
+      group.api.setConstraints({ minimumHeight: strip });
+      group.api.setSize({ height: strip });
+    }
   }
 
   /** The menu for a panel: move it to each other group, or a group of its own; reset the layout (menu.ts). */

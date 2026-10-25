@@ -6474,6 +6474,16 @@
             "null"
           ]
         },
+        "pane_widths": {
+          "description": "The width of each pane the Bearings view's plot shows, left to right, CSS pixels (tma_plot_drawn).",
+          "items": {
+            "type": "integer"
+          },
+          "type": [
+            "array",
+            "null"
+          ]
+        },
         "parameters": {
           "items": {
             "$ref": "#/$defs/ParameterValue"
@@ -6498,6 +6508,14 @@
             {
               "type": "null"
             }
+          ]
+        },
+        "plot_height": {
+          "description": "The height of the Bearings view's plot, its panes' time axis, CSS pixels (tma_plot_drawn).",
+          "minimum": 0,
+          "type": [
+            "integer",
+            "null"
           ]
         },
         "plot_id": {
@@ -6808,6 +6826,7 @@
         "tma_time_asked",
         "tma_select",
         "tma_cut_off",
+        "tma_plot_drawn",
         "tma_made"
       ],
       "title": "WebviewMessageKindEnum",

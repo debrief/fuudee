@@ -224,6 +224,10 @@
     "tma_cut_off": [
       "error_cut_off"
     ],
+    "tma_plot_drawn": [
+      "plot_height",
+      "pane_widths"
+    ],
     "tma_made": [
       "feature_id?",
       "message?"
