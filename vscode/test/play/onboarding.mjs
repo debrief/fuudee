@@ -373,7 +373,8 @@ export async function playTours(page, shot, root) {
   await page.locator("#reset-layout").click();
   await openTours(page);
   await rightColumn(page);
-  assert.deepEqual((await layoutOf(page)).groups.find((g) => g.panels.includes("panel-tour"))?.panels, ["panel-tour"], "alone in their group");
+  // In front on the right, the Bearings view a tab behind them (product owner, 25 Oct 2026).
+  assert.deepEqual((await layoutOf(page)).groups.find((g) => g.panels.includes("panel-tour"))?.panels, ["panel-tour", "panel-bearings"], "in front of their group, Bearings behind");
   await page.locator('.dv-tab[data-panel="panel-tour"]').focus();
   await page.keyboard.press("Tab");
   assert.equal(await page.evaluate(() => document.activeElement?.closest("section.panel")?.id), "panel-tour", "Tab from their tab goes into the walkthroughs");
