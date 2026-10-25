@@ -438,7 +438,8 @@ export type WebviewMessageKindEnum =
   | "tma_preview"
   | "tma_exclude"
   | "tma_split"
-  | "tma_time_asked";
+  | "tma_time_asked"
+  | "tma_made";
 
 export interface DebriefSchemaDefinitions {}
 /**

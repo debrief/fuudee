@@ -6632,7 +6632,8 @@
         "tma_preview",
         "tma_exclude",
         "tma_split",
-        "tma_time_asked"
+        "tma_time_asked",
+        "tma_made"
       ],
       "title": "WebviewMessageKindEnum",
       "type": "string"

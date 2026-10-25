@@ -6,7 +6,7 @@
  */
 import { userInfo } from "node:os";
 import * as vscode from "vscode";
-import type { AmbiguityResolution, AnnotationSpec, ContextTracksEnum, CoverageReport, KnownStore, FigureSource, RevisionShown, NarrativeSpec, ReviewFlag, SourceTrackRef, TimelineEntry, ParameterValue, PlotView, SharedState, SharedStateChange, TimeRange, ToolDeclaration, ToteResult, ToteView as ToteChoice, TrackEdit } from "@debrief/schemas";
+import type { AmbiguityResolution, AnnotationSpec, ContextTracksEnum, CoverageReport, KnownStore, FigureSource, RevisionShown, NarrativeSpec, ReviewFlag, SourceTrackRef, TimelineEntry, ParameterValue, PlotView, SharedState, SharedStateChange, TimeRange, TmaRequest, TmaView, ToolDeclaration, ToteResult, ToteView as ToteChoice, TrackEdit } from "@debrief/schemas";
 import { figureIdProblem, formatBearing, formatPosition, formatQuantity, parsePosition, POSITION_EXAMPLE, UNIT_LABELS } from "@debrief/kernel";
 import { defaultPivotIndex, describeDistance, describeSpeed, describeTurn, FIX_PROMPT, FIX_PROMPT_DR, fixIndexAt, fixMeans, fixToEdit, jumpSpeed, legNow, mergedName, mergePlan, periodIndices, readArrayOffset, arrayOffsetTitle, readBearing, readDistance, readSpeed, readTurn, reckoningOf, type Anchor } from "../webview/trackedit.js";
 import { chooseModes, MODE_LABELS, modeChoices, modeQuestion, REMEMBERED_IN_VSCODE, rememberItem, type ModeChoice, type PlottingMode } from "./importmode.js";
@@ -27,6 +27,7 @@ import { MapPanel } from "./panels/map.js";
 import { ResultsPanel } from "./panels/results.js";
 import { TIME_VIEW, TimeView } from "./panels/timeview.js";
 import { TOTE_VIEW, ToteView } from "./panels/toteview.js";
+import { BEARINGS_VIEW, BearingsView } from "./panels/bearingsview.js";
 import { TIMELINE_VIEW, TimelineView } from "./panels/timelineview.js";
 import { COVERAGE_VIEW, CoverageView, type CoverageAsk } from "./panels/coverageview.js";
 import { startup, type StartupSnapshot } from "./startup.js";
@@ -87,6 +88,8 @@ export interface DebriefApi {
   timelineShowing: () => boolean;
   /** The Outline's rows under a feature's (a track's sensors, CAP-22): their labels and descriptions, for tests and agents. */
   outlineChildren: (id: string) => { label: string; description: string }[];
+  /** A feature's own row in the Outline, as it reads: for tests. */
+  outlineItem: (id: string) => { label: string; description: string } | undefined;
   /** A message to the extension as the Timeline's page sends it (Ctrl+Z there posts undo_asked), for tests. */
   timelineMessage: (message: unknown) => void;
   /** Whether the Coverage view has loaded, for tests and agents. */
@@ -106,6 +109,11 @@ export interface DebriefApi {
   /** The Tote's values last shown, and how long answers took to show (CAP-06, NFR-04), for tests and agents. */
   tote: () => ToteResult | undefined;
   toteLatency: () => { count: number; p50: number; p95: number; max: number };
+  /** What the bearing view was last sent: the sensors, cuts, solutions and residuals (CAP-21), for tests and agents. */
+  bearings: () => TmaView | undefined;
+  bearingsShowing: () => boolean;
+  /** The cuts the map is waiting for two clicks on, for a first guess. */
+  mapGuessing: () => TmaRequest | undefined;
   /** When the extension activated and each webview loaded and was first shown something (docs/notes/webview-startup.md). */
   startupTimings: () => StartupSnapshot;
   /** The walkthrough steps the analyst has done, by their events (CAP-25), for tests and agents. */
@@ -230,6 +238,47 @@ export function activate(context: vscode.ExtensionContext): DebriefApi {
       if (how === "undo" ? history.canUndo() : history.canRedo()) void vscode.commands.executeCommand(`debrief.${how}`);
     },
   );
+  // The bearing view: a sensor's cuts, TMA solutions made from them, and their residuals (CAP-21).
+  /** The cuts two clicks on the map are asked for, until they are made or cancelled. */
+  let pendingGuess: TmaRequest | undefined;
+  const bearingsView = new BearingsView(
+    context.extensionUri,
+    session,
+    {
+      cuts: async (sensorId) => {
+        const opened = session.current;
+        if (!service || !opened) return undefined;
+        const answer = await service.sensorCuts(opened.store.id, opened.item.id, sensorId);
+        return answer.sensors[0]?.cut_list;
+      },
+      residuals: async (solutionId) => {
+        const opened = session.current;
+        if (!service || !opened) return undefined;
+        return (await service.tmaResiduals(opened.store.id, opened.item.id, solutionId)).residuals;
+      },
+    },
+    {
+      create: async (request) => {
+        const done = await vscode.commands.executeCommand<{ problem?: string; feature?: string } | undefined>("debrief.tmaCreate", request);
+        return done ?? { problem: "The solution was not made." };
+      },
+      guess: (request) => {
+        pendingGuess = request;
+        map.guess(request);
+      },
+      exclude: async (solutionId, cutIds, excluded) => (await vscode.commands.executeCommand<{ problem?: string } | undefined>("debrief.tmaExclude", solutionId, cutIds, excluded))?.problem,
+      split: async (solutionId, at) => (await vscode.commands.executeCommand<{ problem?: string } | undefined>("debrief.tmaSplitLeg", solutionId, { at }))?.problem,
+      resolve: async (cutId, keep) => (await vscode.commands.executeCommand<{ problem?: string } | undefined>("debrief.resolveAmbiguity", { keep, cut_ids: [cutId] }))?.problem,
+    },
+    log,
+  );
+  map.previewed = (featureId, preview) => bearingsView.preview(featureId, preview);
+  map.guessed = async (request) => {
+    const asked = pendingGuess;
+    pendingGuess = undefined;
+    if (!request || !asked) return void report("No solution made: the two clicks were cancelled.");
+    await vscode.commands.executeCommand("debrief.tmaCreate", { ...asked, ...request });
+  };
   // Coverage, below Catalogues: collation with coverage visible (CAP-08 to CAP-12).
   const coverageView = new CoverageView(context.extensionUri, session, (ask) => collate(ask), log);
   coverageView.shown = () => tickHere("coverageShown");
@@ -238,6 +287,7 @@ export function activate(context: vscode.ExtensionContext): DebriefApi {
     vscode.window.registerWebviewViewProvider(TIMELINE_VIEW, timeline, { webviewOptions: { retainContextWhenHidden: true } }),
     vscode.window.registerWebviewViewProvider(TIME_VIEW, timeView, { webviewOptions: { retainContextWhenHidden: true } }),
     vscode.window.registerWebviewViewProvider(TOTE_VIEW, toteView, { webviewOptions: { retainContextWhenHidden: true } }),
+    vscode.window.registerWebviewViewProvider(BEARINGS_VIEW, bearingsView, { webviewOptions: { retainContextWhenHidden: true } }),
   );
   const results = new ResultsPanel(context.extensionUri);
 
@@ -2325,6 +2375,46 @@ export function activate(context: vscode.ExtensionContext): DebriefApi {
     if (notes.length) void vscode.window.showInformationMessage(notes.join(" "));
     return done;
   });
+  // --- TMA solutions (CAP-21; product owner, 24 Oct 2026) ---------------------------------
+  // Made from a period of a sensor's cuts in the Bearings view, with a first guess by form or
+  // by two clicks on the map: one step. Given a request (agents, tests, the view), it asks
+  // nothing; without one, the Bearings view, where the period is chosen.
+  command("debrief.tmaCreate", async (request?: TmaRequest) => {
+    if (!request) {
+      await vscode.commands.executeCommand(`${BEARINGS_VIEW}.focus`);
+      void vscode.window.showInformationMessage("In Bearings, choose the period: click a sensor's first cut and Shift-click its last, then Make solution….");
+      return {};
+    }
+    const asked = request;
+    const done = await sense((o, allow) => service!.tmaCreate(o.store.id, o.item.id, o.base!, agent, asked, allow));
+    if (done.problem) return (report(done.problem), { problem: done.problem });
+    const feature = done.answer?.feature;
+    if (feature) session.select([feature], "command");
+    return { feature, notes: done.answer?.notes, residuals: done.answer?.residuals };
+  });
+  // A solution split into legs at a time (current time unless given), or with join the leg
+  // starting then joined to the one before: one step. It stays one track.
+  command("debrief.tmaSplitLeg", async (target?: string | Target, options?: { at?: string; join?: boolean }) => {
+    const track = trackTarget(target);
+    if (!track?.properties.tma) return { problem: report("Select one TMA solution to split into legs.") };
+    const at = options?.at ?? session.time?.current;
+    if (!at) return { problem: report("Set current time first: the solution is split into legs there.") };
+    const done = await sense((o, allow) => service!.tmaSplitLeg(o.store.id, o.item.id, o.base!, agent, track.id, at, !!options?.join, allow));
+    if (done.problem) return (report(done.problem), { problem: done.problem });
+    return { notes: done.answer?.notes };
+  });
+  // Rooted cuts left out of a solution's RMS error, such as wild bearings, or counted again: one step.
+  command("debrief.tmaExclude", async (solutionId: string, cutIds: string[], excluded = true) => {
+    if (!solutionId || !cutIds?.length) return { problem: report("Choose the cuts to leave out in Bearings.") };
+    const done = await sense((o, allow) => service!.tmaExclude(o.store.id, o.item.id, o.base!, agent, solutionId, cutIds, excluded, allow));
+    if (done.problem) return (report(done.problem), { problem: done.problem });
+    return { changed: done.answer?.changed, notes: done.answer?.notes };
+  });
+  command("debrief.showBearings", async (target?: string | Target) => {
+    await vscode.commands.executeCommand(`${BEARINGS_VIEW}.focus`);
+    const id = typeof target === "string" ? target : targets(target)[0];
+    if (id) await bearingsView.choose(id);
+  });
   // A towed array's offset astern of the ship, and how it follows (CAP-22; product owner,
   // 24 Oct 2026): typed in the analyst's length unit, 0 for at the ship, then worm in the
   // hole (back along the ship's own track, legacy's default) or plain. One step. Given an
@@ -3184,6 +3274,12 @@ export function activate(context: vscode.ExtensionContext): DebriefApi {
           })
         : [];
     },
+    outlineItem: (id) => {
+      const node = outline.featureNode(id);
+      if (!node) return undefined;
+      const item = outline.getTreeItem(node);
+      return { label: String(item.label), description: String(item.description ?? "") };
+    },
     coverageShowing: () => coverageView.showing,
     coverage: () => coverageView.report,
     coverageMessage: (message) => coverageView.receive(message),
@@ -3194,6 +3290,9 @@ export function activate(context: vscode.ExtensionContext): DebriefApi {
     lastExport: () => lastExport,
     tote: () => toteView.last,
     toteLatency: () => toteView.latency(),
+    bearings: () => bearingsView.last,
+    bearingsShowing: () => bearingsView.showing,
+    mapGuessing: () => map.guessing,
     startupTimings: () => startup.snapshot(),
     walkthroughEvents: () => walkthroughs.seen(),
     walkthroughOnActivation: () => openedOnActivation,

@@ -68,6 +68,7 @@ import { CONTEXT_WEIGHT, contextStyle, parseColour, WINDOW_WEIGHT, type ContextS
 import { MapEditor } from "./mapedit.js";
 import { PressHold } from "./presshold.js";
 import { TrackEditor } from "./trackmap.js";
+import { TmaGuess } from "./tmamap.js";
 import { describeFix as describeFixOnly, marksByIndex, trackLabel } from "./fixes.js";
 import { DATA_COLOURS, LIGHT_EXPORT_THEME } from "./palette.js";
 import { host, onMessage } from "./vscode.js";
@@ -483,7 +484,10 @@ const TICK_SVG =
 
 /** Areas, kept underneath everything else, so a track crossing an area's edge is on top. */
 let areas: L.Path[] = [];
+/** The plot last drawn, for the two clicks of a TMA solution's first guess to find its cuts. */
+let plotDrawn: DebriefFeatureCollection | undefined;
 function draw(plot: DebriefFeatureCollection): void {
+  plotDrawn = plot;
   areas = [];
   annotations = new Map(
     plot.features.filter((f): f is Annotation => f.properties.kind === "annotation" && !!f.geometry && !f.properties.furniture).map((f) => [f.id, f]),
@@ -506,6 +510,7 @@ function draw(plot: DebriefFeatureCollection): void {
     const filled = feature.properties.kind === "annotation" && ["area", "circle", "ellipse"].includes(shapeOf(feature.properties as AnnotationProperties, geometry.type));
     const click = (event: L.LeafletMouseEvent) => {
       L.DomEvent.stopPropagation(event);
+      if (tmaGuess.click(event.latlng)) return; // two clicks for a TMA first guess, even on a track
       if (editor.takeClick(event)) return; // drawing: a click places a point, even on a track
       if (filled && clickCut(event)) return;
       select(feature.id, event.originalEvent.ctrlKey || event.originalEvent.metaKey);
@@ -997,6 +1002,11 @@ const sensorLayer = new SensorLayer({
 });
 // For tests: where on the map each cut's line can be clicked.
 (window as unknown as { debriefCuts: () => ReturnType<SensorLayer["probe"]> }).debriefCuts = () => sensorLayer.probe();
+/** Where a position is on the map, in its own pixels: for the playground's test to click there. */
+(window as unknown as { debriefPoint: (lon: number, lat: number) => { x: number; y: number } }).debriefPoint = (lon, lat) => {
+  const point = map.latLngToContainerPoint([lat, lon]);
+  return { x: point.x, y: point.y };
+};
 /** The legend's rows for cuts: shown once the plot has sensor cuts to draw. */
 function showCutKey(): void {
   for (const kind of ["cut", "cut-twin", "cut-now"]) {
@@ -1699,6 +1709,8 @@ new ResizeObserver(() => {
 
 map.on("click", (event: L.LeafletMouseEvent) => {
   closeCutPopover();
+  // Two clicks for a TMA solution's first guess take the map's clicks until they are made.
+  if (tmaGuess.click(event.latlng)) return;
   if (trackEditor.endingDrag(event)) return;
   if (editor.active || editor.endingDrag(event)) return;
   if (clickCut(event)) return;
@@ -1791,6 +1803,14 @@ const trackEditor = new TrackEditor({
   say: (text, readout, saying) => editor.say(text, readout, saying),
   noting: () => editor.noting,
   drawing: () => editor.active,
+});
+
+// --- A TMA solution's first guess by two clicks (tmamap.ts; CAP-21) -----------------------
+const tmaGuess = new TmaGuess({
+  map,
+  post: (message) => host.postMessage(message),
+  plot: () => plotDrawn,
+  say: (text) => editor.say(text, undefined, "other"),
 });
 
 // --- Exporting the map as an image (SUB-25, exportimage.ts) -------------------------------
@@ -1965,6 +1985,7 @@ function handle(message: Record<string, unknown>): void {
     contextMode = (message.context_tracks as ContextTracks | undefined) ?? "visible";
     toteView = toteOf(message.plot as DebriefFeatureCollection);
     draw(message.plot as DebriefFeatureCollection);
+    if (!tmaGuess.active) tmaGuess.stop(); // the solution two clicks made is drawn now
     editing.clear();
     editor.plotDrawn();
     trackEditor.plotDrawn([...selection]);
@@ -1998,6 +2019,8 @@ function handle(message: Record<string, unknown>): void {
     drawNarrative(time ? Date.parse(time.current) : NaN);
   } else if (message.kind === "show_fixes") {
     showFixes(message as Parameters<typeof showFixes>[0]);
+  } else if (message.kind === "tma_guess") {
+    tmaGuess.start(message.tma_request as Parameters<TmaGuess["start"]>[0]);
   }
 }
 pageReady();

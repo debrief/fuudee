@@ -581,6 +581,43 @@ export async function run(): Promise<void> {
     assert.deepEqual(api.outlineChildren("track-red-one"), []);
   }
 
+  // TMA (CAP-21; product owner, 24 Oct 2026): a solution made from half an hour of the Bow sonar's
+  // cuts with the first guess's defaults, one step, selected, its residuals in the Bearings view;
+  // a cut left out of the RMS, one step; split into legs, one step, still one track; each undone.
+  {
+    type Made = { problem?: string; feature?: string; notes?: string[]; residuals?: { rms?: number | null; counted: number } };
+    const bow = "sensor-blue-one-bow-sonar";
+    const before = (await steps()).length;
+    const made = await vscode.commands.executeCommand<Made>("debrief.tmaCreate", {
+      sensor_ids: [bow],
+      period: { start: "2023-06-15T08:29:00.000Z", end: "2023-06-15T08:59:00.000Z" },
+    });
+    assert.equal(made.problem, undefined);
+    assert.equal((await steps()).length, before + 1, "one step");
+    assert.match((await steps()).at(-1)?.notes?.[0] ?? "", /^Contact 1 solution made: \d+ Bow sonar cuts 08:29:00Z–08:59:00Z$/);
+    const solution = made.feature!;
+    assert.deepEqual(api.session.selection, [solution], "the solution selected");
+    assert.match(api.outlineItem(solution)?.description ?? "", /^TMA · Contact 1/);
+    await vscode.commands.executeCommand("debrief.showBearings", solution);
+    const shown = await waitFor("the Bearings view to show the solution's residuals", () => (api.bearings()?.solution_id === solution && api.bearings()?.residuals ? api.bearings() : undefined));
+    assert.equal(shown.residuals!.counted, made.residuals!.counted);
+    assert.ok(shown.residuals!.counted > 10, "its cuts counted");
+    await sleep(1500);
+    await screenshot("15e-tma-bearings");
+    const wild = shown.residuals!.rows[1].id;
+    const left = await vscode.commands.executeCommand<{ problem?: string; notes?: string[] }>("debrief.tmaExclude", solution, [wild]);
+    assert.equal(left.problem, undefined);
+    assert.match((await steps()).at(-1)?.notes?.[0] ?? "", /^Contact 1 solution: cut at 08:\d\d:\d\dZ left out of the RMS$/);
+    await waitFor("the view to leave the cut out", () => (api.bearings()?.residuals?.excluded === 1 ? true : undefined));
+    const split = await vscode.commands.executeCommand<{ problem?: string }>("debrief.tmaSplitLeg", solution, { at: "2023-06-15T08:44:00.000Z" });
+    assert.equal(split.problem, undefined);
+    assert.equal((await steps()).at(-1)?.notes?.[0], "Contact 1 solution split into legs at 08:44:00Z");
+    const tag = api.session.current!.plot.features.find((f) => f.id === solution)!.properties as { tma?: { leg_starts?: string[] } };
+    assert.deepEqual(tag.tma?.leg_starts, ["2023-06-15T08:44:00.000Z"], "still one track, in two legs");
+    for (let i = 0; i < 3; i++) assert.equal(await vscode.commands.executeCommand("debrief.undo"), undefined);
+    assert.ok(!api.session.current!.plot.features.some((f) => f.id === solution), "undone: no solution");
+  }
+
   // The properties form of the circle, as the map's double-click or the outline opens it.
   await vscode.commands.executeCommand("debrief.editAnnotation", "annotation-exclusion-zone");
   await waitFor("the circle's form", async () => (await vscode.commands.executeCommand<string | undefined>("debrief.annotationFormOpen")) === "annotation-exclusion-zone" || undefined);

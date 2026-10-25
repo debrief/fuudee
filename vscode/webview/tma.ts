@@ -13,12 +13,15 @@
  *   quickly as tens), the period chosen, and the next or previous ambiguous cut.
  */
 import { convert, DEFAULT_SETTINGS, fixed, formatQuantity, formatTime, UNIT_LABELS, type FormatSettings } from "@debrief/kernel";
-import type { TimeRange, TmaCut, TmaRequest, TmaResidualRow, TmaResiduals, TmaSolutionRow } from "@debrief/schemas";
+import type { DebriefFeatureCollection, TimeRange, TmaCut, TmaRequest, TmaResidualRow, TmaResiduals, TmaSensorRow, TmaSolutionRow } from "@debrief/schemas";
 import geodesic from "geographiclib-geodesic";
 import { pointAt, rangeBearing, travel, type LonLat } from "./geodesic.js";
-import { bearingText, type Kept } from "./sensors.js";
+import { bearingText, sensorsOf, type Kept } from "./sensors.js";
 
 const WGS84 = geodesic.Geodesic.WGS84;
+
+/** A row of the bearing view's list: a cut, or a cut with its residual. */
+export type CutRow = TmaCut | TmaResidualRow;
 
 /** The first guess by form unless the analyst says otherwise (product owner, 24 Oct 2026). */
 export const DEFAULT_RANGE = { value: 10000, unit: "[yd_i]" };
@@ -114,7 +117,7 @@ export function courseSpeed(a: LonLat, b: LonLat, seconds: number): { course: nu
 
 // --- Residuals while dragging --------------------------------------------------------
 
-const cutOf = (row: TmaCut): CutBearing => ({
+const cutOf = (row: CutRow): CutBearing => ({
   time: Date.parse(row.time),
   origin: (row.origin as LonLat | null | undefined) ?? null,
   bearing: row.bearing,
@@ -192,12 +195,12 @@ export function residualNotes(report: TmaResiduals | undefined): string[] {
 }
 
 /** A cut's row in the list: "09:21:00Z  Towed array  045.0° / 135.0°". */
-export function cutWhen(row: TmaCut, settings: FormatSettings = DEFAULT_SETTINGS): string {
+export function cutWhen(row: CutRow, settings: FormatSettings = DEFAULT_SETTINGS): string {
   return formatTime(Date.parse(row.time), settings);
 }
 
 /** A cut's bearings as the list shows them: one, the kept one with the other struck, or both. */
-export function cutBearings(row: TmaCut): string {
+export function cutBearings(row: CutRow): string {
   if (row.ambiguous_bearing === undefined || row.ambiguous_bearing === null) return bearingText(row.bearing);
   if (row.resolved === "bearing") return `${bearingText(row.bearing)} kept`;
   if (row.resolved === "ambiguous_bearing") return `${bearingText(row.ambiguous_bearing)} kept`;
@@ -205,17 +208,17 @@ export function cutBearings(row: TmaCut): string {
 }
 
 /** Whether a cut is ambiguous and not yet resolved. */
-export const isAmbiguousRow = (row: TmaCut): boolean => row.ambiguous_bearing !== undefined && row.ambiguous_bearing !== null && !row.resolved;
+export const isAmbiguousRow = (row: CutRow): boolean => row.ambiguous_bearing !== undefined && row.ambiguous_bearing !== null && !row.resolved;
 
 /** The side a bearing of the cut is on, where it can be told: the first's is given, its twin's is the other. */
-export function sideOfRow(row: TmaCut, which: Kept): "port" | "starboard" | undefined {
+export function sideOfRow(row: CutRow, which: Kept): "port" | "starboard" | undefined {
   if (!row.side) return undefined;
   if (which === "bearing") return row.side;
   return row.side === "port" ? "starboard" : "port";
 }
 
 /** A row read aloud: its time, sensor, bearings, side, residual and whether it is counted. */
-export function rowLabel(row: TmaCut | TmaResidualRow, settings: FormatSettings = DEFAULT_SETTINGS): string {
+export function rowLabel(row: CutRow, settings: FormatSettings = DEFAULT_SETTINGS): string {
   const parts = [cutWhen(row, settings), row.sensor ?? "", cutBearings(row)];
   if (isAmbiguousRow(row) && row.side) parts.push(`${bearingText(row.bearing)} is to ${row.side}`);
   const r = row as TmaResidualRow;
@@ -233,7 +236,7 @@ export function rowLabel(row: TmaCut | TmaResidualRow, settings: FormatSettings 
 // --- The first guess --------------------------------------------------------------------
 
 /** The first guess by form, as the form offers it: in the analyst's units, the course across the first cut's bearing (product owner, 24 Oct 2026). */
-export function guessDefaults(first: TmaCut | undefined, which: Kept | undefined, settings: FormatSettings = DEFAULT_SETTINGS): { range: string; course: string; speed: string; bearing?: number } {
+export function guessDefaults(first: CutRow | undefined, which: Kept | undefined, settings: FormatSettings = DEFAULT_SETTINGS): { range: string; course: string; speed: string; bearing?: number } {
   const range = convert(DEFAULT_RANGE, settings.length_unit);
   const speed = convert(DEFAULT_SPEED, settings.speed_unit);
   const bearing = first ? (which === "ambiguous_bearing" && first.ambiguous_bearing !== undefined && first.ambiguous_bearing !== null ? first.ambiguous_bearing : first.resolved === "ambiguous_bearing" ? (first.ambiguous_bearing ?? first.bearing) : first.bearing) : undefined;
@@ -244,6 +247,14 @@ export function guessDefaults(first: TmaCut | undefined, which: Kept | undefined
     speed: `${fixed(speed.value, settings.speed_decimals)} ${UNIT_LABELS[settings.speed_unit] ?? settings.speed_unit}`,
     ...(bearing !== undefined && { bearing }),
   };
+}
+
+/** The contact a new solution is of, as Debrief offers it: the first of Contact 1, Contact 2... not in use (debrief_stac.tma.next_contact). */
+export function nextContact(solutions: { contact: string }[]): string {
+  const used = new Set(solutions.map((s) => /^Contact (\d+)$/.exec(s.contact.trim())?.[1]).filter(Boolean).map(Number));
+  let n = 1;
+  while (used.has(n)) n++;
+  return `Contact ${n}`;
 }
 
 /** A request for a solution of the cuts chosen: the sensors and the period, and the guess if given. */
@@ -277,7 +288,7 @@ export function scrollFor(index: number, scrollTop: number, height: number, rowH
 }
 
 /** The next (direction 1) or previous (-1) ambiguous cut not yet resolved from a row, round the list; undefined if none. */
-export function nextAmbiguous(rows: TmaCut[], from: number, direction: 1 | -1): number | undefined {
+export function nextAmbiguous(rows: CutRow[], from: number, direction: 1 | -1): number | undefined {
   const n = rows.length;
   for (let step = 1; step <= n; step++) {
     const i = (((from + direction * step) % n) + n) % n;
@@ -287,7 +298,7 @@ export function nextAmbiguous(rows: TmaCut[], from: number, direction: 1 | -1): 
 }
 
 /** The period the rows from a to b hold (either order), ends included. */
-export function periodOf(rows: TmaCut[], a: number, b: number): TimeRange | undefined {
+export function periodOf(rows: CutRow[], a: number, b: number): TimeRange | undefined {
   if (!rows.length) return undefined;
   const lo = Math.max(0, Math.min(a, b));
   const hi = Math.min(rows.length - 1, Math.max(a, b));
@@ -295,7 +306,7 @@ export function periodOf(rows: TmaCut[], a: number, b: number): TimeRange | unde
 }
 
 /** "120 cuts 09:00:00Z–09:59:30Z, 40 ambiguous". */
-export function describePeriod(rows: TmaCut[], a: number, b: number, settings: FormatSettings = DEFAULT_SETTINGS): string {
+export function describePeriod(rows: CutRow[], a: number, b: number, settings: FormatSettings = DEFAULT_SETTINGS): string {
   if (!rows.length) return "";
   const lo = Math.min(a, b);
   const hi = Math.max(a, b);
@@ -322,4 +333,105 @@ export function nearestRow(rows: { time: string }[], at: number): number {
     }
   }
   return best;
+}
+
+// --- What the hosts send the view --------------------------------------------------------
+
+type PlotFeature = DebriefFeatureCollection["features"][number];
+type TrackFeature = Extract<PlotFeature, { properties: { kind: "track" } }>;
+
+/** The plot's sensors as the view lists them. */
+export function tmaSensorRows(plot: DebriefFeatureCollection): TmaSensorRow[] {
+  return sensorsOf(plot).map((e) => ({
+    id: e.sensor.id,
+    name: e.sensor.properties.name,
+    ...(e.host && { host: e.host.properties.name }),
+    colour: e.sensor.properties.colour,
+    cuts: e.cuts.length,
+    ambiguous: e.cuts.filter((c) => !!c.properties.ambiguous_bearing && !c.properties.resolved).length,
+  }));
+}
+
+/** The plot's TMA solutions as the view lists and draws them. */
+export function tmaSolutionRows(plot: DebriefFeatureCollection): TmaSolutionRow[] {
+  return plot.features
+    .filter((f): f is TrackFeature => f.properties.kind === "track" && !!(f as TrackFeature).properties.tma)
+    .map((t) => {
+      const tag = t.properties.tma!;
+      return {
+        id: t.id,
+        name: t.properties.name,
+        contact: tag.contact,
+        ...(t.properties.style?.colour && { colour: t.properties.style.colour }),
+        period: tag.period,
+        times: t.properties.times,
+        ...(tag.leg_starts?.length && { leg_starts: tag.leg_starts }),
+        cuts: tag.cut_ids.length,
+      };
+    });
+}
+
+/** A cut as debrief/sensors lists it (its cuts: true answer). */
+export interface ListedCut {
+  id: string;
+  time: string;
+  bearing: number;
+  ambiguous_bearing?: number;
+  resolved?: string | null;
+  side?: "port" | "starboard";
+  origin?: LonLat | null;
+  origin_derived?: boolean;
+  label?: string;
+  hidden?: boolean;
+}
+
+/** A sensor's cuts as debrief/sensors lists them, as the view's rows. */
+export function cutRowsOf(sensor: TmaSensorRow, listed: ListedCut[], colours: Map<string, string> = new Map()): TmaCut[] {
+  return listed.map((c) => {
+    const colour = colours.get(c.id) ?? sensor.colour ?? undefined;
+    return {
+      id: c.id,
+      sensor_id: sensor.id,
+      sensor: sensor.name,
+      ...(colour && { colour }),
+      time: c.time,
+      bearing: c.bearing,
+      ...(c.ambiguous_bearing !== undefined && { ambiguous_bearing: c.ambiguous_bearing }),
+      ...(c.resolved && { resolved: c.resolved as Kept }),
+      ...(c.side && { side: c.side }),
+      ...(c.origin && { origin: c.origin }),
+      ...(c.origin_derived && { origin_derived: true }),
+      ...(c.label && { label: c.label }),
+      ...(c.hidden && { hidden: true }),
+    };
+  });
+}
+
+/** The cuts' own colours, by id, for the rows. */
+export function cutColours(plot: DebriefFeatureCollection): Map<string, string> {
+  const out = new Map<string, string>();
+  for (const f of plot.features) if (f.properties.kind === "sensor_cut" && f.properties.colour) out.set(f.id, f.properties.colour);
+  return out;
+}
+
+/** The solution a selection shows: one solution track selected alone. */
+export function solutionOfSelection(plot: DebriefFeatureCollection, selection: string[]): string | undefined {
+  if (selection.length !== 1) return undefined;
+  const f = plot.features.find((g) => g.id === selection[0]);
+  return f && f.properties.kind === "track" && (f as TrackFeature).properties.tma ? f.id : undefined;
+}
+
+/** The sensor a selection points at: a sensor, a cut's sensor, or a track's first sensor. */
+export function sensorOfSelection(plot: DebriefFeatureCollection, selection: string[]): string | undefined {
+  for (const id of selection) {
+    const f = plot.features.find((g) => g.id === id);
+    if (!f) continue;
+    if (f.properties.kind === "sensor") return f.id;
+    if (f.properties.kind === "sensor_cut") return f.properties.sensor_id;
+    if (f.properties.kind === "track") {
+      const carried = plot.features.find((g) => g.properties.kind === "sensor" && g.properties.host_track_id === id);
+      if (carried) return carried.id;
+    }
+  }
+  return undefined;
 }

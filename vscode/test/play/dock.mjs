@@ -294,11 +294,11 @@ export async function playDock(browser, base, shot, ready, errors) {
   const menu = page.getByRole("menu", { name: "Coverage: move" });
   await menu.waitFor();
   const items = await menu.getByRole("menuitem").allInnerTexts();
-  const target = items.indexOf("Move to centre: Timeline");
+  const target = items.indexOf("Move to centre: Timeline, Bearings");
   assert.ok(target >= 0 && items.includes("Reset layout"), items.join(" | "));
   for (let i = 0; i < target; i++) await page.keyboard.press("ArrowDown");
   await page.keyboard.press("Enter");
-  await page.waitForFunction(() => window.debriefLayout().groups.some((g) => g.panels.join() === "panel-timeline,panel-coverage"));
+  await page.waitForFunction(() => window.debriefLayout().groups.some((g) => g.panels.includes("panel-timeline") && g.panels.includes("panel-coverage")));
   await page.waitForFunction(() => document.activeElement?.dataset?.panel === "panel-coverage");
   // The group's ⋯ opens the same menu; Escape closes it, back to the button.
   const more = page.locator(".dv-groupview", { has: page.locator('.dv-tab[data-panel="panel-time"]') }).locator(".dock-menu-button");
@@ -416,7 +416,7 @@ export async function playDock(browser, base, shot, ready, errors) {
   await dragTab(page, "panel-history", { x: outlineAgain.x + outlineAgain.width / 2, y: outlineAgain.y + outlineAgain.height - 12 });
   const split = await groupsOf(page);
   const saved = JSON.parse(await savedAfter(page, was));
-  assert.equal(saved.version, 3);
+  assert.equal(saved.version, 4);
   assert.deepEqual(Object.keys(saved.layout.panels).sort(), ["map", ...DOCKED_PANELS].sort());
   await page.reload();
   await ready(page);

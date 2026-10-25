@@ -21,6 +21,7 @@ import { playNarrative, playNarrativeAtScale, vscodeTimelineView } from "./narra
 import { playWordNarrative } from "./narrativeword.mjs";
 import { playFrequencies } from "./frequencies.mjs";
 import { playSensors } from "./sensors.mjs";
+import { playTma } from "./tma.mjs";
 import { playCollation, vscodeCoverageView } from "./collation.mjs";
 import { playExport } from "./export.mjs";
 import { guidanceAccent, openOnFirstLoad, playDemo, playTourInThePost, playTours, resize, speedRun } from "./onboarding.mjs";
@@ -77,7 +78,7 @@ try {
   // superseding 17 Oct's folded here): docked, alone on the right (product owner, 23 Oct 2026).
   // This reader wants the map as wide and tall as can be, with Tools and History both in sight
   // while working: from each tab's menu, by the keyboard, Tools and History each get a group of their
-  // own (they share the Tote's, product owner, 24 Oct 2026), the walkthroughs join Tools on the left, the Timeline joins them and Coverage the Tote; the right
+  // own (they share the Tote's, product owner, 24 Oct 2026), the walkthroughs join Tools on the left, the Timeline joins them and Coverage and Bearings the Tote; the right
   // column and the strip under the map go, and the map takes their place. The layout is remembered
   // in this browser; onboarding.mjs resets it.
   await openOnFirstLoad(page, "the playground");
@@ -93,6 +94,7 @@ try {
   await moveByMenu("panel-tour", "Move to left: Tools");
   await moveByMenu("panel-timeline", "Move to left: Tools, Walkthroughs");
   await moveByMenu("panel-coverage", "Move to left: Tote");
+  await moveByMenu("panel-bearings", "Move to left: Tote, Coverage");
   for (const id of ["tools", "outline", "tote"]) await showPanel(page, id);
   assert.ok((await page.evaluate(() => window.debriefLayout().groups)).every((g) => g.place === "left" || g.panels.includes("map")), "every panel on the left");
   await mapPlaced(page);
@@ -338,6 +340,9 @@ try {
   // cut's line clicked keeps it, a sensor's menu keeps port for the window from the keyboard, each
   // one step; coloured, hidden; a .dsf read in, its track asked for; narrow and in a wide font (CAP-22).
   await playSensors(page, shot);
+  // TMA (CAP-21): a period of cuts chosen from the keyboard in the bearing view, a solution made by
+  // form and by two clicks, dragged with live residuals, a cut left out, legs; a legacy solution imported.
+  await playTma(page, shot);
   // Collation: new data marked and taken, a period's source chosen, a proposal refused, an item
   // revised and the plot flagged for review until reviewed; narrow and in a wide font (CAP-08 to CAP-12).
   await playCollation(page, shot);
@@ -475,7 +480,7 @@ try {
   await ready();
   await playNarrativeAtScale(page, shot);
   assert.deepEqual(errors, []);
-  console.log(`Playground played: map selection, keyboard, the Tote, tools, undo, crash recovery, conflict, annotations, drawing, tracks, shear and stretch, cleaning, single fixes, the narrative in the Timeline (and at 60,000 entries), narrative from Word and the Timeline's extras, labels, symbols and arrows, sensor bearings, collation, import, narrow, CDN blocked, the walkthroughs and the onboarding speed run${site ? ", from a blog post, and the web demo" : ""}.`);
+  console.log(`Playground played: map selection, keyboard, the Tote, tools, undo, crash recovery, conflict, annotations, drawing, tracks, shear and stretch, cleaning, single fixes, the narrative in the Timeline (and at 60,000 entries), narrative from Word and the Timeline's extras, labels, symbols and arrows, sensor bearings, TMA solutions, collation, import, narrow, CDN blocked, the walkthroughs and the onboarding speed run${site ? ", from a blog post, and the web demo" : ""}.`);
 
   /**
    * The time controller (CAP-28): drag the window and the map shows only it, at

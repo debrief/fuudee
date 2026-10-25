@@ -216,6 +216,10 @@
     ],
     "tma_time_asked": [
       "current_time"
+    ],
+    "tma_made": [
+      "feature_id?",
+      "message?"
     ]
   }
 }

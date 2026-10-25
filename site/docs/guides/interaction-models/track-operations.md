@@ -177,7 +177,7 @@ Part B1 (decision, product owner, 13 Oct 2026): **shear is the operation analyst
 
 13. **For agents.** `debrief/edit_track` with `{"action": "shear", "anchor": "start", "distance": {"value": 1.2, "unit": "[nmi_i]"}, "bearing": {"value": 45, "unit": "deg"}}` (the dragged end's move), `{"action": "shear", "anchor": "end", "course": {"value": 87.2, "unit": "deg"}, "speed": {"value": 12.4, "unit": "[kn_i]"}}` (the course and speed made good), or `{"action": "stretch", "anchor": "start", "speed": {"value": 12.4, "unit": "[kn_i]"}}`, each with a `period` to change only that. In VS Code, `debrief.shearTrack` and `debrief.stretchTrack` take the track and the edit, without `action`, instead of asking.
 
-*Not in this part:* live bearing residuals while dragging, and solutions rooted in a period of bearings (the TMA module, CAP-21); shearing one leg of a multi-leg solution apart from the others.
+Live bearing residuals while dragging, solutions rooted in a period of bearings, and shearing one leg of a multi-leg solution apart from the others (**This leg**) are the TMA module's: [TMA solutions](tma.md) (CAP-21, 24 Oct 2026).
 
 ## Cleaning tracks
 

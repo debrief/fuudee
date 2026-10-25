@@ -96,7 +96,7 @@ describe("the first guess", () => {
     const first = { id: "c", sensor_id: "s", time: "2026-10-11T09:00:00.000Z", bearing: 45, ambiguous_bearing: 135 } as TmaCut;
     expect(guessDefaults(first, undefined)).toEqual({ range: "4.94 nmi", course: "135.0", speed: "8.0 kn", bearing: 45 });
     expect(guessDefaults(first, "ambiguous_bearing").course).toBe("225.0");
-    const yards = { ...DEFAULT_SETTINGS, length_unit: "[yd_i]", length_decimals: 0 };
+    const yards = { ...DEFAULT_SETTINGS, length_unit: "[yd_i]" as const, length_decimals: 0 };
     expect(guessDefaults(first, undefined, yards).range).toBe("10000 yd");
   });
   it("says the course and speed two clicks make", () => {

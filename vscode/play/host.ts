@@ -10,7 +10,7 @@
  *
  * Query parameters choose what an embedded demo shows:
  *   plot=serial-1         the sample serial to open
- *   panels=tour,tote,timeline,tools,history,export,try,import   the panels, in this order (all by default;
+ *   panels=tour,tote,timeline,bearings,tools,history,export,try,import   the panels, in this order (all by default;
  *                         Time, the Outline and the top bar's Plot are always there). 900 px wide and
  *                         more, they are docked around the map in a layout made from the panels
  *                         listed, the same every time (dock.ts); narrower, in the side column, the
@@ -27,7 +27,7 @@
  * layout every time, with every panel open, and remembers neither, so a post's demo always shows
  * what the post describes.
  */
-import type { AnnotationSpec, CoverageReport, DebriefFeatureCollection, ItemRevision, NarrativeSpec, ParameterValue, PlotView, ReviewFlag, SharedStateChange, SourceTrackRef, StacItem, TimeRange, TimeState, ToolDeclaration, ToolResult, ToteResult, ToteView } from "@debrief/schemas";
+import type { AnnotationSpec, CoverageReport, DebriefFeatureCollection, ItemRevision, NarrativeSpec, ParameterValue, PlotView, ReviewFlag, SharedStateChange, SourceTrackRef, StacItem, TimeRange, TimeState, TmaCut, TmaRequest, TmaResiduals, ToolDeclaration, ToolResult, ToteResult, ToteView } from "@debrief/schemas";
 import { CoverageControl } from "../webview/coveragecontrol.js";
 import { specOfFeature } from "../webview/annotationlook.js";
 import { NarrativeOnMap, narrativeOnMapOf, timelineEntries, timelineTracks } from "../src/timeline.js";
@@ -44,6 +44,8 @@ import { cutChoices, cutNow, describeCut, featureName, KEEP_CHOICES, placeOfCut,
 import { describeSensorInFile, hostChoices, hostQuestion, hostsToAsk, sensorReadSummary, type SensorPreview } from "../src/sensorimport.js";
 import { TimeControl } from "../webview/timecontrol.js";
 import { ToteControl } from "../webview/totecontrol.js";
+import { TmaControl } from "../webview/tmacontrol.js";
+import { cutColours, cutRowsOf, sensorOfSelection, solutionOfSelection, tmaSensorRows, tmaSolutionRows, type ListedCut } from "../webview/tma.js";
 import { latencySummary, sameTote, toteOf, ToteRequests, toteTracks, withoutSecondary, withPrimary, withSecondaries } from "../webview/totelogic.js";
 import { PressHold } from "../webview/presshold.js";
 import { Folds } from "./fold.js";
@@ -91,7 +93,7 @@ interface Opened {
 const params = new URLSearchParams(location.search);
 /** The web demo (demo.mjs): this page full screen at /demo/. It keeps nothing derived from a plot's content (panel review, 17 Oct 2026). */
 const demo = !!document.querySelector('meta[name="debrief-demo"]');
-const panelOrder = (params.get("panels") ?? "tour,tote,timeline,catalogue,coverage,tools,history,export,try,import").split(",");
+const panelOrder = (params.get("panels") ?? "tour,tote,timeline,catalogue,coverage,bearings,tools,history,export,try,import").split(",");
 const panels = new Set(panelOrder);
 const startPlot = params.get("plot") ?? "serial-1";
 /** Every side panel folds by its heading; remembered in this browser, except in a demo that chooses its panels. */
@@ -127,7 +129,7 @@ worker.onmessage = ({ data }) => {
   else call?.resolve(data.result);
 };
 /** Calls that change the open plot, its history or its island: refused while an earlier revision is shown read-only. */
-const CHANGES_PLOT = new Set(["run", "move", "restyle", "frequencies", "annotate", "track", "clean", "narrative", "sensor", "set_view", "collate", "glitches", "crash", "colleague", "colleague_window"]);
+const CHANGES_PLOT = new Set(["run", "move", "restyle", "frequencies", "annotate", "track", "clean", "narrative", "sensor", "tma_change", "set_view", "collate", "glitches", "crash", "colleague", "colleague_window"]);
 function python(call: string, ...args: unknown[]): Promise<string> {
   if (opened?.revision && CHANGES_PLOT.has(call)) return Promise.resolve(JSON.stringify({ error: READ_ONLY }));
   const id = nextId++;
@@ -175,6 +177,7 @@ const timeControl = new TimeControl($("timebar"), {
     time = moved;
     tourEvent("timeMoved", opened?.item.id);
     refreshTote(); // asked at once: the Tote keeps pace by never queueing (NFR-04)
+    bearingsTime?.(); // a line at current time across the bearing view's plots
     timelineControl.setTime(time); // the Timeline follows; it draws at most once a frame
     coverageControl.setTime(Date.parse(moved.current)); // a line across Coverage's bars
     narrativeToMap();
@@ -201,8 +204,11 @@ const periodOf = (item: StacItem): TimeRange | undefined => {
 /** How the plot says tracks outside the window are drawn. The playground has no settings: the minimum-contrast setting is off. */
 const contextOf = (): ContextTracks => (opened && contextTracksOf(opened.plot)) ?? "visible";
 /** Current time as set by opening a plot or by a tool, with the window as saved. */
+/** Current time and the window to the bearing view, once it exists (below). */
+let bearingsTime: (() => void) | undefined;
 function showTime(next: TimeState | undefined): void {
   time = next;
+  bearingsTime?.();
   timeControl.show(time, opened && periodOf(opened.item), { saved: savedWindow, context: contextOf(), minimumContrast: false });
   timelineControl.setTime(time);
   coverageControl.setTime(time ? Date.parse(time.current) : undefined);
@@ -400,6 +406,7 @@ async function openPlot(item: string, keep = false): Promise<void> {
   renderTimeline();
   renderHistory();
   showTote();
+  void refreshBearings();
   void refreshCollation();
   await refreshOffered();
   if (opened.recovered.length) toast(opened.recovered.join(" "), "warning");
@@ -407,6 +414,7 @@ async function openPlot(item: string, keep = false): Promise<void> {
 
 async function select(ids: string[], fromMap = false): Promise<void> {
   selection = ids;
+  bearingsFollow(ids);
   if (!fromMap) post(map, { kind: "set_selection", selection: { plot: opened?.item.id ?? "", feature_ids: ids } });
   renderOutline();
   if (formTool) sendForm();
@@ -465,6 +473,16 @@ window.addEventListener("message", (event) => {
     // One of an ambiguous cut's two lines clicked: that bearing kept, as one step; right-click or press and hold: its menu (CAP-22).
     if (message.kind === "resolve_asked") void resolveSensor({ keep: message.keep as Keep, cut_ids: [message.feature_id as string] });
     if (message.kind === "cut_chosen") void cutMenu(message.feature_id as string);
+    // A TMA solution dragged: the bearing view works its residuals out again as it moves (CAP-21, NFR-04).
+    if (message.kind === "tma_preview") tmaControl.preview(message.feature_id as string, (message.preview as { coordinates: [number, number][] } | undefined)?.coordinates);
+    // Two clicks for a first guess made, or cancelled.
+    if (message.kind === "tma_guessed") {
+      const asked = tmaGuessing;
+      tmaGuessing = undefined;
+      const request = message.tma_request as TmaRequest | undefined;
+      if (request && asked) void createTma({ ...asked, ...request });
+      else toast("No solution made: the two clicks were cancelled.");
+    }
     if (message.kind === "image_rendered") imageRendered?.(message as { image?: RenderedImage; message?: string });
     if (message.kind === "latest_asked" && opened) void openPlot(opened.item.id);
     if (message.kind === "annotation_drawn") {
@@ -1582,8 +1600,15 @@ function renderOutline(): void {
         const props = f.properties as { times?: string[]; time?: string };
         row.innerHTML = `<span class="name"></span> <span class="detail"></span>`;
         row.querySelector(".name")!.textContent = featureName(f, opened?.plot);
+        // A TMA solution (CAP-21): a small TMA beside its name, with its contact.
+        const tma = f.properties.kind === "track" ? f.properties.tma : undefined;
+        if (tma) {
+          const tag = Object.assign(document.createElement("span"), { className: "tag", textContent: "TMA", title: `A TMA solution of ${tma.contact}: Bearings shows its residuals` });
+          tag.setAttribute("aria-label", `a TMA solution of ${tma.contact}`);
+          row.querySelector(".name")!.after(" ", tag);
+        }
         // A track plotted by dead reckoning: a small DR beside its name (decision, product owner, 14 Oct 2026).
-        if (f.properties.kind === "track" && isDeadReckoned(f.properties)) {
+        else if (f.properties.kind === "track" && isDeadReckoned(f.properties)) {
           const tag = Object.assign(document.createElement("span"), { className: "tag", textContent: DR_TAG, title: "Plotted by dead reckoning (DR), from its first fix by each fix's course and speed" });
           tag.setAttribute("aria-label", "plotted by dead reckoning");
           row.querySelector(".name")!.after(" ", tag);
@@ -1692,6 +1717,131 @@ outlineList.addEventListener(
 
 // --- Sensors: ambiguous bearings resolved, sensor data read in (CAP-22) -------------------
 /** Keep a side of ambiguous cuts, or make them ambiguous again, or read a file's sensor lines in, as debrief/resolve_ambiguity and debrief/import_sensor do: one step each. */
+// --- The bearing view (CAP-21; product owner, 24 Oct 2026): a sensor's cuts, TMA solutions
+// made from them, and their residuals, live while one is dragged on the map --------------------
+/** Which sensor's cuts the view lists, and which solution it shows: the reader's, never saved. */
+let tmaSensor: string | undefined;
+let tmaSolution: string | undefined;
+/** The cuts two clicks on the map are asked for, until they are made or cancelled. */
+let tmaGuessing: TmaRequest | undefined;
+let tmaAsking = 0;
+/** How long Python took to work out the residuals shown, ms: for the drag budget's measure (NFR-04). */
+const tmaCompute: number[] = [];
+const tmaControl = new TmaControl($("bearings"), {
+  choose: (id) => void chooseTma(id),
+  create: (request) => void createTma(request),
+  guess: (request) => {
+    tmaGuessing = request;
+    post(map, { kind: "tma_guess", tma_request: request });
+  },
+  exclude: (feature, cutIds, excluded) => void changeTma({ kind: "exclude", feature, cut_ids: cutIds, excluded }),
+  split: (feature, at) => void changeTma({ kind: "split", feature, at }),
+  time: (at) => timeTo(at),
+  resolve: (cutId, keep) => void resolveSensor({ keep, cut_ids: [cutId] }),
+});
+(window as unknown as { debriefTma: TmaControl; debriefTmaCompute: number[] }).debriefTma = tmaControl;
+bearingsTime = () => {
+  if (time) tmaControl.setTime(Date.parse(time.current), time.range);
+};
+(window as unknown as { debriefTmaCompute: number[] }).debriefTmaCompute = tmaCompute;
+
+/** The sensors, solutions, and the cuts or residuals the view shows, asked of Python again. */
+async function refreshBearings(): Promise<void> {
+  if (!opened || !panels.has("bearings")) return;
+  const plot = opened.plot;
+  const asked = ++tmaAsking;
+  const sensors = tmaSensorRows(plot);
+  const solutions = tmaSolutionRows(plot);
+  if (tmaSolution && !solutions.some((s) => s.id === tmaSolution)) tmaSolution = undefined;
+  if (!tmaSensor || !sensors.some((s) => s.id === tmaSensor)) tmaSensor = sensorOfSelection(plot, selection) ?? sensors[0]?.id;
+  const sensor = sensors.find((s) => s.id === tmaSensor);
+  let cuts: TmaCut[] | undefined;
+  let residuals: TmaResiduals | undefined;
+  if (pythonReady) {
+    const outcome = await pythonJson<{ cuts?: ListedCut[]; residuals?: TmaResiduals; compute_ms?: number; error?: string }>(
+      "tma_view",
+      opened.item.id,
+      JSON.stringify(tmaSolution ? { solution: tmaSolution } : { sensor: sensor?.id }),
+    );
+    if (outcome.error) toast(outcome.error, "warning");
+    if (outcome.compute_ms !== undefined) tmaCompute.push(outcome.compute_ms);
+    residuals = outcome.residuals;
+    if (sensor && outcome.cuts) cuts = cutRowsOf(sensor, outcome.cuts, cutColours(plot));
+  }
+  if (asked !== tmaAsking || !opened) return;
+  tmaControl.show({
+    plot_id: opened.item.id,
+    ...(opened.revision && { read_only: true }),
+    sensors,
+    ...(sensor && { sensor_id: sensor.id }),
+    ...(cuts && { cuts }),
+    solutions,
+    ...(residuals && tmaSolution && { solution_id: tmaSolution, residuals }),
+  });
+  if (time) tmaControl.setTime(Date.parse(time.current), time.range);
+}
+/** The reader chose a sensor (its cuts) or a solution (its residuals; selected, so the map shows its handles). */
+async function chooseTma(id: string): Promise<void> {
+  const feature = features().find((f) => f.id === id);
+  if (!feature) return;
+  if (feature.properties.kind === "sensor") {
+    tmaSensor = id;
+    tmaSolution = undefined;
+    await refreshBearings();
+  } else {
+    tmaSolution = id;
+    await select([id]);
+  }
+}
+/** The selection changed: a solution selected alone is shown; a sensor, a cut or its track lists the sensor's cuts. */
+function bearingsFollow(ids: string[]): void {
+  if (!opened) return;
+  const solution = solutionOfSelection(opened.plot, ids);
+  const sensor = sensorOfSelection(opened.plot, ids);
+  if (solution && solution !== tmaSolution) {
+    tmaSolution = solution;
+    void refreshBearings();
+  } else if (!solution && sensor && (sensor !== tmaSensor || tmaSolution)) {
+    tmaSensor = sensor;
+    tmaSolution = undefined;
+    void refreshBearings();
+  }
+}
+/** A TMA change, each one step (CAP-21): as debrief/tma_create, tma_split_leg and tma_exclude_cut. */
+async function changeTma(change: Record<string, unknown>): Promise<{ error?: string; feature?: string; notes?: string[] }> {
+  if (!opened || !pythonReady) return { error: "Open a plot first." };
+  status("Saving…", true);
+  const outcome = await pythonJson<{ error?: string; feature?: string; notes?: string[]; changed?: boolean }>("tma_change", opened.item.id, JSON.stringify({ base: opened.base, change }));
+  status("");
+  if (outcome.error) {
+    toast(outcome.error, "warning");
+    if (outcome.error.includes("changed elsewhere")) await openPlot(opened.item.id, true);
+    return outcome;
+  }
+  if (outcome.feature) {
+    tmaSolution = outcome.feature;
+    selection = [outcome.feature];
+  }
+  await openPlot(opened.item.id, true);
+  if (outcome.feature) await select([outcome.feature]);
+  if (outcome.notes?.length) toast(outcome.notes.join(" "));
+  return outcome;
+}
+async function createTma(request: TmaRequest): Promise<void> {
+  const outcome = await changeTma({ kind: "create", request });
+  tmaControl.made(outcome.error);
+  if (!outcome.error) showPanel("panel-bearings");
+}
+/** Current time to a cut's time: within the window, or a window widened to take it in, shown and not saved (CAP-28). */
+function timeTo(at: string): void {
+  if (!time) return;
+  const range = time.range;
+  const within = at >= range.start && at <= range.end;
+  const next: TimeState = { current: at, range: within ? range : { start: at < range.start ? at : range.start, end: at > range.end ? at : range.end } };
+  showTime(next);
+  post(map, { kind: "set_time", time: next });
+}
+
 async function sense<T>(change: Record<string, unknown>, data?: Uint8Array): Promise<T & { error?: string; notes?: string[] }> {
   if (!opened || !pythonReady) return { error: "Open a plot first." } as T & { error: string };
   const outcome = await pythonJson<T & { error?: string; notes?: string[] }>("sensor", opened.item.id, JSON.stringify({ base: opened.base, change }), ...(data ? [data] : []));
@@ -2264,7 +2414,7 @@ function setUpExport(): void {
 setUpExport();
 
 // --- Wiring -----------------------------------------------------------------------
-const OPTIONAL = ["tour", "tote", "timeline", "catalogue", "coverage", "tools", "history", "export", "try", "import"];
+const OPTIONAL = ["tour", "tote", "timeline", "catalogue", "coverage", "bearings", "tools", "history", "export", "try", "import"];
 // A panel not listed is not shown; a menu (Export, Try, Import) is shown only when opened.
 for (const panel of OPTIONAL) $(`panel-${panel}`).hidden = !panels.has(panel) || $(`panel-${panel}`).classList.contains("menu-panel");
 // The top bar's menus, and the Catalogue's Import…, only where their panels are listed.

@@ -28,8 +28,9 @@ export const LAYOUT_KEY = "debrief.play.layout";
  * Raised whenever the panels or the layout's meaning change: an older layout is then not used.
  * 2: the second round's default (product owner, 23 Oct 2026): walkthroughs alone on the right.
  * 3: three groups on the left (product owner, 24 Oct 2026): Tools and History beside the Tote.
+ * 4: the Bearings panel (TMA, CAP-21; 24 Oct 2026), a tab beside the Timeline and Coverage under the map.
  */
-export const LAYOUT_VERSION = 3;
+export const LAYOUT_VERSION = 4;
 /** The map's place in the layout: an empty slot the map is laid over. */
 export const MAP_ID = "map";
 

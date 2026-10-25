@@ -11,6 +11,7 @@ export const PANELS = [
   { id: "panel-timeline", title: "Timeline" },
   { id: "panel-catalogue", title: "Catalogue" },
   { id: "panel-coverage", title: "Coverage" },
+  { id: "panel-bearings", title: "Bearings" },
   { id: "panel-tools", title: "Tools" },
   { id: "panel-history", title: "History" },
 ];
@@ -30,7 +31,7 @@ export const DEFAULT_GROUPS = [
   { place: "left", panels: ["panel-time"] },
   { place: "left", panels: ["panel-tote", "panel-tools", "panel-history"] },
   { place: "left", panels: ["panel-outline", "panel-catalogue"] },
-  { place: "centre", panels: ["panel-timeline", "panel-coverage"] },
+  { place: "centre", panels: ["panel-timeline", "panel-coverage", "panel-bearings"] },
   { place: "right", panels: ["panel-tour"] },
 ];
 

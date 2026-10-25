@@ -10,7 +10,8 @@ import { randomBytes } from "node:crypto";
 import { request as httpRequest } from "node:http";
 import { tmpdir } from "node:os";
 import { createInterface } from "node:readline";
-import type { AmbiguityResolution, AnnotationSpec, CoverageReport, DebriefFeatureCollection, FigureSource, ImageExport, ItemRevision, NarrativeSpec, MeasureDefinition, MeasureGroup, PlotView, ReviewFlag, SharedState, SourceTrackRef, TimeRange, TimeState, ToolDeclaration, ToolResult, ToteResult, ToteView, TrackEdit, Viewport } from "@debrief/schemas";
+import type { AmbiguityResolution, AnnotationSpec, CoverageReport, DebriefFeatureCollection, FigureSource, ImageExport, ItemRevision, NarrativeSpec, MeasureDefinition, MeasureGroup, PlotView, ReviewFlag, SharedState, SourceTrackRef, TimeRange, TimeState, TmaRequest, TmaResiduals, ToolDeclaration, ToolResult, ToteResult, ToteView, TrackEdit, Viewport } from "@debrief/schemas";
+import type { ListedCut } from "../webview/tma.js";
 import { guardRequest, type ShownReadOnly } from "./figures.js";
 import type { ToolOutcome } from "./diagnostics.js";
 import type { NarrativeChoices, NarrativePreview } from "./narrativeimport.js";
@@ -557,6 +558,31 @@ export class ToolService {
    */
   setArrayOffset(store: string, item: string, base: Base, agent: Agent, asked: { sensor_ids: string[]; offset: { value: number; unit: string } | null; mode?: "worm_in_hole" | "plain" }, allowNewerSchema = false): Promise<Opened & { changed: boolean; notes?: string[] }> {
     return this.request("debrief/set_array_offset", { store, item, base, agent, ...asked, ...(allowNewerSchema && { allow_newer_schema: true }) });
+  }
+
+  /** A sensor's cuts within a period (all of them, without), each with its bearings, side and where it was taken from (debrief/sensors): the bearing view's list. Changes nothing. */
+  sensorCuts(store: string, item: string, sensorId: string, period?: { start: string; end: string }): Promise<{ sensors: { id: string; cut_list?: ListedCut[] }[] }> {
+    return this.request("debrief/sensors", { store, item, sensor_ids: [sensorId], cuts: true, ...(period && { period }) });
+  }
+
+  /** A TMA solution of a contact, rooted in a period of cuts, from a first guess (CAP-21): one recorded, undoable step. Returns its id and residuals. */
+  tmaCreate(store: string, item: string, base: Base, agent: Agent, request: TmaRequest, allowNewerSchema = false): Promise<Opened & { changed: boolean; feature: string; notes?: string[]; residuals: TmaResiduals }> {
+    return this.request("debrief/tma_create", { store, item, base, agent, request, ...(allowNewerSchema && { allow_newer_schema: true }) });
+  }
+
+  /** A TMA solution's bearing residuals and RMS error (CAP-21). Changes nothing. */
+  tmaResiduals(store: string, item: string, feature: string): Promise<{ residuals: TmaResiduals }> {
+    return this.request("debrief/tma_residuals", { store, item, feature });
+  }
+
+  /** Rooted cuts left out of a solution's RMS error, or counted again: one step; changed false if none would change. */
+  tmaExclude(store: string, item: string, base: Base, agent: Agent, feature: string, cutIds: string[], excluded: boolean, allowNewerSchema = false): Promise<Opened & { changed: boolean; notes?: string[] }> {
+    return this.request("debrief/tma_exclude_cut", { store, item, base, agent, feature, cut_ids: cutIds, excluded, ...(allowNewerSchema && { allow_newer_schema: true }) });
+  }
+
+  /** A solution split into legs at a time, or (join) a leg joined to the one before: one step. */
+  tmaSplitLeg(store: string, item: string, base: Base, agent: Agent, feature: string, at: string, join = false, allowNewerSchema = false): Promise<Opened & { changed: boolean; notes?: string[] }> {
+    return this.request("debrief/tma_split_leg", { store, item, base, agent, feature, at, ...(join && { join }), ...(allowNewerSchema && { allow_newer_schema: true }) });
   }
 
   /** What a .dsf or REP file's sensor lines hold, before they are read into the plot: which track would carry each sensor (CAP-22). Changes nothing. */

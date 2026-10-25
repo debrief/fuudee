@@ -13,3 +13,8 @@ organisations by initial only), written as Word 97-2003 files by LibreOffice
 from the `.docx` that `../synthetic_docs.py` builds, by `make_doc_fixtures.py`,
 for the Word and PDF narrative dialects' tests (CAP-19, DEV-05). The same script
 writes the playground test's `vscode/test/play/red-one-log.docx`.
+
+`tma.dpf` is not legacy Debrief's either: a made-up, unclassified plot of one
+ownship (MAYO), its Bow sensor's cuts, and a legacy TMA solution of a relative
+leg, a dynamic infill and an absolute leg, as `../test_dpf_tma.py` builds it
+(`PLOT`), for the playground test's import of a legacy solution (CAP-21).

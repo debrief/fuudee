@@ -1,6 +1,6 @@
 # Sensors and bearings
 
-How bearings from a platform's sensors come into a plot, how the map draws them, and how an analyst resolves a towed array's ambiguous bearings to one side. The ground TMA (CAP-21) will stand on.
+How bearings from a platform's sensors come into a plot, how the map draws them, and how an analyst resolves a towed array's ambiguous bearings to one side. The ground TMA stands on ([TMA solutions](tma.md), CAP-21).
 
 ## Requirements cited
 
@@ -61,7 +61,7 @@ Which side a bearing is on is told against the course **logged** at the first fi
 ### In the Outline and the Timeline
 
 18. **The Outline.** Each sensor is a row under its host track, with how many cuts it has, and how many are ambiguous and resolved: *Towed array: 132 cuts · 40 ambiguous · 92 resolved*. Its menu: keeping a side (above), **Change colour…**, **Hide on map** and **Show on map**, each one step (*Colour of Bow sonar set to green*). Cuts are not rows: a sensor may have thousands.
-19. **Not in the Timeline (decision, 24 Oct 2026).** The Timeline lists narrative entries, notes and periods to read in time order. Cuts would bury them: the sample's serial has 393 cuts against 46 narrative entries, a towed array gives one every 30 to 60 seconds, and a legacy DSF file gives every cut a label. The current cut is emphasised on the map instead, and the narrative already says when a contact was gained or lost. **A cut list is planned for the TMA PR** (decision, 24 Oct 2026): a virtualised list of a sensor's cuts, where a TMA solution's period is chosen and its residuals read; not in this one.
+19. **Not in the Timeline (decision, 24 Oct 2026).** The Timeline lists narrative entries, notes and periods to read in time order. Cuts would bury them: the sample's serial has 393 cuts against 46 narrative entries, a towed array gives one every 30 to 60 seconds, and a legacy DSF file gives every cut a label. The current cut is emphasised on the map instead, and the narrative already says when a contact was gained or lost. **A cut list** (decision, 24 Oct 2026) is in the Bearings view, with TMA: a virtualised list of a sensor's cuts, where a TMA solution's period is chosen and its residuals read ([TMA solutions](tma.md)).
 
 ### Tracks edited
 
@@ -70,7 +70,7 @@ Which side a bearing is on is told against the course **logged** at the first fi
 
 ### Agents
 
-22. `debrief/sensors` (reading): the plot's sensors, each with its host, colour, whether it is hidden, how many cuts, ambiguous and resolved, and its first and last cut's time; with `cuts: true`, each cut in `period` (at most 20,000 in all) with its time, bearings, which was kept, the side its first bearing is on, its range, label, comment and where it is drawn from: what a TMA solution will be rooted in.
+22. `debrief/sensors` (reading): the plot's sensors, each with its host, colour, whether it is hidden, how many cuts, ambiguous and resolved, and its first and last cut's time; with `cuts: true`, each cut in `period` (at most 20,000 in all) with its time, bearings, which was kept, the side its first bearing is on, its range, label, comment and where it is drawn from: what a TMA solution is rooted in.
 23. `debrief/resolve_ambiguity` (changing): `keep` (`port`, `starboard`, `bearing`, `ambiguous_bearing`, or `ambiguous` for both again) and either `cut_ids`, or `sensor_ids` and perhaps a `period` (hidden cuts left out). One step. `debrief/set_array_offset` (changing): `sensor_ids`, `offset` (`{value, unit}`, or null for at the ship) and `mode`. One step. `debrief/sensors` gives a sensor's `array_offset_m` and `array_mode`, and each cut's origin from the array.
 24. `debrief/preview_sensor` says what a file's sensor lines hold, and which track would carry each, changing nothing; `debrief/import_sensor` reads them in, one step, with `hosts` naming the track for a track name the plot has not, and `again` to read a file read before. Both are in `schemas/vectors/service-methods.json`, so an earlier revision shown read-only refuses the changing ones.
 
@@ -135,10 +135,8 @@ In Python, resolving cuts reads only the host's fixes it needs (a track's times 
 
 - **Bearing-error wedges**, until a field is agreed (above).
 - **The automatic ambiguity resolver** (CAP-33): proposing each cut's side from ownship's manoeuvres (a true bearing steady across a turn is on the side whose relative bearing changed by the turn), for the analyst to confirm or change as one step. Recorded, not built.
-- **A cut list** (decision, 24 Oct 2026): a virtualised list of a sensor's cuts, planned for the TMA PR.
 - **Array offsets that vary**, or an array centre from measured data (legacy's other modes): an array is a fixed distance astern.
 - **Frequency**, by decision (CAP-22).
-- **TMA** (CAP-21): a solution rooted in the cuts of the time window, its positions at their times, and residuals against them.
 
 ## Reference implementation
 

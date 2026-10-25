@@ -1127,6 +1127,7 @@ MESSAGE_MEMBERS: dict[str, tuple[str, ...]] = {
     "tma_exclude": ("feature_id", "cut_ids", "excluded"),
     "tma_split": ("feature_id", "current_time"),
     "tma_time_asked": ("current_time",),
+    "tma_made": ("feature_id?", "message?"),
 }
 
 

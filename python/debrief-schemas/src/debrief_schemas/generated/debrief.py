@@ -1375,6 +1375,10 @@ class WebviewMessageKindEnum(str, Enum):
     """
     Bearing view to host: move current time to this cut's time (current_time), so the map emphasises it.
     """
+    tma_made = "tma_made"
+    """
+    Host to bearing view: the solution asked for was made (feature_id), so the first guess's form closes; or, with message alone, why it was not, the form left open.
+    """
 
 
 class StepStateEnum(str, Enum):
