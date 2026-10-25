@@ -1072,7 +1072,7 @@ export class TmaControl {
     this.renderTools();
     this.drawPlot();
     this.renderCue();
-    this.say("Zoom reset: the whole coverage shown.");
+    this.say("Zoom reset: every cut of the sensors shown again.");
   }
 
   private setZoom(zoom: Zoom): void {
