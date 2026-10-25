@@ -16,6 +16,8 @@
         <link rel="prev" href="../../25/sensor-bearings/">
       
       
+        <link rel="next" href="../../27/tma-walkthrough/">
+      
       
         
       
@@ -69,7 +71,7 @@
     
     
     
-    <body dir="ltr" data-md-color-scheme="default" data-md-color-primary="indigo" data-md-color-accent="indigo"><div class="pr-preview-banner" style="background:#fff4ce;color:#3b2f00;border-bottom:1px solid #e0c060;padding:6px 16px;font:14px/1.4 system-ui,sans-serif;text-align:center">Preview of <a style="color:inherit;text-decoration:underline" href="https://github.com/debrief/fuudee/pull/60">pull request #60</a>: Bearings view as legacy&#x27;s Bearing Residuals (Stacked Dots): vertical time, auto-fit, cue, zoom, course/speed. Built from 9df2124 on 2026-10-25 16:05 UTC. <a style="color:inherit;text-decoration:underline" href="https://debrief.github.io/fuudee/pr-preview/">All previews</a></div>
+    <body dir="ltr" data-md-color-scheme="default" data-md-color-primary="indigo" data-md-color-accent="indigo"><div class="pr-preview-banner" style="background:#fff4ce;color:#3b2f00;border-bottom:1px solid #e0c060;padding:6px 16px;font:14px/1.4 system-ui,sans-serif;text-align:center">Preview of <a style="color:inherit;text-decoration:underline" href="https://github.com/debrief/fuudee/pull/60">pull request #60</a>: Bearings view as legacy&#x27;s Bearing Residuals (Stacked Dots): vertical time, auto-fit, cue, zoom, course/speed. Built from d1ba877 on 2026-10-25 18:11 UTC. <a style="color:inherit;text-decoration:underline" href="https://debrief.github.io/fuudee/pr-preview/">All previews</a></div>
   
     
     <input class="md-toggle" data-md-toggle="drawer" type="checkbox" id="__drawer" autocomplete="off">
@@ -1847,7 +1849,7 @@
 
 <p><em>The pictures come from the playground, which runs in a browser. The tracks and bearings are the sample exercise's serial 2, made up as the exercise is: BLUE ONE zigzags astern of RED ONE to get its range.</em></p>
 <h2 id="choose-the-period">Choose the period<a class="headerlink" href="#choose-the-period" title="Permanent link">&para;</a></h2>
-<p>A new <strong>Bearings</strong> view stands tall to the right of the map, a tab behind the walkthroughs (in VS Code, in Debrief's side bar). Select a sensor, or its track, and it lists the sensor's cuts: time, sensor and bearing, both bearings for a towed array's unresolved pairs. The list is virtualised: only the rows in sight are in the page, so a sensor with thousands of cuts scrolls as easily as one with ten. It's a listbox for the keyboard: <code>Up</code> and <code>Down</code> move, <code>Shift</code> with them extends the period, <code>Home</code> and <code>End</code>, <code>Enter</code> moves current time to the cut so the map picks it out. Until you choose, the period follows the time window.</p>
+<p>A new <strong>Bearings</strong> view sits to the right of the map, above the walkthroughs, so a walkthrough's steps stay in sight while you work (in VS Code, in Debrief's side bar). Select a sensor, or its track, and it lists the sensor's cuts: time, sensor and bearing, both bearings for a towed array's unresolved pairs. The list is virtualised: only the rows in sight are in the page, so a sensor with thousands of cuts scrolls as easily as one with ten. It's a listbox for the keyboard: <code>Up</code> and <code>Down</code> move, <code>Shift</code> with them extends the period, <code>Home</code> and <code>End</code>, <code>Enter</code> moves current time to the cut so the map picks it out. Until you choose, the period follows the time window.</p>
 <p><img alt="The playground with serial 2 open: the Bow sonar's cuts listed in the Bearings view right of the map, 60 of them chosen from 12:24:00Z to 13:08:30Z, the last row outlined; the map shows the sonar's teal lines from BLUE ONE" src="../../../../images/phase-4/tma-01-cut-list.png" /></p>
 <h2 id="a-first-guess">A first guess<a class="headerlink" href="#a-first-guess" title="Permanent link">&para;</a></h2>
 <p><strong>Make solution…</strong> opens the first guess: where the contact was, along the first cut's bearing, and the course and speed it kept. Debrief fills in its own guess, 10,000 yards out (in your units: <em>4.94 nmi</em>), a course across the bearing, 8 knots, and says beneath each field what it has read as you type. Here the analyst does as legacy's tutorial teaches: pins the start on the first bearing, 1.73 nmi out, and guesses the rest, 320°, 5 kn.</p>
@@ -1874,7 +1876,7 @@
 <h2 id="for-agents">For agents<a class="headerlink" href="#for-agents" title="Permanent link">&para;</a></h2>
 <p><code>debrief/tma_create</code> makes a solution from a sensor's cuts and a period (or named cuts), a contact, and a first guess or none for Debrief's defaults, and answers its residuals. <code>debrief/tma_residuals</code> reads them. <code>debrief/tma_exclude_cut</code> leaves cuts out of the RMS or counts them again, and <code>debrief/tma_split_leg</code> splits a solution into legs. Each change is one step, recorded with what was asked.</p>
 <h2 id="try-it">Try it<a class="headerlink" href="#try-it" title="Permanent link">&para;</a></h2>
-<p>Open <em>Serial 2</em>, select <strong>Bow sonar</strong> under BLUE ONE in the Outline, open the <strong>Bearings</strong> tab right of the map, choose a period of cuts and <strong>Make solution…</strong>; then drag the solution's end on the map until the Error pane turns green.</p>
+<p>Open <em>Serial 2</em>, select <strong>Bow sonar</strong> under BLUE ONE in the Outline, go to <strong>Bearings</strong> right of the map, choose a period of cuts and <strong>Make solution…</strong>; then drag the solution's end on the map until the Error pane turns green.</p>
 <div class="debrief-demo" data-demo="?panels=bearings,history" data-height="820px" data-caption="Open Serial 2, select the Bow sonar, then in Bearings choose a period of cuts and Make solution…. Drag the solution's end on the map and the residuals follow. Everything runs in your browser."></div>
 
 <h2 id="not-yet">Not yet<a class="headerlink" href="#not-yet" title="Permanent link">&para;</a></h2>
