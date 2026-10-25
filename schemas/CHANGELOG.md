@@ -2,6 +2,17 @@
 
 The data-file schema is versioned independently of Debrief (SUB-12). Before 1.0.0 there is no migration guarantee (SUB-13).
 
+## 0.0.24 (24 Oct 2026)
+
+- TMA solutions (CAP-21; decisions, product owner, 24 Oct 2026):
+  - `TrackProperties.tma` (`TmaSolution`: `contact`, `sensor_ids`, `cut_ids`, `period`, `leg_starts`, `excluded_cut_ids`): a track plotted by dead reckoning is a TMA solution of a contact, rooted by the ids of the cuts it was made from (so it keeps them through a split or merge of its sensor's track), its legs starting at the times given, the cuts named left out of its RMS. Rules: a contact named; the period in order; each cut rooted once and left out once, only cuts rooted left out; legs' starts in order.
+  - `TmaRequest` (`sensor_ids`, `period` or `cut_ids`, `contact`, `name`, `colour`; a first guess by form, `range` (a Length), `first_bearing` (`SensorCutKeptEnum`), `course` and `speed`, or by two clicks, `first_position` and `last_position`; none for Debrief's defaults): what a solution is made from, as the Bearings view, an agent or the map asks. Rules: cuts or sensors, not both; a guess by form complete, or both clicks; not both; positions on the globe; a range above 0 and a speed of 0 or more.
+  - Hidden cuts and both bearings (product owner, 25 Oct 2026): `TmaResidualRow.other_residual`, an unresolved ambiguous cut's other bearing's residual, drawn faint and never counted; `TmaResiduals.hidden`, how many rooted cuts are hidden on the map and so left out until shown again.
+  - A new module, `tma.yaml`: `TmaView` (what the Bearings view shows: `sensors`, `sensor_id`, `cuts`, `solutions`, `solution_id`, `residuals`, `read_only`), `TmaSensorRow`, `TmaCut` (a cut as listed: its bearings, which was kept, its side, origin and whether Debrief derived it), `TmaSolutionRow` (`times`, `leg_starts`), `TmaResidualRow` (a cut with `measured`, `used`, `calculated`, `residual`, `nearer_side`, `excluded`, `leg`) and `TmaResiduals` (`rows`, `rms`, `counted`, `excluded`, `without`, `nearer_side`, `derived_origins`), and `SideEnum`.
+- Webview messages for the Bearings view and the map: `show_tma` (host to view: `tma`), `tma_chosen` (`feature_id`: a sensor or a solution chosen), `tma_create` (`tma_request`), `tma_guess` (host to map: `tma_request`, or none to stop), `tma_guessed` (map to host: the request with both clicks, or none, cancelled), `tma_preview` (map to host: `feature_id`, `preview`, a solution's fixes as a drag leaves them, none when it ends), `tma_exclude` (`feature_id`, `cut_ids`, `excluded`), `tma_split` (`feature_id`, `current_time`), `tma_time_asked` (`current_time`) and `tma_made` (host to view: `feature_id`, or `message`, why not).
+- Shared vectors `schemas/vectors/tma-residuals.json`: residuals and RMS (a straight leg, cuts between fixes, a solution passing north, ambiguous cuts measured by the nearer bearing (and the other bearing's residual), a cut resolved to its ambiguous bearing, cuts left out and without a residual, the antimeridian, the far north, fixes sharing a time), wrapping, a click taken onto a cut's line, and the first guess's defaults, held by Python and TypeScript. `schemas/vectors/service-methods.json` gains `debrief/tma_create`, `debrief/tma_split_leg` and `debrief/tma_exclude_cut` (changing the plot) and `debrief/tma_residuals` (leaving it alone).
+- Before 1.0.0 only an exact version opens (SUB-13): plots written as 0.0.23 must be imported or built again.
+
 ## 0.0.23 (24 Oct 2026)
 
 - Sensors and their bearings (CAP-22; decisions, product owner, 24 Oct 2026):

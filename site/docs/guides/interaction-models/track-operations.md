@@ -177,7 +177,7 @@ Part B1 (decision, product owner, 13 Oct 2026): **shear is the operation analyst
 
 13. **For agents.** `debrief/edit_track` with `{"action": "shear", "anchor": "start", "distance": {"value": 1.2, "unit": "[nmi_i]"}, "bearing": {"value": 45, "unit": "deg"}}` (the dragged end's move), `{"action": "shear", "anchor": "end", "course": {"value": 87.2, "unit": "deg"}, "speed": {"value": 12.4, "unit": "[kn_i]"}}` (the course and speed made good), or `{"action": "stretch", "anchor": "start", "speed": {"value": 12.4, "unit": "[kn_i]"}}`, each with a `period` to change only that. In VS Code, `debrief.shearTrack` and `debrief.stretchTrack` take the track and the edit, without `action`, instead of asking.
 
-*Not in this part:* live bearing residuals while dragging, and solutions rooted in a period of bearings (the TMA module, CAP-21); shearing one leg of a multi-leg solution apart from the others.
+Live bearing residuals while dragging, solutions rooted in a period of bearings, and shearing one leg of a multi-leg solution apart from the others (**This leg**) are the TMA module's: [TMA solutions](tma.md) (CAP-21, 24 Oct 2026).
 
 ## Cleaning tracks
 
@@ -350,7 +350,7 @@ Decision, product owner, 14 Oct 2026. On a track plotted by dead reckoning the t
 
     An operation on the time window changes the course and speed of each fix in it, ends included: each is the leg that starts at that fix, so the leg out of the window's last fix changes too. A legacy .dpf DR leg that records no courses or speeds is edited by its positions, as over the ground.
 
-2. **The fixes after follow on.** Over the ground, changing the fixes in the time window leaves the rest where they are, so the track jumps where they meet. On a DR track each fix is placed from the one before, so the fixes after the window follow on, with no jump: that is the nature of dead reckoning. The map and the step say so: *the fixes after follow on, by dead reckoning*.
+2. **The fixes after follow on.** Over the ground, changing the fixes in the time window leaves the rest where they are, so the track jumps where they meet. On a DR track each fix is placed from the one before, so the fixes after the window follow on, with no jump: that is the nature of dead reckoning. The map and the step say so: *the fixes after follow on, by dead reckoning*. A TMA solution split into legs is the exception (product owner, 25 Oct 2026): each leg is independent, so dragging one leaves the other legs where they are and solves the joins either side again ([TMA solutions](tma.md)).
 
 3. **What the map shows.** While dragging, the map draws the track as dead reckoning will leave it: the later fixes, marked, and their rings follow the pointer, the track as it was dashed beneath. The note says what changes in dead-reckoning terms: *RED ONE (DR) fix at 09:43:00Z: moving 0.42 nmi 045.0°T; leg into it now 056.5°T 12.1 kn (was 045.0°T 12.0 kn); the fixes after follow*, adding *faster than 15.0 kn, as a jump would be* when the new leg is; *RED ONE (DR): rotating 3.0° clockwise about …; the courses in the time window turn, and the fixes after follow on, by dead reckoning*; *RED ONE (DR): stretching to 12.4 kn (was 11.6 kn); every speed is scaled*; *RED ONE (DR): shearing to 087.2°T 12.4 kn; end moved 1.20 nmi 045.0°T; one set and drift is added to every leg*. **Move a fix…** says the same of a position typed. What the map draws is what the tool service makes: both work it out the same way, and shared test vectors check that they agree, at mid-latitude, far north and across the antimeridian.
 

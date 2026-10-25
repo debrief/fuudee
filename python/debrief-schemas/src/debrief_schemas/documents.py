@@ -587,6 +587,7 @@ def _feature_problems(
         problems += _fix_mark_problems(where, props)
         problems += _interval_problems(where, props)
         problems += _collation_problems(where, props)
+        problems += tma_solution_problems(where, props)
 
     elif props.kind == "annotation":
         problems += _annotation_problems(where, feature)
@@ -764,6 +765,67 @@ def _collation_problems(where: str, props: Any) -> list[str]:
             f"{where}: the track {sorted(both)[0][2]!r} of {sorted(both)[0][1]!r} is both "
             "linked and unlinked"
         )
+    return problems
+
+
+def tma_solution_problems(where: str, props: Any) -> list[str]:
+    """Rules for a track that is a TMA solution (CAP-21) that JSON Schema cannot express:
+    a contact named; its period from start to end; each rooted cut named once; the cuts
+    left out of its RMS among them, each once; its legs starting in time order, each
+    once (a leg left with no fixes, by fixes removed, is no leg). Cuts no longer in the
+    plot are allowed: its residuals count them as giving none, as a narrative entry may
+    name a track gone."""
+    tma = props.tma
+    if tma is None:
+        return []
+    problems = []
+    if not tma.contact.strip():
+        problems.append(f"{where}: a TMA solution names its contact")
+    problems += _time_range_problems(f"{where} TMA period", tma.period)
+    for name, ids in (("cut_ids", tma.cut_ids), ("excluded_cut_ids", tma.excluded_cut_ids or [])):
+        twice = sorted(i for i, n in Counter(ids).items() if n > 1)
+        if twice:
+            problems.append(f"{where}: the TMA solution's {name} names {twice[0]!r} more than once")
+    stray = sorted(set(tma.excluded_cut_ids or []) - set(tma.cut_ids))
+    if stray:
+        problems.append(f"{where}: cut {stray[0]!r} is left out of the RMS but is not rooted")
+    starts = tma.leg_starts or []
+    if any(a >= b for a, b in zip(starts, starts[1:], strict=False)):
+        problems.append(f"{where}: the TMA solution's legs do not start in time order")
+    return problems
+
+
+def tma_request_problems(request: Any, where: str = "tma_request") -> list[str]:
+    """Rules for a TMA solution asked for (CAP-21): the cuts, as sensors and perhaps a
+    period, or cuts named, not both; and a first guess either by form (a range, a
+    course and a speed) or by two positions, not both. A request with no guess yet
+    names only the cuts, as the host asks the map for two clicks."""
+    problems = []
+    if request.cut_ids and (request.sensor_ids or request.period):
+        problems.append(f"{where}: name the cuts, or the sensors and a period, not both")
+    problems += _time_range_problems(f"{where} period", request.period)
+    form = [request.range, request.course, request.speed]
+    clicks = [request.first_position, request.last_position]
+    if any(v is not None for v in form) and any(v is not None for v in clicks):
+        problems.append(f"{where}: a first guess is by form or by two positions, not both")
+    if any(v is not None for v in form) and not all(v is not None for v in form):
+        problems.append(f"{where}: a first guess by form gives a range, a course and a speed")
+    if any(v is not None for v in clicks) and not all(v is not None for v in clicks):
+        problems.append(f"{where}: a first guess by two clicks gives both positions")
+    for name, position in (
+        ("first_position", request.first_position),
+        ("last_position", request.last_position),
+    ):
+        if position is not None and not (-180 <= position[0] <= 180 and -90 <= position[1] <= 90):
+            problems.append(f"{where}: {name} is not on the globe")
+    if request.range is not None and not (
+        math.isfinite(request.range.value) and request.range.value > 0
+    ):
+        problems.append(f"{where}: the range is more than nothing")
+    if request.speed is not None and not (
+        math.isfinite(request.speed.value) and request.speed.value >= 0
+    ):
+        problems.append(f"{where}: the speed is 0 or more")
     return problems
 
 
@@ -1056,6 +1118,16 @@ MESSAGE_MEMBERS: dict[str, tuple[str, ...]] = {
     "latest_asked": (),
     "resolve_asked": ("feature_id", "keep"),
     "cut_chosen": ("feature_id",),
+    "show_tma": ("tma?",),
+    "tma_chosen": ("feature_id",),
+    "tma_create": ("tma_request",),
+    "tma_guess": ("tma_request?",),
+    "tma_guessed": ("tma_request?",),
+    "tma_preview": ("feature_id", "preview?"),
+    "tma_exclude": ("feature_id", "cut_ids", "excluded"),
+    "tma_split": ("feature_id", "current_time"),
+    "tma_time_asked": ("current_time",),
+    "tma_made": ("feature_id?", "message?"),
 }
 
 
@@ -1080,6 +1152,18 @@ def _webview_message_problems(message: g.WebviewMessage, raw: dict[str, Any]) ->
     problems += tote_view_problems(message.tote_view)
     if kind == "resolve_asked" and str(message.keep) not in ("bearing", "ambiguous_bearing"):
         problems.append("resolve_asked keeps the bearing clicked: bearing or ambiguous_bearing")
+    if message.tma_request is not None:
+        problems += tma_request_problems(message.tma_request)
+    if kind == "tma_exclude" and not message.cut_ids:
+        problems.append("tma_exclude names the cuts to leave out or count again")
+    if (
+        kind == "tma_guessed"
+        and message.tma_request is not None
+        and (
+            message.tma_request.first_position is None or message.tma_request.last_position is None
+        )
+    ):
+        problems.append("tma_guessed carries both positions clicked")
     if kind == "image_rendered" and (message.image is None) == (message.message is None):
         problems.append("image_rendered carries either the image or why there is none (message)")
     if message.image is not None and message.image.viewport is not None:

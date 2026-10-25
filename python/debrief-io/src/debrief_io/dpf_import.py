@@ -57,6 +57,7 @@ from collections import Counter
 from importlib.metadata import version
 from pathlib import Path
 
+from debrief_io import dpf_tma
 from debrief_io.dpf import (
     DpfError,
     DpfFile,
@@ -281,7 +282,7 @@ def _track_notes(track: DpfTrack, joined: bool) -> list[str]:
                 "fix's course and speed; the legacy plot does not hold its positions as "
                 "logged, so it cannot be plotted over the ground."
             )
-        if leg.kind in TMA_LEGS:
+        if leg.kind in TMA_LEGS and not dpf_tma.is_solution_track(track):
             notes.append(
                 f"Track {name!r}: leg {leg.name or 'unnamed'!r} ({leg.kind}) is "
                 f"{TMA_LEGS[leg.kind]}. Its {_plural(len(leg.fixes), 'fix', 'fixes')} "
@@ -971,6 +972,8 @@ def build_plot_from_dpf(
     added, sensor_notes, report.sensor_cuts = _sensors(parsed, imported_tracks, features, taken)
     features += added
     notes += sensor_notes
+    # TMA solutions (CAP-21): a track of TMA legs is a solution, rooted in its sensors' cuts.
+    notes += dpf_tma.solutions(parsed, imported_tracks, features)
 
     # Annotations, grouped by layer.
     members: dict[str, list[str]] = {}

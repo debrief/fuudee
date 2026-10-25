@@ -3808,6 +3808,15 @@
       "title": "SharedStateChange",
       "type": "object"
     },
+    "SideEnum": {
+      "description": "Which side of the host's course a bearing is on (CAP-22).",
+      "enum": [
+        "port",
+        "starboard"
+      ],
+      "title": "SideEnum",
+      "type": "string"
+    },
     "SourceRef": {
       "additionalProperties": false,
       "description": "An immutable source file read by an operation (SUB-10, SUB-11).",
@@ -4440,6 +4449,691 @@
       ],
       "title": "TimelineEntryKindEnum",
       "type": "string"
+    },
+    "TmaCut": {
+      "additionalProperties": false,
+      "description": "One cut, as the bearing view lists it.",
+      "properties": {
+        "ambiguous_bearing": {
+          "description": "Its ambiguous twin, degrees true, where it has one.",
+          "type": [
+            "number",
+            "null"
+          ]
+        },
+        "bearing": {
+          "description": "The bearing recorded first, degrees true.",
+          "type": "number"
+        },
+        "colour": {
+          "description": "The colour it is drawn in (its own, or its sensor's).",
+          "pattern": "^#[0-9a-f]{6}$",
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "hidden": {
+          "type": [
+            "boolean",
+            "null"
+          ]
+        },
+        "id": {
+          "description": "The cut's feature id.",
+          "type": "string"
+        },
+        "label": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "origin": {
+          "items": {
+            "description": "[longitude, latitude] it was taken from: its own origin, else its sensor's position at its time (its array's, astern); left out outside its host's fixes, where it gives no residual.",
+            "type": "number"
+          },
+          "maxItems": 2,
+          "minItems": 2,
+          "type": "array"
+        },
+        "origin_derived": {
+          "description": "Its origin was worked out by Debrief (pinned when its track was split), not recorded by the source (round 3 review, 24 Oct 2026).",
+          "type": [
+            "boolean",
+            "null"
+          ]
+        },
+        "resolved": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/SensorCutKeptEnum"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": "Which bearing the analyst kept, if resolved."
+        },
+        "sensor": {
+          "description": "Its sensor's name.",
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "sensor_id": {
+          "type": "string"
+        },
+        "side": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/SideEnum"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": "The side of the host's course its first bearing is on, where it has a twin and the side can be told."
+        },
+        "time": {
+          "pattern": "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}\\.\\d{3}Z$",
+          "type": "string"
+        }
+      },
+      "required": [
+        "id",
+        "sensor_id",
+        "time",
+        "bearing"
+      ],
+      "title": "TmaCut",
+      "type": "object"
+    },
+    "TmaRequest": {
+      "additionalProperties": false,
+      "description": "A TMA solution asked for (CAP-21; product owner, 24 Oct 2026), from the bearing view's form, two clicks on the map, or an agent (debrief/tma_create): the cuts to root it in (sensor_ids and a period, or cut_ids), and a first guess, either by form (a range on the first cut's bearing, a course and a speed) or by two positions (on the first cut's line and on the last's; the course and speed follow). Made as one recorded, undoable step.",
+      "properties": {
+        "colour": {
+          "description": "The solution track's colour, lower-case hex RGB; left out, Debrief's TMA colour.",
+          "pattern": "^#[0-9a-f]{6}$",
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "contact": {
+          "description": "The contact's name; left out, the next of \"Contact 1\", \"Contact 2\"...",
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "course": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/Angle"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": "First guess by form: the solution's course."
+        },
+        "cut_ids": {
+          "description": "Or the cuts to root it in, by feature id.",
+          "items": {
+            "type": "string"
+          },
+          "type": [
+            "array",
+            "null"
+          ]
+        },
+        "first_bearing": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/SensorCutKeptEnum"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": "First guess by form, where the first cut is ambiguous and unresolved: which of its bearings the range is along. Left out, the one kept, else the bearing recorded first."
+        },
+        "first_position": {
+          "items": {
+            "description": "First guess by two clicks: [longitude, latitude] clicked on, or near, the first cut's line: the solution starts on the line, level with it.",
+            "type": "number"
+          },
+          "maxItems": 2,
+          "minItems": 2,
+          "type": "array"
+        },
+        "last_position": {
+          "items": {
+            "description": "First guess by two clicks: [longitude, latitude] clicked on, or near, the last cut's line; the course and speed are those from the first position, on the first cut's line, to this one, on the last's.",
+            "type": "number"
+          },
+          "maxItems": 2,
+          "minItems": 2,
+          "type": "array"
+        },
+        "name": {
+          "description": "The solution track's name; left out, the contact's with \"solution\".",
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "period": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/TimeRange"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": "The cuts whose times fall in it, ends included, of the sensors named."
+        },
+        "range": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/Length"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": "First guess by form: how far along the first cut's bearing, from where it was taken, the solution starts."
+        },
+        "sensor_ids": {
+          "description": "The sensors whose cuts in the period it is rooted in.",
+          "items": {
+            "type": "string"
+          },
+          "type": [
+            "array",
+            "null"
+          ]
+        },
+        "speed": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/Speed"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": "First guess by form: the solution's speed."
+        }
+      },
+      "title": "TmaRequest",
+      "type": "object"
+    },
+    "TmaResidualRow": {
+      "additionalProperties": false,
+      "description": "One rooted cut's residual: its measured bearing less the bearing from its origin to where the solution was at its time, within plus or minus 180 degrees, as legacy Doublet.calculateBearingError.",
+      "properties": {
+        "ambiguous_bearing": {
+          "description": "Its ambiguous twin, degrees true, where it has one.",
+          "type": [
+            "number",
+            "null"
+          ]
+        },
+        "bearing": {
+          "description": "The bearing recorded first, degrees true.",
+          "type": "number"
+        },
+        "calculated": {
+          "description": "The bearing from its origin to the solution at its time, along the geodesic.",
+          "type": [
+            "number",
+            "null"
+          ]
+        },
+        "colour": {
+          "description": "The colour it is drawn in (its own, or its sensor's).",
+          "pattern": "^#[0-9a-f]{6}$",
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "excluded": {
+          "description": "Left out of the RMS error by the analyst.",
+          "type": [
+            "boolean",
+            "null"
+          ]
+        },
+        "hidden": {
+          "type": [
+            "boolean",
+            "null"
+          ]
+        },
+        "id": {
+          "description": "The cut's feature id.",
+          "type": "string"
+        },
+        "label": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "leg": {
+          "description": "Which leg of the solution it falls in, from 1.",
+          "type": [
+            "integer",
+            "null"
+          ]
+        },
+        "measured": {
+          "description": "The bearing measured: the one kept, the cut's only one, or, for an ambiguous cut not yet resolved, the one nearer the solution (nearer_side), which the view says.",
+          "type": [
+            "number",
+            "null"
+          ]
+        },
+        "nearer_side": {
+          "description": "True for an ambiguous cut not yet resolved: measured is the bearing nearer the solution, chosen afresh as it moves (product owner, 24 Oct 2026).",
+          "type": [
+            "boolean",
+            "null"
+          ]
+        },
+        "origin": {
+          "items": {
+            "description": "[longitude, latitude] it was taken from: its own origin, else its sensor's position at its time (its array's, astern); left out outside its host's fixes, where it gives no residual.",
+            "type": [
+              "number",
+              "null"
+            ]
+          },
+          "maxItems": 2,
+          "minItems": 2,
+          "type": "array"
+        },
+        "origin_derived": {
+          "description": "Its origin was worked out by Debrief (pinned when its track was split), not recorded by the source (round 3 review, 24 Oct 2026).",
+          "type": [
+            "boolean",
+            "null"
+          ]
+        },
+        "other_residual": {
+          "description": "An ambiguous cut not yet resolved: its other bearing (the one not measured) less calculated, degrees, within (-180, 180]. Drawn faint and never counted, so the analyst can pick a side from the plot (product owner, 25 Oct 2026).",
+          "type": [
+            "number",
+            "null"
+          ]
+        },
+        "residual": {
+          "description": "measured less calculated, degrees, within (-180, 180]; left out where there is none.",
+          "type": [
+            "number",
+            "null"
+          ]
+        },
+        "resolved": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/SensorCutKeptEnum"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": "Which bearing the analyst kept, if resolved."
+        },
+        "sensor": {
+          "description": "Its sensor's name.",
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "sensor_id": {
+          "type": "string"
+        },
+        "side": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/SideEnum"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": "The side of the host's course its first bearing is on, where it has a twin and the side can be told."
+        },
+        "time": {
+          "pattern": "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}\\.\\d{3}Z$",
+          "type": "string"
+        },
+        "used": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/SensorCutKeptEnum"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": "Which of the cut's bearings measured is."
+        }
+      },
+      "required": [
+        "id",
+        "sensor_id",
+        "time",
+        "bearing"
+      ],
+      "title": "TmaResidualRow",
+      "type": "object"
+    },
+    "TmaResiduals": {
+      "additionalProperties": false,
+      "description": "A solution's bearing residuals (debrief/tma_residuals): a row per rooted cut in time order, and the RMS error of those counted.",
+      "properties": {
+        "counted": {
+          "description": "How many residuals the RMS counts.",
+          "type": "integer"
+        },
+        "derived_origins": {
+          "description": "How many cuts are taken from an origin Debrief worked out.",
+          "type": [
+            "integer",
+            "null"
+          ]
+        },
+        "excluded": {
+          "description": "How many cuts the analyst left out.",
+          "type": "integer"
+        },
+        "hidden": {
+          "description": "How many rooted cuts are hidden on the map: left out of the residuals and the RMS until shown again (legacy's \"only plot visible data\"; product owner, 25 Oct 2026).",
+          "type": [
+            "integer",
+            "null"
+          ]
+        },
+        "nearer_side": {
+          "description": "How many ambiguous cuts use the bearing nearer the solution.",
+          "type": [
+            "integer",
+            "null"
+          ]
+        },
+        "rms": {
+          "description": "The root mean square of the residuals counted (degrees): every rooted cut with a residual, less those left out. Left out when none is counted.",
+          "type": [
+            "number",
+            "null"
+          ]
+        },
+        "rows": {
+          "items": {
+            "$ref": "#/$defs/TmaResidualRow"
+          },
+          "type": "array"
+        },
+        "solution_id": {
+          "type": "string"
+        },
+        "without": {
+          "description": "How many rooted cuts give no residual: outside their host's fixes, or outside the solution's, or no longer in the plot.",
+          "type": "integer"
+        }
+      },
+      "required": [
+        "solution_id",
+        "rows",
+        "counted",
+        "excluded",
+        "without"
+      ],
+      "title": "TmaResiduals",
+      "type": "object"
+    },
+    "TmaSensorRow": {
+      "additionalProperties": false,
+      "description": "A sensor whose cuts the bearing view can list.",
+      "properties": {
+        "ambiguous": {
+          "description": "How many of them are still ambiguous.",
+          "type": [
+            "integer",
+            "null"
+          ]
+        },
+        "colour": {
+          "pattern": "^#[0-9a-f]{6}$",
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "cuts": {
+          "description": "How many cuts it has.",
+          "type": "integer"
+        },
+        "host": {
+          "description": "The name of the track carrying it.",
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "id": {
+          "type": "string"
+        },
+        "name": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "id",
+        "name",
+        "cuts"
+      ],
+      "title": "TmaSensorRow",
+      "type": "object"
+    },
+    "TmaSolution": {
+      "additionalProperties": false,
+      "description": "What makes a track a TMA solution (CAP-21; product owner, 24 Oct 2026): the contact it is a solution of, and the period of bearing cuts it is rooted in, named by the cuts' ids (a sensor's id changes when its track is split; a cut's does not). Its residuals are each rooted cut's bearing less the bearing from where the cut was taken (its origin) to where the solution was at the cut's time. Its legs start at leg_starts: each is dragged on its own, the later ones following on by dead reckoning, so they stay joined.",
+      "properties": {
+        "contact": {
+          "description": "The contact the solution is of, as the analyst names it, such as \"Contact 1\".",
+          "type": "string"
+        },
+        "cut_ids": {
+          "description": "The cuts it is rooted in, by feature id, in time order: every cut of the rooted period on the sensors chosen. Its fixes fall at their times when Debrief makes it. A legacy solution whose sensor the plot does not have has none, and the import says so.",
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "excluded_cut_ids": {
+          "description": "Rooted cuts the analyst left out of the RMS error, such as wild bearings (product owner, 24 Oct 2026): still listed and drawn in the bearing view, not counted. Each change is one step.",
+          "items": {
+            "type": "string"
+          },
+          "type": [
+            "array",
+            "null"
+          ]
+        },
+        "leg_starts": {
+          "description": "When each leg after the first starts, in time order: the solution split into legs (product owner, 24 Oct 2026). A fix exactly at a time starts the later leg, as a split does. Left out, one leg.",
+          "items": {
+            "pattern": "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}\\.\\d{3}Z$",
+            "type": "string"
+          },
+          "type": [
+            "array",
+            "null"
+          ]
+        },
+        "period": {
+          "$ref": "#/$defs/TimeRange",
+          "description": "The period of bearings it is rooted in, ends included."
+        },
+        "sensor_ids": {
+          "description": "The sensors whose cuts it was rooted in when it was made, as their ids were then: what the analyst chose. The cuts themselves are in cut_ids.",
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        }
+      },
+      "required": [
+        "contact",
+        "sensor_ids",
+        "cut_ids",
+        "period"
+      ],
+      "title": "TmaSolution",
+      "type": "object"
+    },
+    "TmaSolutionRow": {
+      "additionalProperties": false,
+      "description": "A TMA solution in the plot, as the bearing view lists it and draws it.",
+      "properties": {
+        "colour": {
+          "pattern": "^#[0-9a-f]{6}$",
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "contact": {
+          "type": "string"
+        },
+        "cuts": {
+          "description": "How many cuts it is rooted in.",
+          "type": "integer"
+        },
+        "id": {
+          "type": "string"
+        },
+        "leg_starts": {
+          "items": {
+            "pattern": "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}\\.\\d{3}Z$",
+            "type": "string"
+          },
+          "type": [
+            "array",
+            "null"
+          ]
+        },
+        "name": {
+          "type": "string"
+        },
+        "period": {
+          "$ref": "#/$defs/TimeRange"
+        },
+        "times": {
+          "description": "Its fixes' times, for the view to place it as a drag moves it.",
+          "items": {
+            "pattern": "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}\\.\\d{3}Z$",
+            "type": "string"
+          },
+          "type": [
+            "array",
+            "null"
+          ]
+        }
+      },
+      "required": [
+        "id",
+        "name",
+        "contact",
+        "period",
+        "cuts"
+      ],
+      "title": "TmaSolutionRow",
+      "type": "object"
+    },
+    "TmaView": {
+      "additionalProperties": false,
+      "description": "What the host sends the bearing view (show_tma): the plot's sensors and solutions; the cuts of the sensor chosen, in time order; and, for the solution shown, its residuals.",
+      "properties": {
+        "cuts": {
+          "items": {
+            "$ref": "#/$defs/TmaCut"
+          },
+          "type": [
+            "array",
+            "null"
+          ]
+        },
+        "plot_id": {
+          "description": "Which plot is open, as its host knows it.",
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "read_only": {
+          "description": "An earlier revision is shown read-only, so nothing can be changed.",
+          "type": [
+            "boolean",
+            "null"
+          ]
+        },
+        "residuals": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/TmaResiduals"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "sensor_id": {
+          "description": "The sensor whose cuts are listed.",
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "sensors": {
+          "items": {
+            "$ref": "#/$defs/TmaSensorRow"
+          },
+          "type": [
+            "array",
+            "null"
+          ]
+        },
+        "solution_id": {
+          "description": "The solution shown: the one selected on the map or in the Outline, or chosen in the view.",
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "solutions": {
+          "items": {
+            "$ref": "#/$defs/TmaSolutionRow"
+          },
+          "type": [
+            "array",
+            "null"
+          ]
+        }
+      },
+      "title": "TmaView",
+      "type": "object"
     },
     "ToolDeclaration": {
       "additionalProperties": false,
@@ -5284,6 +5978,17 @@
             "type": "string"
           },
           "type": "array"
+        },
+        "tma": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/TmaSolution"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": "The track is a TMA solution of a contact, rooted in a period of bearing cuts (CAP-21; product owner, 24 Oct 2026). Otherwise an ordinary track, plotted by dead reckoning, so every track operation works on it unchanged; this says which cuts its bearing residuals are worked out against, its legs, and the cuts left out of its RMS error. Content: each change is a recorded, undoable step (SUB-22)."
         }
       },
       "required": [
@@ -5471,6 +6176,23 @@
           "pattern": "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}\\.\\d{3}Z$",
           "type": [
             "string",
+            "null"
+          ]
+        },
+        "cut_ids": {
+          "description": "The rooted cuts left out of a solution's RMS error, or counted again (tma_exclude).",
+          "items": {
+            "type": "string"
+          },
+          "type": [
+            "array",
+            "null"
+          ]
+        },
+        "excluded": {
+          "description": "Whether the cuts are left out (tma_exclude).",
+          "type": [
+            "boolean",
             "null"
           ]
         },
@@ -5763,6 +6485,28 @@
             "null"
           ]
         },
+        "tma": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/TmaView"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": "What the bearing view shows (show_tma)."
+        },
+        "tma_request": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/TmaRequest"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": "A TMA solution asked for (tma_create, tma_guess, tma_guessed)."
+        },
         "tool": {
           "anyOf": [
             {
@@ -5893,7 +6637,17 @@
         "image_rendered",
         "latest_asked",
         "resolve_asked",
-        "cut_chosen"
+        "cut_chosen",
+        "show_tma",
+        "tma_chosen",
+        "tma_create",
+        "tma_guess",
+        "tma_guessed",
+        "tma_preview",
+        "tma_exclude",
+        "tma_split",
+        "tma_time_asked",
+        "tma_made"
       ],
       "title": "WebviewMessageKindEnum",
       "type": "string"
@@ -5975,5 +6729,5 @@
   ],
   "title": "debrief",
   "type": "object",
-  "version": "0.0.23"
+  "version": "0.0.24"
 }

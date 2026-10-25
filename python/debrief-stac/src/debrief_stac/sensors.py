@@ -660,4 +660,6 @@ def _cut_entry(cut, path: TrackPath | None, at: int, sensor=None) -> dict:
         value = getattr(props, name)
         if value:
             entry[name] = value
+    if props.hidden:
+        entry["hidden"] = True  # every cut of a TMA solution's period counts, hidden or not
     return entry

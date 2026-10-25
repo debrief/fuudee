@@ -110,7 +110,7 @@ In collation, a source is a **catalogue item**: an imported file, kept as a plot
 
 **Dialect** (of a narrative document). One of the layouts legacy Debrief read narrative in from Word and PDF: a *narrative log* (an entry a paragraph, its date, platform and type comma-separated and usually hidden), a *Rider's narrative* (a table), *ASW data* (positions of one platform: a track, not narrative) and *dated narrative* lines. Debrief tells which from the document itself (CAP-19). See [Word and PDF documents](interaction-models/timeline.md#word-and-pdf-documents-cap-19).
 
-**FCS** (fire-control solution). A narrative entry giving a contact's bearing, range, course, speed and classification. Kept as narrative; it becomes a TMA solution position when TMA solutions come (Phase 4).
+**FCS** (fire-control solution). A narrative entry giving a contact's bearing, range, course, speed and classification. Kept as narrative; not yet made a TMA solution's position.
 
 **Highlighted phrases.** Words or phrases the analyst names in the Timeline's menu (**⋯**), marked wherever they are in an entry's text. Like the filter, text size, wrapping and the columns shown, the analyst's own: kept in their view, never in the plot.
 
@@ -132,11 +132,17 @@ In collation, a source is a **catalogue item**: an imported file, kept as a plot
 
 **Bearing error.** The uncertainty of a bearing. Debrief draws bearings as lines; none of the formats it reads gives an error it could draw (`;SENSOR3:`'s bearing accuracy has no agreed meaning), so wedges wait for a field agreed with the acoustic replay application's owners (product owner, 24 Oct 2026; CAP-22).
 
-**TMA** (target motion analysis). Estimating a target's course and speed from bearings, typically bearing-only from passive sonar. A **solution** is rooted in a selected period of bearings, and its positions match the bearing times (CAP-21).
+**TMA** (target motion analysis). Estimating a target's course and speed from bearings, typically bearing-only from passive sonar (CAP-21).
 
-**Residual.** The difference between a measured bearing and the bearing to the solution at the same time. Small, unpatterned residuals suggest a good solution.
+**Solution** (**TMA solution**). A track of a **contact** (*Contact 1*) plotted by dead reckoning, rooted in a period of a sensor's cuts by their ids, with a fix at each cut's time. It is dragged, split and merged as any track, and tagged **TMA** in the Outline. Made from a **first guess**: by form (a range along the first cut's bearing, a course and a speed; Debrief's defaults 10,000 yd, across the bearing, 8 kn) or by two clicks on the map, on the first and last cuts' lines.
 
-**Leg.** A period of steady conditions. An **ownship leg** has steady course and speed; a **bearing leg** has a steady bearing rate. Changes of ownship leg give the geometry TMA needs.
+**Residual.** A measured bearing less the bearing from where the cut was taken to the solution at the same time, from −180° to 180°. Small, unpatterned residuals suggest a good solution. An unresolved ambiguous cut is measured by the bearing nearer the solution, and said so; its other bearing is drawn faint, never counted.
+
+**RMS** (root mean square error). Of a solution's residuals, over its cuts counted: those with a residual, shown on the map (a hidden cut is left out until shown again), and not **left out** by the analyst (a wild bearing, say), each left out or counted again as one step.
+
+**Bearings view.** Where a sensor's cuts are listed and a solution's residuals shown: measured and calculated bearings over time, the residuals beneath, after legacy Debrief's **Stacked Dots**, and the RMS, live while the solution is dragged.
+
+**Leg.** A period of steady conditions. An **ownship leg** has steady course and speed; a **bearing leg** has a steady bearing rate. Changes of ownship leg give the geometry TMA needs. A **solution's legs** are periods of it, split at a time and joined: each is dragged on its own (**This leg**, the leg clicked), the other legs staying where they are and the joins either side solved again.
 
 **SATC** (semi-automatic track construction). Generating a TMA solution automatically from bearings. Lower priority than manual TMA (CAP-21).
 
@@ -190,7 +196,7 @@ In collation, a source is a **catalogue item**: an imported file, kept as a plot
 | Times have microsecond precision | Millisecond precision; finer legacy times are truncated on import and the truncation recorded | SUB-01, EXT-14 |
 | Contacts carry frequency | Frequency is not imported; acoustic analysis stays in the acoustic replay application | CAP-22, EXT-03 |
 | Speeds include feet per second | Knots, metres per second, kilometres per hour | Schema unit enums |
-| Track segments: core, TMA, planning, infill | Not yet in the v4 data model; TMA solutions are rooted in a bearing period | CAP-21 |
+| Track segments: core, TMA (absolute, relative), planning, infill | A TMA solution is a track by dead reckoning tagged with its contact and rooted in its cuts, its legs periods of it; a legacy relative leg becomes positions at import, an infill the join between legs. Planning segments are not yet in the v4 data model | CAP-21 |
 | Depth in every location | Positions are latitude and longitude; a track may carry a depth series, positive down | Schema 0.0.4 |
 | World Location, World Speed, World Distance, World Vector | Position, quantities with units | Implementation names, not domain terms |
 | Plot is a collection of tracks | Plot is the unit of analysis, a GeoJSON FeatureCollection in a STAC catalogue | SUB-05 |

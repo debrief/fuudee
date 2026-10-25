@@ -28,8 +28,9 @@ export const LAYOUT_KEY = "debrief.play.layout";
  * Raised whenever the panels or the layout's meaning change: an older layout is then not used.
  * 2: the second round's default (product owner, 23 Oct 2026): walkthroughs alone on the right.
  * 3: three groups on the left (product owner, 24 Oct 2026): Tools and History beside the Tote.
+ * 4: the Bearings panel (TMA, CAP-21; 24 Oct 2026), a tab beside the Timeline and Coverage under the map.
  */
-export const LAYOUT_VERSION = 3;
+export const LAYOUT_VERSION = 4;
 /** The map's place in the layout: an empty slot the map is laid over. */
 export const MAP_ID = "map";
 
@@ -270,6 +271,22 @@ export class Dock {
   /** Bring a panel's tab to the front. */
   show(id: string): void {
     this.api.getPanel(id)?.api.setActive();
+  }
+
+  /**
+   * A panel's group made at least so tall (at most half the dock's height), when it is in view and
+   * shorter: the Bearings view's plots once a solution is shown (CAP-21). Never shrinks a group the
+   * reader made taller. True if it grew.
+   */
+  atLeast(id: string, height: number): boolean {
+    const panel = this.api.getPanel(id);
+    if (!panel?.api.isVisible) return false;
+    const now = panel.group.element.getBoundingClientRect().height;
+    const most = this.options.container.getBoundingClientRect().height * 0.5;
+    const wanted = Math.min(height, most);
+    if (now >= wanted - 1) return false;
+    panel.group.api.setSize({ height: wanted });
+    return true;
   }
 
   /** The panel ids in each group, in order, the one in front first; for the tests and the menu. */

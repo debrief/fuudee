@@ -56,7 +56,9 @@ from debrief_stac import (
     History,
     HistoryError,
     figures,
+    tma,
 )
+from debrief_stac import sensors as plot_sensors
 from debrief_stac.catalogue import review_flags
 from debrief_stac.fixes import describe_largest
 from debrief_stac.tote import tote as tote_at
@@ -527,6 +529,55 @@ def tote(item: str, request_json: str) -> str:
     except (CatalogueError, HistoryError, ValueError) as error:
         return json.dumps({"error": str(error)})
     return json.dumps({"tote": result, "compute_ms": (time.perf_counter() - started) * 1000})
+
+
+def tma_view(item: str, request_json: str) -> str:
+    """What the bearing view shows (CAP-21): a sensor's cuts, as debrief/sensors lists them
+    with cuts, or a solution's residuals, as debrief/tma_residuals gives them. Says how long
+    the residuals took, for the playground's measure of the drag budget (NFR-04)."""
+    request = json.loads(request_json)
+    started = time.perf_counter()
+    try:
+        plot = _cat().history(item).plot()
+        out: dict[str, Any] = {}
+        if request.get("solution"):
+            out["residuals"] = tma.residual_report(plot, request["solution"])
+            out["compute_ms"] = (time.perf_counter() - started) * 1000
+        elif request.get("sensor"):
+            found = plot_sensors.describe(plot, sensor_ids=[request["sensor"]], with_cuts=True)
+            out["cuts"] = found[0]["cut_list"] if found else []
+    except (CatalogueError, HistoryError, tma.TmaError, ValueError) as error:
+        return json.dumps({"error": str(error)})
+    return json.dumps(out)
+
+
+def tma_change(item: str, request_json: str) -> str:
+    """A TMA solution made, split into legs, or its cuts left out of its RMS or counted
+    again: each one recorded, undoable step (CAP-21), as debrief/tma_create,
+    debrief/tma_split_leg and debrief/tma_exclude_cut do. request: base, and change:
+    {kind: "create", request}, {kind: "split", feature, at} or {kind: "exclude",
+    feature, cut_ids, excluded}."""
+    request = json.loads(request_json)
+    base = Base(**request["base"]) if request.get("base") else None
+    change = request["change"]
+    out: dict[str, Any] = {"ok": True}
+    try:
+        if change["kind"] == "create":
+            step, out["feature"] = _cat().create_tma(item, change["request"], YOU, base)
+        elif change["kind"] == "split":
+            step = _cat().tma_split_leg(item, change["feature"], change["at"], YOU, base)
+        else:
+            step = _cat().tma_exclude(
+                item, change["feature"], change["cut_ids"], bool(change["excluded"]), YOU, base
+            )
+            if step is None:
+                return json.dumps({"ok": True, "changed": False, "notes": []})
+    except Conflict:
+        return json.dumps({"error": "The plot was changed elsewhere, so nothing was changed."})
+    except (CatalogueError, HistoryError) as error:
+        return json.dumps({"error": str(error)})
+    out["notes"] = list(_cat().history(item).steps()[step - 1].records[0].notes or [])
+    return json.dumps(out)
 
 
 def colleague_window(item: str) -> str:

@@ -113,7 +113,7 @@ const cut = (id: string, time: string, bearing: number, more: Record<string, unk
 });
 const plot = {
   type: "FeatureCollection",
-  schema_version: "0.0.23",
+  schema_version: "0.0.24",
   provenance: [],
   features: [
     { type: "Feature", id: "track-blue", geometry: { type: "LineString", coordinates: [[0, 0], [1, 0]] }, properties: { kind: "track", name: "BLUE ONE", times: ["2026-10-11T09:00:00.000Z", "2026-10-11T10:00:00.000Z"] } },

@@ -185,6 +185,41 @@
     ],
     "cut_chosen": [
       "feature_id"
+    ],
+    "show_tma": [
+      "tma?"
+    ],
+    "tma_chosen": [
+      "feature_id"
+    ],
+    "tma_create": [
+      "tma_request"
+    ],
+    "tma_guess": [
+      "tma_request?"
+    ],
+    "tma_guessed": [
+      "tma_request?"
+    ],
+    "tma_preview": [
+      "feature_id",
+      "preview?"
+    ],
+    "tma_exclude": [
+      "feature_id",
+      "cut_ids",
+      "excluded"
+    ],
+    "tma_split": [
+      "feature_id",
+      "current_time"
+    ],
+    "tma_time_asked": [
+      "current_time"
+    ],
+    "tma_made": [
+      "feature_id?",
+      "message?"
     ]
   }
 }

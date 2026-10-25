@@ -1,0 +1,8 @@
+{
+  "kind": "tma_exclude",
+  "feature_id": "track-contact-1-solution",
+  "cut_ids": [
+    "cut-00004"
+  ],
+  "excluded": true
+}

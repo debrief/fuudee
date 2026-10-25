@@ -82,6 +82,7 @@ nav:
           - Tote: guides/interaction-models/tote.md
           - Timeline and narrative: guides/interaction-models/timeline.md
           - Sensors and bearings: guides/interaction-models/sensors.md
+          - TMA solutions: guides/interaction-models/tma.md
           - Collation: guides/interaction-models/collation.md
           - Exported images: guides/interaction-models/export.md
           - Walkthroughs: guides/interaction-models/walkthroughs.md

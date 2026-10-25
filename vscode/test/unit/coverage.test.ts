@@ -119,7 +119,7 @@ describe("a track's coverage, piece by piece, for the Timeline (CAP-05)", () => 
 describe("the Timeline lists each track's data coverage (CAP-05, CAP-08)", () => {
   const plot: DebriefFeatureCollection = {
     type: "FeatureCollection",
-    schema_version: "0.0.23",
+    schema_version: "0.0.24",
     provenance: [],
     features: [
       {

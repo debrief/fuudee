@@ -784,7 +784,7 @@ export async function playDemo(browser, siteUrl, shot) {
   // On a phone, the one column as before, the walkthroughs first; and docked again when wide.
   await resize(page, 390, 844);
   const shown = async () => page.$$eval("#side > section", (all) => all.filter((s) => !s.hidden).map((s) => s.id));
-  assert.deepEqual(await shown(), ["panel-tour", "panel-time", "panel-tote", "panel-outline", "panel-timeline", "panel-catalogue", "panel-coverage", "panel-tools", "panel-history"]);
+  assert.deepEqual(await shown(), ["panel-tour", "panel-time", "panel-tote", "panel-outline", "panel-timeline", "panel-catalogue", "panel-coverage", "panel-bearings", "panel-tools", "panel-history"]);
   assert.equal(await page.locator("#dock").isHidden(), true);
   assert.equal(await pageSideways(page), false, "at 390 px the demo does not scroll sideways");
   // The site's picture of it (the first hour post), as it opens on a laptop's 1366 × 768.

@@ -38,7 +38,7 @@ const vectors = JSON.parse(readFileSync(path.join(ROOT, "schemas/vectors/narrati
 };
 const fixture = (name: string) => JSON.parse(readFileSync(path.join(ROOT, "schemas/fixtures", name), "utf8"));
 
-const plotOf = (features: unknown[]) => ({ type: "FeatureCollection", schema_version: "0.0.23", provenance: [], features }) as unknown as DebriefFeatureCollection;
+const plotOf = (features: unknown[]) => ({ type: "FeatureCollection", schema_version: "0.0.24", provenance: [], features }) as unknown as DebriefFeatureCollection;
 const narrative = (id: string, time: string, source: string, more: Record<string, unknown> = {}) => ({
   type: "Feature",
   id,

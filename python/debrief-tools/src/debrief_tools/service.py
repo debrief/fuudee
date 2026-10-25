@@ -43,6 +43,11 @@ a track, and linking or unlinking a track in another item as a platform, each a 
 (debrief/take_new_data, debrief/set_source_preference, debrief/link_tracks); setting new
 data aside and clearing a review flag, in the plot's island (debrief/dismiss_new_data,
 debrief/clear_review_flag); and every plot that may need review (debrief/review_flags).
+TMA solutions (CAP-21; product owner, 24 Oct 2026): a solution made from a period of a
+sensor's cuts with a first guess, split into legs, and its cuts left out of its RMS error or
+counted again, each a step (debrief/tma_create, debrief/tma_split_leg,
+debrief/tma_exclude_cut); and its bearing residuals and RMS error, reading only
+(debrief/tma_residuals). A solution is a track, so it is dragged with debrief/edit_track.
 Exported images (SUB-25): a fresh image ID for an export of the plot, at its current
 revision or an earlier one shown read-only (debrief/figure_id); the image a host drew, or
 one an agent has, with its ID in its metadata, written to file and recorded in the plot's
@@ -192,6 +197,7 @@ READING_METHODS = (
     "debrief/narrative",
     "debrief/coverage",
     "debrief/sensors",
+    "debrief/tma_residuals",
 )
 STEP_METHODS = ("debrief/undo", "debrief/redo", "debrief/goto")
 PRESENTATION_METHODS = (
@@ -226,6 +232,8 @@ COLLATION_METHODS = (
 # Sensors (CAP-22): ambiguous cuts resolved, or made ambiguous again, and a .dsf or REP
 # file's sensor lines read into the plot, each one step.
 SENSOR_METHODS = ("debrief/resolve_ambiguity", "debrief/import_sensor", "debrief/set_array_offset")
+# TMA solutions (CAP-21): made, split into legs, cuts left out of the RMS, each one step.
+TMA_METHODS = ("debrief/tma_create", "debrief/tma_split_leg", "debrief/tma_exclude_cut")
 # What the analyst said of collation's marks: the plot's island, never a step.
 COLLATION_VIEW_METHODS = ("debrief/dismiss_new_data", "debrief/clear_review_flag")
 WRITING_METHODS = (
@@ -237,6 +245,7 @@ WRITING_METHODS = (
     + CLEANING_METHODS
     + COLLATION_METHODS
     + SENSOR_METHODS
+    + TMA_METHODS
     + COLLATION_VIEW_METHODS
 )
 HISTORY_METHODS = READING_METHODS + CHECKING_METHODS + WRITING_METHODS
@@ -555,6 +564,13 @@ class ToolService:
                 out.update(_sensor_query(history.plot(), params))
             elif method in SENSOR_METHODS:
                 out.update(self._sense(catalogue, item, method, params, expected, allow))
+            elif method == "debrief/tma_residuals":
+                feature = params.get("feature")
+                if not isinstance(feature, str):
+                    raise RpcError(INVALID_PARAMS, "tma_residuals needs the solution (feature)")
+                out["residuals"] = catalogue.tma_residuals(item, feature, expected)
+            elif method in TMA_METHODS:
+                out.update(self._tma(catalogue, item, method, params, expected, allow))
             elif method in TRACK_METHODS:
                 out.update(self._track(catalogue, item, method, params, expected, allow))
             elif method in CHECKING_METHODS + CLEANING_METHODS:
@@ -859,6 +875,66 @@ class ToolService:
             "cuts": done.cuts,
             "omitted": done.omitted,
             "notes": done.notes,
+        }
+
+    def _tma(
+        self,
+        catalogue: Catalogue,
+        item: str,
+        method: str,
+        params: dict[str, Any],
+        base: Base | None,
+        allow: bool,
+    ) -> dict[str, Any]:
+        """TMA solutions (CAP-21; product owner, 24 Oct 2026), each one recorded, undoable step.
+
+        tma_create takes the cuts (sensor_ids and perhaps a period, or cut_ids), and perhaps
+        a contact, a name and a colour, and a first guess: range, course and speed (and,
+        for an ambiguous first cut, first_bearing), or first_position and last_position
+        (on or near the first cut's line and the last's); with none, Debrief's (10,000
+        yd along the first cut's bearing, across it, 8 kn). Returns the solution's id
+        and its residuals. tma_split_leg takes the solution (feature) and a time (at),
+        and join true to join the leg starting then to the one before. tma_exclude_cut
+        takes the solution, cut_ids and excluded (true to leave them out of the RMS
+        error, false to count them again); changed is false if none would change."""
+        agent = _agent(params)
+        if method == "debrief/tma_create":
+            asked = params.get("request", {k: v for k, v in params.items() if k in _TMA_ASKED})
+            if not isinstance(asked, dict):
+                raise RpcError(INVALID_PARAMS, "tma_create takes the request as an object")
+            step, feature = catalogue.create_tma(item, asked, agent, base, allow_newer_schema=allow)
+            notes = catalogue.history(item).steps()[step - 1].records[0].notes
+            residuals = catalogue.tma_residuals(item, feature)
+            return {"changed": True, "feature": feature, "notes": notes, "residuals": residuals}
+        feature = params.get("feature")
+        if not isinstance(feature, str):
+            raise RpcError(INVALID_PARAMS, f"{method[8:]} needs the solution (feature)")
+        if method == "debrief/tma_split_leg":
+            at, join = params.get("at"), params.get("join", False)
+            if not isinstance(at, str) or not isinstance(join, bool):
+                raise RpcError(
+                    INVALID_PARAMS, "tma_split_leg needs the time (at), and join true or false"
+                )
+            step = catalogue.tma_split_leg(
+                item, feature, at, agent, base, join=join, allow_newer_schema=allow
+            )
+            notes = catalogue.history(item).steps()[step - 1].records[0].notes
+            return {"changed": True, "notes": notes}
+        ids, excluded = params.get("cut_ids"), params.get("excluded", True)
+        if not (isinstance(ids, list) and ids and all(isinstance(i, str) for i in ids)):
+            raise RpcError(INVALID_PARAMS, "tma_exclude_cut needs cut_ids")
+        if not isinstance(excluded, bool):
+            raise RpcError(INVALID_PARAMS, "excluded is true or false")
+        step = catalogue.tma_exclude(
+            item, feature, ids, excluded, agent, base, allow_newer_schema=allow
+        )
+        if step is None:
+            return {"changed": False}
+        notes = catalogue.history(item).steps()[step - 1].records[0].notes
+        return {
+            "changed": True,
+            "notes": notes,
+            "residuals": catalogue.tma_residuals(item, feature),
         }
 
     def _track(
@@ -1465,6 +1541,9 @@ def _sensor_query(plot: DebriefFeatureCollection, params: dict[str, Any]) -> dic
             )
     return {"sensors": found}
 
+
+# What debrief/tma_create reads from its params when no request object is given.
+_TMA_ASKED = frozenset(models.TmaRequest.model_fields)
 
 # The most cuts debrief/sensors lists in one call.
 CUT_LIMIT = 20_000

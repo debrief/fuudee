@@ -1,0 +1,193 @@
+{
+  "type": "FeatureCollection",
+  "schema_version": "0.0.24",
+  "features": [
+    {
+      "type": "Feature",
+      "id": "track-nelson",
+      "geometry": {
+        "type": "LineString",
+        "coordinates": [
+          [
+            -4.1201,
+            50.3502
+          ],
+          [
+            -4.1155,
+            50.3471
+          ],
+          [
+            -4.1098,
+            50.344
+          ],
+          [
+            -4.104,
+            50.341
+          ]
+        ]
+      },
+      "properties": {
+        "kind": "track",
+        "name": "NELSON",
+        "times": [
+          "2026-10-11T09:30:00.000Z",
+          "2026-10-11T09:31:00.000Z",
+          "2026-10-11T09:32:00.000Z",
+          "2026-10-11T09:33:00.000Z"
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "sensor-nelson-bow-sonar",
+      "geometry": null,
+      "properties": {
+        "kind": "sensor",
+        "name": "Bow sonar",
+        "host_track_id": "track-nelson",
+        "colour": "#0064bd"
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "cut-00001",
+      "geometry": null,
+      "properties": {
+        "kind": "sensor_cut",
+        "sensor_id": "sensor-nelson-bow-sonar",
+        "time": "2026-10-11T09:30:00.000Z",
+        "bearing": {
+          "value": 40.0,
+          "unit": "deg"
+        }
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "cut-00002",
+      "geometry": null,
+      "properties": {
+        "kind": "sensor_cut",
+        "sensor_id": "sensor-nelson-bow-sonar",
+        "time": "2026-10-11T09:31:00.000Z",
+        "bearing": {
+          "value": 42.0,
+          "unit": "deg"
+        }
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "cut-00003",
+      "geometry": null,
+      "properties": {
+        "kind": "sensor_cut",
+        "sensor_id": "sensor-nelson-bow-sonar",
+        "time": "2026-10-11T09:32:00.000Z",
+        "bearing": {
+          "value": 44.0,
+          "unit": "deg"
+        },
+        "ambiguous_bearing": {
+          "value": 196.0,
+          "unit": "deg"
+        }
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "cut-00004",
+      "geometry": null,
+      "properties": {
+        "kind": "sensor_cut",
+        "sensor_id": "sensor-nelson-bow-sonar",
+        "time": "2026-10-11T09:33:00.000Z",
+        "bearing": {
+          "value": 46.0,
+          "unit": "deg"
+        }
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "track-contact-1-solution",
+      "geometry": {
+        "type": "LineString",
+        "coordinates": [
+          [
+            -4.02,
+            50.41
+          ],
+          [
+            -4.025,
+            50.4115
+          ],
+          [
+            -4.03,
+            50.413
+          ],
+          [
+            -4.035,
+            50.4145
+          ]
+        ]
+      },
+      "properties": {
+        "kind": "track",
+        "name": "Contact 1 solution",
+        "times": [
+          "2026-10-11T09:30:00.000Z",
+          "2026-10-11T09:31:00.000Z",
+          "2026-10-11T09:32:00.000Z",
+          "2026-10-11T09:33:00.000Z"
+        ],
+        "courses": {
+          "unit": "deg",
+          "values": [
+            293.0,
+            293.0,
+            293.0,
+            293.0
+          ]
+        },
+        "speeds": {
+          "unit": "[kn_i]",
+          "values": [
+            8.0,
+            8.0,
+            8.0,
+            8.0
+          ]
+        },
+        "style": {
+          "colour": "#c7820a"
+        },
+        "plotting_mode": "dr",
+        "tma": {
+          "contact": "Contact 1",
+          "sensor_ids": [
+            "sensor-nelson-bow-sonar"
+          ],
+          "cut_ids": [
+            "cut-00001",
+            "cut-00002",
+            "cut-00003",
+            "cut-00004"
+          ],
+          "period": {
+            "start": "2026-10-11T09:30:00.000Z",
+            "end": "2026-10-11T09:33:00.000Z"
+          },
+          "leg_starts": [
+            "2026-10-11T09:33:00.000Z",
+            "2026-10-11T09:31:00.000Z"
+          ],
+          "excluded_cut_ids": [
+            "cut-00004"
+          ]
+        }
+      }
+    }
+  ],
+  "provenance": []
+}

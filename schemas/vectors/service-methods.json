@@ -29,6 +29,9 @@
     "debrief/smooth_track",
     "debrief/split_track",
     "debrief/take_new_data",
+    "debrief/tma_create",
+    "debrief/tma_exclude_cut",
+    "debrief/tma_split_leg",
     "debrief/undo",
     "tools/call"
   ],
@@ -56,6 +59,7 @@
     "debrief/review_flags",
     "debrief/sensors",
     "debrief/stores",
+    "debrief/tma_residuals",
     "debrief/tools_for_selection",
     "debrief/tote",
     "initialize",

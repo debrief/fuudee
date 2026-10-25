@@ -335,6 +335,22 @@ class DpfFix:
 
 
 @dataclass
+class DpfTma:
+    """A TMA solution leg's solution (CoreTMASegmentHandler, RelativeTMASegmentHandler,
+    AbsoluteTMASegmentHandler): its course and speed; a relative leg's host track and
+    sensor and its offset from where the sensor was at the leg's start (a range, in
+    metres, and a bearing); an absolute leg's origin."""
+
+    course_deg: float | None = None
+    speed_kn: float | None = None
+    host_track: str | None = None
+    host_sensor: str | None = None
+    offset_bearing_deg: float | None = None
+    offset_m: float | None = None
+    origin: tuple[float, float] | None = None  # (longitude, latitude)
+
+
+@dataclass
 class DpfLeg:
     """A track segment: an ordinary leg, a TMA solution leg or a dynamic infill."""
 
@@ -345,6 +361,8 @@ class DpfLeg:
     # Legacy Debrief saves the positions it worked out, from the leg's first fix by
     # each fix's course and speed, so they are read as saved.
     dead_reckoned: bool = False
+    # A TMA solution leg's solution (RelativeTMASegment, AbsoluteTMASegment).
+    tma: DpfTma | None = None
 
 
 @dataclass
@@ -511,6 +529,8 @@ class DpfFile:
     view_settings: list[str] = field(default_factory=list)
     # The application version that saved the file, from the details element.
     saved_by: str | None = None
+    # The tote's primary track, by name: legacy Stacked Dots measured its sensors' cuts.
+    primary: str | None = None
 
 
 # --- Reading ------------------------------------------------------------------
@@ -582,6 +602,10 @@ def parse_dpf(data: bytes) -> DpfFile:
                 _read_top_layer(layer, result)
         elif node.tag == "gui":
             result.view_settings += _gui_settings(node)
+            for tote in (c for c in node.children if c.tag == "tote"):
+                result.primary = next(
+                    (c.name() for c in tote.children if c.tag == "primary" and c.name()), None
+                )
         elif node.tag == "projection":
             result.view_settings.append("the map projection and area shown")
         else:
@@ -721,6 +745,7 @@ def _read_track(node: Node, result: DpfFile) -> None:
                 child.tag,
                 child.attrs.get("Name"),
                 dead_reckoned=read_bool(child.attrs.get("PlotRelative"), False),
+                tma=_read_tma(child, name, result),
             )
             leg.fixes = _read_fixes(child, track.name, result)
             track.legs.append(leg)
@@ -731,6 +756,7 @@ def _read_track(node: Node, result: DpfFile) -> None:
                         inner.tag,
                         inner.attrs.get("Name"),
                         dead_reckoned=read_bool(inner.attrs.get("PlotRelative"), False),
+                        tma=_read_tma(inner, name, result),
                     )
                     leg.fixes = _read_fixes(inner, track.name, result)
                     track.legs.append(leg)
@@ -757,6 +783,44 @@ def _read_track(node: Node, result: DpfFile) -> None:
     if loose.fixes:
         track.legs.insert(0, loose)
     result.tracks.append(track)
+
+
+# WorldSpeed.UnitLabels, as WorldSpeedHandler writes them, in knots.
+KNOTS_PER = {
+    "kts": 1.0,
+    "m/s": 3600 / 1852.0,
+    "ft/s": 0.3048 * 3600 / 1852.0,
+    "ft/min": 0.3048 * 60 / 1852.0,
+}
+
+
+def _read_tma(leg: Node, track: str, result: DpfFile) -> DpfTma | None:
+    """A TMA leg's solution, as legacy saved it; None for any other leg. What cannot be
+    read is reported, and the leg's fixes are imported as saved."""
+    if leg.tag not in TMA_LEGS:
+        return None
+    a = leg.attrs
+    tma = DpfTma(host_track=a.get("HostTrack"), host_sensor=a.get("HostSensor"))
+    where = f"TMA leg {a.get('Name') or 'unnamed'!r} of track {track!r}"
+    try:
+        if "CourseDegs" in a:
+            tma.course_deg = read_number(a["CourseDegs"], "course") % 360.0
+        speed = leg.child("Speed")
+        if speed is not None:
+            units = speed.attrs.get("Units", "kts")
+            if units not in KNOTS_PER:
+                raise DpfError(f"{units!r} is not a speed unit")
+            tma.speed_kn = read_number(speed.attrs.get("Value"), "speed") * KNOTS_PER[units]
+        offset = leg.child("Offset")
+        if offset is not None:
+            tma.offset_bearing_deg = read_number(offset.attrs.get("BearingDegs", "0"), "bearing")
+            tma.offset_m = read_distance_m(offset.child("Range"))
+        origin = read_location(leg.child("Origin"))
+        if origin is not None:
+            tma.origin = (origin.longitude, origin.latitude)
+    except DpfError as error:
+        result.warnings.append((leg.line, f"the solution of {where}: {error}"))
+    return tma
 
 
 def _read_sensor(node: Node, track: str, result: DpfFile) -> DpfSensor:

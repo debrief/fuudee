@@ -183,10 +183,13 @@ export class OutlineProvider implements vscode.TreeDataProvider<Node> {
         if (dr) item.tooltip = `${name}: plotted by dead reckoning (DR), from its first fix by each fix's course and speed`;
         // A track's details say its labels, symbols and arrows (CAP-32; product owner, 15 Oct 2026).
         if (feature.properties.kind === "track") item.tooltip = trackDetails(feature.properties, when, dr);
-        item.description = [dr ? DR_TAG : "", selected ? "selected" : "", hidden ? "hidden on map" : "", node.detail ?? when].filter(Boolean).join(" · ");
+        // A TMA solution (CAP-21): tagged, with its contact, beside its name.
+        const tma = feature.properties.kind === "track" ? feature.properties.tma : undefined;
+        if (tma) item.tooltip = `${name}: a TMA solution of ${tma.contact}, rooted in ${tma.cut_ids.length} cuts${tma.leg_starts?.length ? `, ${tma.leg_starts.length + 1} legs` : ""}. Bearings shows its residuals.`;
+        item.description = [tma ? `TMA · ${tma.contact}` : "", dr && !tma ? DR_TAG : "", selected ? "selected" : "", hidden ? "hidden on map" : "", node.detail ?? when].filter(Boolean).join(" · ");
         if (feature.properties.kind === "sensor") item.tooltip = `${name}, a sensor of this track: ${node.detail}. Right-click to keep port or starboard bearings, show, hide or recolour it`;
         // Chart furniture is shown or removed with the North arrow command, not changed through a form.
-        const kind = feature.properties.kind === "annotation" && feature.properties.furniture ? "furniture" : feature.properties.kind;
+        const kind = feature.properties.kind === "annotation" && feature.properties.furniture ? "furniture" : tma ? "track-tma" : feature.properties.kind;
         item.contextValue = `feature-${kind}${hidden ? "-hidden" : ""}`;
         return item;
       }

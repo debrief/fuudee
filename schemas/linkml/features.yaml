@@ -324,11 +324,139 @@ classes:
         range: SourceTrackRef
         multivalued: true
         inlined_as_list: true
+      tma:
+        description: >-
+          The track is a TMA solution of a contact, rooted in a period of
+          bearing cuts (CAP-21; product owner, 24 Oct 2026). Otherwise an
+          ordinary track, plotted by dead reckoning, so every track
+          operation works on it unchanged; this says which cuts its bearing
+          residuals are worked out against, its legs, and the cuts left out
+          of its RMS error. Content: each change is a recorded, undoable
+          step (SUB-22).
+        range: TmaSolution
+        inlined: true
       provenance:
         description: Feature-level provenance where needed (SUB-18).
         range: ProvRecord
         multivalued: true
         inlined_as_list: true
+  TmaSolution:
+    description: >-
+      What makes a track a TMA solution (CAP-21; product owner, 24 Oct
+      2026): the contact it is a solution of, and the period of bearing
+      cuts it is rooted in, named by the cuts' ids (a sensor's id changes
+      when its track is split; a cut's does not). Its residuals are each
+      rooted cut's bearing less the bearing from where the cut was taken
+      (its origin) to where the solution was at the cut's time. Its legs
+      start at leg_starts: each is dragged on its own, the later ones
+      following on by dead reckoning, so they stay joined.
+    attributes:
+      contact:
+        description: The contact the solution is of, as the analyst names it, such as "Contact 1".
+        required: true
+      sensor_ids:
+        description: >-
+          The sensors whose cuts it was rooted in when it was made, as their
+          ids were then: what the analyst chose. The cuts themselves are in
+          cut_ids.
+        multivalued: true
+        required: true
+      cut_ids:
+        description: >-
+          The cuts it is rooted in, by feature id, in time order: every cut
+          of the rooted period on the sensors chosen. Its fixes fall at
+          their times when Debrief makes it. A legacy solution whose sensor
+          the plot does not have has none, and the import says so.
+        multivalued: true
+        required: true
+      period:
+        description: The period of bearings it is rooted in, ends included.
+        range: TimeRange
+        required: true
+        inlined: true
+      leg_starts:
+        description: >-
+          When each leg after the first starts, in time order: the solution
+          split into legs (product owner, 24 Oct 2026). A fix exactly at a
+          time starts the later leg, as a split does. Left out, one leg.
+        range: UtcTimestamp
+        multivalued: true
+      excluded_cut_ids:
+        description: >-
+          Rooted cuts the analyst left out of the RMS error, such as wild
+          bearings (product owner, 24 Oct 2026): still listed and drawn in
+          the bearing view, not counted. Each change is one step.
+        multivalued: true
+
+  TmaRequest:
+    description: >-
+      A TMA solution asked for (CAP-21; product owner, 24 Oct 2026), from
+      the bearing view's form, two clicks on the map, or an agent
+      (debrief/tma_create): the cuts to root it in (sensor_ids and a period,
+      or cut_ids), and a first guess, either by form (a range on the first
+      cut's bearing, a course and a speed) or by two positions (on the first
+      cut's line and on the last's; the course and speed follow). Made as
+      one recorded, undoable step.
+    attributes:
+      sensor_ids:
+        description: The sensors whose cuts in the period it is rooted in.
+        multivalued: true
+      period:
+        description: The cuts whose times fall in it, ends included, of the sensors named.
+        range: TimeRange
+        inlined: true
+      cut_ids:
+        description: Or the cuts to root it in, by feature id.
+        multivalued: true
+      contact:
+        description: The contact's name; left out, the next of "Contact 1", "Contact 2"...
+      name:
+        description: The solution track's name; left out, the contact's with "solution".
+      colour:
+        description: The solution track's colour, lower-case hex RGB; left out, Debrief's TMA colour.
+        pattern: "^#[0-9a-f]{6}$"
+      range:
+        description: >-
+          First guess by form: how far along the first cut's bearing, from
+          where it was taken, the solution starts.
+        range: Length
+        inlined: true
+      first_bearing:
+        description: >-
+          First guess by form, where the first cut is ambiguous and
+          unresolved: which of its bearings the range is along. Left out,
+          the one kept, else the bearing recorded first.
+        range: SensorCutKeptEnum
+      course:
+        description: "First guess by form: the solution's course."
+        range: Angle
+        inlined: true
+      speed:
+        description: "First guess by form: the solution's speed."
+        range: Speed
+        inlined: true
+      first_position:
+        description: >-
+          First guess by two clicks: [longitude, latitude] clicked on, or
+          near, the first cut's line: the solution starts on the line,
+          level with it.
+        range: float
+        array:
+          exact_number_dimensions: 1
+          dimensions:
+            - exact_cardinality: 2
+      last_position:
+        description: >-
+          First guess by two clicks: [longitude, latitude] clicked on, or
+          near, the last cut's line; the course and speed are those from
+          the first position, on the first cut's line, to this one, on the
+          last's.
+        range: float
+        array:
+          exact_number_dimensions: 1
+          dimensions:
+            - exact_cardinality: 2
+
   SourceTrackRef:
     description: >-
       A track in a catalogue item, as collation names it (CAP-08, CAP-09):
