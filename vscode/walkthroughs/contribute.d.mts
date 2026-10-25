@@ -39,3 +39,7 @@ export declare const EXTENSION: string;
 export declare function vscodeNext(tours: { tours: TourSource[] }, tour: TourSource, extension?: string): string;
 export declare function walkthroughsContribution(tours: { tours: TourSource[] }, extension?: string): unknown[];
 export declare function withWalkthroughs(text: string, walkthroughs: unknown[]): string;
+export declare const SOLUTION: string;
+export declare function latestSolution(features: readonly { id: string; properties?: { kind?: string; tma?: unknown } }[] | undefined): string | undefined;
+export declare function withSolution<T extends unknown[] | undefined>(args: T, features: readonly { id: string; properties?: { kind?: string; tma?: unknown } }[] | undefined): T | undefined;
+export declare const NO_SOLUTION: string;

@@ -6,7 +6,7 @@
  */
 import { userInfo } from "node:os";
 import * as vscode from "vscode";
-import type { AmbiguityResolution, AnnotationSpec, ContextTracksEnum, CoverageReport, KnownStore, FigureSource, RevisionShown, NarrativeSpec, ReviewFlag, SourceTrackRef, TimelineEntry, ParameterValue, PlotView, SharedState, SharedStateChange, TimeRange, TmaRequest, TmaView, ToolDeclaration, ToteResult, ToteView as ToteChoice, TrackEdit } from "@debrief/schemas";
+import type { AmbiguityResolution, AnnotationSpec, ContextTracksEnum, CoverageReport, KnownStore, FigureSource, RevisionShown, NarrativeSpec, ReviewFlag, SourceTrackRef, TimelineEntry, ParameterValue, PlotView, SharedState, SharedStateChange, TimeRange, TmaFocus, TmaRequest, TmaView, ToolDeclaration, ToteResult, ToteView as ToteChoice, TrackEdit } from "@debrief/schemas";
 import { figureIdProblem, formatBearing, formatPosition, formatQuantity, parsePosition, POSITION_EXAMPLE, UNIT_LABELS } from "@debrief/kernel";
 import { defaultPivotIndex, describeDistance, describeSpeed, describeTurn, FIX_PROMPT, FIX_PROMPT_DR, fixIndexAt, fixMeans, fixToEdit, jumpSpeed, legNow, mergedName, mergePlan, periodIndices, readArrayOffset, arrayOffsetTitle, readBearing, readDistance, readSpeed, readTurn, reckoningOf, type Anchor } from "../webview/trackedit.js";
 import { chooseModes, MODE_LABELS, modeChoices, modeQuestion, REMEMBERED_IN_VSCODE, rememberItem, type ModeChoice, type PlottingMode } from "./importmode.js";
@@ -47,7 +47,8 @@ import { Session, timeProblem } from "./session.js";
 import { CataloguesProvider, type CollationMarks } from "./views/catalogues.js";
 import { featureIdsOf, OutlineProvider } from "./views/outline.js";
 import { ToolsProvider } from "./views/tools.js";
-import { BY_HAND, LOG_FILE, openedEvent, openOnFirstRun, prepare, serviceEvent, toteCompares, TOURS, tourOfEvent, WalkthroughProgress } from "./walkthroughs.js";
+import { AFTER_OPEN, BY_HAND, LOG_FILE, openedEvent, openOnFirstRun, prepare, serviceEvent, toteCompares, TOURS, tourOfEvent, WalkthroughProgress } from "./walkthroughs.js";
+import { NO_SOLUTION, withSolution } from "../walkthroughs/contribute.mjs";
 
 /** What the integration tests and agents can inspect. */
 export interface DebriefApi {
@@ -339,7 +340,8 @@ export function activate(context: vscode.ExtensionContext): DebriefApi {
         // A change the analyst made through the service ticks the walkthrough step that asks for it (CAP-25).
         // Only to the walkthrough's copy: the plot the request names, or for the log's import, the log beside its catalogue.
         started.done = (method, params) => {
-          const event = serviceEvent(method, params);
+          const isSolution = (id: string) => !!session.current?.plot.features.find((f) => f.id === id && f.properties.kind === "track" && (f.properties as { tma?: unknown }).tma);
+          const event = serviceEvent(method, params, isSolution);
           if (!event) return;
           const log = path.join(walkthroughFolder("collate"), LOG_FILE);
           const item = method === "debrief/import" ? (sameLocation(String(params.path ?? ""), log) && session.current?.item.id === "serial-1-collate" ? "serial-1-collate" : undefined) : (params.item as string | undefined);
@@ -2410,10 +2412,12 @@ export function activate(context: vscode.ExtensionContext): DebriefApi {
     if (done.problem) return (report(done.problem), { problem: done.problem });
     return { changed: done.answer?.changed, notes: done.answer?.notes };
   });
-  command("debrief.showBearings", async (target?: string | Target) => {
+  // Bearings, showing a sensor's cuts or a solution; with focus (a walkthrough's step, an agent),
+  // something chosen there once: a cut, a period and its first guess, or the largest residual.
+  command("debrief.showBearings", async (target?: string | Target, focus?: TmaFocus) => {
     await vscode.commands.executeCommand(`${BEARINGS_VIEW}.focus`);
     const id = typeof target === "string" ? target : targets(target)[0];
-    if (id) await bearingsView.choose(id);
+    if (id) await bearingsView.choose(id, focus);
   });
   // A towed array's offset astern of the ship, and how it follows (CAP-22; product owner,
   // 24 Oct 2026): typed in the analyst's length unit, 0 for at the ship, then worm in the
@@ -3222,6 +3226,8 @@ export function activate(context: vscode.ExtensionContext): DebriefApi {
     const opened = session.current;
     if (opened?.store.id !== store!.id || opened.item.id !== item) return "The walkthrough's copy could not be opened.";
     tickHere(openedEvent(chosen.id));
+    const after = AFTER_OPEN[chosen.id];
+    if (after) await vscode.commands.executeCommand(...after);
     return undefined;
   }
   /**
@@ -3240,7 +3246,10 @@ export function activate(context: vscode.ExtensionContext): DebriefApi {
       if (session.current?.item.id !== item) return report("The walkthrough's copy could not be opened.");
       void vscode.window.showInformationMessage(`${session.current.item.properties.title ?? item} is open: the walkthrough works on its copy, not on the plot that was open.`);
     }
-    return vscode.commands.executeCommand(name, ...args);
+    // A step that needs the walkthrough's TMA solution: the latest in its copy, once made.
+    const given = withSolution(args, session.current?.plot.features);
+    if (!given) return report(NO_SOLUTION);
+    return vscode.commands.executeCommand(name, ...given);
   });
   /** Import and collate: import BLUE ONE's navigation log, waiting beside the walkthrough's catalogue, as any REP file is imported. */
   command("debrief.walkthrough.importLog", async (given?: { modes?: string }) => {

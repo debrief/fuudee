@@ -16,13 +16,38 @@
  * skipping a step to wait for; the link is always there instead, below the steps.
  */
 import tours from "../walkthroughs/tours.json";
+import type { TmaFocus } from "@debrief/schemas";
 import { ALL_DONE, nextLabel, nextTour, stepParts, type TourSource, type TourStep } from "../walkthroughs/contribute.mjs";
 
 export const TOURS: TourSource[] = tours.tours;
 export type { TourSource, TourStep };
 
-/** What a step's button does: open a walkthrough's copy, bring a panel or control into view, click one, select features, import the log. */
-export type TourAction = { verb: "open" | "focus" | "click" | "select"; target: string } | { verb: "import-log"; target: "" };
+/**
+ * What a step's button does: open a walkthrough's copy, bring a panel or control into view, click
+ * one, select features, import the log, or show a sensor's cuts or a solution in Bearings with
+ * something chosen there (bearings:<sensor or solution>?cut=<time>, ?period=<start>/<end>&make, ?largest).
+ */
+type Verb = "open" | "focus" | "click" | "select" | "bearings";
+export type TourAction = { verb: Verb; target: string } | { verb: "import-log"; target: "" };
+const VERBS: string[] = ["open", "focus", "click", "select", "bearings"];
+
+/** A bearings action's target: the sensor or solution to show, and what to choose in Bearings (a TmaFocus, as VS Code's step passes it). */
+export function bearingsTarget(target: string): { feature: string; focus?: TmaFocus } {
+  const [feature, query] = target.split("?");
+  if (!query) return { feature };
+  const focus: TmaFocus = {};
+  for (const part of query.split("&")) {
+    const [key, value = ""] = part.split("=");
+    if (key === "cut") focus.cut_time = value;
+    else if (key === "period") {
+      const [start, end] = value.split("/");
+      focus.period = { start, end };
+    } else if (key === "make") focus.make = true;
+    else if (key === "largest") focus.largest = true;
+    else throw new Error(`Not a choice in Bearings: ${part}`);
+  }
+  return { feature, focus };
+}
 
 /** A button's actions, in order: "select:track-red-one;click:find-jumps". */
 export function parseActions(text: string): TourAction[] {
@@ -33,17 +58,18 @@ export function parseActions(text: string): TourAction[] {
     .map((part) => {
       if (part === "import-log") return { verb: "import-log", target: "" } as const;
       const [verb, ...rest] = part.split(":");
-      if (!["open", "focus", "click", "select"].includes(verb) || !rest.length) throw new Error(`Not a walkthrough action: ${part}`);
-      return { verb: verb as "open" | "focus" | "click" | "select", target: rest.join(":") };
+      if (!VERBS.includes(verb) || !rest.length) throw new Error(`Not a walkthrough action: ${part}`);
+      return { verb: verb as Verb, target: rest.join(":") };
     });
 }
 
 /**
  * The walkthrough step a call to the playground's Python completes, when it succeeded: the
  * change itself, however the reader made it (a form, the map, the keyboard), as VS Code
- * ticks its steps by the tool service's requests (src/walkthroughs.ts).
+ * ticks its steps by the tool service's requests (src/walkthroughs.ts). isSolution says whether a
+ * track is a TMA solution, whose drags are Bearings and TMA's step, not Tidy a track's shear.
  */
-export function callEvent(call: string, args: unknown[], result: string): string | undefined {
+export function callEvent(call: string, args: unknown[], result: string, isSolution: (id: string) => boolean = () => false): string | undefined {
   let outcome: Record<string, unknown>;
   try {
     outcome = JSON.parse(result) as Record<string, unknown>;
@@ -62,9 +88,24 @@ export function callEvent(call: string, args: unknown[], result: string): string
     case "clean":
       return ({ remove_jumps: "jumpsRemoved", smooth: "smoothed", mark: "fixMarked" } as Record<string, string>)[String(change().kind)];
     case "track": {
-      const action = (change().edit as { action?: string } | undefined)?.action;
+      if (change().kind !== "edit") return undefined;
+      const action = String((change().edit as { action?: string } | undefined)?.action);
+      // A TMA solution dragged, by any of a track's drags: Bearings and TMA's step.
+      if (isSolution(String(change().feature))) return ["move", "rotate", "shear", "stretch"].includes(action) ? "solutionDragged" : undefined;
       // A shear, not a stretch: the step asks for a shear (panel review, 17 Oct 2026).
-      return change().kind === "edit" && action === "shear" ? "sheared" : undefined;
+      return action === "shear" ? "sheared" : undefined;
+    }
+    case "sensor": {
+      // A side kept: not both bearings made ambiguous again.
+      const keep = (change().resolution as { keep?: string } | undefined)?.keep;
+      return change().kind === "resolve" && keep && keep !== "ambiguous" ? "sideKept" : undefined;
+    }
+    case "tma_change": {
+      const kind = change().kind;
+      if (kind === "create") return outcome.feature ? "solutionMade" : undefined;
+      // Left out, not counted again; nothing changed (already left out) is not it.
+      if (kind === "exclude") return change().excluded && outcome.changed !== false ? "cutLeftOut" : undefined;
+      return kind === "split" ? "legsSplit" : undefined;
     }
     case "annotate":
       return change().kind === "add" ? "annotationAdded" : undefined;

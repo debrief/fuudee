@@ -2471,6 +2471,30 @@ export interface TmaCut {
   time: string;
 }
 /**
+ * What the bearing view chooses for the analyst, once (show_tma's focus): the cut at or nearest cut_time, current time moved to it; or the cuts in period as the period, the first guess's form opened if make; or, with a solution shown, the counted cut with the largest residual (largest), current time moved to it. The list then has the keyboard (the form, if opened).
+ *
+ * This interface was referenced by `DebriefSchemaDefinitions`'s JSON-Schema
+ * via the `definition` "TmaFocus".
+ */
+export interface TmaFocus {
+  /**
+   * Choose the cut at or nearest this time.
+   */
+  cut_time?: string | null;
+  /**
+   * Choose the cut counted in the RMS with the largest residual.
+   */
+  largest?: boolean | null;
+  /**
+   * With period, open the first guess's form (Make solution…).
+   */
+  make?: boolean | null;
+  /**
+   * Choose the cuts in this period, ends included, as the period.
+   */
+  period?: TimeRange | null;
+}
+/**
  * A TMA solution asked for (CAP-21; product owner, 24 Oct 2026), from the bearing view's form, two clicks on the map, or an agent (debrief/tma_create): the cuts to root it in (sensor_ids and a period, or cut_ids), and a first guess, either by form (a range on the first cut's bearing, a course and a speed) or by two positions (on the first cut's line and on the last's; the course and speed follow). Made as one recorded, undoable step.
  *
  * This interface was referenced by `DebriefSchemaDefinitions`'s JSON-Schema
@@ -2700,6 +2724,10 @@ export interface TmaSolutionRow {
  */
 export interface TmaView {
   cuts?: TmaCut[] | null;
+  /**
+   * Something to choose in the view once, as a command or a walkthrough's step asks (CAP-25): a cut, a period and its first guess, or the cut with the largest residual. Not kept: the view shows it and the analyst carries on from there.
+   */
+  focus?: TmaFocus | null;
   /**
    * Which plot is open, as its host knows it.
    */

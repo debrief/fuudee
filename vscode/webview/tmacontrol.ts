@@ -38,7 +38,7 @@
  *   (timings) against the drag budget (NFR-04).
  */
 import { DEFAULT_SETTINGS, fixed, formatTime, type FormatSettings } from "@debrief/kernel";
-import type { TimeRange, TmaCut, TmaRequest, TmaResidualRow, TmaResiduals, TmaSolutionRow, TmaView } from "@debrief/schemas";
+import type { TimeRange, TmaCut, TmaFocus, TmaRequest, TmaResidualRow, TmaResiduals, TmaSolutionRow, TmaView } from "@debrief/schemas";
 import type { LonLat } from "./geodesic.js";
 import { bearingText, type Kept } from "./sensors.js";
 import {
@@ -268,6 +268,53 @@ export class TmaControl {
       primeLive(view.residuals, solution);
       this.timesOf(view.residuals.rows);
     }
+    if (view?.focus) this.applyFocus(view.focus);
+  }
+
+  /**
+   * Something chosen for the analyst, once, as a command or a walkthrough's step asks (CAP-25):
+   * the cut at or nearest a time, current time to it; a period of cuts, and perhaps the first
+   * guess's form; or the counted cut with the largest residual, current time to it. The list
+   * then has the keyboard, or the form if it opened.
+   */
+  private applyFocus(focus: TmaFocus): void {
+    const rows = this.rows();
+    if (!rows.length) return;
+    if (focus.period && this.mode() === "cuts") {
+      const [start, end] = [Date.parse(focus.period.start), Date.parse(focus.period.end)];
+      const lo = rows.findIndex((r) => Date.parse(r.time) >= start);
+      let hi = -1;
+      for (let i = rows.length - 1; i >= 0; i--) {
+        if (Date.parse(rows[i].time) <= end) {
+          hi = i;
+          break;
+        }
+      }
+      if (lo < 0 || hi < lo) return this.say("There are no cuts in that period.");
+      this.anchor = lo;
+      this.setActive(hi, true);
+      this.say(describePeriod(rows, lo, hi, this.settings));
+      if (focus.make) this.openForm();
+      else this.list.focus({ preventScroll: true });
+      return;
+    }
+    let index = -1;
+    if (focus.cut_time) index = nearestRow(rows, Date.parse(focus.cut_time));
+    else if (focus.largest && this.mode() === "solution") {
+      let most = -1;
+      rows.forEach((row, i) => {
+        const r = row as TmaResidualRow;
+        if (r.residual === undefined || r.residual === null || r.excluded || r.hidden) return;
+        if (Math.abs(r.residual) > most) {
+          most = Math.abs(r.residual);
+          index = i;
+        }
+      });
+    }
+    if (index < 0) return;
+    this.setActive(index, false, true);
+    this.host.time(rows[index].time);
+    this.list.focus({ preventScroll: true });
   }
 
   /** Current time and the time window: the period offered follows the window until the analyst chooses one. */

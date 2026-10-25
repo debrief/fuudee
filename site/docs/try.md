@@ -4,7 +4,7 @@ This is Debrief v4 running in your browser: the same map, tool forms and results
 
 <div class="debrief-demo" data-demo=""></div>
 
-New to Debrief? Start with **Walkthroughs**, picked out in the theme's link colour: four short walkthroughs, each on a fresh copy of the sample, each step ticked as you do it. The same page runs full screen as the <a href="../demo/">web demo</a>.
+New to Debrief? Start with **Walkthroughs**, picked out in the theme's link colour: five short walkthroughs, each on a fresh copy of the sample, each step ticked as you do it. The same page runs full screen as the <a href="../demo/">web demo</a>.
 
 **Finding your way.** 900 pixels wide and more, as in the web demo, the panels sit in tab groups around the map: **Time**, **Tote**, **Outline** with **Catalogue**, and **Tools** with **History** on the left; **Timeline** with **Coverage** under the map; **Walkthroughs** on the right. Click a tab to bring its panel to the front, or drag it to another group, or to a group's edge to split it; your layout is kept in this browser, and **Reset layout** in the top bar puts it back. Without a mouse, or by touch, `Shift+F10` on a tab, or a group's **⋯**, moves its panel. The top bar holds **Plot**, and **Import…**, **Export** and **Try**, each a menu. Narrower, on a phone or in a post's demo, the panels are one column, each folding away by its heading ([browser layout](guides/interaction-models/browser-layout.md)).
 

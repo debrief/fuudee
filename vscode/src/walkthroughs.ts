@@ -27,6 +27,11 @@ export const TOURS: Tour[] = tours.tours;
 export const EVENTS: ReadonlySet<string> = new Set(TOURS.flatMap((t) => t.steps.map((s) => s.event)));
 /** The event the first step of each walkthrough waits for: its copy opened. */
 export const openedEvent = (tour: string) => `${tour}Opened`;
+/**
+ * What a walkthrough's first step shows once its copy is open, beyond the plot: Bearings and
+ * TMA's copy opens with the towed array's cuts listed in Bearings, as the step says.
+ */
+export const AFTER_OPEN: Record<string, [string, ...unknown[]]> = { tma: ["debrief.showBearings", "sensor-blue-one-towed-array"] };
 export { contextKey };
 
 /**
@@ -34,8 +39,17 @@ export { contextKey };
  * change itself, made by any means (a form, the map, the keyboard, a macro), so a step is
  * ticked by what the analyst did, not by which button they pressed.
  */
-export function serviceEvent(method: string, params: Record<string, unknown> = {}): string | undefined {
+export function serviceEvent(method: string, params: Record<string, unknown> = {}, isSolution: (id: string) => boolean = () => false): string | undefined {
   switch (method) {
+    case "debrief/resolve_ambiguity":
+      // A side kept: not both bearings made ambiguous again.
+      return params.keep && params.keep !== "ambiguous" ? "sideKept" : undefined;
+    case "debrief/tma_create":
+      return "solutionMade";
+    case "debrief/tma_exclude_cut":
+      return params.excluded === false ? undefined : "cutLeftOut";
+    case "debrief/tma_split_leg":
+      return params.join ? undefined : "legsSplit";
     case "debrief/import":
       return "imported";
     case "debrief/take_new_data":
@@ -50,6 +64,8 @@ export function serviceEvent(method: string, params: Record<string, unknown> = {
       return "fixMarked";
     case "debrief/edit_track": {
       const action = (params.edit as { action?: string } | undefined)?.action;
+      // A TMA solution dragged, by any of a track's drags: Bearings and TMA's step, not Tidy a track's shear.
+      if (isSolution(String(params.feature))) return ["move", "rotate", "shear", "stretch"].includes(String(action)) ? "solutionDragged" : undefined;
       // A shear, not a stretch: the step asks for a shear (panel review, 17 Oct 2026).
       return action === "shear" ? "sheared" : undefined;
     }
