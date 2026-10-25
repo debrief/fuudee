@@ -462,8 +462,24 @@ export async function playTma(page, shot) {
   assert.equal(await cutsToggle.getAttribute("aria-expanded"), "true");
   assert.equal(await page.evaluate(() => document.activeElement?.classList.contains("tma-list")), true, "the keyboard in the list");
   assert.equal(JSON.parse(await page.evaluate(() => localStorage.getItem("debrief.play.bearings"))).cuts, true);
-  const [plotBox, openList] = [await canvas.boundingBox(), await list.boundingBox()];
-  assert.ok(openList.y >= plotBox.y + plotBox.height - 1, "the cut list beneath the plot");
+  // The plot's box shrinks as the list opens; its canvas is drawn to the new size in the next frame
+  // (a ResizeObserver's), so until then it still reaches over the list, clipped: polled, not read the instant.
+  const boxes = () =>
+    page.evaluate(() => {
+      const box = (s) => {
+        const r = document.querySelector(s).getBoundingClientRect();
+        return { top: Math.round(r.top), bottom: Math.round(r.bottom) };
+      };
+      return { plot: box("#bearings .tma-plot"), canvas: box("#bearings .tma-canvas"), list: box("#bearings .tma-list") };
+    });
+  await page
+    .waitForFunction(() => {
+      const [p, c, l] = [".tma-plot", ".tma-canvas", ".tma-list"].map((s) => document.querySelector(`#bearings ${s}`).getBoundingClientRect());
+      return Math.abs(c.bottom - p.bottom) <= 1 && l.height > 0 && l.top >= p.bottom - 1;
+    }, null, { timeout: 10000 })
+    .catch(() => undefined);
+  const opened = await boxes();
+  assert.ok(Math.abs(opened.canvas.bottom - opened.plot.bottom) <= 1 && opened.list.top >= opened.plot.bottom - 1, `the cut list beneath the plot, the plot drawn to its box: ${JSON.stringify(opened)}`);
 
   // A wild cut left out of the RMS from the keyboard (Space), one step; Undo counts it again.
   await list.focus();
