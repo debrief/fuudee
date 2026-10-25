@@ -416,7 +416,7 @@ export async function playDock(browser, base, shot, ready, errors) {
   await dragTab(page, "panel-history", { x: outlineAgain.x + outlineAgain.width / 2, y: outlineAgain.y + outlineAgain.height - 12 });
   const split = await groupsOf(page);
   const saved = JSON.parse(await savedAfter(page, was));
-  assert.equal(saved.version, 4);
+  assert.equal(saved.version, 5);
   assert.deepEqual(Object.keys(saved.layout.panels).sort(), ["map", ...DOCKED_PANELS].sort());
   await page.reload();
   await ready(page);

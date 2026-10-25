@@ -85,6 +85,8 @@ export async function playTma(page, shot) {
   };
   // The default layout (product owner, 25 Oct 2026): the Bearings view a tall panel right of the
   // map, a tab behind the walkthroughs, from top to bottom of the dock.
+  // The playground's earlier steps leave every panel on the left; put back so at the end.
+  const rearranged = (await page.evaluate(() => window.debriefLayout().groups)).every((g) => g.place === "left" || g.panels.includes("map"));
   if (await page.locator("#reset-layout").isVisible()) {
     await page.locator("#reset-layout").click();
     await mapPlaced(page);
@@ -685,4 +687,23 @@ export async function playTma(page, shot) {
   await page.mouse.move(2, 2);
   await picture("stacked-dots-06-phone");
   await page.setViewportSize(wide);
+  if (rearranged) {
+    // As the playground's earlier steps left it, every panel on the left, for the steps after.
+    await mapPlaced(page);
+    const moveByMenu = async (id, item) => {
+      await page.locator(`.dv-tab[data-panel="${id}"]`).focus();
+      await page.keyboard.press("Shift+F10");
+      await page.getByRole("menuitem", { name: item, exact: true }).click();
+      await page.waitForFunction((tab) => document.activeElement?.dataset?.panel === tab, id);
+    };
+    await moveByMenu("panel-tools", "Move to a group of its own");
+    await moveByMenu("panel-history", "Move to a group of its own");
+    await moveByMenu("panel-tour", "Move to left: Tools");
+    await moveByMenu("panel-timeline", "Move to left: Tools, Walkthroughs");
+    await moveByMenu("panel-coverage", "Move to left: Tote");
+    await moveByMenu("panel-bearings", "Move to left: Tote, Coverage");
+    for (const id of ["tools", "outline", "tote"]) await showPanel(page, id);
+    assert.ok((await page.evaluate(() => window.debriefLayout().groups)).every((g) => g.place === "left" || g.panels.includes("map")), "every panel on the left again");
+    await mapPlaced(page);
+  }
 }
