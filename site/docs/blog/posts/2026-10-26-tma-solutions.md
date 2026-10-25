@@ -15,7 +15,7 @@ Bearings were the ground; this is what stands on it. Choose a period of a sensor
 
 ## Choose the period
 
-A new **Bearings** view stands tall to the right of the map, a tab behind the walkthroughs (in VS Code, in Debrief's side bar). Select a sensor, or its track, and it lists the sensor's cuts: time, sensor and bearing, both bearings for a towed array's unresolved pairs. The list is virtualised: only the rows in sight are in the page, so a sensor with thousands of cuts scrolls as easily as one with ten. It's a listbox for the keyboard: `Up` and `Down` move, `Shift` with them extends the period, `Home` and `End`, `Enter` moves current time to the cut so the map picks it out. Until you choose, the period follows the time window.
+A new **Bearings** view sits to the right of the map, above the walkthroughs, so a walkthrough's steps stay in sight while you work (in VS Code, in Debrief's side bar). Select a sensor, or its track, and it lists the sensor's cuts: time, sensor and bearing, both bearings for a towed array's unresolved pairs. The list is virtualised: only the rows in sight are in the page, so a sensor with thousands of cuts scrolls as easily as one with ten. It's a listbox for the keyboard: `Up` and `Down` move, `Shift` with them extends the period, `Home` and `End`, `Enter` moves current time to the cut so the map picks it out. Until you choose, the period follows the time window.
 
 ![The playground with serial 2 open: the Bow sonar's cuts listed in the Bearings view right of the map, 60 of them chosen from 12:24:00Z to 13:08:30Z, the last row outlined; the map shows the sonar's teal lines from BLUE ONE](images/phase-4/tma-01-cut-list.png)
 
@@ -69,7 +69,7 @@ A legacy plot's TMA track now comes in as a solution: absolute legs as they were
 
 ## Try it
 
-Open *Serial 2*, select **Bow sonar** under BLUE ONE in the Outline, open the **Bearings** tab right of the map, choose a period of cuts and **Make solution…**; then drag the solution's end on the map until the Error pane turns green.
+Open *Serial 2*, select **Bow sonar** under BLUE ONE in the Outline, go to **Bearings** right of the map, choose a period of cuts and **Make solution…**; then drag the solution's end on the map until the Error pane turns green.
 
 <div class="debrief-demo" data-demo="?panels=bearings,history" data-height="820px" data-caption="Open Serial 2, select the Bow sonar, then in Bearings choose a period of cuts and Make solution…. Drag the solution's end on the map and the residuals follow. Everything runs in your browser."></div>
 

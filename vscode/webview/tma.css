@@ -30,7 +30,6 @@ html:has(.tma-root), html:has(.tma-root) body { height: 100%; margin: 0; }
 .tma-right { display: flex; flex-direction: column; flex: 1 1 auto; min-height: 0; min-width: 0; }
 .tma-solution-shown:not(.tma-wide) .tma-left { display: contents; }
 .tma-solution-shown:not(.tma-wide) .tma-tools { order: 1; }
-.tma-solution-shown:not(.tma-wide) .tma-readout { order: 2; }
 .tma-solution-shown:not(.tma-wide) .tma-plot { order: 3; }
 .tma-solution-shown:not(.tma-wide) .tma-cue { order: 4; }
 .tma-solution-shown:not(.tma-wide) .tma-rms { order: 5; }
@@ -59,11 +58,19 @@ html:has(.tma-root), html:has(.tma-root) body { height: 100%; margin: 0; }
    The canvases are laid over the plot's box, never sizing it: the panel lays it out. */
 .tma-plot { position: relative; flex: 1 1 auto; min-height: 280px; overflow: hidden; }
 .tma-wide .tma-plot { min-height: 160px; }
+/* Short (Bearings above the walkthroughs at a laptop's height): the plot keeps the room, the key goes,
+   the list keeps three rows, and what does not fit scrolls rather than being cut off. */
+.tma-short .tma-plot { min-height: 160px; }
+.tma-short.tma-solution-shown .tma-key { display: none; }
+.tma-short.tma-solution-shown:not(.tma-wide) .tma-list { height: calc(3 * 22px + 2px); }
+.tma-short.tma-solution-shown { overflow-y: auto; }
 .tma-canvas, .tma-overlay { position: absolute; left: 0; top: 0; display: block; }
 .tma-canvas { cursor: crosshair; touch-action: none; }
 .tma-canvas:focus-visible { outline: 1px solid var(--vscode-focusBorder); outline-offset: -1px; }
 .tma-overlay { pointer-events: none; }
-.tma-readout { margin: 0; flex: none; min-height: 1.4em; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; color: var(--vscode-descriptionForeground); font-size: 11px; font-variant-numeric: tabular-nums; }
+/* The time and value under the pointer, laid over the panes' names while pointing: it takes no line of its own. */
+.tma-readout { position: absolute; left: 0; right: 0; top: 0; margin: 0; padding: 1px 4px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; pointer-events: none; background: var(--vscode-editorWidget-background, var(--vscode-editor-background)); color: var(--vscode-foreground); font-size: 11px; font-variant-numeric: tabular-nums; }
+.tma-readout:empty { display: none; }
 /* The cut-off's state in words and a mark, not colour alone: in a high-contrast theme too. */
 .tma-cue { margin: 0; flex: none; font-variant-numeric: tabular-nums; }
 .tma-cue-mark { display: inline-block; min-width: 1.1em; text-align: center; font-weight: 700; border: 1px solid currentColor; border-radius: 2px; }

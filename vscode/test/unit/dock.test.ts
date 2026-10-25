@@ -104,14 +104,24 @@ describe("the default's sizes", () => {
     expect(defaultSizes(900, 500).left).toBe(250);
     expect(defaultSizes(3000, 1600).right).toBe(380);
   });
+  it("gives Bearings most of the right-hand column and the walkthroughs a readable rest, at a laptop's sizes", () => {
+    for (const height of [666, 714, 1030]) {
+      const { bearings } = defaultSizes(1366, height);
+      expect(bearings / height).toBeGreaterThan(0.55);
+      expect(height - bearings).toBeGreaterThanOrEqual(220);
+    }
+  });
 });
 
 describe("the panels' one table", () => {
-  it("puts every panel in exactly one default group, the walkthroughs in front on the right and Bearings tall beside the map behind them", () => {
+  it("puts every panel in exactly one default group, Bearings on the right with the walkthroughs beneath", () => {
     const grouped = DEFAULT_GROUPS.flatMap((g) => g.panels);
     expect(grouped.sort()).toEqual(PANELS.map((p) => p.id).sort());
-    // Product owner, 25 Oct 2026: the Bearings view tall, right of the map, a tab behind the walkthroughs.
-    expect(DEFAULT_GROUPS.filter((g) => g.place === "right")).toEqual([{ place: "right", panels: ["panel-tour", "panel-bearings"] }]);
+    // Product owner, 25 Oct 2026: the right-hand column split, Bearings on top, the walkthroughs beneath, both in sight.
+    expect(DEFAULT_GROUPS.filter((g) => g.place === "right")).toEqual([
+      { place: "right", panels: ["panel-bearings"] },
+      { place: "right", panels: ["panel-tour"] },
+    ]);
     expect(DEFAULT_GROUPS.find((g) => g.place === "centre")?.panels).toEqual(["panel-timeline", "panel-coverage"]);
     expect(DEFAULT_GROUPS.every((g) => g.panels.length <= 3)).toBe(true); // no tab overflow in a side column
   });

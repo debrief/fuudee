@@ -185,6 +185,31 @@ export async function playDock(browser, base, shot, ready, errors) {
   await page.mouse.move(2, 2);
   await shot("dock-01-default-1366-dark", page);
 
+  // The right-hand column (product owner, 25 Oct 2026): Bearings on top with most of the height,
+  // the walkthroughs beneath, both in sight at once; the walkthroughs fold to their tab and back.
+  const rightColumn = async () =>
+    page.evaluate(() => {
+      const box = (id) => document.querySelector(`.dv-tab[data-panel="${id}"]`).closest(".dv-groupview").getBoundingClientRect();
+      const [b, t, m] = [box("panel-bearings"), box("panel-tour"), document.getElementById("main").getBoundingClientRect()];
+      return { bearings: { x: b.x, top: b.top, height: b.height }, tour: { x: t.x, top: t.top, height: t.height }, mapRight: m.right, mapWidth: m.width };
+    });
+  const column = await rightColumn();
+  assert.ok(column.bearings.x >= column.mapRight - 1 && Math.abs(column.bearings.x - column.tour.x) < 1, `one column right of the map: ${JSON.stringify(column)}`);
+  assert.ok(column.tour.top >= column.bearings.top + column.bearings.height - 1, "the walkthroughs beneath Bearings");
+  assert.ok(column.bearings.height > column.tour.height * 1.4 && column.tour.height >= 200, `Bearings most of the height, the walkthroughs readable: ${column.bearings.height} and ${column.tour.height}`);
+  for (const id of ["panel-bearings", "panel-tour"]) assert.equal(await page.locator(`.dv-tab[data-panel="${id}"]`).getAttribute("aria-selected"), "true", `${id} in front of its group`);
+  await page.locator('.dv-tab[data-panel="panel-tour"]').focus();
+  await page.keyboard.press("Shift+F10");
+  await page.getByRole("menuitem", { name: "Collapse to its tabs", exact: true }).click();
+  await page.waitForFunction(() => document.querySelector('.dv-tab[data-panel="panel-tour"]').closest(".dv-groupview").getBoundingClientRect().height < 60);
+  const folded = await rightColumn();
+  assert.ok(folded.bearings.height > column.bearings.height + column.tour.height - 80, `collapsed, Bearings takes the column: ${JSON.stringify(folded)}`);
+  assert.equal(folded.mapWidth, column.mapWidth, "the map's width unchanged");
+  await page.locator('.dv-tab[data-panel="panel-tour"]').focus();
+  await page.keyboard.press("Shift+F10");
+  await page.getByRole("menuitem", { name: "Expand", exact: true }).click();
+  await page.waitForFunction((h) => document.querySelector('.dv-tab[data-panel="panel-tour"]').closest(".dv-groupview").getBoundingClientRect().height >= h - 2, column.tour.height);
+
   // For screen readers (panel review, 23 Oct 2026): one tab list per group, named by where it is and
   // what it holds; one tab panel per panel, named by its tab and holding the panel; no empty regions
   // or tab panels; the map named.
@@ -197,7 +222,8 @@ export async function playDock(browser, base, shot, ready, errors) {
   for (const id of DOCKED_PANELS) assert.equal(await page.locator(`.dv-tab[data-panel="${id}"]`).getAttribute("aria-controls"), `dock-${id}`);
   const tree = await page.locator("#dock").ariaSnapshot();
   assert.match(tree, /tablist "Panels, left: Outline, Catalogue"/);
-  assert.match(tree, /tablist "Panels, right: Walkthroughs, Bearings"/);
+  assert.match(tree, /tablist "Panels, right: Bearings"/);
+  assert.match(tree, /tablist "Panels, right: Walkthroughs"/);
   const timePanel = tree.slice(tree.indexOf('tabpanel "Time"'), tree.indexOf('tabpanel "Tote"'));
   assert.match(timePanel, /slider "Current time"/, `the Time tab panel holds the time controller:\n${timePanel}`);
 
@@ -274,11 +300,27 @@ export async function playDock(browser, base, shot, ready, errors) {
   const outline = await groupBox(page, "panel-outline");
   await dragTab(page, "panel-history", { x: outline.x + outline.width / 2, y: outline.y + outline.height - 12 });
   assert.ok((await groupsOf(page)).includes("left:panel-history"), (await groupsOf(page)).join(" | "));
-  assert.equal(await page.locator("#history").isVisible(), true, "History in view, in its own group");
+  // Dockview shows a panel moved into view in its next animation frame (its overlay is hidden until
+  // placed), which a busy runner may not have drawn yet: polled, never read the instant the drop lands.
+  await page
+    .waitForFunction(() => {
+      const section = document.getElementById("panel-history");
+      const overlay = section?.closest(".dv-render-overlay");
+      const box = document.getElementById("history")?.getBoundingClientRect();
+      return !!overlay && getComputedStyle(overlay).visibility !== "hidden" && !!box && box.width > 0 && box.height > 0;
+    }, null, { timeout: 10000 })
+    .catch(() => undefined);
+  await page.locator("#history").scrollIntoViewIfNeeded();
+  const historyShown = await page.evaluate(() => {
+    const overlay = document.getElementById("panel-history")?.closest(".dv-render-overlay");
+    const box = document.getElementById("history")?.getBoundingClientRect();
+    return { overlay: overlay && getComputedStyle(overlay).visibility, box: box && [Math.round(box.width), Math.round(box.height)], active: document.querySelector('.dv-tab[data-panel="panel-history"]')?.getAttribute("aria-selected") };
+  });
+  assert.equal(await page.locator("#history").isVisible(), true, `History in view, in its own group: ${JSON.stringify(historyShown)}`);
   // Drag Coverage's tab beside the walkthroughs, as a tab.
   const right = await groupBox(page, "panel-tour");
   await dragTab(page, "panel-coverage", { x: right.x + right.width / 2, y: right.y + right.height / 2 });
-  assert.ok((await groupsOf(page)).includes("right:panel-tour,panel-bearings,panel-coverage"), (await groupsOf(page)).join(" | "));
+  assert.ok((await groupsOf(page)).includes("right:panel-tour,panel-coverage"), (await groupsOf(page)).join(" | "));
   for (const id of ["panel-catalogue", "panel-coverage", "panel-tour", "panel-outline", "panel-tools"]) await showPanel(page, id);
   await page.mouse.move(2, 2);
   await shot("dock-02-rearranged", page);
@@ -286,9 +328,9 @@ export async function playDock(browser, base, shot, ready, errors) {
   // Moved by keyboard: arrows along a strip, Enter to the front, Shift+F10 for the tab's menu.
   await page.locator('.dv-tab[data-panel="panel-coverage"]').focus();
   await page.keyboard.press("ArrowLeft");
-  assert.equal(await page.evaluate(() => document.activeElement?.dataset.panel), "panel-bearings", "← moves along the strip");
+  assert.equal(await page.evaluate(() => document.activeElement?.dataset.panel), "panel-tour", "← moves along the strip");
   await page.keyboard.press("Enter");
-  assert.equal(await page.locator('.dv-tab[data-panel="panel-bearings"]').getAttribute("aria-selected"), "true", "Enter brings it to the front");
+  assert.equal(await page.locator('.dv-tab[data-panel="panel-tour"]').getAttribute("aria-selected"), "true", "Enter brings it to the front");
   await page.keyboard.press("ArrowRight");
   await page.keyboard.press("Shift+F10");
   const menu = page.getByRole("menu", { name: "Coverage: move" });
@@ -416,7 +458,7 @@ export async function playDock(browser, base, shot, ready, errors) {
   await dragTab(page, "panel-history", { x: outlineAgain.x + outlineAgain.width / 2, y: outlineAgain.y + outlineAgain.height - 12 });
   const split = await groupsOf(page);
   const saved = JSON.parse(await savedAfter(page, was));
-  assert.equal(saved.version, 5);
+  assert.equal(saved.version, 6);
   assert.deepEqual(Object.keys(saved.layout.panels).sort(), ["map", ...DOCKED_PANELS].sort());
   await page.reload();
   await ready(page);
@@ -522,7 +564,7 @@ export async function playDock(browser, base, shot, ready, errors) {
   await tablet.locator('.dv-tab[data-panel="panel-tools"]').tap(); // in front of its group (the Tote's)
   await tablet.locator(".dv-groupview", { has: tablet.locator('.dv-tab[data-panel="panel-tools"]') }).locator(".dock-menu-button").tap();
   await tablet.getByRole("menuitem", { name: "Move to right: Walkthroughs" }).tap();
-  await tablet.waitForFunction(() => window.debriefLayout().groups.some((g) => g.panels.join() === "panel-tour,panel-bearings,panel-tools"));
+  await tablet.waitForFunction(() => window.debriefLayout().groups.some((g) => g.panels.join() === "panel-tour,panel-tools"));
   await touch.close();
 
   // A blog post's demo: a fixed layout from the panels it lists, never remembered.

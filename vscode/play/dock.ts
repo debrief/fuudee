@@ -6,7 +6,7 @@
  *
  * The default is "A, task-grouped" (panels.mjs): Time, Tote, Outline with Catalogue, and Tools with
  * History down the left; the map in the middle with Timeline and Coverage under it; the
- * walkthroughs on the right, the Bearings view a tab behind them. The layout is remembered in this browser (its shape only, never
+ * Bearings view on the right with the walkthroughs beneath it. The layout is remembered in this browser (its shape only, never
  * anything from a plot), unless the page is a blog's demo, which always starts from a layout made
  * from the panels it lists.
  *
@@ -30,8 +30,9 @@ export const LAYOUT_KEY = "debrief.play.layout";
  * 3: three groups on the left (product owner, 24 Oct 2026): Tools and History beside the Tote.
  * 4: the Bearings panel (TMA, CAP-21; 24 Oct 2026), a tab beside the Timeline and Coverage under the map.
  * 5: the Bearings panel tall, right of the map, a tab behind the walkthroughs (product owner, 25 Oct 2026).
+ * 6: the right-hand column split: Bearings on top, the walkthroughs beneath (product owner, 25 Oct 2026).
  */
-export const LAYOUT_VERSION = 5;
+export const LAYOUT_VERSION = 6;
 /** The map's place in the layout: an empty slot the map is laid over. */
 export const MAP_ID = "map";
 
@@ -47,9 +48,11 @@ const TIME_HEIGHT = 172;
  * 2026, second round), so the map keeps more. On the left, Time as tall as it needs, the Tote a
  * quarter of the height and at least what the sample needs at 1280 px (Tools and History as tabs
  * beside it), and the rest to the Outline's group, its list and its track tools (product owner,
- * 24 Oct 2026).
+ * 24 Oct 2026). On the right, Bearings about two thirds of the height and the walkthroughs the rest
+ * (product owner, 25 Oct 2026): at 1366 × 768 about 470 px and 245 px, so the plot reads and a
+ * walkthrough's step is in sight; never less than 220 px for the walkthroughs.
  */
-export function defaultSizes(width: number, height: number): { left: number; right: number; time: number; tote: number; strip: number } {
+export function defaultSizes(width: number, height: number): { left: number; right: number; time: number; tote: number; strip: number; bearings: number } {
   const clamp = (value: number, low: number, high: number) => Math.round(Math.max(low, Math.min(high, value)));
   const time = TIME_HEIGHT;
   const tote = clamp(height * 0.25, 188, 230);
@@ -59,6 +62,7 @@ export function defaultSizes(width: number, height: number): { left: number; rig
     time,
     tote,
     strip: clamp(height * 0.22, 110, 380),
+    bearings: clamp(height * 0.66, 240, Math.max(240, height - 220)),
   };
 }
 
@@ -402,27 +406,28 @@ export class Dock {
     const groups = DEFAULT_GROUPS.map((g) => ({ ...g, panels: g.panels.filter((id) => this.options.sections.has(id)) })).filter((g) => g.panels.length);
     // Under the map first, so the side columns run the full height beside both.
     const lefts: IDockviewPanel[] = [];
-    let right: IDockviewPanel | undefined;
+    const rights: IDockviewPanel[] = [];
     for (const group of groups) {
       const [first, ...rest] = group.panels;
       let lead: IDockviewPanel;
       const lastLeft = lefts[lefts.length - 1];
+      const lastRight = rights[rights.length - 1];
       if (group.place === "centre") lead = this.add(first, { referencePanel: map, direction: "below" });
       else if (group.place === "left") lead = this.add(first, lastLeft ? { referencePanel: lastLeft, direction: "below" } : { direction: "left" });
-      else lead = this.add(first, { direction: "right" });
+      else lead = this.add(first, lastRight ? { referencePanel: lastRight, direction: "below" } : { direction: "right" });
       for (const id of rest) this.add(id, { referencePanel: lead, direction: "within" }, true);
       lead.api.setActive();
       if (group.place === "left") lefts.push(lead);
-      else if (group.place === "right") right = lead;
+      else if (group.place === "right") rights.push(lead);
       else lead.group.api.setSize({ height: sizes.strip });
     }
-    // Sizes: the columns' widths, then the left groups' heights from the top (the last takes the rest).
+    // Sizes: the columns' widths, then each column's groups' heights from the top (the last takes the rest).
     lefts[0]?.group.api.setSize({ width: sizes.left });
-    right?.group.api.setSize({ width: sizes.right });
-    const heights: Record<string, number> = { "panel-time": sizes.time, "panel-tote": sizes.tote };
+    rights[0]?.group.api.setSize({ width: sizes.right });
+    const heights: Record<string, number> = { "panel-time": sizes.time, "panel-tote": sizes.tote, "panel-bearings": sizes.bearings };
     // Twice: setting one group's height gives or takes from its neighbours, the ones set before too.
     for (let pass = 0; pass < 2; pass++) {
-      for (const lead of lefts.slice(0, -1)) {
+      for (const lead of [...lefts.slice(0, -1), ...rights.slice(0, -1)]) {
         const height = heights[lead.id];
         if (height) lead.group.api.setSize({ height });
       }
@@ -608,6 +613,43 @@ export class Dock {
     return { element, init: () => undefined, dispose: () => element.remove() };
   }
 
+  /** Groups folded to their tabs, by group id: the height each had, to unfold to. */
+  private collapsed = new Map<string, number>();
+
+  /** Whether a group shares its column with another, above or below it. */
+  private sharesColumn(group: DockviewGroupPanel): boolean {
+    const box = group.element.getBoundingClientRect();
+    return this.api.groups.some((other) => {
+      if (other === group) return false;
+      const b = other.element.getBoundingClientRect();
+      return Math.abs(b.left - box.left) < 2 && Math.abs(b.width - box.width) < 2;
+    });
+  }
+
+  /** Whether a panel's group is folded to its tabs. */
+  isCollapsed(id: string): boolean {
+    const group = this.api.getPanel(id)?.group;
+    return !!group && this.collapsed.has(group.id);
+  }
+
+  /** Fold a panel's group to its tabs, or unfold it to the height it had: the others in its column take the room. */
+  toggleCollapsed(id: string): void {
+    const group = this.api.getPanel(id)?.group;
+    if (!group) return;
+    const was = this.collapsed.get(group.id);
+    if (was === undefined) {
+      const strip = Math.ceil(group.element.querySelector(".dv-tabs-and-actions-container")?.getBoundingClientRect().height ?? 35);
+      this.collapsed.set(group.id, group.element.getBoundingClientRect().height);
+      group.api.setConstraints({ minimumHeight: strip });
+      group.api.setSize({ height: strip });
+    } else {
+      this.collapsed.delete(group.id);
+      group.api.setConstraints({ minimumHeight: 100 });
+      group.api.setSize({ height: Math.max(was, 160) });
+    }
+    this.focusTab(id);
+  }
+
   /** The menu for a panel: move it to each other group, or a group of its own; reset the layout (menu.ts). */
   openMenu(id: string, x: number, y: number, from: HTMLElement): void {
     const panel = this.api.getPanel(id);
@@ -618,6 +660,8 @@ export class Dock {
       items.push({ label: `Move to ${group.place}: ${group.panels.map((p) => this.options.titles[p] ?? p).join(", ")}`, act: () => this.moveTo(id, group.id) });
     }
     if (panel.group.panels.length > 1) items.push({ label: "Move to a group of its own", act: () => this.moveTo(id, "own") });
+    // A group sharing its column folds to its tabs, giving the rest of the column to the others (the walkthroughs under Bearings).
+    if (this.sharesColumn(panel.group)) items.push({ label: this.collapsed.has(panel.group.id) ? "Expand" : "Collapse to its tabs", act: () => this.toggleCollapsed(id) });
     items.push({ label: "Reset layout", act: () => this.reset() });
     openMenu(items, { label: `${this.options.titles[id] ?? id}: move`, x, y, from, className: "dock-menu" });
   }

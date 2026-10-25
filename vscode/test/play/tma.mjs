@@ -83,8 +83,8 @@ export async function playTma(page, shot) {
     await page.waitForFunction((u) => document.querySelectorAll("#history li.undone").length > u, before, { timeout: 60000 });
     await showPanel(page, "bearings");
   };
-  // The default layout (product owner, 25 Oct 2026): the Bearings view a tall panel right of the
-  // map, a tab behind the walkthroughs, from top to bottom of the dock.
+  // The default layout (product owner, 25 Oct 2026): the right-hand column split, the Bearings view
+  // on top with most of the height, the walkthroughs beneath it, both in sight.
   // The playground's earlier steps leave every panel on the left; put back so at the end.
   const rearranged = (await page.evaluate(() => window.debriefLayout().groups)).every((g) => g.place === "left" || g.panels.includes("map"));
   if (await page.locator("#reset-layout").isVisible()) {
@@ -92,22 +92,20 @@ export async function playTma(page, shot) {
     await mapPlaced(page);
   }
   const groups = (await page.evaluate(() => window.debriefLayout().groups));
-  const bearingsGroup = groups.find((g) => g.panels.includes("panel-bearings"));
-  assert.deepEqual(bearingsGroup && { place: bearingsGroup.place, panels: bearingsGroup.panels, active: bearingsGroup.active }, { place: "right", panels: ["panel-tour", "panel-bearings"], active: "panel-tour" });
+  assert.deepEqual(groups.filter((g) => g.place === "right").map((g) => [g.panels, g.active]), [[["panel-bearings"], "panel-bearings"], [["panel-tour"], "panel-tour"]], "Bearings and the walkthroughs, each in front of its own group");
   assert.ok(!groups.some((g) => g.place === "centre" && g.panels.includes("panel-bearings")), "no longer under the map");
-  await showPanel(page, "bearings");
   const placed = await page.evaluate(() => {
     const box = (e) => e.getBoundingClientRect();
+    const group = (id) => box(document.querySelector(`.dv-tab[data-panel="${id}"]`).closest(".dv-groupview"));
     const map = box(document.getElementById("main"));
-    const tab = box(document.querySelector('.dv-tab[data-panel="panel-bearings"]'));
-    const content = box(document.getElementById("panel-bearings"));
-    const panel = { x: content.x, right: content.right, top: tab.top, bottom: content.bottom, height: content.bottom - tab.top };
-    const strip = box(document.querySelector('.dv-tab[data-panel="panel-timeline"]').closest(".dv-groupview"));
-    return { map: { x: map.x, right: map.right, top: map.top }, panel: { x: panel.x, right: panel.right, top: panel.top, bottom: panel.bottom, height: panel.height }, stripBottom: strip.bottom, width: innerWidth };
+    const [bearings, tour] = [group("panel-bearings"), group("panel-tour")];
+    const strip = group("panel-timeline");
+    return { map: { right: map.right, top: map.top }, bearings: { x: bearings.x, right: bearings.right, top: bearings.top, height: bearings.height }, tour: { top: tour.top, bottom: tour.bottom, height: tour.height }, stripBottom: strip.bottom, width: innerWidth };
   });
-  assert.ok(placed.panel.x >= placed.map.right - 1, `right of the map: ${JSON.stringify(placed)}`);
-  assert.ok(Math.abs(placed.panel.right - placed.width) <= 1, "at the window's right edge");
-  assert.ok(placed.panel.top <= placed.map.top + 1 && placed.panel.bottom >= placed.stripBottom - 1, `tall: beside the map and the strip under it: ${JSON.stringify(placed)}`);
+  assert.ok(placed.bearings.x >= placed.map.right - 1, `right of the map: ${JSON.stringify(placed)}`);
+  assert.ok(Math.abs(placed.bearings.right - placed.width) <= 1, "at the window's right edge");
+  assert.ok(placed.bearings.top <= placed.map.top + 1 && placed.tour.bottom >= placed.stripBottom - 1, `the column beside the map and the strip under it: ${JSON.stringify(placed)}`);
+  assert.ok(placed.tour.top >= placed.bearings.top + placed.bearings.height - 1 && placed.bearings.height > placed.tour.height, `Bearings on top with most of the height: ${JSON.stringify(placed)}`);
   // Serial 2, the whole of it in the window.
   await page.selectOption("#plots", "serial-2");
   await page.waitForFunction(() => document.getElementById("plot-title")?.textContent === "Serial 2", null, { timeout: 60000 });
@@ -202,7 +200,13 @@ export async function playTma(page, shot) {
   const canvasBox = await canvas.boundingBox();
   const panelBox = await page.locator("#panel-bearings").boundingBox();
   const listBox = await list.boundingBox();
-  assert.ok(canvasBox.height >= 250, `the plot takes the panel's height: ${canvasBox.height}`);
+  assert.ok(canvasBox.height >= 160, `the plot takes the panel's height: ${canvasBox.height}`);
+  // Making the solution brought Bearings forward without hiding the walkthroughs beneath it (product owner, 25 Oct 2026).
+  assert.equal(await page.locator('.dv-tab[data-panel="panel-tour"]').getAttribute("aria-selected"), "true", "the walkthroughs still in front of their group");
+  await page.waitForFunction(() => {
+    const overlay = document.getElementById("panel-tour")?.closest(".dv-render-overlay");
+    return !!overlay && getComputedStyle(overlay).visibility !== "hidden" && overlay.getBoundingClientRect().height > 100;
+  });
   assert.ok(canvasBox.y + canvasBox.height <= panelBox.y + panelBox.height + 1, "the plot is not clipped");
   assert.ok(listBox.y >= canvasBox.y + canvasBox.height - 1, "the cut list beneath the plot");
 

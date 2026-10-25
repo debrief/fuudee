@@ -146,6 +146,8 @@ const HIT_PX = 7;
 const BOX_PX = 5;
 /** From this width the view lays the plots beside the list (the strip under the map). */
 const WIDE_PX = 640;
+/** Below this height the view is short: no key, three rows of the list, the plot the rest. */
+const SHORT_PX = 640;
 /** Below this width the list drops its tick boxes, so a bearing is still read whole. */
 const NARROW_PX = 280;
 const escape = (text: string) => text.replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[c]!);
@@ -251,8 +253,7 @@ export class TmaControl {
       `<button type="button" class="tma-reset" disabled title="Undo the zoom (double-click the plot, or press 0 in it)" aria-keyshortcuts="0">Reset zoom</button>` +
       `<label class="tma-cutoff" title="The Error pane is green while every error counted is within this, pink otherwise; kept with your Debrief settings"><span>Cut-off</span><input type="number" class="tma-cutoff-input" min="0.1" max="180" step="0.5" inputmode="decimal" aria-label="Error cut-off, degrees"><span aria-hidden="true">°</span></label>` +
       `</div>` +
-      `<div class="tma-plot" hidden><canvas class="tma-canvas" role="img" tabindex="0" aria-keyshortcuts="ArrowUp ArrowDown Enter + - [ ] 0 PageUp PageDown"></canvas><canvas class="tma-overlay" aria-hidden="true"></canvas></div>` +
-      `<p class="tma-readout" aria-hidden="true" hidden></p>` +
+      `<div class="tma-plot" hidden><canvas class="tma-canvas" role="img" tabindex="0" aria-keyshortcuts="ArrowUp ArrowDown Enter + - [ ] 0 PageUp PageDown"></canvas><canvas class="tma-overlay" aria-hidden="true"></canvas><p class="tma-readout" aria-hidden="true"></p></div>` +
       `<p class="tma-cue" hidden aria-live="polite"><span class="tma-cue-mark" aria-hidden="true"></span> <span class="tma-cue-text"></span></p>` +
       `<p class="tma-key" aria-hidden="true" hidden></p>` +
       `<p class="tma-rms" hidden></p>` +
@@ -344,6 +345,10 @@ export class TmaControl {
       element.classList.toggle("tma-wide", element.clientWidth >= WIDE_PX);
       // Narrow (a side column, about 200 px): the list keeps time, bearing and residual readable; the tick box goes (Space and the button leave a cut out).
       element.classList.toggle("tma-narrow", element.clientWidth < NARROW_PX);
+      // Short (Bearings above the walkthroughs, at a laptop's height): the plot keeps the room; the key goes, the list keeps three rows.
+      // Only where the panel's height is the layout's (a docked group, VS Code's view), never where the view grows to fit (a phone's column).
+      const bound = element.closest<HTMLElement>(".dock-panel") ?? (element.closest(".tma-root") ? document.documentElement : null);
+      element.classList.toggle("tma-short", !!bound && bound.clientHeight > 0 && bound.clientHeight < SHORT_PX);
       this.renderRows();
       // Not mid-drag: the plot's size is read once a drag.
       if (!this.live) this.frozenGeometry = undefined;
@@ -592,7 +597,7 @@ export class TmaControl {
     this.empty.hidden = open;
     for (const part of [this.element.querySelector<HTMLElement>(".tma-head")!, this.element.querySelector<HTMLElement>(".tma-body")!]) part.hidden = !open;
     if (!open) {
-      this.plot.hidden = this.tools.hidden = this.readout.hidden = this.cue.hidden = this.keyLine.hidden = true;
+      this.plot.hidden = this.tools.hidden = this.cue.hidden = this.keyLine.hidden = true;
       this.element.classList.remove("tma-solution-shown");
       this.rmsLine.hidden = this.notes.hidden = this.actions.hidden = this.chosen.hidden = true;
       this.closeForm();
@@ -614,7 +619,7 @@ export class TmaControl {
     this.list.setAttribute("aria-label", solution ? `Cuts of ${this.solutionRow()?.name ?? "the solution"}, with their residuals` : `Cuts of ${sensors.find((s) => s.id === this.sensor.value)?.name ?? "the sensor"}`);
     this.heading.classList.toggle("tma-with-residual", solution);
     this.list.classList.toggle("tma-with-residual", solution);
-    this.plot.hidden = this.tools.hidden = this.readout.hidden = this.cue.hidden = this.keyLine.hidden = !solution;
+    this.plot.hidden = this.tools.hidden = this.cue.hidden = this.keyLine.hidden = !solution;
     this.element.classList.toggle("tma-solution-shown", solution);
     this.renderTools();
     this.chosen.hidden = solution;
@@ -1721,7 +1726,7 @@ export class TmaControl {
       this.box.x1 = x;
       this.box.y1 = y;
     }
-    this.readout.textContent = this.readAt(x, y) || " ";
+    this.readout.textContent = this.readAt(x, y);
     this.drawOverlay();
   }
 
@@ -1746,7 +1751,7 @@ export class TmaControl {
 
   private pointerGone(): void {
     this.pointer = undefined;
-    this.readout.textContent = " ";
+    this.readout.textContent = "";
     this.drawOverlay();
   }
 
