@@ -60,7 +60,7 @@ The background traffic comes from the US national AIS archive, published by NOAA
 
 ## For walkthroughs
 
-Debrief's walkthroughs (CAP-25) never change the sample: each works on a copy of serial 1, titled after it, made by `debrief_sample.walkthrough`. VS Code builds a fresh sample for each walkthrough into a catalogue of its own, `python -m debrief_sample walkthrough FOLDER TOUR`; the playground copies the sample as the site shipped it. *Tidy a track*'s copy has three GPS glitches in RED ONE, as a step of their own; *Import and collate*'s comes with BLUE ONE's navigation log, a REP file of fiction like the rest. The walkthroughs' pictures are drawn from serial 1 by `python -m debrief_sample media vscode/media/walkthroughs`. See [Walkthroughs](interaction-models/walkthroughs.md).
+Debrief's walkthroughs (CAP-25) never change the sample: each works on a copy of serial 1, titled after it, made by `debrief_sample.walkthrough`. VS Code builds a fresh sample for each walkthrough into a catalogue of its own, `python -m debrief_sample walkthrough FOLDER TOUR`; the playground copies the sample as the site shipped it. *Tidy a track*'s copy has three GPS glitches in RED ONE, as a step of their own; *Import and collate*'s comes with BLUE ONE's navigation log, a REP file of fiction like the rest; *Bearings and TMA*'s has one of the towed array's cuts turned 40° off, a wild bearing, as a step of its own, since the sample's bearings have none. That walkthrough makes its TMA solution live, so the sample itself holds none. The walkthroughs' pictures are drawn from serial 1 by `python -m debrief_sample media vscode/media/walkthroughs`. See [Walkthroughs](interaction-models/walkthroughs.md).
 
 ## Not yet in it
 

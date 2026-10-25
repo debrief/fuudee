@@ -27,7 +27,7 @@
  * layout every time, with every panel open, and remembers neither, so a post's demo always shows
  * what the post describes.
  */
-import type { AnnotationSpec, CoverageReport, DebriefFeatureCollection, ItemRevision, NarrativeSpec, ParameterValue, PlotView, ReviewFlag, SharedStateChange, SourceTrackRef, StacItem, TimeRange, TimeState, TmaCut, TmaRequest, TmaResiduals, ToolDeclaration, ToolResult, ToteResult, ToteView } from "@debrief/schemas";
+import type { AnnotationSpec, CoverageReport, DebriefFeatureCollection, ItemRevision, NarrativeSpec, ParameterValue, PlotView, ReviewFlag, SharedStateChange, SourceTrackRef, StacItem, TimeRange, TimeState, TmaCut, TmaFocus, TmaRequest, TmaResiduals, ToolDeclaration, ToolResult, ToteResult, ToteView } from "@debrief/schemas";
 import { CoverageControl } from "../webview/coveragecontrol.js";
 import { specOfFeature } from "../webview/annotationlook.js";
 import { NarrativeOnMap, narrativeOnMapOf, timelineEntries, timelineTracks } from "../src/timeline.js";
@@ -62,7 +62,8 @@ import { formatQuantity, figureIdProblem, UNIT_LABELS } from "@debrief/kernel";
 import type { FigureSource, ImageExport, RenderedImage, RevisionShown } from "@debrief/schemas";
 import { fileNameFor, PRESETS, type ImageFormat, type ImagePreset, type ImageTheme } from "../webview/exportlogic.js";
 import { describeExported, describeSource, READ_ONLY, rememberedOf, revisionOf, startingChoice, type ExportChoice } from "../src/figures.js";
-import { callEvent, counts, TourPanel, tourOfEvent, type TourAction } from "./tours.js";
+import { bearingsTarget, callEvent, counts, TourPanel, tourOfEvent, type TourAction } from "./tours.js";
+import { latestSolution, NO_SOLUTION, SOLUTION } from "../walkthroughs/contribute.mjs";
 import { contentFree } from "../webview/timelinelogic.js";
 
 type Feature = PlotFeature;
@@ -137,7 +138,8 @@ function python(call: string, ...args: unknown[]): Promise<string> {
   return new Promise<string>((resolve, reject) => waiting.set(id, { resolve, reject })).then((result) => {
     // What the reader did, for the walkthroughs: a change that succeeded ticks its step (CAP-25),
     // if it was to the walkthrough's copy: the plot named, or for the log's import the plot open.
-    tourEvent(callEvent(call, args, result), typeof args[0] === "string" && call !== "import_tour_log" ? args[0] : opened?.item.id);
+    const legsOf = (id: string) => { const f = features().find((x) => x.id === id && x.properties.kind === "track"); const tma = f && (f.properties as { tma?: { leg_starts?: string[] | null } }).tma; return tma ? 1 + (tma.leg_starts?.length ?? 0) : undefined; };
+    tourEvent(callEvent(call, args, result, legsOf), typeof args[0] === "string" && call !== "import_tour_log" ? args[0] : opened?.item.id);
     return result;
   });
 }
@@ -1728,6 +1730,8 @@ let bearingsGrownFor: string | undefined;
 /** The cuts two clicks on the map are asked for, until they are made or cancelled. */
 let tmaGuessing: TmaRequest | undefined;
 let tmaAsking = 0;
+/** What the view is to choose when next shown, as a walkthrough's step asks (bearingsWith). */
+let tmaFocus: TmaFocus | undefined;
 /** How long Python took to work out the residuals shown, ms: for the drag budget's measure (NFR-04). */
 const tmaCompute: number[] = [];
 const tmaControl = new TmaControl($("bearings"), {
@@ -1772,6 +1776,9 @@ async function refreshBearings(): Promise<void> {
     if (sensor && outcome.cuts) cuts = cutRowsOf(sensor, outcome.cuts, cutColours(plot));
   }
   if (asked !== tmaAsking || !opened) return;
+  // Something a walkthrough's step asked to be chosen, once.
+  const focus = tmaFocus;
+  tmaFocus = undefined;
   tmaControl.show({
     plot_id: opened.item.id,
     ...(opened.revision && { read_only: true }),
@@ -1780,6 +1787,7 @@ async function refreshBearings(): Promise<void> {
     ...(cuts && { cuts }),
     solutions,
     ...(residuals && tmaSolution && { solution_id: tmaSolution, residuals }),
+    ...(focus && { focus }),
   });
   if (time) tmaControl.setTime(Date.parse(time.current), time.range);
   // A solution shown under the map: room for its plots, once for each solution (the reader may
@@ -1798,6 +1806,25 @@ async function chooseTma(id: string): Promise<void> {
     tmaSolution = id;
     await select([id]);
   }
+}
+/**
+ * A walkthrough's step (Bearings and TMA): Bearings in view, showing the sensor's cuts or the
+ * solution named, with a cut, a period and its first guess, or the largest residual chosen there.
+ */
+async function bearingsWith(id: string, focus?: TmaFocus): Promise<void> {
+  const feature = features().find((f) => f.id === id);
+  if (!feature) return toast("That is not in this plot.", "warning");
+  showPanel("panel-bearings");
+  tmaFocus = focus;
+  if (feature.properties.kind === "sensor") {
+    tmaSensor = id;
+    tmaSolution = undefined;
+  } else {
+    tmaSolution = id;
+    // Selected, so the map shows its handles to drag it.
+    if (selection.length !== 1 || selection[0] !== id) await select([id]);
+  }
+  await refreshBearings();
 }
 /** The selection changed: a solution selected alone is shown; a sensor, a cut or its track lists the sensor's cuts. */
 function bearingsFollow(ids: string[]): void {
@@ -3118,12 +3145,19 @@ async function tourAct(actions: TourAction[]): Promise<void> {
       toast(`${opened?.item.properties.title ?? copy} is open again: the walkthrough works on its copy, not on the plot that was open.`);
     }
   }
-  for (const action of actions) {
+  for (const step of actions) {
+    // A step that needs the walkthrough's TMA solution: the latest in its copy, once made.
+    if (step.target.includes(SOLUTION) && !latestSolution(features())) return toast(NO_SOLUTION, "warning");
+    const action = { ...step, target: step.target.replaceAll(SOLUTION, latestSolution(features()) ?? SOLUTION) };
     if (action.verb === "open") await openTourCopy(action.target);
     else if (action.verb === "focus") reveal(action.target, false);
     else if (action.verb === "click") reveal(action.target, true);
     else if (action.verb === "select") await select(action.target.split(",").filter((id) => features().some((f) => f.id === id)));
     else if (action.verb === "import-log") await importTourLog();
+    else if (action.verb === "bearings") {
+      const { feature, focus } = bearingsTarget(action.target);
+      await bearingsWith(feature, focus);
+    }
   }
 }
 /**

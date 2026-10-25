@@ -248,6 +248,79 @@
           "alt": "The image's ID leading back to the plot, shown read-only at the step it was exported."
         }
       ]
+    },
+    {
+      "id": "tma",
+      "title": "Bearings and TMA",
+      "description": "BLUE ONE's towed array on RED ONE, in serial 1: keep a side of an ambiguous bearing, make a TMA solution from a period of cuts, drag it to fit, leave out a wild bearing and split it into legs. About 10 minutes.",
+      "steps": [
+        {
+          "id": "open",
+          "event": "tmaOpened",
+          "title": "Open a copy of serial 1 and its bearings",
+          "text": "A fresh copy of serial 1, titled *Serial 1: Bearings and TMA*, with **Bearings** listing the cuts of BLUE ONE's towed array, drawn on the map in purple. A towed array cannot tell port from starboard, so each cut has two bearings, mirrored about BLUE ONE's course: two lines, the port one solid and the starboard one dashed, until you keep one. One cut has been turned 40° off, as a wild bearing would be; the step that did it is in History. The sample itself never changes.",
+          "keys": "`Tab` to the button and press `Enter`.",
+          "vscode": { "where": "The copy goes into a catalogue of its own, *Walkthrough: Bearings and TMA*. **Bearings** is in the Debrief sidebar, after the Timeline.", "button": "Open a copy of serial 1", "command": "debrief.walkthrough.open", "args": ["tma"] },
+          "play": { "where": "The copy is added to the plots under *Plot*, in the top bar; the button brings the **Bearings** panel into view.", "button": "Open a copy of serial 1", "action": "open:tma;bearings:sensor-blue-one-towed-array" },
+          "media": "tma-open.svg",
+          "alt": "BLUE ONE's towed array cuts on the map, each a pair of lines: one solid to port, one dashed to starboard."
+        },
+        {
+          "id": "resolve",
+          "event": "sideKept",
+          "title": "Keep a side of an ambiguous bearing",
+          "text": "The button chooses the towed array's cut at 09:46Z and moves current time there, so the map draws it wider. BLUE ONE's Bow sonar is not ambiguous: its teal line at that time is at 235°. So keep the towed array's bearing that agrees, **Keep 236.3° (starboard)**, in Bearings, or click the cut's line on the map and keep it there. It is one step. **Next ambiguous** goes on to the next cut, and **Ambiguous bearings: keep port or starboard…** on the sensor's menu keeps one side for a whole period.",
+          "keys": "In Bearings' list, `Alt+↓` and `Alt+↑` go to the next and previous ambiguous cut; `Tab` to **Keep 236.3° (starboard)** and press `Enter`.",
+          "vscode": { "where": "In **Bearings**, beside the list; or on the map.", "button": "Choose the cut at 09:46Z", "command": "debrief.showBearings", "args": ["sensor-blue-one-towed-array", { "cut_time": "2023-06-15T09:46:00.000Z" }] },
+          "play": { "where": "In the **Bearings** panel, beside the list; or on the map. **Port…** and **Starboard…** under *Sensor*, in the **Outline** panel, keep a side for a period.", "button": "Choose the cut at 09:46Z", "action": "bearings:sensor-blue-one-towed-array?cut=2023-06-15T09:46:00.000Z" },
+          "media": "tma-resolve.svg",
+          "alt": "One towed-array cut's two lines, the one kept beside the Bow sonar's line at the same time."
+        },
+        {
+          "id": "make",
+          "event": "solutionMade",
+          "title": "Make a first guess",
+          "text": "A solution is rooted in a period of one sensor's cuts, chosen in Bearings' list: click its first cut and Shift-click its last. The button chooses the towed array's cuts from 09:46Z to 12:00Z and opens **Make solution…**, the first guess: 10,000 yd (4.94 nmi) along the first cut's bearing, a course across it, 8 kn. Keep Debrief's defaults and press **Make solution**. Contact 1's solution is drawn on the map, and Bearings shows its residuals: each cut's bearing less the solution's. An RMS over 50° says the guess is far off. **Two clicks on the map instead** takes the first guess from a click on the first cut's line and one on the last's.",
+          "keys": "In the list, `Shift` with `↓` or `↑` extends the period; `Tab` to **Make solution…** and press `Enter`. The form takes the keyboard; `Enter` makes the solution.",
+          "vscode": { "where": "In **Bearings**. **TMA solution from a sensor's cuts…**, in the Command Palette, takes you to the list.", "button": "Choose the period and open the first guess", "command": "debrief.showBearings", "args": ["sensor-blue-one-towed-array", { "period": { "start": "2023-06-15T09:46:00.000Z", "end": "2023-06-15T12:00:00.000Z" }, "make": true }] },
+          "play": { "where": "In the **Bearings** panel.", "button": "Choose the period and open the first guess", "action": "bearings:sensor-blue-one-towed-array?period=2023-06-15T09:46:00.000Z/2023-06-15T12:00:00.000Z&make" },
+          "media": "tma-make.svg",
+          "alt": "The first guess, a straight solution heading away across the bearings, far from them."
+        },
+        {
+          "id": "drag",
+          "event": "solutionDragged",
+          "title": "Drag the solution to fit",
+          "text": "The solution is a track, so its drags are a track's. Drag the diamond at its end on the map: its start stays where it is (a shear), and Bearings works the residuals and the RMS out again as you drag. Bring the calculated line through the dots: about 215° at 3 kn takes the RMS from over 50° to about 14°. Letting go is one step.",
+          "keys": "`Tab` to the diamond and use the arrow keys, `Shift` for bigger steps. Or shear by typing the course and speed made good, such as `215` and `3 kn`.",
+          "vscode": { "where": "**Shear track…** is on the solution's menu in the Outline.", "button": "Shear Contact 1's solution", "command": "debrief.shearTrack", "args": ["$solution"] },
+          "play": { "where": "**Shear…** is under *Track*, in the **Outline** panel.", "button": "Shear Contact 1's solution", "action": "select:$solution;click:shear-track" },
+          "media": "tma-drag.svg",
+          "alt": "The solution sheared about its start, nearer the bearings, with its residuals in Bearings."
+        },
+        {
+          "id": "wild",
+          "event": "cutLeftOut",
+          "title": "Leave out a wild bearing",
+          "text": "One residual lies far from the rest: the cut at 11:12Z, some 40° off where its neighbours are near 0°. The button chooses it in Bearings' list. Leave it out of the RMS: press `Space`, or click its tick box. It is one step, and the RMS falls; the cut is still listed, struck through. `Space` again, or Undo, counts it again.",
+          "keys": "In Bearings' list, `↑` and `↓` to the cut, then `Space`; or `Tab` to **Leave this cut out of the RMS** and press `Enter`.",
+          "vscode": { "where": "In **Bearings**, beside the list.", "button": "Choose the cut with the largest residual", "command": "debrief.showBearings", "args": ["$solution", { "largest": true }] },
+          "play": { "where": "In the **Bearings** panel.", "button": "Choose the cut with the largest residual", "action": "bearings:$solution?largest" },
+          "media": "tma-wild.svg",
+          "alt": "The residuals beneath the bearings, one dot far from the others, left out as a dotted ring."
+        },
+        {
+          "id": "legs",
+          "event": "legDragged",
+          "title": "Split into legs and drag one",
+          "text": "No straight leg fits RED ONE: the residuals climb until 10:32Z and fall after the gap, because it turned there. The button chooses the cut at 10:38Z; press **Split into legs at 10:38:00Z**. It is one step, and the solution is still one track. Then choose **This leg** on the map, click the first leg and drag its end: about 285° at 4 kn brings its residuals down, and the second leg stays where it is. The step is done once a leg is dragged.",
+          "keys": "In Bearings' list, `↑` and `↓` to the cut, `Tab` to **Split into legs at …** and press `Enter`. On the map, **This leg** is a button, and the diamonds drag the leg current time is in: `Enter` on a cut in the list moves current time to it.",
+          "vscode": { "where": "In **Bearings**, beside the list. **Split TMA solution into legs at current time** is on the solution's menu in the Outline.", "button": "Choose the cut at 10:38Z", "command": "debrief.showBearings", "args": ["$solution", { "cut_time": "2023-06-15T10:38:00.000Z" }] },
+          "play": { "where": "In the **Bearings** panel; **This leg** is on the map, under *What changes*.", "button": "Choose the cut at 10:38Z", "action": "bearings:$solution?cut=2023-06-15T10:38:00.000Z" },
+          "media": "tma-legs.svg",
+          "alt": "The solution in two legs joined at 10:38Z, the first dragged to a new course, the second where it was."
+        }
+      ]
     }
   ]
 }
