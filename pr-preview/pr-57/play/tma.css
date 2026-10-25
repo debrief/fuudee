@@ -1,0 +1,76 @@
+/* The bearing view (tmacontrol.ts): interface colours only from the theme (CON-06, DEV-07);
+   each cut's swatch and dots are its own data colour, the solution's line its own. */
+.tma { display: flex; flex-direction: column; gap: 4px; min-height: 0; height: 100%; font-size: 12px; color: var(--vscode-foreground); }
+.tma [hidden] { display: none !important; }
+.tma button { font: inherit; color: var(--vscode-foreground); background: var(--vscode-button-secondaryBackground, transparent); border: 1px solid var(--vscode-button-border, var(--vscode-widget-border, transparent)); border-radius: 2px; padding: 2px 8px; cursor: pointer; }
+.tma button:hover:not(:disabled) { background: var(--vscode-button-secondaryHoverBackground, var(--vscode-list-hoverBackground)); }
+.tma button.primary { color: var(--vscode-button-foreground); background: var(--vscode-button-background); }
+.tma button.primary:hover:not(:disabled) { background: var(--vscode-button-hoverBackground); }
+.tma button:disabled { opacity: .5; cursor: default; }
+.tma button:focus-visible, .tma select:focus-visible, .tma input:focus-visible { outline: 1px solid var(--vscode-focusBorder); outline-offset: 1px; }
+.tma-empty { margin: 4px 0; color: var(--vscode-descriptionForeground); }
+
+/* The sensor and the solution: two lists side by side, one above the other when narrow. */
+.tma-head { display: flex; flex-wrap: wrap; gap: 4px 12px; }
+.tma-pick { display: flex; align-items: center; gap: 6px; flex: 1 1 14em; min-width: 0; }
+.tma-pick > span { color: var(--vscode-descriptionForeground); min-width: 4.5em; }
+.tma-pick select { flex: 1; min-width: 0; height: 22px; background: var(--vscode-dropdown-background); color: var(--vscode-dropdown-foreground, var(--vscode-foreground)); border: 1px solid var(--vscode-dropdown-border, transparent); font: inherit; }
+
+/* The plots, the RMS and the buttons (left), the list (right): one above the other in a narrow view, side by side
+   from 640 px (tmacontrol.ts WIDE_PX), so the strip under the map shows both. */
+.tma-body { display: flex; flex-direction: column; gap: 4px; flex: 1 1 auto; min-height: 0; }
+.tma-left { display: flex; flex-direction: column; gap: 4px; flex: none; min-width: 0; }
+.tma-right { display: flex; flex-direction: column; flex: 1 1 auto; min-height: 0; min-width: 0; }
+.tma-wide .tma-body { flex-direction: row; gap: 12px; }
+.tma-wide .tma-left { flex: 1 1 50%; overflow-y: auto; }
+.tma-wide .tma-right { flex: 1 1 50%; }
+.tma-wide .tma-list { min-height: 66px; }
+
+/* Bearings over time, residuals beneath: one canvas. */
+.tma-plot { flex: none; }
+.tma-canvas { display: block; width: 100%; cursor: crosshair; }
+.tma-key { display: flex; flex-wrap: wrap; gap: 0 12px; margin: 0; color: var(--vscode-descriptionForeground); font-size: 11px; }
+.tma-rms { margin: 0; font-weight: 600; font-variant-numeric: tabular-nums; }
+.tma-notes { margin: 0; padding-left: 16px; color: var(--vscode-descriptionForeground); font-size: 11px; }
+.tma-actions { display: flex; flex-wrap: wrap; gap: 4px; }
+
+/* The cut list: rows of one height whatever the font (ROW_PX), so it scrolls by them, and only
+   those in sight are in the page. Columns by grid; the residual columns only with a solution. */
+.tma-columns, .tma-row { display: grid; grid-template-columns: minmax(0, 6.2em) minmax(0, 1fr) minmax(0, 1.6fr); column-gap: 8px; }
+.tma-columns.tma-with-residual, .tma-with-residual .tma-row { grid-template-columns: minmax(0, 6.2em) minmax(0, 1fr) minmax(0, 1.6fr) minmax(0, 4.2em) 1.4em; }
+.tma-columns > span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.tma-columns { padding: 0 6px; color: var(--vscode-descriptionForeground); font-size: 11px; }
+.tma-columns .tma-c-res { display: none; }
+.tma-columns.tma-with-residual .tma-c-res { display: block; text-align: right; }
+.tma-list { position: relative; flex: 1 1 140px; min-height: 140px; overflow-y: auto; overflow-x: hidden; border: 1px solid var(--vscode-widget-border, var(--vscode-panel-border, transparent)); }
+.tma-list:focus-visible { outline: 1px solid var(--vscode-focusBorder); outline-offset: -1px; }
+.tma-spacer { width: 1px; }
+.tma-row { position: absolute; left: 0; right: 0; height: 22px; line-height: 22px; padding: 0 6px; overflow: hidden; white-space: nowrap; cursor: default; font-variant-numeric: tabular-nums; }
+.tma-row > span { overflow: hidden; text-overflow: ellipsis; }
+.tma-row:hover { background: var(--vscode-list-hoverBackground); }
+.tma-row.tma-chosen-row { background: var(--vscode-list-inactiveSelectionBackground); }
+.tma-list:focus .tma-row.tma-chosen-row { background: var(--vscode-list-activeSelectionBackground); color: var(--vscode-list-activeSelectionForeground, var(--vscode-foreground)); }
+.tma-row.tma-active { outline: 1px solid var(--vscode-list-focusOutline, var(--vscode-focusBorder)); outline-offset: -1px; }
+.tma-row.tma-excluded { color: var(--vscode-descriptionForeground); }
+.tma-row.tma-excluded .tma-c-res { text-decoration: line-through; }
+.tma-c-res { text-align: right; font-family: var(--vscode-editor-font-family); }
+.tma-c-in { text-align: center; cursor: pointer; }
+.tma-swatch { display: inline-block; width: 7px; height: 7px; border-radius: 50%; margin-right: 4px; vertical-align: 1px; }
+.tma-flag { color: var(--vscode-editorWarning-foreground, var(--vscode-descriptionForeground)); }
+
+/* The period chosen, and making a solution of it. */
+.tma-chosen { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 8px; }
+.tma-period { flex: 1 1 14em; color: var(--vscode-descriptionForeground); }
+.tma-form { display: grid; grid-template-columns: max-content minmax(0, 1fr); gap: 2px 8px; align-items: center; padding: 6px; border: 1px solid var(--vscode-widget-border, var(--vscode-panel-border, transparent)); background: var(--vscode-editorWidget-background, transparent); }
+.tma-form-title, .tma-form-problem, .tma-form-buttons { grid-column: 1 / -1; margin: 0; }
+.tma-form-title { font-weight: 600; }
+.tma-field { display: contents; }
+.tma-field > span { color: var(--vscode-descriptionForeground); }
+.tma-field input, .tma-field select { min-width: 0; height: 22px; background: var(--vscode-input-background); color: var(--vscode-input-foreground, var(--vscode-foreground)); border: 1px solid var(--vscode-input-border, var(--vscode-widget-border, transparent)); font: inherit; padding: 0 4px; }
+.tma-field input[aria-invalid="true"] { border-color: var(--vscode-inputValidation-errorBorder, var(--vscode-errorForeground)); }
+.tma-means { grid-column: 2; font-size: 11px; color: var(--vscode-descriptionForeground); }
+.tma-means.tma-problem, .tma-form-problem { color: var(--vscode-errorForeground); }
+.tma-form-problem:empty { display: none; }
+.tma-form-buttons { display: flex; flex-wrap: wrap; gap: 4px; margin-top: 4px; }
+.tma-status { margin: 0; color: var(--vscode-descriptionForeground); font-size: 11px; }
+.tma-status:empty { display: none; }

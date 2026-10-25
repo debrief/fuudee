@@ -1,0 +1,2259 @@
+
+<!doctype html>
+<html lang="en" class="no-js">
+  <head>
+    
+      <meta charset="utf-8">
+      <meta name="viewport" content="width=device-width,initial-scale=1">
+      
+        <meta name="description" content="Development blog and guides for Debrief v4">
+      
+      
+      
+        <link rel="canonical" href="https://debrief.github.io/fuudee/pr-preview/pr-57/guides/interaction-models/export/">
+      
+      
+        <link rel="prev" href="../collation/">
+      
+      
+        <link rel="next" href="../walkthroughs/">
+      
+      
+        
+      
+      
+      <link rel="icon" href="../../../assets/images/favicon.png">
+      <meta name="generator" content="mkdocs-1.6.1, mkdocs-material-9.7.7">
+    
+    
+      
+        <title>Exported images - Debrief v4</title>
+      
+    
+    
+      <link rel="stylesheet" href="../../../assets/stylesheets/main.ec1eaa64.min.css">
+      
+        
+        <link rel="stylesheet" href="../../../assets/stylesheets/palette.ab4e12ef.min.css">
+      
+      
+
+
+    
+    
+      
+    
+    
+      
+        
+        
+        <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+        <link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Roboto:300,300i,400,400i,700,700i%7CRoboto+Mono:400,400i,700,700i&display=fallback">
+        <style>:root{--md-text-font:"Roboto";--md-code-font:"Roboto Mono"}</style>
+      
+    
+    
+      <link rel="stylesheet" href="../../../stylesheets/demo.css">
+    
+    <script>__md_scope=new URL("../../..",location),__md_hash=e=>[...e].reduce(((e,_)=>(e<<5)-e+_.charCodeAt(0)),0),__md_get=(e,_=localStorage,t=__md_scope)=>JSON.parse(_.getItem(t.pathname+"."+e)),__md_set=(e,_,t=localStorage,a=__md_scope)=>{try{t.setItem(a.pathname+"."+e,JSON.stringify(_))}catch(e){}}</script>
+    
+      
+
+    
+    
+  </head>
+  
+  
+    
+    
+      
+    
+    
+    
+    
+    <body dir="ltr" data-md-color-scheme="default" data-md-color-primary="indigo" data-md-color-accent="indigo"><div class="pr-preview-banner" style="background:#fff4ce;color:#3b2f00;border-bottom:1px solid #e0c060;padding:6px 16px;font:14px/1.4 system-ui,sans-serif;text-align:center">Preview of <a style="color:inherit;text-decoration:underline" href="https://github.com/debrief/fuudee/pull/57">pull request #57</a>: TMA solutions: Bearings view, live residuals, multi-leg, legacy import (CAP-21). Built from 388eeef on 2026-10-25 00:39 UTC. <a style="color:inherit;text-decoration:underline" href="https://debrief.github.io/fuudee/pr-preview/">All previews</a></div>
+  
+    
+    <input class="md-toggle" data-md-toggle="drawer" type="checkbox" id="__drawer" autocomplete="off">
+    <input class="md-toggle" data-md-toggle="search" type="checkbox" id="__search" autocomplete="off">
+    <label class="md-overlay" for="__drawer"></label>
+    <div data-md-component="skip">
+      
+        
+        <a href="#exported-images" class="md-skip">
+          Skip to content
+        </a>
+      
+    </div>
+    <div data-md-component="announce">
+      
+    </div>
+    
+    
+      
+
+<header class="md-header" data-md-component="header">
+  <nav class="md-header__inner md-grid" aria-label="Header">
+    <a href="../../.." title="Debrief v4" class="md-header__button md-logo" aria-label="Debrief v4" data-md-component="logo">
+      
+  
+  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 8a3 3 0 0 0 3-3 3 3 0 0 0-3-3 3 3 0 0 0-3 3 3 3 0 0 0 3 3m0 3.54C9.64 9.35 6.5 8 3 8v11c3.5 0 6.64 1.35 9 3.54 2.36-2.19 5.5-3.54 9-3.54V8c-3.5 0-6.64 1.35-9 3.54"/></svg>
+
+    </a>
+    <label class="md-header__button md-icon" for="__drawer">
+      
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M3 6h18v2H3zm0 5h18v2H3zm0 5h18v2H3z"/></svg>
+    </label>
+    <div class="md-header__title" data-md-component="header-title">
+      <div class="md-header__ellipsis">
+        <div class="md-header__topic">
+          <span class="md-ellipsis">
+            Debrief v4
+          </span>
+        </div>
+        <div class="md-header__topic" data-md-component="header-topic">
+          <span class="md-ellipsis">
+            
+              Exported images
+            
+          </span>
+        </div>
+      </div>
+    </div>
+    
+      
+        <form class="md-header__option" data-md-component="palette">
+  
+    
+    
+    
+    <input class="md-option" data-md-color-media="(prefers-color-scheme: light)" data-md-color-scheme="default" data-md-color-primary="indigo" data-md-color-accent="indigo"  aria-label="Dark"  type="radio" name="__palette" id="__palette_0">
+    
+      <label class="md-header__button md-icon" title="Dark" for="__palette_1" hidden>
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="m17.75 4.09-2.53 1.94.91 3.06-2.63-1.81-2.63 1.81.91-3.06-2.53-1.94L12.44 4l1.06-3 1.06 3zm3.5 6.91-1.64 1.25.59 1.98-1.7-1.17-1.7 1.17.59-1.98L15.75 11l2.06-.05L18.5 9l.69 1.95zm-2.28 4.95c.83-.08 1.72 1.1 1.19 1.85-.32.45-.66.87-1.08 1.27C15.17 23 8.84 23 4.94 19.07c-3.91-3.9-3.91-10.24 0-14.14.4-.4.82-.76 1.27-1.08.75-.53 1.93.36 1.85 1.19-.27 2.86.69 5.83 2.89 8.02a9.96 9.96 0 0 0 8.02 2.89m-1.64 2.02a12.08 12.08 0 0 1-7.8-3.47c-2.17-2.19-3.33-5-3.49-7.82-2.81 3.14-2.7 7.96.31 10.98 3.02 3.01 7.84 3.12 10.98.31"/></svg>
+      </label>
+    
+  
+    
+    
+    
+    <input class="md-option" data-md-color-media="(prefers-color-scheme: dark)" data-md-color-scheme="slate" data-md-color-primary="indigo" data-md-color-accent="indigo"  aria-label="Light"  type="radio" name="__palette" id="__palette_1">
+    
+      <label class="md-header__button md-icon" title="Light" for="__palette_0" hidden>
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 7a5 5 0 0 1 5 5 5 5 0 0 1-5 5 5 5 0 0 1-5-5 5 5 0 0 1 5-5m0 2a3 3 0 0 0-3 3 3 3 0 0 0 3 3 3 3 0 0 0 3-3 3 3 0 0 0-3-3m0-7 2.39 3.42C13.65 5.15 12.84 5 12 5s-1.65.15-2.39.42zM3.34 7l4.16-.35A7.2 7.2 0 0 0 5.94 8.5c-.44.74-.69 1.5-.83 2.29zm.02 10 1.76-3.77a7.131 7.131 0 0 0 2.38 4.14zM20.65 7l-1.77 3.79a7.02 7.02 0 0 0-2.38-4.15zm-.01 10-4.14.36c.59-.51 1.12-1.14 1.54-1.86.42-.73.69-1.5.83-2.29zM12 22l-2.41-3.44c.74.27 1.55.44 2.41.44.82 0 1.63-.17 2.37-.44z"/></svg>
+      </label>
+    
+  
+</form>
+      
+    
+    
+      <script>var palette=__md_get("__palette");if(palette&&palette.color){if("(prefers-color-scheme)"===palette.color.media){var media=matchMedia("(prefers-color-scheme: light)"),input=document.querySelector(media.matches?"[data-md-color-media='(prefers-color-scheme: light)']":"[data-md-color-media='(prefers-color-scheme: dark)']");palette.color.media=input.getAttribute("data-md-color-media"),palette.color.scheme=input.getAttribute("data-md-color-scheme"),palette.color.primary=input.getAttribute("data-md-color-primary"),palette.color.accent=input.getAttribute("data-md-color-accent")}for(var[key,value]of Object.entries(palette.color))document.body.setAttribute("data-md-color-"+key,value)}</script>
+    
+    
+    
+      
+      
+        <label class="md-header__button md-icon" for="__search">
+          
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M9.5 3A6.5 6.5 0 0 1 16 9.5c0 1.61-.59 3.09-1.56 4.23l.27.27h.79l5 5-1.5 1.5-5-5v-.79l-.27-.27A6.52 6.52 0 0 1 9.5 16 6.5 6.5 0 0 1 3 9.5 6.5 6.5 0 0 1 9.5 3m0 2C7 5 5 7 5 9.5S7 14 9.5 14 14 12 14 9.5 12 5 9.5 5"/></svg>
+        </label>
+        <div class="md-search" data-md-component="search" role="dialog">
+  <label class="md-search__overlay" for="__search"></label>
+  <div class="md-search__inner" role="search">
+    <form class="md-search__form" name="search">
+      <input type="text" class="md-search__input" name="query" aria-label="Search" placeholder="Search" autocapitalize="off" autocorrect="off" autocomplete="off" spellcheck="false" data-md-component="search-query" required>
+      <label class="md-search__icon md-icon" for="__search">
+        
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M9.5 3A6.5 6.5 0 0 1 16 9.5c0 1.61-.59 3.09-1.56 4.23l.27.27h.79l5 5-1.5 1.5-5-5v-.79l-.27-.27A6.52 6.52 0 0 1 9.5 16 6.5 6.5 0 0 1 3 9.5 6.5 6.5 0 0 1 9.5 3m0 2C7 5 5 7 5 9.5S7 14 9.5 14 14 12 14 9.5 12 5 9.5 5"/></svg>
+        
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M20 11v2H8l5.5 5.5-1.42 1.42L4.16 12l7.92-7.92L13.5 5.5 8 11z"/></svg>
+      </label>
+      <nav class="md-search__options" aria-label="Search">
+        
+        <button type="reset" class="md-search__icon md-icon" title="Clear" aria-label="Clear" tabindex="-1">
+          
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M19 6.41 17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/></svg>
+        </button>
+      </nav>
+      
+    </form>
+    <div class="md-search__output">
+      <div class="md-search__scrollwrap" tabindex="0" data-md-scrollfix>
+        <div class="md-search-result" data-md-component="search-result">
+          <div class="md-search-result__meta">
+            Initializing search
+          </div>
+          <ol class="md-search-result__list" role="presentation"></ol>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+      
+    
+    
+      <div class="md-header__source">
+        <a href="https://github.com/debrief/fuudee" title="Go to repository" class="md-source" data-md-component="source">
+  <div class="md-source__icon md-icon">
+    
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 448 512"><!--! Font Awesome Free 7.1.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2025 Fonticons, Inc.--><path d="M439.6 236.1 244 40.5c-5.4-5.5-12.8-8.5-20.4-8.5s-15 3-20.4 8.4L162.5 81l51.5 51.5c27.1-9.1 52.7 16.8 43.4 43.7l49.7 49.7c34.2-11.8 61.2 31 35.5 56.7-26.5 26.5-70.2-2.9-56-37.3L240.3 199v121.9c25.3 12.5 22.3 41.8 9.1 55-6.4 6.4-15.2 10.1-24.3 10.1s-17.8-3.6-24.3-10.1c-17.6-17.6-11.1-46.9 11.2-56v-123c-20.8-8.5-24.6-30.7-18.6-45L142.6 101 8.5 235.1C3 240.6 0 247.9 0 255.5s3 15 8.5 20.4l195.6 195.7c5.4 5.4 12.7 8.4 20.4 8.4s15-3 20.4-8.4l194.7-194.7c5.4-5.4 8.4-12.8 8.4-20.4s-3-15-8.4-20.4"/></svg>
+  </div>
+  <div class="md-source__repository">
+    debrief/fuudee
+  </div>
+</a>
+      </div>
+    
+  </nav>
+  
+</header>
+    
+    <div class="md-container" data-md-component="container">
+      
+      
+        
+          
+            
+<nav class="md-tabs" aria-label="Tabs" data-md-component="tabs">
+  <div class="md-grid">
+    <ul class="md-tabs__list">
+      
+        
+  
+  
+  
+  
+    <li class="md-tabs__item">
+      <a href="../../.." class="md-tabs__link">
+        
+  
+  
+    
+  
+  Home
+
+      </a>
+    </li>
+  
+
+      
+        
+  
+  
+  
+  
+    <li class="md-tabs__item">
+      <a href="../../../try/" class="md-tabs__link">
+        
+  
+  
+    
+  
+  Try Debrief
+
+      </a>
+    </li>
+  
+
+      
+        
+  
+  
+  
+  
+    
+    
+      <li class="md-tabs__item">
+        <a href="../../../blog/" class="md-tabs__link">
+          
+  
+  
+    
+  
+  Blog
+
+        </a>
+      </li>
+    
+  
+
+      
+        
+  
+  
+  
+    
+  
+  
+    
+    
+      <li class="md-tabs__item md-tabs__item--active">
+        <a href="../../" class="md-tabs__link">
+          
+  
+  
+    
+  
+  Guides
+
+        </a>
+      </li>
+    
+  
+
+      
+    </ul>
+  </div>
+</nav>
+          
+        
+      
+      <main class="md-main" data-md-component="main">
+        <div class="md-main__inner md-grid">
+          
+            
+              
+              <div class="md-sidebar md-sidebar--primary" data-md-component="sidebar" data-md-type="navigation" >
+                <div class="md-sidebar__scrollwrap">
+                  <div class="md-sidebar__inner">
+                    
+
+
+  
+
+
+<nav class="md-nav md-nav--primary md-nav--lifted" aria-label="Navigation" data-md-level="0">
+  <label class="md-nav__title" for="__drawer">
+    <a href="../../.." title="Debrief v4" class="md-nav__button md-logo" aria-label="Debrief v4" data-md-component="logo">
+      
+  
+  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 8a3 3 0 0 0 3-3 3 3 0 0 0-3-3 3 3 0 0 0-3 3 3 3 0 0 0 3 3m0 3.54C9.64 9.35 6.5 8 3 8v11c3.5 0 6.64 1.35 9 3.54 2.36-2.19 5.5-3.54 9-3.54V8c-3.5 0-6.64 1.35-9 3.54"/></svg>
+
+    </a>
+    Debrief v4
+  </label>
+  
+    <div class="md-nav__source">
+      <a href="https://github.com/debrief/fuudee" title="Go to repository" class="md-source" data-md-component="source">
+  <div class="md-source__icon md-icon">
+    
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 448 512"><!--! Font Awesome Free 7.1.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2025 Fonticons, Inc.--><path d="M439.6 236.1 244 40.5c-5.4-5.5-12.8-8.5-20.4-8.5s-15 3-20.4 8.4L162.5 81l51.5 51.5c27.1-9.1 52.7 16.8 43.4 43.7l49.7 49.7c34.2-11.8 61.2 31 35.5 56.7-26.5 26.5-70.2-2.9-56-37.3L240.3 199v121.9c25.3 12.5 22.3 41.8 9.1 55-6.4 6.4-15.2 10.1-24.3 10.1s-17.8-3.6-24.3-10.1c-17.6-17.6-11.1-46.9 11.2-56v-123c-20.8-8.5-24.6-30.7-18.6-45L142.6 101 8.5 235.1C3 240.6 0 247.9 0 255.5s3 15 8.5 20.4l195.6 195.7c5.4 5.4 12.7 8.4 20.4 8.4s15-3 20.4-8.4l194.7-194.7c5.4-5.4 8.4-12.8 8.4-20.4s-3-15-8.4-20.4"/></svg>
+  </div>
+  <div class="md-source__repository">
+    debrief/fuudee
+  </div>
+</a>
+    </div>
+  
+  <ul class="md-nav__list" data-md-scrollfix>
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../.." class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Home
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../try/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Try Debrief
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+      
+        
+          
+        
+      
+        
+      
+    
+    
+    
+      
+      
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_3" >
+        
+          
+          <div class="md-nav__link md-nav__container">
+            <a href="../../../blog/" class="md-nav__link ">
+              
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Blog
+  
+
+    
+  </span>
+  
+  
+
+            </a>
+            
+              
+              <label class="md-nav__link " for="__nav_3" id="__nav_3_label" tabindex="0">
+                <span class="md-nav__icon md-icon"></span>
+              </label>
+            
+          </div>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_3_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_3">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Blog
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+            
+              
+                
+  
+  
+  
+  
+    
+    
+      
+        
+      
+        
+      
+    
+    
+    
+      
+      
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_3_2" >
+        
+          
+          <label class="md-nav__link" for="__nav_3_2" id="__nav_3_2_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Categories
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="2" aria-labelledby="__nav_3_2_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_3_2">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Categories
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+    
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../blog/category/architecture/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Architecture
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+    
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../blog/category/capability/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Capability
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+    
+  
+  
+  
+    
+    
+      
+        
+          
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+    
+    
+    
+      
+        
+        
+      
+      
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--active md-nav__item--section md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_4" checked>
+        
+          
+          <div class="md-nav__link md-nav__container">
+            <a href="../../" class="md-nav__link ">
+              
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Guides
+  
+
+    
+  </span>
+  
+  
+
+            </a>
+            
+              
+              <label class="md-nav__link " for="__nav_4" id="__nav_4_label" tabindex="">
+                <span class="md-nav__icon md-icon"></span>
+              </label>
+            
+          </div>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_4_label" aria-expanded="true">
+          <label class="md-nav__title" for="__nav_4">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Guides
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+            
+              
+                
+  
+  
+  
+  
+    
+    
+      
+        
+          
+        
+      
+        
+      
+        
+      
+        
+      
+    
+    
+    
+      
+      
+        
+          
+          
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--section md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_4_2" >
+        
+          
+          <div class="md-nav__link md-nav__container">
+            <a href="../../style-guide/" class="md-nav__link ">
+              
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Style guide
+  
+
+    
+  </span>
+  
+  
+
+            </a>
+            
+              
+              <label class="md-nav__link " for="__nav_4_2" id="__nav_4_2_label" tabindex="">
+                <span class="md-nav__icon md-icon"></span>
+              </label>
+            
+          </div>
+        
+        <nav class="md-nav" data-md-level="2" aria-labelledby="__nav_4_2_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_4_2">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Style guide
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../style-guide/language/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Language
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../style-guide/theme/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Theme
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../style-guide/ui/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    User interface
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+    
+  
+  
+  
+    
+    
+      
+        
+          
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+    
+    
+    
+      
+      
+        
+          
+          
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--active md-nav__item--section md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_4_3" checked>
+        
+          
+          <div class="md-nav__link md-nav__container">
+            <a href="../" class="md-nav__link ">
+              
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Interaction models
+  
+
+    
+  </span>
+  
+  
+
+            </a>
+            
+              
+              <label class="md-nav__link " for="__nav_4_3" id="__nav_4_3_label" tabindex="">
+                <span class="md-nav__icon md-icon"></span>
+              </label>
+            
+          </div>
+        
+        <nav class="md-nav" data-md-level="2" aria-labelledby="__nav_4_3_label" aria-expanded="true">
+          <label class="md-nav__title" for="__nav_4_3">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Interaction models
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../selection/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Selection and tool offering
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../tool-invocation/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Tool invocation and forms
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../unavailable-capabilities/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Unavailable capabilities
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../undo/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Undo
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../conflicts/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Conflicts
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../long-running-operations/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Long-running operations
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../check-overrides/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Check overrides
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../time-controller/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Time controller
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../annotations/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Annotations
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../track-operations/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Track operations
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../labels-symbols-arrows/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Labels, symbols and arrows
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../tote/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Tote
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../timeline/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Timeline and narrative
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../sensors/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Sensors and bearings
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../tma/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    TMA solutions
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../collation/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Collation
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+    
+  
+  
+  
+    <li class="md-nav__item md-nav__item--active">
+      
+      <input class="md-nav__toggle md-toggle" type="checkbox" id="__toc">
+      
+      
+        
+      
+      
+        <label class="md-nav__link md-nav__link--active" for="__toc">
+          
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Exported images
+  
+
+    
+  </span>
+  
+  
+
+          <span class="md-nav__icon md-icon"></span>
+        </label>
+      
+      <a href="./" class="md-nav__link md-nav__link--active">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Exported images
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+      
+        
+
+<nav class="md-nav md-nav--secondary" aria-label="Table of contents">
+  
+  
+  
+    
+  
+  
+    <label class="md-nav__title" for="__toc">
+      <span class="md-nav__icon md-icon"></span>
+      Table of contents
+    </label>
+    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#requirements-cited" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Requirements cited
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#model" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Model
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Model">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#what-is-a-step-and-what-isnt" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        What is a step, and what isn't
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#in-vs-code" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        In VS Code
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#in-the-playground" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        In the playground
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#for-agents" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        For agents
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#keyboard-and-touch" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Keyboard and touch
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#office-programs-informative" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Office programs (informative)
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#performance" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Performance
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#reference-implementation" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Reference implementation
+      
+    </span>
+  </a>
+  
+</li>
+      
+    </ul>
+  
+</nav>
+      
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../walkthroughs/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Walkthroughs
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../browser-layout/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Browser layout
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../keyboard-equivalents/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Keyboard equivalents
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../tool-author/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Tool-author guide
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../sample-data/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Sample data
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../glossary/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Glossary
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+  </ul>
+</nav>
+                  </div>
+                </div>
+              </div>
+            
+            
+              
+              <div class="md-sidebar md-sidebar--secondary" data-md-component="sidebar" data-md-type="toc" >
+                <div class="md-sidebar__scrollwrap">
+                  <div class="md-sidebar__inner">
+                    
+
+<nav class="md-nav md-nav--secondary" aria-label="Table of contents">
+  
+  
+  
+    
+  
+  
+    <label class="md-nav__title" for="__toc">
+      <span class="md-nav__icon md-icon"></span>
+      Table of contents
+    </label>
+    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#requirements-cited" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Requirements cited
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#model" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Model
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Model">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#what-is-a-step-and-what-isnt" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        What is a step, and what isn't
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#in-vs-code" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        In VS Code
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#in-the-playground" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        In the playground
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#for-agents" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        For agents
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#keyboard-and-touch" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Keyboard and touch
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#office-programs-informative" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Office programs (informative)
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#performance" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Performance
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#reference-implementation" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Reference implementation
+      
+    </span>
+  </a>
+  
+</li>
+      
+    </ul>
+  
+</nav>
+                  </div>
+                </div>
+              </div>
+            
+          
+          
+            <div class="md-content" data-md-component="content">
+              
+              <article class="md-content__inner md-typeset">
+                
+                  
+
+
+  
+  
+
+
+<h1 id="exported-images">Exported images<a class="headerlink" href="#exported-images" title="Permanent link">&para;</a></h1>
+<p>How an analyst exports the map as an image for a report or a slide, and how anyone holding that image, in a Word report or a PowerPoint deck months later, finds the plot it came from, as it was then.</p>
+<h2 id="requirements-cited">Requirements cited<a class="headerlink" href="#requirements-cited" title="Permanent link">&para;</a></h2>
+<table>
+<thead>
+<tr>
+<th>SRD</th>
+<th>Requirement</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>SUB-25</td>
+<td>Images exported from Debrief carry an embedded GUID in their metadata linking back to their source.</td>
+</tr>
+<tr>
+<td>EXT-05</td>
+<td>Report images: out, with embedded GUID metadata.</td>
+</tr>
+<tr>
+<td>OUT-04</td>
+<td>Traceable figures in Word and PowerPoint: any exported image traces back to its source plot by GUID.</td>
+</tr>
+<tr>
+<td>OUT-01</td>
+<td>Report figures produced without leaving Debrief.</td>
+</tr>
+<tr>
+<td>SUB-19, SUB-21</td>
+<td>Every change is a recorded step; earlier states are reached by replay.</td>
+</tr>
+<tr>
+<td>SUB-22</td>
+<td>View state in the island is neither undoable nor recorded.</td>
+</tr>
+<tr>
+<td>SUB-30</td>
+<td>One map component in every host.</td>
+</tr>
+<tr>
+<td>NFR-13</td>
+<td>Everything works from the keyboard, and by touch.</td>
+</tr>
+</tbody>
+</table>
+<h2 id="model">Model<a class="headerlink" href="#model" title="Permanent link">&para;</a></h2>
+<ol>
+<li><strong>What is exported is what the analyst sees</strong> (decision, product owner, 16 Oct 2026): the map drawn as it is drawn on screen, never redrawn another way. Tracks and their parts in the time window, context tracks, labels, symbols and arrows at their intervals, annotations and their labels, the narrative box beside its track, current time's markers, the Tote's lines, the north arrow and the scale bar, land and the graticule. Labels are where the map placed them, kept clear of one another, because the image is written from the map as laid out. Not in it: the map's controls and key, its notes, the drawing toolbar, handles, fixes ringed to check, and the selection's outline and the dimming of everything else, which are for working, not for a report.</li>
+<li><strong>Three sizes, two colours.</strong> <em>As on screen</em> (the map's own size, twice over for sharpness), <em>Slide, 1600 × 900</em> (16:9, laid out at 1200 × 675 and scaled by 4/3 so its text reads at a slide's size) and <em>A4 landscape</em> (1754 × 1240, A4 at 150 dots an inch, laid out at 877 × 620 and doubled). For a size other than the screen's the map is laid out at that size for a moment, the same area fitted, so labels are placed and thinned for it (the narrative box on the side its marker has room at that size), then put back exactly as it was. A picture of the map as it was covers it meanwhile, so the analyst sees no jump and no flash of colour; anything sent to the map meanwhile (a selection made, say) is shown once it is put back, never undone by it. <em>As on screen</em> colours, or <em>Light, for print</em>: VS Code's Light Modern, whatever the editor's theme; data colours are the same in both.</li>
+<li><strong>PNG or SVG; no JPEG</strong> (decision, product owner, 16 Oct 2026). An SVG keeps every line and label as a vector, its text as text, with its letter-spacing and tabular figures; each image clips to an id of its own, so two pasted into one document do not share one. A PNG is that SVG drawn onto a canvas. The map draws no reference tiles; were one ever shown it would be left out, and said (expert panel, 16 Oct 2026).</li>
+<li>
+<p><strong>Each image carries an ID</strong> (decision, product owner, 16 Oct 2026) naming the plot, the exact revision exported (the plot's content hash, so the step on screen) and the export itself, so a figure traces to exactly what was on screen even after the plot is changed:</p>
+<table>
+<thead>
+<tr>
+<th></th>
+<th>Written</th>
+<th>Where</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>In full</td>
+<td><code>DBF1-PTETVDX3-KG8RB9E5X7Y58R98-M6SC7N75-Z</code></td>
+<td>The image's metadata: a PNG's iTXt chunk <code>debrief:figure</code> and its XMP (<code>dc:identifier</code>), before the image data; an SVG's <code>metadata</code> element, as XMP</td>
+</tr>
+<tr>
+<td>Short</td>
+<td><code>DBF-PTET-KG8R-B9EM-69</code></td>
+<td>The footer, and what an analyst types</td>
+</tr>
+</tbody>
+</table>
+<p>In Crockford's base 32: digits and capital letters without I, L, O or U, so it reads aloud and types without confusion. In full: <code>DBF1</code>; the plot key, 8 symbols, the first 40 bits of the SHA-256 of the catalogue's own id and the item's id (as collation names items, never a title or a folder's name, so it means the same on every analyst's machine); the revision, 16 symbols, the first 80 bits of the plot's content hash; the export, 8 random symbols, so two exports of one view are two images; and a check symbol, Luhn mod 32 over the rest. The short form, <code>DBF-PPPP-RRRR-RRRE-EC</code>, keeps 4 symbols of the plot key, 7 of the revision and 2 of the export, with a check symbol of its own: enough to find the plot and the step among a catalogue's plots, and to tell one export of a revision from another (one in 1,024 shares the export's two symbols with another of the same revision; then both are listed to choose from). Any one symbol mistyped is caught, never looked up. Typed, case, spaces and dashes do not matter, and O is read as 0, I and L as 1. Nothing else goes into the image: not the plot's title, its catalogue's name nor who exported it. Python and TypeScript hold the format to <code>schemas/vectors/figure-ids.json</code>.
+5. <strong>The footer</strong> (decision, product owner, 16 Oct 2026): the short form, 1.4% of the image's width high (22 pixels on a slide, 25 on A4; never under 14; product owner, 16 Oct 2026, down from 2% so it does not dominate a slide), so it still reads when Word shows the image at half a page's width, in the theme's quieter text colour and haloed in the background's, so it reads on any theme and over any track. It goes in the corner, of the four, where it covers least of the plot (the fewest points of its tracks, annotations and labels), beside, never over, the scale bar or the north arrow; bottom left where nothing is in the way. On by default, and on again for every export: turned off for one export with <strong>Image ID in a corner</strong>, it is not remembered off (expert panel, 16 Oct 2026); the size and colours are remembered. It is the main trace once an office program drops an image's metadata (see <em>Office programs</em> below).
+6. <strong>Each export is logged in the plot's island</strong> (decision, product owner, 16 Oct 2026): its ID, the revision, when, who, the area exported (its viewport), current time and the time window, the format, size and colours, the file's name (not its folder) and whether it had the footer (<code>PlotView.exports</code>). With it, the Tote's tracks shown (<code>tote</code>). View state: never a step, so an export changes neither the plot's revision nor any product that drew from it, and undo never takes one back. The newest 500 are kept, the oldest dropped first; an image whose entry is gone still traces by its ID, only its view and time are not restored (decision, product owner, 16 Oct 2026). Who exported and the file's name stay in it. An entry's time must be within its window, whoever sends it.
+7. <strong>The analyst's own export log</strong> (decision, product owner, 16 Oct 2026): where the plot's log cannot be written (its catalogue is read-only), the export goes into <code>exports.json</code> beside the analyst's Debrief configuration, naming the catalogue and the plot; <strong>Find source of image…</strong> reads it as it reads the plots', so every export stays traceable. The newest 2,000 are kept. The analyst is told which log has it.
+8. <strong>Find source of image.</strong> Pick an image (Debrief reads its metadata: a PNG, an SVG, or each picture in a Word, PowerPoint or LibreOffice file) or type the ID from its footer. Debrief finds the plot in the analyst's catalogues, at the step whose revision the ID names, and opens it <strong>read-only</strong> as it was then: rebuilt by replay from its history and checked against the step that recorded it, as undo is, so it is exactly what was on screen. The view and the time come from the export log where it has the image; the map says <em>The plot at step 3 of 7, as when image DBF-PTET-KG8R-B9EM-69 was exported. Read-only.</em> with <strong>Go to latest</strong>. Nothing can be changed there: every change is refused, and said, until the analyst goes to the latest. The History shows the step as <em>shown read-only</em>. The Tote is worked out on the plot as it was then, with the tracks it showed when the image was exported, so the view traced matches the figure, its lines included (decision, product owner, 16 Oct 2026).
+9. <strong>Several match.</strong> A footer's short form, or an ID typed from an old image, can name more than one export of a revision; each is listed with when it was exported and the area it showed, for the analyst to choose. Debrief never picks one, first or last (expert panel, 16 Oct 2026). Each picture in a Word or PowerPoint file is read on its own, so a report with several figures traces each; a picture that cannot be read (encrypted, damaged, compressed in a way Debrief cannot read) is skipped and said why, and the others are still read.
+10. <strong>Copies.</strong> A plot moved to another catalogue, or sent to a colleague, has another plot key but the same revisions: where no plot of the image's key has its revision, any plot that does is found, and said to be <em>a copy, with the same content then</em>. Several found are listed to choose from.
+11. <strong>A plot whose history is damaged</strong> (shown as its file holds it, never changed) is still exported, its ID naming its content's hash, and traced (expert panel, 16 Oct 2026).
+12. <strong>An earlier revision exports as itself</strong>: exported while shown read-only, an image's ID names that revision, so its short form is the same.</p>
+</li>
+</ol>
+<h3 id="what-is-a-step-and-what-isnt">What is a step, and what isn't<a class="headerlink" href="#what-is-a-step-and-what-isnt" title="Permanent link">&para;</a></h3>
+<table>
+<thead>
+<tr>
+<th></th>
+<th>Where</th>
+<th>Undoable</th>
+<th>In the history</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Exporting an image</td>
+<td>The plot's island (<code>exports</code>: the export log), or the analyst's own export log</td>
+<td>No</td>
+<td>No</td>
+</tr>
+<tr>
+<td>Showing an earlier revision</td>
+<td>Nowhere: the plot file is not changed</td>
+<td></td>
+<td></td>
+</tr>
+<tr>
+<td>The image's ID</td>
+<td>The image (metadata, footer) and the export log</td>
+<td></td>
+<td></td>
+</tr>
+</tbody>
+</table>
+<h3 id="in-vs-code">In VS Code<a class="headerlink" href="#in-vs-code" title="Permanent link">&para;</a></h3>
+<ul>
+<li><strong>Debrief: Export image…</strong> (the camera on the map's title bar, the Outline's menu, the Command Palette) asks three things, each from the keyboard: the size (a list), what it shows (<strong>Image ID in a corner</strong> and <strong>Light colours, for print</strong>, ticked or not), and where to save it, as PNG or SVG by the name given (the plot's title and the image's short ID). The size and colours are remembered for next time; the footer is on each time. A notification names the file and its ID, with <strong>Copy ID</strong> and <strong>Show in folder</strong>.</li>
+<li><strong>Debrief: Find source of image…</strong> (Catalogues' title bar menu, the Command Palette): <strong>Choose an image file…</strong> or <strong>Type the ID from the image's corner…</strong>, the ID checked as it is typed. The plot opens read-only, at the view and time exported; <strong>Go to latest</strong> is on the map, its title bar and the History's.</li>
+<li>Agents and keyboard macros pass the choices and the file: <code>debrief.exportImage</code> with <code>{format, preset, theme, footer, file, overwrite}</code>, <code>debrief.findImageSource</code> with <code>{file}</code> or <code>{id}</code>, and <code>choose</code> (counting from 0) where several match; without it the analyst is asked. A file given this way is written only inside the workspace's folders or the folder set in <strong>Debrief: Export folder</strong> (<code>debrief.exportFolder</code>), resolved through any link, and over a file there only with <code>overwrite</code> and the analyst's yes to <em>Replace</em> (expert panel, 16 Oct 2026). The tool service writes no image file: the extension does.</li>
+<li>While an earlier revision is shown read-only, the extension refuses every tool service request aimed at that plot that is not on an allow-list of methods that leave a plot alone (<code>schemas/vectors/service-methods.json</code>, held to Python's list), and opens it without finishing an interrupted change, which would write to it.</li>
+</ul>
+<h3 id="in-the-playground">In the playground<a class="headerlink" href="#in-the-playground" title="Permanent link">&para;</a></h3>
+<p>The <strong>Export image</strong> panel: <strong>Format</strong>, <strong>Size</strong>, <strong>Colours</strong> and <strong>Image ID in a corner</strong> (ticked again after each export), then <strong>Export image…</strong>, which hands the file to the browser to save. There is no save dialog to rename it in, so the panel says plainly that the file's name has the plot's title in it (decision, product owner, 16 Oct 2026). Below it, <strong>Find source of image</strong>: choose a file, or type the ID from its corner and press <strong>Find</strong> (or <code>Enter</code>). The plot is opened as it was, read-only, with <strong>Go to latest</strong> on the map; any plot found is also listed with <strong>Open as exported</strong>, with when it was exported and the area it showed; where several match, none is opened until the reader chooses.</p>
+<h3 id="for-agents">For agents<a class="headerlink" href="#for-agents" title="Permanent link">&para;</a></h3>
+<p><code>debrief/export_image</code> with <code>{store, item, file, preset?, theme?, footer?, overwrite?, agent}</code> exports the plot as the analyst would (decision, product owner, 16 Oct 2026): the tool service asks the map open in VS Code to draw it, through the same path as <strong>Export image…</strong>, and the extension writes the file, within the folders above, asking the analyst before replacing one. Refused, and said, if no map is open (no VS Code polling the service) or the map shows another plot. Drawing lays the analyst's map out at the image's size for a moment, under a picture of it. An earlier revision shown read-only exports as itself. <code>debrief/find_image_source</code> reads a file or a typed ID, listing every export it names, and <code>skipped</code> for pictures it could not read; <code>debrief/open_revision</code> gives the plot as it was at a revision; <code>debrief/figure_id</code> gives a fresh ID. A host gives <code>debrief/export_image</code> the image it drew (<code>image</code>): the ID is put into its metadata, the export logged, and the image given back to write.</p>
+<p>Only <code>debrief/export_image</code> may send a request up to 48 MB (an image); every other method keeps the 10 MB limit.</p>
+<h3 id="keyboard-and-touch">Keyboard and touch<a class="headerlink" href="#keyboard-and-touch" title="Permanent link">&para;</a></h3>
+<table>
+<thead>
+<tr>
+<th>Where</th>
+<th>Key or gesture</th>
+<th>Does</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>VS Code</td>
+<td><strong>Export image…</strong>: <code>↑</code> <code>↓</code> <code>Enter</code> on the size, <code>Space</code> to tick, <code>Enter</code>; the save dialog</td>
+<td>Exports the map</td>
+</tr>
+<tr>
+<td>VS Code</td>
+<td><strong>Find source of image…</strong>: <code>↑</code> <code>↓</code> <code>Enter</code>; the open dialog, or type the ID and <code>Enter</code></td>
+<td>Opens the plot as it was, read-only</td>
+</tr>
+<tr>
+<td>The map, an earlier revision</td>
+<td><code>Tab</code> to <strong>Go to latest</strong>, <code>Enter</code>; tap</td>
+<td>The plot as it is now</td>
+</tr>
+<tr>
+<td>The playground's Export image panel</td>
+<td><code>Tab</code> through its lists, the tick box and <strong>Export image…</strong>; <code>Enter</code> in the ID box finds it</td>
+<td>As VS Code</td>
+</tr>
+</tbody>
+</table>
+<p>There is no map gesture: exporting and tracing are commands and buttons, so they are the same from the keyboard, a mouse and a touch screen. The panel never scrolls sideways, down to 210 pixels and in a wider font.</p>
+<p>An agent's export goes the same way, asked of the extension by the service:</p>
+<pre class="mermaid"><code>sequenceDiagram
+    participant Agent
+    participant Service as Tool service
+    participant Host as Extension host
+    participant Map
+    Host-&gt;&gt;Service: debrief/host_poll (waits)
+    Agent-&gt;&gt;Service: debrief/export_image (file, theme)
+    Service--&gt;&gt;Host: export_image for Agent
+    Host-&gt;&gt;Host: the file inside the workspace or the exports folder?
+    Host-&gt;&gt;Map: export_image (as the analyst's)
+    Map--&gt;&gt;Host: image_rendered
+    Host-&gt;&gt;Service: debrief/export_image (image), then writes the file
+    Host-&gt;&gt;Service: debrief/host_answer (file, ID)
+    Service--&gt;&gt;Agent: file, ID, logged</code></pre>
+<pre class="mermaid"><code>sequenceDiagram
+    actor Analyst
+    participant Host as Extension host
+    participant Map
+    participant Service as Tool service
+    participant Plot as Serial 1 (plot file)
+    Analyst-&gt;&gt;Host: Export image… (slide, footer, PNG)
+    Host-&gt;&gt;Service: debrief/figure_id
+    Service--&gt;&gt;Host: DBF1-… and DBF-PTET-KG8R-B9EM-69 (revision now)
+    Host-&gt;&gt;Map: export_image (slide, footer text)
+    Map--&gt;&gt;Host: image_rendered (PNG, viewport)
+    Host-&gt;&gt;Service: debrief/export_image (image, file name, view, time, Tote)
+    Service-&gt;&gt;Plot: island: export log entry (no step)
+    Service--&gt;&gt;Host: the image with its ID, logged
+    Host-&gt;&gt;Host: writes the file
+    Note over Analyst: the figure goes into a report; the plot changes
+    Analyst-&gt;&gt;Host: Find source of image… (the PNG, or DBF-PTET-KG8R-B9EM-69)
+    Host-&gt;&gt;Service: debrief/find_image_source
+    Service--&gt;&gt;Host: Serial 1, step 3 (now step 7), export log entry
+    Host-&gt;&gt;Service: debrief/open_revision
+    Service--&gt;&gt;Host: the plot replayed to step 3, checked
+    Host-&gt;&gt;Map: show_plot (revision_shown), viewport and time exported
+    Analyst-&gt;&gt;Map: Go to latest</code></pre>
+<h2 id="office-programs-informative">Office programs (informative)<a class="headerlink" href="#office-programs-informative" title="Permanent link">&para;</a></h2>
+<p>Tried on 16 Oct 2026, with a PNG exported from the sample. python-docx, python-pptx and LibreOffice were the only office programs tried: Word and PowerPoint themselves were not available, so nothing here says what they do.</p>
+<table>
+<thead>
+<tr>
+<th>Into</th>
+<th>Then</th>
+<th>The ID in the picture's metadata</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>A <code>.docx</code> by python-docx</td>
+<td></td>
+<td>Kept: the picture is stored byte for byte</td>
+</tr>
+<tr>
+<td>A <code>.pptx</code> by python-pptx</td>
+<td></td>
+<td>Kept: stored byte for byte</td>
+</tr>
+<tr>
+<td>The <code>.docx</code> and <code>.pptx</code></td>
+<td>Saved again by LibreOffice 7 as <code>.docx</code>, <code>.pptx</code> and <code>.odt</code></td>
+<td>Kept</td>
+</tr>
+<tr>
+<td>The <code>.docx</code></td>
+<td>Saved as PDF by LibreOffice</td>
+<td>Gone: the picture is re-encoded</td>
+</tr>
+</tbody>
+</table>
+<p>Word compresses a document's pictures to 220 pixels an inch on save by default, and its <em>Compress pictures</em> and saving as PDF re-encode a picture: any of them may drop the metadata. So the footer is the main trace, typed into <strong>Find source of image…</strong>; the metadata is a convenience where it survives. <strong>Find source of image…</strong> reads a Word, PowerPoint or LibreOffice file picture by picture, so a whole report can be checked at once.</p>
+<h2 id="performance">Performance<a class="headerlink" href="#performance" title="Permanent link">&para;</a></h2>
+<p>Measured in the playground's test on 16 Oct 2026 (headless Chromium, the sample's serial 1), from <strong>Export image…</strong> to the file handed to the browser, Python under Pyodide minting, stamping and logging: a slide's PNG in 670 to 720 ms, A4 landscape in light colours in about 670 ms, a PNG as on screen in about 620 ms, an SVG as on screen in about 340 ms (after the expert panel's review, which added the picture laid over the map while it is resized: 90 to 270 ms more than before). The map is laid out at the image's size and put back within a few frames; the analyst sees <em>Preparing the image…</em> over a picture of the map. Finding a plot by an image reads the item ids of each catalogue and only the plots whose key matches. Each item lists the revisions its plot has had (<code>debrief:revisions</code>, written with each step), so a copy, found by its revision alone, or an ID that matches nothing, reads only the items, never a plot without the revision; an item from before items kept the list is read whole.</p>
+<h2 id="reference-implementation">Reference implementation<a class="headerlink" href="#reference-implementation" title="Permanent link">&para;</a></h2>
+<ul>
+<li><strong>The ID, stamping, reading and finding:</strong> <code>python/debrief-stac/src/debrief_stac/figures.py</code> (<code>new_figure_id</code>, <code>parse_figure_id</code>, <code>stamp_png</code>, <code>stamp_svg</code>, <code>figure_ids_in</code>, <code>figure_for</code>, <code>prepare_export</code>, <code>log_export</code>, <code>find_sources</code>); <code>Catalogue.record_export</code> and <code>Catalogue.revision_shown</code>, <code>History.revisions</code> and <code>History.replay_checked</code>; the analyst's own export log in <code>python/debrief-config/src/debrief_config/exports.py</code>. Tested in <code>python/debrief-stac/tests/test_figures.py</code> and <code>test_figures_review.py</code>, held to <code>schemas/vectors/figure-ids.json</code>; TypeScript reads the same format in <code>ts/kernel/src/figureid.ts</code>, tested in <code>ts/kernel/test/figureid.test.ts</code>.</li>
+<li><strong>The service:</strong> <code>python/debrief-tools/src/debrief_tools/figures.py</code> (with <code>Bridge</code>, <code>debrief/host_poll</code> and <code>debrief/host_answer</code> for an agent's export); tested in <code>python/debrief-tools/tests/test_figures_service.py</code>.</li>
+<li><strong>Drawing the image:</strong> <code>vscode/webview/exportimage.ts</code> (<code>composeSvg</code>, <code>rasterise</code>) and <code>exportImage</code> in <code>vscode/webview/map.ts</code>; sizes, the footer's corner and size, the SVG's frame and text in <code>vscode/webview/exportlogic.ts</code>, tested in <code>vscode/test/unit/export.test.ts</code>.</li>
+<li><strong>VS Code:</strong> <code>debrief.exportImage</code>, <code>debrief.findImageSource</code> and <code>debrief.openLatestRevision</code> in <code>vscode/src/extension.ts</code>, <code>renderImage</code> in <code>vscode/src/panels/map.ts</code>, the wording, what is remembered and where an agent may write in <code>vscode/src/figures.ts</code>; read-only changes refused in <code>ToolService.request</code> by <code>guardRequest</code>. Played in <code>vscode/test/integration/suite.ts</code> (<code>exportedImages</code>).</li>
+<li><strong>The playground:</strong> the Export image panel in <code>vscode/play/host.ts</code>, <code>figure_id</code>, <code>export_image</code>, <code>find_image_source</code> and <code>open_revision</code> in <code>vscode/play/play.py</code>; played in <code>vscode/test/play/export.mjs</code>.</li>
+<li><strong>Schema:</strong> 0.0.22: <code>figures.yaml</code> (<code>FigureId</code>, <code>ShortFigureId</code>, <code>ImageExport</code>, <code>ImageRequest</code>, <code>RenderedImage</code>, <code>RevisionShown</code>, <code>FigureSource</code>, <code>LoggedExport</code>, <code>ExportLog</code>), <code>PlotView.exports</code>, <code>debrief:revisions</code> on an item; messages <code>export_image</code>, <code>image_rendered</code>, <code>latest_asked</code>, and <code>revision_shown</code> on <code>show_plot</code>.</li>
+</ul>
+<p><em>Not yet:</em> a map drawn for an agent with no map open, or in the playground; exporting several views at once (the storyboard, CAP-13, will); a choice of corner for the footer; reading an image's ID out of a PDF a report was saved as (its picture re-encoded: the footer is the trace).</p>
+
+
+
+
+
+
+
+
+
+
+
+
+                
+              </article>
+            </div>
+          
+          
+<script>var target=document.getElementById(location.hash.slice(1));target&&target.name&&(target.checked=target.name.startsWith("__tabbed_"))</script>
+        </div>
+        
+      </main>
+      
+        <footer class="md-footer">
+  
+  <div class="md-footer-meta md-typeset">
+    <div class="md-footer-meta__inner md-grid">
+      <div class="md-copyright">
+  
+    <div class="md-copyright__highlight">
+      Debrief is open source under the Eclipse Public License 2.0.
+    </div>
+  
+  
+    Made with
+    <a href="https://squidfunk.github.io/mkdocs-material/" target="_blank" rel="noopener">
+      Material for MkDocs
+    </a>
+  
+</div>
+      
+    </div>
+  </div>
+</footer>
+      
+    </div>
+    <div class="md-dialog" data-md-component="dialog">
+      <div class="md-dialog__inner md-typeset"></div>
+    </div>
+    
+    
+    
+      
+      
+      <script id="__config" type="application/json">{"annotate": null, "base": "../../..", "features": ["navigation.tabs", "navigation.sections", "navigation.indexes", "content.code.copy"], "search": "../../../assets/javascripts/workers/search.2c215733.min.js", "tags": null, "translations": {"clipboard.copied": "Copied to clipboard", "clipboard.copy": "Copy to clipboard", "search.result.more.one": "1 more on this page", "search.result.more.other": "# more on this page", "search.result.none": "No matching documents", "search.result.one": "1 matching document", "search.result.other": "# matching documents", "search.result.placeholder": "Type to start searching", "search.result.term.missing": "Missing", "select.version": "Select version"}, "version": null}</script>
+    
+    
+      <script src="../../../assets/javascripts/bundle.d7400e89.min.js"></script>
+      
+        <script src="../../../javascripts/demo.js"></script>
+      
+    
+  </body>
+</html>
