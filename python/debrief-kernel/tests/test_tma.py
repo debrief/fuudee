@@ -48,6 +48,10 @@ def test_residuals_as_the_shared_vectors_say(case: dict) -> None:
         assert got.residual == pytest.approx(expected["residual"], abs=1e-6)
         assert got.used == expected["used"]
         assert got.nearer_side is expected["nearer_side"]
+        if expected.get("other_residual") is None:
+            assert got.other is None
+        else:
+            assert got.other == pytest.approx(expected["other_residual"], abs=1e-6)
     counted = [
         r.residual for c, r in zip(case["cuts"], found, strict=True) if not c.get("excluded")
     ]

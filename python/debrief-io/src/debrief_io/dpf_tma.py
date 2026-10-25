@@ -10,7 +10,11 @@ reckoning from where it starts:
   sensor was at the leg's start (legacy RelativeTMASegment.getTrackStart): converted to
   positions at import, from where the sensor was then in this plot (its array's position,
   astern, where it has one), and the note says so, with how far that puts any fix from
-  where legacy Debrief drew it (legacy worked on a flat earth; v4 along geodesics). The
+  where legacy Debrief drew it. Two things put it apart: a plot whose saved positions leave
+  out its sensor's array offset (legacy's midflow2, 0.22 nmi with plain arrays 300 and
+  400 m astern), which v4 applies, as current legacy Debrief does on load; and legacy's
+  flat earth on a long leg or far north (2648_tx, 0.56 nmi over 16.6 h; Ambig_tracks3,
+  0.15 nmi at 60N), where v4 works along geodesics. The
   solution is then no longer relative to its host: moving the host does not move it, as
   it did in legacy.
 
@@ -146,14 +150,19 @@ def _leg_start(leg: DpfLeg, fixes: list[DpfFix], hosts: _Hosts) -> tuple[Positio
     )
 
 
-def _rooted(legs: Sequence[tuple[DpfLeg, list[DpfFix]]], hosts: _Hosts) -> tuple[list[str], list]:
+def _rooted(
+    legs: Sequence[tuple[DpfLeg, list[DpfFix]]], hosts: _Hosts, primary: str | None = None
+) -> tuple[list[str], list]:
     """The cuts the solution is rooted in: for each leg, those of the sensors it names (a
     relative leg's host sensor; an absolute leg, those its track's relative legs name)
-    within its fixes."""
+    within its fixes. A solution of absolute legs alone names no sensor: it is rooted in
+    the cuts of the tote's primary track's sensors, as legacy Stacked Dots measured it."""
     named: list = []
     for leg, _ in legs:
         if leg.tma is not None and leg.kind == "RelativeTMASegment":
             named += hosts.sensors_named(leg.tma.host_track, leg.tma.host_sensor)
+    if not named and primary:
+        named = hosts.sensors_named(primary, None)
     named = list({s.id: s for s in named}.values())
     cut_ids: list[tuple[str, str]] = []
     for leg, fixes in legs:
@@ -193,14 +202,18 @@ def solutions(
         if not legs:
             continue
         legs.sort(key=lambda lf: lf[1][0].time_ms)
-        made, said = _solution(features[index], name, legacy_name, legs, track, hosts, fixes)
+        made, said = _solution(
+            features[index], name, legacy_name, legs, track, hosts, fixes, parsed.primary
+        )
         features[index] = made
         hosts.by_id[made.id] = made
         notes += said
     return notes
 
 
-def _solution(feature, name, legacy_name, legs, track: DpfTrack, hosts: _Hosts, fixes):
+def _solution(
+    feature, name, legacy_name, legs, track: DpfTrack, hosts: _Hosts, fixes, primary=None
+):
     kept = [f for _, leg_fixes in legs for f in leg_fixes]
     mine = {id(f) for f in fixes}
     infill = sum(
@@ -248,7 +261,10 @@ def _solution(feature, name, legacy_name, legs, track: DpfTrack, hosts: _Hosts, 
         for p, f in zip(positions, kept, strict=True)
     )
     leg_starts = [format_utc(leg_fixes[0].time_ms) for _, leg_fixes in legs[1:]]
-    cut_ids, sensors_used = _rooted(legs, hosts)
+    cut_ids, sensors_used = _rooted(legs, hosts, primary)
+    by_primary = primary is not None and not any(
+        leg.kind == "RelativeTMASegment" for leg, _ in legs
+    )
     props = feature.properties
     kept_times = {format_utc(t) for t in times}
     tag = models.TmaSolution(
@@ -284,8 +300,21 @@ def _solution(feature, name, legacy_name, legs, track: DpfTrack, hosts: _Hosts, 
         f"{_plural(len(legs), 'leg')}, rooted in {_plural(len(cut_ids), 'cut')} of {names}.",
         *said,
         f"Track {name!r}: the most any fix is from where legacy Debrief drew it: "
-        f"{_distance(worst)}.",
+        f"{_distance(worst)}."
+        + (
+            " Legacy Debrief worked its positions out on a flat earth, and a plot may have "
+            "saved them without its sensor's array offset, which v4 applies as legacy does on "
+            "load; v4 works along geodesics."
+            if worst >= 1852 * 0.01
+            else ""
+        ),
     ]
+    if by_primary and cut_ids:
+        notes.append(
+            f"Track {name!r}: its legs are all absolute and name no sensor, so it is rooted in "
+            f"the cuts of {primary}'s sensors, the tote's primary track, as legacy Stacked Dots "
+            "measured it."
+        )
     if len(legs) > 1:
         notes.append(
             f"Track {name!r}: its legs are joined, as a v4 solution's are: each leg's last fix "

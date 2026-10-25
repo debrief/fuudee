@@ -168,3 +168,80 @@ def test_legacy_samples_tma_solutions_come_in_close_to_where_legacy_drew_them() 
             assert solution.properties.tma.cut_ids, path.name
             assert tma.residual_report(plot, solution.id)["counted"] > 0
         assert any("is a TMA solution from legacy Debrief" in n for n in report.omitted), path
+        # How far any fix is from where legacy drew it: within 0.6 nmi on every sample.
+        # midflow2's 0.22 nmi is its 300 and 400 m plain array offsets, which its saved
+        # positions leave out and v4 applies, as legacy does on load; 2648_tx's 0.56 nmi
+        # (a 16.6 h leg) and Ambig_tracks3's 0.15 nmi (at 60N) are legacy's flat earth.
+        worst = [
+            float(n.rsplit(": ", 1)[1].split()[0])
+            for n in report.omitted
+            if "the most any fix is from where legacy Debrief drew it" in n
+        ]
+        assert worst and max(worst) < 0.6, (path.name, worst)
+
+
+def test_a_relative_leg_starts_from_its_hosts_array_astern() -> None:
+    """Bow 300 m astern of MAYO (plain): the relative leg's offset is from the array, as
+    current legacy Debrief places it on load, so the solution starts 300 m west of where the
+    offset from MAYO itself would put it (MAYO steams 090)."""
+    plot_text = PLOT.replace(
+        '<sensor Name="Bow" Visible="true" TrackName="MAYO">',
+        '<sensor Name="Bow" Visible="true" TrackName="MAYO" ArrayMode="Plain">'
+        '<Offset Units="m" Value="-300.0"/>',
+    )
+    plot, report = build_plot_from_dpf(plot_text.encode(), SOURCE, AGENT)
+    bow = next(f for f in plot.features if f.properties.kind == "sensor")
+    assert bow.properties.array_offset.value == pytest.approx(300.0)
+    (solution,) = tma.solutions(plot)
+    distance, bearing = range_bearing(LEG1[0], Position(*solution.geometry.coordinates[0]))
+    assert distance.value == pytest.approx(300.0, abs=1.0)
+    assert bearing.value == pytest.approx(270.0, abs=0.5)
+    said = "\n".join(report.omitted)
+    assert "from MAYO's Bow at 09:00:00Z" in said
+
+
+def test_hidden_cuts_of_a_legacy_plot_are_left_out_as_legacy_left_them() -> None:
+    """Visible="false" cuts (legacy plotted only visible data): rooted, but not counted, so
+    the RMS is legacy's (product owner, 25 Oct 2026)."""
+    shown = tma.residual_report(*_solution_of(PLOT))
+    lines = PLOT.split("\n")
+    text = PLOT.replace(contact(2), contact(2).replace('Visible="true"', 'Visible="false"'))
+    text = text.replace(contact(3), contact(3).replace('Visible="true"', 'Visible="false"'))
+    assert text != PLOT and lines
+    report = tma.residual_report(*_solution_of(text))
+    assert report["hidden"] == 2
+    assert report["counted"] == shown["counted"] - 2
+
+
+def _solution_of(text: str):
+    plot, _ = build_plot_from_dpf(text.encode(), SOURCE, AGENT)
+    (solution,) = tma.solutions(plot)
+    return plot, solution.id
+
+
+def test_a_solution_of_absolute_legs_alone_is_rooted_in_the_primary_tracks_cuts() -> None:
+    """No relative leg names a sensor: rooted in the tote's primary track's sensors' cuts in
+    its period, as legacy Stacked Dots measured it, and said."""
+    absolute = (
+        PLOT.replace("RelativeTMASegment", "AbsoluteTMASegment")
+        .replace(
+            '<Offset BearingDegs="',
+            f'<Origin><shortLocation Lat="{LEG1[0].latitude:.7f}" '
+            f'Long="{LEG1[0].longitude:.7f}"/></Origin><Ignore B="',
+        )
+        .replace("</Offset>", "</Ignore>")
+    )
+    with_tote = absolute.replace(
+        "</layers></session>",
+        '</layers><gui><tote><primary Name="MAYO"/><secondary Name="TMA_0900"/></tote>'
+        "</gui></session>",
+    )
+    plot, report = build_plot_from_dpf(with_tote.encode(), SOURCE, AGENT)
+    (solution,) = tma.solutions(plot)
+    assert len(solution.properties.tma.cut_ids) == 10
+    assert "rooted in the cuts of MAYO's sensors, the tote's primary track" in "\n".join(
+        report.omitted
+    )
+    plot, _ = build_plot_from_dpf(absolute.encode(), SOURCE, AGENT)
+    (solution,) = tma.solutions(plot)
+    assert solution.properties.tma.cut_ids == []  # no primary: none named

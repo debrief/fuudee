@@ -1722,6 +1722,9 @@ outlineList.addEventListener(
 /** Which sensor's cuts the view lists, and which solution it shows: the reader's, never saved. */
 let tmaSensor: string | undefined;
 let tmaSolution: string | undefined;
+/** The height the Bearings group is given when a solution is shown: its plots, the RMS and a few rows. */
+const BEARINGS_PX = 300;
+let bearingsGrownFor: string | undefined;
 /** The cuts two clicks on the map are asked for, until they are made or cancelled. */
 let tmaGuessing: TmaRequest | undefined;
 let tmaAsking = 0;
@@ -1779,6 +1782,9 @@ async function refreshBearings(): Promise<void> {
     ...(residuals && tmaSolution && { solution_id: tmaSolution, residuals }),
   });
   if (time) tmaControl.setTime(Date.parse(time.current), time.range);
+  // A solution shown under the map: room for its plots, once for each solution (the reader may
+  // make the group shorter again, and it stays so).
+  if (residuals && tmaSolution && tmaSolution !== bearingsGrownFor && dock?.atLeast("panel-bearings", BEARINGS_PX)) bearingsGrownFor = tmaSolution;
 }
 /** The reader chose a sensor (its cuts) or a solution (its residuals; selected, so the map shows its handles). */
 async function chooseTma(id: string): Promise<void> {

@@ -136,13 +136,13 @@ In collation, a source is a **catalogue item**: an imported file, kept as a plot
 
 **Solution** (**TMA solution**). A track of a **contact** (*Contact 1*) plotted by dead reckoning, rooted in a period of a sensor's cuts by their ids, with a fix at each cut's time. It is dragged, split and merged as any track, and tagged **TMA** in the Outline. Made from a **first guess**: by form (a range along the first cut's bearing, a course and a speed; Debrief's defaults 10,000 yd, across the bearing, 8 kn) or by two clicks on the map, on the first and last cuts' lines.
 
-**Residual.** A measured bearing less the bearing from where the cut was taken to the solution at the same time, from −180° to 180°. Small, unpatterned residuals suggest a good solution. An unresolved ambiguous cut is measured by the bearing nearer the solution, and said so.
+**Residual.** A measured bearing less the bearing from where the cut was taken to the solution at the same time, from −180° to 180°. Small, unpatterned residuals suggest a good solution. An unresolved ambiguous cut is measured by the bearing nearer the solution, and said so; its other bearing is drawn faint, never counted.
 
-**RMS** (root mean square error). Of a solution's residuals, over its cuts counted: those with a residual and not **left out** by the analyst (a wild bearing, say), each left out or counted again as one step.
+**RMS** (root mean square error). Of a solution's residuals, over its cuts counted: those with a residual, shown on the map (a hidden cut is left out until shown again), and not **left out** by the analyst (a wild bearing, say), each left out or counted again as one step.
 
 **Bearings view.** Where a sensor's cuts are listed and a solution's residuals shown: measured and calculated bearings over time, the residuals beneath, after legacy Debrief's **Stacked Dots**, and the RMS, live while the solution is dragged.
 
-**Leg.** A period of steady conditions. An **ownship leg** has steady course and speed; a **bearing leg** has a steady bearing rate. Changes of ownship leg give the geometry TMA needs. A **solution's legs** are periods of it, split at a time and joined: each is dragged on its own (**This leg**), the later legs following on.
+**Leg.** A period of steady conditions. An **ownship leg** has steady course and speed; a **bearing leg** has a steady bearing rate. Changes of ownship leg give the geometry TMA needs. A **solution's legs** are periods of it, split at a time and joined: each is dragged on its own (**This leg**, the leg clicked), the other legs staying where they are and the joins either side solved again.
 
 **SATC** (semi-automatic track construction). Generating a TMA solution automatically from bearings. Lower priority than manual TMA (CAP-21).
 

@@ -33,6 +33,10 @@ import {
   rowsInSight,
   scrollFor,
   sideOfRow,
+  splitAllowed,
+  keptLegs,
+  legIndices,
+  legNear,
   wrap,
   type CutBearing,
 } from "../../webview/tma.js";
@@ -63,6 +67,8 @@ describe("residuals, as the shared vectors say", () => {
         expect(got.residual).toBeCloseTo(expected.residual, 6);
         expect(got.used).toBe(expected.used);
         expect(got.nearer_side).toBe(expected.nearer_side);
+        if (expected.other_residual === undefined) expect(got.other).toBeUndefined();
+        else expect(got.other).toBeCloseTo(expected.other_residual, 6);
       });
       const counted = found.filter((_, i) => !c.cuts[i].excluded).map((r) => r.residual);
       const value = rms(counted);
@@ -149,9 +155,12 @@ describe("the cut list", () => {
     expect(residualText(0.04)).toBe("+0.0°");
     expect(residualText(-0.04)).toBe("+0.0°");
     expect(residualText(undefined)).toBe("—");
-    expect(rowLabel({ ...rows[10], residual: 1.24, nearer_side: true, leg: 2 } as never)).toBe(
-      "09:05:00Z, Towed array, 045.0° / 135.0°, 045.0° is to port, residual +1.2°, by the nearer bearing, leg 2",
+    expect(rowLabel({ ...rows[10], residual: 1.24, nearer_side: true, other_residual: -88.8, leg: 2 } as never)).toBe(
+      "09:05:00Z, 045.0° / 135.0°, 045.0° is to port, residual +1.2°, by the nearer bearing, the other bearing's residual −88.8°, leg 2",
     );
+    // The sensor said only where the list has cuts of more than one; a hidden cut says so.
+    expect(rowLabel(rows[0], DEFAULT_SETTINGS, true)).toMatch(/^09:00:00Z, Towed array, /);
+    expect(rowLabel({ ...rows[0], hidden: true })).toMatch(/hidden on the map, left out$/);
   });
 });
 
@@ -194,5 +203,59 @@ describe("residuals while a solution is dragged", () => {
     runs.sort((a, b) => a - b);
     console.log(`TMA live residuals, 2,000 cuts: median ${runs[5].toFixed(1)} ms, worst ${runs[9].toFixed(1)} ms`);
     expect(runs[5]).toBeLessThan(50);
+  });
+});
+
+
+describe("hidden cuts while dragging (product owner, 25 Oct 2026)", () => {
+  it("are left out of the RMS and the counts, as Python leaves them out, and counted once shown", () => {
+    const origin: LonLat = [-4, 50];
+    const coordinates: LonLat[] = [travel(origin, 30, 9000), travel(travel(origin, 30, 9000), 120, 900)];
+    const times = ["2026-10-11T09:00:00.000Z", "2026-10-11T09:02:00.000Z"];
+    const solution: TmaSolutionRow = { id: "s", name: "s", contact: "c", period: { start: times[0], end: times[1] }, times, cuts: 3 };
+    const row = (i: number, bearing: number, more = {}) => ({ id: `c${i}`, sensor_id: "x", time: `2026-10-11T09:0${i}:00.000Z`, bearing, origin, residual: 0, ...more });
+    const base: TmaResiduals = { solution_id: "s", rows: [row(0, 31), row(1, 80, { hidden: true }), row(2, 33)], counted: 2, excluded: 0, without: 0, hidden: 1 };
+    const live = liveResiduals(base, solution, coordinates);
+    expect(live.counted).toBe(2);
+    expect(live.rows[1].residual).toBeDefined(); // worked out, shown in the list, not counted
+    expect(live.rms).toBeCloseTo(rms([live.rows[0].residual, live.rows[2].residual])!, 9);
+    expect(residualNotes(live)).toContain("1 hidden cut left out: it is hidden on the map, and counts again once shown.");
+    const shown = liveResiduals({ ...base, rows: base.rows.map((r) => ({ ...r, hidden: undefined })), hidden: undefined }, solution, coordinates);
+    expect(shown.counted).toBe(3);
+  });
+});
+
+describe("legs on the map (product owner, 25 Oct 2026)", () => {
+  const times = Array.from({ length: 10 }, (_, i) => i * 60_000);
+  const starts = [4 * 60_000, 7 * 60_000];
+  it("finds a leg by current time, or the one picked", () => {
+    expect(legIndices(times, starts, 0)).toEqual({ indices: [0, 1, 2, 3], leg: 1, legs: 3 });
+    expect(legIndices(times, starts, 4 * 60_000)).toEqual({ indices: [4, 5, 6], leg: 2, legs: 3 });
+    expect(legIndices(times, starts, 99 * 60_000).leg).toBe(3); // after the end: the last
+    expect(legIndices(times, starts, -5).leg).toBe(1); // before the start: the first
+    expect(legIndices(times, starts, 0, 3)).toEqual({ indices: [7, 8, 9], leg: 3, legs: 3 });
+    expect(legIndices(times, [], 5 * 60_000)).toEqual({ indices: times.map((_, i) => i), leg: 1, legs: 1 });
+  });
+  it("picks the leg of the fix nearest a click", () => {
+    const positions: LonLat[] = times.map((_, i) => [i * 0.01, 50]);
+    expect(legNear(positions, times, starts, [0.051, 50.001])).toBe(2);
+    expect(legNear(positions, times, starts, [0.2, 50])).toBe(3);
+  });
+  it("keeps the legs not dragged where they were", () => {
+    const before: LonLat[] = times.map((_, i) => [i, 0]);
+    const after: LonLat[] = times.map((_, i) => [i, 1]);
+    const kept = keptLegs(before, after, [4, 5, 6], times, starts);
+    expect(kept.map((p) => p[1])).toEqual([0, 0, 0, 0, 1, 1, 1, 0, 0, 0]);
+    expect(keptLegs(before, after, times.map((_, i) => i), times, starts)).toBe(after);
+  });
+  it("offers a split only where the leg keeps two fixes either side, as Python allows", () => {
+    expect(splitAllowed(times, [], 2 * 60_000)).toBe(true);
+    expect(splitAllowed(times, [], 1 * 60_000)).toBe(false); // one fix before
+    expect(splitAllowed(times, [], 9 * 60_000)).toBe(false); // one fix from it on
+    expect(splitAllowed(times, starts, 5 * 60_000)).toBe(false); // leg 2 has one fix before
+    expect(splitAllowed(times, starts, 6 * 60_000)).toBe(false); // and one from it on
+    expect(splitAllowed(times, starts, 4 * 60_000)).toBe(false); // a leg starts there already
+    expect(splitAllowed(times, [7 * 60_000], 2 * 60_000)).toBe(true);
+    expect(splitAllowed(times, [7 * 60_000], 6 * 60_000)).toBe(false); // leg 1 keeps one fix after
   });
 });

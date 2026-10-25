@@ -5,7 +5,8 @@ less the bearing from where the cut was taken (its origin, as the map draws it) 
 the solution was at the cut's time, along the geodesic, within (-180, 180], as legacy
 Debrief's Doublet.calculateBearingError. Where a cut is ambiguous and not yet resolved,
 the bearing measured is whichever of its two is nearer the solution, chosen afresh as
-the solution moves (product owner, 24 Oct 2026). The RMS error is the root mean square
+the solution moves (product owner, 24 Oct 2026); the other's residual is given too, to be
+drawn faint and never counted (product owner, 25 Oct 2026). The RMS error is the root mean square
 of the residuals counted: every rooted cut with a residual, less those the analyst left
 out.
 
@@ -58,6 +59,9 @@ class Residual:
     used: str | None  # which of the cut's bearings measured is
     nearer_side: bool  # an unresolved ambiguous cut: the bearing nearer the solution
     residual: float | None
+    # An unresolved ambiguous cut: the residual of its other bearing, the one not measured,
+    # drawn faint and never counted, so the analyst can pick a side from the plot (P3).
+    other: float | None = None
 
 
 def wrap(degrees: float) -> float:
@@ -70,16 +74,17 @@ def wrap(degrees: float) -> float:
     return value
 
 
-def _choose(cut: CutBearing, calculated: float) -> tuple[float, str, bool, float]:
-    """The bearing measured, which it is, whether it was chosen as the nearer, and its residual."""
+def _choose(cut: CutBearing, calculated: float) -> tuple[float, str, bool, float, float | None]:
+    """The bearing measured, which it is, whether it was chosen as the nearer, its residual,
+    and (an unresolved ambiguous cut) the other bearing's residual."""
     if cut.ambiguous is None or cut.resolved == "bearing":
-        return cut.bearing, "bearing", False, wrap(cut.bearing - calculated)
+        return cut.bearing, "bearing", False, wrap(cut.bearing - calculated), None
     if cut.resolved == "ambiguous_bearing":
-        return cut.ambiguous, "ambiguous_bearing", False, wrap(cut.ambiguous - calculated)
+        return cut.ambiguous, "ambiguous_bearing", False, wrap(cut.ambiguous - calculated), None
     first, second = wrap(cut.bearing - calculated), wrap(cut.ambiguous - calculated)
     if abs(second) < abs(first):
-        return cut.ambiguous, "ambiguous_bearing", True, second
-    return cut.bearing, "bearing", True, first
+        return cut.ambiguous, "ambiguous_bearing", True, second, first
+    return cut.bearing, "bearing", True, first, second
 
 
 def residuals(cuts: Sequence[CutBearing], solution: TrackPath) -> list[Residual]:
@@ -102,8 +107,8 @@ def residuals(cuts: Sequence[CutBearing], solution: TrackPath) -> list[Residual]
         if not ok:
             out.append(Residual(None, None, None, False, None))
             continue
-        measured, used, nearer, residual = _choose(cut, float(calc))
-        out.append(Residual(float(calc), measured, used, nearer, residual))
+        measured, used, nearer, residual, other = _choose(cut, float(calc))
+        out.append(Residual(float(calc), measured, used, nearer, residual, other))
     return out
 
 

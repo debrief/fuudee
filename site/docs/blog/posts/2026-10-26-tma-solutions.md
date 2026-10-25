@@ -35,15 +35,17 @@ With the solution selected, the view becomes legacy's Stacked Dots: the measured
 
 ![Mid-drag: the solution's end pulled north on the map, its fixes in orange; beneath, the bearings plot with the calculated line drifting from the dots and the residuals panel below, RMS 6.7° over 60 cuts (while dragging)](images/phase-4/tma-03-drag.png)
 
-The residuals are worked out in the browser with the same geodesic and the same rules as Python, held to the same test cases in both languages. 2,000 cuts take about 6 ms a frame in Chromium, 600 about 2 ms, so the map's own drag stays smooth.
+![A solution of the towed array's cuts: in the bearings plot each unresolved cut's measured bearing a ring, its other bearing a faint dot well away from the line; the list marks each with ≈](images/phase-4/tma-08-faint-other-bearing.png)
 
-Every cut of the period counts, from where it was taken, a towed array's from the array astern. A towed array's cut you haven't resolved is measured by whichever of its two bearings is nearer the solution, and the view says so, so you know the RMS assumed a side. **Next ambiguous** (`Alt+Down`) takes you to the next one to resolve, right there in the view.
+The residuals are worked out in the browser with the same geodesic and the same rules as Python, held to the same test cases in both languages. A whole frame of 2,000 cuts (the residuals, the list and the plots) takes about 10 ms in Chromium, 600 about 4 ms.
+
+Every cut of the period counts, from where it was taken, a towed array's from the array astern, except cuts you've hidden on the map, as legacy's *Only plot visible data* left them out: they come back as soon as you show them. A towed array's cut you haven't resolved is measured by whichever of its two bearings is nearer the solution, and the view says so, so you know the RMS assumed a side. Its other bearing is drawn too, faint and not counted, so you can see which side the plot favours. **Next ambiguous** (`Alt+Down`) takes you to the next one to resolve, right there in the view.
 
 ## Wild bearings and legs
 
 A bearing you don't trust: choose it and press `Space` (or untick it) and it's left out of the RMS, one step, its dot a dotted ring. Undo counts it again.
 
-A manoeuvre: choose the cut where the contact turned and **Split into legs at 12:53:30Z**. The solution stays one track, in two legs. On the map, **This leg** drags only the leg current time is in. Dragging an earlier leg carries the later ones along, unturned; dragging a later one changes only the stretch joining it to the leg before. The legs stay joined at the split.
+A manoeuvre: choose the cut where the contact turned and **Split into legs at 12:53:30Z**. The solution stays one track, in two legs. On the map, choose **This leg** and click the leg you want: only that leg moves. As in legacy, each leg is independent: a leg you've already fitted never moves when you drag its neighbour; only the stretches joining it to the legs either side are worked out again. Merging two solutions moves nothing either.
 
 ![Two legs: the second leg being sheared on its own on the map, This leg chosen; in the plot a dashed line at the split, the first leg's residuals unchanged and the second's moving, RMS 5.0° over 60 cuts (while dragging)](images/phase-4/tma-05-two-legs.png)
 

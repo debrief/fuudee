@@ -16,7 +16,10 @@
  *   map emphasises it), Alt+Down and Alt+Up go to the next and previous ambiguous cut not
  *   yet resolved (and current time with them), and the buttons beside keep a side of the
  *   cut chosen. With a solution shown, Space leaves the cuts chosen out of its RMS error,
- *   or counts them again, one step each time.
+ *   or counts them again, one step each time (Shift and the arrow keys still choose; Space
+ *   never moves the period). Each option says its place in the list (aria-setsize and
+ *   aria-posinset), and the cut chosen stays in the page while scrolled out of sight, so
+ *   the list's active descendant is always there.
  * - No solution shown: the sensor's cuts, the period chosen (by default the cuts in the
  *   time window, as CAP-21 roots a solution in the window), and Make solution…: a form for
  *   the first guess (a range along the first cut's bearing, a course and a speed, offered
@@ -25,8 +28,14 @@
  * - A solution shown: its bearings measured and calculated over time, its residuals
  *   beneath, the RMS error, its legs, and the list of its cuts with each residual. An
  *   ambiguous cut not yet resolved is measured by the bearing nearer the solution, and
- *   the view says so (≈). A point clicked on the plots chooses its cut, a manoeuvre where
- *   the solution can be split into legs.
+ *   the view says so (≈); its other bearing is drawn faint, with its residual, never
+ *   counted, so a side can be picked from the plot (product owner, 25 Oct 2026). A cut
+ *   hidden on the map is left out until shown again. A point clicked on the plots chooses
+ *   its cut, a manoeuvre where the solution can be split into legs.
+ * - While a drag moves the solution, each frame works out the residuals again, writes the
+ *   RMS, the residuals of the rows in sight (their cells only, nothing rebuilt) and draws
+ *   the plots, the axes held as they were when the drag began; the whole frame is timed
+ *   (timings) against the drag budget (NFR-04).
  */
 import { DEFAULT_SETTINGS, fixed, formatTime, type FormatSettings } from "@debrief/kernel";
 import type { TimeRange, TmaCut, TmaRequest, TmaResidualRow, TmaResiduals, TmaSolutionRow, TmaView } from "@debrief/schemas";
@@ -41,6 +50,7 @@ import {
   guessDefaults,
   isAmbiguousRow,
   liveResiduals,
+  primeLive,
   nearestRow,
   nextAmbiguous,
   nextContact,
@@ -51,6 +61,7 @@ import {
   rowsInSight,
   scrollFor,
   sideOfRow,
+  splitAllowed,
   wrap,
 } from "./tma.js";
 import { describeDistance, describeSpeed, readBearing, readDistance, readSpeed } from "./trackedit.js";
@@ -77,8 +88,12 @@ export const ROW_PX = 22;
 /** The plots' height, at most; less beside the list in a short panel, never below PLOT_LEAST_PX. */
 const PLOT_PX = 196;
 const PLOT_LEAST_PX = 110;
+/** What the RMS line beneath the plots takes: in a short panel the plots come first, the buttons scroll. */
+const RMS_PX = 22;
 /** From this width the view lays the plots beside the list (the strip under the map). */
 const WIDE_PX = 640;
+/** Below this width the list drops its tick boxes, so a bearing is still read whole. */
+const NARROW_PX = 280;
 const escape = (text: string) => text.replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[c]!);
 
 type Row = CutRow;
@@ -99,8 +114,16 @@ export class TmaControl {
   private drawn = new Map<number, HTMLElement>();
   private formOpen = false;
   private said?: ReturnType<typeof setTimeout>;
-  /** How long each live recompute took, ms: for the playground's tests and the drag budget (NFR-04). */
+  /** How long each frame of a drag took, ms, the residuals worked out and everything drawn: for the tests and the drag budget (NFR-04). */
   readonly timings: number[] = [];
+  /** The plots' axes while a drag goes on: held, so the dots move, not the scale. */
+  private frozen?: { lo: number; hi: number; reference: number; limit: number };
+  /** The plots' size while a drag goes on: read once, as reading it after writing the list makes the browser lay the page out again every frame. */
+  private frozenGeometry?: ReturnType<TmaControl["measure"]>;
+  /** Each base's rows' times, parsed once. */
+  private rowTimes = new WeakMap<TmaResiduals | TmaCut[], number[]>();
+  /** The theme's colours, read when the view is drawn, not every frame. */
+  private colours?: { fg: string; muted: string; grid: string; focus: string; font: string };
   private readonly sensor: HTMLSelectElement;
   private readonly solution: HTMLSelectElement;
   private readonly plot: HTMLElement;
@@ -135,8 +158,9 @@ export class TmaControl {
       `</div>` +
       `<div class="tma-body"><div class="tma-left">` +
       `<div class="tma-plot" hidden><canvas class="tma-canvas" role="img"></canvas>` +
-      `<p class="tma-key" aria-hidden="true"><span>● measured</span><span>○ nearer of two</span><span>— calculated</span><span>◌ left out</span></p></div>` +
+      `<p class="tma-key" aria-hidden="true"><span>● measured</span><span>○ nearer of two</span><span class="tma-key-other">● other of two, faint</span><span>— calculated</span><span>◌ left out</span></p></div>` +
       `<p class="tma-rms" hidden></p>` +
+      `<div class="tma-below">` +
       `<ul class="tma-notes" hidden></ul>` +
       `<div class="tma-actions" role="group" aria-label="The cut chosen">` +
       `<button type="button" class="tma-prev" title="The previous ambiguous cut not yet resolved, and current time to it (Alt+Up)" aria-keyshortcuts="Alt+ArrowUp">Previous ambiguous</button>` +
@@ -150,8 +174,8 @@ export class TmaControl {
       `<div class="tma-chosen"><span class="tma-period" aria-live="polite"></span><button type="button" class="tma-make primary">Make solution…</button></div>` +
       `<form class="tma-form" hidden novalidate aria-label="First guess"></form>` +
       `<p class="tma-status" aria-live="polite"></p>` +
-      `</div><div class="tma-right">` +
-      `<div class="tma-columns" aria-hidden="true"><span class="tma-c-time">Time</span><span class="tma-c-sensor">Sensor</span><span class="tma-c-brg">Bearing</span><span class="tma-c-res">Residual</span></div>` +
+      `</div></div><div class="tma-right">` +
+      `<div class="tma-columns" aria-hidden="true"><span class="tma-c-time">Time</span><span class="tma-c-brg">Bearing</span><span class="tma-c-res">Residual</span></div>` +
       `<div class="tma-list" role="listbox" tabindex="0" aria-multiselectable="true"><div class="tma-spacer"></div></div>` +
       `</div></div>`;
     const q = <T extends HTMLElement>(s: string) => element.querySelector<T>(s)!;
@@ -204,6 +228,8 @@ export class TmaControl {
     // Wide and short (the strip under the map): the plots and buttons beside the list, not above it.
     new ResizeObserver(() => {
       element.classList.toggle("tma-wide", element.clientWidth >= WIDE_PX);
+      // Narrow (a side column, about 200 px): the list keeps time, bearing and residual readable; the tick box goes (Space and the button leave a cut out).
+      element.classList.toggle("tma-narrow", element.clientWidth < NARROW_PX);
       this.renderRows();
       this.drawPlot();
     }).observe(element);
@@ -217,6 +243,9 @@ export class TmaControl {
     const before = this.view;
     this.view = view;
     this.live = undefined;
+    this.frozen = undefined;
+    this.frozenGeometry = undefined;
+    this.colours = undefined;
     const key = this.keyOf();
     if (key !== this.rowsKey) {
       // Another list: the place in it starts again, but a solution's own list keeps its row.
@@ -233,6 +262,12 @@ export class TmaControl {
     }
     if (!this.chose) this.followWindow();
     this.render();
+    // Ready for a drag: its first frame then costs no more than the rest (NFR-04).
+    const solution = this.solutionRow();
+    if (view?.residuals && solution) {
+      primeLive(view.residuals, solution);
+      this.timesOf(view.residuals.rows);
+    }
   }
 
   /** Current time and the time window: the period offered follows the window until the analyst chooses one. */
@@ -256,6 +291,8 @@ export class TmaControl {
       this.pending = undefined;
       if (this.frame !== undefined) cancelAnimationFrame(this.frame);
       this.frame = undefined;
+      this.frozen = undefined;
+      this.frozenGeometry = undefined;
       if (this.live) {
         this.live = undefined;
         this.renderResiduals();
@@ -271,9 +308,9 @@ export class TmaControl {
       if (!coords || !solution || !this.view?.residuals) return;
       const started = performance.now();
       this.live = liveResiduals(this.view.residuals, solution, coords);
+      this.renderLive();
       this.timings.push(performance.now() - started);
       if (this.timings.length > 2000) this.timings.splice(0, 1000);
-      this.renderResiduals();
     });
   }
 
@@ -407,7 +444,6 @@ export class TmaControl {
     this.notes.hidden = !notes.length;
     this.notes.innerHTML = notes.map((n) => `<li>${escape(n)}</li>`).join("");
     this.spacer.style.height = `${this.rows().length * ROW_PX}px`;
-    this.list.setAttribute("aria-rowcount", String(this.rows().length));
     this.drawn.forEach((e) => e.remove());
     this.drawn.clear();
     this.renderRows();
@@ -415,20 +451,38 @@ export class TmaControl {
     this.drawPlot();
   }
 
-  /** The rows in sight, and a few either side; the rest are not in the page. */
+  /** A frame of a drag: the RMS, the residual cells of the rows in the page, the plots; nothing rebuilt. */
+  private renderLive(): void {
+    const report = this.residuals;
+    if (!report) return;
+    // The plots first, then the words: nothing read from the page after it is written.
+    this.drawPlot();
+    this.rmsLine.textContent = `${describeRms(report, this.settings)} (while dragging)`;
+    for (const [i, element] of this.drawn) {
+      const row = report.rows[i];
+      if (row) this.fillResidual(element, row);
+    }
+  }
+
+  /** The rows in sight, and a few either side; the rest are not in the page, but for the cut chosen, so the list's active descendant is always there. */
   private renderRows(): void {
     const rows = this.rows();
     const { first, last } = rowsInSight(this.list.scrollTop, this.list.clientHeight || ROW_PX * 10, ROW_PX, rows.length);
     const range = this.range();
     const solution = this.mode() === "solution";
+    const keep = (i: number) => (i >= first && i <= last) || i === this.active;
     for (const [i, element] of this.drawn) {
-      if (i < first || i > last) {
+      if (!keep(i) || i >= rows.length) {
         element.remove();
         this.drawn.delete(i);
       }
     }
-    for (let i = first; i <= last; i++) {
+    const several = new Set(rows.map((r) => r.sensor_id)).size > 1;
+    const wanted = [...Array(Math.max(0, last - first + 1)).keys()].map((k) => first + k);
+    if (this.active >= 0 && this.active < rows.length && !wanted.includes(this.active)) wanted.push(this.active);
+    for (const i of wanted) {
       const row = rows[i];
+      if (!row) continue;
       const chosen = !!range && i >= range[0] && i <= range[1];
       let element = this.drawn.get(i);
       if (!element) {
@@ -438,6 +492,7 @@ export class TmaControl {
         element.id = `tma-row-${i}`;
         element.style.top = `${i * ROW_PX}px`;
         element.dataset.index = String(i);
+        element.innerHTML = `<span class="tma-c-time"></span><span class="tma-c-brg"><span class="tma-swatch"></span><span class="tma-brg"></span> <span class="tma-flag"></span></span>` + (solution ? `<span class="tma-c-res"></span><span class="tma-c-in" data-toggle="1"></span>` : "");
         this.list.appendChild(element);
         this.drawn.set(i, element);
       }
@@ -445,24 +500,36 @@ export class TmaControl {
       element.setAttribute("aria-posinset", String(i + 1));
       element.setAttribute("aria-setsize", String(rows.length));
       element.setAttribute("aria-selected", String(chosen));
-      element.setAttribute("aria-label", rowLabel(row, this.settings));
       element.classList.toggle("tma-active", i === this.active);
       element.classList.toggle("tma-chosen-row", chosen);
-      const r = row as TmaResidualRow;
-      element.classList.toggle("tma-excluded", !!r.excluded);
-      const flags = `${isAmbiguousRow(row) ? (solution && r.nearer_side ? "≈" : "?") : ""}${row.origin_derived ? "◇" : ""}`;
-      const swatch = row.colour ? `<span class="tma-swatch" style="background:${escape(row.colour)}"></span>` : `<span class="tma-swatch"></span>`;
-      const residual = solution
-        ? `<span class="tma-c-res">${escape(residualText(r.residual, this.settings))}</span><span class="tma-c-in" data-toggle="1" title="${r.excluded ? "Left out of the RMS: click, or press Space, to count it again" : "Counted in the RMS: click, or press Space, to leave it out"}">${r.excluded ? "☐" : "☑"}</span>`
-        : "";
-      element.innerHTML =
-        `<span class="tma-c-time">${escape(cutWhen(row, this.settings))}</span>` +
-        `<span class="tma-c-sensor">${swatch}${escape(row.sensor ?? "")}</span>` +
-        `<span class="tma-c-brg">${escape(cutBearings(row))}${flags ? ` <span class="tma-flag">${flags}</span>` : ""}</span>` +
-        residual;
+      element.classList.toggle("tma-hidden-cut", !!row.hidden);
+      element.querySelector<HTMLElement>(".tma-c-time")!.textContent = cutWhen(row, this.settings);
+      const swatch = element.querySelector<HTMLElement>(".tma-swatch")!;
+      swatch.style.background = row.colour ?? "";
+      swatch.title = several ? (row.sensor ?? "") : "";
+      this.fillResidual(element, row, several);
     }
     if (this.active >= 0 && this.drawn.has(this.active)) this.list.setAttribute("aria-activedescendant", `tma-row-${this.active}`);
     else this.list.removeAttribute("aria-activedescendant");
+  }
+
+  /** A row's cells that change with the residuals: its bearing as measured, its flags, its residual, whether it counts, and what it says. */
+  private fillResidual(element: HTMLElement, row: Row, several = false): void {
+    const solution = this.mode() === "solution";
+    const r = row as TmaResidualRow;
+    // With a solution, the bearing measured (the nearer of an unresolved pair, ≈); else both.
+    const bearing = solution && r.measured !== undefined && r.measured !== null ? bearingText(r.measured) : cutBearings(row);
+    element.querySelector<HTMLElement>(".tma-brg")!.textContent = bearing;
+    element.querySelector<HTMLElement>(".tma-flag")!.textContent = `${isAmbiguousRow(row) ? (solution && r.nearer_side ? "≈" : "?") : ""}${row.origin_derived ? "◇" : ""}${row.hidden ? "⊘" : ""}`;
+    element.classList.toggle("tma-excluded", !!r.excluded);
+    const res = element.querySelector<HTMLElement>(".tma-c-res");
+    if (res) res.textContent = residualText(r.residual, this.settings);
+    const toggle = element.querySelector<HTMLElement>(".tma-c-in");
+    if (toggle) {
+      toggle.textContent = r.excluded ? "☐" : "☑";
+      toggle.title = r.excluded ? "Left out of the RMS: click, or press Space, to count it again" : "Counted in the RMS: click, or press Space, to leave it out";
+    }
+    element.setAttribute("aria-label", rowLabel(row, this.settings, several));
   }
 
   private renderChosen(): void {
@@ -507,7 +574,7 @@ export class TmaControl {
     this.buttons.split.hidden = !solution || !at;
     if (at) {
       this.buttons.split.textContent = `Split into legs at ${formatTime(Date.parse(at), this.settings)}`;
-      this.buttons.split.title = "Split the solution into legs here: each leg is dragged on its own (This leg, on the map), the later legs following on, joined";
+      this.buttons.split.title = "Split the solution into legs here: each leg is dragged on its own (This leg, on the map), the other legs staying where they are";
       this.buttons.split.disabled = readOnly;
     }
   }
@@ -521,12 +588,10 @@ export class TmaControl {
   private splitTime(): string | undefined {
     const row = this.rows()[this.active];
     const at = row ? row.time : this.current !== undefined ? new Date(this.current).toISOString() : undefined;
-    // Only where each leg keeps two fixes or more, as Python asks: nowhere else to split it.
-    const times = (this.solutionRow()?.times ?? []).map((x) => Date.parse(x));
-    if (!at || times.length < 4) return undefined;
-    const t = Date.parse(at);
-    const before = times.filter((x) => x < t).length;
-    return before >= 2 && times.length - before >= 2 ? at : undefined;
+    // Only where the leg there keeps two fixes or more either side, as Python asks.
+    const solution = this.solutionRow();
+    const times = (solution?.times ?? []).map((x) => Date.parse(x));
+    return at && splitAllowed(times, (solution?.leg_starts ?? []).map((x) => Date.parse(x)), Date.parse(at)) ? at : undefined;
   }
 
   // --- The keyboard and the pointer -----------------------------------------------------
@@ -758,10 +823,19 @@ export class TmaControl {
   // --- The plots: bearings over time, residuals beneath (legacy Stacked Dots) ---------------
 
   private geometry() {
+    if (this.live && this.frozenGeometry) return this.frozenGeometry;
+    const g = this.measure();
+    this.frozenGeometry = this.live ? g : undefined;
+    return g;
+  }
+
+  private measure() {
     const width = Math.max(120, this.plot.clientWidth || this.element.clientWidth || 300);
     // Beside the list in a short panel: as tall as the panel leaves room for, the RMS and buttons beneath.
     const head = this.element.querySelector<HTMLElement>(".tma-head")?.offsetHeight ?? 0;
-    const room = this.element.clientHeight - head - 74;
+    // The plots' key and the RMS line beneath them stay in sight; the buttons below may scroll.
+    const key = this.plot.querySelector<HTMLElement>(".tma-key")?.offsetHeight ?? 0;
+    const room = this.element.clientHeight - head - key - RMS_PX - 12;
     const height = this.element.classList.contains("tma-wide") && room > 0 ? Math.max(PLOT_LEAST_PX, Math.min(PLOT_PX, room)) : PLOT_PX;
     const left = 40;
     const right = 8;
@@ -789,50 +863,107 @@ export class TmaControl {
     return span[0] + Math.max(0, Math.min(1, f)) * (span[1] - span[0]);
   }
 
+  /** The rows' times, parsed once for each list (a drag's rows keep the base's order). */
+  private timesOf(rows: Row[]): number[] {
+    const key = (this.view?.residuals ?? this.view?.cuts) as TmaResiduals | TmaCut[] | undefined;
+    let times = key ? this.rowTimes.get(key) : undefined;
+    if (!times || times.length !== rows.length) {
+      times = rows.map((r) => Date.parse(r.time));
+      if (key) this.rowTimes.set(key, times);
+    }
+    return times;
+  }
+
+  /** The theme's colours and font, read once each time the view is shown. */
+  private themeColours() {
+    if (this.colours) return this.colours;
+    const css = getComputedStyle(this.element);
+    const token = (name: string, fallback: string) => css.getPropertyValue(name).trim() || css.getPropertyValue(fallback).trim();
+    const muted = token("--vscode-descriptionForeground", "--vscode-foreground");
+    this.colours = {
+      fg: token("--vscode-foreground", "--vscode-editor-foreground"),
+      muted,
+      grid: token("--vscode-widget-border", "--vscode-panel-border") || muted,
+      focus: token("--vscode-focusBorder", "--vscode-foreground"),
+      font: css.getPropertyValue("--vscode-font-family") || "sans-serif",
+    };
+    return this.colours;
+  }
+
+  /** How many faint other bearings the plots drew last: for tests. */
+  faintDrawn = 0;
+
   private drawPlot(): void {
     if (this.mode() !== "solution" || this.plot.hidden) return;
     const report = this.residuals;
     const span = this.span();
     const g = this.geometry();
     const ratio = window.devicePixelRatio || 1;
-    this.canvas.width = Math.round(g.width * ratio);
-    this.canvas.height = Math.round(g.height * ratio);
-    this.canvas.style.width = `${g.width}px`;
-    this.canvas.style.height = `${g.height}px`;
+    const w = Math.round(g.width * ratio);
+    const h = Math.round(g.height * ratio);
+    // Resized only when the size changes: setting a canvas's size clears and reallocates it.
+    if (this.canvas.width !== w || this.canvas.height !== h) {
+      this.canvas.width = w;
+      this.canvas.height = h;
+      this.canvas.style.width = `${g.width}px`;
+      this.canvas.style.height = `${g.height}px`;
+    }
     const ctx = this.canvas.getContext("2d");
     if (!ctx || !report || !span) return;
     ctx.setTransform(ratio, 0, 0, ratio, 0, 0);
     ctx.clearRect(0, 0, g.width, g.height);
-    const css = getComputedStyle(this.element);
-    const token = (name: string, fallback: string) => css.getPropertyValue(name).trim() || css.getPropertyValue(fallback).trim();
-    const fg = token("--vscode-foreground", "--vscode-editor-foreground");
-    const muted = token("--vscode-descriptionForeground", "--vscode-foreground");
-    const grid = token("--vscode-widget-border", "--vscode-panel-border") || muted;
-    const focus = token("--vscode-focusBorder", "--vscode-foreground");
+    const { fg, muted, grid, focus, font } = this.themeColours();
     const solution = this.solutionRow();
     const lineColour = solution?.colour ?? fg;
-    ctx.font = `10px ${css.getPropertyValue("--vscode-font-family") || "sans-serif"}`;
+    ctx.font = `10px ${font}`;
     const rows = report.rows;
+    const times = this.timesOf(rows);
     const x = (t: number) => g.left + ((t - span[0]) / Math.max(1, span[1] - span[0])) * g.plotWidth;
-    // Bearings: unwrapped about the middle calculated bearing, so a line through north stays one line.
-    const calcs = rows.map((r) => r.calculated).filter((v): v is number => v !== undefined && v !== null);
-    const reference = calcs.length ? calcs[Math.floor(calcs.length / 2)] : (rows[0]?.bearing ?? 0);
-    const unwrap = (v: number) => reference + wrap(v - reference);
-    const values = rows.flatMap((r) => [r.measured, r.calculated].filter((v): v is number => v !== undefined && v !== null).map(unwrap));
-    let lo = values.length ? Math.min(...values) : reference - 10;
-    let hi = values.length ? Math.max(...values) : reference + 10;
-    if (hi - lo < 4) {
-      lo -= 2;
-      hi += 2;
+    const has = (v: number | null | undefined): v is number => v !== undefined && v !== null;
+    // The other bearing of an unresolved pair: drawn faint, never counted (product owner, 25 Oct 2026).
+    const otherOf = (r: TmaResidualRow) => (r.nearer_side && has(r.ambiguous_bearing) ? (r.used === "ambiguous_bearing" ? r.bearing : r.ambiguous_bearing) : undefined);
+    // The axes: worked out from the rows (in loops: a spread of thousands is slow), or held as
+    // they were when a drag began, so the dots move rather than the scale.
+    let axes = this.live ? this.frozen : undefined;
+    if (!axes) {
+      // Bearings unwrapped about the middle calculated bearing, so a line through north stays one line.
+      let reference = rows[0]?.bearing ?? 0;
+      const calculated = rows.filter((r) => has(r.calculated));
+      if (calculated.length) reference = calculated[Math.floor(calculated.length / 2)].calculated!;
+      let lo = Infinity;
+      let hi = -Infinity;
+      let biggest = 2;
+      const take = (v: number) => {
+        const u = reference + wrap(v - reference);
+        if (u < lo) lo = u;
+        if (u > hi) hi = u;
+      };
+      for (const r of rows) {
+        if (r.hidden) continue;
+        if (has(r.measured)) take(r.measured);
+        if (has(r.calculated)) take(r.calculated);
+        const other = otherOf(r);
+        if (other !== undefined) take(other);
+        if (has(r.residual) && Math.abs(r.residual) > biggest) biggest = Math.abs(r.residual);
+      }
+      if (lo === Infinity) {
+        lo = reference - 10;
+        hi = reference + 10;
+      }
+      if (hi - lo < 4) {
+        lo -= 2;
+        hi += 2;
+      }
+      const pad = (hi - lo) * 0.08;
+      axes = { lo: lo - pad, hi: hi + pad, reference, limit: Math.min(180, Math.ceil(biggest * 1.15)) };
+      if (this.live) this.frozen = axes;
     }
-    const pad = (hi - lo) * 0.08;
-    lo -= pad;
-    hi += pad;
+    const { lo, hi, reference, limit } = axes;
+    const unwrap = (v: number) => reference + wrap(v - reference);
     const yB = (v: number) => g.top + g.bearings - ((unwrap(v) - lo) / (hi - lo)) * g.bearings;
     const resTop = g.top + g.bearings + g.gap;
-    const biggest = Math.max(2, ...rows.map((r) => Math.abs(r.residual ?? 0)));
-    const limit = Math.min(180, Math.ceil(biggest * 1.15));
-    const yR = (v: number) => resTop + g.residuals / 2 - (v / limit) * (g.residuals / 2);
+    const yR = (v: number) => Math.max(resTop + 1, Math.min(resTop + g.residuals - 1, resTop + g.residuals / 2 - (v / limit) * (g.residuals / 2)));
+    const inBearings = (py: number) => py >= g.top && py <= g.top + g.bearings;
     // Frames, the zero line, labels.
     ctx.strokeStyle = grid;
     ctx.lineWidth = 1;
@@ -875,12 +1006,13 @@ export class TmaControl {
     ctx.beginPath();
     let pen = false;
     let last: number | undefined;
-    for (const r of rows) {
-      if (r.calculated === undefined || r.calculated === null) {
+    for (let i = 0; i < rows.length; i++) {
+      const r = rows[i];
+      if (!has(r.calculated)) {
         pen = false;
         continue;
       }
-      const px = x(Date.parse(r.time));
+      const px = x(times[i]);
       const py = yB(r.calculated);
       if (pen && last !== undefined && Math.abs(py - last) > g.bearings / 2) pen = false;
       if (pen) ctx.lineTo(px, py);
@@ -890,32 +1022,76 @@ export class TmaControl {
     }
     ctx.stroke();
     // Measured bearings and residuals: dots in the cut's colour; the nearer of an unresolved
-    // pair a ring; one left out a dotted ring in the quiet colour.
-    const dot = (px: number, py: number, row: TmaResidualRow) => {
-      const colour = row.colour ?? fg;
+    // pair a ring, its other bearing a faint dot (never counted); one left out a dotted ring
+    // in the quiet colour. A cut hidden on the map is not drawn, as legacy drew none. Gathered
+    // by how they are drawn and drawn as one path each: thousands of dots in a frame (NFR-04).
+    type Dots = Map<string, number[]>;
+    const filled: Dots = new Map();
+    const rings: Dots = new Map();
+    const faints: Dots = new Map();
+    const out: number[] = [];
+    // A dot where one of its kind and colour is already drawn, to the half pixel, adds nothing: left out.
+    const seen = new Set<string>();
+    const put = (dots: Dots, colour: string, px: number, py: number) => {
+      const key = `${dots === filled ? "f" : dots === rings ? "r" : "o"}${colour}${Math.round(px * 2)},${Math.round(py * 2)}`;
+      if (seen.has(key)) return;
+      seen.add(key);
+      let list = dots.get(colour);
+      if (!list) dots.set(colour, (list = []));
+      list.push(px, py);
+    };
+    let faint = 0;
+    for (let i = 0; i < rows.length; i++) {
+      const r = rows[i];
+      if (r.hidden || !has(r.measured)) continue;
+      const px = x(times[i]);
+      const colour = r.colour ?? fg;
+      const other = otherOf(r);
+      if (other !== undefined && inBearings(yB(other))) {
+        put(faints, colour, px, yB(other));
+        if (has(r.other_residual)) put(faints, colour, px, yR(r.other_residual));
+        faint++;
+      }
+      const ys = has(r.residual) ? [yB(r.measured), yR(r.residual)] : [yB(r.measured)];
+      for (const py of ys) {
+        if (r.excluded) out.push(px, py);
+        else put(r.nearer_side ? rings : filled, colour, px, py);
+      }
+    }
+    const path = (points: number[], radius: number) => {
       ctx.beginPath();
-      ctx.arc(px, py, 2.4, 0, Math.PI * 2);
-      if (row.excluded) {
-        ctx.setLineDash([1.5, 1.5]);
-        ctx.strokeStyle = muted;
-        ctx.lineWidth = 1;
-        ctx.stroke();
-        ctx.setLineDash([]);
-      } else if (row.nearer_side) {
-        ctx.strokeStyle = colour;
-        ctx.lineWidth = 1.2;
-        ctx.stroke();
-      } else {
-        ctx.fillStyle = colour;
-        ctx.fill();
+      for (let k = 0; k < points.length; k += 2) {
+        ctx.moveTo(points[k] + radius, points[k + 1]);
+        ctx.arc(points[k], points[k + 1], radius, 0, Math.PI * 2);
       }
     };
-    for (const r of rows) {
-      if (r.measured === undefined || r.measured === null) continue;
-      const px = x(Date.parse(r.time));
-      dot(px, yB(r.measured), r);
-      if (r.residual !== undefined && r.residual !== null) dot(px, Math.max(resTop + 1, Math.min(resTop + g.residuals - 1, yR(r.residual))), r);
+    ctx.globalAlpha = 0.3;
+    for (const [colour, points] of faints) {
+      ctx.fillStyle = colour;
+      path(points, 2);
+      ctx.fill();
     }
+    ctx.globalAlpha = 1;
+    for (const [colour, points] of filled) {
+      ctx.fillStyle = colour;
+      path(points, 2.4);
+      ctx.fill();
+    }
+    ctx.lineWidth = 1.2;
+    for (const [colour, points] of rings) {
+      ctx.strokeStyle = colour;
+      path(points, 2.4);
+      ctx.stroke();
+    }
+    if (out.length) {
+      ctx.setLineDash([1.5, 1.5]);
+      ctx.strokeStyle = muted;
+      ctx.lineWidth = 1;
+      path(out, 2.4);
+      ctx.stroke();
+      ctx.setLineDash([]);
+    }
+    this.faintDrawn = faint;
     // Current time, and the cut chosen.
     if (this.current !== undefined && this.current >= span[0] && this.current <= span[1]) {
       const cx = Math.round(x(this.current)) + 0.5;
@@ -927,20 +1103,20 @@ export class TmaControl {
       ctx.stroke();
     }
     const chosen = rows[this.active];
-    if (chosen && chosen.measured !== undefined && chosen.measured !== null) {
-      const px = x(Date.parse(chosen.time));
+    if (chosen && has(chosen.measured)) {
+      const px = x(times[this.active]);
       ctx.strokeStyle = focus;
       ctx.lineWidth = 1.5;
-      for (const py of [yB(chosen.measured), chosen.residual !== undefined && chosen.residual !== null ? yR(chosen.residual) : undefined]) {
+      for (const py of [yB(chosen.measured), has(chosen.residual) ? yR(chosen.residual) : undefined]) {
         if (py === undefined) continue;
         ctx.beginPath();
         ctx.arc(px, py, 5, 0, Math.PI * 2);
         ctx.stroke();
       }
     }
-    this.canvas.setAttribute(
-      "aria-label",
-      `Bearings and residuals of ${solution?.name ?? "the solution"} over time: ${describeRms(report, this.settings)}. The list below gives each cut's residual.`,
-    );
+    if (!this.live) {
+      const others = faint ? ` The other bearing of ${faint.toLocaleString("en-GB")} ambiguous ${faint === 1 ? "cut is" : "cuts are"} drawn faint, not counted.` : "";
+      this.canvas.setAttribute("aria-label", `Bearings and residuals of ${solution?.name ?? "the solution"} over time: ${describeRms(report, this.settings)}.${others} The list gives each cut's residual.`);
+    }
   }
 }

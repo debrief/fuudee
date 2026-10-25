@@ -273,6 +273,22 @@ export class Dock {
     this.api.getPanel(id)?.api.setActive();
   }
 
+  /**
+   * A panel's group made at least so tall (at most half the dock's height), when it is in view and
+   * shorter: the Bearings view's plots once a solution is shown (CAP-21). Never shrinks a group the
+   * reader made taller. True if it grew.
+   */
+  atLeast(id: string, height: number): boolean {
+    const panel = this.api.getPanel(id);
+    if (!panel?.api.isVisible) return false;
+    const now = panel.group.element.getBoundingClientRect().height;
+    const most = this.options.container.getBoundingClientRect().height * 0.5;
+    const wanted = Math.min(height, most);
+    if (now >= wanted - 1) return false;
+    panel.group.api.setSize({ height: wanted });
+    return true;
+  }
+
   /** The panel ids in each group, in order, the one in front first; for the tests and the menu. */
   groups(): { id: string; place: Place; panels: string[]; active: string | undefined }[] {
     const dock = this.options.container.getBoundingClientRect();

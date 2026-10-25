@@ -2583,6 +2583,10 @@ export interface TmaResidualRow {
    */
   origin_derived?: boolean | null;
   /**
+   * An ambiguous cut not yet resolved: its other bearing (the one not measured) less calculated, degrees, within (-180, 180]. Drawn faint and never counted, so the analyst can pick a side from the plot (product owner, 25 Oct 2026).
+   */
+  other_residual?: number | null;
+  /**
    * measured less calculated, degrees, within (-180, 180]; left out where there is none.
    */
   residual?: number | null;
@@ -2624,6 +2628,10 @@ export interface TmaResiduals {
    * How many cuts the analyst left out.
    */
   excluded: number;
+  /**
+   * How many rooted cuts are hidden on the map: left out of the residuals and the RMS until shown again (legacy's "only plot visible data"; product owner, 25 Oct 2026).
+   */
+  hidden?: number | null;
   /**
    * How many ambiguous cuts use the bearing nearer the solution.
    */

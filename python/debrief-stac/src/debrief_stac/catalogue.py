@@ -1351,7 +1351,7 @@ class Catalogue:
         """Split a TMA solution into legs at a time (the fix at or after it starts the later
         leg), or, with join, join the leg starting then to the one before, as one recorded,
         undoable step: "Contact 1 solution split into legs at 09:30:00Z". It stays one
-        track: each leg is dragged on its own and the later legs follow on."""
+        track: each leg is dragged on its own, the other legs staying where they are."""
         at_ms = parse_utc(at)
 
         def change(plot: DebriefFeatureCollection):
@@ -1495,6 +1495,16 @@ class Catalogue:
                 ]
             if after is None:
                 return None
+            # A TMA solution of legs (CAP-21; product owner, 25 Oct 2026): each leg is
+            # independent, so the legs not dragged stay where they were and the joins either
+            # side of the one dragged are solved again.
+            if str(edit.action) in ("move", "rotate", "shear", "stretch"):
+                kept = tma.legs_kept(track, after, indices)
+                if kept is not None:
+                    after = kept
+                    following = (reckoning.FOLLOW_ON, reckoning.FOLLOW_FROM)
+                    notes = [n for n in notes if n not in following]
+                    notes.append(tma.LEGS_KEPT)
             if edit.period:
                 notes.append(tracks.describe_period(period))
                 parameters += [
@@ -1820,6 +1830,10 @@ class Catalogue:
                 "selected": [feature_id],
             }
             order += [s.id for s in added_sensors]
+            # A solution's sensors are those of its cuts: the later cuts' sensor is new.
+            renamed = tma.with_sensor_ids(plot, [*modified, second])
+            second = renamed.pop(second.id, second)
+            modified = [renamed.pop(f.id, f) for f in modified] + list(renamed.values())
             changes = Changes(
                 added=[second, *added_sensors], modified=modified, named_sets=sets, order=order
             )
@@ -1849,6 +1863,17 @@ class Catalogue:
 
         def change(plot: DebriefFeatureCollection):
             members = [self._track(plot, i) for i in chosen]
+            refused = tma.refused_merge(members)
+            if refused:
+                raise tracks.TrackError(refused)
+            if any(tma.is_solution(t) for t in members):
+                # Each solution but the last aimed at the next one's first fix, so merged by
+                # dead reckoning none of them moves (CAP-21; as a legacy plot's legs join).
+                in_time = sorted(
+                    members, key=lambda t: (tracks.times_of(t)[0], tracks.times_of(t)[-1])
+                )
+                aimed = {t.id: t for t in tma.aimed_at_next(in_time)}
+                members = [aimed[t.id] for t in members]
             merged, lost = tracks.merge(members, name)
             # TMA solutions (CAP-21): the merged track is one, each solution merged a leg.
             tag, tag_notes = tma.merged_tag(
@@ -1930,6 +1955,9 @@ class Catalogue:
                 "parameters": [models.ParameterValue(name="name", value=merged.properties.name)],
                 "selected": chosen,
             }
+            # A solution's sensors are those of its cuts, which may now be another sensor's.
+            renamed = tma.with_sensor_ids(plot, modified)
+            modified = [renamed.pop(f.id, f) for f in modified] + list(renamed.values())
             changes = Changes(modified=modified, deleted_ids=[*gone, *removed], named_sets=sets)
             return changes, note, (merged.id, lost), record
 

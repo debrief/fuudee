@@ -529,6 +529,8 @@ class DpfFile:
     view_settings: list[str] = field(default_factory=list)
     # The application version that saved the file, from the details element.
     saved_by: str | None = None
+    # The tote's primary track, by name: legacy Stacked Dots measured its sensors' cuts.
+    primary: str | None = None
 
 
 # --- Reading ------------------------------------------------------------------
@@ -600,6 +602,10 @@ def parse_dpf(data: bytes) -> DpfFile:
                 _read_top_layer(layer, result)
         elif node.tag == "gui":
             result.view_settings += _gui_settings(node)
+            for tote in (c for c in node.children if c.tag == "tote"):
+                result.primary = next(
+                    (c.name() for c in tote.children if c.tag == "primary" and c.name()), None
+                )
         elif node.tag == "projection":
             result.view_settings.append("the map projection and area shown")
         else:

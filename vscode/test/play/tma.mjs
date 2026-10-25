@@ -7,10 +7,11 @@
 // - dragged on the map by its end (a shear): the residuals and the RMS follow the drag, within the
 //   drag budget (NFR-04), measured; one step on letting go, exact again from Python;
 // - a wild cut left out of the RMS by the keyboard, one step, and counted again by Undo;
-// - split into legs at a cut picked in the view, one step; the later leg dragged on its own
-//   (This leg), the earlier staying where it was;
+// - split into legs at a cut picked in the view, one step; each leg picked by clicking it on the
+//   map (This leg) and dragged on its own, the other leg staying where it was, either way;
 // - a second solution made by two clicks on the map, on the first cut's line and the last's;
-// - the next ambiguous cut found from the keyboard, and a side kept from the view;
+// - the next ambiguous cut found from the keyboard, and a side kept from the view; a solution of
+//   the towed array's cuts, each unresolved cut's other bearing drawn faint and not counted;
 // - a legacy plot's TMA solution imported as a solution, its residuals shown.
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
@@ -44,12 +45,23 @@ export async function playTma(page, shot) {
     await page.evaluate(() => document.querySelectorAll("#toasts .toast").forEach((t) => t.remove()));
     await shot(name);
   };
+  // The map at rest: the end handle where it was a tenth of a second ago (polled, not a fixed wait).
+  const settled = async () => {
+    let last;
+    for (let i = 0; i < 60; i++) {
+      const b = await handle("end").boundingBox().catch(() => null);
+      const now = b ? `${Math.round(b.x)},${Math.round(b.y)}` : undefined;
+      if (now && now === last) return;
+      last = now;
+      await new Promise((r) => setTimeout(r, 100));
+    }
+  };
   const zoomToSelection = async () => {
     await mapFrame.getByRole("button", { name: "Zoom to the selection", exact: true }).click();
-    await page.waitForTimeout(400);
+    await settled();
     // One step out, so the ends' handles are clear of the map's edges.
     await mapFrame.locator(".leaflet-control-zoom-out").click();
-    await page.waitForTimeout(400);
+    await settled();
   };
   const view = page.locator("#bearings");
   const steps = () => page.locator("#history li").count();
@@ -71,27 +83,7 @@ export async function playTma(page, shot) {
     await page.waitForFunction((u) => document.querySelectorAll("#history li.undone").length > u, before, { timeout: 60000 });
     await showPanel(page, "bearings");
   };
-  /** Room for the view under the map: the strip made taller by its sash, as a reader would drag it. */
-  const tallerStrip = async () => {
-    const strip = await page.locator("#panel-bearings").boundingBox();
-    if (!strip || strip.height > 300) return;
-    const sash = await page.evaluate(() => {
-      const groups = [...document.querySelectorAll(".dv-groupview")].map((g) => g.getBoundingClientRect());
-      const strip = document.getElementById("panel-bearings").getBoundingClientRect();
-      const sashes = [...document.querySelectorAll(".dv-sash")].map((s) => s.getBoundingClientRect()).filter((r) => r.width > r.height && Math.abs(r.top + r.height / 2 - strip.top) < 40 && r.left < strip.right && r.right > strip.left);
-      void groups;
-      const s = sashes[0];
-      return s ? { x: s.left + s.width / 2, y: s.top + s.height / 2 } : undefined;
-    });
-    if (!sash) return;
-    await page.mouse.move(sash.x, sash.y);
-    await page.mouse.down();
-    await page.mouse.move(sash.x, sash.y - 170, { steps: 6 });
-    await page.mouse.up();
-    await page.waitForTimeout(300);
-  };
-
-  // Serial 2, the whole of it in the window; the bearing view under the map, given room.
+  // Serial 2, the whole of it in the window; the bearing view under the map, as the layout has it.
   await page.selectOption("#plots", "serial-2");
   await page.waitForFunction(() => document.getElementById("plot-title")?.textContent === "Serial 2", null, { timeout: 60000 });
   await page.waitForFunction(() => document.querySelector("#outline li[data-id='sensor-blue-one-bow-sonar']"));
@@ -100,7 +92,6 @@ export async function playTma(page, shot) {
   await page.locator("#timebar .tc-end").focus();
   await page.keyboard.press("End");
   await showPanel(page, "bearings");
-  await tallerStrip();
   await page.locator(`#outline li[data-id="sensor-blue-one-bow-sonar"]`).click();
   await page.waitForFunction(() => window.debriefTma.shown?.plot_id === "serial-2" && window.debriefTma.shown.sensor_id === "sensor-blue-one-bow-sonar", null, { timeout: 60000 });
   await view.locator(".tma-row").first().waitFor({ timeout: 60000 });
@@ -108,7 +99,9 @@ export async function playTma(page, shot) {
   // The list: every cut of the Bow sonar, only the rows in sight in the page (virtualised), of one
   // height whatever the font, so it scrolls by them.
   assert.match(await view.locator(".tma-sensor option:checked").innerText(), /^Bow sonar on BLUE ONE \(\d+ cuts\)$/);
-  const total = Number(await list.getAttribute("aria-rowcount"));
+  // Each option says its place and the list's size (aria-posinset, aria-setsize); the listbox no rowcount.
+  assert.equal(await list.getAttribute("aria-rowcount"), null);
+  const total = Number(await view.locator(".tma-row").first().getAttribute("aria-setsize"));
   assert.ok(total > 300, `the Bow sonar's cuts listed: ${total}`);
   assert.ok((await rowsInPage()) < 60, `only the rows in sight are in the page: ${await rowsInPage()} of ${total}`);
   const spacer = await view.locator(".tma-spacer").evaluate((s) => s.offsetHeight);
@@ -125,11 +118,18 @@ export async function playTma(page, shot) {
   const active = view.locator(".tma-row.tma-active");
   assert.equal(await active.getAttribute("aria-posinset"), "60");
   assert.equal(await active.getAttribute("aria-selected"), "true");
-  assert.match(await active.getAttribute("aria-label"), /^1\d:\d\d:\d\dZ, Bow sonar, \d{3}\.\d°$/);
+  // One sensor listed: the sensor is not said on every row.
+  assert.match(await active.getAttribute("aria-label"), /^1\d:\d\d:\d\dZ, \d{3}\.\d°$/);
   assert.equal(await list.getAttribute("aria-activedescendant"), await active.getAttribute("id"));
   // Scrolled with it: the rows near the 60th are in the page, the first are not.
   assert.equal(await view.locator('.tma-row[aria-posinset="1"]').count(), 0, "rows scrolled out of sight leave the page");
   await picture("tma-01-cut-list");
+  // Scrolled away from the cut chosen, it stays in the page, so the active descendant is still there.
+  await list.evaluate((l) => (l.scrollTop = l.scrollHeight));
+  await page.waitForFunction(() => document.querySelector(`#bearings .tma-row[aria-posinset="${document.querySelector("#bearings .tma-row:last-child")?.getAttribute("aria-setsize")}"]`));
+  const descendant = await list.getAttribute("aria-activedescendant");
+  assert.equal(await view.locator(`#${descendant}`).getAttribute("aria-posinset"), "60", "the active descendant is in the page");
+  await list.evaluate((l) => (l.scrollTop = 0));
 
   // The first guess by form: 10,000 yd on the first cut's bearing, across it, 8 kn, in the analyst's units.
   await view.getByRole("button", { name: "Make solution…" }).click();
@@ -171,6 +171,11 @@ export async function playTma(page, shot) {
   assert.match(await view.locator(".tma-row").first().getAttribute("aria-label"), /residual [+−]\d+\.\d°/);
   assert.equal(await view.locator(".tma-canvas").isVisible(), true);
   assert.match(await view.locator(".tma-canvas").getAttribute("aria-label"), /^Bearings and residuals of Contact 1 solution over time: RMS/);
+  // Room for the plots once a solution is shown: the group under the map grows, the plots whole.
+  await page.waitForFunction(() => document.getElementById("panel-bearings").getBoundingClientRect().height >= 250, null, { timeout: 10000 });
+  const canvasBox = await view.locator(".tma-canvas").boundingBox();
+  const panelBox = await page.locator("#panel-bearings").boundingBox();
+  assert.ok(canvasBox.y + canvasBox.height <= panelBox.y + panelBox.height + 1, "the plots are not clipped");
 
   // Near the truth: the bearings lie close to the calculated line.
   assert.ok(made.rms < 5, `a guess near RED ONE fits its bearings: RMS ${made.rms}°`);
@@ -192,11 +197,11 @@ export async function playTma(page, shot) {
   await stepAdded(before);
   assert.match(await latest(), /^Contact 1 solution \(DR\) sheared: \d{3}\.\d°T \d+\.\d kn$/);
   await page.waitForFunction(() => !document.querySelector("#bearings .tma-rms")?.textContent?.includes("while dragging"), null, { timeout: 30000 });
-  // Measured, against the drag budget (NFR-04): each live recompute of 60 cuts within a frame.
+  // Measured, against the drag budget (NFR-04): each whole frame (residuals, list, plots) of 60 cuts within a frame.
   const live = await page.evaluate((from) => window.debriefTma.timings.slice(from), timingsBefore);
   assert.ok(live.length >= 3, `the residuals were worked out again as the drag went: ${live.length} times`);
   const median = [...live].sort((a, b) => a - b)[Math.floor(live.length / 2)];
-  console.log(`TMA drag: ${live.length} live recomputes of 60 cuts, median ${median.toFixed(2)} ms, worst ${Math.max(...live).toFixed(2)} ms`);
+  console.log(`TMA drag: ${live.length} frames of 60 cuts, median ${median.toFixed(2)} ms, worst ${Math.max(...live).toFixed(2)} ms`);
   assert.ok(median < 16, `within a frame: ${median} ms`);
   // Exact from Python once saved: the view's residuals are Python's again.
   const after = await residuals();
@@ -229,37 +234,61 @@ export async function playTma(page, shot) {
   await stepAdded(before);
   assert.equal(await latest(), `Contact 1 solution split into legs at ${splitAt}`);
   await page.waitForFunction(() => window.debriefTma.residuals?.rows.some((r) => r.leg === 2));
-  // This leg, on the map, with current time in the second leg: only it moves, the first stays.
-  await page.waitForTimeout(500);
+  // The split offered only where Python allows it: not two cuts from the start.
+  await list.focus();
+  await page.keyboard.press("Home");
+  await page.keyboard.press("ArrowDown");
+  assert.equal(await view.locator(".tma-split").isHidden(), true, "no split where a leg would have one fix");
+  // This leg, on the map: the leg clicked is the one dragged; the other stays where it was.
   const legButton = mapFrame.getByRole("button", { name: "This leg", exact: true });
   await legButton.waitFor();
-  const rows = (await residuals()).rows;
-  const inLeg2 = rows.find((r) => r.leg === 2);
-  await view.locator(`.tma-row[data-cut="${inLeg2.id}"]`).waitFor().catch(() => {});
-  // Current time into leg 2: a cut of it chosen, Enter.
-  await list.focus();
-  await page.keyboard.press("End");
-  await page.keyboard.press("Enter");
-  await page.waitForTimeout(400);
   await legButton.click();
   await zoomToSelection();
-  assert.match(await handle("end").getAttribute("aria-label"), /^Contact 1 solution, leg 2 of 2: shear from the end/);
-  const leg1Before = rows.filter((r) => r.leg === 1).map((r) => r.calculated);
-  const end2 = await centreOf(handle("end"));
-  await page.mouse.move(end2.x, end2.y);
-  await page.mouse.down();
-  await page.mouse.move(end2.x - 40, end2.y + 30, { steps: 10 });
-  await page.waitForFunction(() => document.querySelector("#bearings .tma-rms")?.textContent?.includes("while dragging"), null, { timeout: 10000 });
-  await picture("tma-05-two-legs");
-  before = await steps();
-  await page.mouse.up();
-  await stepAdded(before);
+  const solutionId = await page.evaluate(() => window.debriefTma.shown.solution_id);
+  const legOf = (n) => async () => (await residuals()).rows.filter((r) => r.leg === n).map((r) => r.calculated);
+  const frameBox = await page.locator(".frame-map").boundingBox();
+  /** A click on the solution's line, between two of its fixes: picks that fix's leg. */
+  const clickLeg = async (index) => {
+    const point = await mapFrame.locator("#map").evaluate((_, [id, i]) => {
+      const fixes = window.debriefFixes(id);
+      const [a, b] = [fixes[i], fixes[i + 1]];
+      return window.debriefPoint((a[0] + b[0]) / 2, (a[1] + b[1]) / 2);
+    }, [solutionId, index]);
+    await page.mouse.click(frameBox.x + point.x, frameBox.y + point.y);
+  };
+  const dragEnd = async (dx, dy, name) => {
+    await settled();
+    const at = await centreOf(handle("end"));
+    await page.mouse.move(at.x, at.y);
+    await page.mouse.down();
+    await page.mouse.move(at.x + dx, at.y + dy, { steps: 10 });
+    await page.waitForFunction(() => document.querySelector("#bearings .tma-rms")?.textContent?.includes("while dragging"), null, { timeout: 10000 });
+    if (name) await picture(name);
+    const count = await steps();
+    await page.mouse.up();
+    await stepAdded(count);
+    await page.waitForFunction(() => !document.querySelector("#bearings .tma-rms")?.textContent?.includes("while dragging"), null, { timeout: 30000 });
+  };
+  const same = (a, b) => a.length === b.length && a.every((c, i) => Math.abs(c - b[i]) < 1e-6);
+  // Leg 2, clicked: only it moves; leg 1 stays where it was.
+  const rows = (await residuals()).rows;
+  const leg1Index = rows.filter((r) => r.leg === 1).length;
+  await clickLeg(leg1Index + 5);
+  await page.waitForFunction(() => document.querySelector(".frame-map").contentDocument.querySelector('.track-handle[data-role="end"]')?.getAttribute("aria-label")?.includes("leg 2 of 2"));
+  const leg1Before = await legOf(1)();
+  const leg2Before = await legOf(2)();
+  await dragEnd(-40, 30, "tma-05-two-legs");
   assert.match(await latest(), /^Contact 1 solution \(DR\) part sheared: /);
-  await page.waitForFunction(() => !document.querySelector("#bearings .tma-rms")?.textContent?.includes("while dragging"), null, { timeout: 30000 });
-  const legsAfter = (await residuals()).rows;
-  const leg1After = legsAfter.filter((r) => r.leg === 1).map((r) => r.calculated);
-  leg1After.forEach((c, i) => assert.ok(Math.abs(c - leg1Before[i]) < 1e-6, "the first leg stays where it was"));
-  assert.ok(legsAfter.filter((r) => r.leg === 2).some((r, i) => Math.abs(r.calculated - rows.filter((q) => q.leg === 2)[i].calculated) > 0.01), "the second leg moved");
+  assert.ok(same(await legOf(1)(), leg1Before), "the first leg stays where it was");
+  assert.ok(!same(await legOf(2)(), leg2Before), "the second leg moved");
+  // Leg 1, clicked: only it moves; leg 2, already fitted, stays where it is (product owner, 25 Oct 2026).
+  await clickLeg(5);
+  await page.waitForFunction(() => document.querySelector(".frame-map").contentDocument.querySelector('.track-handle[data-role="end"]')?.getAttribute("aria-label")?.includes("leg 1 of 2"));
+  const leg2Fitted = await legOf(2)();
+  const leg1Was = await legOf(1)();
+  await dragEnd(25, -25);
+  assert.ok(same(await legOf(2)(), leg2Fitted), "the later leg stays where it was");
+  assert.ok(!same(await legOf(1)(), leg1Was), "the first leg moved");
 
   // A second solution by two clicks on the map: on the first cut's line, then on the last's.
   await view.locator(".tma-solution").selectOption("");
@@ -318,6 +347,26 @@ export async function playTma(page, shot) {
   await keepFirst.click();
   await stepAdded(before);
   assert.match(await latest(), /kept on Towed array cut at /);
+  // A solution of the towed array's cuts: each unresolved cut's other bearing drawn faint, its
+  // residual too, never counted (product owner, 25 Oct 2026).
+  await page.waitForFunction(() => window.debriefTma.shown?.cuts?.length > 0);
+  await list.focus();
+  await page.keyboard.press("Home");
+  for (let i = 0; i < 40; i++) await page.keyboard.press("Shift+ArrowDown");
+  await view.getByRole("button", { name: "Make solution…" }).click();
+  before = await steps();
+  await view.getByRole("button", { name: "Make solution", exact: true }).click();
+  await stepAdded(before);
+  await page.waitForFunction(() => window.debriefTma.residuals?.rows.some((r) => r.other_residual !== undefined));
+  const towed = await residuals();
+  const faint = towed.rows.filter((r) => r.nearer_side && r.other_residual !== undefined);
+  assert.ok(faint.length > 0, "unresolved cuts give their other bearing's residual");
+  const countedRows = towed.rows.filter((r) => r.residual !== undefined && !r.excluded && !r.hidden);
+  const expectedRms = Math.sqrt(countedRows.reduce((sum, r) => sum + r.residual * r.residual, 0) / countedRows.length);
+  assert.ok(Math.abs(towed.rms - expectedRms) < 1e-9, "the other bearings are not counted");
+  assert.ok((await page.evaluate(() => window.debriefTma.faintDrawn)) > 0, "the other bearings are drawn faint");
+  assert.match(await view.locator(".tma-canvas").getAttribute("aria-label"), /drawn faint, not counted/);
+  await picture("tma-08-faint-other-bearing");
 
   // A legacy plot's TMA solution imported as a solution, its residuals shown.
   // tma.dpf: made up, unclassified (python/debrief-io/tests/data/README.md): a relative leg and an absolute one.
@@ -334,4 +383,69 @@ export async function playTma(page, shot) {
   assert.equal(await page.locator("#outline li.selected .tag").innerText(), "TMA");
   await mapFrame.getByRole("button", { name: "Zoom to the selection", exact: true }).click();
   await picture("tma-07-imported");
+
+  // The drag budget at scale (NFR-04): a solution of 600, 1,000 and 2,000 cuts dragged sixty
+  // frames; each whole frame (residuals worked out, the list's cells, the plots) timed. The
+  // median within a frame (16.7 ms); the worst said, as a shared machine's pauses vary.
+  await showPanel(page, "bearings");
+  for (const n of [600, 1000, 2000]) {
+    const result = await page.evaluate(async (n) => {
+      const R = 6371008.8;
+      const rad = Math.PI / 180;
+      const travel = ([lon, lat], bearing, d) => {
+        const b = bearing * rad, p1 = lat * rad, l1 = lon * rad, dr = d / R;
+        const p2 = Math.asin(Math.sin(p1) * Math.cos(dr) + Math.cos(p1) * Math.sin(dr) * Math.cos(b));
+        const l2 = l1 + Math.atan2(Math.sin(b) * Math.sin(dr) * Math.cos(p1), Math.cos(dr) - Math.sin(p1) * Math.sin(p2));
+        return [l2 / rad, p2 / rad];
+      };
+      const coordinates = [[-3.9, 50.05]];
+      for (let i = 1; i < n; i++) coordinates.push(travel(coordinates[i - 1], 200, 150));
+      const t0 = Date.parse("2026-10-11T09:00:00.000Z");
+      const times = Array.from({ length: n }, (_, i) => new Date(t0 + i * 30000).toISOString());
+      const origin = [-4, 50];
+      const rows = times.map((time, i) => ({ id: `c${i}`, sensor_id: "x", sensor: "Towed", colour: "#8a3ffc", time, bearing: 30 + i * 0.01, ...(i % 3 ? {} : { ambiguous_bearing: 150 }), origin, residual: 0, calculated: 30, measured: 30, leg: 1 }));
+      const view = {
+        plot_id: "p",
+        sensors: [{ id: "x", name: "Towed", cuts: n, ambiguous: 0 }],
+        sensor_id: "x",
+        solutions: [{ id: "s", name: "Contact 9 solution", contact: "Contact 9", colour: "#e8710a", period: { start: times[0], end: times[n - 1] }, times, cuts: n }],
+        solution_id: "s",
+        residuals: { solution_id: "s", rows, counted: n, excluded: 0, without: 0 },
+      };
+      const control = window.debriefTma;
+      control.show(view);
+      const from = control.timings.length;
+      for (let k = 0; k < 60; k++) {
+        control.preview("s", coordinates.map(([lon, lat]) => [lon + k * 2e-5, lat]));
+        await new Promise((r) => requestAnimationFrame(() => r()));
+        await new Promise((r) => setTimeout(r, 0));
+      }
+      control.preview("s", undefined);
+      const t = control.timings.slice(from).sort((a, b) => a - b);
+      return { frames: t.length, median: t[Math.floor(t.length / 2)], p95: t[Math.floor(t.length * 0.95)], worst: t[t.length - 1] };
+    }, n);
+    console.log(`TMA drag at scale, ${n} cuts: ${result.frames} whole frames, median ${result.median.toFixed(2)} ms, p95 ${result.p95.toFixed(2)} ms, worst ${result.worst.toFixed(2)} ms`);
+    assert.ok(result.frames >= 30, `frames drawn: ${result.frames}`);
+    assert.ok(result.median < 16.7, `${n} cuts: a frame's median ${result.median} ms`);
+  }
+  // Shown again as it was: the imported solution (another track chosen first, so the view asks again).
+  await page.locator('#outline li[data-id] .name', { hasText: "MAYO" }).first().click();
+  await page.locator('#outline li[data-id] .name', { hasText: "TMA_0900" }).first().click();
+  await page.waitForFunction(() => window.debriefTma.shown?.residuals?.rows.length === 10);
+
+  // At 768 px wide the panels are one column, the view about 200 px wide: each bearing and
+  // residual still read whole, not cut short.
+  const wide = page.viewportSize();
+  await page.setViewportSize({ width: 768, height: 900 });
+  await page.waitForFunction(() => document.getElementById("dock")?.hidden !== false || !document.body.classList.contains("docked"));
+  await page.locator("#bearings .tma-row").first().scrollIntoViewIfNeeded();
+  await page.waitForFunction(() => {
+    const row = document.querySelector("#bearings .tma-row");
+    return row && row.getBoundingClientRect().width > 0 && row.getBoundingClientRect().width < 320;
+  });
+  const cut = await page.evaluate(() =>
+    [...document.querySelectorAll("#bearings .tma-row .tma-c-brg, #bearings .tma-row .tma-c-res, #bearings .tma-row .tma-c-time")].filter((c) => c.scrollWidth > c.clientWidth + 1).map((c) => c.textContent),
+  );
+  assert.deepEqual(cut, [], `at 768 px every bearing, residual and time reads whole: ${cut.join(", ")}`);
+  await page.setViewportSize(wide);
 }

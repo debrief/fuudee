@@ -11,16 +11,20 @@ times, every fix on one course at one speed, from a first guess.
 
 Legs (product owner, 24 Oct 2026): the analyst splits a solution into legs at a time (a
 fix exactly at it starts the later leg, as a split does). It stays one track: each leg is
-a period of it, dragged on its own (This leg, on the map), and because the track is
-plotted by dead reckoning the legs after it follow on, so they stay joined (see
-debrief_stac.reckoning). The join is the stretch from the earlier leg's last fix to the
-later leg's first: a drag of the earlier leg carries the later legs with it, unturned;
-moving the later leg on its own changes the join's course and speed so its first fix
-lands where it was dragged, as moving a period of any DR track changes the leg into it.
+a period of it, dragged on its own (This leg, on the map). Each leg is independent, as in
+legacy Debrief (product owner, 25 Oct 2026): dragging one moves only it, and the joins
+either side of it (the stretch from the leg before's last fix to its first, and from its
+last fix to the next leg's first) are solved again, their courses and speeds made to
+reach; legs already fitted never move (legs_kept).
+
+Hidden cuts (product owner, 25 Oct 2026, as legacy's "only plot visible data"): a cut
+hidden on the map is rooted, if in the period, but left out of the residuals and the RMS,
+and the view says how many; shown again, it counts again, with nothing else to do.
 
 Residuals (debrief_kernel.tma): each rooted cut's bearing less the bearing from where it
 was taken to where the solution was then. An ambiguous cut not yet resolved is measured by
-the bearing nearer the solution, and the view says so. Each cut is taken from its origin as
+the bearing nearer the solution, and the view says so; its other bearing's residual is
+given too (other_residual), drawn faint and never counted. Each cut is taken from its origin as
 the map draws it: its own origin (one Debrief worked out when its track was split is used
 as it is, and counted, origin_derived), else its sensor's position then, its array's
 astern if it has an offset (debrief/sensors gives the same).
@@ -46,7 +50,7 @@ from debrief_kernel.formatting import (
     format_quantity,
     format_time,
 )
-from debrief_kernel.geodesy import Position, TrackPath
+from debrief_kernel.geodesy import Position, TrackPath, range_bearing
 from debrief_kernel.sensors import side_of
 from debrief_kernel.time import format_utc, parse_utc
 from debrief_kernel.units import Quantity
@@ -215,21 +219,28 @@ def residual_report(plot: DebriefFeatureCollection, feature_id: str) -> dict:
             )
             if res.nearer_side:
                 row["nearer_side"] = True
+            if res.other is not None:
+                row["other_residual"] = res.other
         if info.cut.id in excluded:
             row["excluded"] = True
-        elif res.residual is not None:
+        # Hidden on the map: left out until shown again (legacy's "only plot visible data").
+        elif res.residual is not None and not row.get("hidden"):
             counted.append(res.residual)
         rows.append(row)
     rms = kernel.rms(counted)
+    shown = [r for r in rows if not r.get("hidden")]
     report = {
         "solution_id": feature_id,
         "rows": rows,
         "counted": len(counted),
-        "excluded": sum(1 for c in rooted if c.id in excluded),
-        "without": missing + sum(1 for r in found if r.residual is None),
-        "nearer_side": sum(1 for r in rows if r.get("nearer_side")),
-        "derived_origins": sum(1 for r in rows if r.get("origin_derived")),
+        "excluded": sum(1 for r in rows if r.get("excluded")),
+        "without": missing + sum(1 for r in shown if r.get("residual") is None),
+        "nearer_side": sum(1 for r in shown if r.get("nearer_side")),
+        "derived_origins": sum(1 for r in shown if r.get("origin_derived")),
     }
+    hidden = len(rows) - len(shown)
+    if hidden:
+        report["hidden"] = hidden
     if rms is not None:
         report["rms"] = rms
     return report
@@ -301,8 +312,9 @@ def request_from(value: models.TmaRequest | dict) -> models.TmaRequest:
 
 def rooted_cuts(plot: DebriefFeatureCollection, request: models.TmaRequest) -> list:
     """The cuts a solution asked for is rooted in, in time order: those named, or every
-    cut of the sensors named whose time is in the period, hidden ones too (product owner,
-    24 Oct 2026: every cut of the rooted period counts)."""
+    cut of the sensors named whose time is in the period. Hidden ones are rooted too, so
+    that shown again they count with nothing else to do, but are left out of the residuals
+    while hidden (product owner, 25 Oct 2026)."""
     by_id = {f.id: f for f in plot.features}
     if request.cut_ids:
         missing = [
@@ -360,15 +372,24 @@ def create(plot: DebriefFeatureCollection, value: models.TmaRequest | dict) -> M
     rooted = rooted_cuts(plot, request)
     if not rooted:
         raise TmaError("There are no cuts there to root a solution in: choose a period with cuts.")
-    times = sorted({parse_utc(c.properties.time) for c in rooted})
+    # Its fixes at the times of the cuts shown: a hidden cut shown again is measured
+    # against the solution where it was then, between its fixes.
+    shown = [c for c in rooted if not c.properties.hidden]
+    if not shown:
+        raise TmaError(
+            f"Those {_count(len(rooted), 'cut')} are all hidden on the map, so none would count: "
+            "show some, or choose another period."
+        )
+    times = sorted({parse_utc(c.properties.time) for c in shown})
     if len(times) < 2:
         raise TmaError(
-            f"A solution needs cuts at two times or more: these {_count(len(rooted), 'cut')} "
-            f"are all at {_when(times[0])}. Choose a longer period."
+            f"A solution needs cuts shown at two times or more: these "
+            f"{_count(len(shown), 'cut')} are all at {_when(times[0])}. Choose a longer period."
         )
     infos = cut_infos(plot, rooted)
-    first = next(i for i in infos if parse_utc(i.cut.properties.time) == times[0])
-    last = [i for i in infos if parse_utc(i.cut.properties.time) == times[-1]][-1]
+    visible = [i for i in infos if not i.cut.properties.hidden]
+    first = next(i for i in visible if parse_utc(i.cut.properties.time) == times[0])
+    last = [i for i in visible if parse_utc(i.cut.properties.time) == times[-1]][-1]
     host_name = _host_name(plot, first)
     notes: list[str] = []
     parameters: list[models.ParameterValue] = []
@@ -464,8 +485,8 @@ def describe_cuts(infos: Sequence[CutInfo], host_name: str) -> list[str]:
     hidden = sum(1 for i in infos if i.cut.properties.hidden)
     if hidden:
         notes.append(
-            f"{_count(hidden, 'cut')} hidden on the map "
-            f"{'is' if hidden == 1 else 'are'} counted too"
+            f"{_count(hidden, 'cut')} hidden on the map {'is' if hidden == 1 else 'are'} left "
+            "out of the residuals until shown again"
         )
     derived = sum(1 for i in infos if i.cut.properties.origin_derived)
     if derived:
@@ -658,8 +679,8 @@ def split_leg(plot: DebriefFeatureCollection, feature_id: str, at_ms: int) -> Ch
     )
     notes = [
         listed[0].upper() + listed[1:],
-        "Each leg is dragged on its own; the legs after it follow on by dead reckoning, "
-        "so they stay joined",
+        "Each leg is dragged on its own: the other legs stay where they are, and the joins "
+        "either side of it are solved again",
     ]
     return Changed(changed, note, notes)
 
@@ -673,6 +694,147 @@ def joined_legs(plot: DebriefFeatureCollection, feature_id: str, at_ms: int) -> 
     kept = [format_utc(s) for s in starts if s != at_ms]
     changed = _with_tag(track, leg_starts=kept or None)
     return Changed(changed, f"{track.properties.name} legs joined at {_when(at_ms)}", [])
+
+
+# --- Legs kept, joins solved -------------------------------------------------------------
+
+LEGS_KEPT = "The other legs stay where they are: the joins either side of the leg are solved again"
+
+
+def _unit_speed(knots: float, unit: str) -> float:
+    return Quantity(knots, "[kn_i]").to(unit).value
+
+
+def _aim(courses: list, speeds: list, speed_unit: str, i: int, a, b, seconds: float) -> None:
+    """The fix at i given the course and speed that reach b from a in the seconds between."""
+    if seconds <= 0:
+        return
+    distance, bearing = range_bearing(Position(*a), Position(*b))
+    courses[i] = bearing.value % 360.0
+    speeds[i] = _unit_speed(distance.value / seconds * 3600 / 1852, speed_unit)
+
+
+def _with_series(track, positions, courses, speeds) -> models.TrackFeature:
+    props = track.properties
+    return track.model_copy(
+        update={
+            "geometry": track.geometry.model_copy(update={"coordinates": positions}),
+            "properties": props.model_copy(
+                update={
+                    "courses": props.courses.model_copy(update={"values": courses}),
+                    "speeds": props.speeds.model_copy(update={"values": speeds}),
+                }
+            ),
+        }
+    )
+
+
+def legs_kept(
+    before: models.TrackFeature, after: models.TrackFeature, indices: Sequence[int]
+) -> models.TrackFeature | None:
+    """A solution of legs as an edit of some of its fixes left it, with its other legs back
+    where they were (product owner, 25 Oct 2026: each leg is independent, as in legacy
+    Debrief): the legs holding any fix edited take the edit; every other leg keeps its
+    fixes, courses and speeds; each join (a leg's last fix, its course and speed to the next
+    leg's first fix) is solved again to reach. None when nothing is kept back: not a
+    solution of legs, or every leg edited."""
+    tag = before.properties.tma
+    if tag is None or not tag.leg_starts or before.properties.courses is None:
+        return None
+    spans = legs(before)
+    edited = {k for k, (a, b) in enumerate(spans) if any(a <= i <= b for i in indices)}
+    if len(edited) == len(spans) or not edited:
+        return None
+    old = [list(p) for p in before.geometry.coordinates]
+    new = [list(p) for p in after.geometry.coordinates]
+    courses = list(after.properties.courses.values)
+    speeds = list(after.properties.speeds.values)
+    old_courses = before.properties.courses.values
+    old_speeds = before.properties.speeds.values
+    positions = list(new)
+    for k, (a, b) in enumerate(spans):
+        if k in edited:
+            continue
+        for i in range(a, b + 1):
+            positions[i] = old[i]
+            courses[i] = old_courses[i]
+            speeds[i] = old_speeds[i]
+    times = tracks.times_of(before)
+    unit = str(before.properties.speeds.unit)
+    # Only the joins next to a leg edited: into it, from the leg before, and out of it.
+    for k, ((_, last), (first, _)) in enumerate(zip(spans, spans[1:], strict=False)):
+        if k in edited or k + 1 in edited:
+            seconds = (times[first] - times[last]) / 1000
+            _aim(courses, speeds, unit, last, positions[last], positions[first], seconds)
+    return _with_series(after, positions, courses, speeds)
+
+
+def aimed_at_next(
+    ordered: Sequence[models.TrackFeature],
+) -> list[models.TrackFeature]:
+    """Solutions about to be merged, each but the last with its last fix's course and speed
+    solved to reach the next one's first fix, as a legacy plot's legs are joined
+    (debrief_io.dpf_tma): merged by dead reckoning, none of them moves."""
+    out = list(ordered)
+    for k in range(len(out) - 1):
+        track, nxt = out[k], out[k + 1]
+        if track.properties.courses is None or track.properties.speeds is None:
+            continue
+        courses = list(track.properties.courses.values)
+        speeds = list(track.properties.speeds.values)
+        last = len(courses) - 1
+        seconds = (tracks.times_of(nxt)[0] - tracks.times_of(track)[-1]) / 1000
+        _aim(
+            courses,
+            speeds,
+            str(track.properties.speeds.unit),
+            last,
+            track.geometry.coordinates[last],
+            nxt.geometry.coordinates[0],
+            seconds,
+        )
+        out[k] = _with_series(track, [list(p) for p in track.geometry.coordinates], courses, speeds)
+    return out
+
+
+def refused_merge(members: Sequence[models.TrackFeature]) -> str | None:
+    """Why tracks cannot be merged as TMA solutions: a solution with a track that is not
+    one (its fixes are not rooted in cuts, and it would become a leg of the solution)."""
+    tagged = [t for t in members if t.properties.tma is not None]
+    if not tagged or len(tagged) == len(members):
+        return None
+    plain = [t.properties.name for t in members if t.properties.tma is None]
+    return (
+        f"{', '.join(plain)} {'is' if len(plain) == 1 else 'are'} not a TMA solution: a "
+        f"solution ({tagged[0].properties.name}) is merged only with other solutions, as each "
+        "becomes a leg rooted in its own cuts. Make a solution of its cuts first, or merge "
+        "the tracks that are not solutions on their own."
+    )
+
+
+def with_sensor_ids(
+    plot: DebriefFeatureCollection, changed: Sequence
+) -> dict[str, models.TrackFeature]:
+    """Solutions whose sensors are no longer those of the cuts they are rooted in, once
+    the features changed are in the plot (a sensor split with its track gives its later cuts
+    a new sensor): each with its sensor_ids those of its cuts, by id."""
+    now = {f.id: f for f in plot.features}
+    now.update({f.id: f for f in changed})
+    out = {}
+    for feature in now.values():
+        if not is_solution(feature):
+            continue
+        tag = feature.properties.tma
+        ids = list(
+            dict.fromkeys(
+                now[c].properties.sensor_id
+                for c in tag.cut_ids
+                if c in now and now[c].properties.kind == "sensor_cut"
+            )
+        )
+        if ids and ids != list(tag.sensor_ids):
+            out[feature.id] = _with_tag(feature, sensor_ids=ids)
+    return out
 
 
 # --- Track operations on a solution ------------------------------------------------------

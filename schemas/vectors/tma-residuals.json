@@ -598,14 +598,16 @@
             "measured": 41.0,
             "used": "bearing",
             "nearer_side": true,
-            "residual": 1.0
+            "residual": 1.0,
+            "other_residual": 100.0
           },
           {
             "calculated": 41.540093043,
             "measured": 40.040093,
             "used": "ambiguous_bearing",
             "nearer_side": true,
-            "residual": -1.500000043
+            "residual": -1.500000043,
+            "other_residual": 96.919813957
           },
           {
             "calculated": 43.063363227,
@@ -623,6 +625,89 @@
           }
         ],
         "rms": 46.945957038
+      }
+    },
+    {
+      "name": "resolved to its ambiguous bearing",
+      "description": "A cut resolved to its ambiguous bearing is measured by it (used ambiguous_bearing, not nearer_side), even when its first bearing is nearer the solution; an unresolved one gives its other bearing's residual too (other_residual), drawn faint and never counted.",
+      "solution": {
+        "times": [
+          "2026-10-11T09:00:00.000Z",
+          "2026-10-11T09:01:00.000Z",
+          "2026-10-11T09:02:00.000Z"
+        ],
+        "coordinates": [
+          [
+            -3.9192067093,
+            50.0619553673
+          ],
+          [
+            -3.916220188,
+            50.0608453191
+          ],
+          [
+            -3.9132337356,
+            50.0597352706
+          ]
+        ]
+      },
+      "cuts": [
+        {
+          "time": "2026-10-11T09:00:00.000Z",
+          "origin": [
+            -4.0,
+            50.0
+          ],
+          "bearing": 40.7,
+          "ambiguous_bearing": 140.0,
+          "resolved": "ambiguous_bearing"
+        },
+        {
+          "time": "2026-10-11T09:01:00.000Z",
+          "origin": [
+            -4.0,
+            50.0
+          ],
+          "bearing": 138.459907,
+          "ambiguous_bearing": 41.140093,
+          "resolved": "ambiguous_bearing"
+        },
+        {
+          "time": "2026-10-11T09:02:00.000Z",
+          "origin": [
+            -4.0,
+            50.0
+          ],
+          "bearing": 43.263363,
+          "ambiguous_bearing": 136.936637
+        }
+      ],
+      "expected": {
+        "rows": [
+          {
+            "calculated": 40.0,
+            "measured": 140.0,
+            "used": "ambiguous_bearing",
+            "nearer_side": false,
+            "residual": 100.0
+          },
+          {
+            "calculated": 41.540093043,
+            "measured": 41.140093,
+            "used": "ambiguous_bearing",
+            "nearer_side": false,
+            "residual": -0.400000043
+          },
+          {
+            "calculated": 43.063363227,
+            "measured": 43.263363,
+            "used": "bearing",
+            "nearer_side": true,
+            "residual": 0.199999773,
+            "other_residual": 93.873273773
+          }
+        ],
+        "rms": 57.735604266
       }
     },
     {

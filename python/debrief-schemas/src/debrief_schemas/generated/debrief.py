@@ -2118,6 +2118,7 @@ class TrackProperties(ConfiguredBaseModel):
                        'SensorCutProperties',
                        'SensorObservationsProperties',
                        'TmaCut',
+                       'TmaResiduals',
                        'TimelineEntry']} })
     supplies: Optional[list[TrackSupply]] = Field(default=None, description="""Which catalogue item supplies each period of the track (CAP-09): where two items have data for the platform over the same period, the analyst chooses which supplies it, and the track is stitched from the chosen periods. In time order, not overlapping, each from its first fix to its last. Left out, the plot itself supplies the whole track, as imported. Content: each change is a recorded, undoable step (SUB-22), naming the items and periods.""", json_schema_extra = { "linkml_meta": {'domain_of': ['TrackProperties']} })
     platform_links: Optional[list[SourceTrackRef]] = Field(default=None, description="""Tracks in other catalogue items the analyst confirmed, or linked by hand, as this track's platform (CAP-09; decision, product owner, 16 Oct 2026). Tracks whose names match this one's, ignoring case and spaces, are proposed until confirmed or refused. Each change is a recorded, undoable step.""", json_schema_extra = { "linkml_meta": {'domain_of': ['TrackProperties']} })
@@ -2703,6 +2704,7 @@ class AnnotationProperties(ConfiguredBaseModel):
                        'SensorCutProperties',
                        'SensorObservationsProperties',
                        'TmaCut',
+                       'TmaResiduals',
                        'TimelineEntry']} })
     provenance: Optional[list[ProvRecord]] = Field(default=None, json_schema_extra = { "linkml_meta": {'domain_of': ['TrackProperties',
                        'AnnotationProperties',
@@ -3136,6 +3138,7 @@ class SensorProperties(ConfiguredBaseModel):
                        'SensorCutProperties',
                        'SensorObservationsProperties',
                        'TmaCut',
+                       'TmaResiduals',
                        'TimelineEntry']} })
     provenance: Optional[list[ProvRecord]] = Field(default=None, json_schema_extra = { "linkml_meta": {'domain_of': ['TrackProperties',
                        'AnnotationProperties',
@@ -3277,6 +3280,7 @@ class SensorCutProperties(ConfiguredBaseModel):
                        'SensorCutProperties',
                        'SensorObservationsProperties',
                        'TmaCut',
+                       'TmaResiduals',
                        'TimelineEntry']} })
 
     @field_validator('time')
@@ -3438,6 +3442,7 @@ class SensorObservationsProperties(ConfiguredBaseModel):
                        'SensorCutProperties',
                        'SensorObservationsProperties',
                        'TmaCut',
+                       'TmaResiduals',
                        'TimelineEntry']} })
     provenance: Optional[list[ProvRecord]] = Field(default=None, json_schema_extra = { "linkml_meta": {'domain_of': ['TrackProperties',
                        'AnnotationProperties',
@@ -6131,6 +6136,7 @@ class TmaCut(ConfiguredBaseModel):
                        'SensorCutProperties',
                        'SensorObservationsProperties',
                        'TmaCut',
+                       'TmaResiduals',
                        'TimelineEntry']} })
 
     @field_validator('colour')
@@ -6171,6 +6177,7 @@ class TmaResidualRow(TmaCut):
     nearer_side: Optional[bool] = Field(default=None, description="""True for an ambiguous cut not yet resolved: measured is the bearing nearer the solution, chosen afresh as it moves (product owner, 24 Oct 2026).""", json_schema_extra = { "linkml_meta": {'domain_of': ['TmaResidualRow', 'TmaResiduals']} })
     calculated: Optional[float] = Field(default=None, description="""The bearing from its origin to the solution at its time, along the geodesic.""", json_schema_extra = { "linkml_meta": {'domain_of': ['TmaResidualRow']} })
     residual: Optional[float] = Field(default=None, description="""measured less calculated, degrees, within (-180, 180]; left out where there is none.""", json_schema_extra = { "linkml_meta": {'domain_of': ['TmaResidualRow']} })
+    other_residual: Optional[float] = Field(default=None, description="""An ambiguous cut not yet resolved: its other bearing (the one not measured) less calculated, degrees, within (-180, 180]. Drawn faint and never counted, so the analyst can pick a side from the plot (product owner, 25 Oct 2026).""", json_schema_extra = { "linkml_meta": {'domain_of': ['TmaResidualRow']} })
     excluded: Optional[bool] = Field(default=None, description="""Left out of the RMS error by the analyst.""", json_schema_extra = { "linkml_meta": {'domain_of': ['TmaResidualRow', 'TmaResiduals', 'WebviewMessage']} })
     leg: Optional[int] = Field(default=None, description="""Which leg of the solution it falls in, from 1.""", json_schema_extra = { "linkml_meta": {'domain_of': ['TmaResidualRow']} })
     id: str = Field(default=..., description="""The cut's feature id.""", json_schema_extra = { "linkml_meta": {'domain_of': ['ProvRecord',
@@ -6235,6 +6242,7 @@ class TmaResidualRow(TmaCut):
                        'SensorCutProperties',
                        'SensorObservationsProperties',
                        'TmaCut',
+                       'TmaResiduals',
                        'TimelineEntry']} })
 
     @field_validator('colour')
@@ -6278,6 +6286,14 @@ class TmaResiduals(ConfiguredBaseModel):
     without: int = Field(default=..., description="""How many rooted cuts give no residual: outside their host's fixes, or outside the solution's, or no longer in the plot.""", json_schema_extra = { "linkml_meta": {'domain_of': ['TmaResiduals']} })
     nearer_side: Optional[int] = Field(default=None, description="""How many ambiguous cuts use the bearing nearer the solution.""", json_schema_extra = { "linkml_meta": {'domain_of': ['TmaResidualRow', 'TmaResiduals']} })
     derived_origins: Optional[int] = Field(default=None, description="""How many cuts are taken from an origin Debrief worked out.""", json_schema_extra = { "linkml_meta": {'domain_of': ['TmaResiduals']} })
+    hidden: Optional[int] = Field(default=None, description="""How many rooted cuts are hidden on the map: left out of the residuals and the RMS until shown again (legacy's \"only plot visible data\"; product owner, 25 Oct 2026).""", json_schema_extra = { "linkml_meta": {'domain_of': ['TrackProperties',
+                       'AnnotationProperties',
+                       'SensorProperties',
+                       'SensorCutProperties',
+                       'SensorObservationsProperties',
+                       'TmaCut',
+                       'TmaResiduals',
+                       'TimelineEntry']} })
 
 
 class TmaSolutionRow(ConfiguredBaseModel):
@@ -6496,6 +6512,7 @@ class TimelineEntry(ConfiguredBaseModel):
                        'SensorCutProperties',
                        'SensorObservationsProperties',
                        'TmaCut',
+                       'TmaResiduals',
                        'TimelineEntry']} })
 
     @field_validator('start')

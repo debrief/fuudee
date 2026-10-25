@@ -47,13 +47,15 @@
  *   into it), and the fixes after follow on, their rings with them. A time window
  *   that starts after the first fix turns about its own first fix.
  * - A TMA solution (CAP-21; product owner, 24 Oct 2026) is a DR track like any other,
- *   dragged the same way; split into legs, the control offers This leg too: the leg current
- *   time is in, dragged on its own, the legs after it following on, joined. While one is
+ *   dragged the same way; split into legs, the control offers This leg too: the leg clicked
+ *   on the map, else the leg current time is in, dragged on its own, the other legs staying
+ *   where they are (product owner, 25 Oct 2026; the joins solved again when saved). While one is
  *   dragged the map says where it is now to the bearing view (tma_preview), which works its
  *   residuals out again as it moves; and that the drag ended, or was put back.
  * - Nothing here changes current time, the window or the selection. If the
  *   plot changes elsewhere during a drag, the drag is dropped and the map says so.
  */
+import { keptLegs, legIndices, legNear } from "./tma.js";
 import L from "leaflet";
 import { DEFAULT_SETTINGS, formatTime } from "@debrief/kernel";
 import type { DebriefFeatureCollection } from "@debrief/schemas";
@@ -146,26 +148,12 @@ interface Press {
 /** What moves: the whole track, only its fixes in the time window, or (a TMA solution split into legs) the leg current time is in. */
 export type Extent = "whole" | "window" | "leg";
 
-/** The fixes of the leg a time is in (the first leg before the solution starts, the last after it ends): [first, last]. */
-export function legIndices(times: number[], legStarts: number[], at: number | undefined): { indices: number[]; leg: number; legs: number } {
-  const bounds = [0];
-  for (const start of legStarts) {
-    const index = times.findIndex((t) => t >= start);
-    if (index > bounds[bounds.length - 1]) bounds.push(index);
-  }
-  bounds.push(times.length);
-  const legs = bounds.length - 1;
-  let leg = 0;
-  if (at !== undefined) while (leg + 1 < legs && times[bounds[leg + 1]] <= at) leg++;
-  const indices: number[] = [];
-  for (let i = bounds[leg]; i < bounds[leg + 1]; i++) indices.push(i);
-  return { indices, leg: leg + 1, legs };
-}
-
 export class TrackEditor {
   private selection: string[] = [];
   private selected?: Selected;
   private extent: Extent = "whole";
+  /** With This leg: the leg the analyst picked by clicking it on the map; otherwise the one current time is in. */
+  private pickedLeg?: number;
   /** What dragging an end of the period does. */
   private mode: EndMode = "shear";
   /** A pivot the analyst chose, by dragging it; otherwise the default. */
@@ -251,7 +239,7 @@ export class TrackEditor {
         };
         const whole = button("whole", "Whole track", "Move, rotate, shear or stretch every fix of the track");
         const inWindow = button("window", "Time window", "Change only the fixes in the time window; the track jumps where they meet the rest");
-        const leg = button("leg", "This leg", "A TMA solution split into legs: change only the leg current time is in; the legs after it follow on, joined");
+        const leg = button("leg", "This leg", "A TMA solution split into legs: change only one leg, the one you click on the map (at first the one current time is in); the other legs stay where they are, the joins either side solved again");
         // What dragging an end of the period does: shear (most used with TMA legs) or stretch.
         const ends = L.DomUtil.create("div", "track-ends", box);
         ends.setAttribute("role", "group");
@@ -284,6 +272,7 @@ export class TrackEditor {
   /** Change the whole track, or only its fixes in the time window. */
   setExtent(extent: Extent): void {
     if (this.drag || this.nudge || this.run.saving) return;
+    if (extent !== this.extent) this.pickedLeg = undefined;
     this.extent = extent;
     this.render(true);
   }
@@ -306,7 +295,10 @@ export class TrackEditor {
     if (id && id === before && (this.drag || this.nudge || this.run.saving)) return;
     const shown = id ? this.host.track(id) : undefined;
     if (before && before !== id) this.cancelGesture();
-    if (id !== before) this.chosenPivot = undefined;
+    if (id !== before) {
+      this.chosenPivot = undefined;
+      this.pickedLeg = undefined;
+    }
     if (shown && id) {
       const positions = shown.feature.geometry.coordinates as LonLat[];
       const reckoning = reckoningOf(shown.feature.properties);
@@ -374,11 +366,25 @@ export class TrackEditor {
     };
   }
 
-  /** The leg changed, with This leg chosen on a solution of more than one leg: the one current time is in. */
+  /** The leg changed, with This leg chosen on a solution of more than one leg: the one the analyst clicked on the map, else the one current time is in. */
   private legOf(s: Selected): { indices: number[]; leg: number; legs: number } | undefined {
     if (this.extent !== "leg" || !s.tma?.legStarts.length) return undefined;
-    const found = legIndices(s.times, s.tma.legStarts, this.host.time()?.current);
+    const found = legIndices(s.times, s.tma.legStarts, this.host.time()?.current, this.pickedLeg);
     return found.legs > 1 ? found : undefined;
+  }
+
+  /**
+   * A click on the selected solution's line with This leg chosen: that leg is the one dragged
+   * (product owner, 25 Oct 2026: This leg acts on the leg the analyst grabs). True if taken.
+   */
+  pickLeg(featureId: string, at: L.LatLng): boolean {
+    const s = this.selected;
+    if (!s || s.id !== featureId || this.extent !== "leg" || !s.tma?.legStarts.length || this.drag || this.host.drawing()) return false;
+    const leg = legNear(s.positions, s.times, s.tma.legStarts, [L.Util.wrapNum(at.lng, [-180, 180], true), at.lat]);
+    this.pickedLeg = leg;
+    this.chosenPivot = undefined;
+    this.render(true);
+    return true;
   }
 
   /** Whether the pivot is the first fix of what changes, whatever the analyst chose: on a DR track, a window that starts after the first fix turns about its own first fix, which dead reckoning places from the fix before. */
@@ -425,7 +431,8 @@ export class TrackEditor {
       const verb = this.mode === "stretch" ? "stretch" : "shear";
       const toEnds = ends.start ? `, or an end to ${verb} it` : "";
       const fixes = this.fixHandles.size ? " Drag a fix's ring to move that fix alone." : this.fixesTooClose ? " Zoom in to move a single fix." : "";
-      this.host.say(`${this.what(s.name)}: drag the move or rotate handle${toEnds}; or Tab to one and use the arrow keys.${fixes}`, undefined, "selection");
+      const legs = this.legOf(s) ? " Click another leg on the map to drag it instead." : "";
+      this.host.say(`${this.what(s.name)}: drag the move or rotate handle${toEnds}; or Tab to one and use the arrow keys.${legs}${fixes}`, undefined, "selection");
     }
   }
 
@@ -626,6 +633,8 @@ export class TrackEditor {
     const t = this.target();
     const change = t && gestureChange(g, t, settings);
     if (!t || !change) return;
+    // A solution of legs: only the leg dragged moves (CAP-21; product owner, 25 Oct 2026).
+    if (s.tma?.legStarts.length && t.part) change.positions = keptLegs(s.positions, change.positions, t.indices, s.times, s.tma.legStarts);
     this.host.setShown(s.id, false);
     this.preview.clearLayers();
     if (s.tma) {

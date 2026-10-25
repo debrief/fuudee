@@ -5,7 +5,9 @@
  * - Residuals while a solution is dragged: each rooted cut's bearing measured less the
  *   bearing, along the geodesic, from where it was taken to where the solution is at its
  *   time (as the map places it, along the geodesic between fixes), within (-180, 180]; an
- *   ambiguous cut not yet resolved measured by the nearer of its bearings. The same as
+ *   ambiguous cut not yet resolved measured by the nearer of its bearings, its other
+ *   bearing's residual given too, drawn faint and never counted; a cut hidden on the map
+ *   left out until shown again (product owner, 25 Oct 2026). The same as
  *   debrief_kernel.tma, held to schemas/vectors/tma-residuals.json; Python's are shown
  *   again, exact, once the drag ends (NFR-04).
  * - The first guess's defaults and the two clicks taken onto their cuts' lines.
@@ -52,6 +54,8 @@ export interface Residual {
   used?: Kept;
   nearer_side: boolean;
   residual?: number;
+  /** An unresolved ambiguous cut: its other bearing's residual, drawn faint, never counted. */
+  other?: number;
 }
 
 function choose(cut: CutBearing, calculated: number): Residual {
@@ -64,8 +68,8 @@ function choose(cut: CutBearing, calculated: number): Residual {
   const first = wrap(cut.bearing - calculated);
   const second = wrap(cut.ambiguous - calculated);
   return Math.abs(second) < Math.abs(first)
-    ? { calculated, measured: cut.ambiguous, used: "ambiguous_bearing", nearer_side: true, residual: second }
-    : { calculated, measured: cut.bearing, used: "bearing", nearer_side: true, residual: first };
+    ? { calculated, measured: cut.ambiguous, used: "ambiguous_bearing", nearer_side: true, residual: second, other: first }
+    : { calculated, measured: cut.bearing, used: "bearing", nearer_side: true, residual: first, other: second };
 }
 
 /** The bearing from a to b, degrees true in [0, 360), along the geodesic. */
@@ -125,43 +129,66 @@ const cutOf = (row: CutRow): CutBearing => ({
   resolved: row.resolved ?? null,
 });
 
+/** Each base's rows as cuts, parsed once: a drag works them out again every frame. */
+const cutsOfBase = new WeakMap<TmaResiduals, CutBearing[]>();
+/** Each solution's fix times, parsed once. */
+const timesOfSolution = new WeakMap<TmaSolutionRow, number[]>();
+/** Each base's rows as a drag leaves them: made once and written again each frame, so a frame makes no garbage of its own. */
+const liveRowsOf = new WeakMap<TmaResiduals, TmaResidualRow[]>();
+
+/** What a drag's frames reuse, made before the drag begins (when the view is shown), so its first frame costs no more than the rest. */
+export function primeLive(base: TmaResiduals, solution: TmaSolutionRow): void {
+  if (!timesOfSolution.has(solution)) timesOfSolution.set(solution, (solution.times ?? []).map((t) => Date.parse(t)));
+  if (!cutsOfBase.has(base)) cutsOfBase.set(base, base.rows.map(cutOf));
+  if (!liveRowsOf.has(base)) liveRowsOf.set(base, base.rows.map((row) => ({ ...row })));
+}
+
 /**
  * The residuals as a solution dragged on the map now leaves them: the rows Python gave,
  * each worked out again against the solution's fixes where the map draws them (its times
- * from the solution row). Counts, left out and RMS as Python counts them.
+ * from the solution row). Counts, left out, hidden and RMS as Python counts them. Parsed
+ * once per base and solution, so a frame costs the geodesics and little else (NFR-04).
  */
 export function liveResiduals(base: TmaResiduals, solution: TmaSolutionRow, coordinates: LonLat[]): TmaResiduals {
-  const times = (solution.times ?? []).map((t) => Date.parse(t));
+  let times = timesOfSolution.get(solution);
+  if (!times) timesOfSolution.set(solution, (times = (solution.times ?? []).map((t) => Date.parse(t))));
   if (times.length !== coordinates.length) return base;
-  const found = residuals(base.rows.map(cutOf), coordinates, times);
-  const counted: number[] = [];
-  const rows = base.rows.map((row, i): TmaResidualRow => {
+  let cuts = cutsOfBase.get(base);
+  if (!cuts) cutsOfBase.set(base, (cuts = base.rows.map(cutOf)));
+  const found = residuals(cuts, coordinates, times);
+  let sum = 0;
+  let counted = 0;
+  let without = 0;
+  let nearer = 0;
+  let pythonWithout = 0;
+  let rows = liveRowsOf.get(base);
+  if (!rows) liveRowsOf.set(base, (rows = base.rows.map((row) => ({ ...row }))));
+  for (let i = 0; i < base.rows.length; i++) {
+    const row = base.rows[i];
     const r = found[i];
-    const next: TmaResidualRow = { ...row };
-    delete next.measured;
-    delete next.used;
-    delete next.calculated;
-    delete next.residual;
-    delete next.nearer_side;
+    const next = rows[i];
+    next.measured = next.used = next.calculated = next.residual = next.nearer_side = next.other_residual = undefined;
+    if (!row.hidden && (row.residual === undefined || row.residual === null)) pythonWithout++;
     if (r.residual !== undefined) {
-      Object.assign(next, { measured: r.measured, used: r.used, calculated: r.calculated, residual: r.residual });
+      next.measured = r.measured;
+      next.used = r.used;
+      next.calculated = r.calculated;
+      next.residual = r.residual;
       if (r.nearer_side) next.nearer_side = true;
-      if (!row.excluded) counted.push(r.residual);
-    }
-    return next;
-  });
+      if (r.other !== undefined) next.other_residual = r.other;
+      // Hidden on the map: left out until shown again, as Python leaves it out.
+      if (!row.excluded && !row.hidden) {
+        sum += r.residual * r.residual;
+        counted++;
+      }
+      if (r.nearer_side && !row.hidden) nearer++;
+    } else if (!row.hidden) without++;
+  }
   // Rooted cuts no longer in the plot have no row; Python counted them among those without.
-  const missing = base.without - base.rows.filter((r) => r.residual === undefined || r.residual === null).length;
-  const out: TmaResiduals = {
-    ...base,
-    rows,
-    counted: counted.length,
-    without: missing + found.filter((r) => r.residual === undefined).length,
-    nearer_side: rows.filter((r) => r.nearer_side).length,
-  };
-  const value = rms(counted);
-  if (value === undefined) delete out.rms;
-  else out.rms = value;
+  const missing = base.without - pythonWithout;
+  const out: TmaResiduals = { ...base, rows, counted, without: missing + without, nearer_side: nearer };
+  if (counted) out.rms = Math.sqrt(sum / counted);
+  else delete out.rms;
   return out;
 }
 
@@ -191,6 +218,7 @@ export function residualNotes(report: TmaResiduals | undefined): string[] {
   if (report.nearer_side) notes.push(`${count(report.nearer_side, "ambiguous cut")} not yet resolved: each is measured by the bearing nearer the solution (marked ≈).`);
   if (report.without) notes.push(`${count(report.without, "cut")} ${report.without === 1 ? "gives" : "give"} no residual: outside the track's fixes or the solution's.`);
   if (report.derived_origins) notes.push(`${count(report.derived_origins, "cut")} taken from where Debrief worked out the sensor was, when its track was split (marked ◇).`);
+  if (report.hidden) notes.push(`${count(report.hidden, "hidden cut")} left out: ${report.hidden === 1 ? "it is" : "they are"} hidden on the map, and ${report.hidden === 1 ? "counts" : "count"} again once shown.`);
   return notes;
 }
 
@@ -218,18 +246,20 @@ export function sideOfRow(row: CutRow, which: Kept): "port" | "starboard" | unde
 }
 
 /** A row read aloud: its time, sensor, bearings, side, residual and whether it is counted. */
-export function rowLabel(row: CutRow, settings: FormatSettings = DEFAULT_SETTINGS): string {
-  const parts = [cutWhen(row, settings), row.sensor ?? "", cutBearings(row)];
+export function rowLabel(row: CutRow, settings: FormatSettings = DEFAULT_SETTINGS, withSensor = false): string {
+  const parts = [cutWhen(row, settings), withSensor ? (row.sensor ?? "") : "", cutBearings(row)];
   if (isAmbiguousRow(row) && row.side) parts.push(`${bearingText(row.bearing)} is to ${row.side}`);
   const r = row as TmaResidualRow;
   if ("residual" in r || "excluded" in r || "measured" in r) {
     if (r.residual !== undefined && r.residual !== null) parts.push(`residual ${residualText(r.residual, settings)}${r.nearer_side ? ", by the nearer bearing" : ""}`);
     else parts.push("no residual");
     if (r.excluded) parts.push("left out of the RMS");
+    if (r.other_residual !== undefined && r.other_residual !== null) parts.push(`the other bearing's residual ${residualText(r.other_residual, settings)}`);
     if (r.leg && r.leg > 1) parts.push(`leg ${r.leg}`);
   }
   if (row.origin_derived) parts.push("from a position Debrief worked out");
   if (row.label) parts.push(`label ${row.label}`);
+  if (row.hidden) parts.push("hidden on the map, left out");
   return parts.filter(Boolean).join(", ");
 }
 
@@ -435,3 +465,90 @@ export function sensorOfSelection(plot: DebriefFeatureCollection, selection: str
   }
   return undefined;
 }
+
+/**
+ * Whether a solution can be split into legs at a time, as debrief_stac.tma.split_leg allows:
+ * the leg there keeps two fixes or more before the time and two or more from it on, and no
+ * leg starts at the fix there already.
+ */
+export function splitAllowed(times: number[], legStarts: number[], at: number): boolean {
+  const here = times.findIndex((t) => t >= at);
+  if (here < 0 || legStarts.includes(times[here])) return false;
+  const bounds = [0, times.length];
+  for (const start of legStarts) {
+    const first = times.findIndex((t) => t >= start);
+    bounds.push(first < 0 ? times.length : first);
+  }
+  let lo = 0;
+  let hi = times.length;
+  for (const b of bounds) {
+    if (b <= here && b > lo) lo = b;
+    if (b > here && b < hi) hi = b;
+  }
+  return here - lo >= 2 && hi - here >= 2;
+}
+
+// --- Legs of a solution on the map (product owner, 25 Oct 2026) ------------------------
+
+/** Each leg's first fix (indices), and the end: legs [bounds[k], bounds[k + 1]). */
+export function legBounds(times: number[], legStarts: number[]): number[] {
+  const bounds = [0];
+  for (const start of legStarts) {
+    const index = times.findIndex((t) => t >= start);
+    if (index > bounds[bounds.length - 1]) bounds.push(index);
+  }
+  bounds.push(times.length);
+  return bounds;
+}
+
+/** The fixes of a leg: the one a time is in (the first leg before the solution starts, the last after it ends), or, given, the leg (from 1) the analyst picked. */
+export function legIndices(times: number[], legStarts: number[], at: number | undefined, picked?: number): { indices: number[]; leg: number; legs: number } {
+  const bounds = legBounds(times, legStarts);
+  const legs = bounds.length - 1;
+  let leg = 0;
+  if (picked !== undefined) leg = Math.max(0, Math.min(legs - 1, picked - 1));
+  else if (at !== undefined) while (leg + 1 < legs && times[bounds[leg + 1]] <= at) leg++;
+  const indices: number[] = [];
+  for (let i = bounds[leg]; i < bounds[leg + 1]; i++) indices.push(i);
+  return { indices, leg: leg + 1, legs };
+}
+
+/**
+ * A solution of legs as a drag of one leg leaves it on the map: the legs not dragged back where
+ * they were (product owner, 25 Oct 2026: each leg is independent; the joins either side are
+ * the straight stretches between legs, solved again when saved, as debrief_stac.tma.legs_kept).
+ */
+export function keptLegs(before: LonLat[], after: LonLat[], indices: number[], times: number[], legStarts: number[]): LonLat[] {
+  if (!legStarts.length || !indices.length) return after;
+  const bounds = legBounds(times, legStarts);
+  const edited = new Set<number>();
+  for (let k = 0; k + 1 < bounds.length; k++) if (indices.some((i) => i >= bounds[k] && i < bounds[k + 1])) edited.add(k);
+  if (edited.size === bounds.length - 1) return after;
+  return after.map((p, i) => {
+    let k = 0;
+    while (k + 2 < bounds.length && bounds[k + 1] <= i) k++;
+    return edited.has(k) ? p : before[i];
+  });
+}
+
+/** The leg (from 1) of the fix nearest a place: the leg the analyst clicked on. */
+export function legNear(positions: LonLat[], times: number[], legStarts: number[], at: LonLat): number {
+  let best = 0;
+  let nearest = Infinity;
+  const cos = Math.cos((at[1] * Math.PI) / 180);
+  positions.forEach(([lon, lat], i) => {
+    const dx = (((lon - at[0] + 540) % 360) - 180) * cos;
+    const dy = lat - at[1];
+    const d = dx * dx + dy * dy;
+    if (d < nearest) {
+      nearest = d;
+      best = i;
+    }
+  });
+  // A click on the stretch between two fixes counts for the leg of the nearer.
+  const bounds = legBounds(times, legStarts);
+  let leg = 0;
+  while (leg + 1 < bounds.length - 1 && bounds[leg + 1] <= best) leg++;
+  return leg + 1;
+}
+

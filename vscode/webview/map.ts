@@ -513,6 +513,8 @@ function draw(plot: DebriefFeatureCollection): void {
       if (tmaGuess.click(event.latlng)) return; // two clicks for a TMA first guess, even on a track
       if (editor.takeClick(event)) return; // drawing: a click places a point, even on a track
       if (filled && clickCut(event)) return;
+      // This leg chosen on a solution of legs: a click on it picks the leg to drag (CAP-21).
+      if (!(event.originalEvent.ctrlKey || event.originalEvent.metaKey) && trackEditor.pickLeg(feature.id, event.latlng)) return;
       select(feature.id, event.originalEvent.ctrlKey || event.originalEvent.metaKey);
     };
     const isTrack = feature.properties.kind === "track";
@@ -845,7 +847,9 @@ function drawWindow(): void {
     const colour = colourOf(track);
     const click = (event: L.LeafletMouseEvent) => {
       L.DomEvent.stopPropagation(event);
+      if (tmaGuess.click(event.latlng)) return;
       if (editor.takeClick(event)) return;
+      if (!(event.originalEvent.ctrlKey || event.originalEvent.metaKey) && trackEditor.pickLeg(track.id, event.latlng)) return;
       select(track.id, event.originalEvent.ctrlKey || event.originalEvent.metaKey);
     };
     const line = L.polyline(densify(part.coordinates).map(toLatLng), { color: colour, weight: WINDOW_WEIGHT, baseWeight: WINDOW_WEIGHT } as L.PolylineOptions);
@@ -1006,6 +1010,11 @@ const sensorLayer = new SensorLayer({
 (window as unknown as { debriefPoint: (lon: number, lat: number) => { x: number; y: number } }).debriefPoint = (lon, lat) => {
   const point = map.latLngToContainerPoint([lat, lon]);
   return { x: point.x, y: point.y };
+};
+/** A track's fixes as drawn, [lon, lat] each: for the playground's test to click on a leg. */
+(window as unknown as { debriefFixes: (id: string) => LonLat[] | undefined }).debriefFixes = (id) => {
+  const feature = plotDrawn?.features.find((f) => f.id === id);
+  return feature?.geometry?.type === "LineString" ? (feature.geometry.coordinates as LonLat[]) : undefined;
 };
 /** The legend's rows for cuts: shown once the plot has sensor cuts to draw. */
 function showCutKey(): void {

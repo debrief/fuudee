@@ -447,61 +447,88 @@ def test_a_solution_split_into_legs_stays_one_track(catalogue: Catalogue) -> Non
     assert solution_of(catalogue, feature).properties.tma.leg_starts is None
 
 
-def test_a_leg_dragged_on_its_own_keeps_the_later_leg_joined(catalogue: Catalogue) -> None:
-    """Shearing leg 1 (held at its start) carries leg 2 with it, unturned: dead reckoning
-    puts leg 2's first fix on from leg 1's last, by the join's course and speed."""
+def three_legs(catalogue: Catalogue) -> tuple[str, models.TrackFeature]:
     _, feature = catalogue.create_tma("p", leg_request(catalogue), AGENT)
-    catalogue.tma_split_leg("p", feature, at(20), AGENT)
-    before = solution_of(catalogue, feature)
-    leg1 = {"start": at(0), "end": at(19)}
+    catalogue.tma_split_leg("p", feature, at(14), AGENT)
+    catalogue.tma_split_leg("p", feature, at(28), AGENT)
+    return feature, solution_of(catalogue, feature)
+
+
+def dr_again(track: models.TrackFeature) -> list:
+    """Where dead reckoning from the first fix puts each fix, by the courses and speeds."""
+    return tracks.dead_reckoned_positions(track)
+
+
+def test_an_earlier_leg_dragged_leaves_the_later_legs_where_they_are(catalogue: Catalogue) -> None:
+    """Each leg is independent, as in legacy (product owner, 25 Oct 2026): shearing leg 1
+    moves only leg 1; legs 2 and 3, already fitted, keep every fix, course and speed; the
+    join from leg 1's last fix to leg 2's first is solved again to reach it."""
+    feature, before = three_legs(catalogue)
     edit = {
         "action": "shear",
         "anchor": "start",
         "distance": {"value": 1.0, "unit": "[nmi_i]"},
         "bearing": {"value": 0.0, "unit": "deg"},
-        "period": leg1,
+        "period": {"start": at(0), "end": at(13)},
     }
     catalogue.edit_track("p", feature, edit, AGENT)
     after = solution_of(catalogue, feature)
     old, new = before.geometry.coordinates, after.geometry.coordinates
     assert new[0] == pytest.approx(old[0])  # held
-    # Leg 1's fixes moved; its last, and so the join, took the new course.
-    assert range_bearing(Position(*old[19]), Position(*new[19]))[0].value > 1000
-    courses = after.properties.courses.values
-    assert courses[0] == courses[19] != pytest.approx(TARGET_COURSE)
-    # Leg 2 keeps its course and speed, and every fix of it moved by the same as its first:
-    # it stays joined, at the end of the join.
-    assert courses[20:] == before.properties.courses.values[20:]
-    shift = range_bearing(Position(*old[20]), Position(*new[20]))
-    for i in range(21, 41):
-        moved = range_bearing(Position(*old[i]), Position(*new[i]))
-        assert moved[0].value == pytest.approx(shift[0].value, rel=1e-3)
-        assert moved[1].value == pytest.approx(shift[1].value, abs=0.05)
+    assert range_bearing(Position(*old[13]), Position(*new[13]))[0].value > 1000
+    for i in range(14, 41):  # legs 2 and 3 never move
+        assert new[i] == pytest.approx(old[i], abs=1e-9)
+    courses, speeds = after.properties.courses.values, after.properties.speeds.values
+    assert courses[14:] == before.properties.courses.values[14:]
+    assert speeds[14:] == before.properties.speeds.values[14:]
+    # The join re-solved: from leg 1's new last fix to leg 2's first, as dead reckoning has it.
+    assert courses[13] != pytest.approx(before.properties.courses.values[13])
+    for got, want in zip(dr_again(after), new, strict=True):
+        assert range_bearing(Position(*got), Position(*want))[0].value < 0.01
+    notes = last_record(catalogue).notes
+    assert tma.LEGS_KEPT in notes
+    assert not any("follow" in n for n in notes)
     assert after.properties.tma == before.properties.tma  # the tag goes with the track
 
 
-def test_the_later_leg_moved_on_its_own_changes_only_the_join(catalogue: Catalogue) -> None:
-    _, feature = catalogue.create_tma("p", leg_request(catalogue), AGENT)
-    catalogue.tma_split_leg("p", feature, at(20), AGENT)
-    before = solution_of(catalogue, feature)
+def test_a_middle_leg_dragged_solves_the_joins_either_side_only(catalogue: Catalogue) -> None:
+    feature, before = three_legs(catalogue)
     edit = {
         "action": "move",
         "distance": {"value": 0.5, "unit": "[nmi_i]"},
         "bearing": {"value": 90.0, "unit": "deg"},
-        "period": {"start": at(20), "end": at(40)},
+        "period": {"start": at(14), "end": at(27)},
     }
     catalogue.edit_track("p", feature, edit, AGENT)
     after = solution_of(catalogue, feature)
     old, new = before.geometry.coordinates, after.geometry.coordinates
-    for i in range(20):  # leg 1 stays where it was
-        assert new[i] == pytest.approx(old[i])
-    moved = range_bearing(Position(*old[20]), Position(*new[20]))
-    assert moved[0].value == pytest.approx(926, abs=1)
-    assert moved[1].value == pytest.approx(90, abs=0.1)
-    # The join (leg 1's last fix's course and speed) changed; leg 2's did not.
-    assert after.properties.courses.values[19] != before.properties.courses.values[19]
-    assert after.properties.courses.values[20:] == before.properties.courses.values[20:]
-    assert "Leg into 09:20:00Z" in " ".join(last_record(catalogue).notes)
+    for i in [*range(14), *range(28, 41)]:  # legs 1 and 3 stay where they were
+        assert new[i] == pytest.approx(old[i], abs=1e-9)
+    for i in range(14, 28):  # leg 2 moved half a mile east, all of it
+        moved = range_bearing(Position(*old[i]), Position(*new[i]))
+        assert moved[0].value == pytest.approx(926, abs=1)
+        assert moved[1].value == pytest.approx(90, abs=0.1)
+    before_courses = before.properties.courses.values
+    courses = after.properties.courses.values
+    # Only the two joins changed: leg 1's last fix, into leg 2, and leg 2's last, into leg 3.
+    changed = [i for i in range(41) if courses[i] != pytest.approx(before_courses[i])]
+    assert changed == [13, 27]
+    for got, want in zip(dr_again(after), new, strict=True):
+        assert range_bearing(Position(*got), Position(*want))[0].value < 0.01
+
+
+def test_a_whole_solution_dragged_moves_every_leg(catalogue: Catalogue) -> None:
+    feature, before = three_legs(catalogue)
+    edit = {
+        "action": "move",
+        "distance": {"value": 1, "unit": "[nmi_i]"},
+        "bearing": {"value": 0, "unit": "deg"},
+    }
+    catalogue.edit_track("p", feature, edit, AGENT)
+    after = solution_of(catalogue, feature)
+    for a, b in zip(before.geometry.coordinates, after.geometry.coordinates, strict=True):
+        assert range_bearing(Position(*a), Position(*b))[0].value == pytest.approx(1852, abs=1)
+    assert tma.LEGS_KEPT not in last_record(catalogue).notes
 
 
 def test_a_solution_split_as_a_track_gives_two_solutions_each_of_its_own_cuts(
@@ -524,6 +551,65 @@ def test_a_solution_split_as_a_track_gives_two_solutions_each_of_its_own_cuts(
     tag = solution_of(catalogue, merged).properties.tma
     assert tag.cut_ids == rooted and tag.leg_starts == [at(20), at(30)]
     assert tag.excluded_cut_ids == [rooted[3], rooted[30]]
+
+
+def test_solutions_merged_do_not_move(catalogue: Catalogue) -> None:
+    """The panel's case: 09:00–09:20 merged with 09:25–09:40, the later solution far from
+    where the earlier one's course would take it. Each earlier member's last fix is aimed at
+    the next one's first fix, so nothing moves (it moved 2.51 nmi before)."""
+    bow = sensor_id(catalogue, "Bow sonar")
+    _, early = catalogue.create_tma(
+        "p", {"sensor_ids": [bow], "period": {"start": at(0), "end": at(20)}}, AGENT
+    )
+    _, late = catalogue.create_tma(
+        "p",
+        {
+            "sensor_ids": [bow],
+            "period": {"start": at(25), "end": at(40)},
+            "range": {"value": 8000, "unit": "m"},
+            "course": {"value": 10, "unit": "deg"},
+            "speed": {"value": 15, "unit": "[kn_i]"},
+        },
+        AGENT,
+    )
+    before = [
+        *solution_of(catalogue, early).geometry.coordinates,
+        *solution_of(catalogue, late).geometry.coordinates,
+    ]
+    _, merged, _ = catalogue.merge_tracks("p", [early, late], AGENT)
+    after = solution_of(catalogue, merged)
+    assert len(after.geometry.coordinates) == len(before)
+    worst = max(
+        range_bearing(Position(*a), Position(*b))[0].value
+        for a, b in zip(before, after.geometry.coordinates, strict=True)
+    )
+    assert worst < 0.01
+    assert after.properties.tma.leg_starts == [at(25)]
+
+
+def test_a_solution_is_not_merged_with_a_track_that_is_not_one(catalogue: Catalogue) -> None:
+    _, feature = catalogue.create_tma("p", truth_request(catalogue), AGENT)
+    _, (_, second) = catalogue.split_track("p", "track-blue", at(45), AGENT)
+    with pytest.raises(
+        CatalogueError,
+        match="is not a TMA solution: a solution .* is merged only with other solutions",
+    ):
+        catalogue.merge_tracks("p", [feature, second], AGENT)
+
+
+def test_a_solutions_sensors_follow_its_cuts_when_their_track_is_split(
+    catalogue: Catalogue,
+) -> None:
+    """Splitting BLUE ONE gives the Bow sonar's later cuts a new sensor: a solution rooted
+    in them names that sensor too (its sensor_ids are those of its cuts)."""
+    bow = sensor_id(catalogue, "Bow sonar")
+    _, feature = catalogue.create_tma("p", truth_request(catalogue), AGENT)
+    catalogue.split_track("p", "track-blue", at(15), AGENT)
+    plot_now = plot(catalogue)
+    tag = solution_of(catalogue, feature).properties.tma
+    by_id = {f.id: f for f in plot_now.features}
+    assert tag.sensor_ids == list(dict.fromkeys(by_id[c].properties.sensor_id for c in tag.cut_ids))
+    assert len(tag.sensor_ids) == 2 and tag.sensor_ids[0] == bow
 
 
 def test_a_solution_cannot_be_plotted_over_the_ground(catalogue: Catalogue) -> None:
@@ -572,3 +658,72 @@ def test_next_contact_skips_contacts_in_use() -> None:
         provenance=[],
     )
     assert tma.next_contact(plot) == "Contact 2"
+
+
+# --- Hidden cuts (P1) and both bearings of an ambiguous cut (P3), 25 Oct 2026 -------------
+
+
+def hide(catalogue: Catalogue, cut_ids: list[str], hidden: bool = True) -> None:
+    catalogue.set_hidden("p", cut_ids, hidden, AGENT)
+
+
+def test_hidden_cuts_are_rooted_but_left_out_until_shown_again(catalogue: Catalogue) -> None:
+    """As legacy's default ("only plot visible data", product owner, 25 Oct 2026): a hidden
+    cut is neither counted nor measured into the RMS, and the view says how many; shown
+    again it counts, with nothing else to do (it was rooted all along)."""
+    bow = sensor_id(catalogue, "Bow sonar")
+    cuts = plot_sensors.cuts(plot(catalogue), bow)
+    wild = [c.id for c in cuts[3:6]]
+    hide(catalogue, wild)
+    _, feature = catalogue.create_tma("p", truth_request(catalogue), AGENT)
+    tag = solution_of(catalogue, feature).properties.tma
+    assert set(wild) <= set(tag.cut_ids)  # rooted
+    assert "3 cuts hidden on the map are left out of the residuals until shown again" in (
+        last_record(catalogue).notes
+    )
+    report = catalogue.tma_residuals("p", feature)
+    assert report["hidden"] == 3
+    assert report["counted"] == len(tag.cut_ids) - 3
+    rows = {r["id"]: r for r in report["rows"]}
+    assert all(rows[i]["hidden"] for i in wild)
+    hide(catalogue, wild, False)
+    shown = catalogue.tma_residuals("p", feature)
+    assert "hidden" not in shown and shown["counted"] == len(tag.cut_ids)
+
+
+def test_a_solution_of_hidden_cuts_alone_is_refused(catalogue: Catalogue) -> None:
+    bow = sensor_id(catalogue, "Bow sonar")
+    period = [
+        c
+        for c in plot_sensors.cuts(plot(catalogue), bow)
+        if parse_utc(c.properties.time) <= T0 + 5 * MINUTE
+    ]
+    hide(catalogue, [c.id for c in period])
+    with pytest.raises(CatalogueError, match="are all hidden on the map, so none would count"):
+        catalogue.create_tma(
+            "p", truth_request(catalogue, period={"start": at(0), "end": at(5)}), AGENT
+        )
+
+
+def test_an_unresolved_ambiguous_cut_gives_its_other_bearings_residual_not_counted(
+    catalogue: Catalogue,
+) -> None:
+    towed_id = sensor_id(catalogue, "Towed array")
+    _, feature = catalogue.create_tma("p", truth_request(catalogue, sensor_ids=[towed_id]), AGENT)
+    report = catalogue.tma_residuals("p", feature)
+    row = next(r for r in report["rows"] if r.get("nearer_side"))
+    other = row["ambiguous_bearing"] if row["used"] == "bearing" else row["bearing"]
+    assert row["other_residual"] == pytest.approx(tma.kernel.wrap(other - row["calculated"]))
+    assert abs(row["other_residual"]) >= abs(row["residual"])
+    counted = [r["residual"] for r in report["rows"] if "residual" in r and not r.get("excluded")]
+    assert report["rms"] == pytest.approx(math.sqrt(sum(v * v for v in counted) / len(counted)))
+
+
+def test_leaving_out_a_second_cut_keeps_the_first_left_out(catalogue: Catalogue) -> None:
+    _, feature = catalogue.create_tma("p", truth_request(catalogue), AGENT)
+    rooted = solution_of(catalogue, feature).properties.tma.cut_ids
+    catalogue.tma_exclude("p", feature, [rooted[7]], True, AGENT)
+    catalogue.tma_exclude("p", feature, [rooted[2]], True, AGENT)
+    assert solution_of(catalogue, feature).properties.tma.excluded_cut_ids == [rooted[2], rooted[7]]
+    catalogue.tma_exclude("p", feature, [rooted[2]], False, AGENT)
+    assert solution_of(catalogue, feature).properties.tma.excluded_cut_ids == [rooted[7]]
