@@ -1,0 +1,41 @@
+{
+ "shots": [
+  {
+   "source": "blog/posts/2026-10-27-tma-walkthrough.md",
+   "url": "blog/2026/10/27/tma-walkthrough/",
+   "title": "A walkthrough for bearings and TMA",
+   "file": "blog-posts-2026-10-27-tma-walkthrough.png"
+  },
+  {
+   "source": "guides/interaction-models/index.md",
+   "url": "guides/interaction-models/",
+   "title": "Interaction models",
+   "file": "guides-interaction-models-index.png"
+  },
+  {
+   "source": "guides/interaction-models/tma.md",
+   "url": "guides/interaction-models/tma/",
+   "title": "TMA solutions",
+   "file": "guides-interaction-models-tma.png"
+  },
+  {
+   "source": "guides/interaction-models/walkthroughs.md",
+   "url": "guides/interaction-models/walkthroughs/",
+   "title": "Walkthroughs",
+   "file": "guides-interaction-models-walkthroughs.png"
+  },
+  {
+   "source": "guides/sample-data.md",
+   "url": "guides/sample-data/",
+   "title": "Sample data",
+   "file": "guides-sample-data.png"
+  },
+  {
+   "source": "index.md",
+   "url": "",
+   "title": "Debrief v4",
+   "file": "index.png"
+  }
+ ],
+ "more": 1
+}
