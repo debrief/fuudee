@@ -91,7 +91,8 @@ html:has(.tma-root), html:has(.tma-root) body { height: 100%; margin: 0; }
 .tma-narrow .tma-c-in { display: none; }
 .tma-columns { padding: 0 4px; color: var(--vscode-descriptionForeground); font-size: 11px; }
 .tma-columns .tma-c-res { display: none; }
-.tma-columns.tma-with-residual .tma-c-res { display: block; text-align: right; }
+/* Right-aligned and allowed to overflow: as a flex end, a heading wider than its column (a wide font in a narrow view) spills left over the bearing column, never past the list. */
+.tma-columns.tma-with-residual .tma-c-res { display: flex; justify-content: flex-end; }
 .tma-list { position: relative; flex: 1 1 140px; min-height: 140px; overflow-y: auto; overflow-x: hidden; border: 1px solid var(--vscode-widget-border, var(--vscode-panel-border, transparent)); }
 .tma-list:focus-visible { outline: 1px solid var(--vscode-focusBorder); outline-offset: -1px; }
 .tma-spacer { width: 1px; }

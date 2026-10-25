@@ -14,7 +14,7 @@
  * its cuts or its track lists its cuts. Never saved, never a step.
  */
 import * as vscode from "vscode";
-import type { TimeState, TmaCut, TmaRequest, TmaResiduals, TmaView } from "@debrief/schemas";
+import type { TimeState, TmaCut, TmaFocus, TmaRequest, TmaResiduals, TmaView } from "@debrief/schemas";
 import { checkMessage } from "../messages.js";
 import type { Session } from "../session.js";
 import { startup } from "../startup.js";
@@ -48,6 +48,8 @@ export class BearingsView implements vscode.WebviewViewProvider {
   private sensorId?: string;
   private solutionId?: string;
   private asking = 0;
+  /** What the view is to choose when next shown, as a command asked (choose). */
+  private focus?: TmaFocus;
   /** What the view was last sent, for tests and agents. */
   last?: TmaView;
 
@@ -154,11 +156,15 @@ export class BearingsView implements vscode.WebviewViewProvider {
     }
   }
 
-  /** Show a sensor's cuts or a solution's residuals, as the analyst chose in the view (or a command). */
-  async choose(featureId: string): Promise<void> {
+  /**
+   * Show a sensor's cuts or a solution's residuals, as the analyst chose in the view (or a
+   * command); with focus, something chosen there once (a walkthrough's step).
+   */
+  async choose(featureId: string, focus?: TmaFocus): Promise<void> {
     const plot = this.session.current?.plot;
     const feature = plot?.features.find((f) => f.id === featureId);
     if (!feature) return;
+    this.focus = focus;
     if (feature.properties.kind === "sensor") {
       this.sensorId = featureId;
       this.solutionId = undefined;
@@ -204,7 +210,11 @@ export class BearingsView implements vscode.WebviewViewProvider {
       this.log(`bearings_failed message_length=${(error as Error).message.length}`);
     }
     if (asked !== this.asking) return; // asked again meanwhile
+    // Something a command asked to be chosen, once.
+    const focus = this.focus;
+    this.focus = undefined;
     const view: TmaView = {
+      ...(focus && { focus }),
       plot_id: opened.item.id,
       ...(opened.revision && { read_only: true }),
       sensors,

@@ -2175,7 +2175,8 @@ class TmaSolution(ConfiguredBaseModel):
                        'TmaRequest',
                        'TrackEdit',
                        'AmbiguityResolution',
-                       'TmaSolutionRow']} })
+                       'TmaSolutionRow',
+                       'TmaFocus']} })
     leg_starts: Optional[list[str]] = Field(default=None, description="""When each leg after the first starts, in time order: the solution split into legs (product owner, 24 Oct 2026). A fix exactly at a time starts the later leg, as a split does. Left out, one leg.""", json_schema_extra = { "linkml_meta": {'domain_of': ['TmaSolution', 'TmaSolutionRow']} })
     excluded_cut_ids: Optional[list[str]] = Field(default=None, description="""Rooted cuts the analyst left out of the RMS error, such as wild bearings (product owner, 24 Oct 2026): still listed and drawn in the bearing view, not counted. Each change is one step.""", json_schema_extra = { "linkml_meta": {'domain_of': ['TmaSolution']} })
 
@@ -2204,7 +2205,8 @@ class TmaRequest(ConfiguredBaseModel):
                        'TmaRequest',
                        'TrackEdit',
                        'AmbiguityResolution',
-                       'TmaSolutionRow']} })
+                       'TmaSolutionRow',
+                       'TmaFocus']} })
     cut_ids: Optional[list[str]] = Field(default=None, description="""Or the cuts to root it in, by feature id.""", json_schema_extra = { "linkml_meta": {'domain_of': ['TmaSolution',
                        'TmaRequest',
                        'AmbiguityResolution',
@@ -2557,7 +2559,8 @@ class TrackEdit(ConfiguredBaseModel):
                        'TmaRequest',
                        'TrackEdit',
                        'AmbiguityResolution',
-                       'TmaSolutionRow']} })
+                       'TmaSolutionRow',
+                       'TmaFocus']} })
     distance: Optional[Length] = Field(default=None, description="""How far a move takes each fix, a shear drags the end that is not held, or a single fix is moved.""", json_schema_extra = { "linkml_meta": {'domain_of': ['TrackEdit']} })
     bearing: Optional[Angle] = Field(default=None, description="""Which way a move takes each fix, a shear drags the end that is not held, or a single fix is moved, true, clockwise from north.""", json_schema_extra = { "linkml_meta": {'domain_of': ['TrackEdit', 'SensorCutProperties', 'TmaCut']} })
     angle: Optional[Angle] = Field(default=None, description="""How far a rotation turns the fixes about the pivot; positive is clockwise.""", json_schema_extra = { "linkml_meta": {'domain_of': ['TrackEdit']} })
@@ -3355,7 +3358,8 @@ class AmbiguityResolution(ConfiguredBaseModel):
                        'TmaRequest',
                        'TrackEdit',
                        'AmbiguityResolution',
-                       'TmaSolutionRow']} })
+                       'TmaSolutionRow',
+                       'TmaFocus']} })
 
 
 class SensorObservationsFeature(ConfiguredBaseModel):
@@ -6428,7 +6432,8 @@ class TmaSolutionRow(ConfiguredBaseModel):
                        'TmaRequest',
                        'TrackEdit',
                        'AmbiguityResolution',
-                       'TmaSolutionRow']} })
+                       'TmaSolutionRow',
+                       'TmaFocus']} })
     times: Optional[list[str]] = Field(default=None, description="""Its fixes' times, for the view to place it as a drag moves it.""", json_schema_extra = { "linkml_meta": {'domain_of': ['TrackProperties', 'TmaSolutionRow', 'TmaOwnship']} })
     leg_starts: Optional[list[str]] = Field(default=None, json_schema_extra = { "linkml_meta": {'domain_of': ['TmaSolution', 'TmaSolutionRow']} })
     cuts: int = Field(default=..., description="""How many cuts it is rooted in.""", json_schema_extra = { "linkml_meta": {'domain_of': ['TmaSensorRow', 'TmaSolutionRow', 'TmaView']} })
@@ -6587,6 +6592,37 @@ class TmaView(ConfiguredBaseModel):
     coverage: Optional[list[TmaCut]] = Field(default=None, description="""With a solution shown, every cut of its sensors shown on the map, in time order, rooted or not: the Bearing pane plots each measured bearing over the sensors' whole coverage, the calculated bearings and errors only where the solution is (product owner, 25 Oct 2026). Cuts hidden on the map are left out.""", json_schema_extra = { "linkml_meta": {'domain_of': ['TmaView', 'WebviewMessage']} })
     ownship: Optional[list[TmaOwnship]] = Field(default=None, description="""The tracks carrying the solution's sensors, with their courses, for the Course/Speed pane.""", json_schema_extra = { "linkml_meta": {'domain_of': ['TmaView']} })
     error_cut_off: Optional[float] = Field(default=None, description="""The analyst's error cut-off, degrees, from their Debrief configuration (tma_error_cut_off; 3 by default): the Error pane is green while every residual counted is within it, pink otherwise.""", json_schema_extra = { "linkml_meta": {'domain_of': ['TmaView', 'WebviewMessage']} })
+    focus: Optional[TmaFocus] = Field(default=None, description="""Something to choose in the view once, as a command or a walkthrough's step asks (CAP-25): a cut, a period and its first guess, or the cut with the largest residual. Not kept: the view shows it and the analyst carries on from there.""", json_schema_extra = { "linkml_meta": {'domain_of': ['TmaView']} })
+
+
+class TmaFocus(ConfiguredBaseModel):
+    """
+    What the bearing view chooses for the analyst, once (show_tma's focus): the cut at or nearest cut_time, current time moved to it; or the cuts in period as the period, the first guess's form opened if make; or, with a solution shown, the counted cut with the largest residual (largest), current time moved to it. The list then has the keyboard (the form, if opened).
+    """
+    linkml_meta: ClassVar[LinkMLMeta] = LinkMLMeta({'from_schema': 'https://debrief.info/schemas/debrief'})
+
+    cut_time: Optional[str] = Field(default=None, description="""Choose the cut at or nearest this time.""", json_schema_extra = { "linkml_meta": {'domain_of': ['TmaFocus']} })
+    period: Optional[TimeRange] = Field(default=None, description="""Choose the cuts in this period, ends included, as the period.""", json_schema_extra = { "linkml_meta": {'domain_of': ['TmaSolution',
+                       'TmaRequest',
+                       'TrackEdit',
+                       'AmbiguityResolution',
+                       'TmaSolutionRow',
+                       'TmaFocus']} })
+    make: Optional[bool] = Field(default=None, description="""With period, open the first guess's form (Make solution…).""", json_schema_extra = { "linkml_meta": {'domain_of': ['TmaFocus']} })
+    largest: Optional[bool] = Field(default=None, description="""Choose the cut counted in the RMS with the largest residual.""", json_schema_extra = { "linkml_meta": {'domain_of': ['TmaFocus']} })
+
+    @field_validator('cut_time')
+    def pattern_cut_time(cls, v):
+        pattern=re.compile(r"^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}Z$")
+        if isinstance(v, list):
+            for element in v:
+                if isinstance(element, str) and not pattern.search(element):
+                    err_msg = f"Invalid cut_time format: {element}"
+                    raise ValueError(err_msg)
+        elif isinstance(v, str) and not pattern.search(v):
+            err_msg = f"Invalid cut_time format: {v}"
+            raise ValueError(err_msg)
+        return v
 
 
 class TimelineEntry(ConfiguredBaseModel):
@@ -7140,6 +7176,7 @@ TmaResiduals.model_rebuild()
 TmaSolutionRow.model_rebuild()
 TmaOwnship.model_rebuild()
 TmaView.model_rebuild()
+TmaFocus.model_rebuild()
 TimelineEntry.model_rebuild()
 WebviewMessage.model_rebuild()
 PlotHistory.model_rebuild()

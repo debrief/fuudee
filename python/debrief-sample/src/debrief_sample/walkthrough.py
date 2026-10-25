@@ -9,8 +9,10 @@ supporting files are copied with it, so it is complete on its own.
 What a walkthrough needs beyond the copy is made here too, so VS Code and the
 playground get the same: for *Tidy a track*, three GPS glitches in RED ONE as a
 step of their own; for *Import and collate*, BLUE ONE's navigation log as a REP
-file to import. The playground runs this module under Pyodide, so it imports
-nothing it need not (the package's builder is not imported).
+file to import; for *Bearings and TMA*, one wild bearing in the towed array's cuts,
+as a step of its own (the sample's bearings have none: their errors are 2° or so).
+The playground runs this module under Pyodide, so it imports nothing it need not
+(the package's builder is not imported).
 """
 
 from __future__ import annotations
@@ -19,7 +21,7 @@ import time
 from pathlib import Path
 
 from debrief_kernel.geodesy import Position, TrackPath, destination, range_bearing
-from debrief_kernel.time import format_utc
+from debrief_kernel.time import format_utc, parse_utc
 from debrief_kernel.units import Quantity
 from debrief_schemas import models
 from debrief_schemas.island import plot_feature
@@ -31,11 +33,27 @@ TOURS: dict[str, str] = {
     "collate": "Import and collate",
     "tidy": "Tidy a track",
     "annotate": "Annotate and export a figure",
+    "tma": "Bearings and TMA",
 }
 #: The serial every walkthrough copies.
 PLOT = "serial-1"
 #: The navigation log Import and collate brings in, beside the catalogue.
 LOG_FILE = "blue-one-nav-log.rep"
+#: Bearings and TMA's wild bearing: the towed array's cut at this time of day, both its
+#: bearings turned this far (degrees), so it lies well off its neighbours whichever side is kept.
+WILD_SENSOR = "Towed array"
+WILD_AT = "11:12:00"
+WILD_TURN = -40.0
+#: What Bearings and TMA's steps ask, as walkthroughs/tours.json says it (held to it by the
+#: tests): the towed array's cut whose side is kept first, the period the solution is rooted in,
+#: the shear that fits it about its start, the cut it is split into legs at, and the shear of its
+#: first leg. Checked against the sample in tests, so a step never promises a fit it cannot give.
+TMA_SENSOR = "sensor-blue-one-towed-array"
+TMA_FIRST_CUT = "09:46:00"
+TMA_PERIOD = ("09:46:00", "12:00:00")
+TMA_SHEAR = (215.0, 3.0)
+TMA_SPLIT = "10:38:00"
+TMA_LEG_SHEAR = (285.0, 4.0)
 #: Who makes the copies and the glitches, as provenance names it.
 WALKTHROUGH = models.AgentRef(kind="software_agent", name="Debrief walkthrough")
 
@@ -120,6 +138,8 @@ def copy_for_tour(
                 if f.properties.kind == "track" and f.properties.name == "RED ONE"
             )
             put_glitches(target, item_id, red.id, agent, reason="for the walkthrough")
+        if tour == "tma":
+            put_wild_bearing(target, item_id, agent)
     except BaseException:
         target.discard_plot(item_id)
         raise
@@ -174,6 +194,143 @@ def put_glitches(
         ],
     )
     catalogue.commit(item, [record], Changes(modified=[glitched]))
+
+
+def wild_cut(plot: models.DebriefFeatureCollection) -> models.SensorCutFeature:
+    """The towed array's cut Bearings and TMA makes wild: the one at WILD_AT, or the
+    nearest to it on the serial's day."""
+    by_id = {f.id: f for f in plot.features}
+    cuts = [
+        f
+        for f in plot.features
+        if f.properties.kind == "sensor_cut"
+        and getattr(by_id.get(f.properties.sensor_id), "properties", None) is not None
+        and by_id[f.properties.sensor_id].properties.name == WILD_SENSOR
+    ]
+    if not cuts:
+        raise ValueError(f"The plot has no {WILD_SENSOR} cuts to make a wild bearing of.")
+    day = cuts[0].properties.time[:10]
+    wanted = parse_utc(f"{day}T{WILD_AT}.000Z")
+    return min(cuts, key=lambda c: abs(parse_utc(c.properties.time) - wanted))
+
+
+def _turned(angle: models.Angle | None) -> models.Angle | None:
+    if angle is None:
+        return None
+    return models.Angle(value=round((angle.value + WILD_TURN) % 360.0, 2), unit="deg")
+
+
+def put_wild_bearing(catalogue: Catalogue, item: str, agent: models.AgentRef) -> str:
+    """Make one of the towed array's cuts a wild bearing, as a sonar sometimes gives: both its
+    bearings turned 40° (WILD_TURN), so it lies well off its neighbours whichever side is
+    kept. Recorded as a step of its own, by the agent given, so it is never mistaken for real
+    data and Undo takes it out. Returns the cut's id."""
+    cut = wild_cut(catalogue.read_plot(item))
+    props = cut.properties
+    wild = cut.model_copy(
+        update={
+            "properties": props.model_copy(
+                update={
+                    "bearing": _turned(props.bearing),
+                    "ambiguous_bearing": _turned(props.ambiguous_bearing),
+                }
+            )
+        }
+    )
+    at = _now()
+    when = props.time[11:19] + "Z"
+    record = models.ProvRecord(
+        id=f"edit-wild-bearing-{at}",
+        kind="edit",
+        started_at=at,
+        agent=agent,
+        notes=[
+            f"A wild bearing put into {WILD_SENSOR} cut at {when}",
+            f"Its bearings turned {abs(WILD_TURN):g}° off, for the walkthrough to leave out",
+        ],
+    )
+    catalogue.commit(item, [record], Changes(modified=[wild]))
+    return cut.id
+
+
+def _cut_at(plot: models.DebriefFeatureCollection, sensor_id: str, clock: str):
+    cuts = [
+        f
+        for f in plot.features
+        if f.properties.kind == "sensor_cut" and f.properties.sensor_id == sensor_id
+    ]
+    return next((c for c in cuts if c.properties.time[11:19] == clock), None)
+
+
+def play_tma(
+    catalogue: Catalogue, item: str, *, agent: models.AgentRef = WALKTHROUGH
+) -> dict[str, dict]:
+    """Bearings and TMA's steps on its copy, done as the walkthrough asks them: the towed
+    array's first cut resolved to the side the Bow sonar agrees with, a solution made by
+    Debrief's first guess, sheared about its start, the wild bearing left out, split into
+    legs and its first leg sheared. For the pictures and the tests, so that what the steps
+    promise is what the sample gives. Returns each stage's solution (its fixes) and residuals."""
+    from debrief_stac import tma
+
+    plot = catalogue.read_plot(item)
+    first = _cut_at(plot, TMA_SENSOR, TMA_FIRST_CUT)
+    bow = _cut_at(plot, "sensor-blue-one-bow-sonar", TMA_FIRST_CUT)
+    if first is None or bow is None or first.properties.ambiguous_bearing is None:
+        raise ValueError(
+            f"The towed array has no ambiguous cut at {TMA_FIRST_CUT}Z beside the Bow sonar's."
+        )
+
+    def off(angle: models.Angle) -> float:
+        return abs((angle.value - bow.properties.bearing.value + 180.0) % 360.0 - 180.0)
+
+    props = first.properties
+    keep = "bearing" if off(props.bearing) <= off(props.ambiguous_bearing) else "ambiguous_bearing"
+    catalogue.resolve_ambiguity(item, {"keep": keep, "cut_ids": [first.id]}, agent)
+    day = props.time[:10]
+
+    def at(clock: str) -> str:
+        return f"{day}T{clock}.000Z"
+
+    period = {"start": at(TMA_PERIOD[0]), "end": at(TMA_PERIOD[1])}
+    _, solution = catalogue.create_tma(item, {"sensor_ids": [TMA_SENSOR], "period": period}, agent)
+    stages: dict[str, dict] = {}
+
+    def stage(name: str) -> None:
+        now = catalogue.read_plot(item)
+        track = next(f for f in now.features if f.id == solution)
+        stages[name] = {
+            "solution": solution,
+            "kept": keep,
+            "first_cut": first.id,
+            "times": list(track.properties.times),
+            "leg_starts": list(track.properties.tma.leg_starts or []),
+            "coordinates": [list(p[:2]) for p in track.geometry.coordinates],
+            "residuals": tma.residual_report(now, solution),
+        }
+
+    def shear(course_speed: tuple[float, float], extent: dict | None = None) -> None:
+        course, speed = course_speed
+        edit = {
+            "action": "shear",
+            "anchor": "start",
+            "course": {"value": course, "unit": "deg"},
+            "speed": {"value": speed, "unit": "[kn_i]"},
+            **({"period": extent} if extent else {}),
+        }
+        catalogue.edit_track(item, solution, edit, agent)
+
+    stage("first")
+    shear(TMA_SHEAR)
+    stage("drag")
+    wild = wild_cut(catalogue.read_plot(item))
+    catalogue.tma_exclude(item, solution, [wild.id], True, agent)
+    stage("wild")
+    catalogue.tma_split_leg(item, solution, at(TMA_SPLIT), agent)
+    stage("split")
+    before = [t for t in stages["split"]["times"] if t < at(TMA_SPLIT)]
+    shear(TMA_LEG_SHEAR, {"start": before[0], "end": before[-1]})
+    stage("legs")
+    return stages
 
 
 # --- A navigation log, as new data arrives (CAP-10) ---------------------------------------

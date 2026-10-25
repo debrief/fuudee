@@ -1,5 +1,8 @@
 """The walkthroughs' pictures (CAP-25), drawn from the sample's serial 1.
 
+Bearings and TMA's are drawn from its steps played on a copy (walkthrough.play_tma): the
+towed array's cuts, the solution at each step and its residuals, as the sample gives them.
+
 One SVG a step, shown beside it on VS Code's Get Started page and in the playground's
 Walkthroughs panel. Each is the serial's tracks, where the sample has them, with what the
 step is about drawn over them. Interface colours are VS Code theme variables, so a picture
@@ -23,9 +26,13 @@ from debrief_kernel.time import format_utc, parse_utc
 from debrief_sample.walkthrough import (
     LOG_TAIL_MS,
     PLOT,
+    TMA_PERIOD,
+    TMA_SENSOR,
+    copy_for_tour,
     glitch_indices,
     glitched_positions,
     log_period,
+    play_tma,
 )
 from debrief_stac import Catalogue
 
@@ -126,8 +133,8 @@ def _panel(x: float, y: float, w: float, h: float) -> str:
     return _el("rect", x=x, y=y, width=w, height=h, rx=3, fill=PANEL, stroke=BORDER)
 
 
-def draw(tracks: dict[str, dict], narrative: list[dict]) -> dict[str, str]:
-    """Every walkthrough picture, by file name."""
+def draw(tracks: dict[str, dict], narrative: list[dict], tma: dict | None = None) -> dict[str, str]:
+    """Every walkthrough picture, by file name; Bearings and TMA's with tma (tma_material)."""
     m = Map(tracks)
     blue, red = tracks["BLUE ONE"], tracks["RED ONE"]
     start, end = blue["path"].start_ms, blue["path"].end_ms
@@ -467,17 +474,281 @@ def draw(tracks: dict[str, dict], narrative: list[dict]) -> dict[str, str]:
         return parts
 
     pictures["annotate-trace.svg"] = trace
+    if tma is not None:
+        pictures.update(_tma_pictures(m, tma))
     return {name: _svg(make()) for name, make in sorted(pictures.items())}
+
+
+TOWED = "#8a3ffc"  # the sample's towed array: a data colour
+BOW = "#009d9a"  # the sample's Bow sonar: a data colour
+SOLUTION = "#e8710a"  # a TMA solution's colour (debrief_stac.tma.TMA_COLOUR)
+#: How long a cut's line is drawn in the pictures: schematic, long enough to read its direction.
+CUT_NMI = 2.2
+
+
+def _line_end(origin: list[float], bearing: float, nmi: float = CUT_NMI) -> tuple[float, float]:
+    from debrief_kernel.geodesy import destination
+    from debrief_kernel.units import Quantity
+
+    end = destination(
+        Position(origin[0], origin[1]), Quantity(bearing, "deg"), Quantity(nmi * 1852, "m")
+    )
+    return end.longitude, end.latitude
+
+
+def _cut_lines(m: Map, cut: dict, *, kept_only: bool = False, faint: bool = False) -> list[str]:
+    """A cut as the map draws it: its port line solid, its starboard line darker and dashed;
+    once resolved, the kept line alone."""
+    x0, y0 = m.xy(*cut["origin"])
+    parts = []
+    bearings = [("bearing", cut["bearing"])]
+    if cut.get("ambiguous_bearing") is not None:
+        bearings.append(("ambiguous_bearing", cut["ambiguous_bearing"]))
+    for which, bearing in bearings:
+        if kept_only and cut.get("resolved") and cut["resolved"] != which:
+            continue
+        x1, y1 = m.xy(*_line_end(cut["origin"], bearing))
+        side = cut.get("side") if which == "bearing" else _other(cut.get("side"))
+        dashed = side == "starboard" and not (kept_only and cut.get("resolved"))
+        parts.append(
+            _el(
+                "line",
+                x1=x0,
+                y1=y0,
+                x2=x1,
+                y2=y1,
+                stroke=TOWED,
+                stroke_width=1,
+                opacity=0.35 if faint else (0.6 if dashed else 0.85),
+                **({"stroke_dasharray": "3 2"} if dashed else {}),
+            )
+        )
+    return parts
+
+
+def _other(side: str | None) -> str | None:
+    return {"port": "starboard", "starboard": "port"}.get(side or "")
+
+
+def _residual_panel(stage: dict, x: float, y: float, w: float, h: float, label: str) -> list[str]:
+    """Bearings' residuals, after legacy's Stacked Dots: each cut's residual over time, against
+    zero; one left out a dotted ring; legs' starts dashed; the RMS beneath."""
+    report = stage["residuals"]
+    rows = [r for r in report["rows"] if r.get("residual") is not None]
+    times = [parse_utc(r["time"]) for r in rows]
+    t0, t1 = min(times), max(times)
+    limit = max(30.0, max(abs(r["residual"]) for r in rows))
+    left, top, plot_w, plot_h = x + 8, y + 20, w - 16, h - 44
+
+    def px(ms: int) -> float:
+        return round(left + plot_w * (ms - t0) / max(1, t1 - t0), 1)
+
+    def py(residual: float) -> float:
+        return round(top + plot_h / 2 - residual / limit * plot_h / 2, 1)
+
+    parts = [
+        _panel(x, y, w, h),
+        _text(x + 8, y + 14, "Residuals", 10, FG, font_weight="bold"),
+        _el("line", x1=left, y1=py(0), x2=left + plot_w, y2=py(0), stroke=MUTED, stroke_width=0.5),
+    ]
+    for start in stage.get("leg_starts", []):
+        sx = px(parse_utc(start))
+        parts.append(
+            _el("line", x1=sx, y1=top, x2=sx, y2=top + plot_h, stroke=MUTED, stroke_dasharray="3 2")
+        )
+    for r, ms in zip(rows, times, strict=True):
+        if r.get("excluded"):
+            parts.append(
+                _el(
+                    "circle",
+                    cx=px(ms),
+                    cy=py(r["residual"]),
+                    r=3.5,
+                    fill="none",
+                    stroke=WARN,
+                    stroke_width=1.2,
+                    stroke_dasharray="1.5 1.5",
+                )
+            )
+        else:
+            parts.append(_el("circle", cx=px(ms), cy=py(r["residual"]), r=1.6, fill=TOWED))
+    rms = report.get("rms")
+    said = f"{label}: RMS {rms:.1f}° over {report['counted']} cuts" if rms is not None else label
+    parts.append(_text(x + 8, y + h - 8, said, 9, FG))
+    return parts
+
+
+def _tma_pictures(m: Map, tma: dict) -> dict[str, Callable[[], list[str]]]:
+    """Bearings and TMA's pictures: the towed array's cuts, the cut kept beside the Bow sonar's,
+    and the solution at each step with its residuals, as the walkthrough's steps leave them."""
+    cuts, stages, bow = tma["cuts"], tma["stages"], tma["bow"]
+    first = next(c for c in cuts if c["id"] == stages["first"]["first_cut"])
+    shown = cuts[::3]
+    pictures: dict[str, Callable[[], list[str]]] = {}
+
+    def solution(stage: dict, *, legs: bool = False) -> list[str]:
+        coords = stage["coordinates"]
+        if not legs:
+            return [m.path(coords, stroke=SOLUTION, stroke_width=2)]
+        split = next(i for i, t in enumerate(stage["times"]) if t >= stage["leg_starts"][0])
+        return [
+            m.path(coords[:split], stroke=SOLUTION, stroke_width=2.5),
+            m.path(
+                coords[split - 1 : split + 1],
+                stroke=SOLUTION,
+                stroke_width=1,
+                stroke_dasharray="2 2",
+            ),
+            m.path(coords[split:], stroke=SOLUTION, stroke_width=2, opacity=0.6),
+        ]
+
+    def diamond(x: float, y: float) -> str:
+        points = " ".join(f"{x + dx},{y + dy}" for dx, dy in ((0, -6), (6, 0), (0, 6), (-6, 0)))
+        return _el("polygon", points=points, fill=FOCUS, stroke=FG, stroke_width=0.5)
+
+    def opened() -> list[str]:
+        parts = _background(m, dim=True)
+        for cut in shown:
+            parts += _cut_lines(m, cut)
+        parts += [_panel(W - 182, 10, 172, 40)]
+        parts.append(_text(W - 174, 26, "Towed array: two bearings", 10, TOWED, font_weight="bold"))
+        parts.append(_text(W - 174, 41, "port solid, starboard dashed", 9, MUTED))
+        return parts
+
+    pictures["tma-open.svg"] = opened
+
+    def resolve() -> list[str]:
+        parts = _background(m, dim=True)
+        kept = first["bearing"] if first["resolved"] == "bearing" else first["ambiguous_bearing"]
+        other = first["ambiguous_bearing"] if first["resolved"] == "bearing" else first["bearing"]
+        for origin, bearing, attrs in (
+            (
+                first["origin"],
+                other,
+                {"stroke": TOWED, "opacity": 0.4, "stroke_width": 2, "stroke_dasharray": "3 2"},
+            ),
+            (first["origin"], kept, {"stroke": TOWED, "opacity": 0.7, "stroke_width": 5}),
+            (bow["origin"], bow["bearing"], {"stroke": BOW, "opacity": 1, "stroke_width": 1.5}),
+        ):
+            x0, y0 = m.xy(*origin)
+            x1, y1 = m.xy(*_line_end(origin, bearing, 6.0))
+            parts.append(_el("line", x1=x0, y1=y0, x2=x1, y2=y1, **attrs))
+        x0, y0 = m.xy(*first["origin"])
+        parts.append(_el("circle", cx=x0, cy=y0, r=3, fill=FG))
+        side = first["side"] if first["resolved"] == "bearing" else _other(first["side"])
+        parts += [_panel(W - 182, 10, 172, 58)]
+        parts.append(_text(W - 174, 27, f"{first['time'][11:16]}Z", 10, MUTED))
+        parts.append(
+            _text(W - 174, 43, f"Bow sonar {bow['bearing']:.0f}°", 10, BOW, font_weight="bold")
+        )
+        parts.append(_text(W - 174, 59, f"Keep {kept:.1f}° ({side})", 10, FG, font_weight="bold"))
+        return parts
+
+    pictures["tma-resolve.svg"] = resolve
+
+    def with_residuals(
+        stage: dict, label: str, extra: list[str] | None = None, legs: bool = False
+    ) -> list[str]:
+        parts = _background(m, dim=True)
+        for cut in shown:
+            parts += _cut_lines(m, cut, faint=True)
+        parts += solution(stage, legs=legs)
+        parts += extra or []
+        parts += _residual_panel(stage, W - 222, H - 112, 212, 102, label)
+        return parts
+
+    pictures["tma-make.svg"] = lambda: with_residuals(stages["first"], "First guess")
+
+    def drag() -> list[str]:
+        end = m.xy(*stages["drag"]["coordinates"][-1])
+        start = m.xy(*stages["drag"]["coordinates"][0])
+        extra = [
+            m.path(
+                stages["first"]["coordinates"],
+                stroke=SOLUTION,
+                stroke_width=1,
+                stroke_dasharray="4 3",
+                opacity=0.6,
+            ),
+            _el("circle", cx=start[0], cy=start[1], r=4, fill="none", stroke=FG),
+            diamond(*end),
+        ]
+        return with_residuals(stages["drag"], "Sheared", extra)
+
+    pictures["tma-drag.svg"] = drag
+    pictures["tma-wild.svg"] = lambda: _residual_panel(
+        stages["wild"], 10, 10, W - 20, H - 20, "One cut left out"
+    )
+
+    def legs() -> list[str]:
+        stage = {**stages["legs"], "leg_starts": stages["legs"]["leg_starts"]}
+        split = next(i for i, t in enumerate(stage["times"]) if t >= stage["leg_starts"][0])
+        x, y = m.xy(*stage["coordinates"][split - 1])
+        extra = [
+            m.path(
+                stages["split"]["coordinates"][:split],
+                stroke=SOLUTION,
+                stroke_width=1,
+                stroke_dasharray="4 3",
+                opacity=0.6,
+            ),
+            diamond(x, y),
+        ]
+        return with_residuals(stage, "In two legs", extra, legs=True)
+
+    pictures["tma-legs.svg"] = legs
+    return pictures
 
 
 def sample_tracks() -> tuple[dict[str, dict], list[dict]]:
     """Serial 1's tracks and narrative, from a fresh build of the sample."""
+    tracks, narrative, _ = sample_material()
+    return tracks, narrative
+
+
+def tma_material(root: Path) -> dict:
+    """Bearings and TMA's steps played on a copy of serial 1 from the sample at root
+    (walkthrough.play_tma): each stage's solution and residuals, the towed array's cuts in
+    the period as listed, and the Bow sonar's cut beside the first."""
+    from debrief_stac import tma as stac_tma
+
+    with tempfile.TemporaryDirectory() as work:
+        target = Catalogue.create(Path(work) / "tma", "tma", "TMA", "Bearings and TMA's pictures")
+        item = copy_for_tour(target, root, "tma")
+        stages = play_tma(target, item)
+        plot = target.read_plot(item)
+    period = [f"{stages['first']['times'][0][:10]}T{t}.000Z" for t in TMA_PERIOD]
+
+    def listed(sensor: str) -> list[dict]:
+        chosen = sorted(
+            (
+                f
+                for f in plot.features
+                if f.properties.kind == "sensor_cut"
+                and f.properties.sensor_id == sensor
+                and period[0] <= f.properties.time <= period[1]
+            ),
+            key=lambda f: f.properties.time,
+        )
+        return [stac_tma.cut_row(i) for i in stac_tma.cut_infos(plot, chosen)]
+
+    first_time = next(
+        c["time"] for c in listed(TMA_SENSOR) if c["id"] == stages["first"]["first_cut"]
+    )
+    bow = next(c for c in listed("sensor-blue-one-bow-sonar") if c["time"] == first_time)
+    return {"cuts": listed(TMA_SENSOR), "bow": bow, "stages": stages}
+
+
+def sample_material() -> tuple[dict[str, dict], list[dict], dict]:
+    """Serial 1's tracks and narrative, and Bearings and TMA's steps played on a copy of it,
+    from a fresh build of the sample."""
     from debrief_sample.builder import build
 
     with tempfile.TemporaryDirectory() as work:
         root = Path(work) / "sample"
         build(root)
         plot = Catalogue.open(root).read_plot(PLOT)
+        tma = tma_material(root)
     tracks = {}
     for f in plot.features:
         if f.properties.kind == "track":
@@ -496,13 +767,13 @@ def sample_tracks() -> tuple[dict[str, dict], list[dict]]:
         ),
         key=lambda e: e["time"],
     )
-    return tracks, narrative
+    return tracks, narrative, tma
 
 
 def write_media(out: Path, *, check: bool = False) -> list[str]:
     """Write every picture into out; with check, write nothing and list those that differ."""
     out = Path(out)
-    pictures = draw(*sample_tracks())
+    pictures = draw(*sample_material())
     stale = [
         n
         for n, svg in pictures.items()

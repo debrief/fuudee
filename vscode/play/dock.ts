@@ -48,9 +48,9 @@ const TIME_HEIGHT = 172;
  * 2026, second round), so the map keeps more. On the left, Time as tall as it needs, the Tote a
  * quarter of the height and at least what the sample needs at 1280 px (Tools and History as tabs
  * beside it), and the rest to the Outline's group, its list and its track tools (product owner,
- * 24 Oct 2026). On the right, Bearings about two thirds of the height and the walkthroughs the rest
- * (product owner, 25 Oct 2026): at 1366 × 768 about 470 px and 245 px, so the plot reads and a
- * walkthrough's step is in sight; never less than 220 px for the walkthroughs.
+ * 24 Oct 2026). On the right, Bearings about 62% of the height and the walkthroughs the rest
+ * (product owner, 25 Oct 2026): at 1366 × 768 about 445 px and 270 px, so the plot reads and a
+ * walkthrough's step is in sight; never less than 260 px for the walkthroughs.
  */
 export function defaultSizes(width: number, height: number): { left: number; right: number; time: number; tote: number; strip: number; bearings: number } {
   const clamp = (value: number, low: number, high: number) => Math.round(Math.max(low, Math.min(high, value)));
@@ -62,7 +62,7 @@ export function defaultSizes(width: number, height: number): { left: number; rig
     time,
     tote,
     strip: clamp(height * 0.22, 110, 380),
-    bearings: clamp(height * 0.66, 240, Math.max(240, height - 220)),
+    bearings: clamp(height * 0.62, 240, Math.max(240, height - 260)),
   };
 }
 

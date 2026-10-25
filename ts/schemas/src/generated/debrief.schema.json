@@ -4551,6 +4551,47 @@
       "title": "TmaCut",
       "type": "object"
     },
+    "TmaFocus": {
+      "additionalProperties": false,
+      "description": "What the bearing view chooses for the analyst, once (show_tma's focus): the cut at or nearest cut_time, current time moved to it; or the cuts in period as the period, the first guess's form opened if make; or, with a solution shown, the counted cut with the largest residual (largest), current time moved to it. The list then has the keyboard (the form, if opened).",
+      "properties": {
+        "cut_time": {
+          "description": "Choose the cut at or nearest this time.",
+          "pattern": "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}\\.\\d{3}Z$",
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "largest": {
+          "description": "Choose the cut counted in the RMS with the largest residual.",
+          "type": [
+            "boolean",
+            "null"
+          ]
+        },
+        "make": {
+          "description": "With period, open the first guess's form (Make solution…).",
+          "type": [
+            "boolean",
+            "null"
+          ]
+        },
+        "period": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/TimeRange"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": "Choose the cuts in this period, ends included, as the period."
+        }
+      },
+      "title": "TmaFocus",
+      "type": "object"
+    },
     "TmaOwnship": {
       "additionalProperties": false,
       "description": "A track carrying the solution's sensors (ownship): its course over the period the Bearings view shows, for the Course/Speed pane (product owner, 25 Oct 2026). Its courses as logged at its fixes, thinned to at most a few thousand.",
@@ -5153,6 +5194,17 @@
             "number",
             "null"
           ]
+        },
+        "focus": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/TmaFocus"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": "Something to choose in the view once, as a command or a walkthrough's step asks (CAP-25): a cut, a period and its first guess, or the cut with the largest residual. Not kept: the view shows it and the analyst carries on from there."
         },
         "ownship": {
           "description": "The tracks carrying the solution's sensors, with their courses, for the Course/Speed pane.",

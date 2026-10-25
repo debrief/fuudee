@@ -2,6 +2,8 @@
 
 How an analyst makes a target motion analysis (TMA) solution from a period of bearing cuts, reads its bearing residuals in the Bearings view, drags it on the map with the residuals following, leaves wild cuts out of the RMS, and splits it into legs. How legacy plots' solutions come in. Decisions of the product owner, 24 Oct 2026, unless said otherwise; hidden cuts, independent legs and both bearings of an ambiguous cut, 25 Oct 2026; the Bearings view as legacy's Bearing Residuals (Stacked Dots) laid it out, and the way of fitting a leg it serves, 25 Oct 2026.
 
+A newcomer learns it from the walkthrough *Bearings and TMA* ([walkthroughs](walkthroughs.md)), on the sample's towed array: a side kept, a first guess, a drag, a wild bearing left out and a split into legs. Its buttons use **Show bearings** with something to choose (`debrief.showBearings` with a `TmaFocus`: a cut, a period and the first guess's form, or the largest residual).
+
 ## Requirements cited
 
 | SRD | Requirement |

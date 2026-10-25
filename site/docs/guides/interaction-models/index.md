@@ -23,7 +23,7 @@ Worked patterns applied the same way across hosts, tools and agents (DEV-08). Ea
 | [TMA solutions](tma.md) | Phase 4 | Written (a solution made from a period of a sensor's cuts, by form or by two clicks, one step; a track by dead reckoning tagged with its contact and rooted in its cuts; residuals after legacy's Stacked Dots, live while dragging, an ambiguous cut's other bearing faint; hidden cuts and cuts left out not counted; legs split at a time, each dragged on its own, the others staying put; legacy .dpf solutions) |
 | [Collation](collation.md) | Phase 3 | Written (coverage, platforms across items, source preference per period, new data, taking it, review flags) |
 | [Exported images](export.md) | Phase 3 | Written (the map as an image with an ID naming the plot and the revision, the footer, the export log; finding an image's source, read-only) |
-| [Walkthroughs](walkthroughs.md) | Phase 3 | Written (four walkthroughs on fresh copies of the sample, each step ticked by doing it; the same words in VS Code's Get Started page and the playground; the web demo) |
+| [Walkthroughs](walkthroughs.md) | Phase 3 | Written (five walkthroughs on fresh copies of the sample, Bearings and TMA the fifth, each step ticked by doing it; the same words in VS Code's Get Started page and the playground; the web demo) |
 | [Browser layout](browser-layout.md) | Phase 3 | Written (the playground's and the web demo's panels docked in tab groups around the map, from 900 px; the top bar; remembered per browser; the side column narrower) |
 | [Keyboard equivalents](keyboard-equivalents.md) | Phase 3 | Partly written (annotations, tracks, the Tote, the Timeline, collation, exported images, the browser's layout, sensor bearings, TMA) |
 

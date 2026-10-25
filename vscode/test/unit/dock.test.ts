@@ -108,7 +108,7 @@ describe("the default's sizes", () => {
     for (const height of [666, 714, 1030]) {
       const { bearings } = defaultSizes(1366, height);
       expect(bearings / height).toBeGreaterThan(0.55);
-      expect(height - bearings).toBeGreaterThanOrEqual(220);
+      expect(height - bearings).toBeGreaterThanOrEqual(260);
     }
   });
 });

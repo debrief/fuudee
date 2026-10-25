@@ -1,6 +1,6 @@
 /**
  * Walkthroughs on VS Code's Get Started page (CAP-25), in real VS Code with the real tool
- * service: the four are contributed, each step with its picture and a completion event on a
+ * service: the five are contributed, each step with its picture and a completion event on a
  * context key of its own; each opens a fresh copy of the sample in a catalogue of its own and
  * never touches any other; and each step's event is said when, and only when, the analyst
  * has done what it asks, by the same commands the steps' buttons and an agent use.
@@ -56,7 +56,7 @@ export async function firstRunWalkthrough(api: DebriefApi, { waitFor, screenshot
 export async function playWalkthroughs(api: DebriefApi, others: { id: string; location: string }, { waitFor, screenshot, sleep }: Helpers): Promise<void> {
   const extension = vscode.extensions.getExtension<DebriefApi>("debrief.debrief")!;
   const contributed = extension.packageJSON.contributes.walkthroughs as { id: string; title: string; steps: Step[] }[];
-  assert.deepEqual(contributed.map((w) => w.title), ["Open and explore a serial", "Import and collate", "Tidy a track", "Annotate and export a figure"]);
+  assert.deepEqual(contributed.map((w) => w.title), ["Open and explore a serial", "Import and collate", "Tidy a track", "Annotate and export a figure", "Bearings and TMA"]);
   // The suite before this did much of what the steps ask: start as a newcomer would.
   api.forgetWalkthroughs!();
   const events: string[] = [];
@@ -70,7 +70,7 @@ export async function playWalkthroughs(api: DebriefApi, others: { id: string; lo
       events.push(event);
     }
   }
-  assert.equal(new Set(events).size, 20);
+  assert.equal(new Set(events).size, 26);
   // The Get Started page's own commands the extension also ticks steps with: not VS Code's API, so checked here.
   const known = await vscode.commands.getCommands(true);
   assert.ok(known.includes("welcome.markStepComplete") && known.includes("welcome.markStepIncomplete"), "VS Code still has the commands that mark a walkthrough's step");
@@ -84,7 +84,7 @@ export async function playWalkthroughs(api: DebriefApi, others: { id: string; lo
   };
   /** As the map sends it when the analyst selects or moves time there. */
   const byHand = (message: Record<string, unknown>) => api.fromMap!(message);
-  for (const tour of ["explore", "collate", "tidy", "annotate"]) assert.ok(!seen().includes(`${tour}Opened`));
+  for (const tour of ["explore", "collate", "tidy", "annotate", "tma"]) assert.ok(!seen().includes(`${tour}Opened`));
 
   // The other catalogues, the analyst's own, are never touched by a walkthrough.
   let before = snapshot(others.location);
@@ -237,11 +237,67 @@ export async function playWalkthroughs(api: DebriefApi, others: { id: string; lo
   await waitFor("the latest", () => !api.session.current?.revision || undefined);
   assert.equal(api.session.current!.item.id, annotate.item.id);
 
+  // --- Bearings and TMA ---
+  const towed = "sensor-blue-one-towed-array";
+  const day = "2023-06-15T";
+  assert.match(String(await vscode.commands.executeCommand("debrief.walkthrough.do", "tma", "debrief.showBearings", towed)), /^Open a copy of serial 1 for Bearings and TMA first/);
+  await open("tma");
+  // Opened with Bearings listing the towed array; its wild bearing a step of its own.
+  await waitFor("Bearings listing the towed array", () => (api.bearings()?.sensor_id === towed && api.bearings()?.cuts?.length ? true : undefined), 60000);
+  assert.equal((await steps()).at(-1)?.notes?.[0], "A wild bearing put into Towed array cut at 11:12:00Z");
+  // A step that needs the solution, before there is one, does nothing and says why.
+  assert.match(String(await vscode.commands.executeCommand("debrief.walkthrough.do", "tma", "debrief.shearTrack", "$solution")), /^Make the solution first/);
+  // Each button's choice reaches the view (the view applies it: the playground's test plays that).
+  const focused = (what: string, check: (focus: Record<string, unknown>) => boolean) => waitFor(what, () => (api.bearings()?.focus && check(api.bearings()!.focus as Record<string, unknown>) ? true : undefined), 60000);
+  await vscode.commands.executeCommand("debrief.walkthrough.do", "tma", "debrief.showBearings", towed, { cut_time: `${day}09:46:00.000Z` });
+  await focused("the cut at 09:46Z chosen", (f) => f.cut_time === `${day}09:46:00.000Z`);
+  const first = (api.bearings()?.cuts ?? []).find((c) => c.time === `${day}09:46:00.000Z`)!;
+  assert.equal(first.side, "starboard", "the bearing the step names, 236.3°, is to starboard");
+  assert.equal(first.bearing.toFixed(1), "236.3");
+  await vscode.commands.executeCommand("debrief.resolveAmbiguity", { keep: "ambiguous", cut_ids: [first.id] });
+  await notSaid("sideKept", "making a cut ambiguous again keeps no side");
+  await vscode.commands.executeCommand("debrief.resolveAmbiguity", { keep: "bearing", cut_ids: [first.id] });
+  await said("sideKept");
+  const tmaPeriod = { start: `${day}09:46:00.000Z`, end: `${day}12:00:00.000Z` };
+  await vscode.commands.executeCommand("debrief.walkthrough.do", "tma", "debrief.showBearings", towed, { period: tmaPeriod, make: true });
+  await focused("the period chosen and the first guess opened", (f) => !!f.make);
+  const made = await vscode.commands.executeCommand<{ feature?: string; residuals?: { rms?: number } }>("debrief.tmaCreate", { sensor_ids: [towed], period: tmaPeriod });
+  await said("solutionMade");
+  const solution = made!.feature!;
+  assert.ok((made!.residuals?.rms ?? 0) > 50, "Debrief's first guess is far off, as the step says");
+  // A shear of another track in the copy is Tidy a track's, not this step.
+  await vscode.commands.executeCommand("debrief.shearTrack", "track-blue-one", { anchor: "start", course: { value: 200, unit: "deg" }, speed: { value: 6, unit: "[kn_i]" } });
+  await notSaid("solutionDragged", "BLUE ONE sheared is not the solution dragged");
+  await vscode.commands.executeCommand("debrief.undo");
+  await vscode.commands.executeCommand("debrief.walkthrough.do", "tma", "debrief.shearTrack", "$solution", { anchor: "start", course: { value: 215, unit: "deg" }, speed: { value: 3, unit: "[kn_i]" } });
+  await said("solutionDragged");
+  await vscode.commands.executeCommand("debrief.walkthrough.do", "tma", "debrief.showBearings", "$solution", { largest: true });
+  await focused("the largest residual chosen", (f) => !!f.largest);
+  const fitted = await waitFor("the sheared solution's residuals", () => (api.bearings()?.solution_id === solution && (api.bearings()?.residuals?.rms ?? 99) < 15 ? api.bearings()!.residuals! : undefined), 60000);
+  const wild = [...fitted.rows].filter((r) => r.residual !== undefined && r.residual !== null).sort((a, b) => Math.abs(b.residual!) - Math.abs(a.residual!))[0];
+  assert.equal(wild.time, `${day}11:12:00.000Z`, "the largest residual is the wild bearing's");
+  await vscode.commands.executeCommand("debrief.tmaExclude", solution, [wild.id], false);
+  await notSaid("cutLeftOut", "counting a cut again is not leaving it out");
+  await vscode.commands.executeCommand("debrief.tmaExclude", solution, [wild.id], true);
+  await said("cutLeftOut");
+  await vscode.commands.executeCommand("debrief.walkthrough.do", "tma", "debrief.showBearings", "$solution", { cut_time: `${day}10:38:00.000Z` });
+  await focused("the cut at 10:38Z chosen", (f) => f.cut_time === `${day}10:38:00.000Z`);
+  await vscode.commands.executeCommand("debrief.tmaSplitLeg", solution, { at: `${day}10:38:00.000Z` });
+  // The split is not the step: dragging a leg is (product owner, 25 Oct 2026). The whole solution
+  // dragged is the earlier step's; its first leg (This leg, as the map sends it, a period) is this one.
+  await notSaid("legDragged", "a split is not the step");
+  await vscode.commands.executeCommand("debrief.shearTrack", solution, { anchor: "start", course: { value: 216, unit: "deg" }, speed: { value: 3, unit: "[kn_i]" } });
+  await notSaid("legDragged", "the whole solution dragged is not a leg dragged");
+  await vscode.commands.executeCommand("debrief.walkthrough.do", "tma", "debrief.shearTrack", "$solution", { anchor: "start", period: { start: `${day}09:46:00.000Z`, end: `${day}10:32:00.000Z` }, course: { value: 285, unit: "deg" }, speed: { value: 4, unit: "[kn_i]" } });
+  await said("legDragged");
+  await sleep(1500);
+  await screenshot("53-walkthrough-tma");
+
   // Every step of every walkthrough has been ticked by doing it.
   assert.deepEqual([...seen()].sort(), [...events].sort());
   // Only the walkthroughs' own catalogues changed; the analyst's are as they were.
   assert.deepEqual(snapshot(others.location), before);
-  for (const tour of ["explore", "collate", "tidy", "annotate"]) {
+  for (const tour of ["explore", "collate", "tidy", "annotate", "tma"]) {
     const store = (await vscode.commands.executeCommand<string | undefined>("debrief.walkthrough.open", tour, { fresh: false })) ?? "";
     assert.equal(store, "");
     assert.ok(api.session.current!.store.location.includes(path.join("walkthroughs", tour)), "in the extension's own storage");
