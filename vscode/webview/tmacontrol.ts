@@ -135,7 +135,7 @@ export interface TmaControlHost {
 /** Where the view remembers which panes show: the browser's storage, or the VS Code view's state. */
 export interface TmaControlMemory {
   load(): unknown;
-  save(state: { panes: PanesShown }): void;
+  save(state: { panes: PanesShown; cuts: boolean }): void;
 }
 
 /** One row of the list, of one height whatever the font: the list scrolls by it. */
@@ -182,6 +182,8 @@ export class TmaControl {
   private colours?: ReturnType<TmaControl["readColours"]>;
   /** Which panes show: the analyst's, remembered. */
   private panes: PanesShown;
+  /** Whether the cut list is open with a solution shown: closed by default, the analyst's choice remembered (product owner, 25 Oct 2026). */
+  private cutsOpen = false;
   /** Hold scale: the Error axis stays put, widened when an error falls outside it. */
   private hold = false;
   private heldError?: Range;
@@ -236,6 +238,7 @@ export class TmaControl {
       remembered = undefined;
     }
     this.panes = readPanes((remembered as { panes?: unknown } | undefined)?.panes);
+    this.cutsOpen = (remembered as { cuts?: unknown } | undefined)?.cuts === true;
     element.classList.add("tma");
     element.setAttribute("role", "group");
     element.setAttribute("aria-label", "Bearings");
@@ -243,20 +246,28 @@ export class TmaControl {
     element.innerHTML =
       `<p class="tma-empty">Open a plot with sensor bearings to list its cuts and make a TMA solution from them.</p>` +
       `<div class="tma-head">` +
-      `<label class="tma-pick"><span>Sensor</span><select class="tma-sensor" aria-label="Sensor whose cuts are listed"></select></label>` +
-      `<label class="tma-pick"><span>Solution</span><select class="tma-solution" aria-label="TMA solution shown"></select></label>` +
+      `<label class="tma-pick tma-pick-sensor"><span>Sensor</span><select class="tma-sensor" aria-label="Sensor whose cuts are listed"></select></label>` +
+      `<label class="tma-pick tma-pick-solution"><span>Solution</span><select class="tma-solution" aria-label="TMA solution shown"></select></label>` +
       `</div>` +
       `<div class="tma-body"><div class="tma-left">` +
-      `<div class="tma-tools" role="toolbar" aria-label="The plot's panes and scale" hidden>` +
+      `<div class="tma-tools" role="toolbar" aria-label="The solution, the plot's panes and scale" hidden>` +
+      `<span class="tma-tools-solution"></span>` +
       `<span class="tma-panes" role="group" aria-label="Panes shown">${PANES.map(paneButton).join("")}</span>` +
-      `<button type="button" class="tma-hold" aria-pressed="false" title="Keep the Error axis as it is while dragging; it still widens to take in an error outside it">Hold scale</button>` +
-      `<button type="button" class="tma-reset" disabled title="Undo the zoom (double-click the plot, or press 0 in it)" aria-keyshortcuts="0">Reset zoom</button>` +
+      `<button type="button" class="tma-hold" aria-pressed="false" aria-label="Hold scale" title="Hold scale: keep the Error axis as it is while dragging; it still widens to take in an error outside it">Hold</button>` +
+      `<button type="button" class="tma-reset" disabled aria-label="Reset zoom" title="Reset zoom: undo the zoom (double-click the plot, or press 0 in it)" aria-keyshortcuts="0">Reset</button>` +
+      `<button type="button" class="tma-more-button" aria-expanded="false" aria-controls="tma-more" aria-label="More: the sensor, the cut-off and the key" title="More: the sensor, the cut-off and the key">⋯</button>` +
+      `</div>` +
+      `<div class="tma-more" id="tma-more" role="group" aria-label="More" hidden>` +
+      `<span class="tma-more-sensor"></span>` +
       `<label class="tma-cutoff" title="The Error pane is green while every error counted is within this, pink otherwise; kept with your Debrief settings"><span>Cut-off</span><input type="number" class="tma-cutoff-input" min="0.1" max="180" step="0.5" inputmode="decimal" aria-label="Error cut-off, degrees"><span aria-hidden="true">°</span></label>` +
+      `<p class="tma-key" aria-hidden="true"></p>` +
       `</div>` +
       `<div class="tma-plot" hidden><canvas class="tma-canvas" role="img" tabindex="0" aria-keyshortcuts="ArrowUp ArrowDown Enter + - [ ] 0 PageUp PageDown"></canvas><canvas class="tma-overlay" aria-hidden="true"></canvas><p class="tma-readout" aria-hidden="true"></p></div>` +
+      `<div class="tma-statusline">` +
       `<p class="tma-cue" hidden aria-live="polite"><span class="tma-cue-mark" aria-hidden="true"></span> <span class="tma-cue-text"></span></p>` +
-      `<p class="tma-key" aria-hidden="true" hidden></p>` +
       `<p class="tma-rms" hidden></p>` +
+      `</div>` +
+      `<button type="button" class="tma-cuts-toggle" aria-expanded="false" aria-controls="tma-cut-list" hidden></button>` +
       `<div class="tma-below">` +
       `<ul class="tma-notes" hidden></ul>` +
       `<div class="tma-actions" role="group" aria-label="The cut chosen">` +
@@ -271,7 +282,7 @@ export class TmaControl {
       `<div class="tma-chosen"><span class="tma-period" aria-live="polite"></span><button type="button" class="tma-make primary">Make solution…</button></div>` +
       `<form class="tma-form" hidden novalidate aria-label="First guess"></form>` +
       `<p class="tma-status" aria-live="polite"></p>` +
-      `</div></div><div class="tma-right">` +
+      `</div></div><div class="tma-right" id="tma-cut-list">` +
       `<div class="tma-columns" aria-hidden="true"><span class="tma-c-time">Time</span><span class="tma-c-brg">Bearing</span><span class="tma-c-res">Residual</span></div>` +
       `<div class="tma-list" role="listbox" tabindex="0" aria-multiselectable="true"><div class="tma-spacer"></div></div>` +
       `</div></div>`;
@@ -331,6 +342,14 @@ export class TmaControl {
     this.tools.querySelectorAll<HTMLButtonElement>(".tma-pane").forEach((button) => button.addEventListener("click", () => this.togglePane(button.dataset.pane as Pane)));
     q<HTMLButtonElement>(".tma-hold").addEventListener("click", () => this.setHold(!this.hold));
     q<HTMLButtonElement>(".tma-reset").addEventListener("click", () => this.resetZoom());
+    const more = q<HTMLButtonElement>(".tma-more-button");
+    more.addEventListener("click", () => {
+      const open = more.getAttribute("aria-expanded") !== "true";
+      more.setAttribute("aria-expanded", String(open));
+      q<HTMLElement>(".tma-more").hidden = !open;
+      if (open) this.element.querySelector<HTMLElement>(".tma-more select, .tma-more input")?.focus();
+    });
+    q<HTMLButtonElement>(".tma-cuts-toggle").addEventListener("click", () => this.setCutsOpen(!this.cutsOpen, true));
     this.cutOffInput.addEventListener("change", () => this.setCutOff(Number(this.cutOffInput.value)));
     this.buttons.prev.addEventListener("click", () => this.ambiguous(-1));
     this.buttons.next.addEventListener("click", () => this.ambiguous(1));
@@ -443,6 +462,7 @@ export class TmaControl {
       });
     }
     if (index < 0) return;
+    if (this.mode() === "solution" && !this.cutsOpen) this.setCutsOpen(true, false);
     this.setActive(index, false, true);
     this.host.time(rows[index].time);
     this.list.focus({ preventScroll: true });
@@ -644,7 +664,7 @@ export class TmaControl {
     this.empty.hidden = open;
     for (const part of [this.element.querySelector<HTMLElement>(".tma-head")!, this.element.querySelector<HTMLElement>(".tma-body")!]) part.hidden = !open;
     if (!open) {
-      this.plot.hidden = this.tools.hidden = this.cue.hidden = this.keyLine.hidden = true;
+      this.plot.hidden = this.tools.hidden = this.cue.hidden = true;
       this.element.classList.remove("tma-solution-shown");
       this.rmsLine.hidden = this.notes.hidden = this.actions.hidden = this.chosen.hidden = true;
       this.closeForm();
@@ -666,8 +686,10 @@ export class TmaControl {
     this.list.setAttribute("aria-label", solution ? `Cuts of ${this.solutionRow()?.name ?? "the solution"}, with their residuals` : `Cuts of ${sensors.find((s) => s.id === this.sensor.value)?.name ?? "the sensor"}`);
     this.heading.classList.toggle("tma-with-residual", solution);
     this.list.classList.toggle("tma-with-residual", solution);
-    this.plot.hidden = this.tools.hidden = this.cue.hidden = this.keyLine.hidden = !solution;
+    this.plot.hidden = this.tools.hidden = this.cue.hidden = !solution;
     this.element.classList.toggle("tma-solution-shown", solution);
+    this.placePicks(solution);
+    this.renderCutsToggle();
     this.renderTools();
     this.chosen.hidden = solution;
     if (solution) this.closeForm();
@@ -1084,15 +1106,57 @@ export class TmaControl {
     this.coverage = { rows, times, whole: coverageSpan(times, rowTimes, period) };
   }
 
+  /**
+   * Compact controls with a solution shown (product owner, 25 Oct 2026): the solution's list in
+   * the toolbar's row, the sensor's under ⋯ with the cut-off and the key; without one, both in
+   * the head as before. The same elements moved, so their handlers and labels go with them.
+   */
+  private placePicks(solution: boolean): void {
+    const sensorPick = this.sensor.closest<HTMLElement>(".tma-pick")!;
+    const solutionPick = this.solution.closest<HTMLElement>(".tma-pick")!;
+    const head = this.element.querySelector<HTMLElement>(".tma-head")!;
+    if (solution) {
+      this.element.querySelector(".tma-tools-solution")!.append(solutionPick);
+      this.element.querySelector(".tma-more-sensor")!.append(sensorPick);
+    } else if (sensorPick.parentElement !== head) {
+      head.append(sensorPick, solutionPick);
+    }
+    head.hidden = solution || !this.view;
+  }
+
+  /** The cut list opened or closed with a solution shown; remembered when the analyst chose it. */
+  private setCutsOpen(open: boolean, chosen: boolean): void {
+    this.cutsOpen = open;
+    if (chosen) this.remember();
+    this.renderCutsToggle();
+    this.renderRows();
+    if (chosen && open) this.list.focus({ preventScroll: true });
+  }
+
+  private renderCutsToggle(): void {
+    const solution = this.mode() === "solution";
+    const closed = solution && !this.cutsOpen;
+    this.element.classList.toggle("tma-cuts-closed", closed);
+    const toggle = this.element.querySelector<HTMLButtonElement>(".tma-cuts-toggle")!;
+    toggle.hidden = !solution;
+    toggle.setAttribute("aria-expanded", String(!closed));
+    const n = this.rows().length;
+    toggle.textContent = `${closed ? "▸" : "▾"} Cuts (${n.toLocaleString("en-GB")}) and their residuals`;
+  }
+
+  private remember(): void {
+    try {
+      this.memory?.save({ panes: this.panes, cuts: this.cutsOpen });
+    } catch {
+      // Not remembered: the choice holds for now.
+    }
+  }
+
   private togglePane(pane: Pane): void {
     const next = togglePane(this.panes, pane);
     if (next === this.panes) return this.say("One pane at least stays shown.");
     this.panes = next;
-    try {
-      this.memory?.save({ panes: this.panes });
-    } catch {
-      // Not remembered: the choice holds for now.
-    }
+    this.remember();
     this.renderTools();
     this.drawPlot();
     this.say(`${PANE_NAMES[pane]} pane ${next[pane] ? "shown" : "hidden"}.`);

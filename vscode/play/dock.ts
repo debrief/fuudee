@@ -66,6 +66,17 @@ export function defaultSizes(width: number, height: number): { left: number; rig
   };
 }
 
+/**
+ * The right-hand column's width while a TMA solution is open in Bearings (product owner, 25 Oct
+ * 2026): about 40% of the dock, and at least 400 px (two panes of 160 px beside the time axis),
+ * the map keeping 40% of it; never narrower than the column was. The rule that the map keeps half
+ * the window from 1280 px is relaxed to this only while a solution is open.
+ */
+export function widenedWidth(width: number, left: number, right: number): number {
+  const share = Math.round(width * 0.4);
+  return Math.max(right, Math.min(Math.max(share, 400), width - left - share));
+}
+
 /** The most a size may be: larger is not a screen. */
 const MOST = 20_000;
 const sizeOk = (value: unknown) => value === undefined || (typeof value === "number" && Number.isFinite(value) && value >= 1 && value <= MOST);
@@ -311,9 +322,51 @@ export class Dock {
       if (group.panels.some((p) => p.id === MAP_ID)) continue;
       const box = group.element.getBoundingClientRect();
       const place = placeOf(box, this.options.container.getBoundingClientRect());
-      const wanted = place === "left" ? sizes.left : place === "right" ? sizes.right : undefined;
+      const wanted = place === "left" ? sizes.left : place === "right" ? (this.widened ? this.widened.to : sizes.right) : undefined;
       if (wanted && box.width > wanted * 1.3) group.api.setSize({ width: wanted });
     }
+  }
+
+  /** The column widened for a solution: the width it had and the width it was given, to put it back. */
+  private widened?: { from: number; to: number };
+
+  /** The left-hand column's width, as it is. */
+  private leftWidth(dock: DOMRect): number {
+    const left = this.api.groups.map((g) => g.element.getBoundingClientRect()).filter((b) => placeOf(b, dock) === "left");
+    return left.length ? Math.max(...left.map((b) => b.width)) : 0;
+  }
+
+  /**
+   * The column a panel is in, right of the map, widened while a TMA solution is open in it
+   * (product owner, 25 Oct 2026), and put back when none is. Only from and to the default widths:
+   * a column the reader has sized themselves is left as they made it. True if it changed.
+   */
+  widenFor(id: string, wide: boolean): boolean {
+    const group = this.api.getPanel(id)?.group;
+    if (!group || this.disposed) return false;
+    const dock = this.options.container.getBoundingClientRect();
+    const box = group.element.getBoundingClientRect();
+    if (placeOf(box, dock) !== "right") return false;
+    const sizes = defaultSizes(dock.width, dock.height);
+    const to = widenedWidth(dock.width, this.leftWidth(dock), sizes.right);
+    // A layout remembered while widened: widened still, so it is put back once no solution is open.
+    if (!this.widened && Math.abs(box.width - to) <= 2 && to > sizes.right + 2) this.widened = { from: sizes.right, to };
+    if (wide) {
+      if (this.widened || Math.abs(box.width - sizes.right) > 2 || to <= box.width + 2) return false;
+      this.widened = { from: box.width, to };
+      group.api.setSize({ width: to });
+      return true;
+    }
+    const was = this.widened;
+    this.widened = undefined;
+    if (!was || Math.abs(box.width - was.to) > 2) return false;
+    group.api.setSize({ width: was.from });
+    return true;
+  }
+
+  /** Whether a panel's column is widened for a solution now. */
+  get isWidened(): boolean {
+    return !!this.widened;
   }
 
   /** Move a panel into another group, as a tab in front; or into a group of its own below its group. */

@@ -16,7 +16,7 @@
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import path from "node:path";
-import { mapPlaced, showPanel } from "./dock.mjs";
+import { mapPlaced, resizeTo, showPanel } from "./dock.mjs";
 
 // RED ONE as the sample has it, for first guesses near the truth: where it was at a time, and the
 // distance and direction between two places (on a sphere: near enough for a guess).
@@ -196,11 +196,25 @@ export async function playTma(page, shot) {
   const canvas = view.locator(".tma-canvas");
   assert.equal(await canvas.isVisible(), true);
   assert.match(await canvas.getAttribute("aria-label"), /^Bearings and residuals of Contact 1 solution, time upward from .* panes Bearing, Error: RMS/);
-  // Tall in its panel, the plot first and whole, the list beneath it.
+  // Compact (product owner, 25 Oct 2026): the solution, the panes, Hold scale, Reset zoom and ⋯ in
+  // one row; the cue and the RMS one line; the cut list closed, so the plot takes the height.
+  const cutsToggle = view.locator(".tma-cuts-toggle");
+  await page.waitForFunction(() => window.debriefLayout().groups.length && document.querySelector("#bearings .tma-cuts-toggle")?.getAttribute("aria-expanded") === "false");
+  assert.match(await cutsToggle.innerText(), /^▸ Cuts \(60\) and their residuals$/);
+  assert.equal(await list.isVisible(), false, "the cut list closed");
+  const row = await view.locator(".tma-tools").evaluate((t) => [...t.children].filter((c) => c.getBoundingClientRect().width > 0).map((c) => { const b = c.getBoundingClientRect(); return Math.round(b.top + b.height / 2); }));
+  const statusLine = await view.locator(".tma-statusline").evaluate((l) => [...l.children].map((c) => { const b = c.getBoundingClientRect(); return Math.round(b.top + b.height / 2); }));
+  // The column right of the map widened while the solution is open: two panes of 160 px or more.
+  await page.waitForFunction(() => Object.values(window.debriefTma.plotState.boxes ?? {}).every((b) => b.w >= 160) && Object.keys(window.debriefTma.plotState.boxes).length === 2, null, { timeout: 10000 });
+  const widened = await page.evaluate(() => ({ column: document.getElementById("panel-bearings").getBoundingClientRect().width, map: document.getElementById("main").getBoundingClientRect().width, window: innerWidth }));
+  assert.ok(widened.column >= widened.window * 0.36, `the column widened: ${JSON.stringify(widened)}`);
   const canvasBox = await canvas.boundingBox();
   const panelBox = await page.locator("#panel-bearings").boundingBox();
-  const listBox = await list.boundingBox();
-  assert.ok(canvasBox.height >= 160, `the plot takes the panel's height: ${canvasBox.height}`);
+  assert.ok(canvasBox.height >= 300, `the plot takes the panel's height: ${canvasBox.height}`);
+  console.log(`Stacked Dots at ${widened.window} × ${page.viewportSize().height}: the plot ${Math.round(canvasBox.height)} px tall, panes ${Object.values((await page.evaluate(() => window.debriefTma.plotState.boxes))).map((b) => Math.round(b.w)).join(" and ")} px wide; the column ${Math.round(widened.column)} px, the map ${Math.round(widened.map)} px; toolbar centres at ${row.join(", ")}; status line at ${statusLine.join(", ")}`);
+  const spread = (centres) => Math.max(...centres) - Math.min(...centres);
+  assert.ok(spread(row) < 12, `the toolbar one row: centres at ${row}`);
+  assert.ok(spread(statusLine) < 12, `the cue and the RMS one line: centres at ${statusLine}`);
   // Making the solution brought Bearings forward without hiding the walkthroughs beneath it (product owner, 25 Oct 2026).
   assert.equal(await page.locator('.dv-tab[data-panel="panel-tour"]').getAttribute("aria-selected"), "true", "the walkthroughs still in front of their group");
   await page.waitForFunction(() => {
@@ -208,7 +222,6 @@ export async function playTma(page, shot) {
     return !!overlay && getComputedStyle(overlay).visibility !== "hidden" && overlay.getBoundingClientRect().height > 100;
   });
   assert.ok(canvasBox.y + canvasBox.height <= panelBox.y + panelBox.height + 1, "the plot is not clipped");
-  assert.ok(listBox.y >= canvasBox.y + canvasBox.height - 1, "the cut list beneath the plot");
 
   // As legacy laid it out: time up the left, the latest at the top; Bearing and Error side by side.
   const plot = () => page.evaluate(() => window.debriefTma.plotState);
@@ -292,10 +305,16 @@ export async function playTma(page, shot) {
   assert.ok(after.rms < 2.5, `fitted: RMS ${after.rms}°`);
   // The analyst's cut-off for a 1.5° sonar, 5° (three of its deviations; legacy's default is 3°),
   // set in the view and kept with their settings: the Error pane green, said in words too.
+  // Under ⋯, with the sensor and the key.
+  const more = view.getByRole("button", { name: "More: the sensor, the cut-off and the key" });
+  await more.click();
+  assert.equal(await more.getAttribute("aria-expanded"), "true");
   const cutOff = view.locator(".tma-cutoff-input");
   assert.equal(await cutOff.inputValue(), "3");
   await cutOff.fill("5");
   await cutOff.press("Tab");
+  await more.click();
+  assert.equal(await view.locator(".tma-more").isVisible(), false);
   await page.waitForFunction(() => window.debriefTma.plotState.cue?.state === "within", null, { timeout: 10000 });
   assert.match(await view.locator(".tma-cue").innerText(), /^✓ Every error within 5\.0°$/);
   state = await plot();
@@ -306,6 +325,19 @@ export async function playTma(page, shot) {
   await zoomToSelection();
   await page.mouse.move(2, 2);
   await picture("stacked-dots-05-layout");
+  // At a laptop's sizes, the solution open: the plot's height and its panes' widths, measured.
+  for (const [w, h, name] of [[1366, 768], [1280, 720, "stacked-dots-07-1280x720"]]) {
+    await resizeTo(page, w, h);
+    await page.waitForFunction(() => Object.values(window.debriefTma.plotState.boxes ?? {}).length === 2);
+    const at = await page.evaluate(() => ({ plot: document.querySelector("#bearings .tma-canvas").getBoundingClientRect().height, panes: Object.values(window.debriefTma.plotState.boxes).map((b) => b.w), column: document.getElementById("panel-bearings").getBoundingClientRect().width, map: document.getElementById("main").getBoundingClientRect().width, tour: document.getElementById("panel-tour").closest(".dock-panel").getBoundingClientRect().height }));
+    console.log(`Stacked Dots at ${w} × ${h}: the plot ${Math.round(at.plot)} px tall, panes ${at.panes.map(Math.round).join(" and ")} px wide; the column ${Math.round(at.column)} px, the map ${Math.round(at.map)} px; the walkthroughs ${Math.round(at.tour)} px tall`);
+    assert.ok(at.plot >= 270 && at.panes.every((p) => p >= 160) && at.tour >= 150, `at ${w} × ${h}: ${JSON.stringify(at)}`);
+    if (name) {
+      await page.mouse.move(2, 2);
+      await picture(name);
+    }
+  }
+  await resizeTo(page, 1400, 820);
 
   // Hold scale: the Error axis stays as it is, and widens, never clamps, when an error falls outside.
   await view.getByRole("button", { name: "Hold scale" }).click();
@@ -425,6 +457,14 @@ export async function playTma(page, shot) {
   await paneButton("Course/Speed").click();
   await page.waitForFunction(() => JSON.stringify(window.debriefTma.plotState.panes) === JSON.stringify({ bearing: true, error: true, course: false }));
 
+  // The cut list opened, beneath the plot, remembered in this browser; the keyboard in it.
+  await cutsToggle.click();
+  assert.equal(await cutsToggle.getAttribute("aria-expanded"), "true");
+  assert.equal(await page.evaluate(() => document.activeElement?.classList.contains("tma-list")), true, "the keyboard in the list");
+  assert.equal(JSON.parse(await page.evaluate(() => localStorage.getItem("debrief.play.bearings"))).cuts, true);
+  const [plotBox, openList] = [await canvas.boundingBox(), await list.boundingBox()];
+  assert.ok(openList.y >= plotBox.y + plotBox.height - 1, "the cut list beneath the plot");
+
   // A wild cut left out of the RMS from the keyboard (Space), one step; Undo counts it again.
   await list.focus();
   await page.keyboard.press("Home");
@@ -510,6 +550,8 @@ export async function playTma(page, shot) {
 
   // A second solution by two clicks on the map: on the first cut's line, then on the last's.
   await view.locator(".tma-solution").selectOption("");
+  // No solution open: the column back to its usual width, the map as wide as before.
+  await page.waitForFunction(() => document.getElementById("panel-bearings").getBoundingClientRect().width < innerWidth * 0.25, null, { timeout: 10000 });
   await page.waitForFunction(() => !window.debriefTma.shown?.solution_id && window.debriefTma.shown?.cuts?.length > 0);
   await view.locator(".tma-row").first().waitFor();
   await list.focus();

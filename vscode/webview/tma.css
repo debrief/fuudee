@@ -30,13 +30,17 @@ html:has(.tma-root), html:has(.tma-root) body { height: 100%; margin: 0; }
 .tma-right { display: flex; flex-direction: column; flex: 1 1 auto; min-height: 0; min-width: 0; }
 .tma-solution-shown:not(.tma-wide) .tma-left { display: contents; }
 .tma-solution-shown:not(.tma-wide) .tma-tools { order: 1; }
+.tma-solution-shown:not(.tma-wide) .tma-more { order: 2; }
 .tma-solution-shown:not(.tma-wide) .tma-plot { order: 3; }
-.tma-solution-shown:not(.tma-wide) .tma-cue { order: 4; }
-.tma-solution-shown:not(.tma-wide) .tma-rms { order: 5; }
-.tma-solution-shown:not(.tma-wide) .tma-key { order: 6; }
-.tma-solution-shown:not(.tma-wide) .tma-right { order: 7; flex: none; }
+.tma-solution-shown:not(.tma-wide) .tma-statusline { order: 4; }
+.tma-solution-shown:not(.tma-wide) .tma-cuts-toggle { order: 5; }
+.tma-solution-shown:not(.tma-wide) .tma-right { order: 6; flex: none; }
 .tma-solution-shown:not(.tma-wide) .tma-list { flex: none; height: calc(6 * 22px + 2px); min-height: 0; }
-.tma-solution-shown:not(.tma-wide) .tma-below { order: 8; }
+.tma-solution-shown:not(.tma-wide) .tma-below { order: 7; }
+/* The cut list closed (with a solution, by default; product owner, 25 Oct 2026): the plot takes the height. */
+.tma-cuts-closed .tma-right, .tma-cuts-closed .tma-notes, .tma-cuts-closed .tma-actions { display: none !important; }
+.tma .tma-cuts-toggle { flex: none; align-self: flex-start; padding: 0 4px; border: 0; background: transparent; color: var(--vscode-textLink-foreground, var(--vscode-foreground)); text-align: left; }
+.tma .tma-cuts-toggle:hover:not(:disabled) { background: transparent; text-decoration: underline; }
 .tma-wide .tma-body { flex-direction: row; gap: 12px; }
 .tma-wide .tma-left { flex: 1 1 50%; overflow: hidden; }
 /* Beside the list in a short panel the plot keeps its place; what is beneath it scrolls. */
@@ -45,8 +49,16 @@ html:has(.tma-root), html:has(.tma-root) body { height: 100%; margin: 0; }
 .tma-wide .tma-right { flex: 1 1 50%; }
 .tma-wide .tma-list { min-height: 66px; }
 
-/* The panes shown, the scale held, the zoom undone, the cut-off. */
-.tma-tools { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 6px; }
+/* One row with a solution shown: its list, the panes, the scale held, the zoom undone, ⋯ for the
+   sensor, the cut-off and the key (product owner, 25 Oct 2026). Narrower than it needs, it wraps. */
+.tma-tools { display: flex; flex-wrap: wrap; align-items: center; gap: 4px; }
+.tma-tools-solution { flex: 1 1 8em; min-width: 6em; display: flex; }
+.tma-tools-solution .tma-pick > span { display: none; }
+.tma-tools-solution .tma-pick { flex: 1 1 auto; min-width: 0; }
+.tma-more { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 12px; }
+.tma-more .tma-pick { flex: 1 1 14em; }
+.tma-more .tma-key { flex: 1 1 100%; }
+.tma-statusline { display: flex; flex-wrap: wrap; align-items: baseline; gap: 0 10px; flex: none; }
 .tma-panes { display: inline-flex; flex-wrap: wrap; gap: 2px; }
 .tma .tma-tools button { padding: 1px 6px; }
 .tma .tma-tools button[aria-pressed="true"] { color: var(--vscode-button-foreground); background: var(--vscode-button-background); border-color: var(--vscode-contrastActiveBorder, var(--vscode-button-background)); }
@@ -61,7 +73,6 @@ html:has(.tma-root), html:has(.tma-root) body { height: 100%; margin: 0; }
 /* Short (Bearings above the walkthroughs at a laptop's height): the plot keeps the room, the key goes,
    the list keeps three rows, and what does not fit scrolls rather than being cut off. */
 .tma-short .tma-plot { min-height: 160px; }
-.tma-short.tma-solution-shown .tma-key { display: none; }
 .tma-short.tma-solution-shown:not(.tma-wide) .tma-list { height: calc(3 * 22px + 2px); }
 .tma-short.tma-solution-shown { overflow-y: auto; }
 .tma-canvas, .tma-overlay { position: absolute; left: 0; top: 0; display: block; }

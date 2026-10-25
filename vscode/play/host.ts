@@ -1832,6 +1832,17 @@ async function refreshBearings(): Promise<void> {
     ...(focus && { focus }),
   });
   if (time) tmaControl.setTime(Date.parse(time.current), time.range);
+  bearingsWidth();
+}
+/**
+ * The column Bearings is in widened while a solution is open there, and back when none is
+ * (product owner, 25 Oct 2026): two panes of 160 px or more; only from and to the default widths.
+ */
+function bearingsWidth(): void {
+  requestAnimationFrame(() => {
+    const shown = tmaControl.shown;
+    if (dock?.widenFor("panel-bearings", !!shown?.solution_id && !!shown.residuals)) placeSoon();
+  });
 }
 /** The reader chose a sensor (its cuts) or a solution (its residuals; selected, so the map shows its handles). */
 async function chooseTma(id: string): Promise<void> {
@@ -2697,6 +2708,7 @@ function resetLayout(): void {
     dock = makeDock(true);
   });
   placeSoon();
+  bearingsWidth();
   refreshTote();
   if (!(focused instanceof HTMLElement && focused.isConnected)) dock?.focusTab("panel-time");
 }
@@ -2734,6 +2746,7 @@ function finishLayout(docked: boolean, focused: HTMLElement | undefined): void {
       $("dock").hidden = false;
       folds.suspend(true);
       dock = makeDock(false);
+      bearingsWidth();
     } else {
       unDock();
       $("dock").hidden = true;

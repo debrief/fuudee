@@ -4,7 +4,7 @@
 // else gives the default (panel review, 23 Oct 2026: an incomplete layout once broke the page).
 // The layout itself is played in test/play/dock.mjs.
 import { describe, expect, it } from "vitest";
-import { defaultSizes, LAYOUT_VERSION, layoutProblem, layoutText, placeOf, readLayout } from "../../play/dock.js";
+import { defaultSizes, LAYOUT_VERSION, layoutProblem, layoutText, placeOf, readLayout, widenedWidth } from "../../play/dock.js";
 import { DEFAULT_GROUPS, PANELS, PANEL_TITLES, SIDE_FIRST } from "../../play/panels.mjs";
 
 const PANEL_IDS = ["panel-time", "panel-tote", "panel-outline"];
@@ -103,6 +103,15 @@ describe("the default's sizes", () => {
   it("keeps the side columns usable on a small screen and bounded on a large one", () => {
     expect(defaultSizes(900, 500).left).toBe(250);
     expect(defaultSizes(3000, 1600).right).toBe(380);
+  });
+  it("widens the right-hand column while a solution is open: about 40%, two panes of 160 px, the map 40% or more", () => {
+    for (const [width, left, right] of [[1280, 269, 270], [1366, 287, 287], [1920, 360, 380], [1024, 250, 270]]) {
+      const wide = widenedWidth(width, left, right);
+      expect(wide).toBeGreaterThanOrEqual(right);
+      expect(width - left - wide).toBeGreaterThanOrEqual(Math.round(width * 0.4) - 1);
+      if (width >= 1280) expect(wide).toBeGreaterThanOrEqual(400);
+    }
+    expect(widenedWidth(1366, 287, 287)).toBe(533);
   });
   it("gives Bearings most of the right-hand column and the walkthroughs a readable rest, at a laptop's sizes", () => {
     for (const height of [666, 714, 1030]) {
