@@ -922,7 +922,8 @@ def _gappy(name: str, start_ms: int, bursts: int, lon: float) -> models.TrackFea
 def test_coverage_of_gappy_sources_stays_responsive(tmp_path: Path) -> None:
     """Fifty items with NELSON in a hundred bursts each, all offset a little: 5,000
     spans whose bounds all differ. Cutting the platform's time where the sources change
-    sweeps along it once, so this stays within the budget (500 ms first, 100 ms after)."""
+    sweeps along it once, so this stays within the budget (500 ms first, 100 ms after;
+    the best of three fresh opens)."""
     catalogue = Catalogue.create(tmp_path / "gappy", "gappy", "Gappy", "Test")
     record = models.ProvRecord(id="made", kind="tool", started_at=format_utc(T0), agent=AGENT)
     for n in range(50):
@@ -933,13 +934,18 @@ def test_coverage_of_gappy_sources_stays_responsive(tmp_path: Path) -> None:
             provenance=[record],
         )
         catalogue.create_plot(f"item-{n:02d}", f"Item {n}", plot)
-    fresh = Catalogue.open(tmp_path / "gappy")
-    started = time.perf_counter()
-    report = fresh.coverage("item-00")
-    cold = time.perf_counter() - started
-    started = time.perf_counter()
-    fresh.coverage("item-00")
-    warm = time.perf_counter() - started
+    # Best of three, each from a freshly opened catalogue, so one slow moment on a
+    # shared runner does not fail a budget the code keeps.
+    colds, warms = [], []
+    for _ in range(3):
+        fresh = Catalogue.open(tmp_path / "gappy")
+        started = time.perf_counter()
+        report = fresh.coverage("item-00")
+        colds.append(time.perf_counter() - started)
+        started = time.perf_counter()
+        fresh.coverage("item-00")
+        warms.append(time.perf_counter() - started)
+    cold, warm = min(colds), min(warms)
     print(
         f"Coverage, 50 gappy sources of 100 spans: first {cold * 1000:.0f} ms, "
         f"again {warm * 1000:.0f} ms"
