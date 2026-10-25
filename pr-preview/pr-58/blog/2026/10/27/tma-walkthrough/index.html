@@ -69,7 +69,7 @@
     
     
     
-    <body dir="ltr" data-md-color-scheme="default" data-md-color-primary="indigo" data-md-color-accent="indigo"><div class="pr-preview-banner" style="background:#fff4ce;color:#3b2f00;border-bottom:1px solid #e0c060;padding:6px 16px;font:14px/1.4 system-ui,sans-serif;text-align:center">Preview of <a style="color:inherit;text-decoration:underline" href="https://github.com/debrief/fuudee/pull/58">pull request #58</a>: Walkthrough: Bearings and TMA (fifth tour, CAP-25, CAP-21). Built from 20fc73b on 2026-10-25 14:31 UTC. <a style="color:inherit;text-decoration:underline" href="https://debrief.github.io/fuudee/pr-preview/">All previews</a></div>
+    <body dir="ltr" data-md-color-scheme="default" data-md-color-primary="indigo" data-md-color-accent="indigo"><div class="pr-preview-banner" style="background:#fff4ce;color:#3b2f00;border-bottom:1px solid #e0c060;padding:6px 16px;font:14px/1.4 system-ui,sans-serif;text-align:center">Preview of <a style="color:inherit;text-decoration:underline" href="https://github.com/debrief/fuudee/pull/58">pull request #58</a>: Walkthrough: Bearings and TMA (fifth tour, CAP-25, CAP-21). Built from 885a4a1 on 2026-10-25 15:07 UTC. <a style="color:inherit;text-decoration:underline" href="https://debrief.github.io/fuudee/pr-preview/">All previews</a></div>
   
     
     <input class="md-toggle" data-md-toggle="drawer" type="checkbox" id="__drawer" autocomplete="off">
@@ -1798,11 +1798,11 @@
 <li><strong>Make a first guess.</strong> The button chooses the towed array's cuts from 09:46Z to 12:00Z and opens the first guess with Debrief's defaults. Its RMS is over 50°: far off, as a first guess should be.</li>
 <li><strong>Drag the solution to fit.</strong> Shear it about its start, by its diamond or by typing about 215° at 3 knots, and watch the RMS fall to about 14°.</li>
 <li><strong>Leave out a wild bearing.</strong> The button chooses the cut with the largest residual, at 11:12Z; <code>Space</code> leaves it out.</li>
-<li><strong>Split into legs at a manoeuvre.</strong> The residuals climb until 10:32Z and fall after it: RED ONE turned. Split at 10:38Z, choose <strong>This leg</strong> on the map and drag the first leg. Its residuals fall and the second leg stays where it is.</li>
+<li><strong>Split into legs and drag one.</strong> The residuals climb until 10:32Z and fall after it: RED ONE turned. Split at 10:38Z, choose <strong>This leg</strong> on the map and drag the first leg. Its residuals fall and the second leg stays where it is.</li>
 </ol>
 <p><img alt="The playground with the solution sheared: in Bearings the residuals rise to a peak near 10:32Z and fall after, one dot alone far below the rest, RMS 13.8° over 102 cuts; the walkthrough's next step, Leave out a wild bearing, open on the right" src="../../../../images/phase-4/tma-walk-03-sheared.png" /></p>
 <p><img alt="The solution split into legs at 10:38Z, This leg chosen on the map and the first leg dragged; Bearings shows RMS 11.8° over 101 cuts, 1 cut left out; on the right all six steps ticked and All walkthroughs done" src="../../../../images/phase-4/tma-walk-04-two-legs.png" /></p>
-<p>Each button does that step's choosing for you, and you do the step. Each step ticks only when you've done it: a side kept, a solution made, dragged, a cut left out, a split.</p>
+<p>Each button does that step's choosing for you, and you do the step. Each step ticks only when you've done it: a side kept, a solution made, dragged, a cut left out, a leg dragged after the split. That last one is done on the map, so the keyboard stays there; the walkthrough's status line says you're done.</p>
 <h2 id="what-we-had-to-bend">What we had to bend<a class="headerlink" href="#what-we-had-to-bend" title="Permanent link">&para;</a></h2>
 <p>The sample had no wild bearing, because its towed array's errors are about 2°. So the copy has one cut turned 40° off, as <em>Tidy a track</em>'s copy has its GPS glitches, and History says so. We chose serial 1 over serial 2 because RED ONE stays close in serial 2, within 3 nmi, so Debrief's 4.94 nmi first guess has nowhere near enough to work with. Serial 1 also has a turn to split at. A test plays the steps on the sample and fails if it stops giving the numbers the steps quote.</p>
 <h2 id="try-it">Try it<a class="headerlink" href="#try-it" title="Permanent link">&para;</a></h2>
