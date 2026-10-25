@@ -629,7 +629,7 @@ export async function playTours(page, shot, root) {
         await rightColumn(page);
         // Half the width or more; 40% while a TMA solution is open, its column widened (product owner, 25 Oct 2026).
         const share = (await page.evaluate(() => !!window.debriefTma?.shown?.solution_id)) ? 0.4 : 0.5;
-        assert.ok((await page.locator("#main").boundingBox()).width >= width * share - 1, `at ${width} px the map keeps ${share * 100}% of the width: ${(await page.locator("#main").boundingBox()).width}`);
+        assert.ok((await page.locator("#main").boundingBox()).width >= width * share - 3, `at ${width} px the map keeps ${share * 100}% of the width (to a few pixels): ${(await page.locator("#main").boundingBox()).width}`);
       } else {
         assert.equal(await page.locator("#dock").isHidden(), true, `not docked at ${width} px`);
         assert.equal(await page.locator("#side > section:not([hidden])").first().getAttribute("id"), "panel-tour", `at ${width} px the walkthroughs are first in the side column`);

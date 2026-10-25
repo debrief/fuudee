@@ -58,7 +58,8 @@ html:has(.tma-root), html:has(.tma-root) body { height: 100%; margin: 0; }
 .tma-more { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 12px; }
 .tma-more .tma-pick { flex: 1 1 14em; }
 .tma-more .tma-key { flex: 1 1 100%; }
-.tma-statusline { display: flex; flex-wrap: wrap; align-items: baseline; gap: 0 10px; flex: none; }
+.tma-statusline { display: flex; flex-wrap: wrap; align-items: baseline; gap: 0 10px; flex: none; min-width: 0; }
+.tma-statusline > p { min-width: 0; max-width: 100%; overflow-wrap: anywhere; }
 .tma-panes { display: inline-flex; flex-wrap: wrap; gap: 2px; }
 .tma .tma-tools button { padding: 1px 6px; }
 .tma .tma-tools button[aria-pressed="true"] { color: var(--vscode-button-foreground); background: var(--vscode-button-background); border-color: var(--vscode-contrastActiveBorder, var(--vscode-button-background)); }
