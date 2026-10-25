@@ -43,3 +43,4 @@ export declare const SOLUTION: string;
 export declare function latestSolution(features: readonly { id: string; properties?: { kind?: string; tma?: unknown } }[] | undefined): string | undefined;
 export declare function withSolution<T extends unknown[] | undefined>(args: T, features: readonly { id: string; properties?: { kind?: string; tma?: unknown } }[] | undefined): T | undefined;
 export declare const NO_SOLUTION: string;
+export declare function tmaDragEvent(legs: number | undefined, action: string | undefined, part: boolean): string | undefined | false;

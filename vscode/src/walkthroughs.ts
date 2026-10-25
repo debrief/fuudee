@@ -14,7 +14,7 @@
  */
 import { execFile } from "node:child_process";
 import tours from "../walkthroughs/tours.json";
-import { contextKey } from "../walkthroughs/contribute.mjs";
+import { contextKey, tmaDragEvent } from "../walkthroughs/contribute.mjs";
 
 export interface Tour {
   id: string;
@@ -39,7 +39,7 @@ export { contextKey };
  * change itself, made by any means (a form, the map, the keyboard, a macro), so a step is
  * ticked by what the analyst did, not by which button they pressed.
  */
-export function serviceEvent(method: string, params: Record<string, unknown> = {}, isSolution: (id: string) => boolean = () => false): string | undefined {
+export function serviceEvent(method: string, params: Record<string, unknown> = {}, legsOf: (id: string) => number | undefined = () => undefined): string | undefined {
   switch (method) {
     case "debrief/resolve_ambiguity":
       // A side kept: not both bearings made ambiguous again.
@@ -48,8 +48,6 @@ export function serviceEvent(method: string, params: Record<string, unknown> = {
       return "solutionMade";
     case "debrief/tma_exclude_cut":
       return params.excluded === false ? undefined : "cutLeftOut";
-    case "debrief/tma_split_leg":
-      return params.join ? undefined : "legsSplit";
     case "debrief/import":
       return "imported";
     case "debrief/take_new_data":
@@ -64,8 +62,9 @@ export function serviceEvent(method: string, params: Record<string, unknown> = {
       return "fixMarked";
     case "debrief/edit_track": {
       const action = (params.edit as { action?: string } | undefined)?.action;
-      // A TMA solution dragged, by any of a track's drags: Bearings and TMA's step, not Tidy a track's shear.
-      if (isSolution(String(params.feature))) return ["move", "rotate", "shear", "stretch"].includes(String(action)) ? "solutionDragged" : undefined;
+      // A TMA solution dragged, by any of a track's drags: Bearings and TMA's steps, not Tidy a track's shear.
+      const tma = tmaDragEvent(legsOf(String(params.feature)), action, !!params.edit && !!(params.edit as { period?: unknown }).period);
+      if (tma !== false) return tma;
       // A shear, not a stretch: the step asks for a shear (panel review, 17 Oct 2026).
       return action === "shear" ? "sheared" : undefined;
     }

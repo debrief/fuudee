@@ -311,9 +311,9 @@
         },
         {
           "id": "legs",
-          "event": "legsSplit",
-          "title": "Split into legs at a manoeuvre",
-          "text": "No straight leg fits RED ONE: the residuals climb until 10:32Z and fall after the gap, because it turned there. The button chooses the cut at 10:38Z; press **Split into legs at 10:38:00Z**. It is one step, and the solution is still one track. Then choose **This leg** on the map, click the first leg and drag its end: about 285° at 4 kn brings its residuals down, and the second leg stays where it is.",
+          "event": "legDragged",
+          "title": "Split into legs and drag one",
+          "text": "No straight leg fits RED ONE: the residuals climb until 10:32Z and fall after the gap, because it turned there. The button chooses the cut at 10:38Z; press **Split into legs at 10:38:00Z**. It is one step, and the solution is still one track. Then choose **This leg** on the map, click the first leg and drag its end: about 285° at 4 kn brings its residuals down, and the second leg stays where it is. The step is done once a leg is dragged.",
           "keys": "In Bearings' list, `↑` and `↓` to the cut, `Tab` to **Split into legs at …** and press `Enter`. On the map, **This leg** is a button, and the diamonds drag the leg current time is in: `Enter` on a cut in the list moves current time to it.",
           "vscode": { "where": "In **Bearings**, beside the list. **Split TMA solution into legs at current time** is on the solution's menu in the Outline.", "button": "Choose the cut at 10:38Z", "command": "debrief.showBearings", "args": ["$solution", { "cut_time": "2023-06-15T10:38:00.000Z" }] },
           "play": { "where": "In the **Bearings** panel; **This leg** is on the map, under *What changes*.", "button": "Choose the cut at 10:38Z", "action": "bearings:$solution?cut=2023-06-15T10:38:00.000Z" },

@@ -599,7 +599,7 @@ export async function playTours(page, shot, root) {
   assert.match(await ahead.locator(".tour-complete").innerText(), /^All walkthroughs done\./);
   assert.equal(await ahead.locator("button.tour-next, button.tour-skip").count(), 0);
   assert.equal(await ahead.locator("button.tour-again").innerText(), "Start again: Open and explore a serial");
-  // The keyboard went to it when the last step ticked (playTmaTour), before the leg was dragged.
+  // The keyboard stayed on the map, where the last step was done (playTmaTour).
   assert.match(await page.locator("#tour .tour-said").innerText(), /All walkthroughs done\.$/);
   await openTours(page);
   await shot("next-02-all-done");
@@ -746,10 +746,9 @@ async function playTmaTour(page, shot) {
   await page.waitForFunction(() => document.querySelector("#bearings .tma-split")?.textContent === "Split into legs at 10:38:00Z", null, { timeout: 30000 });
   await split.scrollIntoViewIfNeeded();
   await split.click();
-  await done(page, "legsSplit");
-  // The last step of the last walkthrough: the keyboard on Start again, as the panel is in sight.
-  await page.waitForFunction(() => document.activeElement?.classList.contains("tour-again"), null, { timeout: 5000 });
+  // The split is not the step: the step ends on a leg dragged (product owner, 25 Oct 2026).
   await page.waitForFunction(() => window.debriefTma.residuals?.rows.some((r) => r.leg === 2), null, { timeout: 60000 });
+  await notDone(page, "legDragged", "a split is not the step: dragging a leg is");
   const legOf = (n) => page.evaluate((leg) => window.debriefTma.residuals.rows.filter((r) => r.leg === leg).map((r) => r.calculated), n);
   const leg1Before = await legOf(1);
   const leg2Before = await legOf(2);
@@ -795,7 +794,14 @@ async function playTmaTour(page, shot) {
   await page.waitForFunction((was) => window.debriefTma.residuals.rows.filter((r) => r.leg === 1).some((r, i) => Math.abs(r.calculated - was[i]) > 1e-6), leg1Before, { timeout: 30000 });
   assert.ok(same(await legOf(2), leg2Before), "the second leg stays where it was");
   assert.ok(!same(await legOf(1), leg1Before), "the first leg moved");
-  await ticked(page, 5, "Split into legs at a manoeuvre");
+  await done(page, "legDragged");
+  await ticked(page, 5, "Split into legs and drag one");
+  // The last step of the last walkthrough, done on the map: the keyboard stays there, and the
+  // status line (a live region) says all are done (product owner, 25 Oct 2026).
+  await page.locator("#tour .tour-ahead button.tour-again").waitFor({ timeout: 30000 });
+  assert.match(await page.locator("#tour .tour-said").innerText(), /All walkthroughs done\.$/);
+  assert.equal(await page.locator("#tour .tour-said").getAttribute("role"), "status");
+  assert.deepEqual(await page.evaluate(() => [document.activeElement?.tagName, document.activeElement?.classList.contains("frame-map")]), ["IFRAME", true], "the keyboard is still on the map");
   await view.locator(".tma-canvas").scrollIntoViewIfNeeded();
   await picture("tma-walk-04-two-legs");
 }

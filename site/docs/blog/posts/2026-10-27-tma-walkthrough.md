@@ -20,13 +20,13 @@ Sensor bearings and TMA solutions had no walkthrough: the only taste of TMA was 
 3. **Make a first guess.** The button chooses the towed array's cuts from 09:46Z to 12:00Z and opens the first guess with Debrief's defaults. Its RMS is over 50°: far off, as a first guess should be.
 4. **Drag the solution to fit.** Shear it about its start, by its diamond or by typing about 215° at 3 knots, and watch the RMS fall to about 14°.
 5. **Leave out a wild bearing.** The button chooses the cut with the largest residual, at 11:12Z; `Space` leaves it out.
-6. **Split into legs at a manoeuvre.** The residuals climb until 10:32Z and fall after it: RED ONE turned. Split at 10:38Z, choose **This leg** on the map and drag the first leg. Its residuals fall and the second leg stays where it is.
+6. **Split into legs and drag one.** The residuals climb until 10:32Z and fall after it: RED ONE turned. Split at 10:38Z, choose **This leg** on the map and drag the first leg. Its residuals fall and the second leg stays where it is.
 
 ![The playground with the solution sheared: in Bearings the residuals rise to a peak near 10:32Z and fall after, one dot alone far below the rest, RMS 13.8° over 102 cuts; the walkthrough's next step, Leave out a wild bearing, open on the right](images/phase-4/tma-walk-03-sheared.png)
 
 ![The solution split into legs at 10:38Z, This leg chosen on the map and the first leg dragged; Bearings shows RMS 11.8° over 101 cuts, 1 cut left out; on the right all six steps ticked and All walkthroughs done](images/phase-4/tma-walk-04-two-legs.png)
 
-Each button does that step's choosing for you, and you do the step. Each step ticks only when you've done it: a side kept, a solution made, dragged, a cut left out, a split.
+Each button does that step's choosing for you, and you do the step. Each step ticks only when you've done it: a side kept, a solution made, dragged, a cut left out, a leg dragged after the split. That last one is done on the map, so the keyboard stays there; the walkthrough's status line says you're done.
 
 ## What we had to bend
 

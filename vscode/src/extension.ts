@@ -340,8 +340,8 @@ export function activate(context: vscode.ExtensionContext): DebriefApi {
         // A change the analyst made through the service ticks the walkthrough step that asks for it (CAP-25).
         // Only to the walkthrough's copy: the plot the request names, or for the log's import, the log beside its catalogue.
         started.done = (method, params) => {
-          const isSolution = (id: string) => !!session.current?.plot.features.find((f) => f.id === id && f.properties.kind === "track" && (f.properties as { tma?: unknown }).tma);
-          const event = serviceEvent(method, params, isSolution);
+          const legsOf = (id: string) => { const f = (session.current?.plot.features ?? []).find((x) => x.id === id && x.properties.kind === "track"); const tma = f && (f.properties as { tma?: { leg_starts?: string[] | null } }).tma; return tma ? 1 + (tma.leg_starts?.length ?? 0) : undefined; };
+          const event = serviceEvent(method, params, legsOf);
           if (!event) return;
           const log = path.join(walkthroughFolder("collate"), LOG_FILE);
           const item = method === "debrief/import" ? (sameLocation(String(params.path ?? ""), log) && session.current?.item.id === "serial-1-collate" ? "serial-1-collate" : undefined) : (params.item as string | undefined);

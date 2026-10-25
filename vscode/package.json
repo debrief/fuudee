@@ -381,14 +381,14 @@
           },
           {
             "id": "tma.legs",
-            "title": "Split into legs at a manoeuvre",
-            "description": "No straight leg fits RED ONE: the residuals climb until 10:32Z and fall after the gap, because it turned there. The button chooses the cut at 10:38Z; press **Split into legs at 10:38:00Z**. It is one step, and the solution is still one track. Then choose **This leg** on the map, click the first leg and drag its end: about 285° at 4 kn brings its residuals down, and the second leg stays where it is.\n\nIn **Bearings**, beside the list. **Split TMA solution into legs at current time** is on the solution's menu in the Outline.\n\n**Keyboard:** In Bearings' list, ↑ and ↓ to the cut, Tab to **Split into legs at …** and press Enter. On the map, **This leg** is a button, and the diamonds drag the leg current time is in: Enter on a cut in the list moves current time to it.\n\n[Choose the cut at 10:38Z](command:debrief.walkthrough.do?%5B%22tma%22%2C%22debrief.showBearings%22%2C%22%24solution%22%2C%7B%22cut_time%22%3A%222023-06-15T10%3A38%3A00.000Z%22%7D%5D)\n\n**All walkthroughs done** once this step is done: this is the last walkthrough.",
+            "title": "Split into legs and drag one",
+            "description": "No straight leg fits RED ONE: the residuals climb until 10:32Z and fall after the gap, because it turned there. The button chooses the cut at 10:38Z; press **Split into legs at 10:38:00Z**. It is one step, and the solution is still one track. Then choose **This leg** on the map, click the first leg and drag its end: about 285° at 4 kn brings its residuals down, and the second leg stays where it is. The step is done once a leg is dragged.\n\nIn **Bearings**, beside the list. **Split TMA solution into legs at current time** is on the solution's menu in the Outline.\n\n**Keyboard:** In Bearings' list, ↑ and ↓ to the cut, Tab to **Split into legs at …** and press Enter. On the map, **This leg** is a button, and the diamonds drag the leg current time is in: Enter on a cut in the list moves current time to it.\n\n[Choose the cut at 10:38Z](command:debrief.walkthrough.do?%5B%22tma%22%2C%22debrief.showBearings%22%2C%22%24solution%22%2C%7B%22cut_time%22%3A%222023-06-15T10%3A38%3A00.000Z%22%7D%5D)\n\n**All walkthroughs done** once this step is done: this is the last walkthrough.",
             "media": {
               "svg": "media/walkthroughs/tma-legs.svg",
               "altText": "The solution in two legs joined at 10:38Z, the first dragged to a new course, the second where it was."
             },
             "completionEvents": [
-              "onContext:debrief.walkthrough.legsSplit"
+              "onContext:debrief.walkthrough.legDragged"
             ]
           }
         ]

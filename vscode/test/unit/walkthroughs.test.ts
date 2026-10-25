@@ -4,7 +4,7 @@
 import { existsSync, readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
 import tours from "../../walkthroughs/tours.json";
-import { ALL_DONE, commandLink, contextKey, latestSolution, nextLabel, nextTour, NO_SOLUTION, OPEN, plainForVSCode, SOLUTION, stepParts, vscodeButton, vscodeDescription, walkthroughsContribution, withSolution, withWalkthroughs } from "../../walkthroughs/contribute.mjs";
+import { ALL_DONE, commandLink, contextKey, latestSolution, tmaDragEvent, nextLabel, nextTour, NO_SOLUTION, OPEN, plainForVSCode, SOLUTION, stepParts, vscodeButton, vscodeDescription, walkthroughsContribution, withSolution, withWalkthroughs } from "../../walkthroughs/contribute.mjs";
 import { AFTER_OPEN, BY_HAND, EVENTS, FIRST_RUN_KEY, FIRST_TOUR, openedEvent, openOnFirstRun, serviceEvent, stepsFor, toteCompares, TOURS, tourOfEvent, WalkthroughProgress, whyNotPrepared } from "../../src/walkthroughs.js";
 import { bearingsTarget, callEvent, counts, parseActions, progressOf } from "../../play/tours.js";
 import { DEMO_META, demoPage } from "../../play/demo.mjs";
@@ -128,7 +128,8 @@ describe("ticking a step off", () => {
     expect(serviceEvent("debrief/find_jumps")).toBeUndefined(); // looking changes nothing
     // Bearings and TMA: a side kept (not both again), a solution made, dragged by any drag (not
     // Tidy a track's shear), a cut left out (not counted again), split into legs (not joined).
-    const solution = (id: string) => id === "track-contact-1-solution";
+    // Contact 1 is a solution of one leg, Contact 2 one split into two.
+    const solution = (id: string) => ({ "track-contact-1-solution": 1, "track-contact-2-solution": 2 })[id];
     expect(serviceEvent("debrief/resolve_ambiguity", { keep: "bearing", cut_ids: ["c"] })).toBe("sideKept");
     expect(serviceEvent("debrief/resolve_ambiguity", { keep: "port", sensor_ids: ["s"] })).toBe("sideKept");
     expect(serviceEvent("debrief/resolve_ambiguity", { keep: "ambiguous", cut_ids: ["c"] })).toBeUndefined();
@@ -139,8 +140,13 @@ describe("ticking a step off", () => {
     expect(serviceEvent("debrief/edit_track", { feature: "track-blue-one", edit: { action: "shear" } }, solution)).toBe("sheared");
     expect(serviceEvent("debrief/tma_exclude_cut", { excluded: true })).toBe("cutLeftOut");
     expect(serviceEvent("debrief/tma_exclude_cut", { excluded: false })).toBeUndefined();
-    expect(serviceEvent("debrief/tma_split_leg", { at: "t" })).toBe("legsSplit");
-    expect(serviceEvent("debrief/tma_split_leg", { at: "t", join: true })).toBeUndefined();
+    // The last step ends on a leg dragged, not on the split (product owner, 25 Oct 2026).
+    expect(serviceEvent("debrief/tma_split_leg", { at: "t" })).toBeUndefined();
+    expect(serviceEvent("debrief/edit_track", { feature: "track-contact-2-solution", edit: { action: "shear", period: { start: "a", end: "b" } } }, solution)).toBe("legDragged");
+    expect(serviceEvent("debrief/edit_track", { feature: "track-contact-2-solution", edit: { action: "shear" } }, solution)).toBe("solutionDragged");
+    expect(serviceEvent("debrief/edit_track", { feature: "track-contact-1-solution", edit: { action: "shear", period: { start: "a", end: "b" } } }, solution)).toBe("solutionDragged");
+    expect(tmaDragEvent(undefined, "shear", true)).toBe(false);
+    expect(tmaDragEvent(2, "set_plotting_mode", true)).toBeUndefined();
     expect(AFTER_OPEN.tma).toEqual(["debrief.showBearings", "sensor-blue-one-towed-array"]);
     expect(toteCompares({ primary: "a", secondaries: [] })).toBe(false);
     expect(toteCompares({ primary: "a", secondaries: ["b"] })).toBe(true);
@@ -153,8 +159,8 @@ describe("ticking a step off", () => {
     const service = ["debrief/import", "debrief/take_new_data", "debrief/set_source_preference", "debrief/remove_jumps", "debrief/smooth_track", "debrief/mark_fix", "debrief/add_annotation", "debrief/set_track_frequencies", "debrief/open_revision"]
       .map((m) => serviceEvent(m))
       .concat(serviceEvent("debrief/edit_track", { edit: { action: "shear" } }), serviceEvent("debrief/export_image", { image: "x" }))
-      .concat(["debrief/tma_create", "debrief/tma_split_leg"].map((m) => serviceEvent(m)))
-      .concat(serviceEvent("debrief/resolve_ambiguity", { keep: "port" }), serviceEvent("debrief/tma_exclude_cut", { excluded: true }), serviceEvent("debrief/edit_track", { feature: "s", edit: { action: "shear" } }, () => true));
+      .concat(serviceEvent("debrief/tma_create"))
+      .concat(serviceEvent("debrief/resolve_ambiguity", { keep: "port" }), serviceEvent("debrief/tma_exclude_cut", { excluded: true }), serviceEvent("debrief/edit_track", { feature: "s", edit: { action: "shear" } }, () => 1), serviceEvent("debrief/edit_track", { feature: "s", edit: { action: "move", period: { start: "a", end: "b" } } }, () => 2));
     const elsewhere = ["timeMoved", "selected", "toteChosen", "timelineChosen", "coverageShown", ...TOURS.map((t) => openedEvent(t.id))];
     expect(new Set([...service, ...elsewhere])).toEqual(EVENTS);
   });
@@ -175,7 +181,7 @@ describe("ticking a step off", () => {
     expect(callEvent("export_image", [], JSON.stringify({ data: "…" }))).toBe("imageExported");
     expect(callEvent("open_revision", [], "not JSON")).toBeUndefined();
     // Bearings and TMA's steps.
-    const solution = (id: string) => id === "track-contact-1-solution";
+    const solution = (id: string) => ({ "track-contact-1-solution": 1, "track-contact-2-solution": 2 })[id];
     expect(callEvent("sensor", request({ kind: "resolve", resolution: { keep: "ambiguous_bearing", cut_ids: ["c"] } }), ok)).toBe("sideKept");
     expect(callEvent("sensor", request({ kind: "resolve", resolution: { keep: "ambiguous", cut_ids: ["c"] } }), ok)).toBeUndefined();
     expect(callEvent("sensor", request({ kind: "import", name: "x.dsf" }), ok)).toBeUndefined();
@@ -186,7 +192,8 @@ describe("ticking a step off", () => {
     expect(callEvent("tma_change", request({ kind: "exclude", excluded: true }), JSON.stringify({ ok: true, notes: [] }))).toBe("cutLeftOut");
     expect(callEvent("tma_change", request({ kind: "exclude", excluded: true }), JSON.stringify({ ok: true, changed: false }))).toBeUndefined();
     expect(callEvent("tma_change", request({ kind: "exclude", excluded: false }), ok)).toBeUndefined();
-    expect(callEvent("tma_change", request({ kind: "split", at: "t" }), ok)).toBe("legsSplit");
+    expect(callEvent("tma_change", request({ kind: "split", at: "t" }), ok)).toBeUndefined();
+    expect(callEvent("track", request({ kind: "edit", feature: "track-contact-2-solution", edit: { action: "shear", period: { start: "a", end: "b" } } }), ok, solution)).toBe("legDragged");
   });
 
   it("in the playground, only in the walkthrough shown, only on its copy (panel review, 17 Oct 2026)", () => {

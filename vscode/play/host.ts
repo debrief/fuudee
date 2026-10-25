@@ -138,8 +138,8 @@ function python(call: string, ...args: unknown[]): Promise<string> {
   return new Promise<string>((resolve, reject) => waiting.set(id, { resolve, reject })).then((result) => {
     // What the reader did, for the walkthroughs: a change that succeeded ticks its step (CAP-25),
     // if it was to the walkthrough's copy: the plot named, or for the log's import the plot open.
-    const isSolution = (id: string) => !!features().find((f) => f.id === id && f.properties.kind === "track" && (f.properties as { tma?: unknown }).tma);
-    tourEvent(callEvent(call, args, result, isSolution), typeof args[0] === "string" && call !== "import_tour_log" ? args[0] : opened?.item.id);
+    const legsOf = (id: string) => { const f = features().find((x) => x.id === id && x.properties.kind === "track"); const tma = f && (f.properties as { tma?: { leg_starts?: string[] | null } }).tma; return tma ? 1 + (tma.leg_starts?.length ?? 0) : undefined; };
+    tourEvent(callEvent(call, args, result, legsOf), typeof args[0] === "string" && call !== "import_tour_log" ? args[0] : opened?.item.id);
     return result;
   });
 }

@@ -66,6 +66,18 @@ export function withSolution(args, features) {
   return put(args);
 }
 
+/**
+ * A drag of a TMA solution (Bearings and TMA), the same in both hosts: one of its legs, once it is
+ * split into legs (This leg, or the time window), is the last step's (product owner, 25 Oct 2026:
+ * the step ends on a leg dragged, not on the split); any other drag of it, the fourth step's. False
+ * for a track that is not a solution (legs undefined); undefined for a change that is not a drag.
+ */
+export function tmaDragEvent(legs, action, part) {
+  if (legs === undefined) return false;
+  if (!["move", "rotate", "shear", "stretch"].includes(String(action))) return undefined;
+  return legs > 1 && part ? "legDragged" : "solutionDragged";
+}
+
 /** What a button says when its step needs the solution and there is none yet. */
 export const NO_SOLUTION = "Make the solution first: Make a first guess, this walkthrough's third step.";
 

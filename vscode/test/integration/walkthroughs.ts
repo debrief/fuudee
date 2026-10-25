@@ -283,7 +283,13 @@ export async function playWalkthroughs(api: DebriefApi, others: { id: string; lo
   await vscode.commands.executeCommand("debrief.walkthrough.do", "tma", "debrief.showBearings", "$solution", { cut_time: `${day}10:38:00.000Z` });
   await focused("the cut at 10:38Z chosen", (f) => f.cut_time === `${day}10:38:00.000Z`);
   await vscode.commands.executeCommand("debrief.tmaSplitLeg", solution, { at: `${day}10:38:00.000Z` });
-  await said("legsSplit");
+  // The split is not the step: dragging a leg is (product owner, 25 Oct 2026). The whole solution
+  // dragged is the earlier step's; its first leg (This leg, as the map sends it, a period) is this one.
+  await notSaid("legDragged", "a split is not the step");
+  await vscode.commands.executeCommand("debrief.shearTrack", solution, { anchor: "start", course: { value: 216, unit: "deg" }, speed: { value: 3, unit: "[kn_i]" } });
+  await notSaid("legDragged", "the whole solution dragged is not a leg dragged");
+  await vscode.commands.executeCommand("debrief.walkthrough.do", "tma", "debrief.shearTrack", "$solution", { anchor: "start", period: { start: `${day}09:46:00.000Z`, end: `${day}10:32:00.000Z` }, course: { value: 285, unit: "deg" }, speed: { value: 4, unit: "[kn_i]" } });
+  await said("legDragged");
   await sleep(1500);
   await screenshot("53-walkthrough-tma");
 

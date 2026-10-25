@@ -17,7 +17,7 @@
  */
 import tours from "../walkthroughs/tours.json";
 import type { TmaFocus } from "@debrief/schemas";
-import { ALL_DONE, nextLabel, nextTour, stepParts, type TourSource, type TourStep } from "../walkthroughs/contribute.mjs";
+import { ALL_DONE, nextLabel, nextTour, stepParts, tmaDragEvent, type TourSource, type TourStep } from "../walkthroughs/contribute.mjs";
 
 export const TOURS: TourSource[] = tours.tours;
 export type { TourSource, TourStep };
@@ -66,10 +66,11 @@ export function parseActions(text: string): TourAction[] {
 /**
  * The walkthrough step a call to the playground's Python completes, when it succeeded: the
  * change itself, however the reader made it (a form, the map, the keyboard), as VS Code
- * ticks its steps by the tool service's requests (src/walkthroughs.ts). isSolution says whether a
- * track is a TMA solution, whose drags are Bearings and TMA's step, not Tidy a track's shear.
+ * ticks its steps by the tool service's requests (src/walkthroughs.ts). legsOf says how many legs a
+ * TMA solution has (undefined for a track that is not one): its drags are Bearings and TMA's steps,
+ * not Tidy a track's shear.
  */
-export function callEvent(call: string, args: unknown[], result: string, isSolution: (id: string) => boolean = () => false): string | undefined {
+export function callEvent(call: string, args: unknown[], result: string, legsOf: (id: string) => number | undefined = () => undefined): string | undefined {
   let outcome: Record<string, unknown>;
   try {
     outcome = JSON.parse(result) as Record<string, unknown>;
@@ -89,9 +90,11 @@ export function callEvent(call: string, args: unknown[], result: string, isSolut
       return ({ remove_jumps: "jumpsRemoved", smooth: "smoothed", mark: "fixMarked" } as Record<string, string>)[String(change().kind)];
     case "track": {
       if (change().kind !== "edit") return undefined;
-      const action = String((change().edit as { action?: string } | undefined)?.action);
-      // A TMA solution dragged, by any of a track's drags: Bearings and TMA's step.
-      if (isSolution(String(change().feature))) return ["move", "rotate", "shear", "stretch"].includes(action) ? "solutionDragged" : undefined;
+      const edit = change().edit as { action?: string; period?: unknown } | undefined;
+      const action = String(edit?.action);
+      // A TMA solution dragged, by any of a track's drags, or one of its legs: Bearings and TMA's steps.
+      const tma = tmaDragEvent(legsOf(String(change().feature)), action, !!edit?.period);
+      if (tma !== false) return tma;
       // A shear, not a stretch: the step asks for a shear (panel review, 17 Oct 2026).
       return action === "shear" ? "sheared" : undefined;
     }
@@ -104,8 +107,8 @@ export function callEvent(call: string, args: unknown[], result: string, isSolut
       const kind = change().kind;
       if (kind === "create") return outcome.feature ? "solutionMade" : undefined;
       // Left out, not counted again; nothing changed (already left out) is not it.
-      if (kind === "exclude") return change().excluded && outcome.changed !== false ? "cutLeftOut" : undefined;
-      return kind === "split" ? "legsSplit" : undefined;
+      // A split is not the step: dragging one of its legs is (tmaDragEvent).
+      return kind === "exclude" && change().excluded && outcome.changed !== false ? "cutLeftOut" : undefined;
     }
     case "annotate":
       return change().kind === "add" ? "annotationAdded" : undefined;
@@ -254,8 +257,11 @@ export class TourPanel {
     // The step done closes, and the next to do opens, unless the reader opened others.
     this.open.delete(step.id);
     this.render();
-    // The walkthrough just finished: the keyboard goes to what comes next, if the panel is in sight.
-    if (!next) {
+    // The walkthrough just finished: the keyboard goes to what comes next, if the panel is in sight;
+    // but never away from the map, or a form beside it, while the reader works there (a leg just
+    // dragged, Bearings and TMA's last step): the status line, a live region, says it instead.
+    const working = this.element.ownerDocument.activeElement?.tagName === "IFRAME";
+    if (!next && !working) {
       const button = this.ahead.querySelector<HTMLElement>("button");
       if (button && (button.checkVisibility?.() ?? button.offsetParent !== null)) button.focus();
     }
