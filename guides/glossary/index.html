@@ -903,6 +903,8 @@
       
         
       
+        
+      
     
     
     
@@ -1339,6 +1341,34 @@
     
   
     Sensors and bearings
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../interaction-models/tma/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    TMA solutions
   
 
     
@@ -1850,7 +1880,7 @@
 <p><strong>Entry type.</strong> What kind of narrative entry it is, in its source's own words, such as <em>GenComment</em>, <em>CSD</em> or <em>Sonar</em>. Free text: each source has its own.</p>
 <p><strong>Follow time.</strong> The Timeline keeping the entry current time is at in sight as current time moves. It stops when the analyst scrolls the list or moves through it with the keyboard; <strong>Follow time</strong> starts it again.</p>
 <p><strong>Dialect</strong> (of a narrative document). One of the layouts legacy Debrief read narrative in from Word and PDF: a <em>narrative log</em> (an entry a paragraph, its date, platform and type comma-separated and usually hidden), a <em>Rider's narrative</em> (a table), <em>ASW data</em> (positions of one platform: a track, not narrative) and <em>dated narrative</em> lines. Debrief tells which from the document itself (CAP-19). See <a href="../interaction-models/timeline/#word-and-pdf-documents-cap-19">Word and PDF documents</a>.</p>
-<p><strong>FCS</strong> (fire-control solution). A narrative entry giving a contact's bearing, range, course, speed and classification. Kept as narrative; it becomes a TMA solution position when TMA solutions come (Phase 4).</p>
+<p><strong>FCS</strong> (fire-control solution). A narrative entry giving a contact's bearing, range, course, speed and classification. Kept as narrative; not yet made a TMA solution's position.</p>
 <p><strong>Highlighted phrases.</strong> Words or phrases the analyst names in the Timeline's menu (<strong>⋯</strong>), marked wherever they are in an entry's text. Like the filter, text size, wrapping and the columns shown, the analyst's own: kept in their view, never in the plot.</p>
 <p><strong>Serial.</strong> A period of an exercise, typically 4, 6, 12 or 24 hours.</p>
 <h2 id="sensors-and-tma">Sensors and TMA<a class="headerlink" href="#sensors-and-tma" title="Permanent link">&para;</a></h2>
@@ -1861,9 +1891,12 @@
 <p><strong>Ambiguous bearing.</strong> A towed-array bearing that could be on either side of the array: two candidate bearings mirrored about the array's axis, drawn as two lines, the starboard one darker and dashed. The analyst <strong>resolves</strong> each to one side, a cut at a time (a click on it offers the choices; <code>Alt</code>-click keeps the line clicked) or for a period at once, as one step; <strong>Make ambiguous again</strong> brings both back (CAP-22). Port and starboard are told from the course logged at the first fix at or after the cut's time, where the sensor is, as legacy Debrief told them.</p>
 <p><strong>Array offset</strong> (<strong>towed array offset</strong>). How far astern of its ship a towed array is, set per sensor: its cuts are drawn, and their sides told, from the array. <strong>Worm in the hole</strong>, legacy Debrief's default: the array follows back along the ship's own track, so it lags through a turn. <strong>Plain</strong>: straight astern along the ship's course.</p>
 <p><strong>Bearing error.</strong> The uncertainty of a bearing. Debrief draws bearings as lines; none of the formats it reads gives an error it could draw (<code>;SENSOR3:</code>'s bearing accuracy has no agreed meaning), so wedges wait for a field agreed with the acoustic replay application's owners (product owner, 24 Oct 2026; CAP-22).</p>
-<p><strong>TMA</strong> (target motion analysis). Estimating a target's course and speed from bearings, typically bearing-only from passive sonar. A <strong>solution</strong> is rooted in a selected period of bearings, and its positions match the bearing times (CAP-21).</p>
-<p><strong>Residual.</strong> The difference between a measured bearing and the bearing to the solution at the same time. Small, unpatterned residuals suggest a good solution.</p>
-<p><strong>Leg.</strong> A period of steady conditions. An <strong>ownship leg</strong> has steady course and speed; a <strong>bearing leg</strong> has a steady bearing rate. Changes of ownship leg give the geometry TMA needs.</p>
+<p><strong>TMA</strong> (target motion analysis). Estimating a target's course and speed from bearings, typically bearing-only from passive sonar (CAP-21).</p>
+<p><strong>Solution</strong> (<strong>TMA solution</strong>). A track of a <strong>contact</strong> (<em>Contact 1</em>) plotted by dead reckoning, rooted in a period of a sensor's cuts by their ids, with a fix at each cut's time. It is dragged, split and merged as any track, and tagged <strong>TMA</strong> in the Outline. Made from a <strong>first guess</strong>: by form (a range along the first cut's bearing, a course and a speed; Debrief's defaults 10,000 yd, across the bearing, 8 kn) or by two clicks on the map, on the first and last cuts' lines.</p>
+<p><strong>Residual.</strong> A measured bearing less the bearing from where the cut was taken to the solution at the same time, from −180° to 180°. Small, unpatterned residuals suggest a good solution. An unresolved ambiguous cut is measured by the bearing nearer the solution, and said so; its other bearing is drawn faint, never counted.</p>
+<p><strong>RMS</strong> (root mean square error). Of a solution's residuals, over its cuts counted: those with a residual, shown on the map (a hidden cut is left out until shown again), and not <strong>left out</strong> by the analyst (a wild bearing, say), each left out or counted again as one step.</p>
+<p><strong>Bearings view.</strong> Where a sensor's cuts are listed and a solution's residuals shown: measured and calculated bearings over time, the residuals beneath, after legacy Debrief's <strong>Stacked Dots</strong>, and the RMS, live while the solution is dragged.</p>
+<p><strong>Leg.</strong> A period of steady conditions. An <strong>ownship leg</strong> has steady course and speed; a <strong>bearing leg</strong> has a steady bearing rate. Changes of ownship leg give the geometry TMA needs. A <strong>solution's legs</strong> are periods of it, split at a time and joined: each is dragged on its own (<strong>This leg</strong>, the leg clicked), the other legs staying where they are and the joins either side solved again.</p>
 <p><strong>SATC</strong> (semi-automatic track construction). Generating a TMA solution automatically from bearings. Lower priority than manual TMA (CAP-21).</p>
 <h2 id="analysis">Analysis<a class="headerlink" href="#analysis" title="Permanent link">&para;</a></h2>
 <p><strong>Angle on the bow (AOB).</strong> A track's aspect as another sees it: the bearing from the track to the observer less the track's course, red to port and green to starboard: <code>R030.0°</code> means the observer sees its port side. <code>000.0°</code> is bows on. In the Tote, the secondary's angle on the bow as the primary sees it.</p>
@@ -1940,8 +1973,8 @@
 <td>Schema unit enums</td>
 </tr>
 <tr>
-<td>Track segments: core, TMA, planning, infill</td>
-<td>Not yet in the v4 data model; TMA solutions are rooted in a bearing period</td>
+<td>Track segments: core, TMA (absolute, relative), planning, infill</td>
+<td>A TMA solution is a track by dead reckoning tagged with its contact and rooted in its cuts, its legs periods of it; a legacy relative leg becomes positions at import, an infill the join between legs. Planning segments are not yet in the v4 data model</td>
 <td>CAP-21</td>
 </tr>
 <tr>

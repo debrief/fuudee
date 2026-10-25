@@ -39,9 +39,9 @@
     "start_datetime": "2023-06-15T08:00:00.000Z",
     "end_datetime": "2023-06-15T12:00:00.000Z",
     "title": "Serial 1",
-    "debrief:schema_version": "0.0.23",
+    "debrief:schema_version": "0.0.24",
     "created": "2026-10-11T00:00:00.000Z",
-    "debrief:revision": "sha256:ffd0f4edf9b62219ae49d6ec00932f1d406818bb56950d663964a45c68299521",
+    "debrief:revision": "sha256:cebf1aea132547bbfd3ec57878acf6673116f868a45ba4134cf0c8d5bb5d0a53",
     "debrief:coverage": [
       {
         "track": "track-blue-one",
@@ -159,9 +159,9 @@
       }
     ],
     "debrief:imported": false,
-    "debrief:origin": "sha256:08b7081c790bd0e0779588ef0498d2cff6b77af31b711e26fc4d8865820113c8",
+    "debrief:origin": "sha256:d142e056a5fc21dc3cb299cfdd9a937a6c79f7100bbd1f4eacad686538911c62",
     "debrief:revisions": [
-      "ZZ8F9VFSPRH1KBJ9"
+      "STZHNTGK4N3VQZ9Y"
     ],
     "datetime": null
   },

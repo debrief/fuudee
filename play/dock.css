@@ -69,6 +69,11 @@ body.docked .dock-panel #timeline { height: calc(100% - 4px); }
 body.docked .dock-panel > #panel-timeline { display: flex; flex-direction: column; height: 100%; min-height: 0; padding-bottom: 4px; }
 body.docked .dock-panel > #panel-timeline > .panel-body { flex: 1; min-height: 0; }
 .dock-panel:has(> #panel-timeline) { overflow: hidden; }
+/* Bearings fill their group: the plots and the list share its height, the plots first (TMA, CAP-21). */
+body.docked .dock-panel #bearings { height: calc(100% - 4px); }
+body.docked .dock-panel > #panel-bearings { display: flex; flex-direction: column; height: 100%; min-height: 0; padding-bottom: 4px; }
+body.docked .dock-panel > #panel-bearings > .panel-body { flex: 1; min-height: 0; }
+.dock-panel:has(> #panel-bearings) { overflow: hidden; }
 
 /* --- Dockview, in the theme's colours: tabs as VS Code's panel tabs, sashes as its borders. --- */
 .dockview-theme-debrief {

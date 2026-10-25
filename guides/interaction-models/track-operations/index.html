@@ -907,6 +907,8 @@
       
         
       
+        
+      
     
     
     
@@ -1467,6 +1469,34 @@
     
   
     Sensors and bearings
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../tma/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    TMA solutions
   
 
     
@@ -2173,7 +2203,7 @@
 <p><strong>For agents.</strong> <code>debrief/edit_track</code> with <code>{"action": "shear", "anchor": "start", "distance": {"value": 1.2, "unit": "[nmi_i]"}, "bearing": {"value": 45, "unit": "deg"}}</code> (the dragged end's move), <code>{"action": "shear", "anchor": "end", "course": {"value": 87.2, "unit": "deg"}, "speed": {"value": 12.4, "unit": "[kn_i]"}}</code> (the course and speed made good), or <code>{"action": "stretch", "anchor": "start", "speed": {"value": 12.4, "unit": "[kn_i]"}}</code>, each with a <code>period</code> to change only that. In VS Code, <code>debrief.shearTrack</code> and <code>debrief.stretchTrack</code> take the track and the edit, without <code>action</code>, instead of asking.</p>
 </li>
 </ol>
-<p><em>Not in this part:</em> live bearing residuals while dragging, and solutions rooted in a period of bearings (the TMA module, CAP-21); shearing one leg of a multi-leg solution apart from the others.</p>
+<p>Live bearing residuals while dragging, solutions rooted in a period of bearings, and shearing one leg of a multi-leg solution apart from the others (<strong>This leg</strong>) are the TMA module's: <a href="../tma/">TMA solutions</a> (CAP-21, 24 Oct 2026).</p>
 <h2 id="cleaning-tracks">Cleaning tracks<a class="headerlink" href="#cleaning-tracks" title="Permanent link">&para;</a></h2>
 <p>Part B2 (14 Oct 2026). Three ways to tidy a track an analyst has imported, each one recorded step, and none done without the analyst seeing what it would do first.</p>
 <ol>
@@ -2475,7 +2505,7 @@
 <p>An operation on the time window changes the course and speed of each fix in it, ends included: each is the leg that starts at that fix, so the leg out of the window's last fix changes too. A legacy .dpf DR leg that records no courses or speeds is edited by its positions, as over the ground.</p>
 </li>
 <li>
-<p><strong>The fixes after follow on.</strong> Over the ground, changing the fixes in the time window leaves the rest where they are, so the track jumps where they meet. On a DR track each fix is placed from the one before, so the fixes after the window follow on, with no jump: that is the nature of dead reckoning. The map and the step say so: <em>the fixes after follow on, by dead reckoning</em>.</p>
+<p><strong>The fixes after follow on.</strong> Over the ground, changing the fixes in the time window leaves the rest where they are, so the track jumps where they meet. On a DR track each fix is placed from the one before, so the fixes after the window follow on, with no jump: that is the nature of dead reckoning. The map and the step say so: <em>the fixes after follow on, by dead reckoning</em>. A TMA solution split into legs is the exception (product owner, 25 Oct 2026): each leg is independent, so dragging one leaves the other legs where they are and solves the joins either side again (<a href="../tma/">TMA solutions</a>).</p>
 </li>
 <li>
 <p><strong>What the map shows.</strong> While dragging, the map draws the track as dead reckoning will leave it: the later fixes, marked, and their rings follow the pointer, the track as it was dashed beneath. The note says what changes in dead-reckoning terms: <em>RED ONE (DR) fix at 09:43:00Z: moving 0.42 nmi 045.0°T; leg into it now 056.5°T 12.1 kn (was 045.0°T 12.0 kn); the fixes after follow</em>, adding <em>faster than 15.0 kn, as a jump would be</em> when the new leg is; <em>RED ONE (DR): rotating 3.0° clockwise about …; the courses in the time window turn, and the fixes after follow on, by dead reckoning</em>; <em>RED ONE (DR): stretching to 12.4 kn (was 11.6 kn); every speed is scaled</em>; <em>RED ONE (DR): shearing to 087.2°T 12.4 kn; end moved 1.20 nmi 045.0°T; one set and drift is added to every leg</em>. <strong>Move a fix…</strong> says the same of a position typed. What the map draws is what the tool service makes: both work it out the same way, and shared test vectors check that they agree, at mid-latitude, far north and across the antimeridian.</p>

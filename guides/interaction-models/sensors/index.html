@@ -16,7 +16,7 @@
         <link rel="prev" href="../timeline/">
       
       
-        <link rel="next" href="../collation/">
+        <link rel="next" href="../tma/">
       
       
         
@@ -907,6 +907,8 @@
       
         
       
+        
+      
     
     
     
@@ -1570,6 +1572,34 @@
   
   
     <li class="md-nav__item">
+      <a href="../tma/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    TMA solutions
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
       <a href="../collation/" class="md-nav__link">
         
   
@@ -2009,7 +2039,7 @@
 
 
 <h1 id="sensors-and-bearings">Sensors and bearings<a class="headerlink" href="#sensors-and-bearings" title="Permanent link">&para;</a></h1>
-<p>How bearings from a platform's sensors come into a plot, how the map draws them, and how an analyst resolves a towed array's ambiguous bearings to one side. The ground TMA (CAP-21) will stand on.</p>
+<p>How bearings from a platform's sensors come into a plot, how the map draws them, and how an analyst resolves a towed array's ambiguous bearings to one side. The ground TMA stands on (<a href="../tma/">TMA solutions</a>, CAP-21).</p>
 <h2 id="requirements-cited">Requirements cited<a class="headerlink" href="#requirements-cited" title="Permanent link">&para;</a></h2>
 <table>
 <thead>
@@ -2098,7 +2128,7 @@
 <h3 id="in-the-outline-and-the-timeline">In the Outline and the Timeline<a class="headerlink" href="#in-the-outline-and-the-timeline" title="Permanent link">&para;</a></h3>
 <ol>
 <li><strong>The Outline.</strong> Each sensor is a row under its host track, with how many cuts it has, and how many are ambiguous and resolved: <em>Towed array: 132 cuts · 40 ambiguous · 92 resolved</em>. Its menu: keeping a side (above), <strong>Change colour…</strong>, <strong>Hide on map</strong> and <strong>Show on map</strong>, each one step (<em>Colour of Bow sonar set to green</em>). Cuts are not rows: a sensor may have thousands.</li>
-<li><strong>Not in the Timeline (decision, 24 Oct 2026).</strong> The Timeline lists narrative entries, notes and periods to read in time order. Cuts would bury them: the sample's serial has 393 cuts against 46 narrative entries, a towed array gives one every 30 to 60 seconds, and a legacy DSF file gives every cut a label. The current cut is emphasised on the map instead, and the narrative already says when a contact was gained or lost. <strong>A cut list is planned for the TMA PR</strong> (decision, 24 Oct 2026): a virtualised list of a sensor's cuts, where a TMA solution's period is chosen and its residuals read; not in this one.</li>
+<li><strong>Not in the Timeline (decision, 24 Oct 2026).</strong> The Timeline lists narrative entries, notes and periods to read in time order. Cuts would bury them: the sample's serial has 393 cuts against 46 narrative entries, a towed array gives one every 30 to 60 seconds, and a legacy DSF file gives every cut a label. The current cut is emphasised on the map instead, and the narrative already says when a contact was gained or lost. <strong>A cut list</strong> (decision, 24 Oct 2026) is in the Bearings view, with TMA: a virtualised list of a sensor's cuts, where a TMA solution's period is chosen and its residuals read (<a href="../tma/">TMA solutions</a>).</li>
 </ol>
 <h3 id="tracks-edited">Tracks edited<a class="headerlink" href="#tracks-edited" title="Permanent link">&para;</a></h3>
 <ol>
@@ -2107,7 +2137,7 @@
 </ol>
 <h3 id="agents">Agents<a class="headerlink" href="#agents" title="Permanent link">&para;</a></h3>
 <ol>
-<li><code>debrief/sensors</code> (reading): the plot's sensors, each with its host, colour, whether it is hidden, how many cuts, ambiguous and resolved, and its first and last cut's time; with <code>cuts: true</code>, each cut in <code>period</code> (at most 20,000 in all) with its time, bearings, which was kept, the side its first bearing is on, its range, label, comment and where it is drawn from: what a TMA solution will be rooted in.</li>
+<li><code>debrief/sensors</code> (reading): the plot's sensors, each with its host, colour, whether it is hidden, how many cuts, ambiguous and resolved, and its first and last cut's time; with <code>cuts: true</code>, each cut in <code>period</code> (at most 20,000 in all) with its time, bearings, which was kept, the side its first bearing is on, its range, label, comment and where it is drawn from: what a TMA solution is rooted in.</li>
 <li><code>debrief/resolve_ambiguity</code> (changing): <code>keep</code> (<code>port</code>, <code>starboard</code>, <code>bearing</code>, <code>ambiguous_bearing</code>, or <code>ambiguous</code> for both again) and either <code>cut_ids</code>, or <code>sensor_ids</code> and perhaps a <code>period</code> (hidden cuts left out). One step. <code>debrief/set_array_offset</code> (changing): <code>sensor_ids</code>, <code>offset</code> (<code>{value, unit}</code>, or null for at the ship) and <code>mode</code>. One step. <code>debrief/sensors</code> gives a sensor's <code>array_offset_m</code> and <code>array_mode</code>, and each cut's origin from the array.</li>
 <li><code>debrief/preview_sensor</code> says what a file's sensor lines hold, and which track would carry each, changing nothing; <code>debrief/import_sensor</code> reads them in, one step, with <code>hosts</code> naming the track for a track name the plot has not, and <code>again</code> to read a file read before. Both are in <code>schemas/vectors/service-methods.json</code>, so an earlier revision shown read-only refuses the changing ones.</li>
 </ol>
@@ -2186,10 +2216,8 @@
 <ul>
 <li><strong>Bearing-error wedges</strong>, until a field is agreed (above).</li>
 <li><strong>The automatic ambiguity resolver</strong> (CAP-33): proposing each cut's side from ownship's manoeuvres (a true bearing steady across a turn is on the side whose relative bearing changed by the turn), for the analyst to confirm or change as one step. Recorded, not built.</li>
-<li><strong>A cut list</strong> (decision, 24 Oct 2026): a virtualised list of a sensor's cuts, planned for the TMA PR.</li>
 <li><strong>Array offsets that vary</strong>, or an array centre from measured data (legacy's other modes): an array is a fixed distance astern.</li>
 <li><strong>Frequency</strong>, by decision (CAP-22).</li>
-<li><strong>TMA</strong> (CAP-21): a solution rooted in the cuts of the time window, its positions at their times, and residuals against them.</li>
 </ul>
 <h2 id="reference-implementation">Reference implementation<a class="headerlink" href="#reference-implementation" title="Permanent link">&para;</a></h2>
 <ul>

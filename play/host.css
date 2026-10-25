@@ -97,6 +97,7 @@ dialog::backdrop { background: color-mix(in srgb, var(--vscode-editor-background
 /* The Timeline (webview/timeline.css): narrative, notes and periods in time order (CAP-05, CAP-20).
    The list scrolls inside a panel of its own height, drawing only the rows in sight. */
 #timeline { height: min(440px, 60vh); }
+#bearings { height: min(560px, 80vh); }
 #north-arrow[aria-pressed="true"] { background: var(--vscode-button-background); color: var(--vscode-button-foreground); }
 /* Cleaning tracks: the jumps found, the fix list and what to do to the fix chosen. */
 /* The panel keeps its height beside the map; a long fix list scrolls inside it. */

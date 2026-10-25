@@ -907,6 +907,8 @@
       
         
       
+        
+      
     
     
     
@@ -1343,6 +1345,34 @@
     
   
     Sensors and bearings
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../tma/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    TMA solutions
   
 
     
@@ -1851,6 +1881,22 @@
 <td><strong>Towed array offset…</strong> on a sensor's menu in the Outline, or the Command Palette: type the distance (0 for at the ship), then choose worm in the hole or plain; one step. In the playground, a sensor row's menu.</td>
 </tr>
 <tr>
+<td>Choose a TMA solution's period of cuts with the pointer (click a cut, Shift-click the last)</td>
+<td>The Bearings view's list of cuts is one tab stop: <code>Up</code> and <code>Down</code> move the cut chosen, with <code>Shift</code> they extend the period; <code>Home</code>, <code>End</code>, <code>Page Up</code>, <code>Page Down</code>; <code>Ctrl+A</code> every cut; <code>Enter</code> moves current time to the cut; <code>Alt+Down</code> and <code>Alt+Up</code> the next and previous unresolved ambiguous cut. Each row is read as an option (<em>12:24:30Z, Bow sonar, 260.2°, residual +1.6°</em>) (<a href="../tma/">TMA solutions</a>).</td>
+</tr>
+<tr>
+<td>Make a solution's first guess by two clicks on the map, on the first and last cuts' lines</td>
+<td><strong>Make solution…</strong>: the first guess's form (range along the first cut's bearing, course, speed; Debrief's defaults filled in), which takes the keyboard first and says what each field means as it is typed. One step either way.</td>
+</tr>
+<tr>
+<td>Click a cut's tick box to leave it out of the RMS, or count it again</td>
+<td><code>Space</code> on the chosen cuts in the Bearings view's list, or <strong>Leave this cut out of the RMS</strong>; one step. Space never changes the cuts chosen (Shift and the arrow keys do). In a narrow view the tick boxes are not shown; Space and the button are.</td>
+</tr>
+<tr>
+<td>Click in the bearings plot to pick a manoeuvre's time</td>
+<td><code>Up</code> and <code>Down</code> in the list to the cut, then <strong>Split into legs at …</strong>; on the map, <strong>This leg</strong> under <em>What changes</em>, then the track's drags and their keys: the leg dragged is the one current time is in (Enter on a cut moves current time to it) until a leg is clicked or tapped on the map.</td>
+</tr>
+<tr>
 <td>Choose which catalogue item supplies a period of a track; take new data; confirm or refuse a platform</td>
 <td>Coverage: <code>Tab</code> to a period's list, pick with <code>↑</code> <code>↓</code> (no step yet) and press <code>Enter</code> or <strong>Set</strong>, the keyboard's way for clicking a source's bar; <strong>Take</strong>, <strong>Not now</strong>, <strong>Same platform</strong>, <strong>Not this platform</strong>, <strong>Unlink</strong> and <strong>Reviewed</strong> are buttons. In VS Code's Catalogues, an item's or a track's menu (<code>Shift+F10</code> or the menu key) has the same. There is no map gesture (<a href="../collation/#keyboard-and-touch">Collation</a>).</td>
 </tr>
@@ -1877,7 +1923,7 @@
 </tbody>
 </table>
 <h2 id="reference-implementation">Reference implementation<a class="headerlink" href="#reference-implementation" title="Permanent link">&para;</a></h2>
-<p><code>vscode/webview/mapedit.ts</code> (keys while drawing and on handles) and <code>vscode/webview/drawing.ts</code>; <code>vscode/webview/trackmap.ts</code> and <code>vscode/webview/trackedit.ts</code> for a track's handles. The playground tests <code>vscode/test/play/drawing.mjs</code> and <code>vscode/test/play/tracks.mjs</code> place a marker, change an area, move and rotate a track, <code>vscode/test/play/shear.mjs</code> shears and stretches one, and <code>vscode/test/play/fixdrag.mjs</code> moves a single fix, from the keyboard alone; <code>vscode/test/play/tote.mjs</code> chooses the Tote's tracks from the keyboard and by press and hold; <code>vscode/test/play/narrative.mjs</code> reads, chooses, adds, changes and deletes narrative entries from the keyboard; <code>vscode/test/play/sensors.mjs</code> keeps a side of a sensor's cuts in the window from the keyboard.</p>
+<p><code>vscode/webview/mapedit.ts</code> (keys while drawing and on handles) and <code>vscode/webview/drawing.ts</code>; <code>vscode/webview/trackmap.ts</code> and <code>vscode/webview/trackedit.ts</code> for a track's handles. The playground tests <code>vscode/test/play/drawing.mjs</code> and <code>vscode/test/play/tracks.mjs</code> place a marker, change an area, move and rotate a track, <code>vscode/test/play/shear.mjs</code> shears and stretches one, and <code>vscode/test/play/fixdrag.mjs</code> moves a single fix, from the keyboard alone; <code>vscode/test/play/tote.mjs</code> chooses the Tote's tracks from the keyboard and by press and hold; <code>vscode/test/play/narrative.mjs</code> reads, chooses, adds, changes and deletes narrative entries from the keyboard; <code>vscode/test/play/sensors.mjs</code> keeps a side of a sensor's cuts in the window from the keyboard. <code>vscode/test/play/tma.mjs</code> chooses a period of cuts, makes a solution by form, leaves a cut out of the RMS, splits it into legs and finds the next ambiguous cut, from the keyboard.</p>
 
 
 
