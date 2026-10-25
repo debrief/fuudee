@@ -173,6 +173,37 @@ classes:
         range: UtcTimestamp
         multivalued: true
       cuts: {range: integer, required: true, description: "How many cuts it is rooted in."}
+      courses:
+        description: >-
+          Its course at each fix, degrees true: its DR legs' courses, for the
+          Bearings view's Course/Speed pane (product owner, 25 Oct 2026).
+        range: float
+        multivalued: true
+      speeds:
+        description: Its speed at each fix, metres a second, for the Course/Speed pane.
+        range: float
+        multivalued: true
+
+  TmaOwnship:
+    description: >-
+      A track carrying the solution's sensors (ownship): its course over the
+      period the Bearings view shows, for the Course/Speed pane (product
+      owner, 25 Oct 2026). Its courses as logged at its fixes, thinned to at
+      most a few thousand.
+    attributes:
+      id: {required: true, description: "The track's feature id."}
+      name: {required: true}
+      colour:
+        pattern: "^#[0-9a-f]{6}$"
+      times:
+        range: UtcTimestamp
+        multivalued: true
+        required: true
+      courses:
+        description: Its course at each of those times, degrees true.
+        range: float
+        multivalued: true
+        required: true
 
   TmaView:
     description: >-
@@ -204,3 +235,24 @@ classes:
       residuals:
         range: TmaResiduals
         inlined: true
+      coverage:
+        description: >-
+          With a solution shown, every cut of its sensors shown on the map,
+          in time order, rooted or not: the Bearing pane plots each measured
+          bearing over the sensors' whole coverage, the calculated bearings
+          and errors only where the solution is (product owner, 25 Oct 2026).
+          Cuts hidden on the map are left out.
+        range: TmaCut
+        multivalued: true
+        inlined_as_list: true
+      ownship:
+        description: The tracks carrying the solution's sensors, with their courses, for the Course/Speed pane.
+        range: TmaOwnship
+        multivalued: true
+        inlined_as_list: true
+      error_cut_off:
+        description: >-
+          The analyst's error cut-off, degrees, from their Debrief
+          configuration (tma_error_cut_off; 3 by default): the Error pane is
+          green while every residual counted is within it, pink otherwise.
+        range: float

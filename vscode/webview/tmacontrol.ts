@@ -25,22 +25,67 @@
  *   the first guess (a range along the first cut's bearing, a course and a speed, offered
  *   as 10,000 yd, across the bearing, 8 kn, in the analyst's units), or two clicks on the
  *   map instead.
- * - A solution shown: its bearings measured and calculated over time, its residuals
- *   beneath, the RMS error, its legs, and the list of its cuts with each residual. An
- *   ambiguous cut not yet resolved is measured by the bearing nearer the solution, and
- *   the view says so (≈); its other bearing is drawn faint, with its residual, never
- *   counted, so a side can be picked from the plot (product owner, 25 Oct 2026). A cut
- *   hidden on the map is left out until shown again. A point clicked on the plots chooses
- *   its cut, a manoeuvre where the solution can be split into legs.
+ * - A solution shown: legacy's Bearing Residuals (Stacked Dots), as legacy laid it out
+ *   (product owner, 25 Oct 2026; stackeddots.ts): time up the left, the latest at the top,
+ *   and beside each other the Bearing, Error and Course/Speed panes, as the analyst chooses
+ *   (remembered per browser, or as the VS Code view's state). Every measured bearing of the
+ *   sensors shown on the map, over their whole coverage; the calculated bearings and the
+ *   errors where the solution is; the Error pane green while every error counted is within
+ *   the analyst's cut-off and pink otherwise, said in words beside it too. Then the RMS, and
+ *   the list of the solution's cuts beneath the plot, each with its error. An ambiguous cut
+ *   not yet resolved is measured by the bearing nearer the solution (≈); its other bearing
+ *   is drawn faint, never counted. A cut hidden on the map is left out until shown again.
+ *   A box dragged in a pane zooms (double-click or Reset zoom undoes it); a dot clicked
+ *   selects its cut, or the solution's fix, and moves current time to it; a crosshair and a
+ *   readout say the time and value under the pointer.
  * - While a drag moves the solution, each frame works out the residuals again, writes the
  *   RMS, the residuals of the rows in sight (their cells only, nothing rebuilt) and draws
- *   the plots, the axes held as they were when the drag began; the whole frame is timed
- *   (timings) against the drag budget (NFR-04).
+ *   the plot: the Error axis fitted to the errors every frame, as legacy's auto-resize did,
+ *   or held (Hold scale) and widened when an error falls outside, never a dot drawn at an
+ *   edge it is not at; the Bearing axis kept as it was when the drag began, widened the same
+ *   way; a zoom kept. The whole frame is timed (timings) against the drag budget (NFR-04).
  */
-import { DEFAULT_SETTINGS, fixed, formatTime, type FormatSettings } from "@debrief/kernel";
+import { convert, DEFAULT_SETTINGS, fixed, formatTime, UNIT_LABELS, type FormatSettings } from "@debrief/kernel";
 import type { TimeRange, TmaCut, TmaRequest, TmaResidualRow, TmaResiduals, TmaSolutionRow, TmaView } from "@debrief/schemas";
 import type { LonLat } from "./geodesic.js";
 import { bearingText, type Kept } from "./sensors.js";
+import {
+  about,
+  coverageSpan,
+  type Cue,
+  cueStyle,
+  cueMark,
+  describeCue,
+  errorCue,
+  errorExtent,
+  fitErrors,
+  fitRange,
+  inside,
+  isZoomed,
+  legCourses,
+  nearestPoint,
+  niceTicks,
+  noZoom,
+  type Pane,
+  PANE_NAMES,
+  PANES,
+  type PanesShown,
+  panTime,
+  type Range,
+  readPanes,
+  tickTime,
+  timeTicks,
+  timeToY,
+  togglePane,
+  valueToX,
+  widen,
+  xToValue,
+  yToTime,
+  type Zoom,
+  zoomBox,
+  zoomTime,
+  zoomValues,
+} from "./stackeddots.js";
 import {
   cutBearings,
   type CutRow,
@@ -81,15 +126,24 @@ export interface TmaControlHost {
   time(time: string): void;
   /** Keep one of an ambiguous cut's bearings, or make it ambiguous again (resolve_asked). */
   resolve(cutId: string, keep: Kept | "ambiguous"): void;
+  /** Select a cut, or the solution at one of its fixes, and move current time to it: a dot clicked (tma_select). */
+  select(featureId: string, time: string): void;
+  /** Remember the analyst's error cut-off, degrees, in their Debrief configuration (tma_cut_off). */
+  cutOff(degrees: number): void;
+}
+
+/** Where the view remembers which panes show: the browser's storage, or the VS Code view's state. */
+export interface TmaControlMemory {
+  load(): unknown;
+  save(state: { panes: PanesShown }): void;
 }
 
 /** One row of the list, of one height whatever the font: the list scrolls by it. */
 export const ROW_PX = 22;
-/** The plots' height, at most; less beside the list in a short panel, never below PLOT_LEAST_PX. */
-const PLOT_PX = 196;
-const PLOT_LEAST_PX = 110;
-/** What the RMS line beneath the plots takes: in a short panel the plots come first, the buttons scroll. */
-const RMS_PX = 22;
+/** How near a click is to a dot to choose it, pixels. */
+const HIT_PX = 7;
+/** A drag shorter than this either way is a click, not a box. */
+const BOX_PX = 5;
 /** From this width the view lays the plots beside the list (the strip under the map). */
 const WIDE_PX = 640;
 /** Below this width the list drops its tick boxes, so a bearing is still read whole. */
@@ -116,18 +170,43 @@ export class TmaControl {
   private said?: ReturnType<typeof setTimeout>;
   /** How long each frame of a drag took, ms, the residuals worked out and everything drawn: for the tests and the drag budget (NFR-04). */
   readonly timings: number[] = [];
-  /** The plots' axes while a drag goes on: held, so the dots move, not the scale. */
-  private frozen?: { lo: number; hi: number; reference: number; limit: number };
+  /** The Bearing axis while a drag goes on: kept as it was when the drag began (widened, never clamped), and the bearing it is unwrapped about. */
+  private frozen?: { bearing: Range; reference: number };
   /** The plots' size while a drag goes on: read once, as reading it after writing the list makes the browser lay the page out again every frame. */
   private frozenGeometry?: ReturnType<TmaControl["measure"]>;
   /** Each base's rows' times, parsed once. */
   private rowTimes = new WeakMap<TmaResiduals | TmaCut[], number[]>();
   /** The theme's colours, read when the view is drawn, not every frame. */
-  private colours?: { fg: string; muted: string; grid: string; focus: string; font: string };
+  private colours?: ReturnType<TmaControl["readColours"]>;
+  /** Which panes show: the analyst's, remembered. */
+  private panes: PanesShown;
+  /** Hold scale: the Error axis stays put, widened when an error falls outside it. */
+  private hold = false;
+  private heldError?: Range;
+  private zoom: Zoom = noZoom();
+  /** The analyst's error cut-off, degrees: the host's, from Debrief's configuration. */
+  private cutOffDegrees = 3;
+  /** The sensors' coverage shown (cuts not rooted in the solution), their times, and the whole span plotted: worked out once per view. */
+  private coverage: { rows: TmaCut[]; times: number[]; whole?: Range } = { rows: [], times: [] };
+  /** The solution's fixes' times, parsed once per view. */
+  private fixTimes: number[] = [];
+  /** Where each pane was last drawn, and its axis: for pointing at it. */
+  private drawn_?: PlotLayout;
+  /** A box being dragged in a pane, in the canvas's pixels. */
+  private box?: { pane: Pane; x0: number; y0: number; x1: number; y1: number };
+  private pointer?: { x: number; y: number };
+  /** Each frame's Error axis and how many errors fell outside it (never any): for the tests. */
+  readonly errorAxes: { lo: number; hi: number; outside: number }[] = [];
   private readonly sensor: HTMLSelectElement;
   private readonly solution: HTMLSelectElement;
   private readonly plot: HTMLElement;
   private readonly canvas: HTMLCanvasElement;
+  private readonly overlay: HTMLCanvasElement;
+  private readonly tools: HTMLElement;
+  private readonly readout: HTMLElement;
+  private readonly keyLine: HTMLElement;
+  private readonly cue: HTMLElement;
+  private readonly cutOffInput: HTMLInputElement;
   private readonly rmsLine: HTMLElement;
   private readonly notes: HTMLElement;
   private readonly actions: HTMLElement;
@@ -146,10 +225,19 @@ export class TmaControl {
     private readonly element: HTMLElement,
     private readonly host: TmaControlHost,
     private readonly settings: FormatSettings = DEFAULT_SETTINGS,
+    private readonly memory?: TmaControlMemory,
   ) {
+    let remembered: unknown;
+    try {
+      remembered = memory?.load();
+    } catch {
+      remembered = undefined;
+    }
+    this.panes = readPanes((remembered as { panes?: unknown } | undefined)?.panes);
     element.classList.add("tma");
     element.setAttribute("role", "group");
     element.setAttribute("aria-label", "Bearings");
+    const paneButton = (p: Pane) => `<button type="button" class="tma-pane" data-pane="${p}" aria-pressed="false" title="Show or hide the ${PANE_NAMES[p]} pane">${PANE_NAMES[p]}</button>`;
     element.innerHTML =
       `<p class="tma-empty">Open a plot with sensor bearings to list its cuts and make a TMA solution from them.</p>` +
       `<div class="tma-head">` +
@@ -157,8 +245,16 @@ export class TmaControl {
       `<label class="tma-pick"><span>Solution</span><select class="tma-solution" aria-label="TMA solution shown"></select></label>` +
       `</div>` +
       `<div class="tma-body"><div class="tma-left">` +
-      `<div class="tma-plot" hidden><canvas class="tma-canvas" role="img"></canvas>` +
-      `<p class="tma-key" aria-hidden="true"><span>● measured</span><span>○ nearer of two</span><span class="tma-key-other">● other of two, faint</span><span>— calculated</span><span>◌ left out</span></p></div>` +
+      `<div class="tma-tools" role="toolbar" aria-label="The plot's panes and scale" hidden>` +
+      `<span class="tma-panes" role="group" aria-label="Panes shown">${PANES.map(paneButton).join("")}</span>` +
+      `<button type="button" class="tma-hold" aria-pressed="false" title="Keep the Error axis as it is while dragging; it still widens to take in an error outside it">Hold scale</button>` +
+      `<button type="button" class="tma-reset" disabled title="Undo the zoom (double-click the plot, or press 0 in it)" aria-keyshortcuts="0">Reset zoom</button>` +
+      `<label class="tma-cutoff" title="The Error pane is green while every error counted is within this, pink otherwise; kept with your Debrief settings"><span>Cut-off</span><input type="number" class="tma-cutoff-input" min="0.1" max="180" step="0.5" inputmode="decimal" aria-label="Error cut-off, degrees"><span aria-hidden="true">°</span></label>` +
+      `</div>` +
+      `<div class="tma-plot" hidden><canvas class="tma-canvas" role="img" tabindex="0" aria-keyshortcuts="ArrowUp ArrowDown Enter + - [ ] 0 PageUp PageDown"></canvas><canvas class="tma-overlay" aria-hidden="true"></canvas></div>` +
+      `<p class="tma-readout" aria-hidden="true" hidden></p>` +
+      `<p class="tma-cue" hidden aria-live="polite"><span class="tma-cue-mark" aria-hidden="true"></span> <span class="tma-cue-text"></span></p>` +
+      `<p class="tma-key" aria-hidden="true" hidden></p>` +
       `<p class="tma-rms" hidden></p>` +
       `<div class="tma-below">` +
       `<ul class="tma-notes" hidden></ul>` +
@@ -184,6 +280,12 @@ export class TmaControl {
     this.solution = q(".tma-solution");
     this.plot = q(".tma-plot");
     this.canvas = q(".tma-canvas");
+    this.overlay = q(".tma-overlay");
+    this.tools = q(".tma-tools");
+    this.readout = q(".tma-readout");
+    this.keyLine = q(".tma-key");
+    this.cue = q(".tma-cue");
+    this.cutOffInput = q(".tma-cutoff-input");
     this.rmsLine = q(".tma-rms");
     this.notes = q(".tma-notes");
     this.actions = q(".tma-actions");
@@ -216,7 +318,19 @@ export class TmaControl {
     this.list.addEventListener("focus", () => {
       if (this.active < 0 && this.rows().length) this.setActive(0, false);
     });
-    this.canvas.addEventListener("click", (e) => this.plotClick(e));
+    this.canvas.addEventListener("pointerdown", (e) => this.pointerDown(e));
+    this.canvas.addEventListener("pointermove", (e) => this.pointerMove(e));
+    this.canvas.addEventListener("pointerup", (e) => this.pointerUp(e));
+    this.canvas.addEventListener("pointercancel", () => this.pointerGone());
+    this.canvas.addEventListener("pointerleave", () => !this.box && this.pointerGone());
+    this.canvas.addEventListener("dblclick", () => this.resetZoom());
+    this.canvas.addEventListener("keydown", (e) => this.plotKey(e));
+    this.canvas.addEventListener("focus", () => this.sayActive());
+    this.canvas.addEventListener("blur", () => this.pointerGone());
+    this.tools.querySelectorAll<HTMLButtonElement>(".tma-pane").forEach((button) => button.addEventListener("click", () => this.togglePane(button.dataset.pane as Pane)));
+    q<HTMLButtonElement>(".tma-hold").addEventListener("click", () => this.setHold(!this.hold));
+    q<HTMLButtonElement>(".tma-reset").addEventListener("click", () => this.resetZoom());
+    this.cutOffInput.addEventListener("change", () => this.setCutOff(Number(this.cutOffInput.value)));
     this.buttons.prev.addEventListener("click", () => this.ambiguous(-1));
     this.buttons.next.addEventListener("click", () => this.ambiguous(1));
     this.buttons.first.addEventListener("click", () => this.keep("bearing"));
@@ -226,13 +340,18 @@ export class TmaControl {
     this.buttons.split.addEventListener("click", () => this.split());
     this.make.addEventListener("click", () => this.openForm());
     // Wide and short (the strip under the map): the plots and buttons beside the list, not above it.
-    new ResizeObserver(() => {
+    const resized = new ResizeObserver(() => {
       element.classList.toggle("tma-wide", element.clientWidth >= WIDE_PX);
       // Narrow (a side column, about 200 px): the list keeps time, bearing and residual readable; the tick box goes (Space and the button leave a cut out).
       element.classList.toggle("tma-narrow", element.clientWidth < NARROW_PX);
       this.renderRows();
+      // Not mid-drag: the plot's size is read once a drag.
+      if (!this.live) this.frozenGeometry = undefined;
       this.drawPlot();
-    }).observe(element);
+    });
+    resized.observe(element);
+    // The plot's own box too: what is beneath it (a note, the buttons) can take its height without the panel changing.
+    resized.observe(this.plot);
     this.render();
   }
 
@@ -246,6 +365,13 @@ export class TmaControl {
     this.frozen = undefined;
     this.frozenGeometry = undefined;
     this.colours = undefined;
+    if (view?.error_cut_off !== undefined && view.error_cut_off !== null) this.cutOffDegrees = view.error_cut_off;
+    // Another solution: its own zoom and held scale; the same one shown again (a step saved) keeps them.
+    if (before?.solution_id !== view?.solution_id || before?.plot_id !== view?.plot_id) {
+      this.zoom = noZoom();
+      this.heldError = undefined;
+    }
+    this.prepareCoverage();
     const key = this.keyOf();
     if (key !== this.rowsKey) {
       // Another list: the place in it starts again, but a solution's own list keeps its row.
@@ -295,6 +421,7 @@ export class TmaControl {
       this.frozenGeometry = undefined;
       if (this.live) {
         this.live = undefined;
+        this.cue.setAttribute("aria-live", "polite");
         this.renderResiduals();
       }
       return;
@@ -345,6 +472,64 @@ export class TmaControl {
   /** The cuts of the period chosen, first to last. For tests. */
   chosenCuts(): Row[] {
     return this.chosenRows();
+  }
+
+  /** The plot as last drawn: its panes, axes, span, zoom and cue. For tests and agents. */
+  get plotState() {
+    const d = this.drawn_;
+    return {
+      panes: { ...this.panes },
+      hold: this.hold,
+      zoomed: isZoomed(this.zoom),
+      zoom: this.zoom,
+      span: d?.span,
+      whole: this.coverage.whole,
+      axes: d ? Object.fromEntries(d.panes.map((p) => [p.pane, p.range])) : {},
+      /** Where each pane is drawn, in pixels from the canvas's top left. */
+      boxes: d ? Object.fromEntries(d.panes.map((p) => [p.pane, { x: p.x, w: p.w, top: d.top, height: d.height }])) : {},
+      speed: d?.speed,
+      cue: d?.cue,
+      coverage: this.coverage.rows.length,
+    };
+  }
+
+  /**
+   * Where a cut's dot is drawn in a pane, or the solution's at a time in the Course/Speed
+   * pane, in pixels from the canvas's top left; undefined if it is not drawn. For tests.
+   */
+  pointOf(id: string, pane: Pane = "error", time?: string): { x: number; y: number } | undefined {
+    const d = this.drawn_;
+    const p = d?.panes.find((q) => q.pane === pane);
+    if (!d || !p) return undefined;
+    if (id === this.view?.solution_id && time) {
+      // The solution at a fix: its course in the Course/Speed pane.
+      const i = this.fixTimes.indexOf(Date.parse(time));
+      const course = this.solutionRow()?.courses?.[i];
+      if (pane !== "course" || i < 0 || course === undefined) return undefined;
+      const value = about(course, d.courseReference);
+      if (!inside(value, p.range)) return undefined;
+      return { x: valueToX(value, p.range, p.x, p.w), y: timeToY(this.fixTimes[i], d.span, d.top, d.height) };
+    }
+    const report = this.residuals;
+    const rows = report?.rows ?? [];
+    const times = this.timesOf(rows);
+    const i = rows.findIndex((r) => r.id === id);
+    if (i >= 0) {
+      const r = rows[i];
+      const v = pane === "error" ? r.residual : pane === "bearing" ? r.measured : undefined;
+      if (v === undefined || v === null) return undefined;
+      const value = pane === "bearing" ? about(v, d.reference) : v;
+      if (!inside(value, p.range) || times[i] < d.span[0] || times[i] > d.span[1]) return undefined;
+      return { x: valueToX(value, p.range, p.x, p.w), y: timeToY(times[i], d.span, d.top, d.height) };
+    }
+    const k = this.coverage.rows.findIndex((c) => c.id === id);
+    if (k >= 0 && pane === "bearing") {
+      const c = this.coverage.rows[k];
+      const value = about(c.resolved === "ambiguous_bearing" ? (c.ambiguous_bearing ?? c.bearing) : c.bearing, d.reference);
+      if (!inside(value, p.range)) return undefined;
+      return { x: valueToX(value, p.range, p.x, p.w), y: timeToY(this.coverage.times[k], d.span, d.top, d.height) };
+    }
+    return undefined;
   }
 
   // --- The rows -------------------------------------------------------------------------
@@ -407,7 +592,9 @@ export class TmaControl {
     this.empty.hidden = open;
     for (const part of [this.element.querySelector<HTMLElement>(".tma-head")!, this.element.querySelector<HTMLElement>(".tma-body")!]) part.hidden = !open;
     if (!open) {
-      this.plot.hidden = this.rmsLine.hidden = this.notes.hidden = this.actions.hidden = this.chosen.hidden = true;
+      this.plot.hidden = this.tools.hidden = this.readout.hidden = this.cue.hidden = this.keyLine.hidden = true;
+      this.element.classList.remove("tma-solution-shown");
+      this.rmsLine.hidden = this.notes.hidden = this.actions.hidden = this.chosen.hidden = true;
       this.closeForm();
       return;
     }
@@ -427,7 +614,9 @@ export class TmaControl {
     this.list.setAttribute("aria-label", solution ? `Cuts of ${this.solutionRow()?.name ?? "the solution"}, with their residuals` : `Cuts of ${sensors.find((s) => s.id === this.sensor.value)?.name ?? "the sensor"}`);
     this.heading.classList.toggle("tma-with-residual", solution);
     this.list.classList.toggle("tma-with-residual", solution);
-    this.plot.hidden = !solution;
+    this.plot.hidden = this.tools.hidden = this.readout.hidden = this.cue.hidden = this.keyLine.hidden = !solution;
+    this.element.classList.toggle("tma-solution-shown", solution);
+    this.renderTools();
     this.chosen.hidden = solution;
     if (solution) this.closeForm();
     this.renderResiduals();
@@ -449,6 +638,16 @@ export class TmaControl {
     this.renderRows();
     this.renderActions();
     this.drawPlot();
+    this.renderCue();
+  }
+
+  /** The cut-off's state in words and a mark beside the Error pane, so colour is never all that says it. */
+  private renderCue(): void {
+    const cue = this.drawn_?.cue;
+    if (this.mode() !== "solution" || !cue) return;
+    this.cue.dataset.state = cue.state;
+    this.cue.querySelector<HTMLElement>(".tma-cue-mark")!.textContent = cueMark(cue);
+    this.cue.querySelector<HTMLElement>(".tma-cue-text")!.textContent = describeCue(cue, this.settings);
   }
 
   /** A frame of a drag: the RMS, the residual cells of the rows in the page, the plots; nothing rebuilt. */
@@ -457,6 +656,9 @@ export class TmaControl {
     if (!report) return;
     // The plots first, then the words: nothing read from the page after it is written.
     this.drawPlot();
+    // Said once the drag ends, not every frame.
+    if (this.cue.getAttribute("aria-live") !== "off") this.cue.setAttribute("aria-live", "off");
+    this.renderCue();
     this.rmsLine.textContent = `${describeRms(report, this.settings)} (while dragging)`;
     for (const [i, element] of this.drawn) {
       const row = report.rows[i];
@@ -656,16 +858,6 @@ export class TmaControl {
     if (!event.shiftKey) this.host.time(this.rows()[index].time);
   }
 
-  private plotClick(event: MouseEvent): void {
-    const rows = this.rows();
-    const t = this.timeAtX(event.offsetX);
-    if (t === undefined || !rows.length) return;
-    const index = nearestRow(rows, t);
-    if (index < 0) return;
-    this.setActive(index, false, true);
-    this.host.time(rows[index].time);
-  }
-
   private ambiguous(direction: 1 | -1): void {
     const rows = this.rows();
     const found = nextAmbiguous(rows, this.active < 0 ? (direction === 1 ? -1 : 0) : this.active, direction);
@@ -820,7 +1012,88 @@ export class TmaControl {
     };
   }
 
-  // --- The plots: bearings over time, residuals beneath (legacy Stacked Dots) ---------------
+
+  // --- The plot: legacy's Bearing Residuals (Stacked Dots), as legacy laid it out ------------
+
+  /** The coverage not rooted in the solution, its times, and the whole span plotted: once per view, never per frame. */
+  private prepareCoverage(): void {
+    const view = this.view;
+    const solution = this.solutionRow();
+    this.fixTimes = (solution?.times ?? []).map((t) => Date.parse(t));
+    if (!view?.residuals || !view.solution_id) {
+      this.coverage = { rows: [], times: [] };
+      return;
+    }
+    const rooted = new Set(view.residuals.rows.map((r) => r.id));
+    const rows = (view.coverage ?? []).filter((c) => !rooted.has(c.id) && !c.hidden);
+    const times = rows.map((c) => Date.parse(c.time));
+    const rowTimes = view.residuals.rows.map((r) => Date.parse(r.time));
+    const period: Range | undefined = solution ? [Date.parse(solution.period.start), Date.parse(solution.period.end)] : undefined;
+    this.coverage = { rows, times, whole: coverageSpan(times, rowTimes, period) };
+  }
+
+  private togglePane(pane: Pane): void {
+    const next = togglePane(this.panes, pane);
+    if (next === this.panes) return this.say("One pane at least stays shown.");
+    this.panes = next;
+    try {
+      this.memory?.save({ panes: this.panes });
+    } catch {
+      // Not remembered: the choice holds for now.
+    }
+    this.renderTools();
+    this.drawPlot();
+    this.say(`${PANE_NAMES[pane]} pane ${next[pane] ? "shown" : "hidden"}.`);
+  }
+
+  private setHold(hold: boolean): void {
+    this.hold = hold;
+    // Held as it is drawn now; let go, it fits the errors again.
+    this.heldError = hold ? this.drawn_?.panes.find((p) => p.pane === "error")?.range : undefined;
+    this.renderTools();
+    this.drawPlot();
+    this.say(hold ? "Error scale held: it widens if an error falls outside it." : "Error scale fits the errors as they move.");
+  }
+
+  private setCutOff(degrees: number): void {
+    if (!(degrees >= 0.1 && degrees <= 180)) {
+      this.cutOffInput.value = String(this.cutOffDegrees);
+      return this.say("The cut-off is from 0.1° to 180°.");
+    }
+    this.cutOffDegrees = degrees;
+    this.host.cutOff(degrees);
+    this.drawPlot();
+    this.renderCue();
+  }
+
+  private resetZoom(): void {
+    if (!isZoomed(this.zoom)) return;
+    this.zoom = noZoom();
+    this.renderTools();
+    this.drawPlot();
+    this.renderCue();
+    this.say("Zoom reset: the whole coverage shown.");
+  }
+
+  private setZoom(zoom: Zoom): void {
+    this.zoom = zoom;
+    this.renderTools();
+    this.drawPlot();
+    this.renderCue();
+  }
+
+  /** The toolbar as things stand: which panes show, whether the scale is held, whether there is a zoom to undo, the cut-off. */
+  private renderTools(): void {
+    this.tools.querySelectorAll<HTMLButtonElement>(".tma-pane").forEach((button) => button.setAttribute("aria-pressed", String(this.panes[button.dataset.pane as Pane])));
+    this.tools.querySelector(".tma-hold")!.setAttribute("aria-pressed", String(this.hold));
+    this.tools.querySelector<HTMLButtonElement>(".tma-reset")!.disabled = !isZoomed(this.zoom);
+    if (document.activeElement !== this.cutOffInput) this.cutOffInput.value = String(this.cutOffDegrees);
+    const course = this.panes.course;
+    const unit = UNIT_LABELS[this.settings.speed_unit] ?? this.settings.speed_unit;
+    this.keyLine.innerHTML =
+      `<span>● measured</span><span>○ nearer of two</span><span class="tma-key-other">● other of two, faint</span><span>— calculated</span><span>◌ left out</span>` +
+      (course ? `<span>— ownship course</span><span>— target course</span><span>┄ target speed (${escape(unit)})</span>` : "");
+  }
 
   private geometry() {
     if (this.live && this.frozenGeometry) return this.frozenGeometry;
@@ -829,38 +1102,11 @@ export class TmaControl {
     return g;
   }
 
+  /** The plot's size: its box, as the panel lays it out (the canvas is laid over it, so never sizes it). */
   private measure() {
     const width = Math.max(120, this.plot.clientWidth || this.element.clientWidth || 300);
-    // Beside the list in a short panel: as tall as the panel leaves room for, the RMS and buttons beneath.
-    const head = this.element.querySelector<HTMLElement>(".tma-head")?.offsetHeight ?? 0;
-    // The plots' key and the RMS line beneath them stay in sight; the buttons below may scroll.
-    const key = this.plot.querySelector<HTMLElement>(".tma-key")?.offsetHeight ?? 0;
-    const room = this.element.clientHeight - head - key - RMS_PX - 12;
-    const height = this.element.classList.contains("tma-wide") && room > 0 ? Math.max(PLOT_LEAST_PX, Math.min(PLOT_PX, room)) : PLOT_PX;
-    const left = 40;
-    const right = 8;
-    const top = 6;
-    const gap = 16;
-    const bottom = 14;
-    const residuals = Math.round((height - top - gap - bottom) * 0.4);
-    const bearings = height - top - gap - bottom - residuals;
-    return { width, height, left, right, top, bearings, gap, residuals, plotWidth: width - left - right };
-  }
-
-  private span(): [number, number] | undefined {
-    const solution = this.solutionRow();
-    const rows = this.rows();
-    if (solution) return [Date.parse(solution.period.start), Date.parse(solution.period.end)];
-    if (!rows.length) return undefined;
-    return [Date.parse(rows[0].time), Date.parse(rows[rows.length - 1].time)];
-  }
-
-  private timeAtX(x: number): number | undefined {
-    const span = this.span();
-    if (!span) return undefined;
-    const g = this.geometry();
-    const f = (x - g.left) / g.plotWidth;
-    return span[0] + Math.max(0, Math.min(1, f)) * (span[1] - span[0]);
+    const height = Math.max(160, this.plot.clientHeight || 300);
+    return { width, height };
   }
 
   /** The rows' times, parsed once for each list (a drag's rows keep the base's order). */
@@ -876,188 +1122,321 @@ export class TmaControl {
 
   /** The theme's colours and font, read once each time the view is shown. */
   private themeColours() {
-    if (this.colours) return this.colours;
-    const css = getComputedStyle(this.element);
-    const token = (name: string, fallback: string) => css.getPropertyValue(name).trim() || css.getPropertyValue(fallback).trim();
-    const muted = token("--vscode-descriptionForeground", "--vscode-foreground");
-    this.colours = {
-      fg: token("--vscode-foreground", "--vscode-editor-foreground"),
-      muted,
-      grid: token("--vscode-widget-border", "--vscode-panel-border") || muted,
-      focus: token("--vscode-focusBorder", "--vscode-foreground"),
-      font: css.getPropertyValue("--vscode-font-family") || "sans-serif",
-    };
+    if (!this.colours) this.colours = this.readColours();
     return this.colours;
   }
 
-  /** How many faint other bearings the plots drew last: for tests. */
+  private readColours() {
+    const css = getComputedStyle(this.element);
+    const token = (...names: string[]) => names.map((n) => css.getPropertyValue(n).trim()).find(Boolean) ?? "";
+    const muted = token("--vscode-descriptionForeground", "--vscode-foreground");
+    const fg = token("--vscode-foreground", "--vscode-editor-foreground");
+    const font = css.getPropertyValue("--vscode-font-family") || "sans-serif";
+    // The time labels' width, measured once: never assumed of a font.
+    const ctx = this.canvas.getContext("2d");
+    let label = 44;
+    if (ctx) {
+      ctx.font = `10px ${font}`;
+      label = Math.ceil(Math.max(ctx.measureText("00:00:00Z").width, ctx.measureText("00:00Z").width));
+    }
+    return {
+      fg,
+      muted,
+      grid: token("--vscode-widget-border", "--vscode-panel-border") || muted,
+      focus: token("--vscode-focusBorder", "--vscode-foreground"),
+      font,
+      label,
+      // The cut-off's shades, as VS Code shades lines added and removed; in a high-contrast
+      // theme, which has none, a border in its passed or failed colour (and always the words).
+      within: token("--vscode-diffEditor-insertedTextBackground", "--vscode-diffEditor-insertedLineBackground"),
+      beyond: token("--vscode-diffEditor-removedTextBackground", "--vscode-diffEditor-removedLineBackground"),
+      withinEdge: token("--vscode-testing-iconPassed", "--vscode-charts-green", "--vscode-focusBorder"),
+      beyondEdge: token("--vscode-testing-iconFailed", "--vscode-errorForeground"),
+      highContrast: !!token("--vscode-contrastBorder") && token("--vscode-contrastBorder") !== "transparent",
+    };
+  }
+
+  /** How many faint other bearings the plot drew last: for tests. */
   faintDrawn = 0;
+
+  /** The panes shown, side by side, sharing time up the left. */
+  private layoutPanes(width: number, height: number) {
+    const { label } = this.themeColours();
+    const shown = PANES.filter((p) => this.panes[p]);
+    const left = label + 8;
+    const right = 4;
+    const gap = 8;
+    // Each pane's name, then its axis's ticks, above; Speed's ticks below the Course/Speed pane.
+    const top = 28;
+    const bottom = this.panes.course ? 26 : 6;
+    const w = Math.max(20, (width - left - right - gap * (shown.length - 1)) / shown.length);
+    return {
+      top,
+      height: Math.max(40, height - top - bottom),
+      left,
+      panes: shown.map((pane, k) => ({ pane, x: left + k * (w + gap), w })),
+    };
+  }
 
   private drawPlot(): void {
     if (this.mode() !== "solution" || this.plot.hidden) return;
     const report = this.residuals;
-    const span = this.span();
+    const whole = this.coverage.whole;
     const g = this.geometry();
     const ratio = window.devicePixelRatio || 1;
     const w = Math.round(g.width * ratio);
     const h = Math.round(g.height * ratio);
     // Resized only when the size changes: setting a canvas's size clears and reallocates it.
     if (this.canvas.width !== w || this.canvas.height !== h) {
-      this.canvas.width = w;
-      this.canvas.height = h;
-      this.canvas.style.width = `${g.width}px`;
-      this.canvas.style.height = `${g.height}px`;
+      for (const c of [this.canvas, this.overlay]) {
+        c.width = w;
+        c.height = h;
+        c.style.width = `${g.width}px`;
+        c.style.height = `${g.height}px`;
+      }
     }
     const ctx = this.canvas.getContext("2d");
-    if (!ctx || !report || !span) return;
+    if (!ctx || !report || !whole) return;
     ctx.setTransform(ratio, 0, 0, ratio, 0, 0);
     ctx.clearRect(0, 0, g.width, g.height);
-    const { fg, muted, grid, focus, font } = this.themeColours();
+    const colours = this.themeColours();
+    const { fg, muted, grid, focus, font } = colours;
     const solution = this.solutionRow();
     const lineColour = solution?.colour ?? fg;
     ctx.font = `10px ${font}`;
-    const rows = report.rows;
+    const rows = report.rows as TmaResidualRow[];
     const times = this.timesOf(rows);
-    const x = (t: number) => g.left + ((t - span[0]) / Math.max(1, span[1] - span[0])) * g.plotWidth;
+    const span: Range = this.zoom.time ?? whole;
+    const layout = this.layoutPanes(g.width, g.height);
+    const { top, height } = layout;
+    const y = (t: number) => timeToY(t, span, top, height);
+    const inSpan = (t: number) => t >= span[0] && t <= span[1];
     const has = (v: number | null | undefined): v is number => v !== undefined && v !== null;
-    // The other bearing of an unresolved pair: drawn faint, never counted (product owner, 25 Oct 2026).
     const otherOf = (r: TmaResidualRow) => (r.nearer_side && has(r.ambiguous_bearing) ? (r.used === "ambiguous_bearing" ? r.bearing : r.ambiguous_bearing) : undefined);
-    // The axes: worked out from the rows (in loops: a spread of thousands is slow), or held as
-    // they were when a drag began, so the dots move rather than the scale.
-    let axes = this.live ? this.frozen : undefined;
-    if (!axes) {
-      // Bearings unwrapped about the middle calculated bearing, so a line through north stays one line.
-      let reference = rows[0]?.bearing ?? 0;
+    const coverage = this.coverage;
+
+    // --- The axes: Bearing kept while a drag goes on, Error fitted every frame (or held), Course fitted.
+    let reference = this.frozen?.reference;
+    if (reference === undefined) {
       const calculated = rows.filter((r) => has(r.calculated));
-      if (calculated.length) reference = calculated[Math.floor(calculated.length / 2)].calculated!;
-      let lo = Infinity;
-      let hi = -Infinity;
-      let biggest = 2;
-      const take = (v: number) => {
-        const u = reference + wrap(v - reference);
-        if (u < lo) lo = u;
-        if (u > hi) hi = u;
-      };
-      for (const r of rows) {
-        if (r.hidden) continue;
-        if (has(r.measured)) take(r.measured);
-        if (has(r.calculated)) take(r.calculated);
-        const other = otherOf(r);
-        if (other !== undefined) take(other);
-        if (has(r.residual) && Math.abs(r.residual) > biggest) biggest = Math.abs(r.residual);
-      }
-      if (lo === Infinity) {
-        lo = reference - 10;
-        hi = reference + 10;
-      }
-      if (hi - lo < 4) {
-        lo -= 2;
-        hi += 2;
-      }
-      const pad = (hi - lo) * 0.08;
-      axes = { lo: lo - pad, hi: hi + pad, reference, limit: Math.min(180, Math.ceil(biggest * 1.15)) };
-      if (this.live) this.frozen = axes;
+      reference = calculated.length ? calculated[Math.floor(calculated.length / 2)].calculated! : (rows[0]?.bearing ?? coverage.rows[0]?.bearing ?? 0);
     }
-    const { lo, hi, reference, limit } = axes;
-    const unwrap = (v: number) => reference + wrap(v - reference);
-    const yB = (v: number) => g.top + g.bearings - ((unwrap(v) - lo) / (hi - lo)) * g.bearings;
-    const resTop = g.top + g.bearings + g.gap;
-    const yR = (v: number) => Math.max(resTop + 1, Math.min(resTop + g.residuals - 1, resTop + g.residuals / 2 - (v / limit) * (g.residuals / 2)));
-    const inBearings = (py: number) => py >= g.top && py <= g.top + g.bearings;
-    // Frames, the zero line, labels.
-    ctx.strokeStyle = grid;
+    const ref = reference;
+    let bLo = Infinity;
+    let bHi = -Infinity;
+    const takeB = (v: number) => {
+      const u = about(v, ref);
+      if (u < bLo) bLo = u;
+      if (u > bHi) bHi = u;
+    };
+    for (let i = 0; i < rows.length; i++) {
+      const r = rows[i];
+      if (r.hidden || !inSpan(times[i])) continue;
+      if (has(r.measured)) takeB(r.measured);
+      else takeB(r.resolved === "ambiguous_bearing" ? (r.ambiguous_bearing ?? r.bearing) : r.bearing);
+      if (has(r.calculated)) takeB(r.calculated);
+      const other = otherOf(r);
+      if (other !== undefined) takeB(other);
+    }
+    for (let i = 0; i < coverage.rows.length; i++) {
+      if (!inSpan(coverage.times[i])) continue;
+      const c = coverage.rows[i];
+      if (c.resolved !== "ambiguous_bearing") takeB(c.bearing);
+      if (has(c.ambiguous_bearing) && c.resolved !== "bearing") takeB(c.ambiguous_bearing);
+    }
+    const bearingExtent = bLo === Infinity ? undefined : { lo: bLo, hi: bHi };
+    let bearingRange = bearingExtent ? fitRange(bLo, bHi, { least: 4, margin: 0.06 }) : ([ref - 10, ref + 10] as Range);
+    if (this.live) {
+      // Kept as the drag found it, widened (never clamped) if the calculated bearings leave it.
+      this.frozen = this.frozen ? { reference: ref, bearing: widen(this.frozen.bearing, bearingExtent) } : { reference: ref, bearing: bearingRange };
+      bearingRange = this.frozen.bearing;
+    }
+    const errorFound = errorExtent(rows, times, span);
+    let errorRange = fitErrors(errorFound);
+    if (this.hold) {
+      this.heldError = this.heldError ? widen(this.heldError, errorFound) : errorRange;
+      errorRange = this.heldError;
+    }
+    // The course pane: ownship's courses, the solution's (its DR legs; worked out again from a drag's fixes), its speeds.
+    let courses = solution?.courses ?? undefined;
+    let speeds = solution?.speeds ?? undefined;
+    if (this.live && this.pending && this.panes.course && this.pending.length === this.fixTimes.length) {
+      const legs = legCourses(this.pending, this.fixTimes);
+      courses = legs.courses;
+      speeds = legs.speeds;
+    }
+    const perSecond = convert({ value: 1, unit: "m/s" }, this.settings.speed_unit).value;
+    const ownship = this.view?.ownship ?? [];
+    let courseRange: Range = [0, 360];
+    let speedRange: Range = [0, 10];
+    let courseRef = 0;
+    if (this.panes.course) {
+      courseRef = courses?.[0] ?? ownship[0]?.courses[0] ?? 0;
+      let cLo = Infinity;
+      let cHi = -Infinity;
+      let sHi = 0;
+      const takeC = (v: number) => {
+        const u = about(v, courseRef);
+        if (u < cLo) cLo = u;
+        if (u > cHi) cHi = u;
+      };
+      for (let i = 0; i < this.fixTimes.length; i++) {
+        if (!inSpan(this.fixTimes[i])) continue;
+        if (courses && has(courses[i])) takeC(courses[i]);
+        if (speeds && has(speeds[i]) && speeds[i] * perSecond > sHi) sHi = speeds[i] * perSecond;
+      }
+      for (const own of ownship) {
+        const ts = this.ownTimes(own);
+        for (let i = 0; i < ts.length; i++) if (inSpan(ts[i])) takeC(own.courses[i]);
+      }
+      courseRange = cLo === Infinity ? [courseRef - 10, courseRef + 10] : fitRange(cLo, cHi, { least: 10, margin: 0.06 });
+      speedRange = fitRange(0, sHi, { includeZero: true, least: 1, margin: 0.08 });
+    }
+    // A zoom wins over each.
+    const zoomed = this.zoom.values;
+    const ranges: Record<Pane, Range> = {
+      bearing: zoomed.bearing ?? bearingRange,
+      error: zoomed.error ?? errorRange,
+      course: zoomed.course ?? courseRange,
+    };
+    if (zoomed.course) {
+      // The speed axis zoomed in proportion with the course axis it shares the pane with.
+      const f0 = (zoomed.course[0] - courseRange[0]) / (courseRange[1] - courseRange[0] || 1);
+      const f1 = (zoomed.course[1] - courseRange[0]) / (courseRange[1] - courseRange[0] || 1);
+      speedRange = [speedRange[0] + f0 * (speedRange[1] - speedRange[0]), speedRange[0] + f1 * (speedRange[1] - speedRange[0])];
+    }
+    const cue: Cue = errorCue(rows, this.cutOffDegrees);
+    const panes = layout.panes.map((p) => ({ ...p, range: ranges[p.pane] }));
+    this.drawn_ = { span, top, height, panes, reference: ref, courseReference: courseRef, speed: speedRange, cue };
+    const pane = (name: Pane) => panes.find((p) => p.pane === name);
+    const xOf = (p: { x: number; w: number; range: Range }, v: number) => valueToX(v, p.range, p.x, p.w);
+
+    // --- The frames, the cut-off's shade, the grid and the labels.
+    const errorPane = pane("error");
+    if (errorPane) {
+      const { fill, edge } = cueStyle(cue.state, colours);
+      if (fill) {
+        ctx.fillStyle = fill;
+        ctx.fillRect(errorPane.x, top, errorPane.w, height);
+      }
+      // A high-contrast theme shades nothing: its passed or failed colour round the pane instead.
+      if (edge) {
+        ctx.strokeStyle = edge;
+        ctx.lineWidth = 2;
+        ctx.strokeRect(errorPane.x + 1, top + 1, errorPane.w - 2, height - 2);
+      }
+    }
+    const ticks = timeTicks(span[0], span[1], Math.max(2, Math.floor(height / 30)));
+    const seconds = ticks.length > 1 && ticks[1] - ticks[0] < 60000;
     ctx.lineWidth = 1;
-    ctx.strokeRect(g.left + 0.5, g.top + 0.5, g.plotWidth, g.bearings);
-    ctx.strokeRect(g.left + 0.5, resTop + 0.5, g.plotWidth, g.residuals);
+    ctx.strokeStyle = grid;
     ctx.beginPath();
-    ctx.moveTo(g.left, Math.round(yR(0)) + 0.5);
-    ctx.lineTo(g.left + g.plotWidth, Math.round(yR(0)) + 0.5);
+    for (const p of panes) {
+      ctx.rect(Math.round(p.x) + 0.5, top + 0.5, Math.round(p.w), height);
+      for (const t of ticks) {
+        const ty = Math.round(y(t)) + 0.5;
+        ctx.moveTo(p.x, ty);
+        ctx.lineTo(p.x + p.w, ty);
+      }
+    }
     ctx.stroke();
     ctx.fillStyle = muted;
     ctx.textAlign = "right";
     ctx.textBaseline = "middle";
-    const degreesText = (v: number) => `${fixed(((v % 360) + 360) % 360, 0).padStart(3, "0")}°`;
-    ctx.fillText(degreesText(hi), g.left - 4, g.top + 6);
-    ctx.fillText(degreesText(lo), g.left - 4, g.top + g.bearings - 6);
-    ctx.fillText(`+${limit}°`, g.left - 4, resTop + 6);
-    ctx.fillText("0°", g.left - 4, yR(0));
-    ctx.fillText(`−${limit}°`, g.left - 4, resTop + g.residuals - 6);
-    ctx.textBaseline = "top";
-    ctx.textAlign = "left";
-    ctx.fillText(formatTime(span[0], this.settings), g.left, resTop + g.residuals + 3);
-    ctx.textAlign = "right";
-    ctx.fillText(formatTime(span[1], this.settings), g.left + g.plotWidth, resTop + g.residuals + 3);
-    ctx.textAlign = "left";
-    ctx.fillText("Residual", g.left + 4, resTop + 2);
-    // Legs: a dashed line where each later leg starts.
-    ctx.setLineDash([3, 3]);
-    ctx.strokeStyle = muted;
-    for (const start of solution?.leg_starts ?? []) {
-      const lx = Math.round(x(Date.parse(start))) + 0.5;
+    for (const t of ticks) ctx.fillText(tickTime(t, seconds, this.settings), layout.left - 4, y(t));
+    const unit = UNIT_LABELS[this.settings.speed_unit] ?? this.settings.speed_unit;
+    const titles: Record<Pane, string> = { bearing: "Bearing (°)", error: "Error (°)", course: "Course (°)" };
+    const errorSpan = Math.abs(ranges.error[1] - ranges.error[0]);
+    const degreesText = (v: number, p: Pane) => (p === "error" ? fixed(v, errorSpan < 1 ? 2 : errorSpan < 5 ? 1 : 0) : fixed(((v % 360) + 360) % 360, 0));
+    for (const p of panes) {
+      ctx.save();
       ctx.beginPath();
-      ctx.moveTo(lx, g.top);
-      ctx.lineTo(lx, resTop + g.residuals);
+      ctx.rect(p.x - 4, 0, p.w + 8, g.height);
+      ctx.clip();
+      ctx.fillStyle = fg;
+      ctx.textAlign = "center";
+      ctx.textBaseline = "top";
+      ctx.fillText(titles[p.pane], p.x + p.w / 2, 1);
+      ctx.fillStyle = muted;
+      ctx.textBaseline = "bottom";
+      // Each tick's label over it, kept within the pane, and left out where it would run into the one before.
+      const labels = (values: number[], toX: (v: number) => number, text: (v: number) => string, y0: number) => {
+        let after = -Infinity;
+        ctx.textAlign = "left";
+        for (const v of values) {
+          const label = text(v);
+          const width = ctx.measureText(label).width;
+          const lx = Math.max(p.x - 2, Math.min(p.x + p.w + 2 - width, toX(v) - width / 2));
+          if (lx < after + 3) continue;
+          ctx.fillText(label, lx, y0);
+          after = lx + width;
+        }
+      };
+      const valueTicks = niceTicks(p.range[0], p.range[1], Math.max(3, Math.floor(p.w / 26)));
+      ctx.strokeStyle = grid;
+      ctx.beginPath();
+      for (const v of valueTicks) {
+        const tx = Math.round(xOf(p, v)) + 0.5;
+        ctx.moveTo(tx, top);
+        ctx.lineTo(tx, top + height);
+      }
+      ctx.stroke();
+      labels(valueTicks, (v) => xOf(p, v), (v) => degreesText(v, p.pane), top - 2);
+      if (p.pane === "course") {
+        ctx.textBaseline = "top";
+        labels(niceTicks(speedRange[0], speedRange[1], Math.max(3, Math.floor(p.w / 26))), (v) => valueToX(v, speedRange, p.x, p.w), (v) => fixed(v, 0), top + height + 2);
+        ctx.fillStyle = fg;
+        ctx.textAlign = "center";
+        ctx.fillText(`Speed (${unit}) ┄`, p.x + p.w / 2, top + height + 13);
+      }
+      ctx.restore();
+    }
+    // The Error pane's zero, strong as legacy drew it.
+    if (errorPane && inside(0, errorPane.range)) {
+      const zx = Math.round(xOf(errorPane, 0)) + 0.5;
+      ctx.strokeStyle = fg;
+      ctx.lineWidth = 1.5;
+      ctx.beginPath();
+      ctx.moveTo(zx, top);
+      ctx.lineTo(zx, top + height);
       ctx.stroke();
     }
-    ctx.setLineDash([]);
-    // The calculated bearings: the solution's line.
-    ctx.strokeStyle = lineColour;
-    ctx.lineWidth = 1.5;
-    ctx.beginPath();
-    let pen = false;
-    let last: number | undefined;
-    for (let i = 0; i < rows.length; i++) {
-      const r = rows[i];
-      if (!has(r.calculated)) {
-        pen = false;
-        continue;
+    // Legs: a dashed line across every pane where each later leg starts.
+    const across = (t: number, colour: string, dash: number[], width = 1) => {
+      if (!inSpan(t)) return;
+      const ly = Math.round(y(t)) + 0.5;
+      ctx.setLineDash(dash);
+      ctx.strokeStyle = colour;
+      ctx.lineWidth = width;
+      ctx.beginPath();
+      for (const p of panes) {
+        ctx.moveTo(p.x, ly);
+        ctx.lineTo(p.x + p.w, ly);
       }
-      const px = x(times[i]);
-      const py = yB(r.calculated);
-      if (pen && last !== undefined && Math.abs(py - last) > g.bearings / 2) pen = false;
-      if (pen) ctx.lineTo(px, py);
-      else ctx.moveTo(px, py);
-      pen = true;
-      last = py;
-    }
-    ctx.stroke();
-    // Measured bearings and residuals: dots in the cut's colour; the nearer of an unresolved
-    // pair a ring, its other bearing a faint dot (never counted); one left out a dotted ring
-    // in the quiet colour. A cut hidden on the map is not drawn, as legacy drew none. Gathered
-    // by how they are drawn and drawn as one path each: thousands of dots in a frame (NFR-04).
+      ctx.stroke();
+      ctx.setLineDash([]);
+    };
+    for (const start of solution?.leg_starts ?? []) across(Date.parse(start), muted, [3, 3]);
+    if (this.current !== undefined) across(this.current, focus, []);
+
+    // --- The dots and lines, each pane clipped to itself.
+    const clip = (p: { x: number; w: number }) => {
+      ctx.save();
+      ctx.beginPath();
+      ctx.rect(p.x, top, p.w, height);
+      ctx.clip();
+    };
     type Dots = Map<string, number[]>;
-    const filled: Dots = new Map();
-    const rings: Dots = new Map();
-    const faints: Dots = new Map();
-    const out: number[] = [];
-    // A dot where one of its kind and colour is already drawn, to the half pixel, adds nothing: left out.
     const seen = new Set<string>();
-    const put = (dots: Dots, colour: string, px: number, py: number) => {
-      const key = `${dots === filled ? "f" : dots === rings ? "r" : "o"}${colour}${Math.round(px * 2)},${Math.round(py * 2)}`;
+    const put = (dots: Dots, kind: string, colour: string, px: number, py: number) => {
+      // A dot where one of its kind and colour is already drawn, to the half pixel, adds nothing: left out.
+      const key = `${kind}${colour}${Math.round(px * 2)},${Math.round(py * 2)}`;
       if (seen.has(key)) return;
       seen.add(key);
       let list = dots.get(colour);
       if (!list) dots.set(colour, (list = []));
       list.push(px, py);
     };
-    let faint = 0;
-    for (let i = 0; i < rows.length; i++) {
-      const r = rows[i];
-      if (r.hidden || !has(r.measured)) continue;
-      const px = x(times[i]);
-      const colour = r.colour ?? fg;
-      const other = otherOf(r);
-      if (other !== undefined && inBearings(yB(other))) {
-        put(faints, colour, px, yB(other));
-        if (has(r.other_residual)) put(faints, colour, px, yR(r.other_residual));
-        faint++;
-      }
-      const ys = has(r.residual) ? [yB(r.measured), yR(r.residual)] : [yB(r.measured)];
-      for (const py of ys) {
-        if (r.excluded) out.push(px, py);
-        else put(r.nearer_side ? rings : filled, colour, px, py);
-      }
-    }
     const path = (points: number[], radius: number) => {
       ctx.beginPath();
       for (let k = 0; k < points.length; k += 2) {
@@ -1065,58 +1444,444 @@ export class TmaControl {
         ctx.arc(points[k], points[k + 1], radius, 0, Math.PI * 2);
       }
     };
-    ctx.globalAlpha = 0.3;
-    for (const [colour, points] of faints) {
-      ctx.fillStyle = colour;
-      path(points, 2);
-      ctx.fill();
-    }
-    ctx.globalAlpha = 1;
-    for (const [colour, points] of filled) {
-      ctx.fillStyle = colour;
-      path(points, 2.4);
-      ctx.fill();
-    }
-    ctx.lineWidth = 1.2;
-    for (const [colour, points] of rings) {
-      ctx.strokeStyle = colour;
-      path(points, 2.4);
-      ctx.stroke();
-    }
-    if (out.length) {
-      ctx.setLineDash([1.5, 1.5]);
-      ctx.strokeStyle = muted;
-      ctx.lineWidth = 1;
-      path(out, 2.4);
-      ctx.stroke();
-      ctx.setLineDash([]);
-    }
-    this.faintDrawn = faint;
-    // Current time, and the cut chosen.
-    if (this.current !== undefined && this.current >= span[0] && this.current <= span[1]) {
-      const cx = Math.round(x(this.current)) + 0.5;
-      ctx.strokeStyle = focus;
-      ctx.lineWidth = 1;
-      ctx.beginPath();
-      ctx.moveTo(cx, g.top);
-      ctx.lineTo(cx, resTop + g.residuals);
-      ctx.stroke();
-    }
-    const chosen = rows[this.active];
-    if (chosen && has(chosen.measured)) {
-      const px = x(times[this.active]);
-      ctx.strokeStyle = focus;
-      ctx.lineWidth = 1.5;
-      for (const py of [yB(chosen.measured), has(chosen.residual) ? yR(chosen.residual) : undefined]) {
-        if (py === undefined) continue;
-        ctx.beginPath();
-        ctx.arc(px, py, 5, 0, Math.PI * 2);
+    const drawDots = (filled: Dots, rings: Dots, faints: Dots, out: number[]) => {
+      ctx.globalAlpha = 0.3;
+      for (const [colour, points] of faints) {
+        ctx.fillStyle = colour;
+        path(points, 2);
+        ctx.fill();
+      }
+      ctx.globalAlpha = 1;
+      for (const [colour, points] of filled) {
+        ctx.fillStyle = colour;
+        path(points, 2.4);
+        ctx.fill();
+      }
+      ctx.lineWidth = 1.2;
+      for (const [colour, points] of rings) {
+        ctx.strokeStyle = colour;
+        path(points, 2.4);
         ctx.stroke();
       }
+      if (out.length) {
+        ctx.setLineDash([1.5, 1.5]);
+        ctx.strokeStyle = muted;
+        ctx.lineWidth = 1;
+        path(out, 2.4);
+        ctx.stroke();
+        ctx.setLineDash([]);
+      }
+    };
+    let faint = 0;
+    const bearing = pane("bearing");
+    if (bearing) {
+      clip(bearing);
+      // The calculated bearings: the solution's line, only where the solution is.
+      ctx.strokeStyle = lineColour;
+      ctx.lineWidth = 1.5;
+      ctx.beginPath();
+      let pen = false;
+      let last: number | undefined;
+      for (let i = 0; i < rows.length; i++) {
+        const r = rows[i];
+        if (!has(r.calculated)) {
+          pen = false;
+          continue;
+        }
+        const px = xOf(bearing, about(r.calculated, ref));
+        const py = y(times[i]);
+        if (pen && last !== undefined && Math.abs(px - last) > bearing.w / 2) pen = false;
+        if (pen) ctx.lineTo(px, py);
+        else ctx.moveTo(px, py);
+        pen = true;
+        last = px;
+      }
+      ctx.stroke();
+      const filled: Dots = new Map();
+      const rings: Dots = new Map();
+      const faints: Dots = new Map();
+      const out: number[] = [];
+      // The sensors' coverage outside the solution: each measured bearing; an unresolved pair's both, faint.
+      for (let i = 0; i < coverage.rows.length; i++) {
+        const t = coverage.times[i];
+        if (!inSpan(t)) continue;
+        const c = coverage.rows[i];
+        const colour = c.colour ?? fg;
+        const py = y(t);
+        if (has(c.ambiguous_bearing) && !c.resolved) {
+          put(faints, "o", colour, xOf(bearing, about(c.bearing, ref)), py);
+          put(faints, "o", colour, xOf(bearing, about(c.ambiguous_bearing, ref)), py);
+        } else put(filled, "f", colour, xOf(bearing, about(c.resolved === "ambiguous_bearing" ? (c.ambiguous_bearing ?? c.bearing) : c.bearing, ref)), py);
+      }
+      // The rooted cuts: measured, the nearer of a pair a ring, its other faint, one left out a dotted ring.
+      for (let i = 0; i < rows.length; i++) {
+        const r = rows[i];
+        if (r.hidden || !inSpan(times[i])) continue;
+        const colour = r.colour ?? fg;
+        const py = y(times[i]);
+        const measured = has(r.measured) ? r.measured : r.resolved === "ambiguous_bearing" ? (r.ambiguous_bearing ?? r.bearing) : r.bearing;
+        const px = xOf(bearing, about(measured, ref));
+        const other = otherOf(r);
+        if (other !== undefined) {
+          put(faints, "o", colour, xOf(bearing, about(other, ref)), py);
+          faint++;
+        }
+        if (r.excluded) out.push(px, py);
+        else put(r.nearer_side ? rings : filled, r.nearer_side ? "r" : "f", colour, px, py);
+      }
+      drawDots(filled, rings, faints, out);
+      ctx.restore();
+    }
+    let outside = 0;
+    if (errorPane) {
+      clip(errorPane);
+      const filled: Dots = new Map();
+      const rings: Dots = new Map();
+      const faints: Dots = new Map();
+      const out: number[] = [];
+      const range = errorPane.range;
+      for (let i = 0; i < rows.length; i++) {
+        const r = rows[i];
+        if (r.hidden || !has(r.residual) || !inSpan(times[i])) continue;
+        // Never drawn at an edge it is not at: outside the axis (only ever a zoom's), not drawn.
+        if (!inside(r.residual, range)) {
+          outside++;
+          continue;
+        }
+        const colour = r.colour ?? fg;
+        const py = y(times[i]);
+        if (has(r.other_residual) && inside(r.other_residual, range)) put(faints, "o", colour, xOf(errorPane, r.other_residual), py);
+        const px = xOf(errorPane, r.residual);
+        if (r.excluded) out.push(px, py);
+        else put(r.nearer_side ? rings : filled, r.nearer_side ? "r" : "f", colour, px, py);
+      }
+      drawDots(filled, rings, faints, out);
+      ctx.restore();
+      if (this.live) {
+        this.errorAxes.push({ lo: range[0], hi: range[1], outside: this.zoom.values.error ? 0 : outside });
+        if (this.errorAxes.length > 2000) this.errorAxes.splice(0, 1000);
+      }
+    }
+    const coursePane = pane("course");
+    if (coursePane) {
+      clip(coursePane);
+      const line = (ts: ArrayLike<number>, values: ArrayLike<number>, colour: string, toX: (v: number) => number, dash: number[], width: number) => {
+        ctx.strokeStyle = colour;
+        ctx.lineWidth = width;
+        ctx.setLineDash(dash);
+        ctx.beginPath();
+        let pen = false;
+        let last = 0;
+        for (let i = 0; i < ts.length; i++) {
+          const v = values[i];
+          if (v === undefined || v === null || !Number.isFinite(v)) {
+            pen = false;
+            continue;
+          }
+          const px = toX(v);
+          const py = y(ts[i]);
+          if (pen && Math.abs(px - last) > coursePane.w / 2) pen = false;
+          if (pen) ctx.lineTo(px, py);
+          else ctx.moveTo(px, py);
+          pen = true;
+          last = px;
+        }
+        ctx.stroke();
+        ctx.setLineDash([]);
+      };
+      const toCourse = (v: number) => xOf(coursePane, about(v, courseRef));
+      for (const own of ownship) line(this.ownTimes(own), own.courses, own.colour ?? muted, toCourse, [], 1.5);
+      if (courses) line(this.fixTimes, courses, lineColour, toCourse, [], 1.5);
+      if (speeds) line(this.fixTimes, speeds, lineColour, (v) => valueToX(v * perSecond, speedRange, coursePane.x, coursePane.w), [4, 3], 1.5);
+      ctx.restore();
+    }
+    this.faintDrawn = faint;
+    // The cut chosen: ringed in each pane it is drawn in.
+    const chosen = rows[this.active];
+    if (chosen && inSpan(times[this.active])) {
+      const py = y(times[this.active]);
+      ctx.strokeStyle = focus;
+      ctx.lineWidth = 1.5;
+      const ring = (p: { x: number; w: number; range: Range } | undefined, v: number | undefined) => {
+        if (!p || v === undefined || !inside(v, p.range)) return;
+        ctx.beginPath();
+        ctx.arc(xOf(p, v), py, 5, 0, Math.PI * 2);
+        ctx.stroke();
+      };
+      ring(bearing, has(chosen.measured) ? about(chosen.measured, ref) : undefined);
+      ring(errorPane, has(chosen.residual) ? chosen.residual : undefined);
     }
     if (!this.live) {
       const others = faint ? ` The other bearing of ${faint.toLocaleString("en-GB")} ambiguous ${faint === 1 ? "cut is" : "cuts are"} drawn faint, not counted.` : "";
-      this.canvas.setAttribute("aria-label", `Bearings and residuals of ${solution?.name ?? "the solution"} over time: ${describeRms(report, this.settings)}.${others} The list gives each cut's residual.`);
+      const names = panes.map((p) => PANE_NAMES[p.pane]).join(", ");
+      this.canvas.setAttribute(
+        "aria-label",
+        `Bearings and residuals of ${solution?.name ?? "the solution"}, time upward from ${formatTime(span[0], this.settings)} to ${formatTime(span[1], this.settings)}; panes ${names}: ${describeRms(report, this.settings)}. ${describeCue(cue, this.settings)}.${others} The list gives each cut's residual; Up and Down choose a cut here, Enter selects it.`,
+      );
+    }
+    this.drawOverlay();
+  }
+
+  /** Ownship's times, parsed once for each series. */
+  private ownTimesOf = new WeakMap<object, number[]>();
+  private ownTimes(own: { times: string[] }): number[] {
+    let times = this.ownTimesOf.get(own);
+    if (!times) this.ownTimesOf.set(own, (times = own.times.map((t) => Date.parse(t))));
+    return times;
+  }
+
+  // --- Pointing at the plot: a crosshair and readout, a box to zoom, a dot to select --------
+
+  /** The pane at a point, and its place. */
+  private paneAt(x: number): PlotLayout["panes"][number] | undefined {
+    return this.drawn_?.panes.find((p) => x >= p.x - 4 && x <= p.x + p.w + 4);
+  }
+
+  /** The crosshair and readout, or the box being dragged: on the overlay, never the plot, so the plot is not drawn again. */
+  private drawOverlay(): void {
+    const ctx = this.overlay.getContext("2d");
+    const d = this.drawn_;
+    if (!ctx) return;
+    const ratio = window.devicePixelRatio || 1;
+    ctx.setTransform(ratio, 0, 0, ratio, 0, 0);
+    ctx.clearRect(0, 0, this.overlay.width / ratio, this.overlay.height / ratio);
+    if (!d) return;
+    const { focus, muted } = this.themeColours();
+    if (this.box) {
+      const p = d.panes.find((q) => q.pane === this.box!.pane);
+      if (!p) return;
+      const x0 = Math.max(p.x, Math.min(p.x + p.w, Math.min(this.box.x0, this.box.x1)));
+      const x1 = Math.max(p.x, Math.min(p.x + p.w, Math.max(this.box.x0, this.box.x1)));
+      const y0 = Math.max(d.top, Math.min(this.box.y0, this.box.y1));
+      const y1 = Math.min(d.top + d.height, Math.max(this.box.y0, this.box.y1));
+      ctx.strokeStyle = focus;
+      ctx.lineWidth = 1;
+      ctx.setLineDash([4, 2]);
+      ctx.strokeRect(x0 + 0.5, y0 + 0.5, x1 - x0, y1 - y0);
+      ctx.setLineDash([]);
+      return;
+    }
+    if (!this.pointer) return;
+    const { x, y } = this.pointer;
+    if (y < d.top || y > d.top + d.height) return;
+    const p = this.paneAt(x);
+    ctx.strokeStyle = muted;
+    ctx.lineWidth = 1;
+    ctx.setLineDash([2, 2]);
+    ctx.beginPath();
+    const ly = Math.round(y) + 0.5;
+    for (const q of d.panes) {
+      ctx.moveTo(q.x, ly);
+      ctx.lineTo(q.x + q.w, ly);
+    }
+    if (p) {
+      const lx = Math.round(Math.max(p.x, Math.min(p.x + p.w, x))) + 0.5;
+      ctx.moveTo(lx, d.top);
+      ctx.lineTo(lx, d.top + d.height);
+    }
+    ctx.stroke();
+    ctx.setLineDash([]);
+  }
+
+  /** The time and value under the pointer, as words above the plot. */
+  private readAt(x: number, y: number): string {
+    const d = this.drawn_;
+    if (!d || y < d.top - 2 || y > d.top + d.height + 2) return "";
+    const t = yToTime(y, d.span, d.top, d.height);
+    const p = this.paneAt(x);
+    const when = formatTime(t, this.settings);
+    if (!p) return when;
+    const v = xToValue(Math.max(p.x, Math.min(p.x + p.w, x)), p.range, p.x, p.w);
+    if (p.pane === "bearing") return `${when} · Bearing ${bearingText(((v % 360) + 360) % 360)}`;
+    if (p.pane === "error") return `${when} · Error ${residualText(v, this.settings)}`;
+    const speed = xToValue(Math.max(p.x, Math.min(p.x + p.w, x)), d.speed, p.x, p.w);
+    const unit = UNIT_LABELS[this.settings.speed_unit] ?? this.settings.speed_unit;
+    return `${when} · Course ${bearingText(((v % 360) + 360) % 360)} · Speed ${fixed(speed, this.settings.speed_decimals)} ${unit}`;
+  }
+
+  private local(event: PointerEvent | MouseEvent): { x: number; y: number } {
+    const box = this.canvas.getBoundingClientRect();
+    return { x: event.clientX - box.left, y: event.clientY - box.top };
+  }
+
+  private pointerDown(event: PointerEvent): void {
+    if (event.button !== 0) return;
+    const { x, y } = this.local(event);
+    const p = this.paneAt(x);
+    const d = this.drawn_;
+    if (!p || !d || y < d.top || y > d.top + d.height) return;
+    this.box = { pane: p.pane, x0: x, y0: y, x1: x, y1: y };
+    this.canvas.setPointerCapture?.(event.pointerId);
+  }
+
+  private pointerMove(event: PointerEvent): void {
+    const { x, y } = this.local(event);
+    this.pointer = { x, y };
+    if (this.box) {
+      this.box.x1 = x;
+      this.box.y1 = y;
+    }
+    this.readout.textContent = this.readAt(x, y) || " ";
+    this.drawOverlay();
+  }
+
+  private pointerUp(event: PointerEvent): void {
+    const box = this.box;
+    this.box = undefined;
+    const d = this.drawn_;
+    if (!box || !d) return;
+    const p = d.panes.find((q) => q.pane === box.pane)!;
+    if (Math.abs(box.x1 - box.x0) >= BOX_PX && Math.abs(box.y1 - box.y0) >= BOX_PX) {
+      // A box: time to its height, the pane's values to its width.
+      const clampX = (v: number) => Math.max(p.x, Math.min(p.x + p.w, v));
+      const clampY = (v: number) => Math.max(d.top, Math.min(d.top + d.height, v));
+      const times: Range = [yToTime(clampY(box.y0), d.span, d.top, d.height), yToTime(clampY(box.y1), d.span, d.top, d.height)];
+      const values: Range = [xToValue(clampX(box.x0), p.range, p.x, p.w), xToValue(clampX(box.x1), p.range, p.x, p.w)];
+      this.setZoom(zoomBox(this.zoom, box.pane, times, values));
+      this.say(`Zoomed: ${formatTime(Math.min(...times), this.settings)} to ${formatTime(Math.max(...times), this.settings)}. Double-click, or Reset zoom, to see it all.`);
+      return;
+    }
+    this.pick(box.pane, box.x1, box.y1, event.detail <= 1);
+  }
+
+  private pointerGone(): void {
+    this.pointer = undefined;
+    this.readout.textContent = " ";
+    this.drawOverlay();
+  }
+
+  /**
+   * A click on the plot: the nearest dot within reach selects its cut, or the solution at a
+   * fix (the calculated line, the Course/Speed pane), and moves current time to it, as
+   * legacy's Stacked Dots selected the cut or fix clicked. Nothing near: current time only.
+   */
+  private pick(pane: Pane, x: number, y: number, single: boolean): void {
+    const d = this.drawn_;
+    const report = this.residuals;
+    if (!d || !report || !single) return;
+    const p = d.panes.find((q) => q.pane === pane)!;
+    const rows = report.rows as TmaResidualRow[];
+    const times = this.timesOf(rows);
+    const xs: number[] = [];
+    const ys: number[] = [];
+    const what: { id: string; time: string; row?: number }[] = [];
+    const add = (v: number | undefined | null, t: number, item: { id: string; time: string; row?: number }) => {
+      if (v === undefined || v === null || !inside(v, p.range) || t < d.span[0] || t > d.span[1]) return;
+      xs.push(valueToX(v, p.range, p.x, p.w));
+      ys.push(timeToY(t, d.span, d.top, d.height));
+      what.push(item);
+    };
+    const solutionId = this.view?.solution_id;
+    const fixAt = (t: number) => ({ id: solutionId ?? "", time: new Date(t).toISOString() });
+    if (pane === "bearing") {
+      rows.forEach((r, i) => {
+        if (r.hidden) return;
+        add(r.measured === undefined || r.measured === null ? undefined : about(r.measured, d.reference), times[i], { id: r.id, time: r.time, row: i });
+      });
+      this.coverage.rows.forEach((c, i) => add(about(c.resolved === "ambiguous_bearing" ? (c.ambiguous_bearing ?? c.bearing) : c.bearing, d.reference), this.coverage.times[i], { id: c.id, time: c.time }));
+      // The calculated line: the solution's fix at that cut's time.
+      rows.forEach((r, i) => add(r.calculated === undefined || r.calculated === null ? undefined : about(r.calculated, d.reference), times[i], { ...fixAt(times[i]), row: i }));
+    } else if (pane === "error") {
+      rows.forEach((r, i) => {
+        if (r.hidden) return;
+        add(r.residual, times[i], { id: r.id, time: r.time, row: i });
+        add(r.other_residual, times[i], { id: r.id, time: r.time, row: i });
+      });
+    } else {
+      const solution = this.solutionRow();
+      const perSecond = convert({ value: 1, unit: "m/s" }, this.settings.speed_unit).value;
+      this.fixTimes.forEach((t, i) => {
+        const c = solution?.courses?.[i];
+        add(c === undefined ? undefined : about(c, d.courseReference), t, fixAt(t));
+        const s = solution?.speeds?.[i];
+        // Speed shares the pane on its own axis: placed by it, then read back on the course axis's scale.
+        if (s !== undefined) add(xToValue(valueToX(s * perSecond, d.speed, p.x, p.w), p.range, p.x, p.w), t, fixAt(t));
+      });
+    }
+    const hit = nearestPoint(xs, ys, x, y, HIT_PX);
+    if (hit < 0) {
+      // No dot near: current time to the time pointed at, as a click on the plot did before.
+      const t = yToTime(y, d.span, d.top, d.height);
+      const index = nearestRow(rows, t);
+      if (index >= 0) this.setActive(index, false);
+      this.host.time(new Date(t).toISOString());
+      return;
+    }
+    const item = what[hit];
+    if (item.row !== undefined) this.setActive(item.row, false);
+    if (item.id) this.host.select(item.id, item.time);
+    const isFix = item.id === solutionId;
+    this.say(isFix ? `${this.solutionRow()?.name ?? "The solution"}'s fix at ${formatTime(Date.parse(item.time), this.settings)} selected.` : `Cut at ${formatTime(Date.parse(item.time), this.settings)} selected.`);
+  }
+
+  /** The cut chosen, read out above the plot when the keyboard is on it. */
+  private sayActive(): void {
+    const rows = this.rows() as TmaResidualRow[];
+    const r = rows[this.active];
+    if (!r) {
+      this.readout.textContent = "Up and Down choose a cut; Enter selects it; + and − zoom time, [ and ] the errors; 0 resets.";
+      return;
+    }
+    const parts = [cutWhen(r, this.settings), `Bearing ${bearingText(r.measured ?? r.bearing)}`];
+    if (r.residual !== undefined && r.residual !== null) parts.push(`Error ${residualText(r.residual, this.settings)}`);
+    this.readout.textContent = parts.join(" · ");
+  }
+
+  /** The plot from the keyboard: Up and Down choose a cut (Up later, as time runs up), Enter selects it; + and − zoom time about it, [ and ] the Error pane; Page Up and Page Down move along a zoom; 0 resets. */
+  private plotKey(event: KeyboardEvent): void {
+    const rows = this.rows();
+    const d = this.drawn_;
+    const whole = this.coverage.whole;
+    if (!d || !whole) return;
+    const at = rows[this.active] ? Date.parse(rows[this.active].time) : this.current;
+    const done = () => {
+      event.preventDefault();
+      this.sayActive();
+    };
+    if ((event.key === "ArrowUp" || event.key === "ArrowDown") && rows.length) {
+      this.setActive(this.active < 0 ? 0 : this.active + (event.key === "ArrowUp" ? 1 : -1), false);
+      return done();
+    }
+    if (event.key === "Enter" && rows[this.active]) {
+      const r = rows[this.active];
+      this.host.select(r.id, r.time);
+      this.say(`Cut at ${cutWhen(r, this.settings)} selected.`);
+      return done();
+    }
+    if (event.key === "+" || event.key === "=") {
+      this.setZoom(zoomTime(this.zoom, d.span, whole, 0.5, at));
+      return done();
+    }
+    if (event.key === "-" || event.key === "_") {
+      this.setZoom(zoomTime(this.zoom, d.span, whole, 2, at));
+      return done();
+    }
+    if (event.key === "]" || event.key === "[") {
+      const p = d.panes.find((q) => q.pane === "error") ?? d.panes[0];
+      this.setZoom(zoomValues(this.zoom, p.pane, p.range, event.key === "]" ? 0.5 : 2));
+      return done();
+    }
+    if (event.key === "PageUp" || event.key === "PageDown") {
+      this.setZoom(panTime(this.zoom, whole, event.key === "PageUp" ? 0.5 : -0.5));
+      return done();
+    }
+    if (event.key === "0") {
+      this.resetZoom();
+      return done();
     }
   }
+}
+
+/** Where the plot's panes were last drawn, and their axes. */
+interface PlotLayout {
+  span: Range;
+  top: number;
+  height: number;
+  panes: { pane: Pane; x: number; w: number; range: Range }[];
+  /** The bearing the Bearing pane is unwrapped about, and the course the Course pane is. */
+  reference: number;
+  courseReference: number;
+  /** The Course/Speed pane's speed axis, in the analyst's speed unit. */
+  speed: Range;
+  cue: Cue;
 }

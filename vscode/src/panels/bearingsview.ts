@@ -19,7 +19,7 @@ import { checkMessage } from "../messages.js";
 import type { Session } from "../session.js";
 import { startup } from "../startup.js";
 import { webviewHtml } from "./html.js";
-import { cutColours, cutRowsOf, sensorOfSelection, solutionOfSelection, tmaSensorRows, tmaSolutionRows, type ListedCut } from "../../webview/tma.js";
+import { coverageOf, cutColours, cutRowsOf, keepsSolution, ownshipOf, sensorOfSelection, solutionOfSelection, tmaSensorRows, tmaSolutionRows, type ListedCut } from "../../webview/tma.js";
 
 export const BEARINGS_VIEW = "debrief.bearings";
 
@@ -36,6 +36,10 @@ export interface BearingsAct {
   exclude(solutionId: string, cutIds: string[], excluded: boolean): Promise<string | undefined>;
   split(solutionId: string, at: string): Promise<string | undefined>;
   resolve(cutId: string, keep: string): Promise<string | undefined>;
+  /** The analyst's error cut-off, degrees: kept in their Debrief configuration. */
+  cutOff(degrees: number): void;
+  /** The analyst's error cut-off, as their configuration holds it. */
+  readonly errorCutOff: number;
 }
 
 export class BearingsView implements vscode.WebviewViewProvider {
@@ -69,6 +73,8 @@ export class BearingsView implements vscode.WebviewViewProvider {
     session.onSelection((ids) => {
       const plot = this.session.current?.plot;
       if (!plot) return;
+      // A cut of the solution's sensors selected (a dot clicked in the plot): the solution stays shown.
+      if (keepsSolution(plot, ids, this.solutionId)) return;
       const solution = solutionOfSelection(plot, ids);
       const sensor = sensorOfSelection(plot, ids);
       if (solution && solution !== this.solutionId) {
@@ -139,6 +145,12 @@ export class BearingsView implements vscode.WebviewViewProvider {
       this.timeTo(message.current_time!);
     } else if (message.kind === "resolve_asked") {
       await this.act.resolve(message.feature_id!, message.keep!);
+    } else if (message.kind === "tma_select") {
+      // A dot clicked: its cut, or the solution at a fix, selected; current time to it.
+      this.session.select([message.feature_id!], "bearings");
+      this.timeTo(message.current_time!);
+    } else if (message.kind === "tma_cut_off") {
+      this.act.cutOff(message.error_cut_off!);
     }
   }
 
@@ -199,10 +211,20 @@ export class BearingsView implements vscode.WebviewViewProvider {
       ...(sensor && { sensor_id: sensor.id }),
       ...(cuts && { cuts }),
       solutions,
-      ...(residuals && this.solutionId && { solution_id: this.solutionId, residuals }),
+      ...(residuals && this.solutionId && { solution_id: this.solutionId, residuals, ...this.around(this.solutionId, residuals) }),
+      error_cut_off: this.act.errorCutOff,
     };
     this.last = view;
     this.post({ kind: "show_tma", tma: view });
+  }
+
+  /** What the plot shows around a solution: its sensors' whole coverage, and ownship's courses over it (product owner, 25 Oct 2026). */
+  private around(solutionId: string, residuals: TmaResiduals): Pick<TmaView, "coverage" | "ownship"> {
+    const plot = this.session.current!.plot;
+    const coverage = coverageOf(plot, solutionId);
+    const times = [...coverage.map((c) => c.time), ...residuals.rows.map((r) => r.time)].sort();
+    const period = times.length ? { start: times[0], end: times[times.length - 1] } : undefined;
+    return { coverage, ownship: ownshipOf(plot, solutionId, period) };
   }
 
   private post(message: Record<string, unknown>): void {

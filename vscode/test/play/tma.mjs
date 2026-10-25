@@ -16,7 +16,7 @@
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import path from "node:path";
-import { showPanel } from "./dock.mjs";
+import { mapPlaced, showPanel } from "./dock.mjs";
 
 // RED ONE as the sample has it, for first guesses near the truth: where it was at a time, and the
 // distance and direction between two places (on a sphere: near enough for a guess).
@@ -83,7 +83,30 @@ export async function playTma(page, shot) {
     await page.waitForFunction((u) => document.querySelectorAll("#history li.undone").length > u, before, { timeout: 60000 });
     await showPanel(page, "bearings");
   };
-  // Serial 2, the whole of it in the window; the bearing view under the map, as the layout has it.
+  // The default layout (product owner, 25 Oct 2026): the Bearings view a tall panel right of the
+  // map, a tab behind the walkthroughs, from top to bottom of the dock.
+  if (await page.locator("#reset-layout").isVisible()) {
+    await page.locator("#reset-layout").click();
+    await mapPlaced(page);
+  }
+  const groups = (await page.evaluate(() => window.debriefLayout().groups));
+  const bearingsGroup = groups.find((g) => g.panels.includes("panel-bearings"));
+  assert.deepEqual(bearingsGroup && { place: bearingsGroup.place, panels: bearingsGroup.panels, active: bearingsGroup.active }, { place: "right", panels: ["panel-tour", "panel-bearings"], active: "panel-tour" });
+  assert.ok(!groups.some((g) => g.place === "centre" && g.panels.includes("panel-bearings")), "no longer under the map");
+  await showPanel(page, "bearings");
+  const placed = await page.evaluate(() => {
+    const box = (e) => e.getBoundingClientRect();
+    const map = box(document.getElementById("main"));
+    const tab = box(document.querySelector('.dv-tab[data-panel="panel-bearings"]'));
+    const content = box(document.getElementById("panel-bearings"));
+    const panel = { x: content.x, right: content.right, top: tab.top, bottom: content.bottom, height: content.bottom - tab.top };
+    const strip = box(document.querySelector('.dv-tab[data-panel="panel-timeline"]').closest(".dv-groupview"));
+    return { map: { x: map.x, right: map.right, top: map.top }, panel: { x: panel.x, right: panel.right, top: panel.top, bottom: panel.bottom, height: panel.height }, stripBottom: strip.bottom, width: innerWidth };
+  });
+  assert.ok(placed.panel.x >= placed.map.right - 1, `right of the map: ${JSON.stringify(placed)}`);
+  assert.ok(Math.abs(placed.panel.right - placed.width) <= 1, "at the window's right edge");
+  assert.ok(placed.panel.top <= placed.map.top + 1 && placed.panel.bottom >= placed.stripBottom - 1, `tall: beside the map and the strip under it: ${JSON.stringify(placed)}`);
+  // Serial 2, the whole of it in the window.
   await page.selectOption("#plots", "serial-2");
   await page.waitForFunction(() => document.getElementById("plot-title")?.textContent === "Serial 2", null, { timeout: 60000 });
   await page.waitForFunction(() => document.querySelector("#outline li[data-id='sensor-blue-one-bow-sonar']"));
@@ -144,7 +167,8 @@ export async function playTma(page, shot) {
   assert.match(await view.locator("#tma-speed-means").innerText(), /^Type a speed/);
   await field("range").fill("5 nmi");
   assert.equal(await view.locator("#tma-range-means").innerText(), "Means 5.00 nmi.");
-  // The analyst's guess, near where RED ONE was: its range on the first cut, its course and speed over the period.
+  // The analyst's guess as legacy's tutorial starts a leg: its start pinned on the first bearing,
+  // where RED ONE was; its course 30° out and its speed right, so the errors ramp away with time.
   const [first, last] = await page.evaluate(() => {
     const rows = window.debriefTma.chosenCuts();
     return [rows[0], rows[rows.length - 1]];
@@ -153,7 +177,7 @@ export async function playTma(page, shot) {
   const run = between(red0, red1);
   const hours = (Date.parse(last.time) - Date.parse(first.time)) / 3600000;
   await field("range").fill(`${(between(first.origin, red0).metres / 1852).toFixed(2)} nmi`);
-  await field("course").fill(run.bearing.toFixed(1));
+  await field("course").fill(((run.bearing + 30) % 360).toFixed(1));
   await field("speed").fill(`${(run.metres / 1852 / hours).toFixed(1)} kn`);
   await picture("tma-02-first-guess");
   let before = await steps();
@@ -169,29 +193,81 @@ export async function playTma(page, shot) {
   assert.deepEqual(await page.$$eval("#outline li.selected .name", (r) => r.map((e) => e.textContent)), ["Contact 1 solution"]);
   assert.equal(await page.locator('#outline li.selected .tag').innerText(), "TMA");
   assert.match(await view.locator(".tma-row").first().getAttribute("aria-label"), /residual [+−]\d+\.\d°/);
-  assert.equal(await view.locator(".tma-canvas").isVisible(), true);
-  assert.match(await view.locator(".tma-canvas").getAttribute("aria-label"), /^Bearings and residuals of Contact 1 solution over time: RMS/);
-  // Room for the plots once a solution is shown: the group under the map grows, the plots whole.
-  await page.waitForFunction(() => document.getElementById("panel-bearings").getBoundingClientRect().height >= 250, null, { timeout: 10000 });
-  const canvasBox = await view.locator(".tma-canvas").boundingBox();
+  const canvas = view.locator(".tma-canvas");
+  assert.equal(await canvas.isVisible(), true);
+  assert.match(await canvas.getAttribute("aria-label"), /^Bearings and residuals of Contact 1 solution, time upward from .* panes Bearing, Error: RMS/);
+  // Tall in its panel, the plot first and whole, the list beneath it.
+  const canvasBox = await canvas.boundingBox();
   const panelBox = await page.locator("#panel-bearings").boundingBox();
-  assert.ok(canvasBox.y + canvasBox.height <= panelBox.y + panelBox.height + 1, "the plots are not clipped");
+  const listBox = await list.boundingBox();
+  assert.ok(canvasBox.height >= 250, `the plot takes the panel's height: ${canvasBox.height}`);
+  assert.ok(canvasBox.y + canvasBox.height <= panelBox.y + panelBox.height + 1, "the plot is not clipped");
+  assert.ok(listBox.y >= canvasBox.y + canvasBox.height - 1, "the cut list beneath the plot");
 
-  // Near the truth: the bearings lie close to the calculated line.
-  assert.ok(made.rms < 5, `a guess near RED ONE fits its bearings: RMS ${made.rms}°`);
-  // Dragged on the map by its end (a shear, its start held): the residuals and RMS follow the drag.
+  // As legacy laid it out: time up the left, the latest at the top; Bearing and Error side by side.
+  const plot = () => page.evaluate(() => window.debriefTma.plotState);
+  const pointOf = (id, pane = "error", time) => page.evaluate(([i, p, t]) => window.debriefTma.pointOf(i, p, t), [id, pane, time]);
+  let state = await plot();
+  assert.deepEqual(state.panes, { bearing: true, error: true, course: false }, "Bearing and Error by default");
+  const firstDot = await pointOf(made.rows[0].id);
+  const lastDot = await pointOf(made.rows[59].id);
+  assert.ok(lastDot.y < firstDot.y, "time runs upward: the last cut above the first");
+  const bearingDot = await pointOf(made.rows[0].id, "bearing");
+  assert.ok(bearingDot.x < firstDot.x, "the Bearing pane left of the Error pane");
+  assert.ok(Math.abs(bearingDot.y - firstDot.y) < 0.5, "the panes share the time axis");
+  // The time span is the sensor's whole coverage shown, not only the solution's period.
+  assert.ok(state.coverage > 100, `the Bow sonar's other cuts plotted: ${state.coverage}`);
+  assert.ok(state.whole[1] > Date.parse(last.time) + 3600000, "the span runs on past the solution's period");
+  // Early in the fit: the errors ramp away from the pinned start, and the pane is pink.
+  const early = made.rows.slice(0, 2).map((r) => Math.abs(r.residual));
+  const late = made.rows.slice(-5).map((r) => Math.abs(r.residual));
+  assert.ok(Math.min(...late) > Math.max(...early) + 3, `a ramp: ${early.map((e) => e.toFixed(1))} to ${late.map((e) => e.toFixed(1))}`);
+  assert.equal(state.cue.state, "beyond");
+  assert.equal(await view.locator(".tma-cue").getAttribute("data-state"), "beyond");
+  assert.match(await view.locator(".tma-cue").innerText(), /^✗ Errors beyond 3\.0°: the largest \d+\.\d°$/);
+  // Zoomed to the leg (a box over its errors, the Error pane's width), the ramp as legacy's tutorial shows it.
+  const ramp = { top: await pointOf(made.rows[59].id), bottom: await pointOf(made.rows[0].id), pane: state.boxes.error, at: await canvas.boundingBox() };
+  await page.mouse.move(ramp.at.x + ramp.pane.x + 1, ramp.at.y + ramp.top.y - 8);
+  await page.mouse.down();
+  await page.mouse.move(ramp.at.x + ramp.pane.x + ramp.pane.w - 1, ramp.at.y + ramp.bottom.y + 8, { steps: 5 });
+  await page.mouse.up();
+  await page.waitForFunction(() => window.debriefTma.plotState.zoomed);
+  await page.mouse.move(2, 2);
+  await picture("stacked-dots-01-ramp-pink");
+  await view.getByRole("button", { name: "Reset zoom" }).click();
+  await page.waitForFunction(() => !window.debriefTma.plotState.zoomed);
+
+  // The tutorial's next move: drag the leg's end (a shear, its start held) until the errors flatten.
+  // Here, to where RED ONE was at the last cut. The Error axis fits the errors every frame, as
+  // legacy's auto-resize did, so they fill the pane as they shrink; no dot is ever drawn at an edge.
   await zoomToSelection();
   await handle("end").waitFor();
   const rmsBefore = await rms();
   const timingsBefore = await page.evaluate(() => window.debriefTma.timings.length);
+  const axesBefore = await page.evaluate(() => window.debriefTma.errorAxes.length);
   const at = await centreOf(handle("end"));
+  const mapBox = await page.locator(".frame-map").boundingBox();
+  // The handle sits a little beyond the leg's last fix: the fix, not the handle, to where RED ONE was.
+  const [truth, endFix] = await mapFrame.locator("#map").evaluate((_, [lon, lat, id]) => {
+    const fixes = window.debriefFixes(id);
+    const last = fixes[fixes.length - 1];
+    return [window.debriefPoint(lon, lat), window.debriefPoint(last[0], last[1])];
+  }, [...red1, await page.evaluate(() => window.debriefTma.shown.solution_id)]);
+  const to = { x: at.x + (truth.x - endFix.x), y: at.y + (truth.y - endFix.y) };
   await page.mouse.move(at.x, at.y);
   await page.mouse.down();
-  await page.mouse.move(at.x + 30, at.y - 60, { steps: 12 });
+  await page.mouse.move((at.x + to.x) / 2, (at.y + to.y) / 2, { steps: 10 });
   await page.waitForFunction(() => document.querySelector("#bearings .tma-rms")?.textContent?.includes("while dragging"), null, { timeout: 10000 });
   const during = await rms();
   assert.notEqual(during.replace(" (while dragging)", ""), rmsBefore, "the RMS follows the drag");
   await picture("tma-03-drag");
+  await page.mouse.move(to.x, to.y, { steps: 10 });
+  await page.waitForFunction((n) => window.debriefTma.errorAxes.length >= n + 8, axesBefore, { timeout: 10000 });
+  const fitted = await page.evaluate((n) => window.debriefTma.errorAxes.slice(n), axesBefore);
+  assert.deepEqual(fitted.filter((a) => a.outside), [], "no error outside the axis in any frame: none drawn at an edge");
+  const widthOf = (a) => a.hi - a.lo;
+  assert.ok(widthOf(fitted[fitted.length - 1]) < widthOf(fitted[0]) / 2, `the axis re-fitted as the errors shrank: ${widthOf(fitted[0]).toFixed(1)}° to ${widthOf(fitted[fitted.length - 1]).toFixed(1)}°`);
+  assert.ok(new Set(fitted.map((a) => `${a.lo.toFixed(4)},${a.hi.toFixed(4)}`)).size > fitted.length / 2, "a new fit most frames");
   before = await steps();
   await page.mouse.up();
   await stepAdded(before);
@@ -203,9 +279,145 @@ export async function playTma(page, shot) {
   const median = [...live].sort((a, b) => a - b)[Math.floor(live.length / 2)];
   console.log(`TMA drag: ${live.length} frames of 60 cuts, median ${median.toFixed(2)} ms, worst ${Math.max(...live).toFixed(2)} ms`);
   assert.ok(median < 16, `within a frame: ${median} ms`);
-  // Exact from Python once saved: the view's residuals are Python's again.
+  // Exact from Python once saved: the errors flat, about the sonar's noise (1.5° a cut).
   const after = await residuals();
   assert.notDeepEqual(after.rms, made.rms);
+  console.log(`TMA fitted by the end's drag: RMS ${after.rms.toFixed(2)}°, largest ${Math.max(...after.rows.map((r) => Math.abs(r.residual ?? 0))).toFixed(2)}°`);
+  assert.ok(after.rms < 2.5, `fitted: RMS ${after.rms}°`);
+  // The analyst's cut-off for a 1.5° sonar, 5° (three of its deviations; legacy's default is 3°),
+  // set in the view and kept with their settings: the Error pane green, said in words too.
+  const cutOff = view.locator(".tma-cutoff-input");
+  assert.equal(await cutOff.inputValue(), "3");
+  await cutOff.fill("5");
+  await cutOff.press("Tab");
+  await page.waitForFunction(() => window.debriefTma.plotState.cue?.state === "within", null, { timeout: 10000 });
+  assert.match(await view.locator(".tma-cue").innerText(), /^✓ Every error within 5\.0°$/);
+  state = await plot();
+  assert.ok(state.axes.error[1] - state.axes.error[0] < 15, `auto-fitted to the small errors: ${state.axes.error}`);
+  await page.evaluate(() => document.activeElement?.blur());
+  await page.mouse.move(2, 2);
+  await picture("stacked-dots-02-fitted-green");
+  await zoomToSelection();
+  await page.mouse.move(2, 2);
+  await picture("stacked-dots-05-layout");
+
+  // Hold scale: the Error axis stays as it is, and widens, never clamps, when an error falls outside.
+  await view.getByRole("button", { name: "Hold scale" }).click();
+  assert.equal(await view.getByRole("button", { name: "Hold scale" }).getAttribute("aria-pressed"), "true");
+  const held = (await plot()).axes.error;
+  const heldFrom = await page.evaluate(() => window.debriefTma.errorAxes.length);
+  await settled();
+  const end = await centreOf(handle("end"));
+  await page.mouse.move(end.x, end.y);
+  await page.mouse.down();
+  await page.mouse.move(end.x + 6, end.y - 4, { steps: 3 });
+  await page.waitForFunction(() => document.querySelector("#bearings .tma-rms")?.textContent?.includes("while dragging"), null, { timeout: 10000 });
+  await page.mouse.move(end.x + 70, end.y - 50, { steps: 12 });
+  await page.waitForFunction((n) => window.debriefTma.errorAxes.length >= n + 8, heldFrom, { timeout: 10000 });
+  const holding = await page.evaluate((n) => window.debriefTma.errorAxes.slice(n), heldFrom);
+  assert.deepEqual(holding.filter((a) => a.outside), [], "held, still no error outside the axis");
+  assert.ok(holding.every((a, i) => i === 0 || (a.lo <= holding[i - 1].lo && a.hi >= holding[i - 1].hi)), "held: the axis only ever widens");
+  const widest = holding[holding.length - 1];
+  assert.ok(widest.lo <= held[0] && widest.hi >= held[1] && (widest.lo < held[0] || widest.hi > held[1]), `widened past the held ${held} to ${widest.lo},${widest.hi}`);
+  // Put back (Escape): nothing saved; the held scale stays held until let go.
+  await page.keyboard.press("Escape");
+  await page.mouse.up();
+  await page.waitForFunction(() => !document.querySelector("#bearings .tma-rms")?.textContent?.includes("while dragging"), null, { timeout: 30000 });
+  await view.getByRole("button", { name: "Hold scale" }).click();
+  assert.equal(await view.getByRole("button", { name: "Hold scale" }).getAttribute("aria-pressed"), "false");
+
+  // Box zoom: a box dragged in the Error pane zooms time to its height and errors to its width;
+  // kept while the solution is dragged; Reset zoom, a double-click, or 0 undoes it.
+  const canvasAt = await canvas.boundingBox();
+  const box = await page.evaluate(() => {
+    const t = window.debriefTma;
+    const rows = t.residuals.rows;
+    const a = t.pointOf(rows[10].id);
+    const b = t.pointOf(rows[40].id);
+    return { a, b };
+  });
+  assert.ok(box.a && box.b, "the dots to box are drawn");
+  const left = Math.min(box.a.x, box.b.x) - 30;
+  const right = Math.max(box.a.x, box.b.x) + 30;
+  await page.mouse.move(canvasAt.x + left, canvasAt.y + box.b.y - 4);
+  await page.mouse.down();
+  await page.mouse.move(canvasAt.x + right, canvasAt.y + box.a.y + 4, { steps: 6 });
+  await page.mouse.up();
+  await page.waitForFunction(() => window.debriefTma.plotState.zoomed);
+  state = await plot();
+  assert.ok(state.span[1] - state.span[0] < (state.whole[1] - state.whole[0]) / 3, "time zoomed to the box");
+  assert.ok(state.zoom.values.error, "the Error pane's values zoomed to the box");
+  assert.equal(await view.getByRole("button", { name: "Reset zoom" }).isEnabled(), true);
+  await picture("stacked-dots-03-box-zoom");
+  // Kept while the solution is dragged.
+  const zoomedSpan = state.span;
+  await settled();
+  const again = await centreOf(handle("end"));
+  await page.mouse.move(again.x, again.y);
+  await page.mouse.down();
+  await page.mouse.move(again.x + 15, again.y - 10, { steps: 5 });
+  await page.waitForFunction(() => document.querySelector("#bearings .tma-rms")?.textContent?.includes("while dragging"), null, { timeout: 10000 });
+  assert.deepEqual((await plot()).span, zoomedSpan, "the zoom stays while dragging");
+  await page.keyboard.press("Escape");
+  await page.mouse.up();
+  await page.waitForFunction(() => !document.querySelector("#bearings .tma-rms")?.textContent?.includes("while dragging"), null, { timeout: 30000 });
+  await view.getByRole("button", { name: "Reset zoom" }).click();
+  await page.waitForFunction(() => !window.debriefTma.plotState.zoomed);
+  // From the keyboard: + zooms time about the cut chosen, 0 resets; a double-click resets too.
+  await canvas.focus();
+  await page.keyboard.press("+");
+  await page.waitForFunction(() => window.debriefTma.plotState.zoomed);
+  await page.keyboard.press("0");
+  await page.waitForFunction(() => !window.debriefTma.plotState.zoomed);
+  await page.keyboard.press("]");
+  await page.waitForFunction(() => !!window.debriefTma.plotState.zoom.values.error);
+  await canvas.dblclick({ position: { x: 4, y: 4 } });
+  await page.waitForFunction(() => !window.debriefTma.plotState.zoomed);
+
+  // A dot clicked selects its cut, in the Outline and on the map, and moves current time to it;
+  // the solution stays shown, the list's row chosen.
+  const shownSolution = await page.evaluate(() => window.debriefTma.shown.solution_id);
+  const target = (await residuals()).rows[20];
+  const dot = await pointOf(target.id);
+  const canvasNow = await canvas.boundingBox();
+  await page.mouse.move(canvasNow.x + dot.x, canvasNow.y + dot.y);
+  assert.match(await view.locator(".tma-readout").innerText(), /^\d\d:\d\d:\d\dZ · Error [+−]\d+\.\d°$/, "the readout says the time and value at the pointer");
+  await page.mouse.click(canvasNow.x + dot.x, canvasNow.y + dot.y);
+  await page.waitForFunction((id) => window.debriefSelection().selection.join() === id, target.id);
+  assert.equal(Date.parse((await page.evaluate(() => window.debriefSelection())).current), Date.parse(target.time), "current time to the cut");
+  assert.equal(await page.evaluate(() => window.debriefTma.shown.solution_id), shownSolution, "still the solution shown");
+  assert.equal(await view.locator(".tma-row.tma-active").getAttribute("aria-posinset"), "21", "its row chosen in the list");
+  await page.locator("#sensor-group").waitFor(); // a cut selected: the Outline's sensor actions shown
+
+  // The panes: Course/Speed shown (ownship's course, the solution's course and speed), remembered
+  // in this browser; one pane at least always.
+  const paneButton = (name) => view.locator(".tma-pane", { hasText: name });
+  await paneButton("Course/Speed").click();
+  await page.waitForFunction(() => window.debriefTma.plotState.panes.course);
+  assert.equal(await paneButton("Course/Speed").getAttribute("aria-pressed"), "true");
+  assert.deepEqual(JSON.parse(await page.evaluate(() => localStorage.getItem("debrief.play.bearings"))).panes, { bearing: true, error: true, course: true });
+  state = await plot();
+  assert.ok(state.axes.course && state.speed, "a course axis, and speed on its own");
+  assert.ok((await page.evaluate(() => window.debriefTma.shown.ownship?.[0]?.name)) === "BLUE ONE", "ownship's courses");
+  await page.mouse.move(2, 2);
+  await picture("stacked-dots-04-three-panes");
+  // A click on the solution's course selects the solution's fix: the solution, current time to the fix.
+  const solutionNow = shownSolution;
+  const fixTime = (await page.evaluate(() => window.debriefTma.shown.solutions.find((s) => s.id === window.debriefTma.shown.solution_id).times))[45];
+  const fix = await pointOf(solutionNow, "course", fixTime);
+  const canvas3 = await canvas.boundingBox();
+  await page.mouse.click(canvas3.x + fix.x, canvas3.y + fix.y);
+  await page.waitForFunction(([id, t]) => window.debriefSelection().selection.join() === id && Date.parse(window.debriefSelection().current) === Date.parse(t), [solutionNow, fixTime]);
+  // Bearing and Error off: Course/Speed alone, which then stays.
+  await paneButton("Bearing").click();
+  await paneButton("Error").click();
+  await page.waitForFunction(() => JSON.stringify(window.debriefTma.plotState.panes) === JSON.stringify({ bearing: false, error: false, course: true }));
+  await paneButton("Course/Speed").click();
+  assert.deepEqual((await plot()).panes, { bearing: false, error: false, course: true }, "the last pane stays shown");
+  await paneButton("Bearing").click();
+  await paneButton("Error").click();
+  await paneButton("Course/Speed").click();
+  await page.waitForFunction(() => JSON.stringify(window.debriefTma.plotState.panes) === JSON.stringify({ bearing: true, error: true, course: false }));
 
   // A wild cut left out of the RMS from the keyboard (Space), one step; Undo counts it again.
   await list.focus();
@@ -385,9 +597,13 @@ export async function playTma(page, shot) {
   await picture("tma-07-imported");
 
   // The drag budget at scale (NFR-04): a solution of 600, 1,000 and 2,000 cuts dragged sixty
-  // frames; each whole frame (residuals worked out, the list's cells, the plots) timed. The
-  // median within a frame (16.7 ms); the worst said, as a shared machine's pauses vary.
+  // frames, all three panes shown, the sensor's coverage half as many cuts again before the
+  // solution and ownship's course 2,000 fixes; each whole frame (residuals worked out, the list's
+  // cells, the plot, the course and speed of the dragged fixes) timed. The median within a frame
+  // (16.7 ms); the worst said, as a shared machine's pauses vary.
   await showPanel(page, "bearings");
+  await view.locator(".tma-pane", { hasText: "Course/Speed" }).click();
+  await page.waitForFunction(() => window.debriefTma.plotState.panes.course);
   for (const n of [600, 1000, 2000]) {
     const result = await page.evaluate(async (n) => {
       const R = 6371008.8;
@@ -408,9 +624,11 @@ export async function playTma(page, shot) {
         plot_id: "p",
         sensors: [{ id: "x", name: "Towed", cuts: n, ambiguous: 0 }],
         sensor_id: "x",
-        solutions: [{ id: "s", name: "Contact 9 solution", contact: "Contact 9", colour: "#e8710a", period: { start: times[0], end: times[n - 1] }, times, cuts: n }],
+        solutions: [{ id: "s", name: "Contact 9 solution", contact: "Contact 9", colour: "#e8710a", period: { start: times[0], end: times[n - 1] }, times, cuts: n, courses: times.map(() => 200), speeds: times.map(() => 5) }],
         solution_id: "s",
         residuals: { solution_id: "s", rows, counted: n, excluded: 0, without: 0 },
+        coverage: Array.from({ length: n / 2 }, (_, i) => ({ id: `b${i}`, sensor_id: "x", sensor: "Towed", colour: "#8a3ffc", time: new Date(t0 - (n / 2 - i) * 30000).toISOString(), bearing: 25 + i * 0.01, ...(i % 3 ? {} : { ambiguous_bearing: 150 }) })),
+        ownship: [{ id: "o", name: "OWN", times: Array.from({ length: 2000 }, (_, i) => new Date(t0 - (n / 2) * 30000 + i * ((n * 1.5) / 2000) * 30000).toISOString()), courses: Array.from({ length: 2000 }, (_, i) => (i * 3) % 360) }],
       };
       const control = window.debriefTma;
       control.show(view);
@@ -424,10 +642,12 @@ export async function playTma(page, shot) {
       const t = control.timings.slice(from).sort((a, b) => a - b);
       return { frames: t.length, median: t[Math.floor(t.length / 2)], p95: t[Math.floor(t.length * 0.95)], worst: t[t.length - 1] };
     }, n);
-    console.log(`TMA drag at scale, ${n} cuts: ${result.frames} whole frames, median ${result.median.toFixed(2)} ms, p95 ${result.p95.toFixed(2)} ms, worst ${result.worst.toFixed(2)} ms`);
+    console.log(`TMA drag at scale, ${n} cuts, three panes: ${result.frames} whole frames, median ${result.median.toFixed(2)} ms, p95 ${result.p95.toFixed(2)} ms, worst ${result.worst.toFixed(2)} ms`);
     assert.ok(result.frames >= 30, `frames drawn: ${result.frames}`);
     assert.ok(result.median < 16.7, `${n} cuts: a frame's median ${result.median} ms`);
   }
+  await view.locator(".tma-pane", { hasText: "Course/Speed" }).click();
+  await page.waitForFunction(() => !window.debriefTma.plotState.panes.course);
   // Shown again as it was: the imported solution (another track chosen first, so the view asks again).
   await page.locator('#outline li[data-id] .name', { hasText: "MAYO" }).first().click();
   await page.locator('#outline li[data-id] .name', { hasText: "TMA_0900" }).first().click();
@@ -447,5 +667,22 @@ export async function playTma(page, shot) {
     [...document.querySelectorAll("#bearings .tma-row .tma-c-brg, #bearings .tma-row .tma-c-res, #bearings .tma-row .tma-c-time")].filter((c) => c.scrollWidth > c.clientWidth + 1).map((c) => c.textContent),
   );
   assert.deepEqual(cut, [], `at 768 px every bearing, residual and time reads whole: ${cut.join(", ")}`);
+  // On a phone (390 px), the panels one column: the plot whole across it, tall enough to read,
+  // its panes side by side, the page never scrolling sideways.
+  await page.setViewportSize({ width: 390, height: 844 });
+  await canvas.scrollIntoViewIfNeeded();
+  await page.waitForFunction(() => {
+    const c = document.querySelector("#bearings .tma-canvas")?.getBoundingClientRect();
+    return c && c.width > 0 && c.width <= 390 && c.height >= 250;
+  });
+  const phone = await page.evaluate(() => {
+    const c = document.querySelector("#bearings .tma-canvas").getBoundingClientRect();
+    return { left: c.left, right: c.right, height: c.height, sideways: document.scrollingElement.scrollWidth > innerWidth + 1, panes: window.debriefTma.plotState.panes, drawn: Object.keys(window.debriefTma.plotState.axes) };
+  });
+  assert.ok(phone.left >= 0 && phone.right <= 390 + 1, `the plot within the phone's width: ${JSON.stringify(phone)}`);
+  assert.equal(phone.sideways, false, "the page does not scroll sideways");
+  assert.deepEqual(phone.drawn, ["bearing", "error"], "Bearing and Error side by side");
+  await page.mouse.move(2, 2);
+  await picture("stacked-dots-06-phone");
   await page.setViewportSize(wide);
 }

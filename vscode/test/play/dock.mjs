@@ -197,7 +197,7 @@ export async function playDock(browser, base, shot, ready, errors) {
   for (const id of DOCKED_PANELS) assert.equal(await page.locator(`.dv-tab[data-panel="${id}"]`).getAttribute("aria-controls"), `dock-${id}`);
   const tree = await page.locator("#dock").ariaSnapshot();
   assert.match(tree, /tablist "Panels, left: Outline, Catalogue"/);
-  assert.match(tree, /tablist "Panels, right: Walkthroughs"/);
+  assert.match(tree, /tablist "Panels, right: Walkthroughs, Bearings"/);
   const timePanel = tree.slice(tree.indexOf('tabpanel "Time"'), tree.indexOf('tabpanel "Tote"'));
   assert.match(timePanel, /slider "Current time"/, `the Time tab panel holds the time controller:\n${timePanel}`);
 
@@ -278,7 +278,7 @@ export async function playDock(browser, base, shot, ready, errors) {
   // Drag Coverage's tab beside the walkthroughs, as a tab.
   const right = await groupBox(page, "panel-tour");
   await dragTab(page, "panel-coverage", { x: right.x + right.width / 2, y: right.y + right.height / 2 });
-  assert.ok((await groupsOf(page)).includes("right:panel-tour,panel-coverage"), (await groupsOf(page)).join(" | "));
+  assert.ok((await groupsOf(page)).includes("right:panel-tour,panel-bearings,panel-coverage"), (await groupsOf(page)).join(" | "));
   for (const id of ["panel-catalogue", "panel-coverage", "panel-tour", "panel-outline", "panel-tools"]) await showPanel(page, id);
   await page.mouse.move(2, 2);
   await shot("dock-02-rearranged", page);
@@ -286,15 +286,15 @@ export async function playDock(browser, base, shot, ready, errors) {
   // Moved by keyboard: arrows along a strip, Enter to the front, Shift+F10 for the tab's menu.
   await page.locator('.dv-tab[data-panel="panel-coverage"]').focus();
   await page.keyboard.press("ArrowLeft");
-  assert.equal(await page.evaluate(() => document.activeElement?.dataset.panel), "panel-tour", "← moves along the strip");
+  assert.equal(await page.evaluate(() => document.activeElement?.dataset.panel), "panel-bearings", "← moves along the strip");
   await page.keyboard.press("Enter");
-  assert.equal(await page.locator('.dv-tab[data-panel="panel-tour"]').getAttribute("aria-selected"), "true", "Enter brings it to the front");
+  assert.equal(await page.locator('.dv-tab[data-panel="panel-bearings"]').getAttribute("aria-selected"), "true", "Enter brings it to the front");
   await page.keyboard.press("ArrowRight");
   await page.keyboard.press("Shift+F10");
   const menu = page.getByRole("menu", { name: "Coverage: move" });
   await menu.waitFor();
   const items = await menu.getByRole("menuitem").allInnerTexts();
-  const target = items.indexOf("Move to centre: Timeline, Bearings");
+  const target = items.indexOf("Move to centre: Timeline");
   assert.ok(target >= 0 && items.includes("Reset layout"), items.join(" | "));
   for (let i = 0; i < target; i++) await page.keyboard.press("ArrowDown");
   await page.keyboard.press("Enter");
@@ -522,7 +522,7 @@ export async function playDock(browser, base, shot, ready, errors) {
   await tablet.locator('.dv-tab[data-panel="panel-tools"]').tap(); // in front of its group (the Tote's)
   await tablet.locator(".dv-groupview", { has: tablet.locator('.dv-tab[data-panel="panel-tools"]') }).locator(".dock-menu-button").tap();
   await tablet.getByRole("menuitem", { name: "Move to right: Walkthroughs" }).tap();
-  await tablet.waitForFunction(() => window.debriefLayout().groups.some((g) => g.panels.join() === "panel-tour,panel-tools"));
+  await tablet.waitForFunction(() => window.debriefLayout().groups.some((g) => g.panels.join() === "panel-tour,panel-bearings,panel-tools"));
   await touch.close();
 
   // A blog post's demo: a fixed layout from the panels it lists, never remembered.

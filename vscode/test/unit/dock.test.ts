@@ -107,10 +107,12 @@ describe("the default's sizes", () => {
 });
 
 describe("the panels' one table", () => {
-  it("puts every panel in exactly one default group, the walkthroughs alone on the right", () => {
+  it("puts every panel in exactly one default group, the walkthroughs in front on the right and Bearings tall beside the map behind them", () => {
     const grouped = DEFAULT_GROUPS.flatMap((g) => g.panels);
     expect(grouped.sort()).toEqual(PANELS.map((p) => p.id).sort());
-    expect(DEFAULT_GROUPS.filter((g) => g.place === "right")).toEqual([{ place: "right", panels: ["panel-tour"] }]);
+    // Product owner, 25 Oct 2026: the Bearings view tall, right of the map, a tab behind the walkthroughs.
+    expect(DEFAULT_GROUPS.filter((g) => g.place === "right")).toEqual([{ place: "right", panels: ["panel-tour", "panel-bearings"] }]);
+    expect(DEFAULT_GROUPS.find((g) => g.place === "centre")?.panels).toEqual(["panel-timeline", "panel-coverage"]);
     expect(DEFAULT_GROUPS.every((g) => g.panels.length <= 3)).toBe(true); // no tab overflow in a side column
   });
   // Product owner, 24 Oct 2026: three groups on the left; the Outline's last, so it has the rest.

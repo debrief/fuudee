@@ -98,6 +98,8 @@ dialog::backdrop { background: color-mix(in srgb, var(--vscode-editor-background
    The list scrolls inside a panel of its own height, drawing only the rows in sight. */
 #timeline { height: min(440px, 60vh); }
 #bearings { height: min(560px, 80vh); }
+/* A solution shown in the one column: as tall as its plot, list and buttons need (the list scrolls inside). */
+#bearings.tma-solution-shown { height: auto; }
 #north-arrow[aria-pressed="true"] { background: var(--vscode-button-background); color: var(--vscode-button-foreground); }
 /* Cleaning tracks: the jumps found, the fix list and what to do to the fix chosen. */
 /* The panel keeps its height beside the map; a long fix list scrolls inside it. */

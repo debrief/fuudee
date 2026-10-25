@@ -509,6 +509,14 @@
           "scope": "application",
           "markdownDescription": "How tracks imported from REP files are plotted. Set when you choose *Use this choice for future imports*; set it back to `ask` (or run **Debrief: Ask again whether imported tracks are OTG or DR**) to be asked for each track again. Kept with your Debrief settings, never in a plot."
         },
+        "debrief.tma.errorCutOff": {
+          "type": "number",
+          "minimum": 0.01,
+          "maximum": 180,
+          "default": 3,
+          "scope": "application",
+          "markdownDescription": "The Bearings view's error cut-off, in degrees: its Error pane is green while every error counted is within it, and pink otherwise, as legacy Debrief's Stacked Dots shaded it. Also set in the view, beside *Hold scale*. Kept with your Debrief settings, never in a plot."
+        },
         "debrief.map.minimumContextContrast": {
           "type": "boolean",
           "default": false,

@@ -16,22 +16,59 @@
 .tma-pick > span { color: var(--vscode-descriptionForeground); min-width: 4.5em; }
 .tma-pick select { flex: 1; min-width: 0; height: 22px; background: var(--vscode-dropdown-background); color: var(--vscode-dropdown-foreground, var(--vscode-foreground)); border: 1px solid var(--vscode-dropdown-border, transparent); font: inherit; }
 
-/* The plots, the RMS and the buttons (left), the list (right): one above the other in a narrow view, side by side
-   from 640 px (tmacontrol.ts WIDE_PX), so the strip under the map shows both. */
+/* VS Code's side bar: the view as tall as the side bar gives it, so the plot takes the height. */
+html:has(.tma-root), html:has(.tma-root) body { height: 100%; margin: 0; }
+.tma-root { box-sizing: border-box; height: 100%; }
+.tma-root > .tma { height: 100%; }
+
+/* The plot, the RMS and the buttons (left), the list (right). Tall and narrow (beside the map, VS Code's
+   side bar, a phone's column): the plot first taking the height, the cue and RMS, the list beneath it
+   (a few rows: the plot's keyboard way, and each cut's error in words), then the notes and buttons.
+   From 640 px wide (tmacontrol.ts WIDE_PX; the strip under the map, if moved there) side by side. */
 .tma-body { display: flex; flex-direction: column; gap: 4px; flex: 1 1 auto; min-height: 0; }
 .tma-left { display: flex; flex-direction: column; gap: 4px; flex: none; min-width: 0; }
 .tma-right { display: flex; flex-direction: column; flex: 1 1 auto; min-height: 0; min-width: 0; }
+.tma-solution-shown:not(.tma-wide) .tma-left { display: contents; }
+.tma-solution-shown:not(.tma-wide) .tma-tools { order: 1; }
+.tma-solution-shown:not(.tma-wide) .tma-readout { order: 2; }
+.tma-solution-shown:not(.tma-wide) .tma-plot { order: 3; }
+.tma-solution-shown:not(.tma-wide) .tma-cue { order: 4; }
+.tma-solution-shown:not(.tma-wide) .tma-rms { order: 5; }
+.tma-solution-shown:not(.tma-wide) .tma-key { order: 6; }
+.tma-solution-shown:not(.tma-wide) .tma-right { order: 7; flex: none; }
+.tma-solution-shown:not(.tma-wide) .tma-list { flex: none; height: calc(6 * 22px + 2px); min-height: 0; }
+.tma-solution-shown:not(.tma-wide) .tma-below { order: 8; }
 .tma-wide .tma-body { flex-direction: row; gap: 12px; }
 .tma-wide .tma-left { flex: 1 1 50%; overflow: hidden; }
-/* Beside the list in a short panel the plots keep their place; what is beneath them scrolls. */
+/* Beside the list in a short panel the plot keeps its place; what is beneath it scrolls. */
 .tma-below { display: flex; flex-direction: column; gap: 4px; min-height: 0; }
 .tma-wide .tma-below { flex: 1 1 auto; overflow-y: auto; }
 .tma-wide .tma-right { flex: 1 1 50%; }
 .tma-wide .tma-list { min-height: 66px; }
 
-/* Bearings over time, residuals beneath: one canvas. */
-.tma-plot { flex: none; }
-.tma-canvas { display: block; width: 100%; cursor: crosshair; }
+/* The panes shown, the scale held, the zoom undone, the cut-off. */
+.tma-tools { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 6px; }
+.tma-panes { display: inline-flex; flex-wrap: wrap; gap: 2px; }
+.tma .tma-tools button { padding: 1px 6px; }
+.tma .tma-tools button[aria-pressed="true"] { color: var(--vscode-button-foreground); background: var(--vscode-button-background); border-color: var(--vscode-contrastActiveBorder, var(--vscode-button-background)); }
+.tma-cutoff { display: inline-flex; align-items: center; gap: 3px; color: var(--vscode-descriptionForeground); }
+.tma-cutoff input { width: 4em; height: 20px; background: var(--vscode-input-background); color: var(--vscode-input-foreground, var(--vscode-foreground)); border: 1px solid var(--vscode-input-border, var(--vscode-widget-border, transparent)); font: inherit; padding: 0 3px; }
+
+/* Legacy's Stacked Dots, as it stood: time up the left, the panes side by side. One canvas, and
+   one laid over it for the crosshair and a box being dragged, so pointing never redraws the plot.
+   The canvases are laid over the plot's box, never sizing it: the panel lays it out. */
+.tma-plot { position: relative; flex: 1 1 auto; min-height: 280px; overflow: hidden; }
+.tma-wide .tma-plot { min-height: 160px; }
+.tma-canvas, .tma-overlay { position: absolute; left: 0; top: 0; display: block; }
+.tma-canvas { cursor: crosshair; touch-action: none; }
+.tma-canvas:focus-visible { outline: 1px solid var(--vscode-focusBorder); outline-offset: -1px; }
+.tma-overlay { pointer-events: none; }
+.tma-readout { margin: 0; flex: none; min-height: 1.4em; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; color: var(--vscode-descriptionForeground); font-size: 11px; font-variant-numeric: tabular-nums; }
+/* The cut-off's state in words and a mark, not colour alone: in a high-contrast theme too. */
+.tma-cue { margin: 0; flex: none; font-variant-numeric: tabular-nums; }
+.tma-cue-mark { display: inline-block; min-width: 1.1em; text-align: center; font-weight: 700; border: 1px solid currentColor; border-radius: 2px; }
+.tma-cue[data-state="within"] .tma-cue-mark { color: var(--vscode-testing-iconPassed, var(--vscode-foreground)); }
+.tma-cue[data-state="beyond"] .tma-cue-mark { color: var(--vscode-testing-iconFailed, var(--vscode-errorForeground)); }
 .tma-key { display: flex; flex-wrap: wrap; gap: 0 12px; margin: 0; color: var(--vscode-descriptionForeground); font-size: 11px; }
 .tma-rms { margin: 0; flex: none; font-weight: 600; font-variant-numeric: tabular-nums; }
 .tma-notes { margin: 0; padding-left: 16px; color: var(--vscode-descriptionForeground); font-size: 11px; }

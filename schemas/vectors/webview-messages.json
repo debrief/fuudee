@@ -217,6 +217,13 @@
     "tma_time_asked": [
       "current_time"
     ],
+    "tma_select": [
+      "feature_id",
+      "current_time"
+    ],
+    "tma_cut_off": [
+      "error_cut_off"
+    ],
     "tma_made": [
       "feature_id?",
       "message?"

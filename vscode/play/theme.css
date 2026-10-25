@@ -39,6 +39,11 @@
   --vscode-input-foreground: #cccccc;
   --vscode-inputValidation-errorBackground: #5a1d1d;
   --vscode-inputValidation-errorBorder: #be1100;
+  /* The Bearings view's error cut-off (VS Code's Dark Modern values): green within, pink beyond. */
+  --vscode-diffEditor-insertedTextBackground: #9ccc2c33;
+  --vscode-diffEditor-removedTextBackground: #ff000033;
+  --vscode-testing-iconPassed: #73c991;
+  --vscode-testing-iconFailed: #f14c4c;
   --vscode-dropdown-background: #313131;
   --vscode-dropdown-border: #3c3c3c;
   --vscode-settings-dropdownListBorder: #454545;
@@ -92,6 +97,10 @@
   --vscode-input-background: #ffffff;
   --vscode-input-foreground: #3b3b3b;
   --vscode-inputValidation-errorBackground: #f2dede;
+  --vscode-diffEditor-insertedTextBackground: #9ccc2c40;
+  --vscode-diffEditor-removedTextBackground: #ff000033;
+  --vscode-testing-iconPassed: #388a34;
+  --vscode-testing-iconFailed: #e51400;
   --vscode-dropdown-background: #ffffff;
   --vscode-dropdown-border: #cecece;
   --vscode-settings-dropdownListBorder: #cecece;

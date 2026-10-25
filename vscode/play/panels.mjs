@@ -25,14 +25,18 @@ export const PANEL_TITLES = Object.fromEntries(PANELS.map((p) => [p.id, p.title]
  * another tab (product owner, 23 Oct 2026, second round). On the left, three groups (product owner,
  * 24 Oct 2026): Time; the Tote with Tools and History as tabs, the Tote in front; and the Outline with
  * the Catalogue, taking the rest of the height, so the Outline shows about a dozen rows at 1366 × 768.
- * While playing, the Tote is one tab away, and its lines still show on the map.
+ * While playing, the Tote is one tab away, and its lines still show on the map. The Bearings view
+ * (product owner, 25 Oct 2026) is a tall panel right of the map, a tab behind the walkthroughs, as
+ * legacy's Stacked Dots stood tall beside the plot: its time runs up the panel, so it wants height,
+ * and as a tab it costs the map no width (still half or more from 1280 px). It comes in front when
+ * a solution is made or chosen in it; the walkthroughs stay in front until then.
  */
 export const DEFAULT_GROUPS = [
   { place: "left", panels: ["panel-time"] },
   { place: "left", panels: ["panel-tote", "panel-tools", "panel-history"] },
   { place: "left", panels: ["panel-outline", "panel-catalogue"] },
-  { place: "centre", panels: ["panel-timeline", "panel-coverage", "panel-bearings"] },
-  { place: "right", panels: ["panel-tour"] },
+  { place: "centre", panels: ["panel-timeline", "panel-coverage"] },
+  { place: "right", panels: ["panel-tour", "panel-bearings"] },
 ];
 
 /** The side column's first panels, whatever a blog's demo lists; the rest follow in the order it lists them. */

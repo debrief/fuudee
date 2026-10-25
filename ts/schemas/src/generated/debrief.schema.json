@@ -4551,6 +4551,48 @@
       "title": "TmaCut",
       "type": "object"
     },
+    "TmaOwnship": {
+      "additionalProperties": false,
+      "description": "A track carrying the solution's sensors (ownship): its course over the period the Bearings view shows, for the Course/Speed pane (product owner, 25 Oct 2026). Its courses as logged at its fixes, thinned to at most a few thousand.",
+      "properties": {
+        "colour": {
+          "pattern": "^#[0-9a-f]{6}$",
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "courses": {
+          "description": "Its course at each of those times, degrees true.",
+          "items": {
+            "type": "number"
+          },
+          "type": "array"
+        },
+        "id": {
+          "description": "The track's feature id.",
+          "type": "string"
+        },
+        "name": {
+          "type": "string"
+        },
+        "times": {
+          "items": {
+            "pattern": "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}\\.\\d{3}Z$",
+            "type": "string"
+          },
+          "type": "array"
+        }
+      },
+      "required": [
+        "id",
+        "name",
+        "times",
+        "courses"
+      ],
+      "title": "TmaOwnship",
+      "type": "object"
+    },
     "TmaRequest": {
       "additionalProperties": false,
       "description": "A TMA solution asked for (CAP-21; product owner, 24 Oct 2026), from the bearing view's form, two clicks on the map, or an agent (debrief/tma_create): the cuts to root it in (sensor_ids and a period, or cut_ids), and a first guess, either by form (a range on the first cut's bearing, a course and a speed) or by two positions (on the first cut's line and on the last's; the course and speed follow). Made as one recorded, undoable step.",
@@ -5017,6 +5059,16 @@
         "contact": {
           "type": "string"
         },
+        "courses": {
+          "description": "Its course at each fix, degrees true: its DR legs' courses, for the Bearings view's Course/Speed pane (product owner, 25 Oct 2026).",
+          "items": {
+            "type": "number"
+          },
+          "type": [
+            "array",
+            "null"
+          ]
+        },
         "cuts": {
           "description": "How many cuts it is rooted in.",
           "type": "integer"
@@ -5039,6 +5091,16 @@
         },
         "period": {
           "$ref": "#/$defs/TimeRange"
+        },
+        "speeds": {
+          "description": "Its speed at each fix, metres a second, for the Course/Speed pane.",
+          "items": {
+            "type": "number"
+          },
+          "type": [
+            "array",
+            "null"
+          ]
         },
         "times": {
           "description": "Its fixes' times, for the view to place it as a drag moves it.",
@@ -5066,9 +5128,36 @@
       "additionalProperties": false,
       "description": "What the host sends the bearing view (show_tma): the plot's sensors and solutions; the cuts of the sensor chosen, in time order; and, for the solution shown, its residuals.",
       "properties": {
+        "coverage": {
+          "description": "With a solution shown, every cut of its sensors shown on the map, in time order, rooted or not: the Bearing pane plots each measured bearing over the sensors' whole coverage, the calculated bearings and errors only where the solution is (product owner, 25 Oct 2026). Cuts hidden on the map are left out.",
+          "items": {
+            "$ref": "#/$defs/TmaCut"
+          },
+          "type": [
+            "array",
+            "null"
+          ]
+        },
         "cuts": {
           "items": {
             "$ref": "#/$defs/TmaCut"
+          },
+          "type": [
+            "array",
+            "null"
+          ]
+        },
+        "error_cut_off": {
+          "description": "The analyst's error cut-off, degrees, from their Debrief configuration (tma_error_cut_off; 3 by default): the Error pane is green while every residual counted is within it, pink otherwise.",
+          "type": [
+            "number",
+            "null"
+          ]
+        },
+        "ownship": {
+          "description": "The tracks carrying the solution's sensors, with their courses, for the Course/Speed pane.",
+          "items": {
+            "$ref": "#/$defs/TmaOwnship"
           },
           "type": [
             "array",
@@ -6074,7 +6163,7 @@
       "description": "",
       "properties": {
         "config_version": {
-          "description": "Version of this file's layout: 1 while it holds only stores; 2 once it holds track_import_mode; 3 once it holds narrative_import. An earlier Debrief cannot read a later layout.",
+          "description": "Version of this file's layout: 1 while it holds only stores; 2 once it holds track_import_mode; 3 once it holds narrative_import; 4 once it holds tma_error_cut_off. An earlier Debrief cannot read a later layout.",
           "minimum": 1,
           "type": "integer"
         },
@@ -6094,6 +6183,15 @@
             "$ref": "#/$defs/KnownStore"
           },
           "type": "array"
+        },
+        "tma_error_cut_off": {
+          "description": "The Bearings view's error cut-off, degrees (CAP-21; product owner, 25 Oct 2026): its Error pane is green while every residual counted is within it and pink otherwise, as legacy Debrief's Stacked Dots shaded it. Left out, 3 degrees, legacy's default. The analyst's preference, kept here and never in a catalogue or a plot file.",
+          "maximum": 180,
+          "minimum": 0.01,
+          "type": [
+            "number",
+            "null"
+          ]
         },
         "track_import_mode": {
           "anyOf": [
@@ -6186,6 +6284,15 @@
           },
           "type": [
             "array",
+            "null"
+          ]
+        },
+        "error_cut_off": {
+          "description": "The analyst's error cut-off, degrees (tma_cut_off).",
+          "maximum": 180,
+          "minimum": 0.01,
+          "type": [
+            "number",
             "null"
           ]
         },
@@ -6647,6 +6754,8 @@
         "tma_exclude",
         "tma_split",
         "tma_time_asked",
+        "tma_select",
+        "tma_cut_off",
         "tma_made"
       ],
       "title": "WebviewMessageKindEnum",

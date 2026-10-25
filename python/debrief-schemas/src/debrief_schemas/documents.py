@@ -1022,8 +1022,9 @@ def _format_settings_problems(settings: g.FormatSettings, raw: dict[str, Any]) -
 # The newest per-user configuration layout this build understands: 1, the stores; 2, also
 # the choice of how tracks imported are plotted (track_import_mode), which an earlier
 # Debrief cannot read, so a file holding it says 2 and an earlier Debrief says to update;
-# 3, also the answers to a narrative import's questions (narrative_import).
-CONFIG_VERSION = 3
+# 3, also the answers to a narrative import's questions (narrative_import); 4, also the
+# Bearings view's error cut-off (tma_error_cut_off).
+CONFIG_VERSION = 4
 
 
 def _user_config_problems(config: g.UserConfig, raw: dict[str, Any]) -> list[str]:
@@ -1127,6 +1128,8 @@ MESSAGE_MEMBERS: dict[str, tuple[str, ...]] = {
     "tma_exclude": ("feature_id", "cut_ids", "excluded"),
     "tma_split": ("feature_id", "current_time"),
     "tma_time_asked": ("current_time",),
+    "tma_select": ("feature_id", "current_time"),
+    "tma_cut_off": ("error_cut_off",),
     "tma_made": ("feature_id?", "message?"),
 }
 

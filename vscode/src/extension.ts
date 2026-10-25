@@ -10,7 +10,7 @@ import type { AmbiguityResolution, AnnotationSpec, ContextTracksEnum, CoverageRe
 import { figureIdProblem, formatBearing, formatPosition, formatQuantity, parsePosition, POSITION_EXAMPLE, UNIT_LABELS } from "@debrief/kernel";
 import { defaultPivotIndex, describeDistance, describeSpeed, describeTurn, FIX_PROMPT, FIX_PROMPT_DR, fixIndexAt, fixMeans, fixToEdit, jumpSpeed, legNow, mergedName, mergePlan, periodIndices, readArrayOffset, arrayOffsetTitle, readBearing, readDistance, readSpeed, readTurn, reckoningOf, type Anchor } from "../webview/trackedit.js";
 import { chooseModes, MODE_LABELS, modeChoices, modeQuestion, REMEMBERED_IN_VSCODE, rememberItem, type ModeChoice, type PlottingMode } from "./importmode.js";
-import { addStore, loadConfig, narrativeAnswers, removeStore, sameLocation, trackImportMode, updateConfig, withNarrativeAnswers, withTrackImportMode, type TrackImportMode } from "@debrief/config";
+import { addStore, DEFAULT_TMA_ERROR_CUT_OFF, loadConfig, narrativeAnswers, removeStore, sameLocation, tmaErrorCutOff, trackImportMode, updateConfig, withNarrativeAnswers, withTmaErrorCutOff, withTrackImportMode, type TrackImportMode } from "@debrief/config";
 import { changedSince, historyOnDisk, knownStores, openPlot, plotFile, type OpenedPlot } from "./catalogue.js";
 import { existsSync, statSync, unwatchFile, watchFile } from "node:fs";
 import { mkdir, realpath, rename, rm, stat, unlink, writeFile } from "node:fs/promises";
@@ -269,8 +269,52 @@ export function activate(context: vscode.ExtensionContext): DebriefApi {
       exclude: async (solutionId, cutIds, excluded) => (await vscode.commands.executeCommand<{ problem?: string } | undefined>("debrief.tmaExclude", solutionId, cutIds, excluded))?.problem,
       split: async (solutionId, at) => (await vscode.commands.executeCommand<{ problem?: string } | undefined>("debrief.tmaSplitLeg", solutionId, { at }))?.problem,
       resolve: async (cutId, keep) => (await vscode.commands.executeCommand<{ problem?: string } | undefined>("debrief.resolveAmbiguity", { keep, cut_ids: [cutId] }))?.problem,
+      // The error cut-off: kept in the analyst's configuration (debrief-config), shown in Settings as debrief.tma.errorCutOff.
+      cutOff: (degrees) => void rememberCutOff(degrees),
+      get errorCutOff() {
+        return rememberedCutOff();
+      },
     },
     log,
+  );
+  // The Bearings view's error cut-off (product owner, 25 Oct 2026): the analyst's, in their
+  // Debrief configuration as the import mode is, and shown in Settings; never in a plot.
+  const rememberedCutOff = (): number => {
+    try {
+      return tmaErrorCutOff(loadConfig(configFile));
+    } catch {
+      return DEFAULT_TMA_ERROR_CUT_OFF;
+    }
+  };
+  const rememberCutOff = async (degrees: number) => {
+    try {
+      updateConfig((c) => withTmaErrorCutOff(c, degrees), configFile);
+    } catch (error) {
+      void vscode.window.showWarningMessage(`The error cut-off was not kept: ${(error as Error).message}`);
+      return;
+    }
+    const setting = vscode.workspace.getConfiguration("debrief");
+    if (setting.get<number>("tma.errorCutOff") !== degrees) await setting.update("tma.errorCutOff", degrees, vscode.ConfigurationTarget.Global);
+    void bearingsView.refresh();
+  };
+  void (async () => {
+    const setting = vscode.workspace.getConfiguration("debrief");
+    const held = rememberedCutOff();
+    if (setting.get<number>("tma.errorCutOff", DEFAULT_TMA_ERROR_CUT_OFF) !== held) await setting.update("tma.errorCutOff", held, vscode.ConfigurationTarget.Global);
+  })();
+  context.subscriptions.push(
+    vscode.workspace.onDidChangeConfiguration((event) => {
+      if (!event.affectsConfiguration("debrief.tma.errorCutOff")) return;
+      const degrees = vscode.workspace.getConfiguration("debrief").get<number>("tma.errorCutOff", DEFAULT_TMA_ERROR_CUT_OFF);
+      if (degrees >= 0.01 && degrees <= 180 && degrees !== rememberedCutOff()) {
+        try {
+          updateConfig((c) => withTmaErrorCutOff(c, degrees), configFile);
+        } catch {
+          return;
+        }
+        void bearingsView.refresh();
+      }
+    }),
   );
   map.previewed = (featureId, preview) => bearingsView.preview(featureId, preview);
   map.guessed = async (request) => {

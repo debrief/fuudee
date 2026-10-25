@@ -6,7 +6,7 @@
  *
  * The default is "A, task-grouped" (panels.mjs): Time, Tote, Outline with Catalogue, and Tools with
  * History down the left; the map in the middle with Timeline and Coverage under it; the
- * walkthroughs alone on the right. The layout is remembered in this browser (its shape only, never
+ * walkthroughs on the right, the Bearings view a tab behind them. The layout is remembered in this browser (its shape only, never
  * anything from a plot), unless the page is a blog's demo, which always starts from a layout made
  * from the panels it lists.
  *
@@ -29,8 +29,9 @@ export const LAYOUT_KEY = "debrief.play.layout";
  * 2: the second round's default (product owner, 23 Oct 2026): walkthroughs alone on the right.
  * 3: three groups on the left (product owner, 24 Oct 2026): Tools and History beside the Tote.
  * 4: the Bearings panel (TMA, CAP-21; 24 Oct 2026), a tab beside the Timeline and Coverage under the map.
+ * 5: the Bearings panel tall, right of the map, a tab behind the walkthroughs (product owner, 25 Oct 2026).
  */
-export const LAYOUT_VERSION = 4;
+export const LAYOUT_VERSION = 5;
 /** The map's place in the layout: an empty slot the map is laid over. */
 export const MAP_ID = "map";
 
@@ -271,22 +272,6 @@ export class Dock {
   /** Bring a panel's tab to the front. */
   show(id: string): void {
     this.api.getPanel(id)?.api.setActive();
-  }
-
-  /**
-   * A panel's group made at least so tall (at most half the dock's height), when it is in view and
-   * shorter: the Bearings view's plots once a solution is shown (CAP-21). Never shrinks a group the
-   * reader made taller. True if it grew.
-   */
-  atLeast(id: string, height: number): boolean {
-    const panel = this.api.getPanel(id);
-    if (!panel?.api.isVisible) return false;
-    const now = panel.group.element.getBoundingClientRect().height;
-    const most = this.options.container.getBoundingClientRect().height * 0.5;
-    const wanted = Math.min(height, most);
-    if (now >= wanted - 1) return false;
-    panel.group.api.setSize({ height: wanted });
-    return true;
   }
 
   /** The panel ids in each group, in order, the one in front first; for the tests and the menu. */

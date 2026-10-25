@@ -96,6 +96,8 @@ enums:
       tma_exclude: {description: "Bearing view to host: leave these rooted cuts out of the solution's RMS error (excluded true), or count them again (excluded false) (feature_id, the solution; cut_ids), as one recorded step."}
       tma_split: {description: "Bearing view to host: split the solution into legs at this time (feature_id, the solution; current_time), as one recorded step."}
       tma_time_asked: {description: "Bearing view to host: move current time to this cut's time (current_time), so the map emphasises it."}
+      tma_select: {description: "Bearing view to host: the analyst clicked a dot in the Bearings view's plot: select this feature (feature_id: the cut, or the solution for one of its fixes) in the Outline and on the map, and move current time to it (current_time) (product owner, 25 Oct 2026)."}
+      tma_cut_off: {description: "Bearing view to host: the analyst set their error cut-off (error_cut_off, degrees): remember it in their Debrief configuration (product owner, 25 Oct 2026)."}
       tma_made: {description: "Host to bearing view: the solution asked for was made (feature_id), so the first guess's form closes; or, with message alone, why it was not, the form left open."}
 
 classes:
@@ -290,3 +292,8 @@ classes:
       excluded:
         description: Whether the cuts are left out (tma_exclude).
         range: boolean
+      error_cut_off:
+        description: The analyst's error cut-off, degrees (tma_cut_off).
+        range: float
+        minimum_value: 0.01
+        maximum_value: 180
