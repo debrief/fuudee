@@ -47,6 +47,8 @@ html:has(.tma-root), html:has(.tma-root) body { height: 100%; margin: 0; }
 /* Beside the list in a short panel the plot keeps its place; what is beneath it scrolls. */
 .tma-below { display: flex; flex-direction: column; gap: 4px; min-height: 0; }
 .tma-wide .tma-below { flex: 1 1 auto; overflow-y: auto; }
+/* The cut list closed, nothing beside the plot: the plot takes the height, what is beneath it only its own. */
+.tma-wide.tma-cuts-closed .tma-below { flex: none; }
 .tma-wide .tma-right { flex: 1 1 50%; }
 .tma-wide .tma-list { min-height: 66px; }
 
@@ -77,16 +79,17 @@ html:has(.tma-root), html:has(.tma-root) body { height: 100%; margin: 0; }
 .tma-short .tma-plot { min-height: 160px; }
 .tma-short.tma-solution-shown:not(.tma-wide) .tma-list { height: calc(3 * 22px + 2px); }
 .tma-short.tma-solution-shown { overflow-y: auto; }
-/* Wide and short, the cut list closed (VS Code's panel beside the Terminal, product owner, 25 Oct
-   2026; or Bearings dragged under the map): the plot the whole height on the left, its panes side by
-   side; the toolbar, the cue, the cut list's button and the cut's buttons in a column beside it. */
-.tma-wide.tma-short.tma-solution-shown.tma-cuts-closed .tma-left { display: grid; grid-template-columns: minmax(0, 1fr) minmax(200px, 28%); grid-template-rows: auto auto auto auto minmax(0, 1fr); column-gap: 12px; row-gap: 4px; align-content: stretch; }
-.tma-wide.tma-short.tma-solution-shown.tma-cuts-closed .tma-plot { grid-column: 1; grid-row: 1 / -1; min-height: 0; }
-.tma-wide.tma-short.tma-solution-shown.tma-cuts-closed .tma-tools { grid-column: 2; grid-row: 1; }
-.tma-wide.tma-short.tma-solution-shown.tma-cuts-closed .tma-more { grid-column: 2; grid-row: 2; }
-.tma-wide.tma-short.tma-solution-shown.tma-cuts-closed .tma-statusline { grid-column: 2; grid-row: 3; }
-.tma-wide.tma-short.tma-solution-shown.tma-cuts-closed .tma-cuts-toggle { grid-column: 2; grid-row: 4; }
-.tma-wide.tma-short.tma-solution-shown.tma-cuts-closed .tma-below { grid-column: 2; grid-row: 5; overflow-y: auto; }
+/* Controls on top at any size (product owner, 26 Oct 2026), unless on top they would leave the
+   plot under 220 px (tmacontrol.ts's placeControls sets tma-side, with hysteresis): then, wide with
+   the cut list closed (VS Code's default bottom panel), the plot the whole height on the left and
+   the toolbar, the cue, the cut list's button and the cut's buttons in a column beside it. */
+.tma-wide.tma-side.tma-solution-shown.tma-cuts-closed .tma-left { display: grid; grid-template-columns: minmax(0, 1fr) minmax(200px, 28%); grid-template-rows: auto auto auto auto minmax(0, 1fr); column-gap: 12px; row-gap: 4px; align-content: stretch; }
+.tma-wide.tma-side.tma-solution-shown.tma-cuts-closed .tma-plot { grid-column: 1; grid-row: 1 / -1; min-height: 0; }
+.tma-wide.tma-side.tma-solution-shown.tma-cuts-closed .tma-tools { grid-column: 2; grid-row: 1; }
+.tma-wide.tma-side.tma-solution-shown.tma-cuts-closed .tma-more { grid-column: 2; grid-row: 2; }
+.tma-wide.tma-side.tma-solution-shown.tma-cuts-closed .tma-statusline { grid-column: 2; grid-row: 3; }
+.tma-wide.tma-side.tma-solution-shown.tma-cuts-closed .tma-cuts-toggle { grid-column: 2; grid-row: 4; }
+.tma-wide.tma-side.tma-solution-shown.tma-cuts-closed .tma-below { grid-column: 2; grid-row: 5; overflow-y: auto; }
 .tma-canvas, .tma-overlay { position: absolute; left: 0; top: 0; display: block; }
 .tma-canvas { cursor: crosshair; touch-action: none; }
 .tma-canvas:focus-visible { outline: 1px solid var(--vscode-focusBorder); outline-offset: -1px; }
