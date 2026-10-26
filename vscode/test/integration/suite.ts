@@ -604,10 +604,25 @@ export async function run(): Promise<void> {
     assert.ok(shown.residuals!.counted > 10, "its cuts counted");
     // In the panel below the editor (product owner, 25 Oct 2026): wide and short, the panes side by
     // side with room each, the time axis the panel's height; big enough to read at this window's size.
-    const plot = await waitFor("the Bearings plot drawn in the panel", () => {
+    // The view lays its controls out on top first, measures them there, and only then (a frame or
+    // two later, in its ResizeObserver) moves them beside the plot if on top leaves it too short:
+    // the size read once it has stayed the same for a second, not the first one drawn.
+    let seen = "";
+    let since = Date.now();
+    let first: { height: number; panes: number[] } | undefined;
+    const plot = await waitFor("the Bearings plot drawn in the panel, its size settled", () => {
       const p = api.bearingsPlot();
-      return p && p.panes.length >= 2 ? p : undefined;
+      if (!p || p.panes.length < 2) return undefined;
+      first ??= p;
+      const key = JSON.stringify(p);
+      if (key !== seen) {
+        seen = key;
+        since = Date.now();
+        return undefined;
+      }
+      return Date.now() - since >= 1000 ? p : undefined;
     });
+    console.log(`Bearings in the panel, first drawn: plot ${first!.height} px tall, panes ${first!.panes.join(" and ")} px wide`);
     await sleep(1500);
     await screenshot("15e-tma-bearings");
     console.log(`Bearings in the panel: plot ${plot.height} px tall, panes ${plot.panes.join(" and ")} px wide`);

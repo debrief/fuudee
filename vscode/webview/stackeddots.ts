@@ -289,6 +289,30 @@ export const isZoomed = (zoom: Zoom): boolean => !!zoom.time || Object.keys(zoom
 const ordered = (a: number, b: number): Range => (a <= b ? [a, b] : [b, a]);
 
 /** A box dragged in a pane: time to its height, that pane's values to its width. */
+/**
+ * The controls beside the plot, not above it, only where above it they would leave the plot's
+ * panes under this height (product owner, 26 Oct 2026: on top at any size otherwise). 220 px is
+ * about 60 cuts at a dot's 3.5 px pitch, the least the panel's review held readable (the VS Code
+ * suite holds 200 px); VS Code's default bottom panel left 126 px with them on top (1440 × 900).
+ */
+export const SIDE_ENTER_PX = 220;
+/** Back on top only once that leaves more than this: 30 px of hysteresis, about a toolbar row re-wrapping, so a resize never flickers between the two. */
+export const SIDE_LEAVE_PX = 250;
+/** The plot's own margins above and below its panes (drawPlot's top and bottom). */
+export const PLOT_MARGINS_PX = 34;
+
+/**
+ * Whether the controls go beside the plot: from the height the view has and what the controls
+ * took on top (measured when last there), and where they are now (the hysteresis). Nothing
+ * measured yet, or no height: on top, the default, so the first layout is always on top and
+ * measured there.
+ */
+export function controlsBeside(beside: boolean, available: number, chromeAbove: number): boolean {
+  if (!(chromeAbove > 0) || !(available > 0)) return false;
+  const onTop = available - chromeAbove - PLOT_MARGINS_PX;
+  return beside ? onTop <= SIDE_LEAVE_PX : onTop < SIDE_ENTER_PX;
+}
+
 /** The least time a zoom shows: ten seconds, a few cuts at the usual rates. */
 export const LEAST_SPAN_MS = 10_000;
 

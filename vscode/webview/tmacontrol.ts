@@ -51,6 +51,7 @@ import type { LonLat } from "./geodesic.js";
 import { bearingText, type Kept } from "./sensors.js";
 import {
   about,
+  controlsBeside,
   coverageSpan,
   type Cue,
   cueStyle,
@@ -153,17 +154,6 @@ const BOX_PX = 5;
 const WIDE_PX = 640;
 /** Below this height the view is short: no key, three rows of the list, the plot the rest. */
 const SHORT_PX = 640;
-/**
- * The controls beside the plot, not above it, only where above it they would leave the plot's
- * panes under this height (product owner, 26 Oct 2026: on top at any size otherwise). 220 px is
- * about 60 cuts at a dot's 3.5 px pitch, the least the panel's review held readable (the VS Code
- * suite holds 200 px); VS Code's default bottom panel left 126 px with them on top (1440 × 900).
- */
-const SIDE_ENTER_PX = 220;
-/** Back on top only once that leaves this much: 30 px of hysteresis, about a toolbar row re-wrapping, so a resize never flickers between the two. */
-const SIDE_LEAVE_PX = 250;
-/** The plot's own margins above and below its panes (drawPlot's top and bottom). */
-const PLOT_MARGINS_PX = 34;
 /** Below this width the list drops its tick boxes, so a bearing is still read whole. */
 const NARROW_PX = 280;
 const escape = (text: string) => text.replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[c]!);
@@ -1139,15 +1129,11 @@ export class TmaControl {
       // On top now: what is not the plot, measured.
       this.chromeAbove = Math.max(0, element.scrollHeight - this.plot.clientHeight);
     }
-    if (!bound || !this.chromeAbove) {
-      element.classList.remove("tma-side");
-      return;
-    }
-    const available = bound.getBoundingClientRect().bottom - element.getBoundingClientRect().top;
-    const onTop = available - this.chromeAbove - PLOT_MARGINS_PX;
-    const side = element.classList.contains("tma-side");
-    if (!side && onTop < SIDE_ENTER_PX) element.classList.add("tma-side");
-    else if (side && onTop > SIDE_LEAVE_PX) element.classList.remove("tma-side");
+    // The height the view has: the window's in VS Code (the page's own height grows with what
+    // overflows it, so never that), the docked panel's in the playground; from the view's top.
+    const bottom = !bound ? 0 : bound === document.documentElement ? window.innerHeight : bound.getBoundingClientRect().bottom;
+    const available = bottom - element.getBoundingClientRect().top;
+    element.classList.toggle("tma-side", !!bound && controlsBeside(element.classList.contains("tma-side"), available, this.chromeAbove));
   }
 
   /** The coverage not rooted in the solution, its times, and the whole span plotted: once per view, never per frame. */

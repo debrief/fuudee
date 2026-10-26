@@ -24,6 +24,8 @@ import {
   inside,
   isZoomed,
   legCourses,
+  controlsBeside,
+  PLOT_MARGINS_PX,
   LEAST_SPAN_MS,
   localCourse,
   describeOffScale,
@@ -359,3 +361,27 @@ function samplePlot(hostFixes = 5): DebriefFeatureCollection {
   ];
   return { type: "FeatureCollection", features } as unknown as DebriefFeatureCollection;
 }
+
+describe("where the controls go", () => {
+  // The plot's panes on top: the height the view has, less the controls (100 px here) and the plot's margins.
+  const chrome = 100;
+  const giving = (plot: number) => plot + chrome + PLOT_MARGINS_PX;
+  it("starts on top, and stays there while nothing is measured", () => {
+    expect(controlsBeside(false, giving(500), chrome)).toBe(false);
+    expect(controlsBeside(false, giving(100), 0)).toBe(false);
+    expect(controlsBeside(true, giving(100), 0)).toBe(false);
+    expect(controlsBeside(false, 0, chrome)).toBe(false);
+  });
+  it("goes beside below 220 px, and back on top only above 250 px", () => {
+    expect(controlsBeside(false, giving(220), chrome)).toBe(false);
+    expect(controlsBeside(false, giving(219), chrome)).toBe(true);
+    expect(controlsBeside(false, giving(126), chrome)).toBe(true); // VS Code's default bottom panel
+    // Beside: kept through the band, so a resize never flickers.
+    expect(controlsBeside(true, giving(219), chrome)).toBe(true);
+    expect(controlsBeside(true, giving(240), chrome)).toBe(true);
+    expect(controlsBeside(true, giving(250), chrome)).toBe(true);
+    expect(controlsBeside(true, giving(251), chrome)).toBe(false);
+    // On top: kept through the band too.
+    expect(controlsBeside(false, giving(240), chrome)).toBe(false);
+  });
+});
