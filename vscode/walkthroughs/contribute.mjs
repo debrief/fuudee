@@ -68,14 +68,17 @@ export function withSolution(args, features) {
 
 /**
  * A drag of a TMA solution (Bearings and TMA), the same in both hosts: one of its legs, once it is
- * split into legs (This leg, or the time window), is the last step's (product owner, 25 Oct 2026:
- * the step ends on a leg dragged, not on the split); any other drag of it, the fourth step's. False
- * for a track that is not a solution (legs undefined); undefined for a change that is not a drag.
+ * split into legs (This leg, or a period), is the last step's (product owner, 25 Oct 2026: the
+ * step ends on a leg dragged, not on the split); otherwise a move is the fourth step's (its start
+ * put at RED ONE's range) and a shear the fifth's (the first leg fitted about that start; product
+ * owner, 25 Oct 2026, "fit properly"). A rotation or a stretch of the whole solution is no step's.
+ * False for a track that is not a solution (legs undefined); undefined for any other change.
  */
 export function tmaDragEvent(legs, action, part) {
   if (legs === undefined) return false;
   if (!["move", "rotate", "shear", "stretch"].includes(String(action))) return undefined;
-  return legs > 1 && part ? "legDragged" : "solutionDragged";
+  if (legs > 1 && part) return "legDragged";
+  return { move: "solutionMoved", shear: "solutionSheared" }[String(action)];
 }
 
 /** What a button says when its step needs the solution and there is none yet. */

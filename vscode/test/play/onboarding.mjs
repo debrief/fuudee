@@ -606,7 +606,7 @@ export async function playTours(page, shot, root) {
   assert.match(await ahead.locator(".tour-complete").innerText(), /^All walkthroughs done\./);
   assert.equal(await ahead.locator("button.tour-next, button.tour-skip").count(), 0);
   assert.equal(await ahead.locator("button.tour-again").innerText(), "Start again: Open and explore a serial");
-  // The keyboard stayed on the map, where the last step was done (playTmaTour).
+  // The status line said so, where the last step was done (playTmaTour).
   assert.match(await page.locator("#tour .tour-said").innerText(), /All walkthroughs done\.$/);
   await openTours(page);
   await shot("next-02-all-done");
@@ -663,29 +663,43 @@ export async function playTours(page, shot, root) {
   // The layout put back, for the speed run after.
   await page.locator("#reset-layout").click();
   await mapPlaced(page);
-  console.log(`Walkthroughs played, every step ticked by what was done on its copy, none by the same thing done elsewhere: ${(await events(page)).length} of 26 (Tidy a track started again). Docked on the right from 900 px, the step's words in sight while another panel scrolls; sideways scroll: ${widths.join("; ")}.`);
+  console.log(`Walkthroughs played, every step ticked by what was done on its copy, none by the same thing done elsewhere: ${(await events(page)).length} of 27 (Tidy a track started again). Docked on the right from 900 px, the step's words in sight while another panel scrolls; sideways scroll: ${widths.join("; ")}.`);
 }
 
 /**
- * Bearings and TMA (product owner, 25 Oct 2026), start to finish on its copy of serial 1: each
- * step's button does what it says in Bearings (the towed array listed, the cut at 09:46Z chosen,
- * the period chosen and the first guess opened, the largest residual chosen, the cut at 10:38Z
- * chosen), and the reader does the step: keeps the side the Bow sonar agrees with, makes Debrief's
- * first guess, shears it by typing, leaves the wild bearing out with Space, splits into legs and
- * drags the first leg on the map, the second staying put. The RMS falls as the steps say. Polls,
- * never waits fixed times; nothing depends on the font.
+ * Bearings and TMA (product owner, 25 Oct 2026; fitted properly, 25 Oct 2026), start to finish on
+ * its copy of serial 1, as legacy Debrief's TMA tutorial fits a leg: each step's button does what
+ * it says (the towed array listed in Bearings, the cut at 09:46Z chosen, the period chosen and the
+ * first guess opened, Move… and Shear… opened for the solution, the cut at 11:12Z chosen, the cut
+ * at 10:38Z chosen), and the reader does the step, from the keyboard where the step says how:
+ * keeps the side the Bow sonar agrees with (Shift+Tab back from the list), makes Debrief's first
+ * guess, moves its start along the first bearing to RED ONE's range, shears the first leg to fit,
+ * leaves the wild bearing out with Space, splits at 10:38Z (Shift+Tab back to Split), and fits the
+ * second leg as the first, This leg in Move… and Shear…. The RMS and the cue are what the steps
+ * say (held to the sample by test_walkthrough.py), to a tenth of a degree. Polls, never waits fixed
+ * times; nothing depends on the font.
  */
-async function playTmaTour(page, shot) {
+export async function playTmaTour(page, shot) {
   const mapFrame = page.frameLocator(".frame-map");
   const view = page.locator("#bearings");
-  const list = view.locator(".tma-list");
   const active = view.locator(".tma-row.tma-active");
   const shown = () => page.evaluate(() => window.debriefTma.shown);
   const rms = () => page.evaluate(() => window.debriefTma.residuals?.rms);
+  const cue = () => view.locator(".tma-cue-text").innerText();
+  const focused = () => page.evaluate(() => document.activeElement?.textContent ?? "");
   const picture = async (name) => {
     await page.evaluate(() => document.querySelectorAll("#toasts .toast").forEach((t) => t.remove()));
+    // The plot once there is a solution; before, the cut chosen.
+    await ((await view.locator(".tma-canvas").isVisible()) ? view.locator(".tma-canvas") : active).scrollIntoViewIfNeeded();
     await shot(name);
   };
+  /** The RMS once the step is saved, within a tenth of a degree of the sample's (test_walkthrough.py), and the cue's words. */
+  const settledAt = async (rmsSaid, cueSaid) => {
+    const now = () => page.evaluate(() => `RMS ${window.debriefTma.residuals?.rms}, cue "${document.querySelector("#bearings .tma-cue-text")?.textContent}"`);
+    await page.waitForFunction((r) => Math.abs((window.debriefTma.residuals?.rms ?? 999) - r) < 0.1 && !document.querySelector("#bearings .tma-rms")?.textContent?.includes("while dragging"), rmsSaid, { timeout: 60000 }).catch(async (e) => assert.fail(`RMS ${rmsSaid}° expected: ${await now()} (${e.message})`));
+    await page.waitForFunction((c) => document.querySelector("#bearings .tma-cue-text")?.textContent?.startsWith(c), cueSaid, { timeout: 30000 }).catch(async (e) => assert.fail(`"${cueSaid}" expected: ${await now()} (${e.message})`));
+  };
+  const dialog = page.locator("dialog.track-form");
   const towed = "sensor-blue-one-towed-array";
   // A step that needs the solution, before there is one, says so and does nothing.
   await page.selectOption("#tour-pick", "tma");
@@ -695,17 +709,23 @@ async function playTmaTour(page, shot) {
   assert.match(await page.locator("#history li .name").first().textContent(), /^A wild bearing put into Towed array cut at 11:12:00Z$/);
   await press(page, 3);
   await page.locator(".toast", { hasText: "Make the solution first" }).first().waitFor({ timeout: 10000 });
-  await notDone(page, "solutionDragged", "nothing to drag yet");
+  await notDone(page, "solutionMoved", "nothing to move yet");
 
-  // 2. The cut at 09:46Z chosen, current time there; the side the Bow sonar agrees with kept.
+  // 2. The Bow sonar's cut at 09:46Z reads 235.3°, as the step says, in Bearings' Sensor list.
+  await view.locator(".tma-sensor").selectOption("sensor-blue-one-bow-sonar");
+  await page.waitForFunction(() => window.debriefTma.shown?.sensor_id === "sensor-blue-one-bow-sonar", null, { timeout: 30000 });
+  assert.equal(await page.evaluate(() => window.debriefTma.shown.cuts.find((c) => c.time.endsWith("T09:46:00.000Z"))?.bearing.toFixed(1)), "235.3");
+  // The cut at 09:46Z chosen, current time there; the side the Bow sonar agrees with kept from
+  // the keyboard, as the step says: the cut's buttons come before the list, Shift+Tab back to them.
   await press(page, 1);
   await page.waitForFunction(() => /^09:46:00Z/.test(document.querySelector("#bearings .tma-row.tma-active")?.getAttribute("aria-label") ?? ""), null, { timeout: 30000 });
   assert.equal(await page.evaluate(() => document.activeElement?.classList.contains("tma-list")), true, "the keyboard in the list");
-  const keep = view.getByRole("button", { name: "Keep 236.3° (starboard)", exact: true });
-  await keep.waitFor();
-  await keep.scrollIntoViewIfNeeded();
+  await page.keyboard.press("Shift+Tab");
+  assert.equal(await focused(), "Keep 142.3° (port)", "Shift+Tab from the list: the other side first");
+  await page.keyboard.press("Shift+Tab");
+  assert.equal(await focused(), "Keep 236.3° (starboard)", "then the side the step names");
   await picture("tma-walk-01-keep-a-side");
-  await keep.click();
+  await page.keyboard.press("Enter");
   await done(page, "sideKept");
   await ticked(page, 1, "Keep a side of an ambiguous bearing");
 
@@ -719,100 +739,127 @@ async function playTmaTour(page, shot) {
   await page.keyboard.press("Enter");
   await done(page, "solutionMade");
   await page.waitForFunction(() => window.debriefTma.residuals?.rows.length === 102, null, { timeout: 60000 });
-  const first = await rms();
-  assert.ok(first > 50, `Debrief's first guess is far off, as the step says: RMS ${first}`);
-  await view.locator(".tma-canvas").scrollIntoViewIfNeeded();
+  await settledAt(55.9, "95 of 102 beyond 3.0°");
+  assert.equal(Math.round(await rms()), 56, "the RMS the step says");
   await picture("tma-walk-02-first-guess");
 
-  // 4. Sheared about its start by typing the values the step gives: the RMS falls to about 14°.
+  // 4. Moved along the first bearing to RED ONE's range, by typing what the step gives: the RMS up.
   await press(page, 3);
-  const dialog = page.locator("dialog.track-form");
-  await page.locator("#track-form-course").waitFor({ timeout: 30000 });
-  await page.locator("#track-form-course").fill("215");
-  await page.locator("#track-form-speed").fill("3 kn");
-  await dialog.getByRole("button", { name: "Shear" }).click();
-  await done(page, "solutionDragged");
-  await page.waitForFunction((was) => window.debriefTma.residuals?.rms < was - 30, first, { timeout: 60000 });
-  const fitted = await rms();
-  assert.ok(fitted < 15, `a visibly better fit: RMS ${first.toFixed(1)}° to ${fitted.toFixed(1)}°`);
-  await view.locator(".tma-canvas").scrollIntoViewIfNeeded();
-  await picture("tma-walk-03-sheared");
+  await page.locator("#track-form-distance").waitFor({ timeout: 30000 });
+  assert.equal(await page.locator("#track-form-extent").inputValue(), "whole");
+  await page.locator("#track-form-distance").fill("1.67 nmi");
+  await page.locator("#track-form-bearing").fill("056.3");
+  await dialog.getByRole("button", { name: "Move", exact: true }).click();
+  await done(page, "solutionMoved");
+  await settledAt(62.7, "99 of 102 beyond 3.0°");
+  await notDone(page, "solutionSheared", "a move is not the shear");
+  await ticked(page, 3, "Put the start at RED ONE's range");
+  await picture("tma-walk-03-at-range");
 
-  // 5. The largest residual chosen: the wild bearing at 11:12Z; Space leaves it out.
+  // 5. The first leg's errors boxed in the Error pane (the zoom stays), then the shear typed.
+  const canvasAt = await view.locator(".tma-canvas").boundingBox();
+  const corners = await page.evaluate(() => {
+    const rows = window.debriefTma.residuals.rows;
+    const last = rows.findIndex((r) => r.time.endsWith("T10:32:00.000Z"));
+    return { a: window.debriefTma.pointOf(rows[0].id), b: window.debriefTma.pointOf(rows[last].id) };
+  });
+  await page.mouse.move(canvasAt.x + Math.min(corners.a.x, corners.b.x) - 40, canvasAt.y + corners.b.y - 4);
+  await page.mouse.down();
+  await page.mouse.move(canvasAt.x + Math.max(corners.a.x, corners.b.x) + 40, canvasAt.y + corners.a.y + 4, { steps: 6 });
+  await page.mouse.up();
+  await page.waitForFunction(() => window.debriefTma.plotState.zoomed);
   await press(page, 4);
+  await page.locator("#track-form-course").waitFor({ timeout: 30000 });
+  await page.locator("#track-form-course").fill("246");
+  await page.locator("#track-form-speed").fill("3.8 kn");
+  await dialog.getByRole("button", { name: "Shear", exact: true }).click();
+  await done(page, "solutionSheared");
+  await settledAt(38.77, "64 of 102 beyond 3.0°");
+  assert.ok((await page.evaluate(() => window.debriefTma.plotState.zoomed)), "the zoom stays");
+  // Up to 10:32Z all but 2 of the 40 within 3°: the first leg fitted.
+  const leg1 = await page.evaluate(() => window.debriefTma.residuals.rows.filter((r) => r.time <= "2023-06-15T10:32:00.000Z").map((r) => r.residual));
+  assert.equal(leg1.length, 40);
+  assert.equal(leg1.filter((v) => Math.abs(v) > 3).length, 2, "all but 2 of the first leg's errors within 3°");
+  await ticked(page, 4, "Shear the first leg to fit");
+  await picture("tma-walk-04-first-leg-fitted");
+  await view.getByRole("button", { name: "Reset zoom" }).click();
+  await page.waitForFunction(() => !window.debriefTma.plotState.zoomed);
+
+  // 6. The cut at 11:12Z chosen, the list opened and given the keyboard: Space leaves it out.
+  await press(page, 5);
   await page.waitForFunction(() => /^11:12:00Z/.test(document.querySelector("#bearings .tma-row.tma-active")?.getAttribute("aria-label") ?? ""), null, { timeout: 30000 });
-  await list.focus();
+  assert.equal(await page.evaluate(() => document.activeElement?.classList.contains("tma-list")), true, "the keyboard in the list");
   await page.keyboard.press(" ");
   await done(page, "cutLeftOut");
   await page.waitForFunction(() => window.debriefTma.residuals?.excluded === 1, null, { timeout: 60000 });
-  assert.ok((await rms()) < fitted, "the RMS falls");
+  await settledAt(38.34, "63 of 101 beyond 3.0°");
   assert.match(await active.getAttribute("aria-label"), /left out of the RMS/);
 
-  // 6. The cut at 10:38Z chosen; split there. Then the first leg dragged on the map, This leg:
-  // the second leg stays where it is.
-  await press(page, 5);
-  const split = view.locator(".tma-split");
-  await page.waitForFunction(() => document.querySelector("#bearings .tma-split")?.textContent === "Split into legs at 10:38:00Z", null, { timeout: 30000 });
-  await split.scrollIntoViewIfNeeded();
-  await split.click();
+  // 7. The cut at 10:38Z chosen and current time there; Shift+Tab back to Split, as the step says.
+  await press(page, 6);
+  await page.waitForFunction(() => /^10:38:00Z/.test(document.querySelector("#bearings .tma-row.tma-active")?.getAttribute("aria-label") ?? ""), null, { timeout: 30000 });
+  await page.keyboard.press("Shift+Tab");
+  assert.equal(await focused(), "Split into legs at 10:38:00Z");
+  await page.keyboard.press("Enter");
   // The split is not the step: the step ends on a leg dragged (product owner, 25 Oct 2026).
   await page.waitForFunction(() => window.debriefTma.residuals?.rows.some((r) => r.leg === 2), null, { timeout: 60000 });
   await notDone(page, "legDragged", "a split is not the step: dragging a leg is");
+  await picture("tma-walk-05-split");
   const legOf = (n) => page.evaluate((leg) => window.debriefTma.residuals.rows.filter((r) => r.leg === leg).map((r) => r.calculated), n);
   const leg1Before = await legOf(1);
-  const leg2Before = await legOf(2);
+  // This leg on the map: current time is at 10:38Z, so its handles drag the second leg (M3).
   const legButton = mapFrame.getByRole("button", { name: "This leg", exact: true });
   await legButton.waitFor({ timeout: 30000 });
   await legButton.click();
-  await mapFrame.getByRole("button", { name: "Zoom to the selection", exact: true }).click();
-  const handle = mapFrame.locator('.track-handle[data-role="end"]');
-  /** The map at rest: the end handle where it was a tenth of a second ago (polled, not a fixed wait). */
-  const settled = async () => {
-    let last;
-    for (let i = 0; i < 60; i++) {
-      const b = await handle.boundingBox().catch(() => null);
-      const now = b ? `${Math.round(b.x)},${Math.round(b.y)}` : undefined;
-      if (now && now === last) return;
-      last = now;
-      await new Promise((r) => setTimeout(r, 100));
-    }
-  };
-  await settled();
-  // The first leg clicked on the map, between two of its fixes.
-  const solutionId = (await shown()).solution_id;
-  const frame = await page.locator(".frame-map").boundingBox();
-  const point = await mapFrame.locator("#map").evaluate((_, id) => {
-    const fixes = window.debriefFixes(id);
-    const [a, b] = [fixes[5], fixes[6]];
-    return window.debriefPoint((a[0] + b[0]) / 2, (a[1] + b[1]) / 2);
-  }, solutionId);
-  await page.mouse.click(frame.x + point.x, frame.y + point.y);
-  await page.waitForFunction(() => document.querySelector(".frame-map").contentDocument.querySelector('.track-handle[data-role="end"]')?.getAttribute("aria-label")?.includes("leg 1 of 2"), null, { timeout: 30000 });
-  await settled();
-  const at = await handle.boundingBox();
-  const [x, y] = [at.x + at.width / 2, at.y + at.height / 2];
-  await page.mouse.move(x, y);
-  await page.mouse.down();
-  await page.mouse.move(x - 30, y - 20, { steps: 10 });
-  await page.waitForFunction(() => document.querySelector("#bearings .tma-rms")?.textContent?.includes("while dragging"), null, { timeout: 10000 });
-  const stepsNow = await steps(page);
-  await page.mouse.up();
-  await stepAdded(page, stepsNow);
-  await page.waitForFunction(() => !document.querySelector("#bearings .tma-rms")?.textContent?.includes("while dragging"), null, { timeout: 30000 });
-  const same = (a, b) => a.length === b.length && a.every((c, i) => Math.abs(c - b[i]) < 1e-6);
-  await page.waitForFunction((was) => window.debriefTma.residuals.rows.filter((r) => r.leg === 1).some((r, i) => Math.abs(r.calculated - was[i]) > 1e-6), leg1Before, { timeout: 30000 });
-  assert.ok(same(await legOf(2), leg2Before), "the second leg stays where it was");
-  assert.ok(!same(await legOf(1), leg1Before), "the first leg moved");
+  await page.waitForFunction(() => document.querySelector(".frame-map").contentDocument.querySelector('.track-handle[data-role="end"]')?.getAttribute("aria-label")?.includes("leg 2 of 2"), null, { timeout: 30000 });
+  // Pinned on its first bearing by typing, the leg offered in Move… (This leg): its error at 10:38Z on zero.
+  await showPanel(page, "outline");
+  await page.locator("#move-track").click();
+  await page.locator("#track-form-extent").selectOption("leg");
+  assert.match(await page.locator("#track-form-extent option:checked").innerText(), /^This leg: leg 2 of 2, /);
+  await page.locator("#track-form-distance").fill("0.17 nmi");
+  await page.locator("#track-form-bearing").fill("155");
+  await dialog.getByRole("button", { name: "Move", exact: true }).click();
   await done(page, "legDragged");
-  await ticked(page, 5, "Split into legs and drag one");
-  // The last step of the last walkthrough, done on the map: the keyboard stays there, and the
-  // status line (a live region) says all are done (product owner, 25 Oct 2026).
+  await ticked(page, 6, "Split at the turn and fit the second leg");
+  await page.waitForFunction(() => Math.abs(window.debriefTma.residuals.rows.find((r) => r.time.endsWith("T10:38:00.000Z"))?.residual ?? 9) < 0.5, null, { timeout: 60000 });
+  // Then sheared about that start: the RMS near the bearings' own accuracy, the cue as the step says.
+  await page.locator("#shear-track").click();
+  await page.locator("#track-form-extent").selectOption("leg");
+  await page.locator("#track-form-course").fill("200");
+  await page.locator("#track-form-speed").fill("5.2 kn");
+  await dialog.getByRole("button", { name: "Shear", exact: true }).click();
+  await settledAt(1.84, "9 of 101 beyond 3.0°, the largest 4.8°");
+  assert.equal((await rms()).toFixed(1), "1.8");
+  assert.deepEqual(await legOf(1), leg1Before, "the first leg stays where it was");
+  assert.equal(await view.locator(".tma-cue-mark").innerText(), "✗");
+  // The last step of the last walkthrough: the status line (a live region) says all are done.
   await page.locator("#tour .tour-ahead button.tour-again").waitFor({ timeout: 30000 });
   assert.match(await page.locator("#tour .tour-said").innerText(), /All walkthroughs done\.$/);
   assert.equal(await page.locator("#tour .tour-said").getAttribute("role"), "status");
-  assert.deepEqual(await page.evaluate(() => [document.activeElement?.tagName, document.activeElement?.classList.contains("frame-map")]), ["IFRAME", true], "the keyboard is still on the map");
-  await view.locator(".tma-canvas").scrollIntoViewIfNeeded();
-  await picture("tma-walk-04-two-legs");
+  // The cut list closed again, so the plot has the height for the picture.
+  if ((await view.locator(".tma-cuts-toggle").getAttribute("aria-expanded")) === "true") await view.locator(".tma-cuts-toggle").click();
+  await picture("tma-walk-06-second-leg-fitted");
+  const said = `Bearings and TMA: RMS 55.9° first guess, 62.7° at range, 38.8° first leg (its own ${Math.sqrt(leg1.reduce((s, v) => s + v * v, 0) / leg1.length).toFixed(2)}°), 38.3° wild left out, ${(await rms()).toFixed(2)}° both legs: ${await cue()}.`;
+
+  // At a phone's width (390 px), a step's button that chooses a cut leaves that cut's row in
+  // sight: in the page, and not under the next section's heading (the panel's L7).
+  await resize(page, 390, 800);
+  await press(page, 5);
+  await page.waitForFunction(() => /^11:12:00Z/.test(document.querySelector("#bearings .tma-row.tma-active")?.getAttribute("aria-label") ?? ""), null, { timeout: 30000 });
+  const rowSeen = () =>
+    page.evaluate(() => {
+      const row = document.querySelector("#bearings .tma-row.tma-active");
+      const r = row.getBoundingClientRect();
+      const on = document.elementFromPoint(r.left + Math.min(40, r.width / 2), r.top + r.height / 2);
+      return { inPage: r.top >= 0 && r.bottom <= innerHeight, onTop: !!on && row.contains(on), top: Math.round(r.top), over: on ? `${on.tagName}.${on.className}` : "" };
+    });
+  let seen = await rowSeen();
+  for (let i = 0; i < 30 && !(seen.inPage && seen.onTop); i++) seen = await new Promise((r) => setTimeout(r, 100)).then(rowSeen);
+  assert.ok(seen.inPage && seen.onTop, `at 390 px the cut chosen is in sight, not covered: ${JSON.stringify(seen)}`);
+  await shot("tma-walk-07-phone");
+  await resize(page, 1400, 820);
+  console.log(said);
 }
 
 /** The most the trial's tasks may take in the playground before the speed run fails: a regression in what they ask. */

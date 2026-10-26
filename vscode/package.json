@@ -322,15 +322,15 @@
       {
         "id": "tma",
         "title": "Bearings and TMA",
-        "description": "BLUE ONE's towed array on RED ONE, in serial 1: keep a side of an ambiguous bearing, make a TMA solution from a period of cuts, drag it to fit, leave out a wild bearing and split it into legs. About 10 minutes.",
+        "description": "BLUE ONE's towed array on RED ONE, in serial 1, fitted as legacy Debrief's TMA tutorial teaches: keep a side of an ambiguous bearing, make a first guess, put its start at RED ONE's range, shear the first leg to fit, leave out a wild bearing, then split at RED ONE's turn and fit the second leg the same way. About 12 minutes.",
         "steps": [
           {
             "id": "tma.open",
             "title": "Open a copy of serial 1 and its bearings",
-            "description": "A fresh copy of serial 1, titled Serial 1: Bearings and TMA, with **Bearings** listing the cuts of BLUE ONE's towed array, drawn on the map in purple. A towed array cannot tell port from starboard, so each cut has two bearings, mirrored about BLUE ONE's course: two lines, the port one solid and the starboard one dashed, until you keep one. One cut has been turned 40° off, as a wild bearing would be; the step that did it is in History. The sample itself never changes.\n\nThe copy goes into a catalogue of its own, Walkthrough: Bearings and TMA. **Bearings** opens in the panel below the editor, beside the Terminal.\n\n**Keyboard:** Tab to the button and press Enter.\n\n[Open a copy of serial 1](command:debrief.walkthrough.open?%5B%22tma%22%5D)",
+            "description": "A fresh copy of serial 1, titled Serial 1: Bearings and TMA, with **Bearings** listing the cuts of BLUE ONE's towed array, drawn on the map in purple. A towed array cannot tell port from starboard, so each cut has two bearings, mirrored about the array's heading: two lines, the port one solid and the starboard one dashed, until you keep one. One cut has been turned 40° off, as a wild bearing would be; the step that did it is in History. The sample itself never changes.\n\nThe copy goes into a catalogue of its own, Walkthrough: Bearings and TMA. **Bearings** opens in the panel below the editor, beside the Terminal; drag the panel's top edge up for a taller plot.\n\n**Keyboard:** Tab to the button and press Enter.\n\n[Open a copy of serial 1](command:debrief.walkthrough.open?%5B%22tma%22%5D)",
             "media": {
               "svg": "media/walkthroughs/tma-open.svg",
-              "altText": "BLUE ONE's towed array cuts on the map, each a pair of lines: one solid to port, one dashed to starboard."
+              "altText": "BLUE ONE's towed array cuts on the map, each a pair of lines mirrored about the array's heading: one solid to port, one dashed to starboard."
             },
             "completionEvents": [
               "onContext:debrief.walkthrough.tmaOpened"
@@ -339,7 +339,7 @@
           {
             "id": "tma.resolve",
             "title": "Keep a side of an ambiguous bearing",
-            "description": "The button chooses the towed array's cut at 09:46Z and moves current time there, so the map draws it wider. BLUE ONE's Bow sonar is not ambiguous: its teal line at that time is at 235°. So keep the towed array's bearing that agrees, **Keep 236.3° (starboard)**, in Bearings, or click the cut's line on the map and keep it there. It is one step. **Next ambiguous** goes on to the next cut, and **Ambiguous bearings: keep port or starboard…** on the sensor's menu keeps one side for a whole period.\n\nIn **Bearings**, beside the list; or on the map.\n\n**Keyboard:** In Bearings' list, Alt+↓ and Alt+↑ go to the next and previous ambiguous cut; Tab to **Keep 236.3° (starboard)** and press Enter.\n\n[Choose the cut at 09:46Z](command:debrief.walkthrough.do?%5B%22tma%22%2C%22debrief.showBearings%22%2C%22sensor-blue-one-towed-array%22%2C%7B%22cut_time%22%3A%222023-06-15T09%3A46%3A00.000Z%22%7D%5D)",
+            "description": "The button chooses the towed array's cut at 09:46Z in Bearings and moves current time there, so the map draws it wider. BLUE ONE's Bow sonar is not ambiguous, and at 09:46:00Z it bore 235.3°: choose Bow sonar in Bearings' **Sensor** list to see its cuts, then Towed array again. So keep the towed array's bearing that agrees, **Keep 236.3° (starboard)**, in Bearings, or click the cut's line on the map and keep it there. It is one step. The walkthrough keeps this cut's side only: each of the period's other ambiguous cuts is measured by whichever of its bearings is nearer the solution, marked ≈, and Bearings says so beneath the plot. That is an assumption, a fair one once the solution is near; **Next ambiguous** steps through them to keep each side yourself.\n\nIn **Bearings**, in the panel below the editor; or on the map.\n\n**Keyboard:** In Bearings' list, Alt+↓ and Alt+↑ go to the next and previous ambiguous cut. The cut's buttons come before the list: Shift+Tab back past **Keep 142.3° (port)** to **Keep 236.3° (starboard)** and press Enter.\n\n[Choose the cut at 09:46Z](command:debrief.walkthrough.do?%5B%22tma%22%2C%22debrief.showBearings%22%2C%22sensor-blue-one-towed-array%22%2C%7B%22cut_time%22%3A%222023-06-15T09%3A46%3A00.000Z%22%7D%5D)",
             "media": {
               "svg": "media/walkthroughs/tma-resolve.svg",
               "altText": "One towed-array cut's two lines, the one kept beside the Bow sonar's line at the same time."
@@ -351,34 +351,46 @@
           {
             "id": "tma.make",
             "title": "Make a first guess",
-            "description": "A solution is rooted in a period of one sensor's cuts, chosen in Bearings' list: click its first cut and Shift-click its last. The button chooses the towed array's cuts from 09:46Z to 12:00Z and opens **Make solution…**, the first guess: 10,000 yd (4.94 nmi) along the first cut's bearing, a course across it, 8 kn. Keep Debrief's defaults and press **Make solution**. Contact 1's solution is drawn on the map, and Bearings shows its residuals: each cut's bearing less the solution's. An RMS over 50° says the guess is far off. **Two clicks on the map instead** takes the first guess from a click on the first cut's line and one on the last's.\n\nIn **Bearings**. **TMA solution from a sensor's cuts…**, in the Command Palette, takes you to the list.\n\n**Keyboard:** In the list, Shift with ↓ or ↑ extends the period; Tab to **Make solution…** and press Enter. The form takes the keyboard; Enter makes the solution.\n\n[Choose the period and open the first guess](command:debrief.walkthrough.do?%5B%22tma%22%2C%22debrief.showBearings%22%2C%22sensor-blue-one-towed-array%22%2C%7B%22period%22%3A%7B%22start%22%3A%222023-06-15T09%3A46%3A00.000Z%22%2C%22end%22%3A%222023-06-15T12%3A00%3A00.000Z%22%7D%2C%22make%22%3Atrue%7D%5D)",
+            "description": "A solution is rooted in a period of one sensor's cuts, chosen in Bearings' list: click its first cut and Shift-click its last. The button chooses the towed array's 102 cuts from 09:46Z to 12:00Z and opens **Make solution…**, the first guess: 10,000 yd (4.94 nmi) along the first cut's bearing, a course across it, 8 kn. Keep Debrief's defaults and press **Make solution**. The solution is drawn on the map, and Bearings plots it with time running up the left: in the **Bearing** pane each cut's measured bearing is a dot and the solution's calculated bearings a line; beside it, the **Error** pane has each cut's bearing less the solution's. An RMS of 56° and ✗ 95 of 102 beyond 3.0° say the guess is far off, as a first guess is. **Two clicks on the map instead** takes the first guess from a click on the first cut's line and one on the last's.\n\nIn **Bearings**. **TMA solution from a sensor's cuts…**, in the Command Palette, takes you to the list.\n\n**Keyboard:** In the list, Shift with ↓ or ↑ extends the period. The form has the keyboard when it opens; Enter makes the solution.\n\n[Choose the period and open the first guess](command:debrief.walkthrough.do?%5B%22tma%22%2C%22debrief.showBearings%22%2C%22sensor-blue-one-towed-array%22%2C%7B%22period%22%3A%7B%22start%22%3A%222023-06-15T09%3A46%3A00.000Z%22%2C%22end%22%3A%222023-06-15T12%3A00%3A00.000Z%22%7D%2C%22make%22%3Atrue%7D%5D)",
             "media": {
               "svg": "media/walkthroughs/tma-make.svg",
-              "altText": "The first guess, a straight solution heading away across the bearings, far from them."
+              "altText": "The first guess, a straight solution heading away across the bearings; in Bearings its errors lie far from zero."
             },
             "completionEvents": [
               "onContext:debrief.walkthrough.solutionMade"
             ]
           },
           {
-            "id": "tma.drag",
-            "title": "Drag the solution to fit",
-            "description": "The solution is a track, so its drags are a track's. Drag the diamond at its end on the map: its start stays where it is (a shear), and Bearings works the residuals and the RMS out again as you drag. Bring the calculated line through the dots: about 215° at 3 kn takes the RMS from over 50° to about 14°. Letting go is one step.\n\n**Shear track…** is on the solution's menu in the Outline.\n\n**Keyboard:** Tab to the diamond and use the arrow keys, Shift for bigger steps. Or shear by typing the course and speed made good, such as 215 and 3 kn.\n\n[Shear Contact 1's solution](command:debrief.walkthrough.do?%5B%22tma%22%2C%22debrief.shearTrack%22%2C%22%24solution%22%5D)",
+            "id": "tma.range",
+            "title": "Put the start at RED ONE's range",
+            "description": "Legacy Debrief's TMA tutorial fits a leg from its start: the start pinned on the first bearing, then the rest fitted to it. The first guess starts on the first bearing, but 4.94 nmi out, and bearings never say how far: an analyst tries a range, fits, and tries another. Here the walkthrough gives it: RED ONE was 3.27 nmi from the towed array at 09:46Z. So move the whole solution 1.67 nmi along the first bearing, towards BLUE ONE: the button opens **Move…** for it; type 1.67 nmi and 056.3. Or drag the square in the middle of the solution on the map, its Move handle, keeping the start on the first cut's line: the lowest dot in the Error pane, at 09:46Z, stays on zero while it is, and the map says how far it has moved. It is one step. The RMS goes up, to 63°: the course and speed are still the guess's. The next step fits them.\n\n**Move track…** is on the solution's menu in the Outline; choose **Whole track**.\n\n**Keyboard:** The form has the keyboard: type the distance, Tab, the bearing, Enter. On the map, Tab to the square and use the arrow keys, Shift for bigger steps; the form keeps the start on the line more easily.\n\n[Move the solution…](command:debrief.walkthrough.do?%5B%22tma%22%2C%22debrief.moveTrack%22%2C%22%24solution%22%5D)",
             "media": {
-              "svg": "media/walkthroughs/tma-drag.svg",
-              "altText": "The solution sheared about its start, nearer the bearings, with its residuals in Bearings."
+              "svg": "media/walkthroughs/tma-range.svg",
+              "altText": "The solution moved along the first cut's bearing towards BLUE ONE, its start at RED ONE's range then; the first guess dashed where it was."
             },
             "completionEvents": [
-              "onContext:debrief.walkthrough.solutionDragged"
+              "onContext:debrief.walkthrough.solutionMoved"
+            ]
+          },
+          {
+            "id": "tma.shear",
+            "title": "Shear the first leg to fit",
+            "description": "Now hold that start and drag the solution's end, the diamond at its end on the map: a shear. Bearings works the errors out again as you drag, and the Error pane's axis fits them every frame, so a slope in the dots says which way to drag. First drag a box round the errors from 09:46Z to 10:32Z in the Error pane, to zoom in on them; the zoom stays while you drag. Drag until those errors stand straight up the zero line: about 246° at 3.8 kn. Up to 10:32Z all but 2 of the 40 then lie within 3°, an RMS of 1.7° there. After 10:32Z they run away, to −77° by 12:00Z: RED ONE turned, and no straight leg fits both sides of a turn. So the cue still says ✗ 64 of 102 beyond 3.0°, and the RMS is 39°, until the second leg is fitted too. Letting go is one step.\n\n**Shear track…** is on the solution's menu in the Outline; choose **Whole track** and **Hold the start**.\n\n**Keyboard:** In the plot, ↑ and ↓ choose a cut, + zooms time about it and ] the errors; 0 resets. On the map, Tab to the end's diamond and use the arrow keys, Shift for bigger steps. Or type the course and speed made good in the form: 246 and 3.8 kn.\n\n[Shear the solution…](command:debrief.walkthrough.do?%5B%22tma%22%2C%22debrief.shearTrack%22%2C%22%24solution%22%5D)",
+            "media": {
+              "svg": "media/walkthroughs/tma-shear.svg",
+              "altText": "The solution sheared about its start; in Bearings its errors stand on the zero line up to 10:32Z and run away after RED ONE's turn."
+            },
+            "completionEvents": [
+              "onContext:debrief.walkthrough.solutionSheared"
             ]
           },
           {
             "id": "tma.wild",
             "title": "Leave out a wild bearing",
-            "description": "One residual lies far from the rest: the cut at 11:12Z, some 40° off where its neighbours are near 0°. The button chooses it in Bearings' list. Leave it out of the RMS: press Space, or click its tick box. It is one step, and the RMS falls; the cut is still listed, struck through. Space again, or Undo, counts it again.\n\nIn **Bearings**, beside the list.\n\n**Keyboard:** In Bearings' list, ↑ and ↓ to the cut, then Space; or Tab to **Leave this cut out of the RMS** and press Enter.\n\n[Choose the cut with the largest residual](command:debrief.walkthrough.do?%5B%22tma%22%2C%22debrief.showBearings%22%2C%22%24solution%22%2C%7B%22largest%22%3Atrue%7D%5D)",
+            "description": "Among the errors running away after the turn, one dot sits some 40° left of its neighbours: the cut at 11:12Z, a wild bearing. The button chooses it in Bearings and opens the list of cuts. Leave it out of the RMS: press Space, or click its tick box. It is one step; the cut is still listed, struck through, and drawn as a dotted ring. Space again, or Undo, counts it again. Left out now, it cannot pull the second leg's fit.\n\nIn **Bearings**, the list beneath the plot.\n\n**Keyboard:** In Bearings' list, ↑ and ↓ to the cut, then Space. In the plot, Space or Delete does the same for the cut chosen there.\n\n[Choose the cut at 11:12Z](command:debrief.walkthrough.do?%5B%22tma%22%2C%22debrief.showBearings%22%2C%22%24solution%22%2C%7B%22cut_time%22%3A%222023-06-15T11%3A12%3A00.000Z%22%7D%5D)",
             "media": {
               "svg": "media/walkthroughs/tma-wild.svg",
-              "altText": "The residuals beneath the bearings, one dot far from the others, left out as a dotted ring."
+              "altText": "Bearings' Error pane, the wild bearing at 11:12Z left out, a dotted ring some 40° from its neighbours."
             },
             "completionEvents": [
               "onContext:debrief.walkthrough.cutLeftOut"
@@ -386,11 +398,11 @@
           },
           {
             "id": "tma.legs",
-            "title": "Split into legs and drag one",
-            "description": "No straight leg fits RED ONE: the residuals climb until 10:32Z and fall after the gap, because it turned there. The button chooses the cut at 10:38Z; press **Split into legs at 10:38:00Z**. It is one step, and the solution is still one track. Then choose **This leg** on the map, click the first leg and drag its end: about 285° at 4 kn brings its residuals down, and the second leg stays where it is. The step is done once a leg is dragged.\n\nIn **Bearings**, beside the list. **Split TMA solution into legs at current time** is on the solution's menu in the Outline.\n\n**Keyboard:** In Bearings' list, ↑ and ↓ to the cut, Tab to **Split into legs at …** and press Enter. On the map, **This leg** is a button, and the diamonds drag the leg current time is in: Enter on a cut in the list moves current time to it.\n\n[Choose the cut at 10:38Z](command:debrief.walkthrough.do?%5B%22tma%22%2C%22debrief.showBearings%22%2C%22%24solution%22%2C%7B%22cut_time%22%3A%222023-06-15T10%3A38%3A00.000Z%22%7D%5D)\n\n**All walkthroughs done** once this step is done: this is the last walkthrough.",
+            "title": "Split at the turn and fit the second leg",
+            "description": "The button chooses the cut at 10:38Z, the first after RED ONE's turn, and moves current time there. Split there: **Split into legs at 10:38:00Z**, or S in the plot. It is one step, and the solution stays one track. Then fit the second leg as you fitted the first. On the map choose **This leg**: the handles drag the leg current time is in, now the second, and the first stays where it is. Pin its start: drag its square across the bearing until its lowest error, at 10:38Z, sits on zero, about 0.17 nmi at 155°. Then drag its end until its errors stand up the zero line: about 200° at 5.2 kn. The RMS comes down to 1.8°, as near as these bearings allow: they are good to about 1.5°, so even a perfect fit leaves some beyond 3°. The cue says ✗ 9 of 101 beyond 3.0°, the largest 4.8°, where RED ONE's true track would leave 8: aim for an RMS under about 2° and only a handful beyond. The step is done once a leg is dragged. To go back to the first leg, click it on the map, or press Enter on a cut before 10:38Z in Bearings' list.\n\n**Split TMA solution into legs at current time**, **Move track…** and **Shear track…** are on the solution's menu in the Outline; **This leg** is on the map, under What changes.\n\n**Keyboard:** Shift+Tab from the list back to **Split into legs at 10:38:00Z**, or S in the plot. On the map, **This leg** is a button; Tab to the square or the end's diamond and use the arrow keys. Or type it: **Move…** and **Shear…** offer the leg under What changes: 0.17 nmi and 155, then 200 and 5.2 kn.\n\n[Choose the cut at 10:38Z](command:debrief.walkthrough.do?%5B%22tma%22%2C%22debrief.showBearings%22%2C%22%24solution%22%2C%7B%22cut_time%22%3A%222023-06-15T10%3A38%3A00.000Z%22%7D%5D)\n\n**All walkthroughs done** once this step is done: this is the last walkthrough.",
             "media": {
               "svg": "media/walkthroughs/tma-legs.svg",
-              "altText": "The solution in two legs joined at 10:38Z, the first dragged to a new course, the second where it was."
+              "altText": "The solution in two legs joined at 10:38Z, each fitted; in Bearings the errors stand on the zero line all the way up."
             },
             "completionEvents": [
               "onContext:debrief.walkthrough.legDragged"

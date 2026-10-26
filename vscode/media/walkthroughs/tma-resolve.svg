@@ -16,6 +16,6 @@
 <circle cx="228.7" cy="87.0" r="3" fill="var(--vscode-foreground)"/>
 <rect x="298" y="10" width="172" height="58" rx="3" fill="var(--vscode-editorWidget-background)" stroke="var(--vscode-panel-border)"/>
 <text x="306" y="27" font-size="10" fill="var(--vscode-descriptionForeground)" font-family="var(--vscode-font-family)">09:46Z</text>
-<text x="306" y="43" font-size="10" fill="#009d9a" font-family="var(--vscode-font-family)" font-weight="bold">Bow sonar 235°</text>
+<text x="306" y="43" font-size="10" fill="#009d9a" font-family="var(--vscode-font-family)" font-weight="bold">Bow sonar 235.3°</text>
 <text x="306" y="59" font-size="10" fill="var(--vscode-foreground)" font-family="var(--vscode-font-family)" font-weight="bold">Keep 236.3° (starboard)</text>
 </svg>

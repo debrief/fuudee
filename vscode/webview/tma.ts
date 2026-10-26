@@ -15,7 +15,7 @@
  *   quickly as tens), the period chosen, and the next or previous ambiguous cut.
  */
 import { convert, DEFAULT_SETTINGS, fixed, formatQuantity, formatTime, UNIT_LABELS, type FormatSettings } from "@debrief/kernel";
-import type { DebriefFeatureCollection, TimeRange, TmaCut, TmaOwnship, TmaRequest, TmaResidualRow, TmaResiduals, TmaSensorRow, TmaSolutionRow } from "@debrief/schemas";
+import type { DebriefFeatureCollection, TimeRange, TmaCut, TmaFocus, TmaOwnship, TmaRequest, TmaResidualRow, TmaResiduals, TmaSensorRow, TmaSolutionRow } from "@debrief/schemas";
 import geodesic from "geographiclib-geodesic";
 import { pointAt, rangeBearing, travel, type LonLat } from "./geodesic.js";
 import { bearingText, degrees, sensorsOf, type Kept } from "./sensors.js";
@@ -346,13 +346,75 @@ export function describePeriod(rows: CutRow[], a: number, b: number, settings: F
   return `${count(chosen.length, "cut")} ${times}${ambiguous ? `, ${ambiguous} ambiguous` : ""}`;
 }
 
+/**
+ * What a TmaFocus chooses in the view's rows (a command's or a walkthrough step's ask, CAP-25):
+ * a period, its first and last rows, and whether to open the first guess's form (only with a
+ * sensor's cuts listed); the row at or nearest a time; or the counted row with the largest
+ * residual (only with a solution shown: a row left out, hidden or without a residual is never
+ * it). Undefined when it chooses nothing; a problem to say when a period has no cuts.
+ */
+export type FocusChoice = { period: [number, number]; make: boolean } | { row: number } | { problem: string };
+export function focusChoice(rows: readonly CutRow[], focus: TmaFocus, mode: "cuts" | "solution"): FocusChoice | undefined {
+  if (!rows.length) return undefined;
+  if (focus.period && mode === "cuts") {
+    const [start, end] = [Date.parse(focus.period.start), Date.parse(focus.period.end)];
+    const lo = rows.findIndex((r) => Date.parse(r.time) >= start);
+    let hi = -1;
+    for (let i = rows.length - 1; i >= 0; i--) {
+      if (Date.parse(rows[i].time) <= end) {
+        hi = i;
+        break;
+      }
+    }
+    if (lo < 0 || hi < lo) return { problem: "There are no cuts in that period." };
+    return { period: [lo, hi], make: !!focus.make };
+  }
+  if (focus.cut_time) {
+    const row = nearestRow(rows, Date.parse(focus.cut_time));
+    return row < 0 ? undefined : { row };
+  }
+  if (focus.largest && mode === "solution") {
+    let most = -1;
+    let row = -1;
+    rows.forEach((r, i) => {
+      const res = r as TmaResidualRow;
+      if (res.residual === undefined || res.residual === null || res.excluded || res.hidden) return;
+      if (Math.abs(res.residual) > most) {
+        most = Math.abs(res.residual);
+        row = i;
+      }
+    });
+    return row < 0 ? undefined : { row };
+  }
+  return undefined;
+}
+
+/**
+ * Something a command or a walkthrough step asks Bearings to choose, held until the view is next
+ * sent and then forgotten: chosen once, never again on a later refresh (a step saved, the plot
+ * read again), so the analyst's own choice is not overridden. Both hosts hold theirs in one.
+ */
+export class FocusOnce {
+  private held?: TmaFocus;
+  /** Asked: kept for the next view (none clears an earlier ask). */
+  ask(focus: TmaFocus | undefined): void {
+    this.held = focus;
+  }
+  /** For the view being sent: what was asked, once. */
+  take(): TmaFocus | undefined {
+    const focus = this.held;
+    this.held = undefined;
+    return focus;
+  }
+}
+
 /** The leg, from 1, a time falls in. */
 export function legOf(legStarts: string[] | null | undefined, time: string): number {
   return 1 + (legStarts ?? []).filter((s) => s <= time).length;
 }
 
 /** The index of the row whose time is nearest the time given (the first of ties). */
-export function nearestRow(rows: { time: string }[], at: number): number {
+export function nearestRow(rows: readonly { time: string }[], at: number): number {
   let best = -1;
   let gap = Infinity;
   for (let i = 0; i < rows.length; i++) {
@@ -646,6 +708,20 @@ export function legIndices(times: number[], legStarts: number[], at: number | un
   const indices: number[] = [];
   for (let i = bounds[leg]; i < bounds[leg + 1]; i++) indices.push(i);
   return { indices, leg: leg + 1, legs };
+}
+
+/**
+ * The leg of a solution split into legs that current time is in, as This leg on the map drags it
+ * at first: its fixes' period, and which leg of how many. The forms (Move…, Shear…) offer it
+ * beside the whole track and the time window, so a leg is fitted from the keyboard by typing
+ * (Bearings and TMA's last step). Undefined for a track not split into legs.
+ */
+export function legExtent(times: string[], legStarts: string[] | null | undefined, current: number | undefined): { period: TimeRange; leg: number; legs: number } | undefined {
+  if (!legStarts?.length || times.length < 2) return undefined;
+  const ms = times.map((t) => Date.parse(t));
+  const { indices, leg, legs } = legIndices(ms, legStarts.map((t) => Date.parse(t)), current);
+  if (legs < 2 || !indices.length) return undefined;
+  return { period: { start: times[indices[0]], end: times[indices[indices.length - 1]] }, leg, legs };
 }
 
 /**

@@ -95,6 +95,7 @@ import {
   cutWhen,
   describePeriod,
   describeRms,
+  focusChoice,
   guessDefaults,
   isAmbiguousRow,
   liveResiduals,
@@ -450,43 +451,26 @@ export class TmaControl {
    */
   private applyFocus(focus: TmaFocus): void {
     const rows = this.rows();
-    if (!rows.length) return;
-    if (focus.period && this.mode() === "cuts") {
-      const [start, end] = [Date.parse(focus.period.start), Date.parse(focus.period.end)];
-      const lo = rows.findIndex((r) => Date.parse(r.time) >= start);
-      let hi = -1;
-      for (let i = rows.length - 1; i >= 0; i--) {
-        if (Date.parse(rows[i].time) <= end) {
-          hi = i;
-          break;
-        }
-      }
-      if (lo < 0 || hi < lo) return this.say("There are no cuts in that period.");
+    const choice = focusChoice(rows, focus, this.mode() === "solution" ? "solution" : "cuts");
+    if (!choice) return;
+    if ("problem" in choice) return this.say(choice.problem);
+    if ("period" in choice) {
+      const [lo, hi] = choice.period;
       this.anchor = lo;
       this.setActive(hi, true);
       this.say(describePeriod(rows, lo, hi, this.settings));
-      if (focus.make) this.openForm();
+      if (choice.make) this.openForm();
       else this.list.focus({ preventScroll: true });
       return;
     }
-    let index = -1;
-    if (focus.cut_time) index = nearestRow(rows, Date.parse(focus.cut_time));
-    else if (focus.largest && this.mode() === "solution") {
-      let most = -1;
-      rows.forEach((row, i) => {
-        const r = row as TmaResidualRow;
-        if (r.residual === undefined || r.residual === null || r.excluded || r.hidden) return;
-        if (Math.abs(r.residual) > most) {
-          most = Math.abs(r.residual);
-          index = i;
-        }
-      });
-    }
-    if (index < 0) return;
+    const index = choice.row;
     if (this.mode() === "solution" && !this.cutsOpen) this.setCutsOpen(true, false);
     this.setActive(index, false, true);
     this.host.time(rows[index].time);
     this.list.focus({ preventScroll: true });
+    // The row chosen in sight in the page too, where the page scrolls (a phone's one column), and
+    // centred, so a section's heading held at the top or the bottom never covers it (the panel's L7).
+    this.drawn.get(index)?.scrollIntoView({ block: "center", inline: "nearest" });
   }
 
   /** Current time and the time window: the period offered follows the window until the analyst chooses one. */
