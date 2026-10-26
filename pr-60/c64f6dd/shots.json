@@ -1,0 +1,29 @@
+{
+ "shots": [
+  {
+   "source": "blog/posts/2026-10-26-tma-solutions.md",
+   "url": "blog/2026/10/26/tma-solutions/",
+   "title": "TMA solutions",
+   "file": "blog-posts-2026-10-26-tma-solutions.png"
+  },
+  {
+   "source": "guides/glossary.md",
+   "url": "guides/glossary/",
+   "title": "Glossary",
+   "file": "guides-glossary.png"
+  },
+  {
+   "source": "guides/interaction-models/keyboard-equivalents.md",
+   "url": "guides/interaction-models/keyboard-equivalents/",
+   "title": "Keyboard equivalents",
+   "file": "guides-interaction-models-keyboard-equivalents.png"
+  },
+  {
+   "source": "guides/interaction-models/tma.md",
+   "url": "guides/interaction-models/tma/",
+   "title": "TMA solutions",
+   "file": "guides-interaction-models-tma.png"
+  }
+ ],
+ "more": 0
+}
