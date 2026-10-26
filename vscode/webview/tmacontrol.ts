@@ -153,6 +153,17 @@ const BOX_PX = 5;
 const WIDE_PX = 640;
 /** Below this height the view is short: no key, three rows of the list, the plot the rest. */
 const SHORT_PX = 640;
+/**
+ * The controls beside the plot, not above it, only where above it they would leave the plot's
+ * panes under this height (product owner, 26 Oct 2026: on top at any size otherwise). 220 px is
+ * about 60 cuts at a dot's 3.5 px pitch, the least the panel's review held readable (the VS Code
+ * suite holds 200 px); VS Code's default bottom panel left 126 px with them on top (1440 × 900).
+ */
+const SIDE_ENTER_PX = 220;
+/** Back on top only once that leaves this much: 30 px of hysteresis, about a toolbar row re-wrapping, so a resize never flickers between the two. */
+const SIDE_LEAVE_PX = 250;
+/** The plot's own margins above and below its panes (drawPlot's top and bottom). */
+const PLOT_MARGINS_PX = 34;
 /** Below this width the list drops its tick boxes, so a bearing is still read whole. */
 const NARROW_PX = 280;
 const escape = (text: string) => text.replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[c]!);
@@ -387,6 +398,7 @@ export class TmaControl {
       // Only where the panel's height is the layout's (a docked group, VS Code's view), never where the view grows to fit (a phone's column).
       const bound = element.closest<HTMLElement>(".dock-panel") ?? (element.closest(".tma-root") ? document.documentElement : null);
       element.classList.toggle("tma-short", !!bound && bound.clientHeight > 0 && bound.clientHeight < SHORT_PX);
+      this.placeControls(bound);
       this.renderRows();
       // Not mid-drag: the plot's size is read once a drag.
       if (!this.live) this.frozenGeometry = undefined;
@@ -1109,6 +1121,34 @@ export class TmaControl {
 
 
   // --- The plot: legacy's Bearing Residuals (Stacked Dots), as legacy laid it out ------------
+
+  /** What the controls take above the plot, measured when last they were there. */
+  private chromeAbove = 0;
+
+  /**
+   * The controls on top of the plot, or in a column beside it (tma-side): beside it only where the
+   * view is wide, a solution shown, the cut list closed, and on top they would leave the plot's
+   * panes under SIDE_ENTER_PX; back on top once they would leave SIDE_LEAVE_PX. Never where the
+   * view grows to fit (a phone's column: no bound).
+   */
+  private placeControls(bound: HTMLElement | null): void {
+    const element = this.element;
+    const left = element.querySelector<HTMLElement>(".tma-left");
+    const beside = !!left && getComputedStyle(left).display === "grid";
+    if (!beside && this.plot.clientHeight > 0) {
+      // On top now: what is not the plot, measured.
+      this.chromeAbove = Math.max(0, element.scrollHeight - this.plot.clientHeight);
+    }
+    if (!bound || !this.chromeAbove) {
+      element.classList.remove("tma-side");
+      return;
+    }
+    const available = bound.getBoundingClientRect().bottom - element.getBoundingClientRect().top;
+    const onTop = available - this.chromeAbove - PLOT_MARGINS_PX;
+    const side = element.classList.contains("tma-side");
+    if (!side && onTop < SIDE_ENTER_PX) element.classList.add("tma-side");
+    else if (side && onTop > SIDE_LEAVE_PX) element.classList.remove("tma-side");
+  }
 
   /** The coverage not rooted in the solution, its times, and the whole span plotted: once per view, never per frame. */
   private prepareCoverage(): void {

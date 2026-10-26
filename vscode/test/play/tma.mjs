@@ -357,6 +357,47 @@ export async function playTma(page, shot) {
       await picture(name);
     }
   }
+  // Where the controls go (product owner, 26 Oct 2026): on top of the plot at any size; beside it only
+  // where on top they would leave the plot under 220 px. At both laptop sizes above, and in a big
+  // Bearings panel (1600 × 1000, the walkthroughs folded to their tab, the column dragged wide), on top.
+  const controls = () =>
+    page.evaluate(() => {
+      const box = (s) => document.querySelector(`#bearings ${s}`).getBoundingClientRect();
+      const [tools, plot, status] = [box(".tma-tools"), box(".tma-plot"), box(".tma-statusline")];
+      return { side: document.getElementById("bearings").classList.contains("tma-side"), toolsBottom: Math.round(tools.bottom), plotTop: Math.round(plot.top), plotBottom: Math.round(plot.bottom), statusTop: Math.round(status.top), toolsLeft: Math.round(tools.left), plotRight: Math.round(plot.right), plot: Math.round(document.querySelector("#bearings .tma-canvas").getBoundingClientRect().height), panes: Object.values(window.debriefTma.plotState.boxes).map((b) => Math.round(b.w)), panel: [Math.round(box("").width), Math.round(box("").height)] };
+    });
+  const onTop = (c) => !c.side && c.toolsBottom <= c.plotTop + 1 && c.statusTop >= c.plotBottom - 1;
+  await resizeTo(page, 1600, 1000);
+  await page.locator('.dv-tab[data-panel="panel-tour"]').focus();
+  await page.keyboard.press("Shift+F10");
+  await page.getByRole("menuitem", { name: "Collapse to its tabs", exact: true }).click();
+  await page.waitForFunction(() => document.querySelector('.dv-tab[data-panel="panel-tour"]').closest(".dv-groupview").getBoundingClientRect().height < 60);
+  const bigSash = await page.evaluate(() => {
+    const left = document.querySelector('.dv-tab[data-panel="panel-bearings"]').closest(".dv-groupview").getBoundingClientRect().left;
+    const s = [...document.querySelectorAll(".dv-sash")].map((e) => e.getBoundingClientRect()).find((b) => b.height > 200 && Math.abs(b.left + b.width / 2 - left) < 6);
+    return s && { x: s.left + s.width / 2, y: s.top + s.height / 2 };
+  });
+  await page.mouse.move(bigSash.x, bigSash.y);
+  await page.mouse.down();
+  await page.mouse.move(bigSash.x - 150, bigSash.y, { steps: 4 });
+  await page.mouse.move(bigSash.x - 300, bigSash.y, { steps: 4 });
+  await page.mouse.up();
+  await page.waitForFunction(() => document.getElementById("bearings").getBoundingClientRect().height > 800 && document.getElementById("bearings").getBoundingClientRect().width > 850, null, { timeout: 10000 });
+  await page.waitForFunction(() => Object.values(window.debriefTma.plotState.boxes ?? {}).length === 2);
+  const big = await controls();
+  console.log(`Stacked Dots in a big Bearings panel (${big.panel.join(" × ")} px at 1600 × 1000): controls ${big.side ? "beside" : "on top of"} the plot, the plot ${big.plot} px tall, panes ${big.panes.join(" and ")} px wide`);
+  assert.ok(onTop(big), `a big panel: the toolbar above the plot, the cue beneath it: ${JSON.stringify(big)}`);
+  await page.mouse.move(2, 2);
+  await picture("stacked-dots-11-big-panel");
+  await page.evaluate(() => document.getElementById("reset-layout").click());
+  await mapPlaced(page);
+  for (const [w, h] of [[1366, 768], [1280, 720]]) {
+    await resizeTo(page, w, h);
+    await page.waitForFunction(() => Object.values(window.debriefTma.plotState.boxes ?? {}).length === 2);
+    const at = await controls();
+    console.log(`Stacked Dots at ${w} × ${h}: controls ${at.side ? "beside" : "on top of"} the plot (panel ${at.panel.join(" × ")} px)`);
+    assert.ok(onTop(at), `at ${w} × ${h} the controls on top: ${JSON.stringify(at)}`);
+  }
   await resizeTo(page, 1400, 820);
 
   // Hold scale: the Error axis stays as it is, and widens, never clamps, when an error falls outside.
