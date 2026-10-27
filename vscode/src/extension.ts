@@ -9,6 +9,7 @@ import * as vscode from "vscode";
 import type { AmbiguityResolution, AnnotationSpec, ContextTracksEnum, CoverageReport, KnownStore, FigureSource, RevisionShown, NarrativeSpec, ReviewFlag, SourceTrackRef, TimelineEntry, ParameterValue, PlotView, SharedState, SharedStateChange, TimeRange, TmaFocus, TmaRequest, TmaView, ToolDeclaration, ToteResult, ToteView as ToteChoice, TrackEdit } from "@debrief/schemas";
 import { figureIdProblem, formatBearing, formatPosition, formatQuantity, parsePosition, POSITION_EXAMPLE, UNIT_LABELS } from "@debrief/kernel";
 import { defaultPivotIndex, describeDistance, describeSpeed, describeTurn, FIX_PROMPT, FIX_PROMPT_DR, fixIndexAt, fixMeans, fixToEdit, jumpSpeed, legNow, mergedName, mergePlan, periodIndices, readArrayOffset, arrayOffsetTitle, readBearing, readDistance, readSpeed, readTurn, reckoningOf, type Anchor } from "../webview/trackedit.js";
+import { legExtent } from "../webview/tma.js";
 import { chooseModes, MODE_LABELS, modeChoices, modeQuestion, REMEMBERED_IN_VSCODE, rememberItem, type ModeChoice, type PlottingMode } from "./importmode.js";
 import { addStore, DEFAULT_TMA_ERROR_CUT_OFF, loadConfig, narrativeAnswers, removeStore, sameLocation, tmaErrorCutOff, trackImportMode, updateConfig, withNarrativeAnswers, withTmaErrorCutOff, withTrackImportMode, type TrackImportMode } from "@debrief/config";
 import { changedSince, historyOnDisk, knownStores, openPlot, plotFile, type OpenedPlot } from "./catalogue.js";
@@ -113,6 +114,8 @@ export interface DebriefApi {
   /** What the bearing view was last sent: the sensors, cuts, solutions and residuals (CAP-21), for tests and agents. */
   bearings: () => TmaView | undefined;
   bearingsShowing: () => boolean;
+  /** Whether Bearings is in sight now, in the panel below the editor unless moved (for tests). */
+  bearingsVisible: () => boolean;
   /** The Bearings plot as last drawn, CSS pixels: its height and each pane's width (tma_plot_drawn), for tests. */
   bearingsPlot: () => { height: number; panes: number[] } | undefined;
   /** The cuts the map is waiting for two clicks on, for a first guess. */
@@ -385,9 +388,9 @@ export function activate(context: vscode.ExtensionContext): DebriefApi {
         });
         // A change the analyst made through the service ticks the walkthrough step that asks for it (CAP-25).
         // Only to the walkthrough's copy: the plot the request names, or for the log's import, the log beside its catalogue.
-        started.done = (method, params) => {
+        started.done = (method, params, result) => {
           const legsOf = (id: string) => { const f = (session.current?.plot.features ?? []).find((x) => x.id === id && x.properties.kind === "track"); const tma = f && (f.properties as { tma?: { leg_starts?: string[] | null } }).tma; return tma ? 1 + (tma.leg_starts?.length ?? 0) : undefined; };
-          const event = serviceEvent(method, params, legsOf);
+          const event = serviceEvent(method, params, legsOf, result);
           if (!event) return;
           const log = path.join(walkthroughFolder("collate"), LOG_FILE);
           const item = method === "debrief/import" ? (sameLocation(String(params.path ?? ""), log) && session.current?.item.id === "serial-1-collate" ? "serial-1-collate" : undefined) : (params.item as string | undefined);
@@ -1793,16 +1796,33 @@ export function activate(context: vscode.ExtensionContext): DebriefApi {
     const window = session.time?.range;
     const { times } = track.properties;
     const whole = { label: "Whole track", description: describeTimes(times[0], times.at(-1)), period: undefined as TimeRange | undefined };
-    if (!window) return {};
-    const inWindow = periodIndices(times.map(Date.parse), { start: Date.parse(window.start), end: Date.parse(window.end) }).length;
+    // A TMA solution split into legs: the leg current time is in, as This leg drags it on the map.
+    const tma = (track.properties as { tma?: { leg_starts?: string[] | null } }).tma;
+    const leg = tma ? legExtent(times, tma.leg_starts, session.time ? Date.parse(session.time.current) : undefined) : undefined;
+    if (!window && !leg) return {};
+    const inWindow = window ? periodIndices(times.map(Date.parse), { start: Date.parse(window.start), end: Date.parse(window.end) }).length : 0;
     const items = [
       whole,
-      {
-        label: "Current time window",
-        description: `${describeTimes(window.start, window.end)} · ${count(inWindow, "fix", "fixes")}`,
-        detail: "Only the fixes in the window change; the track jumps where they meet the rest.",
-        period: window,
-      },
+      ...(leg
+        ? [
+            {
+              label: "This leg",
+              description: `Leg ${leg.leg} of ${leg.legs} · ${describeTimes(leg.period.start, leg.period.end)}`,
+              detail: "The leg current time is in; the other legs stay where they are.",
+              period: leg.period as TimeRange | undefined,
+            },
+          ]
+        : []),
+      ...(window
+        ? [
+            {
+              label: "Current time window",
+              description: `${describeTimes(window.start, window.end)} · ${count(inWindow, "fix", "fixes")}`,
+              detail: "Only the fixes in the window change; the track jumps where they meet the rest.",
+              period: window as TimeRange | undefined,
+            },
+          ]
+        : []),
     ];
     const picked = await vscode.window.showQuickPick(items, { title: `${verb} ${track.properties.name}`, placeHolder: `What of ${track.properties.name} to ${verb.toLowerCase()}?` });
     return picked && { period: picked.period };
@@ -3295,6 +3315,9 @@ export function activate(context: vscode.ExtensionContext): DebriefApi {
     // A step that needs the walkthrough's TMA solution: the latest in its copy, once made.
     const given = withSolution(args, session.current?.plot.features);
     if (!given) return report(NO_SOLUTION);
+    // Bearings and TMA is read in Bearings, in the panel below the editor: a step's button that
+    // opens a form shows it too, if it was closed (showBearings brings it there itself).
+    if (chosen.id === "tma" && name !== "debrief.showBearings") await bearingsView.reveal();
     return vscode.commands.executeCommand(name, ...given);
   });
   /** Import and collate: import BLUE ONE's navigation log, waiting beside the walkthrough's catalogue, as any REP file is imported. */
@@ -3347,6 +3370,7 @@ export function activate(context: vscode.ExtensionContext): DebriefApi {
     toteLatency: () => toteView.latency(),
     bearings: () => bearingsView.last,
     bearingsShowing: () => bearingsView.showing,
+    bearingsVisible: () => bearingsView.visible,
     bearingsPlot: () => bearingsView.plot,
     mapGuessing: () => map.guessing,
     startupTimings: () => startup.snapshot(),

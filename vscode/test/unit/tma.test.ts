@@ -18,7 +18,10 @@ import {
   describePeriod,
   describeRms,
   describeTwoClicks,
+  FocusOnce,
+  focusChoice,
   guessDefaults,
+  legExtent,
   legOf,
   liveResiduals,
   nearestRow,
@@ -267,5 +270,54 @@ describe("the coverage beside a solution", () => {
     const coverage = [cut("a"), cut("b"), cut("c", true), cut("d")];
     expect(coverageOutside(coverage, new Set(["b"])).map((c) => c.id)).toEqual(["a", "d"]);
     expect(coverageOutside(undefined, new Set())).toEqual([]);
+  });
+});
+
+describe("what a command or a walkthrough step chooses in Bearings (TmaFocus, CAP-25)", () => {
+  const day = "2023-06-15T";
+  const row = (time: string, residual?: number, more: Record<string, unknown> = {}) => ({ id: `c-${time}`, sensor_id: "s", time: `${day}${time}.000Z`, bearing: 100, ...(residual !== undefined && { residual }), ...more }) as unknown as TmaCut;
+  const cuts = ["09:46:00", "09:47:00", "09:48:00", "12:00:00", "12:01:00"].map((t) => row(t));
+
+  it("chooses the cut at a time, or the nearest to it, in either list", () => {
+    expect(focusChoice(cuts, { cut_time: `${day}09:47:00.000Z` }, "cuts")).toEqual({ row: 1 });
+    expect(focusChoice(cuts, { cut_time: `${day}09:47:40.000Z` }, "cuts")).toEqual({ row: 2 });
+    expect(focusChoice(cuts, { cut_time: `${day}13:00:00.000Z` }, "solution")).toEqual({ row: 4 });
+    expect(focusChoice([], { cut_time: `${day}09:47:00.000Z` }, "cuts")).toBeUndefined();
+  });
+
+  it("chooses a period, its first and last cuts, and whether to open the first guess's form; only with a sensor's cuts listed", () => {
+    const period = { start: `${day}09:46:00.000Z`, end: `${day}12:00:00.000Z` };
+    expect(focusChoice(cuts, { period, make: true }, "cuts")).toEqual({ period: [0, 3], make: true });
+    expect(focusChoice(cuts, { period }, "cuts")).toEqual({ period: [0, 3], make: false });
+    expect(focusChoice(cuts, { period: { start: `${day}10:00:00.000Z`, end: `${day}11:00:00.000Z` } }, "cuts")).toEqual({ problem: "There are no cuts in that period." });
+    // A solution shown: a period is no choice there (its cuts are the solution's).
+    expect(focusChoice(cuts, { period, make: true }, "solution")).toBeUndefined();
+  });
+
+  it("chooses the counted cut with the largest residual, never one left out, hidden or without a residual; only with a solution shown", () => {
+    const rows = [row("09:46:00", 2), row("09:47:00", -50, { excluded: true }), row("09:48:00", 60, { hidden: true }), row("12:00:00"), row("12:01:00", -7)];
+    expect(focusChoice(rows, { largest: true }, "solution")).toEqual({ row: 4 });
+    expect(focusChoice(rows, { largest: true }, "cuts")).toBeUndefined();
+    expect(focusChoice([row("09:46:00", 1, { excluded: true }), row("09:47:00")], { largest: true }, "solution")).toBeUndefined();
+  });
+
+  it("is chosen once: taken with the next view, then forgotten, so a later refresh never chooses it again", () => {
+    const once = new FocusOnce();
+    expect(once.take()).toBeUndefined();
+    once.ask({ largest: true });
+    expect(once.take()).toEqual({ largest: true });
+    expect(once.take()).toBeUndefined();
+    once.ask({ cut_time: `${day}09:46:00.000Z` });
+    once.ask(undefined); // asked again for nothing: the earlier ask is not kept
+    expect(once.take()).toBeUndefined();
+  });
+
+  it("offers a solution's leg current time is in to the forms (This leg), only once it is split", () => {
+    const times = ["09:46", "09:47", "09:48", "10:38", "10:39", "12:00"].map((t) => `${day}${t}:00.000Z`);
+    const at = (t: string) => Date.parse(`${day}${t}:00.000Z`);
+    expect(legExtent(times, [`${day}10:38:00.000Z`], at("10:40"))).toEqual({ period: { start: times[3], end: times[5] }, leg: 2, legs: 2 });
+    expect(legExtent(times, [`${day}10:38:00.000Z`], at("09:50"))).toEqual({ period: { start: times[0], end: times[2] }, leg: 1, legs: 2 });
+    expect(legExtent(times, [], at("09:50"))).toBeUndefined();
+    expect(legExtent(times, null, at("09:50"))).toBeUndefined();
   });
 });

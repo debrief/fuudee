@@ -39,21 +39,32 @@ TOURS: dict[str, str] = {
 PLOT = "serial-1"
 #: The navigation log Import and collate brings in, beside the catalogue.
 LOG_FILE = "blue-one-nav-log.rep"
-#: Bearings and TMA's wild bearing: the towed array's cut at this time of day, both its
-#: bearings turned this far (degrees), so it lies well off its neighbours whichever side is kept.
+#: Bearings and TMA's wild bearing: the towed array's cut at this time of day, turned this far
+#: (degrees): its bearing one way and its ambiguous bearing the other, so the two still mirror
+#: each other about the array's heading, as a towed array's pair always does, and it lies well
+#: off its neighbours whichever side is kept.
 WILD_SENSOR = "Towed array"
 WILD_AT = "11:12:00"
-WILD_TURN = -40.0
+WILD_TURN = 40.0
 #: What Bearings and TMA's steps ask, as walkthroughs/tours.json says it (held to it by the
-#: tests): the towed array's cut whose side is kept first, the period the solution is rooted in,
-#: the shear that fits it about its start, the cut it is split into legs at, and the shear of its
-#: first leg. Checked against the sample in tests, so a step never promises a fit it cannot give.
+#: tests), fitting as legacy Debrief's TMA tutorial teaches (product owner, 25 Oct 2026, "fit
+#: properly"): the towed array's cut whose side is kept first; the period the solution is
+#: rooted in; the move that takes its start along the first bearing to RED ONE's range then
+#: (nautical miles, degrees true: the first guess is 4.94 nmi out, RED ONE was 3.27; bearings
+#: alone never give range, so the walkthrough gives it); the shear that fits the first leg
+#: about that start; the cut it is split into legs at, after RED ONE's turn; the move that puts
+#: the second leg's start on its own first bearing; and the shear that fits the second leg.
+#: Checked against the sample in tests, so a step never promises a fit it cannot give.
 TMA_SENSOR = "sensor-blue-one-towed-array"
 TMA_FIRST_CUT = "09:46:00"
 TMA_PERIOD = ("09:46:00", "12:00:00")
-TMA_SHEAR = (215.0, 3.0)
+TMA_FIRST_GUESS_NMI = 4.94
+TMA_RANGE = 3.27
+TMA_MOVE = (1.67, 56.3)
+TMA_SHEAR = (246.0, 3.8)
 TMA_SPLIT = "10:38:00"
-TMA_LEG_SHEAR = (285.0, 4.0)
+TMA_LEG_MOVE = (0.17, 155.0)
+TMA_LEG_SHEAR = (200.0, 5.2)
 #: Who makes the copies and the glitches, as provenance names it.
 WALKTHROUGH = models.AgentRef(kind="software_agent", name="Debrief walkthrough")
 
@@ -214,25 +225,27 @@ def wild_cut(plot: models.DebriefFeatureCollection) -> models.SensorCutFeature:
     return min(cuts, key=lambda c: abs(parse_utc(c.properties.time) - wanted))
 
 
-def _turned(angle: models.Angle | None) -> models.Angle | None:
+def _turned(angle: models.Angle | None, by: float) -> models.Angle | None:
     if angle is None:
         return None
-    return models.Angle(value=round((angle.value + WILD_TURN) % 360.0, 2), unit="deg")
+    return models.Angle(value=round((angle.value + by) % 360.0, 2), unit="deg")
 
 
 def put_wild_bearing(catalogue: Catalogue, item: str, agent: models.AgentRef) -> str:
-    """Make one of the towed array's cuts a wild bearing, as a sonar sometimes gives: both its
-    bearings turned 40° (WILD_TURN), so it lies well off its neighbours whichever side is
-    kept. Recorded as a step of its own, by the agent given, so it is never mistaken for real
-    data and Undo takes it out. Returns the cut's id."""
+    """Make one of the towed array's cuts a wild bearing, as a sonar sometimes gives: its
+    bearing turned 40° (WILD_TURN) anticlockwise and its ambiguous bearing 40° clockwise, so the
+    pair still mirror each other about the array's heading, as a towed array's always do, and
+    it lies well off its neighbours whichever side is kept. Recorded as a step of its own, by
+    the agent given, so it is never mistaken for real data and Undo takes it out. Returns the
+    cut's id."""
     cut = wild_cut(catalogue.read_plot(item))
     props = cut.properties
     wild = cut.model_copy(
         update={
             "properties": props.model_copy(
                 update={
-                    "bearing": _turned(props.bearing),
-                    "ambiguous_bearing": _turned(props.ambiguous_bearing),
+                    "bearing": _turned(props.bearing, -WILD_TURN),
+                    "ambiguous_bearing": _turned(props.ambiguous_bearing, WILD_TURN),
                 }
             )
         }
@@ -246,7 +259,8 @@ def put_wild_bearing(catalogue: Catalogue, item: str, agent: models.AgentRef) ->
         agent=agent,
         notes=[
             f"A wild bearing put into {WILD_SENSOR} cut at {when}",
-            f"Its bearings turned {abs(WILD_TURN):g}° off, for the walkthrough to leave out",
+            f"Its bearings turned {WILD_TURN:g}° off, still mirrored about the array's heading, "
+            "for the walkthrough to leave out",
         ],
     )
     catalogue.commit(item, [record], Changes(modified=[wild]))
@@ -265,11 +279,15 @@ def _cut_at(plot: models.DebriefFeatureCollection, sensor_id: str, clock: str):
 def play_tma(
     catalogue: Catalogue, item: str, *, agent: models.AgentRef = WALKTHROUGH
 ) -> dict[str, dict]:
-    """Bearings and TMA's steps on its copy, done as the walkthrough asks them: the towed
-    array's first cut resolved to the side the Bow sonar agrees with, a solution made by
-    Debrief's first guess, sheared about its start, the wild bearing left out, split into
-    legs and its first leg sheared. For the pictures and the tests, so that what the steps
-    promise is what the sample gives. Returns each stage's solution (its fixes) and residuals."""
+    """Bearings and TMA's steps on its copy, done as the walkthrough asks them, as legacy
+    Debrief's TMA tutorial fits a leg: the towed array's first cut resolved to the side the Bow
+    sonar agrees with; a solution made by Debrief's first guess; moved along its first bearing
+    to RED ONE's range (TMA_MOVE); sheared about that start to fit the first leg (TMA_SHEAR);
+    the wild bearing left out; split into legs after RED ONE's turn (TMA_SPLIT); the second
+    leg's start put on its own first bearing (TMA_LEG_MOVE) and the leg sheared about it
+    (TMA_LEG_SHEAR). For the pictures and the tests, so that what the steps promise is what
+    the sample gives. Returns each stage's solution (its fixes) and residuals: first, range,
+    shear, wild, split, pin and legs."""
     from debrief_stac import tma
 
     plot = catalogue.read_plot(item)
@@ -292,7 +310,17 @@ def play_tma(
         return f"{day}T{clock}.000Z"
 
     period = {"start": at(TMA_PERIOD[0]), "end": at(TMA_PERIOD[1])}
-    _, solution = catalogue.create_tma(item, {"sensor_ids": [TMA_SENSOR], "period": period}, agent)
+    # Debrief's first guess as Make solution…'s form offers it and sends it, in the walkthrough's
+    # units and decimals: 10,000 yd shown as 4.94 nmi, across the bearing kept, 8.0 kn.
+    across = round((getattr(props, keep).value + 90.0) % 360.0, 1)
+    request = {
+        "sensor_ids": [TMA_SENSOR],
+        "period": period,
+        "range": {"value": TMA_FIRST_GUESS_NMI, "unit": "[nmi_i]"},
+        "course": {"value": across, "unit": "deg"},
+        "speed": {"value": 8.0, "unit": "[kn_i]"},
+    }
+    _, solution = catalogue.create_tma(item, request, agent)
     stages: dict[str, dict] = {}
 
     def stage(name: str) -> None:
@@ -308,6 +336,16 @@ def play_tma(
             "residuals": tma.residual_report(now, solution),
         }
 
+    def move(distance_bearing: tuple[float, float], extent: dict | None = None) -> None:
+        distance, bearing = distance_bearing
+        edit = {
+            "action": "move",
+            "distance": {"value": distance, "unit": "[nmi_i]"},
+            "bearing": {"value": bearing, "unit": "deg"},
+            **({"period": extent} if extent else {}),
+        }
+        catalogue.edit_track(item, solution, edit, agent)
+
     def shear(course_speed: tuple[float, float], extent: dict | None = None) -> None:
         course, speed = course_speed
         edit = {
@@ -320,15 +358,21 @@ def play_tma(
         catalogue.edit_track(item, solution, edit, agent)
 
     stage("first")
+    move(TMA_MOVE)
+    stage("range")
     shear(TMA_SHEAR)
-    stage("drag")
+    stage("shear")
     wild = wild_cut(catalogue.read_plot(item))
     catalogue.tma_exclude(item, solution, [wild.id], True, agent)
     stage("wild")
     catalogue.tma_split_leg(item, solution, at(TMA_SPLIT), agent)
     stage("split")
-    before = [t for t in stages["split"]["times"] if t < at(TMA_SPLIT)]
-    shear(TMA_LEG_SHEAR, {"start": before[0], "end": before[-1]})
+    # The second leg, as This leg drags it: its fixes from the split on.
+    later = [t for t in stages["split"]["times"] if t >= at(TMA_SPLIT)]
+    leg = {"start": later[0], "end": later[-1]}
+    move(TMA_LEG_MOVE, leg)
+    stage("pin")
+    shear(TMA_LEG_SHEAR, leg)
     stage("legs")
     return stages
 

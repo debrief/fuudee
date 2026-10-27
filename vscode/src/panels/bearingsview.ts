@@ -19,7 +19,7 @@ import { checkMessage } from "../messages.js";
 import type { Session } from "../session.js";
 import { startup } from "../startup.js";
 import { webviewHtml } from "./html.js";
-import { coverageOf, cutColours, cutRowsOf, keepsSolution, ownshipOf, sensorOfSelection, solutionOfSelection, tmaSensorRows, tmaSolutionRows, type ListedCut } from "../../webview/tma.js";
+import { coverageOf, cutColours, cutRowsOf, FocusOnce, keepsSolution, ownshipOf, sensorOfSelection, solutionOfSelection, tmaSensorRows, tmaSolutionRows, type ListedCut } from "../../webview/tma.js";
 
 export const BEARINGS_VIEW = "debrief.bearings";
 
@@ -48,8 +48,8 @@ export class BearingsView implements vscode.WebviewViewProvider {
   private sensorId?: string;
   private solutionId?: string;
   private asking = 0;
-  /** What the view is to choose when next shown, as a command asked (choose). */
-  private focus?: TmaFocus;
+  /** What the view is to choose when next shown, as a command asked (choose): once. */
+  private readonly focus = new FocusOnce();
   /** What the view was last sent, for tests and agents. */
   last?: TmaView;
   /** The plot as the view last drew it, CSS pixels (tma_plot_drawn): for tests. */
@@ -98,6 +98,24 @@ export class BearingsView implements vscode.WebviewViewProvider {
   /** Whether the view has loaded, for tests and agents. */
   get showing(): boolean {
     return this.ready && !!this.view;
+  }
+
+  /** Whether the view is in sight now (in the panel below the editor, unless the analyst moved it), for tests and agents. */
+  get visible(): boolean {
+    return !!this.view?.visible;
+  }
+
+  /**
+   * The view brought into sight where it is, in the panel below the editor by default, the
+   * keyboard left where it was: a TMA walkthrough step's button that opens a form (Move…,
+   * Shear…) shows Bearings too, since the step is read there (product owner, 25 Oct 2026).
+   */
+  async reveal(): Promise<void> {
+    if (this.view) {
+      if (!this.view.visible) this.view.show(true);
+      return;
+    }
+    await vscode.commands.executeCommand(`${BEARINGS_VIEW}.focus`);
   }
 
   resolveWebviewView(view: vscode.WebviewView): void {
@@ -168,7 +186,7 @@ export class BearingsView implements vscode.WebviewViewProvider {
     const plot = this.session.current?.plot;
     const feature = plot?.features.find((f) => f.id === featureId);
     if (!feature) return;
-    this.focus = focus;
+    this.focus.ask(focus);
     if (feature.properties.kind === "sensor") {
       this.sensorId = featureId;
       this.solutionId = undefined;
@@ -215,8 +233,7 @@ export class BearingsView implements vscode.WebviewViewProvider {
     }
     if (asked !== this.asking) return; // asked again meanwhile
     // Something a command asked to be chosen, once.
-    const focus = this.focus;
-    this.focus = undefined;
+    const focus = this.focus.take();
     const view: TmaView = {
       ...(focus && { focus }),
       plot_id: opened.item.id,

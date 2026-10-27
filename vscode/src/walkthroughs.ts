@@ -39,7 +39,7 @@ export { contextKey };
  * change itself, made by any means (a form, the map, the keyboard, a macro), so a step is
  * ticked by what the analyst did, not by which button they pressed.
  */
-export function serviceEvent(method: string, params: Record<string, unknown> = {}, legsOf: (id: string) => number | undefined = () => undefined): string | undefined {
+export function serviceEvent(method: string, params: Record<string, unknown> = {}, legsOf: (id: string) => number | undefined = () => undefined, result?: unknown): string | undefined {
   switch (method) {
     case "debrief/resolve_ambiguity":
       // A side kept: not both bearings made ambiguous again.
@@ -47,7 +47,8 @@ export function serviceEvent(method: string, params: Record<string, unknown> = {
     case "debrief/tma_create":
       return "solutionMade";
     case "debrief/tma_exclude_cut":
-      return params.excluded === false ? undefined : "cutLeftOut";
+      // Left out, not counted again; nothing changed (already left out) is not it, as in the playground.
+      return params.excluded === false || (result as { changed?: boolean } | undefined)?.changed === false ? undefined : "cutLeftOut";
     case "debrief/import":
       return "imported";
     case "debrief/take_new_data":

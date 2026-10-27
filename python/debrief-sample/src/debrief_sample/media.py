@@ -53,19 +53,20 @@ MARK = "#00800b"  # a fix's own colour: legacy green, a data colour
 class Map:
     """Serial 1 projected onto the picture: the exercise (BLUE ONE and RED ONE) fills it."""
 
-    def __init__(self, tracks: dict[str, dict]):
+    def __init__(self, tracks: dict[str, dict], width: float = W):
         self.tracks = tracks
+        self.width = width
         focus = [p for n in ("BLUE ONE", "RED ONE") for p in tracks[n]["coordinates"]]
         lons, lats = [p[0] for p in focus], [p[1] for p in focus]
         self.lat0 = math.radians((min(lats) + max(lats)) / 2)
         x0, x1 = min(lons), max(lons)
         y0, y1 = min(lats), max(lats)
         span_x, span_y = (x1 - x0) * math.cos(self.lat0), y1 - y0
-        self.scale = min((W - 80) / span_x, (H - 70) / span_y)
+        self.scale = min((width - 80) / span_x, (H - 70) / span_y)
         self.cx, self.cy = (x0 + x1) / 2, (y0 + y1) / 2
 
     def xy(self, lon: float, lat: float) -> tuple[float, float]:
-        x = W / 2 + (lon - self.cx) * math.cos(self.lat0) * self.scale
+        x = self.width / 2 + (lon - self.cx) * math.cos(self.lat0) * self.scale
         y = H / 2 - (lat - self.cy) * self.scale
         return round(x, 1), round(y, 1)
 
@@ -531,60 +532,81 @@ def _other(side: str | None) -> str | None:
 
 
 def _residual_panel(stage: dict, x: float, y: float, w: float, h: float, label: str) -> list[str]:
-    """Bearings' residuals, after legacy's Stacked Dots: each cut's residual over time, against
-    zero; one left out a dotted ring; legs' starts dashed; the RMS beneath."""
+    """Bearings' Error pane, as legacy's Stacked Dots laid it out: time up the left, the latest
+    at the top; each cut's error across, against a strong zero line, the axis fitted to the
+    errors counted (zero included); one left out a dotted ring, where it falls on the axis;
+    legs' starts dashed across; what the step left beneath, and the RMS."""
     report = stage["residuals"]
     rows = [r for r in report["rows"] if r.get("residual") is not None]
+    counted = [r["residual"] for r in rows if not r.get("excluded")]
     times = [parse_utc(r["time"]) for r in rows]
     t0, t1 = min(times), max(times)
-    limit = max(30.0, max(abs(r["residual"]) for r in rows))
-    left, top, plot_w, plot_h = x + 8, y + 20, w - 16, h - 44
+    lo, hi = min(0.0, *counted), max(0.0, *counted)
+    pad = (hi - lo) * 0.05 or 1.0
+    lo, hi = lo - pad, hi + pad
+    left, top, plot_w, plot_h = x + 8, y + 20, w - 16, h - 52
 
-    def px(ms: int) -> float:
-        return round(left + plot_w * (ms - t0) / max(1, t1 - t0), 1)
+    def py(ms: int) -> float:
+        return round(top + plot_h - plot_h * (ms - t0) / max(1, t1 - t0), 1)
 
-    def py(residual: float) -> float:
-        return round(top + plot_h / 2 - residual / limit * plot_h / 2, 1)
+    def px(residual: float) -> float:
+        return round(left + plot_w * (residual - lo) / (hi - lo), 1)
 
     parts = [
         _panel(x, y, w, h),
-        _text(x + 8, y + 14, "Residuals", 10, FG, font_weight="bold"),
-        _el("line", x1=left, y1=py(0), x2=left + plot_w, y2=py(0), stroke=MUTED, stroke_width=0.5),
+        _text(x + 8, y + 14, "Error (°)", 10, FG, font_weight="bold"),
+        _el("rect", x=left, y=top, width=plot_w, height=plot_h, fill="none", stroke=BORDER),
+        _el("line", x1=px(0), y1=top, x2=px(0), y2=top + plot_h, stroke=FG, stroke_width=1),
     ]
     for start in stage.get("leg_starts", []):
-        sx = px(parse_utc(start))
+        sy = py(parse_utc(start))
         parts.append(
-            _el("line", x1=sx, y1=top, x2=sx, y2=top + plot_h, stroke=MUTED, stroke_dasharray="3 2")
+            _el(
+                "line",
+                x1=left,
+                y1=sy,
+                x2=left + plot_w,
+                y2=sy,
+                stroke=MUTED,
+                stroke_dasharray="3 2",
+            )
         )
     for r, ms in zip(rows, times, strict=True):
         if r.get("excluded"):
-            parts.append(
-                _el(
-                    "circle",
-                    cx=px(ms),
-                    cy=py(r["residual"]),
-                    r=3.5,
-                    fill="none",
-                    stroke=WARN,
-                    stroke_width=1.2,
-                    stroke_dasharray="1.5 1.5",
+            if lo <= r["residual"] <= hi:
+                parts.append(
+                    _el(
+                        "circle",
+                        cx=px(r["residual"]),
+                        cy=py(ms),
+                        r=3.5,
+                        fill="none",
+                        stroke=WARN,
+                        stroke_width=1.2,
+                        stroke_dasharray="1.5 1.5",
+                    )
                 )
-            )
         else:
-            parts.append(_el("circle", cx=px(ms), cy=py(r["residual"]), r=1.6, fill=TOWED))
+            parts.append(_el("circle", cx=px(r["residual"]), cy=py(ms), r=1.6, fill=TOWED))
     rms = report.get("rms")
-    said = f"{label}: RMS {rms:.1f}° over {report['counted']} cuts" if rms is not None else label
-    parts.append(_text(x + 8, y + h - 8, said, 9, FG))
+    parts.append(_text(x + 8, y + h - 20, label, 9, FG))
+    if rms is not None:
+        parts.append(_text(x + 8, y + h - 8, f"RMS {rms:.1f}°, {report['counted']} cuts", 9, MUTED))
     return parts
 
 
-def _tma_pictures(m: Map, tma: dict) -> dict[str, Callable[[], list[str]]]:
+def _tma_pictures(whole: Map, tma: dict) -> dict[str, Callable[[], list[str]]]:
     """Bearings and TMA's pictures: the towed array's cuts, the cut kept beside the Bow sonar's,
-    and the solution at each step with its residuals, as the walkthrough's steps leave them."""
+    and the solution at each step beside Bearings' Error pane, as the walkthrough's steps leave
+    them: the first guess, its start moved to RED ONE's range, the first leg sheared to fit, the
+    wild bearing left out, and the second leg fitted after the split."""
     cuts, stages, bow = tma["cuts"], tma["stages"], tma["bow"]
     first = next(c for c in cuts if c["id"] == stages["first"]["first_cut"])
     shown = cuts[::3]
     pictures: dict[str, Callable[[], list[str]]] = {}
+    #: Room on the right for the Error pane, as Bearings has it beside the map.
+    PANE_W = 128
+    m = Map(whole.tracks, width=W - PANE_W)
 
     def solution(stage: dict, *, legs: bool = False) -> list[str]:
         coords = stage["coordinates"]
@@ -592,24 +614,35 @@ def _tma_pictures(m: Map, tma: dict) -> dict[str, Callable[[], list[str]]]:
             return [m.path(coords, stroke=SOLUTION, stroke_width=2)]
         split = next(i for i, t in enumerate(stage["times"]) if t >= stage["leg_starts"][0])
         return [
-            m.path(coords[:split], stroke=SOLUTION, stroke_width=2.5),
+            m.path(coords[:split], stroke=SOLUTION, stroke_width=2),
             m.path(
                 coords[split - 1 : split + 1],
                 stroke=SOLUTION,
                 stroke_width=1,
                 stroke_dasharray="2 2",
             ),
-            m.path(coords[split:], stroke=SOLUTION, stroke_width=2, opacity=0.6),
+            m.path(coords[split:], stroke=SOLUTION, stroke_width=2.5),
         ]
+
+    def was(coords: list) -> str:
+        return m.path(coords, stroke=SOLUTION, stroke_width=1, stroke_dasharray="4 3", opacity=0.6)
 
     def diamond(x: float, y: float) -> str:
         points = " ".join(f"{x + dx},{y + dy}" for dx, dy in ((0, -6), (6, 0), (0, 6), (-6, 0)))
         return _el("polygon", points=points, fill=FOCUS, stroke=FG, stroke_width=0.5)
 
+    def square(x: float, y: float) -> str:
+        return _el(
+            "rect", x=x - 4, y=y - 4, width=8, height=8, fill=FOCUS, stroke=FG, stroke_width=0.5
+        )
+
+    def ring(x: float, y: float) -> str:
+        return _el("circle", cx=x, cy=y, r=4, fill="none", stroke=FG)
+
     def opened() -> list[str]:
-        parts = _background(m, dim=True)
+        parts = _background(whole, dim=True)
         for cut in shown:
-            parts += _cut_lines(m, cut)
+            parts += _cut_lines(whole, cut)
         parts += [_panel(W - 182, 10, 172, 40)]
         parts.append(_text(W - 174, 26, "Towed array: two bearings", 10, TOWED, font_weight="bold"))
         parts.append(_text(W - 174, 41, "port solid, starboard dashed", 9, MUTED))
@@ -618,7 +651,7 @@ def _tma_pictures(m: Map, tma: dict) -> dict[str, Callable[[], list[str]]]:
     pictures["tma-open.svg"] = opened
 
     def resolve() -> list[str]:
-        parts = _background(m, dim=True)
+        parts = _background(whole, dim=True)
         kept = first["bearing"] if first["resolved"] == "bearing" else first["ambiguous_bearing"]
         other = first["ambiguous_bearing"] if first["resolved"] == "bearing" else first["bearing"]
         for origin, bearing, attrs in (
@@ -630,23 +663,23 @@ def _tma_pictures(m: Map, tma: dict) -> dict[str, Callable[[], list[str]]]:
             (first["origin"], kept, {"stroke": TOWED, "opacity": 0.7, "stroke_width": 5}),
             (bow["origin"], bow["bearing"], {"stroke": BOW, "opacity": 1, "stroke_width": 1.5}),
         ):
-            x0, y0 = m.xy(*origin)
-            x1, y1 = m.xy(*_line_end(origin, bearing, 6.0))
+            x0, y0 = whole.xy(*origin)
+            x1, y1 = whole.xy(*_line_end(origin, bearing, 6.0))
             parts.append(_el("line", x1=x0, y1=y0, x2=x1, y2=y1, **attrs))
-        x0, y0 = m.xy(*first["origin"])
+        x0, y0 = whole.xy(*first["origin"])
         parts.append(_el("circle", cx=x0, cy=y0, r=3, fill=FG))
         side = first["side"] if first["resolved"] == "bearing" else _other(first["side"])
         parts += [_panel(W - 182, 10, 172, 58)]
         parts.append(_text(W - 174, 27, f"{first['time'][11:16]}Z", 10, MUTED))
         parts.append(
-            _text(W - 174, 43, f"Bow sonar {bow['bearing']:.0f}°", 10, BOW, font_weight="bold")
+            _text(W - 174, 43, f"Bow sonar {bow['bearing']:.1f}°", 10, BOW, font_weight="bold")
         )
         parts.append(_text(W - 174, 59, f"Keep {kept:.1f}° ({side})", 10, FG, font_weight="bold"))
         return parts
 
     pictures["tma-resolve.svg"] = resolve
 
-    def with_residuals(
+    def with_pane(
         stage: dict, label: str, extra: list[str] | None = None, legs: bool = False
     ) -> list[str]:
         parts = _background(m, dim=True)
@@ -654,47 +687,53 @@ def _tma_pictures(m: Map, tma: dict) -> dict[str, Callable[[], list[str]]]:
             parts += _cut_lines(m, cut, faint=True)
         parts += solution(stage, legs=legs)
         parts += extra or []
-        parts += _residual_panel(stage, W - 222, H - 112, 212, 102, label)
+        parts += _residual_panel(stage, W - PANE_W + 4, 10, PANE_W - 14, H - 20, label)
         return parts
 
-    pictures["tma-make.svg"] = lambda: with_residuals(stages["first"], "First guess")
+    pictures["tma-make.svg"] = lambda: with_pane(stages["first"], "First guess")
 
-    def drag() -> list[str]:
-        end = m.xy(*stages["drag"]["coordinates"][-1])
-        start = m.xy(*stages["drag"]["coordinates"][0])
+    def first_line() -> str:
+        kept = first["bearing"] if first["resolved"] == "bearing" else first["ambiguous_bearing"]
+        x0, y0 = m.xy(*first["origin"])
+        x1, y1 = m.xy(*_line_end(first["origin"], kept, 6.0))
+        return _el("line", x1=x0, y1=y0, x2=x1, y2=y1, stroke=TOWED, stroke_width=1.5, opacity=0.9)
+
+    def moved() -> list[str]:
+        coords = stages["range"]["coordinates"]
+        middle = m.xy(*coords[len(coords) // 2])
         extra = [
-            m.path(
-                stages["first"]["coordinates"],
-                stroke=SOLUTION,
-                stroke_width=1,
-                stroke_dasharray="4 3",
-                opacity=0.6,
-            ),
-            _el("circle", cx=start[0], cy=start[1], r=4, fill="none", stroke=FG),
-            diamond(*end),
+            first_line(),
+            was(stages["first"]["coordinates"]),
+            ring(*m.xy(*coords[0])),
+            square(*middle),
         ]
-        return with_residuals(stages["drag"], "Sheared", extra)
+        return with_pane(stages["range"], "At RED ONE's range", extra)
 
-    pictures["tma-drag.svg"] = drag
+    pictures["tma-range.svg"] = moved
+
+    def sheared() -> list[str]:
+        coords = stages["shear"]["coordinates"]
+        extra = [
+            was(stages["range"]["coordinates"]),
+            ring(*m.xy(*coords[0])),
+            diamond(*m.xy(*coords[-1])),
+        ]
+        return with_pane(stages["shear"], "First leg fitted", extra)
+
+    pictures["tma-shear.svg"] = sheared
     pictures["tma-wild.svg"] = lambda: _residual_panel(
-        stages["wild"], 10, 10, W - 20, H - 20, "One cut left out"
+        stages["wild"], 10, 10, W - 20, H - 20, "The wild bearing at 11:12Z left out"
     )
 
     def legs() -> list[str]:
-        stage = {**stages["legs"], "leg_starts": stages["legs"]["leg_starts"]}
+        stage = stages["legs"]
         split = next(i for i, t in enumerate(stage["times"]) if t >= stage["leg_starts"][0])
-        x, y = m.xy(*stage["coordinates"][split - 1])
         extra = [
-            m.path(
-                stages["split"]["coordinates"][:split],
-                stroke=SOLUTION,
-                stroke_width=1,
-                stroke_dasharray="4 3",
-                opacity=0.6,
-            ),
-            diamond(x, y),
+            was(stages["split"]["coordinates"][split:]),
+            ring(*m.xy(*stage["coordinates"][split])),
+            diamond(*m.xy(*stage["coordinates"][-1])),
         ]
-        return with_residuals(stage, "In two legs", extra, legs=True)
+        return with_pane(stage, "Two legs fitted", extra, legs=True)
 
     pictures["tma-legs.svg"] = legs
     return pictures

@@ -282,7 +282,7 @@ export class ToolService {
    */
   shownReadOnly?: () => ShownReadOnly | undefined;
   /** Told of each request that succeeded, with its method and parameters: what the walkthroughs tick off (CAP-25). */
-  done?: (method: string, params: Record<string, unknown>) => void;
+  done?: (method: string, params: Record<string, unknown>, result?: unknown) => void;
 
   /** One JSON-RPC request. No time limit here: the service stops tools that overrun. */
   private request<T>(method: string, given: Record<string, unknown> = {}): Promise<T> {
@@ -318,7 +318,7 @@ export class ToolService {
               if (parsed.error) reject(new ServiceError(parsed.error.message, parsed.error.code));
               else {
                 resolve(parsed.result as T);
-                this.done?.(method, params);
+                this.done?.(method, params, parsed.result);
               }
             } catch (error) {
               reject(new ServiceError(`Debrief's tool service sent a reply Debrief could not read: ${(error as Error).message}`));

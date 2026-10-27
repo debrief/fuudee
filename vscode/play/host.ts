@@ -45,7 +45,7 @@ import { describeSensorInFile, hostChoices, hostQuestion, hostsToAsk, sensorRead
 import { TimeControl } from "../webview/timecontrol.js";
 import { ToteControl } from "../webview/totecontrol.js";
 import { TmaControl } from "../webview/tmacontrol.js";
-import { coverageOf, cutColours, cutRowsOf, keepsSolution, ownshipOf, sensorOfSelection, solutionOfSelection, tmaSensorRows, tmaSolutionRows, type ListedCut } from "../webview/tma.js";
+import { coverageOf, cutColours, cutRowsOf, FocusOnce, keepsSolution, legExtent, ownshipOf, sensorOfSelection, solutionOfSelection, tmaSensorRows, tmaSolutionRows, type ListedCut } from "../webview/tma.js";
 import { latencySummary, sameTote, toteOf, ToteRequests, toteTracks, withoutSecondary, withPrimary, withSecondaries } from "../webview/totelogic.js";
 import { PressHold } from "../webview/presshold.js";
 import { Folds } from "./fold.js";
@@ -1029,27 +1029,37 @@ function trackForm(title: string, action: string, fields: FormField[], warning?:
   });
 }
 const shown = (read: { problem: string } | number | { value: number; unit: string }, means: () => string) => (typeof read === "object" && "problem" in read ? read : { means: means() });
-/** The choice of what moves or turns: the whole track, or its fixes in the time window. */
-function extentField(): FormField {
+/** A TMA solution's leg that current time is in, once it is split into legs: This leg, as the map's drags take it at first. */
+function legOfTrack(track: NonNullable<ReturnType<typeof trackOf>> | undefined) {
+  const tma = track && (track.properties as { tma?: { leg_starts?: string[] | null } }).tma;
+  return tma ? legExtent(track.properties.times, tma.leg_starts, time ? Date.parse(time.current) : undefined) : undefined;
+}
+/** The choice of what moves or turns: the whole track, its fixes in the time window, or, for a TMA solution split into legs, the leg current time is in. */
+function extentField(track?: NonNullable<ReturnType<typeof trackOf>>): FormField {
   const window = time?.range;
+  const leg = legOfTrack(track);
   return {
     id: "extent",
     label: "What changes",
-    options: [{ value: "whole", label: "Whole track" }, ...(window ? [{ value: "window", label: `Fixes in the time window, ${describeTimes(window.start, window.end)}` }] : [])],
+    options: [
+      { value: "whole", label: "Whole track" },
+      ...(leg ? [{ value: "leg", label: `This leg: leg ${leg.leg} of ${leg.legs}, ${describeTimes(leg.period.start, leg.period.end)}, the one current time is in` }] : []),
+      ...(window ? [{ value: "window", label: `Fixes in the time window, ${describeTimes(window.start, window.end)}` }] : []),
+    ],
   };
 }
-const windowPeriod = (extent: string) => (extent === "window" && time ? time.range : undefined);
+const windowPeriod = (extent: string, track?: NonNullable<ReturnType<typeof trackOf>>) => (extent === "window" && time ? time.range : extent === "leg" ? legOfTrack(track)?.period : undefined);
 
 $("move-track").onclick = async () => {
   const track = oneTrack("move");
   if (!track) return;
   const values = await trackForm(`Move ${track.properties.name}`, "Move", [
-    extentField(),
+    extentField(track),
     { id: "distance", label: "Distance", value: "", read: (t) => shown(readDistance(t), () => describeDistance(readDistance(t) as { value: number; unit: string })) },
     { id: "bearing", label: "Bearing, true", value: "", read: (t) => shown(readBearing(t), () => formatBearing({ value: readBearing(t) as number, unit: "deg" })) },
   ]);
   if (!values) return;
-  const period = windowPeriod(values.extent);
+  const period = windowPeriod(values.extent, track);
   const edit = { action: "move", distance: readDistance(values.distance), bearing: { value: readBearing(values.bearing), unit: "deg" }, ...(period && { period }) };
   const problem = await changeTrack({ kind: "edit", feature: track.id, edit });
   if (problem) toast(problem, "warning");
@@ -1058,7 +1068,7 @@ $("rotate-track").onclick = async () => {
   const track = oneTrack("rotate");
   if (!track) return;
   const values = await trackForm(`Rotate ${track.properties.name}`, "Rotate", [
-    extentField(),
+    extentField(track),
     {
       id: "pivot",
       label: "About",
@@ -1071,7 +1081,7 @@ $("rotate-track").onclick = async () => {
     { id: "angle", label: "Angle, degrees (positive is clockwise)", value: "", read: (t) => shown(readTurn(t), () => describeTurn(readTurn(t) as number)) },
   ]);
   if (!values) return;
-  const period = windowPeriod(values.extent);
+  const period = windowPeriod(values.extent, track);
   const times = track.properties.times.map(Date.parse);
   const indices = periodIndices(times, period && { start: Date.parse(period.start), end: Date.parse(period.end) });
   if (!indices.length) return toast(`${track.properties.name} has no fixes in the time window, so nothing was rotated.`, "warning");
@@ -1084,7 +1094,7 @@ $("rotate-track").onclick = async () => {
 /** What the track, or its fixes in the time window, makes good now: as the form offers it when that is chosen. */
 function legChosen(track: NonNullable<ReturnType<typeof trackOf>>, extent: string): NonNullable<ReturnType<typeof legNow>> | undefined {
   const times = track.properties.times.map(Date.parse);
-  const period = windowPeriod(extent);
+  const period = windowPeriod(extent, track);
   return legNow(track.geometry.coordinates as [number, number][], times, periodIndices(times, period && { start: Date.parse(period.start), end: Date.parse(period.end) }));
 }
 /** What a shear or a stretch holds, and what the track makes good now; or say why it cannot be done. */
@@ -1101,7 +1111,7 @@ function heldFields(track: NonNullable<ReturnType<typeof trackOf>>, verb: string
       { value: "end", label: "Hold the end; the start moves" },
     ],
   };
-  return [extentField(), anchor];
+  return [extentField(track), anchor];
 }
 /** The course or the speed made good, offered as it is now for what is chosen to change. */
 function madeGood(track: NonNullable<ReturnType<typeof trackOf>>, id: "course" | "speed", label: string, read: FormField["read"]): FormField {
@@ -1127,7 +1137,7 @@ $("shear-track").onclick = async () => {
   if (!track || !held) return;
   const values = await trackForm(`Shear ${track.properties.name}`, "Shear", [...held, courseField(track), speedField(track, false)]);
   if (!values) return;
-  const period = windowPeriod(values.extent);
+  const period = windowPeriod(values.extent, track);
   const edit = { action: "shear", anchor: values.anchor, course: { value: readBearing(values.course), unit: "deg" }, speed: readSpeed(values.speed), ...(period && { period }) };
   const problem = await changeTrack({ kind: "edit", feature: track.id, edit });
   if (problem) toast(problem, "warning");
@@ -1138,7 +1148,7 @@ $("stretch-track").onclick = async () => {
   if (!track || !held) return;
   const values = await trackForm(`Stretch ${track.properties.name}`, "Stretch", [...held, speedField(track, true)]);
   if (!values) return;
-  const period = windowPeriod(values.extent);
+  const period = windowPeriod(values.extent, track);
   const edit = { action: "stretch", anchor: values.anchor, speed: readSpeed(values.speed, undefined, true), ...(period && { period }) };
   const problem = await changeTrack({ kind: "edit", feature: track.id, edit });
   if (problem) toast(problem, "warning");
@@ -1728,7 +1738,7 @@ let tmaSolution: string | undefined;
 let tmaGuessing: TmaRequest | undefined;
 let tmaAsking = 0;
 /** What the view is to choose when next shown, as a walkthrough's step asks (bearingsWith). */
-let tmaFocus: TmaFocus | undefined;
+const tmaFocus = new FocusOnce();
 /** How long Python took to work out the residuals shown, ms: for the drag budget's measure (NFR-04). */
 const tmaCompute: number[] = [];
 /** The reader's error cut-off, degrees, as the page's settings keep it (debrief-config). */
@@ -1818,8 +1828,7 @@ async function refreshBearings(): Promise<void> {
     around = { coverage, ownship: ownshipOf(plot, tmaSolution, times.length ? { start: times[0], end: times[times.length - 1] } : undefined) };
   }
   // Something a walkthrough's step asked to be chosen, once.
-  const focus = tmaFocus;
-  tmaFocus = undefined;
+  const focus = tmaFocus.take();
   tmaControl.show({
     plot_id: opened.item.id,
     ...(opened.revision && { read_only: true }),
@@ -1868,7 +1877,7 @@ async function bearingsWith(id: string, focus?: TmaFocus): Promise<void> {
   const feature = features().find((f) => f.id === id);
   if (!feature) return toast("That is not in this plot.", "warning");
   showPanel("panel-bearings");
-  tmaFocus = focus;
+  tmaFocus.ask(focus);
   if (feature.properties.kind === "sensor") {
     tmaSensor = id;
     tmaSolution = undefined;
