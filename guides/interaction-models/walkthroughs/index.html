@@ -1973,13 +1973,13 @@
 </tr>
 <tr>
 <td>Bearings and TMA</td>
-<td>Open a copy and its bearings (the towed array's cuts in Bearings); keep a side of an ambiguous bearing; make a first guess; drag the solution to fit; leave out a wild bearing; split into legs and drag one</td>
+<td>Open a copy and its bearings (the towed array's cuts in Bearings); keep a side of an ambiguous bearing; make a first guess; put its start at RED ONE's range; shear the first leg to fit; leave out a wild bearing; split at the turn and fit the second leg (about 12 minutes)</td>
 </tr>
 </tbody>
 </table>
 </li>
 <li>
-<p><strong>Each works on a fresh copy, never the sample</strong> (decision, product owner, 17 Oct 2026). The first step of each makes a copy of the sample's serial 1, titled after the walkthrough (<em>Serial 1: Tidy a track</em>), whose first step holds the sample's whole history and one more record saying it is a copy; its sources, payloads and supporting files come with it. <em>Tidy a track</em>'s copy has three GPS glitches in RED ONE, put in as a step of its own so they are never mistaken for real data; <em>Import and collate</em>'s comes with BLUE ONE's navigation log as a REP file to import; <em>Bearings and TMA</em>'s has one wild bearing, the towed array's cut at 11:12Z turned 40° off, as a step of its own, since the sample's bearings have none. <code>debrief_sample.walkthrough</code> makes them, the same for both hosts. <strong>Starting a walkthrough again</strong> makes a fresh copy, deletes the old one and unticks the walkthrough's steps, so ticks belong to a copy; pressing the button again while a copy is being made makes none (panel review, 17 Oct 2026).</p>
+<p><strong>Each works on a fresh copy, never the sample</strong> (decision, product owner, 17 Oct 2026). The first step of each makes a copy of the sample's serial 1, titled after the walkthrough (<em>Serial 1: Tidy a track</em>), whose first step holds the sample's whole history and one more record saying it is a copy; its sources, payloads and supporting files come with it. <em>Tidy a track</em>'s copy has three GPS glitches in RED ONE, put in as a step of its own so they are never mistaken for real data; <em>Import and collate</em>'s comes with BLUE ONE's navigation log as a REP file to import; <em>Bearings and TMA</em>'s has one wild bearing, the towed array's cut at 11:12Z turned 40° off (its bearing one way and its ambiguous bearing the other, so the pair still mirror each other about the array's heading), as a step of its own, since the sample's bearings have none. <code>debrief_sample.walkthrough</code> makes them, the same for both hosts. <strong>Starting a walkthrough again</strong> makes a fresh copy, deletes the old one and unticks the walkthrough's steps, so ticks belong to a copy; pressing the button again while a copy is being made makes none (panel review, 17 Oct 2026).</p>
 </li>
 <li><strong>A step ticks when it is done, never when its button is pressed.</strong> Each step names an event; the host sends it when the change it asks for succeeds, however it was made (a form, the map, the keyboard, an agent): a jump removal saved, an area added, an image exported. Looking is not doing: finding jumps, previewing smoothing or moving a track ticks nothing. A few steps are about seeing: moving current time or selecting two tracks by hand (not a plot opening, a tool or a command, which is how Debrief selects what it has just added), a Tote with a primary and a secondary, an entry chosen in the Timeline, and Coverage on screen once the log is imported.
     <strong>Only on the walkthrough's own copy, in the walkthrough shown</strong> (panel review, 17 Oct 2026). The same change made to any other plot ticks nothing, as does the analyst's own file imported (only the walkthrough's log counts) or a stretch made where the step asks for a shear.</li>
@@ -2047,7 +2047,8 @@
     Host--&gt;&gt;Page: event jumpsRemoved: step ticked, the next opened</code></pre>
 <h3 id="bearings-and-tma-product-owner-25-oct-2026">Bearings and TMA (product owner, 25 Oct 2026)<a class="headerlink" href="#bearings-and-tma-product-owner-25-oct-2026" title="Permanent link">&para;</a></h3>
 <p>The fifth walkthrough, added before the VSIX release: sensors, ambiguity and TMA had none, beyond <em>Tidy a track</em>'s shear. It works on BLUE ONE's towed array on RED ONE, and makes its solution live, so the sample keeps no solution of its own and its feature counts are unchanged.</p>
-<p><strong>Serial 1, not serial 2.</strong> Every serial has both sonars. In serial 2 RED ONE is 1.4 to 3 nmi from BLUE ONE throughout, so Debrief's first guess, 4.94 nmi out, is far off and no single drag brings it near (best about 23° RMS); in serial 1 the towed array holds RED ONE at 3 to 4.5 nmi from 09:46Z, and RED ONE turns at 10:31Z, a manoeuvre to split at. So the walkthrough copies serial 1, as the others do.</p>
+<p><strong>It fits properly</strong> (product owner, 25 Oct 2026): the walkthrough ends with a solution near the bearings' own accuracy, as legacy Debrief's TMA tutorial teaches (pages 48 to 58), not at about 6° RMS as it first did. Legacy's way, one leg at a time: pin the leg's start on its first bearing; shear its end until the errors stand on the zero line and the Error pane passes; zoom in to fine-tune; bearings never give range, so move the start along its bearing and shear again; then the next leg. The walkthrough gives the range (RED ONE was 3.27 nmi from the towed array at 09:46Z), where an analyst would try ranges, so it takes seven steps and about 12 minutes rather than a search.</p>
+<p><strong>Serial 1, not serial 2.</strong> Every serial has both sonars. In serial 2 RED ONE is 1.4 to 3 nmi from BLUE ONE throughout; in serial 1 the towed array holds RED ONE at 3 to 4.5 nmi from 09:46Z, and RED ONE turns between 10:30Z and 10:40Z, from 250° at 4 kn to 200° at 5 kn, a manoeuvre to split at. So the walkthrough copies serial 1, as the others do.</p>
 <table>
 <thead>
 <tr>
@@ -2060,45 +2061,89 @@
 <tbody>
 <tr>
 <td>Open a copy of serial 1 and its bearings</td>
-<td>Read the towed array's two lines a cut</td>
-<td>The copy opened, then <strong>Bearings</strong> listing the towed array (<code>debrief.showBearings</code>; <code>bearings:</code>)</td>
+<td>Read the towed array's two lines a cut, mirrored about the array's heading</td>
+<td>The copy opened, then <strong>Bearings</strong> listing the towed array, in the panel below the editor in VS Code (<code>debrief.showBearings</code>; <code>bearings:</code>)</td>
 <td>the copy opens (<code>tmaOpened</code>)</td>
 </tr>
 <tr>
 <td>Keep a side of an ambiguous bearing</td>
-<td>Keep 236.3° (starboard), the side the Bow sonar's 235° agrees with</td>
+<td>Keep 236.3° (starboard), the side the Bow sonar's 235.3° at 09:46:00Z agrees with (its cuts listed by choosing <em>Bow sonar</em> in Bearings' <strong>Sensor</strong> list); the period's other ambiguous cuts are measured by the nearer side (≈), an assumption the step says</td>
 <td>Bearings chooses the cut at 09:46Z and moves current time there</td>
 <td>a side is kept, not both made ambiguous again (<code>sideKept</code>)</td>
 </tr>
 <tr>
 <td>Make a first guess</td>
-<td>Debrief's defaults</td>
+<td>Debrief's defaults (4.94 nmi, across the bearing, 8 kn)</td>
 <td>Bearings chooses the period 09:46Z to 12:00Z (102 cuts) and opens <strong>Make solution…</strong></td>
 <td>a solution is made (<code>solutionMade</code>)</td>
 </tr>
 <tr>
-<td>Drag the solution to fit</td>
-<td>Shear it about its start, about 215° at 3 kn</td>
+<td>Put the start at RED ONE's range</td>
+<td>Move the whole solution 1.67 nmi at 056.3°, along the first bearing towards BLUE ONE, to 3.27 nmi (or drag its Move handle, the first error kept on zero)</td>
+<td>The solution selected and <strong>Move track…</strong> (<strong>Move…</strong>) asked of it</td>
+<td>the whole solution is moved (<code>solutionMoved</code>)</td>
+</tr>
+<tr>
+<td>Shear the first leg to fit</td>
+<td>Box the errors to 10:32Z in the Error pane, then shear about the start: about 246° at 3.8 kn</td>
 <td>The solution selected and <strong>Shear track…</strong> (<strong>Shear…</strong>) asked of it</td>
-<td>the solution moved, rotated, sheared or stretched (<code>solutionDragged</code>); another track's shear is <em>Tidy a track</em>'s</td>
+<td>the whole solution is sheared (<code>solutionSheared</code>); another track's shear is <em>Tidy a track</em>'s</td>
 </tr>
 <tr>
 <td>Leave out a wild bearing</td>
-<td><code>Space</code> on the cut at 11:12Z</td>
-<td>Bearings chooses the counted cut with the largest residual</td>
-<td>a cut is left out, not counted again (<code>cutLeftOut</code>)</td>
+<td><code>Space</code> on the cut at 11:12Z, some 40° left of its neighbours</td>
+<td>Bearings chooses the cut at 11:12Z and opens the cut list</td>
+<td>a cut is left out, not counted again nor already left out (<code>cutLeftOut</code>)</td>
 </tr>
 <tr>
-<td>Split into legs and drag one</td>
-<td><strong>Split into legs at 10:38:00Z</strong>, then drag the first leg (<strong>This leg</strong>), about 285° at 4 kn</td>
-<td>Bearings chooses the cut at 10:38Z</td>
-<td>one of its legs is dragged, once it is split (a drag with a period: <strong>This leg</strong>, or the time window); the split alone is not the step (<code>legDragged</code>)</td>
+<td>Split at the turn and fit the second leg</td>
+<td><strong>Split into legs at 10:38:00Z</strong> (or <code>S</code> in the plot); <strong>This leg</strong>; pin the second leg's start on its first bearing, about 0.17 nmi at 155°; shear its end, about 200° at 5.2 kn</td>
+<td>Bearings chooses the cut at 10:38Z and moves current time there, so This leg is the second</td>
+<td>one of its legs is dragged, once it is split (a drag with a period: <strong>This leg</strong>, <em>This leg</em> in the forms, or the time window); the split alone is not the step (<code>legDragged</code>)</td>
 </tr>
 </tbody>
 </table>
-<p>On the sample, as <code>python/debrief-sample/tests/test_walkthrough.py</code> holds them (<code>walkthrough.play_tma</code>): the first guess's RMS is 55°; the shear takes it to 13.8°, the residuals climbing to +29° at 10:32Z and falling after; the wild bearing, about −37°, is the largest residual, and leaving it out takes the RMS to 13.3°; split at 10:38Z, the first leg's shear takes its residuals from 19° to 4.7°, the second leg not moving, and the RMS to 6.1°. The test fails if the sample stops giving what the steps' words promise.</p>
-<p><strong>What the buttons choose in Bearings.</strong> <code>debrief.showBearings</code> takes a second argument, a <code>TmaFocus</code> (<code>cut_time</code>, <code>period</code> and <code>make</code>, or <code>largest</code>), sent once with the view (<code>TmaView.focus</code>): the view chooses the cut, the period or the largest residual, moves current time to a cut, and gives the list (or the first guess's form) the keyboard. The playground's action is <code>bearings:&lt;sensor or solution&gt;?cut=…</code>, <code>?period=…/…&amp;make</code> or <code>?largest</code>, the same focus. <strong>The solution's id</strong> is not known until it is made: a step names it <code>$solution</code>, and each host puts in the copy's latest TMA solution when the button is pressed, or says <em>Make the solution first</em> while there is none.</p>
-<p><strong>Candidly.</strong> The sample's bearings have no wild one (the towed array's errors are 2°), so the copy has one put in, as <em>Tidy a track</em>'s glitches are, and History says so. The map draws every cut of the serial's window, so at 09:46Z the Bow sonar's line is easier read in its number, which the step gives, than picked out among them. The first guess starts 4.94 nmi out where RED ONE was 3.3, so shears alone fit to about 5° rather than the bearings' 2°: moving the solution's start nearer does the rest.</p>
+<p>On the sample, as <code>python/debrief-sample/tests/test_walkthrough.py</code> holds them (<code>walkthrough.play_tma</code>, which makes the first guess as its form sends it) and the playground's test reaches them through the forms, to a tenth of a degree:</p>
+<table>
+<thead>
+<tr>
+<th>After</th>
+<th>RMS</th>
+<th>The cue (3.0° cut-off)</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>The first guess</td>
+<td>55.9°</td>
+<td>✗ 95 of 102 beyond, the largest 136.6°</td>
+</tr>
+<tr>
+<td>The start at RED ONE's range</td>
+<td>62.7°: up, as the course and speed are still the guess's</td>
+<td>✗ 99 of 102 beyond</td>
+</tr>
+<tr>
+<td>The first leg sheared (246° at 3.8 kn)</td>
+<td>38.8° over all; 1.7° over the first leg's 40 cuts, 2 of them beyond</td>
+<td>✗ 64 of 102 beyond, the errors running away after 10:32Z to −77° by 12:00Z</td>
+</tr>
+<tr>
+<td>The wild bearing left out</td>
+<td>38.3°</td>
+<td>✗ 63 of 101 beyond</td>
+</tr>
+<tr>
+<td>The second leg pinned (0.17 nmi at 155°) and sheared (200° at 5.2 kn)</td>
+<td>1.8°</td>
+<td>✗ 9 of 101 beyond, the largest 4.8°</td>
+</tr>
+</tbody>
+</table>
+<p><strong>Why the cue never passes.</strong> The sample's sonar noise is 1.5° (1.8° RMS against RED ONE's true track over these cuts, with the turn), so with 101 cuts some fall beyond 3° whatever the fit: RED ONE's true track itself leaves 8 of 101 beyond, the largest 4.4°. The last step says so: aim for an RMS under about 2° and only a handful beyond. The default cut-off and the sample's noise are unchanged (product owner, 25 Oct 2026). For the same reason the cue stays ✗ while only the first leg is fitted: it counts every cut of the solution, the second leg's too.</p>
+<p><strong>What the buttons choose in Bearings.</strong> <code>debrief.showBearings</code> takes a second argument, a <code>TmaFocus</code> (<code>cut_time</code>, <code>period</code> and <code>make</code>, or <code>largest</code>), sent once with the view (<code>TmaView.focus</code>; <code>FocusOnce</code> in both hosts, so a later refresh never chooses it again): the view chooses the cut, the period or the largest residual (<code>focusChoice</code>: never a cut left out, hidden or without a residual), moves current time to a cut, gives the list (or the first guess's form) the keyboard, and brings the cut's row into sight centred in the page where the page scrolls, so on a phone a section's heading never covers it. The playground's action is <code>bearings:&lt;sensor or solution&gt;?cut=…</code>, <code>?period=…/…&amp;make</code> or <code>?largest</code>, the same focus. <strong>The solution's id</strong> is not known until it is made: a step names it <code>$solution</code>, and each host puts in the copy's latest TMA solution when the button is pressed, or says <em>Make the solution first</em> while there is none. In VS Code a step's button that opens a form (Move…, Shear…) also brings Bearings back into sight in the panel if it was closed.</p>
+<p><strong>The keyboard.</strong> The cut's buttons (Keep, Leave out, Split) come before the list in the tab order, so from the list it is <code>Shift+Tab</code> back to them (the steps say so; the playground's test presses it); in the plot <code>Space</code> or <code>Delete</code> leaves a cut out, <code>S</code> splits, <code>1</code> and <code>2</code> keep a side. The forms <strong>Move…</strong> and <strong>Shear…</strong> offer <em>This leg</em> under <em>What changes</em> once a solution is split, the leg current time is in, so the second leg is fitted by typing as the first was (<a href="../track-operations/">track operations</a>).</p>
+<p><strong>Candidly.</strong> The sample's bearings have no wild one, so the copy has one put in, as <em>Tidy a track</em>'s glitches are, and History says so. The map draws every cut of the serial's window and the narrative's labels, so at 09:46Z the map's nearest bearing label (<em>Regained RED ONE, bearing 231.8°T</em>, at 09:42:30Z) is not the Bow sonar's cut then; the step gives the number and where to read it in Bearings. Moving the start to the right range makes the RMS worse before the shear makes it better, which the step says. The range is given, not found: finding it would be a search of trial ranges, longer than a walkthrough.</p>
 <h2 id="the-onboarding-trial">The onboarding trial<a class="headerlink" href="#the-onboarding-trial" title="Permanent link">&para;</a></h2>
 <p>NFR-09's trial, with analysts, is the product owner's to run. It is formative. <code>docs/notes/onboarding-trial.md</code> gives:
 - the pass rule to pre-register: at least 80% complete without help above the first rung, the median silent run within 40 minutes, and no one over 60;
@@ -2108,7 +2153,7 @@
 - what to time, the success criteria and their tolerances, the observation sheet, and how results are recorded.</p>
 <p>The trial is pending. The playground's test does the same tasks as a speed run, in the playground only, counting each action (32) and failing above 36, to show they can be done.</p>
 <h2 id="reference-implementation">Reference implementation<a class="headerlink" href="#reference-implementation" title="Permanent link">&para;</a></h2>
-<p><code>vscode/walkthroughs/tours.json</code> (the words) and <code>contribute.mjs</code> (how VS Code shows them); <code>vscode/src/walkthroughs.ts</code> (VS Code's events and copies); <code>vscode/play/tours.ts</code> (the playground's panel and its events); <code>python/debrief-sample/src/debrief_sample/walkthrough.py</code> (the copies) and <code>media.py</code> (the pictures); <code>vscode/play/demo.mjs</code> (the web demo's page). Tests: <code>vscode/test/unit/walkthroughs.test.ts</code> (each walkthrough's last step on the Get Started page linking to the next by id), <code>vscode/test/integration/walkthroughs.ts</code> (the first walkthrough opened on the first activation and not on the next; every walkthrough in VS Code, each event on its real action, Bearings and TMA's buttons' choices reaching the view), <code>vscode/test/play/onboarding.mjs</code> (open on first load in the playground, the web demo and the first hour post's demo; the guidance accent and its contrast in light and dark; the next walkthrough offered at each one's end, the keyboard on it, and all done after the last; each walkthrough start to finish in the playground, the speed run, the web demo), <code>python/debrief-sample/tests/test_walkthrough.py</code>.</p>
+<p><code>vscode/walkthroughs/tours.json</code> (the words) and <code>contribute.mjs</code> (how VS Code shows them); <code>vscode/src/walkthroughs.ts</code> (VS Code's events and copies); <code>vscode/play/tours.ts</code> (the playground's panel and its events); <code>python/debrief-sample/src/debrief_sample/walkthrough.py</code> (the copies) and <code>media.py</code> (the pictures); <code>vscode/play/demo.mjs</code> (the web demo's page). Tests: <code>vscode/test/unit/walkthroughs.test.ts</code> (each walkthrough's last step on the Get Started page linking to the next by id), <code>vscode/test/integration/walkthroughs.ts</code> (the first walkthrough opened on the first activation and not on the next; every walkthrough in VS Code, each event on its real action, Bearings and TMA's buttons' choices reaching the view, Bearings in the panel below the editor and brought back into sight there by a step's button, and the RMS each step reaches), <code>vscode/test/unit/tma.test.ts</code> (<code>focusChoice</code>, <code>FocusOnce</code>, <code>legExtent</code>), <code>vscode/test/play/onboarding.mjs</code> (open on first load in the playground, the web demo and the first hour post's demo; the guidance accent and its contrast in light and dark; the next walkthrough offered at each one's end, the keyboard on it, and all done after the last; each walkthrough start to finish in the playground, the speed run, the web demo), <code>python/debrief-sample/tests/test_walkthrough.py</code>.</p>
 
 
 
