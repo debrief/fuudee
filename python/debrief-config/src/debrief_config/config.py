@@ -102,10 +102,13 @@ def same_location(a: str, b: str, platform: str | None = None) -> bool:
 STORES_VERSION = 1
 IMPORT_MODE_VERSION = 2
 NARRATIVE_IMPORT_VERSION = 3
+TMA_CUT_OFF_VERSION = 4
 
 
 def _layout(config: models.UserConfig) -> int:
     """The layout a configuration needs: the oldest whose Debrief can read all it holds."""
+    if config.tma_error_cut_off is not None:
+        return TMA_CUT_OFF_VERSION
     if config.narrative_import:
         return NARRATIVE_IMPORT_VERSION
     return IMPORT_MODE_VERSION if config.track_import_mode is not None else STORES_VERSION
@@ -344,4 +347,27 @@ def with_narrative_answers(
 def without_narrative_answers(config: models.UserConfig) -> models.UserConfig:
     """A copy of the configuration forgetting every narrative import's answers."""
     changed = config.model_copy(update={"narrative_import": None})
+    return changed.model_copy(update={"config_version": _layout(changed)})
+
+
+# --- The Bearings view's error cut-off (CAP-21; product owner, 25 Oct 2026) -------------
+# Its Error pane is green while every residual counted is within the cut-off, pink
+# otherwise, as legacy Stacked Dots shaded it; legacy's default, 3 degrees. The analyst's
+# preference, kept here and never in a catalogue or a plot file.
+DEFAULT_TMA_ERROR_CUT_OFF = 3.0
+
+
+def tma_error_cut_off(config: models.UserConfig) -> float:
+    """The error cut-off, degrees: the one remembered, else 3."""
+    value = config.tma_error_cut_off
+    return DEFAULT_TMA_ERROR_CUT_OFF if value is None else float(value)
+
+
+def with_tma_error_cut_off(config: models.UserConfig, degrees: float | None) -> models.UserConfig:
+    """A copy of the configuration remembering the error cut-off; None, or the default,
+    forgets it. Remembered, the file says version 4, so an earlier Debrief says to update."""
+    if degrees is not None and not (0.01 <= degrees <= 180):
+        raise ConfigError(f"{degrees!r} is not an error cut-off: 0.01 to 180 degrees")
+    keep = None if degrees is None or degrees == DEFAULT_TMA_ERROR_CUT_OFF else float(degrees)
+    changed = config.model_copy(update={"tma_error_cut_off": keep})
     return changed.model_copy(update={"config_version": _layout(changed)})

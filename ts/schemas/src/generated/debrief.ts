@@ -439,6 +439,9 @@ export type WebviewMessageKindEnum =
   | "tma_exclude"
   | "tma_split"
   | "tma_time_asked"
+  | "tma_select"
+  | "tma_cut_off"
+  | "tma_plot_drawn"
   | "tma_made";
 
 export interface DebriefSchemaDefinitions {}
@@ -2495,6 +2498,25 @@ export interface TmaFocus {
   period?: TimeRange | null;
 }
 /**
+ * A track carrying the solution's sensors (ownship): its course over the period the Bearings view shows, for the Course/Speed pane (product owner, 25 Oct 2026). Its courses as logged at its fixes, thinned to at most a few thousand.
+ *
+ * This interface was referenced by `DebriefSchemaDefinitions`'s JSON-Schema
+ * via the `definition` "TmaOwnship".
+ */
+export interface TmaOwnship {
+  colour?: string | null;
+  /**
+   * Its course at each of those times, degrees true.
+   */
+  courses: number[];
+  /**
+   * The track's feature id.
+   */
+  id: string;
+  name: string;
+  times: string[];
+}
+/**
  * A TMA solution asked for (CAP-21; product owner, 24 Oct 2026), from the bearing view's form, two clicks on the map, or an agent (debrief/tma_create): the cuts to root it in (sensor_ids and a period, or cut_ids), and a first guess, either by form (a range on the first cut's bearing, a course and a speed) or by two positions (on the first cut's line and on the last's; the course and speed follow). Made as one recorded, undoable step.
  *
  * This interface was referenced by `DebriefSchemaDefinitions`'s JSON-Schema
@@ -2704,6 +2726,10 @@ export interface TmaSolutionRow {
   colour?: string | null;
   contact: string;
   /**
+   * Its course at each fix, degrees true: its DR legs' courses, for the Bearings view's Course/Speed pane (product owner, 25 Oct 2026).
+   */
+  courses?: number[] | null;
+  /**
    * How many cuts it is rooted in.
    */
   cuts: number;
@@ -2711,6 +2737,10 @@ export interface TmaSolutionRow {
   leg_starts?: string[] | null;
   name: string;
   period: TimeRange;
+  /**
+   * Its speed at each fix, metres a second, for the Course/Speed pane.
+   */
+  speeds?: number[] | null;
   /**
    * Its fixes' times, for the view to place it as a drag moves it.
    */
@@ -2723,11 +2753,23 @@ export interface TmaSolutionRow {
  * via the `definition` "TmaView".
  */
 export interface TmaView {
+  /**
+   * With a solution shown, every cut of its sensors shown on the map, in time order, rooted or not: the Bearing pane plots each measured bearing over the sensors' whole coverage, the calculated bearings and errors only where the solution is (product owner, 25 Oct 2026). Cuts hidden on the map are left out.
+   */
+  coverage?: TmaCut[] | null;
   cuts?: TmaCut[] | null;
+  /**
+   * The analyst's error cut-off, degrees, from their Debrief configuration (tma_error_cut_off; 3 by default): the Error pane is green while every residual counted is within it, pink otherwise.
+   */
+  error_cut_off?: number | null;
   /**
    * Something to choose in the view once, as a command or a walkthrough's step asks (CAP-25): a cut, a period and its first guess, or the cut with the largest residual. Not kept: the view shows it and the analyst carries on from there.
    */
   focus?: TmaFocus | null;
+  /**
+   * The tracks carrying the solution's sensors, with their courses, for the Course/Speed pane.
+   */
+  ownship?: TmaOwnship[] | null;
   /**
    * Which plot is open, as its host knows it.
    */
@@ -2943,7 +2985,7 @@ export interface TrackEdit {
  */
 export interface UserConfig {
   /**
-   * Version of this file's layout: 1 while it holds only stores; 2 once it holds track_import_mode; 3 once it holds narrative_import. An earlier Debrief cannot read a later layout.
+   * Version of this file's layout: 1 while it holds only stores; 2 once it holds track_import_mode; 3 once it holds narrative_import; 4 once it holds tma_error_cut_off. An earlier Debrief cannot read a later layout.
    */
   config_version: number;
   /**
@@ -2954,6 +2996,10 @@ export interface UserConfig {
    * Known stores, in the order the analyst sees them (SUB-17).
    */
   stores: KnownStore[];
+  /**
+   * The Bearings view's error cut-off, degrees (CAP-21; product owner, 25 Oct 2026): its Error pane is green while every residual counted is within it and pink otherwise, as legacy Debrief's Stacked Dots shaded it. Left out, 3 degrees, legacy's default. The analyst's preference, kept here and never in a catalogue or a plot file.
+   */
+  tma_error_cut_off?: number | null;
   /**
    * How tracks imported are plotted, over the ground or by dead reckoning: ask (the default, also when left out), or otg or dr once the analyst chose "Use this choice for future imports" (CAP-01). The analyst may clear it, to be asked again.
    */
@@ -2984,6 +3030,10 @@ export interface WebviewMessage {
    * The rooted cuts left out of a solution's RMS error, or counted again (tma_exclude).
    */
   cut_ids?: string[] | null;
+  /**
+   * The analyst's error cut-off, degrees (tma_cut_off).
+   */
+  error_cut_off?: number | null;
   /**
    * Whether the cuts are left out (tma_exclude).
    */
@@ -3038,12 +3088,20 @@ export interface WebviewMessage {
    * Whether the map shows the narrative entry current time is at beside its track (show_timeline, narrative_on_map_changed): the plot's PlotView.narrative_on_map; left out means it does.
    */
   narrative_on_map?: boolean | null;
+  /**
+   * The width of each pane the Bearings view's plot shows, left to right, CSS pixels (tma_plot_drawn).
+   */
+  pane_widths?: number[] | null;
   parameters?: ParameterValue[] | null;
   /**
    * Whether current time is playing (playing_changed).
    */
   playing?: boolean | null;
   plot?: DebriefFeatureCollection | null;
+  /**
+   * The height of the Bearings view's plot, its panes' time axis, CSS pixels (tma_plot_drawn).
+   */
+  plot_height?: number | null;
   /**
    * Which plot is open, as its host knows it (show_timeline): a list read again for the same plot keeps the reader's place; another plot is read from current time.
    */

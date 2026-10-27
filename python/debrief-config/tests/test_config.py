@@ -232,7 +232,7 @@ def test_narrative_import_answers_are_remembered_per_dialect_and_say_layout_3(
         ),
         path,
     )
-    assert json.loads(path.read_text())["config_version"] == 3 == CONFIG_VERSION
+    assert json.loads(path.read_text())["config_version"] == 3 == CONFIG_VERSION - 1
     answers = narrative_answers(load_config(path), "narrative-document")
     assert answers is not None
     assert answers.skip_types == ["", "COMMS"] and answers.within_period is True
@@ -250,3 +250,22 @@ def test_narrative_import_answers_are_remembered_per_dialect_and_say_layout_3(
     assert json.loads(path.read_text())["config_version"] == 3
     update_config(without_narrative_answers, path)
     assert json.loads(path.read_text())["config_version"] == 1
+
+
+def test_the_error_cut_off_is_3_until_remembered_and_says_layout_4(tmp_path: Path) -> None:
+    """The Bearings view's error cut-off (product owner, 25 Oct 2026): legacy's 3 degrees
+    until the analyst sets another, kept in their configuration; the default forgets it."""
+    from debrief_config import tma_error_cut_off, with_tma_error_cut_off
+
+    path = tmp_path / "config.json"
+    assert tma_error_cut_off(load_config(path)) == 3.0
+    update_config(lambda c: with_tma_error_cut_off(c, 1.5), path)
+    assert tma_error_cut_off(load_config(path)) == 1.5
+    raw = json.loads(path.read_text())
+    assert raw["tma_error_cut_off"] == 1.5 and raw["config_version"] == 4 == CONFIG_VERSION
+    update_config(lambda c: with_tma_error_cut_off(c, 3), path)
+    assert json.loads(path.read_text()) == {"config_version": 1, "stores": []}
+    with pytest.raises(ConfigError, match="not an error cut-off"):
+        with_tma_error_cut_off(load_config(path), 0)
+    fixture = ROOT / "schemas" / "fixtures" / "user_config" / "valid"
+    assert tma_error_cut_off(load_config(fixture / "tma-error-cut-off-remembered.json")) == 1.5

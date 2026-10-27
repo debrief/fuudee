@@ -38,6 +38,7 @@ import {
   legIndices,
   legNear,
   wrap,
+  coverageOutside,
   type CutBearing,
 } from "../../webview/tma.js";
 
@@ -257,5 +258,14 @@ describe("legs on the map (product owner, 25 Oct 2026)", () => {
     expect(splitAllowed(times, starts, 4 * 60_000)).toBe(false); // a leg starts there already
     expect(splitAllowed(times, [7 * 60_000], 2 * 60_000)).toBe(true);
     expect(splitAllowed(times, [7 * 60_000], 6 * 60_000)).toBe(false); // leg 1 keeps one fix after
+  });
+});
+
+describe("the coverage beside a solution", () => {
+  it("plots the sensors' cuts not rooted in the solution, never one hidden on the map", () => {
+    const cut = (id: string, hidden?: boolean): TmaCut => ({ id, sensor_id: "s", sensor: "Bow sonar", time: "2023-06-15T12:00:00Z", bearing: 10, ...(hidden && { hidden: true }) });
+    const coverage = [cut("a"), cut("b"), cut("c", true), cut("d")];
+    expect(coverageOutside(coverage, new Set(["b"])).map((c) => c.id)).toEqual(["a", "d"]);
+    expect(coverageOutside(undefined, new Set())).toEqual([]);
   });
 });

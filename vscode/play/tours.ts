@@ -257,6 +257,7 @@ export class TourPanel {
     // The step done closes, and the next to do opens, unless the reader opened others.
     this.open.delete(step.id);
     this.render();
+    if (next) this.reveal(next.id);
     // The walkthrough just finished: the keyboard goes to what comes next, if the panel is in sight;
     // but never away from the map, or a form beside it, while the reader works there (a leg just
     // dragged, Bearings and TMA's last step): the status line, a live region, says it instead.
@@ -265,6 +266,28 @@ export class TourPanel {
       const button = this.ahead.querySelector<HTMLElement>("button");
       if (button && (button.checkVisibility?.() ?? button.offsetParent !== null)) button.focus();
     }
+  }
+
+  /**
+   * The step to do next brought into sight in a docked panel that scrolls (beneath Bearings, the
+   * walkthroughs are compact: product owner, 25 Oct 2026): its words and button, from its heading
+   * down as far as fits. Only the panel scrolls, never the page; narrow, nothing moves.
+   */
+  private revealing?: string;
+  private reveal(stepId: string): void {
+    this.revealing = stepId;
+    const scroller = this.element.closest<HTMLElement>(".dock-panel");
+    const body = this.list.querySelector<HTMLElement>(`#tour-${this.tour.id}-${stepId}`);
+    const row = body?.closest<HTMLElement>("li");
+    if (!scroller || !body || !row || scroller.scrollHeight <= scroller.clientHeight) return;
+    const box = scroller.getBoundingClientRect();
+    // The whole step if it fits; else its words down to its button, the heading and picture above them scrolled away.
+    const from = row.getBoundingClientRect().top;
+    const words = (body.querySelector("p") ?? body).getBoundingClientRect().top;
+    const to = (body.querySelector("button") ?? body).getBoundingClientRect().bottom + 4;
+    const top = to - from <= box.height ? from : words;
+    if (to > box.bottom) scroller.scrollTop += Math.min(to - box.bottom, top - box.top);
+    else if (top < box.top) scroller.scrollTop -= box.top - top;
   }
 
   /** What comes after this walkthrough: the next offered, quietly until its steps are all done; after the last, that all are. */
@@ -314,7 +337,12 @@ export class TourPanel {
       );
       this.pictures.set(file, loaded);
     }
-    void loaded.then((svg) => svg && into.isConnected && into.replaceChildren(into.ownerDocument.importNode(svg, true)));
+    void loaded.then((svg) => {
+      if (!svg || !into.isConnected) return;
+      into.replaceChildren(into.ownerDocument.importNode(svg, true));
+      // The step being brought into sight grew with its picture: brought into sight again.
+      if (this.revealing && into.closest(`#tour-${this.tour.id}-${this.revealing}`)) this.reveal(this.revealing);
+    });
   }
 
   private render(): void {

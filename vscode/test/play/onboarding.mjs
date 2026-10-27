@@ -373,7 +373,9 @@ export async function playTours(page, shot, root) {
   await page.locator("#reset-layout").click();
   await openTours(page);
   await rightColumn(page);
-  assert.deepEqual((await layoutOf(page)).groups.find((g) => g.panels.includes("panel-tour"))?.panels, ["panel-tour"], "alone in their group");
+  // In their own group beneath Bearings, both in sight (product owner, 25 Oct 2026).
+  const rightGroups = (await layoutOf(page)).groups.filter((g) => g.place === "right");
+  assert.deepEqual(rightGroups.map((g) => [g.panels, g.active]), [[["panel-bearings"], "panel-bearings"], [["panel-tour"], "panel-tour"]], "Bearings and the walkthroughs, each in a group of its own, both in front");
   await page.locator('.dv-tab[data-panel="panel-tour"]').focus();
   await page.keyboard.press("Tab");
   assert.equal(await page.evaluate(() => document.activeElement?.closest("section.panel")?.id), "panel-tour", "Tab from their tab goes into the walkthroughs");
@@ -408,10 +410,15 @@ export async function playTours(page, shot, root) {
   assert.ok(outlineEnd[0] > 0 && outlineEnd[0] >= outlineEnd[1] - 1, `the Outline's list scrolled to its end: [scrollTop, its end] ${outlineEnd}`);
   const stepWords = stepRow(page, 1).locator(".tour-body p").first();
   assert.ok(await inSight(stepWords), "the step's words in sight, the Outline scrolled to its end");
+  // Beneath Bearings the walkthroughs are compact (product owner, 25 Oct 2026): the step's button is
+  // in sight once their panel is scrolled to it, the page never.
+  await go(page, 1).scrollIntoViewIfNeeded();
   assert.ok(await inSight(go(page, 1)), "and its button");
+  const tourScroll = () => page.evaluate(() => document.getElementById("panel-tour").closest(".dock-panel").scrollTop);
+  const scrolledTo = await tourScroll();
   // Its button only takes the reader there: pressing it ticks nothing.
   await go(page, 1).click();
-  assert.ok(await inSight(stepWords), "the step's words in sight as it is done");
+  assert.equal(await tourScroll(), scrolledTo, "the walkthroughs not scrolled as it is done");
   assert.equal(await page.evaluate(() => scrollY), 0, "the page itself does not scroll");
   assert.equal(await page.evaluate(() => document.activeElement?.dataset?.panel), "panel-time", "the keyboard on the time controller's tab");
   assert.equal(await stepRow(page, 1).getAttribute("class"), "tour-step next");
@@ -620,7 +627,9 @@ export async function playTours(page, shot, root) {
       if (width >= 900) {
         await openTours(page);
         await rightColumn(page);
-        assert.ok((await page.locator("#main").boundingBox()).width >= width * 0.5, `at ${width} px the map keeps half the width: ${(await page.locator("#main").boundingBox()).width}`);
+        // Half the width or more; 40% while a TMA solution is open, its column widened (product owner, 25 Oct 2026).
+        const share = (await page.evaluate(() => !!window.debriefTma?.shown?.solution_id)) ? 0.4 : 0.5;
+        assert.ok((await page.locator("#main").boundingBox()).width >= width * share - 3, `at ${width} px the map keeps ${share * 100}% of the width (to a few pixels): ${(await page.locator("#main").boundingBox()).width}`);
       } else {
         assert.equal(await page.locator("#dock").isHidden(), true, `not docked at ${width} px`);
         assert.equal(await page.locator("#side > section:not([hidden])").first().getAttribute("id"), "panel-tour", `at ${width} px the walkthroughs are first in the side column`);
@@ -651,7 +660,7 @@ export async function playTours(page, shot, root) {
   await page.locator("#tour .tour-ahead button.tour-again").click();
   await page.waitForFunction(() => window.debriefTours().tour === "explore");
   assert.equal(await page.locator("#tour-pick").inputValue(), "explore");
-  // Bearings grew under the map when the solution was shown (tma.md): the layout put back, for the speed run after.
+  // The layout put back, for the speed run after.
   await page.locator("#reset-layout").click();
   await mapPlaced(page);
   console.log(`Walkthroughs played, every step ticked by what was done on its copy, none by the same thing done elsewhere: ${(await events(page)).length} of 26 (Tidy a track started again). Docked on the right from 900 px, the step's words in sight while another panel scrolls; sideways scroll: ${widths.join("; ")}.`);

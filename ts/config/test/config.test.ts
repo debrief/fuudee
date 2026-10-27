@@ -13,10 +13,12 @@ import {
   removeStore,
   sameLocation,
   timing,
+  tmaErrorCutOff,
   trackImportMode,
   updateConfig,
   withNarrativeAnswers,
   withoutNarrativeAnswers,
+  withTmaErrorCutOff,
   withTrackImportMode,
 } from "../src/index.js";
 
@@ -160,7 +162,7 @@ describe("a narrative import's answers", () => {
     );
     const raw = JSON.parse(readFileSync(file, "utf8"));
     expect(raw.config_version).toBe(3);
-    expect(CONFIG_VERSION).toBe(3);
+    expect(CONFIG_VERSION).toBe(4);
     expect(raw.narrative_import).toEqual([
       { dialect: "narrative-document", within_period: true, skip_types: ["", "COMMS"], tracks: [{ platform: "HMS NELSON", track: "NELSON" }, { platform: "RED THREE" }] },
     ]);
@@ -177,5 +179,19 @@ describe("a narrative import's answers", () => {
     const config = loadConfig(fixture);
     expect(narrativeAnswers(config, "narrative-document")?.tracks).toEqual({ "HMS NELSON": "NELSON", "RED THREE": null });
     expect(narrativeAnswers(config, "rider-narrative")).toEqual({ skipTypes: [], withinPeriod: false, tracks: {} });
+  });
+});
+
+describe("the Bearings view's error cut-off", () => {
+  it("is 3 until remembered, says layout 4, as in Python", () => {
+    const file = join(mkdtempSync(join(tmpdir(), "debrief-cutoff-")), "config.json");
+    expect(tmaErrorCutOff(loadConfig(file))).toBe(3);
+    updateConfig((c) => withTmaErrorCutOff(c, 1.5), file);
+    expect(tmaErrorCutOff(loadConfig(file))).toBe(1.5);
+    expect(JSON.parse(readFileSync(file, "utf8"))).toEqual({ config_version: 4, stores: [], tma_error_cut_off: 1.5 });
+    updateConfig((c) => withTmaErrorCutOff(c, 3), file);
+    expect(JSON.parse(readFileSync(file, "utf8"))).toEqual({ config_version: 1, stores: [] });
+    expect(() => withTmaErrorCutOff(loadConfig(file), 0)).toThrow(ConfigError);
+    expect(tmaErrorCutOff(loadConfig(join(__dirname, "../../../schemas/fixtures/user_config/valid/tma-error-cut-off-remembered.json")))).toBe(1.5);
   });
 });

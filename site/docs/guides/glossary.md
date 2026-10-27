@@ -140,7 +140,11 @@ In collation, a source is a **catalogue item**: an imported file, kept as a plot
 
 **RMS** (root mean square error). Of a solution's residuals, over its cuts counted: those with a residual, shown on the map (a hidden cut is left out until shown again), and not **left out** by the analyst (a wild bearing, say), each left out or counted again as one step.
 
-**Bearings view.** Where a sensor's cuts are listed and a solution's residuals shown: measured and calculated bearings over time, the residuals beneath, after legacy Debrief's **Stacked Dots**, and the RMS, live while the solution is dragged.
+**Bearings view.** Where a sensor's cuts are listed and a solution's residuals shown, as legacy Debrief's **Bearing Residuals** view (its **Stacked Dots**) shows them: time up the left, the latest at the top, and side by side the **Bearing**, **Error** and **Course/Speed** panes, the analyst choosing which show; then the RMS and the solution's cuts. Live while the solution is dragged.
+
+**Error** (in the Bearings view; a cut's **residual**). The Error pane plots each residual against time. Its axis fits the errors every frame of a drag, as legacy's did, so they fill the pane; **Hold scale** keeps the axis as it is, widening it if an error falls outside.
+
+**Cut-off** (**error cut-off**). The analyst's limit for a fitted solution's errors, 3° unless they set another (in VS Code's Settings, `debrief.tma.errorCutOff`, or under **⋯** in the Bearings view; 0.01° to 180°). The Error pane is **green** while every error counted is within it and **pink** otherwise, as legacy shaded it, and says so in words: *Every error within 3.0°*, *2 of 60 beyond 3.0°, the largest 4.4°*. An unresolved pair's other bearing is never counted (legacy's shading counted it).
 
 **Leg.** A period of steady conditions. An **ownship leg** has steady course and speed; a **bearing leg** has a steady bearing rate. Changes of ownship leg give the geometry TMA needs. A **solution's legs** are periods of it, split at a time and joined: each is dragged on its own (**This leg**, the leg clicked), the other legs staying where they are and the joins either side solved again.
 

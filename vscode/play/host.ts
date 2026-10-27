@@ -45,7 +45,7 @@ import { describeSensorInFile, hostChoices, hostQuestion, hostsToAsk, sensorRead
 import { TimeControl } from "../webview/timecontrol.js";
 import { ToteControl } from "../webview/totecontrol.js";
 import { TmaControl } from "../webview/tmacontrol.js";
-import { cutColours, cutRowsOf, sensorOfSelection, solutionOfSelection, tmaSensorRows, tmaSolutionRows, type ListedCut } from "../webview/tma.js";
+import { coverageOf, cutColours, cutRowsOf, keepsSolution, ownshipOf, sensorOfSelection, solutionOfSelection, tmaSensorRows, tmaSolutionRows, type ListedCut } from "../webview/tma.js";
 import { latencySummary, sameTote, toteOf, ToteRequests, toteTracks, withoutSecondary, withPrimary, withSecondaries } from "../webview/totelogic.js";
 import { PressHold } from "../webview/presshold.js";
 import { Folds } from "./fold.js";
@@ -1724,9 +1724,6 @@ outlineList.addEventListener(
 /** Which sensor's cuts the view lists, and which solution it shows: the reader's, never saved. */
 let tmaSensor: string | undefined;
 let tmaSolution: string | undefined;
-/** The height the Bearings group is given when a solution is shown: its plots, the RMS and a few rows. */
-const BEARINGS_PX = 300;
-let bearingsGrownFor: string | undefined;
 /** The cuts two clicks on the map are asked for, until they are made or cancelled. */
 let tmaGuessing: TmaRequest | undefined;
 let tmaAsking = 0;
@@ -1734,23 +1731,59 @@ let tmaAsking = 0;
 let tmaFocus: TmaFocus | undefined;
 /** How long Python took to work out the residuals shown, ms: for the drag budget's measure (NFR-04). */
 const tmaCompute: number[] = [];
-const tmaControl = new TmaControl($("bearings"), {
-  choose: (id) => void chooseTma(id),
-  create: (request) => void createTma(request),
-  guess: (request) => {
-    tmaGuessing = request;
-    post(map, { kind: "tma_guess", tma_request: request });
+/** The reader's error cut-off, degrees, as the page's settings keep it (debrief-config). */
+let errorCutOff: number | undefined;
+/** Which of the plot's panes the reader shows: this browser, every read and write guarded (product owner, 25 Oct 2026). */
+const BEARINGS_KEY = "debrief.play.bearings";
+const tmaControl = new TmaControl(
+  $("bearings"),
+  {
+    choose: (id) => void chooseTma(id),
+    create: (request) => void createTma(request),
+    guess: (request) => {
+      tmaGuessing = request;
+      post(map, { kind: "tma_guess", tma_request: request });
+    },
+    exclude: (feature, cutIds, excluded) => void changeTma({ kind: "exclude", feature, cut_ids: cutIds, excluded }),
+    split: (feature, at) => void changeTma({ kind: "split", feature, at }),
+    time: (at) => timeTo(at),
+    resolve: (cutId, keep) => void resolveSensor({ keep, cut_ids: [cutId] }),
+    // A dot clicked: its cut, or the solution at a fix, selected in the Outline and on the map; current time to it.
+    select: (id, at) => {
+      timeTo(at);
+      void select([id]);
+    },
+    cutOff: (degrees) => {
+      errorCutOff = degrees;
+      if (pythonReady) void python("set_error_cut_off", degrees);
+    },
   },
-  exclude: (feature, cutIds, excluded) => void changeTma({ kind: "exclude", feature, cut_ids: cutIds, excluded }),
-  split: (feature, at) => void changeTma({ kind: "split", feature, at }),
-  time: (at) => timeTo(at),
-  resolve: (cutId, keep) => void resolveSensor({ keep, cut_ids: [cutId] }),
-});
+  undefined,
+  {
+    load: () => {
+      try {
+        const text = window.localStorage.getItem(BEARINGS_KEY);
+        return text ? JSON.parse(text) : undefined;
+      } catch {
+        return undefined;
+      }
+    },
+    save: (value) => {
+      try {
+        window.localStorage.setItem(BEARINGS_KEY, JSON.stringify(value));
+      } catch {
+        // Not remembered: the panes stay as chosen on this visit.
+      }
+    },
+  },
+);
 (window as unknown as { debriefTma: TmaControl; debriefTmaCompute: number[] }).debriefTma = tmaControl;
 bearingsTime = () => {
   if (time) tmaControl.setTime(Date.parse(time.current), time.range);
 };
 (window as unknown as { debriefTmaCompute: number[] }).debriefTmaCompute = tmaCompute;
+/** What is selected, and current time: for the tests (a dot clicked in the Bearings view selects its cut or fix). */
+(window as unknown as { debriefSelection: () => unknown }).debriefSelection = () => ({ selection, current: time?.current });
 
 /** The sensors, solutions, and the cuts or residuals the view shows, asked of Python again. */
 async function refreshBearings(): Promise<void> {
@@ -1774,8 +1807,16 @@ async function refreshBearings(): Promise<void> {
     if (outcome.compute_ms !== undefined) tmaCompute.push(outcome.compute_ms);
     residuals = outcome.residuals;
     if (sensor && outcome.cuts) cuts = cutRowsOf(sensor, outcome.cuts, cutColours(plot));
+    if (errorCutOff === undefined) errorCutOff = Number(await python("error_cut_off"));
   }
   if (asked !== tmaAsking || !opened) return;
+  // Around a solution: its sensors' whole coverage, and ownship's courses over it (product owner, 25 Oct 2026).
+  let around = {};
+  if (residuals && tmaSolution) {
+    const coverage = coverageOf(plot, tmaSolution);
+    const times = [...coverage.map((c) => c.time), ...residuals.rows.map((r) => r.time)].sort();
+    around = { coverage, ownship: ownshipOf(plot, tmaSolution, times.length ? { start: times[0], end: times[times.length - 1] } : undefined) };
+  }
   // Something a walkthrough's step asked to be chosen, once.
   const focus = tmaFocus;
   tmaFocus = undefined;
@@ -1786,13 +1827,22 @@ async function refreshBearings(): Promise<void> {
     ...(sensor && { sensor_id: sensor.id }),
     ...(cuts && { cuts }),
     solutions,
-    ...(residuals && tmaSolution && { solution_id: tmaSolution, residuals }),
+    ...(residuals && tmaSolution && { solution_id: tmaSolution, residuals, ...around }),
+    ...(errorCutOff !== undefined && Number.isFinite(errorCutOff) && { error_cut_off: errorCutOff }),
     ...(focus && { focus }),
   });
   if (time) tmaControl.setTime(Date.parse(time.current), time.range);
-  // A solution shown under the map: room for its plots, once for each solution (the reader may
-  // make the group shorter again, and it stays so).
-  if (residuals && tmaSolution && tmaSolution !== bearingsGrownFor && dock?.atLeast("panel-bearings", BEARINGS_PX)) bearingsGrownFor = tmaSolution;
+  bearingsWidth();
+}
+/**
+ * The column Bearings is in widened while a solution is open there, and back when none is
+ * (product owner, 25 Oct 2026): two panes of 160 px or more; only from and to the default widths.
+ */
+function bearingsWidth(): void {
+  requestAnimationFrame(() => {
+    const shown = tmaControl.shown;
+    if (dock?.widenFor("panel-bearings", !!shown?.solution_id && !!shown.residuals)) placeSoon();
+  });
 }
 /** The reader chose a sensor (its cuts) or a solution (its residuals; selected, so the map shows its handles). */
 async function chooseTma(id: string): Promise<void> {
@@ -1804,8 +1854,11 @@ async function chooseTma(id: string): Promise<void> {
     await refreshBearings();
   } else {
     tmaSolution = id;
-    await select([id]);
+    // Selected, so the map shows its handles; refreshed as bearingsWith does, since a solution
+    // already selected (chosen again from the view's Solution list) changes no selection to follow.
+    if (selection.length !== 1 || selection[0] !== id) await select([id]);
   }
+  await refreshBearings();
 }
 /**
  * A walkthrough's step (Bearings and TMA): Bearings in view, showing the sensor's cuts or the
@@ -1829,6 +1882,8 @@ async function bearingsWith(id: string, focus?: TmaFocus): Promise<void> {
 /** The selection changed: a solution selected alone is shown; a sensor, a cut or its track lists the sensor's cuts. */
 function bearingsFollow(ids: string[]): void {
   if (!opened) return;
+  // A cut of the solution's sensors selected (a dot clicked in the plot): the solution stays shown.
+  if (keepsSolution(opened.plot, ids, tmaSolution)) return;
   const solution = solutionOfSelection(opened.plot, ids);
   const sensor = sensorOfSelection(opened.plot, ids);
   if (solution && solution !== tmaSolution) {
@@ -2656,6 +2711,7 @@ function resetLayout(): void {
     dock = makeDock(true);
   });
   placeSoon();
+  bearingsWidth();
   refreshTote();
   if (!(focused instanceof HTMLElement && focused.isConnected)) dock?.focusTab("panel-time");
 }
@@ -2693,6 +2749,7 @@ function finishLayout(docked: boolean, focused: HTMLElement | undefined): void {
       $("dock").hidden = false;
       folds.suspend(true);
       dock = makeDock(false);
+      bearingsWidth();
     } else {
       unDock();
       $("dock").hidden = true;

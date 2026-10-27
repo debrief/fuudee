@@ -4,7 +4,7 @@
 // else gives the default (panel review, 23 Oct 2026: an incomplete layout once broke the page).
 // The layout itself is played in test/play/dock.mjs.
 import { describe, expect, it } from "vitest";
-import { defaultSizes, LAYOUT_VERSION, layoutProblem, layoutText, placeOf, readLayout } from "../../play/dock.js";
+import { defaultSizes, LAYOUT_VERSION, layoutProblem, layoutText, placeOf, readLayout, widenedWidth } from "../../play/dock.js";
 import { DEFAULT_GROUPS, PANELS, PANEL_TITLES, SIDE_FIRST } from "../../play/panels.mjs";
 
 const PANEL_IDS = ["panel-time", "panel-tote", "panel-outline"];
@@ -104,13 +104,37 @@ describe("the default's sizes", () => {
     expect(defaultSizes(900, 500).left).toBe(250);
     expect(defaultSizes(3000, 1600).right).toBe(380);
   });
+  it("widens the right-hand column while a solution is open: about 40%, two panes of 160 px, the map 40% or more", () => {
+    for (const [width, left, right] of [[1280, 269, 270], [1366, 287, 287], [1920, 360, 380], [1024, 250, 270]]) {
+      const wide = widenedWidth(width, left, right);
+      expect(wide).toBeGreaterThanOrEqual(right);
+      expect(width - left - wide).toBeGreaterThanOrEqual(Math.round(width * 0.4) - 1);
+      if (width >= 1280) expect(wide).toBeGreaterThanOrEqual(400);
+    }
+    expect(widenedWidth(1366, 287, 287)).toBe(533);
+    // Where 40% is under 400 px, the floor: two panes of 160 px beside the time axis, the map keeping its 40%.
+    expect(widenedWidth(950, 150, 270)).toBe(400);
+    expect(widenedWidth(900, 150, 270)).toBe(390);
+  });
+  it("gives Bearings most of the right-hand column and the walkthroughs a readable rest, at a laptop's sizes", () => {
+    for (const height of [666, 714, 1030]) {
+      const { bearings } = defaultSizes(1366, height);
+      expect(bearings / height).toBeGreaterThan(0.55);
+      expect(height - bearings).toBeGreaterThanOrEqual(260);
+    }
+  });
 });
 
 describe("the panels' one table", () => {
-  it("puts every panel in exactly one default group, the walkthroughs alone on the right", () => {
+  it("puts every panel in exactly one default group, Bearings on the right with the walkthroughs beneath", () => {
     const grouped = DEFAULT_GROUPS.flatMap((g) => g.panels);
     expect(grouped.sort()).toEqual(PANELS.map((p) => p.id).sort());
-    expect(DEFAULT_GROUPS.filter((g) => g.place === "right")).toEqual([{ place: "right", panels: ["panel-tour"] }]);
+    // Product owner, 25 Oct 2026: the right-hand column split, Bearings on top, the walkthroughs beneath, both in sight.
+    expect(DEFAULT_GROUPS.filter((g) => g.place === "right")).toEqual([
+      { place: "right", panels: ["panel-bearings"] },
+      { place: "right", panels: ["panel-tour"] },
+    ]);
+    expect(DEFAULT_GROUPS.find((g) => g.place === "centre")?.panels).toEqual(["panel-timeline", "panel-coverage"]);
     expect(DEFAULT_GROUPS.every((g) => g.panels.length <= 3)).toBe(true); // no tab overflow in a side column
   });
   // Product owner, 24 Oct 2026: three groups on the left; the Outline's last, so it has the rest.

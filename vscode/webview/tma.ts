@@ -15,10 +15,10 @@
  *   quickly as tens), the period chosen, and the next or previous ambiguous cut.
  */
 import { convert, DEFAULT_SETTINGS, fixed, formatQuantity, formatTime, UNIT_LABELS, type FormatSettings } from "@debrief/kernel";
-import type { DebriefFeatureCollection, TimeRange, TmaCut, TmaRequest, TmaResidualRow, TmaResiduals, TmaSensorRow, TmaSolutionRow } from "@debrief/schemas";
+import type { DebriefFeatureCollection, TimeRange, TmaCut, TmaOwnship, TmaRequest, TmaResidualRow, TmaResiduals, TmaSensorRow, TmaSolutionRow } from "@debrief/schemas";
 import geodesic from "geographiclib-geodesic";
 import { pointAt, rangeBearing, travel, type LonLat } from "./geodesic.js";
-import { bearingText, sensorsOf, type Kept } from "./sensors.js";
+import { bearingText, degrees, sensorsOf, type Kept } from "./sensors.js";
 
 const WGS84 = geodesic.Geodesic.WGS84;
 
@@ -382,7 +382,17 @@ export function tmaSensorRows(plot: DebriefFeatureCollection): TmaSensorRow[] {
   }));
 }
 
-/** The plot's TMA solutions as the view lists and draws them. */
+/** A track's courses in degrees and speeds in metres a second, one per fix, where it has them. */
+function seriesOf(track: TrackFeature): { courses?: number[]; speeds?: number[] } {
+  const n = track.properties.times.length;
+  const c = track.properties.courses;
+  const s = track.properties.speeds;
+  const courses = c && c.values.length === n ? c.values.map((v) => (c.unit === "rad" ? (v * 180) / Math.PI : v)) : undefined;
+  const speeds = s && s.values.length === n ? s.values.map((v) => convert({ value: v, unit: s.unit }, "m/s").value) : undefined;
+  return { ...(courses && { courses }), ...(speeds && { speeds }) };
+}
+
+/** The plot's TMA solutions as the view lists and draws them, each with its DR legs' courses and speeds. */
 export function tmaSolutionRows(plot: DebriefFeatureCollection): TmaSolutionRow[] {
   return plot.features
     .filter((f): f is TrackFeature => f.properties.kind === "track" && !!(f as TrackFeature).properties.tma)
@@ -397,8 +407,125 @@ export function tmaSolutionRows(plot: DebriefFeatureCollection): TmaSolutionRow[
         times: t.properties.times,
         ...(tag.leg_starts?.length && { leg_starts: tag.leg_starts }),
         cuts: tag.cut_ids.length,
+        ...seriesOf(t),
       };
     });
+}
+
+/** The sensors a solution's cuts are of: those it names and those of the cuts it is rooted in, as they are now. */
+function sensorsOfSolution(plot: DebriefFeatureCollection, solutionId: string): Set<string> {
+  const solution = plot.features.find((f) => f.id === solutionId) as TrackFeature | undefined;
+  const tag = solution?.properties.kind === "track" ? solution.properties.tma : undefined;
+  const out = new Set<string>(tag?.sensor_ids ?? []);
+  if (!tag) return out;
+  const rooted = new Set(tag.cut_ids);
+  for (const f of plot.features) if (f.properties.kind === "sensor_cut" && rooted.has(f.id)) out.add(f.properties.sensor_id);
+  return out;
+}
+
+/**
+ * Every cut of a solution's sensors shown on the map, in time order, rooted or not: the
+ * Bearing pane plots the sensors' whole coverage (product owner, 25 Oct 2026). Hidden cuts,
+ * and a hidden sensor's, are left out. No origins: a cut outside the solution has no residual.
+ */
+export function coverageOf(plot: DebriefFeatureCollection, solutionId: string): TmaCut[] {
+  const sensors = sensorsOfSolution(plot, solutionId);
+  const colours = cutColours(plot);
+  const out: TmaCut[] = [];
+  for (const entry of sensorsOf(plot)) {
+    if (!sensors.has(entry.sensor.id) || entry.sensor.properties.hidden) continue;
+    const row: TmaSensorRow = { id: entry.sensor.id, name: entry.sensor.properties.name, colour: entry.sensor.properties.colour, cuts: entry.cuts.length };
+    const listed: ListedCut[] = entry.cuts
+      .filter((c) => !c.properties.hidden)
+      .map((c) => ({
+        id: c.id,
+        time: c.properties.time,
+        bearing: degrees(c.properties.bearing),
+        ...(c.properties.ambiguous_bearing && { ambiguous_bearing: degrees(c.properties.ambiguous_bearing) }),
+        ...(c.properties.resolved && { resolved: c.properties.resolved }),
+      }));
+    out.push(...cutRowsOf(row, listed, colours));
+  }
+  return out.sort((a, b) => (a.time < b.time ? -1 : a.time > b.time ? 1 : 0));
+}
+
+/** The most fixes of ownship's course sent to the view: a line a few hundred pixels tall needs no more. */
+export const OWNSHIP_MOST = 2000;
+
+/**
+ * The tracks carrying a solution's sensors, ownship, with their courses as logged at their
+ * fixes within a period (product owner, 25 Oct 2026), thinned to OWNSHIP_MOST evenly by
+ * index, each turn's least and most kept so a manoeuvre is never smoothed away.
+ */
+export function ownshipOf(plot: DebriefFeatureCollection, solutionId: string, period?: TimeRange): TmaOwnship[] {
+  const sensors = sensorsOfSolution(plot, solutionId);
+  const hosts = new Set<string>();
+  for (const f of plot.features) if (f.properties.kind === "sensor" && sensors.has(f.id)) hosts.add(f.properties.host_track_id);
+  const out: TmaOwnship[] = [];
+  for (const f of plot.features) {
+    if (f.properties.kind !== "track" || !hosts.has(f.id)) continue;
+    const track = f as TrackFeature;
+    const { courses } = seriesOf(track);
+    if (!courses) continue;
+    const times = track.properties.times;
+    let first = 0;
+    let last = times.length;
+    if (period) {
+      while (first < times.length && times[first] < period.start) first++;
+      while (last > first && times[last - 1] > period.end) last--;
+      // The fixes either side too, so the line reaches the period's ends.
+      first = Math.max(0, first - 1);
+      last = Math.min(times.length, last + 1);
+    }
+    const n = last - first;
+    const keep: number[] = [];
+    if (n <= OWNSHIP_MOST) for (let i = first; i < last; i++) keep.push(i);
+    else {
+      // Buckets of fixes: the least and most course of each, in time order, as angles about the
+      // bucket's mean course, so a turn through north keeps its extremes (359° and 1° are 2° apart).
+      const buckets = Math.floor(OWNSHIP_MOST / 2);
+      for (let b = 0; b < buckets; b++) {
+        const lo = first + Math.floor((b * n) / buckets);
+        const hi = first + Math.floor(((b + 1) * n) / buckets);
+        let sx = 0;
+        let sy = 0;
+        for (let i = lo; i < hi; i++) {
+          sx += Math.cos((courses[i] * Math.PI) / 180);
+          sy += Math.sin((courses[i] * Math.PI) / 180);
+        }
+        const mean = (Math.atan2(sy, sx) * 180) / Math.PI;
+        let min = lo;
+        let max = lo;
+        for (let i = lo; i < hi; i++) {
+          if (wrap(courses[i] - mean) < wrap(courses[min] - mean)) min = i;
+          if (wrap(courses[i] - mean) > wrap(courses[max] - mean)) max = i;
+        }
+        keep.push(...(min === max ? [min] : min < max ? [min, max] : [max, min]));
+      }
+    }
+    out.push({
+      id: track.id,
+      name: track.properties.name,
+      ...(track.properties.style?.colour && { colour: track.properties.style.colour }),
+      times: keep.map((i) => times[i]),
+      courses: keep.map((i) => courses[i]),
+    });
+  }
+  return out;
+}
+
+/**
+ * Whether a selection keeps the solution shown: a cut of its sensors clicked in the plot (or
+ * selected anywhere) is selected without the view going back to listing a sensor's cuts.
+ */
+export function keepsSolution(plot: DebriefFeatureCollection, selection: string[], solutionId: string | undefined): boolean {
+  if (!solutionId || !selection.length) return false;
+  const sensors = sensorsOfSolution(plot, solutionId);
+  const byId = new Map(plot.features.map((f) => [f.id, f]));
+  return selection.every((id) => {
+    const f = byId.get(id);
+    return !!f && f.properties.kind === "sensor_cut" && sensors.has(f.properties.sensor_id);
+  });
 }
 
 /** A cut as debrief/sensors lists it (its cuts: true answer). */
@@ -413,6 +540,14 @@ export interface ListedCut {
   origin_derived?: boolean;
   label?: string;
   hidden?: boolean;
+}
+
+/**
+ * The coverage the Bearing pane plots beside a solution's cuts: those not rooted in it, and never
+ * one hidden on the map, whatever a host sent (coverageOf leaves them out already).
+ */
+export function coverageOutside(coverage: readonly TmaCut[] | null | undefined, rooted: ReadonlySet<string>): TmaCut[] {
+  return (coverage ?? []).filter((c) => !rooted.has(c.id) && !c.hidden);
 }
 
 /** A sensor's cuts as debrief/sensors lists them, as the view's rows. */

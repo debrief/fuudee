@@ -1,5 +1,5 @@
 /**
- * The bearing view in VS Code's Debrief sidebar (CAP-21, CAP-22): the same component as
+ * The bearing view in VS Code's panel, beside the Terminal (CAP-21, CAP-22; product owner, 25 Oct 2026): the same component as
  * the playground's (tmacontrol.ts), in a view of its own. The extension host asks the tool
  * service for a sensor's cuts and a solution's residuals and makes every change; this page
  * shows them, works the residuals out again while a solution is dragged on the map, and
@@ -17,15 +17,24 @@ const root = document.getElementById("root")!;
 root.classList.add("tma-root");
 root.innerHTML = `<div id="tma"></div>`;
 
-const control = new TmaControl(document.getElementById("tma")!, {
-  choose: (feature_id) => host.postMessage({ kind: "tma_chosen", feature_id }),
-  create: (tma_request) => host.postMessage({ kind: "tma_create", tma_request }),
-  guess: (tma_request) => host.postMessage({ kind: "tma_guess", tma_request }),
-  exclude: (feature_id, cut_ids, excluded) => host.postMessage({ kind: "tma_exclude", feature_id, cut_ids, excluded }),
-  split: (feature_id, current_time) => host.postMessage({ kind: "tma_split", feature_id, current_time }),
-  time: (current_time) => host.postMessage({ kind: "tma_time_asked", current_time }),
-  resolve: (feature_id, keep) => host.postMessage({ kind: "resolve_asked", feature_id, keep }),
-});
+const control = new TmaControl(
+  document.getElementById("tma")!,
+  {
+    choose: (feature_id) => host.postMessage({ kind: "tma_chosen", feature_id }),
+    create: (tma_request) => host.postMessage({ kind: "tma_create", tma_request }),
+    guess: (tma_request) => host.postMessage({ kind: "tma_guess", tma_request }),
+    exclude: (feature_id, cut_ids, excluded) => host.postMessage({ kind: "tma_exclude", feature_id, cut_ids, excluded }),
+    split: (feature_id, current_time) => host.postMessage({ kind: "tma_split", feature_id, current_time }),
+    time: (current_time) => host.postMessage({ kind: "tma_time_asked", current_time }),
+    resolve: (feature_id, keep) => host.postMessage({ kind: "resolve_asked", feature_id, keep }),
+    select: (feature_id, current_time) => host.postMessage({ kind: "tma_select", feature_id, current_time }),
+    cutOff: (error_cut_off) => host.postMessage({ kind: "tma_cut_off", error_cut_off }),
+    drawn: (plot_height, pane_widths) => host.postMessage({ kind: "tma_plot_drawn", plot_height, pane_widths }),
+  },
+  undefined,
+  // Which panes show: the view's own state, kept by VS Code (product owner, 25 Oct 2026).
+  { load: () => host.getState(), save: (state) => host.setState(state) },
+);
 (window as unknown as { debriefTma: TmaControl }).debriefTma = control;
 
 onMessage((message) => {
