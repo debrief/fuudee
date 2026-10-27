@@ -1458,6 +1458,17 @@
 </li>
       
         <li class="md-nav__item">
+  <a href="#fitting-a-leg-as-legacys-tutorial-teaches-it" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Fitting a leg, as legacy's tutorial teaches it
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
   <a href="#live-residuals-while-dragging" class="md-nav__link">
     <span class="md-ellipsis">
       
@@ -1809,6 +1820,17 @@
 </li>
       
         <li class="md-nav__item">
+  <a href="#fitting-a-leg-as-legacys-tutorial-teaches-it" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Fitting a leg, as legacy's tutorial teaches it
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
   <a href="#live-residuals-while-dragging" class="md-nav__link">
     <span class="md-ellipsis">
       
@@ -1873,7 +1895,7 @@
 
 
 <h1 id="tma-solutions">TMA solutions<a class="headerlink" href="#tma-solutions" title="Permanent link">&para;</a></h1>
-<p>How an analyst makes a target motion analysis (TMA) solution from a period of bearing cuts, reads its bearing residuals in the Bearings view, drags it on the map with the residuals following, leaves wild cuts out of the RMS, and splits it into legs. How legacy plots' solutions come in. Decisions of the product owner, 24 Oct 2026, unless said otherwise; hidden cuts, independent legs and both bearings of an ambiguous cut, 25 Oct 2026.</p>
+<p>How an analyst makes a target motion analysis (TMA) solution from a period of bearing cuts, reads its bearing residuals in the Bearings view, drags it on the map with the residuals following, leaves wild cuts out of the RMS, and splits it into legs. How legacy plots' solutions come in. Decisions of the product owner, 24 Oct 2026, unless said otherwise; hidden cuts, independent legs and both bearings of an ambiguous cut, 25 Oct 2026; the Bearings view as legacy's Bearing Residuals (Stacked Dots) laid it out, and the way of fitting a leg it serves, 25 Oct 2026.</p>
 <p>A newcomer learns it from the walkthrough <em>Bearings and TMA</em> (<a href="../walkthroughs/">walkthroughs</a>), on the sample's towed array: a side kept, a first guess, a drag, a wild bearing left out and a split into legs. Its buttons use <strong>Show bearings</strong> with something to choose (<code>debrief.showBearings</code> with a <code>TmaFocus</code>: a cut, a period and the first guess's form, or the largest residual).</p>
 <h2 id="requirements-cited">Requirements cited<a class="headerlink" href="#requirements-cited" title="Permanent link">&para;</a></h2>
 <table>
@@ -1961,35 +1983,103 @@
   Host-&gt;&gt;Python: debrief/tma_residuals
   Python--&gt;&gt;View: the residuals, exact again</code></pre>
 <h2 id="the-bearings-view">The Bearings view<a class="headerlink" href="#the-bearings-view" title="Permanent link">&para;</a></h2>
-<p>In VS Code, <strong>Bearings</strong> in Debrief's side bar, after the Timeline (<strong>Show bearings</strong> on a sensor's or a solution's menu in the Outline). In the playground, a panel beside the Timeline and Coverage under the map, its group made taller (300 px, at most half the height) when a solution is first shown, so its plots show whole; made shorter again by the reader, it stays so. It follows the selection: a sensor's cuts when a sensor, a cut or its track is selected; a solution's residuals when a solution is.</p>
+<p>The view works as legacy Debrief's <strong>Bearing Residuals</strong> view (its Stacked Dots) does: its orientation and its way of working, not its pixels (product owner, 25 Oct 2026).</p>
+<p><strong>Where it is.</strong> In VS Code, <strong>Bearings</strong> is in the <strong>panel</strong> below the editor, beside the Terminal and Problems, a view container of its own (product owner, 25 Oct 2026; <strong>Show bearings</strong> on a sensor's or a solution's menu in the Outline, and the <em>Bearings and TMA</em> walkthrough, open it there): wide and short, so its panes sit side by side with room each and the time axis takes the panel's height. In Debrief's side bar, as a seventh view, its panes were about 100 px wide. Drag the panel taller for a longer time axis, or move the view where you like, as with any VS Code view. <strong>The controls are on top of the plot at any size</strong> (product owner, 26 Oct 2026), except where on top they would leave the plot under 220 px, as VS Code's default bottom panel would (about 126 px measured): then, the view wide and the cut list closed, the plot takes the whole height on the left and the toolbar, the cue and the cut's buttons stack in a column beside it (in a 1440 × 900 window the plot about 218 px tall, each pane about 340 px wide). They go back on top once on top would leave 250 px, so a resize never flickers between the two. The same in the playground. In the playground, right of the map, on top of the right-hand column with about 62% of its height, the walkthroughs beneath it (product owner, 25 Oct 2026), so a walkthrough's words stay in sight while working in Bearings; the map is as wide as before. While a solution is open in Bearings the column widens, to about 40% of the window, so each of two panes is 160 px or more, and the map narrows (to 40% of the window, the one time it keeps less than half from 1280 px); with no solution it goes back, and a column the reader has sized is left as they made it. The walkthroughs collapse to their tab from the tab's menu (<em>Collapse to its tabs</em>), giving Bearings the whole column. Shorter than 640 px, the view drops its key, keeps three rows of the list and lays the readout over the panes' names; what does not fit scrolls. Dragged elsewhere (under the map, say) it still works, the plot beside the list once it is 640 px wide. On a phone, and below 900 px, it is a section of the one column, as tall as its plot and list need. It follows the selection: a sensor's cuts when a sensor, a cut or its track is selected; a solution's residuals when a solution is. A cut of the solution's sensors selected (a dot clicked) keeps the solution shown.</p>
 <ul>
 <li><strong>Sensor</strong> and <strong>Solution</strong> lists at the top: whose cuts are listed, and which solution's residuals are shown (<em>None: list the sensor's cuts</em>).</li>
-<li><strong>The plots</strong>, after legacy's Stacked Dots: measured bearings over time (filled dots, in each cut's colour; a ring for one measured by the nearer of two bearings, its other bearing a faint dot, never counted; a dotted ring for one left out; none for a cut hidden on the map), the solution's calculated bearings as a line in its colour, legs' starts dashed, current time a line; the residuals beneath, against zero. Bearings are unwrapped so a contact passing north stays one line. A click moves current time to the nearest cut. While a drag goes on, the axes hold as they were when it began, so the dots move rather than the scale. The canvas is described for a screen reader (<em>Bearings and residuals of Contact 1 solution over time: RMS 2.1° over 60 cuts</em>).</li>
-<li><strong>The RMS</strong> beneath, and what it assumed (ambiguous cuts by the nearer side, cuts without a residual, derived origins, hidden cuts left out). While a solution is dragged it says <em>(while dragging)</em>.</li>
-<li><strong>The list of cuts</strong>: time, bearing (both, for an unresolved ambiguous cut; with a solution, the one measured, ≈ for the nearer of two), and with a solution, its residual and whether it counts. One sensor is listed at a time, so the sensor is its swatch's colour, not a column; where a solution's cuts are of more than one sensor, each row says its sensor to a screen reader. Narrower than 280 px (a side column, about 200 px at a 768 px window) the tick boxes go, so each time, bearing and residual reads whole; Space and the button still leave a cut out. <strong>Virtualised</strong>: rows of one height whatever the font (the text in VS Code's font size), only those in sight in the page, so it scrolls thousands of cuts as easily as ten. A listbox: each option says its place and the list's size (<code>aria-posinset</code>, <code>aria-setsize</code>), and the cut chosen stays in the page when scrolled out of sight, so the list's active descendant is always there. Each row is read as <em>12:24:30Z, 260.2°, residual +1.6°</em>.</li>
-<li><strong>The period</strong> chosen, said beside <strong>Make solution…</strong>. Until the analyst chooses, it is the cuts in the time window, following it; then it stays as chosen.</li>
-<li><strong>The cut chosen's buttons</strong>: <strong>Previous ambiguous</strong> and <strong>Next ambiguous</strong> (the unresolved cut before or after, and current time to it); <strong>Keep 031.9° (starboard)</strong>, <strong>Keep 267.7° (port)</strong> and <strong>Make ambiguous again</strong> for an ambiguous cut, one step each as on the map; <strong>Leave this cut out of the RMS</strong> or <strong>Count this cut in the RMS</strong>; <strong>Split into legs at 12:53:30Z</strong>.</li>
+<li><strong>The toolbar</strong>, one row with a solution shown: the <strong>Solution</strong> list, the panes shown (<strong>Bearing</strong>, <strong>Error</strong>, <strong>Course/Speed</strong>, each a toggle), <strong>Hold</strong> (<em>Hold scale</em>), <strong>Reset</strong> (<em>Reset zoom</em>) and <strong>⋯</strong>, which shows the <strong>Sensor</strong> list, the <strong>Cut-off</strong> and the key beneath the row. Without a solution, the Sensor and Solution lists are at the top as before.</li>
+<li>
+<p><strong>The plot.</strong> Time runs <strong>up the left</strong>, the latest at the top, as legacy's did. Beside each other, sharing that time axis:</p>
+<ul>
+<li><strong>Bearing (°)</strong>: every measured bearing of the solution's sensors shown on the map, over their <strong>whole</strong> period, not only the solution's (each in the cut's colour; an unresolved pair outside the solution both faint); within the solution, a ring for one measured by the nearer of two bearings, its other bearing faint and never counted, a dotted ring for one left out; the solution's <strong>calculated</strong> bearings as a line in its colour, only where the solution is, and again as small triangles (▲) drawn over the dots, edged in the background colour, so where the measured bearings lie on the line (a solution fitted) it stays in sight beneath them, as legacy's triangles did. Bearings are unwrapped about the calculated ones, so a contact passing north stays one line: legacy's <em>Centre bearing axis on North</em> (0–360° to ±180°) is never needed.</li>
+<li><strong>Error (°)</strong>: each residual, only where the solution is, against a strong zero line. Its background is <strong>green</strong> while every error counted is within the <strong>cut-off</strong>, <strong>pink</strong> otherwise, as legacy's <code>calculateErrorShadeFor</code> shaded it: counted as the RMS counts (a residual of a cut shown on the map, not left out; never an unresolved pair's other bearing). Never colour alone: beside it a mark and words say the same, and how many are beyond (product owner, 25 Oct 2026): ✓ <em>Every error within 3.0°</em>; ✗ <em>2 of 60 beyond 3.0°, the largest 4.4°</em>; a screen reader hears the same words. Its axis <strong>fits the errors counted</strong>, zero included: an unresolved pair's other bearing and a cut left out are drawn (faint, or a dotted ring) where they fall inside it, and when some fall outside a note says so beside the cue (<em>3 other bearings off scale</em>, <em>1 left out off scale</em>), never a dot pinned at an edge. <strong>Hold scale</strong> widens only for the errors counted. <strong>A deliberate departure from legacy</strong>: legacy's pass/fail shading counted an unresolved pair's other error too (its ambiguous series was in the shaded plot); here it does not, as the RMS does not. The shades are the theme's (VS Code's for lines added and removed); a high-contrast theme, which has none, borders the pane in its passed or failed colour instead.</li>
+<li><strong>Course/Speed</strong>: ownship's courses (the host track's, as logged at its fixes), the solution's course (its DR legs) on the <strong>Course (°)</strong> axis above, and its speed, dashed, on a <strong>Speed</strong> axis of its own beneath, in the analyst's speed unit. Off by default: at the side column's 270 to 380 px two panes keep about 120 px each to read dots in, and three would leave 80. Turn it on for a manoeuvre.</li>
 </ul>
-<p>The view is wide and short under the map, narrow and tall in VS Code's side bar: from 640 px wide the plots and buttons are beside the list, otherwise above it. Beside the list in a short panel the plots keep their place and take the height; what is beneath them (the RMS, the notes, the buttons, the form) scrolls.</p>
+<p>Which panes show is the analyst's, remembered in this browser (the playground) or as the view's state (VS Code); one at least always shows. Legs' starts are dashed across every pane, current time a line. A crosshair follows the pointer and a readout above the plot says the time and value under it (<em>12:53:30Z · Error +1.6°</em>). The plot is described for a screen reader (<em>Bearings and residuals of Contact 1 solution, time upward from 12:00:00Z to 17:00:00Z; panes Bearing, Error: RMS 1.6° over 60 cuts. Every error within 5.0°.</em>).
+- <strong>Zoom.</strong> Drag a box in any pane: time zooms to its height in every pane, and that pane's values to its width. A double-click, <strong>Reset zoom</strong>, or <code>0</code> undoes it. A zoom stays while the solution is dragged, so the fine tuning is done zoomed in.
+- <strong>A dot clicked</strong> selects its cut, in the Outline and on the map, and moves current time to it, as legacy's did; the list chooses its row. A click on the solution's calculated line or its course or speed selects the solution's fix there: the solution selected, current time at the fix. A click away from any dot moves current time.
+- <strong>The cue and the RMS</strong>, one status line beneath the plot, and what the RMS assumed (ambiguous cuts by the nearer side, cuts without a residual, derived origins, hidden cuts left out). While a solution is dragged it says <em>(while dragging)</em>.
+- <strong>The list of cuts</strong>, beneath the plot, <strong>collapsible</strong> with a solution shown (<em>▸ Cuts (60) and their residuals</em>): closed by default so the plot takes the height (at 1366 × 768 about 336 px tall, with the walkthroughs in sight beneath), the analyst's choice remembered; open, it has the keyboard, with the notes and the cut's buttons; a walkthrough's step that chooses a cut opens it. Without a solution it is always open, as it is how a period is chosen. Time, bearing (both, for an unresolved ambiguous cut; with a solution, the one measured, ≈ for the nearer of two), and with a solution, its residual and whether it counts. Without a solution, the list takes the whole height. One sensor is listed at a time, so the sensor is its swatch's colour, not a column; where a solution's cuts are of more than one sensor, each row says its sensor to a screen reader. Narrower than 280 px the tick boxes go, so each time, bearing and residual reads whole; Space and the button still leave a cut out. <strong>Virtualised</strong>: rows of one height whatever the font, only those in sight in the page, so it scrolls thousands of cuts as easily as ten. A listbox: each option says its place and the list's size (<code>aria-posinset</code>, <code>aria-setsize</code>), and the cut chosen stays in the page when scrolled out of sight. Each row is read as <em>12:24:30Z, 260.2°, residual +1.6°</em>.
+- <strong>The period</strong> chosen, said beside <strong>Make solution…</strong>. Until the analyst chooses, it is the cuts in the time window, following it; then it stays as chosen.
+- <strong>The cut chosen's buttons</strong>, in sight beneath the status line with the cut list closed too, except Previous and Next ambiguous, which step through the list: <strong>Previous ambiguous</strong> and <strong>Next ambiguous</strong> (the unresolved cut before or after, and current time to it); <strong>Keep 031.9° (starboard)</strong>, <strong>Keep 267.7° (port)</strong> and <strong>Make ambiguous again</strong> for an ambiguous cut, one step each as on the map; <strong>Leave this cut out of the RMS</strong> or <strong>Count this cut in the RMS</strong>; <strong>Split into legs at 12:53:30Z</strong>.</p>
+</li>
+</ul>
+<p><strong>The cut-off</strong> is the analyst's setting, like their other preferences: 3° unless they set another, kept in their Debrief configuration (<code>tma_error_cut_off</code>, configuration version 4), never in a plot. Set it under <strong>⋯</strong> in the view, or in VS Code's Settings (<code>debrief.tma.errorCutOff</code>); the two agree, and both take 0.01° to 180°.</p>
+<h2 id="fitting-a-leg-as-legacys-tutorial-teaches-it">Fitting a leg, as legacy's tutorial teaches it<a class="headerlink" href="#fitting-a-leg-as-legacys-tutorial-teaches-it" title="Permanent link">&para;</a></h2>
+<ol>
+<li><strong>Pin the leg's start on the first bearing.</strong> Make the solution with its first guess's range along the first cut's bearing (the form), so the first error is zero. Early in the fit the errors <strong>ramp</strong> away from it, and the Error pane is <strong>pink</strong>.</li>
+<li><strong>Drag the leg's end</strong> (a shear: the start held) and watch the Error pane. Its axis <strong>fits the errors every frame</strong>, so as they shrink they still fill the pane: a ramp that tilts one way or the other says which way to drag. Drag until the errors <strong>flatten</strong> about zero and the pane turns <strong>green</strong>.</li>
+<li><strong>Zoom in for the fine tuning</strong>: a box round the leg's errors, then small drags (or the arrow keys on the handle). The zoom stays while dragging. <strong>Hold scale</strong> keeps the Error axis still if the moving scale distracts; it widens rather than hide an error.</li>
+<li><strong>The next leg</strong>: split at the manoeuvre (<strong>Split into legs at…</strong>, the cut chosen where the bearing rate changes), choose <strong>This leg</strong> on the map, click the next leg, and do the same; the leg already fitted stays where it is.</li>
+</ol>
 <h2 id="live-residuals-while-dragging">Live residuals while dragging<a class="headerlink" href="#live-residuals-while-dragging" title="Permanent link">&para;</a></h2>
 <p>The map previews a drag as it always has (a drag is one step only when let go). For a solution, each frame's positions go to the Bearings view, which works the residuals out again in the browser (the same geodesic and the same rules as Python, held to the same vectors) at most once a frame. Let go, and Python's residuals for the saved step replace them. A drag put back (Escape) puts the residuals back.</p>
-<p>A frame does only what changes: the residuals worked out again (each row's cut and time parsed once, before the drag begins, and the rows written again in place), the RMS, the residual cells of the rows in the page (nothing rebuilt), and the plots (their size read once, dots of one kind and colour drawn as one path, a dot where its like is already drawn left out). The whole frame is timed. Measured in headless Chromium on a shared four-core machine, sixty frames each: 600 cuts, median 3 to 5 ms; 1,000 cuts, 5 to 7 ms; 2,000 cuts, 9 to 12 ms, its 95th percentile 15 to 19 ms; the worst single frame at 2,000 cuts 15 to 30 ms, from the machine's pauses rather than the work (NFR-04's 100 ms either way). The playground's test drags a solution of 600, 1,000 and 2,000 cuts and holds each median within a frame.</p>
+<p><strong>The axes while dragging</strong> (product owner, 25 Oct 2026). The Error axis fits the errors every frame, as legacy's auto-resize did (<code>BaseStackedDotsView.wrappedUpdateStackedDots</code>); with <strong>Hold scale</strong> it stays as it was, and <strong>widens</strong> on the side an error falls outside, never shrinking until let go. <strong>No dot is ever drawn at an edge it is not at</strong>: the held axis of the first TMA pull request clamped them there, and that is superseded. The Bearing axis keeps its range during a drag, as legacy's did, widened the same way if the calculated bearings leave it. The Course/Speed pane fits its courses and speeds every frame, the solution's worked out from the dragged fixes with the WGS84 ellipsoid's local radii at each leg's middle latitude (<code>localCourse</code>), measured against geographiclib's geodesic: within 0.0001° and 0.0001% for legs to 10 km at latitudes to 70°, at worst 0.0002° and 0.0006% for a 20 km leg at 75°. A zoom wins over all of them.</p>
+<p>A frame does only what changes: the residuals worked out again (each row's cut and time parsed once, before the drag begins, and the rows written again in place), the RMS and the cue, the residual cells of the rows in the page (nothing rebuilt), and the plot (its size read once a drag, dots of one kind and colour drawn as one path, a dot where its like is already drawn left out, the crosshair on a canvas of its own). The whole frame is timed. Measured in headless Chromium on a shared four-core machine, sixty frames each, all three panes shown, the sensor's other cuts half as many again and ownship's course 2,000 fixes: 600 cuts, median 3 to 4 ms; 1,000 cuts, 5 to 6 ms; 2,000 cuts, 7 to 11 ms, its 95th percentile 12 to 17 ms; the worst single frame at 2,000 cuts 18 to 30 ms, from the machine's pauses rather than the work (NFR-04's 100 ms either way). The playground's test drags a solution of 600, 1,000 and 2,000 cuts and holds each median within a frame.</p>
 <h2 id="keyboard-and-touch">Keyboard and touch<a class="headerlink" href="#keyboard-and-touch" title="Permanent link">&para;</a></h2>
-<p>The list is one tab stop. Up and Down move the cut chosen, Shift with them (or Shift-click) extends the period; Home, End, Page Up and Page Down as usual; Ctrl+A chooses every cut. Enter moves current time to the cut, so the map emphasises it. <strong>Alt+Down</strong> and <strong>Alt+Up</strong> go to the next or previous unresolved ambiguous cut. With a solution shown, <strong>Space</strong> leaves the chosen cuts out of the RMS, or counts them again; it never changes the cuts chosen, which Shift and the arrow keys do (a multi-select list often toggles a choice with Space; here the choice is a period, so Space is free for the RMS). The first guess's form takes the keyboard first, at the range; each field says what it means beneath it as it is typed (<em>Means 5.00 nmi.</em>), and a mistake before anything is sent. <strong>Two clicks on the map instead</strong> has no keyboard way of its own: the form is the keyboard's. On the map, <strong>This leg</strong> is a button like <em>Whole track</em>, and the drags are the track's, with their keys (<a href="../track-operations/">track operations</a>); from the keyboard, the leg dragged is the one current time is in (Enter on a cut in the list moves current time to it), and a click or tap on the solution's line picks another. A tap is a click.</p>
+<p>The list is one tab stop. Up and Down move the cut chosen, Shift with them (or Shift-click) extends the period; Home, End, Page Up and Page Down as usual; Ctrl+A chooses every cut. Enter moves current time to the cut, so the map emphasises it. <strong>Alt+Down</strong> and <strong>Alt+Up</strong> go to the next or previous unresolved ambiguous cut. With a solution shown, <strong>Space</strong> leaves the chosen cuts out of the RMS, or counts them again; it never changes the cuts chosen, which Shift and the arrow keys do (a multi-select list often toggles a choice with Space; here the choice is a period, so Space is free for the RMS).</p>
+<p>The plot is a tab stop too, the keyboard's way to everything the pointer does there:</p>
+<table>
+<thead>
+<tr>
+<th>Key</th>
+<th>In the plot</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Up, Down</td>
+<td>The next later or earlier cut (time runs up), ringed in each pane, read above the plot and said to a screen reader</td>
+</tr>
+<tr>
+<td>Enter</td>
+<td>Select the cut, in the Outline and on the map</td>
+</tr>
+<tr>
+<td>Space, Delete</td>
+<td>Leave the cut chosen out of the RMS, or count it again (as Space in the list), one step</td>
+</tr>
+<tr>
+<td><code>S</code></td>
+<td>Split the solution into legs at the cut chosen, one step (where each leg keeps two fixes)</td>
+</tr>
+<tr>
+<td><code>1</code>, <code>2</code></td>
+<td>Keep an unresolved ambiguous cut's first or second bearing, one step (as <strong>Keep …</strong>)</td>
+</tr>
+<tr>
+<td><code>+</code>, <code>−</code></td>
+<td>Zoom time in or out about the cut chosen</td>
+</tr>
+<tr>
+<td><code>]</code>, <code>[</code></td>
+<td>Zoom the Error pane's values in or out</td>
+</tr>
+<tr>
+<td>Page Up, Page Down</td>
+<td>Move a zoom later or earlier</td>
+</tr>
+<tr>
+<td><code>0</code></td>
+<td>Reset the zoom (as a double-click, or <strong>Reset zoom</strong>)</td>
+</tr>
+</tbody>
+</table>
+<p>What the plot's keys do is said in the view's live region as well as drawn: the cut chosen (<em>12:41:30Z, Bearing 263.4°, Error +1.2°</em>) and the zoom (<em>Zoomed: 12:20:00Z to 13:10:00Z</em>). Time zooms in to ten seconds at the least.</p>
+<p>The toolbar's toggles are buttons (<code>aria-pressed</code>; in Windows' forced colours a pressed one is drawn in the system's Highlight); <strong>⋯</strong> and the cut list's button are disclosures (<code>aria-expanded</code>), and Escape closes ⋯ and puts the keyboard back on it; the cut-off is a number field. With the cut list closed, the plot's keys still choose, select, leave out, split and keep, and the cut chosen's buttons stay in sight; opening the list puts the keyboard in it. The first guess's form takes the keyboard first, at the range; each field says what it means beneath it as it is typed (<em>Means 5.00 nmi.</em>), and a mistake before anything is sent. <strong>Two clicks on the map instead</strong> has no keyboard way of its own: the form is the keyboard's. On the map, <strong>This leg</strong> is a button like <em>Whole track</em>, and the drags are the track's, with their keys (<a href="../track-operations/">track operations</a>); from the keyboard, the leg dragged is the one current time is in (Enter on a cut in the list moves current time to it), and a click or tap on the solution's line picks another. A tap is a click; a box is dragged with a finger as with a mouse (the plot takes the touch, so the page scrolls from beside it).</p>
 <h2 id="not-yet">Not yet<a class="headerlink" href="#not-yet" title="Permanent link">&para;</a></h2>
 <ul>
 <li><strong>Generated solutions</strong> (SATC, or a solution fitted to the bearings): out of scope (CAP-21).</li>
 <li><strong>Residuals while ownship is dragged</strong>: ownship moves the cuts' origins; the residuals are worked out again when the drag is saved, not while it goes.</li>
-<li><strong>Several sensors at once</strong> in the view's list: agents can root a solution in several sensors' cuts; the view lists one sensor at a time.</li>
-<li><strong>What legacy's Stacked Dots has that the view has not yet</strong>: ownship's course on the bearing plot, a plot of the target's course and speed, choosing or hiding dots in the plot, zooming it, and flipping its axes.</li>
+<li><strong>Several sensors at once</strong> in the view's list: agents can root a solution in several sensors' cuts; the view lists one sensor at a time (the plot shows every cut of the solution's sensors).</li>
 <li><strong>Legacy's TMA solution set</strong> (contact ellipses): still listed as not imported.</li>
 </ul>
 <h2 id="reference-implementation">Reference implementation<a class="headerlink" href="#reference-implementation" title="Permanent link">&para;</a></h2>
 <ul>
-<li><strong>Model:</strong> <code>TmaSolution</code>, <code>TmaRequest</code> in <code>schemas/linkml/features.yaml</code>; <code>schemas/linkml/tma.yaml</code> (the view's rows and the residuals); the rules in <code>debrief_schemas.documents</code> (a contact named, the period in order, cuts rooted once, cuts left out only of those rooted, legs in order; a request by form or by clicks, not both).</li>
+<li><strong>Model:</strong> <code>TmaSolution</code>, <code>TmaRequest</code> in <code>schemas/linkml/features.yaml</code>; <code>schemas/linkml/tma.yaml</code> (the view's rows and the residuals; the sensors' other cuts, ownship's courses and the cut-off it plots with); <code>tma_error_cut_off</code> in <code>schemas/linkml/config.yaml</code> (the analyst's cut-off, <code>debrief_config.tma_error_cut_off</code> and <code>@debrief/config</code>'s <code>tmaErrorCutOff</code>); the rules in <code>debrief_schemas.documents</code> (a contact named, the period in order, cuts rooted once, cuts left out only of those rooted, legs in order; a request by form or by clicks, not both).</li>
 <li><strong>Python:</strong> <code>debrief_kernel.tma</code> (residuals, vectorised; the first guess; a click onto a cut's line); <code>debrief_stac.tma</code> and <code>Catalogue.create_tma</code>, <code>tma_residuals</code>, <code>tma_exclude</code>, <code>tma_split_leg</code>, with <code>split_track</code> and <code>merge_tracks</code>; <code>debrief_io.dpf_tma</code> (legacy solutions); <code>debrief/tma_create</code>, <code>debrief/tma_residuals</code>, <code>debrief/tma_exclude_cut</code>, <code>debrief/tma_split_leg</code> in <code>debrief_tools.service</code>.</li>
-<li><strong>Hosts:</strong> <code>vscode/webview/tma.ts</code> (residuals while dragging, words), <code>vscode/webview/tmacontrol.ts</code> (the view), <code>vscode/webview/tmamap.ts</code> (two clicks), <code>vscode/webview/trackmap.ts</code> (<em>This leg</em>); <code>vscode/src/panels/bearingsview.ts</code> and the commands <code>debrief.tmaCreate</code>, <code>debrief.tmaSplitLeg</code>, <code>debrief.tmaExclude</code>, <code>debrief.showBearings</code>; the playground's in <code>vscode/play/host.ts</code>.</li>
-<li><strong>Tests:</strong> <code>python/debrief-kernel/tests/test_tma.py</code>, <code>python/debrief-stac/tests/test_tma.py</code>, <code>python/debrief-io/tests/test_dpf_tma.py</code>, <code>python/debrief-tools/tests/test_tma_service.py</code>, <code>vscode/test/unit/tma.test.ts</code>, <code>vscode/test/play/tma.mjs</code>, and a step of <code>vscode/test/integration/suite.ts</code>; vectors <code>schemas/vectors/tma-residuals.json</code>.</li>
+<li><strong>Hosts:</strong> <code>vscode/webview/tma.ts</code> (residuals while dragging, words; the coverage and ownship sent to the view), <code>vscode/webview/stackeddots.ts</code> (the plot's axes, fit and hold, cut-off, zoom, pointing, course and speed, panes), <code>vscode/webview/tmacontrol.ts</code> (the view), <code>vscode/webview/tmamap.ts</code> (two clicks), <code>vscode/webview/trackmap.ts</code> (<em>This leg</em>); <code>vscode/src/panels/bearingsview.ts</code> and the commands <code>debrief.tmaCreate</code>, <code>debrief.tmaSplitLeg</code>, <code>debrief.tmaExclude</code>, <code>debrief.showBearings</code>; the playground's in <code>vscode/play/host.ts</code>.</li>
+<li><strong>Tests:</strong> <code>python/debrief-kernel/tests/test_tma.py</code>, <code>python/debrief-stac/tests/test_tma.py</code>, <code>python/debrief-io/tests/test_dpf_tma.py</code>, <code>python/debrief-tools/tests/test_tma_service.py</code>, <code>vscode/test/unit/tma.test.ts</code>, <code>vscode/test/unit/stackeddots.test.ts</code>, <code>vscode/test/play/tma.mjs</code>, and a step of <code>vscode/test/integration/suite.ts</code>; vectors <code>schemas/vectors/tma-residuals.json</code>.</li>
 </ul>
 
 

@@ -21,9 +21,11 @@ import debrief_stac.store as store_module
 from debrief_config import (
     load_config,
     narrative_answers,
+    tma_error_cut_off,
     track_import_mode,
     update_config,
     with_narrative_answers,
+    with_tma_error_cut_off,
     with_track_import_mode,
 )
 from debrief_io import (
@@ -677,6 +679,18 @@ def set_import_mode(mode: str) -> str:
     """Remember a choice for future imports, or, with ask, clear it."""
     SETTINGS.parent.mkdir(parents=True, exist_ok=True)
     return track_import_mode(update_config(lambda c: with_track_import_mode(c, mode), SETTINGS))
+
+
+def error_cut_off() -> float:
+    """The Bearings view's error cut-off, degrees: the reader's, else legacy's 3."""
+    return tma_error_cut_off(load_config(SETTINGS))
+
+
+def set_error_cut_off(degrees: float) -> float:
+    """Remember the reader's error cut-off (the Bearings view's), as debrief-config does."""
+    SETTINGS.parent.mkdir(parents=True, exist_ok=True)
+    changed = update_config(lambda c: with_tma_error_cut_off(c, float(degrees)), SETTINGS)
+    return tma_error_cut_off(changed)
 
 
 def narrative_answers_for(dialect: str) -> str:
