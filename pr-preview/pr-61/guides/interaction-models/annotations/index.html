@@ -1,0 +1,2193 @@
+
+<!doctype html>
+<html lang="en" class="no-js">
+  <head>
+    
+      <meta charset="utf-8">
+      <meta name="viewport" content="width=device-width,initial-scale=1">
+      
+        <meta name="description" content="Development blog and guides for Debrief v4">
+      
+      
+      
+        <link rel="canonical" href="https://debrief.github.io/fuudee/pr-preview/pr-61/guides/interaction-models/annotations/">
+      
+      
+        <link rel="prev" href="../time-controller/">
+      
+      
+        <link rel="next" href="../track-operations/">
+      
+      
+        
+      
+      
+      <link rel="icon" href="../../../assets/images/favicon.png">
+      <meta name="generator" content="mkdocs-1.6.1, mkdocs-material-9.7.7">
+    
+    
+      
+        <title>Annotations - Debrief v4</title>
+      
+    
+    
+      <link rel="stylesheet" href="../../../assets/stylesheets/main.ec1eaa64.min.css">
+      
+        
+        <link rel="stylesheet" href="../../../assets/stylesheets/palette.ab4e12ef.min.css">
+      
+      
+
+
+    
+    
+      
+    
+    
+      
+        
+        
+        <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+        <link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Roboto:300,300i,400,400i,700,700i%7CRoboto+Mono:400,400i,700,700i&display=fallback">
+        <style>:root{--md-text-font:"Roboto";--md-code-font:"Roboto Mono"}</style>
+      
+    
+    
+      <link rel="stylesheet" href="../../../stylesheets/demo.css">
+    
+    <script>__md_scope=new URL("../../..",location),__md_hash=e=>[...e].reduce(((e,_)=>(e<<5)-e+_.charCodeAt(0)),0),__md_get=(e,_=localStorage,t=__md_scope)=>JSON.parse(_.getItem(t.pathname+"."+e)),__md_set=(e,_,t=localStorage,a=__md_scope)=>{try{t.setItem(a.pathname+"."+e,JSON.stringify(_))}catch(e){}}</script>
+    
+      
+
+    
+    
+  </head>
+  
+  
+    
+    
+      
+    
+    
+    
+    
+    <body dir="ltr" data-md-color-scheme="default" data-md-color-primary="indigo" data-md-color-accent="indigo"><div class="pr-preview-banner" style="background:#fff4ce;color:#3b2f00;border-bottom:1px solid #e0c060;padding:6px 16px;font:14px/1.4 system-ui,sans-serif;text-align:center">Preview of <a style="color:inherit;text-decoration:underline" href="https://github.com/debrief/fuudee/pull/61">pull request #61</a>: Walkthrough: Bearings and TMA fits properly, as legacy&#x27;s tutorial (CAP-25, CAP-21). Built from 7d07ae0 on 2026-10-26 23:57 UTC. <a style="color:inherit;text-decoration:underline" href="https://debrief.github.io/fuudee/pr-preview/">All previews</a></div>
+  
+    
+    <input class="md-toggle" data-md-toggle="drawer" type="checkbox" id="__drawer" autocomplete="off">
+    <input class="md-toggle" data-md-toggle="search" type="checkbox" id="__search" autocomplete="off">
+    <label class="md-overlay" for="__drawer"></label>
+    <div data-md-component="skip">
+      
+        
+        <a href="#annotations" class="md-skip">
+          Skip to content
+        </a>
+      
+    </div>
+    <div data-md-component="announce">
+      
+    </div>
+    
+    
+      
+
+<header class="md-header" data-md-component="header">
+  <nav class="md-header__inner md-grid" aria-label="Header">
+    <a href="../../.." title="Debrief v4" class="md-header__button md-logo" aria-label="Debrief v4" data-md-component="logo">
+      
+  
+  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 8a3 3 0 0 0 3-3 3 3 0 0 0-3-3 3 3 0 0 0-3 3 3 3 0 0 0 3 3m0 3.54C9.64 9.35 6.5 8 3 8v11c3.5 0 6.64 1.35 9 3.54 2.36-2.19 5.5-3.54 9-3.54V8c-3.5 0-6.64 1.35-9 3.54"/></svg>
+
+    </a>
+    <label class="md-header__button md-icon" for="__drawer">
+      
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M3 6h18v2H3zm0 5h18v2H3zm0 5h18v2H3z"/></svg>
+    </label>
+    <div class="md-header__title" data-md-component="header-title">
+      <div class="md-header__ellipsis">
+        <div class="md-header__topic">
+          <span class="md-ellipsis">
+            Debrief v4
+          </span>
+        </div>
+        <div class="md-header__topic" data-md-component="header-topic">
+          <span class="md-ellipsis">
+            
+              Annotations
+            
+          </span>
+        </div>
+      </div>
+    </div>
+    
+      
+        <form class="md-header__option" data-md-component="palette">
+  
+    
+    
+    
+    <input class="md-option" data-md-color-media="(prefers-color-scheme: light)" data-md-color-scheme="default" data-md-color-primary="indigo" data-md-color-accent="indigo"  aria-label="Dark"  type="radio" name="__palette" id="__palette_0">
+    
+      <label class="md-header__button md-icon" title="Dark" for="__palette_1" hidden>
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="m17.75 4.09-2.53 1.94.91 3.06-2.63-1.81-2.63 1.81.91-3.06-2.53-1.94L12.44 4l1.06-3 1.06 3zm3.5 6.91-1.64 1.25.59 1.98-1.7-1.17-1.7 1.17.59-1.98L15.75 11l2.06-.05L18.5 9l.69 1.95zm-2.28 4.95c.83-.08 1.72 1.1 1.19 1.85-.32.45-.66.87-1.08 1.27C15.17 23 8.84 23 4.94 19.07c-3.91-3.9-3.91-10.24 0-14.14.4-.4.82-.76 1.27-1.08.75-.53 1.93.36 1.85 1.19-.27 2.86.69 5.83 2.89 8.02a9.96 9.96 0 0 0 8.02 2.89m-1.64 2.02a12.08 12.08 0 0 1-7.8-3.47c-2.17-2.19-3.33-5-3.49-7.82-2.81 3.14-2.7 7.96.31 10.98 3.02 3.01 7.84 3.12 10.98.31"/></svg>
+      </label>
+    
+  
+    
+    
+    
+    <input class="md-option" data-md-color-media="(prefers-color-scheme: dark)" data-md-color-scheme="slate" data-md-color-primary="indigo" data-md-color-accent="indigo"  aria-label="Light"  type="radio" name="__palette" id="__palette_1">
+    
+      <label class="md-header__button md-icon" title="Light" for="__palette_0" hidden>
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 7a5 5 0 0 1 5 5 5 5 0 0 1-5 5 5 5 0 0 1-5-5 5 5 0 0 1 5-5m0 2a3 3 0 0 0-3 3 3 3 0 0 0 3 3 3 3 0 0 0 3-3 3 3 0 0 0-3-3m0-7 2.39 3.42C13.65 5.15 12.84 5 12 5s-1.65.15-2.39.42zM3.34 7l4.16-.35A7.2 7.2 0 0 0 5.94 8.5c-.44.74-.69 1.5-.83 2.29zm.02 10 1.76-3.77a7.131 7.131 0 0 0 2.38 4.14zM20.65 7l-1.77 3.79a7.02 7.02 0 0 0-2.38-4.15zm-.01 10-4.14.36c.59-.51 1.12-1.14 1.54-1.86.42-.73.69-1.5.83-2.29zM12 22l-2.41-3.44c.74.27 1.55.44 2.41.44.82 0 1.63-.17 2.37-.44z"/></svg>
+      </label>
+    
+  
+</form>
+      
+    
+    
+      <script>var palette=__md_get("__palette");if(palette&&palette.color){if("(prefers-color-scheme)"===palette.color.media){var media=matchMedia("(prefers-color-scheme: light)"),input=document.querySelector(media.matches?"[data-md-color-media='(prefers-color-scheme: light)']":"[data-md-color-media='(prefers-color-scheme: dark)']");palette.color.media=input.getAttribute("data-md-color-media"),palette.color.scheme=input.getAttribute("data-md-color-scheme"),palette.color.primary=input.getAttribute("data-md-color-primary"),palette.color.accent=input.getAttribute("data-md-color-accent")}for(var[key,value]of Object.entries(palette.color))document.body.setAttribute("data-md-color-"+key,value)}</script>
+    
+    
+    
+      
+      
+        <label class="md-header__button md-icon" for="__search">
+          
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M9.5 3A6.5 6.5 0 0 1 16 9.5c0 1.61-.59 3.09-1.56 4.23l.27.27h.79l5 5-1.5 1.5-5-5v-.79l-.27-.27A6.52 6.52 0 0 1 9.5 16 6.5 6.5 0 0 1 3 9.5 6.5 6.5 0 0 1 9.5 3m0 2C7 5 5 7 5 9.5S7 14 9.5 14 14 12 14 9.5 12 5 9.5 5"/></svg>
+        </label>
+        <div class="md-search" data-md-component="search" role="dialog">
+  <label class="md-search__overlay" for="__search"></label>
+  <div class="md-search__inner" role="search">
+    <form class="md-search__form" name="search">
+      <input type="text" class="md-search__input" name="query" aria-label="Search" placeholder="Search" autocapitalize="off" autocorrect="off" autocomplete="off" spellcheck="false" data-md-component="search-query" required>
+      <label class="md-search__icon md-icon" for="__search">
+        
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M9.5 3A6.5 6.5 0 0 1 16 9.5c0 1.61-.59 3.09-1.56 4.23l.27.27h.79l5 5-1.5 1.5-5-5v-.79l-.27-.27A6.52 6.52 0 0 1 9.5 16 6.5 6.5 0 0 1 3 9.5 6.5 6.5 0 0 1 9.5 3m0 2C7 5 5 7 5 9.5S7 14 9.5 14 14 12 14 9.5 12 5 9.5 5"/></svg>
+        
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M20 11v2H8l5.5 5.5-1.42 1.42L4.16 12l7.92-7.92L13.5 5.5 8 11z"/></svg>
+      </label>
+      <nav class="md-search__options" aria-label="Search">
+        
+        <button type="reset" class="md-search__icon md-icon" title="Clear" aria-label="Clear" tabindex="-1">
+          
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M19 6.41 17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/></svg>
+        </button>
+      </nav>
+      
+    </form>
+    <div class="md-search__output">
+      <div class="md-search__scrollwrap" tabindex="0" data-md-scrollfix>
+        <div class="md-search-result" data-md-component="search-result">
+          <div class="md-search-result__meta">
+            Initializing search
+          </div>
+          <ol class="md-search-result__list" role="presentation"></ol>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+      
+    
+    
+      <div class="md-header__source">
+        <a href="https://github.com/debrief/fuudee" title="Go to repository" class="md-source" data-md-component="source">
+  <div class="md-source__icon md-icon">
+    
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 448 512"><!--! Font Awesome Free 7.1.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2025 Fonticons, Inc.--><path d="M439.6 236.1 244 40.5c-5.4-5.5-12.8-8.5-20.4-8.5s-15 3-20.4 8.4L162.5 81l51.5 51.5c27.1-9.1 52.7 16.8 43.4 43.7l49.7 49.7c34.2-11.8 61.2 31 35.5 56.7-26.5 26.5-70.2-2.9-56-37.3L240.3 199v121.9c25.3 12.5 22.3 41.8 9.1 55-6.4 6.4-15.2 10.1-24.3 10.1s-17.8-3.6-24.3-10.1c-17.6-17.6-11.1-46.9 11.2-56v-123c-20.8-8.5-24.6-30.7-18.6-45L142.6 101 8.5 235.1C3 240.6 0 247.9 0 255.5s3 15 8.5 20.4l195.6 195.7c5.4 5.4 12.7 8.4 20.4 8.4s15-3 20.4-8.4l194.7-194.7c5.4-5.4 8.4-12.8 8.4-20.4s-3-15-8.4-20.4"/></svg>
+  </div>
+  <div class="md-source__repository">
+    debrief/fuudee
+  </div>
+</a>
+      </div>
+    
+  </nav>
+  
+</header>
+    
+    <div class="md-container" data-md-component="container">
+      
+      
+        
+          
+            
+<nav class="md-tabs" aria-label="Tabs" data-md-component="tabs">
+  <div class="md-grid">
+    <ul class="md-tabs__list">
+      
+        
+  
+  
+  
+  
+    <li class="md-tabs__item">
+      <a href="../../.." class="md-tabs__link">
+        
+  
+  
+    
+  
+  Home
+
+      </a>
+    </li>
+  
+
+      
+        
+  
+  
+  
+  
+    <li class="md-tabs__item">
+      <a href="../../../try/" class="md-tabs__link">
+        
+  
+  
+    
+  
+  Try Debrief
+
+      </a>
+    </li>
+  
+
+      
+        
+  
+  
+  
+  
+    
+    
+      <li class="md-tabs__item">
+        <a href="../../../blog/" class="md-tabs__link">
+          
+  
+  
+    
+  
+  Blog
+
+        </a>
+      </li>
+    
+  
+
+      
+        
+  
+  
+  
+    
+  
+  
+    
+    
+      <li class="md-tabs__item md-tabs__item--active">
+        <a href="../../" class="md-tabs__link">
+          
+  
+  
+    
+  
+  Guides
+
+        </a>
+      </li>
+    
+  
+
+      
+    </ul>
+  </div>
+</nav>
+          
+        
+      
+      <main class="md-main" data-md-component="main">
+        <div class="md-main__inner md-grid">
+          
+            
+              
+              <div class="md-sidebar md-sidebar--primary" data-md-component="sidebar" data-md-type="navigation" >
+                <div class="md-sidebar__scrollwrap">
+                  <div class="md-sidebar__inner">
+                    
+
+
+  
+
+
+<nav class="md-nav md-nav--primary md-nav--lifted" aria-label="Navigation" data-md-level="0">
+  <label class="md-nav__title" for="__drawer">
+    <a href="../../.." title="Debrief v4" class="md-nav__button md-logo" aria-label="Debrief v4" data-md-component="logo">
+      
+  
+  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 8a3 3 0 0 0 3-3 3 3 0 0 0-3-3 3 3 0 0 0-3 3 3 3 0 0 0 3 3m0 3.54C9.64 9.35 6.5 8 3 8v11c3.5 0 6.64 1.35 9 3.54 2.36-2.19 5.5-3.54 9-3.54V8c-3.5 0-6.64 1.35-9 3.54"/></svg>
+
+    </a>
+    Debrief v4
+  </label>
+  
+    <div class="md-nav__source">
+      <a href="https://github.com/debrief/fuudee" title="Go to repository" class="md-source" data-md-component="source">
+  <div class="md-source__icon md-icon">
+    
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 448 512"><!--! Font Awesome Free 7.1.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2025 Fonticons, Inc.--><path d="M439.6 236.1 244 40.5c-5.4-5.5-12.8-8.5-20.4-8.5s-15 3-20.4 8.4L162.5 81l51.5 51.5c27.1-9.1 52.7 16.8 43.4 43.7l49.7 49.7c34.2-11.8 61.2 31 35.5 56.7-26.5 26.5-70.2-2.9-56-37.3L240.3 199v121.9c25.3 12.5 22.3 41.8 9.1 55-6.4 6.4-15.2 10.1-24.3 10.1s-17.8-3.6-24.3-10.1c-17.6-17.6-11.1-46.9 11.2-56v-123c-20.8-8.5-24.6-30.7-18.6-45L142.6 101 8.5 235.1C3 240.6 0 247.9 0 255.5s3 15 8.5 20.4l195.6 195.7c5.4 5.4 12.7 8.4 20.4 8.4s15-3 20.4-8.4l194.7-194.7c5.4-5.4 8.4-12.8 8.4-20.4s-3-15-8.4-20.4"/></svg>
+  </div>
+  <div class="md-source__repository">
+    debrief/fuudee
+  </div>
+</a>
+    </div>
+  
+  <ul class="md-nav__list" data-md-scrollfix>
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../.." class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Home
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../try/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Try Debrief
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+      
+        
+          
+        
+      
+        
+      
+    
+    
+    
+      
+      
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_3" >
+        
+          
+          <div class="md-nav__link md-nav__container">
+            <a href="../../../blog/" class="md-nav__link ">
+              
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Blog
+  
+
+    
+  </span>
+  
+  
+
+            </a>
+            
+              
+              <label class="md-nav__link " for="__nav_3" id="__nav_3_label" tabindex="0">
+                <span class="md-nav__icon md-icon"></span>
+              </label>
+            
+          </div>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_3_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_3">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Blog
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+            
+              
+                
+  
+  
+  
+  
+    
+    
+      
+        
+      
+        
+      
+    
+    
+    
+      
+      
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_3_2" >
+        
+          
+          <label class="md-nav__link" for="__nav_3_2" id="__nav_3_2_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Categories
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="2" aria-labelledby="__nav_3_2_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_3_2">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Categories
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+    
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../blog/category/architecture/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Architecture
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+    
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../blog/category/capability/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Capability
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+    
+  
+  
+  
+    
+    
+      
+        
+          
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+    
+    
+    
+      
+        
+        
+      
+      
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--active md-nav__item--section md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_4" checked>
+        
+          
+          <div class="md-nav__link md-nav__container">
+            <a href="../../" class="md-nav__link ">
+              
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Guides
+  
+
+    
+  </span>
+  
+  
+
+            </a>
+            
+              
+              <label class="md-nav__link " for="__nav_4" id="__nav_4_label" tabindex="">
+                <span class="md-nav__icon md-icon"></span>
+              </label>
+            
+          </div>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_4_label" aria-expanded="true">
+          <label class="md-nav__title" for="__nav_4">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Guides
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+            
+              
+                
+  
+  
+  
+  
+    
+    
+      
+        
+          
+        
+      
+        
+      
+        
+      
+        
+      
+    
+    
+    
+      
+      
+        
+          
+          
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--section md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_4_2" >
+        
+          
+          <div class="md-nav__link md-nav__container">
+            <a href="../../style-guide/" class="md-nav__link ">
+              
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Style guide
+  
+
+    
+  </span>
+  
+  
+
+            </a>
+            
+              
+              <label class="md-nav__link " for="__nav_4_2" id="__nav_4_2_label" tabindex="">
+                <span class="md-nav__icon md-icon"></span>
+              </label>
+            
+          </div>
+        
+        <nav class="md-nav" data-md-level="2" aria-labelledby="__nav_4_2_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_4_2">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Style guide
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../style-guide/language/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Language
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../style-guide/theme/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Theme
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../style-guide/ui/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    User interface
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+    
+  
+  
+  
+    
+    
+      
+        
+          
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+    
+    
+    
+      
+      
+        
+          
+          
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--active md-nav__item--section md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_4_3" checked>
+        
+          
+          <div class="md-nav__link md-nav__container">
+            <a href="../" class="md-nav__link ">
+              
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Interaction models
+  
+
+    
+  </span>
+  
+  
+
+            </a>
+            
+              
+              <label class="md-nav__link " for="__nav_4_3" id="__nav_4_3_label" tabindex="">
+                <span class="md-nav__icon md-icon"></span>
+              </label>
+            
+          </div>
+        
+        <nav class="md-nav" data-md-level="2" aria-labelledby="__nav_4_3_label" aria-expanded="true">
+          <label class="md-nav__title" for="__nav_4_3">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Interaction models
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../selection/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Selection and tool offering
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../tool-invocation/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Tool invocation and forms
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../unavailable-capabilities/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Unavailable capabilities
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../undo/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Undo
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../conflicts/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Conflicts
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../long-running-operations/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Long-running operations
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../check-overrides/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Check overrides
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../time-controller/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Time controller
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+    
+  
+  
+  
+    <li class="md-nav__item md-nav__item--active">
+      
+      <input class="md-nav__toggle md-toggle" type="checkbox" id="__toc">
+      
+      
+        
+      
+      
+        <label class="md-nav__link md-nav__link--active" for="__toc">
+          
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Annotations
+  
+
+    
+  </span>
+  
+  
+
+          <span class="md-nav__icon md-icon"></span>
+        </label>
+      
+      <a href="./" class="md-nav__link md-nav__link--active">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Annotations
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+      
+        
+
+<nav class="md-nav md-nav--secondary" aria-label="Table of contents">
+  
+  
+  
+    
+  
+  
+    <label class="md-nav__title" for="__toc">
+      <span class="md-nav__icon md-icon"></span>
+      Table of contents
+    </label>
+    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#requirements-cited" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Requirements cited
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#model" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Model
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#how-circles-and-ellipses-are-kept" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        How circles and ellipses are kept
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#reference-implementation" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Reference implementation
+      
+    </span>
+  </a>
+  
+</li>
+      
+    </ul>
+  
+</nav>
+      
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../track-operations/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Track operations
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../labels-symbols-arrows/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Labels, symbols and arrows
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../tote/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Tote
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../timeline/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Timeline and narrative
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../sensors/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Sensors and bearings
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../tma/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    TMA solutions
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../collation/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Collation
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../export/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Exported images
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../walkthroughs/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Walkthroughs
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../browser-layout/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Browser layout
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../keyboard-equivalents/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Keyboard equivalents
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../tool-author/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Tool-author guide
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../sample-data/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Sample data
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../glossary/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Glossary
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+  </ul>
+</nav>
+                  </div>
+                </div>
+              </div>
+            
+            
+              
+              <div class="md-sidebar md-sidebar--secondary" data-md-component="sidebar" data-md-type="toc" >
+                <div class="md-sidebar__scrollwrap">
+                  <div class="md-sidebar__inner">
+                    
+
+<nav class="md-nav md-nav--secondary" aria-label="Table of contents">
+  
+  
+  
+    
+  
+  
+    <label class="md-nav__title" for="__toc">
+      <span class="md-nav__icon md-icon"></span>
+      Table of contents
+    </label>
+    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#requirements-cited" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Requirements cited
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#model" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Model
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#how-circles-and-ellipses-are-kept" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        How circles and ellipses are kept
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#reference-implementation" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Reference implementation
+      
+    </span>
+  </a>
+  
+</li>
+      
+    </ul>
+  
+</nav>
+                  </div>
+                </div>
+              </div>
+            
+          
+          
+            <div class="md-content" data-md-component="content">
+              
+              <article class="md-content__inner md-typeset">
+                
+                  
+
+
+  
+  
+
+
+<h1 id="annotations">Annotations<a class="headerlink" href="#annotations" title="Permanent link">&para;</a></h1>
+<p>How an analyst adds a line, area, circle, ellipse, label, marker or note to a plot, changes how it looks and when it is shown, deletes it, and finds notes by time. Part A: everything through forms. Part B: drawing annotations on the map, and changing them there by dragging handles or with the keyboard.</p>
+<h2 id="requirements-cited">Requirements cited<a class="headerlink" href="#requirements-cited" title="Permanent link">&para;</a></h2>
+<table>
+<thead>
+<tr>
+<th>SRD</th>
+<th>Requirement</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>CAP-03</td>
+<td>Annotations (shapes, labels, chart furniture) are ordinary GeoJSON features, with provenance, export and tool support.</td>
+</tr>
+<tr>
+<td>CAP-04</td>
+<td>An annotation with only a time has no geometry.</td>
+</tr>
+<tr>
+<td>CAP-05</td>
+<td>A temporal view shows narrative entries and time-only annotations.</td>
+</tr>
+<tr>
+<td>SUB-19, SUB-21</td>
+<td>Every change is a recorded step; undo is replay to a point.</td>
+</tr>
+<tr>
+<td>SUB-22</td>
+<td>Content, how features are styled included, is recorded and undoable.</td>
+</tr>
+<tr>
+<td>SUB-04</td>
+<td>Positions, ranges, bearings and times are read and shown in the analyst's notation and units.</td>
+</tr>
+<tr>
+<td>CAP-28</td>
+<td>An annotation with a time or a period is drawn only while it falls in the time window.</td>
+</tr>
+<tr>
+<td>EXT-14, EXT-15</td>
+<td>Legacy plots' annotations come in as far as the data model allows; what doesn't is listed.</td>
+</tr>
+<tr>
+<td>NFR-13</td>
+<td>Every map action, drawing an annotation included, has a keyboard or form-based equivalent.</td>
+</tr>
+<tr>
+<td>SUB-26, SUB-28</td>
+<td>Drawing changes neither current time, the window nor the selection; a change made elsewhere is never overwritten.</td>
+</tr>
+</tbody>
+</table>
+<h2 id="model">Model<a class="headerlink" href="#model" title="Permanent link">&para;</a></h2>
+<ol>
+<li>
+<p><strong>Seven kinds, one form.</strong> <strong>Add annotation…</strong> (the <strong>+</strong> on the Outline view's title bar, or on the Timeline's; <strong>Add…</strong> under <em>Annotation</em>, below the outline, in the playground) opens the annotation form beside the map. Its <strong>Kind</strong> is one of:</p>
+<table>
+<thead>
+<tr>
+<th>Kind</th>
+<th>Is</th>
+<th>Positions</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Line</td>
+<td>a line through two or more positions, drawn along geodesics</td>
+<td>one per line</td>
+</tr>
+<tr>
+<td>Area</td>
+<td>a closed area with three or more corners</td>
+<td>one per line</td>
+</tr>
+<tr>
+<td>Circle</td>
+<td>every position at one range from a centre</td>
+<td>the centre, and a radius with its unit</td>
+</tr>
+<tr>
+<td>Ellipse</td>
+<td>an ellipse about a centre</td>
+<td>the centre; semi-major and semi-minor axes with their unit; the longer axis's orientation in degrees true</td>
+</tr>
+<tr>
+<td>Label</td>
+<td>text at a position</td>
+<td>one</td>
+</tr>
+<tr>
+<td>Marker</td>
+<td>a marked position</td>
+<td>one</td>
+</tr>
+<tr>
+<td>Note</td>
+<td>text at a time, with no position</td>
+<td>none: it needs a time</td>
+</tr>
+</tbody>
+</table>
+<p>A new annotation starts as a circle in the middle of the map, with nothing else filled in. The word <em>shape</em> is not used in the interface: shapes are kinds of annotation (style guide, language).</p>
+</li>
+<li>
+<p><strong>Positions in the analyst's notation.</strong> A position may be typed as Debrief writes it (<code>50°20.120'N 004°07.210'W</code>), in degrees, minutes and seconds, in decimal degrees, without the symbols (<code>50 20.12 N 4 7.21 W</code>), with the hemisphere first (<code>N50 20.12 W4 7.21</code>), or as two signed decimals, latitude first (<code>50.335, -4.120</code>). Under each, the form says what it understood (<em>Means 50°20.120'N 004°07.210'W</em>) or what is wrong with it. The same reading runs in Python and TypeScript, held to shared test vectors (<code>schemas/vectors/positions.json</code>), and agents may send positions as text too.</p>
+</li>
+<li>
+<p><strong>Sizes in their units.</strong> A radius or semi-axes is a number and a unit: nautical miles, yards, metres or kilometres. The unit is kept with the value (SUB-02), so a circle of 2 nmi stays 2 nmi when the analyst's display unit is yards. A radius or semi-axis is at most 10,000 km: beyond about half the world, a circle drawn along geodesics folds back on itself. Orientation is degrees true, clockwise from north; 405 is read as 045.</p>
+</li>
+<li>
+<p><strong>Time.</strong> <strong>No time</strong> (always shown), <strong>At a time</strong> or <strong>Over a period</strong>. Times are typed as for a tool's time fields (<code>09:30Z</code>, <code>15 Jun 2023 09:30:00Z</code>, <code>150930Z JUN 23</code>), with what was understood said beneath; a new annotation's time starts at current time. With a time or a period, it is drawn only while that falls in the time window (CAP-28). A note always has a time.</p>
+</li>
+<li>
+<p><strong>Style.</strong> Colour (the annotation amber, a track colour by name, or any colour as <code>#rrggbb</code>, its swatch beside the list); line solid, dashed or dotted, and its width in pixels; for areas, circles and ellipses a fill colour and how opaque it is; the label's size in pixels and where it goes (above, below, left, right, centre, or not shown). An area's, a circle's or an ellipse's label is hidden while the shape is too small on screen to carry it: under 70 pixels across where Debrief placed the label, or under 24 where the analyst (or a legacy plot) chose its place. Anything left at its default is drawn as Debrief draws annotations: amber, dashed, an area faintly tinted, so nothing a tool draws is mistaken for a track. An annotation drawn solid still has no direction ticks or end dots, and is still labelled. Style is content: changing it is a step (decision, 12 Oct 2026).</p>
+</li>
+<li>
+<p><strong>Checked as typed, saved as one step.</strong> Each field says what is wrong beside it once the analyst has tried to save; nothing is sent until every field is right. <strong>Add</strong> (or <strong>Save changes</strong>) sends the description to the tool service, which checks it again, makes the annotation and records it as <strong>one step</strong>, named in the History view: <em>Circle 'Exclusion zone' added</em>, <em>Style of Circle 'Exclusion zone' changed</em>, <em>Time of …</em>, <em>… renamed …</em>, <em>Circle 'Exclusion zone' changed</em> (anything else, or several at once). Saving changes that change nothing records nothing: a field left as it was shown keeps its exact value, even where the form shows it rounded (a position to a thousandth of a minute, a time to the second). A field emptied is cleared: text, time and style go back to none. <code>Ctrl+Z</code> undoes it like any step.</p>
+</li>
+<li>
+<p><strong>Changing one.</strong> Its properties form opens from the outline's context menu (<strong>Change annotation…</strong>), from <strong>Change…</strong> in the playground, or by double-clicking it on the map. It shows everything the annotation is, in the same fields; its kind stays as it is. A change made elsewhere since the plot was opened is never overwritten: Debrief shows the latest and says nothing was changed (SUB-28).</p>
+</li>
+<li>
+<p><strong>Deleting.</strong> <strong>Delete</strong> on its form, <strong>Delete annotation</strong> on the outline's context menu (several at once, as one step), or <strong>Delete</strong> in the playground. Named sets keep their other members; a set left empty goes too. Undo brings everything back.</p>
+</li>
+<li>
+<p><strong>Chart furniture.</strong> The scale bar is always drawn, in the analyst's distance unit. The north arrow is chart furniture the plot carries: <strong>North arrow</strong> on the Outline view's <strong>...</strong> menu (checked when shown), or the <strong>North arrow</strong> button in the playground, adds or removes it as a step. The map is Web Mercator, north up everywhere, so the arrow points up. Grids, legends and other furniture are not done.</p>
+</li>
+<li>
+<p><strong>The Timeline (CAP-05).</strong> Time-only annotations, notes and periods of interest, are listed in the Timeline with the plot's narrative entries and fix comments, in one time order: a note shows its name as its source and <em>Note</em> as its type, a period <em>Period</em> and when it ends. Choosing one moves current time to it, or to its start; outside the window shown the window widens or moves, shown but never saved (CAP-28). Since schema 0.0.19 the sample's log and a legacy plot's narrative are narrative entries, not notes; a note is the analyst's own annotation. See <a href="../timeline/">Timeline and narrative</a>.</p>
+</li>
+<li>
+<p><strong>What is a step, and what isn't.</strong></p>
+<table>
+<thead>
+<tr>
+<th></th>
+<th>Step in the history</th>
+<th>Undone by <code>Ctrl+Z</code></th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Adding, changing, restyling, deleting an annotation</td>
+<td>Yes, one each</td>
+<td>Yes</td>
+</tr>
+<tr>
+<td>Drawing on the map: placing points, cancelling</td>
+<td>No: the step is <strong>Add</strong> on the form that follows</td>
+<td>No</td>
+</tr>
+<tr>
+<td>Letting go of a handle, or a run of arrow keys on one</td>
+<td>Yes, one each</td>
+<td>Yes</td>
+</tr>
+<tr>
+<td>Showing or removing the north arrow</td>
+<td>Yes</td>
+<td>Yes</td>
+</tr>
+<tr>
+<td>Hiding an annotation on the map</td>
+<td>Yes (as for any feature)</td>
+<td>Yes</td>
+</tr>
+<tr>
+<td>Choosing a Timeline entry (current time), opening a form</td>
+<td>No</td>
+<td>No</td>
+</tr>
+</tbody>
+</table>
+</li>
+<li>
+<p><strong>Drawing on the map.</strong> The map has a toolbar, <em>Draw an annotation</em>, below the zoom buttons: <strong>Line</strong>, <strong>Area</strong>, <strong>Circle</strong>, <strong>Ellipse</strong>, <strong>Label</strong>, <strong>Marker</strong> and <strong>Cancel</strong>. Choosing a kind starts drawing it: the button shows pressed, the map gets a focus outline and a cross for a pointer, and a note at the top of the map says what to do next and what has been drawn so far. Choosing the pressed kind again, <strong>Cancel</strong> (which leaves the keyboard on that kind) or <code>Escape</code> stops and keeps nothing; <code>Backspace</code> removes the last point placed.</p>
+<table>
+<thead>
+<tr>
+<th>Kind</th>
+<th>Draw it by</th>
+<th>The map says</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Line</td>
+<td>clicking each position; double-click or <code>Enter</code> finishes</td>
+<td>positions placed, the leg to the pointer, range and bearing from the start, length</td>
+</tr>
+<tr>
+<td>Area</td>
+<td>clicking each corner; double-click or <code>Enter</code> finishes</td>
+<td>corners placed, the leg, range and bearing from the start, the area</td>
+</tr>
+<tr>
+<td>Circle</td>
+<td>clicking the centre, then the radius; or dragging from the centre</td>
+<td>radius, its bearing, the area</td>
+</tr>
+<tr>
+<td>Ellipse</td>
+<td>clicking the centre, the end of the longer axis (which sets the orientation), then the side (the width); or dragging from the centre to the axis end</td>
+<td>semi-major, semi-minor, orientation, the area</td>
+</tr>
+<tr>
+<td>Label, marker</td>
+<td>one click</td>
+<td>the position</td>
+</tr>
+</tbody>
+</table>
+<p>Ranges and bearings are along geodesics and in the analyst's units and notation (<code>4.25 nmi 045.0°T</code>); an area is in the square of the length unit (<code>12.30 nmi²</code>). A double-click places one point, not two. A line needs two different positions and an area three; finishing too soon says so and keeps drawing. A circle's radius and an ellipse's axes are kept in the analyst's length unit, to the decimals the map showed, so what is saved is what was read; an ellipse's side can never make the shorter axis the longer. While drawing, a click on a track places a point there; <code>Ctrl</code> or <code>Cmd</code> click still selects. Drawing never changes current time, the window or the selection.</p>
+</li>
+<li>
+<p><strong>Finishing opens the form.</strong> A finished drawing opens the annotation form (<strong>Add annotation</strong>), with its kind, positions and size filled in, at the name. The analyst names it, gives it a time or a style if they want, and <strong>Add</strong> saves it as <strong>one step</strong> (<em>Area 'Patrol box' added</em>); <strong>Cancel</strong> (or closing the form) keeps nothing, and the dashed drawing leaves the map. Until then nothing is in the plot. <em>Why the form, rather than adding at once with a made-up name:</em> adding at once and then naming it would be two steps for one annotation, and Undo would take away only the name; a made-up name ("Area 1") would end up in plots. With the form, each finished annotation is one undoable step with the analyst's own name, and Cancel leaves no trace in the history.</p>
+</li>
+<li>
+<p><strong>Changing it on the map.</strong> An annotation selected on its own, and drawn on the map now, shows handles in the theme's focus colour, and the note at the top says how to use them (on a map narrower than 480 pixels the note gives way to the map; each handle's own name says it):</p>
+<table>
+<thead>
+<tr>
+<th>Kind</th>
+<th>Handles</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Line, area</td>
+<td>one at each position or corner; a smaller, dashed one between each pair (an area's closing side too); a filled one in the middle that moves it all</td>
+</tr>
+<tr>
+<td>Circle</td>
+<td>its centre (moves it); its radius</td>
+</tr>
+<tr>
+<td>Ellipse</td>
+<td>its centre (moves it); the end of its longer axis (length and orientation); its side (width)</td>
+</tr>
+<tr>
+<td>Label, marker</td>
+<td>its position</td>
+</tr>
+</tbody>
+</table>
+<p>Dragging a handle changes the annotation as the pointer moves, saying what it now measures; letting go saves the change as <strong>one step</strong>, named for what was done: <em>Circle 'Keep clear' moved</em>, <em>Circle 'Keep clear' resized</em>, <em>Area 'Patrol box' reshaped</em> (a corner moved, added or removed, or an ellipse's axes), <em>Area 'Patrol box' moved</em> (all of it). <code>Escape</code> during a drag puts it back, and nothing is recorded. Dragging a between-handle adds a corner (or position) there. Moving a whole line or area moves every corner by the same change of latitude and longitude, as a parallel rule would on a chart. Sizes keep their own units: a circle of 4 km stays in km.</p>
+</li>
+<li>
+<p><strong>The keyboard.</strong> Every drawing and every change can be made without a pointer:</p>
+<ul>
+<li><em>Drawing:</em> <code>Tab</code> to the toolbar and press <code>Enter</code> on a kind; the keyboard goes to the map, which shows a cross in its middle. The arrow keys pan the map under the cross (as they always do), <code>Space</code> places a point at the cross, <code>Enter</code> finishes, <code>Backspace</code> removes the last point, <code>Escape</code> cancels.</li>
+<li><em>Changing:</em> <code>Tab</code> to a handle (each is named for a screen reader: <em>Area 'Patrol box': corner 2 of 4; drag it, or use the arrow keys; Delete removes it</em>). The arrow keys move it 5 pixels, 25 with <code>Shift</code>; a run of presses is saved as one step once they stop (under a second), on <code>Enter</code>, or when the keyboard moves on; <code>Escape</code> first puts it back. Presses made while that step is still being saved are not lost: the map says so, and they are made as the next step once it is. Arrow keys on a between-handle add a corner there. <code>Delete</code> or <code>Backspace</code> on a corner removes it, unless that would leave an area fewer than three corners or a line fewer than two, which the map says.</li>
+<li><em>Exactly:</em> the properties form (item 7) changes any position or size by typing it, as before.</li>
+</ul>
+</li>
+<li>
+<p><strong>Shared state and conflicts.</strong> Drawing and editing change neither current time, the time window nor the selection; tracks stay selectable with <code>Ctrl</code> or <code>Cmd</code> click. If the plot changes elsewhere during a drag (a colleague, an agent), the map shows the latest at once, drops the drag and says <em>The plot was changed elsewhere, so your change was not made. Debrief is showing the latest; try again if you still want to.</em> A change sent from a plot that has since moved on is refused the same way (SUB-28). A change the service refuses for any other reason is said in a notification, and the map shows the annotation as it is.</p>
+</li>
+<li>
+<p><strong>For agents.</strong> The same steps through the tool service: <code>debrief/add_annotation</code> (<code>annotation</code>: the description the form sends, positions as numbers or text), <code>debrief/edit_annotation</code> (<code>feature</code>, and <code>annotation</code> with only what changes, so <code>{"appearance": {...}}</code> restyles; a member given as <code>null</code> is cleared, and a time given replaces a period, or a period a time; the north arrow has nothing to change), <code>debrief/delete_annotations</code> (<code>features</code>) and <code>debrief/set_north_arrow</code> (<code>shown</code>), each with <code>base</code> as for any change. In VS Code the commands <code>debrief.addAnnotation</code>, <code>debrief.editAnnotation</code>, <code>debrief.deleteAnnotation</code>, <code>debrief.toggleNorthArrow</code> and <code>debrief.goToTime</code> take the same arguments instead of opening the form.</p>
+</li>
+</ol>
+<pre class="mermaid"><code>sequenceDiagram
+    actor Analyst
+    participant Map
+    participant Form as Annotation form
+    participant Host as Extension host
+    participant Service as Tool service
+    Analyst-&gt;&gt;Map: Area; click each corner; double-click
+    Map-&gt;&gt;Map: sketch, with range, bearing and area as it goes
+    Map-&gt;&gt;Host: annotation_drawn (corners, name empty)
+    Host-&gt;&gt;Form: show_annotation_form (the drawing)
+    Analyst-&gt;&gt;Form: name it; Add
+    Form-&gt;&gt;Host: save_annotation
+    Host-&gt;&gt;Service: debrief/add_annotation (one step)
+    Host-&gt;&gt;Map: show_plot (it is selected: handles)
+    Analyst-&gt;&gt;Map: drag a corner, let go
+    Map-&gt;&gt;Host: edit_annotation (feature_id, the whole description, changed)
+    Host-&gt;&gt;Service: debrief/edit_annotation (base)
+    alt changed elsewhere since base
+        Service--&gt;&gt;Host: CONFLICT
+        Host-&gt;&gt;Map: show_plot (the latest); nothing was changed
+    else
+        Service--&gt;&gt;Host: one step: "Area 'Patrol box' reshaped"
+        Host-&gt;&gt;Map: show_plot
+    end</code></pre>
+<pre class="mermaid"><code>sequenceDiagram
+    actor Analyst
+    participant Form as Annotation form
+    participant Host as Extension host
+    participant Service as Tool service
+    participant Plot as Plot file
+    Analyst-&gt;&gt;Form: kind, name, centre, radius, style, time
+    Form-&gt;&gt;Form: read positions and times; say what they mean or what is wrong
+    Analyst-&gt;&gt;Form: Add
+    Form-&gt;&gt;Host: save_annotation (the description)
+    Host-&gt;&gt;Service: debrief/add_annotation (description, base)
+    alt changed elsewhere since base
+        Service--&gt;&gt;Host: CONFLICT
+        Host-&gt;&gt;Analyst: nothing was changed; showing the latest
+    else
+        Service-&gt;&gt;Service: check it; make the feature (a circle: its polygon along geodesics)
+        Service-&gt;&gt;Plot: one step: "Circle 'Exclusion zone' added"
+        Service--&gt;&gt;Host: new base, the feature's id
+        Host-&gt;&gt;Host: reload: map, outline, Timeline, History
+    end</code></pre>
+<h2 id="how-circles-and-ellipses-are-kept">How circles and ellipses are kept<a class="headerlink" href="#how-circles-and-ellipses-are-kept" title="Permanent link">&para;</a></h2>
+<p>GeoJSON has no curves. A circle or an ellipse is kept as a <strong>polygon of 72 sides</strong> approximating it, built along geodesics, as its geometry, so that any other GeoJSON tool draws the area it covers and a plot's extent includes it, plus <strong>its own properties</strong>: <code>shape</code> (<code>circle</code> or <code>ellipse</code>), <code>centre</code>, and <code>radius</code>, or <code>semi_major</code>, <code>semi_minor</code> and <code>orientation</code>, each with its unit. Debrief draws and edits it from those, along geodesics and smooth at any zoom, never from the polygon; every change makes the polygon again, and a rule checked on reading refuses a polygon that no longer matches its centre and size. A point with a radius would have been smaller, but other tools would see only a point, and a plot's extent would leave the circle out.</p>
+<h2 id="reference-implementation">Reference implementation<a class="headerlink" href="#reference-implementation" title="Permanent link">&para;</a></h2>
+<ul>
+<li><strong>Schema (0.0.12):</strong> <code>AnnotationProperties</code> (<code>shape</code>, <code>centre</code>, <code>radius</code>, <code>semi_major</code>, <code>semi_minor</code>, <code>orientation</code>, <code>furniture</code>, <code>appearance</code>), <code>AnnotationAppearance</code> and <code>AnnotationSpec</code> in <code>schemas/linkml/features.yaml</code>; the rules in <code>debrief_schemas.documents</code> (<code>_annotation_problems</code>); fixtures <code>plot/valid/annotations-every-shape.json</code> and the <code>circle-*</code>, <code>ellipse-*</code>, <code>line-*</code>, <code>chart-furniture-*</code> and <code>annotation-*</code> invalid ones.</li>
+<li><strong>Kernel:</strong> <code>debrief_kernel.geodesy.circle_ring</code> and <code>ellipse_ring</code>; <code>debrief_kernel.formatting.parse_position</code> and its TypeScript twin <code>parsePosition</code> (<code>ts/kernel/src/positions.ts</code>).</li>
+<li><strong>Making and naming changes:</strong> <code>debrief_stac.annotations</code> (<code>build</code>, <code>spec_of</code>, <code>describe_change</code>); <code>Catalogue.add_annotation</code>, <code>edit_annotation</code>, <code>delete_annotations</code>, <code>set_north_arrow</code>; the service methods in <code>debrief_tools.service</code>.</li>
+<li><strong>Drawing and editing on the map:</strong> what each click, drag and key makes, the readouts and the handles in <code>vscode/webview/drawing.ts</code> (free of Leaflet, unit-tested); the toolbar, sketch, handles, dragging and nudging in <code>vscode/webview/mapedit.ts</code>; <code>rangeBearing</code>, <code>travel</code> and <code>geodesicArea</code> in <code>vscode/webview/geodesic.ts</code>; the messages <code>annotation_drawn</code> and <code>edit_annotation</code> with <code>annotation</code> (schema 0.0.13); the host side in <code>vscode/src/panels/map.ts</code> (<code>receive</code>) and the command <code>debrief.addDrawnAnnotation</code>; the step names in <code>debrief_stac.annotations.describe_change</code>.</li>
+<li><strong>VS Code:</strong> the form <code>vscode/webview/annotationform.tsx</code>, its reading of fields <code>vscode/webview/annotationdraft.ts</code>; the panel <code>vscode/src/panels/annotation.ts</code>; drawing <code>vscode/webview/annotationlook.ts</code> and <code>drawAnnotation</code> in <code>vscode/webview/map.ts</code>; the Timeline <code>vscode/src/timeline.ts</code> and <code>vscode/src/views/timeline.ts</code>; commands in <code>vscode/src/extension.ts</code>.</li>
+<li><strong>The playground:</strong> <code>vscode/play/host.ts</code> (the annotation form frame, the Timeline, the buttons) and <code>annotate</code> in <code>vscode/play/play.py</code>.</li>
+<li><strong>Legacy plots:</strong> <code>debrief_io.dpf</code> (<code>_read_look</code>) and <code>debrief_io.dpf_import</code> (<code>_curve</code>, <code>_appearance</code>, <code>_look_notes</code>).</li>
+<li><strong>Tests:</strong> <code>python/debrief-stac/tests/test_annotations.py</code>, the service test, <code>vscode/test/unit/annotations.test.ts</code> and <code>vscode/test/unit/drawing.test.ts</code>, the playground test's <code>vscode/test/play/annotations.mjs</code> and <code>vscode/test/play/drawing.mjs</code> (drawing by pointer and keyboard, dragging, nudging, a colleague's change during a drag), and the integration test's annotation and drawing steps.</li>
+</ul>
+<p><em>Not yet:</em> snapping to tracks, fixes or other annotations; rotating a whole line or area; arrowheads; label symbols; grids and other chart furniture; changing an annotation's kind.</p>
+
+
+
+
+
+
+
+
+
+
+
+
+                
+              </article>
+            </div>
+          
+          
+<script>var target=document.getElementById(location.hash.slice(1));target&&target.name&&(target.checked=target.name.startsWith("__tabbed_"))</script>
+        </div>
+        
+      </main>
+      
+        <footer class="md-footer">
+  
+  <div class="md-footer-meta md-typeset">
+    <div class="md-footer-meta__inner md-grid">
+      <div class="md-copyright">
+  
+    <div class="md-copyright__highlight">
+      Debrief is open source under the Eclipse Public License 2.0.
+    </div>
+  
+  
+    Made with
+    <a href="https://squidfunk.github.io/mkdocs-material/" target="_blank" rel="noopener">
+      Material for MkDocs
+    </a>
+  
+</div>
+      
+    </div>
+  </div>
+</footer>
+      
+    </div>
+    <div class="md-dialog" data-md-component="dialog">
+      <div class="md-dialog__inner md-typeset"></div>
+    </div>
+    
+    
+    
+      
+      
+      <script id="__config" type="application/json">{"annotate": null, "base": "../../..", "features": ["navigation.tabs", "navigation.sections", "navigation.indexes", "content.code.copy"], "search": "../../../assets/javascripts/workers/search.2c215733.min.js", "tags": null, "translations": {"clipboard.copied": "Copied to clipboard", "clipboard.copy": "Copy to clipboard", "search.result.more.one": "1 more on this page", "search.result.more.other": "# more on this page", "search.result.none": "No matching documents", "search.result.one": "1 matching document", "search.result.other": "# matching documents", "search.result.placeholder": "Type to start searching", "search.result.term.missing": "Missing", "select.version": "Select version"}, "version": null}</script>
+    
+    
+      <script src="../../../assets/javascripts/bundle.d7400e89.min.js"></script>
+      
+        <script src="../../../javascripts/demo.js"></script>
+      
+    
+  </body>
+</html>

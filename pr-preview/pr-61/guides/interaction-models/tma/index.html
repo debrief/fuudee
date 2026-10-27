@@ -1,0 +1,2147 @@
+
+<!doctype html>
+<html lang="en" class="no-js">
+  <head>
+    
+      <meta charset="utf-8">
+      <meta name="viewport" content="width=device-width,initial-scale=1">
+      
+        <meta name="description" content="Development blog and guides for Debrief v4">
+      
+      
+      
+        <link rel="canonical" href="https://debrief.github.io/fuudee/pr-preview/pr-61/guides/interaction-models/tma/">
+      
+      
+        <link rel="prev" href="../sensors/">
+      
+      
+        <link rel="next" href="../collation/">
+      
+      
+        
+      
+      
+      <link rel="icon" href="../../../assets/images/favicon.png">
+      <meta name="generator" content="mkdocs-1.6.1, mkdocs-material-9.7.7">
+    
+    
+      
+        <title>TMA solutions - Debrief v4</title>
+      
+    
+    
+      <link rel="stylesheet" href="../../../assets/stylesheets/main.ec1eaa64.min.css">
+      
+        
+        <link rel="stylesheet" href="../../../assets/stylesheets/palette.ab4e12ef.min.css">
+      
+      
+
+
+    
+    
+      
+    
+    
+      
+        
+        
+        <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+        <link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Roboto:300,300i,400,400i,700,700i%7CRoboto+Mono:400,400i,700,700i&display=fallback">
+        <style>:root{--md-text-font:"Roboto";--md-code-font:"Roboto Mono"}</style>
+      
+    
+    
+      <link rel="stylesheet" href="../../../stylesheets/demo.css">
+    
+    <script>__md_scope=new URL("../../..",location),__md_hash=e=>[...e].reduce(((e,_)=>(e<<5)-e+_.charCodeAt(0)),0),__md_get=(e,_=localStorage,t=__md_scope)=>JSON.parse(_.getItem(t.pathname+"."+e)),__md_set=(e,_,t=localStorage,a=__md_scope)=>{try{t.setItem(a.pathname+"."+e,JSON.stringify(_))}catch(e){}}</script>
+    
+      
+
+    
+    
+  </head>
+  
+  
+    
+    
+      
+    
+    
+    
+    
+    <body dir="ltr" data-md-color-scheme="default" data-md-color-primary="indigo" data-md-color-accent="indigo"><div class="pr-preview-banner" style="background:#fff4ce;color:#3b2f00;border-bottom:1px solid #e0c060;padding:6px 16px;font:14px/1.4 system-ui,sans-serif;text-align:center">Preview of <a style="color:inherit;text-decoration:underline" href="https://github.com/debrief/fuudee/pull/61">pull request #61</a>: Walkthrough: Bearings and TMA fits properly, as legacy&#x27;s tutorial (CAP-25, CAP-21). Built from 7d07ae0 on 2026-10-26 23:57 UTC. <a style="color:inherit;text-decoration:underline" href="https://debrief.github.io/fuudee/pr-preview/">All previews</a></div>
+  
+    
+    <input class="md-toggle" data-md-toggle="drawer" type="checkbox" id="__drawer" autocomplete="off">
+    <input class="md-toggle" data-md-toggle="search" type="checkbox" id="__search" autocomplete="off">
+    <label class="md-overlay" for="__drawer"></label>
+    <div data-md-component="skip">
+      
+        
+        <a href="#tma-solutions" class="md-skip">
+          Skip to content
+        </a>
+      
+    </div>
+    <div data-md-component="announce">
+      
+    </div>
+    
+    
+      
+
+<header class="md-header" data-md-component="header">
+  <nav class="md-header__inner md-grid" aria-label="Header">
+    <a href="../../.." title="Debrief v4" class="md-header__button md-logo" aria-label="Debrief v4" data-md-component="logo">
+      
+  
+  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 8a3 3 0 0 0 3-3 3 3 0 0 0-3-3 3 3 0 0 0-3 3 3 3 0 0 0 3 3m0 3.54C9.64 9.35 6.5 8 3 8v11c3.5 0 6.64 1.35 9 3.54 2.36-2.19 5.5-3.54 9-3.54V8c-3.5 0-6.64 1.35-9 3.54"/></svg>
+
+    </a>
+    <label class="md-header__button md-icon" for="__drawer">
+      
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M3 6h18v2H3zm0 5h18v2H3zm0 5h18v2H3z"/></svg>
+    </label>
+    <div class="md-header__title" data-md-component="header-title">
+      <div class="md-header__ellipsis">
+        <div class="md-header__topic">
+          <span class="md-ellipsis">
+            Debrief v4
+          </span>
+        </div>
+        <div class="md-header__topic" data-md-component="header-topic">
+          <span class="md-ellipsis">
+            
+              TMA solutions
+            
+          </span>
+        </div>
+      </div>
+    </div>
+    
+      
+        <form class="md-header__option" data-md-component="palette">
+  
+    
+    
+    
+    <input class="md-option" data-md-color-media="(prefers-color-scheme: light)" data-md-color-scheme="default" data-md-color-primary="indigo" data-md-color-accent="indigo"  aria-label="Dark"  type="radio" name="__palette" id="__palette_0">
+    
+      <label class="md-header__button md-icon" title="Dark" for="__palette_1" hidden>
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="m17.75 4.09-2.53 1.94.91 3.06-2.63-1.81-2.63 1.81.91-3.06-2.53-1.94L12.44 4l1.06-3 1.06 3zm3.5 6.91-1.64 1.25.59 1.98-1.7-1.17-1.7 1.17.59-1.98L15.75 11l2.06-.05L18.5 9l.69 1.95zm-2.28 4.95c.83-.08 1.72 1.1 1.19 1.85-.32.45-.66.87-1.08 1.27C15.17 23 8.84 23 4.94 19.07c-3.91-3.9-3.91-10.24 0-14.14.4-.4.82-.76 1.27-1.08.75-.53 1.93.36 1.85 1.19-.27 2.86.69 5.83 2.89 8.02a9.96 9.96 0 0 0 8.02 2.89m-1.64 2.02a12.08 12.08 0 0 1-7.8-3.47c-2.17-2.19-3.33-5-3.49-7.82-2.81 3.14-2.7 7.96.31 10.98 3.02 3.01 7.84 3.12 10.98.31"/></svg>
+      </label>
+    
+  
+    
+    
+    
+    <input class="md-option" data-md-color-media="(prefers-color-scheme: dark)" data-md-color-scheme="slate" data-md-color-primary="indigo" data-md-color-accent="indigo"  aria-label="Light"  type="radio" name="__palette" id="__palette_1">
+    
+      <label class="md-header__button md-icon" title="Light" for="__palette_0" hidden>
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 7a5 5 0 0 1 5 5 5 5 0 0 1-5 5 5 5 0 0 1-5-5 5 5 0 0 1 5-5m0 2a3 3 0 0 0-3 3 3 3 0 0 0 3 3 3 3 0 0 0 3-3 3 3 0 0 0-3-3m0-7 2.39 3.42C13.65 5.15 12.84 5 12 5s-1.65.15-2.39.42zM3.34 7l4.16-.35A7.2 7.2 0 0 0 5.94 8.5c-.44.74-.69 1.5-.83 2.29zm.02 10 1.76-3.77a7.131 7.131 0 0 0 2.38 4.14zM20.65 7l-1.77 3.79a7.02 7.02 0 0 0-2.38-4.15zm-.01 10-4.14.36c.59-.51 1.12-1.14 1.54-1.86.42-.73.69-1.5.83-2.29zM12 22l-2.41-3.44c.74.27 1.55.44 2.41.44.82 0 1.63-.17 2.37-.44z"/></svg>
+      </label>
+    
+  
+</form>
+      
+    
+    
+      <script>var palette=__md_get("__palette");if(palette&&palette.color){if("(prefers-color-scheme)"===palette.color.media){var media=matchMedia("(prefers-color-scheme: light)"),input=document.querySelector(media.matches?"[data-md-color-media='(prefers-color-scheme: light)']":"[data-md-color-media='(prefers-color-scheme: dark)']");palette.color.media=input.getAttribute("data-md-color-media"),palette.color.scheme=input.getAttribute("data-md-color-scheme"),palette.color.primary=input.getAttribute("data-md-color-primary"),palette.color.accent=input.getAttribute("data-md-color-accent")}for(var[key,value]of Object.entries(palette.color))document.body.setAttribute("data-md-color-"+key,value)}</script>
+    
+    
+    
+      
+      
+        <label class="md-header__button md-icon" for="__search">
+          
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M9.5 3A6.5 6.5 0 0 1 16 9.5c0 1.61-.59 3.09-1.56 4.23l.27.27h.79l5 5-1.5 1.5-5-5v-.79l-.27-.27A6.52 6.52 0 0 1 9.5 16 6.5 6.5 0 0 1 3 9.5 6.5 6.5 0 0 1 9.5 3m0 2C7 5 5 7 5 9.5S7 14 9.5 14 14 12 14 9.5 12 5 9.5 5"/></svg>
+        </label>
+        <div class="md-search" data-md-component="search" role="dialog">
+  <label class="md-search__overlay" for="__search"></label>
+  <div class="md-search__inner" role="search">
+    <form class="md-search__form" name="search">
+      <input type="text" class="md-search__input" name="query" aria-label="Search" placeholder="Search" autocapitalize="off" autocorrect="off" autocomplete="off" spellcheck="false" data-md-component="search-query" required>
+      <label class="md-search__icon md-icon" for="__search">
+        
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M9.5 3A6.5 6.5 0 0 1 16 9.5c0 1.61-.59 3.09-1.56 4.23l.27.27h.79l5 5-1.5 1.5-5-5v-.79l-.27-.27A6.52 6.52 0 0 1 9.5 16 6.5 6.5 0 0 1 3 9.5 6.5 6.5 0 0 1 9.5 3m0 2C7 5 5 7 5 9.5S7 14 9.5 14 14 12 14 9.5 12 5 9.5 5"/></svg>
+        
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M20 11v2H8l5.5 5.5-1.42 1.42L4.16 12l7.92-7.92L13.5 5.5 8 11z"/></svg>
+      </label>
+      <nav class="md-search__options" aria-label="Search">
+        
+        <button type="reset" class="md-search__icon md-icon" title="Clear" aria-label="Clear" tabindex="-1">
+          
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M19 6.41 17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/></svg>
+        </button>
+      </nav>
+      
+    </form>
+    <div class="md-search__output">
+      <div class="md-search__scrollwrap" tabindex="0" data-md-scrollfix>
+        <div class="md-search-result" data-md-component="search-result">
+          <div class="md-search-result__meta">
+            Initializing search
+          </div>
+          <ol class="md-search-result__list" role="presentation"></ol>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+      
+    
+    
+      <div class="md-header__source">
+        <a href="https://github.com/debrief/fuudee" title="Go to repository" class="md-source" data-md-component="source">
+  <div class="md-source__icon md-icon">
+    
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 448 512"><!--! Font Awesome Free 7.1.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2025 Fonticons, Inc.--><path d="M439.6 236.1 244 40.5c-5.4-5.5-12.8-8.5-20.4-8.5s-15 3-20.4 8.4L162.5 81l51.5 51.5c27.1-9.1 52.7 16.8 43.4 43.7l49.7 49.7c34.2-11.8 61.2 31 35.5 56.7-26.5 26.5-70.2-2.9-56-37.3L240.3 199v121.9c25.3 12.5 22.3 41.8 9.1 55-6.4 6.4-15.2 10.1-24.3 10.1s-17.8-3.6-24.3-10.1c-17.6-17.6-11.1-46.9 11.2-56v-123c-20.8-8.5-24.6-30.7-18.6-45L142.6 101 8.5 235.1C3 240.6 0 247.9 0 255.5s3 15 8.5 20.4l195.6 195.7c5.4 5.4 12.7 8.4 20.4 8.4s15-3 20.4-8.4l194.7-194.7c5.4-5.4 8.4-12.8 8.4-20.4s-3-15-8.4-20.4"/></svg>
+  </div>
+  <div class="md-source__repository">
+    debrief/fuudee
+  </div>
+</a>
+      </div>
+    
+  </nav>
+  
+</header>
+    
+    <div class="md-container" data-md-component="container">
+      
+      
+        
+          
+            
+<nav class="md-tabs" aria-label="Tabs" data-md-component="tabs">
+  <div class="md-grid">
+    <ul class="md-tabs__list">
+      
+        
+  
+  
+  
+  
+    <li class="md-tabs__item">
+      <a href="../../.." class="md-tabs__link">
+        
+  
+  
+    
+  
+  Home
+
+      </a>
+    </li>
+  
+
+      
+        
+  
+  
+  
+  
+    <li class="md-tabs__item">
+      <a href="../../../try/" class="md-tabs__link">
+        
+  
+  
+    
+  
+  Try Debrief
+
+      </a>
+    </li>
+  
+
+      
+        
+  
+  
+  
+  
+    
+    
+      <li class="md-tabs__item">
+        <a href="../../../blog/" class="md-tabs__link">
+          
+  
+  
+    
+  
+  Blog
+
+        </a>
+      </li>
+    
+  
+
+      
+        
+  
+  
+  
+    
+  
+  
+    
+    
+      <li class="md-tabs__item md-tabs__item--active">
+        <a href="../../" class="md-tabs__link">
+          
+  
+  
+    
+  
+  Guides
+
+        </a>
+      </li>
+    
+  
+
+      
+    </ul>
+  </div>
+</nav>
+          
+        
+      
+      <main class="md-main" data-md-component="main">
+        <div class="md-main__inner md-grid">
+          
+            
+              
+              <div class="md-sidebar md-sidebar--primary" data-md-component="sidebar" data-md-type="navigation" >
+                <div class="md-sidebar__scrollwrap">
+                  <div class="md-sidebar__inner">
+                    
+
+
+  
+
+
+<nav class="md-nav md-nav--primary md-nav--lifted" aria-label="Navigation" data-md-level="0">
+  <label class="md-nav__title" for="__drawer">
+    <a href="../../.." title="Debrief v4" class="md-nav__button md-logo" aria-label="Debrief v4" data-md-component="logo">
+      
+  
+  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 8a3 3 0 0 0 3-3 3 3 0 0 0-3-3 3 3 0 0 0-3 3 3 3 0 0 0 3 3m0 3.54C9.64 9.35 6.5 8 3 8v11c3.5 0 6.64 1.35 9 3.54 2.36-2.19 5.5-3.54 9-3.54V8c-3.5 0-6.64 1.35-9 3.54"/></svg>
+
+    </a>
+    Debrief v4
+  </label>
+  
+    <div class="md-nav__source">
+      <a href="https://github.com/debrief/fuudee" title="Go to repository" class="md-source" data-md-component="source">
+  <div class="md-source__icon md-icon">
+    
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 448 512"><!--! Font Awesome Free 7.1.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2025 Fonticons, Inc.--><path d="M439.6 236.1 244 40.5c-5.4-5.5-12.8-8.5-20.4-8.5s-15 3-20.4 8.4L162.5 81l51.5 51.5c27.1-9.1 52.7 16.8 43.4 43.7l49.7 49.7c34.2-11.8 61.2 31 35.5 56.7-26.5 26.5-70.2-2.9-56-37.3L240.3 199v121.9c25.3 12.5 22.3 41.8 9.1 55-6.4 6.4-15.2 10.1-24.3 10.1s-17.8-3.6-24.3-10.1c-17.6-17.6-11.1-46.9 11.2-56v-123c-20.8-8.5-24.6-30.7-18.6-45L142.6 101 8.5 235.1C3 240.6 0 247.9 0 255.5s3 15 8.5 20.4l195.6 195.7c5.4 5.4 12.7 8.4 20.4 8.4s15-3 20.4-8.4l194.7-194.7c5.4-5.4 8.4-12.8 8.4-20.4s-3-15-8.4-20.4"/></svg>
+  </div>
+  <div class="md-source__repository">
+    debrief/fuudee
+  </div>
+</a>
+    </div>
+  
+  <ul class="md-nav__list" data-md-scrollfix>
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../.." class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Home
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../try/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Try Debrief
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+      
+        
+          
+        
+      
+        
+      
+    
+    
+    
+      
+      
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_3" >
+        
+          
+          <div class="md-nav__link md-nav__container">
+            <a href="../../../blog/" class="md-nav__link ">
+              
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Blog
+  
+
+    
+  </span>
+  
+  
+
+            </a>
+            
+              
+              <label class="md-nav__link " for="__nav_3" id="__nav_3_label" tabindex="0">
+                <span class="md-nav__icon md-icon"></span>
+              </label>
+            
+          </div>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_3_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_3">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Blog
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+            
+              
+                
+  
+  
+  
+  
+    
+    
+      
+        
+      
+        
+      
+    
+    
+    
+      
+      
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_3_2" >
+        
+          
+          <label class="md-nav__link" for="__nav_3_2" id="__nav_3_2_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Categories
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="2" aria-labelledby="__nav_3_2_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_3_2">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Categories
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+    
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../blog/category/architecture/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Architecture
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+    
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../blog/category/capability/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Capability
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+    
+  
+  
+  
+    
+    
+      
+        
+          
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+    
+    
+    
+      
+        
+        
+      
+      
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--active md-nav__item--section md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_4" checked>
+        
+          
+          <div class="md-nav__link md-nav__container">
+            <a href="../../" class="md-nav__link ">
+              
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Guides
+  
+
+    
+  </span>
+  
+  
+
+            </a>
+            
+              
+              <label class="md-nav__link " for="__nav_4" id="__nav_4_label" tabindex="">
+                <span class="md-nav__icon md-icon"></span>
+              </label>
+            
+          </div>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_4_label" aria-expanded="true">
+          <label class="md-nav__title" for="__nav_4">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Guides
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+            
+              
+                
+  
+  
+  
+  
+    
+    
+      
+        
+          
+        
+      
+        
+      
+        
+      
+        
+      
+    
+    
+    
+      
+      
+        
+          
+          
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--section md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_4_2" >
+        
+          
+          <div class="md-nav__link md-nav__container">
+            <a href="../../style-guide/" class="md-nav__link ">
+              
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Style guide
+  
+
+    
+  </span>
+  
+  
+
+            </a>
+            
+              
+              <label class="md-nav__link " for="__nav_4_2" id="__nav_4_2_label" tabindex="">
+                <span class="md-nav__icon md-icon"></span>
+              </label>
+            
+          </div>
+        
+        <nav class="md-nav" data-md-level="2" aria-labelledby="__nav_4_2_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_4_2">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Style guide
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../style-guide/language/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Language
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../style-guide/theme/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Theme
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../style-guide/ui/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    User interface
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+    
+  
+  
+  
+    
+    
+      
+        
+          
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+    
+    
+    
+      
+      
+        
+          
+          
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--active md-nav__item--section md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_4_3" checked>
+        
+          
+          <div class="md-nav__link md-nav__container">
+            <a href="../" class="md-nav__link ">
+              
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Interaction models
+  
+
+    
+  </span>
+  
+  
+
+            </a>
+            
+              
+              <label class="md-nav__link " for="__nav_4_3" id="__nav_4_3_label" tabindex="">
+                <span class="md-nav__icon md-icon"></span>
+              </label>
+            
+          </div>
+        
+        <nav class="md-nav" data-md-level="2" aria-labelledby="__nav_4_3_label" aria-expanded="true">
+          <label class="md-nav__title" for="__nav_4_3">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Interaction models
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../selection/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Selection and tool offering
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../tool-invocation/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Tool invocation and forms
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../unavailable-capabilities/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Unavailable capabilities
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../undo/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Undo
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../conflicts/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Conflicts
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../long-running-operations/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Long-running operations
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../check-overrides/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Check overrides
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../time-controller/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Time controller
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../annotations/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Annotations
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../track-operations/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Track operations
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../labels-symbols-arrows/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Labels, symbols and arrows
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../tote/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Tote
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../timeline/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Timeline and narrative
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../sensors/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Sensors and bearings
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+    
+  
+  
+  
+    <li class="md-nav__item md-nav__item--active">
+      
+      <input class="md-nav__toggle md-toggle" type="checkbox" id="__toc">
+      
+      
+        
+      
+      
+        <label class="md-nav__link md-nav__link--active" for="__toc">
+          
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    TMA solutions
+  
+
+    
+  </span>
+  
+  
+
+          <span class="md-nav__icon md-icon"></span>
+        </label>
+      
+      <a href="./" class="md-nav__link md-nav__link--active">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    TMA solutions
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+      
+        
+
+<nav class="md-nav md-nav--secondary" aria-label="Table of contents">
+  
+  
+  
+    
+  
+  
+    <label class="md-nav__title" for="__toc">
+      <span class="md-nav__icon md-icon"></span>
+      Table of contents
+    </label>
+    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#requirements-cited" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Requirements cited
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#model" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Model
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#the-bearings-view" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        The Bearings view
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#fitting-a-leg-as-legacys-tutorial-teaches-it" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Fitting a leg, as legacy's tutorial teaches it
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#live-residuals-while-dragging" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Live residuals while dragging
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#keyboard-and-touch" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Keyboard and touch
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#not-yet" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Not yet
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#reference-implementation" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Reference implementation
+      
+    </span>
+  </a>
+  
+</li>
+      
+    </ul>
+  
+</nav>
+      
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../collation/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Collation
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../export/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Exported images
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../walkthroughs/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Walkthroughs
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../browser-layout/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Browser layout
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../keyboard-equivalents/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Keyboard equivalents
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../tool-author/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Tool-author guide
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../sample-data/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Sample data
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../glossary/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Glossary
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+  </ul>
+</nav>
+                  </div>
+                </div>
+              </div>
+            
+            
+              
+              <div class="md-sidebar md-sidebar--secondary" data-md-component="sidebar" data-md-type="toc" >
+                <div class="md-sidebar__scrollwrap">
+                  <div class="md-sidebar__inner">
+                    
+
+<nav class="md-nav md-nav--secondary" aria-label="Table of contents">
+  
+  
+  
+    
+  
+  
+    <label class="md-nav__title" for="__toc">
+      <span class="md-nav__icon md-icon"></span>
+      Table of contents
+    </label>
+    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#requirements-cited" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Requirements cited
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#model" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Model
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#the-bearings-view" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        The Bearings view
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#fitting-a-leg-as-legacys-tutorial-teaches-it" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Fitting a leg, as legacy's tutorial teaches it
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#live-residuals-while-dragging" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Live residuals while dragging
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#keyboard-and-touch" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Keyboard and touch
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#not-yet" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Not yet
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#reference-implementation" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Reference implementation
+      
+    </span>
+  </a>
+  
+</li>
+      
+    </ul>
+  
+</nav>
+                  </div>
+                </div>
+              </div>
+            
+          
+          
+            <div class="md-content" data-md-component="content">
+              
+              <article class="md-content__inner md-typeset">
+                
+                  
+
+
+  
+  
+
+
+<h1 id="tma-solutions">TMA solutions<a class="headerlink" href="#tma-solutions" title="Permanent link">&para;</a></h1>
+<p>How an analyst makes a target motion analysis (TMA) solution from a period of bearing cuts, reads its bearing residuals in the Bearings view, drags it on the map with the residuals following, leaves wild cuts out of the RMS, and splits it into legs. How legacy plots' solutions come in. Decisions of the product owner, 24 Oct 2026, unless said otherwise; hidden cuts, independent legs and both bearings of an ambiguous cut, 25 Oct 2026; the Bearings view as legacy's Bearing Residuals (Stacked Dots) laid it out, and the way of fitting a leg it serves, 25 Oct 2026.</p>
+<p>A newcomer learns it from the walkthrough <em>Bearings and TMA</em> (<a href="../walkthroughs/">walkthroughs</a>), on the sample's towed array, fitted as legacy's tutorial teaches (product owner, 25 Oct 2026, "fit properly"): a side kept, a first guess, its start moved along the first bearing to the target's range, the first leg sheared to fit, a wild bearing left out, a split at the turn and the second leg fitted the same way, to an RMS of 1.8°, near the bearings' own accuracy. Its buttons use <strong>Show bearings</strong> with something to choose (<code>debrief.showBearings</code> with a <code>TmaFocus</code>: a cut, a period and the first guess's form, or the largest residual).</p>
+<h2 id="requirements-cited">Requirements cited<a class="headerlink" href="#requirements-cited" title="Permanent link">&para;</a></h2>
+<table>
+<thead>
+<tr>
+<th>SRD</th>
+<th>Requirement</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>CAP-21</td>
+<td>A TMA solution is rooted in a selected period of bearing data, its positions at the sensor's observation times in that period, with live bearing residuals while it is dragged. Solutions generated automatically (SATC) are out of scope.</td>
+</tr>
+<tr>
+<td>CAP-22</td>
+<td>Bearings and ambiguous bearings, resolved to one side by the analyst: what a solution is rooted in (<a href="../sensors/">sensors and bearings</a>).</td>
+</tr>
+<tr>
+<td>CAP-01, CAP-28</td>
+<td>Tracks and their manipulation; the time window.</td>
+</tr>
+<tr>
+<td>PRN-08</td>
+<td>Analysts work from bearings over time, as legacy Debrief's Stacked Dots showed them.</td>
+</tr>
+<tr>
+<td>SUB-22, SUB-24</td>
+<td>Every change is one recorded, undoable step with its parameters.</td>
+</tr>
+<tr>
+<td>EXT-14</td>
+<td>Legacy plots are read as legacy Debrief read them, and what is not imported is listed.</td>
+</tr>
+<tr>
+<td>NFR-04</td>
+<td>The drag budget: the map follows the pointer smoothly, and what depends on the drag within 100 ms.</td>
+</tr>
+<tr>
+<td>NFR-13</td>
+<td>Everything works from the keyboard, and by touch.</td>
+</tr>
+</tbody>
+</table>
+<h2 id="model">Model<a class="headerlink" href="#model" title="Permanent link">&para;</a></h2>
+<ol>
+<li><strong>A solution is a track.</strong> A TMA solution is an ordinary track plotted by dead reckoning (DR), so every track operation works on it unchanged: move, rotate, shear, stretch, split, merge, colour, hide, the Tote. What makes it a solution is its <code>tma</code> tag (<code>TmaSolution</code>, schema 0.0.24): the <strong>contact</strong> it is a solution of (<em>Contact 1</em>), the <strong>sensors</strong> whose cuts it was made from, its <strong>period</strong>, the <strong>cut ids</strong> it is rooted in, the times its <strong>legs</strong> start, and the cuts <strong>left out</strong> of its RMS. Its sensors are always those of the cuts it is rooted in: when a sensor's track is split and its later cuts become another sensor's, the solution names that sensor too. The Outline tags it <strong>TMA</strong> (in VS Code, <em>TMA · Contact 1</em>).</li>
+<li><strong>Rooted by cut ids.</strong> A solution remembers which cuts it was made from by their ids, not by sensor and period, so it keeps them when its sensor's track is split (and the later cuts become another sensor's) or merged. Its fixes are at the observation times of the cuts shown on the map, one at each distinct time, in the period chosen; its courses and speeds are those of its DR legs, in knots. It has no logged courses or speeds of its own.</li>
+<li>
+<p><strong>Made in one step,</strong> from a period chosen in the Bearings view's list of a sensor's cuts and a <strong>first guess</strong>, either way:</p>
+<ul>
+<li><strong>By form.</strong> The range along the first cut's bearing, the course and the speed. Debrief's defaults: <strong>10,000 yd</strong> (said in the analyst's length unit: <em>4.94 nmi</em>), a course <strong>across the bearing</strong> (the bearing plus 90°), <strong>8 kn</strong>. A towed array's unresolved first cut asks which of its two bearings to start on.</li>
+<li><strong>By two clicks on the map.</strong> The first cut's line and the last cut's are drawn on the map; click on the first, then on the last. Each click is taken onto its line (the nearest point on it, from the cut's origin outwards); the course and speed follow from the two points and the cuts' times. A click behind the sensor is on no line, and the map says so. Escape stops.</li>
+</ul>
+<p>The step is named so the History reads it: <em>Contact 1 solution made: 60 Bow sonar cuts 12:24:00Z–13:08:30Z</em>. Its notes say the first guess as given (<em>First guess: 5.00 nmi along 257.5°T from where the first cut was taken, then 347.5°T 6.0 kn</em>), and its record holds the request. The next contact's number is the first not in use.
+4. <strong>Which cuts count.</strong> Every cut of the period on the sensors chosen, <strong>except those hidden on the map</strong>, as legacy Debrief's default (<em>Only plot visible data</em>; product owner, 25 Oct 2026). A hidden cut in the period is still rooted, so <strong>shown again it counts again</strong>, with nothing else to do; while hidden it is listed, marked ⊘, its residual given but neither drawn nor counted, and the view says how many (<em>3 hidden cuts left out: they are hidden on the map, and count again once shown.</em>). A legacy plot's <code>Visible="false"</code> cuts come in hidden, so its RMS is legacy's. A solution of hidden cuts alone is refused. Each cut's bearing is measured from where the cut was taken: its sensor's array astern of the ship, or its own origin; a cut whose origin Debrief worked out when its track was split (<code>origin_derived</code>) is counted and marked ◇. A cut outside its host's fixes or the solution's gives no residual, and the view says how many.
+5. <strong>Residuals.</strong> For each rooted cut: the <strong>measured</strong> bearing less the <strong>calculated</strong> one, the bearing from the cut's origin to the solution's position at the cut's time (along the geodesic between its fixes, the later fix where two share a time), wrapped to −180° to 180°. A resolved cut is measured by the bearing kept. <strong>An unresolved ambiguous cut is measured by whichever of its two bearings is nearer the solution</strong>, and the view says so (<em>12 ambiguous cuts not yet resolved: each is measured by the bearing nearer the solution (marked ≈)</em>), so the analyst knows the RMS assumed a side. <strong>Its other bearing is drawn too</strong>, faint, with its residual (<code>other_residual</code>), and never counted, as legacy drew both, so the analyst can pick a side from the plot (product owner, 25 Oct 2026). The <strong>RMS</strong> is over the cuts counted: those with a residual, shown on the map, not left out.
+6. <strong>Left out of the RMS.</strong> A wild bearing is left out of the RMS, and counted again, as one step each: <em>Contact 1 solution: cut at 12:24:30Z left out of the RMS</em>, its notes saying the RMS before and after. Several cuts at once are one step. Only rooted cuts can be left out. A cut left out keeps its residual, drawn as a dotted ring and struck through in the list.
+7. <strong>Legs.</strong> A solution is split into <strong>legs at a time</strong>, one step (<em>Contact 1 solution split into legs at 12:53:30Z</em>): the cut chosen in the view (a manoeuvre picked in the bearings), else current time. Each leg needs two fixes or more. It stays <strong>one track</strong>: its legs are periods of it, each starting at a fix (<code>leg_starts</code>). On the map, <strong>This leg</strong> (beside <em>Whole track</em> and <em>Time window</em> under <em>What changes</em>) drags <strong>the leg the analyst clicks</strong> on the map, at first the one current time is in, by any of the track drags; the note says which (<em>Contact 1 solution, leg 2 of 3</em>). A split is offered only where the leg there keeps two fixes or more either side, as Debrief accepts it.</p>
+<p><strong>How the join behaves (product owner, 25 Oct 2026).</strong> Each leg is independent, as in legacy Debrief. The legs are joined by the stretch from one leg's last fix to the next leg's first. Dragging a leg moves <strong>only that leg</strong>: the legs before and after it, already fitted, never move. The two joins next to it are solved again: the leg before's last fix takes the course and speed that reach the dragged leg's new first fix, and the dragged leg's last fix takes the course and speed that reach the next leg's first fix, so dead reckoning from the first fix still puts every fix where it is. The map's preview shows the same while the drag goes on. Dragging the whole solution moves every leg together. The step's notes say <em>The other legs stay where they are: the joins either side of the leg are solved again</em>.</p>
+<p><strong>Split track</strong>, the ordinary track operation, still splits a solution into two tracks: each is then a solution of its own, rooted in its own cuts. <strong>Merge</strong> joins solutions back into one, each later solution a leg of it, its cuts and exclusions together; each earlier solution's last fix is aimed at the next one's first fix, as a legacy plot's legs are joined, so <strong>merging moves nothing</strong>. A solution is merged only with other solutions: merged with a track that is not one, Debrief refuses and says why.
+8. <strong>Legacy plots' solutions</strong> (.dpf, EXT-14). A legacy TMA track comes in as a solution track: its <strong>absolute</strong> legs as legacy saved them (origin, course, speed); its <strong>relative</strong> legs converted at import to positions, from where the host's sensor array was at the leg's start plus the saved offset, along the geodesic, and the notes say so, with the most any fix is from where legacy drew it. On legacy's sample plots that is mostly within 0.07 nmi, for two reasons where it is more: <strong>midflow2</strong>'s 0.22 nmi is because its saved positions leave out its sensors' plain arrays, 300 and 400 m astern, which v4 applies, as current legacy Debrief does on load; <strong>2648_tx</strong> (0.56 nmi over a 16.6 h leg) and <strong>Ambig_tracks3</strong> (0.15 nmi at 60°N) are legacy's flat earth, where v4 works along geodesics. Each fix is worked out by DR from the leg's course and speed; the legs are joined by their joins; a <strong>dynamic infill</strong> between legs is not a fix of the solution (the join takes its place), said in the notes. It is rooted in its host sensor's cuts within its legs; a solution of absolute legs alone names no sensor, so it is rooted in the cuts of the sensors of the legacy tote's primary track within its period, as legacy Stacked Dots measured it, and the notes say so. TMA tracks are no longer listed as not imported; legacy's <em>TMA solution set</em> (contact ellipses) still is.
+9. <strong>For agents.</strong> <code>debrief/tma_create</code> (writing) makes a solution from <code>sensor_ids</code> and a <code>period</code> (or <code>cut_ids</code>), a contact name, and the first guess (<code>range</code>, <code>course</code>, <code>speed</code>, <code>first_bearing</code>, or <code>first_position</code> and <code>last_position</code>; none for Debrief's defaults). It answers the feature, the notes and its residuals. <code>debrief/tma_residuals</code> (reading) answers a solution's residuals (<code>TmaResiduals</code>: a row per rooted cut, with the other bearing's residual of an unresolved ambiguous cut; the RMS, how many counted, left out, hidden, without a residual, measured by the nearer side, from a derived origin). <code>debrief/tma_exclude_cut</code> leaves cuts out of the RMS or counts them again; <code>debrief/tma_split_leg</code> splits a solution into legs at a time, or with <code>join</code> joins a leg to the one before. Each writing method is one step. Held to <code>schemas/vectors/tma-residuals.json</code> in both languages.</p>
+</li>
+</ol>
+<pre class="mermaid"><code>sequenceDiagram
+  actor Analyst
+  participant View as Bearings view
+  participant Map
+  participant Host as Host (VS Code or playground)
+  participant Python as debrief/tma_*
+  Analyst-&gt;&gt;View: a sensor's cuts; Shift+Down to the period's last cut
+  Analyst-&gt;&gt;View: Make solution…, the first guess's form (10,000 yd, across, 8 kn)
+  View-&gt;&gt;Host: tma_create {sensor_ids, period, range, course, speed}
+  Host-&gt;&gt;Python: debrief/tma_create
+  Python--&gt;&gt;Host: one step: "Contact 1 solution made: 60 Bow sonar cuts 12:24:00Z–13:08:30Z"
+  Host-&gt;&gt;View: the solution's residuals, RMS
+  Analyst-&gt;&gt;Map: drag the solution's end (shear)
+  loop each frame of the drag
+    Map-&gt;&gt;Host: tma_preview {feature_id, coordinates}
+    Host-&gt;&gt;View: preview: residuals worked out again, RMS "(while dragging)"
+  end
+  Analyst-&gt;&gt;Map: let go
+  Map-&gt;&gt;Host: one step: "Contact 1 solution (DR) sheared: 353.9°T 7.0 kn"
+  Host-&gt;&gt;Python: debrief/tma_residuals
+  Python--&gt;&gt;View: the residuals, exact again</code></pre>
+<h2 id="the-bearings-view">The Bearings view<a class="headerlink" href="#the-bearings-view" title="Permanent link">&para;</a></h2>
+<p>The view works as legacy Debrief's <strong>Bearing Residuals</strong> view (its Stacked Dots) does: its orientation and its way of working, not its pixels (product owner, 25 Oct 2026).</p>
+<p><strong>Where it is.</strong> In VS Code, <strong>Bearings</strong> is in the <strong>panel</strong> below the editor, beside the Terminal and Problems, a view container of its own (product owner, 25 Oct 2026; <strong>Show bearings</strong> on a sensor's or a solution's menu in the Outline, and the <em>Bearings and TMA</em> walkthrough, open it there): wide and short, so its panes sit side by side with room each and the time axis takes the panel's height. In Debrief's side bar, as a seventh view, its panes were about 100 px wide. Drag the panel taller for a longer time axis, or move the view where you like, as with any VS Code view. <strong>The controls are on top of the plot at any size</strong> (product owner, 26 Oct 2026), except where on top they would leave the plot under 220 px, as VS Code's default bottom panel would (about 126 px measured): then, the view wide and the cut list closed, the plot takes the whole height on the left and the toolbar, the cue and the cut's buttons stack in a column beside it (in a 1440 × 900 window the plot about 218 px tall, each pane about 340 px wide). They go back on top once on top would leave 250 px, so a resize never flickers between the two. The same in the playground. In the playground, right of the map, on top of the right-hand column with about 62% of its height, the walkthroughs beneath it (product owner, 25 Oct 2026), so a walkthrough's words stay in sight while working in Bearings; the map is as wide as before. While a solution is open in Bearings the column widens, to about 40% of the window, so each of two panes is 160 px or more, and the map narrows (to 40% of the window, the one time it keeps less than half from 1280 px); with no solution it goes back, and a column the reader has sized is left as they made it. The walkthroughs collapse to their tab from the tab's menu (<em>Collapse to its tabs</em>), giving Bearings the whole column. Shorter than 640 px, the view drops its key, keeps three rows of the list and lays the readout over the panes' names; what does not fit scrolls. Dragged elsewhere (under the map, say) it still works, the plot beside the list once it is 640 px wide. On a phone, and below 900 px, it is a section of the one column, as tall as its plot and list need. It follows the selection: a sensor's cuts when a sensor, a cut or its track is selected; a solution's residuals when a solution is. A cut of the solution's sensors selected (a dot clicked) keeps the solution shown.</p>
+<ul>
+<li><strong>Sensor</strong> and <strong>Solution</strong> lists at the top: whose cuts are listed, and which solution's residuals are shown (<em>None: list the sensor's cuts</em>).</li>
+<li><strong>The toolbar</strong>, one row with a solution shown: the <strong>Solution</strong> list, the panes shown (<strong>Bearing</strong>, <strong>Error</strong>, <strong>Course/Speed</strong>, each a toggle), <strong>Hold</strong> (<em>Hold scale</em>), <strong>Reset</strong> (<em>Reset zoom</em>) and <strong>⋯</strong>, which shows the <strong>Sensor</strong> list, the <strong>Cut-off</strong> and the key beneath the row. Without a solution, the Sensor and Solution lists are at the top as before.</li>
+<li>
+<p><strong>The plot.</strong> Time runs <strong>up the left</strong>, the latest at the top, as legacy's did. Beside each other, sharing that time axis:</p>
+<ul>
+<li><strong>Bearing (°)</strong>: every measured bearing of the solution's sensors shown on the map, over their <strong>whole</strong> period, not only the solution's (each in the cut's colour; an unresolved pair outside the solution both faint); within the solution, a ring for one measured by the nearer of two bearings, its other bearing faint and never counted, a dotted ring for one left out; the solution's <strong>calculated</strong> bearings as a line in its colour, only where the solution is, and again as small triangles (▲) drawn over the dots, edged in the background colour, so where the measured bearings lie on the line (a solution fitted) it stays in sight beneath them, as legacy's triangles did. Bearings are unwrapped about the calculated ones, so a contact passing north stays one line: legacy's <em>Centre bearing axis on North</em> (0–360° to ±180°) is never needed.</li>
+<li><strong>Error (°)</strong>: each residual, only where the solution is, against a strong zero line. Its background is <strong>green</strong> while every error counted is within the <strong>cut-off</strong>, <strong>pink</strong> otherwise, as legacy's <code>calculateErrorShadeFor</code> shaded it: counted as the RMS counts (a residual of a cut shown on the map, not left out; never an unresolved pair's other bearing). Never colour alone: beside it a mark and words say the same, and how many are beyond (product owner, 25 Oct 2026): ✓ <em>Every error within 3.0°</em>; ✗ <em>2 of 60 beyond 3.0°, the largest 4.4°</em>; a screen reader hears the same words. Its axis <strong>fits the errors counted</strong>, zero included: an unresolved pair's other bearing and a cut left out are drawn (faint, or a dotted ring) where they fall inside it, and when some fall outside a note says so beside the cue (<em>3 other bearings off scale</em>, <em>1 left out off scale</em>), never a dot pinned at an edge. <strong>Hold scale</strong> widens only for the errors counted. <strong>A deliberate departure from legacy</strong>: legacy's pass/fail shading counted an unresolved pair's other error too (its ambiguous series was in the shaded plot); here it does not, as the RMS does not. The shades are the theme's (VS Code's for lines added and removed); a high-contrast theme, which has none, borders the pane in its passed or failed colour instead.</li>
+<li><strong>Course/Speed</strong>: ownship's courses (the host track's, as logged at its fixes), the solution's course (its DR legs) on the <strong>Course (°)</strong> axis above, and its speed, dashed, on a <strong>Speed</strong> axis of its own beneath, in the analyst's speed unit. Off by default: at the side column's 270 to 380 px two panes keep about 120 px each to read dots in, and three would leave 80. Turn it on for a manoeuvre.</li>
+</ul>
+<p>Which panes show is the analyst's, remembered in this browser (the playground) or as the view's state (VS Code); one at least always shows. Legs' starts are dashed across every pane, current time a line. A crosshair follows the pointer and a readout above the plot says the time and value under it (<em>12:53:30Z · Error +1.6°</em>). The plot is described for a screen reader (<em>Bearings and residuals of Contact 1 solution, time upward from 12:00:00Z to 17:00:00Z; panes Bearing, Error: RMS 1.6° over 60 cuts. Every error within 5.0°.</em>).
+- <strong>Zoom.</strong> Drag a box in any pane: time zooms to its height in every pane, and that pane's values to its width. A double-click, <strong>Reset zoom</strong>, or <code>0</code> undoes it. A zoom stays while the solution is dragged, so the fine tuning is done zoomed in.
+- <strong>A dot clicked</strong> selects its cut, in the Outline and on the map, and moves current time to it, as legacy's did; the list chooses its row. A click on the solution's calculated line or its course or speed selects the solution's fix there: the solution selected, current time at the fix. A click away from any dot moves current time.
+- <strong>The cue and the RMS</strong>, one status line beneath the plot, and what the RMS assumed (ambiguous cuts by the nearer side, cuts without a residual, derived origins, hidden cuts left out). While a solution is dragged it says <em>(while dragging)</em>.
+- <strong>The list of cuts</strong>, beneath the plot, <strong>collapsible</strong> with a solution shown (<em>▸ Cuts (60) and their residuals</em>): closed by default so the plot takes the height (at 1366 × 768 about 336 px tall, with the walkthroughs in sight beneath), the analyst's choice remembered; open, it has the keyboard, with the notes and the cut's buttons; a walkthrough's step that chooses a cut opens it. Without a solution it is always open, as it is how a period is chosen. Time, bearing (both, for an unresolved ambiguous cut; with a solution, the one measured, ≈ for the nearer of two), and with a solution, its residual and whether it counts. Without a solution, the list takes the whole height. One sensor is listed at a time, so the sensor is its swatch's colour, not a column; where a solution's cuts are of more than one sensor, each row says its sensor to a screen reader. Narrower than 280 px the tick boxes go, so each time, bearing and residual reads whole; Space and the button still leave a cut out. <strong>Virtualised</strong>: rows of one height whatever the font, only those in sight in the page, so it scrolls thousands of cuts as easily as ten. A listbox: each option says its place and the list's size (<code>aria-posinset</code>, <code>aria-setsize</code>), and the cut chosen stays in the page when scrolled out of sight. Each row is read as <em>12:24:30Z, 260.2°, residual +1.6°</em>.
+- <strong>The period</strong> chosen, said beside <strong>Make solution…</strong>. Until the analyst chooses, it is the cuts in the time window, following it; then it stays as chosen.
+- <strong>The cut chosen's buttons</strong>, in sight beneath the status line with the cut list closed too, except Previous and Next ambiguous, which step through the list: <strong>Previous ambiguous</strong> and <strong>Next ambiguous</strong> (the unresolved cut before or after, and current time to it); <strong>Keep 031.9° (starboard)</strong>, <strong>Keep 267.7° (port)</strong> and <strong>Make ambiguous again</strong> for an ambiguous cut, one step each as on the map; <strong>Leave this cut out of the RMS</strong> or <strong>Count this cut in the RMS</strong>; <strong>Split into legs at 12:53:30Z</strong>.</p>
+</li>
+</ul>
+<p><strong>The cut-off</strong> is the analyst's setting, like their other preferences: 3° unless they set another, kept in their Debrief configuration (<code>tma_error_cut_off</code>, configuration version 4), never in a plot. Set it under <strong>⋯</strong> in the view, or in VS Code's Settings (<code>debrief.tma.errorCutOff</code>); the two agree, and both take 0.01° to 180°.</p>
+<h2 id="fitting-a-leg-as-legacys-tutorial-teaches-it">Fitting a leg, as legacy's tutorial teaches it<a class="headerlink" href="#fitting-a-leg-as-legacys-tutorial-teaches-it" title="Permanent link">&para;</a></h2>
+<ol>
+<li><strong>Pin the leg's start on the first bearing.</strong> Make the solution with its first guess's range along the first cut's bearing (the form), so the first error is zero. Early in the fit the errors <strong>ramp</strong> away from it, and the Error pane is <strong>pink</strong>. Bearings never give range: to try another, move the whole solution along that bearing (<strong>Move…</strong> with the distance and the bearing's reciprocal, or its Move handle with the lowest error kept on zero), then shear again; the RMS may rise on the move before the shear brings it down.</li>
+<li><strong>Drag the leg's end</strong> (a shear: the start held) and watch the Error pane. Its axis <strong>fits the errors every frame</strong>, so as they shrink they still fill the pane: a ramp that tilts one way or the other says which way to drag. Drag until the errors <strong>flatten</strong> about zero and the pane turns <strong>green</strong>.</li>
+<li><strong>Zoom in for the fine tuning</strong>: a box round the leg's errors, then small drags (or the arrow keys on the handle). The zoom stays while dragging. <strong>Hold scale</strong> keeps the Error axis still if the moving scale distracts; it widens rather than hide an error.</li>
+<li><strong>The next leg</strong>: split at the manoeuvre (<strong>Split into legs at…</strong>, or <code>S</code> in the plot, at the cut chosen where the errors start to run away), choose <strong>This leg</strong> on the map (the leg current time is in; a click picks another), pin its start on its own first bearing (its Move handle, or <strong>Move…</strong> with <em>This leg</em>), and shear its end the same way; the leg already fitted stays where it is.</li>
+<li><strong>When it is done.</strong> The cue counts every error of the solution, so it stays pink until every leg is fitted. With noisy bearings it may never turn green: a 1.5° sonar over a hundred cuts leaves a few beyond a 3° cut-off whatever the fit (on the walkthrough's sample, RED ONE's true track leaves 8 of 101). Aim for an RMS near the bearings' own accuracy and only a handful beyond, the largest not far past the cut-off; one far out is a wild bearing to leave out.</li>
+</ol>
+<h2 id="live-residuals-while-dragging">Live residuals while dragging<a class="headerlink" href="#live-residuals-while-dragging" title="Permanent link">&para;</a></h2>
+<p>The map previews a drag as it always has (a drag is one step only when let go). For a solution, each frame's positions go to the Bearings view, which works the residuals out again in the browser (the same geodesic and the same rules as Python, held to the same vectors) at most once a frame. Let go, and Python's residuals for the saved step replace them. A drag put back (Escape) puts the residuals back.</p>
+<p><strong>The axes while dragging</strong> (product owner, 25 Oct 2026). The Error axis fits the errors every frame, as legacy's auto-resize did (<code>BaseStackedDotsView.wrappedUpdateStackedDots</code>); with <strong>Hold scale</strong> it stays as it was, and <strong>widens</strong> on the side an error falls outside, never shrinking until let go. <strong>No dot is ever drawn at an edge it is not at</strong>: the held axis of the first TMA pull request clamped them there, and that is superseded. The Bearing axis keeps its range during a drag, as legacy's did, widened the same way if the calculated bearings leave it. The Course/Speed pane fits its courses and speeds every frame, the solution's worked out from the dragged fixes with the WGS84 ellipsoid's local radii at each leg's middle latitude (<code>localCourse</code>), measured against geographiclib's geodesic: within 0.0001° and 0.0001% for legs to 10 km at latitudes to 70°, at worst 0.0002° and 0.0006% for a 20 km leg at 75°. A zoom wins over all of them.</p>
+<p>A frame does only what changes: the residuals worked out again (each row's cut and time parsed once, before the drag begins, and the rows written again in place), the RMS and the cue, the residual cells of the rows in the page (nothing rebuilt), and the plot (its size read once a drag, dots of one kind and colour drawn as one path, a dot where its like is already drawn left out, the crosshair on a canvas of its own). The whole frame is timed. Measured in headless Chromium on a shared four-core machine, sixty frames each, all three panes shown, the sensor's other cuts half as many again and ownship's course 2,000 fixes: 600 cuts, median 3 to 4 ms; 1,000 cuts, 5 to 6 ms; 2,000 cuts, 7 to 11 ms, its 95th percentile 12 to 17 ms; the worst single frame at 2,000 cuts 18 to 30 ms, from the machine's pauses rather than the work (NFR-04's 100 ms either way). The playground's test drags a solution of 600, 1,000 and 2,000 cuts and holds each median within a frame.</p>
+<h2 id="keyboard-and-touch">Keyboard and touch<a class="headerlink" href="#keyboard-and-touch" title="Permanent link">&para;</a></h2>
+<p>The list is one tab stop. Up and Down move the cut chosen, Shift with them (or Shift-click) extends the period; Home, End, Page Up and Page Down as usual; Ctrl+A chooses every cut. Enter moves current time to the cut, so the map emphasises it. <strong>Alt+Down</strong> and <strong>Alt+Up</strong> go to the next or previous unresolved ambiguous cut. With a solution shown, <strong>Space</strong> leaves the chosen cuts out of the RMS, or counts them again; it never changes the cuts chosen, which Shift and the arrow keys do (a multi-select list often toggles a choice with Space; here the choice is a period, so Space is free for the RMS).</p>
+<p>The plot is a tab stop too, the keyboard's way to everything the pointer does there:</p>
+<table>
+<thead>
+<tr>
+<th>Key</th>
+<th>In the plot</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Up, Down</td>
+<td>The next later or earlier cut (time runs up), ringed in each pane, read above the plot and said to a screen reader</td>
+</tr>
+<tr>
+<td>Enter</td>
+<td>Select the cut, in the Outline and on the map</td>
+</tr>
+<tr>
+<td>Space, Delete</td>
+<td>Leave the cut chosen out of the RMS, or count it again (as Space in the list), one step</td>
+</tr>
+<tr>
+<td><code>S</code></td>
+<td>Split the solution into legs at the cut chosen, one step (where each leg keeps two fixes)</td>
+</tr>
+<tr>
+<td><code>1</code>, <code>2</code></td>
+<td>Keep an unresolved ambiguous cut's first or second bearing, one step (as <strong>Keep …</strong>)</td>
+</tr>
+<tr>
+<td><code>+</code>, <code>−</code></td>
+<td>Zoom time in or out about the cut chosen</td>
+</tr>
+<tr>
+<td><code>]</code>, <code>[</code></td>
+<td>Zoom the Error pane's values in or out</td>
+</tr>
+<tr>
+<td>Page Up, Page Down</td>
+<td>Move a zoom later or earlier</td>
+</tr>
+<tr>
+<td><code>0</code></td>
+<td>Reset the zoom (as a double-click, or <strong>Reset zoom</strong>)</td>
+</tr>
+</tbody>
+</table>
+<p>What the plot's keys do is said in the view's live region as well as drawn: the cut chosen (<em>12:41:30Z, Bearing 263.4°, Error +1.2°</em>) and the zoom (<em>Zoomed: 12:20:00Z to 13:10:00Z</em>). Time zooms in to ten seconds at the least.</p>
+<p>The toolbar's toggles are buttons (<code>aria-pressed</code>; in Windows' forced colours a pressed one is drawn in the system's Highlight); <strong>⋯</strong> and the cut list's button are disclosures (<code>aria-expanded</code>), and Escape closes ⋯ and puts the keyboard back on it; the cut-off is a number field. With the cut list closed, the plot's keys still choose, select, leave out, split and keep, and the cut chosen's buttons stay in sight; opening the list puts the keyboard in it. The first guess's form takes the keyboard first, at the range; each field says what it means beneath it as it is typed (<em>Means 5.00 nmi.</em>), and a mistake before anything is sent. <strong>Two clicks on the map instead</strong> has no keyboard way of its own: the form is the keyboard's. On the map, <strong>This leg</strong> is a button like <em>Whole track</em>, and the drags are the track's, with their keys (<a href="../track-operations/">track operations</a>); from the keyboard, the leg dragged is the one current time is in (Enter on a cut in the list moves current time to it), and a click or tap on the solution's line picks another. The forms <strong>Move…</strong>, <strong>Rotate…</strong>, <strong>Shear…</strong> and <strong>Stretch…</strong> offer <em>This leg</em> under <em>What changes</em> too, the leg current time is in, so a leg is fitted by typing (26 Oct 2026). The cut chosen's buttons come before the list in the tab order: from the list, <code>Shift+Tab</code> back to them. A tap is a click; a box is dragged with a finger as with a mouse (the plot takes the touch, so the page scrolls from beside it).</p>
+<h2 id="not-yet">Not yet<a class="headerlink" href="#not-yet" title="Permanent link">&para;</a></h2>
+<ul>
+<li><strong>Generated solutions</strong> (SATC, or a solution fitted to the bearings): out of scope (CAP-21).</li>
+<li><strong>Residuals while ownship is dragged</strong>: ownship moves the cuts' origins; the residuals are worked out again when the drag is saved, not while it goes.</li>
+<li><strong>Several sensors at once</strong> in the view's list: agents can root a solution in several sensors' cuts; the view lists one sensor at a time (the plot shows every cut of the solution's sensors).</li>
+<li><strong>Legacy's TMA solution set</strong> (contact ellipses): still listed as not imported.</li>
+</ul>
+<h2 id="reference-implementation">Reference implementation<a class="headerlink" href="#reference-implementation" title="Permanent link">&para;</a></h2>
+<ul>
+<li><strong>Model:</strong> <code>TmaSolution</code>, <code>TmaRequest</code> in <code>schemas/linkml/features.yaml</code>; <code>schemas/linkml/tma.yaml</code> (the view's rows and the residuals; the sensors' other cuts, ownship's courses and the cut-off it plots with); <code>tma_error_cut_off</code> in <code>schemas/linkml/config.yaml</code> (the analyst's cut-off, <code>debrief_config.tma_error_cut_off</code> and <code>@debrief/config</code>'s <code>tmaErrorCutOff</code>); the rules in <code>debrief_schemas.documents</code> (a contact named, the period in order, cuts rooted once, cuts left out only of those rooted, legs in order; a request by form or by clicks, not both).</li>
+<li><strong>Python:</strong> <code>debrief_kernel.tma</code> (residuals, vectorised; the first guess; a click onto a cut's line); <code>debrief_stac.tma</code> and <code>Catalogue.create_tma</code>, <code>tma_residuals</code>, <code>tma_exclude</code>, <code>tma_split_leg</code>, with <code>split_track</code> and <code>merge_tracks</code>; <code>debrief_io.dpf_tma</code> (legacy solutions); <code>debrief/tma_create</code>, <code>debrief/tma_residuals</code>, <code>debrief/tma_exclude_cut</code>, <code>debrief/tma_split_leg</code> in <code>debrief_tools.service</code>.</li>
+<li><strong>Hosts:</strong> <code>vscode/webview/tma.ts</code> (residuals while dragging, words; the coverage and ownship sent to the view), <code>vscode/webview/stackeddots.ts</code> (the plot's axes, fit and hold, cut-off, zoom, pointing, course and speed, panes), <code>vscode/webview/tmacontrol.ts</code> (the view), <code>vscode/webview/tmamap.ts</code> (two clicks), <code>vscode/webview/trackmap.ts</code> (<em>This leg</em>); <code>vscode/src/panels/bearingsview.ts</code> and the commands <code>debrief.tmaCreate</code>, <code>debrief.tmaSplitLeg</code>, <code>debrief.tmaExclude</code>, <code>debrief.showBearings</code>; the playground's in <code>vscode/play/host.ts</code>.</li>
+<li><strong>Tests:</strong> <code>python/debrief-kernel/tests/test_tma.py</code>, <code>python/debrief-stac/tests/test_tma.py</code>, <code>python/debrief-io/tests/test_dpf_tma.py</code>, <code>python/debrief-tools/tests/test_tma_service.py</code>, <code>vscode/test/unit/tma.test.ts</code>, <code>vscode/test/unit/stackeddots.test.ts</code>, <code>vscode/test/play/tma.mjs</code>, and a step of <code>vscode/test/integration/suite.ts</code>; vectors <code>schemas/vectors/tma-residuals.json</code>.</li>
+</ul>
+
+
+
+
+
+
+
+
+
+
+
+
+                
+              </article>
+            </div>
+          
+          
+<script>var target=document.getElementById(location.hash.slice(1));target&&target.name&&(target.checked=target.name.startsWith("__tabbed_"))</script>
+        </div>
+        
+      </main>
+      
+        <footer class="md-footer">
+  
+  <div class="md-footer-meta md-typeset">
+    <div class="md-footer-meta__inner md-grid">
+      <div class="md-copyright">
+  
+    <div class="md-copyright__highlight">
+      Debrief is open source under the Eclipse Public License 2.0.
+    </div>
+  
+  
+    Made with
+    <a href="https://squidfunk.github.io/mkdocs-material/" target="_blank" rel="noopener">
+      Material for MkDocs
+    </a>
+  
+</div>
+      
+    </div>
+  </div>
+</footer>
+      
+    </div>
+    <div class="md-dialog" data-md-component="dialog">
+      <div class="md-dialog__inner md-typeset"></div>
+    </div>
+    
+    
+    
+      
+      
+      <script id="__config" type="application/json">{"annotate": null, "base": "../../..", "features": ["navigation.tabs", "navigation.sections", "navigation.indexes", "content.code.copy"], "search": "../../../assets/javascripts/workers/search.2c215733.min.js", "tags": null, "translations": {"clipboard.copied": "Copied to clipboard", "clipboard.copy": "Copy to clipboard", "search.result.more.one": "1 more on this page", "search.result.more.other": "# more on this page", "search.result.none": "No matching documents", "search.result.one": "1 matching document", "search.result.other": "# matching documents", "search.result.placeholder": "Type to start searching", "search.result.term.missing": "Missing", "select.version": "Select version"}, "version": null}</script>
+    
+    
+      <script src="../../../assets/javascripts/bundle.d7400e89.min.js"></script>
+      
+        <script src="../../../javascripts/demo.js"></script>
+      
+    
+  </body>
+</html>
