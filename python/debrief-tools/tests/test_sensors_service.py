@@ -101,6 +101,18 @@ def test_a_dsf_is_previewed_read_in_and_resolved_by_an_agent(client, catalogue, 
     listed = rpc(client, "debrief/sensors", WHERE).json()["result"]["sensors"]
     assert (listed[0]["ambiguous"], listed[0]["resolved"]) == (3, 0)
 
+    # A box drawn in Bearings over both cuts' twins (Select bearings; product owner, 28 Oct
+    # 2026): the same method, one step, each cut keeping the side boxed.
+    boxed = rpc(
+        client,
+        "debrief/resolve_ambiguity",
+        {**WHERE, "keep": "bearing", "other_cut_ids": [first["id"], second["id"]]},
+    ).json()["result"]
+    assert boxed["notes"][0] == "Kept 2 TA cuts to starboard, 05:00:00Z–05:05:00Z"
+    listed = rpc(client, "debrief/sensors", WHERE).json()["result"]["sensors"]
+    assert (listed[0]["ambiguous"], listed[0]["resolved"]) == (1, 2)
+    rpc(client, "debrief/undo", WHERE)
+
     # A stale base is refused; a bad request says why.
     stale = rpc(
         client,

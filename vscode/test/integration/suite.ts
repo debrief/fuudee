@@ -645,6 +645,104 @@ export async function run(): Promise<void> {
     assert.ok(!api.session.current!.plot.features.some((f) => f.id === solution), "undone: no solution");
   }
 
+  // The Outline's TMA and cuts (product owner, 27 Oct 2026): a solution opens to its legs and each
+  // leg to its positions; a sensor to its cuts; the Tools' entries as commands on the Outline's rows,
+  // each one step: split before and after a position, hide, show, keep a side, leave out, delete;
+  // a solution from cuts opening the first guess in Bearings, which follows the Outline's selection.
+  {
+    type Done = { problem?: string; notes?: string[]; changed?: boolean };
+    const bow = "sensor-blue-one-bow-sonar";
+    const towed = "sensor-blue-one-towed-array";
+    const made = await vscode.commands.executeCommand<{ problem?: string; feature?: string }>("debrief.tmaCreate", {
+      sensor_ids: [bow],
+      period: { start: "2023-06-15T08:29:00.000Z", end: "2023-06-15T08:59:00.000Z" },
+    });
+    assert.equal(made.problem, undefined);
+    const solution = made.feature!;
+    const start = (await steps()).length;
+    const legs = api.outlineChildren(solution);
+    assert.deepEqual(legs.map((l) => [l.label, l.key, l.context]), [["Leg 1", `${solution}#leg1`, "outline-leg"]], "a solution opens to its legs");
+    const fixes = api.outlineChildren(`${solution}#leg1`);
+    assert.ok(fixes.length > 10, "the leg opens to its positions");
+    assert.match(fixes[0].label, /^08:29:00Z$/);
+    assert.match(fixes[0].description, /^\d{3}\.\d°T \d+\.\d kn$/, "each with its course and speed");
+    assert.equal(fixes[0].context, "outline-fix");
+    // Bearings follows the Outline: a position chosen shows the solution, ringed there, current time to it.
+    await vscode.commands.executeCommand("debrief.chooseInOutline", solution, { fix_time: "2023-06-15T08:44:00.000Z" });
+    await waitFor("Bearings showing the solution at the position", () => (api.bearings()?.title === "Contact 1 solution · fix at 08:44:00Z" ? true : undefined));
+    assert.equal(api.getState()?.time?.current, "2023-06-15T08:44:00.000Z");
+    assert.deepEqual(api.outlineKeys(), [fixes.find((f) => f.label === "08:44:00Z")!.key]);
+    const ops = await vscode.commands.executeCommand<{ id: string; enabled: boolean; label: string }[]>("debrief.outlineOperations");
+    assert.deepEqual(ops.map((o) => [o.id, o.enabled, o.label]), [["split-before", true, "Split before 08:44:00Z"], ["split-after", true, "Split after 08:44:00Z"]]);
+    await vscode.commands.executeCommand("debrief.tools.focus");
+    await sleep(1000);
+    await screenshot("15f-tools-for-a-position");
+    const before = await vscode.commands.executeCommand<Done>("debrief.splitBeforeFix");
+    assert.equal(before.problem, undefined);
+    assert.equal((await steps()).at(-1)?.notes?.[0], "Contact 1 solution split into legs before its fix at 08:44:00Z");
+    const after = await vscode.commands.executeCommand<Done>("debrief.splitAfterFix", [`${solution}#fix3`]);
+    assert.equal(after.problem, undefined);
+    assert.equal((await steps()).at(-1)?.notes?.[0], `Contact 1 solution split into legs after its fix at ${fixes[3].label}`);
+    assert.deepEqual(api.outlineChildren(solution).map((l) => l.label), ["Leg 1", "Leg 2", "Leg 3"]);
+    const refused = await vscode.commands.executeCommand<Done>("debrief.splitBeforeFix", [`${solution}#fix1`]);
+    assert.match(refused.problem ?? "", /^Leg 1 would keep 1 fix before the split and 3 fixes after it: each leg needs two\.$/, "disabled, with its reason");
+    // A sensor opens to its cuts: a run of them chosen, hidden, shown, deleted, each one step.
+    const cuts = api.outlineChildren(bow);
+    assert.ok(cuts.length > 100 && cuts.every((c) => c.context?.startsWith("outline-cut")), "the sensor's cuts, each a row");
+    assert.match(cuts[0].description, /^\d{3}\.\d°/);
+    const rooted = (api.session.current!.plot.features.find((f) => f.id === solution)!.properties as { tma: { cut_ids: string[] } }).tma.cut_ids;
+    const run = rooted.slice(4, 8);
+    await vscode.commands.executeCommand("debrief.chooseInOutline", bow, { cut_time: "2023-06-15T08:33:00.000Z" });
+    await waitFor("Bearings keeping the solution for a cut of its sensor", () => (api.bearings()?.solution_id === solution ? true : undefined));
+    const hidden = await vscode.commands.executeCommand<Done>("debrief.hideCuts", run);
+    assert.equal(hidden.problem, undefined);
+    assert.match((await steps()).at(-1)?.notes?.[0] ?? "", /^4 Bow sonar cuts 08:3\d:\d\dZ–08:3\d:\d\dZ hidden on the map$/);
+    assert.match((await steps()).at(-1)?.notes?.[1] ?? "", /^Contact 1 solution: 4 of its cuts left out of its residuals until shown again$/);
+    assert.match(api.outlineChildren(bow).find((c) => c.key === run[0])!.description, /hidden on map$/);
+    assert.equal((await vscode.commands.executeCommand<Done>("debrief.showCuts", run)).problem, undefined);
+    const left = await vscode.commands.executeCommand<Done>("debrief.tmaLeaveOut", [run[0]]);
+    assert.equal(left.problem, undefined);
+    assert.match((await steps()).at(-1)?.notes?.[0] ?? "", /^Contact 1 solution: cut at 08:\d\d:\d\dZ left out of the RMS$/);
+    const deleted = await vscode.commands.executeCommand<Done>("debrief.deleteCuts", run);
+    assert.equal(deleted.problem, undefined);
+    assert.match((await steps()).at(-1)?.notes?.[0] ?? "", /^4 Bow sonar cuts .* deleted$/);
+    assert.match((await steps()).at(-1)?.notes?.[1] ?? "", /^Contact 1 solution drops the 4 cuts deleted it was rooted in/);
+    assert.ok(!api.outlineChildren(bow).some((c) => c.key === run[0]), "gone from the Outline");
+    // Keep a side for a run of the towed array's cuts at once.
+    const towedCuts = api.outlineChildren(towed).slice(0, 6).map((c) => c.key!);
+    const kept = await vscode.commands.executeCommand<Done>("debrief.keepStarboard", towedCuts);
+    assert.equal(kept.problem, undefined);
+    assert.match((await steps()).at(-1)?.notes?.[0] ?? "", /^Starboard kept: 6 Towed array cuts /);
+    await waitFor("the Outline saying the side kept", () => (api.outlineChildren(towed)[0].description.endsWith("stbd kept") ? true : undefined));
+    // Select bearings (product owner, 28 Oct 2026): the view's toggle, and a box's message, the same
+    // operation as the Tools' Keep port and starboard, one step for the cuts boxed on each side, and
+    // those resolved whose kept dots were boxed made ambiguous again.
+    const bundle = readFileSync(path.join(extension.extensionPath, "dist", "webview", "bearings.js"), "utf8");
+    assert.ok(bundle.includes("tma-select") && bundle.includes("Select bearings"), "the Select bearings toggle in the Bearings view");
+    const boxed = api.outlineChildren(towed).slice(6, 12).map((c) => c.key!);
+    await api.bearingsMessage({ kind: "tma_resolve", resolution: { keep: "bearing", cut_ids: boxed.slice(0, 1), other_cut_ids: boxed, clear_cut_ids: towedCuts.slice(0, 2) } });
+    assert.match((await steps()).at(-1)?.notes?.[0] ?? "", /^Kept 5 (Towed array )?cuts to (port|starboard|the sides boxed) and made 2 ambiguous again(, 0\d:\d\d:\d\dZ–0\d:\d\d:\d\dZ)?$/);
+    await waitFor("the Outline saying the two ambiguous again", () => (api.outlineChildren(towed)[0].description.includes("≈") ? true : undefined));
+    assert.ok((await steps()).at(-1)?.notes?.includes("1 cut boxed on both sides, left as they were."), "a cut boxed on both sides left");
+    await vscode.commands.executeCommand("debrief.outline.focus");
+    await sleep(1000);
+    await screenshot("15g-outline-tree");
+    // A solution from a run of cuts: the first guess's form, in Bearings, for exactly those.
+    const fromCuts = await vscode.commands.executeCommand<Done>("debrief.tmaFromCuts", towedCuts);
+    assert.equal(fromCuts.problem, undefined);
+    await waitFor("Bearings' first guess for the cuts", () => (api.bearings()?.focus?.make && api.bearings()?.focus?.cut_ids?.length === 6 && api.bearings()?.sensor_id === towed ? true : undefined));
+    // The Course/Speed pane before any solution: ownship's course and speed, the sensor's host (product owner, 28 Oct 2026).
+    const own = api.bearings()?.ownship ?? [];
+    assert.deepEqual(own.map((o) => o.name), ["BLUE ONE"], "ownship for the sensor shown");
+    assert.ok(own[0].courses.length > 10 && (own[0].speeds?.length ?? 0) === own[0].courses.length, "its courses and speeds");
+    await sleep(1000);
+    await screenshot("15h-bearings-first-guess");
+    const done = (await steps()).length - start;
+    assert.equal(done, 8, "one step each");
+    for (let i = 0; i < done + 1; i++) assert.equal(await vscode.commands.executeCommand("debrief.undo"), undefined);
+    assert.ok(!api.session.current!.plot.features.some((f) => f.id === solution), "undone: no solution");
+  }
+
   // The properties form of the circle, as the map's double-click or the outline opens it.
   await vscode.commands.executeCommand("debrief.editAnnotation", "annotation-exclusion-zone");
   await waitFor("the circle's form", async () => (await vscode.commands.executeCommand<string | undefined>("debrief.annotationFormOpen")) === "annotation-exclusion-zone" || undefined);

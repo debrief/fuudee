@@ -1,25 +1,27 @@
 /**
- * The bearing view, in the Debrief sidebar (CAP-21, CAP-22; product owner, 24 Oct 2026): a
- * sensor's cuts in a list a TMA solution's period is chosen from, the first guess, and a
- * solution's bearings and residuals after legacy Debrief's Stacked Dots. A webview, the
- * same component the playground docks as a panel (webview/tmacontrol.ts).
+ * The bearing view, in VS Code's panel below the editor (CAP-21, CAP-22; product owner, 25 Oct
+ * 2026): a TMA solution's bearings and residuals after legacy Debrief's Stacked Dots, or a
+ * sensor's bearings. A webview, the same component the playground docks as a panel
+ * (webview/tmacontrol.ts).
  *
- * The cuts and the residuals come from the tool service (debrief/sensors, debrief/
- * tma_residuals) whenever the plot or the choice changes; while a solution is dragged on
- * the map, the map's preview is passed on (tma_preview) and the view works the residuals
- * out again itself, exact again from Python once the drag's step is saved (NFR-04).
- *
- * Which sensor and which solution the view shows is the analyst's, in this view only:
- * selecting a solution on the map or in the Outline shows it; selecting a sensor, one of
- * its cuts or its track lists its cuts. Never saved, never a step.
+ * It follows the Outline's selection (product owner, 27 Oct 2026; outlinemodel.ts bearingsFor):
+ * a solution, one of its legs or positions shows the solution (a position ringed); a sensor, or
+ * some of its cuts, the sensor's coverage; something unrelated keeps what is shown. It has no
+ * lists of its own: the Outline lists the cuts, legs and positions. The cuts and the residuals
+ * come from the tool service (debrief/sensors, debrief/tma_residuals) whenever the plot or the
+ * choice changes; while a solution is dragged on the map, the map's preview is passed on
+ * (tma_preview) and the view works the residuals out again itself, exact again from Python once
+ * the drag's step is saved (NFR-04). What it shows is the analyst's, in this view only: never
+ * saved, never a step.
  */
 import * as vscode from "vscode";
-import type { TimeState, TmaCut, TmaFocus, TmaRequest, TmaResiduals, TmaView } from "@debrief/schemas";
+import type { AmbiguityResolution, TimeState, TmaCut, TmaFocus, TmaRequest, TmaResiduals, TmaView } from "@debrief/schemas";
 import { checkMessage } from "../messages.js";
 import type { Session } from "../session.js";
 import { startup } from "../startup.js";
 import { webviewHtml } from "./html.js";
-import { coverageOf, cutColours, cutRowsOf, FocusOnce, keepsSolution, ownshipOf, sensorOfSelection, solutionOfSelection, tmaSensorRows, tmaSolutionRows, type ListedCut } from "../../webview/tma.js";
+import { coverageOf, cutColours, cutRowsOf, FocusOnce, ownshipOf, tmaSensorRows, tmaSolutionRows, type ListedCut } from "../../webview/tma.js";
+import { bearingsFor, bearingsTitle, outlineIndex, type BearingsShown, type OutlinePick } from "../../webview/outlinemodel.js";
 
 export const BEARINGS_VIEW = "debrief.bearings";
 
@@ -36,6 +38,10 @@ export interface BearingsAct {
   exclude(solutionId: string, cutIds: string[], excluded: boolean): Promise<string | undefined>;
   split(solutionId: string, at: string): Promise<string | undefined>;
   resolve(cutId: string, keep: string): Promise<string | undefined>;
+  /** A box drawn with Select bearings on: the sides boxed kept, one step (debrief/resolve_ambiguity). */
+  resolveCuts(resolution: AmbiguityResolution): Promise<string | undefined>;
+  /** A dot clicked: its cut, or the solution at its fix (index), selected in the Outline and on the map. */
+  select(featureId: string, fix?: number): void;
   /** The analyst's error cut-off, degrees: kept in their Debrief configuration. */
   cutOff(degrees: number): void;
   /** The analyst's error cut-off, as their configuration holds it. */
@@ -45,10 +51,10 @@ export interface BearingsAct {
 export class BearingsView implements vscode.WebviewViewProvider {
   private view?: vscode.WebviewView;
   private ready = false;
-  private sensorId?: string;
-  private solutionId?: string;
+  /** What the view shows: what the Outline's selection last chose. */
+  private shownNow?: BearingsShown;
   private asking = 0;
-  /** What the view is to choose when next shown, as a command asked (choose): once. */
+  /** What the view is to choose when next shown (a position ringed, the first guess's form): once. */
   private readonly focus = new FocusOnce();
   /** What the view was last sent, for tests and agents. */
   last?: TmaView;
@@ -64,35 +70,20 @@ export class BearingsView implements vscode.WebviewViewProvider {
   ) {
     session.onPlot((opened) => {
       if (!opened) {
-        this.sensorId = this.solutionId = undefined;
+        this.shownNow = undefined;
         this.last = undefined;
         return this.post({ kind: "show_tma" });
       }
-      // A plot read again (a step saved, undone): the same choices, if they are still there.
-      const ids = new Set(opened.plot.features.map((f) => f.id));
-      if (this.sensorId && !ids.has(this.sensorId)) this.sensorId = undefined;
-      if (this.solutionId && !ids.has(this.solutionId)) this.solutionId = undefined;
       void this.refresh();
-    });
-    session.onSelection((ids) => {
-      const plot = this.session.current?.plot;
-      if (!plot) return;
-      // A cut of the solution's sensors selected (a dot clicked in the plot): the solution stays shown.
-      if (keepsSolution(plot, ids, this.solutionId)) return;
-      const solution = solutionOfSelection(plot, ids);
-      const sensor = sensorOfSelection(plot, ids);
-      if (solution && solution !== this.solutionId) {
-        this.solutionId = solution;
-        void this.refresh();
-      } else if (!solution && sensor && (sensor !== this.sensorId || this.solutionId)) {
-        this.sensorId = sensor;
-        this.solutionId = undefined;
-        void this.refresh();
-      }
     });
     session.onState((change) => {
       if (change.time) this.post({ kind: "set_time", time: change.time });
     });
+  }
+
+  /** The solution Bearings shows, if one: the Tools' Leave out and Count in act on it. */
+  get solutionShown(): string | undefined {
+    return this.shownNow && "solution" in this.shownNow ? this.shownNow.solution : undefined;
   }
 
   /** Whether the view has loaded, for tests and agents. */
@@ -147,14 +138,11 @@ export class BearingsView implements vscode.WebviewViewProvider {
       this.ready = true;
       await this.refresh();
       if (this.session.time) this.post({ kind: "set_time", time: this.session.time });
-    } else if (message.kind === "tma_chosen") {
-      await this.choose(message.feature_id!);
     } else if (message.kind === "tma_create") {
       const done = await this.act.create(message.tma_request!);
       this.post(done.problem ? { kind: "tma_made", message: done.problem } : { kind: "tma_made", ...(done.feature && { feature_id: done.feature }) });
       if (done.feature) {
-        this.solutionId = done.feature;
-        this.session.select([done.feature], "bearings");
+        this.shownNow = { solution: done.feature };
         await this.refresh();
       }
     } else if (message.kind === "tma_guess") {
@@ -167,10 +155,16 @@ export class BearingsView implements vscode.WebviewViewProvider {
       this.timeTo(message.current_time!);
     } else if (message.kind === "resolve_asked") {
       await this.act.resolve(message.feature_id!, message.keep!);
+    } else if (message.kind === "tma_resolve" && message.resolution) {
+      await this.act.resolveCuts(message.resolution);
     } else if (message.kind === "tma_select") {
-      // A dot clicked: its cut, or the solution at a fix, selected; current time to it.
-      this.session.select([message.feature_id!], "bearings");
+      // A dot clicked: its cut, or the solution at a fix (that position, in the Outline), selected; current time to it.
+      const id = message.feature_id!;
+      const plot = this.session.current?.plot;
+      const s = plot && id === this.solutionShown ? outlineIndex(plot).solutions.get(id) : undefined;
+      const fix = s ? s.times.indexOf(Date.parse(message.current_time!)) : -1;
       this.timeTo(message.current_time!);
+      this.act.select(id, fix >= 0 ? fix : undefined);
     } else if (message.kind === "tma_cut_off") {
       this.act.cutOff(message.error_cut_off!);
     } else if (message.kind === "tma_plot_drawn") {
@@ -179,22 +173,40 @@ export class BearingsView implements vscode.WebviewViewProvider {
   }
 
   /**
-   * Show a sensor's cuts or a solution's residuals, as the analyst chose in the view (or a
-   * command); with focus, something chosen there once (a walkthrough's step).
+   * Follow the Outline's selection (product owner, 27 Oct 2026): a solution for it, a leg or a
+   * position of it (the position ringed); a sensor's coverage for it or some of its cuts (the last
+   * ringed), cuts of the solution's sensors keeping it shown; something unrelated, no change.
+   */
+  follow(picks: readonly OutlinePick[]): void {
+    const plot = this.session.current?.plot;
+    if (!plot) return;
+    const index = outlineIndex(plot);
+    const next = bearingsFor(index, picks, this.solutionShown);
+    if (!next) return;
+    let ring: string | undefined;
+    if ("solution" in next && next.fix !== undefined) ring = new Date(index.solutions.get(next.solution)!.times[next.fix]).toISOString();
+    else {
+      const cut = [...picks].reverse().find((p) => p.kind === "cut");
+      if (cut && cut.kind === "cut") ring = cut.cut.properties.time;
+    }
+    if (ring) this.focus.ask({ cut_time: ring });
+    this.shownNow = next;
+    // Asked again even when the same: the plot read afresh, as choosing a solution again did (the panel's H2).
+    void this.refresh();
+  }
+
+  /**
+   * Show a sensor's coverage or a solution, as a command asks (Show bearings); with focus,
+   * something chosen there once (a cut ringed, the first guess's form for a period or cuts).
    */
   async choose(featureId: string, focus?: TmaFocus): Promise<void> {
     const plot = this.session.current?.plot;
     const feature = plot?.features.find((f) => f.id === featureId);
     if (!feature) return;
     this.focus.ask(focus);
-    if (feature.properties.kind === "sensor") {
-      this.sensorId = featureId;
-      this.solutionId = undefined;
-    } else if (feature.properties.kind === "track") {
-      this.solutionId = featureId;
-      // The solution shown is selected, so the map shows its handles to drag it.
-      this.session.select([featureId], "bearings");
-    }
+    if (feature.properties.kind === "sensor") this.shownNow = { sensor: featureId };
+    else if (feature.properties.kind === "sensor_cut") this.shownNow = { sensor: feature.properties.sensor_id };
+    else if (feature.properties.kind === "track" && feature.properties.tma) this.shownNow = { solution: featureId };
     await this.refresh();
   }
 
@@ -218,31 +230,35 @@ export class BearingsView implements vscode.WebviewViewProvider {
     if (!opened || !this.view || !this.ready) return;
     const asked = ++this.asking;
     const plot = opened.plot;
+    const index = outlineIndex(plot);
+    // Something no longer in the plot (undone, deleted): nothing shown.
+    if (this.shownNow && ("solution" in this.shownNow ? !index.solutions.has(this.shownNow.solution) : !index.sensors.has(this.shownNow.sensor))) this.shownNow = undefined;
     const sensors = tmaSensorRows(plot);
     const solutions = tmaSolutionRows(plot);
-    if (!this.solutionId) this.solutionId = solutionOfSelection(plot, this.session.selection);
-    if (!this.sensorId || !sensors.some((s) => s.id === this.sensorId)) this.sensorId = sensorOfSelection(plot, this.session.selection) ?? sensors[0]?.id;
-    const sensor = sensors.find((s) => s.id === this.sensorId);
+    const solutionId = this.solutionShown;
+    const sensor = this.shownNow && "sensor" in this.shownNow ? sensors.find((s) => s.id === (this.shownNow as { sensor: string }).sensor) : undefined;
     let cuts: TmaCut[] | undefined;
     let residuals: TmaResiduals | undefined;
     try {
-      if (this.solutionId && solutions.some((s) => s.id === this.solutionId)) residuals = await this.ask.residuals(this.solutionId);
+      if (solutionId) residuals = await this.ask.residuals(solutionId);
       else if (sensor) cuts = cutRowsOf(sensor, (await this.ask.cuts(sensor.id)) ?? [], cutColours(plot));
     } catch (error) {
       this.log(`bearings_failed message_length=${(error as Error).message.length}`);
     }
     if (asked !== this.asking) return; // asked again meanwhile
-    // Something a command asked to be chosen, once.
+    // Something asked to be chosen, once.
     const focus = this.focus.take();
     const view: TmaView = {
       ...(focus && { focus }),
       plot_id: opened.item.id,
       ...(opened.revision && { read_only: true }),
+      title: bearingsTitle(index, this.shownNow),
       sensors,
       ...(sensor && { sensor_id: sensor.id }),
       ...(cuts && { cuts }),
+      ...(sensor && { ownship: ownshipOf(plot, sensor.id) }),
       solutions,
-      ...(residuals && this.solutionId && { solution_id: this.solutionId, residuals, ...this.around(this.solutionId, residuals) }),
+      ...(residuals && solutionId && { solution_id: solutionId, residuals, ...this.around(solutionId, residuals) }),
       error_cut_off: this.act.errorCutOff,
     };
     this.last = view;
@@ -264,3 +280,5 @@ export class BearingsView implements vscode.WebviewViewProvider {
     if (message.kind === "show_tma") startup.shown(BEARINGS_VIEW, !!message.tma);
   }
 }
+
+

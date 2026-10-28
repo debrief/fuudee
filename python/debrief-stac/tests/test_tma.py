@@ -4,6 +4,7 @@ ambiguous ones measured by the nearer bearing; cuts left out of the RMS and coun
 each a step; legs split at a time, each dragged on its own with the later ones staying
 joined; and the existing track operations (drag, split, merge) working on them unchanged."""
 
+import json
 import math
 from pathlib import Path
 
@@ -727,3 +728,124 @@ def test_leaving_out_a_second_cut_keeps_the_first_left_out(catalogue: Catalogue)
     assert solution_of(catalogue, feature).properties.tma.excluded_cut_ids == [rooted[2], rooted[7]]
     catalogue.tma_exclude("p", feature, [rooted[2]], False, AGENT)
     assert solution_of(catalogue, feature).properties.tma.excluded_cut_ids == [rooted[7]]
+
+
+# --- The Outline's operations (product owner, 27 Oct 2026) --------------------------------
+
+LEG_VECTORS = json.loads(
+    (Path(__file__).parents[3] / "schemas" / "vectors" / "tma-legs.json").read_text("utf-8")
+)
+
+
+@pytest.mark.parametrize("case", LEG_VECTORS["cases"], ids=lambda c: c["name"])
+def test_split_before_or_after_a_fix_is_held_to_the_shared_vectors(case: dict) -> None:
+    times = [parse_utc(t) for t in LEG_VECTORS["fixes"]]
+    starts = [parse_utc(t) for t in case["leg_starts"]]
+    found = tma.split_at_fix_index(times, starts, case["index"], case["side"])
+    assert found.leg == case["leg"]
+    if "refused" in case:
+        assert found.first is None and found.refused == case["refused"]
+    else:
+        assert found.refused is None
+        assert format_utc(times[found.first]) == case["leg_start"]
+    if "before" in case:
+        assert (found.before, found.after) == (case["before"], case["after"])
+
+
+def test_split_before_a_fix_starts_a_new_leg_there_and_moves_nothing(catalogue: Catalogue) -> None:
+    feature, before = three_legs(catalogue)
+    starts = list(before.properties.tma.leg_starts)
+    catalogue.tma_split_leg("p", feature, at(7), AGENT, side="before")
+    after = solution_of(catalogue, feature)
+    assert after.geometry == before.geometry
+    assert after.properties.courses == before.properties.courses
+    assert after.properties.tma.leg_starts == sorted([at(7), *starts])
+    record = last_record(catalogue)
+    assert record.notes[0] == "Contact 1 solution split into legs before its fix at 09:07:00Z"
+    assert {p.name: p.value for p in record.parameters}["side"] == "before"
+
+
+def test_split_after_a_fix_makes_it_the_last_of_the_earlier_leg(catalogue: Catalogue) -> None:
+    feature, before = three_legs(catalogue)
+    catalogue.tma_split_leg("p", feature, at(20), AGENT, side="after")
+    after = solution_of(catalogue, feature)
+    assert after.geometry == before.geometry
+    # The later legs kept where they were: 09:14 and 09:28 still start theirs.
+    assert after.properties.tma.leg_starts == [at(14), at(21), at(28)]
+    assert last_record(catalogue).notes[0] == (
+        "Contact 1 solution split into legs after its fix at 09:20:00Z"
+    )
+    catalogue.history("p").undo()
+    assert solution_of(catalogue, feature).properties.tma.leg_starts == [at(14), at(28)]
+
+
+@pytest.mark.parametrize(
+    ("minute", "side", "says"),
+    [
+        (14, "before", "it is already the first fix of leg 2"),
+        (13, "after", "it is already the last fix of leg 1"),
+        (40, "after", "it is the solution's last fix"),
+        (15, "before", "leg 2 would keep 1 fix before the split and 13 fixes after it"),
+        (12.5, "before", "has no fix at 09:12:30Z"),
+    ],
+)
+def test_a_split_by_a_fix_that_cannot_be_made_says_why(
+    catalogue: Catalogue, minute: float, side: str, says: str
+) -> None:
+    feature, _ = three_legs(catalogue)
+    with pytest.raises(CatalogueError, match=says):
+        catalogue.tma_split_leg("p", feature, at(minute), AGENT, side=side)
+
+
+def test_hiding_cuts_names_them_as_cuts_and_says_which_solutions_they_leave(
+    catalogue: Catalogue,
+) -> None:
+    _, feature = catalogue.create_tma("p", truth_request(catalogue), AGENT)
+    rooted = solution_of(catalogue, feature).properties.tma.cut_ids
+    hide(catalogue, rooted[2:5])
+    notes = last_record(catalogue).notes
+    assert notes[0] == "3 Bow sonar cuts 09:02:00Z–09:04:00Z hidden on the map"
+    assert (
+        notes[1] == "Contact 1 solution: 3 of its cuts left out of its residuals until shown again"
+    )
+    assert catalogue.tma_residuals("p", feature)["hidden"] == 3
+    hide(catalogue, rooted[2:5], False)
+    assert (
+        last_record(catalogue).notes[1]
+        == "Contact 1 solution: 3 of its cuts counted in its residuals again"
+    )
+    hide(catalogue, rooted[:1])
+    assert last_record(catalogue).notes[0] == "Bow sonar cut at 09:00:00Z hidden on the map"
+
+
+def test_deleting_cuts_is_one_step_and_solutions_drop_them(catalogue: Catalogue) -> None:
+    _, feature = catalogue.create_tma("p", truth_request(catalogue), AGENT)
+    tag = solution_of(catalogue, feature).properties.tma
+    rooted = list(tag.cut_ids)
+    catalogue.tma_exclude("p", feature, [rooted[3]], True, AGENT)
+    before = solution_of(catalogue, feature)
+    gone = rooted[2:5]
+    catalogue.delete_cuts("p", gone, AGENT)
+    now = plot(catalogue)
+    assert not {f.id for f in now.features} & set(gone)
+    after = solution_of(catalogue, feature)
+    assert after.properties.tma.cut_ids == [i for i in rooted if i not in gone]
+    assert after.properties.tma.excluded_cut_ids is None
+    assert after.geometry == before.geometry
+    record = last_record(catalogue)
+    assert record.notes[0] == "3 Bow sonar cuts 09:02:00Z–09:04:00Z deleted"
+    assert record.notes[1] == (
+        "Contact 1 solution drops the 3 cuts deleted it was rooted in: rooted in 28 cuts now, "
+        "its fixes where they were"
+    )
+    assert catalogue.tma_residuals("p", feature)["counted"] == 28
+    catalogue.history("p").undo()
+    assert solution_of(catalogue, feature).properties.tma.cut_ids == rooted
+    assert set(gone) <= {f.id for f in plot(catalogue).features}
+
+
+def test_only_cuts_are_deleted_as_cuts(catalogue: Catalogue) -> None:
+    with pytest.raises(CatalogueError, match="no cut 'track-blue'"):
+        catalogue.delete_cuts("p", ["track-blue"], AGENT)
+    with pytest.raises(CatalogueError, match="Choose the cuts"):
+        catalogue.delete_cuts("p", [], AGENT)

@@ -556,6 +556,104 @@ def test_a_cut_resolved_so_already_is_not_resolved_again(catalogue: Catalogue) -
         catalogue.resolve_ambiguity("p", {"keep": "port", "cut_ids": ids[:4]}, AGENT)
 
 
+# --- A box drawn in the Bearings plot (Select bearings; product owner, 28 Oct 2026) -----
+
+
+def test_a_box_over_twins_keeps_them_in_one_step_named_for_the_side(catalogue: Catalogue) -> None:
+    ids = cut_ids(catalogue)
+    steps = len(catalogue.history("p").steps())
+    catalogue.resolve_ambiguity(
+        "p", {"keep": "bearing", "cut_ids": [], "other_cut_ids": ids[10:20]}, AGENT
+    )
+    assert resolved(catalogue) == [None] * 10 + ["ambiguous_bearing"] * 10 + [None] * 10
+    assert len(catalogue.history("p").steps()) == steps + 1
+    record = last_record(catalogue)
+    assert record.notes[0] == "Kept 10 Towed array cuts to starboard, 09:10:00Z–09:19:00Z"
+    assert {p.name: p.value for p in record.parameters} == {"keep": "bearing", "other_cuts": 10}
+    assert record.selected == ids[10:20]
+    catalogue.history("p").undo()
+    assert set(resolved(catalogue)) == {None}
+    catalogue.history("p").redo()
+    assert resolved(catalogue)[10:20] == ["ambiguous_bearing"] * 10
+
+
+def test_a_box_over_both_sides_keeps_each_cut_the_side_boxed(catalogue: Catalogue) -> None:
+    ids = cut_ids(catalogue)
+    catalogue.resolve_ambiguity(
+        "p",
+        {"keep": "bearing", "cut_ids": ids[0:3] + ids[5:6], "other_cut_ids": ids[3:6]},
+        AGENT,
+    )
+    assert resolved(catalogue)[:7] == ["bearing"] * 3 + ["ambiguous_bearing"] * 2 + [None] * 2
+    record = last_record(catalogue)
+    assert record.notes[0] == "Kept 5 Towed array cuts to the sides boxed, 09:00:00Z–09:04:00Z"
+    assert "1 cut boxed on both sides, left as they were." in record.notes
+
+
+def test_a_box_leaves_hidden_cuts_and_cuts_kept_so_and_may_change_nothing(
+    catalogue: Catalogue,
+) -> None:
+    ids = cut_ids(catalogue)
+    catalogue.set_hidden("p", ids[:2], True, AGENT)
+    catalogue.resolve_ambiguity("p", {"keep": "bearing", "other_cut_ids": ids[:4]}, AGENT)
+    assert resolved(catalogue)[:4] == [None, None, "ambiguous_bearing", "ambiguous_bearing"]
+    record = last_record(catalogue)
+    assert record.notes[0] == "Kept 2 Towed array cuts to starboard, 09:02:00Z–09:03:00Z"
+    assert "2 hidden cuts left as they are: show them to resolve them." in record.notes
+    steps = len(catalogue.history("p").steps())
+    with pytest.raises(CatalogueError, match="Nothing to change.*already resolved so"):
+        catalogue.resolve_ambiguity("p", {"keep": "bearing", "other_cut_ids": ids[2:4]}, AGENT)
+    with pytest.raises(CatalogueError, match="boxed on both sides"):
+        catalogue.resolve_ambiguity(
+            "p", {"keep": "bearing", "cut_ids": ids[5:6], "other_cut_ids": ids[5:6]}, AGENT
+        )
+    with pytest.raises(CatalogueError, match="the cuts boxed are hidden"):
+        catalogue.resolve_ambiguity("p", {"keep": "bearing", "other_cut_ids": ids[:2]}, AGENT)
+    with pytest.raises(
+        CatalogueError, match="other_cut_ids and clear_cut_ids go with keep bearing"
+    ):
+        catalogue.resolve_ambiguity("p", {"keep": "port", "other_cut_ids": ids[6:8]}, AGENT)
+    assert len(catalogue.history("p").steps()) == steps
+
+
+def test_a_box_over_resolved_cuts_makes_them_ambiguous_again_with_the_rest_one_step(
+    catalogue: Catalogue,
+) -> None:
+    """Select bearings toggles (product owner, 28 Oct 2026): a resolved cut whose kept dot is
+    boxed is made ambiguous again, in the same step as the unresolved ones boxed are kept."""
+    ids = cut_ids(catalogue)
+    catalogue.resolve_ambiguity("p", {"keep": "bearing", "other_cut_ids": ids[:5]}, AGENT)
+    steps = len(catalogue.history("p").steps())
+    catalogue.resolve_ambiguity(
+        "p",
+        {"keep": "bearing", "cut_ids": [], "other_cut_ids": ids[5:8], "clear_cut_ids": ids[:3]},
+        AGENT,
+    )
+    assert len(catalogue.history("p").steps()) == steps + 1, "one step"
+    assert resolved(catalogue)[:9] == [None] * 3 + ["ambiguous_bearing"] * 5 + [None]
+    record = last_record(catalogue)
+    assert record.notes[0] == "Kept 3 Towed array cuts to starboard and made 3 ambiguous again"
+    assert record.notes[1] == "6 Towed array cuts from 09:00:00Z to 09:07:00Z."
+    assert {p.name: p.value for p in record.parameters} == {
+        "keep": "bearing",
+        "other_cuts": 3,
+        "cleared_cuts": 3,
+    }
+    catalogue.history("p").undo()
+    assert resolved(catalogue)[:9] == ["ambiguous_bearing"] * 5 + [None] * 4
+    catalogue.history("p").redo()
+    assert resolved(catalogue)[:9] == [None] * 3 + ["ambiguous_bearing"] * 5 + [None]
+    # Only made ambiguous again: said so; a cut never resolved among them left, and said.
+    catalogue.resolve_ambiguity(
+        "p", {"keep": "bearing", "other_cut_ids": [], "clear_cut_ids": ids[2:5]}, AGENT
+    )
+    record = last_record(catalogue)
+    assert record.notes[0] == "Made 2 Towed array cuts ambiguous again, 09:03:00Z–09:04:00Z"
+    assert "1 cut already ambiguous." in record.notes
+    with pytest.raises(CatalogueError, match="Nothing to change: 3 cuts already ambiguous"):
+        catalogue.resolve_ambiguity("p", {"keep": "bearing", "clear_cut_ids": ids[:3]}, AGENT)
+
+
 def test_an_array_offset_is_one_step_and_moves_where_cuts_are_drawn(catalogue: Catalogue) -> None:
     sensor = plot_sensors.sensors(plot(catalogue))[0].id
     before = plot_sensors.describe(plot(catalogue), with_cuts=True)[0]["cut_list"][10]["origin"]

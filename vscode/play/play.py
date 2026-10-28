@@ -216,7 +216,11 @@ def restyle(item: str, request_json: str) -> str:
                 colour_name=request.get("colour_name"),
             )
         else:
-            _cat().set_hidden(item, request["features"], bool(request["hidden"]), YOU, base)
+            step = _cat().set_hidden(item, request["features"], bool(request["hidden"]), YOU, base)
+            # Cuts hidden or shown: what that does to the solutions rooted in them (27 Oct 2026).
+            if step is not None:
+                notes = _cat().history(item).steps()[step - 1].records[0].notes or []
+                return json.dumps({"ok": True, "notes": list(notes)})
     except Conflict:
         return json.dumps({"error": "The plot was changed elsewhere, so nothing was changed."})
     except (CatalogueError, HistoryError) as error:
@@ -323,13 +327,19 @@ def sensor(item: str, request_json: str, data: bytes | None = None) -> str:
     sensor lines into the plot: each one recorded, undoable step (CAP-22), as
     debrief/resolve_ambiguity and debrief/import_sensor do. request: base, and change:
     {kind: "resolve", resolution}, {kind: "array_offset", sensor_ids, offset, mode} (as
-    debrief/set_array_offset) or {kind: "import", name, hosts, again}."""
+    debrief/set_array_offset), {kind: "delete", cut_ids} (as debrief/delete_cuts) or {kind:
+    "import", name, hosts, again}."""
     request = json.loads(request_json)
     base = Base(**request["base"]) if request.get("base") else None
     change = request["change"]
     try:
         if change["kind"] == "resolve":
             step = _cat().resolve_ambiguity(item, change["resolution"], YOU, base)
+            notes = _cat().history(item).steps()[step - 1].records[0].notes or []
+            return json.dumps({"ok": True, "notes": list(notes)})
+        if change["kind"] == "delete":
+            # Cuts deleted, as debrief/delete_cuts: the solutions rooted in them drop them.
+            step = _cat().delete_cuts(item, change["cut_ids"], YOU, base)
             notes = _cat().history(item).steps()[step - 1].records[0].notes or []
             return json.dumps({"ok": True, "notes": list(notes)})
         if change["kind"] == "array_offset":
@@ -557,7 +567,7 @@ def tma_change(item: str, request_json: str) -> str:
     """A TMA solution made, split into legs, or its cuts left out of its RMS or counted
     again: each one recorded, undoable step (CAP-21), as debrief/tma_create,
     debrief/tma_split_leg and debrief/tma_exclude_cut do. request: base, and change:
-    {kind: "create", request}, {kind: "split", feature, at} or {kind: "exclude",
+    {kind: "create", request}, {kind: "split", feature, at, side?} or {kind: "exclude",
     feature, cut_ids, excluded}."""
     request = json.loads(request_json)
     base = Base(**request["base"]) if request.get("base") else None
@@ -567,7 +577,10 @@ def tma_change(item: str, request_json: str) -> str:
         if change["kind"] == "create":
             step, out["feature"] = _cat().create_tma(item, change["request"], YOU, base)
         elif change["kind"] == "split":
-            step = _cat().tma_split_leg(item, change["feature"], change["at"], YOU, base)
+            # side: before or after the fix at at (the Outline's Split before and Split after).
+            step = _cat().tma_split_leg(
+                item, change["feature"], change["at"], YOU, base, side=change.get("side")
+            )
         else:
             step = _cat().tma_exclude(
                 item, change["feature"], change["cut_ids"], bool(change["excluded"]), YOU, base

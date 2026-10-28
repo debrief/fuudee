@@ -580,9 +580,23 @@ export class ToolService {
     return this.request("debrief/tma_exclude_cut", { store, item, base, agent, feature, cut_ids: cutIds, excluded, ...(allowNewerSchema && { allow_newer_schema: true }) });
   }
 
-  /** A solution split into legs at a time, or (join) a leg joined to the one before: one step. */
-  tmaSplitLeg(store: string, item: string, base: Base, agent: Agent, feature: string, at: string, join = false, allowNewerSchema = false): Promise<Opened & { changed: boolean; notes?: string[] }> {
-    return this.request("debrief/tma_split_leg", { store, item, base, agent, feature, at, ...(join && { join }), ...(allowNewerSchema && { allow_newer_schema: true }) });
+  /**
+   * A solution split into legs at a time, or (join) a leg joined to the one before, or (side)
+   * before or after its fix at that time (product owner, 27 Oct 2026, the Outline's Split
+   * before and Split after): one step.
+   */
+  tmaSplitLeg(store: string, item: string, base: Base, agent: Agent, feature: string, at: string, join = false, allowNewerSchema = false, side?: "before" | "after"): Promise<Opened & { changed: boolean; notes?: string[] }> {
+    return this.request("debrief/tma_split_leg", { store, item, base, agent, feature, at, ...(join && { join }), ...(side && { side }), ...(allowNewerSchema && { allow_newer_schema: true }) });
+  }
+
+  /** Cuts deleted from the plot (product owner, 27 Oct 2026): one step; the solutions rooted in them drop them, which the notes say. */
+  deleteCuts(store: string, item: string, base: Base, agent: Agent, cutIds: string[], allowNewerSchema = false): Promise<Opened & { changed: boolean; notes?: string[] }> {
+    return this.request("debrief/delete_cuts", { store, item, base, agent, cut_ids: cutIds, ...(allowNewerSchema && { allow_newer_schema: true }) });
+  }
+
+  /** Cuts hidden on the map or shown again (product owner, 27 Oct 2026): one step; the notes say which solutions' residuals they leave or join again. */
+  hideCuts(store: string, item: string, base: Base, agent: Agent, cutIds: string[], hidden: boolean, allowNewerSchema = false): Promise<Opened & { changed: boolean; notes?: string[] }> {
+    return this.request("debrief/set_hidden", { store, item, base, agent, features: cutIds, hidden, ...(allowNewerSchema && { allow_newer_schema: true }) });
   }
 
   /** What a .dsf or REP file's sensor lines hold, before they are read into the plot: which track would carry each sensor (CAP-22). Changes nothing. */

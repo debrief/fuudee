@@ -20,13 +20,13 @@ root.innerHTML = `<div id="tma"></div>`;
 const control = new TmaControl(
   document.getElementById("tma")!,
   {
-    choose: (feature_id) => host.postMessage({ kind: "tma_chosen", feature_id }),
     create: (tma_request) => host.postMessage({ kind: "tma_create", tma_request }),
     guess: (tma_request) => host.postMessage({ kind: "tma_guess", tma_request }),
     exclude: (feature_id, cut_ids, excluded) => host.postMessage({ kind: "tma_exclude", feature_id, cut_ids, excluded }),
     split: (feature_id, current_time) => host.postMessage({ kind: "tma_split", feature_id, current_time }),
     time: (current_time) => host.postMessage({ kind: "tma_time_asked", current_time }),
     resolve: (feature_id, keep) => host.postMessage({ kind: "resolve_asked", feature_id, keep }),
+    resolveCuts: (resolution) => host.postMessage({ kind: "tma_resolve", resolution }),
     select: (feature_id, current_time) => host.postMessage({ kind: "tma_select", feature_id, current_time }),
     cutOff: (error_cut_off) => host.postMessage({ kind: "tma_cut_off", error_cut_off }),
     drawn: (plot_height, pane_widths) => host.postMessage({ kind: "tma_plot_drawn", plot_height, pane_widths }),

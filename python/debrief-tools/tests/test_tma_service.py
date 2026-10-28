@@ -155,3 +155,61 @@ def test_tma_methods_refuse_what_they_cannot_do(client, sensor) -> None:
     result(client, "debrief/tma_create", {**WHERE, "sensor_ids": [sensor]})
     stale = error("debrief/tma_create", {"sensor_ids": [sensor], "base": base})
     assert stale["code"] == CONFLICT
+
+
+def test_an_agent_splits_by_a_fix_hides_and_deletes_cuts(client, sensor) -> None:
+    """The Outline's operations (product owner, 27 Oct 2026), each one step an agent can make:
+    split before or after a fix, hide and show cuts (what that does to the solutions said),
+    delete cuts (the solutions rooted in them dropping them)."""
+    made = result(client, "debrief/tma_create", {**WHERE, "sensor_ids": [sensor]})
+    feature, rows = made["feature"], made["residuals"]["rows"]
+    before = result(
+        client,
+        "debrief/tma_split_leg",
+        {**WHERE, "feature": feature, "at": "1995-12-12T05:08:00.000Z", "side": "before"},
+    )
+    assert before["notes"][0] == "Contact 1 solution split into legs before its fix at 05:08:00Z"
+    after = result(
+        client,
+        "debrief/tma_split_leg",
+        {**WHERE, "feature": feature, "at": "1995-12-12T05:14:00.000Z", "side": "after"},
+    )
+    assert after["notes"][0] == "Contact 1 solution split into legs after its fix at 05:14:00Z"
+    assert after["notes"][1].startswith("Leg 1 05:00:00Z–05:07:00Z, leg 2 05:08:00Z–05:14:00Z")
+
+    ids = [r["id"] for r in rows[3:6]]
+    hidden = result(client, "debrief/set_hidden", {**WHERE, "features": ids, "hidden": True})
+    assert hidden["changed"] and hidden["notes"] == [
+        "3 Bow cuts 05:03:00Z–05:05:00Z hidden on the map",
+        "Contact 1 solution: 3 of its cuts left out of its residuals until shown again",
+    ]
+    read = result(client, "debrief/tma_residuals", {**WHERE, "feature": feature})["residuals"]
+    assert read["hidden"] == 3
+    result(client, "debrief/set_hidden", {**WHERE, "features": ids, "hidden": False})
+
+    gone = result(client, "debrief/delete_cuts", {**WHERE, "cut_ids": ids})
+    assert gone["changed"] and gone["notes"][0] == "3 Bow cuts 05:03:00Z–05:05:00Z deleted"
+    assert gone["notes"][1].startswith("Contact 1 solution drops the 3 cuts deleted")
+    read = result(client, "debrief/tma_residuals", {**WHERE, "feature": feature})["residuals"]
+    assert len(read["rows"]) == 18 and read["without"] == 0
+    result(client, "debrief/undo", WHERE)
+    read = result(client, "debrief/tma_residuals", {**WHERE, "feature": feature})["residuals"]
+    assert len(read["rows"]) == 21
+
+
+def test_the_outlines_operations_refuse_what_they_cannot_do(client, sensor) -> None:
+    def error(method: str, params: dict) -> str:
+        answer = rpc(client, method, {**WHERE, **params}).json()
+        assert "error" in answer, answer
+        return answer["error"]["message"]
+
+    feature = result(client, "debrief/tma_create", {**WHERE, "sensor_ids": [sensor]})["feature"]
+    at = "1995-12-12T05:00:00.000Z"
+    assert 'side is "before" or "after"' in error(
+        "debrief/tma_split_leg", {"feature": feature, "at": at, "side": "astern"}
+    )
+    assert "already the first fix of leg 1" in error(
+        "debrief/tma_split_leg", {"feature": feature, "at": at, "side": "before"}
+    )
+    assert "needs cut_ids" in error("debrief/delete_cuts", {"cut_ids": []})
+    assert "no cut" in error("debrief/delete_cuts", {"cut_ids": [feature]})

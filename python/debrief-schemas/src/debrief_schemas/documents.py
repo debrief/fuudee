@@ -1129,6 +1129,7 @@ MESSAGE_MEMBERS: dict[str, tuple[str, ...]] = {
     "tma_split": ("feature_id", "current_time"),
     "tma_time_asked": ("current_time",),
     "tma_select": ("feature_id", "current_time"),
+    "tma_resolve": ("resolution",),
     "tma_cut_off": ("error_cut_off",),
     "tma_plot_drawn": ("plot_height", "pane_widths"),
     "tma_made": ("feature_id?", "message?"),
