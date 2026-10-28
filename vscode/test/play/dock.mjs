@@ -134,7 +134,7 @@ async function defaultAt(page, width, height) {
   }
   const hidden = await page.evaluate(() => {
     const panel = document.getElementById("panel-outline").parentElement.getBoundingClientRect();
-    return ["colour", "find-jumps", "smooth-track", "track-frequencies"].filter((id) => {
+    return ["obar-colour", "find-jumps", "smooth-track", "track-frequencies"].filter((id) => {
       const b = document.getElementById(id).getBoundingClientRect();
       return b.top < panel.top - 1 || b.bottom > panel.bottom + 1;
     });

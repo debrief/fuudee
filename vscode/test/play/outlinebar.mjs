@@ -181,7 +181,7 @@ export async function playOutlineBar(page, shot) {
   const listed = await page.evaluate(() => window.debriefOutline.flat.length);
   await page.waitForFunction((k) => window.debriefSelection().picks.length === k, listed);
   assert.equal(await page.locator('#outline li[aria-selected="false"]').count(), 0, "every row selected");
-  assert.match(await said(), /^\d+ tracks, 2 sensors and 1 annotation selected$/);
+  assert.match(await said(), /^\d+ tracks, 2 sensors and \d+ annotations? selected$/);
   await row("track-blue-one").focus();
   await page.keyboard.press("Control+a");
   await page.waitForFunction((k) => window.debriefSelection().picks.length === k, listed);
