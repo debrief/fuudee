@@ -25,6 +25,31 @@ async function screenshot(name: string, keepNotifications = false): Promise<void
   execFileSync("import", ["-window", "root", "-trim", "+repage", path.join(folder, `${name}.png`)]);
 }
 
+/**
+ * Bearings' popped-out window, sized to fill the screen or moved off it, where xdotool is installed
+ * (there is no window manager under xvfb to maximise it): the visible window of VS Code's not at the
+ * screen's corner, where the main window is. Whether it was done.
+ */
+let poppedId: string | undefined;
+function poppedWindow(how: "fill" | "aside"): boolean {
+  if (!process.env.DISPLAY) return false;
+  try {
+    const run = (...args: string[]) => execFileSync("xdotool", args, { encoding: "utf8" }).trim();
+    const ids = run("search", "--onlyvisible", "--name", "Extension Development Host").split("\n").filter(Boolean);
+    const at = (id: string) => Object.fromEntries(run("getwindowgeometry", "--shell", id).split("\n").map((l) => l.split("=") as [string, string]));
+    const id = (poppedId = poppedId && ids.includes(poppedId) ? poppedId : ids.find((i) => at(i).X !== "0" || at(i).Y !== "0"));
+    if (!id) return false;
+    const [width, height] = run("getdisplaygeometry").split(" ");
+    if (how === "fill") {
+      run("windowmove", id, "0", "0");
+      run("windowsize", id, width, height);
+    } else run("windowmove", id, width, "0");
+    return true;
+  } catch {
+    return false;
+  }
+}
+
 async function waitFor<T>(what: string, probe: () => T | undefined | Promise<T | undefined>, timeoutMs = 30000): Promise<T> {
   const deadline = Date.now() + timeoutMs;
   for (;;) {
@@ -738,6 +763,141 @@ export async function run(): Promise<void> {
     const done = (await steps()).length - start;
     assert.equal(done, 8, "one step each");
     for (let i = 0; i < done + 1; i++) assert.equal(await vscode.commands.executeCommand("debrief.undo"), undefined);
+    assert.ok(!api.session.current!.plot.features.some((f) => f.id === solution), "undone: no solution");
+  }
+
+  // Bearings popped out (product owner, 28 Oct 2026): an editor tab, moved into a window of its own
+  // for a second monitor, linked exactly as the panel's view is; the panel a placeholder meanwhile;
+  // closed, back in the panel. Show bearings reveals whichever is live.
+  {
+    const bow = "sensor-blue-one-bow-sonar";
+    const made = await vscode.commands.executeCommand<{ problem?: string; feature?: string }>("debrief.tmaCreate", {
+      sensor_ids: [bow],
+      period: { start: "2023-06-15T08:29:00.000Z", end: "2023-06-15T08:59:00.000Z" },
+    });
+    assert.equal(made.problem, undefined);
+    const solution = made.feature!;
+    const start = (await steps()).length;
+    await vscode.commands.executeCommand("debrief.showBearings", solution);
+    await waitFor("Bearings in the panel showing the solution", () => (api.bearings()?.solution_id === solution && api.bearingsPlace().where === "panel" ? true : undefined));
+    const manifest = JSON.parse(readFileSync(path.join(extension.extensionPath, "package.json"), "utf8"));
+    assert.ok(
+      manifest.contributes.menus["view/title"].some((m: { command: string; when: string }) => m.command === "debrief.popOutBearings" && m.when.includes("view == debrief.bearings")),
+      "Pop out in the Bearings view's title bar",
+    );
+    await sleep(1000);
+    await screenshot("15i-bearings-pop-out-button");
+    const panelPlot = api.bearingsPlot();
+    // Popped out: an editor (WebviewPanel) with Bearings' page, VS Code asked to move it into a new window.
+    const popped = await vscode.commands.executeCommand<{ where: string; reason?: string }>("debrief.popOutBearings");
+    console.log(`Bearings popped out: ${popped.where}${popped.reason ? ` (${popped.reason})` : ""}`);
+    let place = api.bearingsPlace();
+    assert.equal(place.where, "window", "the popped-out view is live");
+    assert.equal(place.panel?.title, "Bearings");
+    assert.match(place.panel?.viewType ?? "", /debrief\.bearingsWindow$/);
+    assert.ok(place.placeholder, "the panel's view shows the placeholder");
+    // Under xvfb the new window cannot be seen to open: the move was asked for, with the editor active.
+    if (popped.where === "window") assert.equal(place.moveAsked, 1, "moved into a new window");
+    await waitFor("the popped-out page showing the solution", () => {
+      const shown = api.bearingsPosted("show_tma");
+      return api.bearingsShowing() && shown?.where === "window" && shown.delivered && (shown.message.tma as { solution_id?: string } | undefined)?.solution_id === solution ? true : undefined;
+    });
+    const tabs = vscode.window.tabGroups.all.flatMap((g) => g.tabs);
+    const tab = tabs.find((t) => t.input instanceof vscode.TabInputWebview && t.input.viewType.endsWith("debrief.bearingsWindow"));
+    console.log(`Bearings' tab ${tab ? "listed" : "not listed"} in the main window's tab groups`);
+    // Large: the plot as drawn in the editor, taller than in the panel, the controls on top.
+    let seen = "";
+    let since = Date.now();
+    const plot = await waitFor("the popped-out plot drawn, its size settled", () => {
+      const p = api.bearingsPlot();
+      if (!p || p === panelPlot || p.panes.length < 2) return undefined;
+      const key = JSON.stringify(p);
+      if (key !== seen) {
+        seen = key;
+        since = Date.now();
+        return undefined;
+      }
+      return Date.now() - since >= 1000 ? p : undefined;
+    });
+    console.log(`Bearings popped out: plot ${plot.height} px tall, panes ${plot.panes.join(" and ")} px wide (in the panel: ${panelPlot?.height} px)`);
+    assert.ok(plot.height >= 220, `the popped-out plot ${plot.height} px tall, at least 220`);
+    assert.ok(!panelPlot || plot.height > panelPlot.height, "taller than in the panel");
+    // Its window filling the screen, as maximised on a second monitor (only where xdotool can size it; no window manager under xvfb).
+    if (popped.where === "window" && poppedWindow("fill")) {
+      const before = JSON.stringify(api.bearingsPlot());
+      const big = await waitFor("the plot drawn again in the window filling the screen", () => {
+        const p = api.bearingsPlot();
+        return p && JSON.stringify(p) !== before && p.panes.length >= 2 ? p : undefined;
+      });
+      await sleep(1500);
+      const settled = api.bearingsPlot() ?? big;
+      console.log(`Bearings popped out, its window filling the ${execFileSync("xdotool", ["getdisplaygeometry"], { encoding: "utf8" }).trim().replace(" ", " × ")} screen: plot ${settled.height} px tall, panes ${settled.panes.join(" and ")} px wide`);
+      assert.ok(settled.height > plot.height, "taller again");
+    }
+    await sleep(1500);
+    await screenshot("15j-bearings-popped-out");
+    // Linked: current time and the Outline's selection reach the popped-out page.
+    const time = { current: "2023-06-15T08:40:00.000Z", range: api.getState()!.time!.range };
+    assert.equal(api.session.setTime(time, "test"), undefined);
+    await waitFor("current time sent to the popped-out page", () => {
+      const sent = api.bearingsPosted("set_time");
+      return sent?.where === "window" && sent.delivered && (sent.message.time as { current: string }).current === time.current ? true : undefined;
+    });
+    await vscode.commands.executeCommand("debrief.chooseInOutline", solution, { fix_time: "2023-06-15T08:44:00.000Z" });
+    await waitFor("the popped-out page following the Outline", () => {
+      const shown = api.bearingsPosted("show_tma");
+      return shown?.where === "window" && (shown.message.tma as { title?: string } | undefined)?.title === "Contact 1 solution · fix at 08:44:00Z" ? true : undefined;
+    });
+    // A cut clicked in the popped-out plot: current time there, in both directions.
+    const cutTime = (api.bearings()!.residuals!.rows[2] as { time: string }).time;
+    await api.bearingsMessage({ kind: "tma_time_asked", current_time: cutTime }, "window");
+    assert.equal(api.getState()?.time?.current, cutTime, "current time from the popped-out view");
+    // A box drawn with Select bearings on in the popped-out view: one step. The panel's page, a placeholder now, is not acted on.
+    const towed = "sensor-blue-one-towed-array";
+    const boxed = api.outlineChildren(towed).slice(0, 4).map((c) => c.key!);
+    const box = { kind: "tma_resolve", resolution: { keep: "bearing", cut_ids: boxed, other_cut_ids: [] } };
+    await api.bearingsMessage(box, "panel");
+    assert.equal((await steps()).length, start, "nothing from the panel while popped out");
+    await api.bearingsMessage(box, "window");
+    assert.equal((await steps()).length, start + 1, "one step from the popped-out view");
+    // Undo: the popped-out page shown the plot as it was again.
+    const posts = api.bearingsPosted("show_tma");
+    assert.equal(await vscode.commands.executeCommand("debrief.undo"), undefined);
+    await waitFor("the popped-out page shown the plot again after undo", () => (api.bearingsPosted("show_tma") !== posts && api.bearingsPosted("show_tma")?.where === "window" ? true : undefined));
+    // Show bearings: the popped-out view, not the panel.
+    await vscode.commands.executeCommand("debrief.showBearings", solution);
+    place = api.bearingsPlace();
+    assert.equal(place.where, "window");
+    assert.ok(place.panel?.visible, "Show bearings reveals the popped-out view");
+    // The placeholder, in the panel: shown for the picture.
+    await vscode.commands.executeCommand("debrief.bearings.focus");
+    // The popped-out window off the screen for the picture, as if on the second monitor (where xdotool can move it).
+    if (popped.where === "window") poppedWindow("aside");
+    await sleep(1500);
+    await screenshot("15k-bearings-placeholder");
+    assert.equal(api.bearingsPlace().where, "window", "the panel's placeholder shown, Bearings still popped out");
+    // Closed: back in the panel, its page ready and linked again.
+    const closing = vscode.window.tabGroups.all.flatMap((g) => g.tabs).find((t) => t.input instanceof vscode.TabInputWebview && t.input.viewType.endsWith("debrief.bearingsWindow"));
+    if (closing) await vscode.window.tabGroups.close(closing);
+    else await vscode.commands.executeCommand("debrief.bringBackBearings");
+    console.log(`Bearings closed by ${closing ? "its tab" : "Bring back"}`);
+    await waitFor("Bearings back in the panel", () => (api.bearingsPlace().where === "panel" && !api.bearingsPlace().placeholder && api.bearingsShowing() ? true : undefined));
+    await waitFor("the panel's page shown the solution again", () => (api.bearingsPosted("show_tma")?.where === "panel" ? true : undefined));
+    await vscode.commands.executeCommand("debrief.showBearings", solution);
+    await waitFor("Show bearings revealing the panel", () => (api.bearingsVisible() && api.bearingsPlace().where === "panel" ? true : undefined));
+    // Popped out again and brought back by the command.
+    await vscode.commands.executeCommand("debrief.popOutBearings");
+    assert.equal(api.bearingsPlace().where, "window");
+    await vscode.commands.executeCommand("debrief.bringBackBearings");
+    await waitFor("Bearings brought back", () => (api.bearingsPlace().where === "panel" && api.bearingsShowing() ? true : undefined));
+    // After a reload VS Code may restore the editor: closed, Bearings stays in the panel.
+    const restored = vscode.window.createWebviewPanel("debrief.bearingsWindow", "Bearings", vscode.ViewColumn.Active, {});
+    let disposed = false;
+    restored.onDidDispose(() => (disposed = true));
+    await api.restoreBearingsWindow(restored);
+    assert.ok(disposed, "a restored Bearings editor closed");
+    assert.equal(api.bearingsPlace().where, "panel");
+    assert.equal(await vscode.commands.executeCommand("debrief.undo"), undefined);
     assert.ok(!api.session.current!.plot.features.some((f) => f.id === solution), "undone: no solution");
   }
 

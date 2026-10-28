@@ -107,8 +107,8 @@ export interface DebriefApi {
   coverage: () => CoverageReport | undefined;
   /** A message to the extension as the Coverage page sends it, for tests. */
   coverageMessage: (message: unknown) => void;
-  /** A message to the extension as if the Bearings view had sent it (tests). */
-  bearingsMessage: (message: unknown) => Promise<void>;
+  /** A message to the extension as if the Bearings view had sent it (tests); from, as if from the page in the panel or popped out, which is refused unless live. */
+  bearingsMessage: (message: unknown, from?: BearingsWhere) => Promise<void>;
   /** What the Catalogues tree marks: new data and review flags (CAP-10, CAP-12), for tests and agents. */
   catalogueMarks: () => CollationMarks;
   /** The narrative entry the map shows beside its track at current time, for tests and agents (CAP-20). */
@@ -3563,7 +3563,7 @@ export function activate(context: vscode.ExtensionContext): DebriefApi {
     coverageShowing: () => coverageView.showing,
     coverage: () => coverageView.report,
     coverageMessage: (message) => coverageView.receive(message),
-    bearingsMessage: (message) => bearingsView.receive(message),
+    bearingsMessage: (message, from) => bearingsView.receive(message, from && (bearingsView.surfaceAt(from) ?? { where: from, post: async () => false, visible: false, show: () => {} })),
     catalogueMarks: () => catalogues.marks(),
     timelineMessage: (message) => timeline.receive(message),
     mapNarrative: () => map.narrative,

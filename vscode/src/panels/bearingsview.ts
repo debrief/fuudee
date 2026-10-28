@@ -132,6 +132,11 @@ export class BearingsView {
     return this.live?.where;
   }
 
+  /** The surface made in the panel, or popped out, if there is one: for tests, to send a message as its page would. */
+  surfaceAt(where: BearingsWhere): BearingsSurface | undefined {
+    return where === "window" ? this.windowSurface : this.panelSurface;
+  }
+
   /** Whether Bearings is popped out: the panel then shows only a placeholder. */
   get poppedOut(): boolean {
     return !!this.windowSurface;
