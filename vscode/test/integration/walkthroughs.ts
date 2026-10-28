@@ -243,33 +243,38 @@ export async function playWalkthroughs(api: DebriefApi, others: { id: string; lo
   const nmi = (value: number) => ({ value, unit: "[nmi_i]" });
   const deg = (value: number) => ({ value, unit: "deg" });
   const kn = (value: number) => ({ value, unit: "[kn_i]" });
-  assert.match(String(await vscode.commands.executeCommand("debrief.walkthrough.do", "tma", "debrief.showBearings", towed)), /^Open a copy of serial 1 for Bearings and TMA first/);
+  assert.match(String(await vscode.commands.executeCommand("debrief.walkthrough.do", "tma", "debrief.chooseInOutline", towed)), /^Open a copy of serial 1 for Bearings and TMA first/);
   // Bearings is a view container of its own in the panel below the editor, beside the Terminal (product owner, 25 Oct 2026).
   const containers = extension.packageJSON.contributes.viewsContainers as Record<string, { id: string }[]>;
   assert.ok(containers.panel.some((c) => c.id === "debrief-bearings"), "Bearings' container is in the panel");
   assert.ok(!containers.activitybar?.some((c) => c.id === "debrief-bearings"), "not in the side bar");
   assert.deepEqual((extension.packageJSON.contributes.views["debrief-bearings"] as { id: string }[]).map((v) => v.id), ["debrief.bearings"]);
   await open("tma");
-  // Opened with Bearings listing the towed array, in sight in the panel; its wild bearing a step of its own.
-  await waitFor("Bearings listing the towed array", () => (api.bearings()?.sensor_id === towed && api.bearings()?.cuts?.length ? true : undefined), 60000);
+  // Opened with the towed array selected in the Outline and Bearings showing it, in sight in the panel; its wild bearing a step of its own.
+  await waitFor("Bearings showing the towed array", () => (api.bearings()?.sensor_id === towed && api.bearings()?.cuts?.length ? true : undefined), 60000);
+  assert.deepEqual(api.outlineKeys(), [towed]);
   await waitFor("Bearings in sight in the panel", () => api.bearingsVisible() || undefined, 30000);
   assert.equal((await steps()).at(-1)?.notes?.[0], "A wild bearing put into Towed array cut at 11:12:00Z");
   // A step that needs the solution, before there is one, does nothing and says why.
   assert.match(String(await vscode.commands.executeCommand("debrief.walkthrough.do", "tma", "debrief.moveTrack", "$solution")), /^Make the solution first/);
-  // Each button's choice reaches the view (the view applies it: the playground's test plays that).
+  // Each button's choice is made in the Outline (product owner, 27 Oct 2026), and Bearings follows,
+  // ringing it (the view applies it: the playground's test plays that).
   const focused = (what: string, check: (focus: Record<string, unknown>) => boolean) => waitFor(what, () => (api.bearings()?.focus && check(api.bearings()!.focus as Record<string, unknown>) ? true : undefined), 60000);
-  await vscode.commands.executeCommand("debrief.walkthrough.do", "tma", "debrief.showBearings", towed, { cut_time: `${day}09:46:00.000Z` });
+  await vscode.commands.executeCommand("debrief.walkthrough.do", "tma", "debrief.chooseInOutline", towed, { cut_time: `${day}09:46:00.000Z` });
   await focused("the cut at 09:46Z chosen", (f) => f.cut_time === `${day}09:46:00.000Z`);
   const first = (api.bearings()?.cuts ?? []).find((c) => c.time === `${day}09:46:00.000Z`)!;
+  assert.deepEqual(api.outlineKeys(), [first.id], "chosen in the Outline");
+  assert.equal(api.getState()?.time?.current, `${day}09:46:00.000Z`, "current time to it");
   assert.equal(first.side, "starboard", "the bearing the step names, 236.3°, is to starboard");
   assert.equal(first.bearing.toFixed(1), "236.3");
   await vscode.commands.executeCommand("debrief.resolveAmbiguity", { keep: "ambiguous", cut_ids: [first.id] });
   await notSaid("sideKept", "making a cut ambiguous again keeps no side");
-  await vscode.commands.executeCommand("debrief.resolveAmbiguity", { keep: "bearing", cut_ids: [first.id] });
+  // Keep starboard, the Tools' entry, on the cut chosen in the Outline.
+  assert.equal((await vscode.commands.executeCommand<{ problem?: string }>("debrief.keepStarboard"))?.problem, undefined);
   await said("sideKept");
   const tmaPeriod = { start: `${day}09:46:00.000Z`, end: `${day}12:00:00.000Z` };
-  await vscode.commands.executeCommand("debrief.walkthrough.do", "tma", "debrief.showBearings", towed, { period: tmaPeriod, make: true });
-  await focused("the period chosen and the first guess opened", (f) => !!f.make);
+  await vscode.commands.executeCommand("debrief.walkthrough.do", "tma", "debrief.chooseInOutline", towed, { period: tmaPeriod, make: true });
+  await focused("the period chosen and the first guess opened", (f) => !!f.make && (f.cut_ids as string[] | undefined)?.length === 102);
   // Debrief's first guess as its form sends it: 4.94 nmi along the first bearing, across it, 8.0 kn.
   const made = await vscode.commands.executeCommand<{ feature?: string; residuals?: { rms?: number } }>("debrief.tmaCreate", { sensor_ids: [towed], period: tmaPeriod, range: nmi(4.94), course: deg(326.3), speed: kn(8) });
   await said("solutionMade");
@@ -293,16 +298,20 @@ export async function playWalkthroughs(api: DebriefApi, others: { id: string; lo
   const fitted = await rmsNow(38.8, "the first leg fitted");
   const firstLeg = fitted.rows.filter((r) => r.time <= `${day}10:32:00.000Z`).map((r) => r.residual!);
   assert.equal(firstLeg.filter((v) => Math.abs(v) > 3).length, 2, "all but 2 of the first leg's 40 errors within 3°");
-  await vscode.commands.executeCommand("debrief.walkthrough.do", "tma", "debrief.showBearings", "$solution", { cut_time: `${day}11:12:00.000Z` });
+  await vscode.commands.executeCommand("debrief.walkthrough.do", "tma", "debrief.chooseInOutline", "$solution", { cut_time: `${day}11:12:00.000Z` });
   await focused("the cut at 11:12Z chosen", (f) => f.cut_time === `${day}11:12:00.000Z`);
   const wild = fitted.rows.find((r) => r.time === `${day}11:12:00.000Z`)!;
-  await vscode.commands.executeCommand("debrief.tmaExclude", solution, [wild.id], false);
+  assert.deepEqual(api.outlineKeys(), [wild.id]);
+  assert.equal(api.bearings()?.solution_id, solution, "a cut of the solution keeps it shown");
+  assert.match((await vscode.commands.executeCommand<{ problem?: string }>("debrief.tmaCountIn"))?.problem ?? "", /counted in Contact 1 solution already/);
   await notSaid("cutLeftOut", "counting a cut again is not leaving it out");
-  await vscode.commands.executeCommand("debrief.tmaExclude", solution, [wild.id], true);
+  assert.equal((await vscode.commands.executeCommand<{ problem?: string }>("debrief.tmaLeaveOut"))?.problem, undefined);
   await said("cutLeftOut");
-  await vscode.commands.executeCommand("debrief.walkthrough.do", "tma", "debrief.showBearings", "$solution", { cut_time: `${day}10:38:00.000Z` });
-  await focused("the cut at 10:38Z chosen", (f) => f.cut_time === `${day}10:38:00.000Z`);
-  await vscode.commands.executeCommand("debrief.tmaSplitLeg", solution, { at: `${day}10:38:00.000Z` });
+  await vscode.commands.executeCommand("debrief.walkthrough.do", "tma", "debrief.chooseInOutline", "$solution", { fix_time: `${day}10:38:00.000Z` });
+  await focused("the position at 10:38Z chosen", (f) => f.cut_time === `${day}10:38:00.000Z`);
+  assert.match(api.outlineKeys()[0], /#fix\d+$/);
+  assert.equal((await vscode.commands.executeCommand<{ problem?: string }>("debrief.splitBeforeFix"))?.problem, undefined);
+  assert.equal((await steps()).at(-1)?.notes?.[0], "Contact 1 solution split into legs before its fix at 10:38:00Z");
   // The split is not the step: dragging a leg is (product owner, 25 Oct 2026). The whole solution
   // dragged is an earlier step's; its second leg (This leg, as the map or the form sends it, a period) is this one.
   await notSaid("legDragged", "a split is not the step");

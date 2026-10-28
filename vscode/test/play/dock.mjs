@@ -385,14 +385,13 @@ export async function playDock(browser, base, shot, ready, errors) {
   await resizeTo(page, 700, 768);
   outlineAt.narrow = await outlineNow();
   assert.deepEqual(await scrolls(), scrolled, `narrow, the lists where they were; ${said()}`);
-  // Narrow, the Outline's rows wrap, so its list is taller and scrolls further: scrolled 40 px, more
-  // than is left to scroll once the page is laid out at 1366 px with the side column still in place
-  // (no rows wrapping; CI's fonts left nothing at all, 24 Oct 2026), and less than it has docked.
-  await page.evaluate(() => (document.getElementById("outline").scrollTop = 40));
+  // Narrow, the Outline scrolled 30 px: less than it has to scroll there (its rows one line each,
+  // as a tree's are, 27 Oct 2026, so its list no taller than its rows) and docked.
+  await page.evaluate(() => (document.getElementById("outline").scrollTop = 30));
   await frames(page); // scrolled, then the window resized later, as a reader does
   outlineAt.narrowScrolled = await outlineNow();
   const narrowed = await scrolls();
-  assert.equal(narrowed.outline, 40, `narrow, the Outline scrolled 40 px; ${said()}`);
+  assert.equal(narrowed.outline, 30, `narrow, the Outline scrolled 30 px; ${said()}`);
   // As on a slow machine (CI, 23 Oct 2026): Dockview places a panel's content some frames after the
   // layout is made, so a list has nothing to scroll for a while; its scroll still comes back.
   await page.evaluate(() => {
@@ -415,7 +414,7 @@ export async function playDock(browser, base, shot, ready, errors) {
   let back;
   for (let i = 0; i < 50 && JSON.stringify((back = await scrolls())) !== want; i++) await frames(page);
   outlineAt.docked = await outlineNow();
-  assert.ok(outlineAt.docked[2] - outlineAt.docked[1] >= 40, `docked, the Outline has 40 px or more to scroll; ${said()}`);
+  assert.ok(outlineAt.docked[2] - outlineAt.docked[1] >= 30, `docked, the Outline has 30 px or more to scroll; ${said()}`);
   assert.deepEqual(back, narrowed, `docked again, the lists where they were; ${said()}`);
 
   // The keyboard kept across 900 px (panel review, 23 Oct 2026): a tab becomes its fold button and back;

@@ -440,6 +440,7 @@ export type WebviewMessageKindEnum =
   | "tma_split"
   | "tma_time_asked"
   | "tma_select"
+  | "tma_resolve"
   | "tma_cut_off"
   | "tma_plot_drawn"
   | "tma_made";
@@ -464,10 +465,18 @@ export interface AgentRef {
  */
 export interface AmbiguityResolution {
   /**
+   * With keep bearing or ambiguous_bearing: resolved cuts made ambiguous again in the same step, as a box drawn over their kept bearings with Select bearings on asks (product owner, 28 Oct 2026); one not resolved is left. Given (even empty), with other_cut_ids, the step is named for a box: "Kept 12 Towed array cuts to starboard and made 15 ambiguous again". Hidden cuts are left as they are.
+   */
+  clear_cut_ids?: string[] | null;
+  /**
    * The cuts to resolve, by feature id. Or give sensor_ids, and perhaps a period.
    */
   cut_ids?: string[] | null;
   keep: AmbiguityKeepEnum;
+  /**
+   * With keep bearing or ambiguous_bearing: cuts kept on their other bearing in the same step, so one step keeps some cuts' first bearings and others' twins, as a box drawn over the Bearings plot with Select bearings on asks (product owner, 28 Oct 2026). A cut named here and in cut_ids was boxed on both sides: it is left as it is, and the step says so. Hidden cuts are left as they are.
+   */
+  other_cut_ids?: string[] | null;
   /**
    * The cuts whose times fall in it, ends included, of the sensors named.
    */
@@ -2474,12 +2483,16 @@ export interface TmaCut {
   time: string;
 }
 /**
- * What the bearing view chooses for the analyst, once (show_tma's focus): the cut at or nearest cut_time, current time moved to it; or the cuts in period as the period, the first guess's form opened if make; or, with a solution shown, the counted cut with the largest residual (largest), current time moved to it. The list then has the keyboard (the form, if opened).
+ * What the bearing view chooses for the analyst, once (show_tma's focus): the cut at or nearest cut_time, current time moved to it; or the cuts in period, or cut_ids, the first guess's form opened for them if make; or, with a solution shown, the counted cut with the largest residual (largest), current time moved to it. The plot then has the keyboard (the form, if opened).
  *
  * This interface was referenced by `DebriefSchemaDefinitions`'s JSON-Schema
  * via the `definition` "TmaFocus".
  */
 export interface TmaFocus {
+  /**
+   * With make, the cuts the solution is to be rooted in, exactly: a run of cuts selected in the Outline (product owner, 27 Oct 2026).
+   */
+  cut_ids?: string[] | null;
   /**
    * Choose the cut at or nearest this time.
    */
@@ -2489,7 +2502,7 @@ export interface TmaFocus {
    */
   largest?: boolean | null;
   /**
-   * With period, open the first guess's form (Make solution…).
+   * With period or cut_ids, open the first guess's form (TMA solution from cuts…).
    */
   make?: boolean | null;
   /**
@@ -2506,7 +2519,7 @@ export interface TmaFocus {
 export interface TmaOwnship {
   colour?: string | null;
   /**
-   * Its course at each of those times, degrees true.
+   * Its course at each of those times, degrees true: as logged, else as its fixes imply (product owner, 28 Oct 2026).
    */
   courses: number[];
   /**
@@ -2514,6 +2527,10 @@ export interface TmaOwnship {
    */
   id: string;
   name: string;
+  /**
+   * Its speed at each of those times, metres a second: as logged, else as its fixes imply (product owner, 28 Oct 2026), for the Course/Speed pane's ownship speed.
+   */
+  speeds?: number[] | null;
   times: string[];
 }
 /**
@@ -2747,7 +2764,7 @@ export interface TmaSolutionRow {
   times?: string[] | null;
 }
 /**
- * What the host sends the bearing view (show_tma): the plot's sensors and solutions; the cuts of the sensor chosen, in time order; and, for the solution shown, its residuals.
+ * What the host sends the bearing view (show_tma): the plot's sensors and solutions; the cuts of the sensor chosen, in time order; and, for the solution shown, its residuals. The view follows the Outline's selection (product owner, 27 Oct 2026): a solution, one of its legs or fixes shows the solution; a sensor, or some of its cuts, the sensor's coverage.
  *
  * This interface was referenced by `DebriefSchemaDefinitions`'s JSON-Schema
  * via the `definition` "TmaView".
@@ -2789,6 +2806,10 @@ export interface TmaView {
    */
   solution_id?: string | null;
   solutions?: TmaSolutionRow[] | null;
+  /**
+   * What is shown, in one line, as the host says it (product owner, 27 Oct 2026): "Contact 1 solution, leg 2, fix at 10:38:00Z", "Towed array on BLUE ONE: 102 cuts".
+   */
+  title?: string | null;
 }
 /**
  * How a tool describes itself to Debrief, agents and hooks (TL-04, TL-06).
@@ -3111,6 +3132,10 @@ export interface WebviewMessage {
    * A track as a change would leave it, one position per fix, drawn beside it until the analyst applies or cancels the change (show_fixes).
    */
   preview?: LineStringGeometry | null;
+  /**
+   * The sides of the cuts boxed in the Bearings plot to keep (tma_resolve).
+   */
+  resolution?: AmbiguityResolution | null;
   result?: ToolResult | null;
   result_title?: string | null;
   /**

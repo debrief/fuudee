@@ -730,13 +730,20 @@ class Catalogue:
         allow_newer_schema: bool = False,
     ) -> int | None:
         """Hide features on the map, or show them again: a recorded, undoable step
-        (decision 12 Oct). See set_colour."""
+        (decision 12 Oct). See set_colour. Cuts hidden are left out of every solution's
+        residuals until shown again, as legacy's Visible=false (product owner, 27 Oct 2026):
+        named as cuts ("12 Towed array cuts 09:46:00Z–09:57:00Z hidden on the map"), the notes
+        saying which solutions they leave."""
 
         def rehide(feature):
             props = feature.properties
             if bool(props.hidden) == hidden:
                 return None
             return props.model_copy(update={"hidden": True if hidden else None})
+
+        def notes(plot: DebriefFeatureCollection, modified: list) -> list[str]:
+            cut_ids = [f.id for f in modified if f.properties.kind == sensors.CUT]
+            return tma.hidden_notes(plot, cut_ids, hidden) if cut_ids else []
 
         return self._edit_features(
             item_id,
@@ -746,6 +753,7 @@ class Catalogue:
             agent,
             base,
             allow_newer_schema,
+            notes=notes,
         )
 
     def set_track_frequencies(
@@ -885,7 +893,7 @@ class Catalogue:
         )
 
     def _edit_features(
-        self, item_id, feature_ids, change, describe, agent, base, allow_newer_schema
+        self, item_id, feature_ids, change, describe, agent, base, allow_newer_schema, notes=None
     ) -> int | None:
         if not feature_ids:
             raise CatalogueError("Choose the features to change.")
@@ -908,7 +916,15 @@ class Catalogue:
                 modified.append(feature.model_copy(update={"properties": props}))
         if not modified:
             return None
-        record = _edit_record(agent, describe(_who(names)))
+        chosen = [by_id[i] for i in dict.fromkeys(feature_ids)]
+        # Cuts alone (thousands at a time, from the Outline): named as cuts, by sensor and period.
+        who = (
+            sensors.cuts_said(chosen, by_id)
+            if all(f.properties.kind == sensors.CUT for f in chosen)
+            else _who(names)
+        )
+        said = notes(plot, modified) if notes else []
+        record = _edit_record(agent, describe(who), **({"notes": said} if said else {}))
         return self.commit(
             item_id,
             [record],
@@ -1262,9 +1278,56 @@ class Catalogue:
             record = {
                 "notes": done.notes,
                 "parameters": sensors.resolution_parameters(asked),
-                "selected": list(asked.cut_ids or asked.sensor_ids or []),
+                "selected": list(
+                    dict.fromkeys(
+                        [
+                            *(asked.cut_ids or []),
+                            *(asked.other_cut_ids or []),
+                            *(asked.clear_cut_ids or []),
+                        ]
+                    )
+                )
+                or list(asked.sensor_ids or []),
             }
             return Changes(modified=done.modified), done.note, None, record
+
+        return self._change(item_id, change, agent, base, allow_newer_schema)[0]
+
+    def delete_cuts(
+        self,
+        item_id: str,
+        cut_ids: list[str],
+        agent: models.AgentRef,
+        base: Base | None = None,
+        *,
+        allow_newer_schema: bool = False,
+    ) -> int:
+        """Delete cuts from the plot (product owner, 27 Oct 2026, the Outline's Delete cuts),
+        as one recorded, undoable step: "12 Towed array cuts 09:46:00Z–09:57:00Z deleted".
+        Solutions rooted in them drop those cut ids, from their roots and from the cuts left
+        out of their RMS, and the notes say so; their fixes stay where they are. Undo brings
+        the cuts back, and the solutions' roots with them."""
+        if not cut_ids:
+            raise CatalogueError("Choose the cuts to delete.")
+
+        def change(plot: DebriefFeatureCollection):
+            by_id = {f.id: f for f in plot.features}
+            chosen = []
+            for cut_id in dict.fromkeys(cut_ids):
+                feature = by_id.get(cut_id)
+                if feature is None or feature.properties.kind != sensors.CUT:
+                    raise CatalogueError(f"The plot has no cut {cut_id!r}.")
+                chosen.append(feature)
+            ids = [f.id for f in chosen]
+            solutions, notes = tma.without_cuts(plot, ids)
+            changes = self._deleted(plot, ids)
+            changes.modified = solutions
+            record = {
+                "notes": notes,
+                "parameters": [models.ParameterValue(name="cuts", value=len(ids))],
+                "selected": ids,
+            }
+            return changes, f"{sensors.cuts_said(chosen, by_id)} deleted", None, record
 
         return self._change(item_id, change, agent, base, allow_newer_schema)[0]
 
@@ -1346,21 +1409,35 @@ class Catalogue:
         base: Base | None = None,
         *,
         join: bool = False,
+        side: str | None = None,
         allow_newer_schema: bool = False,
     ) -> int:
         """Split a TMA solution into legs at a time (the fix at or after it starts the later
         leg), or, with join, join the leg starting then to the one before, as one recorded,
         undoable step: "Contact 1 solution split into legs at 09:30:00Z". It stays one
-        track: each leg is dragged on its own, the other legs staying where they are."""
+        track: each leg is dragged on its own, the other legs staying where they are.
+
+        With side, "before" or "after" (product owner, 27 Oct 2026, the Outline's Split before
+        and Split after), at is one of its fixes' times: before, that fix starts a new leg;
+        after, it ends the earlier leg ("Contact 1 solution split into legs after its fix at
+        09:29:30Z"). The legs already there keep their fixes, so nothing moves."""
         at_ms = parse_utc(at)
+        if side is not None and join:
+            raise CatalogueError(
+                "A leg is joined at a time, or split before or after a fix: not both."
+            )
 
         def change(plot: DebriefFeatureCollection):
-            done = (tma.joined_legs if join else tma.split_leg)(plot, feature_id, at_ms)
+            if side is not None:
+                done = tma.split_at_fix(plot, feature_id, at_ms, side)
+            else:
+                done = (tma.joined_legs if join else tma.split_leg)(plot, feature_id, at_ms)
             record = {
                 "notes": done.notes,
                 "parameters": [
                     models.ParameterValue(name="at", value=at),
                     *([models.ParameterValue(name="join", value=True)] if join else []),
+                    *([models.ParameterValue(name="side", value=side)] if side else []),
                 ],
                 "selected": [feature_id],
             }

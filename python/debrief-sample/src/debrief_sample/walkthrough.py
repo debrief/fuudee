@@ -365,7 +365,8 @@ def play_tma(
     wild = wild_cut(catalogue.read_plot(item))
     catalogue.tma_exclude(item, solution, [wild.id], True, agent)
     stage("wild")
-    catalogue.tma_split_leg(item, solution, at(TMA_SPLIT), agent)
+    # Split before its position at the turn, as the Tools' Split before does (27 Oct 2026).
+    catalogue.tma_split_leg(item, solution, at(TMA_SPLIT), agent, side="before")
     stage("split")
     # The second leg, as This leg drags it: its fixes from the split on.
     later = [t for t in stages["split"]["times"] if t >= at(TMA_SPLIT)]

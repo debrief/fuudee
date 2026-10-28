@@ -195,14 +195,19 @@ def test_bearings_and_tma_asks_what_the_walkthrough_plays() -> None:
         "end": f"{day}{TMA_PERIOD[1]}.000Z",
     }
     assert steps["wild"]["vscode"]["args"] == ["$solution", {"cut_time": f"{day}{WILD_AT}.000Z"}]
-    assert steps["legs"]["vscode"]["args"] == ["$solution", {"cut_time": f"{day}{TMA_SPLIT}.000Z"}]
+    # The Outline chooses, Bearings following (product owner, 27 Oct 2026): the split by a position.
+    assert steps["legs"]["vscode"]["args"] == ["$solution", {"fix_time": f"{day}{TMA_SPLIT}.000Z"}]
+    assert {
+        s["vscode"]["command"] for k, s in steps.items() if k in ("resolve", "make", "wild", "legs")
+    } == {"debrief.chooseInOutline"}
     words = {k: s["text"] for k, s in steps.items()}
     keys = {k: s["keys"] for k, s in steps.items()}
     assert f"{TMA_RANGE:.2f} nmi from the towed array at {TMA_FIRST_CUT[:5]}Z" in words["range"]
     assert f"type `{TMA_MOVE[0]:.2f} nmi` and `{TMA_MOVE[1]:05.1f}`" in words["range"]
     assert f"about {TMA_SHEAR[0]:.0f}° at {TMA_SHEAR[1]:.1f} kn" in words["shear"]
     assert f"`{TMA_SHEAR[0]:.0f}` and `{TMA_SHEAR[1]:.1f} kn`" in keys["shear"]
-    assert f"Split into legs at {TMA_SPLIT}Z" in words["legs"]
+    assert f"**Split before {TMA_SPLIT}Z** in **Tools**" in words["legs"]
+    assert f"**Split before {TMA_SPLIT}Z**" in keys["legs"]
     assert f"about {TMA_LEG_MOVE[0]:.2f} nmi at {TMA_LEG_MOVE[1]:.0f}°" in words["legs"]
     assert f"`{TMA_LEG_MOVE[0]:.2f} nmi` and `{TMA_LEG_MOVE[1]:.0f}`" in keys["legs"]
     assert f"about {TMA_LEG_SHEAR[0]:.0f}° at {TMA_LEG_SHEAR[1]:.1f} kn" in words["legs"]
@@ -287,8 +292,11 @@ def test_bearings_and_tma_gives_on_the_sample_what_its_steps_promise(
     other = "ambiguous_bearing" if kept == "bearing" else "bearing"
     flipped = {"port": "starboard", "starboard": "port"}
     side = {"bearing": row["side"], "ambiguous_bearing": flipped[row["side"]]}
-    assert f"**Keep {row[kept]:.1f}° ({side[kept]})**" in words["resolve"]
-    assert f"past **Keep {row[other]:.1f}° ({side[other]})**" in steps["resolve"]["keys"]
+    assert (
+        f"{row[kept]:.1f}° ({side[kept]}): **Keep {side[kept]}** in **Tools**" in words["resolve"]
+    )
+    assert f"**Keep {side[kept]}: this cut**" in steps["resolve"]["keys"]
+    assert f"{row[other]:.1f}°" not in words["resolve"]
     cue = {name: _cue(stage["residuals"]) for name, stage in stages.items()}
     rms = {name: stage["residuals"]["rms"] for name, stage in stages.items()}
     # Step 3: Debrief's first guess is far off, as said: its RMS and its cue.

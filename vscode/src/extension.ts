@@ -46,8 +46,9 @@ import { specOfFeature } from "../webview/annotationlook.js";
 import { FIX_COLOURS, TRACK_COLOURS } from "../webview/palette.js";
 import { Session, timeProblem } from "./session.js";
 import { CataloguesProvider, type CollationMarks } from "./views/catalogues.js";
-import { featureIdsOf, OutlineProvider } from "./views/outline.js";
-import { ToolsProvider } from "./views/tools.js";
+import { featureIdsOf, keysOf, OutlineProvider, type Node as OutlineNode } from "./views/outline.js";
+import { OPERATION_COMMANDS, ToolsProvider } from "./views/tools.js";
+import { exclusionTarget, featureIdsOfPicks, fixKey, outlineChoice, outlineOperations, pickedCuts, pickOf, tmaRequestOf, type Operation, type OperationContext, type OperationId, type OutlineFocus, type OutlinePick } from "../webview/outlinemodel.js";
 import { AFTER_OPEN, BY_HAND, LOG_FILE, openedEvent, openOnFirstRun, prepare, serviceEvent, toteCompares, TOURS, tourOfEvent, WalkthroughProgress } from "./walkthroughs.js";
 import { NO_SOLUTION, withSolution } from "../walkthroughs/contribute.mjs";
 
@@ -88,8 +89,13 @@ export interface DebriefApi {
   toteShowing: () => boolean;
   /** Whether the Timeline view in the sidebar has loaded, for tests and agents. */
   timelineShowing: () => boolean;
-  /** The Outline's rows under a feature's (a track's sensors, CAP-22): their labels and descriptions, for tests and agents. */
-  outlineChildren: (id: string) => { label: string; description: string }[];
+  /**
+   * The Outline's rows under a row's, by its key (a track's sensors, CAP-22; a sensor's cuts, a
+   * solution's legs and a leg's positions, 27 Oct 2026): their labels, descriptions, keys and menus, for tests and agents.
+   */
+  outlineChildren: (id: string) => { label: string; description: string; key?: string; context?: string }[];
+  /** The Outline's rows chosen, by key (a leg's or a position's is its solution's with #leg2 or #fix14), for tests and agents. */
+  outlineKeys: () => string[];
   /** A feature's own row in the Outline, as it reads: for tests. */
   outlineItem: (id: string) => { label: string; description: string } | undefined;
   /** A message to the extension as the Timeline's page sends it (Ctrl+Z there posts undo_asked), for tests. */
@@ -100,6 +106,8 @@ export interface DebriefApi {
   coverage: () => CoverageReport | undefined;
   /** A message to the extension as the Coverage page sends it, for tests. */
   coverageMessage: (message: unknown) => void;
+  /** A message to the extension as if the Bearings view had sent it (tests). */
+  bearingsMessage: (message: unknown) => Promise<void>;
   /** What the Catalogues tree marks: new data and review flags (CAP-10, CAP-12), for tests and agents. */
   catalogueMarks: () => CollationMarks;
   /** The narrative entry the map shows beside its track at current time, for tests and agents (CAP-20). */
@@ -182,9 +190,47 @@ export function activate(context: vscode.ExtensionContext): DebriefApi {
 
   const catalogues = new CataloguesProvider(configFile);
   const outline = new OutlineProvider(session);
-  const tools = new ToolsProvider(session);
+  const tools = new ToolsProvider(session, () => outlineOperationsNow());
   const history = new HistoryProvider((name) => listing?.tools.find((t) => t.name === name)?.title);
   const outlineView = vscode.window.createTreeView("debrief.outline", { treeDataProvider: outline, canSelectMany: true });
+  /** The Outline's rows chosen, by key: features, cuts, legs and positions (product owner, 27 Oct 2026). */
+  let outlineKeys: string[] = [];
+  /** The rows a selection about to be made elsewhere stands for (a position clicked in Bearings, a walkthrough's step). */
+  let nextKeys: string[] | undefined;
+  /** What the Outline's rows stand for. */
+  const outlinePicks = (keys: readonly string[] = outlineKeys): OutlinePick[] => {
+    const index = outline.index;
+    return index ? keys.map((k) => pickOf(index, k)).filter((p): p is OutlinePick => !!p) : [];
+  };
+  /** What the Tools' entries act on: the Outline's rows chosen, what Bearings shows, the time window. */
+  const operationContext = (keys?: readonly string[]): OperationContext | undefined => {
+    const index = outline.index;
+    if (!index || !session.current) return undefined;
+    const range = session.time?.range;
+    return {
+      index,
+      picks: outlinePicks(keys),
+      shownSolution: bearingsView.solutionShown,
+      ...(range && { window: { start: Date.parse(range.start), end: Date.parse(range.end) } }),
+      ...(session.current.revision && { readOnly: true }),
+    };
+  };
+  function outlineOperationsNow(): Operation[] {
+    const context = operationContext();
+    return context ? outlineOperations(context) : [];
+  }
+  /** The Outline's rows chosen changed: Bearings follows them, the Tools offer what can be done to them. */
+  function outlineChanged(): void {
+    bearingsView.follow(outlinePicks());
+    tools.refresh();
+  }
+  /** Current time to a position chosen in the Outline, the window widened to take it in if need be, shown not saved. */
+  function outlineTimeTo(at: string): void {
+    const range = session.time?.range;
+    if (!range) return;
+    const within = at >= range.start && at <= range.end;
+    session.setTime({ current: at, range: within ? range : { start: at < range.start ? at : range.start, end: at > range.end ? at : range.end } }, "outline");
+  }
   // What the menus need to know of the open plot: whether there is one, and whether it has a north arrow.
   session.onPlot((opened) => {
     void vscode.commands.executeCommand("setContext", "debrief.plotOpen", !!opened);
@@ -275,6 +321,20 @@ export function activate(context: vscode.ExtensionContext): DebriefApi {
       exclude: async (solutionId, cutIds, excluded) => (await vscode.commands.executeCommand<{ problem?: string } | undefined>("debrief.tmaExclude", solutionId, cutIds, excluded))?.problem,
       split: async (solutionId, at) => (await vscode.commands.executeCommand<{ problem?: string } | undefined>("debrief.tmaSplitLeg", solutionId, { at }))?.problem,
       resolve: async (cutId, keep) => (await vscode.commands.executeCommand<{ problem?: string } | undefined>("debrief.resolveAmbiguity", { keep, cut_ids: [cutId] }))?.problem,
+      // A box drawn with Select bearings on (product owner, 28 Oct 2026): the same command, the same step.
+      resolveCuts: async (resolution) => (await vscode.commands.executeCommand<{ problem?: string } | undefined>("debrief.resolveAmbiguity", resolution))?.problem,
+      // A dot clicked: its cut, or the solution's position there, selected in the Outline (product owner, 27 Oct 2026).
+      select: (id, fix) => {
+        nextKeys = fix === undefined ? undefined : [fixKey(id, fix)];
+        session.select([id], "bearings");
+        if (nextKeys) {
+          // The solution was selected already: the position chosen all the same.
+          outlineKeys = nextKeys;
+          nextKeys = undefined;
+          revealKeys();
+          outlineChanged();
+        }
+      },
       // The error cut-off: kept in the analyst's configuration (debrief-config), shown in Settings as debrief.tma.errorCutOff.
       cutOff: (degrees) => void rememberCutOff(degrees),
       get errorCutOff() {
@@ -445,20 +505,46 @@ export function activate(context: vscode.ExtensionContext): DebriefApi {
   // Selection in the outline selects everywhere (SUB-26); selection made elsewhere
   // is revealed in the outline. Revealing changes the tree's own selection, which
   // must not echo back as a new selection.
+  // The Outline's rows chosen, by key (product owner, 27 Oct 2026): features, cuts, and a
+  // solution's legs and positions, which stand for the solution everywhere else. Bearings
+  // follows them, and the Tools offer what can be done to them.
   let revealing: string | undefined;
   outlineView.onDidChangeSelection((event) => {
-    const ids = featureIdsOf(event.selection);
-    if (revealing !== undefined && ids.join() === revealing) return;
-    revealing = undefined;
-    if (ids.length) session.select(ids, "outline"); // clicking a heading leaves the selection alone
+    const keys = keysOf(event.selection);
+    // While a row is being revealed, the tree's own selection events (the row revealed, or, in
+    // VS Code 1.95, the row selected before as the view takes focus) are not the analyst's.
+    if (revealing !== undefined) return;
+    if (!keys.length) return; // clicking a heading, or a page of cuts, leaves the selection alone
+    outlineKeys = keys;
+    // A position chosen: current time to it.
+    const index = outline.index;
+    const fix = index ? [...keys].reverse().map((k) => pickOf(index, k)).find((p) => p?.kind === "fix") : undefined;
+    if (fix && fix.kind === "fix") outlineTimeTo(new Date(index!.solutions.get(fix.solution)!.times[fix.index]).toISOString());
+    session.select(featureIdsOf(event.selection), "outline");
+    outlineChanged();
   });
   session.onSelection((ids, origin) => {
-    if (origin === "outline" || origin === "plot" || !ids.length || !outlineView.visible) return;
-    const node = outline.featureNode(ids[ids.length - 1]);
-    if (!node) return;
-    revealing = ids[ids.length - 1];
-    void outlineView.reveal(node, { select: true, focus: false, expand: true }).then(undefined, () => undefined);
+    if (origin === "outline") return;
+    outlineKeys = nextKeys ?? ids;
+    nextKeys = undefined;
+    if (origin !== "plot") revealKeys();
+    outlineChanged();
   });
+  session.onPlot((opened) => {
+    const index = outline.index;
+    outlineKeys = opened && index ? outlineKeys.filter((k) => !!pickOf(index, k)) : [];
+    outlineChanged();
+  });
+  /** The Outline's last key chosen elsewhere brought into sight there, its branches opened. */
+  function revealKeys(): void {
+    const last = outlineKeys[outlineKeys.length - 1];
+    if (!last || !outlineView.visible) return;
+    const node = outline.nodeOf(last);
+    if (!node) return;
+    const mine = (revealing = last);
+    const done = () => setTimeout(() => revealing === mine && (revealing = undefined), 150);
+    void outlineView.reveal(node, { select: true, focus: false, expand: true }).then(done, done);
+  }
 
   // --- Changes happen one at a time ---------------------------------------------------
   // Every change and reload waits for the one before, so each starts from the base
@@ -2448,11 +2534,8 @@ export function activate(context: vscode.ExtensionContext): DebriefApi {
   // by two clicks on the map: one step. Given a request (agents, tests, the view), it asks
   // nothing; without one, the Bearings view, where the period is chosen.
   command("debrief.tmaCreate", async (request?: TmaRequest) => {
-    if (!request) {
-      await vscode.commands.executeCommand(`${BEARINGS_VIEW}.focus`);
-      void vscode.window.showInformationMessage("In Bearings, choose the period: click a sensor's first cut and Shift-click its last, then Make solution….");
-      return {};
-    }
+    // Without a request: TMA solution from cuts…, on what the Outline has selected (product owner, 27 Oct 2026).
+    if (!request) return runOperation("tma-from-cuts");
     const asked = request;
     const done = await sense((o, allow) => service!.tmaCreate(o.store.id, o.item.id, o.base!, agent, asked, allow));
     if (done.problem) return (report(done.problem), { problem: done.problem });
@@ -2484,6 +2567,103 @@ export function activate(context: vscode.ExtensionContext): DebriefApi {
     await vscode.commands.executeCommand(`${BEARINGS_VIEW}.focus`);
     const id = typeof target === "string" ? target : targets(target)[0];
     if (id) await bearingsView.choose(id, focus);
+  });
+  // --- The Tools' entries for the Outline's selection (product owner, 27 Oct 2026) ------------
+  // Split before and after a position of a TMA solution's leg; hide, show and delete cuts; leave
+  // them out of a solution or count them in; keep a side; a solution from them. Each a command,
+  // in the Tools view and on the Outline's menus; one step each with its provenance, but the
+  // solution from cuts, which opens the first guess's form in Bearings.
+  /** The rows a command acts on: the keys given (agents, tests), those it was run on from the Outline's menu, or the Outline's selection. */
+  const rowsOf = (target?: unknown, nodes?: unknown): string[] | undefined => {
+    if (Array.isArray(target) && target.every((k) => typeof k === "string")) return target as string[];
+    const node = target && typeof target === "object" && "kind" in target ? (target as OutlineNode) : undefined;
+    if (!node) return undefined;
+    const all = Array.isArray(nodes) ? (nodes as OutlineNode[]) : [];
+    return keysOf(all.includes(node) ? all : [node]);
+  };
+  async function runOperation(id: OperationId, keys?: string[]): Promise<{ problem?: string; notes?: string[]; changed?: boolean }> {
+    const context = operationContext(keys);
+    const op = context && outlineOperations(context).find((o) => o.id === id);
+    if (!context || !op) return { problem: report("Select what this acts on in the Outline first: a solution's position, cuts, or a sensor.") };
+    if (!op.enabled) return { problem: report(op.reason) };
+    const { index, picks } = context;
+    const cuts = pickedCuts(picks);
+    const cutIds = cuts.map((c) => c.id);
+    const said = (done: { problem?: string; answer?: { notes?: string[]; changed?: boolean } }, tell = false) => {
+      if (done.problem) return { problem: report(done.problem) };
+      const notes = done.answer?.notes ?? [];
+      if (tell && notes.length) void vscode.window.showInformationMessage(notes.join(". ") + ".");
+      return { notes, changed: done.answer?.changed };
+    };
+    if (id === "split-before" || id === "split-after") {
+      const fix = picks.find((p): p is Extract<OutlinePick, { kind: "fix" }> => p.kind === "fix")!;
+      const at = new Date(index.solutions.get(fix.solution)!.times[fix.index]).toISOString();
+      const side = id === "split-before" ? "before" : "after";
+      return said(await sense((o, allow) => service!.tmaSplitLeg(o.store.id, o.item.id, o.base!, agent, fix.solution, at, false, allow, side)));
+    }
+    if (id === "hide-cuts" || id === "show-cuts") return said(await sense((o, allow) => service!.hideCuts(o.store.id, o.item.id, o.base!, agent, cutIds, id === "hide-cuts", allow)), true);
+    if (id === "delete-cuts") return said(await sense((o, allow) => service!.deleteCuts(o.store.id, o.item.id, o.base!, agent, cutIds, allow)), true);
+    if (id === "leave-out" || id === "count-in") {
+      const target = exclusionTarget(index, cuts, context.shownSolution);
+      let solution = target.solution;
+      if (!solution) {
+        // Rooted in several solutions, none shown in Bearings: which one.
+        const picked = await vscode.window.showQuickPick(
+          target.candidates.map((c) => ({ label: index.solutions.get(c)!.track.properties.name, id: c })),
+          { placeHolder: `${id === "leave-out" ? "Leave the cuts out of" : "Count the cuts in"} which solution?` },
+        );
+        if (!picked) return {};
+        solution = picked.id;
+      }
+      const rooted = new Set(index.solutions.get(solution)!.track.properties.tma!.cut_ids);
+      return (await vscode.commands.executeCommand<{ problem?: string; notes?: string[]; changed?: boolean }>("debrief.tmaExclude", solution, cutIds.filter((c) => rooted.has(c)), id === "leave-out")) ?? {};
+    }
+    if (id === "keep-port" || id === "keep-starboard" || id === "keep-ambiguous") {
+      const keep = id === "keep-port" ? "port" : id === "keep-starboard" ? "starboard" : "ambiguous";
+      const twins = cuts.filter((c) => !!c.properties.ambiguous_bearing).map((c) => c.id);
+      return (await vscode.commands.executeCommand<{ problem?: string; answer?: { notes?: string[] } }>("debrief.resolveAmbiguity", { keep, cut_ids: twins })) ?? {};
+    }
+    // A solution from the cuts: the first guess's form, in Bearings, showing the first cut's sensor.
+    const made = tmaRequestOf(context);
+    if (typeof made === "string") return { problem: report(made) };
+    await vscode.commands.executeCommand(`${BEARINGS_VIEW}.focus`);
+    await bearingsView.choose(made.cuts[0].properties.sensor_id, made.request.cut_ids ? { make: true, cut_ids: made.request.cut_ids } : { make: true, period: made.request.period! });
+    return {};
+  }
+  for (const [id, name] of Object.entries(OPERATION_COMMANDS)) command(name, (target?: unknown, nodes?: unknown) => runOperation(id as OperationId, rowsOf(target, nodes)));
+  /** The Tools' entries for the Outline's selection, or for the keys given: for tests and agents. */
+  command("debrief.outlineOperations", (keys?: string[]) => {
+    const context = operationContext(keys);
+    return context ? outlineOperations(context) : [];
+  });
+  /**
+   * Rows of the Outline chosen for the analyst (the Bearings and TMA walkthrough's steps, agents):
+   * under a sensor, its cut at a time, or its cuts in a period (with make, the first guess's form
+   * for them); under a solution, its position at a time, or a cut it is rooted in. Bearings follows,
+   * and current time moves to a cut or a position chosen.
+   */
+  command("debrief.chooseInOutline", async (target?: string, focus?: OutlineFocus) => {
+    const index = outline.index;
+    if (!index || !target) return report("Open a plot first.");
+    const keys = outlineChoice(index, target, focus ?? {});
+    if (typeof keys === "string") return report(keys);
+    await bearingsView.reveal();
+    if (focus?.make) return runOperation("tma-from-cuts", keys);
+    const picks = outlinePicks(keys);
+    const last = picks[picks.length - 1];
+    const at = last?.kind === "cut" ? last.cut.properties.time : last?.kind === "fix" ? new Date(index.solutions.get(last.solution)!.times[last.index]).toISOString() : undefined;
+    if (at) outlineTimeTo(at);
+    await vscode.commands.executeCommand("debrief.outline.focus");
+    nextKeys = keys;
+    session.select(featureIdsOfPicks(picks), "command");
+    if (nextKeys) {
+      // The features were selected already: the rows chosen all the same.
+      outlineKeys = nextKeys;
+      nextKeys = undefined;
+      revealKeys();
+      outlineChanged();
+    }
+    return undefined;
   });
   // A towed array's offset astern of the ship, and how it follows (CAP-22; product owner,
   // 24 Oct 2026): typed in the analyst's length unit, 0 for at the ship, then worm in the
@@ -3344,16 +3524,17 @@ export function activate(context: vscode.ExtensionContext): DebriefApi {
     toteShowing: () => toteView.showing,
     timelineShowing: () => timeline.showing,
     outlineChildren: (id) => {
-      const node = outline.featureNode(id);
+      const node = outline.nodeOf(id);
       return node
         ? outline.getChildren(node).map((child) => {
             const item = outline.getTreeItem(child);
-            return { label: String(item.label), description: String(item.description ?? "") };
+            return { label: String(item.label), description: String(item.description ?? ""), ...(keysOf([child])[0] && { key: keysOf([child])[0] }), ...(item.contextValue && { context: item.contextValue }) };
           })
         : [];
     },
+    outlineKeys: () => [...outlineKeys],
     outlineItem: (id) => {
-      const node = outline.featureNode(id);
+      const node = outline.nodeOf(id);
       if (!node) return undefined;
       const item = outline.getTreeItem(node);
       return { label: String(item.label), description: String(item.description ?? "") };
@@ -3361,6 +3542,7 @@ export function activate(context: vscode.ExtensionContext): DebriefApi {
     coverageShowing: () => coverageView.showing,
     coverage: () => coverageView.report,
     coverageMessage: (message) => coverageView.receive(message),
+    bearingsMessage: (message) => bearingsView.receive(message),
     catalogueMarks: () => catalogues.marks(),
     timelineMessage: (message) => timeline.receive(message),
     mapNarrative: () => map.narrative,

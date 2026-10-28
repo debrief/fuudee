@@ -6,12 +6,23 @@
  * course and speed; which panes show.
  */
 import { describe, expect, it } from "vitest";
-import type { DebriefFeatureCollection, TmaResidualRow } from "@debrief/schemas";
+import type { DebriefFeatureCollection, TmaCut, TmaResidualRow } from "@debrief/schemas";
 import { DEFAULT_SETTINGS } from "@debrief/kernel";
 import { contrast, parseColour, type Rgb } from "../../webview/contrast.js";
 import { travel, type LonLat } from "../../webview/geodesic.js";
+import { TRACK_COLOURS } from "../../webview/palette.js";
 import {
   about,
+  type BearingMarker,
+  bearingMarkersOf,
+  boxedSides,
+  boxResolution,
+  colourDistance,
+  courseAxes,
+  courseSeries,
+  describeBoxed,
+  NEAR_COLOURS,
+  tickLabel,
   coverageSpan,
   cueMark,
   cueStyle,
@@ -383,5 +394,140 @@ describe("where the controls go", () => {
     expect(controlsBeside(true, giving(251), chrome)).toBe(false);
     // On top: kept through the band too.
     expect(controlsBeside(false, giving(240), chrome)).toBe(false);
+  });
+});
+
+describe("Select bearings: a box in the Bearing pane toggles the cuts it takes in (product owner, 28 Oct 2026)", () => {
+  const T = 1_000_000;
+  // Three unresolved pairs (first bearing to port at 040°, its twin to starboard at 140°), one resolved to its twin.
+  const pair = (id: string, t: number, resolved?: "bearing" | "ambiguous_bearing"): BearingMarker[] => {
+    const base = { id, time: t, side: "port" as const, ...(resolved && { resolved }) };
+    const out: BearingMarker[] = [];
+    if (resolved !== "ambiguous_bearing") out.push({ ...base, value: 40, keep: "bearing" });
+    if (resolved !== "bearing") out.push({ ...base, value: 140, keep: "ambiguous_bearing" });
+    return out;
+  };
+  const markers = [...pair("a", T), ...pair("b", T + 60_000), ...pair("c", T + 120_000), ...pair("d", T + 180_000, "ambiguous_bearing")];
+
+  it("resolves only: each unresolved cut keeps the side whose dot was boxed, the right-hand run to starboard", () => {
+    const boxed = boxedSides(markers, [T, T + 120_000], [120, 160], 90);
+    expect(boxed).toMatchObject({ first: [], other: ["a", "b", "c"], clear: [], both: [], sides: { port: 0, starboard: 3, untold: 0 } });
+    expect(boxResolution(boxed)).toEqual({ keep: "bearing", cut_ids: [], other_cut_ids: ["a", "b", "c"], clear_cut_ids: [] });
+    expect(describeBoxed(boxed)).toBe("Kept 3 cuts to starboard, one step (Ctrl+Z undoes it).");
+    const left = boxedSides(markers, [T + 60_000, T + 150_000], [30, 50], 90);
+    expect(left.first).toEqual(["b", "c"]);
+    expect(left.sides).toEqual({ port: 2, starboard: 0, untold: 0 });
+  });
+  it("un-resolves only: a resolved cut whose kept dot is boxed is made ambiguous again", () => {
+    const boxed = boxedSides(markers, [T + 150_000, T + 200_000], [120, 160], 90);
+    expect(boxed).toMatchObject({ first: [], other: [], clear: ["d"], both: [] });
+    expect(boxResolution(boxed)).toEqual({ keep: "bearing", cut_ids: [], other_cut_ids: [], clear_cut_ids: ["d"] });
+    expect(describeBoxed(boxed)).toBe("Made 1 cut ambiguous again, one step (Ctrl+Z undoes it).");
+  });
+  it("does both in one box: the unresolved kept, the resolved made ambiguous again", () => {
+    const boxed = boxedSides(markers, [T, T + 200_000], [120, 160], 90);
+    expect(boxResolution(boxed)).toEqual({ keep: "bearing", cut_ids: [], other_cut_ids: ["a", "b", "c"], clear_cut_ids: ["d"] });
+    expect(describeBoxed(boxed)).toBe("Kept 3 cuts to starboard and made 1 ambiguous again, one step (Ctrl+Z undoes it).");
+  });
+  it("leaves an unresolved cut boxed on both sides as it was, and says so", () => {
+    const boxed = boxedSides(markers, [T, T + 60_000], [0, 180], 90);
+    expect(boxed.both).toEqual(["a", "b"]);
+    expect(boxResolution(boxed)).toBeUndefined();
+    expect(describeBoxed(boxed)).toBe("Nothing to change: 2 cuts boxed on both sides, left as they were.");
+    const mixed = boxedSides([...markers.slice(0, 4), ...markers.slice(5)], [T, T + 200_000], [0, 180], 90);
+    expect(boxResolution(mixed)).toEqual({ keep: "bearing", cut_ids: ["a", "b"], other_cut_ids: ["c", "a", "b"], clear_cut_ids: ["d"] });
+    expect(describeBoxed(mixed)).toBe("Kept 1 cut to starboard and made 1 ambiguous again, one step (Ctrl+Z undoes it). 2 cuts boxed on both sides, left as they were.");
+    expect(describeBoxed(boxedSides(markers, [0, 1], [0, 1], 90))).toBe("Nothing to change: no ambiguous or resolved cut's dot in the box.");
+  });
+  it("gives a box only the dots drawn: never a cut never ambiguous, nor a hidden one; a resolved cut's kept dot, with or without a solution", () => {
+    const cut = (id: string, t: number, more: Partial<TmaCut> = {}): TmaCut => ({ id, sensor_id: "s", time: new Date(t).toISOString(), bearing: 40, ...more });
+    const coverage = {
+      rows: [cut("bow", T), cut("pair", T, { ambiguous_bearing: 140, side: "port" }), cut("kept", T, { ambiguous_bearing: 140, resolved: "bearing" }), cut("hidden", T, { ambiguous_bearing: 140, hidden: true })],
+      times: [T, T, T, T],
+    };
+    const drawn = bearingMarkersOf(coverage);
+    expect(drawn.map((m) => [m.id, m.keep, m.value])).toEqual([["pair", "bearing", 40], ["pair", "ambiguous_bearing", 140], ["kept", "bearing", 40]]);
+    // The whole pane boxed: the bow sonar's cut and the hidden one untouched.
+    const all = boxedSides(drawn, [T, T], [-180, 540], 90);
+    expect(all).toMatchObject({ first: [], other: [], clear: ["kept"], both: ["pair"] });
+    // A solution's rooted cuts: a resolved one's measured (kept) dot, an unresolved one's two.
+    const row = (id: string, more: Partial<TmaResidualRow>): TmaResidualRow => ({ ...cut(id, T), ambiguous_bearing: 140, ...more }) as TmaResidualRow;
+    const rooted = { rows: [row("r1", { resolved: "ambiguous_bearing", measured: 140, used: "ambiguous_bearing" }), row("r2", { measured: 140, used: "ambiguous_bearing", nearer_side: true }), row("r3", { measured: 40, hidden: true })], times: [T, T, T] };
+    const withSolution = bearingMarkersOf({ rows: [], times: [] }, rooted);
+    expect(withSolution.map((m) => [m.id, m.keep, m.value])).toEqual([["r1", "ambiguous_bearing", 140], ["r2", "ambiguous_bearing", 140], ["r2", "bearing", 40]]);
+    expect(boxedSides(withSolution, [T, T], [120, 160], 90)).toMatchObject({ clear: ["r1"], other: ["r2"] });
+  });
+  it("boxes bearings as the pane draws them, unwrapped through north", () => {
+    const north: BearingMarker[] = [{ id: "n", time: T, value: 359, keep: "bearing", side: "starboard" }, { id: "n", time: T, value: 181, keep: "ambiguous_bearing", side: "starboard" }];
+    // About 0°, 359° is drawn at −1: a box from −5 to 5 takes it.
+    const boxed = boxedSides(north, [T, T], [-5, 5], 0);
+    expect(boxed.first).toEqual(["n"]);
+    expect(boxed.sides.starboard).toBe(1);
+  });
+});
+
+describe("the Course/Speed pane: ownship and the target, each in its colour (product owner, 28 Oct 2026)", () => {
+  const ownship = [{ id: "host", name: "BLUE ONE", colour: "#1f77b4", times: [0, 60_000, 120_000], courses: [350, 5, 20], speeds: [5, 5, 6] }];
+  it("draws ownship alone with no solution: its course and speed", () => {
+    const series = courseSeries(ownship, undefined, "#808080");
+    expect(series).toHaveLength(1);
+    expect(series[0]).toMatchObject({ role: "ownship", colour: "#1f77b4", marked: false });
+    const axes = courseAxes(series, [0, 120_000], 1.943844)!;
+    // Courses through north unwrapped about the first: 350 to 380, not 5 to 350.
+    expect(axes.reference).toBe(350);
+    expect(axes.course[0]).toBeLessThan(350);
+    expect(axes.course[1]).toBeGreaterThan(380);
+    expect(axes.course[1] - axes.course[0]).toBeLessThan(40);
+    // Speeds from zero, in knots, a real range.
+    expect(axes.speed[0]).toBeLessThanOrEqual(0);
+    expect(axes.speed[1]).toBeGreaterThan(6 * 1.943844);
+  });
+  it("adds the target with a solution, marked at its fixes where its colour is near ownship's", () => {
+    const target = { id: "s", name: "Contact 1 solution", colour: "#ff7f0e", times: [0, 120_000], courses: [200, 200], speeds: [3, 3] };
+    const two = courseSeries(ownship, target, "#808080");
+    expect(two.map((s) => [s.role, s.colour, s.marked])).toEqual([["ownship", "#1f77b4", false], ["target", "#ff7f0e", false]]);
+    const near = courseSeries(ownship, { ...target, colour: "#1f78b5" }, "#808080");
+    expect(near[1].marked).toBe(true);
+    expect(colourDistance("#1f77b4", "#1f78b5")).toBeLessThan(NEAR_COLOURS);
+    // The data colours offered for tracks are told apart by colour, or marked: no two alike unmarked.
+    for (const a of TRACK_COLOURS)
+      for (const b of TRACK_COLOURS) {
+        if (a === b) continue;
+        const [, t] = courseSeries([{ ...ownship[0], colour: a.colour }], { ...target, colour: b.colour }, "#808080");
+        expect(t.marked || colourDistance(a.colour, b.colour) >= NEAR_COLOURS).toBe(true);
+      }
+  });
+  it("says there is nothing to plot rather than drawing empty axes", () => {
+    expect(courseAxes([], [0, 1], 1)).toBeUndefined();
+    expect(courseAxes(courseSeries(ownship, undefined, "#808080"), [500_000, 600_000], 1)).toBeUndefined();
+  });
+  it("labels speed ticks with the decimals their step needs, never a row of zeros", () => {
+    const ticks = niceTicks(0, 1, 5);
+    expect(ticks.map((v) => tickLabel(v, ticks))).toEqual(["0.0", "0.2", "0.4", "0.6", "0.8", "1.0"]);
+    expect(tickLabel(10, [0, 5, 10])).toBe("10");
+  });
+  it("gives a sensor's host as ownship, with speeds, and the fixes' course and speed where none is logged", () => {
+    const plot = samplePlot();
+    const [own] = ownshipOf(plot, "bow");
+    expect(own).toMatchObject({ id: "host", name: "HOST", colour: "#2ca02c" });
+    expect(own.speeds![0]).toBeCloseTo(6 * 0.514444, 4);
+    const unlogged = samplePlot();
+    const host = unlogged.features.find((f) => f.id === "host")!;
+    delete (host.properties as { courses?: unknown }).courses;
+    delete (host.properties as { speeds?: unknown }).speeds;
+    const [implied] = ownshipOf(unlogged, "bow");
+    // Heading east, 0.001° of longitude at 50° N every 30 s: about 2.4 m/s.
+    expect(Math.abs(implied.courses[0] - 90)).toBeLessThan(0.1);
+    expect(implied.speeds![0]).toBeGreaterThan(2);
+    expect(implied.speeds![0]).toBeLessThan(2.6);
+  });
+  it("thins ownship's speed with its course, keeping each stretch's slowest and fastest", () => {
+    const big = samplePlot(20_000);
+    const host = big.features.find((f) => f.id === "host")!;
+    const speeds = (host.properties as { speeds: { values: number[] } }).speeds.values;
+    speeds[12_345] = 30;
+    const [thin] = ownshipOf(big, "bow");
+    expect(thin.times.length).toBeLessThanOrEqual(OWNSHIP_MOST);
+    expect(Math.max(...thin.speeds!)).toBeCloseTo(30 * 0.514444, 4);
   });
 });

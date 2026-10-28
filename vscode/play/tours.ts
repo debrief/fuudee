@@ -16,7 +16,7 @@
  * skipping a step to wait for; the link is always there instead, below the steps.
  */
 import tours from "../walkthroughs/tours.json";
-import type { TmaFocus } from "@debrief/schemas";
+import type { OutlineFocus } from "../webview/outlinemodel.js";
 import { ALL_DONE, nextLabel, nextTour, stepParts, tmaDragEvent, type TourSource, type TourStep } from "../walkthroughs/contribute.mjs";
 
 export const TOURS: TourSource[] = tours.tours;
@@ -24,27 +24,28 @@ export type { TourSource, TourStep };
 
 /**
  * What a step's button does: open a walkthrough's copy, bring a panel or control into view, click
- * one, select features, import the log, or show a sensor's cuts or a solution in Bearings with
- * something chosen there (bearings:<sensor or solution>?cut=<time>, ?period=<start>/<end>&make, ?largest).
+ * one, select features, import the log, or choose rows in the Outline under a sensor's or a
+ * solution's row, Bearings following (product owner, 27 Oct 2026: outline:<sensor or solution>,
+ * ?cut=<time>, ?period=<start>/<end>&make for the first guess's form, ?fix=<time>).
  */
-type Verb = "open" | "focus" | "click" | "select" | "bearings";
+type Verb = "open" | "focus" | "click" | "select" | "outline";
 export type TourAction = { verb: Verb; target: string } | { verb: "import-log"; target: "" };
-const VERBS: string[] = ["open", "focus", "click", "select", "bearings"];
+const VERBS: string[] = ["open", "focus", "click", "select", "outline"];
 
-/** A bearings action's target: the sensor or solution to show, and what to choose in Bearings (a TmaFocus, as VS Code's step passes it). */
-export function bearingsTarget(target: string): { feature: string; focus?: TmaFocus } {
+/** An outline action's target: the sensor or solution whose rows are chosen, and which (an OutlineFocus, as VS Code's step passes it). */
+export function outlineTarget(target: string): { feature: string; focus?: OutlineFocus } {
   const [feature, query] = target.split("?");
   if (!query) return { feature };
-  const focus: TmaFocus = {};
+  const focus: OutlineFocus = {};
   for (const part of query.split("&")) {
     const [key, value = ""] = part.split("=");
     if (key === "cut") focus.cut_time = value;
+    else if (key === "fix") focus.fix_time = value;
     else if (key === "period") {
       const [start, end] = value.split("/");
       focus.period = { start, end };
     } else if (key === "make") focus.make = true;
-    else if (key === "largest") focus.largest = true;
-    else throw new Error(`Not a choice in Bearings: ${part}`);
+    else throw new Error(`Not a choice in the Outline: ${part}`);
   }
   return { feature, focus };
 }
