@@ -121,7 +121,7 @@ export function selectionVisibility(index: OutlineIndex, picks: readonly Outline
     hidden,
     ignored,
     pressed: "mixed",
-    title: `${hidden.toLocaleString("en-GB")} of ${what} hidden on the map: show them all.${left}${ro}`,
+    title: `${hidden.toLocaleString("en-GB")} of ${new Set(can.map((p) => kindOfPick(index, p))).size === 1 ? what : `${can.length.toLocaleString("en-GB")} (${what})`} hidden on the map: show them all.${left}${ro}`,
     done: `Showed ${what}`,
   };
 }
