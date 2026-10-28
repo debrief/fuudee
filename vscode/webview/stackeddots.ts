@@ -440,3 +440,185 @@ export function localCourse(a: LonLat, b: LonLat, seconds: number): { course: nu
 
 /** An angle as near a reference as it goes round: so a course through north stays one line. */
 export const about = (v: number, reference: number): number => reference + wrap(v - reference);
+
+// --- Select bearings: a box in the Bearing pane keeps the sides boxed ------------------------
+
+/** One dot of a resolvable cut as the Bearing pane draws it: the bearing it is, and which of the cut's two. */
+export interface BearingMarker {
+  id: string;
+  /** Its time, ms. */
+  time: number;
+  /** The bearing drawn, degrees true. */
+  value: number;
+  /** Which of the cut's bearings the dot is. */
+  keep: "bearing" | "ambiguous_bearing";
+  /** Which the cut keeps now, if resolved. */
+  resolved?: "bearing" | "ambiguous_bearing" | null;
+  /** The side of the host's course its first bearing is on, where told. */
+  side?: "port" | "starboard" | null;
+}
+
+/** What a box takes in: the cuts to keep on their first bearing and on their twin, those boxed on both sides, and those kept so already. */
+export interface Boxed {
+  first: string[];
+  other: string[];
+  both: string[];
+  already: number;
+  /** Of the cuts that change, how many end on each side, where told. */
+  sides: { port: number; starboard: number; untold: number };
+}
+
+/**
+ * The cuts a box drawn in the Bearing pane takes in, with Select bearings on (product owner, 28 Oct
+ * 2026): each cut with a dot inside it keeps the bearing of the dot boxed; a cut with dots inside on
+ * both sides is left as it is; one kept so already is no change. Only the dots drawn are given (an
+ * unresolved pair's two, a resolved cut's one; hidden cuts never), so only what the analyst sees is
+ * boxed. The box's values are the pane's, unwrapped about its reference, as the dots are drawn.
+ */
+export function boxedSides(markers: Iterable<BearingMarker>, times: Range, values: Range, reference: number): Boxed {
+  const [t0, t1] = times[0] <= times[1] ? times : [times[1], times[0]];
+  const [v0, v1] = values[0] <= values[1] ? values : [values[1], values[0]];
+  const boxed = new Map<string, { marker: BearingMarker; keeps: Set<string> }>();
+  for (const m of markers) {
+    if (m.time < t0 || m.time > t1) continue;
+    const v = about(m.value, reference);
+    if (v < v0 || v > v1) continue;
+    const seen = boxed.get(m.id);
+    if (seen) seen.keeps.add(m.keep);
+    else boxed.set(m.id, { marker: m, keeps: new Set([m.keep]) });
+  }
+  const out: Boxed = { first: [], other: [], both: [], already: 0, sides: { port: 0, starboard: 0, untold: 0 } };
+  const flip = { port: "starboard", starboard: "port" } as const;
+  for (const [id, { marker, keeps }] of boxed) {
+    if (keeps.size > 1) {
+      out.both.push(id);
+      continue;
+    }
+    const keep = keeps.values().next().value as BearingMarker["keep"];
+    if (marker.resolved === keep) {
+      out.already++;
+      continue;
+    }
+    (keep === "bearing" ? out.first : out.other).push(id);
+    const side = marker.side ? (keep === "bearing" ? marker.side : flip[marker.side]) : undefined;
+    if (side) out.sides[side]++;
+    else out.sides.untold++;
+  }
+  return out;
+}
+
+/** The step a box asks for (debrief/resolve_ambiguity's request): none when nothing would change. */
+export function boxResolution(boxed: Boxed): { keep: "bearing"; cut_ids: string[]; other_cut_ids: string[] } | undefined {
+  if (!boxed.first.length && !boxed.other.length) return undefined;
+  return { keep: "bearing", cut_ids: [...boxed.first, ...boxed.both], other_cut_ids: [...boxed.other, ...boxed.both] };
+}
+
+/** What a box did, or why it did nothing, in words for the status line. */
+export function describeBoxed(boxed: Boxed): string {
+  const count = (n: number) => `${n.toLocaleString("en-GB")} cut${n === 1 ? "" : "s"}`;
+  const changed = boxed.first.length + boxed.other.length;
+  const { port, starboard, untold } = boxed.sides;
+  const left: string[] = [];
+  if (boxed.both.length) left.push(`${count(boxed.both.length)} boxed on both sides, left as ${boxed.both.length === 1 ? "it was" : "they were"}`);
+  if (boxed.already) left.push(`${count(boxed.already)} kept so already`);
+  const after = left.length ? ` ${left.join("; ")}.` : "";
+  if (!changed) return boxed.both.length || boxed.already ? `Nothing to change:${after}` : "Nothing to change: no ambiguous or resolved cut's dot in the box.";
+  const to = port && !starboard && !untold ? "to port" : starboard && !port && !untold ? "to starboard" : "to the sides boxed";
+  return `Kept ${count(changed)} ${to}, one step (Ctrl+Z undoes it).${after}`;
+}
+
+// --- Course and speed of ownship and the target -------------------------------------------
+
+/** One line of the Course/Speed pane's: a track's courses and speeds over time, in its colour. */
+export interface CourseSeries {
+  id: string;
+  name: string;
+  colour: string;
+  /** Ownship (the sensor's host) or the target (the solution's DR legs). */
+  role: "ownship" | "target";
+  times: ArrayLike<number>;
+  courses?: ArrayLike<number>;
+  /** Metres a second. */
+  speeds?: ArrayLike<number>;
+  /** Drawn with a marker at each fix as well: its colour too near another line's to tell them apart by colour alone. */
+  marked: boolean;
+}
+
+/** How far apart two colours look, roughly (the "redmean" distance, 0 to about 765). */
+export function colourDistance(a: string, b: string): number {
+  const channels = (c: string) => {
+    const m = /^#([0-9a-f]{2})([0-9a-f]{2})([0-9a-f]{2})$/i.exec(c);
+    return m ? [parseInt(m[1], 16), parseInt(m[2], 16), parseInt(m[3], 16)] : [128, 128, 128];
+  };
+  const [r1, g1, b1] = channels(a);
+  const [r2, g2, b2] = channels(b);
+  const r = (r1 + r2) / 2;
+  const dr = r1 - r2;
+  const dg = g1 - g2;
+  const db = b1 - b2;
+  return Math.sqrt((2 + r / 256) * dr * dr + 4 * dg * dg + (2 + (255 - r) / 256) * db * db);
+}
+
+/** Below this, two lines' colours are too near to tell apart: the target's is marked at each fix too. */
+export const NEAR_COLOURS = 120;
+
+/**
+ * The Course/Speed pane's lines (product owner, 28 Oct 2026): ownship's (each sensor host's logged
+ * course and speed, or as its fixes imply), always; the target's (the solution's DR legs), when a
+ * solution is shown. Each in its track's colour; course solid, speed dashed; the target marked at its
+ * fixes where its colour is too near ownship's.
+ */
+export function courseSeries(
+  ownship: readonly { id: string; name: string; colour?: string | null; times: ArrayLike<number>; courses: ArrayLike<number>; speeds?: ArrayLike<number> | null }[],
+  target: { id: string; name: string; colour?: string | null; times: ArrayLike<number>; courses?: ArrayLike<number>; speeds?: ArrayLike<number> } | undefined,
+  fallback: string,
+): CourseSeries[] {
+  const out: CourseSeries[] = ownship.map((o) => ({ id: o.id, name: o.name, colour: o.colour ?? fallback, role: "ownship", times: o.times, courses: o.courses, ...(o.speeds && { speeds: o.speeds }), marked: false }));
+  if (target && (target.courses || target.speeds)) {
+    const colour = target.colour ?? fallback;
+    out.push({ ...target, colour, role: "target", marked: out.some((o) => colourDistance(o.colour, colour) < NEAR_COLOURS) });
+  }
+  return out;
+}
+
+/**
+ * The Course/Speed pane's axes, fitted to what is drawn in the span (product owner, 28 Oct 2026):
+ * courses unwrapped about the first (as the Bearing pane's bearings are), at least 10° wide; speeds
+ * from zero, in the analyst's unit, at least 1 wide. None when there is nothing to draw: the pane
+ * says so instead of drawing empty axes.
+ */
+export function courseAxes(series: readonly CourseSeries[], span: Range, perSecond: number): { course: Range; speed: Range; reference: number } | undefined {
+  let reference: number | undefined;
+  let cLo = Infinity;
+  let cHi = -Infinity;
+  let sHi = -Infinity;
+  for (const s of series) {
+    for (let i = 0; i < s.times.length; i++) {
+      const t = s.times[i];
+      if (t < span[0] || t > span[1]) continue;
+      const c = s.courses?.[i];
+      if (c !== undefined && c !== null && Number.isFinite(c)) {
+        if (reference === undefined) reference = c;
+        const u = about(c, reference);
+        if (u < cLo) cLo = u;
+        if (u > cHi) cHi = u;
+      }
+      const v = s.speeds?.[i];
+      if (v !== undefined && v !== null && Number.isFinite(v) && v * perSecond > sHi) sHi = v * perSecond;
+    }
+  }
+  if (reference === undefined && sHi === -Infinity) return undefined;
+  const ref = reference ?? 0;
+  return {
+    reference: ref,
+    course: cLo === Infinity ? [ref - 10, ref + 10] : fitRange(cLo, cHi, { least: 10, margin: 0.06 }),
+    speed: fitRange(0, Math.max(0, sHi), { includeZero: true, least: 1, margin: 0.08 }),
+  };
+}
+
+/** A tick's label on an axis of these ticks: as many decimals as their step needs. */
+export function tickLabel(v: number, ticks: readonly number[]): string {
+  const step = ticks.length > 1 ? Math.abs(ticks[1] - ticks[0]) : 1;
+  const decimals = step >= 1 ? 0 : Math.min(3, Math.ceil(-Math.log10(step) - 1e-9));
+  return fixed(v, decimals);
+}

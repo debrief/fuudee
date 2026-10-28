@@ -200,10 +200,19 @@ classes:
         multivalued: true
         required: true
       courses:
-        description: Its course at each of those times, degrees true.
+        description: >-
+          Its course at each of those times, degrees true: as logged, else
+          as its fixes imply (product owner, 28 Oct 2026).
         range: float
         multivalued: true
         required: true
+      speeds:
+        description: >-
+          Its speed at each of those times, metres a second: as logged, else
+          as its fixes imply (product owner, 28 Oct 2026), for the
+          Course/Speed pane's ownship speed.
+        range: float
+        multivalued: true
 
   TmaView:
     description: >-

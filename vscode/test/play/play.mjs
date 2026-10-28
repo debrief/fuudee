@@ -21,7 +21,7 @@ import { playNarrative, playNarrativeAtScale, vscodeTimelineView } from "./narra
 import { playWordNarrative } from "./narrativeword.mjs";
 import { playFrequencies } from "./frequencies.mjs";
 import { playSensors } from "./sensors.mjs";
-import { playTma } from "./tma.mjs";
+import { playSelectBearings, playTma } from "./tma.mjs";
 import { playCollation, vscodeCoverageView } from "./collation.mjs";
 import { playExport } from "./export.mjs";
 import { guidanceAccent, openOnFirstLoad, playDemo, playTourInThePost, playTours, resize, speedRun } from "./onboarding.mjs";
@@ -351,6 +351,9 @@ try {
   // TMA (CAP-21): a period of cuts chosen from the keyboard in the bearing view, a solution made by
   // form and by two clicks, dragged with live residuals, a cut left out, legs; a legacy solution imported.
   await playTma(page, shot);
+  // Select bearings and the Course/Speed pane on serial 1, before any solution (product owner, 28 Oct 2026):
+  // a box keeping the towed array's right-hand run, one step, the zoom kept; ownship's course and speed, then the target's.
+  await playSelectBearings(page, shot);
   // Collation: new data marked and taken, a period's source chosen, a proposal refused, an item
   // revised and the plot flagged for review until reviewed; narrow and in a wide font (CAP-08 to CAP-12).
   await playCollation(page, shot);

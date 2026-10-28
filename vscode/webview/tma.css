@@ -27,13 +27,13 @@ html:has(.tma-root), html:has(.tma-root) body { height: 100%; margin: 0; }
 
 /* One row: the panes, the scale held, the zoom undone, ⋯ for the cut-off, the key and the notes
    (product owner, 25 Oct 2026). Narrower than it needs, it wraps. */
-.tma-tools { display: flex; flex-wrap: wrap; align-items: center; gap: 4px; flex: none; }
+.tma-tools { display: flex; flex-wrap: wrap; align-items: center; gap: 3px; flex: none; }
 .tma-more { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 12px; flex: none; }
 .tma-more .tma-key, .tma-more .tma-notes { flex: 1 1 100%; }
 .tma-statusline { display: flex; flex-wrap: wrap; align-items: baseline; gap: 0 10px; flex: none; min-width: 0; }
 .tma-statusline > p { min-width: 0; max-width: 100%; overflow-wrap: anywhere; }
 .tma-panes { display: inline-flex; flex-wrap: wrap; gap: 2px; }
-.tma .tma-tools button { padding: 1px 6px; }
+.tma .tma-tools button { padding: 1px 4px; }
 .tma .tma-tools button[aria-pressed="true"] { color: var(--vscode-button-foreground); background: var(--vscode-button-background); border-color: var(--vscode-contrastActiveBorder, var(--vscode-button-background)); }
 .tma-cutoff { display: inline-flex; align-items: center; gap: 3px; color: var(--vscode-descriptionForeground); }
 .tma-cutoff input { width: 4em; height: 20px; background: var(--vscode-input-background); color: var(--vscode-input-foreground, var(--vscode-foreground)); border: 1px solid var(--vscode-input-border, var(--vscode-widget-border, transparent)); font: inherit; padding: 0 3px; }
@@ -59,6 +59,11 @@ html:has(.tma-root), html:has(.tma-root) body { height: 100%; margin: 0; }
 .tma-wide.tma-side .tma-below { grid-column: 2; grid-row: 5; overflow-y: auto; }
 .tma-canvas, .tma-overlay { position: absolute; left: 0; top: 0; display: block; }
 .tma-canvas { cursor: crosshair; touch-action: none; }
+/* Select bearings on (product owner, 28 Oct 2026): a box keeps sides, so the pointer says so. */
+.tma-selecting .tma-canvas { cursor: cell; }
+.tma-select-hint { margin: 0; color: var(--vscode-descriptionForeground); }
+.tma-legend { flex: 1 1 100%; margin: 0; padding: 0; list-style: none; font-size: 11px; color: var(--vscode-descriptionForeground); }
+.tma-legend-swatch { font-weight: bold; letter-spacing: 1px; }
 .tma-canvas:focus-visible { outline: 1px solid var(--vscode-focusBorder); outline-offset: -1px; }
 .tma-overlay { pointer-events: none; }
 /* The time and value under the pointer, laid over the panes' names while pointing: it takes no line of its own. */

@@ -15,7 +15,7 @@
  * saved, never a step.
  */
 import * as vscode from "vscode";
-import type { TimeState, TmaCut, TmaFocus, TmaRequest, TmaResiduals, TmaView } from "@debrief/schemas";
+import type { AmbiguityResolution, TimeState, TmaCut, TmaFocus, TmaRequest, TmaResiduals, TmaView } from "@debrief/schemas";
 import { checkMessage } from "../messages.js";
 import type { Session } from "../session.js";
 import { startup } from "../startup.js";
@@ -38,6 +38,8 @@ export interface BearingsAct {
   exclude(solutionId: string, cutIds: string[], excluded: boolean): Promise<string | undefined>;
   split(solutionId: string, at: string): Promise<string | undefined>;
   resolve(cutId: string, keep: string): Promise<string | undefined>;
+  /** A box drawn with Select bearings on: the sides boxed kept, one step (debrief/resolve_ambiguity). */
+  resolveCuts(resolution: AmbiguityResolution): Promise<string | undefined>;
   /** A dot clicked: its cut, or the solution at its fix (index), selected in the Outline and on the map. */
   select(featureId: string, fix?: number): void;
   /** The analyst's error cut-off, degrees: kept in their Debrief configuration. */
@@ -153,6 +155,8 @@ export class BearingsView implements vscode.WebviewViewProvider {
       this.timeTo(message.current_time!);
     } else if (message.kind === "resolve_asked") {
       await this.act.resolve(message.feature_id!, message.keep!);
+    } else if (message.kind === "tma_resolve" && message.resolution) {
+      await this.act.resolveCuts(message.resolution);
     } else if (message.kind === "tma_select") {
       // A dot clicked: its cut, or the solution at a fix (that position, in the Outline), selected; current time to it.
       const id = message.feature_id!;

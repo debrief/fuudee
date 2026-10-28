@@ -361,9 +361,10 @@ def resolution_from(value: models.AmbiguityResolution | dict) -> models.Ambiguit
 
 def _chosen_cuts(plot: DebriefFeatureCollection, asked: models.AmbiguityResolution) -> list:
     by_id = {f.id: f for f in plot.features}
-    if asked.cut_ids:
+    named = [*(asked.cut_ids or []), *(asked.other_cut_ids or [])]
+    if named:
         chosen = []
-        for cut_id in dict.fromkeys(asked.cut_ids):
+        for cut_id in dict.fromkeys(named):
             feature = by_id.get(cut_id)
             if feature is None or feature.properties.kind != CUT:
                 raise SensorError(f"The plot has no sensor cut {cut_id!r}.")
@@ -388,6 +389,8 @@ def _chosen_cuts(plot: DebriefFeatureCollection, asked: models.AmbiguityResoluti
     ]
 
 
+OTHER_BEARING = {"bearing": "ambiguous_bearing", "ambiguous_bearing": "bearing"}
+
 KEEP_WORDS = {
     "port": "Port bearing kept",
     "starboard": "Starboard bearing kept",
@@ -402,9 +405,23 @@ def resolve(plot: DebriefFeatureCollection, asked: models.AmbiguityResolution) -
     the step's name ("Port kept: 42 Towed array cuts 09:00:00Z–09:59:30Z")
     and its notes (cuts left as they were, and why)."""
     keep = str(asked.keep)
+    # A box drawn over the Bearings plot (product owner, 28 Oct 2026): the cuts whose first
+    # bearing was boxed keep it, those whose twin was keep that, in one step; a cut boxed on
+    # both sides is left, and said.
+    others = set(asked.other_cut_ids or [])
+    if others and keep not in ("bearing", "ambiguous_bearing"):
+        raise SensorError(
+            "other_cut_ids go with keep bearing or ambiguous_bearing: the cuts kept on "
+            "their other bearing."
+        )
+    both = others & set(asked.cut_ids or [])
     chosen = _chosen_cuts(plot, asked)
     hidden = 0
-    if not asked.cut_ids:
+    if others:
+        shown = [c for c in chosen if not c.properties.hidden]
+        hidden = len(chosen) - len(shown)
+        chosen = shown
+    elif not asked.cut_ids:
         # A sensor's cuts in a period, or all of them: those drawn. Hidden cuts, and those
         # of a sensor hidden, are left as they are, and said; named, they are resolved.
         sensors_hidden = {f.id for f in sensors(plot) if f.properties.hidden}
@@ -415,6 +432,10 @@ def resolve(plot: DebriefFeatureCollection, asked: models.AmbiguityResolution) -
         ]
         hidden = len(chosen) - len(shown)
         chosen = shown
+    if not chosen and others:
+        raise SensorError(
+            "Nothing to change: the cuts boxed are hidden; show them to resolve them."
+        )
     if not chosen:
         raise SensorError(
             "There are no cuts to resolve there: none of the sensor's cuts fall in the period."
@@ -434,13 +455,17 @@ def resolve(plot: DebriefFeatureCollection, asked: models.AmbiguityResolution) -
         return paths[sensor_id]
 
     modified = []
-    plain = no_course = already = 0
+    plain = no_course = already = boxed_both = 0
     sides: Counter[str] = Counter()
     for cut in chosen:
         props = cut.properties
         if props.ambiguous_bearing is None:
             plain += 1
             continue
+        if cut.id in both:
+            boxed_both += 1
+            continue
+        cut_keep = OTHER_BEARING[keep] if cut.id in others else keep
         if keep == "ambiguous":
             if props.resolved is None:
                 already += 1
@@ -452,7 +477,7 @@ def resolve(plot: DebriefFeatureCollection, asked: models.AmbiguityResolution) -
         path = host_path(props.sensor_id)
         place = place_of(cut, path, by_id.get(props.sensor_id))
         course = place.course if place is not None else None
-        kept = kept_for(keep, degrees(props.bearing), degrees(props.ambiguous_bearing), course)
+        kept = kept_for(cut_keep, degrees(props.bearing), degrees(props.ambiguous_bearing), course)
         if kept is None:
             no_course += 1
             continue
@@ -476,6 +501,8 @@ def resolve(plot: DebriefFeatureCollection, asked: models.AmbiguityResolution) -
     notes = []
     if hidden:
         notes.append(f"{_count(hidden, 'hidden cut')} left as they are: show them to resolve them.")
+    if boxed_both:
+        notes.append(f"{_count(boxed_both, 'cut')} boxed on both sides, left as they were.")
     if plain:
         notes.append(f"{_count(plain, 'cut')} had no ambiguous bearing, so nothing to keep.")
     if no_course:
@@ -490,7 +517,7 @@ def resolve(plot: DebriefFeatureCollection, asked: models.AmbiguityResolution) -
         raise SensorError(
             "Nothing to change: " + (" ".join(notes) or "the cuts are already as asked.")
         )
-    note, span = _step_name(keep, modified, sensor_names, sides, by_id)
+    note, span = _step_name(keep, modified, sensor_names, sides, by_id, boxed=bool(others))
     return Resolution(modified, note, [span, *notes] if span else notes, [c.id for c in chosen])
 
 
@@ -503,11 +530,25 @@ def _count(n: int, noun: str) -> str:
 STEP_NAME_LENGTH = 64
 
 
-def _step_name(keep, modified, sensor_names, sides, by_id) -> tuple[str, str | None]:
+def _step_name(
+    keep, modified, sensor_names, sides, by_id, *, boxed: bool = False
+) -> tuple[str, str | None]:
     """The step's name, short enough for the History: "Port bearing kept on Towed array
     cut at 09:31:00Z"; "Starboard kept: 42 Towed array cuts 09:00:00Z–09:59:30Z";
-    "Ambiguous again: 3 Towed array cuts 09:00:00Z–09:02:00Z". And, if the name had to
-    leave out its period, a note saying it in full."""
+    "Ambiguous again: 3 Towed array cuts 09:00:00Z–09:02:00Z"; a box drawn in the Bearings
+    plot, "Kept 23 Towed array cuts to starboard, 10:14:00Z–11:02:00Z". And, if the name
+    had to leave out its period, a note saying it in full."""
+    sensor = sensor_names[0] if len(sensor_names) == 1 else "sensor"
+    if boxed:
+        to = f"to {next(iter(sides))}" if len(sides) == 1 else "to the sides boxed"
+        if len(modified) == 1:
+            return f"Kept {name_of(modified[0], by_id)} {to}", None
+        first, last = modified[0].properties.time, modified[-1].properties.time
+        cuts = f"{len(modified):,} {sensor} cuts"
+        name = f"Kept {cuts} {to}, {when(first)}–{when(last)}"
+        if len(name) <= STEP_NAME_LENGTH:
+            return name, None
+        return f"Kept {cuts} {to}", f"{cuts} from {when(first)} to {when(last)}."
     if keep in ("bearing", "ambiguous_bearing"):
         # A line clicked: say the side it is on, where the course tells it.
         # Lines clicked on both sides (an agent naming several cuts): said so.
@@ -515,7 +556,6 @@ def _step_name(keep, modified, sensor_names, sides, by_id) -> tuple[str, str | N
         words = f"{keep_said.capitalize()} bearing kept" if keep_said else KEEP_WORDS[keep]
     else:
         words = KEEP_WORDS[keep]
-    sensor = sensor_names[0] if len(sensor_names) == 1 else "sensor"
     if len(modified) == 1:
         title = name_of(modified[0], by_id)
         if keep == "ambiguous":
@@ -540,6 +580,8 @@ def resolution_parameters(asked: models.AmbiguityResolution) -> list[models.Para
         out.append(models.ParameterValue(name="end", value=asked.period.end))
     if asked.cut_ids:
         out.append(models.ParameterValue(name="cuts", value=len(asked.cut_ids)))
+    if asked.other_cut_ids:
+        out.append(models.ParameterValue(name="other_cuts", value=len(asked.other_cut_ids)))
     return out
 
 

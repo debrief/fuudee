@@ -40,7 +40,7 @@
  *   way; a zoom kept. The whole frame is timed (timings) against the drag budget (NFR-04).
  */
 import { convert, DEFAULT_SETTINGS, fixed, formatTime, UNIT_LABELS, type FormatSettings } from "@debrief/kernel";
-import type { TmaCut, TmaFocus, TmaRequest, TmaResidualRow, TmaResiduals, TmaSolutionRow, TmaView } from "@debrief/schemas";
+import type { AmbiguityResolution, TmaCut, TmaFocus, TmaRequest, TmaResidualRow, TmaResiduals, TmaSolutionRow, TmaView } from "@debrief/schemas";
 import type { LonLat } from "./geodesic.js";
 import { bearingText, type Kept } from "./sensors.js";
 import {
@@ -57,6 +57,13 @@ import {
   errorExtent,
   fitErrors,
   fitRange,
+  type BearingMarker,
+  boxedSides,
+  boxResolution,
+  courseAxes,
+  courseSeries,
+  type CourseSeries,
+  describeBoxed,
   inside,
   isZoomed,
   legCourses,
@@ -71,6 +78,7 @@ import {
   panTime,
   type Range,
   readPanes,
+  tickLabel,
   tickTime,
   timeTicks,
   timeToY,
@@ -118,6 +126,8 @@ export interface TmaControlHost {
   time(time: string): void;
   /** Keep one of an ambiguous cut's bearings, or make it ambiguous again (resolve_asked). */
   resolve(cutId: string, keep: Kept | "ambiguous"): void;
+  /** Keep the sides of the cuts boxed with Select bearings on, as one step (tma_resolve; debrief/resolve_ambiguity). */
+  resolveCuts(resolution: AmbiguityResolution): void;
   /** Select a cut, or the solution at one of its fixes, and move current time to it: a dot clicked (tma_select). */
   select(featureId: string, time: string): void;
   /** Remember the analyst's error cut-off, degrees, in their Debrief configuration (tma_cut_off). */
@@ -186,8 +196,14 @@ export class TmaControl {
   private fixTimes: number[] = [];
   /** Where each pane was last drawn, and its axis: for pointing at it. */
   private drawn_?: PlotLayout;
-  /** A box being dragged in a pane, in the canvas's pixels. */
-  private box?: { pane: Pane; x0: number; y0: number; x1: number; y1: number };
+  /** A box being dragged in a pane, in the canvas's pixels; resolve, with Select bearings on in the Bearing pane. */
+  private box?: { pane: Pane; x0: number; y0: number; x1: number; y1: number; resolve?: boolean };
+  /** Select bearings: a box in the Bearing pane keeps the sides boxed instead of zooming (product owner, 28 Oct 2026). */
+  private selecting = false;
+  /** The Course/Speed pane's legend as last written. */
+  private legendKey = "";
+  /** What the Course/Speed pane last drew: for the tests. */
+  private courseShown?: { nothing: boolean; series: { id: string; name: string; colour: string; role: string; marked: boolean; courses?: [number, number]; speeds?: [number, number] }[] };
   private pointer?: { x: number; y: number };
   /** Each frame's Error axis and how many errors fell outside it (never any): for the tests. */
   readonly errorAxes: { lo: number; hi: number; outside: number }[] = [];
@@ -229,6 +245,7 @@ export class TmaControl {
       `<p class="tma-title" aria-live="polite"></p>` +
       `<div class="tma-tools" role="toolbar" aria-label="The plot's panes and scale">` +
       `<span class="tma-panes" role="group" aria-label="Panes shown">${PANES.map(paneButton).join("")}</span>` +
+      `<button type="button" class="tma-select" aria-pressed="false" title="Select bearings: drag a box over dots in the Bearing pane, and each cut keeps the side boxed, one step. Off, a box zooms.">Select bearings</button>` +
       `<button type="button" class="tma-hold" aria-pressed="false" aria-label="Hold scale" title="Hold scale: keep the Error axis as it is while dragging; it still widens to take in an error outside it">Hold</button>` +
       `<button type="button" class="tma-reset" disabled aria-label="Reset zoom" title="Reset zoom: undo the zoom (double-click the plot, or press 0 in it)" aria-keyshortcuts="0">Reset</button>` +
       `<button type="button" class="tma-more-button" aria-expanded="false" aria-controls="tma-more" aria-label="More: the cut-off, the key and the notes" title="More: the cut-off, the key and the notes">⋯</button>` +
@@ -236,6 +253,7 @@ export class TmaControl {
       `<div class="tma-more" id="tma-more" role="group" aria-label="More" hidden>` +
       `<label class="tma-cutoff" title="The Error pane is green while every error counted is within this, pink otherwise; kept with your Debrief settings"><span>Cut-off</span><input type="number" class="tma-cutoff-input" min="0.01" max="180" step="0.5" inputmode="decimal" aria-label="Error cut-off, degrees"><span aria-hidden="true">°</span></label>` +
       `<p class="tma-key" aria-hidden="true"></p>` +
+      `<ul class="tma-legend" aria-label="The Course/Speed pane's lines" hidden></ul>` +
       `<ul class="tma-notes" hidden></ul>` +
       `</div>` +
       `<div class="tma-plot" hidden><canvas class="tma-canvas" role="img" tabindex="0" aria-keyshortcuts="ArrowUp ArrowDown Enter Space Delete S 1 2 + - [ ] 0 PageUp PageDown"></canvas><canvas class="tma-overlay" aria-hidden="true"></canvas><p class="tma-readout" aria-hidden="true"></p></div>` +
@@ -243,6 +261,7 @@ export class TmaControl {
       `<p class="tma-cue" hidden aria-live="polite"><span class="tma-cue-mark" aria-hidden="true"></span> <span class="tma-cue-text"></span></p>` +
       `<p class="tma-rms" hidden></p>` +
       `<p class="tma-offscale"></p>` +
+      `<p class="tma-select-hint" hidden>Select bearings: drag a box over the Bearing pane's dots; each cut keeps the side boxed.</p>` +
       `</div>` +
       `<div class="tma-below">` +
       `<form class="tma-form" hidden novalidate aria-label="First guess"></form>` +
@@ -274,6 +293,7 @@ export class TmaControl {
     this.canvas.addEventListener("blur", () => this.pointerGone());
     this.tools.querySelectorAll<HTMLButtonElement>(".tma-pane").forEach((button) => button.addEventListener("click", () => this.togglePane(button.dataset.pane as Pane)));
     q<HTMLButtonElement>(".tma-hold").addEventListener("click", () => this.setHold(!this.hold));
+    q<HTMLButtonElement>(".tma-select").addEventListener("click", () => this.setSelecting(!this.selecting));
     q<HTMLButtonElement>(".tma-reset").addEventListener("click", () => this.resetZoom());
     const more = q<HTMLButtonElement>(".tma-more-button");
     more.addEventListener("click", () => {
@@ -478,6 +498,12 @@ export class TmaControl {
       speed: d?.speed,
       cue: d?.cue,
       coverage: this.coverage.rows.length,
+      /** The Bearing pane's bearings are unwrapped about this. */
+      reference: d?.reference,
+      /** Select bearings on. */
+      selecting: this.selecting,
+      /** The Course/Speed pane's lines (each its track, colour and role, and its courses' least and most in the span), or nothing to plot. */
+      course: this.courseShown,
     };
   }
 
@@ -835,6 +861,74 @@ export class TmaControl {
     this.say(`${PANE_NAMES[pane]} pane ${next[pane] ? "shown" : "hidden"}.${pane === "error" && this.mode() !== "solution" ? " It is drawn once a solution is shown." : ""}`);
   }
 
+  /** Select bearings on or off: on, a box in the Bearing pane keeps the sides of the cuts it takes in. */
+  private setSelecting(on: boolean): void {
+    this.selecting = on;
+    this.tools.querySelector(".tma-select")!.setAttribute("aria-pressed", String(on));
+    this.plot.classList.toggle("tma-selecting", on);
+    this.element.querySelector<HTMLElement>(".tma-select-hint")!.hidden = !on;
+    this.say(on ? "Select bearings on: drag a box over the Bearing pane's dots; each cut keeps the side boxed." : "Select bearings off: a box zooms.");
+  }
+
+  /** The Course/Speed pane's lines named, in ⋯: each track's colour, course solid and speed dashed. */
+  private showLegend(series: readonly CourseSeries[]): void {
+    const key = series.map((s) => `${s.id}${s.colour}${s.marked}${!!s.courses}${!!s.speeds}`).join("|");
+    if (key === this.legendKey) return;
+    this.legendKey = key;
+    const legend = this.element.querySelector<HTMLElement>(".tma-legend")!;
+    legend.hidden = !series.length;
+    legend.replaceChildren(
+      ...series.map((s) => {
+        const li = document.createElement("li");
+        const swatch = document.createElement("span");
+        swatch.className = "tma-legend-swatch";
+        swatch.setAttribute("aria-hidden", "true");
+        swatch.style.color = s.colour;
+        swatch.textContent = s.marked ? "━■┄" : "━ ┄";
+        const words = s.role === "ownship" ? `${s.name} (ownship)` : `${s.name} (target)`;
+        li.append(swatch, ` ${words}: course solid, speed dashed${s.marked ? ", marked at each fix" : ""}`);
+        return li;
+      }),
+    );
+  }
+
+  /** The dots of resolvable cuts as the Bearing pane draws them: an unresolved pair's two, a resolved cut's one; never a hidden cut's. */
+  private bearingMarkers(): BearingMarker[] {
+    const out: BearingMarker[] = [];
+    const has = (v: number | null | undefined): v is number => v !== undefined && v !== null;
+    const coverage = this.coverage;
+    coverage.rows.forEach((c, i) => {
+      if (c.hidden || !has(c.ambiguous_bearing)) return;
+      const base = { id: c.id, time: coverage.times[i], resolved: c.resolved, side: c.side };
+      if (!c.resolved || c.resolved === "bearing") out.push({ ...base, value: c.bearing, keep: "bearing" });
+      if (!c.resolved || c.resolved === "ambiguous_bearing") out.push({ ...base, value: c.ambiguous_bearing, keep: "ambiguous_bearing" });
+    });
+    if (this.mode() === "solution") {
+      const rows = (this.residuals?.rows ?? []) as TmaResidualRow[];
+      const times = this.timesOf(rows);
+      rows.forEach((r, i) => {
+        if (r.hidden || !has(r.ambiguous_bearing)) return;
+        const base = { id: r.id, time: times[i], resolved: r.resolved, side: r.side };
+        const kept: Kept = has(r.measured) ? (r.used ?? "bearing") : r.resolved === "ambiguous_bearing" ? "ambiguous_bearing" : "bearing";
+        out.push({ ...base, value: has(r.measured) ? r.measured : kept === "bearing" ? r.bearing : r.ambiguous_bearing, keep: kept });
+        // The other of an unresolved pair, drawn faint beside the one measured.
+        if (r.nearer_side) out.push({ ...base, value: kept === "bearing" ? r.ambiguous_bearing : r.bearing, keep: kept === "bearing" ? "ambiguous_bearing" : "bearing" });
+      });
+    }
+    return out;
+  }
+
+  /** A box drawn in the Bearing pane with Select bearings on: the sides boxed kept, one step, or said why nothing changed. The zoom stays. */
+  private resolveBox(times: Range, values: Range): void {
+    const d = this.drawn_;
+    if (!d) return;
+    if (this.view?.read_only) return this.say("An earlier revision is shown read-only: nothing is changed.");
+    const boxed = boxedSides(this.bearingMarkers(), times, values, d.reference);
+    const resolution = boxResolution(boxed);
+    this.say(describeBoxed(boxed));
+    if (resolution) this.host.resolveCuts(resolution);
+  }
+
   private setHold(hold: boolean): void {
     this.hold = hold;
     // Held as it is drawn now; let go, it fits the errors again.
@@ -888,7 +982,7 @@ export class TmaControl {
     const unit = UNIT_LABELS[this.settings.speed_unit] ?? this.settings.speed_unit;
     this.keyLine.innerHTML =
       `<span>● measured</span><span>○ nearer of two</span><span class="tma-key-other">● other of two, faint</span><span>▲ calculated</span><span>◌ left out</span>` +
-      (course ? `<span>— ownship course</span><span>— target course</span><span>┄ target speed (${escape(unit)})</span>` : "");
+      (course ? `<span>— course, ┄ speed (${escape(unit)}), each in its track's colour</span>` : "");
   }
 
   private geometry() {
@@ -1066,32 +1160,34 @@ export class TmaControl {
       speeds = legs.speeds;
     }
     const perSecond = convert({ value: 1, unit: "m/s" }, this.settings.speed_unit).value;
-    const ownship = this.view?.ownship ?? [];
-    let courseRange: Range = [0, 360];
-    let speedRange: Range = [0, 10];
-    let courseRef = 0;
+    // Ownship's course and speed, always; the target's (the solution's DR legs) with a solution; each in its track's colour (product owner, 28 Oct 2026).
+    const series: CourseSeries[] = this.panes.course
+      ? courseSeries(
+          (this.view?.ownship ?? []).map((o) => ({ ...o, times: this.ownTimes(o) })),
+          solution && (courses || speeds) ? { id: solution.id, name: solution.name, colour: solution.colour, times: this.fixTimes, courses, speeds } : undefined,
+          muted,
+        )
+      : [];
+    const axes = this.panes.course ? courseAxes(series, span, perSecond) : undefined;
+    const nothingToPlot = this.panes.course && !axes;
+    let courseRange: Range = axes?.course ?? [0, 360];
+    let speedRange: Range = axes?.speed ?? [0, 10];
+    const courseRef = axes?.reference ?? 0;
+    this.showLegend(series);
     if (this.panes.course) {
-      courseRef = courses?.[0] ?? ownship[0]?.courses[0] ?? 0;
-      let cLo = Infinity;
-      let cHi = -Infinity;
-      let sHi = 0;
-      const takeC = (v: number) => {
-        const u = about(v, courseRef);
-        if (u < cLo) cLo = u;
-        if (u > cHi) cHi = u;
+      const extent = (s: CourseSeries, values: ArrayLike<number> | undefined, unwrap: boolean): [number, number] | undefined => {
+        let lo = Infinity;
+        let hi = -Infinity;
+        for (let i = 0; values && i < s.times.length; i++) {
+          if (!inSpan(s.times[i]) || !Number.isFinite(values[i])) continue;
+          const v = unwrap ? about(values[i], courseRef) : values[i] * perSecond;
+          lo = Math.min(lo, v);
+          hi = Math.max(hi, v);
+        }
+        return lo === Infinity ? undefined : [lo, hi];
       };
-      for (let i = 0; i < this.fixTimes.length; i++) {
-        if (!inSpan(this.fixTimes[i])) continue;
-        if (courses && has(courses[i])) takeC(courses[i]);
-        if (speeds && has(speeds[i]) && speeds[i] * perSecond > sHi) sHi = speeds[i] * perSecond;
-      }
-      for (const own of ownship) {
-        const ts = this.ownTimes(own);
-        for (let i = 0; i < ts.length; i++) if (inSpan(ts[i])) takeC(own.courses[i]);
-      }
-      courseRange = cLo === Infinity ? [courseRef - 10, courseRef + 10] : fitRange(cLo, cHi, { least: 10, margin: 0.06 });
-      speedRange = fitRange(0, sHi, { includeZero: true, least: 1, margin: 0.08 });
-    }
+      this.courseShown = { nothing: !axes, series: series.map((s) => ({ id: s.id, name: s.name, colour: s.colour, role: s.role, marked: s.marked, courses: extent(s, s.courses, true), speeds: extent(s, s.speeds, false) })) };
+    } else this.courseShown = undefined;
     // A zoom wins over each.
     const zoomed = this.zoom.values;
     const ranges: Record<Pane, Range> = {
@@ -1172,6 +1268,15 @@ export class TmaControl {
           after = lx + width;
         }
       };
+      if (p.pane === "course" && nothingToPlot) {
+        // No course or speed at all: said, not drawn as empty axes.
+        ctx.fillStyle = muted;
+        ctx.textAlign = "center";
+        ctx.textBaseline = "middle";
+        ctx.fillText("No course or speed to plot", p.x + p.w / 2, top + height / 2);
+        ctx.restore();
+        continue;
+      }
       const valueTicks = niceTicks(p.range[0], p.range[1], Math.max(3, Math.floor(p.w / 26)));
       ctx.strokeStyle = grid;
       ctx.beginPath();
@@ -1184,7 +1289,8 @@ export class TmaControl {
       labels(valueTicks, (v) => xOf(p, v), (v) => degreesText(v, p.pane), top - 2);
       if (p.pane === "course") {
         ctx.textBaseline = "top";
-        labels(niceTicks(speedRange[0], speedRange[1], Math.max(3, Math.floor(p.w / 26))), (v) => valueToX(v, speedRange, p.x, p.w), (v) => fixed(v, 0), top + height + 2);
+        const speedTicks = niceTicks(speedRange[0], speedRange[1], Math.max(3, Math.floor(p.w / 26)));
+        labels(speedTicks, (v) => valueToX(v, speedRange, p.x, p.w), (v) => tickLabel(v, speedTicks), top + height + 2);
         ctx.fillStyle = fg;
         ctx.textAlign = "center";
         ctx.fillText(`Speed (${unit}) ┄`, p.x + p.w / 2, top + height + 13);
@@ -1411,9 +1517,24 @@ export class TmaControl {
         ctx.setLineDash([]);
       };
       const toCourse = (v: number) => xOf(coursePane, about(v, courseRef));
-      for (const own of ownship) line(this.ownTimes(own), own.courses, own.colour ?? muted, toCourse, [], 1.5);
-      if (courses) line(this.fixTimes, courses, lineColour, toCourse, [], 1.5);
-      if (speeds) line(this.fixTimes, speeds, lineColour, (v) => valueToX(v * perSecond, speedRange, coursePane.x, coursePane.w), [4, 3], 1.5);
+      const toSpeed = (v: number) => valueToX(v * perSecond, speedRange, coursePane.x, coursePane.w);
+      for (const s of series) {
+        // Course solid, speed dashed, each in its track's colour; the target wider, and marked at its fixes where its colour is near ownship's.
+        const width = s.role === "target" ? 2 : 1.5;
+        if (s.courses) line(s.times, s.courses, s.colour, toCourse, [], width);
+        if (s.speeds) line(s.times, s.speeds, s.colour, toSpeed, [4, 3], width);
+        if (s.marked) {
+          ctx.fillStyle = s.colour;
+          for (let i = 0; i < s.times.length; i++) {
+            const t = s.times[i];
+            if (!inSpan(t)) continue;
+            const c = s.courses?.[i];
+            if (c !== undefined && Number.isFinite(c)) ctx.fillRect(toCourse(c) - 2, y(t) - 2, 4, 4);
+            const v = s.speeds?.[i];
+            if (v !== undefined && Number.isFinite(v)) ctx.fillRect(toSpeed(v) - 2, y(t) - 2, 4, 4);
+          }
+        }
+      }
       ctx.restore();
     }
     this.faintDrawn = faint;
@@ -1491,7 +1612,14 @@ export class TmaControl {
       const y1 = Math.min(d.top + d.height, Math.max(this.box.y0, this.box.y1));
       ctx.strokeStyle = focus;
       ctx.lineWidth = 1;
-      ctx.setLineDash([4, 2]);
+      if (this.box.resolve) {
+        // Selecting bearings: a solid box, lightly filled, unlike the dashed one that zooms.
+        ctx.globalAlpha = 0.12;
+        ctx.fillStyle = focus;
+        ctx.fillRect(x0, y0, x1 - x0, y1 - y0);
+        ctx.globalAlpha = 1;
+        ctx.lineWidth = 1.5;
+      } else ctx.setLineDash([4, 2]);
       ctx.strokeRect(x0 + 0.5, y0 + 0.5, x1 - x0, y1 - y0);
       ctx.setLineDash([]);
       return;
@@ -1545,7 +1673,7 @@ export class TmaControl {
     const p = this.paneAt(x);
     const d = this.drawn_;
     if (!p || !d || y < d.top || y > d.top + d.height) return;
-    this.box = { pane: p.pane, x0: x, y0: y, x1: x, y1: y };
+    this.box = { pane: p.pane, x0: x, y0: y, x1: x, y1: y, resolve: this.selecting && p.pane === "bearing" };
     this.canvas.setPointerCapture?.(event.pointerId);
   }
 
@@ -1572,6 +1700,10 @@ export class TmaControl {
       const clampY = (v: number) => Math.max(d.top, Math.min(d.top + d.height, v));
       const times: Range = [yToTime(clampY(box.y0), d.span, d.top, d.height), yToTime(clampY(box.y1), d.span, d.top, d.height)];
       const values: Range = [xToValue(clampX(box.x0), p.range, p.x, p.w), xToValue(clampX(box.x1), p.range, p.x, p.w)];
+      if (box.resolve) {
+        this.drawOverlay();
+        return this.resolveBox(times, values);
+      }
       this.setZoom(zoomBox(this.zoom, box.pane, times, values));
       this.say(`Zoomed: ${formatTime(Math.min(...times), this.settings)} to ${formatTime(Math.max(...times), this.settings)}. Double-click, or Reset zoom, to see it all.`);
       return;

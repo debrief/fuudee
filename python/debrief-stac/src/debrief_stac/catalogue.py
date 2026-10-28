@@ -1278,7 +1278,10 @@ class Catalogue:
             record = {
                 "notes": done.notes,
                 "parameters": sensors.resolution_parameters(asked),
-                "selected": list(asked.cut_ids or asked.sensor_ids or []),
+                "selected": list(
+                    dict.fromkeys([*(asked.cut_ids or []), *(asked.other_cut_ids or [])])
+                )
+                or list(asked.sensor_ids or []),
             }
             return Changes(modified=done.modified), done.note, None, record
 

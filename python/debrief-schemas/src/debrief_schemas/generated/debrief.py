@@ -1379,6 +1379,10 @@ class WebviewMessageKindEnum(str, Enum):
     """
     Bearing view to host: the analyst clicked a dot in the Bearings view's plot: select this feature (feature_id: the cut, or the solution for one of its fixes) in the Outline and on the map, and move current time to it (current_time) (product owner, 25 Oct 2026).
     """
+    tma_resolve = "tma_resolve"
+    """
+    Bearing view to host: keep the sides of the cuts boxed in the Bearing pane with Select bearings on (resolution: keep bearing, cut_ids and other_cut_ids), as one recorded step, as debrief/resolve_ambiguity does (product owner, 28 Oct 2026).
+    """
     tma_cut_off = "tma_cut_off"
     """
     Bearing view to host: the analyst set their error cut-off (error_cut_off, degrees): remember it in their Debrief configuration (product owner, 25 Oct 2026).
@@ -2112,7 +2116,7 @@ class TrackProperties(ConfiguredBaseModel):
                        'TmaOwnship']} })
     platform_class: Optional[str] = Field(default=None, json_schema_extra = { "linkml_meta": {'domain_of': ['TrackProperties']} })
     times: list[str] = Field(default=..., description="""One per position, non-decreasing.""", json_schema_extra = { "linkml_meta": {'domain_of': ['TrackProperties', 'TmaSolutionRow', 'TmaOwnship']} })
-    speeds: Optional[SpeedSeries] = Field(default=None, description="""Speed over ground at each position.""", json_schema_extra = { "linkml_meta": {'domain_of': ['TrackProperties', 'TmaSolutionRow']} })
+    speeds: Optional[SpeedSeries] = Field(default=None, description="""Speed over ground at each position.""", json_schema_extra = { "linkml_meta": {'domain_of': ['TrackProperties', 'TmaSolutionRow', 'TmaOwnship']} })
     courses: Optional[AngleSeries] = Field(default=None, description="""Course over ground at each position, true north, clockwise.""", json_schema_extra = { "linkml_meta": {'domain_of': ['TrackProperties', 'TmaSolutionRow', 'TmaOwnship']} })
     depths: Optional[LengthSeries] = Field(default=None, description="""Depth below the sea surface at each position, positive down. Absent where depth is not known.""", json_schema_extra = { "linkml_meta": {'domain_of': ['TrackProperties']} })
     style: Optional[TrackStyle] = Field(default=None, json_schema_extra = { "linkml_meta": {'domain_of': ['TrackProperties', 'AnnotationProperties']} })
@@ -3369,6 +3373,7 @@ class AmbiguityResolution(ConfiguredBaseModel):
                        'AmbiguityResolution',
                        'TmaSolutionRow',
                        'TmaFocus']} })
+    other_cut_ids: Optional[list[str]] = Field(default=None, description="""With keep bearing or ambiguous_bearing: cuts kept on their other bearing in the same step, so one step keeps some cuts' first bearings and others' twins, as a box drawn over the Bearings plot with Select bearings on asks (product owner, 28 Oct 2026). A cut named here and in cut_ids was boxed on both sides: it is left as it is, and the step says so. Hidden cuts are left as they are.""", json_schema_extra = { "linkml_meta": {'domain_of': ['AmbiguityResolution']} })
 
 
 class SensorObservationsFeature(ConfiguredBaseModel):
@@ -6463,7 +6468,7 @@ class TmaSolutionRow(ConfiguredBaseModel):
     leg_starts: Optional[list[str]] = Field(default=None, json_schema_extra = { "linkml_meta": {'domain_of': ['TmaSolution', 'TmaSolutionRow']} })
     cuts: int = Field(default=..., description="""How many cuts it is rooted in.""", json_schema_extra = { "linkml_meta": {'domain_of': ['TmaSensorRow', 'TmaSolutionRow', 'TmaView']} })
     courses: Optional[list[float]] = Field(default=None, description="""Its course at each fix, degrees true: its DR legs' courses, for the Bearings view's Course/Speed pane (product owner, 25 Oct 2026).""", json_schema_extra = { "linkml_meta": {'domain_of': ['TrackProperties', 'TmaSolutionRow', 'TmaOwnship']} })
-    speeds: Optional[list[float]] = Field(default=None, description="""Its speed at each fix, metres a second, for the Course/Speed pane.""", json_schema_extra = { "linkml_meta": {'domain_of': ['TrackProperties', 'TmaSolutionRow']} })
+    speeds: Optional[list[float]] = Field(default=None, description="""Its speed at each fix, metres a second, for the Course/Speed pane.""", json_schema_extra = { "linkml_meta": {'domain_of': ['TrackProperties', 'TmaSolutionRow', 'TmaOwnship']} })
 
     @field_validator('colour')
     def pattern_colour(cls, v):
@@ -6571,7 +6576,8 @@ class TmaOwnship(ConfiguredBaseModel):
                        'TmaOwnship',
                        'TimelineEntry']} })
     times: list[str] = Field(default=..., json_schema_extra = { "linkml_meta": {'domain_of': ['TrackProperties', 'TmaSolutionRow', 'TmaOwnship']} })
-    courses: list[float] = Field(default=..., description="""Its course at each of those times, degrees true.""", json_schema_extra = { "linkml_meta": {'domain_of': ['TrackProperties', 'TmaSolutionRow', 'TmaOwnship']} })
+    courses: list[float] = Field(default=..., description="""Its course at each of those times, degrees true: as logged, else as its fixes imply (product owner, 28 Oct 2026).""", json_schema_extra = { "linkml_meta": {'domain_of': ['TrackProperties', 'TmaSolutionRow', 'TmaOwnship']} })
+    speeds: Optional[list[float]] = Field(default=None, description="""Its speed at each of those times, metres a second: as logged, else as its fixes imply (product owner, 28 Oct 2026), for the Course/Speed pane's ownship speed.""", json_schema_extra = { "linkml_meta": {'domain_of': ['TrackProperties', 'TmaSolutionRow', 'TmaOwnship']} })
 
     @field_validator('colour')
     def pattern_colour(cls, v):
@@ -6888,6 +6894,7 @@ class WebviewMessage(ConfiguredBaseModel):
     keep: Optional[AmbiguityKeepEnum] = Field(default=None, description="""Which of an ambiguous cut's bearings the analyst clicked, to keep (resolve_asked).""", json_schema_extra = { "linkml_meta": {'domain_of': ['AmbiguityResolution', 'WebviewMessage']} })
     tma: Optional[TmaView] = Field(default=None, description="""What the bearing view shows (show_tma).""", json_schema_extra = { "linkml_meta": {'domain_of': ['TrackProperties', 'WebviewMessage']} })
     tma_request: Optional[TmaRequest] = Field(default=None, description="""A TMA solution asked for (tma_create, tma_guess, tma_guessed).""", json_schema_extra = { "linkml_meta": {'domain_of': ['WebviewMessage']} })
+    resolution: Optional[AmbiguityResolution] = Field(default=None, description="""The sides of the cuts boxed in the Bearings plot to keep (tma_resolve).""", json_schema_extra = { "linkml_meta": {'domain_of': ['WebviewMessage']} })
     cut_ids: Optional[list[str]] = Field(default=None, description="""The rooted cuts left out of a solution's RMS error, or counted again (tma_exclude).""", json_schema_extra = { "linkml_meta": {'domain_of': ['TmaSolution',
                        'TmaRequest',
                        'AmbiguityResolution',

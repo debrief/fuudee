@@ -994,23 +994,235 @@ export async function playTma(page, shot) {
   await page.mouse.move(2, 2);
   await picture("stacked-dots-06-phone");
   await page.setViewportSize(wide);
-  if (rearranged) {
-    // As the playground's earlier steps left it, every panel on the left, for the steps after.
-    await mapPlaced(page);
-    const moveByMenu = async (id, item) => {
-      await page.locator(`.dv-tab[data-panel="${id}"]`).focus();
-      await page.keyboard.press("Shift+F10");
-      await page.getByRole("menuitem", { name: item, exact: true }).click();
-      await page.waitForFunction((tab) => document.activeElement?.dataset?.panel === tab, id);
-    };
-    await moveByMenu("panel-tools", "Move to a group of its own");
-    await moveByMenu("panel-history", "Move to a group of its own");
-    await moveByMenu("panel-tour", "Move to left: Tools");
-    await moveByMenu("panel-timeline", "Move to left: Tools, Walkthroughs");
-    await moveByMenu("panel-coverage", "Move to left: Tote");
-    await moveByMenu("panel-bearings", "Move to left: Tote, Coverage");
-    for (const id of ["tools", "outline", "tote"]) await showPanel(page, id);
-    assert.ok((await page.evaluate(() => window.debriefLayout().groups)).every((g) => g.place === "left" || g.panels.includes("map")), "every panel on the left again");
+  if (rearranged) await everyPanelLeft(page);
+}
+
+/** Whether the playground's earlier steps left every panel on the left. */
+const panelsLeft = async (page) => (await page.evaluate(() => window.debriefLayout().groups)).every((g) => g.place === "left" || g.panels.includes("map"));
+
+/** As the playground's earlier steps left it, every panel on the left, for the steps after. */
+async function everyPanelLeft(page) {
+  await mapPlaced(page);
+  const moveByMenu = async (id, item) => {
+    await page.locator(`.dv-tab[data-panel="${id}"]`).focus();
+    await page.keyboard.press("Shift+F10");
+    await page.getByRole("menuitem", { name: item, exact: true }).click();
+    await page.waitForFunction((tab) => document.activeElement?.dataset?.panel === tab, id);
+  };
+  await moveByMenu("panel-tools", "Move to a group of its own");
+  await moveByMenu("panel-history", "Move to a group of its own");
+  await moveByMenu("panel-tour", "Move to left: Tools");
+  await moveByMenu("panel-timeline", "Move to left: Tools, Walkthroughs");
+  await moveByMenu("panel-coverage", "Move to left: Tote");
+  await moveByMenu("panel-bearings", "Move to left: Tote, Coverage");
+  for (const id of ["tools", "outline", "tote"]) await showPanel(page, id);
+  assert.ok(await panelsLeft(page), "every panel on the left again");
+  await mapPlaced(page);
+}
+
+/**
+ * Select bearings and the Course/Speed pane on serial 1 (product owner, 28 Oct 2026), before any
+ * solution, as the analyst resolves the towed array's ambiguity:
+ * - the towed array selected in the Outline, Course/Speed on: BLUE ONE's course and speed drawn in
+ *   its colour, its legs' changes of course in sight, the axes fitted with real ranges;
+ * - a box in the Bearing pane zooms with Select bearings off; with it on, a box over the right-hand
+ *   run of the towed array's dots keeps those cuts on that side, one step, the zoom kept, the faint
+ *   other dots gone; undone and redone; a box changing nothing makes no step and says so;
+ * - a solution made of the towed array's cuts: the Course/Speed pane draws BLUE ONE and the solution,
+ *   each in its own colour.
+ */
+export async function playSelectBearings(page, shot) {
+  const picture = async (name) => {
+    await page.evaluate(() => document.querySelectorAll("#toasts .toast").forEach((t) => t.remove()));
+    await shot(name);
+  };
+  const view = page.locator("#bearings");
+  const state = () => page.evaluate(() => window.debriefTma.plotState);
+  const steps = () => page.locator("#history li").count();
+  const latest = () => page.locator("#history li").first().locator(".name").textContent();
+  const stepAdded = (count) => page.waitForFunction((c) => document.querySelectorAll("#history li").length > c, count, { timeout: 60000 });
+  const SENSOR = "sensor-blue-one-towed-array";
+
+  // The default layout: Bearings on the right, beside the map, with most of the column; put back as it was at the end.
+  const rearranged = await panelsLeft(page);
+  if (await page.locator("#reset-layout").isVisible()) {
+    await page.locator("#reset-layout").click();
     await mapPlaced(page);
   }
+  await page.selectOption("#plots", "serial-1");
+  await page.waitForFunction(() => document.getElementById("plot-title")?.textContent === "Serial 1", null, { timeout: 60000 });
+  await page.waitForFunction((id) => document.querySelector(`#outline li[data-id='${id}']`), SENSOR);
+  await page.locator("#timebar .tc-start").focus();
+  await page.keyboard.press("Home");
+  await page.locator("#timebar .tc-end").focus();
+  await page.keyboard.press("End");
+  await showPanel(page, "bearings");
+  await showPanel(page, "outline");
+  await page.locator(`#outline li[data-id="${SENSOR}"]`).click();
+  await page.waitForFunction((id) => window.debriefTma.shown?.plot_id === "serial-1" && window.debriefTma.shown.sensor_id === id, SENSOR, { timeout: 60000 });
+  const course = view.locator('.tma-pane[data-pane="course"]');
+  if ((await course.getAttribute("aria-pressed")) !== "true") await course.click();
+  await page.waitForFunction(() => window.debriefTma.plotState.course?.series?.length >= 1, null, { timeout: 10000 });
+
+  // The Course/Speed pane with no solution: ownship's course and speed, in BLUE ONE's colour.
+  // BLUE ONE's colour as the plot has it now (the playground's earlier steps may have recoloured it): its Outline row's feature.
+  const blue = await page.evaluate(() => window.debriefOutline.rows.find((r) => r.key === "track-blue-one")?.node.data.feature.properties.style?.colour);
+  let s = await state();
+  assert.equal(s.course.nothing, false, "something to plot");
+  assert.deepEqual(s.course.series.map((x) => [x.name, x.role]), [["BLUE ONE", "ownship"]]);
+  assert.ok(blue, "BLUE ONE coloured");
+  assert.equal(s.course.series[0].colour, blue, "in BLUE ONE's colour");
+  const [cLo, cHi] = s.course.series[0].courses;
+  assert.ok(cHi - cLo > 20, `BLUE ONE's legs change course: ${cLo.toFixed(1)}° to ${cHi.toFixed(1)}°`);
+  const [aLo, aHi] = s.axes.course;
+  assert.ok(aHi - aLo >= 10 && aHi - aLo < 360 && aLo <= cLo && aHi >= cHi, `the course axis fits BLUE ONE's courses: ${aLo.toFixed(1)} to ${aHi.toFixed(1)}`);
+  assert.ok(s.speed[0] <= 0 && s.speed[1] > 1 && s.speed[1] >= s.course.series[0].speeds[1], `the speed axis fits BLUE ONE's speeds: ${JSON.stringify(s.speed)}`);
+  assert.equal(await view.locator(".tma-legend li").count(), 1, "the legend in ⋯ names BLUE ONE");
+  assert.match(await view.locator(".tma-legend li").first().textContent(), /BLUE ONE \(ownship\): course solid, speed dashed/);
+  await picture("select-bearings-01-before");
+
+  // In page pixels: a box over a pane, from values and times.
+  const canvas = view.locator(".tma-canvas");
+  const at = async (pane, value, time) => {
+    const box = await canvas.boundingBox();
+    const p = await page.evaluate(({ pane, value, time }) => {
+      const st = window.debriefTma.plotState;
+      const b = st.boxes[pane];
+      const [lo, hi] = st.axes[pane];
+      const [t0, t1] = st.span;
+      return { x: b.x + ((value - lo) / (hi - lo)) * b.w, y: b.top + b.height - ((time - t0) / (t1 - t0)) * b.height };
+    }, { pane, value, time });
+    return { x: box.x + p.x, y: box.y + p.y };
+  };
+  const drag = async (a, b) => {
+    await page.mouse.move(a.x, a.y);
+    await page.mouse.down();
+    await page.mouse.move((a.x + b.x) / 2, (a.y + b.y) / 2, { steps: 4 });
+    await page.mouse.move(b.x, b.y, { steps: 4 });
+    await page.mouse.up();
+  };
+
+  // Select bearings off: a box zooms, as before.
+  const [t0, t1] = s.span;
+  const [b0, b1] = s.axes.bearing;
+  await drag(await at("bearing", b0 + (b1 - b0) * 0.02, t0 + (t1 - t0) * 0.95), await at("bearing", b1 - (b1 - b0) * 0.02, t0 + (t1 - t0) * 0.05));
+  await page.waitForFunction(() => window.debriefTma.plotState.zoomed);
+  const zoom = JSON.stringify((await state()).zoom);
+
+  // Select bearings on: a toggle, said, the pointer and a hint saying so.
+  const toggle = view.getByRole("button", { name: "Select bearings", exact: true });
+  assert.equal(await toggle.getAttribute("aria-pressed"), "false");
+  await toggle.click();
+  assert.equal(await toggle.getAttribute("aria-pressed"), "true");
+  assert.equal(await view.locator(".tma-select-hint").isVisible(), true);
+  assert.equal(await canvas.evaluate((c) => getComputedStyle(c).cursor), "cell");
+
+  // The right-hand run of the towed array's dots, as the analyst boxes it: the longest run of
+  // unresolved pairs on one leg of BLUE ONE's (their right-hand dots all one side of its course),
+  // the left-hand dots all left of them.
+  s = await state();
+  const run = await page.evaluate(() => {
+    const control = window.debriefTma;
+    const st = control.plotState;
+    const [t0, t1] = st.span;
+    const ref = st.reference;
+    const about = (v) => ref + ((((v - ref) % 360) + 540) % 360) - 180;
+    const flip = { port: "starboard", starboard: "port" };
+    const byId = new Map();
+    for (const m of control.bearingMarkers()) {
+      if (m.time < t0 || m.time > t1) continue;
+      if (!byId.has(m.id)) byId.set(m.id, []);
+      byId.get(m.id).push({ ...m, at: about(m.value) });
+    }
+    const pairs = [...byId.values()]
+      .filter((ms) => ms.length === 2)
+      .map((ms) => ms.sort((a, b) => a.at - b.at))
+      .sort((a, b) => a[0].time - b[0].time);
+    const sideOf = (p) => (p[1].keep === "bearing" ? p[1].side : flip[p[1].side]);
+    let best = [];
+    for (let i = 0; i < pairs.length; ) {
+      let j = i;
+      while (j < pairs.length && sideOf(pairs[j]) === sideOf(pairs[i])) j++;
+      const group = pairs.slice(i, j);
+      const apart = Math.max(...group.map((p) => p[0].at)) < Math.min(...group.map((p) => p[1].at));
+      if (apart && group.length > best.length) best = group;
+      i = j;
+    }
+    const left = Math.max(...best.map((p) => p[0].at));
+    const right = Math.min(...best.map((p) => p[1].at));
+    const times = best.map((p) => p[0].time);
+    const gap = 1000;
+    return {
+      from: Math.min(...times) - gap,
+      to: Math.max(...times) + gap,
+      split: (left + right) / 2,
+      separable: best.length > 0 && left < right,
+      ids: best.map((p) => p[1].id),
+      keeps: Object.fromEntries(best.map((p) => [p[1].id, p[1].keep])),
+      sides: [...new Set(best.map(sideOf))],
+    };
+  });
+  assert.ok(run.separable && run.ids.length >= 10, `a run of unresolved pairs, left and right apart: ${run.ids.length}`);
+  const [, a1] = s.axes.bearing;
+  let before = await steps();
+  await drag(await at("bearing", run.split, run.to), await at("bearing", a1 - 0.01 * (a1 - s.axes.bearing[0]), run.from));
+  await stepAdded(before);
+  assert.equal(await steps(), before + 1, "one step");
+  const side = run.sides.length === 1 ? run.sides[0] : "the sides boxed";
+  const named = await latest();
+  assert.match(named, new RegExp(`^Kept ${run.ids.length} Towed array cuts to ${side}, \\d\\d:\\d\\d:\\d\\dZ–\\d\\d:\\d\\d:\\d\\dZ$`));
+  assert.match(await view.locator(".tma-status").textContent(), new RegExp(`^Kept ${run.ids.length} cuts to ${side}, one step`));
+  const keptNow = () => page.evaluate((ids) => Object.fromEntries(window.debriefTma.shown.cuts.filter((c) => ids.includes(c.id)).map((c) => [c.id, c.resolved ?? null])), run.ids);
+  await page.waitForFunction((ids) => window.debriefTma.shown.cuts.filter((c) => ids.includes(c.id) && c.resolved).length === ids.length, run.ids, { timeout: 30000 });
+  assert.deepEqual(await keptNow(), run.keeps, "each cut kept on the side boxed");
+  assert.equal(JSON.stringify((await state()).zoom), zoom, "the zoom kept");
+  const faint = await page.evaluate((ids) => window.debriefTma.bearingMarkers().filter((m) => ids.includes(m.id)).length, run.ids);
+  assert.equal(faint, run.ids.length, "one dot a cut now: the faint other side gone");
+  await picture("select-bearings-02-after");
+
+  // Undone, the pairs ambiguous again; redone, kept again.
+  await showPanel(page, "history");
+  await page.locator("#undo").click();
+  await page.waitForFunction((ids) => window.debriefTma.shown.cuts.filter((c) => ids.includes(c.id) && c.resolved).length === 0, run.ids, { timeout: 60000 });
+  await page.locator("#redo").click();
+  await page.waitForFunction((ids) => window.debriefTma.shown.cuts.filter((c) => ids.includes(c.id) && c.resolved).length === ids.length, run.ids, { timeout: 60000 });
+  await showPanel(page, "bearings");
+  assert.equal(JSON.stringify((await state()).zoom), zoom, "the zoom kept through undo and redo");
+
+  // The same box again: nothing to change, no step, said.
+  before = await steps();
+  await drag(await at("bearing", run.split, run.to), await at("bearing", a1 - 0.01 * (a1 - s.axes.bearing[0]), run.from));
+  await page.waitForFunction(() => /^Nothing to change/.test(document.querySelector("#bearings .tma-status")?.textContent ?? ""));
+  assert.match(await view.locator(".tma-status").textContent(), new RegExp(`^Nothing to change: ${run.ids.length} cuts kept so already\\.$`));
+  await page.waitForTimeout(500);
+  assert.equal(await steps(), before, "no step");
+
+  // Off again: a box zooms.
+  await toggle.click();
+  assert.equal(await toggle.getAttribute("aria-pressed"), "false");
+  s = await state();
+  await drag(await at("bearing", s.axes.bearing[0] + 1, run.to), await at("bearing", s.axes.bearing[1] - 1, run.from));
+  await page.waitForFunction((z) => JSON.stringify(window.debriefTma.plotState.zoom) !== z, zoom);
+
+  // A solution of the towed array's cuts: the Course/Speed pane draws BLUE ONE and the solution, each in its colour.
+  await view.getByRole("button", { name: "Reset zoom" }).click();
+  await page.locator(`#outline li[data-id="${SENSOR}"]`).click();
+  await showPanel(page, "tools");
+  await page.locator('#tools li.outline-op[data-op="tma-from-cuts"] button').click();
+  await view.locator(".tma-form").waitFor();
+  before = await steps();
+  await view.getByRole("button", { name: "Make solution", exact: true }).click();
+  await stepAdded(before);
+  await showPanel(page, "bearings");
+  await page.waitForFunction(() => window.debriefTma.plotState.course?.series?.length === 2, null, { timeout: 30000 });
+  s = await state();
+  assert.deepEqual(s.course.series.map((x) => [x.name, x.role]).slice(0, 1), [["BLUE ONE", "ownship"]]);
+  assert.equal(s.course.series[1].role, "target");
+  assert.match(s.course.series[1].name, /^Contact \d+ solution$/);
+  assert.notEqual(s.course.series[0].colour, s.course.series[1].colour, "each in its own colour");
+  assert.ok(s.course.series[1].courses && s.course.series[1].speeds, "the target's course and speed drawn");
+  assert.equal(await view.locator(".tma-legend li").count(), 2);
+  await picture("select-bearings-03-both-tracks");
+  if (rearranged) await everyPanelLeft(page);
+  console.log(`Select bearings on serial 1: "${named}", one step, the zoom kept; Course/Speed: BLUE ONE ${cLo.toFixed(1)}° to ${cHi.toFixed(1)}°, speeds to ${s.course.series[0].speeds[1].toFixed(1)}; then BLUE ONE and ${s.course.series[1].name}.`);
 }

@@ -19,6 +19,7 @@ import type { DebriefFeatureCollection, TimeRange, TmaCut, TmaFocus, TmaOwnship,
 import geodesic from "geographiclib-geodesic";
 import { pointAt, rangeBearing, travel, type LonLat } from "./geodesic.js";
 import { bearingText, degrees, sensorsOf, type Kept } from "./sensors.js";
+import { legCourses } from "./stackeddots.js";
 
 const WGS84 = geodesic.Geodesic.WGS84;
 
@@ -514,20 +515,33 @@ export function coverageOf(plot: DebriefFeatureCollection, solutionId: string): 
 /** The most fixes of ownship's course sent to the view: a line a few hundred pixels tall needs no more. */
 export const OWNSHIP_MOST = 2000;
 
+/** A track's courses (degrees) and speeds (metres a second) at its fixes as the fixes imply them: each fix's from it to the next, the last the one before's. */
+function impliedSeries(track: TrackFeature): { courses: number[]; speeds: number[] } | undefined {
+  const coordinates = (track.geometry?.coordinates ?? []) as LonLat[];
+  const times = track.properties.times.map((t) => Date.parse(t));
+  if (coordinates.length < 2 || coordinates.length !== times.length) return undefined;
+  return legCourses(coordinates, times);
+}
+
 /**
- * The tracks carrying a solution's sensors, ownship, with their courses as logged at their
- * fixes within a period (product owner, 25 Oct 2026), thinned to OWNSHIP_MOST evenly by
- * index, each turn's least and most kept so a manoeuvre is never smoothed away.
+ * The tracks carrying a solution's sensors, or a sensor's host, ownship, with their courses and
+ * speeds as logged at their fixes, else as the fixes imply them (product owner, 28 Oct 2026),
+ * within a period (product owner, 25 Oct 2026), thinned to OWNSHIP_MOST evenly by index, each
+ * stretch's least and most course and speed kept so a manoeuvre is never smoothed away.
  */
-export function ownshipOf(plot: DebriefFeatureCollection, solutionId: string, period?: TimeRange): TmaOwnship[] {
-  const sensors = sensorsOfSolution(plot, solutionId);
+export function ownshipOf(plot: DebriefFeatureCollection, solutionOrSensorId: string, period?: TimeRange): TmaOwnship[] {
+  const shown = plot.features.find((f) => f.id === solutionOrSensorId);
+  const sensors = shown?.properties.kind === "sensor" ? new Set([shown.id]) : sensorsOfSolution(plot, solutionOrSensorId);
   const hosts = new Set<string>();
   for (const f of plot.features) if (f.properties.kind === "sensor" && sensors.has(f.id)) hosts.add(f.properties.host_track_id);
   const out: TmaOwnship[] = [];
   for (const f of plot.features) {
     if (f.properties.kind !== "track" || !hosts.has(f.id)) continue;
     const track = f as TrackFeature;
-    const { courses } = seriesOf(track);
+    const logged = seriesOf(track);
+    const implied = !logged.courses || !logged.speeds ? impliedSeries(track) : undefined;
+    const courses = logged.courses ?? implied?.courses;
+    const speeds = logged.speeds ?? implied?.speeds;
     if (!courses) continue;
     const times = track.properties.times;
     let first = 0;
@@ -544,8 +558,9 @@ export function ownshipOf(plot: DebriefFeatureCollection, solutionId: string, pe
     if (n <= OWNSHIP_MOST) for (let i = first; i < last; i++) keep.push(i);
     else {
       // Buckets of fixes: the least and most course of each, in time order, as angles about the
-      // bucket's mean course, so a turn through north keeps its extremes (359° and 1° are 2° apart).
-      const buckets = Math.floor(OWNSHIP_MOST / 2);
+      // bucket's mean course, so a turn through north keeps its extremes (359° and 1° are 2° apart);
+      // and the least and most speed, so a sprint or a stop is kept too.
+      const buckets = Math.floor(OWNSHIP_MOST / 4);
       for (let b = 0; b < buckets; b++) {
         const lo = first + Math.floor((b * n) / buckets);
         const hi = first + Math.floor(((b + 1) * n) / buckets);
@@ -562,7 +577,14 @@ export function ownshipOf(plot: DebriefFeatureCollection, solutionId: string, pe
           if (wrap(courses[i] - mean) < wrap(courses[min] - mean)) min = i;
           if (wrap(courses[i] - mean) > wrap(courses[max] - mean)) max = i;
         }
-        keep.push(...(min === max ? [min] : min < max ? [min, max] : [max, min]));
+        let slow = lo;
+        let fast = lo;
+        if (speeds)
+          for (let i = lo; i < hi; i++) {
+            if (speeds[i] < speeds[slow]) slow = i;
+            if (speeds[i] > speeds[fast]) fast = i;
+          }
+        keep.push(...[...new Set([min, max, slow, fast])].sort((a, b) => a - b));
       }
     }
     out.push({
@@ -571,6 +593,7 @@ export function ownshipOf(plot: DebriefFeatureCollection, solutionId: string, pe
       ...(track.properties.style?.colour && { colour: track.properties.style.colour }),
       times: keep.map((i) => times[i]),
       courses: keep.map((i) => courses[i]),
+      ...(speeds && { speeds: keep.map((i) => speeds[i]) }),
     });
   }
   return out;

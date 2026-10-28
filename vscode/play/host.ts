@@ -1910,6 +1910,8 @@ const tmaControl = new TmaControl(
     split: (feature, at) => void changeTma({ kind: "split", feature, at }),
     time: (at) => timeTo(at),
     resolve: (cutId, keep) => void resolveSensor({ keep, cut_ids: [cutId] }),
+    // A box drawn with Select bearings on: the sides boxed kept, one step, as debrief/resolve_ambiguity (product owner, 28 Oct 2026).
+    resolveCuts: (resolution) => void resolveSensor(resolution),
     // A dot clicked: its cut, or the solution at a fix, selected in the Outline and on the map; current time to it.
     select: (id, at) => {
       timeTo(at);

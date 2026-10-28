@@ -1030,6 +1030,15 @@ classes:
         description: The cuts whose times fall in it, ends included, of the sensors named.
         range: TimeRange
         inlined: true
+      other_cut_ids:
+        description: >-
+          With keep bearing or ambiguous_bearing: cuts kept on their other
+          bearing in the same step, so one step keeps some cuts' first
+          bearings and others' twins, as a box drawn over the Bearings plot
+          with Select bearings on asks (product owner, 28 Oct 2026). A cut
+          named here and in cut_ids was boxed on both sides: it is left as it
+          is, and the step says so. Hidden cuts are left as they are.
+        multivalued: true
 
   # --- Sensor observations --------------------------------------------------
   SensorObservationsFeature:

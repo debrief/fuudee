@@ -26,6 +26,7 @@ const control = new TmaControl(
     split: (feature_id, current_time) => host.postMessage({ kind: "tma_split", feature_id, current_time }),
     time: (current_time) => host.postMessage({ kind: "tma_time_asked", current_time }),
     resolve: (feature_id, keep) => host.postMessage({ kind: "resolve_asked", feature_id, keep }),
+    resolveCuts: (resolution) => host.postMessage({ kind: "tma_resolve", resolution }),
     select: (feature_id, current_time) => host.postMessage({ kind: "tma_select", feature_id, current_time }),
     cutOff: (error_cut_off) => host.postMessage({ kind: "tma_cut_off", error_cut_off }),
     drawn: (plot_height, pane_widths) => host.postMessage({ kind: "tma_plot_drawn", plot_height, pane_widths }),

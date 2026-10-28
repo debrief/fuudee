@@ -440,6 +440,7 @@ export type WebviewMessageKindEnum =
   | "tma_split"
   | "tma_time_asked"
   | "tma_select"
+  | "tma_resolve"
   | "tma_cut_off"
   | "tma_plot_drawn"
   | "tma_made";
@@ -468,6 +469,10 @@ export interface AmbiguityResolution {
    */
   cut_ids?: string[] | null;
   keep: AmbiguityKeepEnum;
+  /**
+   * With keep bearing or ambiguous_bearing: cuts kept on their other bearing in the same step, so one step keeps some cuts' first bearings and others' twins, as a box drawn over the Bearings plot with Select bearings on asks (product owner, 28 Oct 2026). A cut named here and in cut_ids was boxed on both sides: it is left as it is, and the step says so. Hidden cuts are left as they are.
+   */
+  other_cut_ids?: string[] | null;
   /**
    * The cuts whose times fall in it, ends included, of the sensors named.
    */
@@ -2510,7 +2515,7 @@ export interface TmaFocus {
 export interface TmaOwnship {
   colour?: string | null;
   /**
-   * Its course at each of those times, degrees true.
+   * Its course at each of those times, degrees true: as logged, else as its fixes imply (product owner, 28 Oct 2026).
    */
   courses: number[];
   /**
@@ -2518,6 +2523,10 @@ export interface TmaOwnship {
    */
   id: string;
   name: string;
+  /**
+   * Its speed at each of those times, metres a second: as logged, else as its fixes imply (product owner, 28 Oct 2026), for the Course/Speed pane's ownship speed.
+   */
+  speeds?: number[] | null;
   times: string[];
 }
 /**
@@ -3119,6 +3128,10 @@ export interface WebviewMessage {
    * A track as a change would leave it, one position per fix, drawn beside it until the analyst applies or cancels the change (show_fixes).
    */
   preview?: LineStringGeometry | null;
+  /**
+   * The sides of the cuts boxed in the Bearings plot to keep (tma_resolve).
+   */
+  resolution?: AmbiguityResolution | null;
   result?: ToolResult | null;
   result_title?: string | null;
   /**

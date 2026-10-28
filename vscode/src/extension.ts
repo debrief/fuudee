@@ -106,6 +106,8 @@ export interface DebriefApi {
   coverage: () => CoverageReport | undefined;
   /** A message to the extension as the Coverage page sends it, for tests. */
   coverageMessage: (message: unknown) => void;
+  /** A message to the extension as if the Bearings view had sent it (tests). */
+  bearingsMessage: (message: unknown) => Promise<void>;
   /** What the Catalogues tree marks: new data and review flags (CAP-10, CAP-12), for tests and agents. */
   catalogueMarks: () => CollationMarks;
   /** The narrative entry the map shows beside its track at current time, for tests and agents (CAP-20). */
@@ -319,6 +321,8 @@ export function activate(context: vscode.ExtensionContext): DebriefApi {
       exclude: async (solutionId, cutIds, excluded) => (await vscode.commands.executeCommand<{ problem?: string } | undefined>("debrief.tmaExclude", solutionId, cutIds, excluded))?.problem,
       split: async (solutionId, at) => (await vscode.commands.executeCommand<{ problem?: string } | undefined>("debrief.tmaSplitLeg", solutionId, { at }))?.problem,
       resolve: async (cutId, keep) => (await vscode.commands.executeCommand<{ problem?: string } | undefined>("debrief.resolveAmbiguity", { keep, cut_ids: [cutId] }))?.problem,
+      // A box drawn with Select bearings on (product owner, 28 Oct 2026): the same command, the same step.
+      resolveCuts: async (resolution) => (await vscode.commands.executeCommand<{ problem?: string } | undefined>("debrief.resolveAmbiguity", resolution))?.problem,
       // A dot clicked: its cut, or the solution's position there, selected in the Outline (product owner, 27 Oct 2026).
       select: (id, fix) => {
         nextKeys = fix === undefined ? undefined : [fixKey(id, fix)];
@@ -3538,6 +3542,7 @@ export function activate(context: vscode.ExtensionContext): DebriefApi {
     coverageShowing: () => coverageView.showing,
     coverage: () => coverageView.report,
     coverageMessage: (message) => coverageView.receive(message),
+    bearingsMessage: (message) => bearingsView.receive(message),
     catalogueMarks: () => catalogues.marks(),
     timelineMessage: (message) => timeline.receive(message),
     mapNarrative: () => map.narrative,

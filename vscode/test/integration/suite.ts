@@ -714,6 +714,14 @@ export async function run(): Promise<void> {
     assert.equal(kept.problem, undefined);
     assert.match((await steps()).at(-1)?.notes?.[0] ?? "", /^Starboard kept: 6 Towed array cuts /);
     await waitFor("the Outline saying the side kept", () => (api.outlineChildren(towed)[0].description.endsWith("stbd kept") ? true : undefined));
+    // Select bearings (product owner, 28 Oct 2026): the view's toggle, and a box's message, the same
+    // operation as the Tools' Keep port and starboard, one step for the cuts boxed on each side.
+    const bundle = readFileSync(path.join(extension.extensionPath, "dist", "webview", "bearings.js"), "utf8");
+    assert.ok(bundle.includes("tma-select") && bundle.includes("Select bearings"), "the Select bearings toggle in the Bearings view");
+    const boxed = api.outlineChildren(towed).slice(6, 12).map((c) => c.key!);
+    await api.bearingsMessage({ kind: "tma_resolve", resolution: { keep: "bearing", cut_ids: boxed.slice(0, 1), other_cut_ids: boxed } });
+    assert.match((await steps()).at(-1)?.notes?.[0] ?? "", /^Kept 5 Towed array cuts to (port|starboard|the sides boxed), 0\d:\d\d:\d\dZ–0\d:\d\d:\d\dZ$/);
+    assert.ok((await steps()).at(-1)?.notes?.includes("1 cut boxed on both sides, left as they were."), "a cut boxed on both sides left");
     await vscode.commands.executeCommand("debrief.outline.focus");
     await sleep(1000);
     await screenshot("15g-outline-tree");
@@ -721,10 +729,14 @@ export async function run(): Promise<void> {
     const fromCuts = await vscode.commands.executeCommand<Done>("debrief.tmaFromCuts", towedCuts);
     assert.equal(fromCuts.problem, undefined);
     await waitFor("Bearings' first guess for the cuts", () => (api.bearings()?.focus?.make && api.bearings()?.focus?.cut_ids?.length === 6 && api.bearings()?.sensor_id === towed ? true : undefined));
+    // The Course/Speed pane before any solution: ownship's course and speed, the sensor's host (product owner, 28 Oct 2026).
+    const own = api.bearings()?.ownship ?? [];
+    assert.deepEqual(own.map((o) => o.name), ["BLUE ONE"], "ownship for the sensor shown");
+    assert.ok(own[0].courses.length > 10 && (own[0].speeds?.length ?? 0) === own[0].courses.length, "its courses and speeds");
     await sleep(1000);
     await screenshot("15h-bearings-first-guess");
     const done = (await steps()).length - start;
-    assert.equal(done, 7, "one step each");
+    assert.equal(done, 8, "one step each");
     for (let i = 0; i < done + 1; i++) assert.equal(await vscode.commands.executeCommand("debrief.undo"), undefined);
     assert.ok(!api.session.current!.plot.features.some((f) => f.id === solution), "undone: no solution");
   }
