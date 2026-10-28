@@ -23,7 +23,7 @@
     },
     "views": {
       "debrief": [
-        {"type": "webview", "id": "debrief.time", "name": "Time", "initialSize": 30},
+        {"type": "webview", "id": "debrief.time", "name": "Time"},
         {"type": "webview", "id": "debrief.tote", "name": "Tote", "visibility": "collapsed"},
         {"id": "debrief.catalogues", "name": "Catalogues"},
         {"type": "webview", "id": "debrief.coverage", "name": "Coverage", "visibility": "collapsed"},

@@ -135,5 +135,6 @@
   .tc-now-mark { forced-color-adjust: none; border-left-color: CanvasText; }
   .tc-beyond { border-color: CanvasText; }
   .tc-tick::before { border-left-color: CanvasText; }
+  .tc-chevron { forced-color-adjust: none; border-color: transparent transparent transparent CanvasText; }
   .timebar .tc-transport .tc-play { forced-color-adjust: none; background: Highlight; color: HighlightText; border-color: Highlight; }
 }

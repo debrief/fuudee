@@ -643,12 +643,10 @@ try {
   }
 
   /**
-   * VS Code's Time view page (dist/webview/time.js), at the size VS Code first gives the
-   * view at 1440×900 with the other Debrief views open, now that the view asks for more of the
-   * sidebar's height (initialSize 30; measured in the integration test's screenshots). Everything
+   * VS Code's Time view page (dist/webview/time.js), given about 190 px of the sidebar: everything
    * shows without scrolling, the note and its Keep and Revert included, the window's details
    * folded; the context choice is not in the view (it is in the view's title menu) though the
-   * summary says it. The details' state is VS Code's view state, so it comes back when the page
+   * summary says it. At the height VS Code first gives it (below), a closer layout. The details' state is VS Code's view state, so it comes back when the page
    * loads again. High contrast and forced colours keep the band, the edges and the thumb.
    */
   async function vscodeTimeView() {
@@ -656,7 +654,7 @@ try {
     const webview = path.join(extension, "dist", "webview");
     execFileSync(process.execPath, ["scripts/build.mjs"], { cwd: extension, stdio: "inherit" }); // the page as it is now
     const files = serve(webview);
-    const view = await browser.newPage({ viewport: { width: 290, height: 196 }, colorScheme: "dark" });
+    const view = await browser.newPage({ viewport: { width: 290, height: 188 }, colorScheme: "dark" });
     view.on("pageerror", (e) => errors.push(String(e)));
     const posted = [];
     await view.exposeFunction("tellTest", (message) => posted.push(message));
@@ -766,6 +764,18 @@ try {
       assert.deepEqual(looks, { band: true, handle: true, play: true, time: true }, `high contrast, forced colours ${forced}`);
       await shot(`vscode-time-view-high-contrast${forced === "active" ? "-forced" : ""}`, view);
     }
+    // VS Code's first height at 1440 × 900 with the other Debrief views open (about 297 × 123 px in the
+    // integration test's screenshots; a little less here): closer, without its tick labels, all of it shown.
+    // Only the note, when there is one, takes it past the height: the view then scrolls.
+    tokens = DARK;
+    await view.emulateMedia({ forcedColors: "none" });
+    await view.setViewportSize({ width: 290, height: 120 });
+    await open();
+    await showTime(early, early);
+    await view.locator(".time-label", { hasText: "09:00:00Z" }).waitFor();
+    await allShown("a short view");
+    assert.equal(await view.locator(".tc-tick").first().isVisible(), false, "a short view leaves the tick labels out");
+    await shot("vscode-time-view-short", view);
     await view.close();
     files.close();
   }
