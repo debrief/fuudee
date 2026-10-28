@@ -192,7 +192,8 @@ export async function playExport(page, shot) {
 
   // The analyst carries on: the plot changes, one step.
   await page.locator('#outline li[data-id="track-blue-one"]').click();
-  await page.selectOption("#colour", { label: "Teal" });
+  await page.locator("#obar-colour").click();
+  await page.locator(`.obar-swatch[aria-label="Teal"]`).click();
   await page.waitForFunction((n) => document.querySelectorAll("#history li").length === n + 1, rows, { timeout: 60000 });
   const latest = await stepNow();
   await map.locator(`path.leaflet-interactive[stroke="#00a3a3"]`).first().waitFor();
@@ -217,7 +218,7 @@ export async function playExport(page, shot) {
   await showPanel(page, "export");
   await shot("export-02-traced");
   // Nothing can be changed here: Undo is refused, and said; the history is as it was.
-  await page.locator("#selected-count").click();
+  await page.evaluate(() => document.activeElement?.blur());
   await page.keyboard.press("Control+z");
   await page.locator(".toast", { hasText: "shown read-only, so it cannot be changed" }).waitFor();
   assert.equal(await historyRows(), rows + 1);

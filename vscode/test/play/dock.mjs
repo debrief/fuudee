@@ -134,7 +134,7 @@ async function defaultAt(page, width, height) {
   }
   const hidden = await page.evaluate(() => {
     const panel = document.getElementById("panel-outline").parentElement.getBoundingClientRect();
-    return ["colour", "find-jumps", "smooth-track", "track-frequencies"].filter((id) => {
+    return ["obar-colour", "find-jumps", "smooth-track", "track-frequencies"].filter((id) => {
       const b = document.getElementById(id).getBoundingClientRect();
       return b.top < panel.top - 1 || b.bottom > panel.bottom + 1;
     });
@@ -269,7 +269,8 @@ export async function playDock(browser, base, shot, ready, errors) {
   const mapWindow = () => page.frames().find((f) => f.url().includes("frame-map.html"));
   await mapWindow().evaluate(() => (window.debriefMarker = "kept"));
   await page.locator('#outline li[data-id="track-blue-one"]').click();
-  await page.selectOption("#colour", { label: "Red" });
+  await page.locator("#obar-colour").click();
+  await page.locator(`.obar-swatch[aria-label="Red"]`).click();
   await page.waitForFunction(() => document.getElementById("history")?.textContent?.includes("Colour of BLUE ONE set to red"));
   const steps = await page.evaluate(() => window.debriefStepsOf("serial-1"));
   // A tool's form open beside the map: its frame too.
