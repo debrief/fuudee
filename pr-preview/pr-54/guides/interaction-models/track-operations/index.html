@@ -71,7 +71,7 @@
     
     
     
-    <body dir="ltr" data-md-color-scheme="default" data-md-color-primary="indigo" data-md-color-accent="indigo"><div class="pr-preview-banner" style="background:#fff4ce;color:#3b2f00;border-bottom:1px solid #e0c060;padding:6px 16px;font:14px/1.4 system-ui,sans-serif;text-align:center">Preview of <a style="color:inherit;text-decoration:underline" href="https://github.com/debrief/fuudee/pull/54">pull request #54</a>: Walkthroughs: the Get Started page beside the map, not under it. Built from 82c87dd on 2026-10-24 14:50 UTC. <a style="color:inherit;text-decoration:underline" href="https://debrief.github.io/fuudee/pr-preview/">All previews</a></div>
+    <body dir="ltr" data-md-color-scheme="default" data-md-color-primary="indigo" data-md-color-accent="indigo"><div class="pr-preview-banner" style="background:#fff4ce;color:#3b2f00;border-bottom:1px solid #e0c060;padding:6px 16px;font:14px/1.4 system-ui,sans-serif;text-align:center">Preview of <a style="color:inherit;text-decoration:underline" href="https://github.com/debrief/fuudee/pull/54">pull request #54</a>: Walkthroughs: the Get Started page beside the map, not under it. Built from 600a497 on 2026-10-28 22:18 UTC. <a style="color:inherit;text-decoration:underline" href="https://debrief.github.io/fuudee/pr-preview/">All previews</a></div>
   
     
     <input class="md-toggle" data-md-toggle="drawer" type="checkbox" id="__drawer" autocomplete="off">
@@ -905,6 +905,10 @@
       
         
       
+        
+      
+        
+      
     
     
     
@@ -1457,6 +1461,62 @@
   
   
     <li class="md-nav__item">
+      <a href="../sensors/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Sensors and bearings
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../tma/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    TMA solutions
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
       <a href="../collation/" class="md-nav__link">
         
   
@@ -1868,7 +1928,7 @@
 <h2 id="model">Model<a class="headerlink" href="#model" title="Permanent link">&para;</a></h2>
 <ol>
 <li>
-<p><strong>What moves: the whole track, or a period of it.</strong> Legacy Debrief dragged a whole track, or a selected time period of it, to line it up with a reference: that is kept (decision, 13 Oct 2026). On the map, a small control below the drawing toolbar, <em>What changes</em>, says which (for moving, rotating, shearing and stretching alike): <strong>Whole track</strong> (the default) or <strong>Time window</strong>, the fixes in the time window shown. The forms offer the same choice. An agent may give any period. Fixes whose times fall in the period, ends included, move; the rest stay where they are.</p>
+<p><strong>What moves: the whole track, or a period of it.</strong> Legacy Debrief dragged a whole track, or a selected time period of it, to line it up with a reference: that is kept (decision, 13 Oct 2026). On the map, a small control below the drawing toolbar, <em>What changes</em>, says which (for moving, rotating, shearing and stretching alike): <strong>Whole track</strong> (the default) or <strong>Time window</strong>, the fixes in the time window shown. The forms offer the same choice; for a TMA solution split into legs, they also offer <strong>This leg</strong>, the leg current time is in, as the map's <em>This leg</em> drags it (<a href="../tma/">TMA solutions</a>; 26 Oct 2026). An agent may give any period. Fixes whose times fall in the period, ends included, move; the rest stay where they are.</p>
 </li>
 <li>
 <p><strong>The joins jump.</strong> Moving a period moves only its fixes, so the track jumps where they meet the rest: the track is not stretched or smoothed to keep it continuous. (That is over the ground. On a track plotted by dead reckoning the fixes after follow on, with no jump: see <a href="#editing-a-track-plotted-by-dead-reckoning">Editing a track plotted by dead reckoning</a>.) The map shows the jump while the analyst drags, and says so: <em>only the fixes in the time window move, so the track jumps where they meet the rest</em>. Jump removal (part B) will tidy a join an analyst does not want.</p>
@@ -2143,7 +2203,7 @@
 <p><strong>For agents.</strong> <code>debrief/edit_track</code> with <code>{"action": "shear", "anchor": "start", "distance": {"value": 1.2, "unit": "[nmi_i]"}, "bearing": {"value": 45, "unit": "deg"}}</code> (the dragged end's move), <code>{"action": "shear", "anchor": "end", "course": {"value": 87.2, "unit": "deg"}, "speed": {"value": 12.4, "unit": "[kn_i]"}}</code> (the course and speed made good), or <code>{"action": "stretch", "anchor": "start", "speed": {"value": 12.4, "unit": "[kn_i]"}}</code>, each with a <code>period</code> to change only that. In VS Code, <code>debrief.shearTrack</code> and <code>debrief.stretchTrack</code> take the track and the edit, without <code>action</code>, instead of asking.</p>
 </li>
 </ol>
-<p><em>Not in this part:</em> live bearing residuals while dragging, and solutions rooted in a period of bearings (the TMA module, CAP-21); shearing one leg of a multi-leg solution apart from the others.</p>
+<p>Live bearing residuals while dragging, solutions rooted in a period of bearings, and shearing one leg of a multi-leg solution apart from the others (<strong>This leg</strong>) are the TMA module's: <a href="../tma/">TMA solutions</a> (CAP-21, 24 Oct 2026).</p>
 <h2 id="cleaning-tracks">Cleaning tracks<a class="headerlink" href="#cleaning-tracks" title="Permanent link">&para;</a></h2>
 <p>Part B2 (14 Oct 2026). Three ways to tidy a track an analyst has imported, each one recorded step, and none done without the analyst seeing what it would do first.</p>
 <ol>
@@ -2445,7 +2505,7 @@
 <p>An operation on the time window changes the course and speed of each fix in it, ends included: each is the leg that starts at that fix, so the leg out of the window's last fix changes too. A legacy .dpf DR leg that records no courses or speeds is edited by its positions, as over the ground.</p>
 </li>
 <li>
-<p><strong>The fixes after follow on.</strong> Over the ground, changing the fixes in the time window leaves the rest where they are, so the track jumps where they meet. On a DR track each fix is placed from the one before, so the fixes after the window follow on, with no jump: that is the nature of dead reckoning. The map and the step say so: <em>the fixes after follow on, by dead reckoning</em>.</p>
+<p><strong>The fixes after follow on.</strong> Over the ground, changing the fixes in the time window leaves the rest where they are, so the track jumps where they meet. On a DR track each fix is placed from the one before, so the fixes after the window follow on, with no jump: that is the nature of dead reckoning. The map and the step say so: <em>the fixes after follow on, by dead reckoning</em>. A TMA solution split into legs is the exception (product owner, 25 Oct 2026): each leg is independent, so dragging one leaves the other legs where they are and solves the joins either side again (<a href="../tma/">TMA solutions</a>).</p>
 </li>
 <li>
 <p><strong>What the map shows.</strong> While dragging, the map draws the track as dead reckoning will leave it: the later fixes, marked, and their rings follow the pointer, the track as it was dashed beneath. The note says what changes in dead-reckoning terms: <em>RED ONE (DR) fix at 09:43:00Z: moving 0.42 nmi 045.0°T; leg into it now 056.5°T 12.1 kn (was 045.0°T 12.0 kn); the fixes after follow</em>, adding <em>faster than 15.0 kn, as a jump would be</em> when the new leg is; <em>RED ONE (DR): rotating 3.0° clockwise about …; the courses in the time window turn, and the fixes after follow on, by dead reckoning</em>; <em>RED ONE (DR): stretching to 12.4 kn (was 11.6 kn); every speed is scaled</em>; <em>RED ONE (DR): shearing to 087.2°T 12.4 kn; end moved 1.20 nmi 045.0°T; one set and drift is added to every leg</em>. <strong>Move a fix…</strong> says the same of a position typed. What the map draws is what the tool service makes: both work it out the same way, and shared test vectors check that they agree, at mid-latitude, far north and across the antimeridian.</p>

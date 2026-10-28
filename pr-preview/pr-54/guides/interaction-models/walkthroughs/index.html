@@ -71,7 +71,7 @@
     
     
     
-    <body dir="ltr" data-md-color-scheme="default" data-md-color-primary="indigo" data-md-color-accent="indigo"><div class="pr-preview-banner" style="background:#fff4ce;color:#3b2f00;border-bottom:1px solid #e0c060;padding:6px 16px;font:14px/1.4 system-ui,sans-serif;text-align:center">Preview of <a style="color:inherit;text-decoration:underline" href="https://github.com/debrief/fuudee/pull/54">pull request #54</a>: Walkthroughs: the Get Started page beside the map, not under it. Built from 82c87dd on 2026-10-24 14:50 UTC. <a style="color:inherit;text-decoration:underline" href="https://debrief.github.io/fuudee/pr-preview/">All previews</a></div>
+    <body dir="ltr" data-md-color-scheme="default" data-md-color-primary="indigo" data-md-color-accent="indigo"><div class="pr-preview-banner" style="background:#fff4ce;color:#3b2f00;border-bottom:1px solid #e0c060;padding:6px 16px;font:14px/1.4 system-ui,sans-serif;text-align:center">Preview of <a style="color:inherit;text-decoration:underline" href="https://github.com/debrief/fuudee/pull/54">pull request #54</a>: Walkthroughs: the Get Started page beside the map, not under it. Built from 600a497 on 2026-10-28 22:18 UTC. <a style="color:inherit;text-decoration:underline" href="https://debrief.github.io/fuudee/pr-preview/">All previews</a></div>
   
     
     <input class="md-toggle" data-md-toggle="drawer" type="checkbox" id="__drawer" autocomplete="off">
@@ -905,6 +905,10 @@
       
         
       
+        
+      
+        
+      
     
     
     
@@ -1333,6 +1337,62 @@
   
   
     <li class="md-nav__item">
+      <a href="../sensors/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Sensors and bearings
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../tma/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    TMA solutions
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
       <a href="../collation/" class="md-nav__link">
         
   
@@ -1498,6 +1558,17 @@
     <span class="md-ellipsis">
       
         Keyboard and touch
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#bearings-and-tma-product-owner-25-oct-2026" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Bearings and TMA (product owner, 25 Oct 2026)
       
     </span>
   </a>
@@ -1777,6 +1848,17 @@
   
 </li>
         
+          <li class="md-nav__item">
+  <a href="#bearings-and-tma-product-owner-25-oct-2026" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Bearings and TMA (product owner, 25 Oct 2026)
+      
+    </span>
+  </a>
+  
+</li>
+        
       </ul>
     </nav>
   
@@ -1825,7 +1907,7 @@
 
 
 <h1 id="walkthroughs">Walkthroughs<a class="headerlink" href="#walkthroughs" title="Permanent link">&para;</a></h1>
-<p>How a newcomer learns Debrief on the sample exercise: four short walkthroughs, each step ticked off when the analyst actually does it, the same in VS Code and in the browser.</p>
+<p>How a newcomer learns Debrief on the sample exercise: five short walkthroughs, each step ticked off when the analyst actually does it, the same in VS Code and in the browser.</p>
 <h2 id="requirements-cited">Requirements cited<a class="headerlink" href="#requirements-cited" title="Permanent link">&para;</a></h2>
 <table>
 <thead>
@@ -1864,7 +1946,7 @@
 <h2 id="model">Model<a class="headerlink" href="#model" title="Permanent link">&para;</a></h2>
 <ol>
 <li>
-<p><strong>Four walkthroughs</strong> (decision, product owner, 17 Oct 2026), each about 10 minutes, each a handful of steps:</p>
+<p><strong>Five walkthroughs</strong> (decision, product owner, 17 Oct 2026; the fifth, <em>Bearings and TMA</em>, product owner, 25 Oct 2026, before the VSIX release), each about 10 minutes, each a handful of steps:</p>
 <table>
 <thead>
 <tr>
@@ -1889,28 +1971,33 @@
 <td>Annotate and export a figure</td>
 <td>Open a copy; draw an annotation; label the times on tracks; export a traceable image; find the image's source</td>
 </tr>
+<tr>
+<td>Bearings and TMA</td>
+<td>Open a copy and its bearings (the towed array selected in the Outline, its bearings in Bearings); keep a side of an ambiguous bearing; make a first guess; put its start at RED ONE's range; shear the first leg to fit; leave out a wild bearing; split at the turn and fit the second leg (about 12 minutes)</td>
+</tr>
 </tbody>
 </table>
 </li>
 <li>
-<p><strong>Each works on a fresh copy, never the sample</strong> (decision, product owner, 17 Oct 2026). The first step of each makes a copy of the sample's serial 1, titled after the walkthrough (<em>Serial 1: Tidy a track</em>), whose first step holds the sample's whole history and one more record saying it is a copy; its sources, payloads and supporting files come with it. <em>Tidy a track</em>'s copy has three GPS glitches in RED ONE, put in as a step of its own so they are never mistaken for real data; <em>Import and collate</em>'s comes with BLUE ONE's navigation log as a REP file to import. <code>debrief_sample.walkthrough</code> makes them, the same for both hosts. <strong>Starting a walkthrough again</strong> makes a fresh copy, deletes the old one and unticks the walkthrough's steps, so ticks belong to a copy; pressing the button again while a copy is being made makes none (panel review, 17 Oct 2026).</p>
+<p><strong>Each works on a fresh copy, never the sample</strong> (decision, product owner, 17 Oct 2026). The first step of each makes a copy of the sample's serial 1, titled after the walkthrough (<em>Serial 1: Tidy a track</em>), whose first step holds the sample's whole history and one more record saying it is a copy; its sources, payloads and supporting files come with it. <em>Tidy a track</em>'s copy has three GPS glitches in RED ONE, put in as a step of its own so they are never mistaken for real data; <em>Import and collate</em>'s comes with BLUE ONE's navigation log as a REP file to import; <em>Bearings and TMA</em>'s has one wild bearing, the towed array's cut at 11:12Z turned 40° off (its bearing one way and its ambiguous bearing the other, so the pair still mirror each other about the array's heading), as a step of its own, since the sample's bearings have none. <code>debrief_sample.walkthrough</code> makes them, the same for both hosts. <strong>Starting a walkthrough again</strong> makes a fresh copy, deletes the old one and unticks the walkthrough's steps, so ticks belong to a copy; pressing the button again while a copy is being made makes none (panel review, 17 Oct 2026).</p>
 </li>
 <li><strong>A step ticks when it is done, never when its button is pressed.</strong> Each step names an event; the host sends it when the change it asks for succeeds, however it was made (a form, the map, the keyboard, an agent): a jump removal saved, an area added, an image exported. Looking is not doing: finding jumps, previewing smoothing or moving a track ticks nothing. A few steps are about seeing: moving current time or selecting two tracks by hand (not a plot opening, a tool or a command, which is how Debrief selects what it has just added), a Tote with a primary and a secondary, an entry chosen in the Timeline, and Coverage on screen once the log is imported.
     <strong>Only on the walkthrough's own copy, in the walkthrough shown</strong> (panel review, 17 Oct 2026). The same change made to any other plot ticks nothing, as does the analyst's own file imported (only the walkthrough's log counts) or a stretch made where the step asks for a shear.</li>
 <li><strong>Each step's button only takes the analyst there</strong>: it opens the copy, or brings the panel or the command that does the step to hand (in VS Code a command, which asks what it needs; in the playground the panel, opened and scrolled to, or the button clicked). The analyst does the step. With another plot open, the button opens the walkthrough's copy first, and says so; before there is a copy, it refuses and says to open one. A button never acts on the analyst's own plot.</li>
 <li><strong>One source of words.</strong> <code>vscode/walkthroughs/tours.json</code> holds every step's title, what to do, where and the keyboard, with what differs between hosts beside it. VS Code's <code>contributes.walkthroughs</code> is written from it (<code>npm run walkthroughs</code>; the unit tests fail if <code>package.json</code> differs), and the playground's panel reads it, so the two cannot drift. Each step's picture is an SVG drawn from serial 1 by <code>python -m debrief_sample media</code>, in theme colours, the same file in both hosts.</li>
-<li><strong>The keyboard, in every step.</strong> Each says how to do it from the keyboard, as the <a href="../keyboard-equivalents/">keyboard equivalents</a> give it.</li>
-<li><strong>The next walkthrough is offered when one ends</strong> (decision, product owner, 23 Oct 2026), in <code>tours.json</code>'s order, never left to be found in the list: <em>Open and explore a serial</em>, <em>Import and collate</em>, <em>Tidy a track</em>, <em>Annotate and export a figure</em>. After the last, all walkthroughs are done. Both hosts take the order and the words (<strong>Next walkthrough: <em>title</em></strong>, <strong>All walkthroughs done</strong>) from <code>contribute.mjs</code>, so they cannot drift.</li>
+<li><strong>The keyboard, in every step.</strong> Each says how to do it from the keyboard, as the <a href="../keyboard-equivalents/">keyboard equivalents</a> give it.
+    <strong>The walkthroughs teach the selection gestures</strong> (product owner, 28 Oct 2026, when the Outline's hint line, <em>Ctrl-click to add, Shift-click for a range</em>, went): <em>Open and explore a serial</em>'s <em>Select tracks in the Outline</em> says Ctrl-click adds a row (Cmd-click on macOS) and Shift-click selects a range, and names the toolbar above the Outline (hide or show, colour, select all, select children, clear); <em>Bearings and TMA</em> uses Shift-click for a run of cuts and says so where it does.</li>
+<li><strong>The next walkthrough is offered when one ends</strong> (decision, product owner, 23 Oct 2026), in <code>tours.json</code>'s order, never left to be found in the list: <em>Open and explore a serial</em>, <em>Import and collate</em>, <em>Tidy a track</em>, <em>Annotate and export a figure</em>, <em>Bearings and TMA</em>. After the last, all walkthroughs are done. Both hosts take the order and the words (<strong>Next walkthrough: <em>title</em></strong>, <strong>All walkthroughs done</strong>) from <code>contribute.mjs</code>, so they cannot drift.</li>
 </ol>
 <h3 id="in-vs-code">In VS Code<a class="headerlink" href="#in-vs-code" title="Permanent link">&para;</a></h3>
 <p>The walkthroughs are on VS Code's <strong>Get Started</strong> page, under Debrief: <strong>Debrief: Walkthroughs: learn Debrief on the sample exercise</strong> from the Command Palette, the Catalogues view's menu, or <strong>Start a walkthrough</strong> while no catalogue is added. Each step's button is a command; every step after the first runs through <code>debrief.walkthrough.do</code> (the walkthrough, then the command and its arguments), which opens the copy first. A step ticks when its context key, <code>debrief.walkthrough.&lt;event&gt;</code>, is set (<code>completionEvents: ["onContext:…"]</code>), VS Code's documented way. The Get Started page counts a context key only if it changes after the page's service has started, which may be long after. So the extension also marks the step with VS Code's own <code>welcome.markStepComplete</code> (and <code>welcome.markStepIncomplete</code> when a walkthrough starts again). These commands are not part of VS Code's API: a failure is written to Debrief's log, and the integration test checks that VS Code still has them.</p>
-<p>Debrief always opens the Get Started page <strong>beside</strong> the editors (<code>workbench.action.openWalkthrough</code>'s <code>toSide</code>, <code>BESIDE</code> in <code>walkthroughs/contribute.mjs</code>), so the map a step opens in the first column sits beside the walkthrough rather than on top of it (product owner, 24 Oct 2026).</p>
+<p>Debrief always opens the Get Started page <strong>beside</strong> the editors (<code>workbench.action.openWalkthrough</code>'s <code>toSide</code>, <code>BESIDE</code> in <code>walkthroughs/contribute.mjs</code>): from <strong>Debrief: Walkthroughs</strong>, on the first activation after install, and from each walkthrough's <strong>Next walkthrough</strong> link. The map a step opens in the first column sits to the left of the walkthrough rather than on top of it (product owner, 24 Oct 2026). <em>Bearings and TMA</em>'s Bearings view is in the panel below the editors, so it leaves both columns as they are.</p>
 <p><strong>On the first activation after install</strong>, Debrief opens <em>Open and explore a serial</em> on the Get Started page (<code>workbench.action.openWalkthrough</code> with <code>debrief.debrief#explore</code>), once only: a flag in the extension's global state (<code>debrief.walkthrough.openedOnInstall</code>) is set first, so later starts, and a page that failed to open, never open it again (decision, product owner, 22 Oct 2026). The Get Started page is VS Code's own and takes VS Code's theme; the guidance accent below is the playground's.</p>
-<p><strong>Each walkthrough's last step ends with a link to the next</strong>, alone on its line so the Get Started page draws it as a button: <strong>Next walkthrough: Import and collate</strong> runs <code>workbench.action.openWalkthrough</code> with <code>debrief.debrief#collate</code>, and so on. <em>Annotate and export a figure</em>'s last step says instead that, once it is done, all walkthroughs are done (decision, product owner, 23 Oct 2026).</p>
+<p><strong>Each walkthrough's last step ends with a link to the next</strong>, alone on its line so the Get Started page draws it as a button: <strong>Next walkthrough: Import and collate</strong> runs <code>workbench.action.openWalkthrough</code> with <code>debrief.debrief#collate</code>, and so on. <em>Bearings and TMA</em>'s last step says instead that, once it is done, all walkthroughs are done (decision, product owner, 23 Oct 2026).</p>
 <p><strong>Open a copy of serial 1</strong> (<code>debrief.walkthrough.open</code> with the walkthrough's id) builds the sample with the analyst's Python (<code>python -m debrief_sample walkthrough</code>) into the extension's own storage, one folder for each walkthrough, and adds it as a catalogue of its own, <em>Walkthrough: Tidy a track</em>. Pressed again, it asks: <strong>Start again with a fresh copy</strong> (the old copy and its catalogue go; the sample never changes) or <strong>Carry on with my copy</strong>. Agents pass <code>{fresh}</code>. <strong>Import the navigation log</strong> (<code>debrief.walkthrough.importLog</code>) imports the log waiting beside <em>Walkthrough: Import and collate</em>'s catalogue, as <strong>Import plot file…</strong> imports any REP file.</p>
 <h3 id="in-the-playground-and-the-web-demo">In the playground and the web demo<a class="headerlink" href="#in-the-playground-and-the-web-demo" title="Permanent link">&para;</a></h3>
 <p>A <strong>Walkthroughs</strong> panel, <strong>open on first load wherever it appears</strong>: the web demo, the playground and the blog's demos that include it (decision, product owner, 22 Oct 2026, superseding 17 Oct's folded outside the web demo), since it is where a newcomer gains an overall understanding. <strong>900 pixels wide and more the panels are docked</strong> (<a href="../browser-layout/">browser layout</a>; decision, product owner, 23 Oct 2026, superseding 22 Oct's column of its own from 1200 pixels): the walkthroughs are a group of their own on the right, alone (second round, 23 Oct 2026), so a step's words are never hidden behind another tab and stay in sight while the analyst does it in the panels on the left, under the map and on the map; the step's own button brings the panel it names into view, wherever the analyst has put it. The panel scrolls on its own. A reader who brings another tab to the front, or moves the panel, finds the layout as they left it next time, in the playground and the web demo; a blog's demo starts as it was made every time. <strong>Narrower</strong>, on a phone and in the blog's demos, it is the side column's first panel, above the time controller, folding by its heading as every panel there does; a reader who folds it finds it folded next time, except in a blog's demo. At 1366 pixels the right-hand group is about 290 pixels wide and the map 791. It holds a list to choose the walkthrough, its steps (each a button that opens it, its number or a tick, <em>done</em> said to screen readers), the step to do next open, and a line saying what was done and what comes next. <strong>The guidance accent</strong> sets the panel apart from the panels around it, in the theme's link colour (<code>--vscode-textLink-foreground</code>, the focus colour <code>--vscode-focusBorder</code> where a theme has none; the playground's theme maps both): a 3 pixel edge on the panel, its heading bar tinted with the accent (14% over the panel's background), each step's number in the accent and the next step's number a disc of it. Docked, its tab is its heading, and carries the tint and a 3 pixel edge of the accent; folded, in the side column, its heading does. Text keeps WCAG AA contrast (4.5:1) on the light and dark themes, tested; data colours are untouched (see the style guide's <a href="../../style-guide/theme/">Theme</a>). The copy is made in the browser from the sample as the site shipped it, kept apart from the reader's own changes, so a walkthrough always starts clean. The chosen walkthrough is remembered in the browser; ticks are not, since the copies go when the page closes (product owner, 17 Oct 2026).</p>
-<p><strong>When a walkthrough's steps are all done</strong> (decision, product owner, 23 Oct 2026), the panel says so below the steps and offers <strong>Next walkthrough: <em>title</em></strong>, a button in the guidance accent (the next step's disc's colours: the accent behind, the panel's background as its text, at 4.5:1 or more). The keyboard moves to it, and the status line says it is there. Pressing it shows the next walkthrough as choosing it from the list does, the keyboard on its first step's button, which opens that walkthrough's own copy. <strong>Before then, a quieter link, Skip to next walkthrough: <em>title</em></strong>, is always below the steps, in the accent and underlined: a step ticks only when it is done, so there is no "done or skipped" to wait for, and a reader stuck on a step, or who knows it already, can still move on without hunting in the list. The list stays, to choose any walkthrough. After the last walkthrough: <strong>All walkthroughs done</strong>, and a link, <strong>Start again: Open and explore a serial</strong>, the keyboard on it.</p>
+<p><strong>When a walkthrough's steps are all done</strong> (decision, product owner, 23 Oct 2026), the panel says so below the steps and offers <strong>Next walkthrough: <em>title</em></strong>, a button in the guidance accent (the next step's disc's colours: the accent behind, the panel's background as its text, at 4.5:1 or more). The keyboard moves to it, and the status line says it is there; but when the last step was done on the map or in a form beside it (a frame has the keyboard), as <em>Bearings and TMA</em>'s leg is dragged, the keyboard stays there and the status line, a live region, says the walkthrough is done and what comes next (product owner, 25 Oct 2026). Pressing it shows the next walkthrough as choosing it from the list does, the keyboard on its first step's button, which opens that walkthrough's own copy. <strong>Before then, a quieter link, Skip to next walkthrough: <em>title</em></strong>, is always below the steps, in the accent and underlined: a step ticks only when it is done, so there is no "done or skipped" to wait for, and a reader stuck on a step, or who knows it already, can still move on without hunting in the list. The list stays, to choose any walkthrough. After the last walkthrough: <strong>All walkthroughs done</strong>, and a link, <strong>Start again: Open and explore a serial</strong>, the keyboard on it.</p>
 <p>The <strong>web demo</strong> at <code>/demo/</code> is the playground's page full screen, every panel and the walkthroughs, opening the fixed sample serials. A file the analyst chooses opens there too, read in the browser only (decision, product owner, 17 Oct 2026, amending DEP-07). No request carries it, nothing is sent at all (nor as the tab closes), and no WebSocket opens. Nothing derived from it is stored either: in the web demo the Timeline keeps only the kinds of entry shown and its view's own settings, never sources, types or highlighted phrases. It is gone when the tab closes.</p>
 <p><strong>Content-Security-Policy.</strong> The web demo and the playground's pages (the page, each frame, the geodesic demo) carry a strict policy in a meta element (<code>vscode/play/csp.mjs</code>): only the site itself, and jsDelivr for Pyodide; no forms, plugins or other origins; <code>base-uri 'self'</code> for the demo's <code>&lt;base&gt;</code>. A meta element's policy does not reach the Python worker, and GitHub Pages cannot send one as a header. <strong>Pyodide's files come from jsDelivr with no integrity check, a risk the product owner accepts</strong> (17 Oct 2026).</p>
 <h3 id="keyboard-and-touch">Keyboard and touch<a class="headerlink" href="#keyboard-and-touch" title="Permanent link">&para;</a></h3>
@@ -1960,6 +2047,105 @@
     Host-&gt;&gt;Service: debrief/remove_jumps
     Service--&gt;&gt;Host: one step
     Host--&gt;&gt;Page: event jumpsRemoved: step ticked, the next opened</code></pre>
+<h3 id="bearings-and-tma-product-owner-25-oct-2026">Bearings and TMA (product owner, 25 Oct 2026)<a class="headerlink" href="#bearings-and-tma-product-owner-25-oct-2026" title="Permanent link">&para;</a></h3>
+<p>The fifth walkthrough, added before the VSIX release: sensors, ambiguity and TMA had none, beyond <em>Tidy a track</em>'s shear. It works on BLUE ONE's towed array on RED ONE, and makes its solution live, so the sample keeps no solution of its own and its feature counts are unchanged.</p>
+<p><strong>It fits properly</strong> (product owner, 25 Oct 2026): the walkthrough ends with a solution near the bearings' own accuracy, as legacy Debrief's TMA tutorial teaches (pages 48 to 58), not at about 6° RMS as it first did. Legacy's way, one leg at a time: pin the leg's start on its first bearing; shear its end until the errors stand on the zero line and the Error pane passes; zoom in to fine-tune; bearings never give range, so move the start along its bearing and shear again; then the next leg. The walkthrough gives the range (RED ONE was 3.27 nmi from the towed array at 09:46Z), where an analyst would try ranges, so it takes seven steps and about 12 minutes rather than a search.</p>
+<p><strong>Serial 1, not serial 2.</strong> Every serial has both sonars. In serial 2 RED ONE is 1.4 to 3 nmi from BLUE ONE throughout; in serial 1 the towed array holds RED ONE at 3 to 4.5 nmi from 09:46Z, and RED ONE turns between 10:30Z and 10:40Z, from 250° at 4 kn to 200° at 5 kn, a manoeuvre to split at. So the walkthrough copies serial 1, as the others do.</p>
+<table>
+<thead>
+<tr>
+<th>Step</th>
+<th>What it asks</th>
+<th>Its button (VS Code; the playground)</th>
+<th>Ticks when</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Open a copy of serial 1 and its bearings</td>
+<td>Read the towed array's two lines a cut, mirrored about the array's heading</td>
+<td>The copy opened, then the towed array selected in the Outline and <strong>Bearings</strong> showing it, in the panel below the editor in VS Code (<code>debrief.chooseInOutline</code>; <code>outline:</code>)</td>
+<td>the copy opens (<code>tmaOpened</code>)</td>
+</tr>
+<tr>
+<td>Keep a side of an ambiguous bearing</td>
+<td><strong>Keep starboard</strong> in the Tools for 236.3° (starboard), the side the Bow sonar's 235.3° at 09:46:00Z agrees with (its cuts read by opening <em>Bow sonar</em> in the Outline); the period's other ambiguous cuts are measured by the nearer side (≈), an assumption the step says</td>
+<td>The Outline opens the towed array and selects its cut at 09:46Z, current time there</td>
+<td>a side is kept, not both made ambiguous again (<code>sideKept</code>)</td>
+</tr>
+<tr>
+<td>Make a first guess</td>
+<td>Debrief's defaults (4.94 nmi, across the bearing, 8 kn)</td>
+<td>The Outline selects the cuts 09:46Z to 12:00Z (102) and runs <strong>TMA solution from 102 cuts…</strong>, the form in Bearings</td>
+<td>a solution is made (<code>solutionMade</code>)</td>
+</tr>
+<tr>
+<td>Put the start at RED ONE's range</td>
+<td>Move the whole solution 1.67 nmi at 056.3°, along the first bearing towards BLUE ONE, to 3.27 nmi (or drag its Move handle, the first error kept on zero)</td>
+<td>The solution selected and <strong>Move track…</strong> (<strong>Move…</strong>) asked of it</td>
+<td>the whole solution is moved (<code>solutionMoved</code>)</td>
+</tr>
+<tr>
+<td>Shear the first leg to fit</td>
+<td>Box the errors to 10:32Z in the Error pane, then shear about the start: about 246° at 3.8 kn</td>
+<td>The solution selected and <strong>Shear track…</strong> (<strong>Shear…</strong>) asked of it</td>
+<td>the whole solution is sheared (<code>solutionSheared</code>); another track's shear is <em>Tidy a track</em>'s</td>
+</tr>
+<tr>
+<td>Leave out a wild bearing</td>
+<td><strong>Leave out of Contact 1 solution</strong> in the Tools (or <code>Space</code> in the plot) for the cut at 11:12Z, some 40° left of its neighbours</td>
+<td>The Outline selects the cut at 11:12Z, the solution still shown in Bearings</td>
+<td>a cut is left out, not counted again nor already left out (<code>cutLeftOut</code>)</td>
+</tr>
+<tr>
+<td>Split at the turn and fit the second leg</td>
+<td><strong>Split before 10:38:00Z</strong> in the Tools (or <code>S</code> in the plot); <strong>This leg</strong>; pin the second leg's start on its first bearing, about 0.17 nmi at 155°; shear its end, about 200° at 5.2 kn</td>
+<td>The Outline opens the solution to its leg and selects its position at 10:38Z, moving current time there, so This leg is the second</td>
+<td>one of its legs is dragged, once it is split (a drag with a period: <strong>This leg</strong>, <em>This leg</em> in the forms, or the time window); the split alone is not the step (<code>legDragged</code>)</td>
+</tr>
+</tbody>
+</table>
+<p>On the sample, as <code>python/debrief-sample/tests/test_walkthrough.py</code> holds them (<code>walkthrough.play_tma</code>, which makes the first guess as its form sends it) and the playground's test reaches them through the forms, to a tenth of a degree:</p>
+<table>
+<thead>
+<tr>
+<th>After</th>
+<th>RMS</th>
+<th>The cue (3.0° cut-off)</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>The first guess</td>
+<td>55.9°</td>
+<td>✗ 95 of 102 beyond, the largest 136.6°</td>
+</tr>
+<tr>
+<td>The start at RED ONE's range</td>
+<td>62.7°: up, as the course and speed are still the guess's</td>
+<td>✗ 99 of 102 beyond</td>
+</tr>
+<tr>
+<td>The first leg sheared (246° at 3.8 kn)</td>
+<td>38.8° over all; 1.7° over the first leg's 40 cuts, 2 of them beyond</td>
+<td>✗ 64 of 102 beyond, the errors running away after 10:32Z to −77° by 12:00Z</td>
+</tr>
+<tr>
+<td>The wild bearing left out</td>
+<td>38.3°</td>
+<td>✗ 63 of 101 beyond</td>
+</tr>
+<tr>
+<td>The second leg pinned (0.17 nmi at 155°) and sheared (200° at 5.2 kn)</td>
+<td>1.8°</td>
+<td>✗ 9 of 101 beyond, the largest 4.8°</td>
+</tr>
+</tbody>
+</table>
+<p><strong>Why the cue never passes.</strong> The sample's sonar noise is 1.5° (1.8° RMS against RED ONE's true track over these cuts, with the turn), so with 101 cuts some fall beyond 3° whatever the fit: RED ONE's true track itself leaves 8 of 101 beyond, the largest 4.4°. The last step says so: aim for an RMS under about 2° and only a handful beyond. The default cut-off and the sample's noise are unchanged (product owner, 25 Oct 2026). For the same reason the cue stays ✗ while only the first leg is fitted: it counts every cut of the solution, the second leg's too.</p>
+<p><strong>What the buttons choose, in the Outline</strong> (product owner, 27 Oct 2026; Bearings had the cut list before). <code>debrief.chooseInOutline</code> takes the sensor or the solution and what to choose under it (<code>cut_time</code>, <code>period</code> and <code>make</code>, or <code>fix_time</code>; <code>outlineChoice</code>): the cut at or nearest a time, the cuts of a period (with <code>make</code>, <strong>TMA solution from cuts…</strong> run for them, the first guess's form in Bearings), or the solution's position at a time; it moves current time to a cut or a position, opens the rows above it, selects it, gives it the keyboard, and in the one column of a phone brings it into sight centred in the page, so a section's heading never covers it. Bearings follows the selection and rings it. The playground's action is <code>outline:&lt;sensor or solution&gt;?cut=…</code>, <code>?period=…/…&amp;make</code> or <code>?fix=…</code>, the same choice. <code>debrief.showBearings</code> stays for agents, with a <code>TmaFocus</code> sent once with the view (<code>FocusOnce</code>). <strong>The solution's id</strong> is not known until it is made: a step names it <code>$solution</code>, and each host puts in the copy's latest TMA solution when the button is pressed, or says <em>Make the solution first</em> while there is none. In VS Code a step's button that opens a form (Move…, Shear…) also brings Bearings back into sight in the panel if it was closed.</p>
+<p><strong>The keyboard.</strong> The cut's buttons (Keep, Leave out, Split) come before the list in the tab order, so from the list it is <code>Shift+Tab</code> back to them (the steps say so; the playground's test presses it); in the plot <code>Space</code> or <code>Delete</code> leaves a cut out, <code>S</code> splits, <code>1</code> and <code>2</code> keep a side. The forms <strong>Move…</strong> and <strong>Shear…</strong> offer <em>This leg</em> under <em>What changes</em> once a solution is split, the leg current time is in, so the second leg is fitted by typing as the first was (<a href="../track-operations/">track operations</a>).</p>
+<p><strong>Candidly.</strong> The sample's bearings have no wild one, so the copy has one put in, as <em>Tidy a track</em>'s glitches are, and History says so. The map draws every cut of the serial's window and the narrative's labels, so at 09:46Z the map's nearest bearing label (<em>Regained RED ONE, bearing 231.8°T</em>, at 09:42:30Z) is not the Bow sonar's cut then; the step gives the number and where to read it (the Bow sonar opened in the Outline). Moving the start to the right range makes the RMS worse before the shear makes it better, which the step says. The range is given, not found: finding it would be a search of trial ranges, longer than a walkthrough.</p>
 <h2 id="the-onboarding-trial">The onboarding trial<a class="headerlink" href="#the-onboarding-trial" title="Permanent link">&para;</a></h2>
 <p>NFR-09's trial, with analysts, is the product owner's to run. It is formative. <code>docs/notes/onboarding-trial.md</code> gives:
 - the pass rule to pre-register: at least 80% complete without help above the first rung, the median silent run within 40 minutes, and no one over 60;
@@ -1969,7 +2155,7 @@
 - what to time, the success criteria and their tolerances, the observation sheet, and how results are recorded.</p>
 <p>The trial is pending. The playground's test does the same tasks as a speed run, in the playground only, counting each action (32) and failing above 36, to show they can be done.</p>
 <h2 id="reference-implementation">Reference implementation<a class="headerlink" href="#reference-implementation" title="Permanent link">&para;</a></h2>
-<p><code>vscode/walkthroughs/tours.json</code> (the words) and <code>contribute.mjs</code> (how VS Code shows them); <code>vscode/src/walkthroughs.ts</code> (VS Code's events and copies); <code>vscode/play/tours.ts</code> (the playground's panel and its events); <code>python/debrief-sample/src/debrief_sample/walkthrough.py</code> (the copies) and <code>media.py</code> (the pictures); <code>vscode/play/demo.mjs</code> (the web demo's page). Tests: <code>vscode/test/unit/walkthroughs.test.ts</code> (each walkthrough's last step on the Get Started page linking to the next by id), <code>vscode/test/integration/walkthroughs.ts</code> (the first walkthrough opened on the first activation and not on the next; every walkthrough in VS Code, each event on its real action), <code>vscode/test/play/onboarding.mjs</code> (open on first load in the playground, the web demo and the first hour post's demo; the guidance accent and its contrast in light and dark; the next walkthrough offered at each one's end, the keyboard on it, and all done after the last; each walkthrough start to finish in the playground, the speed run, the web demo), <code>python/debrief-sample/tests/test_walkthrough.py</code>.</p>
+<p><code>vscode/walkthroughs/tours.json</code> (the words) and <code>contribute.mjs</code> (how VS Code shows them); <code>vscode/src/walkthroughs.ts</code> (VS Code's events and copies); <code>vscode/play/tours.ts</code> (the playground's panel and its events); <code>python/debrief-sample/src/debrief_sample/walkthrough.py</code> (the copies) and <code>media.py</code> (the pictures); <code>vscode/play/demo.mjs</code> (the web demo's page). Tests: <code>vscode/test/unit/walkthroughs.test.ts</code> (each walkthrough's last step on the Get Started page linking to the next by id), <code>vscode/test/integration/walkthroughs.ts</code> (the first walkthrough opened on the first activation and not on the next; every walkthrough in VS Code, each event on its real action, Bearings and TMA's buttons' choices reaching the view, Bearings in the panel below the editor and brought back into sight there by a step's button, and the RMS each step reaches), <code>vscode/test/unit/tma.test.ts</code> (<code>focusChoice</code>, <code>FocusOnce</code>, <code>legExtent</code>), <code>vscode/test/play/onboarding.mjs</code> (open on first load in the playground, the web demo and the first hour post's demo; the guidance accent and its contrast in light and dark; the next walkthrough offered at each one's end, the keyboard on it, and all done after the last; each walkthrough start to finish in the playground, the speed run, the web demo), <code>python/debrief-sample/tests/test_walkthrough.py</code>.</p>
 
 
 

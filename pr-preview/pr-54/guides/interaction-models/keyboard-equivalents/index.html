@@ -71,7 +71,7 @@
     
     
     
-    <body dir="ltr" data-md-color-scheme="default" data-md-color-primary="indigo" data-md-color-accent="indigo"><div class="pr-preview-banner" style="background:#fff4ce;color:#3b2f00;border-bottom:1px solid #e0c060;padding:6px 16px;font:14px/1.4 system-ui,sans-serif;text-align:center">Preview of <a style="color:inherit;text-decoration:underline" href="https://github.com/debrief/fuudee/pull/54">pull request #54</a>: Walkthroughs: the Get Started page beside the map, not under it. Built from 82c87dd on 2026-10-24 14:50 UTC. <a style="color:inherit;text-decoration:underline" href="https://debrief.github.io/fuudee/pr-preview/">All previews</a></div>
+    <body dir="ltr" data-md-color-scheme="default" data-md-color-primary="indigo" data-md-color-accent="indigo"><div class="pr-preview-banner" style="background:#fff4ce;color:#3b2f00;border-bottom:1px solid #e0c060;padding:6px 16px;font:14px/1.4 system-ui,sans-serif;text-align:center">Preview of <a style="color:inherit;text-decoration:underline" href="https://github.com/debrief/fuudee/pull/54">pull request #54</a>: Walkthroughs: the Get Started page beside the map, not under it. Built from 600a497 on 2026-10-28 22:18 UTC. <a style="color:inherit;text-decoration:underline" href="https://debrief.github.io/fuudee/pr-preview/">All previews</a></div>
   
     
     <input class="md-toggle" data-md-toggle="drawer" type="checkbox" id="__drawer" autocomplete="off">
@@ -905,6 +905,10 @@
       
         
       
+        
+      
+        
+      
     
     
     
@@ -1313,6 +1317,62 @@
     
   
     Timeline and narrative
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../sensors/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Sensors and bearings
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../tma/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    TMA solutions
   
 
     
@@ -1813,6 +1873,42 @@
 <td>The Timeline is a list: <code>Up</code>, <code>Down</code>, <code>Page Up</code>, <code>Page Down</code>, <code>Home</code> and <code>End</code> move through it, <code>Enter</code> or <code>Space</code> moves current time to the entry, <code>F2</code> changes a narrative entry, <code>Delete</code> deletes it, <code>N</code> adds one, <code>/</code> searches; <code>Ctrl+Z</code> undoes the plot's last step from the Timeline except in its text boxes (the search box and the form), where it undoes the typing (<a href="../timeline/#keyboard-and-touch">Timeline and narrative</a>). The entry on the map beside its track needs no gesture.</td>
 </tr>
 <tr>
+<td>Click a cut's line to select it and see its choices (keep either bearing, ambiguous again), or <code>Alt</code>-click one of an ambiguous cut's lines to keep it; right-click (or press and hold) a cut for its menu; read a cut's bearings by pointing at it</td>
+<td>A sensor's menu in the Outline (<code>Shift+F10</code> or the menu key; press and hold on a touch screen): <strong>Ambiguous bearings: keep port or starboard…</strong>, then <strong>Keep port bearing</strong>, <strong>Keep starboard bearing</strong> or <strong>Make ambiguous again</strong>, then <strong>The cut at the current time</strong>, <strong>Cuts in the time window</strong>, <strong>Selected cuts</strong> or <strong>All cuts</strong>, each saying how many cuts it holds; one step. <strong>Cut at current time…</strong> on the same menu says the bearings and sides of the cut the map emphasises and opens its menu (keep either bearing, ambiguous again, select it): move current time to reach any cut. The Command Palette has both. In the playground, a sensor row's menu, and, with a sensor or a cut selected, <strong>Port…</strong>, <strong>Starboard…</strong> and <strong>Both again…</strong> under <em>Sensor</em> below the Outline. A sensor's details in the Outline say how many cuts are ambiguous and resolved (<a href="../sensors/">sensors and bearings</a>). The choices beside a clicked cut are buttons: <code>Tab</code> between them, <code>Enter</code> to choose, <code>Escape</code> back to the map.</td>
+</tr>
+<tr>
+<td>Set a towed array's offset astern</td>
+<td><strong>Towed array offset…</strong> on a sensor's menu in the Outline, or the Command Palette: type the distance (0 for at the ship), then choose worm in the hole or plain; one step. In the playground, a sensor row's menu.</td>
+</tr>
+<tr>
+<td>Choose a run of a sensor's cuts, or a TMA solution's leg or position, with the pointer (click, Shift-click a range, Ctrl-click to add)</td>
+<td>The Outline is a tree, one tab stop (product owner, 27 Oct 2026): <code>Up</code> and <code>Down</code> move the keyboard; <code>Right</code> opens a sensor to its cuts, a solution to its legs and a leg to its positions, or goes into one open; <code>Left</code> closes it or goes to its parent; <code>Home</code>, <code>End</code>, <code>Page Up</code>, <code>Page Down</code>; <code>Shift</code> with the arrows extends the selection (a run of cuts); <code>Enter</code> or <code>Space</code> selects, with <code>Ctrl</code> adds or takes away, with <code>Shift</code> selects from the anchor; <code>Ctrl+A</code> every row shown. A position selected moves current time to it. Each row says its level, its place and how many share it (<em>Cut at 09:46:00Z, 236.3° to starboard or 142.3° to port, not yet resolved</em>). In VS Code, the native tree's keys (<a href="../tma/#the-outline-and-the-tools">TMA solutions</a>).</td>
+</tr>
+<tr>
+<td>Act on what is selected in the Outline: split a leg before or after a position, keep a side of cuts, leave them out of a solution or count them in, hide, show or delete them, make a solution of them</td>
+<td>The Tools' entries for the Outline's selection: <code>Tab</code> to them (the Tools panel in the playground; the Tools view in VS Code, or the Command Palette, or the row's menu with <code>Shift+F10</code>), <code>Enter</code> on one. A disabled one says why beside it, read with it. One step each (<a href="../tma/#the-outline-and-the-tools">TMA solutions</a>).</td>
+</tr>
+<tr>
+<td>Make a solution's first guess by two clicks on the map, on the first and last cuts' lines</td>
+<td><strong>TMA solution from cuts…</strong> in the Tools: the first guess's form in Bearings (range along the first cut's bearing, course, speed; Debrief's defaults filled in), which takes the keyboard first and says what each field means as it is typed. One step either way.</td>
+</tr>
+<tr>
+<td>Drag a box with <strong>Select bearings</strong> on over a run of a towed array's dots in the Bearings plot, keeping the side boxed, or making resolved cuts ambiguous again</td>
+<td>No keys of its own (product owner, 28 Oct 2026): select the run in the Outline (the sensor opened, <code>Shift</code> with the arrows), then <strong>Keep port</strong>, <strong>Keep starboard</strong> or <strong>Make ambiguous again</strong> in the Tools, the same one step (<a href="../tma/#the-bearings-view">TMA solutions</a>). The toggle is a button (<code>aria-pressed</code>), and the result is said in the status line.</td>
+</tr>
+<tr>
+<td>Pop Bearings out onto a second monitor, and bring it back; drag its window there</td>
+<td><strong>Pop out</strong> in the Bearings view's title bar (<code>Tab</code> to it, <code>Enter</code>), or <strong>Debrief: Pop out Bearings into a new window</strong> in the Command Palette: Bearings opens as an editor in a window of its own (or an editor tab, where VS Code cannot open the window). Moving the window to the other monitor is the operating system's (on Windows <code>Win+Shift+Right</code>; on most Linux desktops <code>Super+Shift</code> with an arrow; maximise with <code>Win+Up</code> or <code>Super+Up</code>). <strong>Bring Bearings back to the panel</strong> and <strong>Focus the popped-out Bearings</strong> are in the Command Palette, and the panel's placeholder has both as buttons; closing the editor (<code>Ctrl+W</code>, or <code>Ctrl+F4</code>) brings it back too (<a href="../tma/#the-bearings-view">TMA solutions</a>).</td>
+</tr>
+<tr>
+<td>Click a cut's dot in the Bearings plot to leave it out of the RMS, or count it again</td>
+<td><code>Space</code> or <code>Delete</code> on the cut chosen in the plot, or <strong>Leave out of Contact 1 solution</strong> and <strong>Count in Contact 1 solution</strong> in the Tools for the cuts selected in the Outline; one step.</td>
+</tr>
+<tr>
+<td>Click in the bearings plot to pick a manoeuvre's time</td>
+<td>In the Outline, the solution's leg opened to its positions, the arrows to the position, <code>Enter</code> (current time moves to it), then <strong>Split before</strong> or <strong>Split after</strong> in the Tools; or <code>Up</code> and <code>Down</code> in the plot to the cut and <code>S</code>. On the map, <strong>This leg</strong> under <em>What changes</em>, then the track's drags and their keys: the leg dragged is the one current time is in until a leg is clicked or tapped on the map.</td>
+</tr>
+<tr>
 <td>Choose which catalogue item supplies a period of a track; take new data; confirm or refuse a platform</td>
 <td>Coverage: <code>Tab</code> to a period's list, pick with <code>↑</code> <code>↓</code> (no step yet) and press <code>Enter</code> or <strong>Set</strong>, the keyboard's way for clicking a source's bar; <strong>Take</strong>, <strong>Not now</strong>, <strong>Same platform</strong>, <strong>Not this platform</strong>, <strong>Unlink</strong> and <strong>Reviewed</strong> are buttons. In VS Code's Catalogues, an item's or a track's menu (<code>Shift+F10</code> or the menu key) has the same. There is no map gesture (<a href="../collation/#keyboard-and-touch">Collation</a>).</td>
 </tr>
@@ -1829,8 +1925,16 @@
 <td><code>Tab</code> moves through the layout group by group, each group's tab then what its panel holds; <code>←</code> <code>→</code> along a tab strip, <code>Enter</code> or <code>Space</code> to bring a panel to the front; <code>Shift+F10</code>, the menu key or the group's <strong>⋯</strong> opens the panel's menu: <strong>Move to left: Outline, Catalogue</strong> for each other group, <strong>Move to a group of its own</strong>, <strong>Reset layout</strong> (<a href="../browser-layout/">browser layout</a>). The top bar's <strong>Import…</strong>, <strong>Export</strong> and <strong>Try</strong> open with <code>Enter</code>, and <code>Escape</code> closes them.</td>
 </tr>
 <tr>
+<td>In the time controller: drag the scrubber; drag the time window's band to move it, or an edge to resize it; click the overview strip to move current time (outside the window, the window moves to it)</td>
+<td><code>Tab</code> to the scrubber: the arrow keys step current time (<code>Page Up</code>, <code>Page Down</code> ten steps; <code>Home</code>, <code>End</code> the window's ends). <code>Tab</code> to the band: the arrow keys move the window, <code>Shift</code> and the arrow keys resize it; or to an edge, whose arrow keys move that end. <code>Enter</code> on current time to type a time and go there; the window's details (<code>Enter</code> on <em>Window</em>) take its ends typed, and <strong>Whole plot</strong>. <code>Space</code> plays and pauses from any of them (<a href="../time-controller/#keyboard">time controller</a>; product owner, 28 Oct 2026).</td>
+</tr>
+<tr>
 <td>Clear the selection</td>
-<td><code>Escape</code> on the map; or the outline, a native tree.</td>
+<td><code>Escape</code> on the map; or <strong>Clear selection</strong> on the Outline's toolbar.</td>
+</tr>
+<tr>
+<td>Hide or show, colour, select all, select children or clear the selection with the Outline toolbar's icons</td>
+<td>The toolbar is one <code>Tab</code> stop before the tree (product owner, 28 Oct 2026): <code>←</code> and <code>→</code> move along it, <code>Home</code> and <code>End</code> to its ends, <code>Enter</code> or <code>Space</code> presses; a button that cannot act is still reached, its reason read with it. <strong>Colour</strong> opens its swatches with the keyboard on them: <code>←</code> <code>→</code> choose, <code>Enter</code> colours, <code>Tab</code> to <strong>Custom</strong> to type <code>#rrggbb</code>, <code>Escape</code> closes. In VS Code, the Outline view's title bar (<code>Tab</code> to it from the view, or the Command Palette: <strong>Hide selected on map</strong>, <strong>Colour selected…</strong>, <strong>Select all in the Outline</strong>, <strong>Select children</strong>, <strong>Clear selection</strong>), the colour a QuickPick (<a href="../selection/">selection</a>).</td>
 </tr>
 <tr>
 <td>Pan, zoom</td>
@@ -1839,7 +1943,7 @@
 </tbody>
 </table>
 <h2 id="reference-implementation">Reference implementation<a class="headerlink" href="#reference-implementation" title="Permanent link">&para;</a></h2>
-<p><code>vscode/webview/mapedit.ts</code> (keys while drawing and on handles) and <code>vscode/webview/drawing.ts</code>; <code>vscode/webview/trackmap.ts</code> and <code>vscode/webview/trackedit.ts</code> for a track's handles. The playground tests <code>vscode/test/play/drawing.mjs</code> and <code>vscode/test/play/tracks.mjs</code> place a marker, change an area, move and rotate a track, <code>vscode/test/play/shear.mjs</code> shears and stretches one, and <code>vscode/test/play/fixdrag.mjs</code> moves a single fix, from the keyboard alone; <code>vscode/test/play/tote.mjs</code> chooses the Tote's tracks from the keyboard and by press and hold; <code>vscode/test/play/narrative.mjs</code> reads, chooses, adds, changes and deletes narrative entries from the keyboard.</p>
+<p><code>vscode/webview/mapedit.ts</code> (keys while drawing and on handles) and <code>vscode/webview/drawing.ts</code>; <code>vscode/webview/trackmap.ts</code> and <code>vscode/webview/trackedit.ts</code> for a track's handles. The playground tests <code>vscode/test/play/drawing.mjs</code> and <code>vscode/test/play/tracks.mjs</code> place a marker, change an area, move and rotate a track, <code>vscode/test/play/shear.mjs</code> shears and stretches one, and <code>vscode/test/play/fixdrag.mjs</code> moves a single fix, from the keyboard alone; <code>vscode/test/play/tote.mjs</code> chooses the Tote's tracks from the keyboard and by press and hold; <code>vscode/test/play/narrative.mjs</code> reads, chooses, adds, changes and deletes narrative entries from the keyboard; <code>vscode/test/play/sensors.mjs</code> keeps a side of a sensor's cuts in the window from the keyboard. <code>vscode/test/play/tma.mjs</code> opens a sensor to its cuts in the Outline and chooses a run of them, makes a solution by form, and checks the tree's levels, places and keys, from the keyboard; <code>vscode/test/unit/outline.test.ts</code> holds every key and click of the tree.</p>
 
 
 

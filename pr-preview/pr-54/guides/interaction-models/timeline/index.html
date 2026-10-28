@@ -16,7 +16,7 @@
         <link rel="prev" href="../tote/">
       
       
-        <link rel="next" href="../collation/">
+        <link rel="next" href="../sensors/">
       
       
         
@@ -71,7 +71,7 @@
     
     
     
-    <body dir="ltr" data-md-color-scheme="default" data-md-color-primary="indigo" data-md-color-accent="indigo"><div class="pr-preview-banner" style="background:#fff4ce;color:#3b2f00;border-bottom:1px solid #e0c060;padding:6px 16px;font:14px/1.4 system-ui,sans-serif;text-align:center">Preview of <a style="color:inherit;text-decoration:underline" href="https://github.com/debrief/fuudee/pull/54">pull request #54</a>: Walkthroughs: the Get Started page beside the map, not under it. Built from 82c87dd on 2026-10-24 14:50 UTC. <a style="color:inherit;text-decoration:underline" href="https://debrief.github.io/fuudee/pr-preview/">All previews</a></div>
+    <body dir="ltr" data-md-color-scheme="default" data-md-color-primary="indigo" data-md-color-accent="indigo"><div class="pr-preview-banner" style="background:#fff4ce;color:#3b2f00;border-bottom:1px solid #e0c060;padding:6px 16px;font:14px/1.4 system-ui,sans-serif;text-align:center">Preview of <a style="color:inherit;text-decoration:underline" href="https://github.com/debrief/fuudee/pull/54">pull request #54</a>: Walkthroughs: the Get Started page beside the map, not under it. Built from 600a497 on 2026-10-28 22:18 UTC. <a style="color:inherit;text-decoration:underline" href="https://debrief.github.io/fuudee/pr-preview/">All previews</a></div>
   
     
     <input class="md-toggle" data-md-toggle="drawer" type="checkbox" id="__drawer" autocomplete="off">
@@ -905,6 +905,10 @@
       
         
       
+        
+      
+        
+      
     
     
     
@@ -1484,6 +1488,62 @@
   
 </nav>
       
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../sensors/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Sensors and bearings
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../tma/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    TMA solutions
+  
+
+    
+  </span>
+  
+  
+
+      </a>
     </li>
   
 
@@ -2314,7 +2374,7 @@
 <li><strong>ahead:</strong> more than an hour after the entry after it, that being the earliest of the next three entries that are not themselves more than an hour before the entry before. The earliest, so that numbers in a row (<em>2000 yds</em>, <em>2100 yds</em>) do not vouch for each other; a late entry after it, within the hour, does not count against it.</li>
 </ul>
 <p>An entry with its metadata (<code>DTG,day,month,year,platform,type,text</code>) is never text, however out of order: its metadata says it is an entry. So that one entry out of order does not take the rest of the log with it, a line more than an hour behind is still an entry when the next entries, two at least, are all with it and all more than an hour before the entry before: it was the entry before that was out of order. The limits, said plainly: the last line of a log has nothing after it, so a number there is checked against the entry before only; a run of four or more numbers, each well ahead, vouch for each other and are entries, as legacy Debrief read them, and the log goes on from the entry after them; a genuine late entry written more than an hour late, followed by entries in order, is text. Legacy Debrief's sample logs have none of these: their counts are unchanged.</p>
-<p>FCS entries are read as legacy Debrief read them (bearing, range in kiloyards, yards or metres, course, speed, classification, track number, the solution's source) and kept as narrative: TMA solution positions on the platform's track wait for TMA solutions in the data model (Phase 4, D stream), and the record says how many there were. Rider bearings, which legacy Debrief also made sensor cuts, stay in the entry's text until sensor data comes.</p>
+<p>FCS entries are read as legacy Debrief read them (bearing, range in kiloyards, yards or metres, course, speed, classification, track number, the solution's source) and kept as narrative: TMA solution positions on the platform's track wait for TMA solutions in the data model (Phase 4, D stream), and the record says how many there were. A Rider entry's bearing, with its ambiguous twin, is also a cut of the sensor <em>Rider bearings</em> on the platform's track, as legacy Debrief made it (product owner, 24 Oct 2026; <a href="../sensors/">sensors and bearings</a>); the entry keeps it in its text.</p>
 <p>Where this differs from legacy Debrief, deliberately: times are UTC throughout (legacy Debrief read some in the machine's time zone); a day or time that does not exist is listed, not rolled on (legacy's 31 April was 1 May); a long type missing its comma keeps its whole first word (legacy cut its last letter); every line continuing an entry is joined to it (legacy joined six, dropped the seventh and went on joining; product owner, 15 Oct 2026); a bad line or Rider row is listed with its number and why, and reading goes on (legacy stopped some imports at the first); a Rider log that passes midnight goes on into the next day (legacy kept the first day); an entry's type <em>N/A</em> is no type. A day marker's two-figure year follows the entries' rule (after 80, 19xx).</p>
 <p><strong>What the analyst is asked</strong>, as legacy Debrief asked, before a document is read into the open plot (<code>debrief/preview_narrative</code> says what the file holds, changing nothing):</p>
 <ul>
