@@ -1152,7 +1152,16 @@ export async function playSelectBearings(page, shot) {
     const right = Math.min(...best.map((p) => p[1].at));
     const times = best.map((p) => p[0].time);
     const gap = 1000;
+    // A quiet stretch away from the run: only unresolved pairs, at least 8 px of the plot tall.
+    const inRun = new Set(best.map((p) => p[1].id));
+    const half = (4 * (t1 - t0)) / st.boxes.bearing.height;
+    const all = [...byId.entries()];
+    const quietAt = pairs
+      .map((p) => p[0].time)
+      .find((t) => t - half > t0 && t + half < t1 && all.every(([id, ms]) => ms[0].time < t - half || ms[0].time > t + half || (ms.length === 2 && !inRun.has(id))) && all.some(([, ms]) => Math.abs(ms[0].time - t) <= half));
     return {
+      quiet: quietAt === undefined ? undefined : [quietAt - half, quietAt + half],
+      times,
       from: Math.min(...times) - gap,
       to: Math.max(...times) + gap,
       split: (left + right) / 2,
@@ -1189,11 +1198,60 @@ export async function playSelectBearings(page, shot) {
   await showPanel(page, "bearings");
   assert.equal(JSON.stringify((await state()).zoom), zoom, "the zoom kept through undo and redo");
 
-  // The same box again: nothing to change, no step, said.
+  // The same box again (product owner, 28 Oct 2026): the box toggles, so those cuts, resolved, their
+  // kept dots boxed, are made ambiguous again, one step, their faint pairs back.
+  const resolvedOf = (ids) => page.evaluate((ids) => window.debriefTma.shown.cuts.filter((c) => ids.includes(c.id) && c.resolved).map((c) => c.id), ids);
+  const settledTo = (ids, n) => page.waitForFunction(({ ids, n }) => window.debriefTma.shown.cuts.filter((c) => ids.includes(c.id) && c.resolved).length === n, { ids, n }, { timeout: 60000 });
+  const boxRun = async (to) => {
+    const steps0 = await steps();
+    await drag(await at("bearing", run.split, to), await at("bearing", a1 - 0.01 * (a1 - s.axes.bearing[0]), run.from));
+    await stepAdded(steps0);
+    assert.equal(await steps(), steps0 + 1, "one step");
+    return latest();
+  };
+  const n = run.ids.length;
+  const unresolved = await boxRun(run.to);
+  assert.match(unresolved, new RegExp(`^Made ${n} Towed array cuts ambiguous again, \\d\\d:\\d\\d:\\d\\dZ–\\d\\d:\\d\\d:\\d\\dZ$`));
+  assert.match(await view.locator(".tma-status").textContent(), new RegExp(`^Made ${n} cuts ambiguous again, one step`));
+  await settledTo(run.ids, 0);
+  const pairsBack = await page.evaluate((ids) => window.debriefTma.bearingMarkers().filter((m) => ids.includes(m.id)).length, run.ids);
+  assert.equal(pairsBack, 2 * n, "both faint dots of each pair back");
+  assert.equal(JSON.stringify((await state()).zoom), zoom, "the zoom kept");
+  await picture("select-bearings-04-made-ambiguous-again");
+  // Undone, kept again; redone, ambiguous again.
+  await showPanel(page, "history");
+  await page.locator("#undo").click();
+  await settledTo(run.ids, n);
+  await page.locator("#redo").click();
+  await settledTo(run.ids, 0);
+  await showPanel(page, "bearings");
+
+  // A mixed run: its earlier part kept first, then the whole run boxed: that part made ambiguous
+  // again and the rest kept, one step, the note counting each.
+  const middle = (run.times[Math.floor(n / 2) - 1] + run.times[Math.floor(n / 2)]) / 2;
+  await boxRun(middle);
+  const part = await resolvedOf(run.ids);
+  assert.ok(part.length > 0 && part.length < n, `part of the run kept: ${part.length} of ${n}`);
+  const mixed = await boxRun(run.to);
+  const plural = n - part.length === 1 ? "" : "s";
+  assert.match(mixed, new RegExp(`^Kept ${n - part.length} (Towed array )?cut${plural} to ${side} and made ${part.length} ambiguous again(, \\d\\d:\\d\\d:\\d\\dZ–\\d\\d:\\d\\d:\\d\\dZ)?$`));
+  assert.match(await view.locator(".tma-status").textContent(), new RegExp(`^Kept ${n - part.length} cuts? to ${side} and made ${part.length} ambiguous again, one step`));
+  await settledTo(run.ids, n - part.length);
+  assert.deepEqual((await resolvedOf(run.ids)).sort(), run.ids.filter((id) => !part.includes(id)).sort(), "the part kept made ambiguous, the rest kept");
+  await showPanel(page, "history");
+  await page.locator("#undo").click();
+  await settledTo(run.ids, part.length);
+  await page.locator("#redo").click();
+  await settledTo(run.ids, n - part.length);
+  await showPanel(page, "bearings");
+
+  // Nothing to change: unresolved pairs boxed on both sides are left; no step, said.
+  assert.ok(run.quiet, "a quiet stretch of unresolved pairs");
   before = await steps();
-  await drag(await at("bearing", run.split, run.to), await at("bearing", a1 - 0.01 * (a1 - s.axes.bearing[0]), run.from));
+  const [b0now, b1now] = (await state()).axes.bearing;
+  await drag(await at("bearing", b0now + 0.01 * (b1now - b0now), run.quiet[1]), await at("bearing", b1now - 0.01 * (b1now - b0now), run.quiet[0]));
   await page.waitForFunction(() => /^Nothing to change/.test(document.querySelector("#bearings .tma-status")?.textContent ?? ""));
-  assert.match(await view.locator(".tma-status").textContent(), new RegExp(`^Nothing to change: ${run.ids.length} cuts kept so already\\.$`));
+  assert.match(await view.locator(".tma-status").textContent(), /^Nothing to change: \d+ cuts? boxed on both sides, left as (it was|they were)\.$/);
   await page.waitForTimeout(500);
   assert.equal(await steps(), before, "no step");
 
@@ -1224,5 +1282,5 @@ export async function playSelectBearings(page, shot) {
   assert.equal(await view.locator(".tma-legend li").count(), 2);
   await picture("select-bearings-03-both-tracks");
   if (rearranged) await everyPanelLeft(page);
-  console.log(`Select bearings on serial 1: "${named}", one step, the zoom kept; Course/Speed: BLUE ONE ${cLo.toFixed(1)}° to ${cHi.toFixed(1)}°, speeds to ${s.course.series[0].speeds[1].toFixed(1)}; then BLUE ONE and ${s.course.series[1].name}.`);
+  console.log(`Select bearings on serial 1: "${named}", then "${unresolved}", then "${mixed}", one step each, the zoom kept; Course/Speed: BLUE ONE ${cLo.toFixed(1)}° to ${cHi.toFixed(1)}°, speeds to ${s.course.series[0].speeds[1].toFixed(1)}; then BLUE ONE and ${s.course.series[1].name}.`);
 }

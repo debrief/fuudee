@@ -861,7 +861,14 @@ class ToolService:
         if method == "debrief/resolve_ambiguity":
             asked = {
                 k: params[k]
-                for k in ("keep", "cut_ids", "other_cut_ids", "sensor_ids", "period")
+                for k in (
+                    "keep",
+                    "cut_ids",
+                    "other_cut_ids",
+                    "clear_cut_ids",
+                    "sensor_ids",
+                    "period",
+                )
                 if k in params
             }
             step = catalogue.resolve_ambiguity(item, asked, agent, base, allow_newer_schema=allow)

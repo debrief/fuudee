@@ -1295,7 +1295,13 @@ class Catalogue:
                 "notes": done.notes,
                 "parameters": sensors.resolution_parameters(asked),
                 "selected": list(
-                    dict.fromkeys([*(asked.cut_ids or []), *(asked.other_cut_ids or [])])
+                    dict.fromkeys(
+                        [
+                            *(asked.cut_ids or []),
+                            *(asked.other_cut_ids or []),
+                            *(asked.clear_cut_ids or []),
+                        ]
+                    )
                 )
                 or list(asked.sensor_ids or []),
             }

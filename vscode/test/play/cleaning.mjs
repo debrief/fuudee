@@ -147,7 +147,8 @@ export async function playCleaning(page, shot) {
   await dialog.getByRole("button", { name: "Save" }).click();
   await stepAdded(n);
   assert.equal(await latest(), `RED ONE fix at ${when}: comment added`);
-  // The list says the fix's mark; the map draws the label and a dot in the fix's colour.
+  // The list says the fix's mark (polled: the list is drawn again once the step is read back); the map draws the label and a dot in the fix's colour.
+  await side.locator(".fix-list li.selected .detail", { hasText: "Wheel over for the second leg" }).waitFor();
   assert.match(await side.locator(".fix-list li.selected .detail").innerText(), /coloured yellow · labelled 'Turn 1' · Wheel over for the second leg/);
   await mapFrame.locator(".fix-label", { hasText: "Turn 1" }).last().waitFor(); // the label drawn before fades out
   assert.equal(await page.evaluate(() => document.scrollingElement.scrollTop), 0, "the long fix list scrolls in its panel, not the page");
