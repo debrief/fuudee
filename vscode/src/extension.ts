@@ -6,11 +6,12 @@
  */
 import { userInfo } from "node:os";
 import * as vscode from "vscode";
-import type { AnnotationSpec, ContextTracksEnum, CoverageReport, KnownStore, FigureSource, RevisionShown, NarrativeSpec, ReviewFlag, SourceTrackRef, TimelineEntry, ParameterValue, PlotView, SharedState, SharedStateChange, TimeRange, ToolDeclaration, ToteResult, ToteView as ToteChoice, TrackEdit } from "@debrief/schemas";
+import type { AmbiguityResolution, AnnotationSpec, ContextTracksEnum, CoverageReport, KnownStore, FigureSource, RevisionShown, NarrativeSpec, ReviewFlag, SourceTrackRef, TimelineEntry, ParameterValue, PlotView, SharedState, SharedStateChange, TimeRange, TmaFocus, TmaRequest, TmaView, ToolDeclaration, ToteResult, ToteView as ToteChoice, TrackEdit } from "@debrief/schemas";
 import { figureIdProblem, formatBearing, formatPosition, formatQuantity, parsePosition, POSITION_EXAMPLE, UNIT_LABELS } from "@debrief/kernel";
-import { defaultPivotIndex, describeDistance, describeSpeed, describeTurn, FIX_PROMPT, FIX_PROMPT_DR, fixIndexAt, fixMeans, fixToEdit, jumpSpeed, legNow, mergedName, mergePlan, periodIndices, readBearing, readDistance, readSpeed, readTurn, reckoningOf, type Anchor } from "../webview/trackedit.js";
+import { defaultPivotIndex, describeDistance, describeSpeed, describeTurn, FIX_PROMPT, FIX_PROMPT_DR, fixIndexAt, fixMeans, fixToEdit, jumpSpeed, legNow, mergedName, mergePlan, periodIndices, readArrayOffset, arrayOffsetTitle, readBearing, readDistance, readSpeed, readTurn, reckoningOf, type Anchor } from "../webview/trackedit.js";
+import { legExtent } from "../webview/tma.js";
 import { chooseModes, MODE_LABELS, modeChoices, modeQuestion, REMEMBERED_IN_VSCODE, rememberItem, type ModeChoice, type PlottingMode } from "./importmode.js";
-import { addStore, loadConfig, narrativeAnswers, removeStore, sameLocation, trackImportMode, updateConfig, withNarrativeAnswers, withTrackImportMode, type TrackImportMode } from "@debrief/config";
+import { addStore, DEFAULT_TMA_ERROR_CUT_OFF, loadConfig, narrativeAnswers, removeStore, sameLocation, tmaErrorCutOff, trackImportMode, updateConfig, withNarrativeAnswers, withTmaErrorCutOff, withTrackImportMode, type TrackImportMode } from "@debrief/config";
 import { changedSince, historyOnDisk, knownStores, openPlot, plotFile, type OpenedPlot } from "./catalogue.js";
 import { existsSync, statSync, unwatchFile, watchFile } from "node:fs";
 import { mkdir, realpath, rename, rm, stat, unlink, writeFile } from "node:fs/promises";
@@ -18,6 +19,8 @@ import path from "node:path";
 import { count, describePeriod, describeTimes, describeToolRun, settings as displaySettings } from "./format.js";
 import { answersToRemember, choicesOf, describeAnswers, duplicateQuestion, NARRATIVE_FILES, periodChoices, questionsFor, readSummary, rememberedAnswers, typeWords, type NarrativeAnswers, type NarrativeChoices, type NarrativePreview } from "./narrativeimport.js";
 import { placeToolTime } from "../webview/timelogic.js";
+import { cutChoices, cutNow, cutTitle, describeCut, featureName, KEEP_CHOICES, placeOfCut, resolutionFor, type ArrayMode, scopeChoices, sensorsOf, type CutScope, type Keep, type ResolveContext } from "../webview/sensors.js";
+import { describeSensorInFile, hostChoices, hostQuestion, hostsToAsk, sensorReadSummary, type SensorPreview } from "./sensorimport.js";
 import { resolveTimes } from "./timeinput.js";
 import { AnnotationPanel } from "./panels/annotation.js";
 import { FormPanel } from "./panels/form.js";
@@ -25,6 +28,7 @@ import { MapPanel } from "./panels/map.js";
 import { ResultsPanel } from "./panels/results.js";
 import { TIME_VIEW, TimeView } from "./panels/timeview.js";
 import { TOTE_VIEW, ToteView } from "./panels/toteview.js";
+import { BEARINGS_VIEW, BearingsView } from "./panels/bearingsview.js";
 import { TIMELINE_VIEW, TimelineView } from "./panels/timelineview.js";
 import { COVERAGE_VIEW, CoverageView, type CoverageAsk } from "./panels/coverageview.js";
 import { startup, type StartupSnapshot } from "./startup.js";
@@ -42,11 +46,22 @@ import { specOfFeature } from "../webview/annotationlook.js";
 import { FIX_COLOURS, TRACK_COLOURS } from "../webview/palette.js";
 import { Session, timeProblem } from "./session.js";
 import { CataloguesProvider, type CollationMarks } from "./views/catalogues.js";
-import { featureIdsOf, OutlineProvider } from "./views/outline.js";
-import { ToolsProvider } from "./views/tools.js";
-import { BESIDE, BY_HAND, LOG_FILE, openedEvent, openOnFirstRun, prepare, serviceEvent, toteCompares, TOURS, tourOfEvent, WalkthroughProgress } from "./walkthroughs.js";
+import { featureIdsOf, keysOf, OutlineProvider, type Node as OutlineNode } from "./views/outline.js";
+import { OPERATION_COMMANDS, ToolsProvider } from "./views/tools.js";
+import { hexColour, selectionChildren, selectionColour, selectionVisibility, type Visibility } from "../webview/outlinetoolbar.js";
+import { exclusionTarget, featureIdsOfPicks, fixKey, outlineChoice, outlineOperations, pickedCuts, pickOf, tmaRequestOf, type Operation, type OperationContext, type OperationId, type OutlineFocus, type OutlinePick } from "../webview/outlinemodel.js";
+import { AFTER_OPEN, BESIDE, BY_HAND, LOG_FILE, openedEvent, openOnFirstRun, prepare, serviceEvent, toteCompares, TOURS, tourOfEvent, WalkthroughProgress } from "./walkthroughs.js";
+import { NO_SOLUTION, withSolution } from "../walkthroughs/contribute.mjs";
 
 /** What the integration tests and agents can inspect. */
+/** The Outline toolbar's context keys (product owner, 28 Oct 2026). */
+export interface OutlineToolbarKeys {
+  visibility: Visibility;
+  colourable: boolean;
+  hasChildren: boolean;
+  selected: boolean;
+}
+
 export interface DebriefApi {
   session: Session;
   /**
@@ -83,6 +98,17 @@ export interface DebriefApi {
   toteShowing: () => boolean;
   /** Whether the Timeline view in the sidebar has loaded, for tests and agents. */
   timelineShowing: () => boolean;
+  /**
+   * The Outline's rows under a row's, by its key (a track's sensors, CAP-22; a sensor's cuts, a
+   * solution's legs and a leg's positions, 27 Oct 2026): their labels, descriptions, keys and menus, for tests and agents.
+   */
+  outlineChildren: (id: string) => { label: string; description: string; key?: string; context?: string }[];
+  /** The Outline's rows chosen, by key (a leg's or a position's is its solution's with #leg2 or #fix14), for tests and agents. */
+  outlineKeys: () => string[];
+  /** The Outline toolbar's context keys as last set (product owner, 28 Oct 2026), for tests. */
+  outlineToolbar: () => OutlineToolbarKeys;
+  /** A feature's own row in the Outline, as it reads: for tests. */
+  outlineItem: (id: string) => { label: string; description: string } | undefined;
   /** A message to the extension as the Timeline's page sends it (Ctrl+Z there posts undo_asked), for tests. */
   timelineMessage: (message: unknown) => void;
   /** Whether the Coverage view has loaded, for tests and agents. */
@@ -91,6 +117,8 @@ export interface DebriefApi {
   coverage: () => CoverageReport | undefined;
   /** A message to the extension as the Coverage page sends it, for tests. */
   coverageMessage: (message: unknown) => void;
+  /** A message to the extension as if the Bearings view had sent it (tests). */
+  bearingsMessage: (message: unknown) => Promise<void>;
   /** What the Catalogues tree marks: new data and review flags (CAP-10, CAP-12), for tests and agents. */
   catalogueMarks: () => CollationMarks;
   /** The narrative entry the map shows beside its track at current time, for tests and agents (CAP-20). */
@@ -102,6 +130,15 @@ export interface DebriefApi {
   /** The Tote's values last shown, and how long answers took to show (CAP-06, NFR-04), for tests and agents. */
   tote: () => ToteResult | undefined;
   toteLatency: () => { count: number; p50: number; p95: number; max: number };
+  /** What the bearing view was last sent: the sensors, cuts, solutions and residuals (CAP-21), for tests and agents. */
+  bearings: () => TmaView | undefined;
+  bearingsShowing: () => boolean;
+  /** Whether Bearings is in sight now, in the panel below the editor unless moved (for tests). */
+  bearingsVisible: () => boolean;
+  /** The Bearings plot as last drawn, CSS pixels: its height and each pane's width (tma_plot_drawn), for tests. */
+  bearingsPlot: () => { height: number; panes: number[] } | undefined;
+  /** The cuts the map is waiting for two clicks on, for a first guess. */
+  mapGuessing: () => TmaRequest | undefined;
   /** When the extension activated and each webview loaded and was first shown something (docs/notes/webview-startup.md). */
   startupTimings: () => StartupSnapshot;
   /** The walkthrough steps the analyst has done, by their events (CAP-25), for tests and agents. */
@@ -164,9 +201,77 @@ export function activate(context: vscode.ExtensionContext): DebriefApi {
 
   const catalogues = new CataloguesProvider(configFile);
   const outline = new OutlineProvider(session);
-  const tools = new ToolsProvider(session);
+  const tools = new ToolsProvider(session, () => outlineOperationsNow());
   const history = new HistoryProvider((name) => listing?.tools.find((t) => t.name === name)?.title);
   const outlineView = vscode.window.createTreeView("debrief.outline", { treeDataProvider: outline, canSelectMany: true });
+  /** The Outline's rows chosen, by key: features, cuts, legs and positions (product owner, 27 Oct 2026). */
+  let outlineKeys: string[] = [];
+  /** The rows a selection about to be made elsewhere stands for (a position clicked in Bearings, a walkthrough's step). */
+  let nextKeys: string[] | undefined;
+  /** The row to bring into sight for the next selection made elsewhere: undefined for the last chosen, null for none (Select all). */
+  let revealNext: string | null | undefined;
+  /** The Outline toolbar's context keys as set (product owner, 28 Oct 2026): what its title bar's buttons show and whether they act. */
+  let toolbarKeys: OutlineToolbarKeys = { visibility: "none", colourable: false, hasChildren: false, selected: false };
+  let toolbarKeysSet = false;
+  /** What the Outline's rows stand for. */
+  const outlinePicks = (keys: readonly string[] = outlineKeys): OutlinePick[] => {
+    const index = outline.index;
+    return index ? keys.map((k) => pickOf(index, k)).filter((p): p is OutlinePick => !!p) : [];
+  };
+  /** What the Tools' entries act on: the Outline's rows chosen, what Bearings shows, the time window. */
+  const operationContext = (keys?: readonly string[]): OperationContext | undefined => {
+    const index = outline.index;
+    if (!index || !session.current) return undefined;
+    const range = session.time?.range;
+    return {
+      index,
+      picks: outlinePicks(keys),
+      shownSolution: bearingsView.solutionShown,
+      ...(range && { window: { start: Date.parse(range.start), end: Date.parse(range.end) } }),
+      ...(session.current.revision && { readOnly: true }),
+    };
+  };
+  function outlineOperationsNow(): Operation[] {
+    const context = operationContext();
+    return context ? outlineOperations(context) : [];
+  }
+  /** The Outline's rows chosen changed: Bearings follows them, the Tools offer what can be done to them. */
+  function outlineChanged(): void {
+    bearingsView.follow(outlinePicks());
+    tools.refresh();
+    outline.markKeys(outlineKeys);
+    updateToolbarKeys();
+  }
+  /**
+   * The Outline toolbar's context keys (product owner, 28 Oct 2026), for the view title bar's when
+   * and enablement clauses: debrief.selectionVisibility (visible, hidden, mixed or none: which eye
+   * shows, and whether it acts), debrief.selectionColourable, debrief.selectionHasChildren and
+   * debrief.selectionNotEmpty. Set only when they change.
+   */
+  function updateToolbarKeys(): void {
+    const c = operationContext();
+    const next: OutlineToolbarKeys = c
+      ? {
+          visibility: selectionVisibility(c.index, c.picks, c.readOnly).state,
+          colourable: selectionColour(c.index, c.picks, c.readOnly).enabled,
+          hasChildren: !selectionChildren(c.index, c.picks).reason,
+          selected: c.picks.length > 0,
+        }
+      : { visibility: "none", colourable: false, hasChildren: false, selected: false };
+    const names: Record<keyof OutlineToolbarKeys, string> = { visibility: "debrief.selectionVisibility", colourable: "debrief.selectionColourable", hasChildren: "debrief.selectionHasChildren", selected: "debrief.selectionNotEmpty" };
+    for (const key of Object.keys(names) as (keyof OutlineToolbarKeys)[]) {
+      if (toolbarKeys[key] !== next[key] || !toolbarKeysSet) void vscode.commands.executeCommand("setContext", names[key], next[key]);
+    }
+    toolbarKeys = next;
+    toolbarKeysSet = true;
+  }
+  /** Current time to a position chosen in the Outline, the window widened to take it in if need be, shown not saved. */
+  function outlineTimeTo(at: string): void {
+    const range = session.time?.range;
+    if (!range) return;
+    const within = at >= range.start && at <= range.end;
+    session.setTime({ current: at, range: within ? range : { start: at < range.start ? at : range.start, end: at > range.end ? at : range.end } }, "outline");
+  }
   // What the menus need to know of the open plot: whether there is one, and whether it has a north arrow.
   session.onPlot((opened) => {
     void vscode.commands.executeCommand("setContext", "debrief.plotOpen", !!opened);
@@ -226,6 +331,105 @@ export function activate(context: vscode.ExtensionContext): DebriefApi {
       if (how === "undo" ? history.canUndo() : history.canRedo()) void vscode.commands.executeCommand(`debrief.${how}`);
     },
   );
+  // The bearing view: a sensor's cuts, TMA solutions made from them, and their residuals (CAP-21).
+  /** The cuts two clicks on the map are asked for, until they are made or cancelled. */
+  let pendingGuess: TmaRequest | undefined;
+  const bearingsView = new BearingsView(
+    context.extensionUri,
+    session,
+    {
+      cuts: async (sensorId) => {
+        const opened = session.current;
+        if (!service || !opened) return undefined;
+        const answer = await service.sensorCuts(opened.store.id, opened.item.id, sensorId);
+        return answer.sensors[0]?.cut_list;
+      },
+      residuals: async (solutionId) => {
+        const opened = session.current;
+        if (!service || !opened) return undefined;
+        return (await service.tmaResiduals(opened.store.id, opened.item.id, solutionId)).residuals;
+      },
+    },
+    {
+      create: async (request) => {
+        const done = await vscode.commands.executeCommand<{ problem?: string; feature?: string } | undefined>("debrief.tmaCreate", request);
+        return done ?? { problem: "The solution was not made." };
+      },
+      guess: (request) => {
+        pendingGuess = request;
+        map.guess(request);
+      },
+      exclude: async (solutionId, cutIds, excluded) => (await vscode.commands.executeCommand<{ problem?: string } | undefined>("debrief.tmaExclude", solutionId, cutIds, excluded))?.problem,
+      split: async (solutionId, at) => (await vscode.commands.executeCommand<{ problem?: string } | undefined>("debrief.tmaSplitLeg", solutionId, { at }))?.problem,
+      resolve: async (cutId, keep) => (await vscode.commands.executeCommand<{ problem?: string } | undefined>("debrief.resolveAmbiguity", { keep, cut_ids: [cutId] }))?.problem,
+      // A box drawn with Select bearings on (product owner, 28 Oct 2026): the same command, the same step.
+      resolveCuts: async (resolution) => (await vscode.commands.executeCommand<{ problem?: string } | undefined>("debrief.resolveAmbiguity", resolution))?.problem,
+      // A dot clicked: its cut, or the solution's position there, selected in the Outline (product owner, 27 Oct 2026).
+      select: (id, fix) => {
+        nextKeys = fix === undefined ? undefined : [fixKey(id, fix)];
+        session.select([id], "bearings");
+        if (nextKeys) {
+          // The solution was selected already: the position chosen all the same.
+          outlineKeys = nextKeys;
+          nextKeys = undefined;
+          revealKeys();
+          outlineChanged();
+        }
+      },
+      // The error cut-off: kept in the analyst's configuration (debrief-config), shown in Settings as debrief.tma.errorCutOff.
+      cutOff: (degrees) => void rememberCutOff(degrees),
+      get errorCutOff() {
+        return rememberedCutOff();
+      },
+    },
+    log,
+  );
+  // The Bearings view's error cut-off (product owner, 25 Oct 2026): the analyst's, in their
+  // Debrief configuration as the import mode is, and shown in Settings; never in a plot.
+  const rememberedCutOff = (): number => {
+    try {
+      return tmaErrorCutOff(loadConfig(configFile));
+    } catch {
+      return DEFAULT_TMA_ERROR_CUT_OFF;
+    }
+  };
+  const rememberCutOff = async (degrees: number) => {
+    try {
+      updateConfig((c) => withTmaErrorCutOff(c, degrees), configFile);
+    } catch (error) {
+      void vscode.window.showWarningMessage(`The error cut-off was not kept: ${(error as Error).message}`);
+      return;
+    }
+    const setting = vscode.workspace.getConfiguration("debrief");
+    if (setting.get<number>("tma.errorCutOff") !== degrees) await setting.update("tma.errorCutOff", degrees, vscode.ConfigurationTarget.Global);
+    void bearingsView.refresh();
+  };
+  void (async () => {
+    const setting = vscode.workspace.getConfiguration("debrief");
+    const held = rememberedCutOff();
+    if (setting.get<number>("tma.errorCutOff", DEFAULT_TMA_ERROR_CUT_OFF) !== held) await setting.update("tma.errorCutOff", held, vscode.ConfigurationTarget.Global);
+  })();
+  context.subscriptions.push(
+    vscode.workspace.onDidChangeConfiguration((event) => {
+      if (!event.affectsConfiguration("debrief.tma.errorCutOff")) return;
+      const degrees = vscode.workspace.getConfiguration("debrief").get<number>("tma.errorCutOff", DEFAULT_TMA_ERROR_CUT_OFF);
+      if (degrees >= 0.01 && degrees <= 180 && degrees !== rememberedCutOff()) {
+        try {
+          updateConfig((c) => withTmaErrorCutOff(c, degrees), configFile);
+        } catch {
+          return;
+        }
+        void bearingsView.refresh();
+      }
+    }),
+  );
+  map.previewed = (featureId, preview) => bearingsView.preview(featureId, preview);
+  map.guessed = async (request) => {
+    const asked = pendingGuess;
+    pendingGuess = undefined;
+    if (!request || !asked) return void report("No solution made: the two clicks were cancelled.");
+    await vscode.commands.executeCommand("debrief.tmaCreate", { ...asked, ...request });
+  };
   // Coverage, below Catalogues: collation with coverage visible (CAP-08 to CAP-12).
   const coverageView = new CoverageView(context.extensionUri, session, (ask) => collate(ask), log);
   coverageView.shown = () => tickHere("coverageShown");
@@ -234,6 +438,7 @@ export function activate(context: vscode.ExtensionContext): DebriefApi {
     vscode.window.registerWebviewViewProvider(TIMELINE_VIEW, timeline, { webviewOptions: { retainContextWhenHidden: true } }),
     vscode.window.registerWebviewViewProvider(TIME_VIEW, timeView, { webviewOptions: { retainContextWhenHidden: true } }),
     vscode.window.registerWebviewViewProvider(TOTE_VIEW, toteView, { webviewOptions: { retainContextWhenHidden: true } }),
+    vscode.window.registerWebviewViewProvider(BEARINGS_VIEW, bearingsView, { webviewOptions: { retainContextWhenHidden: true } }),
   );
   const results = new ResultsPanel(context.extensionUri);
 
@@ -284,8 +489,9 @@ export function activate(context: vscode.ExtensionContext): DebriefApi {
         });
         // A change the analyst made through the service ticks the walkthrough step that asks for it (CAP-25).
         // Only to the walkthrough's copy: the plot the request names, or for the log's import, the log beside its catalogue.
-        started.done = (method, params) => {
-          const event = serviceEvent(method, params);
+        started.done = (method, params, result) => {
+          const legsOf = (id: string) => { const f = (session.current?.plot.features ?? []).find((x) => x.id === id && x.properties.kind === "track"); const tma = f && (f.properties as { tma?: { leg_starts?: string[] | null } }).tma; return tma ? 1 + (tma.leg_starts?.length ?? 0) : undefined; };
+          const event = serviceEvent(method, params, legsOf, result);
           if (!event) return;
           const log = path.join(walkthroughFolder("collate"), LOG_FILE);
           const item = method === "debrief/import" ? (sameLocation(String(params.path ?? ""), log) && session.current?.item.id === "serial-1-collate" ? "serial-1-collate" : undefined) : (params.item as string | undefined);
@@ -340,20 +546,51 @@ export function activate(context: vscode.ExtensionContext): DebriefApi {
   // Selection in the outline selects everywhere (SUB-26); selection made elsewhere
   // is revealed in the outline. Revealing changes the tree's own selection, which
   // must not echo back as a new selection.
+  // The Outline's rows chosen, by key (product owner, 27 Oct 2026): features, cuts, and a
+  // solution's legs and positions, which stand for the solution everywhere else. Bearings
+  // follows them, and the Tools offer what can be done to them.
   let revealing: string | undefined;
+  // Which branches are open, so Select all takes the rows listed, as Ctrl+A in the tree does.
+  outlineView.onDidExpandElement((event) => outline.setExpanded(event.element, true));
+  outlineView.onDidCollapseElement((event) => outline.setExpanded(event.element, false));
   outlineView.onDidChangeSelection((event) => {
-    const ids = featureIdsOf(event.selection);
-    if (revealing !== undefined && ids.join() === revealing) return;
-    revealing = undefined;
-    if (ids.length) session.select(ids, "outline"); // clicking a heading leaves the selection alone
+    const keys = keysOf(event.selection);
+    // While a row is being revealed, the tree's own selection events (the row revealed, or, in
+    // VS Code 1.95, the row selected before as the view takes focus) are not the analyst's.
+    if (revealing !== undefined) return;
+    if (!keys.length) return; // clicking a heading, or a page of cuts, leaves the selection alone
+    outlineKeys = keys;
+    // A position chosen: current time to it.
+    const index = outline.index;
+    const fix = index ? [...keys].reverse().map((k) => pickOf(index, k)).find((p) => p?.kind === "fix") : undefined;
+    if (fix && fix.kind === "fix") outlineTimeTo(new Date(index!.solutions.get(fix.solution)!.times[fix.index]).toISOString());
+    session.select(featureIdsOf(event.selection), "outline");
+    outlineChanged();
   });
   session.onSelection((ids, origin) => {
-    if (origin === "outline" || origin === "plot" || !ids.length || !outlineView.visible) return;
-    const node = outline.featureNode(ids[ids.length - 1]);
-    if (!node) return;
-    revealing = ids[ids.length - 1];
-    void outlineView.reveal(node, { select: true, focus: false, expand: true }).then(undefined, () => undefined);
+    if (origin === "outline") return;
+    outlineKeys = nextKeys ?? ids;
+    nextKeys = undefined;
+    const reveal = revealNext;
+    revealNext = undefined;
+    if (origin !== "plot" && reveal !== null) revealKeys(reveal);
+    outlineChanged();
   });
+  session.onPlot((opened) => {
+    const index = outline.index;
+    outlineKeys = opened && index ? outlineKeys.filter((k) => !!pickOf(index, k)) : [];
+    outlineChanged();
+  });
+  /** The Outline's last key chosen elsewhere (or the one named) brought into sight there, its branches opened. */
+  function revealKeys(key?: string): void {
+    const last = key ?? outlineKeys[outlineKeys.length - 1];
+    if (!last || !outlineView.visible) return;
+    const node = outline.nodeOf(last);
+    if (!node) return;
+    const mine = (revealing = last);
+    const done = () => setTimeout(() => revealing === mine && (revealing = undefined), 150);
+    void outlineView.reveal(node, { select: true, focus: false, expand: true }).then(done, done);
+  }
 
   // --- Changes happen one at a time ---------------------------------------------------
   // Every change and reload waits for the one before, so each starts from the base
@@ -652,6 +889,40 @@ export function activate(context: vscode.ExtensionContext): DebriefApi {
         }
         const problem = await reloadPlot(true);
         return { problem, feature: answer.feature, features: answer.features, ...(answer.notes?.length && { notes: answer.notes }) };
+      }),
+    );
+
+  // --- Sensors: ambiguity resolved, sensor data read in (CAP-22) -------------------------
+  /**
+   * Keep a side of ambiguous cuts, or read a file's sensor lines in: one step in the plot's
+   * history each, named by its note ("Port kept: 10 Towed array cuts 09:10:00Z–09:19:00Z"),
+   * undone by Ctrl+Z like any other. A change made elsewhere since the
+   * plot was opened is never overwritten (SUB-28).
+   */
+  const sense = <T extends { notes?: string[] }>(save: (opened: OpenedPlot, allow: boolean) => Promise<T>) =>
+    serially(() =>
+      ourChange(async (): Promise<{ problem?: string; answer?: T }> => {
+        const opened = session.current;
+        if (!opened) return { problem: "Open a plot first." };
+        if (!service || !opened.base) return { problem: "Changing sensor cuts needs Debrief's tool service. Run 'Debrief: Restart tool service'." };
+        let answer: T;
+        try {
+          try {
+            answer = await save(opened, false);
+          } catch (error) {
+            if ((error as ServiceError).code !== NEWER_SCHEMA) throw error;
+            if (!(await confirmNewerSchema((error as Error).message))) return { problem: "Nothing was changed." };
+            answer = await save(opened, true);
+          }
+        } catch (error) {
+          if ((error as ServiceError).code === CONFLICT) {
+            await reloadPlot(true);
+            return { problem: "The plot was changed elsewhere, so nothing was changed. Debrief is showing the latest; try again if you still want to." };
+          }
+          return { problem: (error as Error).message };
+        }
+        const problem = await reloadPlot(true);
+        return { problem, answer };
       }),
     );
 
@@ -1456,18 +1727,58 @@ export function activate(context: vscode.ExtensionContext): DebriefApi {
   // A node from the outline, a list of ids (the map's "Show all"), or else the selection.
   type Target = { feature?: { id: string }; ids?: string[] };
   const targets = (node?: Target) => node?.ids ?? (node?.feature ? [node.feature.id] : session.selection);
-  // colourName lets agents and keyboard macros choose without the picker.
-  command("debrief.setColour", async (node?: Target, colourName?: string) => {
-    const ids = targets(node).filter((id) => session.current?.plot.features.find((f) => f.id === id)?.properties.kind === "track");
-    if (!ids.length) return report("Select one or more tracks to colour.");
-    const choices = TRACK_COLOURS.map((c) => ({ label: c.name, colour: c.colour }));
-    const picked = colourName
-      ? choices.find((c) => c.label.toLowerCase() === colourName.toLowerCase())
-      : await vscode.window.showQuickPick(choices, {
-          placeHolder: `Colour for ${ids.length === 1 ? "the track" : `${ids.length} tracks`}`,
-        });
+  /** A colour given by name from the palette ("Red") or as hex ("#rrggbb"), or why it is not one. */
+  const colourGiven = (given: string): { colour: string; name?: string } | string => {
+    const named = TRACK_COLOURS.find((c) => c.name.toLowerCase() === given.trim().toLowerCase());
+    if (named) return { colour: named.colour, name: named.name.toLowerCase() };
+    const hex = hexColour(given);
+    return hex ? { colour: hex } : `${given} is not a colour: give one of ${TRACK_COLOURS.map((c) => c.name).join(", ")}, or #rrggbb.`;
+  };
+  /**
+   * The palette in a QuickPick, the colour the selection shares marked, and a custom colour typed
+   * as hex (product owner, 28 Oct 2026). Undefined if the analyst chose none.
+   */
+  async function pickColour(what: string, current?: string): Promise<{ colour: string; name?: string } | undefined> {
+    type Item = vscode.QuickPickItem & { colour?: string; name?: string };
+    const items: Item[] = [
+      ...TRACK_COLOURS.map((c) => ({ label: c.name, description: c.colour === current ? `${c.colour} · as now` : c.colour, colour: c.colour, name: c.name.toLowerCase() })),
+      { label: "$(edit) Custom colour…", description: "type #rrggbb", alwaysShow: true },
+    ];
+    const picked = await vscode.window.showQuickPick(items, { title: `Colour ${what}`, placeHolder: "Choose a colour, or a custom one" });
     if (!picked) return undefined;
-    return report(await restyle(ids, { colour: picked.colour, colour_name: picked.label.toLowerCase() }));
+    if (picked.colour) return { colour: picked.colour, name: picked.name };
+    const typed = await vscode.window.showInputBox({
+      title: `Colour ${what}`,
+      prompt: "A colour as #rrggbb (hex)",
+      value: current ?? "",
+      validateInput: (text) => (hexColour(text) ? undefined : "Type a colour as #rrggbb, six hex digits."),
+    });
+    const hex = typed === undefined ? undefined : hexColour(typed);
+    return hex ? { colour: hex } : undefined;
+  }
+  /** The picks a target names: an Outline row's key, a list of ids, or else the Outline's selection. */
+  const picksOf = (node?: Target): OutlinePick[] => {
+    const index = outline.index;
+    if (!index) return [];
+    if (!node?.ids && !node?.feature) return outlinePicks();
+    return targets(node).map((id) => pickOf(index, id)).filter((p): p is OutlinePick => !!p);
+  };
+  // Tracks and solutions, sensors (CAP-22: their cuts are drawn in its colour), cuts and annotations.
+  // colourName lets agents and keyboard macros choose without the picker: a palette name or #rrggbb.
+  async function colourPicks(picks: OutlinePick[], colourName?: string): Promise<string | undefined> {
+    const index = outline.index;
+    if (!index || !session.current) return report("Open a plot first.");
+    const button = selectionColour(index, picks, !!session.current.revision);
+    if (!button.enabled) return report(button.reason);
+    const chosen = colourName ? colourGiven(colourName) : await pickColour(button.what!, button.current);
+    if (typeof chosen === "string") return report(chosen);
+    if (!chosen) return undefined;
+    return report(await restyle(button.ids, { colour: chosen.colour, ...(chosen.name && { colour_name: chosen.name }) }));
+  }
+  // From the Outline's menu with several rows selected, VS Code gives the rows selected second.
+  command("debrief.setColour", (node?: Target, given?: string | OutlineNode[]) => {
+    if (Array.isArray(given) && outline.index) return colourPicks(outlinePicks(keysOf(given)));
+    return colourPicks(picksOf(node), typeof given === "string" ? given : undefined);
   });
   const features = (ids: string[]) =>
     ids.filter((id) => {
@@ -1482,6 +1793,57 @@ export function activate(context: vscode.ExtensionContext): DebriefApi {
     const ids = features(targets(node));
     return report(ids.length ? await restyle(ids, { hidden: false }) : "Select what to show.");
   });
+
+  // --- The Outline's toolbar, in its title bar (product owner, 28 Oct 2026) ---------------------
+  // Hidden on map in three states, one command each so the title bar's icon shows the state
+  // (debrief.selectionVisibility): all shown, the eye, hides them all; all hidden, the closed eye,
+  // shows them all; some of each, the mixed icon, shows them all. Rows that cannot be hidden (legs,
+  // positions) are left out. One step, through debrief/set_hidden, as the Tools' Hide cuts. Given
+  // ids (agents), those instead of the Outline's selection.
+  async function hideOrShow(node?: Target): Promise<string | undefined> {
+    const index = outline.index;
+    if (!index || !session.current) return report("Open a plot first.");
+    const v = selectionVisibility(index, picksOf(node), !!session.current.revision);
+    if (!v.action) return report(v.title);
+    const problem = await restyle(v.ids, { hidden: v.action === "hide" });
+    if (!problem) vscode.window.setStatusBarMessage(`${v.done}.`, 5000);
+    return report(problem);
+  }
+  for (const name of ["debrief.selectionHide", "debrief.selectionShow", "debrief.selectionShowAll"]) command(name, (node?: Target) => hideOrShow(node));
+  // Colour: the selected that have a colour, from the palette or a custom hex, one step.
+  command("debrief.colourSelection", (colourName?: string) => colourPicks(outlinePicks(), typeof colourName === "string" ? colourName : undefined));
+  /** Rows chosen by the toolbar: selected everywhere, the one named (or none) brought into sight. */
+  function chooseKeys(keys: string[], reveal: string | null): void {
+    const picks = outlinePicks(keys);
+    nextKeys = keys;
+    revealNext = reveal;
+    session.select(featureIdsOfPicks(picks), "command");
+    if (nextKeys) {
+      // The features were selected already (a solution's legs for the solution): the rows chosen all the same.
+      outlineKeys = nextKeys;
+      nextKeys = undefined;
+      revealNext = undefined;
+      if (reveal) revealKeys(reveal);
+      outlineChanged();
+    }
+  }
+  // Select all: every row listed (the branches open), as Ctrl+A in the tree.
+  command("debrief.selectAll", () => {
+    if (!session.current) return report("Open a plot first.");
+    chooseKeys(outline.listedKeys(), null);
+    return undefined;
+  });
+  // Select children: the selection replaced by the direct children of what is selected (a track's
+  // sensors, a sensor's cuts, every page of them, a solution's legs, a leg's positions); the first brought into sight.
+  command("debrief.selectChildren", () => {
+    const index = outline.index;
+    if (!index || !session.current) return report("Open a plot first.");
+    const children = selectionChildren(index, outlinePicks());
+    if (children.reason) return report(children.reason);
+    chooseKeys(children.keys, children.keys[0]);
+    return undefined;
+  });
+  command("debrief.outlineToolbarState", () => ({ ...toolbarKeys }));
   // Labels, symbols and arrows (CAP-32): how often, for every track selected at once, as one step.
   // From the outline's menu (with the others selected beside it), the Command Palette or the selection.
   // With intervals given (agents, keyboard macros, tests), no questions: each a duration such as
@@ -1655,16 +2017,33 @@ export function activate(context: vscode.ExtensionContext): DebriefApi {
     const window = session.time?.range;
     const { times } = track.properties;
     const whole = { label: "Whole track", description: describeTimes(times[0], times.at(-1)), period: undefined as TimeRange | undefined };
-    if (!window) return {};
-    const inWindow = periodIndices(times.map(Date.parse), { start: Date.parse(window.start), end: Date.parse(window.end) }).length;
+    // A TMA solution split into legs: the leg current time is in, as This leg drags it on the map.
+    const tma = (track.properties as { tma?: { leg_starts?: string[] | null } }).tma;
+    const leg = tma ? legExtent(times, tma.leg_starts, session.time ? Date.parse(session.time.current) : undefined) : undefined;
+    if (!window && !leg) return {};
+    const inWindow = window ? periodIndices(times.map(Date.parse), { start: Date.parse(window.start), end: Date.parse(window.end) }).length : 0;
     const items = [
       whole,
-      {
-        label: "Current time window",
-        description: `${describeTimes(window.start, window.end)} · ${count(inWindow, "fix", "fixes")}`,
-        detail: "Only the fixes in the window change; the track jumps where they meet the rest.",
-        period: window,
-      },
+      ...(leg
+        ? [
+            {
+              label: "This leg",
+              description: `Leg ${leg.leg} of ${leg.legs} · ${describeTimes(leg.period.start, leg.period.end)}`,
+              detail: "The leg current time is in; the other legs stay where they are.",
+              period: leg.period as TimeRange | undefined,
+            },
+          ]
+        : []),
+      ...(window
+        ? [
+            {
+              label: "Current time window",
+              description: `${describeTimes(window.start, window.end)} · ${count(inWindow, "fix", "fixes")}`,
+              detail: "Only the fixes in the window change; the track jumps where they meet the rest.",
+              period: window as TimeRange | undefined,
+            },
+          ]
+        : []),
     ];
     const picked = await vscode.window.showQuickPick(items, { title: `${verb} ${track.properties.name}`, placeHolder: `What of ${track.properties.name} to ${verb.toLowerCase()}?` });
     return picked && { period: picked.period };
@@ -2239,6 +2618,343 @@ export function activate(context: vscode.ExtensionContext): DebriefApi {
     if (!ids.length) return report("Choose a narrative entry in the Timeline.");
     return narrate({ kind: "delete", features: ids }).then((done) => (report(done.problem), done));
   });
+  // Sensors (CAP-22). Keeping a side of ambiguous cuts: for the cut at the current time,
+  // those in the time window, those selected, or all of a sensor's cuts; port and
+  // starboard for every cut, as legacy offered them (product owner, 24 Oct 2026). From the
+  // Outline's sensor menu, the Command Palette, or the map (Alt-click on one of a cut's two
+  // lines keeps it; a plain click selects the cut and shows its choices). Given a
+  // resolution (agents, the map and tests), it asks nothing.
+  command("debrief.resolveAmbiguity", async (target?: Target | AmbiguityResolution, keepGiven?: Keep, scopeGiven?: CutScope) => {
+    const opened = session.current;
+    if (!opened) return report("Open a plot first.");
+    let resolution: AmbiguityResolution | string;
+    if (target && "keep" in target) resolution = target;
+    else {
+      const entries = sensorsOf(opened.plot);
+      const asked = new Set(targets(target));
+      const byCut = new Map(entries.flatMap((e) => e.cuts.map((c) => [c.id, e.sensor.id] as const)));
+      const named = entries.filter((e) => asked.has(e.sensor.id) || [...asked].some((id) => byCut.get(id) === e.sensor.id));
+      const chosen = named.length ? named : entries.filter((e) => e.cuts.some((c) => !!c.properties.ambiguous_bearing));
+      if (!chosen.length) return report(entries.length ? "No sensor in this plot has ambiguous cuts." : "This plot has no sensors.");
+      const range = session.time?.range;
+      const resolveContext: ResolveContext = {
+        entries: chosen,
+        selected: session.selection,
+        ...(range && { window: { start: Date.parse(range.start), end: Date.parse(range.end) } }),
+        ...(session.time && { at: Date.parse(session.time.current) }),
+      };
+      const sensorWords = chosen.length === 1 ? chosen[0].sensor.properties.name : `${chosen.length} sensors`;
+      const keep = keepGiven ?? (await vscode.window.showQuickPick(KEEP_CHOICES.map((c) => ({ ...c })), { title: `Ambiguous bearings of ${sensorWords}`, placeHolder: "Keep which bearing?" }))?.keep;
+      if (!keep) return undefined;
+      const scopes = scopeChoices(resolveContext);
+      const keepLabel = KEEP_CHOICES.find((c) => c.keep === keep)?.label ?? keep;
+      const scope =
+        scopeGiven ??
+        (scopes.length === 1
+          ? scopes[0].scope
+          : (await vscode.window.showQuickPick(scopes.map((c) => ({ label: c.label, description: c.detail, scope: c.scope })), { title: `${keepLabel}: which cuts of ${sensorWords}?` }))?.scope);
+      if (!scope) return undefined;
+      resolution = resolutionFor(scope, keep, resolveContext);
+    }
+    if (typeof resolution === "string") return report(resolution);
+    const sent = resolution;
+    const done = await sense((o, allow) => service!.resolveAmbiguity(o.store.id, o.item.id, o.base!, agent, sent, allow));
+    if (done.problem) return (report(done.problem), done);
+    const notes = done.answer?.notes ?? [];
+    if (notes.length) void vscode.window.showInformationMessage(notes.join(" "));
+    return done;
+  });
+  // --- TMA solutions (CAP-21; product owner, 24 Oct 2026) ---------------------------------
+  // Made from a period of a sensor's cuts in the Bearings view, with a first guess by form or
+  // by two clicks on the map: one step. Given a request (agents, tests, the view), it asks
+  // nothing; without one, the Bearings view, where the period is chosen.
+  command("debrief.tmaCreate", async (request?: TmaRequest) => {
+    // Without a request: TMA solution from cuts…, on what the Outline has selected (product owner, 27 Oct 2026).
+    if (!request) return runOperation("tma-from-cuts");
+    const asked = request;
+    const done = await sense((o, allow) => service!.tmaCreate(o.store.id, o.item.id, o.base!, agent, asked, allow));
+    if (done.problem) return (report(done.problem), { problem: done.problem });
+    const feature = done.answer?.feature;
+    if (feature) session.select([feature], "command");
+    return { feature, notes: done.answer?.notes, residuals: done.answer?.residuals };
+  });
+  // A solution split into legs at a time (current time unless given), or with join the leg
+  // starting then joined to the one before: one step. It stays one track.
+  command("debrief.tmaSplitLeg", async (target?: string | Target, options?: { at?: string; join?: boolean }) => {
+    const track = trackTarget(target);
+    if (!track?.properties.tma) return { problem: report("Select one TMA solution to split into legs.") };
+    const at = options?.at ?? session.time?.current;
+    if (!at) return { problem: report("Set current time first: the solution is split into legs there.") };
+    const done = await sense((o, allow) => service!.tmaSplitLeg(o.store.id, o.item.id, o.base!, agent, track.id, at, !!options?.join, allow));
+    if (done.problem) return (report(done.problem), { problem: done.problem });
+    return { notes: done.answer?.notes };
+  });
+  // Rooted cuts left out of a solution's RMS error, such as wild bearings, or counted again: one step.
+  command("debrief.tmaExclude", async (solutionId: string, cutIds: string[], excluded = true) => {
+    if (!solutionId || !cutIds?.length) return { problem: report("Choose the cuts to leave out in Bearings.") };
+    const done = await sense((o, allow) => service!.tmaExclude(o.store.id, o.item.id, o.base!, agent, solutionId, cutIds, excluded, allow));
+    if (done.problem) return (report(done.problem), { problem: done.problem });
+    return { changed: done.answer?.changed, notes: done.answer?.notes };
+  });
+  // Bearings, showing a sensor's cuts or a solution; with focus (a walkthrough's step, an agent),
+  // something chosen there once: a cut, a period and its first guess, or the largest residual.
+  command("debrief.showBearings", async (target?: string | Target, focus?: TmaFocus) => {
+    await vscode.commands.executeCommand(`${BEARINGS_VIEW}.focus`);
+    const id = typeof target === "string" ? target : targets(target)[0];
+    if (id) await bearingsView.choose(id, focus);
+  });
+  // --- The Tools' entries for the Outline's selection (product owner, 27 Oct 2026) ------------
+  // Split before and after a position of a TMA solution's leg; hide, show and delete cuts; leave
+  // them out of a solution or count them in; keep a side; a solution from them. Each a command,
+  // in the Tools view and on the Outline's menus; one step each with its provenance, but the
+  // solution from cuts, which opens the first guess's form in Bearings.
+  /** The rows a command acts on: the keys given (agents, tests), those it was run on from the Outline's menu, or the Outline's selection. */
+  const rowsOf = (target?: unknown, nodes?: unknown): string[] | undefined => {
+    if (Array.isArray(target) && target.every((k) => typeof k === "string")) return target as string[];
+    const node = target && typeof target === "object" && "kind" in target ? (target as OutlineNode) : undefined;
+    if (!node) return undefined;
+    const all = Array.isArray(nodes) ? (nodes as OutlineNode[]) : [];
+    return keysOf(all.includes(node) ? all : [node]);
+  };
+  async function runOperation(id: OperationId, keys?: string[]): Promise<{ problem?: string; notes?: string[]; changed?: boolean }> {
+    const context = operationContext(keys);
+    const op = context && outlineOperations(context).find((o) => o.id === id);
+    if (!context || !op) return { problem: report("Select what this acts on in the Outline first: a solution's position, cuts, or a sensor.") };
+    if (!op.enabled) return { problem: report(op.reason) };
+    const { index, picks } = context;
+    const cuts = pickedCuts(picks);
+    const cutIds = cuts.map((c) => c.id);
+    const said = (done: { problem?: string; answer?: { notes?: string[]; changed?: boolean } }, tell = false) => {
+      if (done.problem) return { problem: report(done.problem) };
+      const notes = done.answer?.notes ?? [];
+      if (tell && notes.length) void vscode.window.showInformationMessage(notes.join(". ") + ".");
+      return { notes, changed: done.answer?.changed };
+    };
+    if (id === "split-before" || id === "split-after") {
+      const fix = picks.find((p): p is Extract<OutlinePick, { kind: "fix" }> => p.kind === "fix")!;
+      const at = new Date(index.solutions.get(fix.solution)!.times[fix.index]).toISOString();
+      const side = id === "split-before" ? "before" : "after";
+      return said(await sense((o, allow) => service!.tmaSplitLeg(o.store.id, o.item.id, o.base!, agent, fix.solution, at, false, allow, side)));
+    }
+    if (id === "hide-cuts" || id === "show-cuts") return said(await sense((o, allow) => service!.hideCuts(o.store.id, o.item.id, o.base!, agent, cutIds, id === "hide-cuts", allow)), true);
+    if (id === "delete-cuts") return said(await sense((o, allow) => service!.deleteCuts(o.store.id, o.item.id, o.base!, agent, cutIds, allow)), true);
+    if (id === "leave-out" || id === "count-in") {
+      const target = exclusionTarget(index, cuts, context.shownSolution);
+      let solution = target.solution;
+      if (!solution) {
+        // Rooted in several solutions, none shown in Bearings: which one.
+        const picked = await vscode.window.showQuickPick(
+          target.candidates.map((c) => ({ label: index.solutions.get(c)!.track.properties.name, id: c })),
+          { placeHolder: `${id === "leave-out" ? "Leave the cuts out of" : "Count the cuts in"} which solution?` },
+        );
+        if (!picked) return {};
+        solution = picked.id;
+      }
+      const rooted = new Set(index.solutions.get(solution)!.track.properties.tma!.cut_ids);
+      return (await vscode.commands.executeCommand<{ problem?: string; notes?: string[]; changed?: boolean }>("debrief.tmaExclude", solution, cutIds.filter((c) => rooted.has(c)), id === "leave-out")) ?? {};
+    }
+    if (id === "keep-port" || id === "keep-starboard" || id === "keep-ambiguous") {
+      const keep = id === "keep-port" ? "port" : id === "keep-starboard" ? "starboard" : "ambiguous";
+      const twins = cuts.filter((c) => !!c.properties.ambiguous_bearing).map((c) => c.id);
+      return (await vscode.commands.executeCommand<{ problem?: string; answer?: { notes?: string[] } }>("debrief.resolveAmbiguity", { keep, cut_ids: twins })) ?? {};
+    }
+    // A solution from the cuts: the first guess's form, in Bearings, showing the first cut's sensor.
+    const made = tmaRequestOf(context);
+    if (typeof made === "string") return { problem: report(made) };
+    await vscode.commands.executeCommand(`${BEARINGS_VIEW}.focus`);
+    await bearingsView.choose(made.cuts[0].properties.sensor_id, made.request.cut_ids ? { make: true, cut_ids: made.request.cut_ids } : { make: true, period: made.request.period! });
+    return {};
+  }
+  for (const [id, name] of Object.entries(OPERATION_COMMANDS)) command(name, (target?: unknown, nodes?: unknown) => runOperation(id as OperationId, rowsOf(target, nodes)));
+  /** The Tools' entries for the Outline's selection, or for the keys given: for tests and agents. */
+  command("debrief.outlineOperations", (keys?: string[]) => {
+    const context = operationContext(keys);
+    return context ? outlineOperations(context) : [];
+  });
+  /**
+   * Rows of the Outline chosen for the analyst (the Bearings and TMA walkthrough's steps, agents):
+   * under a sensor, its cut at a time, or its cuts in a period (with make, the first guess's form
+   * for them); under a solution, its position at a time, or a cut it is rooted in. Bearings follows,
+   * and current time moves to a cut or a position chosen.
+   */
+  command("debrief.chooseInOutline", async (target?: string, focus?: OutlineFocus) => {
+    const index = outline.index;
+    if (!index || !target) return report("Open a plot first.");
+    const keys = outlineChoice(index, target, focus ?? {});
+    if (typeof keys === "string") return report(keys);
+    await bearingsView.reveal();
+    if (focus?.make) return runOperation("tma-from-cuts", keys);
+    const picks = outlinePicks(keys);
+    const last = picks[picks.length - 1];
+    const at = last?.kind === "cut" ? last.cut.properties.time : last?.kind === "fix" ? new Date(index.solutions.get(last.solution)!.times[last.index]).toISOString() : undefined;
+    if (at) outlineTimeTo(at);
+    await vscode.commands.executeCommand("debrief.outline.focus");
+    nextKeys = keys;
+    session.select(featureIdsOfPicks(picks), "command");
+    if (nextKeys) {
+      // The features were selected already: the rows chosen all the same.
+      outlineKeys = nextKeys;
+      nextKeys = undefined;
+      revealKeys();
+      outlineChanged();
+    }
+    return undefined;
+  });
+  // A towed array's offset astern of the ship, and how it follows (CAP-22; product owner,
+  // 24 Oct 2026): typed in the analyst's length unit, 0 for at the ship, then worm in the
+  // hole (back along the ship's own track, legacy's default) or plain. One step. Given an
+  // offset (null for none) and a mode (agents and tests), it asks nothing.
+  command("debrief.setArrayOffset", async (target?: Target | string, offsetGiven?: { value: number; unit: string } | null, modeGiven?: ArrayMode) => {
+    const opened = session.current;
+    if (!opened) return report("Open a plot first.");
+    const entries = sensorsOf(opened.plot);
+    if (!entries.length) return report("This plot has no sensors.");
+    const asked = typeof target === "string" ? [target] : targets(target);
+    let chosen = entries.filter((e) => asked.includes(e.sensor.id));
+    if (!chosen.length && entries.length === 1) chosen = entries;
+    if (!chosen.length) {
+      const picked = await vscode.window.showQuickPick(entries.map((e) => ({ label: e.sensor.properties.name, description: e.host?.properties.name, entry: e })), { placeHolder: "Which sensor?" });
+      if (!picked) return undefined;
+      chosen = [picked.entry];
+    }
+    const sensorWords = chosen.length === 1 ? chosen[0].sensor.properties.name : `${chosen.length} sensors`;
+    const title = chosen.length === 1 ? arrayOffsetTitle(sensorWords, chosen[0].host?.properties.name) : arrayOffsetTitle(sensorWords);
+    let offset = offsetGiven;
+    if (offset === undefined) {
+      const now = chosen[0].sensor.properties.array_offset;
+      const text = await vscode.window.showInputBox({
+        title,
+        prompt: "How far astern of the ship, in metres unless you give a unit; 0 for at the ship. Its cuts are drawn, and their port and starboard told, from there.",
+        placeHolder: "such as 300 m",
+        ...(now && { value: `${now.value} ${UNIT_LABELS[now.unit] ?? now.unit}` }),
+        validateInput: (typed) => {
+          const read = readArrayOffset(typed);
+          if (!("problem" in read) && read.warning) return { message: read.warning, severity: vscode.InputBoxValidationSeverity.Warning };
+          return meaning(read, () => ((read as { value: number }).value === 0 ? "at the ship" : `${describeDistance(read as { value: number; unit: string }, displaySettings)} astern`));
+        },
+      });
+      if (text === undefined) return undefined;
+      const read = readArrayOffset(text);
+      if ("problem" in read) return report(read.problem);
+      offset = read.value === 0 ? null : { value: read.value, unit: read.unit };
+    }
+    let mode = modeGiven;
+    if (!mode && offset) {
+      const modes = [
+        { label: "Worm in the hole", detail: "Back along the ship's own track, so it lags through a turn (as legacy Debrief, by default)", mode: "worm_in_hole" as const },
+        { label: "Plain", detail: "Straight astern of the ship, along its course then", mode: "plain" as const },
+      ];
+      mode = (await vscode.window.showQuickPick(modes, { title: `${title}: how does the array follow the ship?` }))?.mode;
+      if (!mode) return undefined;
+    }
+    const sent = { sensor_ids: chosen.map((e) => e.sensor.id), offset: offset ?? null, mode: mode ?? "worm_in_hole" };
+    const done = await sense((o, allow) => service!.setArrayOffset(o.store.id, o.item.id, o.base!, agent, sent, allow));
+    if (done.problem) return (report(done.problem), done);
+    if (done.answer && !done.answer.changed) void vscode.window.showInformationMessage(`${sensorWords} is so already.`);
+    return done;
+  });
+  // A cut's menu (right-click, or press and hold, on one of its lines on the map): keep
+  // either of its bearings, make it ambiguous again, select it, or keep a side for more.
+  command("debrief.cutMenu", async (cutId?: string) => {
+    const opened = session.current;
+    const entry = opened ? sensorsOf(opened.plot).find((e) => e.cuts.some((c) => c.id === cutId)) : undefined;
+    const cut = entry?.cuts.find((c) => c.id === cutId);
+    if (!entry || !cut) return report("There is no such cut in this plot.");
+    const props = cut.properties;
+    // The course its sides are told by, where its sensor was (its array astern, if it has one).
+    const course = placeOfCut(entry, cut)?.course;
+    type Pick = vscode.QuickPickItem & { run: () => Thenable<unknown> };
+    const picks: Pick[] = [];
+    for (const choice of cutChoices(cut, course)) {
+      picks.push({ label: choice.label, detail: choice.detail, run: () => vscode.commands.executeCommand("debrief.resolveAmbiguity", { keep: choice.keep, cut_ids: [cut.id] }) });
+    }
+    if (props.ambiguous_bearing) {
+      picks.push({
+        label: "Keep a side for more cuts…",
+        detail: `Port or starboard, for ${entry.sensor.properties.name}'s cuts in the time window, selected, or all`,
+        run: () => vscode.commands.executeCommand("debrief.resolveAmbiguity", { feature: { id: entry.sensor.id } }),
+      });
+    }
+    picks.push({ label: "Select this cut", run: async () => session.select([cut.id], "outline") });
+    const said = describeCut(cut, entry.sensor.properties.name, course).split("\n").slice(1).join(" · ");
+    const picked = await vscode.window.showQuickPick(picks, { title: cutTitle(cut, entry.sensor.properties.name), placeHolder: said });
+    if (picked) await picked.run();
+    return undefined;
+  });
+  // The cut current time is at, for a sensor (the Outline's sensor menu, the Command
+  // Palette): its bearings and sides said, and its menu, so a keyboard reaches every cut
+  // the map shows emphasised.
+  command("debrief.currentCut", async (target?: Target | string) => {
+    const opened = session.current;
+    if (!opened) return report("Open a plot first.");
+    const entries = sensorsOf(opened.plot);
+    const asked = typeof target === "string" ? [target] : targets(target);
+    let entry = entries.find((e) => asked.includes(e.sensor.id)) ?? (entries.length === 1 ? entries[0] : undefined);
+    if (!entry && entries.length) {
+      entry = (await vscode.window.showQuickPick(entries.map((e) => ({ label: e.sensor.properties.name, description: e.host?.properties.name, entry: e })), { placeHolder: "Which sensor?" }))?.entry;
+      if (!entry) return undefined;
+    }
+    if (!entry) return report("This plot has no sensors.");
+    const range = session.time?.range;
+    const now = session.time ? cutNow(entry, Date.parse(session.time.current), range && { start: Date.parse(range.start), end: Date.parse(range.end) }) : undefined;
+    if (!now) return report(`${entry.sensor.properties.name} has no cut at or before current time in the time window.`);
+    return vscode.commands.executeCommand("debrief.cutMenu", now.id);
+  });
+  // A .dsf or REP file's sensor lines read into the open plot (CAP-22): one step, the file
+  // kept as a source. A sensor whose track the plot has not (matched by name as legacy
+  // matched it) is asked about, as legacy asked; a file read in before is said first.
+  // Given a path (agents and tests), it asks nothing: hosts and again, if given, say.
+  command("debrief.importSensor", async (given?: string, hostsGiven?: Record<string, string | null>, againGiven?: boolean) => {
+    const opened = session.current;
+    if (!opened) return report("Open a plot first.");
+    if (!service) return report("Reading sensor data needs Debrief's tool service. Run 'Debrief: Restart tool service'.");
+    const path =
+      given ??
+      (
+        await vscode.window.showOpenDialog({
+          canSelectMany: false,
+          openLabel: "Read sensor data",
+          filters: { "Sensor data (DSF, REP)": ["dsf", "DSF", "rep", "REP"], "All files": ["*"] },
+        })
+      )?.[0]?.fsPath;
+    if (!path) return undefined;
+    let hosts = hostsGiven ?? {};
+    let again = againGiven ?? false;
+    if (!given) {
+      let preview: SensorPreview;
+      try {
+        preview = await service.previewSensor(path, { store: opened.store.id, item: opened.item.id });
+      } catch (error) {
+        return report((error as Error).message);
+      }
+      if (!preview.cuts) return report(`No sensor cut could be read from ${preview.name}. ${preview.omitted.slice(0, 2).join(" ")}`.trim());
+      if (preview.earlier.length) {
+        const last = preview.earlier[preview.earlier.length - 1];
+        const picked = await vscode.window.showQuickPick(
+          [
+            { label: "Read it again", detail: "Its cuts are added beside those already read", again: true },
+            { label: "Cancel", detail: "Read nothing", again: false },
+          ],
+          { title: `${preview.name} was read into this plot before`, placeHolder: `${last.how}, ${describePeriod(last.at)}` },
+        );
+        if (!picked?.again) return report("Nothing was read.");
+        again = true;
+      }
+      for (const ask of hostsToAsk(preview)) {
+        const picked = await vscode.window.showQuickPick(
+          [...hostChoices(preview, ask).map((t) => ({ label: t.name, id: t.id as string | null, ...(t.matched && { description: "matched by its first six letters" }) })), { label: "Do not read these", id: null }],
+          { title: hostQuestion(ask), placeHolder: ask.sensors.map(describeSensorInFile).join("; "), ignoreFocusOut: true },
+        );
+        if (!picked) return report("Nothing was read.");
+        hosts = { ...hosts, [ask.track]: picked.id };
+      }
+    }
+    const done = await sense((o, allow) => service!.importSensor(o.store.id, o.item.id, o.base!, agent, path, hosts, again, allow));
+    if (done.problem) return (report(done.problem), done);
+    const answer = done.answer!;
+    void vscode.window.showInformationMessage([sensorReadSummary(answer, path.split(/[\\/]/).pop()!), ...answer.notes, ...answer.omitted].join(" "));
+    return done;
+  });
   // A platform's log read into the open plot: a REP file's ;NARRATIVE: lines, or a Word or
   // PDF document's entries in legacy Debrief's dialects (CAP-19); one step, the file kept as
   // a source. Before a document is read the analyst is asked what legacy Debrief asked:
@@ -2532,10 +3248,10 @@ export function activate(context: vscode.ExtensionContext): DebriefApi {
   command("debrief.showToolForm", (name: string) => {
     const tool = listing?.tools.find((t) => t.name === name);
     if (!tool) return;
-    form.show(tool, session.selectedFeatures().map((f) => f.properties.name), timeRangeOf(), session.time?.current);
+    form.show(tool, session.selectedFeatures().map((f) => featureName(f, session.current?.plot)), timeRangeOf(), session.time?.current);
   });
   // The form says what the tool will act on, so it follows the selection.
-  session.onSelection(() => form.updateSelection(session.selectedFeatures().map((f) => f.properties.name)));
+  session.onSelection(() => form.updateSelection(session.selectedFeatures().map((f) => featureName(f, session.current?.plot))));
 
   // Run without the form, for agents, keyboard users and tests (TL-14).
   command("debrief.runTool", async (name: string, parameters: Record<string, unknown> = {}) => {
@@ -2891,6 +3607,8 @@ export function activate(context: vscode.ExtensionContext): DebriefApi {
     const opened = session.current;
     if (opened?.store.id !== store!.id || opened.item.id !== item) return "The walkthrough's copy could not be opened.";
     tickHere(openedEvent(chosen.id));
+    const after = AFTER_OPEN[chosen.id];
+    if (after) await vscode.commands.executeCommand(...after);
     return undefined;
   }
   /**
@@ -2909,7 +3627,13 @@ export function activate(context: vscode.ExtensionContext): DebriefApi {
       if (session.current?.item.id !== item) return report("The walkthrough's copy could not be opened.");
       void vscode.window.showInformationMessage(`${session.current.item.properties.title ?? item} is open: the walkthrough works on its copy, not on the plot that was open.`);
     }
-    return vscode.commands.executeCommand(name, ...args);
+    // A step that needs the walkthrough's TMA solution: the latest in its copy, once made.
+    const given = withSolution(args, session.current?.plot.features);
+    if (!given) return report(NO_SOLUTION);
+    // Bearings and TMA is read in Bearings, in the panel below the editor: a step's button that
+    // opens a form shows it too, if it was closed (showBearings brings it there itself).
+    if (chosen.id === "tma" && name !== "debrief.showBearings") await bearingsView.reveal();
+    return vscode.commands.executeCommand(name, ...given);
   });
   /** Import and collate: import BLUE ONE's navigation log, waiting beside the walkthrough's catalogue, as any REP file is imported. */
   command("debrief.walkthrough.importLog", async (given?: { modes?: string }) => {
@@ -2934,9 +3658,27 @@ export function activate(context: vscode.ExtensionContext): DebriefApi {
     timeControllerShowing: () => timeView.showing,
     toteShowing: () => toteView.showing,
     timelineShowing: () => timeline.showing,
+    outlineChildren: (id) => {
+      const node = outline.nodeOf(id);
+      return node
+        ? outline.getChildren(node).map((child) => {
+            const item = outline.getTreeItem(child);
+            return { label: String(item.label), description: String(item.description ?? ""), ...(keysOf([child])[0] && { key: keysOf([child])[0] }), ...(item.contextValue && { context: item.contextValue }) };
+          })
+        : [];
+    },
+    outlineKeys: () => [...outlineKeys],
+    outlineToolbar: () => ({ ...toolbarKeys }),
+    outlineItem: (id) => {
+      const node = outline.nodeOf(id);
+      if (!node) return undefined;
+      const item = outline.getTreeItem(node);
+      return { label: String(item.label), description: String(item.description ?? "") };
+    },
     coverageShowing: () => coverageView.showing,
     coverage: () => coverageView.report,
     coverageMessage: (message) => coverageView.receive(message),
+    bearingsMessage: (message) => bearingsView.receive(message),
     catalogueMarks: () => catalogues.marks(),
     timelineMessage: (message) => timeline.receive(message),
     mapNarrative: () => map.narrative,
@@ -2944,6 +3686,11 @@ export function activate(context: vscode.ExtensionContext): DebriefApi {
     lastExport: () => lastExport,
     tote: () => toteView.last,
     toteLatency: () => toteView.latency(),
+    bearings: () => bearingsView.last,
+    bearingsShowing: () => bearingsView.showing,
+    bearingsVisible: () => bearingsView.visible,
+    bearingsPlot: () => bearingsView.plot,
+    mapGuessing: () => map.guessing,
     startupTimings: () => startup.snapshot(),
     walkthroughEvents: () => walkthroughs.seen(),
     walkthroughOnActivation: () => openedOnActivation,

@@ -443,7 +443,7 @@ def test_the_first_step_cannot_be_undone_by_any_route(catalogue: Catalogue) -> N
 def test_a_plot_created_with_content_but_no_record_gets_a_baseline(tmp_path: Path) -> None:
     catalogue = Catalogue.create(tmp_path / "c", "c", "C", "")
     plot = models.DebriefFeatureCollection(
-        type="FeatureCollection", schema_version="0.0.22", features=[note("a")], provenance=[]
+        type="FeatureCollection", schema_version="0.0.24", features=[note("a")], provenance=[]
     )
     catalogue.create_plot("p", "Plot", plot)
     assert catalogue.read_plot("p").provenance[0].agent.name == "debrief-stac"
@@ -778,7 +778,7 @@ def test_a_received_plot_file_without_history_gets_a_first_step(tmp_path: Path) 
         json.dumps(
             {
                 "type": "FeatureCollection",
-                "schema_version": "0.0.22",
+                "schema_version": "0.0.24",
                 "features": [json.loads(note("a").model_dump_json(exclude_none=True))],
                 "provenance": [],
             }
@@ -833,11 +833,11 @@ def test_a_received_file_whose_history_does_not_rebuild_it_is_refused(
     "text",
     [
         "[" * 100_000 + "]" * 100_000,  # nested too deeply to read
-        '{"type": "FeatureCollection", "schema_version": "0.0.22", "features": [], '
+        '{"type": "FeatureCollection", "schema_version": "0.0.24", "features": [], '
         '"provenance": [], "x": "\\ud800"}',  # a lone surrogate: not text
-        '{"type": "FeatureCollection", "schema_version": "0.0.22", "features": [], '
+        '{"type": "FeatureCollection", "schema_version": "0.0.24", "features": [], '
         '"provenance": [], "x": 1e999}',  # read as infinity, which can't be written as JSON
-        '{"type": "FeatureCollection", "schema_version": "0.0.22", "features": [], '
+        '{"type": "FeatureCollection", "schema_version": "0.0.24", "features": [], '
         '"provenance": [], "x": NaN}',  # not JSON, though Python reads it
     ],
     ids=["deep", "surrogate", "huge-number", "nan"],
@@ -890,7 +890,7 @@ def legacy(catalogue: Catalogue, item: str, script: list) -> list[models.Delta]:
         _, records, changes = entry
         plot = apply(replay(current), records, changes)
         delta = models.Delta(
-            schema_version="0.0.22",
+            schema_version="0.0.24",
             seq=len(deltas) + 1,
             after=current,
             records=records,
@@ -909,7 +909,7 @@ def legacy(catalogue: Catalogue, item: str, script: list) -> list[models.Delta]:
         live.add(seq)
         seq = deltas[seq - 1].after
     head = models.HistoryHead(
-        schema_version="0.0.22",
+        schema_version="0.0.24",
         current=current,
         latest=len(deltas),
         abandoned=[s for s in range(1, len(deltas) + 1) if s not in live] or None,
@@ -995,7 +995,7 @@ def test_moving_a_history_folder_with_a_lost_head(old: Catalogue, damage: str) -
 def test_moving_a_history_folder_leaves_out_a_half_written_delta(old: Catalogue) -> None:
     legacy(old, "p", SCRIPT[:2])
     folder = Path(old.store.root) / "p" / "history"
-    (folder / "000003.json").write_text('{"schema_version": "0.0.22", "seq": 3, "aft')
+    (folder / "000003.json").write_text('{"schema_version": "0.0.24", "seq": 3, "aft')
     notes = old.history("p").recover()
     assert "interrupted before it was saved (step 3)" in notes[0]
     assert len(old.history("p").steps()) == 2

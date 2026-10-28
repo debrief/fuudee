@@ -1,0 +1,12 @@
+{
+  "kind": "tma_guess",
+  "tma_request": {
+    "sensor_ids": [
+      "sensor-nelson-bow-sonar"
+    ],
+    "period": {
+      "start": "2026-10-11T09:30:00.000Z",
+      "end": "2026-10-11T09:33:00.000Z"
+    }
+  }
+}

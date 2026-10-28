@@ -60,7 +60,7 @@ export async function playAnnotations(page, shot) {
   await shot("annot-02-restyled-circle");
 
   // Undo: the style goes back as it was; redo brings it again.
-  await page.locator("#selected-count").click();
+  await page.evaluate(() => document.activeElement?.blur());
   await page.keyboard.press("Control+z");
   await circle.first().waitFor();
   assert.match(await history(), /Style of Circle 'Exclusion zone' changed[^]*undone/);
@@ -114,7 +114,7 @@ export async function playAnnotations(page, shot) {
   await historySays("North arrow added");
   await mapFrame.locator(".north-arrow:not([hidden])").waitFor();
   assert.equal(await page.locator("#north-arrow").getAttribute("aria-pressed"), "true");
-  await page.locator("#selected-count").click();
+  await page.evaluate(() => document.activeElement?.blur());
   await shot("annot-03-styled-on-the-map");
 
   // The Timeline: the narrative and notes in time order; choosing one moves current time to it.
@@ -145,7 +145,7 @@ export async function playAnnotations(page, shot) {
   await page.locator("#delete-annotation").click();
   await historySays("Label 'Datum buoy' deleted");
   await mapFrame.locator(".annotation-label", { hasText: "Datum buoy D7" }).waitFor({ state: "detached" });
-  await page.locator("#selected-count").click();
+  await page.evaluate(() => document.activeElement?.blur());
   await page.keyboard.press("Control+z");
   await mapFrame.locator(".annotation-label", { hasText: "Datum buoy D7" }).waitFor();
 }

@@ -208,7 +208,7 @@ describe("a window a tool showed survives the plot being read again, and goes wi
       item: { id: "serial", bbox: [0, 0, 1, 1], properties: { start_datetime: range.start, end_datetime: range.end } },
       plot: {
         type: "FeatureCollection",
-        schema_version: "0.0.22",
+        schema_version: "0.0.24",
         provenance: [],
         features: [{ type: "Feature", id: "plot", geometry: null, properties: { kind: "plot", title: "P", view: { time_window: window } } }],
       },

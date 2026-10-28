@@ -52,6 +52,45 @@ export function vscodeDescription(step, tour) {
 }
 
 /**
+ * A step's argument that names the walkthrough's TMA solution (Bearings and TMA): its id is not
+ * known until the analyst makes it, so each host puts in the latest solution of the copy when
+ * the button is pressed (latestSolution), and refuses, saying why, while there is none.
+ */
+export const SOLUTION = "$solution";
+
+/** The plot's latest TMA solution, as its features are listed: the last track tagged as one. */
+export function latestSolution(features) {
+  return [...(features ?? [])].reverse().find((f) => f?.properties?.kind === "track" && f.properties.tma)?.id;
+}
+
+/** A step's arguments with SOLUTION put as the solution's id: undefined if one is asked for and there is none. */
+export function withSolution(args, features) {
+  if (!JSON.stringify(args ?? []).includes(SOLUTION)) return args;
+  const id = latestSolution(features);
+  if (!id) return undefined;
+  const put = (value) => (value === SOLUTION ? id : Array.isArray(value) ? value.map(put) : value);
+  return put(args);
+}
+
+/**
+ * A drag of a TMA solution (Bearings and TMA), the same in both hosts: one of its legs, once it is
+ * split into legs (This leg, or a period), is the last step's (product owner, 25 Oct 2026: the
+ * step ends on a leg dragged, not on the split); otherwise a move is the fourth step's (its start
+ * put at RED ONE's range) and a shear the fifth's (the first leg fitted about that start; product
+ * owner, 25 Oct 2026, "fit properly"). A rotation or a stretch of the whole solution is no step's.
+ * False for a track that is not a solution (legs undefined); undefined for any other change.
+ */
+export function tmaDragEvent(legs, action, part) {
+  if (legs === undefined) return false;
+  if (!["move", "rotate", "shear", "stretch"].includes(String(action))) return undefined;
+  if (legs > 1 && part) return "legDragged";
+  return { move: "solutionMoved", shear: "solutionSheared" }[String(action)];
+}
+
+/** What a button says when its step needs the solution and there is none yet. */
+export const NO_SOLUTION = "Make the solution first: Make a first guess, this walkthrough's third step.";
+
+/**
  * The walkthrough after this one, in tours.json's order; none after the last. Both hosts offer
  * it when a walkthrough ends (product owner, 23 Oct 2026): the next is never left to be found
  * in a list.

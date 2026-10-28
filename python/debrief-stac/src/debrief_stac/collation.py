@@ -78,6 +78,7 @@ from debrief_kernel.geodesy import WGS84, Position, destination, range_bearing
 from debrief_kernel.time import format_utc, parse_utc
 from debrief_kernel.units import Quantity
 from debrief_schemas import DebriefFeatureCollection, models
+from debrief_stac import sensors as plot_sensors
 from debrief_stac import tracks
 from debrief_stac.history import Changes, HistoryError
 
@@ -1033,6 +1034,8 @@ def take(
     # Tracks whose data from the item is unchanged, only the revision it names newer:
     # relabelled when the step changes something else, never a step on their own.
     relabels: dict[str, models.TrackFeature] = {}
+    # Which of the plot's tracks each of the item's tracks went into, for its sensors.
+    hosts: dict[str, str] = {}
     for theirs_track in theirs:
         key = (*item_key, theirs_track.id)
         candidates = [
@@ -1043,6 +1046,7 @@ def take(
         if not candidates:
             copy = _copied(theirs_track, key, title, revision, taken_ids)
             added.append(copy)
+            hosts[theirs_track.id] = copy.id
             notes.append(
                 f"{theirs_track.properties.name} added: {_fixes(len(copy.properties.times))}, "
                 f"{_describe_spans(theirs_track)}"
@@ -1055,6 +1059,8 @@ def take(
                 f"{candidates[0].properties.name}, not {names}"
             )
         target = modified.get(candidates[0].id, relabels.get(candidates[0].id, candidates[0]))
+        # Its sensors go with it, whether its fixes changed, were relabelled or not.
+        hosts[theirs_track.id] = target.id
         supplied_before = supplied_before or any(
             _key(s) == key for s in target.properties.supplies or []
         )
@@ -1078,7 +1084,25 @@ def take(
         modified[target.id] = built
         matched[target.properties.name] = matched.get(target.properties.name, 0) + changed
     note = f"New data from {title}"
-    if not modified and not added:
+    # Sensors first: a revision that adds only cuts is new data too.
+    now = {f.id: f for f in plot_tracks}
+    now.update(relabels)
+    now.update(modified)
+    new_ids = {t.id for t in added}
+
+    def periods_of(host: str, their_track: str) -> list[Span] | None:
+        if host in new_ids:
+            return None  # a track added whole: all its cuts
+        return [
+            (ms_of(p.start), ms_of(p.end))
+            for p in now[host].properties.supplies or []
+            if _key(p) == (*item_key, their_track)
+        ]
+
+    names = {f.id: f.properties.name for f in plot_tracks}
+    names.update({t.id: t.properties.name for t in added})
+    carried = _sensors_taken(plot, source, hosts, periods_of, names, taken_ids, notes)
+    if not modified and not added and not carried:
         if supplied_before:
             # Taken before, and nothing has changed in what the plot took: no step, so
             # no new revision of the plot and no products flagged for nothing.
@@ -1092,14 +1116,109 @@ def take(
         modified.setdefault(track_id, built)
     parts = [f"{name} {_fixes(n)}" for name, n in matched.items()]
     parts += [f"{t.properties.name} added" for t in added]
+    new_cuts = sum(1 for f in carried if f.properties.kind == "sensor_cut")
+    if new_cuts and not parts:
+        parts = [f"{new_cuts:,} new cut{'s' if new_cuts != 1 else ''}"]
     # Named shortly, as the History view names a step; what it did, in the next note.
     notes.insert(0, ", ".join(parts))
     return Taken(
-        Changes(added=added, modified=list(modified.values())),
+        Changes(added=[*added, *carried], modified=list(modified.values())),
         note,
         notes,
         matched,
         [t.properties.name for t in added],
+    )
+
+
+def _sensors_taken(
+    plot: DebriefFeatureCollection,
+    source: DebriefFeatureCollection,
+    hosts: dict[str, str],
+    periods_of: Callable[[str, str], list[Span] | None],
+    names: dict[str, str],
+    taken_ids: set[str],
+    notes: list[str],
+) -> list:
+    """An item's sensors and cuts, carried with its tracks (CAP-22, CAP-11): each to the
+    plot's track its host went into (hosts: the item's track id to the plot's), joined to
+    a sensor of the same name there (as a sensor read again is, sensors.build); only the
+    cuts in the periods periods_of says the item supplies for that track (None: all), as
+    its fixes are, and none the plot has already (the same time and bearing on that
+    sensor). Cuts left out for a period another item supplies are counted in the notes."""
+    their_sensors = [s for s in plot_sensors.sensors(source) if s.properties.host_track_id in hosts]
+    if not their_sensors:
+        return []
+    existing = plot_sensors.existing_sensors(plot)
+    have = {
+        (c.properties.sensor_id, c.properties.time, plot_sensors.degrees(c.properties.bearing))
+        for c in plot_sensors.cuts(plot)
+    }
+    read: list[plot_sensors.ReadSensor] = []
+    for sensor in their_sensors:
+        host = hosts[sensor.properties.host_track_id]
+        periods = periods_of(host, sensor.properties.host_track_id)
+        joined = existing.get((host, sensor.properties.name))
+        cuts = []
+        outside: list[int] = []
+        for cut in plot_sensors.cuts(source, sensor.id):
+            props = cut.properties
+            t = ms_of(props.time)
+            if periods is not None and not any(a <= t <= b for a, b in periods):
+                outside.append(t)
+                continue
+            bearing = plot_sensors.degrees(props.bearing)
+            if joined is not None and (joined[0], props.time, bearing) in have:
+                continue
+            cuts.append(plot_sensors.read_cut_of(cut))
+        props = sensor.properties
+        if outside:
+            notes.append(
+                f"{props.name}: {len(outside):,} cut{'s' if len(outside) != 1 else ''} "
+                f"{describe_span(min(outside), max(outside))} not taken: another item "
+                f"supplies {names.get(host, host)} then"
+            )
+        if not cuts:
+            continue
+        offset, mode = plot_sensors.array_of(sensor)
+        read.append(
+            plot_sensors.ReadSensor(
+                name=props.name,
+                host_track_id=host,
+                colour=props.colour,
+                legacy_symbology=props.legacy_symbology,
+                hidden=bool(props.hidden),
+                cuts=cuts,
+                array_offset_m=offset or None,
+                array_mode=mode if offset else None,
+            )
+        )
+    if not read:
+        return []
+    built = plot_sensors.build(read, taken_ids, names, existing)
+    taken_ids.update(f.id for f in built)
+    for sensor in read:
+        notes.append(
+            f"{sensor.name}: {len(sensor.cuts):,} cut{'s' if len(sensor.cuts) != 1 else ''} "
+            f"taken with {names.get(sensor.host_track_id, sensor.host_track_id)}"
+        )
+    return built
+
+
+def sensors_for_period(
+    plot: DebriefFeatureCollection,
+    source: DebriefFeatureCollection,
+    their_track: str,
+    track_id: str,
+    period: Span,
+    notes: list[str],
+) -> list:
+    """The cuts of a source's sensors on one of its tracks in a period, carried to the
+    plot's track (a period chosen from another item in Coverage, CAP-09): as
+    _sensors_taken does for new data."""
+    names = {f.id: f.properties.name for f in plot.features if f.properties.kind == "track"}
+    taken = {f.id for f in plot.features}
+    return _sensors_taken(
+        plot, source, {their_track: track_id}, lambda _h, _t: [period], names, taken, notes
     )
 
 

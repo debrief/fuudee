@@ -17,7 +17,7 @@ await build({
 
 await build({
   ...common,
-  entryPoints: { map: "webview/map.ts", time: "webview/time.ts", tote: "webview/tote.ts", timeline: "webview/timeline.ts", coverage: "webview/coverage.ts", form: "webview/form.tsx", annotation: "webview/annotationform.tsx", results: "webview/results.tsx" },
+  entryPoints: { map: "webview/map.ts", time: "webview/time.ts", tote: "webview/tote.ts", bearings: "webview/bearings.ts", timeline: "webview/timeline.ts", coverage: "webview/coverage.ts", form: "webview/form.tsx", annotation: "webview/annotationform.tsx", results: "webview/results.tsx" },
   outdir: "dist/webview",
   platform: "browser",
   format: "iife",

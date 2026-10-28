@@ -7,6 +7,7 @@ changes by the same rules, held to the vectors in schemas/vectors/.
 """
 
 from debrief_config.config import (
+    DEFAULT_TMA_ERROR_CUT_OFF,
     TRACK_IMPORT_MODES,
     ConfigError,
     add_store,
@@ -16,14 +17,17 @@ from debrief_config.config import (
     normalise_location,
     remove_store,
     same_location,
+    tma_error_cut_off,
     track_import_mode,
     update_config,
     with_narrative_answers,
+    with_tma_error_cut_off,
     with_track_import_mode,
     without_narrative_answers,
 )
 
 __all__ = [
+    "DEFAULT_TMA_ERROR_CUT_OFF",
     "TRACK_IMPORT_MODES",
     "ConfigError",
     "add_store",
@@ -33,9 +37,11 @@ __all__ = [
     "normalise_location",
     "remove_store",
     "same_location",
+    "tma_error_cut_off",
     "track_import_mode",
     "update_config",
     "with_narrative_answers",
+    "with_tma_error_cut_off",
     "with_track_import_mode",
     "without_narrative_answers",
 ]

@@ -1,0 +1,2134 @@
+{
+  "description": "Shared vectors for sensor cuts (CAP-22): where a cut is drawn from and to, which side of its course a bearing is on, and which bearing keeping port or starboard keeps. debrief_kernel.sensors (with geodesy.TrackPath) and vscode/webview/sensors.ts must agree. relative: legacy Debrief's relBearing (the bearing less the course, within ±180°; every case of legacy's own test), port when below zero. default_length: a cut without a range is drawn twice the view's larger side, at most five degrees of arc (555,600 m). cases: a host track (coordinates, times, and courses where it records them, degrees), perhaps a sensor (array_offset_m astern, array_mode worm_in_hole or plain), and cuts. Each cut's origin is the position recorded with it (wherever the host is), or where its sensor was: the host's position at its time (as the map places tracks), or the array's, offset back along the host's own track (worm in the hole: leg by leg along geodesics, then astern of the first fix along its course) or straight astern (plain); null outside the host's span. A cut's own course (pinned with a derived origin when its track was split) is the course its side is told by; else course is the course recorded at the first fix at or after the time the ship was there, as legacy's isBearingToPort took it, or where the host records none its direction of travel then, as the map's pointAt gives it (null when it never moved). side is that of the bearing recorded first; lines are what is drawn (both bearings until resolved, then the one kept), each ending along the geodesic at its range (range_m; 0 is a point) or the length it is drawn to (length_m); keep_port and keep_starboard say which bearing each keeps (null where there is no ambiguous bearing, or no course). Positions are [longitude, latitude] to within 1e-9 degrees, longitudes compared modulo 360; courses to within 1e-9 degrees.",
+  "relative": [
+    {
+      "course": 0,
+      "bearing": 120,
+      "relative": 120,
+      "side": "starboard"
+    },
+    {
+      "course": 0,
+      "bearing": -120,
+      "relative": -120,
+      "side": "port"
+    },
+    {
+      "course": 100,
+      "bearing": 120,
+      "relative": 20,
+      "side": "starboard"
+    },
+    {
+      "course": 100,
+      "bearing": -20,
+      "relative": -120,
+      "side": "port"
+    },
+    {
+      "course": 100,
+      "bearing": -240,
+      "relative": 20,
+      "side": "starboard"
+    },
+    {
+      "course": -260,
+      "bearing": 340,
+      "relative": -120,
+      "side": "port"
+    },
+    {
+      "course": -260,
+      "bearing": 120,
+      "relative": 20,
+      "side": "starboard"
+    },
+    {
+      "course": 100,
+      "bearing": 340,
+      "relative": -120,
+      "side": "port"
+    },
+    {
+      "course": 350,
+      "bearing": -20,
+      "relative": -10,
+      "side": "port"
+    },
+    {
+      "course": 350,
+      "bearing": -5,
+      "relative": 5,
+      "side": "starboard"
+    },
+    {
+      "course": 170,
+      "bearing": -20,
+      "relative": 170,
+      "side": "starboard"
+    },
+    {
+      "course": 170,
+      "bearing": -5,
+      "relative": -175,
+      "side": "port"
+    },
+    {
+      "course": 170,
+      "bearing": 150,
+      "relative": -20,
+      "side": "port"
+    },
+    {
+      "course": 170,
+      "bearing": 190,
+      "relative": 20,
+      "side": "starboard"
+    },
+    {
+      "course": 90,
+      "bearing": 90,
+      "relative": 0,
+      "side": "starboard"
+    },
+    {
+      "course": 90,
+      "bearing": 270,
+      "relative": 180,
+      "side": "starboard"
+    },
+    {
+      "course": 270,
+      "bearing": 90,
+      "relative": -180,
+      "side": "port"
+    },
+    {
+      "course": 0,
+      "bearing": 180,
+      "relative": 180,
+      "side": "starboard"
+    }
+  ],
+  "default_length": [
+    {
+      "width_m": 20000,
+      "height_m": 12000,
+      "expected_m": 40000
+    },
+    {
+      "width_m": 9000,
+      "height_m": 15000,
+      "expected_m": 30000
+    },
+    {
+      "width_m": 400000,
+      "height_m": 300000,
+      "expected_m": 555600.0
+    },
+    {
+      "width_m": 0,
+      "height_m": 0,
+      "expected_m": 0
+    }
+  ],
+  "cases": [
+    {
+      "name": "east along the equator",
+      "host": {
+        "coordinates": [
+          [
+            0,
+            0
+          ],
+          [
+            1,
+            0
+          ]
+        ],
+        "times": [
+          "2023-06-15T08:00:00.000Z",
+          "2023-06-15T09:00:00.000Z"
+        ]
+      },
+      "cuts": [
+        {
+          "time": "2023-06-15T08:15:00.000Z",
+          "bearing": 0.0,
+          "ambiguous_bearing": 180.0,
+          "range_m": 1852.0,
+          "expected": {
+            "origin": [
+              0.25,
+              0.0
+            ],
+            "course": 90.0,
+            "side": "port",
+            "lines": [
+              {
+                "which": "bearing",
+                "end": [
+                  0.25,
+                  0.01674892271018241
+                ]
+              },
+              {
+                "which": "ambiguous_bearing",
+                "end": [
+                  0.25,
+                  -0.01674892271018241
+                ]
+              }
+            ],
+            "keep_port": "bearing",
+            "keep_starboard": "ambiguous_bearing"
+          }
+        },
+        {
+          "time": "2023-06-15T08:30:00.000Z",
+          "bearing": 135.0,
+          "ambiguous_bearing": 45.0,
+          "length_m": 20000.0,
+          "expected": {
+            "origin": [
+              0.5,
+              0.0
+            ],
+            "course": 90.0,
+            "side": "starboard",
+            "lines": [
+              {
+                "which": "bearing",
+                "end": [
+                  0.627041175404571,
+                  -0.12789705034675192
+                ]
+              },
+              {
+                "which": "ambiguous_bearing",
+                "end": [
+                  0.6270411754045995,
+                  0.12789705034675192
+                ]
+              }
+            ],
+            "keep_port": "ambiguous_bearing",
+            "keep_starboard": "bearing"
+          }
+        },
+        {
+          "time": "2023-06-15T08:45:00.000Z",
+          "bearing": 300.0,
+          "range_m": 5000.0,
+          "expected": {
+            "origin": [
+              0.75,
+              0.0
+            ],
+            "course": 90.0,
+            "side": "port",
+            "lines": [
+              {
+                "which": "bearing",
+                "end": [
+                  0.7111018051617464,
+                  0.022609235165976647
+                ]
+              }
+            ],
+            "keep_port": null,
+            "keep_starboard": null
+          }
+        },
+        {
+          "time": "2023-06-15T08:45:00.000Z",
+          "bearing": 30.0,
+          "ambiguous_bearing": 150.0,
+          "resolved": "ambiguous_bearing",
+          "range_m": 3000.0,
+          "expected": {
+            "origin": [
+              0.75,
+              0.0
+            ],
+            "course": 90.0,
+            "side": "port",
+            "lines": [
+              {
+                "which": "ambiguous_bearing",
+                "end": [
+                  0.7634747300121489,
+                  -0.023496208014709166
+                ]
+              }
+            ],
+            "keep_port": "bearing",
+            "keep_starboard": "ambiguous_bearing"
+          }
+        },
+        {
+          "time": "2023-06-15T07:59:00.000Z",
+          "bearing": 10.0,
+          "length_m": 10000.0,
+          "expected": {
+            "origin": null,
+            "course": null,
+            "side": null,
+            "keep_port": null,
+            "keep_starboard": null
+          }
+        },
+        {
+          "time": "2023-06-15T09:00:00.001Z",
+          "bearing": 10.0,
+          "length_m": 10000.0,
+          "expected": {
+            "origin": null,
+            "course": null,
+            "side": null,
+            "keep_port": null,
+            "keep_starboard": null
+          }
+        },
+        {
+          "time": "2023-06-15T08:50:00.000Z",
+          "bearing": 200.0,
+          "range_m": 0.0,
+          "expected": {
+            "origin": [
+              0.8333333333333428,
+              0.0
+            ],
+            "course": 90.0,
+            "side": "starboard",
+            "lines": [
+              {
+                "which": "bearing",
+                "end": [
+                  0.8333333333333428,
+                  0.0
+                ]
+              }
+            ],
+            "keep_port": null,
+            "keep_starboard": null
+          }
+        }
+      ]
+    },
+    {
+      "name": "north, then east, from a turn at a fix",
+      "host": {
+        "coordinates": [
+          [
+            -75.6,
+            37.0
+          ],
+          [
+            -75.6,
+            37.1
+          ],
+          [
+            -75.45,
+            37.1
+          ]
+        ],
+        "times": [
+          "2023-06-15T08:00:00.000Z",
+          "2023-06-15T08:30:00.000Z",
+          "2023-06-15T09:00:00.000Z"
+        ]
+      },
+      "cuts": [
+        {
+          "time": "2023-06-15T08:30:00.000Z",
+          "bearing": 10.0,
+          "ambiguous_bearing": 170.0,
+          "length_m": 30000.0,
+          "expected": {
+            "origin": [
+              -75.6,
+              37.1
+            ],
+            "course": 89.95475938441108,
+            "side": "port",
+            "lines": [
+              {
+                "which": "bearing",
+                "end": [
+                  -75.54119156565395,
+                  37.36619282581726
+                ]
+              },
+              {
+                "which": "ambiguous_bearing",
+                "end": [
+                  -75.54160167111064,
+                  36.83376623252231
+                ]
+              }
+            ],
+            "keep_port": "bearing",
+            "keep_starboard": "ambiguous_bearing"
+          }
+        },
+        {
+          "time": "2023-06-15T09:00:00.000Z",
+          "bearing": 200.0,
+          "ambiguous_bearing": 340.0,
+          "range_m": 9144.0,
+          "expected": {
+            "origin": [
+              -75.45,
+              37.1
+            ],
+            "course": 89.95475938441108,
+            "side": "starboard",
+            "lines": [
+              {
+                "which": "bearing",
+                "end": [
+                  -75.48514546048243,
+                  37.02256964167916
+                ]
+              },
+              {
+                "which": "ambiguous_bearing",
+                "end": [
+                  -75.48521706343,
+                  37.17741890733403
+                ]
+              }
+            ],
+            "keep_port": "ambiguous_bearing",
+            "keep_starboard": "bearing"
+          }
+        },
+        {
+          "time": "2023-06-15T08:10:00.000Z",
+          "bearing": 359.0,
+          "ambiguous_bearing": 1.0,
+          "length_m": 15000.0,
+          "expected": {
+            "origin": [
+              -75.6,
+              37.03333352106083
+            ],
+            "course": 0.0,
+            "side": "port",
+            "lines": [
+              {
+                "which": "bearing",
+                "end": [
+                  -75.60294754426131,
+                  37.168472954114876
+                ]
+              },
+              {
+                "which": "ambiguous_bearing",
+                "end": [
+                  -75.59705245573868,
+                  37.168472954114876
+                ]
+              }
+            ],
+            "keep_port": "bearing",
+            "keep_starboard": "ambiguous_bearing"
+          }
+        }
+      ]
+    },
+    {
+      "name": "a turn logged at the next fix: the side legacy told (legs_20.rep)",
+      "host": {
+        "coordinates": [
+          [
+            -75.6,
+            37.0
+          ],
+          [
+            -75.6,
+            37.05
+          ],
+          [
+            -75.55,
+            37.05
+          ]
+        ],
+        "times": [
+          "2023-06-15T08:00:00.000Z",
+          "2023-06-15T08:10:00.000Z",
+          "2023-06-15T08:20:00.000Z"
+        ],
+        "courses": [
+          0.0,
+          90.0,
+          90.0
+        ]
+      },
+      "cuts": [
+        {
+          "time": "2023-06-15T08:05:00.000Z",
+          "bearing": 45.0,
+          "ambiguous_bearing": 315.0,
+          "length_m": 10000.0,
+          "expected": {
+            "origin": [
+              -75.6,
+              37.025000052787924
+            ],
+            "course": 90.0,
+            "side": "port",
+            "lines": [
+              {
+                "which": "bearing",
+                "end": [
+                  -75.52046775705662,
+                  37.088688946536244
+                ]
+              },
+              {
+                "which": "ambiguous_bearing",
+                "end": [
+                  -75.67953224294337,
+                  37.088688946536244
+                ]
+              }
+            ],
+            "keep_port": "bearing",
+            "keep_starboard": "ambiguous_bearing"
+          }
+        },
+        {
+          "time": "2023-06-15T08:10:00.000Z",
+          "bearing": 45.0,
+          "ambiguous_bearing": 315.0,
+          "length_m": 10000.0,
+          "expected": {
+            "origin": [
+              -75.6,
+              37.05
+            ],
+            "course": 90.0,
+            "side": "port",
+            "lines": [
+              {
+                "which": "bearing",
+                "end": [
+                  -75.52044161873094,
+                  37.11368860051193
+                ]
+              },
+              {
+                "which": "ambiguous_bearing",
+                "end": [
+                  -75.67955838126905,
+                  37.11368860051193
+                ]
+              }
+            ],
+            "keep_port": "bearing",
+            "keep_starboard": "ambiguous_bearing"
+          }
+        },
+        {
+          "time": "2023-06-15T08:00:00.000Z",
+          "bearing": 45.0,
+          "ambiguous_bearing": 315.0,
+          "length_m": 10000.0,
+          "expected": {
+            "origin": [
+              -75.6,
+              37.0
+            ],
+            "course": 0.0,
+            "side": "starboard",
+            "lines": [
+              {
+                "which": "bearing",
+                "end": [
+                  -75.52049386314594,
+                  37.063689186903844
+                ]
+              },
+              {
+                "which": "ambiguous_bearing",
+                "end": [
+                  -75.67950613685404,
+                  37.063689186903844
+                ]
+              }
+            ],
+            "keep_port": "ambiguous_bearing",
+            "keep_starboard": "bearing"
+          }
+        }
+      ]
+    },
+    {
+      "name": "a cut with a position of its own: drawn from it, wherever its host is",
+      "host": {
+        "coordinates": [
+          [
+            -75.6,
+            37.0
+          ],
+          [
+            -75.5,
+            37.0
+          ]
+        ],
+        "times": [
+          "2023-06-15T08:00:00.000Z",
+          "2023-06-15T09:00:00.000Z"
+        ]
+      },
+      "cuts": [
+        {
+          "time": "2023-06-15T08:20:00.000Z",
+          "bearing": 250.0,
+          "origin": [
+            -75.4,
+            36.9
+          ],
+          "range_m": 12000.0,
+          "expected": {
+            "origin": [
+              -75.4,
+              36.9
+            ],
+            "course": 89.98996974643859,
+            "side": "starboard",
+            "lines": [
+              {
+                "which": "bearing",
+                "end": [
+                  -75.5264569445324,
+                  36.86294935333496
+                ]
+              }
+            ],
+            "keep_port": null,
+            "keep_starboard": null
+          }
+        },
+        {
+          "time": "2023-06-15T09:30:00.000Z",
+          "bearing": 250.0,
+          "origin": [
+            -75.4,
+            36.9
+          ],
+          "range_m": 12000.0,
+          "expected": {
+            "origin": [
+              -75.4,
+              36.9
+            ],
+            "course": null,
+            "side": null,
+            "lines": [
+              {
+                "which": "bearing",
+                "end": [
+                  -75.5264569445324,
+                  36.86294935333496
+                ]
+              }
+            ],
+            "keep_port": null,
+            "keep_starboard": null
+          }
+        },
+        {
+          "time": "2023-06-15T09:30:00.000Z",
+          "bearing": 20.0,
+          "ambiguous_bearing": 160.0,
+          "origin": [
+            -75.4,
+            36.9
+          ],
+          "course": 90.0,
+          "length_m": 5000.0,
+          "expected": {
+            "origin": [
+              -75.4,
+              36.9
+            ],
+            "course": 90.0,
+            "side": "port",
+            "lines": [
+              {
+                "which": "bearing",
+                "end": [
+                  -75.38080239367423,
+                  36.94233603687419
+                ]
+              },
+              {
+                "which": "ambiguous_bearing",
+                "end": [
+                  -75.38082359246671,
+                  36.85766056235005
+                ]
+              }
+            ],
+            "keep_port": "bearing",
+            "keep_starboard": "ambiguous_bearing"
+          }
+        }
+      ]
+    },
+    {
+      "name": "far north, the longest line a cut without a range has",
+      "host": {
+        "coordinates": [
+          [
+            10.0,
+            70.0
+          ],
+          [
+            10.5,
+            70.2
+          ]
+        ],
+        "times": [
+          "2023-06-15T08:00:00.000Z",
+          "2023-06-15T10:00:00.000Z"
+        ]
+      },
+      "cuts": [
+        {
+          "time": "2023-06-15T09:00:00.000Z",
+          "bearing": 80.0,
+          "ambiguous_bearing": 300.0,
+          "length_m": 555600.0,
+          "expected": {
+            "origin": [
+              10.248795576837608,
+              70.10017525926156
+            ],
+            "course": 40.41714447247406,
+            "side": "starboard",
+            "lines": [
+              {
+                "which": "bearing",
+                "end": [
+                  24.978659094817488,
+                  70.36854960163586
+                ]
+              },
+              {
+                "which": "ambiguous_bearing",
+                "end": [
+                  -3.885640952845449,
+                  72.08515312337555
+                ]
+              }
+            ],
+            "keep_port": "ambiguous_bearing",
+            "keep_starboard": "bearing"
+          }
+        }
+      ]
+    },
+    {
+      "name": "a host that did not move: no course, so no side",
+      "host": {
+        "coordinates": [
+          [
+            -75.6,
+            37.0
+          ],
+          [
+            -75.6,
+            37.0
+          ]
+        ],
+        "times": [
+          "2023-06-15T08:00:00.000Z",
+          "2023-06-15T09:00:00.000Z"
+        ]
+      },
+      "cuts": [
+        {
+          "time": "2023-06-15T08:30:00.000Z",
+          "bearing": 90.0,
+          "ambiguous_bearing": 270.0,
+          "length_m": 10000.0,
+          "expected": {
+            "origin": [
+              -75.6,
+              37.0
+            ],
+            "course": null,
+            "side": null,
+            "lines": [
+              {
+                "which": "bearing",
+                "end": [
+                  -75.48765523482118,
+                  36.99994683476878
+                ]
+              },
+              {
+                "which": "ambiguous_bearing",
+                "end": [
+                  -75.71234476517881,
+                  36.99994683476878
+                ]
+              }
+            ],
+            "keep_port": null,
+            "keep_starboard": null
+          }
+        }
+      ]
+    },
+    {
+      "name": "across the antimeridian",
+      "host": {
+        "coordinates": [
+          [
+            179.9,
+            -10.0
+          ],
+          [
+            -179.9,
+            -10.0
+          ]
+        ],
+        "times": [
+          "2023-06-15T08:00:00.000Z",
+          "2023-06-15T09:00:00.000Z"
+        ]
+      },
+      "cuts": [
+        {
+          "time": "2023-06-15T08:30:00.000Z",
+          "bearing": 60.0,
+          "ambiguous_bearing": 120.0,
+          "length_m": 40000.0,
+          "expected": {
+            "origin": [
+              -180.0,
+              -10.000015021006263
+            ],
+            "course": 90.0,
+            "side": "port",
+            "lines": [
+              {
+                "which": "bearing",
+                "end": [
+                  -179.68421943262598,
+                  -9.819045940375648
+                ]
+              },
+              {
+                "which": "ambiguous_bearing",
+                "end": [
+                  -179.68387007986934,
+                  -10.180682239571533
+                ]
+              }
+            ],
+            "keep_port": "bearing",
+            "keep_starboard": "ambiguous_bearing"
+          }
+        }
+      ]
+    },
+    {
+      "name": "two fixes at one time: the later one",
+      "host": {
+        "coordinates": [
+          [
+            -75.6,
+            37.0
+          ],
+          [
+            -75.5,
+            37.0
+          ],
+          [
+            -75.5,
+            37.1
+          ]
+        ],
+        "times": [
+          "2023-06-15T08:00:00.000Z",
+          "2023-06-15T08:30:00.000Z",
+          "2023-06-15T08:30:00.000Z"
+        ]
+      },
+      "cuts": [
+        {
+          "time": "2023-06-15T08:30:00.000Z",
+          "bearing": 45.0,
+          "ambiguous_bearing": 315.0,
+          "length_m": 5000.0,
+          "expected": {
+            "origin": [
+              -75.5,
+              37.1
+            ],
+            "course": 0.0,
+            "side": "starboard",
+            "lines": [
+              {
+                "which": "bearing",
+                "end": [
+                  -75.46021130187388,
+                  37.13185077556624
+                ]
+              },
+              {
+                "which": "ambiguous_bearing",
+                "end": [
+                  -75.53978869812612,
+                  37.13185077556624
+                ]
+              }
+            ],
+            "keep_port": "ambiguous_bearing",
+            "keep_starboard": "bearing"
+          }
+        }
+      ]
+    },
+    {
+      "name": "a towed array 400 m astern, worm in the hole, on legacy's own test track",
+      "host": {
+        "coordinates": [
+          [
+            0.0,
+            0.0
+          ],
+          [
+            0.0,
+            0.005426216862139391
+          ],
+          [
+            0.005392889086721198,
+            0.010855451185154
+          ],
+          [
+            0.010782780887524268,
+            0.010855451136798063
+          ],
+          [
+            0.02156256448913041,
+            0.010855450943374314
+          ]
+        ],
+        "times": [
+          "2023-06-15T08:01:40.000Z",
+          "2023-06-15T08:03:20.000Z",
+          "2023-06-15T08:05:00.000Z",
+          "2023-06-15T08:06:40.000Z",
+          "2023-06-15T08:08:20.000Z"
+        ],
+        "courses": [
+          0.0,
+          90.0,
+          180.0,
+          90.0,
+          90.0
+        ]
+      },
+      "sensor": {
+        "array_offset_m": 400.0,
+        "array_mode": "worm_in_hole"
+      },
+      "cuts": [
+        {
+          "time": "2023-06-15T08:01:40.000Z",
+          "bearing": 300.0,
+          "ambiguous_bearing": 60.0,
+          "length_m": 2000.0,
+          "expected": {
+            "origin": [
+              0.0,
+              -0.0036174779081532605
+            ],
+            "course": 0.0,
+            "side": "port",
+            "lines": [
+              {
+                "which": "bearing",
+                "end": [
+                  -0.015559277138237348,
+                  0.005426216884520174
+                ]
+              },
+              {
+                "which": "ambiguous_bearing",
+                "end": [
+                  0.015559277138237348,
+                  0.005426216884520174
+                ]
+              }
+            ],
+            "keep_port": "bearing",
+            "keep_starboard": "ambiguous_bearing"
+          }
+        },
+        {
+          "time": "2023-06-15T08:02:20.000Z",
+          "bearing": 300.0,
+          "ambiguous_bearing": 60.0,
+          "length_m": 2000.0,
+          "expected": {
+            "origin": [
+              0.0,
+              -0.001446991163280128
+            ],
+            "course": 0.0,
+            "side": "port",
+            "lines": [
+              {
+                "which": "bearing",
+                "end": [
+                  -0.01555927720477257,
+                  0.0075967035485835594
+                ]
+              },
+              {
+                "which": "ambiguous_bearing",
+                "end": [
+                  0.01555927720477257,
+                  0.0075967035485835594
+                ]
+              }
+            ],
+            "keep_port": "bearing",
+            "keep_starboard": "ambiguous_bearing"
+          }
+        },
+        {
+          "time": "2023-06-15T08:04:40.000Z",
+          "bearing": 300.0,
+          "ambiguous_bearing": 60.0,
+          "length_m": 2000.0,
+          "expected": {
+            "origin": [
+              0.0017734918963682603,
+              0.007211661184479653
+            ],
+            "course": 180.0,
+            "side": "starboard",
+            "lines": [
+              {
+                "which": "bearing",
+                "end": [
+                  -0.013785785794567573,
+                  0.01625535557137776
+                ]
+              },
+              {
+                "which": "ambiguous_bearing",
+                "end": [
+                  0.01733276958731267,
+                  0.01625535557137776
+                ]
+              }
+            ],
+            "keep_port": "ambiguous_bearing",
+            "keep_starboard": "bearing"
+          }
+        },
+        {
+          "time": "2023-06-15T08:05:50.000Z",
+          "bearing": 300.0,
+          "ambiguous_bearing": 60.0,
+          "length_m": 2000.0,
+          "expected": {
+            "origin": [
+              0.004757684239183337,
+              0.010215965403363203
+            ],
+            "course": 180.0,
+            "side": "starboard",
+            "lines": [
+              {
+                "which": "bearing",
+                "end": [
+                  -0.010801593702922219,
+                  0.019259659676538272
+                ]
+              },
+              {
+                "which": "ambiguous_bearing",
+                "end": [
+                  0.020316962181283316,
+                  0.019259659676538272
+                ]
+              }
+            ],
+            "keep_port": "ambiguous_bearing",
+            "keep_starboard": "bearing"
+          }
+        },
+        {
+          "time": "2023-06-15T08:08:20.000Z",
+          "bearing": 300.0,
+          "ambiguous_bearing": 60.0,
+          "length_m": 2000.0,
+          "expected": {
+            "origin": [
+              0.017969303288591552,
+              0.010855451050831947
+            ],
+            "course": 90.0,
+            "side": "port",
+            "lines": [
+              {
+                "which": "bearing",
+                "end": [
+                  0.002410025287559847,
+                  0.01989914529973586
+                ]
+              },
+              {
+                "which": "ambiguous_bearing",
+                "end": [
+                  0.03352858128963021,
+                  0.01989914529973586
+                ]
+              }
+            ],
+            "keep_port": "bearing",
+            "keep_starboard": "ambiguous_bearing"
+          }
+        }
+      ]
+    },
+    {
+      "name": "an array 600 m astern through a turn: still on the leg before it (worm in the hole)",
+      "host": {
+        "coordinates": [
+          [
+            -75.6,
+            37.0
+          ],
+          [
+            -75.6,
+            37.009010817124874
+          ],
+          [
+            -75.5887641923212,
+            37.009010285299375
+          ]
+        ],
+        "times": [
+          "2023-06-15T08:00:00.000Z",
+          "2023-06-15T08:10:00.000Z",
+          "2023-06-15T08:20:00.000Z"
+        ]
+      },
+      "sensor": {
+        "array_offset_m": 600.0,
+        "array_mode": "worm_in_hole"
+      },
+      "cuts": [
+        {
+          "time": "2023-06-15T08:13:00.000Z",
+          "bearing": 45.0,
+          "ambiguous_bearing": 315.0,
+          "length_m": 5000.0,
+          "expected": {
+            "origin": [
+              -75.6,
+              37.00630757342739
+            ],
+            "course": 0.0,
+            "side": "starboard",
+            "lines": [
+              {
+                "which": "bearing",
+                "end": [
+                  -75.56026024231386,
+                  37.038158875936396
+                ]
+              },
+              {
+                "which": "ambiguous_bearing",
+                "end": [
+                  -75.63973975768613,
+                  37.038158875936396
+                ]
+              }
+            ],
+            "keep_port": "ambiguous_bearing",
+            "keep_starboard": "bearing"
+          }
+        },
+        {
+          "time": "2023-06-15T08:18:00.000Z",
+          "bearing": 45.0,
+          "ambiguous_bearing": 135.0,
+          "length_m": 5000.0,
+          "expected": {
+            "origin": [
+              -75.59775283845421,
+              37.00901079585185
+            ],
+            "course": 90.00135265774422,
+            "side": "port",
+            "lines": [
+              {
+                "which": "bearing",
+                "end": [
+                  -75.55801167191349,
+                  37.040862083164754
+                ]
+              },
+              {
+                "which": "ambiguous_bearing",
+                "end": [
+                  -75.55804482925222,
+                  36.97714604148086
+                ]
+              }
+            ],
+            "keep_port": "bearing",
+            "keep_starboard": "ambiguous_bearing"
+          }
+        },
+        {
+          "time": "2023-06-15T08:03:00.000Z",
+          "bearing": 45.0,
+          "ambiguous_bearing": 315.0,
+          "length_m": 5000.0,
+          "expected": {
+            "origin": [
+              -75.6,
+              36.99729675218863
+            ],
+            "course": 0.0,
+            "side": "starboard",
+            "lines": [
+              {
+                "which": "bearing",
+                "end": [
+                  -75.56026493717538,
+                  37.02914810534857
+                ]
+              },
+              {
+                "which": "ambiguous_bearing",
+                "end": [
+                  -75.63973506282461,
+                  37.02914810534857
+                ]
+              }
+            ],
+            "keep_port": "ambiguous_bearing",
+            "keep_starboard": "bearing"
+          }
+        }
+      ]
+    },
+    {
+      "name": "the same array, plain: straight astern of the ship",
+      "host": {
+        "coordinates": [
+          [
+            -75.6,
+            37.0
+          ],
+          [
+            -75.6,
+            37.009010817124874
+          ],
+          [
+            -75.5887641923212,
+            37.009010285299375
+          ]
+        ],
+        "times": [
+          "2023-06-15T08:00:00.000Z",
+          "2023-06-15T08:10:00.000Z",
+          "2023-06-15T08:20:00.000Z"
+        ]
+      },
+      "sensor": {
+        "array_offset_m": 600.0,
+        "array_mode": "plain"
+      },
+      "cuts": [
+        {
+          "time": "2023-06-15T08:13:00.000Z",
+          "bearing": 45.0,
+          "ambiguous_bearing": 315.0,
+          "length_m": 5000.0,
+          "expected": {
+            "origin": [
+              -75.60337074231788,
+              37.009010769260584
+            ],
+            "course": 90.00202898664563,
+            "side": "port",
+            "lines": [
+              {
+                "which": "bearing",
+                "end": [
+                  -75.56362957579101,
+                  37.04086205657364
+                ]
+              },
+              {
+                "which": "ambiguous_bearing",
+                "end": [
+                  -75.64311190884474,
+                  37.04086205657364
+                ]
+              }
+            ],
+            "keep_port": "bearing",
+            "keep_starboard": "ambiguous_bearing"
+          }
+        }
+      ]
+    },
+    {
+      "name": "an array 900 m astern on a dense, turning track across the antimeridian: short legs measured on the local ellipsoid, the one holding the end along its geodesic",
+      "host": {
+        "coordinates": [
+          [
+            179.995,
+            -45.0
+          ],
+          [
+            179.995,
+            -44.999820033470336
+          ],
+          [
+            179.99501327526434,
+            -44.999640313572094
+          ],
+          [
+            179.99503978932387,
+            -44.999461332903536
+          ],
+          [
+            179.995079469424,
+            -44.9992835820368
+          ],
+          [
+            179.99513220672486,
+            -44.999107548173306
+          ],
+          [
+            179.9951978566002,
+            -44.998933713808384
+          ],
+          [
+            179.9952762390344,
+            -44.99876255540879
+          ],
+          [
+            179.9953671391164,
+            -44.99859454210671
+          ],
+          [
+            179.99547030762943,
+            -44.99843013441401
+          ],
+          [
+            179.99558546173455,
+            -44.9982697829599
+          ],
+          [
+            179.99571228574632,
+            -44.99811392725587
+          ],
+          [
+            179.9958504319984,
+            -44.99796299449101
+          ],
+          [
+            179.99599952179693,
+            -44.997817398361065
+          ],
+          [
+            179.9961591464587,
+            -44.9976775379346
+          ],
+          [
+            179.99632886843142,
+            -44.997543796559135
+          ],
+          [
+            179.99650822249328,
+            -44.99741654081042
+          ],
+          [
+            179.99669671702816,
+            -44.99729611948768
+          ],
+          [
+            179.99689383537304,
+            -44.99718286265755
+          ],
+          [
+            179.99709903723397,
+            -44.99707708074945
+          ],
+          [
+            179.9973117601669,
+            -44.996979063704615
+          ],
+          [
+            179.99753142111916,
+            -44.996889080181454
+          ],
+          [
+            179.9977574180271,
+            -44.99680737681911
+          ],
+          [
+            179.99798913146606,
+            -44.99673417756151
+          ],
+          [
+            179.9982259263477,
+            -44.99666968304341
+          ],
+          [
+            179.99846715366027,
+            -44.996614070040614
+          ],
+          [
+            179.9987121522471,
+            -44.99656749098528
+          ],
+          [
+            179.99896025061798,
+            -44.9965300735482
+          ],
+          [
+            179.99921076878934,
+            -44.99650192028884
+          ],
+          [
+            179.99946302014723,
+            -44.99648310837417
+          ],
+          [
+            179.9997163133287,
+            -44.996473689367186
+          ],
+          [
+            179.99996995411607,
+            -44.99647368908553
+          ],
+          [
+            -179.99977675266098,
+            -44.99648310753076
+          ],
+          [
+            -179.99952450122055,
+            -44.99650191888827
+          ],
+          [
+            -179.99927398292652,
+            -44.996530071598094
+          ],
+          [
+            -179.9990258843942,
+            -44.996567488496204
+          ],
+          [
+            -179.99878088560894,
+            -44.99661406702596
+          ],
+          [
+            -179.99853965806304,
+            -44.99666967951924
+          ],
+          [
+            -179.9983028629158,
+            -44.99673417354636
+          ],
+          [
+            -179.99807114918187,
+            -44.99680737233386
+          ],
+          [
+            -179.9978451519528,
+            -44.99688907524899
+          ],
+          [
+            -179.99762549065673,
+            -44.99697905834966
+          ],
+          [
+            -179.9974127673611,
+            -44.99707707499827
+          ],
+          [
+            -179.99720756512264,
+            -44.997182856537684
+          ],
+          [
+            -179.99701044638945,
+            -44.99729611302757
+          ],
+          [
+            -179.99682195145976,
+            -44.99741653403921
+          ],
+          [
+            -179.9966425970009,
+            -44.99754378950625
+          ],
+          [
+            -179.9964728746334,
+            -44.997677530629495
+          ],
+          [
+            -179.99631324958335,
+            -44.99781739083285
+          ],
+          [
+            -179.9961641594073,
+            -44.997962986768165
+          ],
+          [
+            -179.99602601279258,
+            -44.99811391936592
+          ],
+          [
+            -179.99589918843705,
+            -44.9982697749291
+          ],
+          [
+            -179.9957840340108,
+            -44.9984301262671
+          ],
+          [
+            -179.99568086520276,
+            -44.998594533866616
+          ],
+          [
+            -179.99558996485516,
+            -44.99876254709634
+          ],
+          [
+            -179.99551158218767,
+            -44.998933705442155
+          ],
+          [
+            -179.99544593211385,
+            -44.999107539769355
+          ],
+          [
+            -179.9953931946515,
+            -44.999283573608494
+          ],
+          [
+            -179.99535351442867,
+            -44.99946132446145
+          ],
+          [
+            -179.99532700028664,
+            -44.99964030512387
+          ],
+          [
+            -179.99531372498083,
+            -44.99982002502057
+          ],
+          [
+            -179.99531372498083,
+            -44.99999999155024
+          ],
+          [
+            -179.99532700036968,
+            -45.00017971143557
+          ],
+          [
+            -179.99535351484306,
+            -45.000358692075366
+          ],
+          [
+            -179.99539319580796,
+            -45.000536442894706
+          ],
+          [
+            -179.99544593458114,
+            -45.000712476689614
+          ],
+          [
+            -179.9955115866863,
+            -45.00088631096243
+          ],
+          [
+            -179.99558997224946,
+            -45.001057469244316
+          ],
+          [
+            -179.99568087649152,
+            -45.00122548240127
+          ],
+          [
+            -179.9957840503162,
+            -45.00138988991996
+          ],
+          [
+            -179.99589921099243,
+            -45.00155024116997
+          ],
+          [
+            -179.99602604292895,
+            -45.00170609663897
+          ],
+          [
+            -179.99616419853868,
+            -45.00185702913737
+          ],
+          [
+            -179.9963132991914,
+            -45.00200262496924
+          ],
+          [
+            -179.99647293625102,
+            -45.002142485066216
+          ],
+          [
+            -179.9966426721956,
+            -45.00227622608128
+          ],
+          [
+            -179.99682204181642,
+            -45.002403481439565
+          ],
+          [
+            -179.9970105534929,
+            -45.00252390234303
+          ],
+          [
+            -179.9972076905404,
+            -45.002637158726515
+          ],
+          [
+            -179.99741291262612,
+            -45.002742940162456
+          ],
+          [
+            -179.99762565725058,
+            -45.00284095671169
+          ],
+          [
+            -179.9978453412895,
+            -45.00293093971814
+          ],
+          [
+            -179.99807136259244,
+            -45.00301264254524
+          ],
+          [
+            -179.9983031016336,
+            -45.00308584125186
+          ],
+          [
+            -179.99853992321027,
+            -45.00315033520615
+          ],
+          [
+            -179.99878117818434,
+            -45.00320594763546
+          ],
+          [
+            -179.99902620526214,
+            -45.00325252611078
+          ],
+          [
+            -179.9992743328075,
+            -45.003289942964585
+          ],
+          [
+            -179.99952488068323,
+            -45.00331809564075
+          ],
+          [
+            -179.99977716211612,
+            -45.00333690697558
+          ],
+          [
+            179.99996951442017,
+            -45.003346325409375
+          ],
+          [
+            179.99971584330905,
+            -45.00334632512765
+          ],
+          [
+            179.99946251988683,
+            -45.00333690613196
+          ],
+          [
+            179.99921023853653,
+            -45.00331809423982
+          ],
+          [
+            179.99895969078352,
+            -45.003289941013996
+          ],
+          [
+            179.99871156339975,
+            -45.00325252362109
+          ],
+          [
+            179.99846653652054,
+            -45.00320594462007
+          ],
+          [
+            179.99822528177992,
+            -45.00315033168113
+          ],
+          [
+            179.997988460469,
+            -45.00308583723574
+          ],
+          [
+            179.99775672172296,
+            -45.00301263805889
+          ],
+          [
+            179.99753070074127,
+            -45.002930934784494
+          ],
+          [
+            179.99731101704623,
+            -45.002840951355466
+          ],
+          [
+            179.99709827278457,
+            -45.002742934409945
+          ],
+          [
+            179.99689305107654,
+            -45.00263715260523
+          ],
+          [
+            179.9966959144175,
+            -45.002523895881446
+          ],
+          [
+            179.99650740313592,
+            -45.00240347466682
+          ],
+          [
+            179.99632803391222,
+            -45.00227621902684
+          ],
+          [
+            179.99615829836256,
+            -45.002142477759506
+          ],
+          [
+            179.99599866169137,
+            -45.0020026174394
+          ],
+          [
+            179.99584956141632,
+            -45.001857021412874
+          ],
+          [
+            179.99571140616933,
+            -45.00170608874735
+          ],
+          [
+            179.9955845745767,
+            -45.001550233137486
+          ],
+          [
+            179.9954694142217,
+            -45.00138988177134
+          ],
+          [
+            179.99536624069214,
+            -45.001225474159455
+          ],
+          [
+            179.9952753367158,
+            -45.00105746093014
+          ],
+          [
+            179.995196951386,
+            -45.000886302594445
+          ],
+          [
+            179.99513129947934,
+            -45.000712468283886
+          ],
+          [
+            179.99507856086768,
+            -45.00053643446463
+          ],
+          [
+            179.9950388800255,
+            -45.00035868363149
+          ],
+          [
+            179.9950123656347,
+            -45.00017970298553
+          ],
+          [
+            179.99499909028737,
+            -44.99999998309866
+          ]
+        ],
+        "times": [
+          "2023-06-15T08:00:00.000Z",
+          "2023-06-15T08:00:05.000Z",
+          "2023-06-15T08:00:10.000Z",
+          "2023-06-15T08:00:15.000Z",
+          "2023-06-15T08:00:20.000Z",
+          "2023-06-15T08:00:25.000Z",
+          "2023-06-15T08:00:30.000Z",
+          "2023-06-15T08:00:35.000Z",
+          "2023-06-15T08:00:40.000Z",
+          "2023-06-15T08:00:45.000Z",
+          "2023-06-15T08:00:50.000Z",
+          "2023-06-15T08:00:55.000Z",
+          "2023-06-15T08:01:00.000Z",
+          "2023-06-15T08:01:05.000Z",
+          "2023-06-15T08:01:10.000Z",
+          "2023-06-15T08:01:15.000Z",
+          "2023-06-15T08:01:20.000Z",
+          "2023-06-15T08:01:25.000Z",
+          "2023-06-15T08:01:30.000Z",
+          "2023-06-15T08:01:35.000Z",
+          "2023-06-15T08:01:40.000Z",
+          "2023-06-15T08:01:45.000Z",
+          "2023-06-15T08:01:50.000Z",
+          "2023-06-15T08:01:55.000Z",
+          "2023-06-15T08:02:00.000Z",
+          "2023-06-15T08:02:05.000Z",
+          "2023-06-15T08:02:10.000Z",
+          "2023-06-15T08:02:15.000Z",
+          "2023-06-15T08:02:20.000Z",
+          "2023-06-15T08:02:25.000Z",
+          "2023-06-15T08:02:30.000Z",
+          "2023-06-15T08:02:35.000Z",
+          "2023-06-15T08:02:40.000Z",
+          "2023-06-15T08:02:45.000Z",
+          "2023-06-15T08:02:50.000Z",
+          "2023-06-15T08:02:55.000Z",
+          "2023-06-15T08:03:00.000Z",
+          "2023-06-15T08:03:05.000Z",
+          "2023-06-15T08:03:10.000Z",
+          "2023-06-15T08:03:15.000Z",
+          "2023-06-15T08:03:20.000Z",
+          "2023-06-15T08:03:25.000Z",
+          "2023-06-15T08:03:30.000Z",
+          "2023-06-15T08:03:35.000Z",
+          "2023-06-15T08:03:40.000Z",
+          "2023-06-15T08:03:45.000Z",
+          "2023-06-15T08:03:50.000Z",
+          "2023-06-15T08:03:55.000Z",
+          "2023-06-15T08:04:00.000Z",
+          "2023-06-15T08:04:05.000Z",
+          "2023-06-15T08:04:10.000Z",
+          "2023-06-15T08:04:15.000Z",
+          "2023-06-15T08:04:20.000Z",
+          "2023-06-15T08:04:25.000Z",
+          "2023-06-15T08:04:30.000Z",
+          "2023-06-15T08:04:35.000Z",
+          "2023-06-15T08:04:40.000Z",
+          "2023-06-15T08:04:45.000Z",
+          "2023-06-15T08:04:50.000Z",
+          "2023-06-15T08:04:55.000Z",
+          "2023-06-15T08:05:00.000Z",
+          "2023-06-15T08:05:05.000Z",
+          "2023-06-15T08:05:10.000Z",
+          "2023-06-15T08:05:15.000Z",
+          "2023-06-15T08:05:20.000Z",
+          "2023-06-15T08:05:25.000Z",
+          "2023-06-15T08:05:30.000Z",
+          "2023-06-15T08:05:35.000Z",
+          "2023-06-15T08:05:40.000Z",
+          "2023-06-15T08:05:45.000Z",
+          "2023-06-15T08:05:50.000Z",
+          "2023-06-15T08:05:55.000Z",
+          "2023-06-15T08:06:00.000Z",
+          "2023-06-15T08:06:05.000Z",
+          "2023-06-15T08:06:10.000Z",
+          "2023-06-15T08:06:15.000Z",
+          "2023-06-15T08:06:20.000Z",
+          "2023-06-15T08:06:25.000Z",
+          "2023-06-15T08:06:30.000Z",
+          "2023-06-15T08:06:35.000Z",
+          "2023-06-15T08:06:40.000Z",
+          "2023-06-15T08:06:45.000Z",
+          "2023-06-15T08:06:50.000Z",
+          "2023-06-15T08:06:55.000Z",
+          "2023-06-15T08:07:00.000Z",
+          "2023-06-15T08:07:05.000Z",
+          "2023-06-15T08:07:10.000Z",
+          "2023-06-15T08:07:15.000Z",
+          "2023-06-15T08:07:20.000Z",
+          "2023-06-15T08:07:25.000Z",
+          "2023-06-15T08:07:30.000Z",
+          "2023-06-15T08:07:35.000Z",
+          "2023-06-15T08:07:40.000Z",
+          "2023-06-15T08:07:45.000Z",
+          "2023-06-15T08:07:50.000Z",
+          "2023-06-15T08:07:55.000Z",
+          "2023-06-15T08:08:00.000Z",
+          "2023-06-15T08:08:05.000Z",
+          "2023-06-15T08:08:10.000Z",
+          "2023-06-15T08:08:15.000Z",
+          "2023-06-15T08:08:20.000Z",
+          "2023-06-15T08:08:25.000Z",
+          "2023-06-15T08:08:30.000Z",
+          "2023-06-15T08:08:35.000Z",
+          "2023-06-15T08:08:40.000Z",
+          "2023-06-15T08:08:45.000Z",
+          "2023-06-15T08:08:50.000Z",
+          "2023-06-15T08:08:55.000Z",
+          "2023-06-15T08:09:00.000Z",
+          "2023-06-15T08:09:05.000Z",
+          "2023-06-15T08:09:10.000Z",
+          "2023-06-15T08:09:15.000Z",
+          "2023-06-15T08:09:20.000Z",
+          "2023-06-15T08:09:25.000Z",
+          "2023-06-15T08:09:30.000Z",
+          "2023-06-15T08:09:35.000Z",
+          "2023-06-15T08:09:40.000Z",
+          "2023-06-15T08:09:45.000Z",
+          "2023-06-15T08:09:50.000Z",
+          "2023-06-15T08:09:55.000Z",
+          "2023-06-15T08:10:00.000Z"
+        ],
+        "courses": [
+          0.0,
+          3.0,
+          6.0,
+          9.0,
+          12.0,
+          15.0,
+          18.0,
+          21.0,
+          24.0,
+          27.0,
+          30.0,
+          33.0,
+          36.0,
+          39.0,
+          42.0,
+          45.0,
+          48.0,
+          51.0,
+          54.0,
+          57.0,
+          60.0,
+          63.0,
+          66.0,
+          69.0,
+          72.0,
+          75.0,
+          78.0,
+          81.0,
+          84.0,
+          87.0,
+          90.0,
+          93.0,
+          96.0,
+          99.0,
+          102.0,
+          105.0,
+          108.0,
+          111.0,
+          114.0,
+          117.0,
+          120.0,
+          123.0,
+          126.0,
+          129.0,
+          132.0,
+          135.0,
+          138.0,
+          141.0,
+          144.0,
+          147.0,
+          150.0,
+          153.0,
+          156.0,
+          159.0,
+          162.0,
+          165.0,
+          168.0,
+          171.0,
+          174.0,
+          177.0,
+          180.0,
+          183.0,
+          186.0,
+          189.0,
+          192.0,
+          195.0,
+          198.0,
+          201.0,
+          204.0,
+          207.0,
+          210.0,
+          213.0,
+          216.0,
+          219.0,
+          222.0,
+          225.0,
+          228.0,
+          231.0,
+          234.0,
+          237.0,
+          240.0,
+          243.0,
+          246.0,
+          249.0,
+          252.0,
+          255.0,
+          258.0,
+          261.0,
+          264.0,
+          267.0,
+          270.0,
+          273.0,
+          276.0,
+          279.0,
+          282.0,
+          285.0,
+          288.0,
+          291.0,
+          294.0,
+          297.0,
+          300.0,
+          303.0,
+          306.0,
+          309.0,
+          312.0,
+          315.0,
+          318.0,
+          321.0,
+          324.0,
+          327.0,
+          330.0,
+          333.0,
+          336.0,
+          339.0,
+          342.0,
+          345.0,
+          348.0,
+          351.0,
+          354.0,
+          357.0,
+          357.0
+        ]
+      },
+      "sensor": {
+        "array_offset_m": 900.0,
+        "array_mode": "worm_in_hole"
+      },
+      "cuts": [
+        {
+          "time": "2023-06-15T08:09:47.500Z",
+          "bearing": 45.0,
+          "ambiguous_bearing": 315.0,
+          "length_m": 3000.0,
+          "expected": {
+            "origin": [
+              -179.99623874877048,
+              -45.00192982707796
+            ],
+            "course": 219.0,
+            "side": "port",
+            "lines": [
+              {
+                "which": "bearing",
+                "end": [
+                  -179.96934245845833,
+                  -44.98283830097506
+                ]
+              },
+              {
+                "which": "ambiguous_bearing",
+                "end": [
+                  179.9768649609174,
+                  -44.98283830097506
+                ]
+              }
+            ],
+            "keep_port": "bearing",
+            "keep_starboard": "ambiguous_bearing"
+          }
+        },
+        {
+          "time": "2023-06-15T08:06:02.000Z",
+          "bearing": 200.0,
+          "ambiguous_bearing": 100.0,
+          "length_m": 3000.0,
+          "expected": {
+            "origin": [
+              179.99906045791604,
+              -44.996518812310406
+            ],
+            "course": 84.0,
+            "side": "starboard",
+            "lines": [
+              {
+                "which": "bearing",
+                "end": [
+                  179.98604216457085,
+                  -45.02188501209785
+                ]
+              },
+              {
+                "which": "ambiguous_bearing",
+                "end": [
+                  -179.96346834816546,
+                  -45.00120029535225
+                ]
+              }
+            ],
+            "keep_port": "ambiguous_bearing",
+            "keep_starboard": "bearing"
+          }
+        },
+        {
+          "time": "2023-06-15T08:02:30.000Z",
+          "bearing": 10.0,
+          "ambiguous_bearing": 170.0,
+          "length_m": 3000.0,
+          "expected": {
+            "origin": [
+              179.995,
+              -45.00269949726143
+            ],
+            "course": 0.0,
+            "side": "starboard",
+            "lines": [
+              {
+                "which": "bearing",
+                "end": [
+                  -179.9983956993142,
+                  -44.976114392092214
+                ]
+              },
+              {
+                "which": "ambiguous_bearing",
+                "end": [
+                  -179.99838958779145,
+                  -45.02928409588577
+                ]
+              }
+            ],
+            "keep_port": "ambiguous_bearing",
+            "keep_starboard": "bearing"
+          }
+        }
+      ]
+    }
+  ]
+}

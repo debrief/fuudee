@@ -38,7 +38,7 @@ export async function playDrawing(page, shot) {
   // The toolbar: a named toolbar of buttons, Cancel off until something is being drawn.
   const before = await timeLabel();
   assert.equal(await tool("Cancel").isDisabled(), true);
-  await page.locator("#selected-count").click();
+  await page.evaluate(() => document.activeElement?.blur());
   await page.mouse.move(2, 2);
   await shot("draw-01-toolbar");
 
@@ -73,7 +73,7 @@ export async function playDrawing(page, shot) {
   await shot("draw-03-area-handles");
 
   // Undo takes it away; redo brings it back.
-  await page.locator("#selected-count").click();
+  await page.evaluate(() => document.activeElement?.blur());
   await page.keyboard.press("Control+z");
   await page.waitForFunction(() => /Area 'Patrol box' added[^]*undone/.test(document.getElementById("history")?.textContent ?? ""));
   await page.keyboard.press("Control+y");

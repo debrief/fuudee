@@ -48,7 +48,7 @@ export async function playShear(page, shot) {
   await page.keyboard.press("End");
   for (let i = 0; i < 2; i++) await page.keyboard.press("PageDown");
   await page.waitForTimeout(500);
-  assert.match(await page.locator("#timebar").innerText(), /09:40:00Z\s*[–-]\s*10:20:00Z/);
+  assert.equal(await page.locator("#timebar .tc-summary").innerText(), "09:40–10:20Z");
   await page.locator(`#outline li[data-id="track-red-one"]`).click();
   await handle("end").waitFor();
   // Close in on the leg: the map fitted to RED ONE, then one step nearer.
@@ -112,7 +112,7 @@ export async function playShear(page, shot) {
   assert.equal(await steps(), n);
 
   // Undo takes the shear back.
-  await page.locator("#selected-count").click();
+  await page.evaluate(() => document.activeElement?.blur());
   await page.keyboard.press("Control+z");
   await page.waitForFunction(() => /RED ONE part sheared[^]*undone/.test(document.getElementById("history")?.textContent ?? ""));
 
@@ -195,7 +195,7 @@ export async function playShear(page, shot) {
   await page.mouse.move(2, 2);
   await shot("shear-06-stretched-by-form");
   // Both undone, like any step.
-  await page.locator("#selected-count").click();
+  await page.evaluate(() => document.activeElement?.blur());
   await page.keyboard.press("Control+z");
   await page.keyboard.press("Control+z");
   await page.waitForFunction(() => [...document.querySelectorAll("#history li")].slice(0, 2).every((li) => /undone/.test(li.textContent ?? "")));

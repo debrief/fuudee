@@ -14,7 +14,8 @@ Ported from the legacy SAX handlers, which this module cites:
   ``RelativeTMASegmentHandler``, ``AbsoluteTMASegmentHandler``,
   ``DynamicInfillSegmentHandler`` and ``FixHandler``: tracks, their legs and
   fixes.
-- ``SensorHandler``, ``TMAHandler`` and ``DynamicTrackShapeSetHandler``: what
+- ``SensorHandler`` and ``SensorContactHandler``: a track's sensors and their cuts.
+- ``TMAHandler`` and ``DynamicTrackShapeSetHandler``: what
   a track carries besides its fixes. These are counted, not read.
 - ``NarrativeHandler``: narrative entries.
 - ``ShapeHandler``, ``LabelHandler``, ``CircleHandler``, ``RectangleHandler``,
@@ -334,6 +335,22 @@ class DpfFix:
 
 
 @dataclass
+class DpfTma:
+    """A TMA solution leg's solution (CoreTMASegmentHandler, RelativeTMASegmentHandler,
+    AbsoluteTMASegmentHandler): its course and speed; a relative leg's host track and
+    sensor and its offset from where the sensor was at the leg's start (a range, in
+    metres, and a bearing); an absolute leg's origin."""
+
+    course_deg: float | None = None
+    speed_kn: float | None = None
+    host_track: str | None = None
+    host_sensor: str | None = None
+    offset_bearing_deg: float | None = None
+    offset_m: float | None = None
+    origin: tuple[float, float] | None = None  # (longitude, latitude)
+
+
+@dataclass
 class DpfLeg:
     """A track segment: an ordinary leg, a TMA solution leg or a dynamic infill."""
 
@@ -344,6 +361,8 @@ class DpfLeg:
     # Legacy Debrief saves the positions it worked out, from the leg's first fix by
     # each fix's course and speed, so they are read as saved.
     dead_reckoned: bool = False
+    # A TMA solution leg's solution (RelativeTMASegment, AbsoluteTMASegment).
+    tma: DpfTma | None = None
 
 
 @dataclass
@@ -356,12 +375,55 @@ class DpfCarried:
 
 
 @dataclass
+class DpfContact:
+    """A sensor contact (SensorContactHandler): one cut. bearing is None for a cut that
+    gives none (a frequency alone); ambiguous is the ambiguous bearing, and
+    has_ambiguous says whether it is still ambiguous: legacy kept the bearing it
+    discarded as the ambiguous one once the analyst kept the other (ditchBearing)."""
+
+    time_ms: int
+    bearing: float | None
+    ambiguous: float | None = None
+    has_ambiguous: bool = False
+    frequency: float | None = None
+    range_m: float | None = None
+    origin: tuple[float, float] | None = None  # (longitude, latitude), legacy's centre
+    label: str | None = None
+    label_showing: bool = False
+    comment: str | None = None
+    colour: str | None = None  # None: its sensor's
+    visible: bool = True
+    line_style: str | None = None  # as written, such as "SOLID" or "DOTTED"
+    # An ambiguous bearing of 0.000 on a cut that is not ambiguous: older legacy's placeholder.
+    zero_twin: bool = False
+    line: int = 0
+
+
+@dataclass
+class DpfSensor:
+    """A sensor a track carries (SensorHandler): its contacts, and what legacy kept of it
+    that v4 does not draw (its array's offset and mode, its base frequency)."""
+
+    name: str
+    colour: str | None
+    visible: bool
+    contacts: list[DpfContact] = field(default_factory=list)
+    track_name: str | None = None
+    line_thickness: int | None = None
+    offset_m: float | None = None
+    array_mode: str | None = None
+    base_frequency: float | None = None
+    line: int = 0
+
+
+@dataclass
 class DpfTrack:
     name: str
     colour: str | None
     visible: bool
     legs: list[DpfLeg] = field(default_factory=list)
     carried: list[DpfCarried] = field(default_factory=list)
+    sensors: list[DpfSensor] = field(default_factory=list)
 
 
 @dataclass
@@ -467,6 +529,8 @@ class DpfFile:
     view_settings: list[str] = field(default_factory=list)
     # The application version that saved the file, from the details element.
     saved_by: str | None = None
+    # The tote's primary track, by name: legacy Stacked Dots measured its sensors' cuts.
+    primary: str | None = None
 
 
 # --- Reading ------------------------------------------------------------------
@@ -514,7 +578,7 @@ TMA_LEGS = {"RelativeTMASegment", "AbsoluteTMASegment"}
 # Elements the importer only names or counts the children of, never reads
 # inside: their subtrees are not kept in memory (see parse_xml).
 SHALLOW = frozenset(
-    {"sensor", "tma", "DynamicShapeSet", "composite_track", "satc_solution", "CoreFormatter"}
+    {"tma", "DynamicShapeSet", "composite_track", "satc_solution", "CoreFormatter"}
     | set(CHART_FEATURES)
     | set(SHAPE_REASONS)
 )
@@ -538,6 +602,10 @@ def parse_dpf(data: bytes) -> DpfFile:
                 _read_top_layer(layer, result)
         elif node.tag == "gui":
             result.view_settings += _gui_settings(node)
+            for tote in (c for c in node.children if c.tag == "tote"):
+                result.primary = next(
+                    (c.name() for c in tote.children if c.tag == "primary" and c.name()), None
+                )
         elif node.tag == "projection":
             result.view_settings.append("the map projection and area shown")
         else:
@@ -677,6 +745,7 @@ def _read_track(node: Node, result: DpfFile) -> None:
                 child.tag,
                 child.attrs.get("Name"),
                 dead_reckoned=read_bool(child.attrs.get("PlotRelative"), False),
+                tma=_read_tma(child, name, result),
             )
             leg.fixes = _read_fixes(child, track.name, result)
             track.legs.append(leg)
@@ -687,6 +756,7 @@ def _read_track(node: Node, result: DpfFile) -> None:
                         inner.tag,
                         inner.attrs.get("Name"),
                         dead_reckoned=read_bool(inner.attrs.get("PlotRelative"), False),
+                        tma=_read_tma(inner, name, result),
                     )
                     leg.fixes = _read_fixes(inner, track.name, result)
                     track.legs.append(leg)
@@ -699,8 +769,7 @@ def _read_track(node: Node, result: DpfFile) -> None:
             if fix:
                 loose.fixes.append(fix)
         elif child.tag == "sensor":
-            contacts = sum(1 for c in child.children if c.tag == "sensor_contact")
-            track.carried.append(DpfCarried(child.tag, child.name(), contacts))
+            track.sensors.append(_read_sensor(child, name, result))
         elif child.tag == "tma":
             solutions = sum(1 for c in child.children if c.tag == "tma_solution")
             track.carried.append(DpfCarried(child.tag, child.name(), solutions))
@@ -714,6 +783,149 @@ def _read_track(node: Node, result: DpfFile) -> None:
     if loose.fixes:
         track.legs.insert(0, loose)
     result.tracks.append(track)
+
+
+# WorldSpeed.UnitLabels, as WorldSpeedHandler writes them, in knots.
+KNOTS_PER = {
+    "kts": 1.0,
+    "m/s": 3600 / 1852.0,
+    "ft/s": 0.3048 * 3600 / 1852.0,
+    "ft/min": 0.3048 * 60 / 1852.0,
+}
+
+
+def _read_tma(leg: Node, track: str, result: DpfFile) -> DpfTma | None:
+    """A TMA leg's solution, as legacy saved it; None for any other leg. What cannot be
+    read is reported, and the leg's fixes are imported as saved."""
+    if leg.tag not in TMA_LEGS:
+        return None
+    a = leg.attrs
+    tma = DpfTma(host_track=a.get("HostTrack"), host_sensor=a.get("HostSensor"))
+    where = f"TMA leg {a.get('Name') or 'unnamed'!r} of track {track!r}"
+    try:
+        if "CourseDegs" in a:
+            tma.course_deg = read_number(a["CourseDegs"], "course") % 360.0
+        speed = leg.child("Speed")
+        if speed is not None:
+            units = speed.attrs.get("Units", "kts")
+            if units not in KNOTS_PER:
+                raise DpfError(f"{units!r} is not a speed unit")
+            tma.speed_kn = read_number(speed.attrs.get("Value"), "speed") * KNOTS_PER[units]
+        offset = leg.child("Offset")
+        if offset is not None:
+            tma.offset_bearing_deg = read_number(offset.attrs.get("BearingDegs", "0"), "bearing")
+            tma.offset_m = read_distance_m(offset.child("Range"))
+        origin = read_location(leg.child("Origin"))
+        if origin is not None:
+            tma.origin = (origin.longitude, origin.latitude)
+    except DpfError as error:
+        result.warnings.append((leg.line, f"the solution of {where}: {error}"))
+    return tma
+
+
+def _read_sensor(node: Node, track: str, result: DpfFile) -> DpfSensor:
+    """SensorHandler: a sensor's name, colour, visibility and contacts; its array offset,
+    array mode and base frequency, kept to say they were not imported."""
+    a = node.attrs
+    name = from_xml(a["Name"]) if a.get("Name") else "Sensor"
+    sensor = DpfSensor(
+        name=name,
+        colour=_colour_or_default(node.child("colour"), f"sensor {name!r}", result),
+        visible=read_bool(a.get("Visible"), True),
+        track_name=a.get("TrackName"),
+        line=node.line,
+    )
+    try:
+        sensor.line_thickness = int(read_number(a["LineThickness"], "line thickness"))
+    except (KeyError, DpfError):
+        pass
+    if a.get("WormInHole") is not None:
+        sensor.array_mode = "Worm in hole" if read_bool(a.get("WormInHole"), False) else "Plain"
+    sensor.array_mode = a.get("ArrayMode", sensor.array_mode)
+    if a.get("BaseFrequency"):
+        try:
+            sensor.base_frequency = read_number(a["BaseFrequency"], "base frequency")
+        except DpfError as error:
+            result.warnings.append((node.line, f"sensor {name!r}: {error}"))
+    for child in node.children:
+        if child.tag == "sensor_contact":
+            try:
+                contact, truncated = read_contact(child)
+            except DpfError as error:
+                where = f"a cut of sensor {name!r} on {track!r}"
+                result.errors.append((child.line, f"{where}: {error}"))
+                continue
+            result.truncated_times += truncated
+            sensor.contacts.append(contact)
+        elif child.tag == "Offset":
+            try:
+                offset = read_distance_m(child)
+            except DpfError as error:
+                result.warnings.append((child.line, f"sensor {name!r}'s offset: {error}"))
+                continue
+            sensor.offset_m = offset if offset else None
+        elif child.tag not in ("colour", "AdditionalData"):
+            result.skipped.append(
+                DpfSkipped(child.tag, child.name(), None, f"in sensor {name!r}: {UNKNOWN}")
+            )
+    return sensor
+
+
+def read_contact(node: Node) -> tuple[DpfContact, bool]:
+    """SensorContactHandler: a cut's time, bearing, ambiguous bearing and whether it is
+    still ambiguous, range (a Range attribute in yards, or a Range element with its
+    units), the sensor's own position (centre), label, comment, colour and visibility;
+    and whether its time was truncated. A frequency is read only to say it was not
+    imported. Legacy attributes are read in the order legacy wrote them, so a cut whose
+    HasAmbiguousBearing is true with no AmbiguousBearing is not ambiguous, as legacy's
+    setHasAmbiguousBearing ignored it."""
+    a = node.attrs
+    dtg = a.get("Dtg")
+    if dtg is None:
+        raise DpfError("no time")
+    when = read_time(dtg)
+    if when is None:
+        raise DpfError("the time is the legacy null date")
+    bearing = read_number(a["Bearing"], "bearing") if "Bearing" in a else None
+    ambiguous = (
+        read_number(a["AmbiguousBearing"], "ambiguous bearing") if "AmbiguousBearing" in a else None
+    )
+    still = read_bool(a.get("HasAmbiguousBearing"), False)
+    placeholder = ambiguous == 0 and not still
+    if placeholder:
+        # Older legacy Debrief wrote 0.000 as the ambiguous bearing of every cut, ambiguous
+        # or not (16,945 of its sample cuts): a cut that never had one.
+        ambiguous = None
+    frequency = None
+    if read_bool(a.get("HasFrequency"), False) and "Frequency" in a:
+        frequency = read_number(a["Frequency"], "frequency")
+    range_m = read_number(a["Range"], "range") * METRES_PER["yds"] if "Range" in a else None
+    element = node.child("Range")
+    if element is not None:
+        range_m = read_distance_m(element)
+    location = read_location(node.child("centre"))
+    try:
+        colour = read_colour(node.child("colour"))
+    except DpfError:
+        colour = None  # a cut's own colour that cannot be read: its sensor's is used
+    contact = DpfContact(
+        time_ms=when[0],
+        bearing=bearing,
+        ambiguous=ambiguous,
+        has_ambiguous=ambiguous is not None and still,
+        zero_twin=placeholder,
+        frequency=frequency,
+        range_m=range_m if range_m else None,
+        origin=(location.longitude, location.latitude) if location is not None else None,
+        label=from_xml(a["Label"]) if a.get("Label") else None,
+        label_showing=read_bool(a.get("LabelShowing"), False),
+        comment=from_xml(a["Comment"]) if a.get("Comment") else None,
+        colour=colour,
+        visible=read_bool(a.get("Visible"), True),
+        line_style=a.get("LineStyle"),
+        line=node.line,
+    )
+    return contact, when[1]
 
 
 def _colour_or_default(node: Node | None, what: str, result: DpfFile) -> str | None:

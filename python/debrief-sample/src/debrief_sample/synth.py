@@ -201,3 +201,80 @@ def sonar_bearings(
         contacts.append(Contact(run[0], run[-1]))
         bearings += run
     return bearings, contacts
+
+
+@dataclass(frozen=True)
+class AmbiguousBearing:
+    """A towed array's cut: the bearing it measured and its mirror image about the array."""
+
+    time_ms: int
+    bearing_deg: float
+    ambiguous_deg: float
+
+
+@dataclass(frozen=True)
+class TowedArrayModel:
+    """A simple passive towed array, streamed astern along ownship's course.
+
+    It hears further than the bow sonar and into the bow sonar's baffles, but not near
+    its own axis (endfire: the arcs either side of dead ahead and dead astern), and not
+    while ownship turns hard, when the array is not straight. It cannot tell port from
+    starboard: each cut carries the measured bearing and its mirror image about ownship's
+    course (CAP-22). Contact comes and goes at random, as the bow sonar's does.
+    """
+
+    interval_ms: int
+    detection_range_m: float
+    endfire_half_angle_deg: float
+    max_turn_deg_per_min: float
+    p_gain: float
+    p_lose: float
+    bearing_sd_deg: float
+
+
+def towed_array_bearings(
+    ownship: TrackPath,
+    target: TrackPath,
+    *,
+    own_course: Callable[[int], float],
+    model: TowedArrayModel,
+    deaf_ms: list[tuple[int, int]],
+    rng: random.Random,
+) -> list[AmbiguousBearing]:
+    """Noisy ambiguous bearings from ownship's towed array to the target while it holds it.
+
+    The truth is the geodesic bearing between the imported tracks; the noise is added to
+    the angle off the array's axis, which both bearings share, so the twin is the exact
+    mirror image of the noisy bearing about ownship's course. Which of the two is given
+    first is random, as an array cannot tell them apart.
+    """
+    start = max(ownship.start_ms, target.start_ms)
+    end = min(ownship.end_ms, target.end_ms)
+    out: list[AmbiguousBearing] = []
+    held = False
+    for time_ms in range(start, end + 1, model.interval_ms):
+        distance, true_bearing = range_bearing(
+            ownship.position_at(time_ms), target.position_at(time_ms)
+        )
+        course = own_course(time_ms)
+        off_axis = abs(bearing_difference(true_bearing.value, course))
+        endfire = min(off_axis, 180.0 - off_axis) <= model.endfire_half_angle_deg
+        turning = (
+            abs(bearing_difference(own_course(time_ms + 60_000), course))
+            > model.max_turn_deg_per_min
+        )
+        listening = not any(a <= time_ms < b for a, b in deaf_ms)
+        possible = listening and not endfire and not turning
+        possible = possible and distance.value <= model.detection_range_m
+        draw = rng.random()  # drawn every sample, so one change does not shift the rest
+        held = possible and (draw >= model.p_lose if held else draw < model.p_gain)
+        if not held:
+            continue
+        measured = normalise_bearing(true_bearing.value + rng.gauss(0.0, model.bearing_sd_deg))
+        mirror = normalise_bearing(2 * course - measured)
+        # An array cannot tell which is the true one, so neither comes first: the order is
+        # the toss of a coin seeded by the time alone, so the noise drawn is unchanged.
+        if random.Random(f"order:{time_ms}").random() < 0.5:
+            measured, mirror = mirror, measured
+        out.append(AmbiguousBearing(time_ms, round(measured, 2), round(mirror, 2)))
+    return out

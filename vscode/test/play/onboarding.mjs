@@ -1,6 +1,6 @@
 // Onboarding (CAP-25, NFR-09, OUT-05) and the web demo (DEP-06, DEP-07), played as a reader would.
 //
-// playTours: each of the four walkthroughs, start to finish, by doing what each step asks with
+// playTours: each of the five walkthroughs, start to finish, by doing what each step asks with
 // the pointer and the keyboard. Each step must tick itself off from what was done, and only on
 // the walkthrough's own copy, in the walkthrough shown (panel review, 17 Oct 2026): the same
 // thing done to another plot, a stretch for a shear, one track selected, Coverage before the log,
@@ -373,7 +373,9 @@ export async function playTours(page, shot, root) {
   await page.locator("#reset-layout").click();
   await openTours(page);
   await rightColumn(page);
-  assert.deepEqual((await layoutOf(page)).groups.find((g) => g.panels.includes("panel-tour"))?.panels, ["panel-tour"], "alone in their group");
+  // In their own group beneath Bearings, both in sight (product owner, 25 Oct 2026).
+  const rightGroups = (await layoutOf(page)).groups.filter((g) => g.place === "right");
+  assert.deepEqual(rightGroups.map((g) => [g.panels, g.active]), [[["panel-bearings"], "panel-bearings"], [["panel-tour"], "panel-tour"]], "Bearings and the walkthroughs, each in a group of its own, both in front");
   await page.locator('.dv-tab[data-panel="panel-tour"]').focus();
   await page.keyboard.press("Tab");
   assert.equal(await page.evaluate(() => document.activeElement?.closest("section.panel")?.id), "panel-tour", "Tab from their tab goes into the walkthroughs");
@@ -408,10 +410,15 @@ export async function playTours(page, shot, root) {
   assert.ok(outlineEnd[0] > 0 && outlineEnd[0] >= outlineEnd[1] - 1, `the Outline's list scrolled to its end: [scrollTop, its end] ${outlineEnd}`);
   const stepWords = stepRow(page, 1).locator(".tour-body p").first();
   assert.ok(await inSight(stepWords), "the step's words in sight, the Outline scrolled to its end");
+  // Beneath Bearings the walkthroughs are compact (product owner, 25 Oct 2026): the step's button is
+  // in sight once their panel is scrolled to it, the page never.
+  await go(page, 1).scrollIntoViewIfNeeded();
   assert.ok(await inSight(go(page, 1)), "and its button");
+  const tourScroll = () => page.evaluate(() => document.getElementById("panel-tour").closest(".dock-panel").scrollTop);
+  const scrolledTo = await tourScroll();
   // Its button only takes the reader there: pressing it ticks nothing.
   await go(page, 1).click();
-  assert.ok(await inSight(stepWords), "the step's words in sight as it is done");
+  assert.equal(await tourScroll(), scrolledTo, "the walkthroughs not scrolled as it is done");
   assert.equal(await page.evaluate(() => scrollY), 0, "the page itself does not scroll");
   assert.equal(await page.evaluate(() => document.activeElement?.dataset?.panel), "panel-time", "the keyboard on the time controller's tab");
   assert.equal(await stepRow(page, 1).getAttribute("class"), "tour-step next");
@@ -585,18 +592,24 @@ export async function playTours(page, shot, root) {
   await done(page, "imageTraced");
   await mapFrame.locator(".revision-banner").waitFor({ state: "visible", timeout: 60000 });
   await ticked(page, 4, "Find the image's source");
+  // Bearings and TMA comes after it (product owner, 25 Oct 2026).
+  await nextOffered(page, "Bearings and TMA");
+  await openTours(page);
+  await shot("tour-05-annotate-done");
+  await mapFrame.locator(".revision-banner button", { hasText: "Go to latest" }).click();
+
+  // --- Bearings and TMA --------------------------------------------------------------
+  await playTmaTour(page, shot);
   // The last: all done, no next to offer, and a link to start again, the keyboard on it.
   const ahead = page.locator("#tour .tour-ahead");
   await ahead.locator("button.tour-again").waitFor({ timeout: 30000 });
   assert.match(await ahead.locator(".tour-complete").innerText(), /^All walkthroughs done\./);
   assert.equal(await ahead.locator("button.tour-next, button.tour-skip").count(), 0);
   assert.equal(await ahead.locator("button.tour-again").innerText(), "Start again: Open and explore a serial");
-  await page.waitForFunction(() => document.activeElement?.classList.contains("tour-again"), null, { timeout: 5000 });
+  // The status line said so, where the last step was done (playTmaTour).
   assert.match(await page.locator("#tour .tour-said").innerText(), /All walkthroughs done\.$/);
   await openTours(page);
-  await shot("tour-05-annotate-done");
   await shot("next-02-all-done");
-  await mapFrame.locator(".revision-banner button", { hasText: "Go to latest" }).click();
 
   // Serial 1 itself, read from Python: no step was added to it by any walkthrough.
   assert.equal(await stepsOf(page, "serial-1"), serial1, "Serial 1's history gained no step");
@@ -614,19 +627,24 @@ export async function playTours(page, shot, root) {
       if (width >= 900) {
         await openTours(page);
         await rightColumn(page);
-        assert.ok((await page.locator("#main").boundingBox()).width >= width * 0.5, `at ${width} px the map keeps half the width: ${(await page.locator("#main").boundingBox()).width}`);
+        // Half the width or more; 40% while a TMA solution is open, its column widened (product owner, 25 Oct 2026).
+        const share = (await page.evaluate(() => !!window.debriefTma?.shown?.solution_id)) ? 0.4 : 0.5;
+        assert.ok((await page.locator("#main").boundingBox()).width >= width * share - 3, `at ${width} px the map keeps ${share * 100}% of the width (to a few pixels): ${(await page.locator("#main").boundingBox()).width}`);
       } else {
         assert.equal(await page.locator("#dock").isHidden(), true, `not docked at ${width} px`);
         assert.equal(await page.locator("#side > section:not([hidden])").first().getAttribute("id"), "panel-tour", `at ${width} px the walkthroughs are first in the side column`);
         assert.equal(await page.locator("#side > section:not([hidden])").nth(1).getAttribute("id"), "panel-time");
       }
       assert.equal(await pageSideways(page), false, `at ${width} px the page does not scroll sideways`);
-      const over = await page.evaluate(() =>
+      const overNow = () => page.evaluate(() =>
         ["#side", ".dock-panel:has(#panel-tour)", "#body-tour", "#tour", ".tour-steps", ".tour-pick", ".tour-ahead", "#body-import", ...[...document.querySelectorAll(".tour-body")].map((_, i) => `.tour-step:nth-child(${i + 1}) .tour-body`)].flatMap((s) => {
           const el = document.querySelector(s);
           return el && el.offsetParent && el.scrollWidth > el.clientWidth + 1 ? [`${s} ${el.scrollWidth}/${el.clientWidth}`] : [];
         }),
       );
+      // Polled: a panel being laid out again (a canvas, the plots in Bearings) may be wider for a frame or two.
+      let over = await overNow();
+      for (let i = 0; i < 30 && over.length; i++) over = await new Promise((r) => setTimeout(r, 100)).then(overNow);
       widths.push(`${wide ? "wide font, " : ""}${width} px: ${over.length ? over.join(", ") : "fits"}`);
       assert.deepEqual(over, [], `${wide ? "in a wide font, " : ""}at ${width} px the walkthroughs do not scroll sideways`);
       if (width === 280 && !wide) {
@@ -642,7 +660,217 @@ export async function playTours(page, shot, root) {
   await page.locator("#tour .tour-ahead button.tour-again").click();
   await page.waitForFunction(() => window.debriefTours().tour === "explore");
   assert.equal(await page.locator("#tour-pick").inputValue(), "explore");
-  console.log(`Walkthroughs played, every step ticked by what was done on its copy, none by the same thing done elsewhere: ${(await events(page)).length} of 20 (Tidy a track started again). Docked on the right from 900 px, the step's words in sight while another panel scrolls; sideways scroll: ${widths.join("; ")}.`);
+  // The layout put back, for the speed run after.
+  await page.locator("#reset-layout").click();
+  await mapPlaced(page);
+  console.log(`Walkthroughs played, every step ticked by what was done on its copy, none by the same thing done elsewhere: ${(await events(page)).length} of 27 (Tidy a track started again). Docked on the right from 900 px, the step's words in sight while another panel scrolls; sideways scroll: ${widths.join("; ")}.`);
+}
+
+/**
+ * Bearings and TMA (product owner, 25 Oct 2026; fitted properly, 25 Oct 2026), start to finish on
+ * its copy of serial 1, as legacy Debrief's TMA tutorial fits a leg: each step's button does what
+ * it says (the towed array selected in the Outline and shown in Bearings, the cut at 09:46Z chosen
+ * in the Outline, the period chosen and the first guess opened, Move… and Shear… opened for the
+ * solution, the cut at 11:12Z chosen, the position at 10:38Z chosen), and the reader does the
+ * step, from the keyboard where the step says how, with the Tools' entries (product owner, 27 Oct
+ * 2026): keeps the side the Bow sonar agrees with (Keep starboard), makes Debrief's first guess,
+ * moves its start along the first bearing to RED ONE's range, shears the first leg to fit, leaves
+ * the wild bearing out (Leave out of Contact 1 solution), splits before 10:38Z (Split before), and
+ * fits the second leg as the first, This leg in Move… and Shear…. The RMS and the cue are what the steps
+ * say (held to the sample by test_walkthrough.py), to a tenth of a degree. Polls, never waits fixed
+ * times; nothing depends on the font.
+ */
+export async function playTmaTour(page, shot) {
+  const mapFrame = page.frameLocator(".frame-map");
+  const view = page.locator("#bearings");
+  // The row chosen in the Outline (product owner, 27 Oct 2026): the walkthrough's buttons choose there.
+  const active = page.locator("#outline li.selected").last();
+  const op = (id) => page.locator(`#tools li.outline-op[data-op="${id}"] button`);
+  const chosenSays = (start) => page.waitForFunction((s) => [...document.querySelectorAll("#outline li.selected")].some((r) => (r.getAttribute("aria-label") ?? "").startsWith(s)), start, { timeout: 30000 });
+  const shown = () => page.evaluate(() => window.debriefTma.shown);
+  const rms = () => page.evaluate(() => window.debriefTma.residuals?.rms);
+  const cue = () => view.locator(".tma-cue-text").innerText();
+  const focused = () => page.evaluate(() => document.activeElement?.textContent ?? "");
+  const picture = async (name) => {
+    await page.evaluate(() => document.querySelectorAll("#toasts .toast").forEach((t) => t.remove()));
+    // The plot once there is a solution; before, the cut chosen.
+    await ((await view.locator(".tma-canvas").isVisible()) ? view.locator(".tma-canvas") : active).scrollIntoViewIfNeeded();
+    await shot(name);
+  };
+  /** The RMS once the step is saved, within a tenth of a degree of the sample's (test_walkthrough.py), and the cue's words. */
+  const settledAt = async (rmsSaid, cueSaid) => {
+    const now = () => page.evaluate(() => `RMS ${window.debriefTma.residuals?.rms}, cue "${document.querySelector("#bearings .tma-cue-text")?.textContent}"`);
+    await page.waitForFunction((r) => Math.abs((window.debriefTma.residuals?.rms ?? 999) - r) < 0.1 && !document.querySelector("#bearings .tma-rms")?.textContent?.includes("while dragging"), rmsSaid, { timeout: 60000 }).catch(async (e) => assert.fail(`RMS ${rmsSaid}° expected: ${await now()} (${e.message})`));
+    await page.waitForFunction((c) => document.querySelector("#bearings .tma-cue-text")?.textContent?.startsWith(c), cueSaid, { timeout: 30000 }).catch(async (e) => assert.fail(`"${cueSaid}" expected: ${await now()} (${e.message})`));
+  };
+  const dialog = page.locator("dialog.track-form");
+  const towed = "sensor-blue-one-towed-array";
+  // A step that needs the solution, before there is one, says so and does nothing.
+  await page.selectOption("#tour-pick", "tma");
+  await startTour(page, "tma");
+  await page.waitForFunction((s) => window.debriefTma.shown?.sensor_id === s && !window.debriefTma.shown.solution_id && window.debriefTma.shown.cuts?.length > 0, towed, { timeout: 60000 });
+  assert.match(await view.locator(".tma-title").innerText(), /^Towed array on BLUE ONE · \d+ cuts, \d+ ambiguous$/);
+  assert.deepEqual(await page.evaluate(() => window.debriefSelection().picks), [towed], "the towed array selected in the Outline, Bearings following");
+  assert.match(await page.locator("#history li .name").first().textContent(), /^A wild bearing put into Towed array cut at 11:12:00Z$/);
+  await press(page, 3);
+  await page.locator(".toast", { hasText: "Make the solution first" }).first().waitFor({ timeout: 10000 });
+  await notDone(page, "solutionMoved", "nothing to move yet");
+
+  // 2. The Bow sonar's cut at 09:46Z reads 235.3°, as the step says, its cuts opened in the Outline.
+  const bow = page.locator('#outline li[data-id="sensor-blue-one-bow-sonar"]');
+  await bow.click();
+  await page.waitForFunction(() => window.debriefTma.shown?.sensor_id === "sensor-blue-one-bow-sonar", null, { timeout: 30000 });
+  await bow.locator(".twisty").click();
+  await page.locator("#outline li.cut", { hasText: "09:46:00Z" }).first().waitFor();
+  assert.match(await page.locator("#outline li.cut", { hasText: "09:46:00Z" }).first().innerText(), /09:46:00Z\s+235\.3°/);
+  await bow.locator(".twisty").click();
+  // The cut at 09:46Z chosen in the Outline, current time there; the side the Bow sonar agrees with
+  // kept from the keyboard, as the step says: Keep starboard in the Tools.
+  await press(page, 1);
+  await chosenSays("Cut at 09:46:00Z, ");
+  assert.equal(await page.evaluate(() => document.activeElement?.getAttribute("aria-label")?.slice(0, 16)), "Cut at 09:46:00Z", "the keyboard on the cut, in the Outline");
+  assert.match(await active.getAttribute("aria-label"), /236\.3° to starboard/);
+  await showPanel(page, "tools");
+  await op("keep-starboard").focus();
+  assert.equal(await focused(), "Keep starboard: this cut");
+  await picture("tma-walk-01-keep-a-side");
+  await page.keyboard.press("Enter");
+  await done(page, "sideKept");
+  await ticked(page, 1, "Keep a side of an ambiguous bearing");
+
+  // 3. The period chosen and Debrief's first guess opened; made from the keyboard, as it is.
+  await press(page, 2);
+  await view.locator(".tma-form").waitFor({ state: "visible", timeout: 30000 });
+  assert.match(await view.locator(".tma-form-title").innerText(), /^First guess for 102 cuts 09:46:00Z–12:00:00Z, 101 ambiguous$/);
+  assert.equal(await view.locator('.tma-form input[name="range"]').inputValue(), "4.94 nmi");
+  assert.equal(await view.locator('.tma-form input[name="speed"]').inputValue(), "8.0 kn");
+  assert.equal(await page.evaluate(() => document.activeElement?.getAttribute("name")), "range", "the form has the keyboard");
+  await page.keyboard.press("Enter");
+  await done(page, "solutionMade");
+  await page.waitForFunction(() => window.debriefTma.residuals?.rows.length === 102, null, { timeout: 60000 });
+  await settledAt(55.9, "95 of 102 beyond 3.0°");
+  assert.equal(Math.round(await rms()), 56, "the RMS the step says");
+  await picture("tma-walk-02-first-guess");
+
+  // 4. Moved along the first bearing to RED ONE's range, by typing what the step gives: the RMS up.
+  await press(page, 3);
+  await page.locator("#track-form-distance").waitFor({ timeout: 30000 });
+  assert.equal(await page.locator("#track-form-extent").inputValue(), "whole");
+  await page.locator("#track-form-distance").fill("1.67 nmi");
+  await page.locator("#track-form-bearing").fill("056.3");
+  await dialog.getByRole("button", { name: "Move", exact: true }).click();
+  await done(page, "solutionMoved");
+  await settledAt(62.7, "99 of 102 beyond 3.0°");
+  await notDone(page, "solutionSheared", "a move is not the shear");
+  await ticked(page, 3, "Put the start at RED ONE's range");
+  await picture("tma-walk-03-at-range");
+
+  // 5. The first leg's errors boxed in the Error pane (the zoom stays), then the shear typed.
+  const canvasAt = await view.locator(".tma-canvas").boundingBox();
+  const corners = await page.evaluate(() => {
+    const rows = window.debriefTma.residuals.rows;
+    const last = rows.findIndex((r) => r.time.endsWith("T10:32:00.000Z"));
+    return { a: window.debriefTma.pointOf(rows[0].id), b: window.debriefTma.pointOf(rows[last].id) };
+  });
+  await page.mouse.move(canvasAt.x + Math.min(corners.a.x, corners.b.x) - 40, canvasAt.y + corners.b.y - 4);
+  await page.mouse.down();
+  await page.mouse.move(canvasAt.x + Math.max(corners.a.x, corners.b.x) + 40, canvasAt.y + corners.a.y + 4, { steps: 6 });
+  await page.mouse.up();
+  await page.waitForFunction(() => window.debriefTma.plotState.zoomed);
+  await press(page, 4);
+  await page.locator("#track-form-course").waitFor({ timeout: 30000 });
+  await page.locator("#track-form-course").fill("246");
+  await page.locator("#track-form-speed").fill("3.8 kn");
+  await dialog.getByRole("button", { name: "Shear", exact: true }).click();
+  await done(page, "solutionSheared");
+  await settledAt(38.77, "64 of 102 beyond 3.0°");
+  assert.ok((await page.evaluate(() => window.debriefTma.plotState.zoomed)), "the zoom stays");
+  // Up to 10:32Z all but 2 of the 40 within 3°: the first leg fitted.
+  const leg1 = await page.evaluate(() => window.debriefTma.residuals.rows.filter((r) => r.time <= "2023-06-15T10:32:00.000Z").map((r) => r.residual));
+  assert.equal(leg1.length, 40);
+  assert.equal(leg1.filter((v) => Math.abs(v) > 3).length, 2, "all but 2 of the first leg's errors within 3°");
+  await ticked(page, 4, "Shear the first leg to fit");
+  await picture("tma-walk-04-first-leg-fitted");
+  await view.getByRole("button", { name: "Reset zoom" }).click();
+  await page.waitForFunction(() => !window.debriefTma.plotState.zoomed);
+
+  // 6. The cut at 11:12Z chosen in the Outline, the solution still shown: Leave out, in the Tools.
+  await press(page, 5);
+  await chosenSays("Cut at 11:12:00Z, ");
+  assert.ok(!!(await shown()).solution_id, "a cut of the solution keeps it shown in Bearings");
+  await showPanel(page, "tools");
+  await op("leave-out").focus();
+  assert.equal(await focused(), "Leave out of Contact 1 solution");
+  await page.keyboard.press("Enter");
+  await done(page, "cutLeftOut");
+  await page.waitForFunction(() => window.debriefTma.residuals?.excluded === 1, null, { timeout: 60000 });
+  await settledAt(38.34, "63 of 101 beyond 3.0°");
+
+  // 7. The position at 10:38Z chosen in the Outline and current time there; Split before, in the Tools.
+  await press(page, 6);
+  await chosenSays("Position at 10:38:00Z");
+  assert.match(await view.locator(".tma-title").innerText(), / · fix at 10:38:00Z$/);
+  await showPanel(page, "tools");
+  await op("split-before").focus();
+  assert.equal(await focused(), "Split before 10:38:00Z");
+  await page.keyboard.press("Enter");
+  // The split is not the step: the step ends on a leg dragged (product owner, 25 Oct 2026).
+  await page.waitForFunction(() => window.debriefTma.residuals?.rows.some((r) => r.leg === 2), null, { timeout: 60000 });
+  await notDone(page, "legDragged", "a split is not the step: dragging a leg is");
+  await picture("tma-walk-05-split");
+  const legOf = (n) => page.evaluate((leg) => window.debriefTma.residuals.rows.filter((r) => r.leg === leg).map((r) => r.calculated), n);
+  const leg1Before = await legOf(1);
+  // This leg on the map: current time is at 10:38Z, so its handles drag the second leg (M3).
+  const legButton = mapFrame.getByRole("button", { name: "This leg", exact: true });
+  await legButton.waitFor({ timeout: 30000 });
+  await legButton.click();
+  await page.waitForFunction(() => document.querySelector(".frame-map").contentDocument.querySelector('.track-handle[data-role="end"]')?.getAttribute("aria-label")?.includes("leg 2 of 2"), null, { timeout: 30000 });
+  // Pinned on its first bearing by typing, the leg offered in Move… (This leg): its error at 10:38Z on zero.
+  await showPanel(page, "outline");
+  await page.locator("#move-track").click();
+  await page.locator("#track-form-extent").selectOption("leg");
+  assert.match(await page.locator("#track-form-extent option:checked").innerText(), /^This leg: leg 2 of 2, /);
+  await page.locator("#track-form-distance").fill("0.17 nmi");
+  await page.locator("#track-form-bearing").fill("155");
+  await dialog.getByRole("button", { name: "Move", exact: true }).click();
+  await done(page, "legDragged");
+  await ticked(page, 6, "Split at the turn and fit the second leg");
+  await page.waitForFunction(() => Math.abs(window.debriefTma.residuals.rows.find((r) => r.time.endsWith("T10:38:00.000Z"))?.residual ?? 9) < 0.5, null, { timeout: 60000 });
+  // Then sheared about that start: the RMS near the bearings' own accuracy, the cue as the step says.
+  await page.locator("#shear-track").click();
+  await page.locator("#track-form-extent").selectOption("leg");
+  await page.locator("#track-form-course").fill("200");
+  await page.locator("#track-form-speed").fill("5.2 kn");
+  await dialog.getByRole("button", { name: "Shear", exact: true }).click();
+  await settledAt(1.84, "9 of 101 beyond 3.0°, the largest 4.8°");
+  assert.equal((await rms()).toFixed(1), "1.8");
+  assert.deepEqual(await legOf(1), leg1Before, "the first leg stays where it was");
+  assert.equal(await view.locator(".tma-cue-mark").innerText(), "✗");
+  // The last step of the last walkthrough: the status line (a live region) says all are done.
+  await page.locator("#tour .tour-ahead button.tour-again").waitFor({ timeout: 30000 });
+  assert.match(await page.locator("#tour .tour-said").innerText(), /All walkthroughs done\.$/);
+  assert.equal(await page.locator("#tour .tour-said").getAttribute("role"), "status");
+  await picture("tma-walk-06-second-leg-fitted");
+  const said = `Bearings and TMA: RMS 55.9° first guess, 62.7° at range, 38.8° first leg (its own ${Math.sqrt(leg1.reduce((s, v) => s + v * v, 0) / leg1.length).toFixed(2)}°), 38.3° wild left out, ${(await rms()).toFixed(2)}° both legs: ${await cue()}.`;
+
+  // At a phone's width (390 px), a step's button that chooses a cut leaves that cut's row in
+  // sight in the Outline: in the page, and not under the next section's heading (the panel's L7).
+  await resize(page, 390, 800);
+  await press(page, 5);
+  await chosenSays("Cut at 11:12:00Z, ");
+  const rowSeen = () =>
+    page.evaluate(() => {
+      const row = [...document.querySelectorAll("#outline li.selected")].pop();
+      const r = row.getBoundingClientRect();
+      const on = document.elementFromPoint(r.left + Math.min(40, r.width / 2), r.top + r.height / 2);
+      return { inPage: r.top >= 0 && r.bottom <= innerHeight, onTop: !!on && row.contains(on), top: Math.round(r.top), over: on ? `${on.tagName}.${on.className}` : "" };
+    });
+  let seen = await rowSeen();
+  for (let i = 0; i < 30 && !(seen.inPage && seen.onTop); i++) seen = await new Promise((r) => setTimeout(r, 100)).then(rowSeen);
+  assert.ok(seen.inPage && seen.onTop, `at 390 px the cut chosen is in sight, not covered: ${JSON.stringify(seen)}`);
+  await shot("tma-walk-07-phone");
+  await resize(page, 1400, 820);
+  console.log(said);
 }
 
 /** The most the trial's tasks may take in the playground before the speed run fails: a regression in what they ask. */
@@ -784,7 +1012,7 @@ export async function playDemo(browser, siteUrl, shot) {
   // On a phone, the one column as before, the walkthroughs first; and docked again when wide.
   await resize(page, 390, 844);
   const shown = async () => page.$$eval("#side > section", (all) => all.filter((s) => !s.hidden).map((s) => s.id));
-  assert.deepEqual(await shown(), ["panel-tour", "panel-time", "panel-tote", "panel-outline", "panel-timeline", "panel-catalogue", "panel-coverage", "panel-tools", "panel-history"]);
+  assert.deepEqual(await shown(), ["panel-tour", "panel-time", "panel-tote", "panel-outline", "panel-timeline", "panel-catalogue", "panel-coverage", "panel-bearings", "panel-tools", "panel-history"]);
   assert.equal(await page.locator("#dock").isHidden(), true);
   assert.equal(await pageSideways(page), false, "at 390 px the demo does not scroll sideways");
   // The site's picture of it (the first hour post), as it opens on a laptop's 1366 × 768.

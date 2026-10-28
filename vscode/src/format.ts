@@ -30,6 +30,8 @@ const KIND_WORDS: Record<string, [string, string]> = {
   track: ["track", "tracks"],
   annotation: ["annotation", "annotations"],
   sensor_observations: ["set of sensor observations", "sets of sensor observations"],
+  sensor: ["sensor", "sensors"],
+  sensor_cut: ["sensor cut", "sensor cuts"],
 };
 
 function byKind(features: { properties: { kind: string } }[]): string {

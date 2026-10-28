@@ -31,7 +31,7 @@ from importlib.metadata import version
 from pathlib import Path, PurePosixPath
 
 from debrief_kernel.formatting import DEFAULT_SETTINGS, format_position, format_time
-from debrief_kernel.geodesy import Position, destination, range_bearing
+from debrief_kernel.geodesy import Position, TrackPath, destination, range_bearing
 from debrief_kernel.time import IntervalError, format_utc, parse_utc
 from debrief_kernel.units import Quantity
 from debrief_schemas import (
@@ -51,6 +51,8 @@ from debrief_stac import (
     frequencies,
     narrative,
     reckoning,
+    sensors,
+    tma,
     tracks,
 )
 from debrief_stac.figures import PLOT_LOG_LIMIT, revision_symbols
@@ -680,7 +682,10 @@ class Catalogue:
         colour_name: str | None = None,
         allow_newer_schema: bool = False,
     ) -> int | None:
-        """Change the colour of tracks: a recorded, undoable step (decision 12 Oct).
+        """Change the colour of tracks, sensors, cuts and annotations: a recorded,
+        undoable step (decision 12 Oct). An annotation's colour is its appearance's (its
+        line, and a label's or a marker's dot): the Outline's toolbar colours whatever
+        selected has a colour (product owner, 28 Oct 2026). Chart furniture has none.
 
         The step's note names it, such as "Colour of BLUE ONE set to red". base
         is the plot the analyst was looking at: if it has changed since,
@@ -692,8 +697,22 @@ class Catalogue:
 
         def recolour(feature):
             props = feature.properties
+            if props.kind in ("sensor", "sensor_cut"):
+                # A sensor's cuts are drawn in its colour; a cut may have its own (CAP-22).
+                same = props.colour == colour
+                return None if same else props.model_copy(update={"colour": colour})
+            if props.kind == "annotation" and props.furniture is None:
+                appearance = props.appearance or models.AnnotationAppearance()
+                if appearance.colour == colour:
+                    return None
+                return props.model_copy(
+                    update={"appearance": appearance.model_copy(update={"colour": colour})}
+                )
             if props.kind != "track":
-                raise CatalogueError(f"Only tracks have a colour; {props.name} is not a track.")
+                raise CatalogueError(
+                    "Only tracks, sensors, cuts and annotations have a colour; "
+                    f"{sensors.name_of(feature, {})} has none."
+                )
             if props.style is not None and props.style.colour == colour:
                 return None
             style = (props.style or models.TrackStyle(colour=colour)).model_copy(
@@ -722,13 +741,25 @@ class Catalogue:
         allow_newer_schema: bool = False,
     ) -> int | None:
         """Hide features on the map, or show them again: a recorded, undoable step
-        (decision 12 Oct). See set_colour."""
+        (decision 12 Oct). See set_colour. Cuts hidden are left out of every solution's
+        residuals until shown again, as legacy's Visible=false (product owner, 27 Oct 2026):
+        named as cuts ("12 Towed array cuts 09:46:00Z–09:57:00Z hidden on the map"), the notes
+        saying which solutions they leave."""
 
         def rehide(feature):
             props = feature.properties
+            if props.kind == "narrative":
+                raise CatalogueError(
+                    "A narrative entry is read in the Timeline, not drawn on the map: "
+                    "it cannot be hidden."
+                )
             if bool(props.hidden) == hidden:
                 return None
             return props.model_copy(update={"hidden": True if hidden else None})
+
+        def notes(plot: DebriefFeatureCollection, modified: list) -> list[str]:
+            cut_ids = [f.id for f in modified if f.properties.kind == sensors.CUT]
+            return tma.hidden_notes(plot, cut_ids, hidden) if cut_ids else []
 
         return self._edit_features(
             item_id,
@@ -738,6 +769,7 @@ class Catalogue:
             agent,
             base,
             allow_newer_schema,
+            notes=notes,
         )
 
     def set_track_frequencies(
@@ -794,7 +826,7 @@ class Catalogue:
             feature = by_id.get(feature_id)
             if feature is None or feature.properties.kind == "plot":
                 raise CatalogueError(f"The plot has no feature {feature_id!r}.")
-            names.append(feature.properties.name)
+            names.append(sensors.name_of(feature, by_id))
             props = retime(feature)
             if props is not None:
                 modified.append(feature.model_copy(update={"properties": props}))
@@ -826,8 +858,58 @@ class Catalogue:
             allow_newer_schema=allow_newer_schema,
         )
 
+    def set_array_offset(
+        self,
+        item_id: str,
+        sensor_ids: list[str],
+        offset: Quantity | models.Length | dict | None,
+        agent: models.AgentRef,
+        base: Base | None = None,
+        *,
+        mode: str = "worm_in_hole",
+        allow_newer_schema: bool = False,
+    ) -> int | None:
+        """How far astern of the ship a sensor (a towed array) is, and how it follows the
+        ship: worm in the hole (back along its own track, legacy's default) or plain
+        (straight astern); None or 0, at the ship. Its cuts are then drawn, and their port
+        and starboard told, from the array (CAP-22; product owner, 24 Oct 2026). One
+        recorded, undoable step, named like "Towed array: 300 m astern, worm in the
+        hole", the length in the unit it was given in. See set_colour."""
+        try:
+            length = sensors.array_length(offset)
+        except (sensors.SensorError, ValueError) as error:
+            raise CatalogueError(str(error)) from None
+        if mode not in ("worm_in_hole", "plain"):
+            raise CatalogueError("An array follows the ship worm_in_hole or plain.")
+
+        def reposition(feature):
+            props = feature.properties
+            if props.kind != "sensor":
+                raise CatalogueError(
+                    f"Only a sensor has an array offset; {sensors.name_of(feature, {})} is not one."
+                )
+            new_mode = mode if length is not None else None
+            if props.array_offset == length and (
+                props.array_mode is None
+                and new_mode is None
+                or props.array_mode is not None
+                and str(props.array_mode) == new_mode
+            ):
+                return None
+            return props.model_copy(update={"array_offset": length, "array_mode": new_mode})
+
+        return self._edit_features(
+            item_id,
+            sensor_ids,
+            reposition,
+            lambda who: f"{who}: {sensors.describe_array(length, mode)}",
+            agent,
+            base,
+            allow_newer_schema,
+        )
+
     def _edit_features(
-        self, item_id, feature_ids, change, describe, agent, base, allow_newer_schema
+        self, item_id, feature_ids, change, describe, agent, base, allow_newer_schema, notes=None
     ) -> int | None:
         if not feature_ids:
             raise CatalogueError("Choose the features to change.")
@@ -844,13 +926,21 @@ class Catalogue:
             feature = by_id.get(feature_id)
             if feature is None or feature.properties.kind == "plot":
                 raise CatalogueError(f"The plot has no feature {feature_id!r}.")
-            names.append(feature.properties.name)
+            names.append(sensors.name_of(feature, by_id))
             props = change(feature)
             if props is not None:
                 modified.append(feature.model_copy(update={"properties": props}))
         if not modified:
             return None
-        record = _edit_record(agent, describe(_who(names)))
+        chosen = [by_id[i] for i in dict.fromkeys(feature_ids)]
+        # Cuts alone (thousands at a time, from the Outline): named as cuts, by sensor and period.
+        who = (
+            sensors.cuts_said(chosen, by_id)
+            if all(f.properties.kind == sensors.CUT for f in chosen)
+            else _who(names, chosen)
+        )
+        said = notes(plot, modified) if notes else []
+        record = _edit_record(agent, describe(who), **({"notes": said} if said else {}))
         return self.commit(
             item_id,
             [record],
@@ -1093,9 +1183,12 @@ class Catalogue:
         base: Base | None = None,
         *,
         allow_newer_schema: bool = False,
+        sensor_data: list[sensors.ReadSensor] | None = None,
     ) -> int:
         """Add entries read from a source (an importer's) to the plot, as one step with
-        the importer's record. Their ids are given new ones the plot does not use."""
+        the importer's record. Their ids are given new ones the plot does not use. A
+        document's bearings (a Rider's narrative, CAP-22) come in the same step as
+        sensor cuts (sensor_data)."""
         history = self.history(item_id)
         if base is None:
             base = history.base()
@@ -1105,6 +1198,8 @@ class Catalogue:
             plot = history.replay(base.current)
         ids = narrative.new_ids({f.id for f in plot.features}, len(features))
         added = [f.model_copy(update={"id": i}) for f, i in zip(features, ids, strict=True)]
+        if sensor_data:
+            added += self._sensors_added(plot, sensor_data, set(ids))
         return self.commit(
             item_id, [record], Changes(added=added), base, allow_newer_schema=allow_newer_schema
         )
@@ -1123,6 +1218,248 @@ class Catalogue:
                 else:
                     emptied.append(named.id)
         return Changes(deleted_ids=ids_list, named_sets=sets, deleted_named_set_ids=emptied)
+
+    # --- Sensors and their cuts (CAP-22) ------------------------------------------
+
+    def add_sensors(
+        self,
+        item_id: str,
+        read: list[sensors.ReadSensor],
+        record: models.ProvRecord,
+        base: Base | None = None,
+        *,
+        allow_newer_schema: bool = False,
+    ) -> tuple[int, list[str]]:
+        """Add sensors read from a source (an importer's), each with its cuts, to the plot
+        as one step with the importer's record: a .dsf or REP file's sensor lines read
+        into the open plot, say. Each names its host track by id. Returns the step and
+        the new sensors' ids."""
+        history = self.history(item_id)
+        if base is None:
+            base = history.base()
+            plot = history.plot()
+        else:
+            history.check_base(base)
+            plot = history.replay(base.current)
+        added = self._sensors_added(plot, read)
+        step = self.commit(
+            item_id, [record], Changes(added=added), base, allow_newer_schema=allow_newer_schema
+        )
+        touched = (
+            f.id if f.properties.kind == sensors.SENSOR else f.properties.sensor_id for f in added
+        )
+        return step, list(dict.fromkeys(touched))
+
+    @staticmethod
+    def _sensors_added(
+        plot: DebriefFeatureCollection,
+        read: list[sensors.ReadSensor],
+        taken: Iterable[str] = (),
+    ) -> list:
+        """Sensors read, as features to add: new sensors with their cuts, or cuts joining
+        the sensor of their name already on their track (legacy TrackWrapper.add)."""
+        names = {f.id: f.properties.name for f in plot.features if f.properties.kind == "track"}
+        for sensor in read:
+            if sensor.host_track_id not in names:
+                raise CatalogueError(
+                    f"The plot has no track {sensor.host_track_id!r} to carry {sensor.name}."
+                )
+        ids = {f.id for f in plot.features} | set(taken)
+        return sensors.build(read, ids, names, sensors.existing_sensors(plot))
+
+    def resolve_ambiguity(
+        self,
+        item_id: str,
+        resolution: models.AmbiguityResolution | dict,
+        agent: models.AgentRef,
+        base: Base | None = None,
+        *,
+        allow_newer_schema: bool = False,
+    ) -> int:
+        """Keep one side of ambiguous cuts, or make them ambiguous again (CAP-22): the cuts
+        named, or a sensor's cuts within a period (the time window), as one recorded,
+        undoable step (product owner, 24 Oct 2026), named like "Port kept: 42
+        Towed array cuts, 09:00:00Z to 09:59:30Z", with what was asked in its record.
+        Port and starboard are of the host track's course at each cut's time, as the map
+        places it; the bearing recorded first decides, as legacy Debrief's did. Cuts with
+        no ambiguous bearing, or whose side cannot be told, are left, and the notes say
+        how many. SensorError (as CatalogueError) when nothing would change."""
+        try:
+            asked = sensors.resolution_from(resolution)
+        except sensors.SensorError as error:
+            raise CatalogueError(str(error)) from None
+
+        def change(plot: DebriefFeatureCollection):
+            done = sensors.resolve(plot, asked)
+            record = {
+                "notes": done.notes,
+                "parameters": sensors.resolution_parameters(asked),
+                "selected": list(
+                    dict.fromkeys(
+                        [
+                            *(asked.cut_ids or []),
+                            *(asked.other_cut_ids or []),
+                            *(asked.clear_cut_ids or []),
+                        ]
+                    )
+                )
+                or list(asked.sensor_ids or []),
+            }
+            return Changes(modified=done.modified), done.note, None, record
+
+        return self._change(item_id, change, agent, base, allow_newer_schema)[0]
+
+    def delete_cuts(
+        self,
+        item_id: str,
+        cut_ids: list[str],
+        agent: models.AgentRef,
+        base: Base | None = None,
+        *,
+        allow_newer_schema: bool = False,
+    ) -> int:
+        """Delete cuts from the plot (product owner, 27 Oct 2026, the Outline's Delete cuts),
+        as one recorded, undoable step: "12 Towed array cuts 09:46:00Z–09:57:00Z deleted".
+        Solutions rooted in them drop those cut ids, from their roots and from the cuts left
+        out of their RMS, and the notes say so; their fixes stay where they are. Undo brings
+        the cuts back, and the solutions' roots with them."""
+        if not cut_ids:
+            raise CatalogueError("Choose the cuts to delete.")
+
+        def change(plot: DebriefFeatureCollection):
+            by_id = {f.id: f for f in plot.features}
+            chosen = []
+            for cut_id in dict.fromkeys(cut_ids):
+                feature = by_id.get(cut_id)
+                if feature is None or feature.properties.kind != sensors.CUT:
+                    raise CatalogueError(f"The plot has no cut {cut_id!r}.")
+                chosen.append(feature)
+            ids = [f.id for f in chosen]
+            solutions, notes = tma.without_cuts(plot, ids)
+            changes = self._deleted(plot, ids)
+            changes.modified = solutions
+            record = {
+                "notes": notes,
+                "parameters": [models.ParameterValue(name="cuts", value=len(ids))],
+                "selected": ids,
+            }
+            return changes, f"{sensors.cuts_said(chosen, by_id)} deleted", None, record
+
+        return self._change(item_id, change, agent, base, allow_newer_schema)[0]
+
+    # --- TMA solutions (CAP-21; product owner, 24 Oct 2026) -------------------
+
+    def create_tma(
+        self,
+        item_id: str,
+        request: models.TmaRequest | dict,
+        agent: models.AgentRef,
+        base: Base | None = None,
+        *,
+        allow_newer_schema: bool = False,
+    ) -> tuple[int, str]:
+        """Make a TMA solution of a contact, rooted in a period of bearing cuts, as one
+        recorded, undoable step: "Contact 1 solution made: 120 Bow sonar cuts
+        09:00:00Z–09:59:30Z". A track plotted by dead reckoning with a fix at each cut's
+        time, on one course at one speed from the first guess: by form (a range along the
+        first cut's bearing, a course and a speed; Debrief's guess, 10,000 yd, across the
+        bearing, 8 kn, where none is given) or by two positions (on the first cut's line
+        and the last's). Returns the step and the solution's id."""
+
+        def change(plot: DebriefFeatureCollection):
+            made = tma.create(plot, request)
+            record = {
+                "notes": made.notes,
+                "parameters": made.parameters,
+                "selected": list(made.track.properties.tma.sensor_ids),
+            }
+            return Changes(added=[made.track]), made.note, made.track.id, record
+
+        return self._change(item_id, change, agent, base, allow_newer_schema)
+
+    def tma_residuals(self, item_id: str, feature_id: str, base: Base | None = None) -> dict:
+        """A TMA solution's bearing residuals and RMS error (debrief_stac.tma), reading only."""
+        try:
+            return tma.residual_report(self._plot_at(item_id, base), feature_id)
+        except tma.TmaError as error:
+            raise CatalogueError(str(error)) from None
+
+    def tma_exclude(
+        self,
+        item_id: str,
+        feature_id: str,
+        cut_ids: list[str],
+        excluded: bool,
+        agent: models.AgentRef,
+        base: Base | None = None,
+        *,
+        allow_newer_schema: bool = False,
+    ) -> int | None:
+        """Leave rooted cuts out of a solution's RMS error (excluded), such as wild
+        bearings, or count them again, as one recorded, undoable step: "Contact 1
+        solution: cut at 09:21:00Z left out of the RMS". None if nothing would change."""
+
+        def change(plot: DebriefFeatureCollection):
+            done = tma.excluded(plot, feature_id, cut_ids, excluded)
+            if done is None:
+                return None
+            record = {
+                "notes": done.notes,
+                "parameters": [
+                    models.ParameterValue(name="excluded", value=excluded),
+                    models.ParameterValue(name="cuts", value=len(cut_ids)),
+                ],
+                "selected": [feature_id, *cut_ids],
+            }
+            return Changes(modified=[done.track]), done.note, None, record
+
+        result = self._change(item_id, change, agent, base, allow_newer_schema)
+        return None if result is None else result[0]
+
+    def tma_split_leg(
+        self,
+        item_id: str,
+        feature_id: str,
+        at: str,
+        agent: models.AgentRef,
+        base: Base | None = None,
+        *,
+        join: bool = False,
+        side: str | None = None,
+        allow_newer_schema: bool = False,
+    ) -> int:
+        """Split a TMA solution into legs at a time (the fix at or after it starts the later
+        leg), or, with join, join the leg starting then to the one before, as one recorded,
+        undoable step: "Contact 1 solution split into legs at 09:30:00Z". It stays one
+        track: each leg is dragged on its own, the other legs staying where they are.
+
+        With side, "before" or "after" (product owner, 27 Oct 2026, the Outline's Split before
+        and Split after), at is one of its fixes' times: before, that fix starts a new leg;
+        after, it ends the earlier leg ("Contact 1 solution split into legs after its fix at
+        09:29:30Z"). The legs already there keep their fixes, so nothing moves."""
+        at_ms = parse_utc(at)
+        if side is not None and join:
+            raise CatalogueError(
+                "A leg is joined at a time, or split before or after a fix: not both."
+            )
+
+        def change(plot: DebriefFeatureCollection):
+            if side is not None:
+                done = tma.split_at_fix(plot, feature_id, at_ms, side)
+            else:
+                done = (tma.joined_legs if join else tma.split_leg)(plot, feature_id, at_ms)
+            record = {
+                "notes": done.notes,
+                "parameters": [
+                    models.ParameterValue(name="at", value=at),
+                    *([models.ParameterValue(name="join", value=True)] if join else []),
+                    *([models.ParameterValue(name="side", value=side)] if side else []),
+                ],
+                "selected": [feature_id],
+            }
+            return Changes(modified=[done.track]), done.note, None, record
+
+        return self._change(item_id, change, agent, base, allow_newer_schema)[0]
 
     # --- Tracks: moved, rotated, split and merged by hand (CAP-01, CAP-02) ------
 
@@ -1251,6 +1588,16 @@ class Catalogue:
                 ]
             if after is None:
                 return None
+            # A TMA solution of legs (CAP-21; product owner, 25 Oct 2026): each leg is
+            # independent, so the legs not dragged stay where they were and the joins either
+            # side of the one dragged are solved again.
+            if str(edit.action) in ("move", "rotate", "shear", "stretch"):
+                kept = tma.legs_kept(track, after, indices)
+                if kept is not None:
+                    after = kept
+                    following = (reckoning.FOLLOW_ON, reckoning.FOLLOW_FROM)
+                    notes = [n for n in notes if n not in following]
+                    notes.append(tma.LEGS_KEPT)
             if edit.period:
                 notes.append(tracks.describe_period(period))
                 parameters += [
@@ -1460,6 +1807,8 @@ class Catalogue:
                 raise tracks.TrackError("Give the two parts of the split track a name each.")
             second_id = tracks.new_track_id(chosen[1], {f.id for f in plot.features})
             first, second = tracks.split(track, at_ms, chosen, second_id)
+            # A TMA solution (CAP-21): each part a solution, rooted in its own cuts.
+            first, second, solution_notes = tma.split_parts(plot, first, second)
             modified: list = [first]
             across: list[str] = []
             for feature in plot.features:
@@ -1471,6 +1820,81 @@ class Catalogue:
                     modified.append(feature.model_copy(update={"properties": hosted}))
                 elif parse_utc(props.time_range.end) >= at_ms:
                     across.append(props.name)
+            # Sensors (CAP-22): cuts from the split on go with the second part, a sensor of
+            # its own of the same name where the sensor had cuts before it too, so every
+            # cut is still drawn from its host.
+            added_sensors: list = []
+            moved: list[str] = []
+            taken = {f.id for f in plot.features} | {second_id}
+            for sensor in sensors.sensors(plot):
+                if sensor.properties.host_track_id != feature_id:
+                    continue
+                own = sensors.cuts(plot, sensor.id)
+                later = [c for c in own if parse_utc(c.properties.time) >= at_ms]
+                if not later:
+                    continue
+                if len(later) == len(own):
+                    hosted = sensor.properties.model_copy(update={"host_track_id": second_id})
+                    modified.append(sensor.model_copy(update={"properties": hosted}))
+                    continue
+                new_id = sensors.new_sensor_id(chosen[1], sensor.properties.name, taken)
+                hosted = sensor.properties.model_copy(update={"host_track_id": second_id})
+                added_sensors.append(sensor.model_copy(update={"id": new_id, "properties": hosted}))
+                modified += [
+                    c.model_copy(
+                        update={"properties": c.properties.model_copy(update={"sensor_id": new_id})}
+                    )
+                    for c in later
+                ]
+                moved.append(
+                    f"{sensor.properties.name}: its {len(later):,} cuts from the split on are a "
+                    f"sensor of {chosen[1]}'s"
+                )
+            # Cuts the split would move: those between the parts' fixes (outside both
+            # parts' spans), those of a towed array whose worm reached back past the split,
+            # and those whose logged course was at a fix now in the other part. Each keeps
+            # where it was drawn from and the course its side was told by, pinned and marked
+            # derived (not recorded), so it is drawn and resolved as before the split.
+            whole = TrackPath.lazy_from_feature(track)
+            parts = (TrackPath.lazy_from_feature(first), TrackPath.lazy_from_feature(second))
+            where = {f.id: i for i, f in enumerate(modified)}
+            pinned = 0
+            for sensor in sensors.sensors(plot):
+                if sensor.properties.host_track_id != feature_id:
+                    continue
+                for c in sensors.cuts(plot, sensor.id):
+                    t = parse_utc(c.properties.time)
+                    before = sensors.place_of(c, whole, sensor, t)
+                    if before is None:
+                        continue
+                    after = sensors.place_of(c, parts[t >= at_ms], sensor, t)
+                    if after is not None and _same_place(before, after):
+                        continue
+                    i = where.get(c.id)
+                    cut = modified[i] if i is not None else c
+                    update: dict = {
+                        "course": models.Angle(value=before.course, unit="deg")
+                        if before.course is not None
+                        else None
+                    }
+                    if c.properties.origin is None:
+                        update["origin"] = [before.position.longitude, before.position.latitude]
+                        update["origin_derived"] = True
+                    cut = cut.model_copy(
+                        update={"properties": cut.properties.model_copy(update=update)}
+                    )
+                    if i is None:
+                        modified.append(cut)
+                    else:
+                        modified[i] = cut
+                    pinned += 1
+            if pinned:
+                moved.append(
+                    f"{pinned:,} cut{'s' if pinned != 1 else ''} near the split keep the "
+                    "position they were drawn from and the course their side was told by, "
+                    "pinned (marked derived, not recorded): they no longer move with either "
+                    "part."
+                )
             sets = [
                 s.model_copy(update={"feature_ids": _after(s.feature_ids, feature_id, second_id)})
                 for s in plot.named_sets or []
@@ -1488,6 +1912,8 @@ class Catalogue:
                         f"{n} runs past the split and stays with {first.properties.name}"
                         for n in across
                     ),
+                    *moved,
+                    *solution_notes,
                 ],
                 "parameters": [
                     models.ParameterValue(name="at", value=at),
@@ -1496,7 +1922,14 @@ class Catalogue:
                 ],
                 "selected": [feature_id],
             }
-            changes = Changes(added=[second], modified=modified, named_sets=sets, order=order)
+            order += [s.id for s in added_sensors]
+            # A solution's sensors are those of its cuts: the later cuts' sensor is new.
+            renamed = tma.with_sensor_ids(plot, [*modified, second])
+            second = renamed.pop(second.id, second)
+            modified = [renamed.pop(f.id, f) for f in modified] + list(renamed.values())
+            changes = Changes(
+                added=[second, *added_sensors], modified=modified, named_sets=sets, order=order
+            )
             return changes, note, [feature_id, second_id], record
 
         return self._change(item_id, change, agent, base, allow_newer_schema)
@@ -1523,14 +1956,81 @@ class Catalogue:
 
         def change(plot: DebriefFeatureCollection):
             members = [self._track(plot, i) for i in chosen]
+            refused = tma.refused_merge(members)
+            if refused:
+                raise tracks.TrackError(refused)
+            if any(tma.is_solution(t) for t in members):
+                # Each solution but the last aimed at the next one's first fix, so merged by
+                # dead reckoning none of them moves (CAP-21; as a legacy plot's legs join).
+                in_time = sorted(
+                    members, key=lambda t: (tracks.times_of(t)[0], tracks.times_of(t)[-1])
+                )
+                aimed = {t.id: t for t in tma.aimed_at_next(in_time)}
+                members = [aimed[t.id] for t in members]
             merged, lost = tracks.merge(members, name)
+            # TMA solutions (CAP-21): the merged track is one, each solution merged a leg.
+            tag, tag_notes = tma.merged_tag(
+                sorted(members, key=lambda t: (tracks.times_of(t)[0], tracks.times_of(t)[-1]))
+            )
+            if tag is not None:
+                merged = merged.model_copy(
+                    update={"properties": merged.properties.model_copy(update={"tma": tag})}
+                )
+                lost = [*lost, *tag_notes]
             gone = [t.id for t in members if t.id != merged.id]
             modified: list = [merged]
+            removed: list[str] = []
+            joined: list[str] = []
+            apart: list[str] = []
+            # Sensors (CAP-22): carried by the merged track; sensors of one name are one
+            # again, their cuts on the first (legacy TrackWrapper.add), so a split and
+            # merged track's sensors are as they were.
+            keepers: dict[str, list] = {}  # name: [the sensor kept, its properties now]
             for feature in plot.features:
                 props = feature.properties
-                if props.kind == "sensor_observations" and props.host_track_id in gone:
+                if props.kind == "sensor" and props.host_track_id in {merged.id, *gone}:
+                    keeper = keepers.get(props.name)
+                    if keeper is None:
+                        keepers[props.name] = [
+                            feature,
+                            props.model_copy(update={"host_track_id": merged.id}),
+                        ]
+                        continue
+                    # A towed array whose offset or mode differs is another array, as
+                    # drawn: kept apart, each with its own cuts, so none moves.
+                    if sensors.array_of(feature) != sensors.array_of(keeper[0]):
+                        hosted = props.model_copy(update={"host_track_id": merged.id})
+                        modified.append(feature.model_copy(update={"properties": hosted}))
+                        apart.append(
+                            f"{props.name}: kept as two sensors, as their arrays differ "
+                            f"({sensors.describe_array(*sensors.array_props(keeper[0]))}; "
+                            f"{sensors.describe_array(*sensors.array_props(feature))}), so "
+                            "each keeps its own cuts, drawn as before."
+                        )
+                        continue
+                    removed.append(feature.id)
+                    joined.append(props.name)
+                    kept_props = keeper[1]
+                    # What the joined sensor had of its own is kept: its colour on its cuts
+                    # (unless a cut has its own), its symbology where the first had none.
+                    if kept_props.legacy_symbology is None and props.legacy_symbology:
+                        keeper[1] = kept_props.model_copy(
+                            update={"legacy_symbology": props.legacy_symbology}
+                        )
+                    own_colour = props.colour if props.colour != kept_props.colour else None
+                    for cut in sensors.cuts(plot, feature.id):
+                        update: dict = {"sensor_id": keeper[0].id}
+                        if own_colour and cut.properties.colour is None:
+                            update["colour"] = own_colour
+                        moved = cut.properties.model_copy(update=update)
+                        modified.append(cut.model_copy(update={"properties": moved}))
+                    continue
+                elif props.kind == "sensor_observations" and props.host_track_id in gone:
                     hosted = props.model_copy(update={"host_track_id": merged.id})
                     modified.append(feature.model_copy(update={"properties": hosted}))
+            for sensor, props in keepers.values():
+                if props != sensor.properties:
+                    modified.append(sensor.model_copy(update={"properties": props}))
             sets = []
             for s in plot.named_sets or []:
                 if set(gone) & set(s.feature_ids):
@@ -1539,12 +2039,19 @@ class Catalogue:
             in_order = sorted(members, key=lambda t: tracks.times_of(t)[0])
             names = [t.properties.name for t in in_order]
             note = f"{_who(names) if len(names) < 3 else f'{len(names)} tracks'} merged"
+            if joined:
+                names_joined = _who(list(dict.fromkeys(joined)))
+                lost = [*lost, f"{names_joined}: one sensor again, with every cut."]
+            lost = [*lost, *apart]
             record = {
                 "notes": [f"Into {merged.properties.name}", *lost],
                 "parameters": [models.ParameterValue(name="name", value=merged.properties.name)],
                 "selected": chosen,
             }
-            changes = Changes(modified=modified, deleted_ids=gone, named_sets=sets)
+            # A solution's sensors are those of its cuts, which may now be another sensor's.
+            renamed = tma.with_sensor_ids(plot, modified)
+            modified = [renamed.pop(f.id, f) for f in modified] + list(renamed.values())
+            changes = Changes(modified=modified, deleted_ids=[*gone, *removed], named_sets=sets)
             return changes, note, (merged.id, lost), record
 
         step, (merged_id, lost) = self._change(item_id, change, agent, base, allow_newer_schema)
@@ -1768,6 +2275,8 @@ class Catalogue:
             narrative.NarrativeError,
             tracks.TrackError,
             collation.CollationError,
+            sensors.SensorError,
+            tma.TmaError,
         ) as error:
             raise CatalogueError(str(error)) from None
         if made is None:
@@ -1978,6 +2487,7 @@ class Catalogue:
 
         def change(plot: DebriefFeatureCollection):
             me, reference = self._references(item_id, plot, catalogues)
+            theirs = None
             if me.is_own(key):
                 track = self.history(item_id).first_recorded(source.track)
                 chosen = collation.Source(key, me.title, None, track)
@@ -1993,8 +2503,18 @@ class Catalogue:
             done = collation.prefer(plot, me, feature_id, (start, end), chosen, reference)
             if done is None:
                 return None
+            notes = list(done.notes)
+            # The period's cuts come with its fixes (CAP-22): the chosen item's sensors on
+            # that track, joined to the plot's of the same name.
+            carried = (
+                collation.sensors_for_period(
+                    plot, theirs, source.track, feature_id, (start, end), notes
+                )
+                if theirs is not None
+                else []
+            )
             record = {
-                "notes": done.notes,
+                "notes": notes,
                 "parameters": [
                     models.ParameterValue(name="period_start", value=period.start),
                     models.ParameterValue(name="period_end", value=period.end),
@@ -2006,7 +2526,7 @@ class Catalogue:
                 "tool": _collation_tool(),
                 "drawn_from": [done.drawn] if done.drawn else None,
             }
-            return Changes(modified=[done.track]), done.note, None, record
+            return Changes(added=carried, modified=[done.track]), done.note, None, record
 
         result = self._change(item_id, change, agent, base, allow_newer_schema)
         return None if result is None else result[0]
@@ -2418,6 +2938,17 @@ def _quantity(quantity: Quantity, decimals: int):
     return Quantity(round(quantity.value, decimals), quantity.unit).to_model()
 
 
+def _same_place(a, b) -> bool:
+    """Two places the same, to well under a millimetre and a millidegree of course."""
+    if abs(a.position.latitude - b.position.latitude) > 1e-9:
+        return False
+    if abs(a.position.longitude - b.position.longitude) > 1e-9:
+        return False
+    if (a.course is None) != (b.course is None):
+        return False
+    return a.course is None or abs((a.course - b.course + 180) % 360 - 180) < 1e-6
+
+
 def _after(ids: list[str], existing: str, added: str) -> list[str]:
     """ids with added straight after existing."""
     return [i for x in ids for i in ([x, added] if x == existing else [x])]
@@ -2442,13 +2973,45 @@ def _slug(title: str | None) -> str:
     return re.sub(r"[^a-z0-9]+", "-", (title or "").lower()).strip("-")
 
 
-def _who(names: list[str]) -> str:
-    """The features a note names: by name for one or two, by count for more."""
+def _who(names: list[str], chosen: list | None = None) -> str:
+    """The features a note names: by name for one or two, by count for more, counted by
+    kind where the features are known ("3 tracks and 12 cuts": the Outline's toolbar hides
+    or colours a selection of any kinds at once, product owner, 28 Oct 2026)."""
     if len(names) == 1:
         return names[0]
     if len(names) == 2:
         return f"{names[0]} and {names[1]}"
+    if chosen:
+        return kinds_said(chosen)
     return f"{len(names)} features"
+
+
+# What each kind of feature is called when counted (one, many), in the Outline's order.
+_KIND_NOUNS = {
+    "track": ("track", "tracks"),
+    "solution": ("TMA solution", "TMA solutions"),
+    "sensor": ("sensor", "sensors"),
+    sensors.CUT: ("cut", "cuts"),
+    "annotation": ("annotation", "annotations"),
+    "sensor_observations": ("set of sensor observations", "sets of sensor observations"),
+}
+
+
+def kinds_said(features: list) -> str:
+    """Features counted by kind: "3 tracks and 12 cuts", "2 tracks, 1 sensor and 40 cuts"."""
+    counts: dict[str, int] = {}
+    for feature in features:
+        props = feature.properties
+        kind = "solution" if props.kind == "track" and getattr(props, "tma", None) else props.kind
+        counts[kind] = counts.get(kind, 0) + 1
+    parts = []
+    for kind in [*_KIND_NOUNS, *sorted(set(counts) - set(_KIND_NOUNS))]:
+        n = counts.get(kind)
+        if n:
+            plain = kind.replace("_", " ")
+            one, many = _KIND_NOUNS.get(kind, (plain, f"{plain}s"))
+            parts.append(f"{n:,} {one if n == 1 else many}")
+    return parts[0] if len(parts) == 1 else f"{', '.join(parts[:-1])} and {parts[-1]}"
 
 
 def presentation_changes(plot: DebriefFeatureCollection, entries: list[dict]) -> Changes:

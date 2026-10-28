@@ -215,8 +215,8 @@ def test_file_counts_other_records_and_reports_bad_lines() -> None:
     text = "\n".join(
         [
             LINE,
-            ";SENSOR: 951212 051600 CARPET @A NULL 270.0 NULL NULL NULL NULL sonar",
-            ";SENSOR: 951212 051700 CARPET @A NULL 271.0 NULL NULL NULL NULL sonar",
+            ";CIRCLE: @A 50 20 00 N 004 07 00 W 2000 area one",
+            ";CIRCLE: @A 50 21 00 N 004 07 00 W 2000 area two",
             ";NARRATIVE: 951212 051600 CARPET COMMENT text",
             "",
             "not a fix at all",
@@ -226,15 +226,13 @@ def test_file_counts_other_records_and_reports_bad_lines() -> None:
     parsed = parse_rep(text)
     assert len(parsed.fixes) == 2
     # Narrative lines are read (test_rep_narrative.py), not counted as not imported.
-    assert parsed.other_records == {";SENSOR:": 2}
+    assert parsed.other_records == {";CIRCLE:": 2}
     assert [(n.source, n.text) for n in parsed.narrative] == [("CARPET", "COMMENT text")]
     assert [number for number, _ in parsed.errors] == [6]
 
 
 def test_comment_lines_are_not_records() -> None:
-    parsed = parse_rep(
-        ";; a comment\n;;\n;SENSOR: 951212 050000 X @A NULL 1 NULL NULL NULL NULL s\n"
-    )
+    parsed = parse_rep(";; a comment\n;;\n;CIRCLE: @A 50 20 00 N 004 07 00 W 2000 a\n")
     assert parsed.comments == 2
-    assert parsed.other_records == {";SENSOR:": 1}
+    assert parsed.other_records == {";CIRCLE:": 1}
     assert parsed.errors == []

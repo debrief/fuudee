@@ -634,6 +634,11 @@ def plotted_as(track: models.TrackFeature, mode: str) -> models.TrackFeature | N
             "logged_speeds": props.speeds,
         }
     else:
+        if props.logged_positions is None and props.tma is not None:
+            raise TrackError(
+                f"{props.name} is a TMA solution, worked out by dead reckoning from a first "
+                "guess: it has no positions as logged, so it cannot be plotted over the ground."
+            )
         if props.logged_positions is None:
             raise TrackError(
                 f"{props.name}'s positions as logged are not in the plot: the legacy plot it "

@@ -59,7 +59,6 @@ body.docked .dock-panel > #panel-outline { display: flex; flex-direction: column
 body.docked #body-outline { flex: 1; min-height: 0; display: flex; flex-direction: column; }
 body.docked #body-outline > #outline { flex: 1 1 48px; min-height: 40px; overflow-y: auto; }
 body.docked .outline-tools { flex: 0 1 auto; max-height: 74%; overflow-y: auto; margin-top: 4px; padding-top: 2px; border-top: 1px solid var(--vscode-panel-border); }
-body.docked .outline-tools .outline-actions { margin-top: 2px; gap: 3px; }
 body.docked .outline-tools .action-group { grid-template-columns: repeat(auto-fill, minmax(54px, 1fr)); gap: 2px; margin-top: 2px; }
 body.docked .outline-tools .action-group button { padding-left: 2px; padding-right: 2px; }
 body.docked .outline-tools button, body.docked .outline-tools select { padding-top: 1px; padding-bottom: 1px; font-size: 12px; }
@@ -69,6 +68,11 @@ body.docked .dock-panel #timeline { height: calc(100% - 4px); }
 body.docked .dock-panel > #panel-timeline { display: flex; flex-direction: column; height: 100%; min-height: 0; padding-bottom: 4px; }
 body.docked .dock-panel > #panel-timeline > .panel-body { flex: 1; min-height: 0; }
 .dock-panel:has(> #panel-timeline) { overflow: hidden; }
+/* Bearings fill their group: the plots and the list share its height, the plots first (TMA, CAP-21). */
+body.docked .dock-panel #bearings { height: calc(100% - 4px); }
+body.docked .dock-panel > #panel-bearings { display: flex; flex-direction: column; height: 100%; min-height: 0; padding-bottom: 4px; }
+body.docked .dock-panel > #panel-bearings > .panel-body { flex: 1; min-height: 0; }
+.dock-panel:has(> #panel-bearings) { overflow: hidden; }
 
 /* --- Dockview, in the theme's colours: tabs as VS Code's panel tabs, sashes as its borders. --- */
 .dockview-theme-debrief {

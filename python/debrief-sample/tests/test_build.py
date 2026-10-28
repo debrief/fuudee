@@ -4,19 +4,22 @@ from __future__ import annotations
 
 import csv
 import re
+from bisect import bisect_right
 from dataclasses import replace
 from pathlib import Path
 
 import pytest
 
+from debrief_kernel.geodesy import TrackPath
+from debrief_kernel.sensors import relative_bearing, side_of
 from debrief_kernel.time import parse_utc
 from debrief_sample import DEFAULT_SEED, build
 from debrief_sample import builder as sample_builder
 from debrief_sample.builder import TOOL, extract_path
 from debrief_sample.exercise import SERIALS, script_digest
-from debrief_sample.payload import read_bearings
 from debrief_schemas import DocumentKind, load_document
 from debrief_stac import Catalogue
+from debrief_stac import sensors as plot_sensors
 from debrief_stac.hashing import content_hash
 
 
@@ -59,7 +62,7 @@ def test_three_serials_each_a_valid_plot(built: Path) -> None:
         assert 4 <= hours <= 6
         plot = catalogue.read_plot(serial.item_id)  # validates
         kinds = [f.properties.kind for f in plot.features]
-        assert kinds.count("sensor_observations") == 1
+        assert kinds.count("sensor") == 2  # the bow sonar and the towed array (CAP-22)
         names = {f.properties.name for f in plot.features if f.properties.kind == "track"}
         assert {"BLUE ONE", "RED ONE"} <= names
         background = [f for f in plot.features if f.id.startswith("track-ais-")]
@@ -67,19 +70,34 @@ def test_three_serials_each_a_valid_plot(built: Path) -> None:
         assert item.properties.start_datetime is not None
 
 
-def test_sources_verify_and_payloads_match_their_hashes(built: Path) -> None:
+def test_sources_verify_and_the_sensors_hold_their_cuts(built: Path) -> None:
+    """The bow sonar's cuts and the towed array's, ambiguous, toward RED ONE (DEP-08)."""
     catalogue = Catalogue.open(built)
     for serial in SERIALS:
         assert catalogue.verify_sources(serial.item_id) == []
         plot = catalogue.read_plot(serial.item_id)
-        (sensor,) = [f for f in plot.features if f.properties.kind == "sensor_observations"]
-        envelope = sensor.properties.payload
-        path = built / serial.item_id / envelope.href
-        with path.open("rb") as stream:
-            assert content_hash(stream) == envelope.content_hash
-        bearings = read_bearings(path)
-        assert len(bearings) == sensor.properties.observation_count > 100
-        assert all(0 <= b.bearing_deg < 360 for b in bearings)
+        by_name = {s.properties.name: s for s in plot_sensors.sensors(plot)}
+        bow, towed = by_name["Bow sonar"], by_name["Towed array"]
+        assert bow.properties.host_track_id == towed.properties.host_track_id == "track-blue-one"
+        bow_cuts = plot_sensors.cuts(plot, bow.id)
+        towed_cuts = plot_sensors.cuts(plot, towed.id)
+        assert len(bow_cuts) > 100 and len(towed_cuts) > 20
+        assert all(c.properties.ambiguous_bearing is None for c in bow_cuts)
+        assert all(c.properties.ambiguous_bearing is not None for c in towed_cuts)
+        assert all(c.properties.resolved is None for c in towed_cuts)
+        # The towed array's twin is the mirror image of its bearing about BLUE ONE's course.
+        blue = next(f for f in plot.features if f.id == "track-blue-one")
+        path = TrackPath.from_feature(blue)
+        sides = set()
+        for cut in towed_cuts:
+            at = parse_utc(cut.properties.time)
+            course = blue.properties.courses.values[bisect_right(path.times_ms, at) - 1]
+            one, two = cut.properties.bearing.value, cut.properties.ambiguous_bearing.value
+            assert relative_bearing(course, one) == pytest.approx(
+                -relative_bearing(course, two), abs=0.02
+            )
+            sides.add(side_of(course, one))
+        assert sides == {"port", "starboard"} or len(towed_cuts) < 40
 
 
 def test_provenance_is_a_worked_example(built: Path) -> None:
@@ -167,11 +185,12 @@ def test_ais_extract_is_small_and_anonymised() -> None:
 
 def test_a_serial_without_bearings_still_builds(tmp_path: Path, monkeypatch) -> None:
     monkeypatch.setattr(sample_builder, "SONAR", replace(sample_builder.SONAR, p_gain=0.0))
+    monkeypatch.setattr(sample_builder, "TOWED", replace(sample_builder.TOWED, p_gain=0.0))
     build(tmp_path / "quiet")
     catalogue = Catalogue.open(tmp_path / "quiet")
     for serial in SERIALS:
         plot = catalogue.read_plot(serial.item_id)
-        assert not any(f.properties.kind == "sensor_observations" for f in plot.features)
+        assert not any(f.properties.kind in ("sensor", "sensor_cut") for f in plot.features)
         record = next(r for r in plot.provenance if r.tool.name == f"{TOOL}.bearings")
         assert any("no bearings" in note for note in record.notes)
         texts = [f.properties.text for f in plot.features if f.id.startswith("narrative-")]

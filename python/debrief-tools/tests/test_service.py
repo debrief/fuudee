@@ -505,6 +505,35 @@ def test_colour_and_hiding_are_recorded_steps_undone_like_any_other(client, cata
         client, "debrief/set_colour", {**where, "features": ["track-nelson"], "colour": "green"}
     )
     assert bad.json()["error"]["code"] == -32602
+    # Many of several kinds at once, as the Outline's toolbar asks (product owner, 28 Oct 2026):
+    # one step, named by how many of each.
+    tracks = [f.id for f in catalogue.read_plot("serial").features if f.properties.kind == "track"]
+    note = rpc(
+        client,
+        "debrief/add_annotation",
+        {
+            **where,
+            "annotation": {
+                "shape": "circle",
+                "name": "Zone",
+                "positions": ["50°19.800'N 004°07.200'W"],
+                "radius": {"value": 2, "unit": "[nmi_i]"},
+            },
+        },
+    ).json()
+    assert len(tracks) >= 2, note
+    many = [*tracks, note["result"]["feature"]]
+    hid = rpc(client, "debrief/set_hidden", {**where, "features": many, "hidden": True}).json()[
+        "result"
+    ]
+    said = f"{len(tracks)} tracks and 1 annotation"
+    assert hid["changed"] and hid["notes"][0] == f"{said} hidden on the map"
+    coloured = rpc(
+        client, "debrief/set_colour", {**where, "features": many, "colour": "#00a000"}
+    ).json()["result"]
+    assert coloured["changed"]
+    steps = rpc(client, "debrief/history", where).json()["result"]["steps"]
+    assert steps[-1]["notes"] == [f"Colour of {said} set to #00a000"]
 
 
 def test_annotations_are_added_restyled_and_deleted_as_recorded_steps(client, catalogue) -> None:
@@ -1125,6 +1154,8 @@ def test_every_method_that_writes_is_known_and_reading_ones_do_not_write() -> No
         service.CLEANING_METHODS,
         service.COLLATION_METHODS,
         service.COLLATION_VIEW_METHODS,
+        service.SENSOR_METHODS,
+        service.TMA_METHODS,
     )
     assert set(service.WRITING_METHODS) == {m for g in groups for m in g}
     assert "debrief/coverage" in service.READING_METHODS
@@ -1136,6 +1167,10 @@ def test_every_method_that_writes_is_known_and_reading_ones_do_not_write() -> No
     assert "debrief/merge_tracks" in service.TRACK_METHODS
     assert "debrief/set_north_arrow" in service.ANNOTATION_METHODS
     assert "debrief/narrative" in service.READING_METHODS
+    assert "debrief/sensors" in service.READING_METHODS
+    assert "debrief/resolve_ambiguity" in service.SENSOR_METHODS
+    assert "debrief/tma_residuals" in service.READING_METHODS
+    assert "debrief/tma_create" in service.TMA_METHODS
     assert not set(service.TOTE_METHODS) & set(service.WRITING_METHODS)
 
 

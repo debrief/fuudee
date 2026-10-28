@@ -5,6 +5,8 @@ const KIND_NAMES: Record<string, [string, string]> = {
   track: ["track", "tracks"],
   annotation: ["annotation", "annotations"],
   sensor_observations: ["set of sensor observations", "sets of sensor observations"],
+  sensor: ["sensor", "sensors"],
+  sensor_cut: ["sensor cut", "sensor cuts"],
 };
 
 /** What a tool needs, in the analyst's words, for tools not on offer. */
@@ -25,6 +27,8 @@ export function needs(tool: ToolDeclaration): string {
 
 /** The importer that reads a file's narrative into an open plot (debrief_io.narrative). */
 export const NARRATIVE_IMPORTER = "debrief-io.narrative";
+/** The importer that reads a file's sensor lines into an open plot (debrief_io.sensor_import). */
+export const SENSOR_IMPORTER = "debrief-io.sensor";
 /** Collation's steps: new data taken, a source chosen for a period, a platform linked (debrief_stac.collation). */
 export const COLLATION_TOOL = "debrief-stac.collation";
 
@@ -41,7 +45,8 @@ export function describeStep(
   // A narrative read into a plot is named by its note too: "Narrative read from red-log.rep".
   // So is a collation step: "New data from Nav log", "BLUE ONE 09:00:00Z to 09:30:00Z from Nav log".
   const collation = step.tool === COLLATION_TOOL;
-  const named = !step.tool || step.tool === NARRATIVE_IMPORTER || collation;
+  // So is sensor data read in: "Sensor data read from ALPHA_CUTS.dsf" (CAP-22).
+  const named = !step.tool || step.tool === NARRATIVE_IMPORTER || step.tool === SENSOR_IMPORTER || collation;
   // Collation's steps are a tool's (kind "tool"), told apart from a file's import.
   const note = (step.kind === "edit" || step.kind === "import" || collation) && named ? step.notes?.[0] : undefined;
   const label =

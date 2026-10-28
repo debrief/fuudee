@@ -1,4 +1,4 @@
-"""Reading REP (replay) files: fix lines (EXT-01).
+"""Reading REP (replay) files: fix, narrative and sensor lines (EXT-01, EXT-03).
 
 Ported from legacy Debrief's ImportFix and DebriefFormatDateTime, and
 tested against their cases. A fix line is:
@@ -17,10 +17,12 @@ tested against their cases. A fix line is:
   hemisphere may be run together with the longitude degrees ("N021").
 - Course is true degrees, speed knots, depth metres or NaN.
 
-Lines starting with ';;' are comments and carry no data. Other lines
-starting with ';' are other record types (sensor, narrative, annotation and
-so on). This reader counts them so an import can report what it did not
-take, rather than dropping them silently.
+Lines starting with ';;' are comments and carry no data. Narrative lines
+(;NARRATIVE:, ;NARRATIVE2:) and sensor lines (;SENSOR:, ;SENSOR2:, ;SENSOR3:,
+parse_sensor; a .dsf file from the acoustic replay application is these alone)
+are read. Other lines starting with ';' are other record types (annotations,
+towed-array shapes and so on). This reader counts them so an import can report
+what it did not take, rather than dropping them silently.
 """
 
 from __future__ import annotations
@@ -92,10 +94,38 @@ class RepNarrative:
     line: int = 0
 
 
+@dataclass(frozen=True)
+class RepSensorCut:
+    """A ;SENSOR:, ;SENSOR2: or ;SENSOR3: line: one cut of a sensor carried by a track
+    (CAP-22). bearing is None where the line gives none (NULL, NaN, or a ;SENSOR3:
+    frequency-only line); frequency is read only to say it was not imported (EXT-03)."""
+
+    record: str
+    time_ms: int
+    time_truncated: bool
+    track: str
+    symbology: str
+    origin: tuple[float, float] | None  # (longitude, latitude), recorded with the cut
+    bearing: float | None
+    ambiguous: float | None
+    frequency: float | None
+    range_yd: float | None
+    sensor: str
+    label: str | None
+    comment: str | None
+    # ;SENSOR3: only: the bearing and frequency accuracy as written, NULL as None.
+    bearing_accuracy: str | None = None
+    frequency_accuracy: str | None = None
+    # A range of 0 on a ;SENSOR2: or ;SENSOR3: line, which legacy drew as a point.
+    zero_range: bool = False
+    line: int = 0
+
+
 @dataclass
 class RepFile:
     fixes: list[RepFix] = field(default_factory=list)
     narrative: list[RepNarrative] = field(default_factory=list)
+    sensor_cuts: list[RepSensorCut] = field(default_factory=list)
     # Other record types by their leading token, such as ";SENSOR:".
     other_records: Counter[str] = field(default_factory=Counter)
     # (line number, problem) for lines that could not be read.
@@ -330,6 +360,153 @@ def parse_narrative(line: str, number: int = 0) -> RepNarrative:
     return RepNarrative(time_ms, truncated, source, entry_type or None, text, number)
 
 
+SENSOR_RECORDS = (";SENSOR:", ";SENSOR2:", ";SENSOR3:")
+
+
+def _java_split(text: str, separator: str) -> list[str]:
+    """Java's String.split: trailing empty strings removed."""
+    parts = text.split(separator)
+    while parts and parts[-1] == "":
+        parts.pop()
+    return parts
+
+
+def legacy_label(content: str | None) -> str | None:
+    """The label of a line's text, before any "//": legacy ImportReplay.getLabel."""
+    if content is None:
+        return None
+    if "//" in content:
+        parts = _java_split(content.strip(), "//")
+        first = parts[0].strip() if parts else ""
+        return first or None
+    return content.strip() or None
+
+
+def legacy_comment(content: str | None) -> str | None:
+    """The comment after "//" in a line's text: legacy ImportReplay.getComment (the
+    second part only, as legacy kept it)."""
+    if content is None or "//" not in content:
+        return None
+    parts = _java_split(content.strip(), "//")
+    return parts[1].strip() if len(parts) > 1 else None
+
+
+def _optional(token: str, what: str) -> float | None:
+    """A number, or None for a token starting with N (NULL, NaN), as legacy read them."""
+    if token.startswith("N"):
+        return None
+    return _number(token, what)
+
+
+def parse_sensor(line: str, number: int = 0) -> RepSensorCut:
+    """A sensor line, ported from legacy ImportSensor, ImportSensor2 and ImportSensor3:
+
+        ;SENSOR:  YYMMDD HHMMSS[.SSS] TRACK SYMB (LAT LONG | NULL) BRG RANGE SENSOR [LABEL]
+        ;SENSOR2: ... (LAT LONG | NULL) BRG AMBIG FREQ RANGE SENSOR LABEL
+        ;SENSOR3: ... (LAT LONG | NULL) BRG BRG_ACC FREQ FREQ_ACC RANGE SENSOR LABEL
+
+    Fields are separated by spaces or tabs; the track and sensor names are in quotes if
+    they hold spaces; the label is the rest of the line, a comment after "//". A token
+    starting with N (NULL, NaN) is no value. The sensor's position, when given, is in
+    degrees, minutes and seconds as a fix's is (the hemisphere may run into the longitude
+    degrees). Ranges are in yards; a ;SENSOR: range of 0 is none. Legacy quirks kept: a
+    ;SENSOR2: or ;SENSOR3: line must have a label; a ;SENSOR3: line has no ambiguous
+    bearing, and from a sensor named UNKNOWN with a frequency, a bearing of 0 is none."""
+    tokens = _Tokens(line)
+    record = tokens.next()
+    if record not in SENSOR_RECORDS:
+        raise RepError(f"{record} is not a sensor line")
+    try:
+        date_token, time_token = tokens.next(), tokens.next()
+    except RepError:
+        raise RepError("a sensor line needs a date and a time") from None
+    time_ms, truncated = parse_time(date_token, time_token)
+    try:
+        track = _quoted(tokens, "track")
+        symbology = tokens.next()
+        first = tokens.next().strip()
+        origin = None
+        if not first.startswith("N"):
+            lat_d = _number(first, "sensor latitude")
+            lat_m = _number(tokens.next(), "sensor latitude")
+            lat_s = _number(tokens.next(), "sensor latitude")
+            hemisphere = tokens.next()
+            if len(hemisphere) > 3:  # run together, as legacy tells it: "N021"
+                lon_d = _number(hemisphere[1:], "sensor longitude")
+            else:
+                lon_d = _number(tokens.next(), "sensor longitude")
+            lat_h = hemisphere[0]
+            lon_m = _number(tokens.next(), "sensor longitude")
+            lon_s = _number(tokens.next(), "sensor longitude")
+            lon_h = tokens.next()[0]
+            if lat_h.upper() not in "NS" or lon_h.upper() not in "EW":
+                raise RepError("the sensor's position is not a latitude and a longitude")
+            latitude = _angle(lat_d, lat_m, lat_s, lat_h, "S")
+            longitude = _angle(lon_d, lon_m, lon_s, lon_h, "W")
+            if not -90 <= latitude <= 90 or not -180 <= longitude <= 180:
+                raise RepError(f"sensor position {latitude:.4f}, {longitude:.4f} is out of range")
+            origin = (longitude, latitude)
+        bearing = _optional(tokens.next(), "bearing")
+        ambiguous = frequency = None
+        bearing_accuracy = frequency_accuracy = None
+        zero = False
+        if record == ";SENSOR:":
+            range_value = _optional(tokens.next(), "range")
+            range_yd = range_value or None  # legacy: a range of 0 is none
+        elif record == ";SENSOR2:":
+            ambiguous = _optional(tokens.next(), "ambiguous bearing")
+            frequency = _optional(tokens.next(), "frequency")
+            range_yd = _optional(tokens.next(), "range")
+        else:
+            accuracy = tokens.next()
+            bearing_accuracy = None if accuracy.startswith("N") else accuracy
+            frequency = _optional(tokens.next(), "frequency")
+            accuracy = tokens.next()
+            frequency_accuracy = None if accuracy.startswith("N") else accuracy
+            range_yd = _optional(tokens.next(), "range")
+        if record != ";SENSOR:" and range_yd == 0:
+            range_yd, zero = None, True
+        sensor = _quoted(tokens, "sensor").strip()
+    except RepError as error:
+        if "quote" in str(error) or "position" in str(error) or "number" in str(error):
+            raise
+        raise RepError(f"too few fields for a {record} line") from None
+    rest = tokens.rest()
+    if record != ";SENSOR:" and not rest:
+        raise RepError(f"a {record} line needs a label after the sensor's name")
+    text = rest.strip() if record == ";SENSOR3:" else (rest or None)
+    if (
+        record == ";SENSOR3:"
+        and sensor == "UNKNOWN"
+        and frequency is not None
+        and bearing is not None
+        and bearing == 0
+    ):
+        bearing = None  # legacy: such a line is a frequency, not a bearing of 000
+    for value, what in ((bearing, "bearing"), (ambiguous, "ambiguous bearing")):
+        if value is not None and not math.isfinite(value):
+            raise RepError(f"the {what} is not a number")
+    return RepSensorCut(
+        record,
+        time_ms,
+        truncated,
+        track,
+        symbology,
+        origin,
+        bearing,
+        ambiguous,
+        frequency,
+        range_yd,
+        sensor,
+        legacy_label(text),
+        legacy_comment(text),
+        bearing_accuracy,
+        frequency_accuracy,
+        zero,
+        number,
+    )
+
+
 _RECORD_TYPE = re.compile(r";\S*")
 
 
@@ -349,6 +526,12 @@ def parse_rep(text: str) -> RepFile:
             if record in NARRATIVE_RECORDS:
                 try:
                     result.narrative.append(parse_narrative(line, number))
+                except RepError as error:
+                    result.errors.append((number, str(error)))
+                continue
+            if record in SENSOR_RECORDS:
+                try:
+                    result.sensor_cuts.append(parse_sensor(line, number))
                 except RepError as error:
                     result.errors.append((number, str(error)))
                 continue

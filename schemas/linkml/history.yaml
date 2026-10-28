@@ -121,6 +121,8 @@ classes:
           - range: TrackFeature
           - range: AnnotationFeature
           - range: SensorObservationsFeature
+          - range: SensorFeature
+          - range: SensorCutFeature
           - range: NarrativeFeature
           - range: PlotFeature
       modified:
@@ -131,6 +133,8 @@ classes:
           - range: TrackFeature
           - range: AnnotationFeature
           - range: SensorObservationsFeature
+          - range: SensorFeature
+          - range: SensorCutFeature
           - range: NarrativeFeature
           - range: PlotFeature
       deleted_ids: {multivalued: true}
@@ -190,6 +194,8 @@ classes:
           - range: TrackFeature
           - range: AnnotationFeature
           - range: SensorObservationsFeature
+          - range: SensorFeature
+          - range: SensorCutFeature
           - range: NarrativeFeature
           - range: PlotFeature
       modified:
@@ -200,6 +206,8 @@ classes:
           - range: TrackFeature
           - range: AnnotationFeature
           - range: SensorObservationsFeature
+          - range: SensorFeature
+          - range: SensorCutFeature
           - range: NarrativeFeature
           - range: PlotFeature
       deleted_ids: {multivalued: true}

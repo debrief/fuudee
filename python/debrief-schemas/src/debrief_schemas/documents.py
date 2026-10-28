@@ -174,6 +174,8 @@ _FEATURE_CLASSES = {
     "track": "TrackFeature",
     "annotation": "AnnotationFeature",
     "sensor_observations": "SensorObservationsFeature",
+    "sensor": "SensorFeature",
+    "sensor_cut": "SensorCutFeature",
     "narrative": "NarrativeFeature",
     "plot": "PlotFeature",
 }
@@ -183,6 +185,8 @@ def _feature_errors(check: Draft201909Validator, item: Any) -> list[Any]:
     props = item.get("properties") if isinstance(item, dict) else None
     kind = props.get("kind") if isinstance(props, dict) else None
     if kind == "narrative" and _plain_narrative(item):
+        return []
+    if kind == "sensor_cut" and _plain_cut(item):
         return []
     own = _FEATURE_CLASSES.get(kind) if isinstance(kind, str) else None
     if own is not None and _class_validator(own).is_valid(item):
@@ -230,6 +234,60 @@ def _plain_narrative(item: Any) -> bool:
     return _utc_pattern().search(time) is not None
 
 
+_CUT_REQUIRED = frozenset(("kind", "sensor_id", "time", "bearing"))
+_CUT_MEMBERS = _CUT_REQUIRED | {"ambiguous_bearing", "resolved", "label", "colour", "hidden"}
+_ANGLE_UNITS = frozenset(("deg", "rad"))
+
+
+def _plain_angle(value: Any) -> bool:
+    return (
+        isinstance(value, dict)
+        and value.keys() == {"value", "unit"}
+        and type(value["value"]) in (int, float)
+        and value["unit"] in _ANGLE_UNITS
+    )
+
+
+def _plain_cut(item: Any) -> bool:
+    """A sensor cut as importers write it, checked by hand: exactly what
+    SensorCutFeature's JSON Schema allows, less a range, an origin and a comment (a cut
+    carrying any is left to the schema). True only where the schema would pass it too, so
+    this can only make checking quicker, never more lenient. A dense sensor holds tens
+    of thousands of cuts (NFR-06), each checked once, as a narrative entry is."""
+    if not isinstance(item, dict) or not item.keys() <= {"type", "id", "geometry", "properties"}:
+        return False
+    props = item.get("properties")
+    if not isinstance(props, dict) or props.get("kind") != "sensor_cut":
+        return False
+    if item.get("type") != "Feature" or not isinstance(item.get("id"), str):
+        return False
+    if item.get("geometry") is not None:
+        return False
+    if not (_CUT_REQUIRED <= props.keys() <= _CUT_MEMBERS):
+        return False
+    if type(props["sensor_id"]) is not str or type(props["time"]) is not str:
+        return False
+    if not _plain_angle(props["bearing"]):
+        return False
+    if "ambiguous_bearing" in props and not _plain_angle(props["ambiguous_bearing"]):
+        return False
+    if props.get("resolved", "bearing") not in ("bearing", "ambiguous_bearing"):
+        return False
+    if not (props.get("label") is None or type(props["label"]) is str):
+        return False
+    if "label" in props and props["label"] is None:
+        return False
+    if "hidden" in props and type(props["hidden"]) is not bool:
+        return False
+    colour = props.get("colour")
+    if "colour" in props and not (type(colour) is str and _COLOUR.fullmatch(colour)):
+        return False
+    return _utc_pattern().search(props["time"]) is not None
+
+
+_COLOUR = re.compile(r"#[0-9a-f]{6}")
+
+
 def _schema_errors(
     name: str, document: Any, validator: Draft201909Validator | None = None
 ) -> list[str]:
@@ -251,7 +309,7 @@ def _schema_errors(
             rest[member] = []
             check = _item_validator(name, member)
             for index, item in enumerate(items):
-                if _plain_narrative(item):
+                if _plain_narrative(item) or _plain_cut(item):
                     continue  # checked by hand, quicker than looking it up
                 key = hashlib.sha256(json.dumps(item, separators=(",", ":")).encode()).digest()
                 if key in _FEATURES_PASSED:
@@ -480,8 +538,11 @@ def _curve_problems(where: str, shape: str, props: Any, geometry: Any) -> list[s
     return problems
 
 
-def _feature_problems(feature: Any, track_ids: set[str] | None) -> list[str]:
-    """track_ids is None where the containing plot is not known, as in a tool result."""
+def _feature_problems(
+    feature: Any, track_ids: set[str] | None, sensor_ids: set[str] | None = None
+) -> list[str]:
+    """track_ids and sensor_ids are None where the containing plot is not known, as in a
+    tool result."""
     where = feature.id
     props = feature.properties
     problems = _geometry_problems(where, feature.geometry)
@@ -526,6 +587,7 @@ def _feature_problems(feature: Any, track_ids: set[str] | None) -> list[str]:
         problems += _fix_mark_problems(where, props)
         problems += _interval_problems(where, props)
         problems += _collation_problems(where, props)
+        problems += tma_solution_problems(where, props)
 
     elif props.kind == "annotation":
         problems += _annotation_problems(where, feature)
@@ -539,6 +601,24 @@ def _feature_problems(feature: Any, track_ids: set[str] | None) -> list[str]:
     elif props.kind == "narrative":
         problems += narrative_problems(where, feature)
 
+    elif props.kind == "sensor":
+        if feature.geometry is not None:
+            problems.append(f"{where}: a sensor has null geometry")
+        if not props.name.strip():
+            problems.append(f"{where}: a sensor has a name")
+        offset = props.array_offset
+        if offset is not None and not (math.isfinite(offset.value) and offset.value >= 0):
+            problems.append(f"{where}: an array offset is a distance astern, 0 or more")
+        if props.array_mode is not None and offset is None:
+            problems.append(f"{where}: an array mode goes with an array offset")
+        if track_ids is not None and props.host_track_id not in track_ids:
+            problems.append(f"{where}: host track {props.host_track_id!r} is not in the plot")
+
+    elif props.kind == "sensor_cut":
+        problems += cut_problems(where, feature)
+        if sensor_ids is not None and props.sensor_id not in sensor_ids:
+            problems.append(f"{where}: sensor {props.sensor_id!r} is not in the plot")
+
     elif props.kind == "sensor_observations":
         if feature.geometry is not None:
             problems.append(f"{where}: sensor observations have null geometry")
@@ -550,6 +630,43 @@ def _feature_problems(feature: Any, track_ids: set[str] | None) -> list[str]:
                 f"{where} column {column.name}", column.quantity_kind, column.unit
             )
 
+    return problems
+
+
+def _degrees(angle: Any) -> float:
+    return angle.value if str(angle.unit) == "deg" else math.degrees(angle.value)
+
+
+def cut_problems(where: str, feature: Any) -> list[str]:
+    """Rules for a sensor cut (CAP-22): no geometry of its own; bearings from 0 up to
+    360 degrees; resolved only where there is an ambiguous bearing to resolve; a range,
+    when given, 0 (a point) or more; an origin, when given, on the globe, and a pinned
+    course and origin_derived only with one."""
+    props = feature.properties
+    problems = []
+    if feature.geometry is not None:
+        problems.append(f"{where}: a sensor cut has null geometry")
+    for name in ("bearing", "ambiguous_bearing", "course"):
+        angle = getattr(props, name)
+        if angle is not None:
+            degrees = _degrees(angle)
+            if not (math.isfinite(degrees) and 0 <= degrees < 360):
+                problems.append(f"{where}: {name} {degrees:g}° is not from 0 up to 360°")
+    if props.resolved is not None and props.ambiguous_bearing is None:
+        problems.append(f"{where}: only a cut with an ambiguous bearing can be resolved")
+    reach = props.range
+    if reach is not None and not (math.isfinite(reach.value) and reach.value >= 0):
+        problems.append(f"{where}: a cut's range, when given, is 0 (a point) or more")
+    if props.origin is not None:
+        longitude, latitude = props.origin
+        if not (-180 <= longitude <= 180 and -90 <= latitude <= 90):
+            problems.append(f"{where}: origin {list(props.origin)} is not on the globe")
+    elif props.origin_derived is not None or props.course is not None:
+        problems.append(f"{where}: origin_derived and course are only with an origin")
+    if props.label is not None and not props.label.strip():
+        problems.append(f"{where}: a cut's label, when given, is not empty")
+    if props.bearing_accuracy is not None and not props.bearing_accuracy.strip():
+        problems.append(f"{where}: a cut's bearing accuracy, when given, is not empty")
     return problems
 
 
@@ -651,6 +768,67 @@ def _collation_problems(where: str, props: Any) -> list[str]:
     return problems
 
 
+def tma_solution_problems(where: str, props: Any) -> list[str]:
+    """Rules for a track that is a TMA solution (CAP-21) that JSON Schema cannot express:
+    a contact named; its period from start to end; each rooted cut named once; the cuts
+    left out of its RMS among them, each once; its legs starting in time order, each
+    once (a leg left with no fixes, by fixes removed, is no leg). Cuts no longer in the
+    plot are allowed: its residuals count them as giving none, as a narrative entry may
+    name a track gone."""
+    tma = props.tma
+    if tma is None:
+        return []
+    problems = []
+    if not tma.contact.strip():
+        problems.append(f"{where}: a TMA solution names its contact")
+    problems += _time_range_problems(f"{where} TMA period", tma.period)
+    for name, ids in (("cut_ids", tma.cut_ids), ("excluded_cut_ids", tma.excluded_cut_ids or [])):
+        twice = sorted(i for i, n in Counter(ids).items() if n > 1)
+        if twice:
+            problems.append(f"{where}: the TMA solution's {name} names {twice[0]!r} more than once")
+    stray = sorted(set(tma.excluded_cut_ids or []) - set(tma.cut_ids))
+    if stray:
+        problems.append(f"{where}: cut {stray[0]!r} is left out of the RMS but is not rooted")
+    starts = tma.leg_starts or []
+    if any(a >= b for a, b in zip(starts, starts[1:], strict=False)):
+        problems.append(f"{where}: the TMA solution's legs do not start in time order")
+    return problems
+
+
+def tma_request_problems(request: Any, where: str = "tma_request") -> list[str]:
+    """Rules for a TMA solution asked for (CAP-21): the cuts, as sensors and perhaps a
+    period, or cuts named, not both; and a first guess either by form (a range, a
+    course and a speed) or by two positions, not both. A request with no guess yet
+    names only the cuts, as the host asks the map for two clicks."""
+    problems = []
+    if request.cut_ids and (request.sensor_ids or request.period):
+        problems.append(f"{where}: name the cuts, or the sensors and a period, not both")
+    problems += _time_range_problems(f"{where} period", request.period)
+    form = [request.range, request.course, request.speed]
+    clicks = [request.first_position, request.last_position]
+    if any(v is not None for v in form) and any(v is not None for v in clicks):
+        problems.append(f"{where}: a first guess is by form or by two positions, not both")
+    if any(v is not None for v in form) and not all(v is not None for v in form):
+        problems.append(f"{where}: a first guess by form gives a range, a course and a speed")
+    if any(v is not None for v in clicks) and not all(v is not None for v in clicks):
+        problems.append(f"{where}: a first guess by two clicks gives both positions")
+    for name, position in (
+        ("first_position", request.first_position),
+        ("last_position", request.last_position),
+    ):
+        if position is not None and not (-180 <= position[0] <= 180 and -90 <= position[1] <= 90):
+            problems.append(f"{where}: {name} is not on the globe")
+    if request.range is not None and not (
+        math.isfinite(request.range.value) and request.range.value > 0
+    ):
+        problems.append(f"{where}: the range is more than nothing")
+    if request.speed is not None and not (
+        math.isfinite(request.speed.value) and request.speed.value >= 0
+    ):
+        problems.append(f"{where}: the speed is 0 or more")
+    return problems
+
+
 def _raw_feature_problems(raw_features: Any, label: str) -> list[str]:
     if not isinstance(raw_features, list):
         return []
@@ -667,10 +845,11 @@ def _plot_problems(plot: g.DebriefFeatureCollection, raw: dict[str, Any]) -> lis
     duplicates = sorted(i for i, n in Counter(ids).items() if n > 1)
     problems += [f"feature id {i!r} is used more than once" for i in duplicates]
     track_ids = {f.id for f in plot.features if f.properties.kind == "track"}
+    sensor_ids = {f.id for f in plot.features if f.properties.kind == "sensor"}
     if sum(f.properties.kind == "plot" for f in plot.features) > 1:
         problems.append("a plot has at most one whole-plot feature (kind plot)")
     for feature in plot.features:
-        problems += _feature_problems(feature, track_ids)
+        problems += _feature_problems(feature, track_ids, sensor_ids)
     known = set(ids)
     for named_set in plot.named_sets or []:
         missing = [i for i in named_set.feature_ids if i not in known]
@@ -843,8 +1022,9 @@ def _format_settings_problems(settings: g.FormatSettings, raw: dict[str, Any]) -
 # The newest per-user configuration layout this build understands: 1, the stores; 2, also
 # the choice of how tracks imported are plotted (track_import_mode), which an earlier
 # Debrief cannot read, so a file holding it says 2 and an earlier Debrief says to update;
-# 3, also the answers to a narrative import's questions (narrative_import).
-CONFIG_VERSION = 3
+# 3, also the answers to a narrative import's questions (narrative_import); 4, also the
+# Bearings view's error cut-off (tma_error_cut_off).
+CONFIG_VERSION = 4
 
 
 def _user_config_problems(config: g.UserConfig, raw: dict[str, Any]) -> list[str]:
@@ -937,6 +1117,22 @@ MESSAGE_MEMBERS: dict[str, tuple[str, ...]] = {
     "export_image": ("image_request",),
     "image_rendered": ("image?", "message?"),
     "latest_asked": (),
+    "resolve_asked": ("feature_id", "keep"),
+    "cut_chosen": ("feature_id",),
+    "show_tma": ("tma?",),
+    "tma_chosen": ("feature_id",),
+    "tma_create": ("tma_request",),
+    "tma_guess": ("tma_request?",),
+    "tma_guessed": ("tma_request?",),
+    "tma_preview": ("feature_id", "preview?"),
+    "tma_exclude": ("feature_id", "cut_ids", "excluded"),
+    "tma_split": ("feature_id", "current_time"),
+    "tma_time_asked": ("current_time",),
+    "tma_select": ("feature_id", "current_time"),
+    "tma_resolve": ("resolution",),
+    "tma_cut_off": ("error_cut_off",),
+    "tma_plot_drawn": ("plot_height", "pane_widths"),
+    "tma_made": ("feature_id?", "message?"),
 }
 
 
@@ -959,6 +1155,20 @@ def _webview_message_problems(message: g.WebviewMessage, raw: dict[str, Any]) ->
     if message.track_edit is not None:
         problems += track_edit_problems(message.track_edit)
     problems += tote_view_problems(message.tote_view)
+    if kind == "resolve_asked" and str(message.keep) not in ("bearing", "ambiguous_bearing"):
+        problems.append("resolve_asked keeps the bearing clicked: bearing or ambiguous_bearing")
+    if message.tma_request is not None:
+        problems += tma_request_problems(message.tma_request)
+    if kind == "tma_exclude" and not message.cut_ids:
+        problems.append("tma_exclude names the cuts to leave out or count again")
+    if (
+        kind == "tma_guessed"
+        and message.tma_request is not None
+        and (
+            message.tma_request.first_position is None or message.tma_request.last_position is None
+        )
+    ):
+        problems.append("tma_guessed carries both positions clicked")
     if kind == "image_rendered" and (message.image is None) == (message.message is None):
         problems.append("image_rendered carries either the image or why there is none (message)")
     if message.image is not None and message.image.viewport is not None:
