@@ -79,9 +79,9 @@ export class OutlineTree<T> {
 
   /**
    * A selection made elsewhere (the map, Bearings, a command), or by the host: those rows selected,
-   * the branches above them opened (ancestors, outermost first) and the last brought into sight.
+   * the branches above them opened (ancestors, outermost first) and the last (or the one named) brought into sight.
    */
-  select(keys: string[], ancestors: string[] = []): void {
+  select(keys: string[], ancestors: string[] = [], reveal: string | undefined = keys[keys.length - 1]): void {
     let opened = false;
     for (const key of ancestors) {
       if (!this.open.has(key)) {
@@ -91,7 +91,7 @@ export class OutlineTree<T> {
     }
     this.selected = [...keys];
     if (opened) this.rows = flatten(this.host.roots(), this.open);
-    const last = keys[keys.length - 1];
+    const last = reveal;
     const index = last ? this.rows.findIndex((r) => r.key === last) : -1;
     if (index >= 0) {
       this.focusKey = last;

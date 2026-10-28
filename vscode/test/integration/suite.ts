@@ -747,6 +747,87 @@ export async function run(): Promise<void> {
     assert.ok(!api.session.current!.plot.features.some((f) => f.id === solution), "undone: no solution");
   }
 
+  // The Outline's toolbar in its title bar (product owner, 28 Oct 2026): codicon buttons, the
+  // eye's icon following the selection (debrief.selectionVisibility); each command run on the
+  // Outline's selection, one step each where it changes the plot; the context keys following.
+  {
+    const titleBar = (extension.packageJSON.contributes.menus["view/title"] as { command: string; when: string; group: string }[]).filter((m) => m.when.startsWith("view == debrief.outline") && m.group.startsWith("navigation"));
+    assert.deepEqual(
+      titleBar.map((m) => m.command),
+      ["debrief.selectionHide", "debrief.selectionShow", "debrief.selectionShowAll", "debrief.colourSelection", "debrief.selectAll", "debrief.selectChildren", "debrief.clearSelection", "debrief.addAnnotation"],
+    );
+    const declared = new Map((extension.packageJSON.contributes.commands as { command: string; icon?: string; title: string }[]).map((c) => [c.command, c]));
+    assert.deepEqual(
+      titleBar.map((m) => declared.get(m.command)?.icon),
+      ["$(eye)", "$(eye-closed)", "$(color-mode)", "$(symbol-color)", "$(check-all)", "$(type-hierarchy-sub)", "$(clear-all)", "$(add)"],
+    );
+    assert.match(titleBar[0].when, /debrief\.selectionVisibility != hidden && debrief\.selectionVisibility != mixed/);
+    assert.match(titleBar[2].when, /debrief\.selectionVisibility == mixed/);
+    const registered = new Set(await vscode.commands.getCommands(true));
+    for (const m of titleBar) assert.ok(registered.has(m.command), `${m.command} is registered`);
+    const keys = () => vscode.commands.executeCommand<{ visibility: string; colourable: boolean; hasChildren: boolean; selected: boolean }>("debrief.outlineToolbarState");
+    const keysAre = (what: string, want: Partial<Awaited<ReturnType<typeof keys>>>) =>
+      waitFor(what, async () => {
+        const now = await keys();
+        return Object.entries(want).every(([k, v]) => now[k as keyof typeof now] === v) ? now : undefined;
+      });
+    const start = (await steps()).length;
+    await vscode.commands.executeCommand("debrief.outline.focus");
+    await vscode.commands.executeCommand("debrief.clearSelection");
+    await keysAre("nothing selected", { visibility: "none", colourable: false, hasChildren: false, selected: false });
+    // Two tracks shown: the eye; hiding them is one step, and the closed eye.
+    await vscode.commands.executeCommand("debrief.select", ["track-blue-one", "track-red-one"]);
+    await keysAre("two tracks shown", { visibility: "visible", colourable: true, hasChildren: true, selected: true });
+    assert.equal(await vscode.commands.executeCommand("debrief.selectionHide"), undefined);
+    assert.deepEqual((await steps()).at(-1)?.notes, ["BLUE ONE and RED ONE hidden on the map"]);
+    await keysAre("two tracks hidden", { visibility: "hidden" });
+    // A shown track added: mixed; Show all shows the three, one step.
+    await vscode.commands.executeCommand("debrief.select", ["track-blue-one", "track-red-one", "track-ais-cargo-01"]);
+    await keysAre("some hidden, some shown", { visibility: "mixed" });
+    await sleep(1000);
+    await screenshot("outline-toolbar-vscode-mixed");
+    assert.equal(await vscode.commands.executeCommand("debrief.selectionShowAll"), undefined);
+    assert.deepEqual((await steps()).at(-1)?.notes, ["3 tracks shown on the map"]);
+    await keysAre("all shown again", { visibility: "visible" });
+    // Colour: the three tracks and a sensor, by name and by hex, each one step; undone and redone.
+    const colourOf = (id: string) => {
+      const f = api.session.current!.plot.features.find((g) => g.id === id)!;
+      return f.properties.kind === "track" ? f.properties.style?.colour : (f.properties as { colour?: string }).colour;
+    };
+    const was = colourOf("track-red-one");
+    await vscode.commands.executeCommand("debrief.select", ["track-blue-one", "track-red-one", "track-ais-cargo-01", "sensor-blue-one-towed-array"]);
+    await keysAre("colourable", { colourable: true });
+    assert.equal(await vscode.commands.executeCommand("debrief.colourSelection", "Purple"), undefined);
+    assert.deepEqual((await steps()).at(-1)?.notes, ["Colour of 3 tracks and 1 sensor set to purple"]);
+    assert.equal(colourOf("sensor-blue-one-towed-array"), colourOf("track-red-one"));
+    assert.equal(await vscode.commands.executeCommand("debrief.undo"), undefined);
+    assert.equal(colourOf("track-red-one"), was);
+    assert.equal(await vscode.commands.executeCommand("debrief.redo"), undefined);
+    assert.notEqual(colourOf("track-red-one"), was);
+    assert.equal(await vscode.commands.executeCommand("debrief.colourSelection", "#1F6E8C"), undefined);
+    assert.deepEqual((await steps()).at(-1)?.notes, ["Colour of 3 tracks and 1 sensor set to #1f6e8c"]);
+    assert.match((await vscode.commands.executeCommand<string>("debrief.colourSelection", "mauve")) ?? "", /^mauve is not a colour/);
+    // Select children: a sensor's cuts, in place of the sensor; a cut has none.
+    await vscode.commands.executeCommand("debrief.select", ["sensor-blue-one-towed-array"]);
+    await keysAre("a sensor's children", { hasChildren: true });
+    assert.equal(await vscode.commands.executeCommand("debrief.selectChildren"), undefined);
+    const towedCuts = api.session.current!.plot.features.filter((f) => f.properties.kind === "sensor_cut" && (f.properties as { sensor_id: string }).sensor_id === "sensor-blue-one-towed-array").map((f) => f.id);
+    await waitFor("the towed array's cuts chosen", () => (api.outlineKeys().length === towedCuts.length ? true : undefined));
+    assert.deepEqual(new Set(api.session.selection), new Set(towedCuts));
+    await keysAre("cuts have no children", { hasChildren: false, visibility: "visible" });
+    // Select all: every row listed, the tracks among them.
+    assert.equal(await vscode.commands.executeCommand("debrief.selectAll"), undefined);
+    for (const id of ["track-blue-one", "track-red-one", "track-ais-cargo-01"]) assert.ok(api.outlineKeys().includes(id), `${id} selected`);
+    await keysAre("all selected", { selected: true });
+    // Clear selection.
+    await vscode.commands.executeCommand("debrief.clearSelection");
+    await keysAre("cleared", { visibility: "none", selected: false, colourable: false });
+    assert.deepEqual(api.outlineKeys(), []);
+    const done = (await steps()).length - start;
+    assert.equal(done, 4, "hide, show, and two colours: a step each");
+    for (let i = 0; i < done; i++) assert.equal(await vscode.commands.executeCommand("debrief.undo"), undefined);
+  }
+
   // The properties form of the circle, as the map's double-click or the outline opens it.
   await vscode.commands.executeCommand("debrief.editAnnotation", "annotation-exclusion-zone");
   await waitFor("the circle's form", async () => (await vscode.commands.executeCommand<string | undefined>("debrief.annotationFormOpen")) === "annotation-exclusion-zone" || undefined);

@@ -138,7 +138,7 @@ export async function playFixDrag(page, shot) {
   assert.ok(Math.hypot(escaped.x - after.x, escaped.y - after.y) < 1, "back where it was");
 
   // Undo puts the fix back.
-  await page.locator("#selected-count").click();
+  await page.evaluate(() => document.activeElement?.blur());
   await page.keyboard.press("Control+z");
   await page.waitForFunction(() => /RED ONE fix at [^]*undone/.test(document.getElementById("history")?.textContent ?? ""));
   await page.waitForTimeout(500);
@@ -311,7 +311,7 @@ export async function playFixDrag(page, shot) {
   assert.equal(await latest(), "RED ONE plotted over the ground");
   assert.equal(await steps(), n + 1, "one step");
   assert.equal(await tag.count(), 0);
-  await page.locator("#selected-count").click();
+  await page.evaluate(() => document.activeElement?.blur());
   for (let i = 0; i < 5; i++) await page.keyboard.press("Control+z");
   await page.waitForFunction(() => /RED ONE plotted by dead reckoning[^]*undone/.test(document.getElementById("history")?.textContent ?? ""));
 

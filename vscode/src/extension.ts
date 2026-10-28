@@ -48,11 +48,20 @@ import { Session, timeProblem } from "./session.js";
 import { CataloguesProvider, type CollationMarks } from "./views/catalogues.js";
 import { featureIdsOf, keysOf, OutlineProvider, type Node as OutlineNode } from "./views/outline.js";
 import { OPERATION_COMMANDS, ToolsProvider } from "./views/tools.js";
+import { hexColour, selectionChildren, selectionColour, selectionVisibility, type Visibility } from "../webview/outlinetoolbar.js";
 import { exclusionTarget, featureIdsOfPicks, fixKey, outlineChoice, outlineOperations, pickedCuts, pickOf, tmaRequestOf, type Operation, type OperationContext, type OperationId, type OutlineFocus, type OutlinePick } from "../webview/outlinemodel.js";
 import { AFTER_OPEN, BY_HAND, LOG_FILE, openedEvent, openOnFirstRun, prepare, serviceEvent, toteCompares, TOURS, tourOfEvent, WalkthroughProgress } from "./walkthroughs.js";
 import { NO_SOLUTION, withSolution } from "../walkthroughs/contribute.mjs";
 
 /** What the integration tests and agents can inspect. */
+/** The Outline toolbar's context keys (product owner, 28 Oct 2026). */
+export interface OutlineToolbarKeys {
+  visibility: Visibility;
+  colourable: boolean;
+  hasChildren: boolean;
+  selected: boolean;
+}
+
 export interface DebriefApi {
   session: Session;
   /**
@@ -96,6 +105,8 @@ export interface DebriefApi {
   outlineChildren: (id: string) => { label: string; description: string; key?: string; context?: string }[];
   /** The Outline's rows chosen, by key (a leg's or a position's is its solution's with #leg2 or #fix14), for tests and agents. */
   outlineKeys: () => string[];
+  /** The Outline toolbar's context keys as last set (product owner, 28 Oct 2026), for tests. */
+  outlineToolbar: () => OutlineToolbarKeys;
   /** A feature's own row in the Outline, as it reads: for tests. */
   outlineItem: (id: string) => { label: string; description: string } | undefined;
   /** A message to the extension as the Timeline's page sends it (Ctrl+Z there posts undo_asked), for tests. */
@@ -197,6 +208,11 @@ export function activate(context: vscode.ExtensionContext): DebriefApi {
   let outlineKeys: string[] = [];
   /** The rows a selection about to be made elsewhere stands for (a position clicked in Bearings, a walkthrough's step). */
   let nextKeys: string[] | undefined;
+  /** The row to bring into sight for the next selection made elsewhere: undefined for the last chosen, null for none (Select all). */
+  let revealNext: string | null | undefined;
+  /** The Outline toolbar's context keys as set (product owner, 28 Oct 2026): what its title bar's buttons show and whether they act. */
+  let toolbarKeys: OutlineToolbarKeys = { visibility: "none", colourable: false, hasChildren: false, selected: false };
+  let toolbarKeysSet = false;
   /** What the Outline's rows stand for. */
   const outlinePicks = (keys: readonly string[] = outlineKeys): OutlinePick[] => {
     const index = outline.index;
@@ -223,6 +239,31 @@ export function activate(context: vscode.ExtensionContext): DebriefApi {
   function outlineChanged(): void {
     bearingsView.follow(outlinePicks());
     tools.refresh();
+    outline.markKeys(outlineKeys);
+    updateToolbarKeys();
+  }
+  /**
+   * The Outline toolbar's context keys (product owner, 28 Oct 2026), for the view title bar's when
+   * and enablement clauses: debrief.selectionVisibility (visible, hidden, mixed or none: which eye
+   * shows, and whether it acts), debrief.selectionColourable, debrief.selectionHasChildren and
+   * debrief.selectionNotEmpty. Set only when they change.
+   */
+  function updateToolbarKeys(): void {
+    const c = operationContext();
+    const next: OutlineToolbarKeys = c
+      ? {
+          visibility: selectionVisibility(c.index, c.picks, c.readOnly).state,
+          colourable: selectionColour(c.index, c.picks, c.readOnly).enabled,
+          hasChildren: !selectionChildren(c.index, c.picks).reason,
+          selected: c.picks.length > 0,
+        }
+      : { visibility: "none", colourable: false, hasChildren: false, selected: false };
+    const names: Record<keyof OutlineToolbarKeys, string> = { visibility: "debrief.selectionVisibility", colourable: "debrief.selectionColourable", hasChildren: "debrief.selectionHasChildren", selected: "debrief.selectionNotEmpty" };
+    for (const key of Object.keys(names) as (keyof OutlineToolbarKeys)[]) {
+      if (toolbarKeys[key] !== next[key] || !toolbarKeysSet) void vscode.commands.executeCommand("setContext", names[key], next[key]);
+    }
+    toolbarKeys = next;
+    toolbarKeysSet = true;
   }
   /** Current time to a position chosen in the Outline, the window widened to take it in if need be, shown not saved. */
   function outlineTimeTo(at: string): void {
@@ -509,6 +550,9 @@ export function activate(context: vscode.ExtensionContext): DebriefApi {
   // solution's legs and positions, which stand for the solution everywhere else. Bearings
   // follows them, and the Tools offer what can be done to them.
   let revealing: string | undefined;
+  // Which branches are open, so Select all takes the rows listed, as Ctrl+A in the tree does.
+  outlineView.onDidExpandElement((event) => outline.setExpanded(event.element, true));
+  outlineView.onDidCollapseElement((event) => outline.setExpanded(event.element, false));
   outlineView.onDidChangeSelection((event) => {
     const keys = keysOf(event.selection);
     // While a row is being revealed, the tree's own selection events (the row revealed, or, in
@@ -527,7 +571,9 @@ export function activate(context: vscode.ExtensionContext): DebriefApi {
     if (origin === "outline") return;
     outlineKeys = nextKeys ?? ids;
     nextKeys = undefined;
-    if (origin !== "plot") revealKeys();
+    const reveal = revealNext;
+    revealNext = undefined;
+    if (origin !== "plot" && reveal !== null) revealKeys(reveal);
     outlineChanged();
   });
   session.onPlot((opened) => {
@@ -535,9 +581,9 @@ export function activate(context: vscode.ExtensionContext): DebriefApi {
     outlineKeys = opened && index ? outlineKeys.filter((k) => !!pickOf(index, k)) : [];
     outlineChanged();
   });
-  /** The Outline's last key chosen elsewhere brought into sight there, its branches opened. */
-  function revealKeys(): void {
-    const last = outlineKeys[outlineKeys.length - 1];
+  /** The Outline's last key chosen elsewhere (or the one named) brought into sight there, its branches opened. */
+  function revealKeys(key?: string): void {
+    const last = key ?? outlineKeys[outlineKeys.length - 1];
     if (!last || !outlineView.visible) return;
     const node = outline.nodeOf(last);
     if (!node) return;
@@ -1681,20 +1727,58 @@ export function activate(context: vscode.ExtensionContext): DebriefApi {
   // A node from the outline, a list of ids (the map's "Show all"), or else the selection.
   type Target = { feature?: { id: string }; ids?: string[] };
   const targets = (node?: Target) => node?.ids ?? (node?.feature ? [node.feature.id] : session.selection);
-  // colourName lets agents and keyboard macros choose without the picker.
-  command("debrief.setColour", async (node?: Target, colourName?: string) => {
-    // Tracks and sensors (CAP-22): a sensor's cuts are drawn in its colour.
-    const kinds = new Map(targets(node).map((id) => [id, session.current?.plot.features.find((f) => f.id === id)?.properties.kind]));
-    const ids = [...kinds].filter(([, kind]) => kind === "track" || kind === "sensor").map(([id]) => id);
-    if (!ids.length) return report("Select one or more tracks or sensors to colour.");
-    const sensorsOnly = ids.every((id) => kinds.get(id) === "sensor");
-    const what = sensorsOnly ? (ids.length === 1 ? "the sensor" : `${ids.length} sensors`) : ids.length === 1 ? "the track" : `${ids.length} tracks and sensors`;
-    const choices = TRACK_COLOURS.map((c) => ({ label: c.name, colour: c.colour }));
-    const picked = colourName
-      ? choices.find((c) => c.label.toLowerCase() === colourName.toLowerCase())
-      : await vscode.window.showQuickPick(choices, { placeHolder: `Colour for ${what}` });
+  /** A colour given by name from the palette ("Red") or as hex ("#rrggbb"), or why it is not one. */
+  const colourGiven = (given: string): { colour: string; name?: string } | string => {
+    const named = TRACK_COLOURS.find((c) => c.name.toLowerCase() === given.trim().toLowerCase());
+    if (named) return { colour: named.colour, name: named.name.toLowerCase() };
+    const hex = hexColour(given);
+    return hex ? { colour: hex } : `${given} is not a colour: give one of ${TRACK_COLOURS.map((c) => c.name).join(", ")}, or #rrggbb.`;
+  };
+  /**
+   * The palette in a QuickPick, the colour the selection shares marked, and a custom colour typed
+   * as hex (product owner, 28 Oct 2026). Undefined if the analyst chose none.
+   */
+  async function pickColour(what: string, current?: string): Promise<{ colour: string; name?: string } | undefined> {
+    type Item = vscode.QuickPickItem & { colour?: string; name?: string };
+    const items: Item[] = [
+      ...TRACK_COLOURS.map((c) => ({ label: c.name, description: c.colour === current ? `${c.colour} · as now` : c.colour, colour: c.colour, name: c.name.toLowerCase() })),
+      { label: "$(edit) Custom colour…", description: "type #rrggbb", alwaysShow: true },
+    ];
+    const picked = await vscode.window.showQuickPick(items, { title: `Colour ${what}`, placeHolder: "Choose a colour, or a custom one" });
     if (!picked) return undefined;
-    return report(await restyle(ids, { colour: picked.colour, colour_name: picked.label.toLowerCase() }));
+    if (picked.colour) return { colour: picked.colour, name: picked.name };
+    const typed = await vscode.window.showInputBox({
+      title: `Colour ${what}`,
+      prompt: "A colour as #rrggbb (hex)",
+      value: current ?? "",
+      validateInput: (text) => (hexColour(text) ? undefined : "Type a colour as #rrggbb, six hex digits."),
+    });
+    const hex = typed === undefined ? undefined : hexColour(typed);
+    return hex ? { colour: hex } : undefined;
+  }
+  /** The picks a target names: an Outline row's key, a list of ids, or else the Outline's selection. */
+  const picksOf = (node?: Target): OutlinePick[] => {
+    const index = outline.index;
+    if (!index) return [];
+    if (!node?.ids && !node?.feature) return outlinePicks();
+    return targets(node).map((id) => pickOf(index, id)).filter((p): p is OutlinePick => !!p);
+  };
+  // Tracks and solutions, sensors (CAP-22: their cuts are drawn in its colour), cuts and annotations.
+  // colourName lets agents and keyboard macros choose without the picker: a palette name or #rrggbb.
+  async function colourPicks(picks: OutlinePick[], colourName?: string): Promise<string | undefined> {
+    const index = outline.index;
+    if (!index || !session.current) return report("Open a plot first.");
+    const button = selectionColour(index, picks, !!session.current.revision);
+    if (!button.enabled) return report(button.reason);
+    const chosen = colourName ? colourGiven(colourName) : await pickColour(button.what!, button.current);
+    if (typeof chosen === "string") return report(chosen);
+    if (!chosen) return undefined;
+    return report(await restyle(button.ids, { colour: chosen.colour, ...(chosen.name && { colour_name: chosen.name }) }));
+  }
+  // From the Outline's menu with several rows selected, VS Code gives the rows selected second.
+  command("debrief.setColour", (node?: Target, given?: string | OutlineNode[]) => {
+    if (Array.isArray(given) && outline.index) return colourPicks(outlinePicks(keysOf(given)));
+    return colourPicks(picksOf(node), typeof given === "string" ? given : undefined);
   });
   const features = (ids: string[]) =>
     ids.filter((id) => {
@@ -1709,6 +1793,57 @@ export function activate(context: vscode.ExtensionContext): DebriefApi {
     const ids = features(targets(node));
     return report(ids.length ? await restyle(ids, { hidden: false }) : "Select what to show.");
   });
+
+  // --- The Outline's toolbar, in its title bar (product owner, 28 Oct 2026) ---------------------
+  // Hidden on map in three states, one command each so the title bar's icon shows the state
+  // (debrief.selectionVisibility): all shown, the eye, hides them all; all hidden, the closed eye,
+  // shows them all; some of each, the mixed icon, shows them all. Rows that cannot be hidden (legs,
+  // positions) are left out. One step, through debrief/set_hidden, as the Tools' Hide cuts. Given
+  // ids (agents), those instead of the Outline's selection.
+  async function hideOrShow(node?: Target): Promise<string | undefined> {
+    const index = outline.index;
+    if (!index || !session.current) return report("Open a plot first.");
+    const v = selectionVisibility(index, picksOf(node), !!session.current.revision);
+    if (!v.action) return report(v.title);
+    const problem = await restyle(v.ids, { hidden: v.action === "hide" });
+    if (!problem) vscode.window.setStatusBarMessage(`${v.done}.`, 5000);
+    return report(problem);
+  }
+  for (const name of ["debrief.selectionHide", "debrief.selectionShow", "debrief.selectionShowAll"]) command(name, (node?: Target) => hideOrShow(node));
+  // Colour: the selected that have a colour, from the palette or a custom hex, one step.
+  command("debrief.colourSelection", (colourName?: string) => colourPicks(outlinePicks(), typeof colourName === "string" ? colourName : undefined));
+  /** Rows chosen by the toolbar: selected everywhere, the one named (or none) brought into sight. */
+  function chooseKeys(keys: string[], reveal: string | null): void {
+    const picks = outlinePicks(keys);
+    nextKeys = keys;
+    revealNext = reveal;
+    session.select(featureIdsOfPicks(picks), "command");
+    if (nextKeys) {
+      // The features were selected already (a solution's legs for the solution): the rows chosen all the same.
+      outlineKeys = nextKeys;
+      nextKeys = undefined;
+      revealNext = undefined;
+      if (reveal) revealKeys(reveal);
+      outlineChanged();
+    }
+  }
+  // Select all: every row listed (the branches open), as Ctrl+A in the tree.
+  command("debrief.selectAll", () => {
+    if (!session.current) return report("Open a plot first.");
+    chooseKeys(outline.listedKeys(), null);
+    return undefined;
+  });
+  // Select children: the selection replaced by the direct children of what is selected (a track's
+  // sensors, a sensor's cuts, every page of them, a solution's legs, a leg's positions); the first brought into sight.
+  command("debrief.selectChildren", () => {
+    const index = outline.index;
+    if (!index || !session.current) return report("Open a plot first.");
+    const children = selectionChildren(index, outlinePicks());
+    if (children.reason) return report(children.reason);
+    chooseKeys(children.keys, children.keys[0]);
+    return undefined;
+  });
+  command("debrief.outlineToolbarState", () => ({ ...toolbarKeys }));
   // Labels, symbols and arrows (CAP-32): how often, for every track selected at once, as one step.
   // From the outline's menu (with the others selected beside it), the Command Palette or the selection.
   // With intervals given (agents, keyboard macros, tests), no questions: each a duration such as
@@ -3533,6 +3668,7 @@ export function activate(context: vscode.ExtensionContext): DebriefApi {
         : [];
     },
     outlineKeys: () => [...outlineKeys],
+    outlineToolbar: () => ({ ...toolbarKeys }),
     outlineItem: (id) => {
       const node = outline.nodeOf(id);
       if (!node) return undefined;
