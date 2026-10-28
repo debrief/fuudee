@@ -1,0 +1,17 @@
+{
+ "shots": [
+  {
+   "source": "guides/interaction-models/keyboard-equivalents.md",
+   "url": "guides/interaction-models/keyboard-equivalents/",
+   "title": "Keyboard equivalents",
+   "file": "guides-interaction-models-keyboard-equivalents.png"
+  },
+  {
+   "source": "guides/interaction-models/tma.md",
+   "url": "guides/interaction-models/tma/",
+   "title": "TMA solutions",
+   "file": "guides-interaction-models-tma.png"
+  }
+ ],
+ "more": 0
+}
