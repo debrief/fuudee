@@ -1973,7 +1973,7 @@
 </tr>
 <tr>
 <td>Bearings and TMA</td>
-<td>Open a copy and its bearings (the towed array's cuts in Bearings); keep a side of an ambiguous bearing; make a first guess; put its start at RED ONE's range; shear the first leg to fit; leave out a wild bearing; split at the turn and fit the second leg (about 12 minutes)</td>
+<td>Open a copy and its bearings (the towed array selected in the Outline, its bearings in Bearings); keep a side of an ambiguous bearing; make a first guess; put its start at RED ONE's range; shear the first leg to fit; leave out a wild bearing; split at the turn and fit the second leg (about 12 minutes)</td>
 </tr>
 </tbody>
 </table>
@@ -2062,19 +2062,19 @@
 <tr>
 <td>Open a copy of serial 1 and its bearings</td>
 <td>Read the towed array's two lines a cut, mirrored about the array's heading</td>
-<td>The copy opened, then <strong>Bearings</strong> listing the towed array, in the panel below the editor in VS Code (<code>debrief.showBearings</code>; <code>bearings:</code>)</td>
+<td>The copy opened, then the towed array selected in the Outline and <strong>Bearings</strong> showing it, in the panel below the editor in VS Code (<code>debrief.chooseInOutline</code>; <code>outline:</code>)</td>
 <td>the copy opens (<code>tmaOpened</code>)</td>
 </tr>
 <tr>
 <td>Keep a side of an ambiguous bearing</td>
-<td>Keep 236.3° (starboard), the side the Bow sonar's 235.3° at 09:46:00Z agrees with (its cuts listed by choosing <em>Bow sonar</em> in Bearings' <strong>Sensor</strong> list); the period's other ambiguous cuts are measured by the nearer side (≈), an assumption the step says</td>
-<td>Bearings chooses the cut at 09:46Z and moves current time there</td>
+<td><strong>Keep starboard</strong> in the Tools for 236.3° (starboard), the side the Bow sonar's 235.3° at 09:46:00Z agrees with (its cuts read by opening <em>Bow sonar</em> in the Outline); the period's other ambiguous cuts are measured by the nearer side (≈), an assumption the step says</td>
+<td>The Outline opens the towed array and selects its cut at 09:46Z, current time there</td>
 <td>a side is kept, not both made ambiguous again (<code>sideKept</code>)</td>
 </tr>
 <tr>
 <td>Make a first guess</td>
 <td>Debrief's defaults (4.94 nmi, across the bearing, 8 kn)</td>
-<td>Bearings chooses the period 09:46Z to 12:00Z (102 cuts) and opens <strong>Make solution…</strong></td>
+<td>The Outline selects the cuts 09:46Z to 12:00Z (102) and runs <strong>TMA solution from 102 cuts…</strong>, the form in Bearings</td>
 <td>a solution is made (<code>solutionMade</code>)</td>
 </tr>
 <tr>
@@ -2091,14 +2091,14 @@
 </tr>
 <tr>
 <td>Leave out a wild bearing</td>
-<td><code>Space</code> on the cut at 11:12Z, some 40° left of its neighbours</td>
-<td>Bearings chooses the cut at 11:12Z and opens the cut list</td>
+<td><strong>Leave out of Contact 1 solution</strong> in the Tools (or <code>Space</code> in the plot) for the cut at 11:12Z, some 40° left of its neighbours</td>
+<td>The Outline selects the cut at 11:12Z, the solution still shown in Bearings</td>
 <td>a cut is left out, not counted again nor already left out (<code>cutLeftOut</code>)</td>
 </tr>
 <tr>
 <td>Split at the turn and fit the second leg</td>
-<td><strong>Split into legs at 10:38:00Z</strong> (or <code>S</code> in the plot); <strong>This leg</strong>; pin the second leg's start on its first bearing, about 0.17 nmi at 155°; shear its end, about 200° at 5.2 kn</td>
-<td>Bearings chooses the cut at 10:38Z and moves current time there, so This leg is the second</td>
+<td><strong>Split before 10:38:00Z</strong> in the Tools (or <code>S</code> in the plot); <strong>This leg</strong>; pin the second leg's start on its first bearing, about 0.17 nmi at 155°; shear its end, about 200° at 5.2 kn</td>
+<td>The Outline opens the solution to its leg and selects its position at 10:38Z, moving current time there, so This leg is the second</td>
 <td>one of its legs is dragged, once it is split (a drag with a period: <strong>This leg</strong>, <em>This leg</em> in the forms, or the time window); the split alone is not the step (<code>legDragged</code>)</td>
 </tr>
 </tbody>
@@ -2141,9 +2141,9 @@
 </tbody>
 </table>
 <p><strong>Why the cue never passes.</strong> The sample's sonar noise is 1.5° (1.8° RMS against RED ONE's true track over these cuts, with the turn), so with 101 cuts some fall beyond 3° whatever the fit: RED ONE's true track itself leaves 8 of 101 beyond, the largest 4.4°. The last step says so: aim for an RMS under about 2° and only a handful beyond. The default cut-off and the sample's noise are unchanged (product owner, 25 Oct 2026). For the same reason the cue stays ✗ while only the first leg is fitted: it counts every cut of the solution, the second leg's too.</p>
-<p><strong>What the buttons choose in Bearings.</strong> <code>debrief.showBearings</code> takes a second argument, a <code>TmaFocus</code> (<code>cut_time</code>, <code>period</code> and <code>make</code>, or <code>largest</code>), sent once with the view (<code>TmaView.focus</code>; <code>FocusOnce</code> in both hosts, so a later refresh never chooses it again): the view chooses the cut, the period or the largest residual (<code>focusChoice</code>: never a cut left out, hidden or without a residual), moves current time to a cut, gives the list (or the first guess's form) the keyboard, and brings the cut's row into sight centred in the page where the page scrolls, so on a phone a section's heading never covers it. The playground's action is <code>bearings:&lt;sensor or solution&gt;?cut=…</code>, <code>?period=…/…&amp;make</code> or <code>?largest</code>, the same focus. <strong>The solution's id</strong> is not known until it is made: a step names it <code>$solution</code>, and each host puts in the copy's latest TMA solution when the button is pressed, or says <em>Make the solution first</em> while there is none. In VS Code a step's button that opens a form (Move…, Shear…) also brings Bearings back into sight in the panel if it was closed.</p>
+<p><strong>What the buttons choose, in the Outline</strong> (product owner, 27 Oct 2026; Bearings had the cut list before). <code>debrief.chooseInOutline</code> takes the sensor or the solution and what to choose under it (<code>cut_time</code>, <code>period</code> and <code>make</code>, or <code>fix_time</code>; <code>outlineChoice</code>): the cut at or nearest a time, the cuts of a period (with <code>make</code>, <strong>TMA solution from cuts…</strong> run for them, the first guess's form in Bearings), or the solution's position at a time; it moves current time to a cut or a position, opens the rows above it, selects it, gives it the keyboard, and in the one column of a phone brings it into sight centred in the page, so a section's heading never covers it. Bearings follows the selection and rings it. The playground's action is <code>outline:&lt;sensor or solution&gt;?cut=…</code>, <code>?period=…/…&amp;make</code> or <code>?fix=…</code>, the same choice. <code>debrief.showBearings</code> stays for agents, with a <code>TmaFocus</code> sent once with the view (<code>FocusOnce</code>). <strong>The solution's id</strong> is not known until it is made: a step names it <code>$solution</code>, and each host puts in the copy's latest TMA solution when the button is pressed, or says <em>Make the solution first</em> while there is none. In VS Code a step's button that opens a form (Move…, Shear…) also brings Bearings back into sight in the panel if it was closed.</p>
 <p><strong>The keyboard.</strong> The cut's buttons (Keep, Leave out, Split) come before the list in the tab order, so from the list it is <code>Shift+Tab</code> back to them (the steps say so; the playground's test presses it); in the plot <code>Space</code> or <code>Delete</code> leaves a cut out, <code>S</code> splits, <code>1</code> and <code>2</code> keep a side. The forms <strong>Move…</strong> and <strong>Shear…</strong> offer <em>This leg</em> under <em>What changes</em> once a solution is split, the leg current time is in, so the second leg is fitted by typing as the first was (<a href="../track-operations/">track operations</a>).</p>
-<p><strong>Candidly.</strong> The sample's bearings have no wild one, so the copy has one put in, as <em>Tidy a track</em>'s glitches are, and History says so. The map draws every cut of the serial's window and the narrative's labels, so at 09:46Z the map's nearest bearing label (<em>Regained RED ONE, bearing 231.8°T</em>, at 09:42:30Z) is not the Bow sonar's cut then; the step gives the number and where to read it in Bearings. Moving the start to the right range makes the RMS worse before the shear makes it better, which the step says. The range is given, not found: finding it would be a search of trial ranges, longer than a walkthrough.</p>
+<p><strong>Candidly.</strong> The sample's bearings have no wild one, so the copy has one put in, as <em>Tidy a track</em>'s glitches are, and History says so. The map draws every cut of the serial's window and the narrative's labels, so at 09:46Z the map's nearest bearing label (<em>Regained RED ONE, bearing 231.8°T</em>, at 09:42:30Z) is not the Bow sonar's cut then; the step gives the number and where to read it (the Bow sonar opened in the Outline). Moving the start to the right range makes the RMS worse before the shear makes it better, which the step says. The range is given, not found: finding it would be a search of trial ranges, longer than a walkthrough.</p>
 <h2 id="the-onboarding-trial">The onboarding trial<a class="headerlink" href="#the-onboarding-trial" title="Permanent link">&para;</a></h2>
 <p>NFR-09's trial, with analysts, is the product owner's to run. It is formative. <code>docs/notes/onboarding-trial.md</code> gives:
 - the pass rule to pre-register: at least 80% complete without help above the first rung, the median silent run within 40 minutes, and no one over 60;

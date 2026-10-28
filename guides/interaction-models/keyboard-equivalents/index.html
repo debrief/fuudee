@@ -1881,20 +1881,28 @@
 <td><strong>Towed array offset…</strong> on a sensor's menu in the Outline, or the Command Palette: type the distance (0 for at the ship), then choose worm in the hole or plain; one step. In the playground, a sensor row's menu.</td>
 </tr>
 <tr>
-<td>Choose a TMA solution's period of cuts with the pointer (click a cut, Shift-click the last)</td>
-<td>The Bearings view's list of cuts is one tab stop: <code>Up</code> and <code>Down</code> move the cut chosen, with <code>Shift</code> they extend the period; <code>Home</code>, <code>End</code>, <code>Page Up</code>, <code>Page Down</code>; <code>Ctrl+A</code> every cut; <code>Enter</code> moves current time to the cut; <code>Alt+Down</code> and <code>Alt+Up</code> the next and previous unresolved ambiguous cut. Each row is read as an option (<em>12:24:30Z, Bow sonar, 260.2°, residual +1.6°</em>) (<a href="../tma/">TMA solutions</a>).</td>
+<td>Choose a run of a sensor's cuts, or a TMA solution's leg or position, with the pointer (click, Shift-click a range, Ctrl-click to add)</td>
+<td>The Outline is a tree, one tab stop (product owner, 27 Oct 2026): <code>Up</code> and <code>Down</code> move the keyboard; <code>Right</code> opens a sensor to its cuts, a solution to its legs and a leg to its positions, or goes into one open; <code>Left</code> closes it or goes to its parent; <code>Home</code>, <code>End</code>, <code>Page Up</code>, <code>Page Down</code>; <code>Shift</code> with the arrows extends the selection (a run of cuts); <code>Enter</code> or <code>Space</code> selects, with <code>Ctrl</code> adds or takes away, with <code>Shift</code> selects from the anchor; <code>Ctrl+A</code> every row shown. A position selected moves current time to it. Each row says its level, its place and how many share it (<em>Cut at 09:46:00Z, 236.3° to starboard or 142.3° to port, not yet resolved</em>). In VS Code, the native tree's keys (<a href="../tma/#the-outline-and-the-tools">TMA solutions</a>).</td>
+</tr>
+<tr>
+<td>Act on what is selected in the Outline: split a leg before or after a position, keep a side of cuts, leave them out of a solution or count them in, hide, show or delete them, make a solution of them</td>
+<td>The Tools' entries for the Outline's selection: <code>Tab</code> to them (the Tools panel in the playground; the Tools view in VS Code, or the Command Palette, or the row's menu with <code>Shift+F10</code>), <code>Enter</code> on one. A disabled one says why beside it, read with it. One step each (<a href="../tma/#the-outline-and-the-tools">TMA solutions</a>).</td>
 </tr>
 <tr>
 <td>Make a solution's first guess by two clicks on the map, on the first and last cuts' lines</td>
-<td><strong>Make solution…</strong>: the first guess's form (range along the first cut's bearing, course, speed; Debrief's defaults filled in), which takes the keyboard first and says what each field means as it is typed. One step either way.</td>
+<td><strong>TMA solution from cuts…</strong> in the Tools: the first guess's form in Bearings (range along the first cut's bearing, course, speed; Debrief's defaults filled in), which takes the keyboard first and says what each field means as it is typed. One step either way.</td>
 </tr>
 <tr>
-<td>Click a cut's tick box to leave it out of the RMS, or count it again</td>
-<td><code>Space</code> on the chosen cuts in the Bearings view's list, <code>Space</code> or <code>Delete</code> on the cut chosen in its plot (the cut list closed or open), or <strong>Leave this cut out of the RMS</strong>; one step. Space never changes the cuts chosen (Shift and the arrow keys do). In a narrow view the tick boxes are not shown; Space and the button are.</td>
+<td>Drag a box with <strong>Select bearings</strong> on over a run of a towed array's dots in the Bearings plot, keeping the side boxed, or making resolved cuts ambiguous again</td>
+<td>No keys of its own (product owner, 28 Oct 2026): select the run in the Outline (the sensor opened, <code>Shift</code> with the arrows), then <strong>Keep port</strong>, <strong>Keep starboard</strong> or <strong>Make ambiguous again</strong> in the Tools, the same one step (<a href="../tma/#the-bearings-view">TMA solutions</a>). The toggle is a button (<code>aria-pressed</code>), and the result is said in the status line.</td>
+</tr>
+<tr>
+<td>Click a cut's dot in the Bearings plot to leave it out of the RMS, or count it again</td>
+<td><code>Space</code> or <code>Delete</code> on the cut chosen in the plot, or <strong>Leave out of Contact 1 solution</strong> and <strong>Count in Contact 1 solution</strong> in the Tools for the cuts selected in the Outline; one step.</td>
 </tr>
 <tr>
 <td>Click in the bearings plot to pick a manoeuvre's time</td>
-<td><code>Up</code> and <code>Down</code> in the list or the plot to the cut, then <strong>Split into legs at …</strong> (or <code>S</code> in the plot); on the map, <strong>This leg</strong> under <em>What changes</em>, then the track's drags and their keys: the leg dragged is the one current time is in (Enter on a cut moves current time to it) until a leg is clicked or tapped on the map.</td>
+<td>In the Outline, the solution's leg opened to its positions, the arrows to the position, <code>Enter</code> (current time moves to it), then <strong>Split before</strong> or <strong>Split after</strong> in the Tools; or <code>Up</code> and <code>Down</code> in the plot to the cut and <code>S</code>. On the map, <strong>This leg</strong> under <em>What changes</em>, then the track's drags and their keys: the leg dragged is the one current time is in until a leg is clicked or tapped on the map.</td>
 </tr>
 <tr>
 <td>Choose which catalogue item supplies a period of a track; take new data; confirm or refuse a platform</td>
@@ -1923,7 +1931,7 @@
 </tbody>
 </table>
 <h2 id="reference-implementation">Reference implementation<a class="headerlink" href="#reference-implementation" title="Permanent link">&para;</a></h2>
-<p><code>vscode/webview/mapedit.ts</code> (keys while drawing and on handles) and <code>vscode/webview/drawing.ts</code>; <code>vscode/webview/trackmap.ts</code> and <code>vscode/webview/trackedit.ts</code> for a track's handles. The playground tests <code>vscode/test/play/drawing.mjs</code> and <code>vscode/test/play/tracks.mjs</code> place a marker, change an area, move and rotate a track, <code>vscode/test/play/shear.mjs</code> shears and stretches one, and <code>vscode/test/play/fixdrag.mjs</code> moves a single fix, from the keyboard alone; <code>vscode/test/play/tote.mjs</code> chooses the Tote's tracks from the keyboard and by press and hold; <code>vscode/test/play/narrative.mjs</code> reads, chooses, adds, changes and deletes narrative entries from the keyboard; <code>vscode/test/play/sensors.mjs</code> keeps a side of a sensor's cuts in the window from the keyboard. <code>vscode/test/play/tma.mjs</code> chooses a period of cuts, makes a solution by form, leaves a cut out of the RMS, splits it into legs and finds the next ambiguous cut, from the keyboard.</p>
+<p><code>vscode/webview/mapedit.ts</code> (keys while drawing and on handles) and <code>vscode/webview/drawing.ts</code>; <code>vscode/webview/trackmap.ts</code> and <code>vscode/webview/trackedit.ts</code> for a track's handles. The playground tests <code>vscode/test/play/drawing.mjs</code> and <code>vscode/test/play/tracks.mjs</code> place a marker, change an area, move and rotate a track, <code>vscode/test/play/shear.mjs</code> shears and stretches one, and <code>vscode/test/play/fixdrag.mjs</code> moves a single fix, from the keyboard alone; <code>vscode/test/play/tote.mjs</code> chooses the Tote's tracks from the keyboard and by press and hold; <code>vscode/test/play/narrative.mjs</code> reads, chooses, adds, changes and deletes narrative entries from the keyboard; <code>vscode/test/play/sensors.mjs</code> keeps a side of a sensor's cuts in the window from the keyboard. <code>vscode/test/play/tma.mjs</code> opens a sensor to its cuts in the Outline and chooses a run of them, makes a solution by form, and checks the tree's levels, places and keys, from the keyboard; <code>vscode/test/unit/outline.test.ts</code> holds every key and click of the tree.</p>
 
 
 

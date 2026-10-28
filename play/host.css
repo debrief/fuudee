@@ -12,8 +12,16 @@ body { background: var(--vscode-editor-background); color: var(--vscode-foregrou
 .list { overflow-anchor: none; }
 .list li { padding: 2px 4px; cursor: default; border-radius: 2px; }
 #outline li { cursor: pointer; }
-/* A sensor, under its host track (CAP-22). */
-#outline li.sensor { padding-left: 18px; }
+/* The Outline is a tree (product owner, 27 Oct 2026): each level indented, a branch's arrow before
+   it; a cut, a leg and a position one line each, so a sensor's thousands of cuts scroll by rows. */
+#outline li[role="treeitem"] { padding-left: calc(4px + var(--level, 0) * 14px); }
+#outline li[role="treeitem"] { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+#outline li.cut, #outline li.fix, #outline li.leg { font-variant-numeric: tabular-nums; }
+#outline li.hidden-cut { color: var(--vscode-descriptionForeground); }
+#outline li.hidden-cut .name { font-style: italic; }
+#outline .twisty { display: inline-block; width: 12px; color: var(--vscode-descriptionForeground); }
+#outline:focus-within li[tabindex="0"]:not(:focus) { outline: 1px dotted var(--vscode-focusBorder); outline-offset: -1px; }
+#outline .tree-spacer { padding: 0; }
 .outline-actions { display: flex; flex-wrap: wrap; gap: 4px; margin-top: 6px; align-items: center; }
 .side .outline-actions select { width: auto; flex: 1; min-width: 0; }
 /* Under the outline: what can be done to a selected track, and to annotations, each a labelled group of equal buttons. */
@@ -50,6 +58,9 @@ button:focus-visible, li:focus-visible { outline: 1px solid var(--vscode-focusBo
 .item-actions { display: flex; flex-wrap: wrap; gap: 2px 4px; }
 .item-actions button { margin: 2px 0 0; padding: 1px 6px; }
 .tools li { display: flex; align-items: baseline; gap: 6px; flex-wrap: wrap; }
+/* The Tools' entries for the Outline's selection (product owner, 27 Oct 2026), above the analysis tools. */
+.tools li.tools-heading { font-size: 11px; color: var(--vscode-descriptionForeground); text-transform: uppercase; letter-spacing: .04em; margin-top: 4px; }
+.tools button.disabled { opacity: .55; cursor: default; }
 .file input { display: block; margin: 4px 0; color: var(--vscode-foreground); font: inherit; max-width: 100%; min-width: 0; }
 .file { display: block; overflow-wrap: anywhere; }
 .omitted-panel { padding: 10px 14px; overflow-y: auto; font-size: 13px; }
@@ -97,9 +108,8 @@ dialog::backdrop { background: color-mix(in srgb, var(--vscode-editor-background
 /* The Timeline (webview/timeline.css): narrative, notes and periods in time order (CAP-05, CAP-20).
    The list scrolls inside a panel of its own height, drawing only the rows in sight. */
 #timeline { height: min(440px, 60vh); }
-#bearings { height: min(560px, 80vh); }
-/* A solution shown in the one column: as tall as its plot, list and buttons need (the list scrolls inside). */
-#bearings.tma-solution-shown { height: auto; }
+/* No lists in Bearings (product owner, 27 Oct 2026): in the one column, as tall as the plot needs. */
+#bearings { height: min(480px, 75vh); }
 #north-arrow[aria-pressed="true"] { background: var(--vscode-button-background); color: var(--vscode-button-foreground); }
 /* Cleaning tracks: the jumps found, the fix list and what to do to the fix chosen. */
 /* The panel keeps its height beside the map; a long fix list scrolls inside it. */
