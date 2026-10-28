@@ -174,6 +174,7 @@ let time: TimeState | undefined;
 // the same component. Current time and the window move the map at once; the window
 // is saved in the plot when the reader lets go of it.
 let timePending = false;
+const TIME_WINDOW_OPEN_KEY = "debrief.play.timeWindowOpen";
 const timeControl = new TimeControl($("timebar"), {
   moved: (moved) => {
     time = moved;
@@ -194,6 +195,25 @@ const timeControl = new TimeControl($("timebar"), {
   contextChanged: (context) => void saveView({ context_tracks: context }),
   // Pressing Play follows current time in the Timeline again (product owner, 15 Oct 2026).
   playing: (playing) => timelineControl.setPlaying(playing),
+}, {
+  // Whether the window's details are open, remembered in this browser (product owner, 28 Oct 2026).
+  windowOpen: {
+    get: () => {
+      try {
+        const open = window.localStorage.getItem(TIME_WINDOW_OPEN_KEY);
+        return open === null ? undefined : open === "true";
+      } catch {
+        return undefined;
+      }
+    },
+    set: (open) => {
+      try {
+        window.localStorage.setItem(TIME_WINDOW_OPEN_KEY, String(open));
+      } catch {
+        // Storage refused: the disclosure is just not remembered.
+      }
+    },
+  },
 });
 /** The time window as the plot file last had it, or the plot's period. */
 let savedWindow: TimeRange | undefined;

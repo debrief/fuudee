@@ -9,6 +9,7 @@ import { pageReady, pageShown } from "./timing.js";
 import "./timecontrol.css";
 import "./time.css";
 import type { TimeRange, TimeState } from "@debrief/schemas";
+import type { ContextTracks } from "./contrast.js";
 import { TimeControl } from "./timecontrol.js";
 import { host, onMessage } from "./vscode.js";
 
@@ -41,14 +42,25 @@ const control = new TimeControl(
     },
     playing: (playing) => host.postMessage({ kind: "playing_changed", playing }),
   },
-  { contextInView: false },
+  {
+    contextInView: false,
+    // Whether the window's details are open: VS Code's state for this view, kept while it is hidden and across reloads.
+    windowOpen: {
+      get: () => (host.getState() as { windowOpen?: boolean } | undefined)?.windowOpen,
+      set: (open) => host.setState({ ...((host.getState() as object | undefined) ?? {}), windowOpen: open }),
+    },
+  },
 );
 
 onMessage((message) => {
   if (message.kind !== "show_time") return;
   const time = message.time as TimeState | undefined;
   empty.hidden = !!time;
-  control.show(time, message.time_range as TimeRange | undefined, { saved: message.saved_window as TimeRange | undefined });
+  // The plot's choice of context tracks is shown in the window's summary; it is chosen from the view's title menu.
+  control.show(time, message.time_range as TimeRange | undefined, {
+    saved: message.saved_window as TimeRange | undefined,
+    context: message.context_tracks as ContextTracks | undefined,
+  });
   pageShown(!!time);
 });
 pageReady();
