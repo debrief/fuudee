@@ -3553,14 +3553,46 @@ export function activate(context: vscode.ExtensionContext): DebriefApi {
         { title: "Debrief walkthroughs", placeHolder: "Each works on a fresh copy of the sample exercise; the sample itself never changes" },
       )
     )?.t;
+  /**
+   * The editor group showing the Get Started page, if one does. VS Code's API has no type for the
+   * page's tab (its input is undefined), so it is known by that and its label.
+   */
+  const walkthroughGroup = () =>
+    vscode.window.tabGroups.all.find((g) => g.tabs.some((t) => t.input === undefined && (/^(Welcome|Get Started|Walkthrough)/.test(t.label) || TOURS.some((w) => t.label === w.title))));
+  const FOCUS_GROUP = ["First", "Second", "Third", "Fourth", "Fifth", "Sixth", "Seventh", "Eighth"].map((n) => `workbench.action.focus${n}EditorGroup`);
+  const focusWalkthrough = async () => {
+    // The tabs reach the extension a moment after the page opens: wait for it, up to 2 s.
+    let group = walkthroughGroup();
+    for (let i = 0; !group && i < 20; i++) group = await new Promise<vscode.TabGroup | undefined>((done) => setTimeout(() => done(walkthroughGroup()), 100));
+    if (group && !group.isActive && FOCUS_GROUP[group.viewColumn - 1]) await vscode.commands.executeCommand(FOCUS_GROUP[group.viewColumn - 1]);
+  };
+  /**
+   * Open a walkthrough beside the map, the keyboard on it (product owner, 28 Oct 2026). Opened
+   * beside (toSide), VS Code keeps the focus where it was, so Debrief then focuses the page's
+   * group. A page open already is reused where it is: its group focused, the walkthrough opened there.
+   */
+  const showWalkthrough = async (tour: string) => {
+    const id = `${context.extension.id}#${tour}`;
+    if (walkthroughGroup()) {
+      await focusWalkthrough();
+      await vscode.commands.executeCommand("workbench.action.openWalkthrough", id, false);
+    } else {
+      await vscode.commands.executeCommand("workbench.action.openWalkthrough", id, BESIDE);
+      await focusWalkthrough();
+    }
+  };
   command("debrief.walkthroughs", async (tour?: string) => {
     const chosen = await pickTour(tour);
-    if (chosen) await vscode.commands.executeCommand("workbench.action.openWalkthrough", `${context.extension.id}#${chosen.id}`, BESIDE);
+    if (chosen) await showWalkthrough(chosen.id);
   });
   // The first activation after install opens the first walkthrough on the Get Started page, once
   // only, by a flag in global state: where a newcomer gains an overall understanding (product
-  // owner, 22 Oct 2026). Later starts leave it closed.
-  const firstRun = () => openOnFirstRun(context.globalState, (command, ...args) => vscode.commands.executeCommand(command, ...args), context.extension.id, (line) => log(line));
+  // owner, 22 Oct 2026). Later starts leave it closed. Beside, the keyboard on it, as above.
+  const firstRun = () =>
+    openOnFirstRun(context.globalState, async (command, ...args) => {
+      await vscode.commands.executeCommand(command, ...args);
+      await focusWalkthrough();
+    }, context.extension.id, (line) => log(line));
   const openedOnActivation = firstRun();
   /**
    * Open the copy of serial 1 a walkthrough works on: a fresh one, built by debrief-sample

@@ -44,6 +44,8 @@ export async function firstRunWalkthrough(api: DebriefApi, { waitFor, screenshot
   assert.equal(await api.walkthroughOnActivation(), true, "the first activation opened the first walkthrough");
   const tabs = await waitFor("the Get Started page", () => (startedTabs().length ? startedTabs() : undefined), 15000);
   assert.ok(tabs.some((t) => t.isActive), `the Get Started page is in front: ${tabs.map((t) => t.label).join(", ")}`);
+  // The keyboard on it (product owner, 28 Oct 2026).
+  await waitFor("the page's group focused", () => tabs.some((t) => t.group.isActive) || undefined);
   await screenshot("walkthrough-00-first-activation");
   await vscode.commands.executeCommand("workbench.action.closeAllEditors");
   await waitFor("the page closed", () => !startedTabs().length || undefined);
@@ -142,9 +144,23 @@ export async function playWalkthroughs(api: DebriefApi, others: { id: string; lo
   const page = await waitFor("the Get Started page", () => pageTabs()[0]);
   const mapTab = vscode.window.tabGroups.all.flatMap((g) => g.tabs).find((t) => t.input instanceof vscode.TabInputWebview && t.input.viewType.endsWith("debrief.map"));
   assert.ok(mapTab && page.group.viewColumn > mapTab.group.viewColumn, `the Get Started page in column ${page.group.viewColumn}, right of the map's ${mapTab?.group.viewColumn}`);
+  // The keyboard on the page, not left on the map (product owner, 28 Oct 2026).
+  await waitFor("the page's group focused", () => pageTabs()[0]?.group.isActive || undefined);
   await sleep(3000);
   await screenshot("50-walkthrough-explore-done");
-  // Opened beside, the page leaves the focus on the map: close the page itself, not the active editor.
+  // Its last step's link to the next, run as a click on it runs it: the next walkthrough on the same
+  // page, in the same column, still focused; no second page and no third column.
+  const columns = vscode.window.tabGroups.all.length;
+  const [, linked, args] = contributed[0].steps.at(-1)!.description.match(/\]\(command:([\w.]+)\?([^)]*)\)$/) ?? [];
+  assert.ok(linked, "explore's last step links to the next walkthrough");
+  await vscode.commands.executeCommand(linked, ...(JSON.parse(decodeURIComponent(args)) as unknown[]));
+  await sleep(1500);
+  assert.equal(pageTabs().length, 1, `one Get Started page: ${pageTabs().map((t) => `${t.label} in ${t.group.viewColumn}`).join(", ")}`);
+  assert.equal(vscode.window.tabGroups.all.length, columns, "no new column");
+  assert.ok(pageTabs()[0].group.viewColumn > mapTab!.group.viewColumn, "still right of the map");
+  await waitFor("the page's group still focused", () => pageTabs()[0]?.group.isActive || undefined);
+  await screenshot("50-walkthrough-next");
+  // Close the page itself (its tab), not the active editor.
   await vscode.window.tabGroups.close(pageTabs());
   await waitFor("the page closed", () => !pageTabs().length || undefined);
   // Carrying on with the copy opens it as it is, not again.
