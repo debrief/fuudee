@@ -297,8 +297,16 @@ def test_colour_is_a_recorded_undoable_step_named_by_its_note(catalogue) -> None
     assert colour().properties.style.colour == "#0064bd"
     # The same colour again changes nothing and records nothing.
     assert catalogue.set_colour("p", ["blue"], "#0064bd", AGENT) is None
-    with pytest.raises(CatalogueError, match="Only tracks"):
-        catalogue.set_colour("p", ["a"], "#e01c3e", AGENT)
+    # An annotation's colour is its appearance's (product owner, 28 Oct 2026).
+    catalogue.set_colour("p", ["blue", "a"], "#00a000", AGENT, colour_name="green")
+    note_a = next(f for f in catalogue.read_plot("p").features if f.id == "a")
+    assert note_a.properties.appearance.colour == "#00a000"
+    assert catalogue.history("p").steps()[-1].records[0].notes == [
+        "Colour of BLUE ONE and Note set to green"
+    ]
+    catalogue.set_north_arrow("p", True, AGENT)
+    with pytest.raises(CatalogueError, match="Only tracks, sensors, cuts and annotations"):
+        catalogue.set_colour("p", ["furniture-north-arrow"], "#e01c3e", AGENT)
 
 
 def test_hiding_is_a_recorded_undoable_step(catalogue) -> None:
@@ -312,6 +320,24 @@ def test_hiding_is_a_recorded_undoable_step(catalogue) -> None:
     assert catalogue.history("p").steps()[-1].records[0].notes == ["BLUE ONE shown on the map"]
     catalogue.history("p").undo()
     assert next(f for f in catalogue.read_plot("p").features if f.id == "blue").properties.hidden
+
+
+def test_many_of_several_kinds_are_counted_by_kind(catalogue) -> None:
+    """The Outline's toolbar hides a selection of any kinds at once (product owner,
+    28 Oct 2026): the step names how many of each."""
+    catalogue.commit(
+        "p",
+        [record(2)],
+        Changes(added=[track("red", "RED ONE"), track("green", "GREEN ONE"), note("b")]),
+    )
+    catalogue.set_hidden("p", ["blue", "red", "green", "a", "b"], True, AGENT)
+    assert catalogue.history("p").steps()[-1].records[0].notes == [
+        "3 tracks and 2 annotations hidden on the map"
+    ]
+    catalogue.set_hidden("p", ["blue", "red", "green"], False, AGENT)
+    assert catalogue.history("p").steps()[-1].records[0].notes == ["3 tracks shown on the map"]
+    with pytest.raises(CatalogueError, match="has no feature"):
+        catalogue.set_hidden("p", ["plot"], True, AGENT)
 
 
 def test_a_colour_change_against_an_old_base_conflicts(catalogue) -> None:

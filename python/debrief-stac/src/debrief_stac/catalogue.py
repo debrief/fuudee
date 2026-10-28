@@ -682,7 +682,10 @@ class Catalogue:
         colour_name: str | None = None,
         allow_newer_schema: bool = False,
     ) -> int | None:
-        """Change the colour of tracks: a recorded, undoable step (decision 12 Oct).
+        """Change the colour of tracks, sensors, cuts and annotations: a recorded,
+        undoable step (decision 12 Oct). An annotation's colour is its appearance's (its
+        line, and a label's or a marker's dot): the Outline's toolbar colours whatever
+        selected has a colour (product owner, 28 Oct 2026). Chart furniture has none.
 
         The step's note names it, such as "Colour of BLUE ONE set to red". base
         is the plot the analyst was looking at: if it has changed since,
@@ -698,9 +701,17 @@ class Catalogue:
                 # A sensor's cuts are drawn in its colour; a cut may have its own (CAP-22).
                 same = props.colour == colour
                 return None if same else props.model_copy(update={"colour": colour})
+            if props.kind == "annotation" and props.furniture is None:
+                appearance = props.appearance or models.AnnotationAppearance()
+                if appearance.colour == colour:
+                    return None
+                return props.model_copy(
+                    update={"appearance": appearance.model_copy(update={"colour": colour})}
+                )
             if props.kind != "track":
                 raise CatalogueError(
-                    f"Only tracks and sensors have a colour; {props.name} is neither."
+                    "Only tracks, sensors, cuts and annotations have a colour; "
+                    f"{sensors.name_of(feature, {})} has none."
                 )
             if props.style is not None and props.style.colour == colour:
                 return None
@@ -737,6 +748,11 @@ class Catalogue:
 
         def rehide(feature):
             props = feature.properties
+            if props.kind == "narrative":
+                raise CatalogueError(
+                    "A narrative entry is read in the Timeline, not drawn on the map: "
+                    "it cannot be hidden."
+                )
             if bool(props.hidden) == hidden:
                 return None
             return props.model_copy(update={"hidden": True if hidden else None})
@@ -921,7 +937,7 @@ class Catalogue:
         who = (
             sensors.cuts_said(chosen, by_id)
             if all(f.properties.kind == sensors.CUT for f in chosen)
-            else _who(names)
+            else _who(names, chosen)
         )
         said = notes(plot, modified) if notes else []
         record = _edit_record(agent, describe(who), **({"notes": said} if said else {}))
@@ -2951,13 +2967,45 @@ def _slug(title: str | None) -> str:
     return re.sub(r"[^a-z0-9]+", "-", (title or "").lower()).strip("-")
 
 
-def _who(names: list[str]) -> str:
-    """The features a note names: by name for one or two, by count for more."""
+def _who(names: list[str], chosen: list | None = None) -> str:
+    """The features a note names: by name for one or two, by count for more, counted by
+    kind where the features are known ("3 tracks and 12 cuts": the Outline's toolbar hides
+    or colours a selection of any kinds at once, product owner, 28 Oct 2026)."""
     if len(names) == 1:
         return names[0]
     if len(names) == 2:
         return f"{names[0]} and {names[1]}"
+    if chosen:
+        return kinds_said(chosen)
     return f"{len(names)} features"
+
+
+# What each kind of feature is called when counted (one, many), in the Outline's order.
+_KIND_NOUNS = {
+    "track": ("track", "tracks"),
+    "solution": ("TMA solution", "TMA solutions"),
+    "sensor": ("sensor", "sensors"),
+    sensors.CUT: ("cut", "cuts"),
+    "annotation": ("annotation", "annotations"),
+    "sensor_observations": ("set of sensor observations", "sets of sensor observations"),
+}
+
+
+def kinds_said(features: list) -> str:
+    """Features counted by kind: "3 tracks and 12 cuts", "2 tracks, 1 sensor and 40 cuts"."""
+    counts: dict[str, int] = {}
+    for feature in features:
+        props = feature.properties
+        kind = "solution" if props.kind == "track" and getattr(props, "tma", None) else props.kind
+        counts[kind] = counts.get(kind, 0) + 1
+    parts = []
+    for kind in [*_KIND_NOUNS, *sorted(set(counts) - set(_KIND_NOUNS))]:
+        n = counts.get(kind)
+        if n:
+            plain = kind.replace("_", " ")
+            one, many = _KIND_NOUNS.get(kind, (plain, f"{plain}s"))
+            parts.append(f"{n:,} {one if n == 1 else many}")
+    return parts[0] if len(parts) == 1 else f"{', '.join(parts[:-1])} and {parts[-1]}"
 
 
 def presentation_changes(plot: DebriefFeatureCollection, entries: list[dict]) -> Changes:
