@@ -33,16 +33,20 @@ export const COLLAPSED_KEY = "debrief.play.layout.collapsed";
  * 4: the Bearings panel (TMA, CAP-21; 24 Oct 2026), a tab beside the Timeline and Coverage under the map.
  * 5: the Bearings panel tall, right of the map, a tab behind the walkthroughs (product owner, 25 Oct 2026).
  * 6: the right-hand column split: Bearings on top, the walkthroughs beneath (product owner, 25 Oct 2026).
+ * 7: Time taller, for its large current time and scrubber (product owner, 28 Oct 2026).
  */
-export const LAYOUT_VERSION = 6;
+export const LAYOUT_VERSION = 7;
 /** The map's place in the layout: an empty slot the map is laid over. */
 export const MAP_ID = "map";
 
 /** The parts of browser storage this needs. */
 export type LayoutStorage = Pick<Storage, "getItem" | "setItem" | "removeItem">;
 
-/** The height Time needs for the sample, its tab included: no scroll inside it. */
-const TIME_HEIGHT = 172;
+/**
+ * The height Time needs for the sample, its tab included: no scroll inside it, its window's details
+ * folded. Taller since its current time is large (product owner, 28 Oct 2026): 172 px before.
+ */
+const TIME_HEIGHT = 204;
 
 /**
  * The default's sizes for a dock of this size, in pixels. The side columns take about a fifth of

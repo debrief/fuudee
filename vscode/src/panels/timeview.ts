@@ -1,6 +1,6 @@
 /**
  * The time controller, a view at the top of the Debrief sidebar (CAP-28,
- * SUB-26). A webview, because its window slider has two handles and it plays;
+ * SUB-26). A webview, because its window is a band dragged on a strip and it plays;
  * the same component the playground shows (webview/timecontrol.ts). The
  * catalogues, outline, tools and history below it stay native views.
  *

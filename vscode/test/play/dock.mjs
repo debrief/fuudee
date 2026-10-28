@@ -148,7 +148,8 @@ async function defaultAt(page, width, height) {
     const all = [...list.children];
     return { all: all.length, seen: all.filter((r) => { const b = r.getBoundingClientRect(); return b.top >= box.top - 1 && b.bottom <= box.bottom + 1; }).length };
   });
-  const enough = height >= 1000 ? rows.all : height >= 768 ? 6 : 4;
+  // One row fewer than before the Time panel grew for its large current time (product owner, 28 Oct 2026).
+  const enough = height >= 1000 ? rows.all : height >= 768 ? 5 : 3;
   assert.ok(rows.seen >= enough, `at ${width} × ${height} the Outline shows ${enough} rows or more: ${rows.seen} of ${rows.all}`);
   return { width: Math.round(main.width), height: Math.round(main.height), share: main.width / width, rows: rows.seen };
 }
@@ -458,7 +459,7 @@ export async function playDock(browser, base, shot, ready, errors) {
   await dragTab(page, "panel-history", { x: outlineAgain.x + outlineAgain.width / 2, y: outlineAgain.y + outlineAgain.height - 12 });
   const split = await groupsOf(page);
   const saved = JSON.parse(await savedAfter(page, was));
-  assert.equal(saved.version, 6);
+  assert.equal(saved.version, 7);
   assert.deepEqual(Object.keys(saved.layout.panels).sort(), ["map", ...DOCKED_PANELS].sort());
   await page.reload();
   await ready(page);

@@ -123,7 +123,7 @@ export async function playTracks(page, shot) {
   await page.locator("#timebar .tc-end").focus();
   for (let i = 0; i < 2; i++) await page.keyboard.press("PageDown");
   await page.waitForTimeout(500);
-  assert.match(await page.locator("#timebar").innerText(), /09:40:00Z\s*[–-]\s*10:20:00Z/);
+  assert.equal(await page.locator("#timebar .tc-summary").innerText(), "09:40–10:20Z");
   await mapFrame.getByRole("button", { name: "Time window", exact: true }).click();
   assert.equal(await mapFrame.getByRole("button", { name: "Time window", exact: true }).getAttribute("aria-pressed"), "true");
   await status.getByText(/^BLUE ONE, fixes in the time window: drag the move or rotate handle/).waitFor();
