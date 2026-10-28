@@ -85,7 +85,7 @@
           "title": "Import the navigation log",
           "text": "Import *blue-one-nav-log.rep*, a REP file. Debrief asks, for each track, whether it is plotted over the ground (OTG), each fix where it was logged, or by dead reckoning (DR); choose **Over the ground (OTG)**. The file is kept unchanged as a source, and the import is a plot of its own in the catalogue. A legacy Debrief .dpf plot is imported the same way.",
           "keys": "In each question, `↓` chooses and `Enter` imports.",
-          "vscode": { "where": "Your own files: **Import plot file (REP, .dpf, Word, PDF)…** on Catalogues' title bar.", "button": "Import the navigation log", "command": "debrief.walkthrough.importLog" },
+          "vscode": { "where": "The button below imports it. To choose it yourself with **Import plot file (REP, .dpf, Word, PDF)…** on Catalogues' title bar, it is in *walkthroughs/collate* in VS Code's storage for Debrief: on a Mac, *~/Library/Application Support/Code/User/globalStorage/debrief.debrief*, which the file dialog opens after **Cmd+Shift+G**; on Windows, *%APPDATA%\\Code\\User\\globalStorage\\debrief.debrief*; on Linux, *~/.config/Code/User/globalStorage/debrief.debrief*. Your own files are imported the same way.", "button": "Import the navigation log", "command": "debrief.walkthrough.importLog" },
           "play": { "where": "The log comes with the sample: nothing is uploaded.", "button": "Import the navigation log", "action": "import-log" },
           "media": "collate-import.svg",
           "alt": "A REP file of fixes becoming a new item in the catalogue."
