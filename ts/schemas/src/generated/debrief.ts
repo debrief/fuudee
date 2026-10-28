@@ -466,6 +466,10 @@ export interface AgentRef {
  */
 export interface AmbiguityResolution {
   /**
+   * With keep bearing or ambiguous_bearing: resolved cuts made ambiguous again in the same step, as a box drawn over their kept bearings with Select bearings on asks (product owner, 28 Oct 2026); one not resolved is left. Given (even empty), with other_cut_ids, the step is named for a box: "Kept 12 Towed array cuts to starboard and made 15 ambiguous again". Hidden cuts are left as they are.
+   */
+  clear_cut_ids?: string[] | null;
+  /**
    * The cuts to resolve, by feature id. Or give sensor_ids, and perhaps a period.
    */
   cut_ids?: string[] | null;

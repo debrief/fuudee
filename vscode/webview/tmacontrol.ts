@@ -58,6 +58,7 @@ import {
   fitErrors,
   fitRange,
   type BearingMarker,
+  bearingMarkersOf,
   boxedSides,
   boxResolution,
   courseAxes,
@@ -245,7 +246,7 @@ export class TmaControl {
       `<p class="tma-title" aria-live="polite"></p>` +
       `<div class="tma-tools" role="toolbar" aria-label="The plot's panes and scale">` +
       `<span class="tma-panes" role="group" aria-label="Panes shown">${PANES.map(paneButton).join("")}</span>` +
-      `<button type="button" class="tma-select" aria-pressed="false" title="Select bearings: drag a box over dots in the Bearing pane, and each cut keeps the side boxed, one step. Off, a box zooms.">Select bearings</button>` +
+      `<button type="button" class="tma-select" aria-pressed="false" title="Select bearings: drag a box over dots in the Bearing pane: an ambiguous cut keeps the side boxed, a resolved one is made ambiguous again, one step. Off, a box zooms.">Select bearings</button>` +
       `<button type="button" class="tma-hold" aria-pressed="false" aria-label="Hold scale" title="Hold scale: keep the Error axis as it is while dragging; it still widens to take in an error outside it">Hold</button>` +
       `<button type="button" class="tma-reset" disabled aria-label="Reset zoom" title="Reset zoom: undo the zoom (double-click the plot, or press 0 in it)" aria-keyshortcuts="0">Reset</button>` +
       `<button type="button" class="tma-more-button" aria-expanded="false" aria-controls="tma-more" aria-label="More: the cut-off, the key and the notes" title="More: the cut-off, the key and the notes">⋯</button>` +
@@ -261,7 +262,7 @@ export class TmaControl {
       `<p class="tma-cue" hidden aria-live="polite"><span class="tma-cue-mark" aria-hidden="true"></span> <span class="tma-cue-text"></span></p>` +
       `<p class="tma-rms" hidden></p>` +
       `<p class="tma-offscale"></p>` +
-      `<p class="tma-select-hint" hidden>Select bearings: drag a box over the Bearing pane's dots; each cut keeps the side boxed.</p>` +
+      `<p class="tma-select-hint" hidden>Select bearings: box the Bearing pane's dots; an ambiguous cut keeps the side boxed, a resolved one is made ambiguous again.</p>` +
       `</div>` +
       `<div class="tma-below">` +
       `<form class="tma-form" hidden novalidate aria-label="First guess"></form>` +
@@ -873,7 +874,7 @@ export class TmaControl {
     this.tools.querySelector(".tma-select")!.setAttribute("aria-pressed", String(on));
     this.plot.classList.toggle("tma-selecting", on);
     this.element.querySelector<HTMLElement>(".tma-select-hint")!.hidden = !on;
-    this.say(on ? "Select bearings on: drag a box over the Bearing pane's dots; each cut keeps the side boxed." : "Select bearings off: a box zooms.");
+    this.say(on ? "Select bearings on: box the Bearing pane's dots; an ambiguous cut keeps the side boxed, a resolved one is made ambiguous again." : "Select bearings off: a box zooms.");
   }
 
   /** The Course/Speed pane's lines named, in ⋯: each track's colour, course solid and speed dashed. */
@@ -900,31 +901,12 @@ export class TmaControl {
 
   /** The dots of resolvable cuts as the Bearing pane draws them: an unresolved pair's two, a resolved cut's one; never a hidden cut's. */
   private bearingMarkers(): BearingMarker[] {
-    const out: BearingMarker[] = [];
-    const has = (v: number | null | undefined): v is number => v !== undefined && v !== null;
-    const coverage = this.coverage;
-    coverage.rows.forEach((c, i) => {
-      if (c.hidden || !has(c.ambiguous_bearing)) return;
-      const base = { id: c.id, time: coverage.times[i], resolved: c.resolved, side: c.side };
-      if (!c.resolved || c.resolved === "bearing") out.push({ ...base, value: c.bearing, keep: "bearing" });
-      if (!c.resolved || c.resolved === "ambiguous_bearing") out.push({ ...base, value: c.ambiguous_bearing, keep: "ambiguous_bearing" });
-    });
-    if (this.mode() === "solution") {
-      const rows = (this.residuals?.rows ?? []) as TmaResidualRow[];
-      const times = this.timesOf(rows);
-      rows.forEach((r, i) => {
-        if (r.hidden || !has(r.ambiguous_bearing)) return;
-        const base = { id: r.id, time: times[i], resolved: r.resolved, side: r.side };
-        const kept: Kept = has(r.measured) ? (r.used ?? "bearing") : r.resolved === "ambiguous_bearing" ? "ambiguous_bearing" : "bearing";
-        out.push({ ...base, value: has(r.measured) ? r.measured : kept === "bearing" ? r.bearing : r.ambiguous_bearing, keep: kept });
-        // The other of an unresolved pair, drawn faint beside the one measured.
-        if (r.nearer_side) out.push({ ...base, value: kept === "bearing" ? r.ambiguous_bearing : r.bearing, keep: kept === "bearing" ? "ambiguous_bearing" : "bearing" });
-      });
-    }
-    return out;
+    if (this.mode() !== "solution") return bearingMarkersOf(this.coverage);
+    const rows = (this.residuals?.rows ?? []) as TmaResidualRow[];
+    return bearingMarkersOf(this.coverage, { rows, times: this.timesOf(rows) });
   }
 
-  /** A box drawn in the Bearing pane with Select bearings on: the sides boxed kept, one step, or said why nothing changed. The zoom stays. */
+  /** A box drawn in the Bearing pane with Select bearings on: the sides boxed kept and the resolved cuts boxed made ambiguous again, one step, or said why nothing changed. The zoom stays. */
   private resolveBox(times: Range, values: Range): void {
     const d = this.drawn_;
     if (!d) return;

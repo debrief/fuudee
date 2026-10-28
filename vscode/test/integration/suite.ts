@@ -742,12 +742,14 @@ export async function run(): Promise<void> {
     assert.match((await steps()).at(-1)?.notes?.[0] ?? "", /^Starboard kept: 6 Towed array cuts /);
     await waitFor("the Outline saying the side kept", () => (api.outlineChildren(towed)[0].description.endsWith("stbd kept") ? true : undefined));
     // Select bearings (product owner, 28 Oct 2026): the view's toggle, and a box's message, the same
-    // operation as the Tools' Keep port and starboard, one step for the cuts boxed on each side.
+    // operation as the Tools' Keep port and starboard, one step for the cuts boxed on each side, and
+    // those resolved whose kept dots were boxed made ambiguous again.
     const bundle = readFileSync(path.join(extension.extensionPath, "dist", "webview", "bearings.js"), "utf8");
     assert.ok(bundle.includes("tma-select") && bundle.includes("Select bearings"), "the Select bearings toggle in the Bearings view");
     const boxed = api.outlineChildren(towed).slice(6, 12).map((c) => c.key!);
-    await api.bearingsMessage({ kind: "tma_resolve", resolution: { keep: "bearing", cut_ids: boxed.slice(0, 1), other_cut_ids: boxed } });
-    assert.match((await steps()).at(-1)?.notes?.[0] ?? "", /^Kept 5 Towed array cuts to (port|starboard|the sides boxed), 0\d:\d\d:\d\dZ–0\d:\d\d:\d\dZ$/);
+    await api.bearingsMessage({ kind: "tma_resolve", resolution: { keep: "bearing", cut_ids: boxed.slice(0, 1), other_cut_ids: boxed, clear_cut_ids: towedCuts.slice(0, 2) } });
+    assert.match((await steps()).at(-1)?.notes?.[0] ?? "", /^Kept 5 (Towed array )?cuts to (port|starboard|the sides boxed) and made 2 ambiguous again(, 0\d:\d\d:\d\dZ–0\d:\d\d:\d\dZ)?$/);
+    await waitFor("the Outline saying the two ambiguous again", () => (api.outlineChildren(towed)[0].description.includes("≈") ? true : undefined));
     assert.ok((await steps()).at(-1)?.notes?.includes("1 cut boxed on both sides, left as they were."), "a cut boxed on both sides left");
     await vscode.commands.executeCommand("debrief.outline.focus");
     await sleep(1000);

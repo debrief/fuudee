@@ -14,7 +14,7 @@
  * - A box dragged zooms; double-click or Reset undoes it; a zoom stays while dragging.
  */
 import { DEFAULT_SETTINGS, fixed, formatTime, type FormatSettings } from "@debrief/kernel";
-import type { TmaResidualRow } from "@debrief/schemas";
+import type { TmaCut, TmaResidualRow } from "@debrief/schemas";
 import type { LonLat } from "./geodesic.js";
 import { wrap } from "./tma.js";
 
@@ -458,22 +458,51 @@ export interface BearingMarker {
   side?: "port" | "starboard" | null;
 }
 
-/** What a box takes in: the cuts to keep on their first bearing and on their twin, those boxed on both sides, and those kept so already. */
+/**
+ * The dots of resolvable cuts as the Bearing pane draws them, for a box to take (product owner, 28
+ * Oct 2026): of the sensors' coverage, an unresolved pair's two and a resolved cut's kept one; of a
+ * solution's rooted cuts, the bearing measured (the kept one, if resolved) and, where measured by the
+ * nearer of two, its other. Never a hidden cut's, nor one never ambiguous (one bearing only, as a bow
+ * sonar's): a box leaves those alone.
+ */
+export function bearingMarkersOf(coverage: { rows: readonly TmaCut[]; times: ArrayLike<number> }, rooted?: { rows: readonly TmaResidualRow[]; times: ArrayLike<number> }): BearingMarker[] {
+  const out: BearingMarker[] = [];
+  const has = (v: number | null | undefined): v is number => v !== undefined && v !== null;
+  coverage.rows.forEach((c, i) => {
+    if (c.hidden || !has(c.ambiguous_bearing)) return;
+    const base = { id: c.id, time: coverage.times[i], resolved: c.resolved, side: c.side };
+    if (!c.resolved || c.resolved === "bearing") out.push({ ...base, value: c.bearing, keep: "bearing" });
+    if (!c.resolved || c.resolved === "ambiguous_bearing") out.push({ ...base, value: c.ambiguous_bearing, keep: "ambiguous_bearing" });
+  });
+  rooted?.rows.forEach((r, i) => {
+    if (r.hidden || !has(r.ambiguous_bearing)) return;
+    const base = { id: r.id, time: rooted.times[i], resolved: r.resolved, side: r.side };
+    const kept = has(r.measured) ? (r.used ?? "bearing") : r.resolved === "ambiguous_bearing" ? "ambiguous_bearing" : "bearing";
+    out.push({ ...base, value: has(r.measured) ? r.measured : kept === "bearing" ? r.bearing : r.ambiguous_bearing, keep: kept });
+    // The other of an unresolved pair, drawn faint beside the one measured.
+    if (r.nearer_side) out.push({ ...base, value: kept === "bearing" ? r.ambiguous_bearing : r.bearing, keep: kept === "bearing" ? "ambiguous_bearing" : "bearing" });
+  });
+  return out;
+}
+
+/** What a box takes in: the cuts to keep on their first bearing and on their twin, those resolved to make ambiguous again, and those boxed on both sides. */
 export interface Boxed {
   first: string[];
   other: string[];
+  /** Resolved cuts whose kept dot was boxed: made ambiguous again (product owner, 28 Oct 2026). */
+  clear: string[];
   both: string[];
-  already: number;
   /** Of the cuts that change, how many end on each side, where told. */
   sides: { port: number; starboard: number; untold: number };
 }
 
 /**
  * The cuts a box drawn in the Bearing pane takes in, with Select bearings on (product owner, 28 Oct
- * 2026): each cut with a dot inside it keeps the bearing of the dot boxed; a cut with dots inside on
- * both sides is left as it is; one kept so already is no change. Only the dots drawn are given (an
- * unresolved pair's two, a resolved cut's one; hidden cuts never), so only what the analyst sees is
- * boxed. The box's values are the pane's, unwrapped about its reference, as the dots are drawn.
+ * 2026), each toggled: an unresolved cut with a dot inside it keeps the bearing of the dot boxed; a
+ * resolved cut whose kept dot is inside is made ambiguous again; an unresolved cut with dots inside on
+ * both sides is left as it is. Only the dots drawn are given (an unresolved pair's two, a resolved
+ * cut's one; a cut never ambiguous and a hidden cut none), so only what the analyst sees is boxed.
+ * The box's values are the pane's, unwrapped about its reference, as the dots are drawn.
  */
 export function boxedSides(markers: Iterable<BearingMarker>, times: Range, values: Range, reference: number): Boxed {
   const [t0, t1] = times[0] <= times[1] ? times : [times[1], times[0]];
@@ -487,7 +516,7 @@ export function boxedSides(markers: Iterable<BearingMarker>, times: Range, value
     if (seen) seen.keeps.add(m.keep);
     else boxed.set(m.id, { marker: m, keeps: new Set([m.keep]) });
   }
-  const out: Boxed = { first: [], other: [], both: [], already: 0, sides: { port: 0, starboard: 0, untold: 0 } };
+  const out: Boxed = { first: [], other: [], clear: [], both: [], sides: { port: 0, starboard: 0, untold: 0 } };
   const flip = { port: "starboard", starboard: "port" } as const;
   for (const [id, { marker, keeps }] of boxed) {
     if (keeps.size > 1) {
@@ -495,8 +524,9 @@ export function boxedSides(markers: Iterable<BearingMarker>, times: Range, value
       continue;
     }
     const keep = keeps.values().next().value as BearingMarker["keep"];
-    if (marker.resolved === keep) {
-      out.already++;
+    if (marker.resolved) {
+      // A resolved cut draws only its kept dot: boxed, it is made ambiguous again.
+      out.clear.push(id);
       continue;
     }
     (keep === "bearing" ? out.first : out.other).push(id);
@@ -508,23 +538,22 @@ export function boxedSides(markers: Iterable<BearingMarker>, times: Range, value
 }
 
 /** The step a box asks for (debrief/resolve_ambiguity's request): none when nothing would change. */
-export function boxResolution(boxed: Boxed): { keep: "bearing"; cut_ids: string[]; other_cut_ids: string[] } | undefined {
-  if (!boxed.first.length && !boxed.other.length) return undefined;
-  return { keep: "bearing", cut_ids: [...boxed.first, ...boxed.both], other_cut_ids: [...boxed.other, ...boxed.both] };
+export function boxResolution(boxed: Boxed): { keep: "bearing"; cut_ids: string[]; other_cut_ids: string[]; clear_cut_ids: string[] } | undefined {
+  if (!boxed.first.length && !boxed.other.length && !boxed.clear.length) return undefined;
+  return { keep: "bearing", cut_ids: [...boxed.first, ...boxed.both], other_cut_ids: [...boxed.other, ...boxed.both], clear_cut_ids: [...boxed.clear] };
 }
 
 /** What a box did, or why it did nothing, in words for the status line. */
 export function describeBoxed(boxed: Boxed): string {
   const count = (n: number) => `${n.toLocaleString("en-GB")} cut${n === 1 ? "" : "s"}`;
-  const changed = boxed.first.length + boxed.other.length;
+  const kept = boxed.first.length + boxed.other.length;
+  const cleared = boxed.clear.length;
   const { port, starboard, untold } = boxed.sides;
-  const left: string[] = [];
-  if (boxed.both.length) left.push(`${count(boxed.both.length)} boxed on both sides, left as ${boxed.both.length === 1 ? "it was" : "they were"}`);
-  if (boxed.already) left.push(`${count(boxed.already)} kept so already`);
-  const after = left.length ? ` ${left.join("; ")}.` : "";
-  if (!changed) return boxed.both.length || boxed.already ? `Nothing to change:${after}` : "Nothing to change: no ambiguous or resolved cut's dot in the box.";
+  const after = boxed.both.length ? ` ${count(boxed.both.length)} boxed on both sides, left as ${boxed.both.length === 1 ? "it was" : "they were"}.` : "";
+  if (!kept && !cleared) return boxed.both.length ? `Nothing to change:${after}` : "Nothing to change: no ambiguous or resolved cut's dot in the box.";
   const to = port && !starboard && !untold ? "to port" : starboard && !port && !untold ? "to starboard" : "to the sides boxed";
-  return `Kept ${count(changed)} ${to}, one step (Ctrl+Z undoes it).${after}`;
+  const did = !cleared ? `Kept ${count(kept)} ${to}` : !kept ? `Made ${count(cleared)} ambiguous again` : `Kept ${count(kept)} ${to} and made ${cleared.toLocaleString("en-GB")} ambiguous again`;
+  return `${did}, one step (Ctrl+Z undoes it).${after}`;
 }
 
 // --- Course and speed of ownship and the target -------------------------------------------
