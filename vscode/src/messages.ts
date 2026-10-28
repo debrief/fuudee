@@ -34,8 +34,17 @@ export function checkMessage(raw: unknown): WebviewMessage {
   if (message.kind === "image_rendered" && !message.image === !message.message) problems.push("image_rendered carries either the image or why there is none (message)");
   const imageBox = message.image?.viewport && viewportProblem(message.image.viewport);
   if (imageBox) problems.push(`image viewport: ${imageBox}`);
+  if (message.kind === "tma_panes") problems.push(...panesProblems(message.panes_shown ?? []));
   if (problems.length) throw new DocumentValidationError(problems);
   return message;
+}
+
+/** The Bearings view's panes shown (tma_panes), as Python's validation has them: known panes, each once, one at least. */
+export function panesProblems(panes: string[]): string[] {
+  const problems = panes.filter((p) => !["bearing", "error", "course"].includes(p)).map((p) => `tma_panes: '${p}' is not a pane`);
+  if (new Set(panes).size !== panes.length) problems.push("tma_panes names a pane more than once");
+  if (!panes.length) problems.push("tma_panes shows one pane at least");
+  return problems;
 }
 
 /** The rules on the Tote's choice of tracks that Python's validation applies too (debrief_schemas.documents.tote_view_problems). */

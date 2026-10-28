@@ -100,6 +100,7 @@ enums:
       tma_resolve: {description: "Bearing view to host: keep the sides of the cuts boxed in the Bearing pane with Select bearings on (resolution: keep bearing, cut_ids and other_cut_ids), as one recorded step, as debrief/resolve_ambiguity does (product owner, 28 Oct 2026)."}
       tma_cut_off: {description: "Bearing view to host: the analyst set their error cut-off (error_cut_off, degrees): remember it in their Debrief configuration (product owner, 25 Oct 2026)."}
       tma_plot_drawn: {description: "Bearing view to host: the plot as last drawn, CSS pixels (plot_height; pane_widths, left to right), so the host knows whether it is big enough to read; the integration suite asserts it in VS Code's panel (product owner, 25 Oct 2026)."}
+      tma_panes: {description: "Bearing view to host: which of the plot's panes show (panes_shown: bearing, error, course), when the page starts and when the analyst toggles one, so the same panes show wherever Bearings is next opened: in the panel or popped out into an editor tab or window of its own (product owner, 28 Oct 2026)."}
       tma_made: {description: "Host to bearing view: the solution asked for was made (feature_id), so the first guess's form closes; or, with message alone, why it was not, the form left open."}
 
 classes:
@@ -305,6 +306,9 @@ classes:
       pane_widths:
         description: The width of each pane the Bearings view's plot shows, left to right, CSS pixels (tma_plot_drawn).
         range: integer
+        multivalued: true
+      panes_shown:
+        description: The panes the Bearings view's plot shows, of bearing, error and course (tma_panes).
         multivalued: true
       error_cut_off:
         description: The analyst's error cut-off, degrees (tma_cut_off).

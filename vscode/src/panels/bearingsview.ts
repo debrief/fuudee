@@ -13,15 +13,22 @@
  * (tma_preview) and the view works the residuals out again itself, exact again from Python once
  * the drag's step is saved (NFR-04). What it shows is the analyst's, in this view only: never
  * saved, never a step.
+ *
+ * It can be popped out (product owner, 28 Oct 2026): opened as an editor tab, a WebviewPanel,
+ * and moved into a window of its own for a second monitor, as legacy Debrief's Stacked Dots
+ * could be (bearingshost.ts). This controller drives whichever surface is live, the panel's
+ * WebviewView or the popped-out WebviewPanel, never both: one live instance at a time, the
+ * panel showing a placeholder meanwhile. Everything it says goes to the live surface and only
+ * what that surface's page says is acted on, so the popped-out view is linked exactly as the
+ * panel's is. It needs nothing of VS Code's at run time, so the unit tests drive it with stand-ins.
  */
-import * as vscode from "vscode";
 import type { AmbiguityResolution, TimeState, TmaCut, TmaFocus, TmaRequest, TmaResiduals, TmaView } from "@debrief/schemas";
 import { checkMessage } from "../messages.js";
 import type { Session } from "../session.js";
 import { startup } from "../startup.js";
-import { webviewHtml } from "./html.js";
 import { coverageOf, cutColours, cutRowsOf, FocusOnce, ownshipOf, tmaSensorRows, tmaSolutionRows, type ListedCut } from "../../webview/tma.js";
 import { bearingsFor, bearingsTitle, outlineIndex, type BearingsShown, type OutlinePick } from "../../webview/outlinemodel.js";
+import { PANES, type PanesShown } from "../../webview/stackeddots.js";
 
 export const BEARINGS_VIEW = "debrief.bearings";
 
@@ -48,9 +55,39 @@ export interface BearingsAct {
   readonly errorCutOff: number;
 }
 
-export class BearingsView implements vscode.WebviewViewProvider {
-  private view?: vscode.WebviewView;
+/** Where Bearings shows: the panel below the editor, or popped out into an editor tab or window of its own. */
+export type BearingsWhere = "panel" | "window";
+
+/** A surface Bearings' page shows in: the panel's WebviewView, or the popped-out WebviewPanel. */
+export interface BearingsSurface {
+  readonly where: BearingsWhere;
+  /** Post a message to its page; whether the page was there to take it. */
+  post(message: unknown): PromiseLike<boolean>;
+  /** Whether it is in sight now. */
+  readonly visible: boolean;
+  /** Bring it into sight; with preserveFocus, the keyboard left where it was. */
+  show(preserveFocus: boolean): void;
+}
+
+/** What a message last posted to the page was, and where it went: for tests and agents. */
+export interface BearingsPosted {
+  where: BearingsWhere;
+  delivered: boolean;
+  message: Record<string, unknown>;
+}
+
+export class BearingsView {
+  /** The panel's surface, once VS Code made it; the popped-out one, while open. */
+  private panelSurface?: BearingsSurface;
+  private windowSurface?: BearingsSurface;
+  /** Whether the live surface's page said it was ready. */
   private ready = false;
+  /** Which panes the page last said show (tma_panes): the next page opened shows the same. */
+  panes?: PanesShown;
+  /** The last message of each kind posted, and where: for tests and agents. */
+  readonly posted = new Map<string, BearingsPosted>();
+  /** Opens the panel's view when there is no surface yet (bearingshost.ts sets it). */
+  open: (preserveFocus: boolean) => Promise<void> = async () => {};
   /** What the view shows: what the Outline's selection last chose. */
   private shownNow?: BearingsShown;
   private asking = 0;
@@ -62,7 +99,6 @@ export class BearingsView implements vscode.WebviewViewProvider {
   plot?: { height: number; panes: number[] };
 
   constructor(
-    private readonly extension: vscode.Uri,
     private readonly session: Session,
     private readonly ask: BearingsAsk,
     private readonly act: BearingsAct,
@@ -86,46 +122,86 @@ export class BearingsView implements vscode.WebviewViewProvider {
     return this.shownNow && "solution" in this.shownNow ? this.shownNow.solution : undefined;
   }
 
-  /** Whether the view has loaded, for tests and agents. */
-  get showing(): boolean {
-    return this.ready && !!this.view;
+  /** The surface Bearings is live on: the popped-out one while open, else the panel's. One at a time. */
+  get live(): BearingsSurface | undefined {
+    return this.windowSurface ?? this.panelSurface;
   }
 
-  /** Whether the view is in sight now (in the panel below the editor, unless the analyst moved it), for tests and agents. */
-  get visible(): boolean {
-    return !!this.view?.visible;
+  /** Where Bearings is live, if anywhere yet. */
+  get where(): BearingsWhere | undefined {
+    return this.live?.where;
+  }
+
+  /** The surface made in the panel, or popped out, if there is one: for tests, to send a message as its page would. */
+  surfaceAt(where: BearingsWhere): BearingsSurface | undefined {
+    return where === "window" ? this.windowSurface : this.panelSurface;
+  }
+
+  /** Whether Bearings is popped out: the panel then shows only a placeholder. */
+  get poppedOut(): boolean {
+    return !!this.windowSurface;
   }
 
   /**
-   * The view brought into sight where it is, in the panel below the editor by default, the
-   * keyboard left where it was: a TMA walkthrough step's button that opens a form (Move…,
-   * Shear…) shows Bearings too, since the step is read there (product owner, 25 Oct 2026).
+   * A surface made: the panel's view (VS Code resolved it), or the popped-out one. A popped-out
+   * surface is live at once, the panel's left to its placeholder; there is never more than one
+   * popped out (bearingshost.ts reuses it). The live surface's page loads afresh and says when
+   * it is ready.
    */
-  async reveal(): Promise<void> {
-    if (this.view) {
-      if (!this.view.visible) this.view.show(true);
+  attach(surface: BearingsSurface): void {
+    if (surface.where === "window") this.windowSurface = surface;
+    else this.panelSurface = surface;
+    if (this.live === surface) this.ready = false;
+  }
+
+  /** A surface gone (closed, disposed): if it was live, the other is, once its page is ready again. */
+  detach(surface: BearingsSurface): void {
+    const before = this.live;
+    if (this.windowSurface === surface) this.windowSurface = undefined;
+    if (this.panelSurface === surface) this.panelSurface = undefined;
+    if (this.live !== before) this.ready = false;
+  }
+
+  /** Whether the view has loaded, for tests and agents. */
+  get showing(): boolean {
+    return this.ready && !!this.live;
+  }
+
+  /** Whether the view is in sight now (in the panel below the editor, or popped out), for tests and agents. */
+  get visible(): boolean {
+    return !!this.live?.visible;
+  }
+
+  /**
+   * The view brought into sight where it is live: popped out, its tab or window; else in the
+   * panel below the editor. With preserveFocus (the default), the keyboard left where it was: a
+   * TMA walkthrough step's button that opens a form (Move…, Shear…) shows Bearings too, since
+   * the step is read there (product owner, 25 Oct 2026). Show bearings moves the keyboard there.
+   */
+  async reveal(preserveFocus = true): Promise<void> {
+    const live = this.live;
+    if (live) {
+      if (!live.visible || !preserveFocus) live.show(preserveFocus);
       return;
     }
-    await vscode.commands.executeCommand(`${BEARINGS_VIEW}.focus`);
+    await this.open(preserveFocus);
   }
 
-  resolveWebviewView(view: vscode.WebviewView): void {
-    startup.mark(BEARINGS_VIEW, "resolve");
-    this.view = view;
-    this.ready = false;
-    view.webview.options = { enableScripts: true, localResourceRoots: [vscode.Uri.joinPath(this.extension, "dist", "webview")] };
-    view.webview.html = webviewHtml(view.webview, this.extension, "bearings", "Bearings");
-    startup.mark(BEARINGS_VIEW, "html");
-    view.onDidDispose(() => {
-      if (this.view === view) this.view = undefined;
-    });
-    view.onDidChangeVisibility(() => view.visible && void this.refresh());
-    view.webview.onDidReceiveMessage((raw) => void this.receive(raw));
+  /** A surface came into sight: if live, its page reads the plot afresh. */
+  shown(surface: BearingsSurface): void {
+    if (surface === this.live && surface.visible) void this.refresh();
   }
 
-  /** A message from the view; tests may pass one as if the view had sent it. */
-  async receive(raw: unknown): Promise<void> {
+  /**
+   * A message from the live surface's page; tests may pass one as if the view had sent it. A
+   * message from a surface that is not live (a page about to be replaced) is not acted on.
+   */
+  async receive(raw: unknown, from?: BearingsSurface): Promise<void> {
     if (startup.fromPage(BEARINGS_VIEW, raw)) return;
+    if (from && from !== this.live) {
+      this.log(`webview_message_refused panel=bearings where=${from.where} not_live`);
+      return;
+    }
     let message;
     try {
       message = checkMessage(raw);
@@ -169,6 +245,9 @@ export class BearingsView implements vscode.WebviewViewProvider {
       this.act.cutOff(message.error_cut_off!);
     } else if (message.kind === "tma_plot_drawn") {
       this.plot = { height: message.plot_height!, panes: message.pane_widths ?? [] };
+    } else if (message.kind === "tma_panes") {
+      const shown = new Set(message.panes_shown);
+      this.panes = Object.fromEntries(PANES.map((p) => [p, shown.has(p)])) as PanesShown;
     }
   }
 
@@ -227,7 +306,7 @@ export class BearingsView implements vscode.WebviewViewProvider {
   /** Everything the view shows, asked for again. */
   async refresh(): Promise<void> {
     const opened = this.session.current;
-    if (!opened || !this.view || !this.ready) return;
+    if (!opened || !this.live || !this.ready) return;
     const asked = ++this.asking;
     const plot = opened.plot;
     const index = outlineIndex(plot);
@@ -275,9 +354,15 @@ export class BearingsView implements vscode.WebviewViewProvider {
   }
 
   private post(message: Record<string, unknown>): void {
-    if (!this.view || !this.ready) return;
-    void this.view.webview.postMessage(checkMessage(message));
-    if (message.kind === "show_tma") startup.shown(BEARINGS_VIEW, !!message.tma);
+    const live = this.live;
+    if (!live || !this.ready) return;
+    const checked = checkMessage(message);
+    const kind = message.kind as string;
+    void Promise.resolve(live.post(checked)).then(
+      (delivered) => this.posted.set(kind, { where: live.where, delivered, message }),
+      () => this.posted.set(kind, { where: live.where, delivered: false, message }),
+    );
+    if (kind === "show_tma") startup.shown(BEARINGS_VIEW, !!message.tma);
   }
 }
 
