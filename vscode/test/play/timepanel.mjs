@@ -217,17 +217,18 @@ export async function playTimePanel(page, shot, history) {
 }
 
 /**
- * On a second page in the same browser: the disclosure as the first left it (remembered in this
- * browser); then 390 px and the narrow side column, with no sideways scroll and current time still
- * the largest text.
+ * A first visit in a fresh browser: the disclosure folded; opened, it is open again when the page
+ * loads again (remembered in this browser); then 390 px and the narrow side column, with no
+ * sideways scroll and current time still the largest text.
  */
-export async function timePanelElsewhere(page, shot) {
-  const other = await page.context().newPage();
+export async function timePanelElsewhere(browser, url, shot, errors) {
+  const context = await browser.newContext({ viewport: { width: 1366, height: 768 }, colorScheme: "dark" });
+  const other = await context.newPage();
+  other.on("pageerror", (e) => errors.push(String(e)));
   try {
-    await other.setViewportSize({ width: 1366, height: 768 });
-    await other.goto(page.url());
+    await other.goto(url);
     await other.locator("#timebar .tc-disclosure").waitFor();
-    assert.equal(await other.locator("#timebar .tc-disclosure").getAttribute("aria-expanded"), "false", "remembered closed");
+    assert.equal(await other.locator("#timebar .tc-disclosure").getAttribute("aria-expanded"), "false", "folded on a first visit");
     await other.locator("#timebar .tc-disclosure").click();
     await other.reload();
     await other.locator("#timebar .tc-disclosure").waitFor();
@@ -241,9 +242,9 @@ export async function timePanelElsewhere(page, shot) {
       assert.match(sizes[0][1], /tc-time/, `${where}: current time is the largest text: ${JSON.stringify(sizes.slice(0, 3))}`);
       if (width === 390) await shot("time-09-390px", other);
     }
-    await other.locator("#timebar .tc-disclosure").click(); // closed again, as the other tests expect
+    await other.locator("#timebar .tc-disclosure").click(); // folded again, remembered so
     await other.waitForFunction(() => window.localStorage.getItem("debrief.play.timeWindowOpen") === "false");
   } finally {
-    await other.close();
+    await context.close();
   }
 }

@@ -117,7 +117,7 @@ try {
   await playTheTimeController();
   // The panel's parts (product owner, 28 Oct 2026): big time, scrubber, overview strip, the window's details.
   await playTimePanel(page, shot, history);
-  await timePanelElsewhere(page, shot);
+  await timePanelElsewhere(browser, `${BASE}/index.html`, shot, errors);
   // The Tote: primary and secondaries chosen by pointer, keyboard, the outline's menu and touch;
   // values follow current time as it steps and plays; latency reported (CAP-06, NFR-04).
   await playTote(page, shot);

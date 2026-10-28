@@ -11,7 +11,7 @@ New to Debrief? Start with **Walkthroughs**, picked out in the theme's link colo
 ## Things to try
 
 - **Select and run a tool.** Click **BLUE ONE** in the outline, then Ctrl-click **RED ONE**. **Closest approach** is now on offer. Run it: the line appears on the map, the result opens beside it, and current time moves to the moment it found.
-- **Look at a moment.** Drag **Current time** in **Time**. Each track's position at that time is a square in its colour.
+- **Look at a moment.** Drag the slider under the large current time in **Time**, or click the time and type one. Each track's position at that time is a square in its colour.
 - **Narrow the time window.** Drag either handle of **Time window**, or the band between them. The map shows the window as you drag: tracks are drawn in full within it and faintly outside it, and the tug's track, which ends at 10:35, loses its label once the window starts after that. Let go and the window is saved in the plot, but it's not a step in **History**, and **Undo** leaves it alone.
 - **Play.** Press **▶**, or Space on any of the sliders. Choose a speed: at 60× a minute of the exercise passes each second. Playing stops at the end of the window.
 - **A colleague changes the window.** **A colleague changes the time window**, under **Try**, changes it as if from another computer: Debrief shows theirs and says so.
