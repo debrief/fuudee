@@ -27,18 +27,20 @@ async function screenshot(name: string, keepNotifications = false): Promise<void
 
 /**
  * Bearings' popped-out window, sized to fill the screen or moved off it, where xdotool is installed
- * (there is no window manager under xvfb to maximise it): the visible window of VS Code's not at the
- * screen's corner, where the main window is. Whether it was done.
+ * (there is no window manager under xvfb to maximise it): the one visible X window that was not
+ * there before it popped out ("before" notes them). Whether it was done.
  */
-let poppedId: string | undefined;
-function poppedWindow(how: "fill" | "aside"): boolean {
+let windowsBefore: string[] | undefined;
+function poppedWindow(how: "before" | "fill" | "aside"): boolean {
   if (!process.env.DISPLAY) return false;
   try {
     const run = (...args: string[]) => execFileSync("xdotool", args, { encoding: "utf8" }).trim();
-    const ids = run("search", "--onlyvisible", "--name", "Extension Development Host").split("\n").filter(Boolean);
-    const at = (id: string) => Object.fromEntries(run("getwindowgeometry", "--shell", id).split("\n").map((l) => l.split("=") as [string, string]));
-    const id = (poppedId = poppedId && ids.includes(poppedId) ? poppedId : ids.find((i) => at(i).X !== "0" || at(i).Y !== "0"));
-    if (!id) return false;
+    const ids = run("search", "--onlyvisible", "--class", ".").split("\n").filter(Boolean);
+    if (how === "before") return !!(windowsBefore = ids);
+    const added = ids.filter((i) => !windowsBefore?.includes(i));
+    console.log(`Windows that appeared on popping out: ${added.map((i) => `${i} ${run("getwindowgeometry", i).replace(/\s+/g, " ")}`).join("; ")}`);
+    if (added.length !== 1) return false;
+    const id = added[0];
     const [width, height] = run("getdisplaygeometry").split(" ");
     if (how === "fill") {
       run("windowmove", id, "0", "0");
@@ -789,6 +791,7 @@ export async function run(): Promise<void> {
     await screenshot("15i-bearings-pop-out-button");
     const panelPlot = api.bearingsPlot();
     // Popped out: an editor (WebviewPanel) with Bearings' page, VS Code asked to move it into a new window.
+    poppedWindow("before");
     const popped = await vscode.commands.executeCommand<{ where: string; reason?: string }>("debrief.popOutBearings");
     console.log(`Bearings popped out: ${popped.where}${popped.reason ? ` (${popped.reason})` : ""}`);
     let place = api.bearingsPlace();
