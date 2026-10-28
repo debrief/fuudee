@@ -26,6 +26,7 @@ import { playCollation, vscodeCoverageView } from "./collation.mjs";
 import { playExport } from "./export.mjs";
 import { guidanceAccent, openOnFirstLoad, playDemo, playTourInThePost, playTours, resize, speedRun } from "./onboarding.mjs";
 import { mapPlaced, playDock, resizeTo, showPanel } from "./dock.mjs";
+import { playTimePanel, timePanelElsewhere } from "./timepanel.mjs";
 
 const root = path.resolve(process.argv[2] ?? "../site/docs/play");
 const site = process.argv[3] ? path.resolve(process.argv[3]) : undefined;
@@ -114,6 +115,9 @@ try {
   await page.waitForFunction((was) => document.querySelector("#timebar .time-label")?.textContent !== was, timeBefore);
   assert.ok((await markers()) > 0, "tracks show where they were at current time");
   await playTheTimeController();
+  // The panel's parts (product owner, 28 Oct 2026): big time, scrubber, overview strip, the window's details.
+  await playTimePanel(page, shot, history);
+  await timePanelElsewhere(browser, `${BASE}/index.html`, shot, errors);
   // The Tote: primary and secondaries chosen by pointer, keyboard, the outline's menu and touch;
   // values follow current time as it steps and plays; latency reported (CAP-06, NFR-04).
   await playTote(page, shot);
@@ -508,10 +512,13 @@ try {
     assert.equal(await tc(".tc-start").getAttribute("role"), "slider");
     assert.match(await tc(".tc-start").getAttribute("aria-valuetext"), /08:00:00Z/);
     const stepsBefore = await history();
-    const startBefore = await text("#timebar .tc-window-start");
+    // The window's ends, typed or read, in its details (folded or not).
+    const windowStart = () => tc(".tc-from").inputValue();
+    const startBefore = await windowStart();
     await shot("time-01-controller");
 
     // Drag the window's start most of the way along. The map follows before it is let go.
+    await tc(".tc-window").scrollIntoViewIfNeeded(); // the overview strip, in a Time group shorter than the panel
     const rail = await tc(".tc-window").boundingBox();
     const handle = await tc(".tc-start").boundingBox();
     const [x, y] = [handle.x + handle.width / 2, handle.y + handle.height / 2];
@@ -522,8 +529,8 @@ try {
     for (let i = 0; i < 50 && (await mapFrame.locator(".track-label", { hasText: "Tug 01" }).count()); i++) await page.waitForTimeout(100);
     assert.equal(await mapFrame.locator(".track-label", { hasText: "Tug 01" }).count(), 0, "Tug 01 ended before the window");
     await page.mouse.up();
-    assert.notEqual(await text("#timebar .tc-window-start"), startBefore);
-    assert.match(await text("#timebar .tc-window-start"), /15 Jun 2023 1[01]:\d\d:\d\dZ/);
+    assert.notEqual(await windowStart(), startBefore);
+    assert.match(await windowStart(), /15 Jun 2023 1[01]:\d\d:\d\dZ/);
     // Current time is kept inside the window; the whole tracks stay, thin and visible (CAP-29).
     const [start, current] = [Number(await tc(".tc-start").getAttribute("aria-valuenow")), Number(await tc(".tc-current").inputValue())];
     assert.ok(current >= start, "current time is inside the window");
@@ -535,6 +542,9 @@ try {
     await shot("time-02-window-narrowed");
 
     // Context tracks: visible, faint or hidden, for the plot; view state, so no step in its history.
+    // In the window's details, folded at first: the summary says the choice.
+    assert.match(await tc(".tc-summary-context").innerText(), /\(Visible\)/);
+    await tc(".tc-disclosure").click();
     await mapFrame.locator("#map").focus();
     await page.keyboard.press("Escape"); // nothing selected: nothing dimmed
     await page.waitForFunction(() => !document.querySelector("#outline li.selected"));
@@ -552,6 +562,7 @@ try {
     await tc(".tc-context").selectOption("visible");
     for (let i = 0; i < 50 && (await contextLines("0.6")) < 10; i++) await page.waitForTimeout(100);
     assert.ok((await contextLines("0.6")) >= 10, "visible again");
+    await tc(".tc-disclosure").click(); // folded again
     await page.waitForTimeout(500);
     assert.equal(await history(), stepsBefore, "context tracks are view state: no step");
     assert.equal(await page.locator(".toast.warning").count(), 0);
@@ -565,6 +576,7 @@ try {
     assert.equal(Number(await tc(".tc-end").getAttribute("aria-valuenow")), end);
     // With the end handle focused, drag the start handle: the other handle losing focus never stops the drag.
     const startNow = Number(await tc(".tc-start").getAttribute("aria-valuenow"));
+    await tc(".tc-start").scrollIntoViewIfNeeded();
     const grip = await tc(".tc-start").boundingBox();
     await page.mouse.move(grip.x + grip.width / 2, grip.y + grip.height / 2);
     await page.mouse.down();
@@ -607,11 +619,11 @@ try {
     await page.waitForTimeout(500);
 
     // A colleague changes the window: Debrief shows theirs and says so; still no step.
-    const ours = await text("#timebar .tc-window-start");
+    const ours = await windowStart();
     await showPanel(page, "try");
     await page.locator("#colleague-window").click();
     await page.locator(".toast", { hasText: "time window of Serial 1 was changed elsewhere" }).waitFor();
-    assert.notEqual(await text("#timebar .tc-window-start"), ours);
+    assert.notEqual(await windowStart(), ours);
     assert.equal(await history(), stepsBefore);
     await page.locator("#side").evaluate((side) => (side.scrollTop = 0)); // the controller in the picture
     await shot("time-04-colleague-window");
@@ -620,7 +632,7 @@ try {
     await tc(".tc-start").focus();
     await page.keyboard.press("Home");
     await label("Tug 01").waitFor();
-    assert.equal(await text("#timebar .tc-window-start"), startBefore);
+    assert.equal(await windowStart(), startBefore);
     await page.waitForTimeout(500);
     assert.equal(await page.locator(".toast.warning").count(), 0, "saved, with no conflict");
   }
@@ -642,35 +654,43 @@ try {
   }
 
   /**
-   * VS Code's Time view page (dist/webview/time.js), at the size VS Code first gives the
-   * view at 1440×900 with the other Debrief views open (measured in the integration test's
-   * screenshots: about 297 × 136 px; a little less here). Everything shows without scrolling,
-   * the note and its Keep and Revert included, and the context choice is not in the view
-   * (it is in the view's title menu).
+   * VS Code's Time view page (dist/webview/time.js), given about 190 px of the sidebar: everything
+   * shows without scrolling, the note and its Keep and Revert included, the window's details
+   * folded; the context choice is not in the view (it is in the view's title menu) though the
+   * summary says it. At the height VS Code first gives it (below), a closer layout. The details' state is VS Code's view state, so it comes back when the page
+   * loads again. High contrast and forced colours keep the band, the edges and the thumb.
    */
   async function vscodeTimeView() {
     const extension = path.resolve(import.meta.dirname, "..", "..");
     const webview = path.join(extension, "dist", "webview");
     execFileSync(process.execPath, ["scripts/build.mjs"], { cwd: extension, stdio: "inherit" }); // the page as it is now
     const files = serve(webview);
-    const view = await browser.newPage({ viewport: { width: 290, height: 132 }, colorScheme: "dark" });
+    const view = await browser.newPage({ viewport: { width: 290, height: 188 }, colorScheme: "dark" });
     view.on("pageerror", (e) => errors.push(String(e)));
     const posted = [];
     await view.exposeFunction("tellTest", (message) => posted.push(message));
+    // VS Code's own fonts and sizes, and the theme tokens the page uses for its colours: Dark Modern, or High Contrast.
+    const DARK = "--vscode-foreground: #ccc; --vscode-descriptionForeground: #9d9d9d; --vscode-sideBar-background: #181818; --vscode-focusBorder: #0078d4; --vscode-button-background: #0078d4; --vscode-button-foreground: #fff; --vscode-button-hoverBackground: #026ec1; --vscode-button-secondaryBackground: #313131; --vscode-button-secondaryForeground: #ccc; --vscode-dropdown-background: #313131; --vscode-input-background: #313131; --vscode-inputValidation-warningBorder: #b89500; --vscode-inputValidation-warningBackground: #352a05;";
+    const HIGH_CONTRAST = "--vscode-foreground: #fff; --vscode-descriptionForeground: #fff; --vscode-sideBar-background: #000; --vscode-focusBorder: #f38518; --vscode-contrastBorder: #6fc3df; --vscode-button-background: #000; --vscode-button-foreground: #fff; --vscode-button-border: #6fc3df; --vscode-button-secondaryBackground: #000; --vscode-button-secondaryForeground: #fff; --vscode-dropdown-background: #000; --vscode-dropdown-border: #6fc3df; --vscode-input-background: #000; --vscode-input-border: #6fc3df; --vscode-widget-border: #6fc3df; --vscode-inputValidation-warningBorder: #ff0;";
+    let tokens = DARK;
     await view.route("**/time-view.html", (route) =>
       route.fulfill({
         contentType: "text/html",
         body:
           `<!doctype html><html lang="en-GB"><head><meta charset="utf-8"><link rel="stylesheet" href="time.css">` +
-          // VS Code's own fonts and sizes, and the theme tokens the page uses for its colours.
-          `<style>:root { --vscode-font-family: system-ui, Ubuntu, "Droid Sans", sans-serif; --vscode-font-size: 13px; --vscode-editor-font-family: "Droid Sans Mono", monospace; --vscode-foreground: #ccc; --vscode-descriptionForeground: #9d9d9d; --vscode-sideBar-background: #181818; --vscode-focusBorder: #0078d4; --vscode-button-background: #0078d4; --vscode-button-foreground: #fff; --vscode-button-secondaryBackground: #313131; --vscode-button-secondaryForeground: #ccc; --vscode-dropdown-background: #313131; --vscode-input-background: #313131; --vscode-inputValidation-warningBorder: #b89500; --vscode-inputValidation-warningBackground: #352a05; }</style>` +
-          `</head><body><div id="root"></div><script>window.acquireVsCodeApi = () => ({ postMessage: (m) => window.tellTest(m) });</script>` +
+          `<style>:root { --vscode-font-family: system-ui, Ubuntu, "Droid Sans", sans-serif; --vscode-font-size: 13px; --vscode-editor-font-family: "Droid Sans Mono", monospace; ${tokens} }</style>` +
+          // The page's state as VS Code keeps it: here, for the tab's life.
+          `</head><body><div id="root"></div><script>window.acquireVsCodeApi = () => ({ postMessage: (m) => window.tellTest(m), getState: () => JSON.parse(sessionStorage.getItem("state") || "null") ?? undefined, setState: (s) => sessionStorage.setItem("state", JSON.stringify(s)) });</script>` +
           `<script src="time.js"></script></body></html>`,
       }),
     );
-    await view.goto(`http://127.0.0.1:${files.address().port}/time-view.html`);
-    await view.waitForFunction(() => document.getElementById("timebar"));
-    for (let i = 0; i < 50 && !posted.some((m) => m.kind === "ready"); i++) await view.waitForTimeout(100);
+    const open = async () => {
+      posted.length = 0;
+      await view.goto(`http://127.0.0.1:${files.address().port}/time-view.html`);
+      await view.waitForFunction(() => document.getElementById("timebar"));
+      for (let i = 0; i < 50 && !posted.some((m) => m.kind === "ready"); i++) await view.waitForTimeout(100);
+    };
+    await open();
     const period = { start: "2023-06-15T08:00:00.000Z", end: "2023-06-15T12:00:00.000Z" };
     const showTime = (range, saved) =>
       view.evaluate(([range, saved]) => window.postMessage({ kind: "show_time", time: { current: "2023-06-15T09:21:17.000Z", range }, time_range: { start: "2023-06-15T08:00:00.000Z", end: "2023-06-15T12:00:00.000Z" }, saved_window: saved, context_tracks: "faint" }, "*"), [range, saved]);
@@ -679,21 +699,26 @@ try {
         const bottom = (selector) => document.querySelector(selector).getBoundingClientRect().bottom;
         return {
           scroll: document.documentElement.scrollHeight - innerHeight,
+          sideways: document.documentElement.scrollWidth - innerWidth,
           height: innerHeight,
-          bottoms: [".tc-play", ".tc-speed", ".time-label", ".tc-current", ".tc-step-label", ".tc-cue", ".tc-window-length"].map(bottom),
+          bottoms: [".tc-play", ".tc-speed", ".time-label", ".tc-current", ".tc-step-label", ".tc-window", ".tc-cue", ".tc-disclosure"].map(bottom),
         };
       });
       assert.ok(box.scroll <= 0, `${state}: the Time view scrolls by ${box.scroll}px`);
+      assert.ok(box.sideways <= 0, `${state}: the Time view scrolls sideways by ${box.sideways}px`);
       for (const b of box.bottoms) assert.ok(b <= box.height, `${state}: something ends at ${b}px, below the view's ${box.height}px`);
     };
-    // A window as saved: no note.
+    // A window as saved: no note; the details folded, the summary saying the plot's context tracks.
     const early = { start: period.start, end: "2023-06-15T09:00:00.000Z" };
     await showTime(early, early);
     await view.locator(".time-label", { hasText: "09:00:00Z" }).waitFor();
     assert.equal(await view.locator(".tc-cue-text").innerText(), "");
+    assert.equal(await view.locator(".tc-disclosure").getAttribute("aria-expanded"), "false");
+    assert.match(await view.locator(".tc-disclosure").innerText(), /Window\s+08:00–09:00Z\s+\(Faint\)/);
     await allShown("no note");
     assert.equal(await view.locator(".tc-context").count(), 0, "the context choice is in the view's title menu, not the view");
     await shot("vscode-time-view-saved", view);
+
     // A tool showed a wider window: the note, on one line, the whole text on hover and to screen readers.
     const widened = { start: period.start, end: "2023-06-15T09:22:00.000Z" };
     await showTime(widened, early);
@@ -704,15 +729,64 @@ try {
     const [cue, keep, revert] = await Promise.all([".tc-cue", ".tc-keep", ".tc-revert"].map((s) => view.locator(s).boundingBox()));
     assert.ok(cue.height <= 26, "the note is one line");
     assert.ok(keep.y >= cue.y && revert.y >= cue.y && revert.x + revert.width <= cue.x + cue.width + 1, "Keep and Revert inline in the note");
-    // Play, the steps and speed share a row with current time.
-    const row = await Promise.all([".back", ".tc-play", ".forward", ".tc-speed", ".time-label"].map((s) => view.locator(s).boundingBox()));
+    // Current time large, above one row of the steps, play and speed.
+    const big = await view.locator(".time-label").boundingBox();
+    const row = await Promise.all([".back", ".tc-play", ".forward", ".tc-speed", ".tc-step-label"].map((s) => view.locator(s).boundingBox()));
     for (const box of row) assert.ok(Math.abs(box.y + box.height / 2 - (row[1].y + row[1].height / 2)) <= 3, "one row");
+    assert.ok(big.y + big.height <= row[1].y + 1, "current time above the transport");
+    assert.ok(big.height >= 1.5 * (await view.locator(".tc-step-label").boundingBox()).height, "and large");
     await shot("vscode-time-view-note", view);
     // Keep, from the keyboard: the window is sent to be saved.
     await view.locator(".tc-keep").focus();
     await view.keyboard.press("Enter");
     for (let i = 0; i < 20 && !posted.some((m) => m.kind === "window_changed"); i++) await view.waitForTimeout(50);
     assert.deepEqual(posted.find((m) => m.kind === "window_changed")?.time_range, widened);
+
+    // The window's details open: kept as the view's state, so open again when the page loads again.
+    await view.locator(".tc-disclosure").click();
+    await view.locator(".tc-details").waitFor();
+    assert.equal(await view.locator(".tc-from").inputValue(), "15 Jun 2023 08:00:00Z");
+    await shot("vscode-time-view-window-open", view);
+    await open();
+    await showTime(early, early);
+    await view.locator(".tc-details").waitFor();
+    assert.equal(await view.locator(".tc-disclosure").getAttribute("aria-expanded"), "true", "remembered open");
+    await view.locator(".tc-disclosure").click();
+    assert.equal(await view.locator(".tc-details").isVisible(), false);
+
+    // High contrast, and forced colours: the band, its edges, the thumb and Play still show.
+    tokens = HIGH_CONTRAST;
+    for (const forced of ["none", "active"]) {
+      await view.emulateMedia({ forcedColors: forced });
+      await open();
+      await showTime(early, early);
+      await view.locator(".time-label", { hasText: "09:00:00Z" }).waitFor();
+      await allShown(`high contrast, forced colours ${forced}`);
+      const looks = await view.evaluate(() => {
+        const style = (s) => getComputedStyle(document.querySelector(s));
+        const seen = (c) => !!c && c !== "rgba(0, 0, 0, 0)" && c !== "transparent";
+        return {
+          band: seen(style(".tc-band").backgroundColor) || seen(style(".tc-band").borderTopColor),
+          handle: seen(style(".tc-handle").backgroundColor),
+          play: seen(style(".tc-play").backgroundColor) || seen(style(".tc-play").borderTopColor),
+          time: seen(style(".tc-time").color),
+        };
+      });
+      assert.deepEqual(looks, { band: true, handle: true, play: true, time: true }, `high contrast, forced colours ${forced}`);
+      await shot(`vscode-time-view-high-contrast${forced === "active" ? "-forced" : ""}`, view);
+    }
+    // VS Code's first height at 1440 × 900 with the other Debrief views open (about 297 × 123 px in the
+    // integration test's screenshots; a little less here): closer, without its tick labels, all of it shown.
+    // Only the note, when there is one, takes it past the height: the view then scrolls.
+    tokens = DARK;
+    await view.emulateMedia({ forcedColors: "none" });
+    await view.setViewportSize({ width: 290, height: 120 });
+    await open();
+    await showTime(early, early);
+    await view.locator(".time-label", { hasText: "09:00:00Z" }).waitFor();
+    await allShown("a short view");
+    assert.equal(await view.locator(".tc-tick").first().isVisible(), false, "a short view leaves the tick labels out");
+    await shot("vscode-time-view-short", view);
     await view.close();
     files.close();
   }
