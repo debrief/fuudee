@@ -15,10 +15,7 @@
  *   replaced by the direct children of what is selected: a track's sensors, a sensor's cuts, a
  *   solution's legs, a leg's positions) and **Clear selection**.
  */
-import type { DebriefFeatureCollection } from "@debrief/schemas";
-import { fixKey, legKey, type OutlineIndex, type OutlinePick } from "./outlinemodel.js";
-
-type PlotFeature = DebriefFeatureCollection["features"][number];
+import { fixKey, legKey, pickOf, type OutlineIndex, type OutlinePick } from "./outlinemodel.js";
 
 /** The kinds of feature that can be hidden on the map: their own hidden property (SUB-22). */
 export const HIDEABLE_KINDS: ReadonlySet<string> = new Set(["track", "annotation", "sensor", "sensor_cut", "sensor_observations"]);
@@ -38,17 +35,17 @@ const NOUNS: [string, string, string][] = [
 ];
 
 /** The kind a pick is counted as: "track", "solution", "leg", "fix", "sensor", "cut", "annotation"… */
-export function kindOfPick(index: OutlineIndex, pick: OutlinePick): string {
+export function kindOfPick(outline: OutlineIndex, pick: OutlinePick): string {
   if (pick.kind !== "feature") return pick.kind;
   const kind = pick.feature.properties.kind;
-  return kind === "track" && index.solutions.has(pick.id) ? "solution" : kind;
+  return kind === "track" && outline.solutions.has(pick.id) ? "solution" : kind;
 }
 
 /** Picks counted by kind, as the service names a step of several kinds: "3 tracks and 12 cuts", "2 tracks, 1 sensor and 40 cuts". */
-export function kindsSaid(index: OutlineIndex, picks: readonly OutlinePick[]): string {
+export function kindsSaid(outline: OutlineIndex, picks: readonly OutlinePick[]): string {
   const counts = new Map<string, number>();
   for (const p of picks) {
-    const kind = kindOfPick(index, p);
+    const kind = kindOfPick(outline, p);
     counts.set(kind, (counts.get(kind) ?? 0) + 1);
   }
   const parts: string[] = [];
@@ -59,9 +56,9 @@ export function kindsSaid(index: OutlineIndex, picks: readonly OutlinePick[]): s
 }
 
 /** What a screen reader hears when the selection changes (the hint line's count, product owner, 28 Oct 2026): "3 tracks and 12 cuts selected". */
-export function selectionSaid(index: OutlineIndex | undefined, picks: readonly OutlinePick[]): string {
-  if (!index || !picks.length) return "Nothing selected";
-  return `${kindsSaid(index, picks)} selected`;
+export function selectionSaid(outline: OutlineIndex | undefined, picks: readonly OutlinePick[]): string {
+  if (!outline || !picks.length) return "Nothing selected";
+  return `${kindsSaid(outline, picks)} selected`;
 }
 
 // --- Hidden on map: three states ---------------------------------------------------------------
@@ -100,17 +97,17 @@ const isHiddenFeature = (p: Extract<OutlinePick, { kind: "feature" | "cut" }>) =
  * mixed; pressed when all are hidden, "mixed" when some are; pressing hides all when all are
  * shown and shows all otherwise. Rows that cannot be hidden are left out and the tooltip says so.
  */
-export function selectionVisibility(index: OutlineIndex, picks: readonly OutlinePick[], readOnly = false): VisibilityButton {
+export function selectionVisibility(outline: OutlineIndex, picks: readonly OutlinePick[], readOnly = false): VisibilityButton {
   const can = picks.filter(hideable);
   const ignored = picks.length - can.length;
-  const left = ignored ? ` ${kindsSaid(index, picks.filter((p) => !hideable(p)))} cannot be hidden and ${ignored === 1 ? "is" : "are"} left as ${ignored === 1 ? "it is" : "they are"}.` : "";
+  const left = ignored ? ` ${kindsSaid(outline, picks.filter((p) => !hideable(p)))} cannot be hidden and ${ignored === 1 ? "is" : "are"} left as ${ignored === 1 ? "it is" : "they are"}.` : "";
   if (!can.length) {
-    const title = picks.length ? `Hide or show on the map: ${kindsSaid(index, picks)} cannot be hidden. Select tracks, solutions, sensors, cuts or annotations.` : "Hide or show on the map: select what to hide or show first.";
+    const title = picks.length ? `Hide or show on the map: ${kindsSaid(outline, picks)} cannot be hidden. Select tracks, solutions, sensors, cuts or annotations.` : "Hide or show on the map: select what to hide or show first.";
     return { state: "none", ids: [], hidden: 0, ignored, pressed: "false", title };
   }
   const ids = can.map((p) => p.id);
   const hidden = can.filter(isHiddenFeature).length;
-  const what = kindsSaid(index, can);
+  const what = kindsSaid(outline, can);
   const ro = readOnly ? " An earlier revision is shown read-only." : "";
   if (hidden === 0) return { state: "visible", action: readOnly ? undefined : "hide", ids, hidden, ignored, pressed: "false", title: `Shown on the map: hide ${what}.${left}${ro}`, done: `Hid ${what}` };
   if (hidden === can.length) return { state: "hidden", action: readOnly ? undefined : "show", ids, hidden, ignored, pressed: "true", title: `Hidden on the map: show ${what}.${left}${ro}`, done: `Showed ${what}` };
@@ -121,7 +118,7 @@ export function selectionVisibility(index: OutlineIndex, picks: readonly Outline
     hidden,
     ignored,
     pressed: "mixed",
-    title: `${hidden.toLocaleString("en-GB")} of ${new Set(can.map((p) => kindOfPick(index, p))).size === 1 ? what : `${can.length.toLocaleString("en-GB")} (${what})`} hidden on the map: show them all.${left}${ro}`,
+    title: `${hidden.toLocaleString("en-GB")} of ${new Set(can.map((p) => kindOfPick(outline, p))).size === 1 ? what : `${can.length.toLocaleString("en-GB")} (${what})`} hidden on the map: show them all.${left}${ro}`,
     done: `Showed ${what}`,
   };
 }
@@ -137,8 +134,8 @@ function colourable(p: OutlinePick): p is Extract<OutlinePick, { kind: "feature"
 }
 
 /** A row's colour now, as drawn: a track's style, a sensor's or a cut's own (else its sensor's), an annotation's appearance. */
-export function colourOf(index: OutlineIndex, p: OutlinePick): string | undefined {
-  if (p.kind === "cut") return p.cut.properties.colour ?? (index.sensors.get(p.sensor)?.sensor.properties.colour as string | undefined);
+export function colourOf(outline: OutlineIndex, p: OutlinePick): string | undefined {
+  if (p.kind === "cut") return p.cut.properties.colour ?? (outline.sensors.get(p.sensor)?.sensor.properties.colour as string | undefined);
   if (p.kind !== "feature") return undefined;
   const props = p.feature.properties as { kind: string; colour?: string; style?: { colour?: string } | null; appearance?: { colour?: string } | null };
   if (props.kind === "track") return props.style?.colour ?? undefined;
@@ -159,22 +156,22 @@ export interface ColourButton {
   reason?: string;
 }
 
-export function selectionColour(index: OutlineIndex, picks: readonly OutlinePick[], readOnly = false): ColourButton {
+export function selectionColour(outline: OutlineIndex, picks: readonly OutlinePick[], readOnly = false): ColourButton {
   const can = picks.filter(colourable);
   if (!can.length) {
-    const reason = picks.length ? `Nothing selected has a colour: ${kindsSaid(index, picks)} ${picks.length === 1 ? "has" : "have"} none. Select tracks, solutions, sensors, cuts or annotations.` : "Select something with a colour first: tracks, solutions, sensors, cuts or annotations.";
+    const reason = picks.length ? `Nothing selected has a colour: ${kindsSaid(outline, picks)} ${picks.length === 1 ? "has" : "have"} none. Select tracks, solutions, sensors, cuts or annotations.` : "Select something with a colour first: tracks, solutions, sensors, cuts or annotations.";
     return { ids: [], enabled: false, title: `Colour: ${reason}`, reason };
   }
   if (readOnly) return { ids: can.map((p) => p.id), enabled: false, title: "Colour: an earlier revision is shown read-only.", reason: "An earlier revision is shown read-only." };
-  const colours = new Set(can.map((p) => colourOf(index, p)));
+  const colours = new Set(can.map((p) => colourOf(outline, p)));
   const current = colours.size === 1 ? [...colours][0] : undefined;
   const ignored = picks.length - can.length;
-  const left = ignored ? ` ${kindsSaid(index, picks.filter((p) => !colourable(p)))} ${ignored === 1 ? "has" : "have"} no colour and ${ignored === 1 ? "is" : "are"} left as ${ignored === 1 ? "it is" : "they are"}.` : "";
-  const what = kindsSaid(index, can);
+  const left = ignored ? ` ${kindsSaid(outline, picks.filter((p) => !colourable(p)))} ${ignored === 1 ? "has" : "have"} no colour and ${ignored === 1 ? "is" : "are"} left as ${ignored === 1 ? "it is" : "they are"}.` : "";
+  const what = kindsSaid(outline, can);
   return { ids: can.map((p) => p.id), enabled: true, ...(current && { current }), what, title: `Colour ${what}…${left}` };
 }
 
-/** A colour as typed: "#E01C3E", "e01c3e" or "#e1c" as the service wants it, lower-case #rrggbb; undefined if it is not one. */
+/** A colour as typed (six hex digits or three, with or without #, either case) as the service wants it, lower-case #rrggbb; undefined if it is not one. */
 export function hexColour(text: string): string | undefined {
   const t = text.trim().replace(/^#/, "").toLowerCase();
   if (/^[0-9a-f]{6}$/.test(t)) return `#${t}`;
@@ -185,55 +182,40 @@ export function hexColour(text: string): string | undefined {
 // --- Select all, select children, clear --------------------------------------------------------------
 
 /** The direct children of a row, as the Outline lists them (a sensor's cuts whole, though VS Code pages them): keys, in order. */
-export function childrenOf(index: OutlineIndex, p: OutlinePick): string[] {
+export function childrenOf(outline: OutlineIndex, p: OutlinePick): string[] {
   if (p.kind === "leg") {
-    const s = index.solutions.get(p.solution);
+    const s = outline.solutions.get(p.solution);
     if (!s) return [];
     const out: string[] = [];
     for (let i = s.bounds[p.leg - 1]; i < s.bounds[p.leg]; i++) out.push(fixKey(p.solution, i));
     return out;
   }
   if (p.kind !== "feature") return [];
-  const s = index.solutions.get(p.id);
+  const s = outline.solutions.get(p.id);
   if (s) return Array.from({ length: s.bounds.length - 1 }, (_, k) => legKey(p.id, k + 1));
   const kind = p.feature.properties.kind;
-  if (kind === "sensor") return (index.sensors.get(p.id)?.cuts ?? []).map((c) => c.id);
-  if (kind === "track") return [...index.sensors.values()].filter((e) => e.sensor.properties.host_track_id === p.id).map((e) => e.sensor.id);
+  if (kind === "sensor") return (outline.sensors.get(p.id)?.cuts ?? []).map((c) => c.id);
+  if (kind === "track") return [...outline.sensors.values()].filter((e) => e.sensor.properties.host_track_id === p.id).map((e) => e.sensor.id);
   return [];
 }
 
 /** Select children for the selection: the direct children of every row selected, in order; and the rows to open so they are listed. */
-export function selectionChildren(index: OutlineIndex, picks: readonly OutlinePick[]): { keys: string[]; parents: string[]; title: string; reason?: string } {
+export function selectionChildren(outline: OutlineIndex, picks: readonly OutlinePick[]): { keys: string[]; parents: string[]; title: string; reason?: string } {
   const keys: string[] = [];
   const seen = new Set<string>();
   const parents: string[] = [];
   for (const p of picks) {
-    const children = childrenOf(index, p);
+    const children = childrenOf(outline, p);
     if (!children.length) continue;
     parents.push(p.kind === "feature" ? p.id : p.kind === "leg" ? legKey(p.solution, p.leg) : "");
     for (const k of children) if (!seen.has(k)) seen.add(k), keys.push(k);
   }
   if (!keys.length) {
-    const reason = picks.length ? `${kindsSaid(index, picks)} ${picks.length === 1 ? "has" : "have"} no children. A track opens to its sensors, a sensor to its cuts, a solution to its legs and a leg to its positions.` : "Select a track, a sensor, a solution or a leg first.";
+    const reason = picks.length ? `${kindsSaid(outline, picks)} ${picks.length === 1 ? "has" : "have"} no children. A track opens to its sensors, a sensor to its cuts, a solution to its legs and a leg to its positions.` : "Select a track, a sensor, a solution or a leg first.";
     return { keys, parents, title: `Select children: ${reason}`, reason };
   }
-  const children = keys.map((k) => pickOfKey(index, k)).filter((x): x is OutlinePick => !!x);
-  return { keys, parents: parents.filter(Boolean), title: `Select children: ${kindsSaid(index, children)}, in place of what is selected` };
-}
-
-/** A key's pick, for counting children (cuts, sensors, legs and positions). */
-function pickOfKey(index: OutlineIndex, key: string): OutlinePick | undefined {
-  const hash = key.lastIndexOf("#");
-  if (hash > 0) {
-    const m = /^#(leg|fix)(\d+)$/.exec(key.slice(hash));
-    if (!m) return undefined;
-    const solution = key.slice(0, hash);
-    return m[1] === "leg" ? { kind: "leg", solution, leg: Number(m[2]) } : { kind: "fix", solution, index: Number(m[2]) };
-  }
-  const cut = index.cuts.get(key);
-  if (cut) return { kind: "cut", id: key, cut: index.sensors.get(cut.sensor)!.cuts[cut.index], sensor: cut.sensor };
-  const feature = index.byId.get(key) as PlotFeature | undefined;
-  return feature ? ({ kind: "feature", id: key, feature } as OutlinePick) : undefined;
+  const children = keys.map((k) => pickOf(outline, k)).filter((x): x is OutlinePick => !!x);
+  return { keys, parents: parents.filter(Boolean), title: `Select children: ${kindsSaid(outline, children)}, in place of what is selected` };
 }
 
 /** The toolbar's buttons, in order (the playground's toolbar, VS Code's title bar). */

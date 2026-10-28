@@ -83,7 +83,7 @@
           {
             "id": "explore.select",
             "title": "Select tracks in the Outline",
-            "description": "Click **BLUE ONE** in the Outline, then Ctrl-click **RED ONE** to add it. The map outlines what is selected, and the tools offered change with the selection: with two tracks, **Closest approach** is on offer.\n\n**Outline** is in the Debrief sidebar.\n\n**Keyboard:** ↑ and ↓ move through the Outline; Enter selects, Ctrl+Shift+Enter adds to the selection (Cmd+Shift+Enter on macOS).\n\n[Show the Outline](command:debrief.walkthrough.do?%5B%22explore%22%2C%22debrief.outline.focus%22%5D)",
+            "description": "Click **BLUE ONE** in the Outline, then Ctrl-click **RED ONE** to add it (Cmd-click on macOS); Shift-click selects every row from the last one clicked, a range. The map outlines what is selected, and the tools offered change with the selection: with two tracks, **Closest approach** is on offer. The buttons above the Outline hide or show what is selected, colour it, select all, select a row's children, or clear the selection.\n\n**Outline** is in the Debrief sidebar.\n\n**Keyboard:** ↑ and ↓ move through the Outline; Enter selects, Ctrl+Shift+Enter adds to the selection (Cmd+Shift+Enter on macOS).\n\n[Show the Outline](command:debrief.walkthrough.do?%5B%22explore%22%2C%22debrief.outline.focus%22%5D)",
             "media": {
               "svg": "media/walkthroughs/explore-select.svg",
               "altText": "BLUE ONE and RED ONE selected on the map, the other tracks dimmed."

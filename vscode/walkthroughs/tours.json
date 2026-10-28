@@ -32,10 +32,10 @@
           "id": "select",
           "event": "selected",
           "title": "Select tracks in the Outline",
-          "text": "Click **BLUE ONE** in the Outline, then Ctrl-click **RED ONE** to add it. The map outlines what is selected, and the tools offered change with the selection: with two tracks, **Closest approach** is on offer.",
+          "text": "Click **BLUE ONE** in the Outline, then Ctrl-click **RED ONE** to add it (Cmd-click on macOS); Shift-click selects every row from the last one clicked, a range. The map outlines what is selected, and the tools offered change with the selection: with two tracks, **Closest approach** is on offer. The buttons above the Outline hide or show what is selected, colour it, select all, select a row's children, or clear the selection.",
           "keys": "Move through the Outline and select from the keyboard; adding to the selection takes `Ctrl` too.",
           "vscode": { "where": "**Outline** is in the Debrief sidebar.", "keys": "`↑` and `↓` move through the Outline; `Enter` selects, `Ctrl+Shift+Enter` adds to the selection (`Cmd+Shift+Enter` on macOS).", "button": "Show the Outline", "command": "debrief.outline.focus" },
-          "play": { "where": "**Outline** is a panel; the button below brings it into view, wherever you have put it.", "keys": "`Tab` moves through the Outline; `Enter` selects, `Ctrl+Enter` adds to the selection.", "button": "Show the Outline", "action": "focus:outline" },
+          "play": { "where": "**Outline** is a panel; the button below brings it into view, wherever you have put it.", "keys": "`Tab` to the Outline; `↑` and `↓` move through it, `Enter` selects, `Ctrl+Enter` adds to the selection and `Shift` with the arrows selects a range. The toolbar above it is one `Tab` stop: `←` and `→` move along it.", "button": "Show the Outline", "action": "focus:outline" },
           "media": "explore-select.svg",
           "alt": "BLUE ONE and RED ONE selected on the map, the other tracks dimmed."
         },
