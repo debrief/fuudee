@@ -112,7 +112,7 @@ export async function playShear(page, shot) {
   assert.equal(await steps(), n);
 
   // Undo takes the shear back.
-  await page.locator("#selected-count").click();
+  await page.evaluate(() => document.activeElement?.blur());
   await page.keyboard.press("Control+z");
   await page.waitForFunction(() => /RED ONE part sheared[^]*undone/.test(document.getElementById("history")?.textContent ?? ""));
 
@@ -195,7 +195,7 @@ export async function playShear(page, shot) {
   await page.mouse.move(2, 2);
   await shot("shear-06-stretched-by-form");
   // Both undone, like any step.
-  await page.locator("#selected-count").click();
+  await page.evaluate(() => document.activeElement?.blur());
   await page.keyboard.press("Control+z");
   await page.keyboard.press("Control+z");
   await page.waitForFunction(() => [...document.querySelectorAll("#history li")].slice(0, 2).every((li) => /undone/.test(li.textContent ?? "")));

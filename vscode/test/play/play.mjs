@@ -22,6 +22,7 @@ import { playWordNarrative } from "./narrativeword.mjs";
 import { playFrequencies } from "./frequencies.mjs";
 import { playSensors } from "./sensors.mjs";
 import { playSelectBearings, playTma } from "./tma.mjs";
+import { playOutlineBar } from "./outlinebar.mjs";
 import { playCollation, vscodeCoverageView } from "./collation.mjs";
 import { playExport } from "./export.mjs";
 import { guidanceAccent, openOnFirstLoad, playDemo, playTourInThePost, playTours, resize, speedRun } from "./onboarding.mjs";
@@ -243,7 +244,7 @@ try {
   await page.waitForTimeout(600);
   assert.equal(await history(), before);
   // Ctrl+Y in the page redoes; then Undo, the button.
-  await page.locator("#selected-count").click();
+  await page.evaluate(() => document.activeElement?.blur());
   await page.keyboard.press("Control+y");
   await page.waitForFunction(() => !document.getElementById("history")?.textContent?.includes("undone"));
   await page.locator("#undo").click();
@@ -291,19 +292,20 @@ try {
   const blueLine = () => mapFrame.locator(`path.leaflet-interactive[stroke="${blue}"]`).count();
   const red = "#e01c3e";
   await page.locator(`#outline li[data-id="track-blue-one"]`).click();
-  await page.selectOption("#colour", { label: "Red" });
+  await page.locator("#obar-colour").click();
+  await page.locator(`.obar-swatch[aria-label="Red"]`).click();
   await page.waitForFunction(() => document.getElementById("history")?.textContent?.includes("Colour of BLUE ONE set to red"));
   assert.equal(await blueLine(), 0, "BLUE ONE is drawn red now");
   await shot("islands-01-colour-in-history");
   const ais = await page.locator(`#outline li[data-id^="track-ais-"]`).first().getAttribute("data-id");
   await page.locator(`#outline li[data-id="${ais}"]`).click();
-  await page.locator("#hide").click();
+  await page.locator("#obar-visibility").click();
   await mapFrame.locator(".hidden-control", { hasText: "1 hidden" }).waitFor();
   assert.match(await text(`#outline li[data-id="${ais}"] .detail`), /hidden on map/);
   assert.match(await history(), /hidden on the map/);
   await shot("islands-02-hidden-on-map");
   // Ctrl+Z twice: the hiding, then the colour, are undone like any change.
-  await page.locator("#selected-count").click();
+  await page.evaluate(() => document.activeElement?.blur());
   await page.keyboard.press("Control+z");
   await mapFrame.locator(".hidden-control").waitFor({ state: "hidden" });
   await page.keyboard.press("Control+z");
@@ -344,6 +346,9 @@ try {
   // Labels, symbols and arrows at intervals for two tracks at once, one step; thinned when zoomed
   // out; mixed values left alone; an interval typed; undo; a fix always showing its label (CAP-32).
   await playFrequencies(page, shot);
+  // The Outline's toolbar (product owner, 28 Oct 2026): its keys and roving focus; hidden, mixed,
+  // shown; colour from the popover, undone and redone; select all, a sensor's children, clear; narrow.
+  await playOutlineBar(page, shot);
   // Sensor bearings: cuts in the window from their track, the current one emphasised; an ambiguous
   // cut's line clicked keeps it, a sensor's menu keeps port for the window from the keyboard, each
   // one step; coloured, hidden; a .dsf read in, its track asked for; narrow and in a wide font (CAP-22).

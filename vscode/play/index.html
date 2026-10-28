@@ -56,15 +56,13 @@
     <section class="panel" id="panel-outline">
       <h2><button type="button" class="fold" aria-expanded="true" aria-controls="body-outline"><span class="arrow" aria-hidden="true"></span>Outline</button></h2>
       <div class="panel-body" id="body-outline">
-        <div id="selected-count" class="detail"></div>
+        <!-- The Outline's toolbar (product owner, 28 Oct 2026): icon buttons on its selection (outlinebar.ts). -->
+        <div id="outline-toolbar" class="obar"></div>
+        <!-- The selection's count, for a screen reader only: the hint line it replaces is gone. -->
+        <div id="selection-said" class="visually-hidden" role="status" aria-live="polite"></div>
         <ul id="outline" class="list" role="tree" aria-multiselectable="true" aria-label="Features in the plot"></ul>
         <!-- What can be done to the selection: docked, kept in sight below the list (dock.css). -->
         <div class="outline-tools">
-          <div class="outline-actions" role="group" aria-label="The selected features">
-            <select id="colour" aria-label="Colour the selected tracks or sensors"><option value="">Colour…</option></select>
-            <button id="hide" title="Hide the selected features on the map">Hide</button>
-            <button id="show" title="Show the selected features, or every hidden feature, on the map">Show</button>
-          </div>
           <div class="action-group" role="group" aria-labelledby="track-actions">
             <span id="track-actions" class="action-label">Track</span>
             <button id="move-track" title="Move the selected track, or its fixes in the time window, a distance along a bearing">Move…</button>

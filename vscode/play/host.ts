@@ -90,6 +90,8 @@ import {
   type SolutionIndex,
   tmaRequestOf,
 } from "../webview/outlinemodel.js";
+import { selectionChildren, selectionColour, selectionSaid, selectionVisibility } from "../webview/outlinetoolbar.js";
+import { OutlineBar } from "./outlinebar.js";
 import { latestSolution, NO_SOLUTION, SOLUTION } from "../walkthroughs/contribute.mjs";
 import { contentFree } from "../webview/timelinelogic.js";
 
@@ -724,29 +726,18 @@ function showToolTime(change: SharedStateChange, ranOn: string, byHand = true): 
 
 // --- Colour and hiding: content, so steps in the plot's history (SUB-22) --------------
 /** Colour tracks, or hide or show features, as one recorded, undoable step; then show the plot. */
-async function restyle(ids: string[], change: { colour: string; colour_name: string } | { hidden: boolean }): Promise<void> {
+async function restyle(ids: string[], change: { colour: string; colour_name?: string } | { hidden: boolean }, said?: string): Promise<void> {
   if (!opened || !pythonReady || !ids.length) return;
   const outcome = await pythonJson<{ error?: string; notes?: string[] }>("restyle", opened.item.id, JSON.stringify({ base: opened.base, features: ids, ...change }));
   if (outcome.error) toast(outcome.error, "warning");
+  // The Outline's toolbar: what was done, counted (product owner, 28 Oct 2026), with what it does to solutions.
+  else if (said) toast([said, ...(outcome.notes ?? []).slice(1)].join(". ") + ".");
   // Cuts hidden or shown: what that does to the solutions rooted in them (product owner, 27 Oct 2026).
   else if (outcome.notes && outcome.notes.length > 1) toast(outcome.notes.join(". ") + ".");
   await openPlot(opened.item.id, true);
 }
 const tracksSelected = () => selection.filter((id) => features().find((f) => f.id === id)?.properties.kind === "track");
-/** Tracks and sensors selected: what the Colour menu colours (a sensor's cuts are drawn in its colour, CAP-22). */
-const colourableSelected = () => selection.filter((id) => ["track", "sensor"].includes(features().find((f) => f.id === id)?.properties.kind ?? ""));
-$<HTMLSelectElement>("colour").append(...TRACK_COLOURS.map((c) => new Option(c.name, c.colour)));
-$<HTMLSelectElement>("colour").onchange = (e) => {
-  const picker = e.target as HTMLSelectElement;
-  const chosen = TRACK_COLOURS.find((c) => c.colour === picker.value);
-  picker.value = "";
-  if (!chosen) return;
-  if (!colourableSelected().length) return toast("Select one or more tracks or sensors to colour.", "warning");
-  void restyle(colourableSelected(), { colour: chosen.colour, colour_name: chosen.name.toLowerCase() });
-};
-$("hide").onclick = () => (selection.length ? void restyle(selection, { hidden: true }) : toast("Select what to hide.", "warning"));
-// With nothing selected, Show shows everything hidden, as the map's "Show all" does.
-$("show").onclick = () => opened && void restyle(selection.length ? selection : hiddenIds(opened.plot), { hidden: false });
+// Colour and hiding are on the Outline's toolbar (product owner, 28 Oct 2026): below, after the tree.
 
 // --- Labels, symbols and arrows: how often, per track, one step for all chosen (CAP-32) ---
 /**
@@ -1630,6 +1621,8 @@ type OutlineRow =
   | { kind: "fix"; s: SolutionIndex; index: number };
 /** The rows selected in the Outline, by key: features, cuts, and the legs and fixes of solutions (which are not features). */
 let outlinePicks: string[] = [];
+/** The Outline's toolbar (product owner, 28 Oct 2026), made once the tree is. */
+let outlineBar: OutlineBar | undefined;
 /** The plot the Outline last showed, and the sensors it has seen: a track carrying a new one opens. */
 let outlineItem: string | undefined;
 const outlineSensors = new Set<string>();
@@ -1778,6 +1771,62 @@ const outlineTree = new OutlineTree<OutlineRow>($("outline"), {
   },
 });
 (window as unknown as { debriefOutline: OutlineTree<OutlineRow> }).debriefOutline = outlineTree;
+
+// --- The Outline's toolbar (product owner, 28 Oct 2026) ----------------------------------------
+/** Hide what is selected, or show it: all shown, hide them all; all hidden or some of each, show them all. One step. */
+async function hideOrShowSelected(): Promise<void> {
+  const context = operationContext();
+  if (!context) return;
+  const v = selectionVisibility(context.index, context.picks, context.readOnly);
+  if (!v.action) return toast(v.title, "warning");
+  await restyle(v.ids, { hidden: v.action === "hide" }, v.done);
+}
+/** The selected that have a colour, coloured: one step, named by the palette's name or the hex typed. */
+async function colourSelected(colour: string, name?: string): Promise<void> {
+  const context = operationContext();
+  if (!context) return;
+  const c = selectionColour(context.index, context.picks, context.readOnly);
+  if (!c.enabled) return toast(c.reason ?? "Nothing selected has a colour.", "warning");
+  await restyle(c.ids, { colour, ...(name && { colour_name: name }) }, `Coloured ${c.what} ${name ?? colour}`);
+}
+/** Select children: the selection replaced by the direct children of what is selected, their branches opened and the first brought into sight. */
+async function selectChildrenOfSelection(): Promise<void> {
+  if (!opened) return;
+  const index = outlineIndex(opened.plot);
+  const children = selectionChildren(index, outlinePicked());
+  if (children.reason) return toast(children.reason, "warning");
+  for (const parent of children.parents) for (const key of [...ancestorsOf(index, parent), parent]) outlineTree.open.add(key);
+  await chooseInOutline(children.keys);
+  outlineTree.select(children.keys, [], children.keys[0]);
+}
+outlineBar = new OutlineBar(
+  $("outline-toolbar"),
+  {
+    state: () => {
+      const index = opened ? outlineIndex(opened.plot) : undefined;
+      const picks = outlinePicked();
+      const readOnly = !!opened?.revision;
+      const none = "Open a plot first.";
+      const children = index ? selectionChildren(index, picks) : { keys: [], title: `Select children: ${none}`, reason: none };
+      const rows = outlineTree.flat.length;
+      return {
+        visibility: index ? selectionVisibility(index, picks, readOnly) : { state: "none", ids: [], hidden: 0, ignored: 0, pressed: "false", title: `Hide or show on the map: ${none}` },
+        colour: index ? selectionColour(index, picks, readOnly) : { ids: [], enabled: false, title: `Colour: ${none}`, reason: none },
+        all: { count: rows, ...(!rows && { reason: "the Outline lists nothing." }) },
+        children: { count: children.keys.length, title: children.title, ...(children.reason && { reason: children.reason }) },
+        selected: picks.length,
+        ...(!pythonReady && { waiting: "(Python is starting.)" }),
+      };
+    },
+    hideOrShow: () => void hideOrShowSelected(),
+    colour: (colour, name) => void colourSelected(colour, name),
+    // Every row listed, as Ctrl+A in the tree.
+    selectAll: () => void chooseInOutline(outlineTree.flat.map((r) => r.key)),
+    selectChildren: () => void selectChildrenOfSelection(),
+    clearSelection: () => void chooseInOutline([]),
+  },
+  TRACK_COLOURS,
+);
 /** The picks the Outline's selection stands for. */
 function outlinePicked(): OutlinePick[] {
   if (!opened) return [];
@@ -1819,7 +1868,11 @@ function renderOutline(reveal = false): void {
     outlineTree.select(outlinePicks, last ? ancestorsOf(index, last) : []);
   } else outlineTree.mark(outlinePicks);
   $("north-arrow").setAttribute("aria-pressed", String(hasNorthArrow()));
-  $("selected-count").textContent = selection.length ? `${count(selection.length, "feature")} selected · Ctrl-click to add, Shift-click for a range` : "Click to select · Ctrl-click to add, Shift-click for a range";
+  // The hint line is gone (product owner, 28 Oct 2026; the walkthroughs teach the gestures): the
+  // selection's count said to a screen reader, only when it changes; the toolbar shows the selection.
+  const said = selectionSaid(opened ? outlineIndex(opened.plot) : undefined, outlinePicked());
+  if ($("selection-said").textContent !== said) $("selection-said").textContent = said;
+  outlineBar?.update();
 }
 
 // --- The outline's menu for a track (the Tote, CAP-06) ----------------------------------
@@ -2783,7 +2836,7 @@ $("catalogue-import").hidden = !panels.has("import");
 const SIDE_ORDER = [...SIDE_FIRST, ...panelOrder.map((p) => `panel-${p}`).filter((id) => !SIDE_FIRST.includes(id) && optional(id)?.matches("#side > section.panel"))];
 for (const id of SIDE_ORDER) $("side").append($(id));
 /** History, Try and Import need Python: off until it is ready. */
-const NEEDS_PYTHON = ["export-image", "find-file", "find-id", "find-id-go", "new-data", "revise", "undo", "redo", "track-frequencies", "move-track", "rotate-track", "shear-track", "stretch-track", "split-track", "merge-tracks", "find-jumps", "smooth-track", "fix-list", "plotting-mode", "ask-again", "glitches", "crash", "colleague", "colleague-window", "colleague-during", "file", "narrative-file", "sensor-file", "keep-port", "keep-starboard", "keep-ambiguous", "colour", "hide", "show", "add-annotation", "edit-annotation", "delete-annotation", "north-arrow"];
+const NEEDS_PYTHON = ["export-image", "find-file", "find-id", "find-id-go", "new-data", "revise", "undo", "redo", "track-frequencies", "move-track", "rotate-track", "shear-track", "stretch-track", "split-track", "merge-tracks", "find-jumps", "smooth-track", "fix-list", "plotting-mode", "ask-again", "glitches", "crash", "colleague", "colleague-window", "colleague-during", "file", "narrative-file", "sensor-file", "keep-port", "keep-starboard", "keep-ambiguous", "add-annotation", "edit-annotation", "delete-annotation", "north-arrow"];
 function needsPython(on: boolean): void {
   for (const id of NEEDS_PYTHON) $<HTMLButtonElement | HTMLInputElement>(id).disabled = !on;
 }
@@ -3578,6 +3631,7 @@ function withoutPython(why: string): void {
     refreshTote();
     await showImportMode();
     needsPython(true);
+    outlineBar?.update();
     status("Ready. Everything runs in your browser; nothing is sent anywhere.");
   } catch (error) {
     const message = (error as Error).message;

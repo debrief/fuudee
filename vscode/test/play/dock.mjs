@@ -268,7 +268,8 @@ export async function playDock(browser, base, shot, ready, errors) {
   const mapWindow = () => page.frames().find((f) => f.url().includes("frame-map.html"));
   await mapWindow().evaluate(() => (window.debriefMarker = "kept"));
   await page.locator('#outline li[data-id="track-blue-one"]').click();
-  await page.selectOption("#colour", { label: "Red" });
+  await page.locator("#obar-colour").click();
+  await page.locator(`.obar-swatch[aria-label="Red"]`).click();
   await page.waitForFunction(() => document.getElementById("history")?.textContent?.includes("Colour of BLUE ONE set to red"));
   const steps = await page.evaluate(() => window.debriefStepsOf("serial-1"));
   // A tool's form open beside the map: its frame too.

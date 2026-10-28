@@ -82,7 +82,7 @@ export async function playTracks(page, shot) {
   assert.ok(Math.abs(after.x - before.x) < 2 && Math.abs(after.y - before.y) < 2, "the handle is where it was");
 
   // Undo takes the move back; redo makes it again.
-  await page.locator("#selected-count").click();
+  await page.evaluate(() => document.activeElement?.blur());
   await page.keyboard.press("Control+z");
   await page.waitForFunction(() => /BLUE ONE moved[^]*undone/.test(document.getElementById("history")?.textContent ?? ""));
   await page.keyboard.press("Control+y");
