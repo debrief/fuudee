@@ -4,3 +4,16 @@ body { background: var(--vscode-sideBar-background, var(--vscode-editor-backgrou
 #root { padding: 2px 8px 4px; }
 .empty { margin: 4px 0; color: var(--vscode-descriptionForeground); }
 .empty[hidden] { display: none; }
+/* A short view (dragged smaller, or a small screen): the time controller closer and its tick labels left
+   out, so current time, the transport, the scrubber, the strip and the window still show without scrolling. */
+@media (max-height: 175px) {
+  .timebar { gap: 1px; }
+  .tc-cue:not(.showing) { margin-top: -1px; }
+  .tc-ticks { display: none; }
+  #root { padding-bottom: 0; }
+  .timebar .tc-time { font-size: clamp(20px, 8cqi, 22px); }
+  .tc-window { height: 12px; }
+  .tc-rail { top: 3px; }
+  .tc-band, .tc-beyond { top: 1px; height: 10px; }
+  .tc-handle, .tc-now-mark { height: 12px; }
+}

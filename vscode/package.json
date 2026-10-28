@@ -71,7 +71,7 @@
           {
             "id": "explore.time",
             "title": "Move current time",
-            "description": "Drag **Current time** in the time controller. Each track's position at that time is marked on the map with a square in its colour. **▶** plays; at 60× a minute of the exercise passes each second. The two handles of **Time window** narrow what is drawn in full.\n\nThe time controller is **Time**, at the top of the Debrief sidebar.\n\n**Keyboard:** Tab to **Current time**; ← and → step it, Page Up and Page Down step further, Home and End go to the window's ends. Space plays and pauses.\n\n[Show the time controller](command:debrief.walkthrough.do?%5B%22explore%22%2C%22debrief.time.focus%22%5D)",
+            "description": "Drag the slider under the large current time in the time controller. Each track's position at that time is marked on the map with a square in its colour. **▶** plays; at 60× a minute of the exercise passes each second. The strip beneath is the whole plot: drag the shaded band, or its edges, to narrow what is drawn in full.\n\nThe time controller is **Time**, at the top of the Debrief sidebar.\n\n**Keyboard:** Tab to **Current time**, the slider; ← and → step it, Page Up and Page Down step further, Home and End go to the window's ends. Space plays and pauses.\n\n[Show the time controller](command:debrief.walkthrough.do?%5B%22explore%22%2C%22debrief.time.focus%22%5D)",
             "media": {
               "svg": "media/walkthroughs/explore-time.svg",
               "altText": "The time controller under the map, with each track's position at current time marked by a square."

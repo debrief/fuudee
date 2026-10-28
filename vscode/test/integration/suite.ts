@@ -122,6 +122,10 @@ export async function run(): Promise<void> {
   await sleep(2500);
   // Debrief's own save is never taken for a colleague's: the plot is not opened again for it.
   assert.equal(api.viewChecks(), checks, "Debrief's own save of the window was checked as a change elsewhere");
+  // The Time view, big time and scrubber (product owner, 28 Oct 2026): its focus command brings it into
+  // view, still showing the plot's time; the picture shows it at the height it first has.
+  assert.equal(await vscode.commands.executeCommand("debrief.time.focus"), undefined);
+  await waitFor("the time controller after its focus command", () => api.timeControllerShowing() || undefined);
   await screenshot("01c-time-window");
   // A colleague's window, written by another process: noticed, shown, and said.
   const theirs = { start: "2023-06-15T10:00:00.000Z", end: "2023-06-15T11:00:00.000Z" };

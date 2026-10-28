@@ -1,9 +1,17 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import {
+  bandKey,
   describeSpeed,
   describeStep,
+  describeWindow,
   extentOf,
+  fractionOf,
   moveEdge,
+  readTypedTime,
+  tickLabel,
+  ticksFor,
+  timeAt,
+  windowToInclude,
   Player,
   realClock,
   shiftWindow,
@@ -15,6 +23,7 @@ import {
 } from "../../webview/timelogic.js";
 import { describeLength } from "../../webview/timecontrol.js";
 import { Session } from "../../src/session.js";
+import { parseTime } from "../../src/timeinput.js";
 import { setViewOf, timeWindowOf, viewOf } from "../../src/hidden.js";
 import type { OpenedPlot } from "../../src/catalogue.js";
 
@@ -232,5 +241,105 @@ describe("the view in memory follows what the service read (SUB-22)", () => {
     expect(setViewOf(plot, null)).toBe(true);
     expect(viewOf(plot)).toBeUndefined();
     expect(setViewOf({ ...plot, features: [] }, { time_window: window })).toBe(false); // nowhere to keep it
+  });
+});
+
+describe("the scrubber and the overview strip map places to times (product owner, 28 Oct 2026)", () => {
+  const window = { start: t("09:00"), end: t("10:00") };
+  it("maps the scrubber's travel to the window, whole seconds, never outside it", () => {
+    expect(timeAt(0, window)).toBe(t("09:00"));
+    expect(timeAt(0.5, window)).toBe(t("09:30"));
+    expect(timeAt(1, window)).toBe(t("10:00"));
+    expect(timeAt(-0.2, window)).toBe(t("09:00"));
+    expect(timeAt(1.3, window)).toBe(t("10:00"));
+    expect(timeAt(0.25 + 0.4 / 3600000, window) % 1000).toBe(0);
+    expect(fractionOf(t("09:15"), window)).toBe(0.25);
+    expect(fractionOf(t("08:00"), window)).toBe(0);
+    expect(fractionOf(t("11:00"), window)).toBe(1);
+    expect(fractionOf(t("09:00"), { start: t("09:00"), end: t("09:00") })).toBe(0);
+  });
+  it("maps the strip to the whole plot: the band where the window is", () => {
+    expect(fractionOf(window.start, period)).toBe(0.25);
+    expect(fractionOf(window.end, period)).toBe(0.5);
+    expect(timeAt(0.75, period)).toBe(t("11:00"));
+  });
+  it("drags the band: the window moves, keeping its length, and stops at the plot's ends", () => {
+    const by = timeAt(0.5, period) - timeAt(0.25, period); // a quarter of the strip
+    expect(shiftWindow(window, period, by)).toEqual({ start: t("10:00"), end: t("11:00") });
+    expect(shiftWindow(window, period, 3 * by)).toEqual({ start: t("11:00"), end: t("12:00") });
+  });
+  it("drags an edge: the window resizes, a second long at least", () => {
+    expect(moveEdge(window, period, "end", timeAt(0.75, period))).toEqual({ start: t("09:00"), end: t("11:00") });
+    expect(moveEdge(window, period, "start", timeAt(0.6, period))).toEqual({ start: t("10:00") - 1000, end: t("10:00") });
+  });
+  it("a time outside the window moves the window to take it in, centred, within the plot", () => {
+    expect(windowToInclude(window, period, t("09:20"))).toBe(window);
+    expect(windowToInclude(window, period, t("11:00"))).toEqual({ start: t("10:30"), end: t("11:30") });
+    expect(windowToInclude(window, period, t("11:50"))).toEqual({ start: t("11:00"), end: t("12:00") });
+    expect(windowToInclude(window, period, t("08:05"))).toEqual({ start: t("08:00"), end: t("09:00") });
+  });
+});
+
+describe("the band from the keyboard: arrows move the window, Shift and arrows resize it", () => {
+  const window = { start: t("09:00"), end: t("10:00") };
+  const step = stepFor(period); // 5 min over four hours
+  it("moves by a step, ten with Page Up and Page Down, to the plot's ends with Home and End", () => {
+    expect(bandKey(window, period, "ArrowRight", false)).toEqual({ start: t("09:05"), end: t("10:05") });
+    expect(bandKey(window, period, "ArrowLeft", false)).toEqual({ start: t("08:55"), end: t("09:55") });
+    expect(bandKey(window, period, "PageUp", false)).toEqual({ start: t("09:50"), end: t("10:50") });
+    expect(bandKey(window, period, "Home", false)).toEqual({ start: t("08:00"), end: t("09:00") });
+    expect(bandKey(window, period, "End", false)).toEqual({ start: t("11:00"), end: t("12:00") });
+    expect(step).toBe(300000);
+  });
+  it("resizes from its end with Shift, never under a second nor past the plot", () => {
+    expect(bandKey(window, period, "ArrowRight", true)).toEqual({ start: t("09:00"), end: t("10:05") });
+    expect(bandKey(window, period, "ArrowLeft", true)).toEqual({ start: t("09:00"), end: t("09:55") });
+    expect(bandKey(window, period, "End", true)).toEqual({ start: t("09:00"), end: t("12:00") });
+    expect(bandKey(window, period, "Home", true)).toEqual({ start: t("09:00"), end: t("09:00") + 1000 });
+    expect(bandKey({ start: t("09:00"), end: t("09:00") + 1000 }, period, "ArrowLeft", true)).toEqual({ start: t("09:00"), end: t("09:00") + 1000 });
+  });
+  it("leaves other keys alone", () => {
+    expect(bandKey(window, period, "Enter", false)).toBeUndefined();
+    expect(bandKey(window, period, " ", false)).toBeUndefined();
+  });
+});
+
+describe("the scrubber's tick labels and the window's summary", () => {
+  it("chooses an interval that leaves each label room, on whole multiples of it", () => {
+    const ticks = ticksFor(period, 250);
+    expect(ticks.map((k) => k.label)).toEqual(["09:00", "10:00", "11:00"]);
+    expect(ticks[0].fraction).toBe(0.25);
+    expect(ticksFor(period, 500).map((k) => k.label)).toEqual(["08:30", "09:00", "09:30", "10:00", "10:30", "11:00", "11:30"]);
+    expect(ticksFor({ start: t("09:00"), end: t("09:02") }, 250).map((k) => k.label)).toEqual(["09:00:30", "09:01:00", "09:01:30"]);
+    expect(ticksFor({ start: Date.parse("2023-06-15T00:00:00Z"), end: Date.parse("2023-06-22T00:00:00Z") }, 250).map((k) => k.label)).toEqual(["16 Jun", "18 Jun", "20 Jun"]);
+  });
+  it("leaves out a label too near either end to be drawn whole, and draws none in no room", () => {
+    expect(ticksFor(period, 250).some((k) => k.label === "08:00" || k.label === "12:00")).toBe(false);
+    expect(ticksFor(period, 0)).toEqual([]);
+    expect(ticksFor({ start: t("09:00"), end: t("09:00") }, 250)).toEqual([]);
+  });
+  it("labels as precisely as the interval needs", () => {
+    expect(tickLabel(t("09:30"), 600000)).toBe("09:30");
+    expect(tickLabel(t("09:30") + 15000, 15000)).toBe("09:30:15");
+    expect(tickLabel(t("09:30"), 86400000)).toBe("15 Jun");
+  });
+  it("says the window short, seconds only where an end has them, the day where it crosses one", () => {
+    expect(describeWindow(period)).toBe("08:00–12:00Z");
+    expect(describeWindow({ start: t("09:40") + 5000, end: t("10:20") })).toBe("09:40:05–10:20:00Z");
+    expect(describeWindow({ start: Date.parse("2023-06-15T22:00:00Z"), end: Date.parse("2023-06-16T02:00:00Z") })).toBe("15 Jun 22:00Z – 16 Jun 02:00Z");
+  });
+});
+
+describe("a time typed into the controller", () => {
+  it("reads the forms the tool forms take, and a time of day without its Z, on the plot's day", () => {
+    expect(readTypedTime("10:31:30Z", period, parseTime)).toBe(t("10:31") + 30000);
+    expect(readTypedTime("10:31:30", period, parseTime)).toBe(t("10:31") + 30000);
+    expect(readTypedTime(" 1031 ", period, parseTime)).toBe(t("10:31"));
+    expect(readTypedTime("15 Jun 2023 10:31:30Z", period, parseTime)).toBe(t("10:31") + 30000);
+    expect(readTypedTime("151031Z JUN 23", period, parseTime)).toBe(t("10:31"));
+  });
+  it("is not a time when it is not one", () => {
+    expect(readTypedTime("soon", period, parseTime)).toBeUndefined();
+    expect(readTypedTime("25:00", period, parseTime)).toBeUndefined();
   });
 });
