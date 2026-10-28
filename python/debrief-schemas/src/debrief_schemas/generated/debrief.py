@@ -3374,6 +3374,7 @@ class AmbiguityResolution(ConfiguredBaseModel):
                        'TmaSolutionRow',
                        'TmaFocus']} })
     other_cut_ids: Optional[list[str]] = Field(default=None, description="""With keep bearing or ambiguous_bearing: cuts kept on their other bearing in the same step, so one step keeps some cuts' first bearings and others' twins, as a box drawn over the Bearings plot with Select bearings on asks (product owner, 28 Oct 2026). A cut named here and in cut_ids was boxed on both sides: it is left as it is, and the step says so. Hidden cuts are left as they are.""", json_schema_extra = { "linkml_meta": {'domain_of': ['AmbiguityResolution']} })
+    clear_cut_ids: Optional[list[str]] = Field(default=None, description="""With keep bearing or ambiguous_bearing: resolved cuts made ambiguous again in the same step, as a box drawn over their kept bearings with Select bearings on asks (product owner, 28 Oct 2026); one not resolved is left. Given (even empty), with other_cut_ids, the step is named for a box: \"Kept 12 Towed array cuts to starboard and made 15 ambiguous again\". Hidden cuts are left as they are.""", json_schema_extra = { "linkml_meta": {'domain_of': ['AmbiguityResolution']} })
 
 
 class SensorObservationsFeature(ConfiguredBaseModel):

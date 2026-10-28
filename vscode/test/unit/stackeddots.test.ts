@@ -6,7 +6,7 @@
  * course and speed; which panes show.
  */
 import { describe, expect, it } from "vitest";
-import type { DebriefFeatureCollection, TmaResidualRow } from "@debrief/schemas";
+import type { DebriefFeatureCollection, TmaCut, TmaResidualRow } from "@debrief/schemas";
 import { DEFAULT_SETTINGS } from "@debrief/kernel";
 import { contrast, parseColour, type Rgb } from "../../webview/contrast.js";
 import { travel, type LonLat } from "../../webview/geodesic.js";
@@ -14,6 +14,7 @@ import { TRACK_COLOURS } from "../../webview/palette.js";
 import {
   about,
   type BearingMarker,
+  bearingMarkersOf,
   boxedSides,
   boxResolution,
   colourDistance,
@@ -396,9 +397,9 @@ describe("where the controls go", () => {
   });
 });
 
-describe("Select bearings: a box in the Bearing pane keeps the sides boxed (product owner, 28 Oct 2026)", () => {
+describe("Select bearings: a box in the Bearing pane toggles the cuts it takes in (product owner, 28 Oct 2026)", () => {
   const T = 1_000_000;
-  // Three unresolved pairs (first bearing to port at 040°, its twin to starboard at 140°), one kept already, one never ambiguous.
+  // Three unresolved pairs (first bearing to port at 040°, its twin to starboard at 140°), one resolved to its twin.
   const pair = (id: string, t: number, resolved?: "bearing" | "ambiguous_bearing"): BearingMarker[] => {
     const base = { id, time: t, side: "port" as const, ...(resolved && { resolved }) };
     const out: BearingMarker[] = [];
@@ -408,37 +409,53 @@ describe("Select bearings: a box in the Bearing pane keeps the sides boxed (prod
   };
   const markers = [...pair("a", T), ...pair("b", T + 60_000), ...pair("c", T + 120_000), ...pair("d", T + 180_000, "ambiguous_bearing")];
 
-  it("keeps each cut the side whose dot was boxed: the right-hand run, to starboard", () => {
+  it("resolves only: each unresolved cut keeps the side whose dot was boxed, the right-hand run to starboard", () => {
     const boxed = boxedSides(markers, [T, T + 120_000], [120, 160], 90);
-    expect(boxed).toMatchObject({ first: [], other: ["a", "b", "c"], both: [], already: 0, sides: { port: 0, starboard: 3, untold: 0 } });
-    expect(boxResolution(boxed)).toEqual({ keep: "bearing", cut_ids: [], other_cut_ids: ["a", "b", "c"] });
+    expect(boxed).toMatchObject({ first: [], other: ["a", "b", "c"], clear: [], both: [], sides: { port: 0, starboard: 3, untold: 0 } });
+    expect(boxResolution(boxed)).toEqual({ keep: "bearing", cut_ids: [], other_cut_ids: ["a", "b", "c"], clear_cut_ids: [] });
     expect(describeBoxed(boxed)).toBe("Kept 3 cuts to starboard, one step (Ctrl+Z undoes it).");
+    const left = boxedSides(markers, [T + 60_000, T + 150_000], [30, 50], 90);
+    expect(left.first).toEqual(["b", "c"]);
+    expect(left.sides).toEqual({ port: 2, starboard: 0, untold: 0 });
   });
-  it("keeps the first bearings boxed on the left, to port; a time outside the box takes nothing", () => {
-    const boxed = boxedSides(markers, [T + 60_000, T + 200_000], [30, 50], 90);
-    expect(boxed.first).toEqual(["b", "c"]);
-    expect(boxed.sides).toEqual({ port: 2, starboard: 0, untold: 0 });
+  it("un-resolves only: a resolved cut whose kept dot is boxed is made ambiguous again", () => {
+    const boxed = boxedSides(markers, [T + 150_000, T + 200_000], [120, 160], 90);
+    expect(boxed).toMatchObject({ first: [], other: [], clear: ["d"], both: [] });
+    expect(boxResolution(boxed)).toEqual({ keep: "bearing", cut_ids: [], other_cut_ids: [], clear_cut_ids: ["d"] });
+    expect(describeBoxed(boxed)).toBe("Made 1 cut ambiguous again, one step (Ctrl+Z undoes it).");
   });
-  it("leaves a cut boxed on both sides as it was, and says so", () => {
+  it("does both in one box: the unresolved kept, the resolved made ambiguous again", () => {
+    const boxed = boxedSides(markers, [T, T + 200_000], [120, 160], 90);
+    expect(boxResolution(boxed)).toEqual({ keep: "bearing", cut_ids: [], other_cut_ids: ["a", "b", "c"], clear_cut_ids: ["d"] });
+    expect(describeBoxed(boxed)).toBe("Kept 3 cuts to starboard and made 1 ambiguous again, one step (Ctrl+Z undoes it).");
+  });
+  it("leaves an unresolved cut boxed on both sides as it was, and says so", () => {
     const boxed = boxedSides(markers, [T, T + 60_000], [0, 180], 90);
     expect(boxed.both).toEqual(["a", "b"]);
     expect(boxResolution(boxed)).toBeUndefined();
     expect(describeBoxed(boxed)).toBe("Nothing to change: 2 cuts boxed on both sides, left as they were.");
-    const some = boxedSides(markers, [T, T + 120_000], [0, 180], 90);
-    const mixed = boxedSides([...markers.slice(0, 4), ...markers.slice(5)], [T, T + 120_000], [0, 180], 90);
-    expect(some.both).toEqual(["a", "b", "c"]);
-    expect(boxResolution(mixed)).toEqual({ keep: "bearing", cut_ids: ["a", "b"], other_cut_ids: ["c", "a", "b"] });
-  });
-  it("counts a cut kept so already as no change: nothing to do, no step", () => {
-    const boxed = boxedSides(markers, [T + 150_000, T + 200_000], [120, 160], 90);
-    expect(boxed.already).toBe(1);
-    expect(boxResolution(boxed)).toBeUndefined();
-    expect(describeBoxed(boxed)).toBe("Nothing to change: 1 cut kept so already.");
+    const mixed = boxedSides([...markers.slice(0, 4), ...markers.slice(5)], [T, T + 200_000], [0, 180], 90);
+    expect(boxResolution(mixed)).toEqual({ keep: "bearing", cut_ids: ["a", "b"], other_cut_ids: ["c", "a", "b"], clear_cut_ids: ["d"] });
+    expect(describeBoxed(mixed)).toBe("Kept 1 cut to starboard and made 1 ambiguous again, one step (Ctrl+Z undoes it). 2 cuts boxed on both sides, left as they were.");
     expect(describeBoxed(boxedSides(markers, [0, 1], [0, 1], 90))).toBe("Nothing to change: no ambiguous or resolved cut's dot in the box.");
   });
-  it("never takes a hidden cut: the view gives only the dots drawn", () => {
-    // A hidden cut has no markers: bearingMarkers leaves it out, so the box cannot reach it.
-    expect(boxedSides([], [T, T + 200_000], [0, 360], 90).first).toEqual([]);
+  it("gives a box only the dots drawn: never a cut never ambiguous, nor a hidden one; a resolved cut's kept dot, with or without a solution", () => {
+    const cut = (id: string, t: number, more: Partial<TmaCut> = {}): TmaCut => ({ id, sensor_id: "s", time: new Date(t).toISOString(), bearing: 40, ...more });
+    const coverage = {
+      rows: [cut("bow", T), cut("pair", T, { ambiguous_bearing: 140, side: "port" }), cut("kept", T, { ambiguous_bearing: 140, resolved: "bearing" }), cut("hidden", T, { ambiguous_bearing: 140, hidden: true })],
+      times: [T, T, T, T],
+    };
+    const drawn = bearingMarkersOf(coverage);
+    expect(drawn.map((m) => [m.id, m.keep, m.value])).toEqual([["pair", "bearing", 40], ["pair", "ambiguous_bearing", 140], ["kept", "bearing", 40]]);
+    // The whole pane boxed: the bow sonar's cut and the hidden one untouched.
+    const all = boxedSides(drawn, [T, T], [-180, 540], 90);
+    expect(all).toMatchObject({ first: [], other: [], clear: ["kept"], both: ["pair"] });
+    // A solution's rooted cuts: a resolved one's measured (kept) dot, an unresolved one's two.
+    const row = (id: string, more: Partial<TmaResidualRow>): TmaResidualRow => ({ ...cut(id, T), ambiguous_bearing: 140, ...more }) as TmaResidualRow;
+    const rooted = { rows: [row("r1", { resolved: "ambiguous_bearing", measured: 140, used: "ambiguous_bearing" }), row("r2", { measured: 140, used: "ambiguous_bearing", nearer_side: true }), row("r3", { measured: 40, hidden: true })], times: [T, T, T] };
+    const withSolution = bearingMarkersOf({ rows: [], times: [] }, rooted);
+    expect(withSolution.map((m) => [m.id, m.keep, m.value])).toEqual([["r1", "ambiguous_bearing", 140], ["r2", "ambiguous_bearing", 140], ["r2", "bearing", 40]]);
+    expect(boxedSides(withSolution, [T, T], [120, 160], 90)).toMatchObject({ clear: ["r1"], other: ["r2"] });
   });
   it("boxes bearings as the pane draws them, unwrapped through north", () => {
     const north: BearingMarker[] = [{ id: "n", time: T, value: 359, keep: "bearing", side: "starboard" }, { id: "n", time: T, value: 181, keep: "ambiguous_bearing", side: "starboard" }];
