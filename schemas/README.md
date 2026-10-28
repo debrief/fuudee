@@ -9,13 +9,14 @@ Every type that crosses a process or language boundary is defined here in LinkML
 | `core.yaml` | Timestamps, schema version, content hash; quantities with units; time ranges; parameter values | SUB-01, SUB-02, SUB-11, SUB-12 |
 | `geojson.yaml` | Point, LineString and Polygon geometries | SUB-05, CON-04 |
 | `prov.yaml` | Provenance records, tools, agents, sources, catalogue items drawn from | SUB-18 to SUB-20, SUB-24, CAP-12 |
-| `features.yaml` | Plot features (tracks, annotations with their shapes and appearance, sensor observations), payload envelopes, named sets, the plot itself; an annotation as a form describes it (`AnnotationSpec`) | SUB-05, CAP-03, CAP-04, CAP-22, CON-02, TL-11 |
+| `features.yaml` | Plot features (tracks and their TMA solution tags, annotations with their shapes and appearance, sensors and their cuts, sensor observations), a TMA solution's first guess (`TmaRequest`), payload envelopes, named sets, the plot itself; an annotation as a form describes it (`AnnotationSpec`) | SUB-05, CAP-03, CAP-04, CAP-21, CAP-22, CON-02, TL-11 |
 | `stac.yaml` | Catalogues, items, assets, links; an item's arrival, revision, coverage and what it drew from | SUB-06, SUB-15 to SUB-17, SUB-23, SUB-35, CAP-08 to CAP-12 |
 | `state.yaml` | Current time, selection and viewport | SUB-26, SUB-27, TL-10 |
 | `tools.yaml` | Tool declarations, parameter declarations, tool results | TL-04 to TL-13, CAP-24 |
 | `formatting.yaml` | The analyst's display formatting settings | SUB-04 |
 | `collation.yaml` | What the catalogue browser shows while collating: a plot's coverage, platforms and their sources, periods, items marked as new data, review flags | CAP-05, CAP-08 to CAP-12 |
 | `figures.yaml` | Exported images: an image's ID and its short form, the plot's export log (`ImageExport`, in its island), what the map is asked to draw and draws, an earlier revision shown read-only, a plot an image came from | SUB-25, EXT-05, OUT-04 |
+| `tma.yaml` | What the Bearings view shows: a sensor's cuts listed, TMA solutions, a solution's residuals and RMS | CAP-21 |
 | `history.yaml` | A plot's history, kept in its plot file (`PlotHistory`, `HistoryStep`), and the earlier history-folder layout (`Delta`, `HistoryHead`) | SUB-19 to SUB-21, NFR-10, NFR-11 |
 | `debrief.yaml` | Root: imports the modules and holds the schema version | SUB-12 |
 
@@ -32,7 +33,7 @@ Every type that crosses a process or language boundary is defined here in LinkML
 
 - **Units travel with values.** A quantity is `{"value": 5.0, "unit": "m"}` and a series is `{"unit": "m/s", "values": [...]}`, using UCUM codes. Each quantity kind has its own unit enum, so a unit of the wrong kind fails validation in both languages. GeoJSON positions are exempt: they are always degrees.
 - **Times** are UTC with exactly three decimal places: `2026-10-11T09:30:00.000Z`.
-- **Feature kinds** form the taxonomy that tools declare against (TL-06): `track`, `annotation`, `sensor_observations`.
+- **Feature kinds** form the taxonomy that tools declare against (TL-06): `track`, `annotation`, `sensor`, `sensor_cut`, `sensor_observations`.
 - **Strict by default.** Undeclared properties are rejected except where STAC expects extension fields.
 - **Schema version.** Plots record `schema_version`; STAC items and catalogues record `debrief:schema_version`. Change the version in `debrief.yaml` and note it in `CHANGELOG.md` whenever the schema changes.
 

@@ -109,7 +109,7 @@ What becomes what:
 
 | Legacy | v4 |
 | --- | --- |
-| Track, all its legs | One track: fixes joined in time order, with courses, speeds, depths and the track's colour. TMA solution legs and dynamic infills are imported as their saved fixes; the solution behind them is not. When legs overlap in time, each leg becomes a track of its own, named `<track> (<leg>)`, since joining them would zig-zag. Fixes that share a time are kept and reported. A colour that cannot be read is replaced by the default, with a note. Each fix's own colour (where it differs from the track's), label and comment become the track's marked fixes (`fix_marks`), found by the fix's time. |
+| Track, all its legs | One track: fixes joined in time order, with courses, speeds, depths and the track's colour. A legacy TMA track (of `AbsoluteTMASegment` and `RelativeTMASegment` legs) is imported as a TMA solution (CAP-21): absolute legs as saved, relative legs converted to positions at import from where the host's sensor array was plus the saved offset, along the geodesic, each fix by dead reckoning; the legs joined, a dynamic infill between them left out (the join takes its place); rooted in its host sensor's cuts within its legs; each said in the notes, with the most any fix moved from where legacy drew it. When legs overlap in time, each leg becomes a track of its own, named `<track> (<leg>)`, since joining them would zig-zag. Fixes that share a time are kept and reported. A colour that cannot be read is replaced by the default, with a note. Each fix's own colour (where it differs from the track's), label and comment become the track's marked fixes (`fix_marks`), found by the fix's time. |
 | Text label | Label annotation (a point). |
 | Circle, ellipse | Circle or ellipse annotation: its exact centre and radius, or semi-axes and orientation, with a polygon of 72 sides as its geometry so other GeoJSON tools see the area (schema 0.0.12). An ellipse saved with its axes the wrong way round is turned a quarter, so the same ellipse is drawn. |
 | Rectangle, polygon | Area annotation. An open polygon is a line. |
@@ -121,7 +121,7 @@ What becomes what:
 
 Not imported, each named in the report and in provenance:
 
-- sensors and their cuts, TMA solution sets and dynamic shape sets carried by a track, with their counts;
+- TMA solution sets (contact ellipses) and dynamic shape sets carried by a track, with their counts;
 - planned (composite) tracks, SATC solutions, external chart files;
 - arcs, wheels and other shapes without a v4 equivalent;
 - chart features: grids, scales, coastlines, chart libraries, time displays;

@@ -1,7 +1,7 @@
 """Debrief sample data: open AIS with a synthesised exercise on top (DEP-08).
 
-The builder is imported only when asked for, so debrief_sample.walkthrough runs
-in the browser (CON-09), where the builder's pyarrow is not installed.
+The builder is imported only when asked for, so debrief_sample.walkthrough stays
+small in the browser (CON-09), where the playground imports it.
 """
 
 from __future__ import annotations

@@ -1,0 +1,1270 @@
+{
+  "description": "TMA bearing residuals (CAP-21, NFR-04): each rooted cut's bearing measured less the bearing, along the geodesic, from where it was taken (origin) to where the solution was at its time (along the geodesic between its fixes, in proportion to time; the later of fixes sharing a time), within (-180, 180]. An ambiguous cut not yet resolved is measured by the nearer of its bearings. RMS: the root mean square of the residuals of cuts not excluded that have one. Also: wrapping angles, a click taken onto a cut's line for a two-click first guess, and the first guess by form's defaults (product owner, 24 Oct 2026). Held by python/debrief-kernel/tests/test_tma.py (debrief_kernel.tma) and vscode/test/unit/tma.test.ts (vscode/webview/tma.ts), to 1e-6 degrees and 1e-3 metres.",
+  "residual_cases": [
+    {
+      "name": "straight leg at 50N",
+      "description": "A solution on one course at one speed, cuts at its fixes' times from a moving ownship, each bearing off the truth by a known amount: the residuals are those amounts.",
+      "solution": {
+        "times": [
+          "2026-10-11T09:00:00.000Z",
+          "2026-10-11T09:01:00.000Z",
+          "2026-10-11T09:02:00.000Z",
+          "2026-10-11T09:03:00.000Z",
+          "2026-10-11T09:04:00.000Z",
+          "2026-10-11T09:05:00.000Z",
+          "2026-10-11T09:06:00.000Z",
+          "2026-10-11T09:07:00.000Z",
+          "2026-10-11T09:08:00.000Z",
+          "2026-10-11T09:09:00.000Z",
+          "2026-10-11T09:10:00.000Z"
+        ],
+        "coordinates": [
+          [
+            -3.9223665209,
+            50.0864910411
+          ],
+          [
+            -3.9232515661,
+            50.0849264422
+          ],
+          [
+            -3.9241365824,
+            50.083361843
+          ],
+          [
+            -3.9250215699,
+            50.0817972433
+          ],
+          [
+            -3.9259065287,
+            50.0802326432
+          ],
+          [
+            -3.9267914586,
+            50.0786680426
+          ],
+          [
+            -3.9276763598,
+            50.0771034417
+          ],
+          [
+            -3.9285612321,
+            50.0755388403
+          ],
+          [
+            -3.9294460756,
+            50.0739742385
+          ],
+          [
+            -3.9303308904,
+            50.0724096362
+          ],
+          [
+            -3.9312156764,
+            50.0708450336
+          ]
+        ]
+      },
+      "cuts": [
+        {
+          "time": "2026-10-11T09:00:00.000Z",
+          "origin": [
+            -4.0,
+            50.0
+          ],
+          "bearing": 30.0
+        },
+        {
+          "time": "2026-10-11T09:01:00.000Z",
+          "origin": [
+            -3.995694770599954,
+            49.999999920132694
+          ],
+          "bearing": 29.254118
+        },
+        {
+          "time": "2026-10-11T09:02:00.000Z",
+          "origin": [
+            -3.9913895412070417,
+            49.999999840265374
+          ],
+          "bearing": 26.929019
+        },
+        {
+          "time": "2026-10-11T09:03:00.000Z",
+          "origin": [
+            -3.9870843118212633,
+            49.99999976039806
+          ],
+          "bearing": 27.018483
+        },
+        {
+          "time": "2026-10-11T09:04:00.000Z",
+          "origin": [
+            -3.982779082442619,
+            49.99999968053074
+          ],
+          "bearing": 23.515883
+        },
+        {
+          "time": "2026-10-11T09:05:00.000Z",
+          "origin": [
+            -3.978473853071108,
+            49.99999960066342
+          ],
+          "bearing": 24.914207
+        },
+        {
+          "time": "2026-10-11T09:06:00.000Z",
+          "origin": [
+            -3.9741686237067313,
+            49.999999520796116
+          ],
+          "bearing": 19.206117
+        },
+        {
+          "time": "2026-10-11T09:07:00.000Z",
+          "origin": [
+            -3.9698633943494883,
+            49.999999440928796
+          ],
+          "bearing": 19.38403
+        },
+        {
+          "time": "2026-10-11T09:08:00.000Z",
+          "origin": [
+            -3.965558164999379,
+            49.999999361061484
+          ],
+          "bearing": 17.690246
+        },
+        {
+          "time": "2026-10-11T09:09:00.000Z",
+          "origin": [
+            -3.961252935656404,
+            49.999999281194164
+          ],
+          "bearing": 15.117132
+        },
+        {
+          "time": "2026-10-11T09:10:00.000Z",
+          "origin": [
+            -3.9569477063205625,
+            49.99999920132686
+          ],
+          "bearing": 16.15737
+        }
+      ],
+      "expected": {
+        "rows": [
+          {
+            "calculated": 30.0,
+            "measured": 30.0,
+            "used": "bearing",
+            "nearer_side": false,
+            "residual": 0.0
+          },
+          {
+            "calculated": 28.75411827,
+            "measured": 29.254118,
+            "used": "bearing",
+            "nearer_side": false,
+            "residual": 0.49999973
+          },
+          {
+            "calculated": 27.429019223,
+            "measured": 26.929019,
+            "used": "bearing",
+            "nearer_side": false,
+            "residual": -0.500000223
+          },
+          {
+            "calculated": 26.018483475,
+            "measured": 27.018483,
+            "used": "bearing",
+            "nearer_side": false,
+            "residual": 0.999999525
+          },
+          {
+            "calculated": 24.515882711,
+            "measured": 23.515883,
+            "used": "bearing",
+            "nearer_side": false,
+            "residual": -0.999999711
+          },
+          {
+            "calculated": 22.914207041,
+            "measured": 24.914207,
+            "used": "bearing",
+            "nearer_side": false,
+            "residual": 1.999999959
+          },
+          {
+            "calculated": 21.206117201,
+            "measured": 19.206117,
+            "used": "bearing",
+            "nearer_side": false,
+            "residual": -2.000000201
+          },
+          {
+            "calculated": 19.384029855,
+            "measured": 19.38403,
+            "used": "bearing",
+            "nearer_side": false,
+            "residual": 1.45e-07
+          },
+          {
+            "calculated": 17.440245776,
+            "measured": 17.690246,
+            "used": "bearing",
+            "nearer_side": false,
+            "residual": 0.250000224
+          },
+          {
+            "calculated": 15.367132017,
+            "measured": 15.117132,
+            "used": "bearing",
+            "nearer_side": false,
+            "residual": -0.250000017
+          },
+          {
+            "calculated": 13.15736978,
+            "measured": 16.15737,
+            "used": "bearing",
+            "nearer_side": false,
+            "residual": 3.00000022
+          }
+        ],
+        "rms": 1.335698677
+      }
+    },
+    {
+      "name": "cuts between fixes",
+      "description": "The solution's fixes two minutes apart, cuts every minute: a cut between fixes is measured against the solution's position along the geodesic between them, in proportion to time, as the map places it.",
+      "solution": {
+        "times": [
+          "2026-10-11T09:00:00.000Z",
+          "2026-10-11T09:02:00.000Z",
+          "2026-10-11T09:04:00.000Z",
+          "2026-10-11T09:06:00.000Z",
+          "2026-10-11T09:08:00.000Z",
+          "2026-10-11T09:10:00.000Z"
+        ],
+        "coordinates": [
+          [
+            -3.9223665209,
+            50.0864910411
+          ],
+          [
+            -3.9241365536,
+            50.0833618362
+          ],
+          [
+            -3.9259064711,
+            50.0802326297
+          ],
+          [
+            -3.9276762733,
+            50.0771034214
+          ],
+          [
+            -3.9294459604,
+            50.0739742115
+          ],
+          [
+            -3.9312155324,
+            50.0708449998
+          ]
+        ]
+      },
+      "cuts": [
+        {
+          "time": "2026-10-11T09:00:00.000Z",
+          "origin": [
+            -4.0,
+            50.0
+          ],
+          "bearing": 30.0
+        },
+        {
+          "time": "2026-10-11T09:01:00.000Z",
+          "origin": [
+            -3.995694770599954,
+            49.999999920132694
+          ],
+          "bearing": 28.754118
+        },
+        {
+          "time": "2026-10-11T09:02:00.000Z",
+          "origin": [
+            -3.9913895412070417,
+            49.999999840265374
+          ],
+          "bearing": 27.429019
+        },
+        {
+          "time": "2026-10-11T09:03:00.000Z",
+          "origin": [
+            -3.9870843118212633,
+            49.99999976039806
+          ],
+          "bearing": 26.018483
+        },
+        {
+          "time": "2026-10-11T09:04:00.000Z",
+          "origin": [
+            -3.982779082442619,
+            49.99999968053074
+          ],
+          "bearing": 24.515883
+        },
+        {
+          "time": "2026-10-11T09:05:00.000Z",
+          "origin": [
+            -3.978473853071108,
+            49.99999960066342
+          ],
+          "bearing": 22.914207
+        },
+        {
+          "time": "2026-10-11T09:06:00.000Z",
+          "origin": [
+            -3.9741686237067313,
+            49.999999520796116
+          ],
+          "bearing": 21.206117
+        },
+        {
+          "time": "2026-10-11T09:07:00.000Z",
+          "origin": [
+            -3.9698633943494883,
+            49.999999440928796
+          ],
+          "bearing": 19.38403
+        },
+        {
+          "time": "2026-10-11T09:08:00.000Z",
+          "origin": [
+            -3.965558164999379,
+            49.999999361061484
+          ],
+          "bearing": 17.440246
+        },
+        {
+          "time": "2026-10-11T09:09:00.000Z",
+          "origin": [
+            -3.961252935656404,
+            49.999999281194164
+          ],
+          "bearing": 15.367132
+        },
+        {
+          "time": "2026-10-11T09:10:00.000Z",
+          "origin": [
+            -3.9569477063205625,
+            49.99999920132686
+          ],
+          "bearing": 13.15737
+        }
+      ],
+      "expected": {
+        "rows": [
+          {
+            "calculated": 30.0,
+            "measured": 30.0,
+            "used": "bearing",
+            "nearer_side": false,
+            "residual": 0.0
+          },
+          {
+            "calculated": 28.75411827,
+            "measured": 28.754118,
+            "used": "bearing",
+            "nearer_side": false,
+            "residual": -2.7e-07
+          },
+          {
+            "calculated": 27.429031152,
+            "measured": 27.429019,
+            "used": "bearing",
+            "nearer_side": false,
+            "residual": -1.2152e-05
+          },
+          {
+            "calculated": 26.018495821,
+            "measured": 26.018483,
+            "used": "bearing",
+            "nearer_side": false,
+            "residual": -1.2821e-05
+          },
+          {
+            "calculated": 24.51590826,
+            "measured": 24.515883,
+            "used": "bearing",
+            "nearer_side": false,
+            "residual": -2.526e-05
+          },
+          {
+            "calculated": 22.91423347,
+            "measured": 22.914207,
+            "used": "bearing",
+            "nearer_side": false,
+            "residual": -2.647e-05
+          },
+          {
+            "calculated": 21.206158184,
+            "measured": 21.206117,
+            "used": "bearing",
+            "nearer_side": false,
+            "residual": -4.1184e-05
+          },
+          {
+            "calculated": 19.384072192,
+            "measured": 19.38403,
+            "used": "bearing",
+            "nearer_side": false,
+            "residual": -4.2192e-05
+          },
+          {
+            "calculated": 17.440304017,
+            "measured": 17.440246,
+            "used": "bearing",
+            "nearer_side": false,
+            "residual": -5.8017e-05
+          },
+          {
+            "calculated": 15.367192022,
+            "measured": 15.367132,
+            "used": "bearing",
+            "nearer_side": false,
+            "residual": -6.0022e-05
+          },
+          {
+            "calculated": 13.157446896,
+            "measured": 13.15737,
+            "used": "bearing",
+            "nearer_side": false,
+            "residual": -7.6896e-05
+          }
+        ],
+        "rms": 4.0462e-05
+      }
+    },
+    {
+      "name": "through north",
+      "description": "Bearings either side of north: a residual is within plus or minus 180 degrees, never 359.",
+      "solution": {
+        "times": [
+          "2026-10-11T09:00:00.000Z",
+          "2026-10-11T09:10:00.000Z"
+        ],
+        "coordinates": [
+          [
+            9.9998433964,
+            60.0448781313
+          ],
+          [
+            10.0001566036,
+            60.0448781313
+          ]
+        ]
+      },
+      "cuts": [
+        {
+          "time": "2026-10-11T09:00:00.000Z",
+          "origin": [
+            10.0,
+            60.0
+          ],
+          "bearing": 0.4
+        },
+        {
+          "time": "2026-10-11T09:05:00.000Z",
+          "origin": [
+            10.0,
+            60.0
+          ],
+          "bearing": 359.6
+        },
+        {
+          "time": "2026-10-11T09:10:00.000Z",
+          "origin": [
+            10.0,
+            60.0
+          ],
+          "bearing": 359.95
+        }
+      ],
+      "expected": {
+        "rows": [
+          {
+            "calculated": 359.9,
+            "measured": 0.4,
+            "used": "bearing",
+            "nearer_side": false,
+            "residual": 0.5
+          },
+          {
+            "calculated": 0.0,
+            "measured": 359.6,
+            "used": "bearing",
+            "nearer_side": false,
+            "residual": -0.4
+          },
+          {
+            "calculated": 0.1,
+            "measured": 359.95,
+            "used": "bearing",
+            "nearer_side": false,
+            "residual": -0.15
+          }
+        ],
+        "rms": 0.379692858
+      }
+    },
+    {
+      "name": "ambiguous cuts",
+      "description": "An ambiguous cut not yet resolved is measured by whichever of its bearings is nearer the solution (nearer_side, used saying which); a resolved one by the bearing kept, however far the solution is from it.",
+      "solution": {
+        "times": [
+          "2026-10-11T09:00:00.000Z",
+          "2026-10-11T09:01:00.000Z",
+          "2026-10-11T09:02:00.000Z",
+          "2026-10-11T09:03:00.000Z"
+        ],
+        "coordinates": [
+          [
+            -3.9192067093,
+            50.0619553673
+          ],
+          [
+            -3.916220188,
+            50.0608453191
+          ],
+          [
+            -3.9132337356,
+            50.0597352706
+          ],
+          [
+            -3.9102473521,
+            50.0586252219
+          ]
+        ]
+      },
+      "cuts": [
+        {
+          "time": "2026-10-11T09:00:00.000Z",
+          "origin": [
+            -4.0,
+            50.0
+          ],
+          "bearing": 41.0,
+          "ambiguous_bearing": 140.0
+        },
+        {
+          "time": "2026-10-11T09:01:00.000Z",
+          "origin": [
+            -4.0,
+            50.0
+          ],
+          "bearing": 138.459907,
+          "ambiguous_bearing": 40.040093
+        },
+        {
+          "time": "2026-10-11T09:02:00.000Z",
+          "origin": [
+            -4.0,
+            50.0
+          ],
+          "bearing": 136.936637,
+          "ambiguous_bearing": 43.063363,
+          "resolved": "bearing"
+        },
+        {
+          "time": "2026-10-11T09:03:00.000Z",
+          "origin": [
+            -4.0,
+            50.0
+          ],
+          "bearing": 45.067964,
+          "ambiguous_bearing": 135.432036,
+          "resolved": "bearing"
+        }
+      ],
+      "expected": {
+        "rows": [
+          {
+            "calculated": 40.0,
+            "measured": 41.0,
+            "used": "bearing",
+            "nearer_side": true,
+            "residual": 1.0,
+            "other_residual": 100.0
+          },
+          {
+            "calculated": 41.540093043,
+            "measured": 40.040093,
+            "used": "ambiguous_bearing",
+            "nearer_side": true,
+            "residual": -1.500000043,
+            "other_residual": 96.919813957
+          },
+          {
+            "calculated": 43.063363227,
+            "measured": 136.936637,
+            "used": "bearing",
+            "nearer_side": false,
+            "residual": 93.873273773
+          },
+          {
+            "calculated": 44.567964143,
+            "measured": 45.067964,
+            "used": "bearing",
+            "nearer_side": false,
+            "residual": 0.499999857
+          }
+        ],
+        "rms": 46.945957038
+      }
+    },
+    {
+      "name": "resolved to its ambiguous bearing",
+      "description": "A cut resolved to its ambiguous bearing is measured by it (used ambiguous_bearing, not nearer_side), even when its first bearing is nearer the solution; an unresolved one gives its other bearing's residual too (other_residual), drawn faint and never counted.",
+      "solution": {
+        "times": [
+          "2026-10-11T09:00:00.000Z",
+          "2026-10-11T09:01:00.000Z",
+          "2026-10-11T09:02:00.000Z"
+        ],
+        "coordinates": [
+          [
+            -3.9192067093,
+            50.0619553673
+          ],
+          [
+            -3.916220188,
+            50.0608453191
+          ],
+          [
+            -3.9132337356,
+            50.0597352706
+          ]
+        ]
+      },
+      "cuts": [
+        {
+          "time": "2026-10-11T09:00:00.000Z",
+          "origin": [
+            -4.0,
+            50.0
+          ],
+          "bearing": 40.7,
+          "ambiguous_bearing": 140.0,
+          "resolved": "ambiguous_bearing"
+        },
+        {
+          "time": "2026-10-11T09:01:00.000Z",
+          "origin": [
+            -4.0,
+            50.0
+          ],
+          "bearing": 138.459907,
+          "ambiguous_bearing": 41.140093,
+          "resolved": "ambiguous_bearing"
+        },
+        {
+          "time": "2026-10-11T09:02:00.000Z",
+          "origin": [
+            -4.0,
+            50.0
+          ],
+          "bearing": 43.263363,
+          "ambiguous_bearing": 136.936637
+        }
+      ],
+      "expected": {
+        "rows": [
+          {
+            "calculated": 40.0,
+            "measured": 140.0,
+            "used": "ambiguous_bearing",
+            "nearer_side": false,
+            "residual": 100.0
+          },
+          {
+            "calculated": 41.540093043,
+            "measured": 41.140093,
+            "used": "ambiguous_bearing",
+            "nearer_side": false,
+            "residual": -0.400000043
+          },
+          {
+            "calculated": 43.063363227,
+            "measured": 43.263363,
+            "used": "bearing",
+            "nearer_side": true,
+            "residual": 0.199999773,
+            "other_residual": 93.873273773
+          }
+        ],
+        "rms": 57.735604266
+      }
+    },
+    {
+      "name": "left out and none",
+      "description": "A cut left out by the analyst has its residual but is not in the RMS; a cut with no origin (outside its host's fixes), or outside the solution's span, has none.",
+      "solution": {
+        "times": [
+          "2026-10-11T09:00:00.000Z",
+          "2026-10-11T09:01:00.000Z",
+          "2026-10-11T09:02:00.000Z"
+        ],
+        "coordinates": [
+          [
+            -4.0,
+            50.1
+          ],
+          [
+            -3.9956858154,
+            50.0999999199
+          ],
+          [
+            -3.9913716308,
+            50.0999998397
+          ]
+        ]
+      },
+      "cuts": [
+        {
+          "time": "2026-10-11T08:59:00.000Z",
+          "origin": [
+            -4.0,
+            50.0
+          ],
+          "bearing": 1.0
+        },
+        {
+          "time": "2026-10-11T09:00:00.000Z",
+          "origin": [
+            -4.0,
+            50.0
+          ],
+          "bearing": 1.0
+        },
+        {
+          "time": "2026-10-11T09:01:00.000Z",
+          "origin": null,
+          "bearing": 10.0
+        },
+        {
+          "time": "2026-10-11T09:01:00.000Z",
+          "origin": [
+            -4.0,
+            50.0
+          ],
+          "bearing": 21.589568,
+          "excluded": true
+        },
+        {
+          "time": "2026-10-11T09:02:00.000Z",
+          "origin": [
+            -4.0,
+            50.0
+          ],
+          "bearing": 0.176688
+        },
+        {
+          "time": "2026-10-11T09:03:00.000Z",
+          "origin": [
+            -4.0,
+            50.0
+          ],
+          "bearing": 5.0
+        }
+      ],
+      "expected": {
+        "rows": [
+          null,
+          {
+            "calculated": 0.0,
+            "measured": 1.0,
+            "used": "bearing",
+            "nearer_side": false,
+            "residual": 1.0
+          },
+          null,
+          {
+            "calculated": 1.589567947,
+            "measured": 21.589568,
+            "used": "bearing",
+            "nearer_side": false,
+            "residual": 20.000000053
+          },
+          {
+            "calculated": 3.176687644,
+            "measured": 0.176688,
+            "used": "bearing",
+            "nearer_side": false,
+            "residual": -2.999999644
+          },
+          null
+        ],
+        "rms": 2.236067739
+      }
+    },
+    {
+      "name": "across the antimeridian",
+      "description": "Ownship west of 180, the solution east of it running west across it.",
+      "solution": {
+        "times": [
+          "2026-10-11T09:00:00.000Z",
+          "2026-10-11T09:01:00.000Z",
+          "2026-10-11T09:02:00.000Z",
+          "2026-10-11T09:03:00.000Z",
+          "2026-10-11T09:04:00.000Z"
+        ],
+        "coordinates": [
+          [
+            -179.95,
+            -9.95
+          ],
+          [
+            -179.9533778336,
+            -9.9499999829
+          ],
+          [
+            -179.9567556671,
+            -9.9499999659
+          ],
+          [
+            -179.9601335007,
+            -9.9499999488
+          ],
+          [
+            -179.9635113343,
+            -9.9499999318
+          ]
+        ]
+      },
+      "cuts": [
+        {
+          "time": "2026-10-11T09:00:00.000Z",
+          "origin": [
+            179.9,
+            -10.0
+          ],
+          "bearing": 71.427713
+        },
+        {
+          "time": "2026-10-11T09:01:00.000Z",
+          "origin": [
+            179.9,
+            -10.0
+          ],
+          "bearing": 71.329598
+        },
+        {
+          "time": "2026-10-11T09:02:00.000Z",
+          "origin": [
+            179.9,
+            -10.0
+          ],
+          "bearing": 71.214749
+        },
+        {
+          "time": "2026-10-11T09:03:00.000Z",
+          "origin": [
+            179.9,
+            -10.0
+          ],
+          "bearing": 71.082132
+        },
+        {
+          "time": "2026-10-11T09:04:00.000Z",
+          "origin": [
+            179.9,
+            -10.0
+          ],
+          "bearing": 70.930635
+        }
+      ],
+      "expected": {
+        "rows": [
+          {
+            "calculated": 71.427713421,
+            "measured": 71.427713,
+            "used": "bearing",
+            "nearer_side": false,
+            "residual": -4.21e-07
+          },
+          {
+            "calculated": 71.029598211,
+            "measured": 71.329598,
+            "used": "bearing",
+            "nearer_side": false,
+            "residual": 0.299999789
+          },
+          {
+            "calculated": 70.614748593,
+            "measured": 71.214749,
+            "used": "bearing",
+            "nearer_side": false,
+            "residual": 0.600000407
+          },
+          {
+            "calculated": 70.182132259,
+            "measured": 71.082132,
+            "used": "bearing",
+            "nearer_side": false,
+            "residual": 0.899999741
+          },
+          {
+            "calculated": 69.730634602,
+            "measured": 70.930635,
+            "used": "bearing",
+            "nearer_side": false,
+            "residual": 1.200000398
+          }
+        ],
+        "rms": 0.734847039
+      }
+    },
+    {
+      "name": "far north",
+      "description": "At 84 degrees north, where a straight line on the map is far from the geodesic.",
+      "solution": {
+        "times": [
+          "2026-10-11T09:00:00.000Z",
+          "2026-10-11T09:01:00.000Z",
+          "2026-10-11T09:02:00.000Z",
+          "2026-10-11T09:03:00.000Z",
+          "2026-10-11T09:04:00.000Z"
+        ],
+        "coordinates": [
+          [
+            21.0,
+            84.08
+          ],
+          [
+            21.0284060913,
+            84.0770678241
+          ],
+          [
+            21.0567981782,
+            84.0741356482
+          ],
+          [
+            21.0851762744,
+            84.0712034724
+          ],
+          [
+            21.1135403939,
+            84.0682712966
+          ]
+        ]
+      },
+      "cuts": [
+        {
+          "time": "2026-10-11T09:00:00.000Z",
+          "origin": [
+            20.0,
+            84.0
+          ],
+          "bearing": 51.892622
+        },
+        {
+          "time": "2026-10-11T09:01:00.000Z",
+          "origin": [
+            20.0,
+            84.0
+          ],
+          "bearing": 53.479237
+        },
+        {
+          "time": "2026-10-11T09:02:00.000Z",
+          "origin": [
+            20.0,
+            84.0
+          ],
+          "bearing": 55.046889
+        },
+        {
+          "time": "2026-10-11T09:03:00.000Z",
+          "origin": [
+            20.0,
+            84.0
+          ],
+          "bearing": 56.59249
+        },
+        {
+          "time": "2026-10-11T09:04:00.000Z",
+          "origin": [
+            20.0,
+            84.0
+          ],
+          "bearing": 58.113195
+        }
+      ],
+      "expected": {
+        "rows": [
+          {
+            "calculated": 51.892622358,
+            "measured": 51.892622,
+            "used": "bearing",
+            "nearer_side": false,
+            "residual": -3.58e-07
+          },
+          {
+            "calculated": 53.679237303,
+            "measured": 53.479237,
+            "used": "bearing",
+            "nearer_side": false,
+            "residual": -0.200000303
+          },
+          {
+            "calculated": 55.44688918,
+            "measured": 55.046889,
+            "used": "bearing",
+            "nearer_side": false,
+            "residual": -0.40000018
+          },
+          {
+            "calculated": 57.192490298,
+            "measured": 56.59249,
+            "used": "bearing",
+            "nearer_side": false,
+            "residual": -0.600000298
+          },
+          {
+            "calculated": 58.913194794,
+            "measured": 58.113195,
+            "used": "bearing",
+            "nearer_side": false,
+            "residual": -0.799999794
+          }
+        ],
+        "rms": 0.489898009
+      }
+    },
+    {
+      "name": "fixes sharing a time",
+      "description": "Where two fixes share the cut's time, the solution is at the later, as the map places it.",
+      "solution": {
+        "times": [
+          "2026-10-11T09:00:00.000Z",
+          "2026-10-11T09:01:00.000Z",
+          "2026-10-11T09:01:00.000Z",
+          "2026-10-11T09:02:00.000Z"
+        ],
+        "coordinates": [
+          [
+            -3.9,
+            50.05
+          ],
+          [
+            -3.95,
+            50.06
+          ],
+          [
+            -3.97,
+            50.07
+          ],
+          [
+            -3.99,
+            50.08
+          ]
+        ]
+      },
+      "cuts": [
+        {
+          "time": "2026-10-11T09:01:00.000Z",
+          "origin": [
+            -4.0,
+            50.0
+          ],
+          "bearing": 10.0
+        }
+      ],
+      "expected": {
+        "rows": [
+          {
+            "calculated": 15.420417753,
+            "measured": 10.0,
+            "used": "bearing",
+            "nearer_side": false,
+            "residual": -5.420417753
+          }
+        ],
+        "rms": 5.420417753
+      }
+    }
+  ],
+  "wrap": [
+    [
+      0,
+      0.0
+    ],
+    [
+      180,
+      180.0
+    ],
+    [
+      -180,
+      180.0
+    ],
+    [
+      181,
+      -179.0
+    ],
+    [
+      -181,
+      179.0
+    ],
+    [
+      359.5,
+      -0.5
+    ],
+    [
+      -359.5,
+      0.5
+    ],
+    [
+      540,
+      180.0
+    ],
+    [
+      720.25,
+      0.25
+    ]
+  ],
+  "onto_line": [
+    {
+      "name": "on the line",
+      "origin": [
+        -4.0,
+        50.0
+      ],
+      "bearing": 45.0,
+      "click": [
+        -3.950654451,
+        50.0317754873
+      ],
+      "expected": {
+        "position": [
+          -3.950654451,
+          50.0317754873
+        ],
+        "used": "bearing",
+        "range_m": 5000.0
+      }
+    },
+    {
+      "name": "beside the line",
+      "origin": [
+        -4.0,
+        50.0
+      ],
+      "bearing": 45.0,
+      "click": [
+        -3.946544688,
+        50.028882389
+      ],
+      "expected": {
+        "position": [
+          -3.9508423491,
+          50.0316546121
+        ],
+        "used": "bearing",
+        "range_m": 4980.97349
+      }
+    },
+    {
+      "name": "the nearer of an ambiguous pair",
+      "origin": [
+        -4.0,
+        50.0
+      ],
+      "bearing": 45.0,
+      "ambiguous_bearing": 135.0,
+      "click": [
+        -3.9146046627,
+        49.9537367392
+      ],
+      "expected": {
+        "position": [
+          -3.9214819368,
+          49.9493090206
+        ],
+        "used": "ambiguous_bearing",
+        "range_m": 7969.557585
+      }
+    },
+    {
+      "name": "the kept bearing only",
+      "origin": [
+        -4.0,
+        50.0
+      ],
+      "bearing": 45.0,
+      "ambiguous_bearing": 135.0,
+      "resolved": "bearing",
+      "click": [
+        -3.9034386858,
+        49.9639978635
+      ],
+      "expected": {
+        "position": [
+          -3.9795733864,
+          50.0131611285
+        ],
+        "used": "bearing",
+        "range_m": 2070.552361
+      }
+    },
+    {
+      "name": "behind the sensor",
+      "origin": [
+        -4.0,
+        50.0
+      ],
+      "bearing": 45.0,
+      "click": [
+        -4.014303795,
+        49.974654267
+      ],
+      "expected": null
+    }
+  ],
+  "first_guess": {
+    "range": {
+      "value": 10000,
+      "unit": "[yd_i]"
+    },
+    "speed": {
+      "value": 8,
+      "unit": "[kn_i]"
+    },
+    "across": [
+      [
+        0.0,
+        90.0
+      ],
+      [
+        45.0,
+        135.0
+      ],
+      [
+        270.0,
+        0.0
+      ],
+      [
+        300.5,
+        30.5
+      ],
+      [
+        359.9,
+        89.89999999999998
+      ]
+    ]
+  }
+}

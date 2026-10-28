@@ -11,7 +11,7 @@ uv run python -m debrief_sample build OUT_DIR --seed 7   # a different exercise,
 from debrief_sample import build
 
 report = build(Path("sample"))
-report.plots  # {"serial-1": {"tracks": 10, "background_tracks": 8, "bearings": 261, ...}, ...}
+report.plots  # {"serial-1": {"tracks": 10, "background_tracks": 8, "bearings": 261, "towed_array_cuts": 132, ...}, ...}
 ```
 
 ## What is in it
@@ -26,9 +26,9 @@ Each plot holds:
 
 - **Background traffic**: 8 to 10 AIS tracks from the committed extract, grey, with the vessel type as platform class. See [data/README.md](data/README.md) for the origin, licence and reduction.
 - **Blue and red**: BLUE ONE (a surface ship) and RED ONE (a submarine, with depths), one fix a minute, synthesised from scripted legs with realistic turns and small seeded errors. The area is on the continental shelf, mostly 10 to 35 m deep, so RED ONE's depths of 15 to 25 m are notional. They are written as REP files and imported through debrief-io, so each is a hashed, read-only source.
-- **Sensor layer**: BLUE ONE's bow sonar bearings on RED ONE every 30 s, with a 1.5° standard error. Contact is possible only within 4.5 nmi, outside the baffles (40° either side of dead astern) and while not sprinting; within those limits each 30 s sample gains a target not held with probability 0.05 and loses one held with probability 0.015. Held as a Parquet payload with its envelope (CON-02). With the default seed the sonar holds RED ONE for 130 of 240 minutes in serial 1, 174 of 300 in serial 2 and 88 of 360 in serial 3.
+- **Sensor layer**: BLUE ONE's bow sonar bearings on RED ONE every 30 s, with a 1.5° standard error. Contact is possible only within 4.5 nmi, outside the baffles (40° either side of dead astern) and while not sprinting; within those limits each 30 s sample gains a target not held with probability 0.05 and loses one held with probability 0.015. With the default seed the sonar holds RED ONE for 130 of 240 minutes in serial 1, 174 of 300 in serial 2 and 88 of 360 in serial 3. BLUE ONE's towed array too, every 60 s with a 2° standard error, further (7 nmi) and into the bow sonar's baffles, but not within 15° of its own axis (endfire) nor while BLUE ONE turns faster than 10° a minute; it gains a target not held with probability 0.08 and loses one held with probability 0.02. It cannot tell port from starboard, so each of its cuts carries the measured bearing and its mirror image about BLUE ONE's course: ambiguous until the analyst keeps one (CAP-22). 132, 166 and 152 cuts in the three serials. Both sensors are features of BLUE ONE, each cut a feature of its own (schema 0.0.23), drawn from BLUE ONE's position at its time.
 - **Narrative**: a plain-text log with Zulu times, 33 to 37 entries per serial, kept as a supporting file and read into narrative entries (CAP-20), each with a kind (Course for an ordered leg, Sonar for what the sonar held and when it was off, CPA for a closest approach, and the script's own: Log, Intention, Weather) and, for BLUE ONE and RED ONE, the track it belongs to. Entries come from the script, the ordered legs, and what the sonar held: first contact, classification as RED ONE after 8 minutes' contact, contacts lost and regained (gaps under 3 minutes and contacts under a minute go unlogged), a target not regained after a sprint, half-hourly bearing reports, and closest approaches. A bearing report's drift comes from a regression over the last 10 minutes and is called steady unless the rate exceeds twice its standard error. Scripted lines that depend on holding RED ONE, such as a simulated attack, are left out when the sonar did not hold it.
-- **Exercise area** as a shape annotation, and two named sets: *Exercise* (blue, red, bearings, area and narrative) and *Background traffic*.
+- **Exercise area** as a shape annotation, and two named sets: *Exercise* (blue, red, the two sensors, area and narrative) and *Background traffic*.
 
 Everything but the AIS is fiction. The platform names are exercise designators, not real ships. The area was chosen because open AIS covers it, not for any naval use.
 
@@ -39,14 +39,14 @@ Each plot's history records, in order:
 1. `debrief-sample` (tool): synthesised the two REP files, with the seed, the serial's window and area, the sonar-off periods, a digest of the serial's script (legs, sonar-off periods and narrative lines) and how each random generator is seeded, and the hash of each file written.
 2. `debrief-io.rep` (import), twice: one record per REP source, with its hash.
 3. `debrief-sample.ais` (import): the AIS extract, with its hash and the AIS vessels not present in the serial.
-4. `debrief-sample.bearings` (tool): the bearings, with the seed and the whole sonar model as parameters (interval, error, detection range, baffles, gain and loss probabilities, sonar-off periods, generator seeding), the two REP sources it used and the payload's hash.
+4. `debrief-sample.bearings` (tool): the bearings, with the seed and the whole sonar model as parameters (interval, error, detection range, baffles, gain and loss probabilities, sonar-off periods, generator seeding), the towed array's model too, and the two REP sources it used.
 5. `debrief-sample.narrative` (import): the narrative file and its hash, with the script digest.
 6. `debrief-sample.area` (tool): the exercise area.
 7. `debrief-sample.named-sets` (tool): the two named sets.
 
 ## Determinism
 
-The same seed gives byte-identical catalogues from the same lockfile (SUB-20). The lockfile matters because pyarrow writes its own version into each Parquet file, so a different pyarrow gives different payload bytes and hashes, though the same bearings. Random draws come from generators seeded from the seed, the serial and the purpose. Provenance times come from a fixed clock starting at `--recorded-at` (default `2026-10-11T00:00:00.000Z`) and ticking one second per reading, so they are nominal, not the time of the build. debrief-io's `build_plot` and `import_rep` take a `clock` for this.
+The same seed gives byte-identical catalogues from the same lockfile (SUB-20). Random draws come from generators seeded from the seed, the serial and the purpose. Provenance times come from a fixed clock starting at `--recorded-at` (default `2026-10-11T00:00:00.000Z`) and ticking one second per reading, so they are nominal, not the time of the build. debrief-io's `build_plot` and `import_rep` take a `clock` for this.
 
 ## Remaking the AIS extract
 

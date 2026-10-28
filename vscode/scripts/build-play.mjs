@@ -46,6 +46,7 @@ cpSync("webview/timecontrol.css", path.join(out, "timecontrol.css"));
 cpSync("webview/tote.css", path.join(out, "tote.css"));
 cpSync("webview/timeline.css", path.join(out, "timeline.css"));
 cpSync("webview/coverage.css", path.join(out, "coverage.css"));
+cpSync("webview/tma.css", path.join(out, "tma.css"));
 cpSync("media/land.geojson", path.join(out, "land.geojson"));
 // The walkthroughs' pictures, the same as VS Code's Get Started page shows (CAP-25).
 cpSync("media/walkthroughs", path.join(out, "walkthroughs"), { recursive: true });

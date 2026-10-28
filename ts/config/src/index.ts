@@ -23,12 +23,13 @@ import { homedir } from "node:os";
 import path from "node:path";
 import { parseDocument, serialiseDocument, type KnownStore, type NarrativeImportAnswers, type UserConfig } from "@debrief/schemas";
 
-/** The newest configuration layout this build understands. Matches Python's CONFIG_VERSION: 1, the stores; 2, also track_import_mode; 3, also narrative_import. */
-export const CONFIG_VERSION = 3;
+/** The newest configuration layout this build understands. Matches Python's CONFIG_VERSION: 1, the stores; 2, also track_import_mode; 3, also narrative_import; 4, also tma_error_cut_off. */
+export const CONFIG_VERSION = 4;
 /** The layout a file needs: 1 while it holds only stores, so an earlier Debrief still reads it; 2 once it remembers how tracks imported are plotted. As debrief_config. */
 export const STORES_VERSION = 1;
 export const IMPORT_MODE_VERSION = 2;
 export const NARRATIVE_IMPORT_VERSION = 3;
+export const TMA_CUT_OFF_VERSION = 4;
 const FILE_NAME = "config.json";
 export const timing = { lockWaitMs: 5000, lockStaleMs: 30000, replaceWaitMs: 2000 };
 
@@ -291,6 +292,7 @@ export function withTrackImportMode(config: UserConfig, mode: TrackImportMode): 
 
 /** The layout a configuration needs: the oldest whose Debrief can read all it holds. As debrief_config. */
 function layout(config: UserConfig): number {
+  if (config.tma_error_cut_off !== undefined && config.tma_error_cut_off !== null) return TMA_CUT_OFF_VERSION;
   if (config.narrative_import?.length) return NARRATIVE_IMPORT_VERSION;
   return config.track_import_mode ? IMPORT_MODE_VERSION : STORES_VERSION;
 }
@@ -336,4 +338,25 @@ export function withoutNarrativeAnswers(config: UserConfig): UserConfig {
   const rest = { ...config };
   delete rest.narrative_import;
   return { ...rest, config_version: layout(rest) };
+}
+
+/**
+ * The Bearings view's error cut-off (CAP-21; product owner, 25 Oct 2026): its Error pane is
+ * green while every residual counted is within it, pink otherwise, as legacy's Stacked Dots
+ * shaded it; legacy's default 3 degrees. The analyst's preference, kept here, never in a plot.
+ */
+export const DEFAULT_TMA_ERROR_CUT_OFF = 3;
+
+/** The error cut-off, degrees: the one remembered, else 3. As debrief_config.tma_error_cut_off. */
+export function tmaErrorCutOff(config: UserConfig): number {
+  return config.tma_error_cut_off ?? DEFAULT_TMA_ERROR_CUT_OFF;
+}
+
+/** A copy of the configuration remembering the error cut-off; undefined, or the default, forgets it. As debrief_config.with_tma_error_cut_off. */
+export function withTmaErrorCutOff(config: UserConfig, degrees: number | undefined): UserConfig {
+  if (degrees !== undefined && !(degrees >= 0.01 && degrees <= 180)) throw new ConfigError(`${degrees} is not an error cut-off: 0.01 to 180 degrees`);
+  const rest = { ...config };
+  delete rest.tma_error_cut_off;
+  const changed: UserConfig = degrees === undefined || degrees === DEFAULT_TMA_ERROR_CUT_OFF ? rest : { ...rest, tma_error_cut_off: degrees };
+  return { ...changed, config_version: layout(changed) };
 }

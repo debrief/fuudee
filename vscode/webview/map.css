@@ -39,6 +39,21 @@ body { background: var(--vscode-editor-background); color: var(--vscode-foregrou
 .swatch-first { width: 8px; height: 8px; border-radius: 50%; border: 2px solid var(--vscode-editor-foreground); margin: 0 5px; }
 .swatch-latest { width: 9px; height: 9px; border-radius: 50%; background: var(--vscode-editor-foreground); margin: 0 5px; }
 .swatch-selected { border-top: 4px dotted var(--vscode-editor-foreground); }
+.swatch-cut { border-top: 1.5px solid var(--vscode-editor-foreground); opacity: 0.85; }
+.swatch-cut-twin { border-top: 1.5px dashed var(--vscode-descriptionForeground, var(--vscode-editor-foreground)); }
+.swatch-cut-now { border-top: 3px solid var(--vscode-editor-foreground); }
+/* A cut's details when pointed at: in the theme's hover colours, never in the way. */
+.cut-tip { position: absolute; z-index: 700; pointer-events: none; white-space: pre; max-width: 22rem; padding: 3px 6px; font-size: 12px; background: var(--vscode-editorHoverWidget-background); color: var(--vscode-editorHoverWidget-foreground); border: 1px solid var(--vscode-editorHoverWidget-border); border-radius: 3px; }
+.leaflet-container.on-cut { cursor: pointer; }
+.cut-popover { position: absolute; z-index: 710; white-space: normal; overflow-wrap: anywhere; max-width: min(24rem, calc(100% - 8px)); padding: 6px 8px; font-size: 12px; background: var(--vscode-editorHoverWidget-background); color: var(--vscode-editorHoverWidget-foreground); border: 1px solid var(--vscode-editorHoverWidget-border); border-radius: 3px; box-shadow: 0 2px 8px var(--vscode-widget-shadow, transparent); }
+.cut-popover[hidden] { display: none; }
+.cut-popover:focus-visible { outline: 1px solid var(--vscode-focusBorder); }
+.cut-popover .choices { display: flex; flex-wrap: wrap; gap: 4px; margin-top: 6px; }
+.cut-popover button { background: var(--vscode-button-secondaryBackground); color: var(--vscode-button-secondaryForeground); border: none; padding: 3px 8px; cursor: pointer; font: inherit; }
+.cut-popover button:first-child { background: var(--vscode-button-background); color: var(--vscode-button-foreground); }
+.cut-popover button:hover { background: var(--vscode-button-secondaryHoverBackground); }
+.cut-popover button:first-child:hover { background: var(--vscode-button-hoverBackground); }
+.cut-popover button:focus-visible { outline: 1px solid var(--vscode-focusBorder); outline-offset: 1px; }
 .legend summary { cursor: pointer; }
 /* Current time: each track's position then, a square in its colour. The controller is beside the map. */
 .now { width: 10px; height: 10px; }
@@ -113,6 +128,7 @@ body { background: var(--vscode-editor-background); color: var(--vscode-foregrou
 .track-extent .track-extent-button:hover { background: var(--vscode-button-secondaryHoverBackground); }
 .track-extent .track-extent-button[aria-pressed="true"] { background: var(--vscode-button-background); color: var(--vscode-button-foreground); font-weight: 600; }
 .track-extent .track-extent-button:focus-visible { outline: 1px solid var(--vscode-focusBorder); outline-offset: -1px; }
+.track-extent .track-extent-button[hidden] { display: none; }
 /* The Tote's lines from the primary to each secondary at current time: thin and muted, never in the way. */
 .leaflet-overlay-pane path.tote-map-line { stroke: var(--vscode-descriptionForeground); pointer-events: none; }
 /* The narrative entry current time is at, beside its track: a small box in the theme's colours, never in the way. */
@@ -128,6 +144,8 @@ body { background: var(--vscode-editor-background); color: var(--vscode-foregrou
 .fix-time-text { position: absolute; white-space: nowrap; font-size: 10.5px; line-height: 12px; font-variant-numeric: tabular-nums; letter-spacing: 0.01em; color: var(--vscode-editor-foreground); text-shadow: 0 0 2px var(--vscode-editor-background), 0 0 2px var(--vscode-editor-background), 0 0 3px var(--vscode-editor-background); }
 /* Symbols and arrows, painted on one canvas (map.ts paintMarks): never in the way. */
 .freq-marks { pointer-events: none; }
+/* Sensor cuts are hit by the map (sensormap.ts hit), so clicks pass through to what is beneath. */
+.sensor-cuts, .sensor-cuts-now { pointer-events: none; }
 .swatch-time { width: auto; height: auto; font-size: 10px; font-variant-numeric: tabular-nums; margin: 0 1px; }
 .swatch-symbol { width: 5px; height: 5px; border-radius: 50%; background: var(--debrief-track); margin: 0 6.5px; }
 /* Thinned to fit the zoom: said quietly, above the key. */
@@ -148,3 +166,12 @@ body { background: var(--vscode-editor-background); color: var(--vscode-foregrou
 .exporting-note[hidden] { display: none; }
 /* A picture of the map laid over it while an image is drawn at another size (exportImage): no jump, no flash. */
 .export-cover { position: fixed; z-index: 1001; pointer-events: none; }
+
+/* A TMA solution's first guess by two clicks (tmamap.ts): the first and last cuts' lines, the
+   clicks taken onto them and the leg between, in the theme's focus colour. */
+.tma-guessing, .tma-guessing .leaflet-container { cursor: crosshair !important; }
+/* While the two clicks are asked for, the map's features take no clicks: each goes to the map, onto its cut's line. */
+.tma-guessing .leaflet-interactive { pointer-events: none !important; }
+.tma-guess-cut { stroke: var(--vscode-focusBorder); stroke-dasharray: 8 5; }
+.tma-guess-point { stroke: var(--vscode-focusBorder); fill: var(--vscode-editor-background); fill-opacity: 1; }
+.tma-guess-leg { stroke: var(--vscode-focusBorder); }

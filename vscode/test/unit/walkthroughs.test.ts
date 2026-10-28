@@ -4,9 +4,9 @@
 import { existsSync, readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
 import tours from "../../walkthroughs/tours.json";
-import { ALL_DONE, commandLink, contextKey, nextLabel, nextTour, OPEN, plainForVSCode, stepParts, vscodeButton, vscodeDescription, walkthroughsContribution, withWalkthroughs } from "../../walkthroughs/contribute.mjs";
-import { BY_HAND, EVENTS, FIRST_RUN_KEY, FIRST_TOUR, openedEvent, openOnFirstRun, serviceEvent, stepsFor, toteCompares, TOURS, tourOfEvent, WalkthroughProgress, whyNotPrepared } from "../../src/walkthroughs.js";
-import { callEvent, counts, parseActions, progressOf } from "../../play/tours.js";
+import { ALL_DONE, commandLink, contextKey, latestSolution, tmaDragEvent, nextLabel, nextTour, NO_SOLUTION, OPEN, plainForVSCode, SOLUTION, stepParts, vscodeButton, vscodeDescription, walkthroughsContribution, withSolution, withWalkthroughs } from "../../walkthroughs/contribute.mjs";
+import { AFTER_OPEN, BY_HAND, EVENTS, FIRST_RUN_KEY, FIRST_TOUR, openedEvent, openOnFirstRun, serviceEvent, stepsFor, toteCompares, TOURS, tourOfEvent, WalkthroughProgress, whyNotPrepared } from "../../src/walkthroughs.js";
+import { callEvent, counts, outlineTarget, parseActions, progressOf } from "../../play/tours.js";
 import { DEMO_META, demoPage } from "../../play/demo.mjs";
 import { CSP, CSP_META, CSP_PAGES } from "../../play/csp.mjs";
 import { contentFree } from "../../webview/timelinelogic.js";
@@ -20,8 +20,8 @@ describe("one source for both hosts", () => {
   it("package.json's walkthroughs are written from tours.json, and nothing else of it changes", () => {
     expect(withWalkthroughs(manifest, walkthroughsContribution(tours))).toBe(manifest);
     const contributed = JSON.parse(manifest).contributes.walkthroughs;
-    expect(contributed.map((w: { id: string }) => w.id)).toEqual(["explore", "collate", "tidy", "annotate"]);
-    expect(contributed.flatMap((w: { steps: unknown[] }) => w.steps)).toHaveLength(20);
+    expect(contributed.map((w: { id: string }) => w.id)).toEqual(["explore", "collate", "tidy", "annotate", "tma"]);
+    expect(contributed.flatMap((w: { steps: unknown[] }) => w.steps)).toHaveLength(27);
   });
 
   it("gives each step the same words in both hosts, and the keyboard in each", () => {
@@ -78,7 +78,7 @@ describe("one source for both hosts", () => {
   it("ticks each VS Code step by its own context key, set by the analyst's doing it", () => {
     const contributed = JSON.parse(manifest).contributes.walkthroughs.flatMap((w: { steps: { completionEvents: string[] }[] }) => w.steps);
     expect(contributed.map((s: { completionEvents: string[] }) => s.completionEvents)).toEqual(steps.map((s) => [`onContext:${contextKey(s.event)}`]));
-    expect(EVENTS.size).toBe(20); // no two steps wait for the same thing
+    expect(EVENTS.size).toBe(27); // no two steps wait for the same thing
   });
 
   it("points each playground button at something on the page", () => {
@@ -86,6 +86,13 @@ describe("one source for both hosts", () => {
       for (const action of parseActions(step.play.action!)) {
         if (action.verb === "focus" || action.verb === "click") expect(index, action.target).toContain(`id="${action.target}"`);
         if (action.verb === "open") expect(TOURS.map((t) => t.id)).toContain(action.target);
+        // The Outline, under the towed array or the walkthrough's solution, choosing what VS Code's step chooses.
+        if (action.verb === "outline") {
+          const { feature, focus } = outlineTarget(action.target);
+          expect(["sensor-blue-one-towed-array", SOLUTION]).toContain(feature);
+          if (focus) expect(step.vscode.args).toEqual([feature, focus]);
+          if (focus) expect(step.vscode.command).toBe("debrief.chooseInOutline");
+        }
       }
     }
     expect(parseActions("select:track-red-one;click:find-jumps")).toEqual([
@@ -93,6 +100,21 @@ describe("one source for both hosts", () => {
       { verb: "click", target: "find-jumps" },
     ]);
     expect(() => parseActions("delete:everything")).toThrow(/Not a walkthrough action/);
+    expect(outlineTarget("s?period=2023-06-15T09:46:00.000Z/2023-06-15T12:00:00.000Z&make")).toEqual({ feature: "s", focus: { period: { start: "2023-06-15T09:46:00.000Z", end: "2023-06-15T12:00:00.000Z" }, make: true } });
+    expect(outlineTarget("s?fix=2023-06-15T10:38:00.000Z")).toEqual({ feature: "s", focus: { fix_time: "2023-06-15T10:38:00.000Z" } });
+    expect(outlineTarget("s?cut=2023-06-15T09:46:00.000Z")).toEqual({ feature: "s", focus: { cut_time: "2023-06-15T09:46:00.000Z" } });
+    expect(outlineTarget("s")).toEqual({ feature: "s" });
+    expect(() => outlineTarget("s?everything")).toThrow(/Not a choice in the Outline/);
+  });
+
+  it("puts in the walkthrough's latest TMA solution where a step names it, and none before it is made", () => {
+    const track = (id: string, tma?: object) => ({ id, properties: { kind: "track", ...(tma && { tma }) } });
+    const features = [track("track-blue-one"), track("track-contact-1-solution", { contact: "Contact 1" }), track("track-contact-2-solution", { contact: "Contact 2" })];
+    expect(latestSolution(features)).toBe("track-contact-2-solution");
+    expect(withSolution([SOLUTION, { largest: true }], features)).toEqual(["track-contact-2-solution", { largest: true }]);
+    expect(withSolution([SOLUTION], [track("track-blue-one")])).toBeUndefined();
+    expect(withSolution(["track-red-one"], [])).toEqual(["track-red-one"]);
+    expect(NO_SOLUTION).toMatch(/^Make the solution first/);
   });
 });
 
@@ -106,6 +128,35 @@ describe("ticking a step off", () => {
     expect(serviceEvent("debrief/export_image", { file: "a.png" })).toBeUndefined(); // an agent's ask, not yet drawn
     expect(serviceEvent("debrief/export_image", { image: "…" })).toBe("imageExported");
     expect(serviceEvent("debrief/find_jumps")).toBeUndefined(); // looking changes nothing
+    // Bearings and TMA: a side kept (not both again), a solution made, moved (its start to RED
+    // ONE's range), sheared (not Tidy a track's shear), a cut left out (not counted again, nor one
+    // already left out), split into legs and a leg dragged.
+    // Contact 1 is a solution of one leg, Contact 2 one split into two.
+    const solution = (id: string) => ({ "track-contact-1-solution": 1, "track-contact-2-solution": 2 })[id];
+    expect(serviceEvent("debrief/resolve_ambiguity", { keep: "bearing", cut_ids: ["c"] })).toBe("sideKept");
+    expect(serviceEvent("debrief/resolve_ambiguity", { keep: "port", sensor_ids: ["s"] })).toBe("sideKept");
+    expect(serviceEvent("debrief/resolve_ambiguity", { keep: "ambiguous", cut_ids: ["c"] })).toBeUndefined();
+    expect(serviceEvent("debrief/tma_create", {})).toBe("solutionMade");
+    expect(serviceEvent("debrief/edit_track", { feature: "track-contact-1-solution", edit: { action: "shear" } }, solution)).toBe("solutionSheared");
+    expect(serviceEvent("debrief/edit_track", { feature: "track-contact-1-solution", edit: { action: "move" } }, solution)).toBe("solutionMoved");
+    expect(serviceEvent("debrief/edit_track", { feature: "track-contact-1-solution", edit: { action: "rotate" } }, solution)).toBeUndefined();
+    expect(serviceEvent("debrief/edit_track", { feature: "track-contact-1-solution", edit: { action: "stretch" } }, solution)).toBeUndefined();
+    expect(serviceEvent("debrief/edit_track", { feature: "track-contact-1-solution", edit: { action: "set_plotting_mode" } }, solution)).toBeUndefined();
+    expect(serviceEvent("debrief/edit_track", { feature: "track-blue-one", edit: { action: "shear" } }, solution)).toBe("sheared");
+    expect(serviceEvent("debrief/tma_exclude_cut", { excluded: true })).toBe("cutLeftOut");
+    expect(serviceEvent("debrief/tma_exclude_cut", { excluded: false })).toBeUndefined();
+    // Already left out: nothing changed, so not the step (as the playground's changed !== false).
+    expect(serviceEvent("debrief/tma_exclude_cut", { excluded: true }, undefined, { changed: false })).toBeUndefined();
+    expect(serviceEvent("debrief/tma_exclude_cut", { excluded: true }, undefined, { changed: true })).toBe("cutLeftOut");
+    // The last step ends on a leg dragged, not on the split (product owner, 25 Oct 2026).
+    expect(serviceEvent("debrief/tma_split_leg", { at: "t" })).toBeUndefined();
+    expect(serviceEvent("debrief/edit_track", { feature: "track-contact-2-solution", edit: { action: "shear", period: { start: "a", end: "b" } } }, solution)).toBe("legDragged");
+    expect(serviceEvent("debrief/edit_track", { feature: "track-contact-2-solution", edit: { action: "shear" } }, solution)).toBe("solutionSheared");
+    expect(serviceEvent("debrief/edit_track", { feature: "track-contact-2-solution", edit: { action: "move", period: { start: "a", end: "b" } } }, solution)).toBe("legDragged");
+    expect(serviceEvent("debrief/edit_track", { feature: "track-contact-1-solution", edit: { action: "shear", period: { start: "a", end: "b" } } }, solution)).toBe("solutionSheared");
+    expect(tmaDragEvent(undefined, "shear", true)).toBe(false);
+    expect(tmaDragEvent(2, "set_plotting_mode", true)).toBeUndefined();
+    expect(AFTER_OPEN.tma).toEqual(["debrief.chooseInOutline", "sensor-blue-one-towed-array"]);
     expect(toteCompares({ primary: "a", secondaries: [] })).toBe(false);
     expect(toteCompares({ primary: "a", secondaries: ["b"] })).toBe(true);
     expect([...BY_HAND]).toContain("debrief.time");
@@ -116,7 +167,9 @@ describe("ticking a step off", () => {
   it("in either host, every step has something that sends its event", () => {
     const service = ["debrief/import", "debrief/take_new_data", "debrief/set_source_preference", "debrief/remove_jumps", "debrief/smooth_track", "debrief/mark_fix", "debrief/add_annotation", "debrief/set_track_frequencies", "debrief/open_revision"]
       .map((m) => serviceEvent(m))
-      .concat(serviceEvent("debrief/edit_track", { edit: { action: "shear" } }), serviceEvent("debrief/export_image", { image: "x" }));
+      .concat(serviceEvent("debrief/edit_track", { edit: { action: "shear" } }), serviceEvent("debrief/export_image", { image: "x" }))
+      .concat(serviceEvent("debrief/tma_create"))
+      .concat(serviceEvent("debrief/resolve_ambiguity", { keep: "port" }), serviceEvent("debrief/tma_exclude_cut", { excluded: true }), serviceEvent("debrief/edit_track", { feature: "s", edit: { action: "shear" } }, () => 1), serviceEvent("debrief/edit_track", { feature: "s", edit: { action: "move" } }, () => 1), serviceEvent("debrief/edit_track", { feature: "s", edit: { action: "move", period: { start: "a", end: "b" } } }, () => 2));
     const elsewhere = ["timeMoved", "selected", "toteChosen", "timelineChosen", "coverageShown", ...TOURS.map((t) => openedEvent(t.id))];
     expect(new Set([...service, ...elsewhere])).toEqual(EVENTS);
   });
@@ -136,6 +189,22 @@ describe("ticking a step off", () => {
     expect(callEvent("import_tour_log", [], JSON.stringify({ item: "blue-one-nav-log" }))).toBe("imported");
     expect(callEvent("export_image", [], JSON.stringify({ data: "…" }))).toBe("imageExported");
     expect(callEvent("open_revision", [], "not JSON")).toBeUndefined();
+    // Bearings and TMA's steps.
+    const solution = (id: string) => ({ "track-contact-1-solution": 1, "track-contact-2-solution": 2 })[id];
+    expect(callEvent("sensor", request({ kind: "resolve", resolution: { keep: "ambiguous_bearing", cut_ids: ["c"] } }), ok)).toBe("sideKept");
+    expect(callEvent("sensor", request({ kind: "resolve", resolution: { keep: "ambiguous", cut_ids: ["c"] } }), ok)).toBeUndefined();
+    expect(callEvent("sensor", request({ kind: "import", name: "x.dsf" }), ok)).toBeUndefined();
+    expect(callEvent("tma_change", request({ kind: "create", request: {} }), JSON.stringify({ ok: true, feature: "track-contact-1-solution" }))).toBe("solutionMade");
+    expect(callEvent("track", request({ kind: "edit", feature: "track-contact-1-solution", edit: { action: "rotate" } }), ok, solution)).toBeUndefined();
+    expect(callEvent("track", request({ kind: "edit", feature: "track-contact-1-solution", edit: { action: "move" } }), ok, solution)).toBe("solutionMoved");
+    expect(callEvent("track", request({ kind: "edit", feature: "track-contact-1-solution", edit: { action: "shear" } }), ok, solution)).toBe("solutionSheared");
+    expect(callEvent("track", request({ kind: "edit", feature: "track-contact-2-solution", edit: { action: "move", period: { start: "a", end: "b" } } }), ok, solution)).toBe("legDragged");
+    expect(callEvent("track", request({ kind: "edit", feature: "track-blue-one", edit: { action: "shear" } }), ok, solution)).toBe("sheared");
+    expect(callEvent("tma_change", request({ kind: "exclude", excluded: true }), JSON.stringify({ ok: true, notes: [] }))).toBe("cutLeftOut");
+    expect(callEvent("tma_change", request({ kind: "exclude", excluded: true }), JSON.stringify({ ok: true, changed: false }))).toBeUndefined();
+    expect(callEvent("tma_change", request({ kind: "exclude", excluded: false }), ok)).toBeUndefined();
+    expect(callEvent("tma_change", request({ kind: "split", at: "t" }), ok)).toBeUndefined();
+    expect(callEvent("track", request({ kind: "edit", feature: "track-contact-2-solution", edit: { action: "shear", period: { start: "a", end: "b" } } }), ok, solution)).toBe("legDragged");
   });
 
   it("in the playground, only in the walkthrough shown, only on its copy (panel review, 17 Oct 2026)", () => {

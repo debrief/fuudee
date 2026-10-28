@@ -39,7 +39,7 @@ classes:
   UserConfig:
     attributes:
       config_version:
-        description: "Version of this file's layout: 1 while it holds only stores; 2 once it holds track_import_mode; 3 once it holds narrative_import. An earlier Debrief cannot read a later layout."
+        description: "Version of this file's layout: 1 while it holds only stores; 2 once it holds track_import_mode; 3 once it holds narrative_import; 4 once it holds tma_error_cut_off. An earlier Debrief cannot read a later layout."
         range: integer
         required: true
         minimum_value: 1
@@ -66,6 +66,16 @@ classes:
         range: NarrativeImportAnswers
         multivalued: true
         inlined_as_list: true
+      tma_error_cut_off:
+        description: >-
+          The Bearings view's error cut-off, degrees (CAP-21; product owner,
+          25 Oct 2026): its Error pane is green while every residual counted
+          is within it and pink otherwise, as legacy Debrief's Stacked Dots
+          shaded it. Left out, 3 degrees, legacy's default. The analyst's
+          preference, kept here and never in a catalogue or a plot file.
+        range: float
+        minimum_value: 0.01
+        maximum_value: 180
 
   NarrativeImportAnswers:
     description: >-

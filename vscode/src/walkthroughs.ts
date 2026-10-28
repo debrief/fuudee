@@ -14,7 +14,7 @@
  */
 import { execFile } from "node:child_process";
 import tours from "../walkthroughs/tours.json";
-import { contextKey } from "../walkthroughs/contribute.mjs";
+import { contextKey, tmaDragEvent } from "../walkthroughs/contribute.mjs";
 
 export interface Tour {
   id: string;
@@ -27,6 +27,11 @@ export const TOURS: Tour[] = tours.tours;
 export const EVENTS: ReadonlySet<string> = new Set(TOURS.flatMap((t) => t.steps.map((s) => s.event)));
 /** The event the first step of each walkthrough waits for: its copy opened. */
 export const openedEvent = (tour: string) => `${tour}Opened`;
+/**
+ * What a walkthrough's first step shows once its copy is open, beyond the plot: Bearings and
+ * TMA's copy opens with the towed array selected in the Outline and Bearings showing it, as the step says.
+ */
+export const AFTER_OPEN: Record<string, [string, ...unknown[]]> = { tma: ["debrief.chooseInOutline", "sensor-blue-one-towed-array"] };
 export { contextKey };
 
 /**
@@ -34,8 +39,16 @@ export { contextKey };
  * change itself, made by any means (a form, the map, the keyboard, a macro), so a step is
  * ticked by what the analyst did, not by which button they pressed.
  */
-export function serviceEvent(method: string, params: Record<string, unknown> = {}): string | undefined {
+export function serviceEvent(method: string, params: Record<string, unknown> = {}, legsOf: (id: string) => number | undefined = () => undefined, result?: unknown): string | undefined {
   switch (method) {
+    case "debrief/resolve_ambiguity":
+      // A side kept: not both bearings made ambiguous again.
+      return params.keep && params.keep !== "ambiguous" ? "sideKept" : undefined;
+    case "debrief/tma_create":
+      return "solutionMade";
+    case "debrief/tma_exclude_cut":
+      // Left out, not counted again; nothing changed (already left out) is not it, as in the playground.
+      return params.excluded === false || (result as { changed?: boolean } | undefined)?.changed === false ? undefined : "cutLeftOut";
     case "debrief/import":
       return "imported";
     case "debrief/take_new_data":
@@ -50,6 +63,9 @@ export function serviceEvent(method: string, params: Record<string, unknown> = {
       return "fixMarked";
     case "debrief/edit_track": {
       const action = (params.edit as { action?: string } | undefined)?.action;
+      // A TMA solution dragged, by any of a track's drags: Bearings and TMA's steps, not Tidy a track's shear.
+      const tma = tmaDragEvent(legsOf(String(params.feature)), action, !!params.edit && !!(params.edit as { period?: unknown }).period);
+      if (tma !== false) return tma;
       // A shear, not a stretch: the step asks for a shear (panel review, 17 Oct 2026).
       return action === "shear" ? "sheared" : undefined;
     }

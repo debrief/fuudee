@@ -178,6 +178,62 @@
       "image?",
       "message?"
     ],
-    "latest_asked": []
+    "latest_asked": [],
+    "resolve_asked": [
+      "feature_id",
+      "keep"
+    ],
+    "cut_chosen": [
+      "feature_id"
+    ],
+    "show_tma": [
+      "tma?"
+    ],
+    "tma_chosen": [
+      "feature_id"
+    ],
+    "tma_create": [
+      "tma_request"
+    ],
+    "tma_guess": [
+      "tma_request?"
+    ],
+    "tma_guessed": [
+      "tma_request?"
+    ],
+    "tma_preview": [
+      "feature_id",
+      "preview?"
+    ],
+    "tma_exclude": [
+      "feature_id",
+      "cut_ids",
+      "excluded"
+    ],
+    "tma_split": [
+      "feature_id",
+      "current_time"
+    ],
+    "tma_time_asked": [
+      "current_time"
+    ],
+    "tma_select": [
+      "feature_id",
+      "current_time"
+    ],
+    "tma_resolve": [
+      "resolution"
+    ],
+    "tma_cut_off": [
+      "error_cut_off"
+    ],
+    "tma_plot_drawn": [
+      "plot_height",
+      "pane_widths"
+    ],
+    "tma_made": [
+      "feature_id?",
+      "message?"
+    ]
   }
 }

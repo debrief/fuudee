@@ -10,10 +10,12 @@ import { randomBytes } from "node:crypto";
 import { request as httpRequest } from "node:http";
 import { tmpdir } from "node:os";
 import { createInterface } from "node:readline";
-import type { AnnotationSpec, CoverageReport, DebriefFeatureCollection, FigureSource, ImageExport, ItemRevision, NarrativeSpec, MeasureDefinition, MeasureGroup, PlotView, ReviewFlag, SharedState, SourceTrackRef, TimeRange, TimeState, ToolDeclaration, ToolResult, ToteResult, ToteView, TrackEdit, Viewport } from "@debrief/schemas";
+import type { AmbiguityResolution, AnnotationSpec, CoverageReport, DebriefFeatureCollection, FigureSource, ImageExport, ItemRevision, NarrativeSpec, MeasureDefinition, MeasureGroup, PlotView, ReviewFlag, SharedState, SourceTrackRef, TimeRange, TimeState, TmaRequest, TmaResiduals, ToolDeclaration, ToolResult, ToteResult, ToteView, TrackEdit, Viewport } from "@debrief/schemas";
+import type { ListedCut } from "../webview/tma.js";
 import { guardRequest, type ShownReadOnly } from "./figures.js";
 import type { ToolOutcome } from "./diagnostics.js";
 import type { NarrativeChoices, NarrativePreview } from "./narrativeimport.js";
+import type { SensorPreview } from "./sensorimport.js";
 
 export interface Unavailable {
   library: string;
@@ -280,7 +282,7 @@ export class ToolService {
    */
   shownReadOnly?: () => ShownReadOnly | undefined;
   /** Told of each request that succeeded, with its method and parameters: what the walkthroughs tick off (CAP-25). */
-  done?: (method: string, params: Record<string, unknown>) => void;
+  done?: (method: string, params: Record<string, unknown>, result?: unknown) => void;
 
   /** One JSON-RPC request. No time limit here: the service stops tools that overrun. */
   private request<T>(method: string, given: Record<string, unknown> = {}): Promise<T> {
@@ -316,7 +318,7 @@ export class ToolService {
               if (parsed.error) reject(new ServiceError(parsed.error.message, parsed.error.code));
               else {
                 resolve(parsed.result as T);
-                this.done?.(method, params);
+                this.done?.(method, params, parsed.result);
               }
             } catch (error) {
               reject(new ServiceError(`Debrief's tool service sent a reply Debrief could not read: ${(error as Error).message}`));
@@ -536,6 +538,75 @@ export class ToolService {
           ? ["debrief/split_track", { feature: change.feature, at: change.at, ...(change.names && { names: change.names }) }]
           : ["debrief/merge_tracks", { features: change.features, ...(change.name && { name: change.name }) }];
     return this.request(method, { store, item, base, agent, ...params, ...(allowNewerSchema && { allow_newer_schema: true }) });
+  }
+
+  /**
+   * Keep one side of ambiguous cuts, or make them ambiguous again (CAP-22): the cuts
+   * named, or a sensor's cuts in a period (the time window). One recorded, undoable step,
+   * named like "Port kept: 42 Towed array cuts 09:00:00Z–09:59:30Z".
+   * Fails with CONFLICT if the plot changed since base.
+   */
+  resolveAmbiguity(store: string, item: string, base: Base, agent: Agent, resolution: AmbiguityResolution, allowNewerSchema = false): Promise<Opened & { changed: boolean; notes?: string[] }> {
+    return this.request("debrief/resolve_ambiguity", { store, item, base, agent, ...resolution, ...(allowNewerSchema && { allow_newer_schema: true }) });
+  }
+
+  /**
+   * How far astern of the ship a towed array is (offset, or null for at the ship) and how
+   * it follows (worm in the hole, legacy's default, or plain), for sensors (CAP-22): their
+   * cuts are then drawn, and their sides told, from the array. One recorded, undoable step,
+   * named like "Towed array: 300 yd astern, worm in the hole"; changed false if so already.
+   */
+  setArrayOffset(store: string, item: string, base: Base, agent: Agent, asked: { sensor_ids: string[]; offset: { value: number; unit: string } | null; mode?: "worm_in_hole" | "plain" }, allowNewerSchema = false): Promise<Opened & { changed: boolean; notes?: string[] }> {
+    return this.request("debrief/set_array_offset", { store, item, base, agent, ...asked, ...(allowNewerSchema && { allow_newer_schema: true }) });
+  }
+
+  /** A sensor's cuts within a period (all of them, without), each with its bearings, side and where it was taken from (debrief/sensors): the bearing view's list. Changes nothing. */
+  sensorCuts(store: string, item: string, sensorId: string, period?: { start: string; end: string }): Promise<{ sensors: { id: string; cut_list?: ListedCut[] }[] }> {
+    return this.request("debrief/sensors", { store, item, sensor_ids: [sensorId], cuts: true, ...(period && { period }) });
+  }
+
+  /** A TMA solution of a contact, rooted in a period of cuts, from a first guess (CAP-21): one recorded, undoable step. Returns its id and residuals. */
+  tmaCreate(store: string, item: string, base: Base, agent: Agent, request: TmaRequest, allowNewerSchema = false): Promise<Opened & { changed: boolean; feature: string; notes?: string[]; residuals: TmaResiduals }> {
+    return this.request("debrief/tma_create", { store, item, base, agent, request, ...(allowNewerSchema && { allow_newer_schema: true }) });
+  }
+
+  /** A TMA solution's bearing residuals and RMS error (CAP-21). Changes nothing. */
+  tmaResiduals(store: string, item: string, feature: string): Promise<{ residuals: TmaResiduals }> {
+    return this.request("debrief/tma_residuals", { store, item, feature });
+  }
+
+  /** Rooted cuts left out of a solution's RMS error, or counted again: one step; changed false if none would change. */
+  tmaExclude(store: string, item: string, base: Base, agent: Agent, feature: string, cutIds: string[], excluded: boolean, allowNewerSchema = false): Promise<Opened & { changed: boolean; notes?: string[] }> {
+    return this.request("debrief/tma_exclude_cut", { store, item, base, agent, feature, cut_ids: cutIds, excluded, ...(allowNewerSchema && { allow_newer_schema: true }) });
+  }
+
+  /**
+   * A solution split into legs at a time, or (join) a leg joined to the one before, or (side)
+   * before or after its fix at that time (product owner, 27 Oct 2026, the Outline's Split
+   * before and Split after): one step.
+   */
+  tmaSplitLeg(store: string, item: string, base: Base, agent: Agent, feature: string, at: string, join = false, allowNewerSchema = false, side?: "before" | "after"): Promise<Opened & { changed: boolean; notes?: string[] }> {
+    return this.request("debrief/tma_split_leg", { store, item, base, agent, feature, at, ...(join && { join }), ...(side && { side }), ...(allowNewerSchema && { allow_newer_schema: true }) });
+  }
+
+  /** Cuts deleted from the plot (product owner, 27 Oct 2026): one step; the solutions rooted in them drop them, which the notes say. */
+  deleteCuts(store: string, item: string, base: Base, agent: Agent, cutIds: string[], allowNewerSchema = false): Promise<Opened & { changed: boolean; notes?: string[] }> {
+    return this.request("debrief/delete_cuts", { store, item, base, agent, cut_ids: cutIds, ...(allowNewerSchema && { allow_newer_schema: true }) });
+  }
+
+  /** Cuts hidden on the map or shown again (product owner, 27 Oct 2026): one step; the notes say which solutions' residuals they leave or join again. */
+  hideCuts(store: string, item: string, base: Base, agent: Agent, cutIds: string[], hidden: boolean, allowNewerSchema = false): Promise<Opened & { changed: boolean; notes?: string[] }> {
+    return this.request("debrief/set_hidden", { store, item, base, agent, features: cutIds, hidden, ...(allowNewerSchema && { allow_newer_schema: true }) });
+  }
+
+  /** What a .dsf or REP file's sensor lines hold, before they are read into the plot: which track would carry each sensor (CAP-22). Changes nothing. */
+  previewSensor(path: string, plot: { store: string; item: string }): Promise<SensorPreview> {
+    return this.request("debrief/preview_sensor", { path, ...plot });
+  }
+
+  /** Read a .dsf or REP file's sensor lines into the plot as one step; hosts names the track for a track name the plot has not. */
+  importSensor(store: string, item: string, base: Base, agent: Agent, path: string, hosts: Record<string, string | null>, again = false, allowNewerSchema = false): Promise<Opened & { changed: boolean; sensors: string[]; cuts: number; omitted: string[]; notes: string[] }> {
+    return this.request("debrief/import_sensor", { store, item, base, agent, path, hosts, ...(again && { again }), ...(allowNewerSchema && { allow_newer_schema: true }) });
   }
 
   /** A track's jumps, to show the analyst before any is removed: changes nothing (CAP-01). threshold left out: three times its median speed, at least 10 kn. */

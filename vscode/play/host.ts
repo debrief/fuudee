@@ -10,7 +10,7 @@
  *
  * Query parameters choose what an embedded demo shows:
  *   plot=serial-1         the sample serial to open
- *   panels=tour,tote,timeline,tools,history,export,try,import   the panels, in this order (all by default;
+ *   panels=tour,tote,timeline,bearings,tools,history,export,try,import   the panels, in this order (all by default;
  *                         Time, the Outline and the top bar's Plot are always there). 900 px wide and
  *                         more, they are docked around the map in a layout made from the panels
  *                         listed, the same every time (dock.ts); narrower, in the side column, the
@@ -27,7 +27,7 @@
  * layout every time, with every panel open, and remembers neither, so a post's demo always shows
  * what the post describes.
  */
-import type { AnnotationSpec, CoverageReport, DebriefFeatureCollection, ItemRevision, NarrativeSpec, ParameterValue, PlotView, ReviewFlag, SharedStateChange, SourceTrackRef, StacItem, TimeRange, TimeState, ToolDeclaration, ToolResult, ToteResult, ToteView } from "@debrief/schemas";
+import type { AnnotationSpec, CoverageReport, DebriefFeatureCollection, ItemRevision, NarrativeSpec, ParameterValue, PlotView, ReviewFlag, SharedStateChange, SourceTrackRef, StacItem, TimeRange, TimeState, TmaCut, TmaFocus, TmaRequest, TmaResiduals, ToolDeclaration, ToolResult, ToteResult, ToteView } from "@debrief/schemas";
 import { CoverageControl } from "../webview/coveragecontrol.js";
 import { specOfFeature } from "../webview/annotationlook.js";
 import { NarrativeOnMap, narrativeOnMapOf, timelineEntries, timelineTracks } from "../src/timeline.js";
@@ -40,8 +40,12 @@ import { contextTracksOf, displayed, hiddenIds, isFeature, isHidden, setViewOf, 
 import { contextShown, type ContextTracks } from "../webview/contrast.js";
 import { placeToolTime } from "../webview/timelogic.js";
 import { TRACK_COLOURS } from "../webview/palette.js";
+import { cutChoices, cutNow, describeCut, featureName, KEEP_CHOICES, placeOfCut, resolutionFor, scopeChoices, sensorDetail, sensorsOf, type CutFeature, type Keep, type ResolveContext, type SensorEntry } from "../webview/sensors.js";
+import { describeSensorInFile, hostChoices, hostQuestion, hostsToAsk, sensorReadSummary, type SensorPreview } from "../src/sensorimport.js";
 import { TimeControl } from "../webview/timecontrol.js";
 import { ToteControl } from "../webview/totecontrol.js";
+import { TmaControl } from "../webview/tmacontrol.js";
+import { coverageOf, cutColours, cutRowsOf, FocusOnce, legExtent, ownshipOf, tmaSensorRows, tmaSolutionRows, type ListedCut } from "../webview/tma.js";
 import { latencySummary, sameTote, toteOf, ToteRequests, toteTracks, withoutSecondary, withPrimary, withSecondaries } from "../webview/totelogic.js";
 import { PressHold } from "../webview/presshold.js";
 import { Folds } from "./fold.js";
@@ -49,16 +53,44 @@ import { Dock, MAP_ID, type LayoutStorage } from "./dock.js";
 import { PANEL_TITLES, SIDE_FIRST } from "./panels.mjs";
 import { openMenu } from "./menu.js";
 import { formatBearing, formatPosition, parsePosition } from "@debrief/kernel";
-import { defaultPivotIndex, describeDistance, describeSpeed, describeTurn, FIX_PROMPT, FIX_PROMPT_DR, fixIndexAt, fixMeans, fixToEdit, jumpSpeed, legNow, mergedName, mergePlan, periodIndices, readBearing, readDistance, readSpeed, readTurn, reckoningOf } from "../webview/trackedit.js";
+import { defaultPivotIndex, describeDistance, describeSpeed, describeTurn, FIX_PROMPT, FIX_PROMPT_DR, fixIndexAt, fixMeans, fixToEdit, jumpSpeed, legNow, mergedName, mergePlan, periodIndices, readArrayOffset, arrayOffsetTitle, readBearing, readDistance, readSpeed, readTurn, reckoningOf } from "../webview/trackedit.js";
 import { chooseModes, MODE_LABELS, modeChoices, modeQuestion, REMEMBER_LABEL, REMEMBERED_IN_PLAYGROUND, type PlottingMode } from "../src/importmode.js";
 import { describeJump, describeMark, describeWindow, DR_TAG, fixRows, isDeadReckoned, jumpsFound, markAt, readThreshold, readWindow, smoothingNote, type Jump } from "../webview/fixes.js";
 import { FIX_COLOURS } from "../webview/palette.js";
 import { ALL_PROBLEM, AT_EVERY_FIX, changesOf, choiceFromValue, choicesFor, describeChanges, describeInterval, describeSetFrequencies, FIELD_NAMES, FIELDS, formState, readInterval, trackDetails, type Field, type FieldState } from "../webview/frequencies.js";
-import { formatQuantity, figureIdProblem } from "@debrief/kernel";
+import { formatQuantity, figureIdProblem, UNIT_LABELS } from "@debrief/kernel";
 import type { FigureSource, ImageExport, RenderedImage, RevisionShown } from "@debrief/schemas";
 import { fileNameFor, PRESETS, type ImageFormat, type ImagePreset, type ImageTheme } from "../webview/exportlogic.js";
 import { describeExported, describeSource, READ_ONLY, rememberedOf, revisionOf, startingChoice, type ExportChoice } from "../src/figures.js";
-import { callEvent, counts, TourPanel, tourOfEvent, type TourAction } from "./tours.js";
+import { callEvent, counts, outlineTarget, TourPanel, tourOfEvent, type TourAction } from "./tours.js";
+import { OutlineTree } from "./outline.js";
+import type { FlatRow, TreeNode } from "../webview/outlinetree.js";
+import {
+  ancestorsOf,
+  bearingsFor,
+  bearingsTitle,
+  type BearingsShown,
+  cutRow,
+  exclusionTarget,
+  featureIdsOfPicks,
+  fixKey,
+  fixRow,
+  legKey,
+  legRow,
+  type Operation,
+  type OperationContext,
+  type OperationId,
+  outlineChoice,
+  type OutlineFocus,
+  outlineIndex,
+  outlineOperations,
+  type OutlinePick,
+  pickedCuts,
+  pickOf,
+  type SolutionIndex,
+  tmaRequestOf,
+} from "../webview/outlinemodel.js";
+import { latestSolution, NO_SOLUTION, SOLUTION } from "../walkthroughs/contribute.mjs";
 import { contentFree } from "../webview/timelinelogic.js";
 
 type Feature = PlotFeature;
@@ -89,7 +121,7 @@ interface Opened {
 const params = new URLSearchParams(location.search);
 /** The web demo (demo.mjs): this page full screen at /demo/. It keeps nothing derived from a plot's content (panel review, 17 Oct 2026). */
 const demo = !!document.querySelector('meta[name="debrief-demo"]');
-const panelOrder = (params.get("panels") ?? "tour,tote,timeline,catalogue,coverage,tools,history,export,try,import").split(",");
+const panelOrder = (params.get("panels") ?? "tour,tote,timeline,catalogue,coverage,bearings,tools,history,export,try,import").split(",");
 const panels = new Set(panelOrder);
 const startPlot = params.get("plot") ?? "serial-1";
 /** Every side panel folds by its heading; remembered in this browser, except in a demo that chooses its panels. */
@@ -125,7 +157,7 @@ worker.onmessage = ({ data }) => {
   else call?.resolve(data.result);
 };
 /** Calls that change the open plot, its history or its island: refused while an earlier revision is shown read-only. */
-const CHANGES_PLOT = new Set(["run", "move", "restyle", "frequencies", "annotate", "track", "clean", "narrative", "set_view", "collate", "glitches", "crash", "colleague", "colleague_window"]);
+const CHANGES_PLOT = new Set(["run", "move", "restyle", "frequencies", "annotate", "track", "clean", "narrative", "sensor", "tma_change", "set_view", "collate", "glitches", "crash", "colleague", "colleague_window"]);
 function python(call: string, ...args: unknown[]): Promise<string> {
   if (opened?.revision && CHANGES_PLOT.has(call)) return Promise.resolve(JSON.stringify({ error: READ_ONLY }));
   const id = nextId++;
@@ -133,7 +165,8 @@ function python(call: string, ...args: unknown[]): Promise<string> {
   return new Promise<string>((resolve, reject) => waiting.set(id, { resolve, reject })).then((result) => {
     // What the reader did, for the walkthroughs: a change that succeeded ticks its step (CAP-25),
     // if it was to the walkthrough's copy: the plot named, or for the log's import the plot open.
-    tourEvent(callEvent(call, args, result), typeof args[0] === "string" && call !== "import_tour_log" ? args[0] : opened?.item.id);
+    const legsOf = (id: string) => { const f = features().find((x) => x.id === id && x.properties.kind === "track"); const tma = f && (f.properties as { tma?: { leg_starts?: string[] | null } }).tma; return tma ? 1 + (tma.leg_starts?.length ?? 0) : undefined; };
+    tourEvent(callEvent(call, args, result, legsOf), typeof args[0] === "string" && call !== "import_tour_log" ? args[0] : opened?.item.id);
     return result;
   });
 }
@@ -168,11 +201,13 @@ let time: TimeState | undefined;
 // the same component. Current time and the window move the map at once; the window
 // is saved in the plot when the reader lets go of it.
 let timePending = false;
+const TIME_WINDOW_OPEN_KEY = "debrief.play.timeWindowOpen";
 const timeControl = new TimeControl($("timebar"), {
   moved: (moved) => {
     time = moved;
     tourEvent("timeMoved", opened?.item.id);
     refreshTote(); // asked at once: the Tote keeps pace by never queueing (NFR-04)
+    bearingsTime?.(); // a line at current time across the bearing view's plots
     timelineControl.setTime(time); // the Timeline follows; it draws at most once a frame
     coverageControl.setTime(Date.parse(moved.current)); // a line across Coverage's bars
     narrativeToMap();
@@ -187,6 +222,25 @@ const timeControl = new TimeControl($("timebar"), {
   contextChanged: (context) => void saveView({ context_tracks: context }),
   // Pressing Play follows current time in the Timeline again (product owner, 15 Oct 2026).
   playing: (playing) => timelineControl.setPlaying(playing),
+}, {
+  // Whether the window's details are open, remembered in this browser (product owner, 28 Oct 2026).
+  windowOpen: {
+    get: () => {
+      try {
+        const open = window.localStorage.getItem(TIME_WINDOW_OPEN_KEY);
+        return open === null ? undefined : open === "true";
+      } catch {
+        return undefined;
+      }
+    },
+    set: (open) => {
+      try {
+        window.localStorage.setItem(TIME_WINDOW_OPEN_KEY, String(open));
+      } catch {
+        // Storage refused: the disclosure is just not remembered.
+      }
+    },
+  },
 });
 /** The time window as the plot file last had it, or the plot's period. */
 let savedWindow: TimeRange | undefined;
@@ -199,8 +253,11 @@ const periodOf = (item: StacItem): TimeRange | undefined => {
 /** How the plot says tracks outside the window are drawn. The playground has no settings: the minimum-contrast setting is off. */
 const contextOf = (): ContextTracks => (opened && contextTracksOf(opened.plot)) ?? "visible";
 /** Current time as set by opening a plot or by a tool, with the window as saved. */
+/** Current time and the window to the bearing view, once it exists (below). */
+let bearingsTime: (() => void) | undefined;
 function showTime(next: TimeState | undefined): void {
   time = next;
+  bearingsTime?.();
   timeControl.show(time, opened && periodOf(opened.item), { saved: savedWindow, context: contextOf(), minimumContrast: false });
   timelineControl.setTime(time);
   coverageControl.setTime(time ? Date.parse(time.current) : undefined);
@@ -274,7 +331,8 @@ let colleagueDuringNextRun = false;
 
 /** The plot's features, without its whole-plot feature (the plot's own details and view). */
 const features = (): Feature[] => (opened?.plot.features ?? []).filter(isFeature);
-const selectedNames = () => selection.map((id) => features().find((f) => f.id === id)?.properties.name ?? id);
+const selectedNames = () => selection.map((id) => featureNameOf(id));
+const featureNameOf = (id: string) => { const f = features().find((g) => g.id === id); return f ? featureName(f, opened?.plot) : id; };
 
 /**
  * Current time over the plot's time window (its view, kept in the plot file outside
@@ -384,6 +442,8 @@ async function openPlot(item: string, keep = false): Promise<void> {
   $<HTMLSelectElement>("plots").value = item;
   const ids = new Set(features().map((f) => f.id));
   selection = keep ? selection.filter((id) => ids.has(id)) : [];
+  // The Outline's rows kept where the plot still has them (a leg or a fix of a solution still there).
+  outlinePicks = keep ? outlinePicks.filter((k) => !!pickOf(outlineIndex(opened!.plot), k)) : [];
   showTime(timeOf(opened.item, opened.plot, previousTime));
   $("plot-title").textContent = opened.item.properties.title ?? item;
   $("plot-title").classList.remove("read-only");
@@ -397,15 +457,23 @@ async function openPlot(item: string, keep = false): Promise<void> {
   renderTimeline();
   renderHistory();
   showTote();
+  void refreshBearings();
   void refreshCollation();
   await refreshOffered();
   if (opened.recovered.length) toast(opened.recovered.join(" "), "warning");
 }
 
-async function select(ids: string[], fromMap = false): Promise<void> {
+/**
+ * The selection: the features selected everywhere (the map, the Outline, Bearings). keys are the
+ * Outline's rows chosen, when chosen there (a leg or a fix stands for its solution); chosen
+ * elsewhere, the features' own rows are selected in the Outline and brought into sight.
+ */
+async function select(ids: string[], fromMap = false, keys?: string[]): Promise<void> {
   selection = ids;
+  outlinePicks = keys ?? ids;
+  bearingsFollow();
   if (!fromMap) post(map, { kind: "set_selection", selection: { plot: opened?.item.id ?? "", feature_ids: ids } });
-  renderOutline();
+  renderOutline(!keys);
   if (formTool) sendForm();
   await refreshOffered();
 }
@@ -459,6 +527,19 @@ window.addEventListener("message", (event) => {
       });
     }
     if (message.kind === "fix_chosen") void openFixes(message.feature_id as string, message.fix_time as string);
+    // One of an ambiguous cut's two lines clicked: that bearing kept, as one step; right-click or press and hold: its menu (CAP-22).
+    if (message.kind === "resolve_asked") void resolveSensor({ keep: message.keep as Keep, cut_ids: [message.feature_id as string] });
+    if (message.kind === "cut_chosen") void cutMenu(message.feature_id as string);
+    // A TMA solution dragged: the bearing view works its residuals out again as it moves (CAP-21, NFR-04).
+    if (message.kind === "tma_preview") tmaControl.preview(message.feature_id as string, (message.preview as { coordinates: [number, number][] } | undefined)?.coordinates);
+    // Two clicks for a first guess made, or cancelled.
+    if (message.kind === "tma_guessed") {
+      const asked = tmaGuessing;
+      tmaGuessing = undefined;
+      const request = message.tma_request as TmaRequest | undefined;
+      if (request && asked) void createTma({ ...asked, ...request });
+      else toast("No solution made: the two clicks were cancelled.");
+    }
     if (message.kind === "image_rendered") imageRendered?.(message as { image?: RenderedImage; message?: string });
     if (message.kind === "latest_asked" && opened) void openPlot(opened.item.id);
     if (message.kind === "annotation_drawn") {
@@ -665,19 +746,23 @@ function showToolTime(change: SharedStateChange, ranOn: string, byHand = true): 
 /** Colour tracks, or hide or show features, as one recorded, undoable step; then show the plot. */
 async function restyle(ids: string[], change: { colour: string; colour_name: string } | { hidden: boolean }): Promise<void> {
   if (!opened || !pythonReady || !ids.length) return;
-  const outcome = await pythonJson<{ error?: string }>("restyle", opened.item.id, JSON.stringify({ base: opened.base, features: ids, ...change }));
+  const outcome = await pythonJson<{ error?: string; notes?: string[] }>("restyle", opened.item.id, JSON.stringify({ base: opened.base, features: ids, ...change }));
   if (outcome.error) toast(outcome.error, "warning");
+  // Cuts hidden or shown: what that does to the solutions rooted in them (product owner, 27 Oct 2026).
+  else if (outcome.notes && outcome.notes.length > 1) toast(outcome.notes.join(". ") + ".");
   await openPlot(opened.item.id, true);
 }
 const tracksSelected = () => selection.filter((id) => features().find((f) => f.id === id)?.properties.kind === "track");
+/** Tracks and sensors selected: what the Colour menu colours (a sensor's cuts are drawn in its colour, CAP-22). */
+const colourableSelected = () => selection.filter((id) => ["track", "sensor"].includes(features().find((f) => f.id === id)?.properties.kind ?? ""));
 $<HTMLSelectElement>("colour").append(...TRACK_COLOURS.map((c) => new Option(c.name, c.colour)));
 $<HTMLSelectElement>("colour").onchange = (e) => {
   const picker = e.target as HTMLSelectElement;
   const chosen = TRACK_COLOURS.find((c) => c.colour === picker.value);
   picker.value = "";
   if (!chosen) return;
-  if (!tracksSelected().length) return toast("Select one or more tracks to colour.", "warning");
-  void restyle(tracksSelected(), { colour: chosen.colour, colour_name: chosen.name.toLowerCase() });
+  if (!colourableSelected().length) return toast("Select one or more tracks or sensors to colour.", "warning");
+  void restyle(colourableSelected(), { colour: chosen.colour, colour_name: chosen.name.toLowerCase() });
 };
 $("hide").onclick = () => (selection.length ? void restyle(selection, { hidden: true }) : toast("Select what to hide.", "warning"));
 // With nothing selected, Show shows everything hidden, as the map's "Show all" does.
@@ -885,6 +970,8 @@ interface FormField {
   id: string;
   label: string;
   value?: string;
+  /** Shown in an empty text box, such as "such as 300 m". */
+  placeholder?: string;
   options?: { value: string; label: string }[];
   /** What the text means, or what is wrong with it. */
   read?: (text: string) => { means: string } | { problem: string };
@@ -928,7 +1015,7 @@ function trackForm(title: string, action: string, fields: FormField[], warning?:
         input = document.createElement("select");
         input.append(...field.options.map((o) => new Option(o.label, o.value)));
       } else {
-        input = Object.assign(document.createElement("input"), { type: "text", autocomplete: "off" });
+        input = Object.assign(document.createElement("input"), { type: "text", autocomplete: "off", ...(field.placeholder && { placeholder: field.placeholder }) });
       }
       input.name = field.id;
       input.id = `track-form-${field.id}`;
@@ -999,27 +1086,37 @@ function trackForm(title: string, action: string, fields: FormField[], warning?:
   });
 }
 const shown = (read: { problem: string } | number | { value: number; unit: string }, means: () => string) => (typeof read === "object" && "problem" in read ? read : { means: means() });
-/** The choice of what moves or turns: the whole track, or its fixes in the time window. */
-function extentField(): FormField {
+/** A TMA solution's leg that current time is in, once it is split into legs: This leg, as the map's drags take it at first. */
+function legOfTrack(track: NonNullable<ReturnType<typeof trackOf>> | undefined) {
+  const tma = track && (track.properties as { tma?: { leg_starts?: string[] | null } }).tma;
+  return tma ? legExtent(track.properties.times, tma.leg_starts, time ? Date.parse(time.current) : undefined) : undefined;
+}
+/** The choice of what moves or turns: the whole track, its fixes in the time window, or, for a TMA solution split into legs, the leg current time is in. */
+function extentField(track?: NonNullable<ReturnType<typeof trackOf>>): FormField {
   const window = time?.range;
+  const leg = legOfTrack(track);
   return {
     id: "extent",
     label: "What changes",
-    options: [{ value: "whole", label: "Whole track" }, ...(window ? [{ value: "window", label: `Fixes in the time window, ${describeTimes(window.start, window.end)}` }] : [])],
+    options: [
+      { value: "whole", label: "Whole track" },
+      ...(leg ? [{ value: "leg", label: `This leg: leg ${leg.leg} of ${leg.legs}, ${describeTimes(leg.period.start, leg.period.end)}, the one current time is in` }] : []),
+      ...(window ? [{ value: "window", label: `Fixes in the time window, ${describeTimes(window.start, window.end)}` }] : []),
+    ],
   };
 }
-const windowPeriod = (extent: string) => (extent === "window" && time ? time.range : undefined);
+const windowPeriod = (extent: string, track?: NonNullable<ReturnType<typeof trackOf>>) => (extent === "window" && time ? time.range : extent === "leg" ? legOfTrack(track)?.period : undefined);
 
 $("move-track").onclick = async () => {
   const track = oneTrack("move");
   if (!track) return;
   const values = await trackForm(`Move ${track.properties.name}`, "Move", [
-    extentField(),
+    extentField(track),
     { id: "distance", label: "Distance", value: "", read: (t) => shown(readDistance(t), () => describeDistance(readDistance(t) as { value: number; unit: string })) },
     { id: "bearing", label: "Bearing, true", value: "", read: (t) => shown(readBearing(t), () => formatBearing({ value: readBearing(t) as number, unit: "deg" })) },
   ]);
   if (!values) return;
-  const period = windowPeriod(values.extent);
+  const period = windowPeriod(values.extent, track);
   const edit = { action: "move", distance: readDistance(values.distance), bearing: { value: readBearing(values.bearing), unit: "deg" }, ...(period && { period }) };
   const problem = await changeTrack({ kind: "edit", feature: track.id, edit });
   if (problem) toast(problem, "warning");
@@ -1028,7 +1125,7 @@ $("rotate-track").onclick = async () => {
   const track = oneTrack("rotate");
   if (!track) return;
   const values = await trackForm(`Rotate ${track.properties.name}`, "Rotate", [
-    extentField(),
+    extentField(track),
     {
       id: "pivot",
       label: "About",
@@ -1041,7 +1138,7 @@ $("rotate-track").onclick = async () => {
     { id: "angle", label: "Angle, degrees (positive is clockwise)", value: "", read: (t) => shown(readTurn(t), () => describeTurn(readTurn(t) as number)) },
   ]);
   if (!values) return;
-  const period = windowPeriod(values.extent);
+  const period = windowPeriod(values.extent, track);
   const times = track.properties.times.map(Date.parse);
   const indices = periodIndices(times, period && { start: Date.parse(period.start), end: Date.parse(period.end) });
   if (!indices.length) return toast(`${track.properties.name} has no fixes in the time window, so nothing was rotated.`, "warning");
@@ -1054,7 +1151,7 @@ $("rotate-track").onclick = async () => {
 /** What the track, or its fixes in the time window, makes good now: as the form offers it when that is chosen. */
 function legChosen(track: NonNullable<ReturnType<typeof trackOf>>, extent: string): NonNullable<ReturnType<typeof legNow>> | undefined {
   const times = track.properties.times.map(Date.parse);
-  const period = windowPeriod(extent);
+  const period = windowPeriod(extent, track);
   return legNow(track.geometry.coordinates as [number, number][], times, periodIndices(times, period && { start: Date.parse(period.start), end: Date.parse(period.end) }));
 }
 /** What a shear or a stretch holds, and what the track makes good now; or say why it cannot be done. */
@@ -1071,7 +1168,7 @@ function heldFields(track: NonNullable<ReturnType<typeof trackOf>>, verb: string
       { value: "end", label: "Hold the end; the start moves" },
     ],
   };
-  return [extentField(), anchor];
+  return [extentField(track), anchor];
 }
 /** The course or the speed made good, offered as it is now for what is chosen to change. */
 function madeGood(track: NonNullable<ReturnType<typeof trackOf>>, id: "course" | "speed", label: string, read: FormField["read"]): FormField {
@@ -1097,7 +1194,7 @@ $("shear-track").onclick = async () => {
   if (!track || !held) return;
   const values = await trackForm(`Shear ${track.properties.name}`, "Shear", [...held, courseField(track), speedField(track, false)]);
   if (!values) return;
-  const period = windowPeriod(values.extent);
+  const period = windowPeriod(values.extent, track);
   const edit = { action: "shear", anchor: values.anchor, course: { value: readBearing(values.course), unit: "deg" }, speed: readSpeed(values.speed), ...(period && { period }) };
   const problem = await changeTrack({ kind: "edit", feature: track.id, edit });
   if (problem) toast(problem, "warning");
@@ -1108,7 +1205,7 @@ $("stretch-track").onclick = async () => {
   if (!track || !held) return;
   const values = await trackForm(`Stretch ${track.properties.name}`, "Stretch", [...held, speedField(track, true)]);
   if (!values) return;
-  const period = windowPeriod(values.extent);
+  const period = windowPeriod(values.extent, track);
   const edit = { action: "stretch", anchor: values.anchor, speed: readSpeed(values.speed, undefined, true), ...(period && { period }) };
   const problem = await changeTrack({ kind: "edit", feature: track.id, edit });
   if (problem) toast(problem, "warning");
@@ -1543,68 +1640,206 @@ document.addEventListener("keydown", (event) => {
 });
 
 // --- Rendering --------------------------------------------------------------------
-function renderOutline(): void {
-  const list = $("outline");
-  // Re-rendering replaces the rows: keep keyboard focus on the row that had it.
-  const focused = list.contains(document.activeElement) ? (document.activeElement as HTMLElement).dataset.id : undefined;
-  list.replaceChildren(
-    ...features()
-      .filter((f) => f.properties.kind === "track" || f.geometry)
-      .map((f) => {
-        const row = document.createElement("li");
-        const selected = selection.includes(f.id);
-        row.className = selected ? "selected" : "";
-        row.tabIndex = 0;
-        row.dataset.id = f.id;
-        row.setAttribute("role", "option");
-        row.setAttribute("aria-selected", String(selected));
-        const props = f.properties as { times?: string[]; time?: string };
-        row.innerHTML = `<span class="name"></span> <span class="detail"></span>`;
-        row.querySelector(".name")!.textContent = f.properties.name;
-        // A track plotted by dead reckoning: a small DR beside its name (decision, product owner, 14 Oct 2026).
-        if (f.properties.kind === "track" && isDeadReckoned(f.properties)) {
-          const tag = Object.assign(document.createElement("span"), { className: "tag", textContent: DR_TAG, title: "Plotted by dead reckoning (DR), from its first fix by each fix's course and speed" });
-          tag.setAttribute("aria-label", "plotted by dead reckoning");
-          row.querySelector(".name")!.after(" ", tag);
-        }
-        const when = props.times ? describeTimes(props.times[0], props.times.at(-1)) : f.properties.kind;
-        row.querySelector(".detail")!.textContent = isHidden(f) ? `hidden on map · ${when}` : when;
-        if (f.properties.kind === "track") {
-          // Its details when pointed at, its labels, symbols and arrows among them; those set on a line of their own (CAP-32).
-          row.title = trackDetails(f.properties, when, isDeadReckoned(f.properties));
-          const set = describeSetFrequencies(f.properties);
-          if (set) row.append(Object.assign(document.createElement("span"), { className: "detail freq-detail", textContent: set }));
-        }
-        const choose = (add: boolean) => {
-          const ids = add ? (selection.includes(f.id) ? selection.filter((i) => i !== f.id) : [...selection, f.id]) : [f.id];
-          selectedByHand(ids);
-          void select(ids);
+// --- The Outline: a tree (product owner, 27 Oct 2026) ------------------------------------
+// A track opens to its sensors, a sensor to its cuts, a TMA solution to its legs and each leg to
+// its positions (fixes). Virtualised (outline.ts), so a sensor's thousands of cuts scroll easily.
+type OutlineRow =
+  | { kind: "feature"; feature: Feature; sensor?: SensorEntry }
+  | { kind: "cut"; entry: SensorEntry; cut: CutFeature }
+  | { kind: "leg"; s: SolutionIndex; leg: number }
+  | { kind: "fix"; s: SolutionIndex; index: number };
+/** The rows selected in the Outline, by key: features, cuts, and the legs and fixes of solutions (which are not features). */
+let outlinePicks: string[] = [];
+/** The plot the Outline last showed, and the sensors it has seen: a track carrying a new one opens. */
+let outlineItem: string | undefined;
+const outlineSensors = new Set<string>();
+/** Each branch's children, made once for each plot read. */
+let outlinePlot: DebriefFeatureCollection | undefined;
+const outlineChildren = new Map<string, TreeNode<OutlineRow>[]>();
+function outlineCached(key: string, make: () => TreeNode<OutlineRow>[]): () => TreeNode<OutlineRow>[] {
+  return () => {
+    let children = outlineChildren.get(key);
+    if (!children) outlineChildren.set(key, (children = make()));
+    return children;
+  };
+}
+function outlineRoots(): TreeNode<OutlineRow>[] {
+  if (!opened) return [];
+  const plot = opened.plot;
+  if (plot !== outlinePlot) {
+    outlinePlot = plot;
+    outlineChildren.clear();
+  }
+  const index = outlineIndex(plot);
+  // A sensor shows under its host track (CAP-22).
+  const carried = new Map<string, SensorEntry[]>();
+  for (const entry of index.sensors.values()) carried.set(entry.sensor.properties.host_track_id, [...(carried.get(entry.sensor.properties.host_track_id) ?? []), entry]);
+  const sensorNode = (entry: SensorEntry): TreeNode<OutlineRow> => ({
+    key: entry.sensor.id,
+    data: { kind: "feature", feature: entry.sensor as Feature, sensor: entry },
+    branch: entry.cuts.length > 0,
+    children: outlineCached(entry.sensor.id, () => entry.cuts.map((cut) => ({ key: cut.id, data: { kind: "cut", entry, cut }, branch: false }))),
+  });
+  return features()
+    .filter((f) => f.properties.kind === "track" || f.geometry)
+    .map((f): TreeNode<OutlineRow> => {
+      const s = index.solutions.get(f.id);
+      if (s) {
+        // A TMA solution: its legs, each opening to its fixes.
+        const legs = s.bounds.length - 1;
+        return {
+          key: f.id,
+          data: { kind: "feature", feature: f },
+          branch: true,
+          children: outlineCached(f.id, () =>
+            Array.from({ length: legs }, (_, k): TreeNode<OutlineRow> => {
+              const leg = k + 1;
+              const key = legKey(f.id, leg);
+              return {
+                key,
+                data: { kind: "leg", s, leg },
+                branch: true,
+                children: outlineCached(key, () => {
+                  const out: TreeNode<OutlineRow>[] = [];
+                  for (let i = s.bounds[k]; i < s.bounds[leg]; i++) out.push({ key: fixKey(f.id, i), data: { kind: "fix", s, index: i }, branch: false });
+                  return out;
+                }),
+              };
+            }),
+          ),
         };
-        row.onclick = (e) => choose(e.ctrlKey || e.metaKey || e.shiftKey);
-        if (f.properties.kind === "track") {
-          // Its menu: right-click, press and hold on a touch screen, or Shift+F10 (the Tote, CAP-06).
-          row.oncontextmenu = (e) => {
-            e.preventDefault();
-            trackMenu(f.id, e.clientX, e.clientY, row);
-          };
-        }
-        row.onkeydown = (e) => {
-          if (f.properties.kind === "track" && (e.key === "ContextMenu" || (e.key === "F10" && e.shiftKey))) {
-            e.preventDefault();
-            const box = row.getBoundingClientRect();
-            return trackMenu(f.id, box.left + 24, box.bottom, row);
-          }
-          // Only Enter and Space select; every other key (Tab above all) does what it always does.
-          if (e.key !== "Enter" && e.key !== " ") return;
-          e.preventDefault();
-          choose(e.ctrlKey || e.metaKey || e.shiftKey);
-        };
-        return row;
-      }),
-  );
-  if (focused) list.querySelector<HTMLElement>(`[data-id="${CSS.escape(focused)}"]`)?.focus();
+      }
+      const sensors = carried.get(f.id) ?? [];
+      return { key: f.id, data: { kind: "feature", feature: f }, branch: sensors.length > 0, children: outlineCached(`${f.id}#sensors`, () => sensors.map(sensorNode)) };
+    });
+}
+/** What a row says: a feature as before; a cut, a leg, a fix as outlinemodel.ts has them. */
+function fillOutlineRow(row: FlatRow<OutlineRow>, li: HTMLLIElement): void {
+  const data = row.node.data;
+  const name = document.createElement("span");
+  name.className = "name";
+  const detail = document.createElement("span");
+  detail.className = "detail";
+  li.className = li.className.split(" ").filter((c) => c === "selected").join(" ");
+  li.removeAttribute("aria-label");
+  li.removeAttribute("title");
+  if (data.kind === "cut") {
+    const said = cutRow(data.entry, data.cut);
+    name.textContent = said.name;
+    detail.textContent = said.detail;
+    li.classList.add("cut");
+    li.classList.toggle("hidden-cut", said.hidden);
+    li.setAttribute("aria-label", said.label);
+    li.append(name, " ", detail);
+    return;
+  }
+  if (data.kind === "leg") {
+    const said = legRow(data.s, data.leg);
+    name.textContent = said.name;
+    detail.textContent = said.detail;
+    li.classList.add("leg");
+    li.setAttribute("aria-label", said.label);
+    li.append(name, " ", detail);
+    return;
+  }
+  if (data.kind === "fix") {
+    const said = fixRow(data.s, data.index);
+    name.textContent = said.name;
+    detail.textContent = said.detail;
+    li.classList.add("fix");
+    li.setAttribute("aria-label", said.label);
+    li.append(name, " ", detail);
+    return;
+  }
+  const f = data.feature;
+  const isSensor = f.properties.kind === "sensor";
+  if (isSensor) li.classList.add("sensor");
+  const props = f.properties as { times?: string[]; time?: string };
+  name.textContent = featureName(f, opened?.plot);
+  li.append(name);
+  // A TMA solution (CAP-21): a small TMA beside its name, with its contact.
+  const tma = f.properties.kind === "track" ? f.properties.tma : undefined;
+  if (tma) {
+    const tag = Object.assign(document.createElement("span"), { className: "tag", textContent: "TMA", title: `A TMA solution of ${tma.contact}: expand it for its legs and positions; Bearings shows its residuals` });
+    tag.setAttribute("aria-label", `a TMA solution of ${tma.contact}`);
+    li.append(" ", tag);
+  }
+  // A track plotted by dead reckoning: a small DR beside its name (decision, product owner, 14 Oct 2026).
+  else if (f.properties.kind === "track" && isDeadReckoned(f.properties)) {
+    const tag = Object.assign(document.createElement("span"), { className: "tag", textContent: DR_TAG, title: "Plotted by dead reckoning (DR), from its first fix by each fix's course and speed" });
+    tag.setAttribute("aria-label", "plotted by dead reckoning");
+    li.append(" ", tag);
+  }
+  const sensor = data.sensor;
+  const when = sensor ? sensorDetail(sensor) : props.times ? describeTimes(props.times[0], props.times.at(-1)) : f.properties.kind;
+  if (sensor) li.title = `${featureName(f)}, a sensor of ${sensor.host ? sensor.host.properties.name : "a track not in the plot"}: ${when}. Expand it for its cuts. Right-click, press and hold, or Shift+F10 to keep port or starboard bearings`;
+  detail.textContent = isHidden(f) ? `hidden on map · ${when}` : when;
+  li.append(" ", detail);
+  if (f.properties.kind === "track") {
+    // Its details when pointed at, its labels, symbols and arrows among them; those set on a line of their own (CAP-32).
+    li.title = trackDetails(f.properties, when, isDeadReckoned(f.properties));
+    const set = describeSetFrequencies(f.properties);
+    if (set) {
+      li.classList.add("tall");
+      li.append(Object.assign(document.createElement("span"), { className: "detail freq-detail", textContent: set }));
+    }
+  }
+}
+const outlineTree = new OutlineTree<OutlineRow>($("outline"), {
+  roots: outlineRoots,
+  fill: fillOutlineRow,
+  chose: (keys) => void chooseInOutline(keys),
+  // Its menu: right-click, press and hold on a touch screen, or Shift+F10 (a track's: the
+  // Tote, CAP-06; a sensor's: keeping a side of its ambiguous cuts, CAP-22).
+  menu: (key, x, y, element) => {
+    const f = features().find((g) => g.id === key);
+    if (f?.properties.kind === "track") trackMenu(key, x, y, element);
+    else if (f?.properties.kind === "sensor") sensorMenu(key, x, y, element);
+  },
+});
+(window as unknown as { debriefOutline: OutlineTree<OutlineRow> }).debriefOutline = outlineTree;
+/** The picks the Outline's selection stands for. */
+function outlinePicked(): OutlinePick[] {
+  if (!opened) return [];
+  const index = outlineIndex(opened.plot);
+  return outlinePicks.map((k) => pickOf(index, k)).filter((p): p is OutlinePick => !!p);
+}
+/** Rows chosen in the Outline: the features they stand for selected everywhere; a position chosen, current time to it. */
+async function chooseInOutline(keys: string[]): Promise<void> {
+  if (!opened) return;
+  const index = outlineIndex(opened.plot);
+  const picks = keys.map((k) => pickOf(index, k)).filter((p): p is OutlinePick => !!p);
+  const fix = [...picks].reverse().find((p): p is Extract<OutlinePick, { kind: "fix" }> => p.kind === "fix");
+  if (fix) timeTo(new Date(index.solutions.get(fix.solution)!.times[fix.index]).toISOString());
+  const ids = featureIdsOfPicks(picks);
+  selectedByHand(ids);
+  await select(ids, false, keys);
+}
+
+function renderOutline(reveal = false): void {
+  const entries = opened ? sensorsOf(opened.plot) : [];
+  // What can be done to a sensor, below the list as for a track: shown while a sensor or a cut is selected.
+  const sensorChosen = new Set([...entries.map((e) => e.sensor.id), ...entries.flatMap((e) => e.cuts.map((c) => c.id))]);
+  $("sensor-group").hidden = !selection.some((id) => sensorChosen.has(id));
+  if (opened && opened.item.id !== outlineItem) {
+    outlineItem = opened.item.id;
+    outlineTree.open.clear();
+    outlineSensors.clear();
+  }
+  // A track carrying a sensor not seen before opens, so its sensors show under it, as they always have.
+  for (const entry of entries) {
+    if (outlineSensors.has(entry.sensor.id)) continue;
+    outlineSensors.add(entry.sensor.id);
+    outlineTree.open.add(entry.sensor.properties.host_track_id);
+  }
+  outlineTree.refresh();
+  if (reveal && opened) {
+    const index = outlineIndex(opened.plot);
+    const last = outlinePicks[outlinePicks.length - 1];
+    outlineTree.select(outlinePicks, last ? ancestorsOf(index, last) : []);
+  } else outlineTree.mark(outlinePicks);
   $("north-arrow").setAttribute("aria-pressed", String(hasNorthArrow()));
-  $("selected-count").textContent = selection.length ? `${count(selection.length, "feature")} selected · Ctrl-click to add` : "Click to select · Ctrl-click to add";
+  $("selected-count").textContent = selection.length ? `${count(selection.length, "feature")} selected · Ctrl-click to add, Shift-click for a range` : "Click to select · Ctrl-click to add, Shift-click for a range";
 }
 
 // --- The outline's menu for a track (the Tote, CAP-06) ----------------------------------
@@ -1625,7 +1860,7 @@ function trackMenu(id: string, x: number, y: number, from: HTMLElement): void {
         void chooseTote(change());
       },
     })),
-    { label: `${features().find((f) => f.id === id)?.properties.name ?? id}: Tote`, x, y, from },
+    { label: `${featureNameOf(id)}: Tote`, x, y, from },
   );
 }
 // Press and hold a track in the outline on a touch screen: its menu, as a right-click (presshold.ts).
@@ -1665,14 +1900,491 @@ outlineList.addEventListener(
   true,
 );
 
+// --- Sensors: ambiguous bearings resolved, sensor data read in (CAP-22) -------------------
+/** Keep a side of ambiguous cuts, or make them ambiguous again, or read a file's sensor lines in, as debrief/resolve_ambiguity and debrief/import_sensor do: one step each. */
+// --- The bearing view (CAP-21; product owner, 24 Oct 2026): a sensor's cuts, TMA solutions
+// made from them, and their residuals, live while one is dragged on the map --------------------
+/** What Bearings shows (product owner, 27 Oct 2026): what the Outline's selection last chose, a solution or a sensor's coverage; never saved. */
+let tmaShown: BearingsShown | undefined;
+const shownSolution = (): string | undefined => (tmaShown && "solution" in tmaShown ? tmaShown.solution : undefined);
+/** The cuts two clicks on the map are asked for, until they are made or cancelled. */
+let tmaGuessing: TmaRequest | undefined;
+let tmaAsking = 0;
+/** What the view is to choose when next shown: a fix or a cut ringed, the first guess's form, as the Outline or a walkthrough's step asks. */
+const tmaFocus = new FocusOnce();
+/** How long Python took to work out the residuals shown, ms: for the drag budget's measure (NFR-04). */
+const tmaCompute: number[] = [];
+/** The reader's error cut-off, degrees, as the page's settings keep it (debrief-config). */
+let errorCutOff: number | undefined;
+/** Which of the plot's panes the reader shows: this browser, every read and write guarded (product owner, 25 Oct 2026). */
+const BEARINGS_KEY = "debrief.play.bearings";
+const tmaControl = new TmaControl(
+  $("bearings"),
+  {
+    create: (request) => void createTma(request),
+    guess: (request) => {
+      tmaGuessing = request;
+      post(map, { kind: "tma_guess", tma_request: request });
+    },
+    exclude: (feature, cutIds, excluded) => void changeTma({ kind: "exclude", feature, cut_ids: cutIds, excluded }),
+    split: (feature, at) => void changeTma({ kind: "split", feature, at }),
+    time: (at) => timeTo(at),
+    resolve: (cutId, keep) => void resolveSensor({ keep, cut_ids: [cutId] }),
+    // A box drawn with Select bearings on: the sides boxed kept, one step, as debrief/resolve_ambiguity (product owner, 28 Oct 2026).
+    resolveCuts: (resolution) => void resolveSensor(resolution),
+    // A dot clicked: its cut, or the solution at a fix, selected in the Outline and on the map; current time to it.
+    select: (id, at) => {
+      timeTo(at);
+      if (id === shownSolution() && opened) {
+        // The solution's fix there, selected in the Outline as a position.
+        const s = outlineIndex(opened.plot).solutions.get(id);
+        const i = s ? s.times.indexOf(Date.parse(at)) : -1;
+        if (i >= 0) return void select([id], false, [fixKey(id, i)]).then(() => renderOutline(true));
+      }
+      void select([id]);
+    },
+    cutOff: (degrees) => {
+      errorCutOff = degrees;
+      if (pythonReady) void python("set_error_cut_off", degrees);
+    },
+  },
+  undefined,
+  {
+    load: () => {
+      try {
+        const text = window.localStorage.getItem(BEARINGS_KEY);
+        return text ? JSON.parse(text) : undefined;
+      } catch {
+        return undefined;
+      }
+    },
+    save: (value) => {
+      try {
+        window.localStorage.setItem(BEARINGS_KEY, JSON.stringify(value));
+      } catch {
+        // Not remembered: the panes stay as chosen on this visit.
+      }
+    },
+  },
+);
+(window as unknown as { debriefTma: TmaControl; debriefTmaCompute: number[] }).debriefTma = tmaControl;
+bearingsTime = () => {
+  if (time) tmaControl.setTime(Date.parse(time.current), time.range);
+};
+(window as unknown as { debriefTmaCompute: number[] }).debriefTmaCompute = tmaCompute;
+/** What is selected, and current time: for the tests (a dot clicked in the Bearings view selects its cut or fix). */
+(window as unknown as { debriefSelection: () => unknown }).debriefSelection = () => ({ selection, picks: outlinePicks, current: time?.current });
+
+/** The solution or the sensor's coverage the Outline chose, its cuts or residuals asked of Python again. */
+async function refreshBearings(): Promise<void> {
+  if (!opened || !panels.has("bearings")) return;
+  const plot = opened.plot;
+  const index = outlineIndex(plot);
+  const asked = ++tmaAsking;
+  // Something no longer in the plot (undone, deleted): nothing shown.
+  if (tmaShown && ("solution" in tmaShown ? !index.solutions.has(tmaShown.solution) : !index.sensors.has(tmaShown.sensor))) tmaShown = undefined;
+  const sensors = tmaSensorRows(plot);
+  const solutions = tmaSolutionRows(plot);
+  const solution = shownSolution();
+  const sensorId = tmaShown && "sensor" in tmaShown ? tmaShown.sensor : undefined;
+  const sensor = sensors.find((s) => s.id === sensorId);
+  let cuts: TmaCut[] | undefined;
+  let residuals: TmaResiduals | undefined;
+  if (pythonReady && (solution || sensor)) {
+    const outcome = await pythonJson<{ cuts?: ListedCut[]; residuals?: TmaResiduals; compute_ms?: number; error?: string }>("tma_view", opened.item.id, JSON.stringify(solution ? { solution } : { sensor: sensor?.id }));
+    if (outcome.error) toast(outcome.error, "warning");
+    if (outcome.compute_ms !== undefined) tmaCompute.push(outcome.compute_ms);
+    residuals = outcome.residuals;
+    if (sensor && outcome.cuts) cuts = cutRowsOf(sensor, outcome.cuts, cutColours(plot));
+    if (errorCutOff === undefined) errorCutOff = Number(await python("error_cut_off"));
+  }
+  if (asked !== tmaAsking || !opened) return;
+  // Around a solution: its sensors' whole coverage, and ownship's courses over it (product owner, 25 Oct 2026).
+  let around = {};
+  if (residuals && solution) {
+    const coverage = coverageOf(plot, solution);
+    const times = [...coverage.map((c) => c.time), ...residuals.rows.map((r) => r.time)].sort();
+    around = { coverage, ownship: ownshipOf(plot, solution, times.length ? { start: times[0], end: times[times.length - 1] } : undefined) };
+  } else if (sensor) around = { ownship: ownshipOf(plot, sensor.id) };
+  const focus = tmaFocus.take();
+  tmaControl.show({
+    plot_id: opened.item.id,
+    ...(opened.revision && { read_only: true }),
+    title: bearingsTitle(index, tmaShown),
+    sensors,
+    ...(sensor && { sensor_id: sensor.id }),
+    ...(cuts && { cuts }),
+    solutions,
+    ...(residuals && solution && { solution_id: solution, residuals }),
+    ...around,
+    ...(errorCutOff !== undefined && Number.isFinite(errorCutOff) && { error_cut_off: errorCutOff }),
+    ...(focus && { focus }),
+  });
+  if (time) tmaControl.setTime(Date.parse(time.current), time.range);
+  bearingsWidth();
+}
+/**
+ * The column Bearings is in widened while a solution is open there, and back when none is
+ * (product owner, 25 Oct 2026): two panes of 160 px or more; only from and to the default widths.
+ */
+function bearingsWidth(): void {
+  requestAnimationFrame(() => {
+    const shown = tmaControl.shown;
+    if (dock?.widenFor("panel-bearings", !!shown?.solution_id && !!shown.residuals)) placeSoon();
+  });
+}
+/**
+ * Bearings follows the Outline's selection (product owner, 27 Oct 2026): a solution, one of its
+ * legs or fixes shows the solution (a fix ringed); a sensor, or some of its cuts, its coverage (the
+ * last cut ringed), but cuts of the solution's sensors keep it shown, as a dot clicked does;
+ * something unrelated keeps what is shown.
+ */
+function bearingsFollow(): void {
+  if (!opened) return;
+  const index = outlineIndex(opened.plot);
+  const picks = outlinePicked();
+  const next = bearingsFor(index, picks, shownSolution());
+  if (!next) return;
+  const ring = ringOf(index, picks, next);
+  if (ring) tmaFocus.ask({ cut_time: ring });
+  tmaShown = next;
+  // Asked again even when the same: the plot read afresh, as choosing a solution again did (the panel's H2).
+  void refreshBearings();
+}
+/** The time of what the plot rings for a selection: the fix chosen, else the last cut chosen. */
+function ringOf(index: ReturnType<typeof outlineIndex>, picks: OutlinePick[], shown: BearingsShown): string | undefined {
+  if ("solution" in shown && shown.fix !== undefined) return new Date(index.solutions.get(shown.solution)!.times[shown.fix]).toISOString();
+  const cut = [...picks].reverse().find((p) => p.kind === "cut");
+  return cut && cut.kind === "cut" ? cut.cut.properties.time : undefined;
+}
+/**
+ * A walkthrough's step (Bearings and TMA): the Outline choosing for the reader, with Bearings in
+ * view: a sensor's or a solution's row; the cut at a time; the cuts of a period, and the first guess's
+ * form for them; or a solution's position (fix) at a time. Current time moves to a cut or a fix.
+ */
+async function outlineWith(id: string, focus: OutlineFocus = {}): Promise<void> {
+  if (!opened) return;
+  const index = outlineIndex(opened.plot);
+  if (!index.byId.has(id)) return toast("That is not in this plot.", "warning");
+  showPanel("panel-outline");
+  showPanel("panel-bearings");
+  const keys = outlineChoice(index, id, focus);
+  if (typeof keys === "string") return toast(keys, "warning");
+  const at = focus.cut_time ?? focus.fix_time;
+  if (at) timeTo(new Date(Date.parse(at)).toISOString());
+  await select(featureIdsOfPicks(keys.map((k) => pickOf(index, k)!)), false, keys);
+  renderOutline(true);
+  if (focus.make) return runOperation("tma-from-cuts");
+  // The keyboard on the row chosen; in the one column (a phone), the row in sight in the page, centred,
+  // so a section's heading held at the top or the bottom never covers it (the panel's L7).
+  const row = document.querySelector<HTMLElement>(`#outline li[data-id="${CSS.escape(keys[keys.length - 1])}"]`);
+  row?.focus({ preventScroll: true });
+  if (!dock) row?.scrollIntoView({ block: "center", inline: "nearest" });
+}
+/** A TMA change, each one step (CAP-21): as debrief/tma_create, tma_split_leg and tma_exclude_cut. */
+async function changeTma(change: Record<string, unknown>): Promise<{ error?: string; feature?: string; notes?: string[] }> {
+  if (!opened || !pythonReady) return { error: "Open a plot first." };
+  status("Saving…", true);
+  const outcome = await pythonJson<{ error?: string; feature?: string; notes?: string[]; changed?: boolean }>("tma_change", opened.item.id, JSON.stringify({ base: opened.base, change }));
+  status("");
+  if (outcome.error) {
+    toast(outcome.error, "warning");
+    if (outcome.error.includes("changed elsewhere")) await openPlot(opened.item.id, true);
+    return outcome;
+  }
+  if (outcome.feature) {
+    tmaShown = { solution: outcome.feature };
+    selection = [outcome.feature];
+  }
+  await openPlot(opened.item.id, true);
+  if (outcome.feature) await select([outcome.feature]);
+  if (outcome.notes?.length) toast(outcome.notes.join(" "));
+  return outcome;
+}
+async function createTma(request: TmaRequest): Promise<void> {
+  const outcome = await changeTma({ kind: "create", request });
+  tmaControl.made(outcome.error);
+  if (!outcome.error) showPanel("panel-bearings");
+}
+// --- The Tools' entries for the Outline's selection (product owner, 27 Oct 2026) ---------------
+/** What the Tools' entries act on: the Outline's rows chosen, the solution Bearings shows, the time window. */
+function operationContext(): OperationContext | undefined {
+  if (!opened) return undefined;
+  return {
+    index: outlineIndex(opened.plot),
+    picks: outlinePicked(),
+    shownSolution: shownSolution(),
+    ...(time && { window: { start: Date.parse(time.range.start), end: Date.parse(time.range.end) } }),
+    ...(opened.revision && { readOnly: true }),
+  };
+}
+/** The Tools' entries for the selection, each enabled or with the reason it is not. */
+function operations(): Operation[] {
+  const context = operationContext();
+  if (!context) return [];
+  const ops = outlineOperations(context);
+  return pythonReady ? ops : ops.map((o) => ({ ...o, enabled: false, reason: "Python is starting." }));
+}
+(window as unknown as { debriefOperations: () => Operation[] }).debriefOperations = operations;
+/** One of the Tools' entries, on the Outline's selection: one step each, but the solution from cuts, which opens its first guess's form. */
+async function runOperation(id: OperationId): Promise<void> {
+  const context = operationContext();
+  const op = operations().find((o) => o.id === id);
+  if (!context || !op) return toast("That is not offered for what is selected in the Outline.", "warning");
+  if (!op.enabled) return toast(op.reason ?? "That cannot be done to what is selected.", "warning");
+  const { index, picks } = context;
+  const cuts = pickedCuts(picks);
+  const ids = cuts.map((c) => c.id);
+  if (id === "split-before" || id === "split-after") {
+    const fix = picks.find((p): p is Extract<OutlinePick, { kind: "fix" }> => p.kind === "fix")!;
+    const at = new Date(index.solutions.get(fix.solution)!.times[fix.index]).toISOString();
+    await changeTma({ kind: "split", feature: fix.solution, at, side: id === "split-before" ? "before" : "after" });
+    return;
+  }
+  if (id === "hide-cuts" || id === "show-cuts") return restyle(ids, { hidden: id === "hide-cuts" });
+  if (id === "delete-cuts") {
+    status("Deleting…", true);
+    const outcome = await sense<{ ok?: boolean }>({ kind: "delete", cut_ids: ids });
+    status("");
+    if (outcome.error) return toast(outcome.error, "warning");
+    toast(`${(outcome.notes ?? []).join(". ")}. Undo brings them back.`);
+    return;
+  }
+  if (id === "leave-out" || id === "count-in") {
+    const target = exclusionTarget(index, cuts, context.shownSolution);
+    let solution = target.solution;
+    if (!solution) {
+      // Rooted in several solutions, none shown in Bearings: which one.
+      const names = target.candidates.map((c) => index.solutions.get(c)!.track.properties.name);
+      const chosen = await ask(`These cuts are rooted in ${names.length} solutions. ${id === "leave-out" ? "Leave them out of" : "Count them in"} which?`, names);
+      if (!chosen) return;
+      solution = target.candidates[names.indexOf(chosen)];
+    }
+    const rooted = new Set(index.solutions.get(solution)!.track.properties.tma!.cut_ids);
+    await changeTma({ kind: "exclude", feature: solution, cut_ids: ids.filter((c) => rooted.has(c)), excluded: id === "leave-out" });
+    return;
+  }
+  if (id === "keep-port" || id === "keep-starboard" || id === "keep-ambiguous") {
+    const keep: Keep = id === "keep-port" ? "port" : id === "keep-starboard" ? "starboard" : "ambiguous";
+    return resolveSensor({ keep, cut_ids: cuts.filter((c) => !!c.properties.ambiguous_bearing).map((c) => c.id) });
+  }
+  // TMA solution from cuts: the first guess's form, in Bearings, showing the sensor of the first cut.
+  const made = tmaRequestOf(context);
+  if (typeof made === "string") return toast(made, "warning");
+  const first = made.cuts[0];
+  tmaShown = { sensor: first.properties.sensor_id };
+  tmaFocus.ask(made.request.cut_ids ? { make: true, cut_ids: made.request.cut_ids } : { make: true, period: made.request.period! });
+  showPanel("panel-bearings");
+  await refreshBearings();
+}
+/** The Tools' entries in the Tools panel, above the Python tools: a button each, or why not beside it. */
+function operationRows(): HTMLElement[] {
+  const ops = operations();
+  if (!ops.length) return [];
+  const heading = document.createElement("li");
+  heading.className = "tools-heading";
+  heading.id = "tools-outline-heading";
+  heading.textContent = "For the Outline's selection";
+  const rows = ops.map((op) => {
+    const row = document.createElement("li");
+    row.className = "outline-op";
+    row.dataset.op = op.id;
+    const button = document.createElement("button");
+    button.textContent = op.label;
+    button.title = op.detail;
+    button.setAttribute("aria-describedby", `op-why-${op.id}`);
+    // Disabled with its reason, still reachable from the keyboard so the reason is read.
+    button.setAttribute("aria-disabled", String(!op.enabled));
+    if (!op.enabled) button.classList.add("disabled");
+    button.onclick = () => void runOperation(op.id);
+    const why = Object.assign(document.createElement("span"), { className: "detail", id: `op-why-${op.id}`, textContent: op.enabled ? "" : (op.reason ?? "") });
+    row.append(button, " ", why);
+    return row;
+  });
+  return [heading, ...rows];
+}
+/** Current time to a cut's time: within the window, or a window widened to take it in, shown and not saved (CAP-28). */
+function timeTo(at: string): void {
+  if (!time) return;
+  const range = time.range;
+  const within = at >= range.start && at <= range.end;
+  const next: TimeState = { current: at, range: within ? range : { start: at < range.start ? at : range.start, end: at > range.end ? at : range.end } };
+  showTime(next);
+  post(map, { kind: "set_time", time: next });
+}
+
+async function sense<T>(change: Record<string, unknown>, data?: Uint8Array): Promise<T & { error?: string; notes?: string[] }> {
+  if (!opened || !pythonReady) return { error: "Open a plot first." } as T & { error: string };
+  const outcome = await pythonJson<T & { error?: string; notes?: string[] }>("sensor", opened.item.id, JSON.stringify({ base: opened.base, change }), ...(data ? [data] : []));
+  if (!outcome.error) await openPlot(opened.item.id, true);
+  return outcome;
+}
+/** What the reader is looking at: the sensors asked about (else those selected or carrying selected cuts, else every sensor with ambiguous cuts), the selection, the window and current time. */
+function resolveContext(sensorIds?: string[]): ResolveContext | undefined {
+  if (!opened) return undefined;
+  const entries = sensorsOf(opened.plot);
+  const chosen = new Set(sensorIds ?? selection);
+  const byCut = new Map(entries.flatMap((e) => e.cuts.map((c) => [c.id, e.sensor.id] as const)));
+  const named = entries.filter((e) => chosen.has(e.sensor.id) || [...chosen].some((id) => byCut.get(id) === e.sensor.id));
+  const asked = named.length ? named : entries.filter((e) => e.cuts.some((c) => !!c.properties.ambiguous_bearing));
+  if (!asked.length) return undefined;
+  return {
+    entries: asked,
+    selected: selection,
+    ...(time && { window: { start: Date.parse(time.range.start), end: Date.parse(time.range.end) }, at: Date.parse(time.current) }),
+  };
+}
+/** Keep a side for the cut at the current time, those in the window, those selected or all: chosen from a menu at the control, then one step. */
+function chooseCuts(keep: Keep, from: HTMLElement, x: number, y: number, sensorIds?: string[]): void {
+  const context = resolveContext(sensorIds);
+  if (!context) return toast(opened && sensorsOf(opened.plot).length ? "No sensor in this plot has ambiguous cuts." : "This plot has no sensors.", "warning");
+  const keepLabel = KEEP_CHOICES.find((c) => c.keep === keep)!.label;
+  const scopes = scopeChoices(context);
+  if (!scopes.length) return toast("No cuts are in the time window.", "warning");
+  openMenu(
+    scopes.map((c) => ({
+      label: `${c.label} (${c.detail})`,
+      act: () => {
+        from.focus();
+        void resolveSensor(resolutionFor(c.scope, keep, context));
+      },
+    })),
+    { label: `${keepLabel}: which cuts?`, x, y, from },
+  );
+}
+async function resolveSensor(resolution: ReturnType<typeof resolutionFor>): Promise<void> {
+  if (typeof resolution === "string") return toast(resolution, "warning");
+  status("Resolving…", true);
+  const outcome = await sense<{ ok?: boolean }>({ kind: "resolve", resolution });
+  status("");
+  if (outcome.error) return toast(outcome.error, "warning");
+  if (outcome.notes?.length) toast(outcome.notes.join(" "));
+}
+/** A sensor's menu in the Outline: keep port or starboard bearings, or make its cuts ambiguous again; then which cuts. */
+function sensorMenu(id: string, x: number, y: number, from: HTMLElement): void {
+  openMenu(
+    [
+      ...KEEP_CHOICES.map((c) => ({ label: `${c.label}…`, act: () => chooseCuts(c.keep, from, x, y, [id]) })),
+      { label: "Cut at current time…", act: () => void currentCutMenu(id) },
+      { label: "Towed array offset…", act: () => void arrayOffsetForm(id) },
+    ],
+    { label: `${featureNameOf(id)}: ambiguous bearings`, x, y, from },
+  );
+}
+/**
+ * A towed array's offset astern of the ship, and how it follows (product owner, 24 Oct
+ * 2026), as debrief/set_array_offset: typed in the analyst's length unit, 0 for at the
+ * ship; worm in the hole (legacy's default) or plain. One step.
+ */
+async function arrayOffsetForm(id: string): Promise<void> {
+  const entry = opened && sensorsOf(opened.plot).find((e) => e.sensor.id === id);
+  if (!entry) return;
+  const props = entry.sensor.properties;
+  const now = props.array_offset;
+  const values = await trackForm(arrayOffsetTitle(props.name, entry.host?.properties.name), "Set", [
+    {
+      id: "offset",
+      label: "Distance astern of the ship, metres unless you give a unit (0 for at the ship)",
+      value: now ? `${now.value} ${UNIT_LABELS[now.unit] ?? now.unit}` : "",
+      placeholder: "such as 300 m",
+      read: (t) => {
+        const read = readArrayOffset(t);
+        if ("problem" in read) return read;
+        const means = read.value === 0 ? "at the ship" : `${describeDistance(read)} astern`;
+        return { means: read.warning ? `${means}. ${read.warning}` : means };
+      },
+    },
+    {
+      id: "mode",
+      label: "How it follows the ship",
+      value: props.array_mode === "plain" ? "plain" : "worm_in_hole",
+      options: [
+        { value: "worm_in_hole", label: "Worm in the hole: back along the ship's own track (legacy's default)" },
+        { value: "plain", label: "Plain: straight astern, along the ship's course" },
+      ],
+    },
+  ]);
+  if (!values) return;
+  const read = readArrayOffset(values.offset) as { value: number; unit: string };
+  status("Saving…", true);
+  const outcome = await sense<{ changed?: boolean }>({ kind: "array_offset", sensor_ids: [id], offset: read.value === 0 ? null : { value: read.value, unit: read.unit }, mode: values.mode });
+  status("");
+  if (outcome.error) return toast(outcome.error, "warning");
+  toast(outcome.notes?.length ? outcome.notes.join(" ") : `${props.name} is so already.`);
+}
+/** The cut current time is at for a sensor: its bearings said, and its menu, so the keyboard reaches the cut the map emphasises. */
+async function currentCutMenu(id: string): Promise<void> {
+  const entry = opened && sensorsOf(opened.plot).find((e) => e.sensor.id === id);
+  const now = entry && time ? cutNow(entry, Date.parse(time.current), { start: Date.parse(time.range.start), end: Date.parse(time.range.end) }) : undefined;
+  if (!entry || !now) return toast(`${featureNameOf(id)} has no cut at or before current time in the time window.`, "warning");
+  await cutMenu(now.id);
+}
+for (const [button, keep] of [["keep-port", "port"], ["keep-starboard", "starboard"], ["keep-ambiguous", "ambiguous"]] as const) {
+  $(button).onclick = () => {
+    const box = $(button).getBoundingClientRect();
+    chooseCuts(keep, $(button), box.left, box.bottom);
+  };
+}
+/** A cut's menu (right-click, or press and hold, on one of its lines on the map): keep either bearing, make it ambiguous again, or select it. */
+async function cutMenu(id: string): Promise<void> {
+  const entry = opened && sensorsOf(opened.plot).find((e) => e.cuts.some((c) => c.id === id));
+  const cut = entry?.cuts.find((c) => c.id === id);
+  if (!entry || !cut) return;
+  // The course its sides are told by, where its sensor was (its array astern, if it has one).
+  const course = placeOfCut(entry, cut)?.course;
+  const choices = new Map<string, () => unknown>();
+  for (const choice of cutChoices(cut, course)) choices.set(choice.label, () => resolveSensor({ keep: choice.keep, cut_ids: [id] }));
+  choices.set("Select this cut", () => void select([id]));
+  const chosen = await ask(describeCut(cut, entry.sensor.properties.name, course).replace(/\n/g, ". "), [...choices.keys()]);
+  if (chosen) await choices.get(chosen)!();
+}
+// A .dsf or REP file's sensor lines read into the open plot (CAP-22), as one step, the file
+// kept as a source: a sensor whose track the plot has not is asked about, as legacy asked.
+$<HTMLInputElement>("sensor-file").onchange = async (e) => {
+  const input = e.target as HTMLInputElement;
+  const file = input.files?.[0];
+  input.value = "";
+  if (!file || !opened || !pythonReady) return;
+  const data = new Uint8Array(await file.arrayBuffer());
+  status(`Reading ${file.name}…`, true);
+  const preview = await pythonJson<SensorPreview & { error?: string }>("sensor_preview", opened.item.id, file.name, data);
+  status("");
+  if (preview.error) return toast(preview.error, "warning");
+  if (!preview.cuts) return toast(`No sensor cut could be read from ${preview.name}. ${preview.omitted.slice(0, 2).join(" ")}`.trim(), "warning");
+  let again = false;
+  if (preview.earlier.length) {
+    const last = preview.earlier[preview.earlier.length - 1];
+    if ((await ask(`${preview.name} was read into this plot before: ${last.how}, ${describePeriod(last.at)}.`, ["Read it again"])) !== "Read it again") return toast("Nothing was read.");
+    again = true;
+  }
+  const hosts: Record<string, string | null> = {};
+  for (const asked of hostsToAsk(preview)) {
+    const names = hostChoices(preview, asked).map((t) => t.name);
+    const chosen = await ask(`${hostQuestion(asked)} ${asked.sensors.map(describeSensorInFile).join("; ")}.`, [...names, "Do not read these"]);
+    if (!chosen) return toast("Nothing was read.");
+    hosts[asked.track] = preview.tracks.find((t) => t.name === chosen)?.id ?? null;
+  }
+  status(`Reading ${file.name}…`, true);
+  const outcome = await sense<{ sensors: string[]; cuts: number; omitted: string[] }>({ kind: "import", name: file.name, hosts, again }, data);
+  status("");
+  if (outcome.error) return toast(outcome.error, "warning");
+  showPanel("panel-outline");
+  toast([sensorReadSummary(outcome, file.name), ...(outcome.notes ?? []), ...outcome.omitted].join(" "));
+};
+
 function renderTools(): void {
   const list = $("tools");
+  // The entries for the Outline's selection first (product owner, 27 Oct 2026), then the analysis tools.
+  const ops = operationRows();
   if (!tools.length) {
-    list.innerHTML = `<li class="detail">Starting Python…</li>`;
+    list.replaceChildren(...ops, Object.assign(document.createElement("li"), { className: "detail", textContent: "Starting Python…" }));
     return;
   }
   const sorted = [...tools].sort((a, b) => Number(offered.includes(b.name)) - Number(offered.includes(a.name)));
+  const heading = ops.length ? [Object.assign(document.createElement("li"), { className: "tools-heading", textContent: "Analysis tools" })] : [];
   list.replaceChildren(
+    ...ops,
+    ...heading,
     ...sorted.map((tool) => {
       const on = offered.includes(tool.name);
       const row = document.createElement("li");
@@ -2078,7 +2790,7 @@ function setUpExport(): void {
 setUpExport();
 
 // --- Wiring -----------------------------------------------------------------------
-const OPTIONAL = ["tour", "tote", "timeline", "catalogue", "coverage", "tools", "history", "export", "try", "import"];
+const OPTIONAL = ["tour", "tote", "timeline", "catalogue", "coverage", "bearings", "tools", "history", "export", "try", "import"];
 // A panel not listed is not shown; a menu (Export, Try, Import) is shown only when opened.
 for (const panel of OPTIONAL) $(`panel-${panel}`).hidden = !panels.has(panel) || $(`panel-${panel}`).classList.contains("menu-panel");
 // The top bar's menus, and the Catalogue's Import…, only where their panels are listed.
@@ -2091,7 +2803,7 @@ $("catalogue-import").hidden = !panels.has("import");
 const SIDE_ORDER = [...SIDE_FIRST, ...panelOrder.map((p) => `panel-${p}`).filter((id) => !SIDE_FIRST.includes(id) && optional(id)?.matches("#side > section.panel"))];
 for (const id of SIDE_ORDER) $("side").append($(id));
 /** History, Try and Import need Python: off until it is ready. */
-const NEEDS_PYTHON = ["export-image", "find-file", "find-id", "find-id-go", "new-data", "revise", "undo", "redo", "track-frequencies", "move-track", "rotate-track", "shear-track", "stretch-track", "split-track", "merge-tracks", "find-jumps", "smooth-track", "fix-list", "plotting-mode", "ask-again", "glitches", "crash", "colleague", "colleague-window", "colleague-during", "file", "narrative-file", "colour", "hide", "show", "add-annotation", "edit-annotation", "delete-annotation", "north-arrow"];
+const NEEDS_PYTHON = ["export-image", "find-file", "find-id", "find-id-go", "new-data", "revise", "undo", "redo", "track-frequencies", "move-track", "rotate-track", "shear-track", "stretch-track", "split-track", "merge-tracks", "find-jumps", "smooth-track", "fix-list", "plotting-mode", "ask-again", "glitches", "crash", "colleague", "colleague-window", "colleague-during", "file", "narrative-file", "sensor-file", "keep-port", "keep-starboard", "keep-ambiguous", "colour", "hide", "show", "add-annotation", "edit-annotation", "delete-annotation", "north-arrow"];
 function needsPython(on: boolean): void {
   for (const id of NEEDS_PYTHON) $<HTMLButtonElement | HTMLInputElement>(id).disabled = !on;
 }
@@ -2287,6 +2999,7 @@ function resetLayout(): void {
     dock = makeDock(true);
   });
   placeSoon();
+  bearingsWidth();
   refreshTote();
   if (!(focused instanceof HTMLElement && focused.isConnected)) dock?.focusTab("panel-time");
 }
@@ -2324,6 +3037,7 @@ function finishLayout(docked: boolean, focused: HTMLElement | undefined): void {
       $("dock").hidden = false;
       folds.suspend(true);
       dock = makeDock(false);
+      bearingsWidth();
     } else {
       unDock();
       $("dock").hidden = true;
@@ -2776,12 +3490,19 @@ async function tourAct(actions: TourAction[]): Promise<void> {
       toast(`${opened?.item.properties.title ?? copy} is open again: the walkthrough works on its copy, not on the plot that was open.`);
     }
   }
-  for (const action of actions) {
+  for (const step of actions) {
+    // A step that needs the walkthrough's TMA solution: the latest in its copy, once made.
+    if (step.target.includes(SOLUTION) && !latestSolution(features())) return toast(NO_SOLUTION, "warning");
+    const action = { ...step, target: step.target.replaceAll(SOLUTION, latestSolution(features()) ?? SOLUTION) };
     if (action.verb === "open") await openTourCopy(action.target);
     else if (action.verb === "focus") reveal(action.target, false);
     else if (action.verb === "click") reveal(action.target, true);
     else if (action.verb === "select") await select(action.target.split(",").filter((id) => features().some((f) => f.id === id)));
     else if (action.verb === "import-log") await importTourLog();
+    else if (action.verb === "outline") {
+      const { feature, focus } = outlineTarget(action.target);
+      await outlineWith(feature, focus);
+    }
   }
 }
 /**

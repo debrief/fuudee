@@ -5,6 +5,13 @@
  */
 export type AgentKindEnum = "person" | "software_agent";
 /**
+ * What the analyst asks of ambiguous cuts (CAP-22): keep the bearing to port or to starboard of the host track's course at each cut's time, as legacy Debrief's Keep port bearing and Keep starboard bearing decide it (by the side of the bearing recorded first); keep the bearing recorded first, or its ambiguous twin, as the analyst clicked it on the map; or make the cuts ambiguous again.
+ *
+ * This interface was referenced by `DebriefSchemaDefinitions`'s JSON-Schema
+ * via the `definition` "AmbiguityKeepEnum".
+ */
+export type AmbiguityKeepEnum = "port" | "starboard" | "bearing" | "ambiguous_bearing" | "ambiguous";
+/**
  * Units an angle may be stored in (UCUM codes).
  *
  * This interface was referenced by `DebriefSchemaDefinitions`'s JSON-Schema
@@ -105,6 +112,13 @@ export type AnnotationStyleEnum = "label" | "shape" | "chart_furniture" | "note"
  */
 export type FeatureTypeEnum = "Feature";
 /**
+ * How a towed array's position follows the ship (CAP-22; product owner, 24 Oct 2026), legacy Debrief's array centre modes.
+ *
+ * This interface was referenced by `DebriefSchemaDefinitions`'s JSON-Schema
+ * via the `definition` "ArrayModeEnum".
+ */
+export type ArrayModeEnum = "worm_in_hole" | "plain";
+/**
  * What an asset holds in Debrief terms.
  *
  * This interface was referenced by `DebriefSchemaDefinitions`'s JSON-Schema
@@ -191,6 +205,23 @@ export type QuantityKindEnum = "length" | "speed" | "angle" | "duration" | "angu
 export type PayloadFormatEnum = "arrow" | "parquet" | "geojson";
 /**
  * This interface was referenced by `DebriefSchemaDefinitions`'s JSON-Schema
+ * via the `definition` "SensorKindEnum".
+ */
+export type SensorKindEnum = "sensor";
+/**
+ * This interface was referenced by `DebriefSchemaDefinitions`'s JSON-Schema
+ * via the `definition` "SensorCutKindEnum".
+ */
+export type SensorCutKindEnum = "sensor_cut";
+/**
+ * Which of an ambiguous cut's two recorded bearings the analyst kept (CAP-22): the side resolved. Recorded as the bearing kept, not as port or starboard, because which side a bearing is on depends on the host track's course at the cut's time, which a later edit of the track (a move, dead reckoning) can change; what the analyst judged is which bearing was the target's. Debrief says it as port or starboard.
+ *
+ * This interface was referenced by `DebriefSchemaDefinitions`'s JSON-Schema
+ * via the `definition` "SensorCutKeptEnum".
+ */
+export type SensorCutKeptEnum = "bearing" | "ambiguous_bearing";
+/**
+ * This interface was referenced by `DebriefSchemaDefinitions`'s JSON-Schema
  * via the `definition` "NarrativeKindEnum".
  */
 export type NarrativeKindEnum = "narrative";
@@ -235,7 +266,8 @@ export type FeatureCollectionTypeEnum = "FeatureCollection";
  * This interface was referenced by `DebriefSchemaDefinitions`'s JSON-Schema
  * via the `definition` "FeatureKindEnum".
  */
-export type FeatureKindEnum = "track" | "annotation" | "sensor_observations" | "plot" | "narrative";
+export type FeatureKindEnum =
+  "track" | "annotation" | "sensor_observations" | "plot" | "narrative" | "sensor" | "sensor_cut";
 /**
  * This interface was referenced by `DebriefSchemaDefinitions`'s JSON-Schema
  * via the `definition` "PositionNotationEnum".
@@ -284,6 +316,13 @@ export type ResultPresentationEnum = "number" | "table" | "graph";
  * via the `definition` "ParameterKindEnum".
  */
 export type ParameterKindEnum = "number" | "integer" | "string" | "boolean" | "choice" | "quantity" | "time";
+/**
+ * Which side of the host's course a bearing is on (CAP-22).
+ *
+ * This interface was referenced by `DebriefSchemaDefinitions`'s JSON-Schema
+ * via the `definition` "SideEnum".
+ */
+export type SideEnum = "port" | "starboard";
 /**
  * Where a step stands, as the after links and the current step say.
  *
@@ -388,7 +427,23 @@ export type WebviewMessageKindEnum =
   | "review_cleared"
   | "export_image"
   | "image_rendered"
-  | "latest_asked";
+  | "latest_asked"
+  | "resolve_asked"
+  | "cut_chosen"
+  | "show_tma"
+  | "tma_chosen"
+  | "tma_create"
+  | "tma_guess"
+  | "tma_guessed"
+  | "tma_preview"
+  | "tma_exclude"
+  | "tma_split"
+  | "tma_time_asked"
+  | "tma_select"
+  | "tma_resolve"
+  | "tma_cut_off"
+  | "tma_plot_drawn"
+  | "tma_made";
 
 export interface DebriefSchemaDefinitions {}
 /**
@@ -401,6 +456,45 @@ export interface AgentRef {
   kind: AgentKindEnum;
   model?: string | null;
   name: string;
+}
+/**
+ * Ambiguous cuts resolved, or made ambiguous again, as the map, a menu or an agent asks (CAP-22): one recorded, undoable step (product owner, 24 Oct 2026). The cuts are those named, or else the cuts of the sensors named within a period (the time window, as the analyst sets it). Cuts with no ambiguous bearing are left as they are, and the step says how many.
+ *
+ * This interface was referenced by `DebriefSchemaDefinitions`'s JSON-Schema
+ * via the `definition` "AmbiguityResolution".
+ */
+export interface AmbiguityResolution {
+  /**
+   * With keep bearing or ambiguous_bearing: resolved cuts made ambiguous again in the same step, as a box drawn over their kept bearings with Select bearings on asks (product owner, 28 Oct 2026); one not resolved is left. Given (even empty), with other_cut_ids, the step is named for a box: "Kept 12 Towed array cuts to starboard and made 15 ambiguous again". Hidden cuts are left as they are.
+   */
+  clear_cut_ids?: string[] | null;
+  /**
+   * The cuts to resolve, by feature id. Or give sensor_ids, and perhaps a period.
+   */
+  cut_ids?: string[] | null;
+  keep: AmbiguityKeepEnum;
+  /**
+   * With keep bearing or ambiguous_bearing: cuts kept on their other bearing in the same step, so one step keeps some cuts' first bearings and others' twins, as a box drawn over the Bearings plot with Select bearings on asks (product owner, 28 Oct 2026). A cut named here and in cut_ids was boxed on both sides: it is left as it is, and the step says so. Hidden cuts are left as they are.
+   */
+  other_cut_ids?: string[] | null;
+  /**
+   * The cuts whose times fall in it, ends included, of the sensors named.
+   */
+  period?: TimeRange | null;
+  /**
+   * Sensors whose cuts in the period are resolved; every cut of each, without a period.
+   */
+  sensor_ids?: string[] | null;
+}
+/**
+ * A closed interval of time. Start shall not be after end.
+ *
+ * This interface was referenced by `DebriefSchemaDefinitions`'s JSON-Schema
+ * via the `definition` "TimeRange".
+ */
+export interface TimeRange {
+  end: string;
+  start: string;
 }
 /**
  * This interface was referenced by `DebriefSchemaDefinitions`'s JSON-Schema
@@ -671,16 +765,6 @@ export interface SourceRef {
   href: string;
 }
 /**
- * A closed interval of time. Start shall not be after end.
- *
- * This interface was referenced by `DebriefSchemaDefinitions`'s JSON-Schema
- * via the `definition` "TimeRange".
- */
-export interface TimeRange {
-  end: string;
-  start: string;
-}
-/**
  * An annotation as the analyst describes it in a form, or an agent in a request: what is made into an annotation feature, recorded as one step in the plot's history (CAP-03, SUB-19). Positions are numbers here; forms read them in the analyst's notation and say what they mean.
  *
  * This interface was referenced by `DebriefSchemaDefinitions`'s JSON-Schema
@@ -925,7 +1009,15 @@ export interface ReviewFlag {
  * via the `definition` "DebriefFeatureCollection".
  */
 export interface DebriefFeatureCollection {
-  features: (TrackFeature | AnnotationFeature | SensorObservationsFeature | NarrativeFeature | PlotFeature)[];
+  features: (
+    | TrackFeature
+    | AnnotationFeature
+    | SensorObservationsFeature
+    | SensorFeature
+    | SensorCutFeature
+    | NarrativeFeature
+    | PlotFeature
+  )[];
   /**
    * The plot's whole history: every step, with its provenance and whether it is applied, undone or abandoned, and the current step (SUB-19, SUB-21, decision 13 Oct). A GeoJSON foreign member, so other tools still read the file as GeoJSON. Not content: left out of every content hash. Last in the file. A plot sent to a view or a tool never carries it.
    */
@@ -1024,6 +1116,10 @@ export interface TrackProperties {
    * One per position, non-decreasing.
    */
   times: string[];
+  /**
+   * The track is a TMA solution of a contact, rooted in a period of bearing cuts (CAP-21; product owner, 24 Oct 2026). Otherwise an ordinary track, plotted by dead reckoning, so every track operation works on it unchanged; this says which cuts its bearing residuals are worked out against, its legs, and the cuts left out of its RMS error. Content: each change is a recorded, undoable step (SUB-22).
+   */
+  tma?: TmaSolution | null;
 }
 /**
  * This interface was referenced by `DebriefSchemaDefinitions`'s JSON-Schema
@@ -1135,6 +1231,42 @@ export interface TrackSupply {
   track: string;
 }
 /**
+ * What makes a track a TMA solution (CAP-21; product owner, 24 Oct 2026): the contact it is a solution of, and the period of bearing cuts it is rooted in, named by the cuts' ids (a sensor's id changes when its track is split; a cut's does not). Its residuals are each rooted cut's bearing less the bearing from where the cut was taken (its origin) to where the solution was at the cut's time. Its legs start at leg_starts: each is dragged on its own, the later ones following on by dead reckoning, so they stay joined.
+ *
+ * This interface was referenced by `DebriefSchemaDefinitions`'s JSON-Schema
+ * via the `definition` "TmaSolution".
+ */
+export interface TmaSolution {
+  /**
+   * The contact the solution is of, as the analyst names it, such as "Contact 1".
+   */
+  contact: string;
+  /**
+   * The cuts it is rooted in, by feature id, in time order: every cut of the rooted period on the sensors chosen. Its fixes fall at their times when Debrief makes it. A legacy solution whose sensor the plot does not have has none, and the import says so.
+   */
+  cut_ids: string[];
+  /**
+   * Rooted cuts the analyst left out of the RMS error, such as wild bearings (product owner, 24 Oct 2026): still listed and drawn in the bearing view, not counted. Each change is one step.
+   */
+  excluded_cut_ids?: string[] | null;
+  /**
+   * When each leg after the first starts, in time order: the solution split into legs (product owner, 24 Oct 2026). A fix exactly at a time starts the later leg, as a split does. Left out, one leg.
+   */
+  leg_starts?: string[] | null;
+  period: TimeRange1;
+  /**
+   * The sensors whose cuts it was rooted in when it was made, as their ids were then: what the analyst chose. The cuts themselves are in cut_ids.
+   */
+  sensor_ids: string[];
+}
+/**
+ * A closed interval of time. Start shall not be after end.
+ */
+export interface TimeRange1 {
+  end: string;
+  start: string;
+}
+/**
  * A set of sensor observations, such as weeks of bearings, held as an opaque payload (CON-02, NFR-06). Geometry is null; positions come from the host track at each observation time.
  *
  * This interface was referenced by `DebriefSchemaDefinitions`'s JSON-Schema
@@ -1214,6 +1346,137 @@ export interface PayloadColumn {
 export interface InnerSchemaRef {
   name: string;
   version: string;
+}
+/**
+ * A sensor carried by a track (CAP-22): a bow sonar, a towed array, the bearings read from a narrative. Its cuts are features of their own (SensorCutFeature), each naming it, so resolving one cut, or the cuts of a period, is one small recorded step (SUB-19), as each narrative entry is a feature of its own. Geometry is null: a cut is drawn from where the host track was at its time, so a track edited (moved, sheared, plotted by dead reckoning) carries its cuts with it, and a TMA solution (CAP-21) can be rooted in the cuts' times.
+ *
+ * This interface was referenced by `DebriefSchemaDefinitions`'s JSON-Schema
+ * via the `definition` "SensorFeature".
+ */
+export interface SensorFeature {
+  /**
+   * Always null.
+   */
+  geometry?: PointGeometry | null;
+  id: string;
+  properties: SensorProperties;
+  type: FeatureTypeEnum;
+}
+/**
+ * This interface was referenced by `DebriefSchemaDefinitions`'s JSON-Schema
+ * via the `definition` "SensorProperties".
+ */
+export interface SensorProperties {
+  /**
+   * How the array follows the ship: back along its past track (worm in the hole, the default, as legacy's) or straight astern (plain). Only with array_offset.
+   */
+  array_mode?: ArrayModeEnum | null;
+  /**
+   * How far astern of the ship the sensor is (a towed array), so its cuts are drawn, and port and starboard told, from the array's position, not the ship's (product owner, 24 Oct 2026). Left out, the sensor is at the ship. Set by the analyst as a recorded, undoable step, or read from a legacy plot (its Offset, astern).
+   */
+  array_offset?: Length | null;
+  /**
+   * The colour its cuts are drawn in, lower-case hex RGB, unless a cut has its own. Content, like a track's colour: each change is a recorded, undoable step (SUB-22).
+   */
+  colour: string;
+  /**
+   * None of its cuts drawn on the map. Still listed, and still selectable, in the outline, under its track. Content: hiding is a recorded, undoable change (SUB-22).
+   */
+  hidden?: boolean | null;
+  /**
+   * The track carrying the sensor (ownship): its cuts are drawn from that track's position at each cut's time (or its array's, astern). A track split: the cuts from the split on go with the second part, as a sensor of its own (a new id) where the sensor had cuts before it too; cuts between the parts' fixes keep the position they were drawn from. Tracks merged: sensors of one name are one again, the merged track's.
+   */
+  host_track_id: string;
+  kind: SensorKindEnum;
+  /**
+   * The REP symbology code its colour came from, such as "@A", kept for export.
+   */
+  legacy_symbology?: string | null;
+  /**
+   * The sensor's name, as its source gives it, such as "Towed array" or "2087".
+   */
+  name: string;
+  provenance?: ProvRecord[] | null;
+}
+/**
+ * One cut of a sensor (CAP-22): a bearing from the host track at a time, perhaps with the ambiguous bearing a towed array cannot tell it from, and which of the two the analyst kept. Geometry is null: the cut is drawn from the host track's position at its time (as the map places tracks, along the geodesic between fixes), or from the position recorded with it, along the geodesic at its bearing to its range, or else past the edge of the map's view (twice the view's larger side, at most 5 degrees of arc, 300 nmi, as legacy Debrief draws it). Frequency is never imported (CAP-22, EXT-03). A bearing error is not held yet: no legacy format defines what one means (product owner, 24 Oct 2026); an optional bearing_error here is the way to add it, and wedges with it.
+ *
+ * This interface was referenced by `DebriefSchemaDefinitions`'s JSON-Schema
+ * via the `definition` "SensorCutFeature".
+ */
+export interface SensorCutFeature {
+  /**
+   * Always null.
+   */
+  geometry?: PointGeometry | null;
+  id: string;
+  properties: SensorCutProperties;
+  type: FeatureTypeEnum;
+}
+/**
+ * This interface was referenced by `DebriefSchemaDefinitions`'s JSON-Schema
+ * via the `definition` "SensorCutProperties".
+ */
+export interface SensorCutProperties {
+  /**
+   * A towed array's ambiguous bearing: the mirror image of bearing about the array, on the other side of the host's course. Left out for a cut that was never ambiguous.
+   */
+  ambiguous_bearing?: Angle | null;
+  bearing: Angle1;
+  /**
+   * The bearing accuracy a ;SENSOR3: line gives, kept exactly as written: no format says what it means (a standard deviation, a half-width), so it is not drawn (product owner, 24 Oct 2026).
+   */
+  bearing_accuracy?: string | null;
+  /**
+   * The cut's own colour, lower-case hex RGB; left out, its sensor's, as legacy Debrief lets a cut take its sensor's colour.
+   */
+  colour?: string | null;
+  /**
+   * Free text about the cut.
+   */
+  comment?: string | null;
+  /**
+   * The course, true, the cut's port and starboard are told by, pinned with a derived origin when its track was split (the course logged where the sensor was then). Left out, the host's logged course at the cut's time. Only with origin.
+   */
+  course?: Angle | null;
+  /**
+   * Not drawn on the map. Content, like hiding any feature (SUB-22).
+   */
+  hidden?: boolean | null;
+  kind: SensorCutKindEnum;
+  /**
+   * Text the source gives the cut, such as legacy Debrief's label.
+   */
+  label?: string | null;
+  /**
+   * @minItems 2
+   * @maxItems 2
+   */
+  origin?: [number, number];
+  /**
+   * True where origin is not recorded by the source but derived by Debrief: where the sensor (its array astern, if it has one) was before its track was split, pinned so the cut is drawn, and its side told, as before (round 3 review, 24 Oct 2026). A TMA residual can tell a recorded origin from a derived one by it. Only with origin.
+   */
+  origin_derived?: boolean | null;
+  /**
+   * How far the target was, where the source says: the cut is drawn to that range. Left out, drawn past the edge of the view. A range of 0 (a ;SENSOR2: or ;SENSOR3: line's, as legacy read it) is drawn as a point where the cut was taken, as legacy drew it.
+   */
+  range?: Length | null;
+  /**
+   * Which of the two bearings the analyst kept, for a cut with an ambiguous bearing; left out while it is unresolved, when both are drawn. Each resolution, of one cut or of every cut in a period, is one recorded, undoable step with provenance (product owner, 24 Oct 2026), and can be undone or reset to ambiguous.
+   */
+  resolved?: SensorCutKeptEnum | null;
+  /**
+   * The sensor the cut is from, a sensor feature in the plot.
+   */
+  sensor_id: string;
+  /**
+   * When the cut was taken, to the millisecond, Zulu (SUB-01).
+   */
+  time: string;
+}
+export interface Angle1 {
+  unit: AngleUnitEnum;
+  value: number;
 }
 /**
  * One narrative entry (CAP-19, CAP-20, EXT-14): what a platform, a person or a document logged at a time. A feature of its own with null geometry, as a time-only annotation is, so other GeoJSON tools read it, and each entry added, changed or deleted is one small recorded, undoable step (SUB-19). Every narrative feature in a plot together makes the plot's narrative: one combined Zulu time axis, however many sources it came from, in the order narrative_order gives (time; then source, ignoring case; then the plot's order, so a log's own order at one time is kept).
@@ -1449,7 +1712,17 @@ export interface HistoryStep {
   /**
    * Features added. A whole-plot feature here never carries its view: the island is not content (SUB-22).
    */
-  added?: (TrackFeature | AnnotationFeature | SensorObservationsFeature | NarrativeFeature | PlotFeature)[] | null;
+  added?:
+    | (
+        | TrackFeature
+        | AnnotationFeature
+        | SensorObservationsFeature
+        | SensorFeature
+        | SensorCutFeature
+        | NarrativeFeature
+        | PlotFeature
+      )[]
+    | null;
   /**
    * The step this one was applied on top of (0 for the first). Replay follows these links back from a step to the first.
    */
@@ -1459,7 +1732,17 @@ export interface HistoryStep {
   /**
    * Features changed, in full, replacing those with the same id.
    */
-  modified?: (TrackFeature | AnnotationFeature | SensorObservationsFeature | NarrativeFeature | PlotFeature)[] | null;
+  modified?:
+    | (
+        | TrackFeature
+        | AnnotationFeature
+        | SensorObservationsFeature
+        | SensorFeature
+        | SensorCutFeature
+        | NarrativeFeature
+        | PlotFeature
+      )[]
+    | null;
   /**
    * Named sets added or replaced, by id.
    */
@@ -1509,7 +1792,17 @@ export interface Delta {
   /**
    * Features added, never with the whole-plot feature's view.
    */
-  added?: (TrackFeature | AnnotationFeature | SensorObservationsFeature | NarrativeFeature | PlotFeature)[] | null;
+  added?:
+    | (
+        | TrackFeature
+        | AnnotationFeature
+        | SensorObservationsFeature
+        | SensorFeature
+        | SensorCutFeature
+        | NarrativeFeature
+        | PlotFeature
+      )[]
+    | null;
   /**
    * The delta this one was applied on top of (0 for the first).
    */
@@ -1519,7 +1812,17 @@ export interface Delta {
   /**
    * Features changed, in full, replacing those with the same id.
    */
-  modified?: (TrackFeature | AnnotationFeature | SensorObservationsFeature | NarrativeFeature | PlotFeature)[] | null;
+  modified?:
+    | (
+        | TrackFeature
+        | AnnotationFeature
+        | SensorObservationsFeature
+        | SensorFeature
+        | SensorCutFeature
+        | NarrativeFeature
+        | PlotFeature
+      )[]
+    | null;
   /**
    * Named sets added or replaced, by id.
    */
@@ -2131,6 +2434,384 @@ export interface TimelineEntry {
   track?: string | null;
 }
 /**
+ * One cut, as the bearing view lists it.
+ *
+ * This interface was referenced by `DebriefSchemaDefinitions`'s JSON-Schema
+ * via the `definition` "TmaCut".
+ */
+export interface TmaCut {
+  /**
+   * Its ambiguous twin, degrees true, where it has one.
+   */
+  ambiguous_bearing?: number | null;
+  /**
+   * The bearing recorded first, degrees true.
+   */
+  bearing: number;
+  /**
+   * The colour it is drawn in (its own, or its sensor's).
+   */
+  colour?: string | null;
+  hidden?: boolean | null;
+  /**
+   * The cut's feature id.
+   */
+  id: string;
+  label?: string | null;
+  /**
+   * @minItems 2
+   * @maxItems 2
+   */
+  origin?: [number, number];
+  /**
+   * Its origin was worked out by Debrief (pinned when its track was split), not recorded by the source (round 3 review, 24 Oct 2026).
+   */
+  origin_derived?: boolean | null;
+  /**
+   * Which bearing the analyst kept, if resolved.
+   */
+  resolved?: SensorCutKeptEnum | null;
+  /**
+   * Its sensor's name.
+   */
+  sensor?: string | null;
+  sensor_id: string;
+  /**
+   * The side of the host's course its first bearing is on, where it has a twin and the side can be told.
+   */
+  side?: SideEnum | null;
+  time: string;
+}
+/**
+ * What the bearing view chooses for the analyst, once (show_tma's focus): the cut at or nearest cut_time, current time moved to it; or the cuts in period, or cut_ids, the first guess's form opened for them if make; or, with a solution shown, the counted cut with the largest residual (largest), current time moved to it. The plot then has the keyboard (the form, if opened).
+ *
+ * This interface was referenced by `DebriefSchemaDefinitions`'s JSON-Schema
+ * via the `definition` "TmaFocus".
+ */
+export interface TmaFocus {
+  /**
+   * With make, the cuts the solution is to be rooted in, exactly: a run of cuts selected in the Outline (product owner, 27 Oct 2026).
+   */
+  cut_ids?: string[] | null;
+  /**
+   * Choose the cut at or nearest this time.
+   */
+  cut_time?: string | null;
+  /**
+   * Choose the cut counted in the RMS with the largest residual.
+   */
+  largest?: boolean | null;
+  /**
+   * With period or cut_ids, open the first guess's form (TMA solution from cuts…).
+   */
+  make?: boolean | null;
+  /**
+   * Choose the cuts in this period, ends included, as the period.
+   */
+  period?: TimeRange | null;
+}
+/**
+ * A track carrying the solution's sensors (ownship): its course over the period the Bearings view shows, for the Course/Speed pane (product owner, 25 Oct 2026). Its courses as logged at its fixes, thinned to at most a few thousand.
+ *
+ * This interface was referenced by `DebriefSchemaDefinitions`'s JSON-Schema
+ * via the `definition` "TmaOwnship".
+ */
+export interface TmaOwnship {
+  colour?: string | null;
+  /**
+   * Its course at each of those times, degrees true: as logged, else as its fixes imply (product owner, 28 Oct 2026).
+   */
+  courses: number[];
+  /**
+   * The track's feature id.
+   */
+  id: string;
+  name: string;
+  /**
+   * Its speed at each of those times, metres a second: as logged, else as its fixes imply (product owner, 28 Oct 2026), for the Course/Speed pane's ownship speed.
+   */
+  speeds?: number[] | null;
+  times: string[];
+}
+/**
+ * A TMA solution asked for (CAP-21; product owner, 24 Oct 2026), from the bearing view's form, two clicks on the map, or an agent (debrief/tma_create): the cuts to root it in (sensor_ids and a period, or cut_ids), and a first guess, either by form (a range on the first cut's bearing, a course and a speed) or by two positions (on the first cut's line and on the last's; the course and speed follow). Made as one recorded, undoable step.
+ *
+ * This interface was referenced by `DebriefSchemaDefinitions`'s JSON-Schema
+ * via the `definition` "TmaRequest".
+ */
+export interface TmaRequest {
+  /**
+   * The solution track's colour, lower-case hex RGB; left out, Debrief's TMA colour.
+   */
+  colour?: string | null;
+  /**
+   * The contact's name; left out, the next of "Contact 1", "Contact 2"...
+   */
+  contact?: string | null;
+  /**
+   * First guess by form: the solution's course.
+   */
+  course?: Angle | null;
+  /**
+   * Or the cuts to root it in, by feature id.
+   */
+  cut_ids?: string[] | null;
+  /**
+   * First guess by form, where the first cut is ambiguous and unresolved: which of its bearings the range is along. Left out, the one kept, else the bearing recorded first.
+   */
+  first_bearing?: SensorCutKeptEnum | null;
+  /**
+   * @minItems 2
+   * @maxItems 2
+   */
+  first_position?: [number, number];
+  /**
+   * @minItems 2
+   * @maxItems 2
+   */
+  last_position?: [number, number];
+  /**
+   * The solution track's name; left out, the contact's with "solution".
+   */
+  name?: string | null;
+  /**
+   * The cuts whose times fall in it, ends included, of the sensors named.
+   */
+  period?: TimeRange | null;
+  /**
+   * First guess by form: how far along the first cut's bearing, from where it was taken, the solution starts.
+   */
+  range?: Length | null;
+  /**
+   * The sensors whose cuts in the period it is rooted in.
+   */
+  sensor_ids?: string[] | null;
+  /**
+   * First guess by form: the solution's speed.
+   */
+  speed?: Speed | null;
+}
+/**
+ * One rooted cut's residual: its measured bearing less the bearing from its origin to where the solution was at its time, within plus or minus 180 degrees, as legacy Doublet.calculateBearingError.
+ *
+ * This interface was referenced by `DebriefSchemaDefinitions`'s JSON-Schema
+ * via the `definition` "TmaResidualRow".
+ */
+export interface TmaResidualRow {
+  /**
+   * Its ambiguous twin, degrees true, where it has one.
+   */
+  ambiguous_bearing?: number | null;
+  /**
+   * The bearing recorded first, degrees true.
+   */
+  bearing: number;
+  /**
+   * The bearing from its origin to the solution at its time, along the geodesic.
+   */
+  calculated?: number | null;
+  /**
+   * The colour it is drawn in (its own, or its sensor's).
+   */
+  colour?: string | null;
+  /**
+   * Left out of the RMS error by the analyst.
+   */
+  excluded?: boolean | null;
+  hidden?: boolean | null;
+  /**
+   * The cut's feature id.
+   */
+  id: string;
+  label?: string | null;
+  /**
+   * Which leg of the solution it falls in, from 1.
+   */
+  leg?: number | null;
+  /**
+   * The bearing measured: the one kept, the cut's only one, or, for an ambiguous cut not yet resolved, the one nearer the solution (nearer_side), which the view says.
+   */
+  measured?: number | null;
+  /**
+   * True for an ambiguous cut not yet resolved: measured is the bearing nearer the solution, chosen afresh as it moves (product owner, 24 Oct 2026).
+   */
+  nearer_side?: boolean | null;
+  /**
+   * @minItems 2
+   * @maxItems 2
+   */
+  origin?: [number | null, number | null];
+  /**
+   * Its origin was worked out by Debrief (pinned when its track was split), not recorded by the source (round 3 review, 24 Oct 2026).
+   */
+  origin_derived?: boolean | null;
+  /**
+   * An ambiguous cut not yet resolved: its other bearing (the one not measured) less calculated, degrees, within (-180, 180]. Drawn faint and never counted, so the analyst can pick a side from the plot (product owner, 25 Oct 2026).
+   */
+  other_residual?: number | null;
+  /**
+   * measured less calculated, degrees, within (-180, 180]; left out where there is none.
+   */
+  residual?: number | null;
+  /**
+   * Which bearing the analyst kept, if resolved.
+   */
+  resolved?: SensorCutKeptEnum | null;
+  /**
+   * Its sensor's name.
+   */
+  sensor?: string | null;
+  sensor_id: string;
+  /**
+   * The side of the host's course its first bearing is on, where it has a twin and the side can be told.
+   */
+  side?: SideEnum | null;
+  time: string;
+  /**
+   * Which of the cut's bearings measured is.
+   */
+  used?: SensorCutKeptEnum | null;
+}
+/**
+ * A solution's bearing residuals (debrief/tma_residuals): a row per rooted cut in time order, and the RMS error of those counted.
+ *
+ * This interface was referenced by `DebriefSchemaDefinitions`'s JSON-Schema
+ * via the `definition` "TmaResiduals".
+ */
+export interface TmaResiduals {
+  /**
+   * How many residuals the RMS counts.
+   */
+  counted: number;
+  /**
+   * How many cuts are taken from an origin Debrief worked out.
+   */
+  derived_origins?: number | null;
+  /**
+   * How many cuts the analyst left out.
+   */
+  excluded: number;
+  /**
+   * How many rooted cuts are hidden on the map: left out of the residuals and the RMS until shown again (legacy's "only plot visible data"; product owner, 25 Oct 2026).
+   */
+  hidden?: number | null;
+  /**
+   * How many ambiguous cuts use the bearing nearer the solution.
+   */
+  nearer_side?: number | null;
+  /**
+   * The root mean square of the residuals counted (degrees): every rooted cut with a residual, less those left out. Left out when none is counted.
+   */
+  rms?: number | null;
+  rows: TmaResidualRow[];
+  solution_id: string;
+  /**
+   * How many rooted cuts give no residual: outside their host's fixes, or outside the solution's, or no longer in the plot.
+   */
+  without: number;
+}
+/**
+ * A sensor whose cuts the bearing view can list.
+ *
+ * This interface was referenced by `DebriefSchemaDefinitions`'s JSON-Schema
+ * via the `definition` "TmaSensorRow".
+ */
+export interface TmaSensorRow {
+  /**
+   * How many of them are still ambiguous.
+   */
+  ambiguous?: number | null;
+  colour?: string | null;
+  /**
+   * How many cuts it has.
+   */
+  cuts: number;
+  /**
+   * The name of the track carrying it.
+   */
+  host?: string | null;
+  id: string;
+  name: string;
+}
+/**
+ * A TMA solution in the plot, as the bearing view lists it and draws it.
+ *
+ * This interface was referenced by `DebriefSchemaDefinitions`'s JSON-Schema
+ * via the `definition` "TmaSolutionRow".
+ */
+export interface TmaSolutionRow {
+  colour?: string | null;
+  contact: string;
+  /**
+   * Its course at each fix, degrees true: its DR legs' courses, for the Bearings view's Course/Speed pane (product owner, 25 Oct 2026).
+   */
+  courses?: number[] | null;
+  /**
+   * How many cuts it is rooted in.
+   */
+  cuts: number;
+  id: string;
+  leg_starts?: string[] | null;
+  name: string;
+  period: TimeRange;
+  /**
+   * Its speed at each fix, metres a second, for the Course/Speed pane.
+   */
+  speeds?: number[] | null;
+  /**
+   * Its fixes' times, for the view to place it as a drag moves it.
+   */
+  times?: string[] | null;
+}
+/**
+ * What the host sends the bearing view (show_tma): the plot's sensors and solutions; the cuts of the sensor chosen, in time order; and, for the solution shown, its residuals. The view follows the Outline's selection (product owner, 27 Oct 2026): a solution, one of its legs or fixes shows the solution; a sensor, or some of its cuts, the sensor's coverage.
+ *
+ * This interface was referenced by `DebriefSchemaDefinitions`'s JSON-Schema
+ * via the `definition` "TmaView".
+ */
+export interface TmaView {
+  /**
+   * With a solution shown, every cut of its sensors shown on the map, in time order, rooted or not: the Bearing pane plots each measured bearing over the sensors' whole coverage, the calculated bearings and errors only where the solution is (product owner, 25 Oct 2026). Cuts hidden on the map are left out.
+   */
+  coverage?: TmaCut[] | null;
+  cuts?: TmaCut[] | null;
+  /**
+   * The analyst's error cut-off, degrees, from their Debrief configuration (tma_error_cut_off; 3 by default): the Error pane is green while every residual counted is within it, pink otherwise.
+   */
+  error_cut_off?: number | null;
+  /**
+   * Something to choose in the view once, as a command or a walkthrough's step asks (CAP-25): a cut, a period and its first guess, or the cut with the largest residual. Not kept: the view shows it and the analyst carries on from there.
+   */
+  focus?: TmaFocus | null;
+  /**
+   * The tracks carrying the solution's sensors, with their courses, for the Course/Speed pane.
+   */
+  ownship?: TmaOwnship[] | null;
+  /**
+   * Which plot is open, as its host knows it.
+   */
+  plot_id?: string | null;
+  /**
+   * An earlier revision is shown read-only, so nothing can be changed.
+   */
+  read_only?: boolean | null;
+  residuals?: TmaResiduals | null;
+  /**
+   * The sensor whose cuts are listed.
+   */
+  sensor_id?: string | null;
+  sensors?: TmaSensorRow[] | null;
+  /**
+   * The solution shown: the one selected on the map or in the Outline, or chosen in the view.
+   */
+  solution_id?: string | null;
+  solutions?: TmaSolutionRow[] | null;
+  /**
+   * What is shown, in one line, as the host says it (product owner, 27 Oct 2026): "Contact 1 solution, leg 2, fix at 10:38:00Z", "Towed array on BLUE ONE: 102 cuts".
+   */
+  title?: string | null;
+}
+/**
  * How a tool describes itself to Debrief, agents and hooks (TL-04, TL-06).
  *
  * This interface was referenced by `DebriefSchemaDefinitions`'s JSON-Schema
@@ -2172,9 +2853,27 @@ export interface ToolDeclaration {
  */
 export interface ToolResult {
   deleted_feature_ids?: string[] | null;
-  modified_features?: (TrackFeature | AnnotationFeature | SensorObservationsFeature | NarrativeFeature)[] | null;
+  modified_features?:
+    | (
+        | TrackFeature
+        | AnnotationFeature
+        | SensorObservationsFeature
+        | SensorFeature
+        | SensorCutFeature
+        | NarrativeFeature
+      )[]
+    | null;
   named_sets?: NamedSet[] | null;
-  new_features?: (TrackFeature | AnnotationFeature | SensorObservationsFeature | NarrativeFeature)[] | null;
+  new_features?:
+    | (
+        | TrackFeature
+        | AnnotationFeature
+        | SensorObservationsFeature
+        | SensorFeature
+        | SensorCutFeature
+        | NarrativeFeature
+      )[]
+    | null;
   non_spatial?: NonSpatialResult[] | null;
   state_change?: SharedStateChange | null;
 }
@@ -2307,7 +3006,7 @@ export interface TrackEdit {
  */
 export interface UserConfig {
   /**
-   * Version of this file's layout: 1 while it holds only stores; 2 once it holds track_import_mode; 3 once it holds narrative_import. An earlier Debrief cannot read a later layout.
+   * Version of this file's layout: 1 while it holds only stores; 2 once it holds track_import_mode; 3 once it holds narrative_import; 4 once it holds tma_error_cut_off. An earlier Debrief cannot read a later layout.
    */
   config_version: number;
   /**
@@ -2318,6 +3017,10 @@ export interface UserConfig {
    * Known stores, in the order the analyst sees them (SUB-17).
    */
   stores: KnownStore[];
+  /**
+   * The Bearings view's error cut-off, degrees (CAP-21; product owner, 25 Oct 2026): its Error pane is green while every residual counted is within it and pink otherwise, as legacy Debrief's Stacked Dots shaded it. Left out, 3 degrees, legacy's default. The analyst's preference, kept here and never in a catalogue or a plot file.
+   */
+  tma_error_cut_off?: number | null;
   /**
    * How tracks imported are plotted, over the ground or by dead reckoning: ask (the default, also when left out), or otg or dr once the analyst chose "Use this choice for future imports" (CAP-01). The analyst may clear it, to be asked again.
    */
@@ -2344,6 +3047,18 @@ export interface WebviewMessage {
    * Current time from shared state, which a tool form offers for its time fields.
    */
   current_time?: string | null;
+  /**
+   * The rooted cuts left out of a solution's RMS error, or counted again (tma_exclude).
+   */
+  cut_ids?: string[] | null;
+  /**
+   * The analyst's error cut-off, degrees (tma_cut_off).
+   */
+  error_cut_off?: number | null;
+  /**
+   * Whether the cuts are left out (tma_exclude).
+   */
+  excluded?: boolean | null;
   /**
    * The narrative entry the Timeline chose, changes or deletes, the annotation a form changes or deletes, the annotation or track the map asks to change, or the track whose fixes it rings or the analyst chose.
    */
@@ -2372,6 +3087,10 @@ export interface WebviewMessage {
    * The item, at the revision the analyst saw (take_asked, dismiss_asked).
    */
   item_revision?: ItemRevision | null;
+  /**
+   * Which of an ambiguous cut's bearings the analyst clicked, to keep (resolve_asked).
+   */
+  keep?: AmbiguityKeepEnum | null;
   kind: WebviewMessageKindEnum;
   /**
    * Whether the source is the track's platform (link_changed).
@@ -2390,12 +3109,20 @@ export interface WebviewMessage {
    * Whether the map shows the narrative entry current time is at beside its track (show_timeline, narrative_on_map_changed): the plot's PlotView.narrative_on_map; left out means it does.
    */
   narrative_on_map?: boolean | null;
+  /**
+   * The width of each pane the Bearings view's plot shows, left to right, CSS pixels (tma_plot_drawn).
+   */
+  pane_widths?: number[] | null;
   parameters?: ParameterValue[] | null;
   /**
    * Whether current time is playing (playing_changed).
    */
   playing?: boolean | null;
   plot?: DebriefFeatureCollection | null;
+  /**
+   * The height of the Bearings view's plot, its panes' time axis, CSS pixels (tma_plot_drawn).
+   */
+  plot_height?: number | null;
   /**
    * Which plot is open, as its host knows it (show_timeline): a list read again for the same plot keeps the reader's place; another plot is read from current time.
    */
@@ -2405,6 +3132,10 @@ export interface WebviewMessage {
    * A track as a change would leave it, one position per fix, drawn beside it until the analyst applies or cancels the change (show_fixes).
    */
   preview?: LineStringGeometry | null;
+  /**
+   * The sides of the cuts boxed in the Bearings plot to keep (tma_resolve).
+   */
+  resolution?: AmbiguityResolution | null;
   result?: ToolResult | null;
   result_title?: string | null;
   /**
@@ -2438,6 +3169,14 @@ export interface WebviewMessage {
    * The plot's tracks, which a narrative entry can belong to (show_timeline).
    */
   timeline_tracks?: ToteTrack[] | null;
+  /**
+   * What the bearing view shows (show_tma).
+   */
+  tma?: TmaView | null;
+  /**
+   * A TMA solution asked for (tma_create, tma_guess, tma_guessed).
+   */
+  tma_request?: TmaRequest | null;
   tool?: ToolDeclaration | null;
   tool_name?: string | null;
   /**

@@ -48,6 +48,7 @@ from debrief_kernel.time import format_utc, parse_utc
 from debrief_schemas import DebriefFeatureCollection, models
 from debrief_stac import Base, Catalogue, CatalogueError, Conflict, History, HistoryError
 from debrief_stac import narrative as plot_narrative
+from debrief_stac.sensors import ReadCut, ReadSensor
 
 IMPORTER = "debrief-io.narrative"
 MEDIA_TYPES = {
@@ -68,6 +69,11 @@ class AlreadyInPlotError(NoNarrativeError):
 
 # Choices.duplicates: what to do with entries already in the plot.
 SKIP, ADD = "skip", "add"
+
+# A Rider's narrative's bearings become cuts of this sensor on the entry's track, drawn red, as
+# legacy Debrief made them (its sensor FromNarrative, ImportRiderNarrativeDocument.addCut).
+RIDER_SENSOR = "Rider bearings"
+RIDER_COLOUR = "#e01c3e"
 
 
 @dataclass
@@ -91,7 +97,8 @@ class Candidate:
     text: str
     truncated: bool = False
     fcs: bool = False  # an FCS entry giving a bearing and range: a TMA solution, later
-    bearing: bool = False  # a Rider entry's bearing: a sensor cut, later
+    bearing: float | None = None  # a Rider entry's bearing: a sensor cut (CAP-22)
+    ambiguous: float | None = None  # and its ambiguous twin
 
 
 @dataclass
@@ -212,8 +219,9 @@ def _document_file(name: str, fmt: str, read: DocumentRead) -> NarrativeFile:
     cuts = sum(1 for e in read.entries if e.bearing is not None)
     if cuts:
         notes.append(
-            f"{_plural(cuts, 'entry', 'entries')} give a bearing: kept in the entry's text; "
-            "legacy Debrief also made them sensor cuts, which come with sensor data."
+            f"{_plural(cuts, 'entry', 'entries')} give a bearing: kept in the entry's text, "
+            f"and made a cut of the sensor {RIDER_SENSOR} on the entry's track, an ambiguous "
+            "one where the entry gives two, as legacy Debrief made them (CAP-22)."
         )
     entries = [_candidate(e) for e in read.entries]
     if not entries:
@@ -236,7 +244,8 @@ def _candidate(entry: DocEntry) -> Candidate:
         entry.entry_type,
         entry.text,
         fcs=entry.fcs is not None and entry.fcs.complete,
-        bearing=entry.bearing is not None,
+        bearing=entry.bearing,
+        ambiguous=entry.ambiguous,
     )
 
 
@@ -497,6 +506,8 @@ class Chosen:
     omitted: list[str]
     notes: list[str]
     already: int = 0
+    # A Rider's bearings: (track id, time, bearing, ambiguous) of each entry chosen that has one.
+    cuts: list[tuple[str, int, float, float | None]] = field(default_factory=list)
 
 
 def chosen_features(
@@ -581,7 +592,36 @@ def chosen_features(
             f"{_plural(n, 'entry', 'entries')} written as from {written} "
             f"{'is' if n == 1 else 'are'} {source}'s: their source is the track's name."
         )
-    return Chosen(features, omitted, notes, already)
+    # A Rider's bearings: cuts on the entry's track (CAP-22); none where it has no track,
+    # as legacy Debrief made none without a host.
+    cuts = [
+        (track, entry.time_ms, float(entry.bearing), _float(entry.ambiguous))
+        for entry, (_, _, track), _ in rows
+        if entry.bearing is not None and track is not None
+    ]
+    hostless = sum(1 for entry, (_, _, t), _ in rows if entry.bearing is not None and t is None)
+    if hostless:
+        omitted.append(
+            f"{_plural(hostless, 'bearing')} not made {'a cut' if hostless == 1 else 'cuts'}: "
+            f"{'its entry belongs' if hostless == 1 else 'their entries belong'} to no track "
+            "in the plot."
+        )
+    return Chosen(features, omitted, notes, already, cuts)
+
+
+def _float(value: float | None) -> float | None:
+    return None if value is None else float(value)
+
+
+def rider_sensors(cuts: list[tuple[str, int, float, float | None]]) -> list[ReadSensor]:
+    """A Rider's bearings as cuts of the sensor RIDER_SENSOR on each entry's track."""
+    by_track: dict[str, list[ReadCut]] = {}
+    for track, time_ms, bearing, ambiguous in cuts:
+        by_track.setdefault(track, []).append(ReadCut(time_ms, bearing, ambiguous=ambiguous))
+    return [
+        ReadSensor(name=RIDER_SENSOR, host_track_id=track, colour=RIDER_COLOUR, cuts=read)
+        for track, read in by_track.items()
+    ]
 
 
 def entries_note(features: list[models.NarrativeFeature]) -> str:
@@ -673,6 +713,16 @@ def import_narrative(
     source = kept or catalogue.add_source(
         item_id, path, media_type=MEDIA_TYPES.get(narrative.format, "text/plain")
     )
+    riders = rider_sensors(chosen.cuts)
+    if riders:
+        names = plot_narrative.track_names(plot)
+        hosts = {i: n for n, i in names.items()}
+        made = ", ".join(f"{hosts.get(s.host_track_id, s.host_track_id)}" for s in riders)
+        ambiguous = sum(1 for _, _, _, a in chosen.cuts if a is not None)
+        notes.append(
+            f"{_plural(len(chosen.cuts), 'bearing')} made cuts of the sensor {RIDER_SENSOR} "
+            f"on {made}" + (f", {ambiguous:,} of them ambiguous" if ambiguous else "") + "."
+        )
     record = models.ProvRecord(
         id=f"import-narrative-{started}",
         kind="import",
@@ -692,7 +742,12 @@ def import_narrative(
         ],
     )
     step = catalogue.add_narrative_entries(
-        item_id, features, record, base, allow_newer_schema=allow_newer_schema
+        item_id,
+        features,
+        record,
+        base,
+        allow_newer_schema=allow_newer_schema,
+        sensor_data=riders,
     )
     sources = list(dict.fromkeys(f.properties.source for f in features))
     return NarrativeImport(step, len(features), sources, omitted, notes)

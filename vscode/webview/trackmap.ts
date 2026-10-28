@@ -46,9 +46,16 @@
  *   starts; every other gesture changes courses and speeds (a fix dragged, the leg
  *   into it), and the fixes after follow on, their rings with them. A time window
  *   that starts after the first fix turns about its own first fix.
+ * - A TMA solution (CAP-21; product owner, 24 Oct 2026) is a DR track like any other,
+ *   dragged the same way; split into legs, the control offers This leg too: the leg clicked
+ *   on the map, else the leg current time is in, dragged on its own, the other legs staying
+ *   where they are (product owner, 25 Oct 2026; the joins solved again when saved). While one is
+ *   dragged the map says where it is now to the bearing view (tma_preview), which works its
+ *   residuals out again as it moves; and that the drag ended, or was put back.
  * - Nothing here changes current time, the window or the selection. If the
  *   plot changes elsewhere during a drag, the drag is dropped and the map says so.
  */
+import { keptLegs, legIndices, legNear } from "./tma.js";
 import L from "leaflet";
 import { DEFAULT_SETTINGS, formatTime } from "@debrief/kernel";
 import type { DebriefFeatureCollection } from "@debrief/schemas";
@@ -126,6 +133,8 @@ interface Selected {
   jump: number;
   /** Plotted by dead reckoning: its courses and speeds, which the gestures change. */
   reckoning?: Reckoning;
+  /** A TMA solution: whether the bearing view is told of its drags, and when its later legs start (ms). */
+  tma?: { legStarts: number[] };
 }
 
 /** A press of an arrow key on a handle: on a fix's own handle, which fix. */
@@ -136,13 +145,15 @@ interface Press {
   fixTime?: string;
 }
 
-/** What moves: the whole track, or only its fixes in the time window. */
-export type Extent = "whole" | "window";
+/** What moves: the whole track, only its fixes in the time window, or (a TMA solution split into legs) the leg current time is in. */
+export type Extent = "whole" | "window" | "leg";
 
 export class TrackEditor {
   private selection: string[] = [];
   private selected?: Selected;
   private extent: Extent = "whole";
+  /** With This leg: the leg the analyst picked by clicking it on the map; otherwise the one current time is in. */
+  private pickedLeg?: number;
   /** What dragging an end of the period does. */
   private mode: EndMode = "shear";
   /** A pivot the analyst chose, by dragging it; otherwise the default. */
@@ -165,7 +176,9 @@ export class TrackEditor {
   private readonly run = new KeyRun<Press>(() => this.commitNudge());
   private frame?: number;
   private rebuilding = false;
-  private control?: { box: HTMLElement; whole: HTMLButtonElement; window: HTMLButtonElement; shear: HTMLButtonElement; stretch: HTMLButtonElement };
+  private control?: { box: HTMLElement; whole: HTMLButtonElement; window: HTMLButtonElement; leg: HTMLButtonElement; shear: HTMLButtonElement; stretch: HTMLButtonElement };
+  /** Whether the bearing view has been told of a drag of the selected solution, not yet of its end. */
+  private previewing = false;
   private readonly screen: Screen;
 
   constructor(private readonly host: TrackHost) {
@@ -226,6 +239,7 @@ export class TrackEditor {
         };
         const whole = button("whole", "Whole track", "Move, rotate, shear or stretch every fix of the track");
         const inWindow = button("window", "Time window", "Change only the fixes in the time window; the track jumps where they meet the rest");
+        const leg = button("leg", "This leg", "A TMA solution split into legs: change only one leg, the one you click on the map (at first the one current time is in); the other legs stay where they are, the joins either side solved again");
         // What dragging an end of the period does: shear (most used with TMA legs) or stretch.
         const ends = L.DomUtil.create("div", "track-ends", box);
         ends.setAttribute("role", "group");
@@ -248,7 +262,7 @@ export class TrackEditor {
         L.DomEvent.disableClickPropagation(box);
         L.DomEvent.disableScrollPropagation(box);
         box.hidden = true;
-        editor.control = { box, whole, window: inWindow, shear, stretch };
+        editor.control = { box, whole, window: inWindow, leg, shear, stretch };
         return box;
       },
     });
@@ -258,6 +272,7 @@ export class TrackEditor {
   /** Change the whole track, or only its fixes in the time window. */
   setExtent(extent: Extent): void {
     if (this.drag || this.nudge || this.run.saving) return;
+    if (extent !== this.extent) this.pickedLeg = undefined;
     this.extent = extent;
     this.render(true);
   }
@@ -280,11 +295,16 @@ export class TrackEditor {
     if (id && id === before && (this.drag || this.nudge || this.run.saving)) return;
     const shown = id ? this.host.track(id) : undefined;
     if (before && before !== id) this.cancelGesture();
-    if (id !== before) this.chosenPivot = undefined;
+    if (id !== before) {
+      this.chosenPivot = undefined;
+      this.pickedLeg = undefined;
+    }
     if (shown && id) {
       const positions = shown.feature.geometry.coordinates as LonLat[];
       const reckoning = reckoningOf(shown.feature.properties);
-      this.selected = { id, name: shown.feature.properties.name, positions, times: shown.times, fixTimes: shown.feature.properties.times, colour: shown.colour, jump: jumpSpeed(positions, shown.times), ...(reckoning && { reckoning }) };
+      const tag = shown.feature.properties.tma;
+      const tma = tag ? { legStarts: (tag.leg_starts ?? []).map((t) => Date.parse(t)) } : undefined;
+      this.selected = { id, name: shown.feature.properties.name, positions, times: shown.times, fixTimes: shown.feature.properties.times, colour: shown.colour, jump: jumpSpeed(positions, shown.times), ...(reckoning && { reckoning }), ...(tma && { tma }) };
     } else this.selected = undefined;
     this.render(before !== id);
   }
@@ -292,6 +312,9 @@ export class TrackEditor {
   /** The map drew the plot again: a change sent has come back, or the plot changed elsewhere. */
   plotDrawn(ids: string[]): void {
     const interrupted = (this.drag || this.nudge) && !this.run.saving;
+    // The plot drawn again: the bearing view has the residuals from Python with it, so the
+    // drag's live ones stay until they come, rather than going back to before the drag.
+    this.previewing = false;
     const kept = this.run.saved();
     if (this.drag) this.endDrag();
     this.run.stop();
@@ -322,7 +345,8 @@ export class TrackEditor {
     if (!s) return undefined;
     const time = this.host.time();
     const inWindow = this.extent === "window" && time;
-    const indices = periodIndices(s.times, inWindow ? time.window : undefined);
+    const leg = this.legOf(s);
+    const indices = leg ? leg.indices : periodIndices(s.times, inWindow ? time.window : undefined);
     if (!indices.length) return undefined;
     // Plotted by dead reckoning, fixes in a window that starts after the first turn about the window's first fix.
     const fixed = this.pivotFixed(indices);
@@ -334,11 +358,33 @@ export class TrackEditor {
       indices,
       part: indices.length < s.times.length,
       pivot: fixed ? s.positions[index!] : (this.chosenPivot ?? s.positions[index!]),
-      ...(inWindow && { period: time.range }),
+      ...(inWindow && !leg && { period: time.range }),
+      ...(leg && indices.length < s.times.length && { period: { start: s.fixTimes[indices[0]], end: s.fixTimes[indices[indices.length - 1]] } }),
       fixTimes: s.fixTimes,
       jump: s.jump,
       ...(s.reckoning && { reckoning: s.reckoning }),
     };
+  }
+
+  /** The leg changed, with This leg chosen on a solution of more than one leg: the one the analyst clicked on the map, else the one current time is in. */
+  private legOf(s: Selected): { indices: number[]; leg: number; legs: number } | undefined {
+    if (this.extent !== "leg" || !s.tma?.legStarts.length) return undefined;
+    const found = legIndices(s.times, s.tma.legStarts, this.host.time()?.current, this.pickedLeg);
+    return found.legs > 1 ? found : undefined;
+  }
+
+  /**
+   * A click on the selected solution's line with This leg chosen: that leg is the one dragged
+   * (product owner, 25 Oct 2026: This leg acts on the leg the analyst grabs). True if taken.
+   */
+  pickLeg(featureId: string, at: L.LatLng): boolean {
+    const s = this.selected;
+    if (!s || s.id !== featureId || this.extent !== "leg" || !s.tma?.legStarts.length || this.drag || this.host.drawing()) return false;
+    const leg = legNear(s.positions, s.times, s.tma.legStarts, [L.Util.wrapNum(at.lng, [-180, 180], true), at.lat]);
+    this.pickedLeg = leg;
+    this.chosenPivot = undefined;
+    this.render(true);
+    return true;
   }
 
   /** Whether the pivot is the first fix of what changes, whatever the analyst chose: on a DR track, a window that starts after the first fix turns about its own first fix, which dead reckoning places from the fix before. */
@@ -358,8 +404,12 @@ export class TrackEditor {
     }
     if (this.control && box) {
       box.hidden = false;
-      this.control.whole.setAttribute("aria-pressed", String(this.extent === "whole"));
-      this.control.window.setAttribute("aria-pressed", String(this.extent === "window"));
+      const legs = !!s.tma?.legStarts.length;
+      const extent = this.extent === "leg" && !legs ? "whole" : this.extent;
+      this.control.whole.setAttribute("aria-pressed", String(extent === "whole"));
+      this.control.window.setAttribute("aria-pressed", String(extent === "window"));
+      this.control.leg.setAttribute("aria-pressed", String(extent === "leg"));
+      this.control.leg.hidden = !legs;
       this.control.shear.setAttribute("aria-pressed", String(this.mode === "shear"));
       this.control.stretch.setAttribute("aria-pressed", String(this.mode === "stretch"));
     }
@@ -381,11 +431,14 @@ export class TrackEditor {
       const verb = this.mode === "stretch" ? "stretch" : "shear";
       const toEnds = ends.start ? `, or an end to ${verb} it` : "";
       const fixes = this.fixHandles.size ? " Drag a fix's ring to move that fix alone." : this.fixesTooClose ? " Zoom in to move a single fix." : "";
-      this.host.say(`${this.what(s.name)}: drag the move or rotate handle${toEnds}; or Tab to one and use the arrow keys.${fixes}`, undefined, "selection");
+      const legs = this.legOf(s) ? " Click another leg on the map to drag it instead." : "";
+      this.host.say(`${this.what(s.name)}: drag the move or rotate handle${toEnds}; or Tab to one and use the arrow keys.${legs}${fixes}`, undefined, "selection");
     }
   }
 
   private what(name: string): string {
+    const leg = this.selected ? this.legOf(this.selected) : undefined;
+    if (leg) return `${name}, leg ${leg.leg} of ${leg.legs}`;
     return this.extent === "window" ? `${name}, fixes in the time window` : name;
   }
 
@@ -580,8 +633,15 @@ export class TrackEditor {
     const t = this.target();
     const change = t && gestureChange(g, t, settings);
     if (!t || !change) return;
+    // A solution of legs: only the leg dragged moves (CAP-21; product owner, 25 Oct 2026).
+    if (s.tma?.legStarts.length && t.part) change.positions = keptLegs(s.positions, change.positions, t.indices, s.times, s.tma.legStarts);
     this.host.setShown(s.id, false);
     this.preview.clearLayers();
+    if (s.tma) {
+      // The bearing view works the solution's residuals out again as it moves (NFR-04).
+      this.previewing = true;
+      this.host.post({ kind: "tma_preview", feature_id: s.id, preview: { type: "LineString", coordinates: change.positions } });
+    }
     L.polyline(densify(s.positions).map(toLatLng), { color: s.colour, weight: 1.5, opacity: 0.6, dashArray: "4 4", interactive: false, className: "track-before" }).addTo(this.preview);
     L.polyline(densify(change.positions).map(toLatLng), { color: s.colour, weight: 3, interactive: false, className: "track-moved" }).addTo(this.preview);
     // The fixes that move, marked while there are few enough to tell apart; a long track is its line. Plotted by dead
@@ -611,8 +671,16 @@ export class TrackEditor {
     this.host.say(change.readout);
   }
 
+  /** The bearing view told a solution's drag ended: put back, or saved (its residuals then come from Python). */
+  private endPreview(): void {
+    if (!this.previewing || !this.selected) return;
+    this.previewing = false;
+    this.host.post({ kind: "tma_preview", feature_id: this.selected.id });
+  }
+
   /** Back as it is in the plot. */
   private unshow(): void {
+    this.endPreview();
     this.preview.clearLayers();
     if (this.selected) this.host.setShown(this.selected.id, true);
     this.render(false);

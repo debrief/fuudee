@@ -134,31 +134,98 @@ function legCourse(coordinates: LonLat[], i: number, j: number): number | undefi
   return (g.s12 ?? 0) > 0.01 ? (((g.azi1 ?? 0) % 360) + 360) % 360 : undefined;
 }
 
+const SHORT_DEG = 0.01;
+const A = 6378137.0;
+const E2 = (1 / 298.257223563) * (2 - 1 / 298.257223563);
+
+/**
+ * The length of a short leg on the ellipsoid's local plane at its middle latitude (to a
+ * part in 10^7), or undefined for a longer one (debrief_kernel.sensors._short_leg_m).
+ */
+function shortLegM(a: LonLat, b: LonLat): number | undefined {
+  const dLat = b[1] - a[1];
+  const dLon = ((((b[0] - a[0] + 540) % 360) + 360) % 360) - 180;
+  if (Math.abs(dLat) >= SHORT_DEG || Math.abs(dLon) >= SHORT_DEG || Math.abs(a[1]) > 89) return undefined;
+  const phi = (((a[1] + b[1]) / 2) * Math.PI) / 180;
+  const w = 1 - E2 * Math.sin(phi) ** 2;
+  const north = ((dLat * Math.PI) / 180) * A * (1 - E2) / (w * Math.sqrt(w));
+  const east = (((dLon * Math.PI) / 180) * A) / Math.sqrt(w) * Math.cos(phi);
+  return Math.hypot(east, north);
+}
+
+/** A leg's length, metres: on the local ellipsoid if short, else along the geodesic. */
+export function legLengthM(a: LonLat, b: LonLat): number {
+  return shortLegM(a, b) ?? WGS84.Inverse(a[1], a[0], b[1], b[0]).s12 ?? 0;
+}
+
+interface Along {
+  along: Float64Array;
+  /** The legs (by their later fix) that moved more than a centimetre, in order. */
+  moving: Int32Array;
+}
+const alongs = new WeakMap<LonLat[], Along>();
+function alongAndMoving(coordinates: LonLat[]): Along {
+  let found = alongs.get(coordinates);
+  if (found) return found;
+  const along = new Float64Array(coordinates.length);
+  const moving: number[] = [];
+  for (let k = 1; k < coordinates.length; k++) {
+    const leg = legLengthM(coordinates[k], coordinates[k - 1]);
+    along[k] = along[k - 1] + leg;
+    if (leg > 0.01) moving.push(k);
+  }
+  found = { along, moving: Int32Array.from(moving) };
+  alongs.set(coordinates, found);
+  return found;
+}
+
+/**
+ * Each fix's distance along the track from its first, metres, each leg measured from its
+ * later fix back as legLengthM measures it: worked out once per track (kept while the
+ * track's coordinates are), so a worm, or a course looked for behind a ship that sat
+ * still, bisects it rather than walking every fix (debrief_kernel.sensors._along).
+ */
+export function alongOf(coordinates: LonLat[]): Float64Array {
+  return alongAndMoving(coordinates).along;
+}
+
+/** The course of the nearest leg at or before fix end that moved: by bisection, not a walk back. */
+function legBefore(coordinates: LonLat[], end: number): number | undefined {
+  const { moving } = alongAndMoving(coordinates);
+  let low = 0;
+  let high = moving.length;
+  while (low < high) {
+    const middle = (low + high) >> 1;
+    if (moving[middle] <= end) low = middle + 1;
+    else high = middle;
+  }
+  for (let m = low - 1; m >= 0; m--) {
+    const course = legCourse(coordinates, moving[m] - 1, moving[m]);
+    if (course !== undefined) return course;
+  }
+  return undefined;
+}
+
 /**
  * Where a track was at an instant, as positionAt gives it, and its direction of travel
  * there (degrees true): along the geodesic between the fixes either side, the course at
  * that point of it. At a fix, the course of the leg leaving it (the leg arriving, at the
  * last fix); where the track did not move, the nearest leg before it that did. None
  * outside its span; no course for a track that never moved. The map's direction arrows
- * at a set interval (CAP-32) are drawn so, on the line and along it.
+ * at a set interval (CAP-32) are drawn so, on the line and along it. withCourse false:
+ * the position alone (a host with logged courses needs no course from its fixes).
  */
-export function pointAt(coordinates: LonLat[], times: number[], at: number): { position: LonLat; course?: number } | undefined {
+export function pointAt(coordinates: LonLat[], times: number[], at: number, withCourse = true): { position: LonLat; course?: number } | undefined {
   if (!times.length || at < times[0] || at > times[times.length - 1]) return undefined;
   if (times.length === 1) return { position: coordinates[0] };
   const [low, high] = bracket(times, at);
   const span = times[high] - times[low];
   const f = span > 0 ? (at - times[low]) / span : 1;
-  const legBefore = (end: number) => {
-    for (let k = end; k > 0; k--) {
-      const course = legCourse(coordinates, k - 1, k);
-      if (course !== undefined) return course;
-    }
-    return undefined;
-  };
   if (f <= 0 || f >= 1) {
     const fix = f <= 0 ? low : high;
+    if (!withCourse) return { position: coordinates[fix] };
     const leaving = fix + 1 < coordinates.length ? legCourse(coordinates, fix, fix + 1) : undefined;
-    return { position: coordinates[fix], course: leaving ?? legBefore(fix) };
+    return { position: coordinates[fix], course: leaving ?? legBefore(coordinates, fix) };
   }
   const [lon1, lat1] = coordinates[low];
   const [lon2, lat2] = coordinates[high];
@@ -167,6 +234,6 @@ export function pointAt(coordinates: LonLat[], times: number[], at: number): { p
   const moved = line.s13 > 0.01;
   return {
     position: [point.lon2 ?? lon2, point.lat2 ?? lat2],
-    course: moved ? ((((point.azi2 ?? 0) % 360) + 360) % 360) : legBefore(low),
+    course: !withCourse ? undefined : moved ? ((((point.azi2 ?? 0) % 360) + 360) % 360) : legBefore(coordinates, low),
   };
 }

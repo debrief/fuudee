@@ -68,11 +68,14 @@ import { CONTEXT_WEIGHT, contextStyle, parseColour, WINDOW_WEIGHT, type ContextS
 import { MapEditor } from "./mapedit.js";
 import { PressHold } from "./presshold.js";
 import { TrackEditor } from "./trackmap.js";
+import { TmaGuess } from "./tmamap.js";
 import { describeFix as describeFixOnly, marksByIndex, trackLabel } from "./fixes.js";
 import { DATA_COLOURS, LIGHT_EXPORT_THEME } from "./palette.js";
 import { host, onMessage } from "./vscode.js";
 import { toteOf, toteMapLines } from "./totelogic.js";
 import { composeSvg, rasterise, type PaintedMark } from "./exportimage.js";
+import { SensorLayer } from "./sensormap.js";
+import { cutChoices, cutClick, describeCut } from "./sensors.js";
 import { clipIdFor, footerFontSize, layoutFor, pixelsOf, type ImageFormat, type ImagePreset, type ImageTheme } from "./exportlogic.js";
 import type { RenderedImage, RevisionShown } from "@debrief/schemas";
 
@@ -188,6 +191,9 @@ const Legend = L.Control.extend({
       ["symbol", "Symbol, at the interval set for the track"],
       ["marked", "Marked fix: its own colour, a label or a comment; right-click a fix to mark it"],
       ["check", "Fix to check, such as a jump found"],
+      ["cut", "Sensor cut in the time window, in its sensor's colour, from its track"],
+      ["cut-twin", "Ambiguous cut: port solid, starboard darker and dashed; click the line to keep"],
+      ["cut-now", "Cut at current time"],
       ["annotation", "Annotation, including what tools draw: dashed unless given a style"],
       ["selected", "Selected"],
     ];
@@ -197,6 +203,7 @@ const Legend = L.Control.extend({
       if (kind === "time") swatch.textContent = "0930";
       L.DomUtil.create("span", "", row).textContent = label;
       if (kind === "time" || kind === "symbol") row.hidden = true; // shown once a track has them
+      if (kind.startsWith("cut")) row.hidden = true; // shown once the plot has sensor cuts
     }
     return div;
   },
@@ -401,6 +408,7 @@ function restyle(): void {
     timeLabels?.forEach((marker) => marker.setOpacity(opacity));
   }
   paintMarks();
+  sensorLayer.paint();
   halo.clearLayers();
   const outline = css("--vscode-editor-foreground");
   for (const id of selection) {
@@ -476,7 +484,10 @@ const TICK_SVG =
 
 /** Areas, kept underneath everything else, so a track crossing an area's edge is on top. */
 let areas: L.Path[] = [];
+/** The plot last drawn, for the two clicks of a TMA solution's first guess to find its cuts. */
+let plotDrawn: DebriefFeatureCollection | undefined;
 function draw(plot: DebriefFeatureCollection): void {
+  plotDrawn = plot;
   areas = [];
   annotations = new Map(
     plot.features.filter((f): f is Annotation => f.properties.kind === "annotation" && !!f.geometry && !f.properties.furniture).map((f) => [f.id, f]),
@@ -495,9 +506,15 @@ function draw(plot: DebriefFeatureCollection): void {
     if (!geometry || feature.properties.kind === "plot") continue;
     const layers: L.Layer[] = [];
     const paths: L.Path[] = [];
+    // An area, circle or ellipse is filled: a cut's line across it is clicked through it (CAP-22).
+    const filled = feature.properties.kind === "annotation" && ["area", "circle", "ellipse"].includes(shapeOf(feature.properties as AnnotationProperties, geometry.type));
     const click = (event: L.LeafletMouseEvent) => {
       L.DomEvent.stopPropagation(event);
+      if (tmaGuess.click(event.latlng)) return; // two clicks for a TMA first guess, even on a track
       if (editor.takeClick(event)) return; // drawing: a click places a point, even on a track
+      if (filled && clickCut(event)) return;
+      // This leg chosen on a solution of legs: a click on it picks the leg to drag (CAP-21).
+      if (!(event.originalEvent.ctrlKey || event.originalEvent.metaKey) && trackEditor.pickLeg(feature.id, event.latlng)) return;
       select(feature.id, event.originalEvent.ctrlKey || event.originalEvent.metaKey);
     };
     const isTrack = feature.properties.kind === "track";
@@ -530,6 +547,9 @@ function draw(plot: DebriefFeatureCollection): void {
   empty.hidden = plot.features.some((f) => f.geometry);
   empty.textContent = plot.features.length ? "This plot has nothing with a position." : "This plot is empty. Import a REP file to add tracks.";
   setTracks(plot.features.filter((f): f is Track => f.properties.kind === "track" && !!f.geometry));
+  sensorLayer.setPlot(plot);
+  closeCutPopover();
+  showCutKey();
   drawnWindow = undefined;
   drawWindow();
   drawGraticule();
@@ -703,7 +723,11 @@ let holding = false; // sending the hold on as a right-click
 const pressHold = new PressHold((x, y) => {
   if (editor.active) return; // drawing: a hold is not a choice of fix
   const target = document.elementFromPoint(x, y)?.closest(`.${HOLDABLE}`);
-  if (!target || !mapElement.contains(target)) return;
+  if (!target || !mapElement.contains(target)) {
+    const box = mapElement.getBoundingClientRect();
+    chooseCut(L.point(x - box.left, y - box.top));
+    return;
+  }
   holding = true;
   try {
     target.dispatchEvent(new MouseEvent("contextmenu", { bubbles: true, cancelable: true, clientX: x, clientY: y, button: 2, buttons: 0 }));
@@ -823,7 +847,9 @@ function drawWindow(): void {
     const colour = colourOf(track);
     const click = (event: L.LeafletMouseEvent) => {
       L.DomEvent.stopPropagation(event);
+      if (tmaGuess.click(event.latlng)) return;
       if (editor.takeClick(event)) return;
+      if (!(event.originalEvent.ctrlKey || event.originalEvent.metaKey) && trackEditor.pickLeg(track.id, event.latlng)) return;
       select(track.id, event.originalEvent.ctrlKey || event.originalEvent.metaKey);
     };
     const line = L.polyline(densify(part.coordinates).map(toLatLng), { color: colour, weight: WINDOW_WEIGHT, baseWeight: WINDOW_WEIGHT } as L.PolylineOptions);
@@ -969,6 +995,149 @@ interface Projected {
 const projectedTracks = new WeakMap<Track, Projected>();
 const crs = map.options.crs ?? L.CRS.EPSG3857;
 const UNIT_ZOOM = crs.zoom(1);
+
+// --- Sensor cuts (CAP-22, sensormap.ts) -------------------------------------------------
+const sensorLayer = new SensorLayer({
+  map,
+  unitZoom: UNIT_ZOOM,
+  selection: () => selection,
+  background: () => css("--vscode-editor-background"),
+  outline: () => css("--vscode-editor-foreground"),
+});
+// For tests: where on the map each cut's line can be clicked.
+(window as unknown as { debriefCuts: () => ReturnType<SensorLayer["probe"]> }).debriefCuts = () => sensorLayer.probe();
+/** Where a position is on the map, in its own pixels: for the playground's test to click there. */
+(window as unknown as { debriefPoint: (lon: number, lat: number) => { x: number; y: number } }).debriefPoint = (lon, lat) => {
+  const point = map.latLngToContainerPoint([lat, lon]);
+  return { x: point.x, y: point.y };
+};
+/** A track's fixes as drawn, [lon, lat] each: for the playground's test to click on a leg. */
+(window as unknown as { debriefFixes: (id: string) => LonLat[] | undefined }).debriefFixes = (id) => {
+  const feature = plotDrawn?.features.find((f) => f.id === id);
+  return feature?.geometry?.type === "LineString" ? (feature.geometry.coordinates as LonLat[]) : undefined;
+};
+/** The legend's rows for cuts: shown once the plot has sensor cuts to draw. */
+function showCutKey(): void {
+  for (const kind of ["cut", "cut-twin", "cut-now"]) {
+    const row = document.querySelector<HTMLElement>(`.swatch-${kind}`)?.parentElement;
+    if (row) row.hidden = sensorLayer.sensorCount === 0;
+  }
+}
+/** A cut's details when pointed at, in a small box beside the pointer. */
+const cutTip = Object.assign(document.createElement("div"), { className: "cut-tip", hidden: true });
+cutTip.setAttribute("role", "tooltip");
+mapElement.append(cutTip);
+let tipPending = false;
+map.on("mousemove", (event: L.LeafletMouseEvent) => {
+  if (tipPending) return;
+  tipPending = true;
+  requestAnimationFrame(() => {
+    tipPending = false;
+    const found = editor.active ? undefined : sensorLayer.hit(event.containerPoint);
+    mapElement.classList.toggle("on-cut", !!found);
+    // While a cut's choices are shown, they say what it is: no tip over them.
+    cutTip.hidden = !found || !cutPopover.hidden;
+    if (!found) return;
+    // The course found when the line was drawn: no host fixes read as the pointer moves.
+    const more = found.cut.properties.ambiguous_bearing && !found.cut.properties.resolved ? "\nClick for its choices; Alt-click this line to keep it" : "";
+    cutTip.textContent = describeCut(found.cut, found.entry.sensor.properties.name, found.course, settings) + more;
+    const size = map.getSize();
+    const left = event.containerPoint.x > size.x - 260;
+    cutTip.style.left = left ? "" : `${event.containerPoint.x + 14}px`;
+    cutTip.style.right = left ? `${size.x - event.containerPoint.x + 14}px` : "";
+    cutTip.style.top = `${Math.max(4, event.containerPoint.y - 40)}px`;
+  });
+});
+map.on("mouseout movestart zoomstart", () => {
+  cutTip.hidden = true;
+  mapElement.classList.remove("on-cut");
+});
+/**
+ * A cut's choices, beside it, from a plain click or a tap on its line: what it is (its
+ * label too), and buttons to keep either bearing (with its side), make it ambiguous
+ * again, or open its menu. Escape, a click elsewhere, or moving the map closes it.
+ */
+const cutPopover = Object.assign(document.createElement("div"), { className: "cut-popover", hidden: true });
+cutPopover.setAttribute("role", "dialog");
+// The dialog itself takes focus first, so a screen reader reads what the cut is before
+// any choice, and Enter keeps nothing by accident (round 3, L-3).
+cutPopover.tabIndex = -1;
+mapElement.append(cutPopover);
+L.DomEvent.disableClickPropagation(cutPopover);
+L.DomEvent.disableScrollPropagation(cutPopover);
+function closeCutPopover(focusMap = false): void {
+  if (cutPopover.hidden) return;
+  cutPopover.hidden = true;
+  cutPopover.replaceChildren();
+  if (focusMap) mapElement.focus();
+}
+function openCutPopover(found: NonNullable<ReturnType<SensorLayer["hit"]>>, point: L.Point): void {
+  const { cut, entry } = found;
+  const text = describeCut(cut, entry.sensor.properties.name, found.course, settings).split("\n");
+  cutPopover.replaceChildren();
+  cutPopover.setAttribute("aria-label", text[0]);
+  cutPopover.dataset.cut = cut.id;
+  const title = Object.assign(document.createElement("strong"), { textContent: text[0] });
+  const details = Object.assign(document.createElement("div"), { id: "cut-popover-details" });
+  details.append(...text.slice(1).map((line) => Object.assign(document.createElement("div"), { textContent: line })));
+  cutPopover.setAttribute("aria-describedby", details.id);
+  cutPopover.append(title, details);
+  const buttons = document.createElement("div");
+  buttons.className = "choices";
+  const readOnly = root.classList.contains("read-only");
+  for (const choice of readOnly ? [] : cutChoices(cut, found.course)) {
+    const button = Object.assign(document.createElement("button"), { type: "button", textContent: choice.label });
+    button.dataset.keep = choice.keep;
+    if (choice.detail) button.title = choice.detail;
+    button.addEventListener("click", () => {
+      closeCutPopover(true);
+      host.postMessage({ kind: "resolve_asked", feature_id: cut.id, keep: choice.keep });
+    });
+    buttons.append(button);
+  }
+  const menu = Object.assign(document.createElement("button"), { type: "button", textContent: "More…", title: "The cut's menu" });
+  menu.addEventListener("click", () => {
+    closeCutPopover(true);
+    host.postMessage({ kind: "cut_chosen", feature_id: cut.id });
+  });
+  buttons.append(menu);
+  cutPopover.append(buttons);
+  cutPopover.hidden = false;
+  cutTip.hidden = true;
+  const size = map.getSize();
+  const width = cutPopover.offsetWidth;
+  const height = cutPopover.offsetHeight;
+  cutPopover.style.left = `${Math.max(4, Math.min(size.x - width - 4, point.x + 12))}px`;
+  cutPopover.style.top = `${Math.max(4, Math.min(size.y - height - 4, point.y + 12))}px`;
+  cutPopover.focus({ preventScroll: true });
+}
+cutPopover.addEventListener("keydown", (event) => {
+  if (event.key === "Escape") {
+    event.stopPropagation();
+    closeCutPopover(true);
+    return;
+  }
+  // Tab stays among the choices while they are shown (a focus trap), from the dialog to the first.
+  if (event.key !== "Tab") return;
+  const choices = Array.from(cutPopover.querySelectorAll<HTMLButtonElement>("button"));
+  if (!choices.length) return;
+  const at = choices.indexOf(document.activeElement as HTMLButtonElement);
+  const next = event.shiftKey ? (at <= 0 ? choices.length - 1 : at - 1) : at < 0 || at === choices.length - 1 ? 0 : at + 1;
+  event.preventDefault();
+  choices[next].focus();
+});
+map.on("movestart zoomstart", () => closeCutPopover());
+/** A cut's menu, from a right-click or a press and hold on its line: the host shows it. */
+function chooseCut(point: L.Point): boolean {
+  const found = sensorLayer.hit(point);
+  if (!found) return false;
+  host.postMessage({ kind: "cut_chosen", feature_id: found.cut.id });
+  return true;
+}
+map.on("contextmenu", (event: L.LeafletMouseEvent) => {
+  if (editor.active) return;
+  if (chooseCut(event.containerPoint)) L.DomEvent.preventDefault(event.originalEvent);
+});
 function projectedOf(track: Track, times: number[]): Projected {
   const known = projectedTracks.get(track);
   if (known) return known;
@@ -1477,6 +1646,7 @@ function showTime(next: TimeState | undefined): void {
     timePending = false;
     drawWindow();
     drawNow();
+    sensorLayer.setTime(time ? { start: Date.parse(time.range.start), end: Date.parse(time.range.end) } : ALL, time ? Date.parse(time.current) : NaN);
     trackEditor.refresh(); // the default pivot is the fix nearest current time
   });
 }
@@ -1547,9 +1717,37 @@ new ResizeObserver(() => {
 }).observe(mapElement);
 
 map.on("click", (event: L.LeafletMouseEvent) => {
+  closeCutPopover();
+  // Two clicks for a TMA solution's first guess take the map's clicks until they are made.
+  if (tmaGuess.click(event.latlng)) return;
   if (trackEditor.endingDrag(event)) return;
-  if (!editor.active && !editor.endingDrag(event)) select(undefined, false);
+  if (editor.active || editor.endingDrag(event)) return;
+  if (clickCut(event)) return;
+  select(undefined, false);
 });
+/**
+ * A click on a sensor cut's line (CAP-22; product owner, 24 Oct 2026, sensors.ts
+ * cutClick): a plain click or a tap selects the cut and shows its choices; Ctrl adds it to
+ * the selection; Alt on one of an ambiguous cut's lines keeps that bearing, one step; a
+ * double-click's second click does nothing. False if no cut's line is under the click.
+ */
+function clickCut(event: L.LeafletMouseEvent): boolean {
+  const found = sensorLayer.hit(event.containerPoint);
+  if (!found) return false;
+  const original = event.originalEvent;
+  const ambiguous = !!found.cut.properties.ambiguous_bearing && !found.cut.properties.resolved;
+  const action = cutClick({ detail: original.detail, alt: original.altKey, add: original.ctrlKey || original.metaKey }, ambiguous, root.classList.contains("read-only"));
+  if (action === "ignore") return true;
+  if (action === "keep") {
+    closeCutPopover();
+    host.postMessage({ kind: "resolve_asked", feature_id: found.cut.id, keep: found.which });
+    return true;
+  }
+  select(found.cut.id, action === "add");
+  if (action === "select") openCutPopover(found, event.containerPoint);
+  else closeCutPopover();
+  return true;
+}
 mapElement.addEventListener("keydown", (event) => {
   if (event.key === "Escape" && !editor.active) select(undefined, false);
 });
@@ -1616,6 +1814,14 @@ const trackEditor = new TrackEditor({
   drawing: () => editor.active,
 });
 
+// --- A TMA solution's first guess by two clicks (tmamap.ts; CAP-21) -----------------------
+const tmaGuess = new TmaGuess({
+  map,
+  post: (message) => host.postMessage(message),
+  plot: () => plotDrawn,
+  say: (text) => editor.say(text, undefined, "other"),
+});
+
 // --- Exporting the map as an image (SUB-25, exportimage.ts) -------------------------------
 const frame = () => new Promise<void>((resolve) => requestAnimationFrame(() => resolve()));
 /** Wait for the map to draw what it draws after a frame: its grid of labels, its labels' room. */
@@ -1636,7 +1842,7 @@ async function settle(): Promise<void> {
 async function coverMap(): Promise<() => void> {
   const size = map.getSize();
   const r = mapElement.getBoundingClientRect();
-  const { svg } = composeSvg({ root: mapElement, width: size.x, height: size.y, scale: 1, background: css("--vscode-editor-background"), marks: paintedMarks(), tickSize: TICK_SIZE, clipId: clipIdFor() });
+  const { svg } = composeSvg({ root: mapElement, width: size.x, height: size.y, scale: 1, background: css("--vscode-editor-background"), marks: paintedMarks(), lines: sensorLayer.linesForExport(), tickSize: TICK_SIZE, clipId: clipIdFor() });
   const cover = Object.assign(document.createElement("img"), { className: "export-cover", alt: "", src: `data:image/svg+xml;charset=utf-8,${encodeURIComponent(svg)}` });
   Object.assign(cover.style, { left: `${r.left}px`, top: `${r.top}px`, width: `${r.width}px`, height: `${r.height}px` });
   document.body.append(cover);
@@ -1730,6 +1936,7 @@ async function exportImage(request: { format: ImageFormat; preset: ImagePreset; 
       scale: layout.scale,
       background,
       marks: paintedMarks(),
+      lines: sensorLayer.linesForExport(),
       footer: request.footer_text ? { text: request.footer_text, colour: css("--vscode-descriptionForeground") || css("--vscode-editor-foreground"), halo: background, size: footerFontSize({ width: size.x, height: size.y, scale: layout.scale }) } : undefined,
       tickSize: TICK_SIZE,
       clipId: clipIdFor(),
@@ -1787,6 +1994,7 @@ function handle(message: Record<string, unknown>): void {
     contextMode = (message.context_tracks as ContextTracks | undefined) ?? "visible";
     toteView = toteOf(message.plot as DebriefFeatureCollection);
     draw(message.plot as DebriefFeatureCollection);
+    if (!tmaGuess.active) tmaGuess.stop(); // the solution two clicks made is drawn now
     editing.clear();
     editor.plotDrawn();
     trackEditor.plotDrawn([...selection]);
@@ -1820,6 +2028,8 @@ function handle(message: Record<string, unknown>): void {
     drawNarrative(time ? Date.parse(time.current) : NaN);
   } else if (message.kind === "show_fixes") {
     showFixes(message as Parameters<typeof showFixes>[0]);
+  } else if (message.kind === "tma_guess") {
+    tmaGuess.start(message.tma_request as Parameters<TmaGuess["start"]>[0]);
   }
 }
 pageReady();

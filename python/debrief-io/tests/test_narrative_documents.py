@@ -114,9 +114,28 @@ def test_a_riders_narrative_from_word_97(opened, tmp_path: Path) -> None:
     done = import_narrative(opened, "serial", log, AGENT)
     assert done.entries == 10 and done.sources == ["BLUE ONE"]
     added = opened.history("serial").delta(done.step).added
-    assert {f.properties.entry_type for f in added} == {"Rider"}
-    assert {f.properties.track_id for f in added} == {"track-blue-one"}
+    entries = [f for f in added if f.properties.kind == "narrative"]
+    assert {f.properties.entry_type for f in entries} == {"Rider"}
+    assert {f.properties.track_id for f in entries} == {"track-blue-one"}
     assert any("give a bearing" in n for n in done.notes)
+    # Its bearings are cuts on BLUE ONE in the same step, as legacy Debrief made them (CAP-22).
+    (sensor,) = [f for f in added if f.properties.kind == "sensor"]
+    assert (sensor.properties.name, sensor.properties.host_track_id) == (
+        "Rider bearings",
+        "track-blue-one",
+    )
+    cuts = [f for f in added if f.properties.kind == "sensor_cut"]
+    assert cuts and all(c.properties.sensor_id == sensor.id for c in cuts)
+    assert any(c.properties.ambiguous_bearing is not None for c in cuts)
+    assert [(c.properties.bearing.value, c.properties.ambiguous_bearing) for c in cuts][:2] == [
+        (273.0, None),
+        (274.0, None),
+    ]
+    assert cuts[2].properties.ambiguous_bearing.value == 112.0
+    assert (
+        "3 bearings made cuts of the sensor Rider bearings on BLUE ONE, 1 of them ambiguous."
+        in done.notes
+    )
     assert "Row 14 has 1 cell, not the four of an entry: not read." in done.omitted
 
 

@@ -10,7 +10,7 @@ import { checkMessage } from "../messages.js";
 import { webviewHtml } from "./html.js";
 import { startup } from "../startup.js";
 import { displayed, hiddenIds } from "../hidden.js";
-import type { ImageRequest, RenderedImage, RevisionShown, TimelineEntry, ToteView } from "@debrief/schemas";
+import type { ImageRequest, RenderedImage, RevisionShown, TimelineEntry, TmaRequest, ToteView } from "@debrief/schemas";
 import { NarrativeOnMap, narrativeOnMapOf, timelineEntries } from "../timeline.js";
 import { toteOf } from "../../webview/totelogic.js";
 
@@ -130,6 +130,12 @@ export class MapPanel {
     } else if (message.kind === "fix_chosen") {
       // Right-clicked on the map: colour, label or comment on that fix (EXT-14).
       await vscode.commands.executeCommand("debrief.markFix", message.feature_id, message.fix_time);
+    } else if (message.kind === "resolve_asked" && message.feature_id && message.keep) {
+      // One of an ambiguous cut's two lines clicked: that bearing kept, as one step (CAP-22).
+      await vscode.commands.executeCommand("debrief.resolveAmbiguity", { keep: message.keep, cut_ids: [message.feature_id] });
+    } else if (message.kind === "cut_chosen") {
+      // Right-clicked, or pressed and held, on a cut: its menu.
+      await vscode.commands.executeCommand("debrief.cutMenu", message.feature_id);
     } else if (message.kind === "annotation_drawn") {
       // Drawn on the map: the form, to name it and add it as one step.
       await vscode.commands.executeCommand("debrief.addDrawnAnnotation", message.annotation);
@@ -138,7 +144,32 @@ export class MapPanel {
     } else if (message.kind === "latest_asked") {
       // An earlier revision shown read-only: the analyst asked for the plot as it is now.
       await vscode.commands.executeCommand("debrief.openLatestRevision");
+    } else if (message.kind === "tma_preview") {
+      // A TMA solution dragged (CAP-21): passed on to the bearing view, for its residuals.
+      this.previewed?.(message.feature_id!, message.preview ?? undefined);
+    } else if (message.kind === "tma_guessed") {
+      // Two clicks made for a first guess, or cancelled (no request).
+      this.guessing = undefined;
+      await this.guessed?.(message.tma_request ?? undefined);
     }
+  }
+
+  /** Where a TMA solution dragged on the map goes: the bearing view. */
+  previewed?: (featureId: string, preview?: { type: "LineString"; coordinates: number[][] }) => void;
+  /** What two clicks for a first guess make: a solution, as one step. */
+  guessed?: (request?: TmaRequest) => Promise<void>;
+  /** The cuts two clicks are asked for, while the map waits for them; for tests and agents. */
+  guessing?: TmaRequest;
+
+  /** Ask the analyst for two clicks on the map, on the first cut's line and the last's (CAP-21); none to stop asking. */
+  guess(request?: TmaRequest): void {
+    this.reveal();
+    this.guessing = request;
+    const send = (tries: number) => {
+      if (this.panel && this.ready) return this.post(request ? { kind: "tma_guess", tma_request: request } : { kind: "tma_guess" });
+      if (tries > 0) setTimeout(() => send(tries - 1), 100);
+    };
+    send(100);
   }
 
   private rendered?: (answer: { image: RenderedImage } | { problem: string }) => void;

@@ -16,6 +16,9 @@
     "viewsContainers": {
       "activitybar": [
         {"id": "debrief", "title": "Debrief", "icon": "media/debrief.svg"}
+      ],
+      "panel": [
+        {"id": "debrief-bearings", "title": "Bearings", "icon": "media/debrief.svg"}
       ]
     },
     "views": {
@@ -28,12 +31,15 @@
         {"type": "webview", "id": "debrief.timeline", "name": "Timeline"},
         {"id": "debrief.tools", "name": "Tools"},
         {"id": "debrief.history", "name": "History"}
+      ],
+      "debrief-bearings": [
+        {"type": "webview", "id": "debrief.bearings", "name": "Bearings"}
       ]
     },
     "viewsWelcome": [
       {
         "view": "debrief.catalogues",
-        "contents": "Debrief keeps plots in catalogues: folders you choose.\n[Add catalogue folder](command:debrief.addCatalogue)\n[Create catalogue](command:debrief.createCatalogue)\nNew to Debrief? Four short walkthroughs work on a copy of the sample exercise.\n[Start a walkthrough](command:debrief.walkthroughs)"
+        "contents": "Debrief keeps plots in catalogues: folders you choose.\n[Add catalogue folder](command:debrief.addCatalogue)\n[Create catalogue](command:debrief.createCatalogue)\nNew to Debrief? Five short walkthroughs work on a copy of the sample exercise.\n[Start a walkthrough](command:debrief.walkthroughs)"
       },
       {
         "view": "debrief.outline",
@@ -65,7 +71,7 @@
           {
             "id": "explore.time",
             "title": "Move current time",
-            "description": "Drag **Current time** in the time controller. Each track's position at that time is marked on the map with a square in its colour. **▶** plays; at 60× a minute of the exercise passes each second. The two handles of **Time window** narrow what is drawn in full.\n\nThe time controller is **Time**, at the top of the Debrief sidebar.\n\n**Keyboard:** Tab to **Current time**; ← and → step it, Page Up and Page Down step further, Home and End go to the window's ends. Space plays and pauses.\n\n[Show the time controller](command:debrief.walkthrough.do?%5B%22explore%22%2C%22debrief.time.focus%22%5D)",
+            "description": "Drag the slider under the large current time in the time controller. Each track's position at that time is marked on the map with a square in its colour. **▶** plays; at 60× a minute of the exercise passes each second. The strip beneath is the whole plot: drag the shaded band, or its edges, to narrow what is drawn in full.\n\nThe time controller is **Time**, at the top of the Debrief sidebar.\n\n**Keyboard:** Tab to **Current time**, the slider; ← and → step it, Page Up and Page Down step further, Home and End go to the window's ends. Space plays and pauses.\n\n[Show the time controller](command:debrief.walkthrough.do?%5B%22explore%22%2C%22debrief.time.focus%22%5D)",
             "media": {
               "svg": "media/walkthroughs/explore-time.svg",
               "altText": "The time controller under the map, with each track's position at current time marked by a square."
@@ -302,13 +308,104 @@
           {
             "id": "annotate.trace",
             "title": "Find the image's source",
-            "description": "Change the plot, then find the image's source: type the ID from its corner (or choose the image file). Debrief opens the plot as it was when the image was exported, read-only, at the view and time exported. **Go to latest** returns to the plot as it is now.\n\n**Find source of image…** is on Catalogues' title bar menu.\n\n**Keyboard:** Type the ID and press Enter; on the map, Tab to **Go to latest** and press Enter.\n\n[Find source of image](command:debrief.walkthrough.do?%5B%22annotate%22%2C%22debrief.findImageSource%22%5D)\n\n**All walkthroughs done** once this step is done: this is the last walkthrough.",
+            "description": "Change the plot, then find the image's source: type the ID from its corner (or choose the image file). Debrief opens the plot as it was when the image was exported, read-only, at the view and time exported. **Go to latest** returns to the plot as it is now.\n\n**Find source of image…** is on Catalogues' title bar menu.\n\n**Keyboard:** Type the ID and press Enter; on the map, Tab to **Go to latest** and press Enter.\n\n[Find source of image](command:debrief.walkthrough.do?%5B%22annotate%22%2C%22debrief.findImageSource%22%5D)\n\n[Next walkthrough: Bearings and TMA](command:workbench.action.openWalkthrough?%5B%22debrief.debrief%23tma%22%2Cfalse%5D)",
             "media": {
               "svg": "media/walkthroughs/annotate-trace.svg",
               "altText": "The image's ID leading back to the plot, shown read-only at the step it was exported."
             },
             "completionEvents": [
               "onContext:debrief.walkthrough.imageTraced"
+            ]
+          }
+        ]
+      },
+      {
+        "id": "tma",
+        "title": "Bearings and TMA",
+        "description": "BLUE ONE's towed array on RED ONE, in serial 1, fitted as legacy Debrief's TMA tutorial teaches: keep a side of an ambiguous bearing, make a first guess, put its start at RED ONE's range, shear the first leg to fit, leave out a wild bearing, then split at RED ONE's turn and fit the second leg the same way. About 12 minutes.",
+        "steps": [
+          {
+            "id": "tma.open",
+            "title": "Open a copy of serial 1 and its bearings",
+            "description": "A fresh copy of serial 1, titled Serial 1: Bearings and TMA, with BLUE ONE's towed array selected in the **Outline** and its bearings plotted in **Bearings**, time running up the left, drawn on the map in purple. A towed array cannot tell port from starboard, so each cut has two bearings, mirrored about the array's heading: two lines on the map, the port one solid and the starboard one dashed, and two faint dots in Bearings, until you keep one. One cut has been turned 40° off, as a wild bearing would be; the step that did it is in History. The sample itself never changes.\n\nThe copy goes into a catalogue of its own, Walkthrough: Bearings and TMA. **Bearings** opens in the panel below the editor, beside the Terminal, and follows what you select in the **Outline**; drag the panel's top edge up for a taller plot.\n\n**Keyboard:** Tab to the button and press Enter.\n\n[Open a copy of serial 1](command:debrief.walkthrough.open?%5B%22tma%22%5D)",
+            "media": {
+              "svg": "media/walkthroughs/tma-open.svg",
+              "altText": "BLUE ONE's towed array cuts on the map, each a pair of lines mirrored about the array's heading: one solid to port, one dashed to starboard."
+            },
+            "completionEvents": [
+              "onContext:debrief.walkthrough.tmaOpened"
+            ]
+          },
+          {
+            "id": "tma.resolve",
+            "title": "Keep a side of an ambiguous bearing",
+            "description": "The button opens the towed array in the **Outline**, a row for each of its cuts, and selects the cut at 09:46Z, moving current time there, so the map draws it wider and Bearings rings it. BLUE ONE's Bow sonar is not ambiguous, and at 09:46:00Z it bore 235.3°: open Bow sonar in the Outline to see its cuts. So keep the towed array's bearing that agrees, 236.3° (starboard): **Keep starboard** in **Tools**, or click the cut's line on the map and keep it there. It is one step. The walkthrough keeps this cut's side only: each of the period's other ambiguous cuts, marked ≈ in the Outline, is measured by whichever of its bearings is nearer the solution, and Bearings says so under ⋯. That is an assumption, a fair one once the solution is near; select a run of cuts in the Outline to keep a side for all of them at once.\n\nIn the **Outline**, then **Tools** (or the cut's menu in the Outline); or on the map.\n\n**Keyboard:** In the Outline, ↑ and ↓ move along the cuts, → and ← open and close a row, and Enter selects. Then Tab to **Tools** and press Enter on **Keep starboard: this cut**. In the plot, 1 and 2 keep the cut's first or second bearing.\n\n[Choose the cut at 09:46Z](command:debrief.walkthrough.do?%5B%22tma%22%2C%22debrief.chooseInOutline%22%2C%22sensor-blue-one-towed-array%22%2C%7B%22cut_time%22%3A%222023-06-15T09%3A46%3A00.000Z%22%7D%5D)",
+            "media": {
+              "svg": "media/walkthroughs/tma-resolve.svg",
+              "altText": "One towed-array cut's two lines, the one kept beside the Bow sonar's line at the same time."
+            },
+            "completionEvents": [
+              "onContext:debrief.walkthrough.sideKept"
+            ]
+          },
+          {
+            "id": "tma.make",
+            "title": "Make a first guess",
+            "description": "A solution is rooted in a run of a sensor's cuts, chosen in the Outline: open the sensor, click its first cut and Shift-click its last. The button chooses the towed array's 102 cuts from 09:46Z to 12:00Z and runs **TMA solution from 102 cuts 09:46:00Z–12:00:00Z…** in **Tools**, which opens the first guess in Bearings: 10,000 yd (4.94 nmi) along the first cut's bearing, a course across it, 8 kn. Keep Debrief's defaults and press **Make solution**. The solution is drawn on the map, and Bearings plots it with time running up the left: in the **Bearing** pane each cut's measured bearing is a dot and the solution's calculated bearings a line; beside it, the **Error** pane has each cut's bearing less the solution's. An RMS of 56° and ✗ 95 of 102 beyond 3.0° say the guess is far off, as a first guess is. **Two clicks on the map instead** takes the first guess from a click on the first cut's line and one on the last's.\n\nIn the **Outline** and **Tools**; the form opens in **Bearings**.\n\n**Keyboard:** In the Outline, Shift with ↓ or ↑ extends the run of cuts. In **Tools**, Enter on **TMA solution from …** opens the form, which has the keyboard; Enter makes the solution.\n\n[Choose the period and open the first guess](command:debrief.walkthrough.do?%5B%22tma%22%2C%22debrief.chooseInOutline%22%2C%22sensor-blue-one-towed-array%22%2C%7B%22period%22%3A%7B%22start%22%3A%222023-06-15T09%3A46%3A00.000Z%22%2C%22end%22%3A%222023-06-15T12%3A00%3A00.000Z%22%7D%2C%22make%22%3Atrue%7D%5D)",
+            "media": {
+              "svg": "media/walkthroughs/tma-make.svg",
+              "altText": "The first guess, a straight solution heading away across the bearings; in Bearings its errors lie far from zero."
+            },
+            "completionEvents": [
+              "onContext:debrief.walkthrough.solutionMade"
+            ]
+          },
+          {
+            "id": "tma.range",
+            "title": "Put the start at RED ONE's range",
+            "description": "Legacy Debrief's TMA tutorial fits a leg from its start: the start pinned on the first bearing, then the rest fitted to it. The first guess starts on the first bearing, but 4.94 nmi out, and bearings never say how far: an analyst tries a range, fits, and tries another. Here the walkthrough gives it: RED ONE was 3.27 nmi from the towed array at 09:46Z. So move the whole solution 1.67 nmi along the first bearing, towards BLUE ONE: the button opens **Move…** for it; type 1.67 nmi and 056.3. Or drag the square in the middle of the solution on the map, its Move handle, keeping the start on the first cut's line: the lowest dot in the Error pane, at 09:46Z, stays on zero while it is, and the map says how far it has moved. It is one step. The RMS goes up, to 63°: the course and speed are still the guess's. The next step fits them.\n\n**Move track…** is on the solution's menu in the Outline; choose **Whole track**.\n\n**Keyboard:** The form has the keyboard: type the distance, Tab, the bearing, Enter. On the map, Tab to the square and use the arrow keys, Shift for bigger steps; the form keeps the start on the line more easily.\n\n[Move the solution…](command:debrief.walkthrough.do?%5B%22tma%22%2C%22debrief.moveTrack%22%2C%22%24solution%22%5D)",
+            "media": {
+              "svg": "media/walkthroughs/tma-range.svg",
+              "altText": "The solution moved along the first cut's bearing towards BLUE ONE, its start at RED ONE's range then; the first guess dashed where it was."
+            },
+            "completionEvents": [
+              "onContext:debrief.walkthrough.solutionMoved"
+            ]
+          },
+          {
+            "id": "tma.shear",
+            "title": "Shear the first leg to fit",
+            "description": "Now hold that start and drag the solution's end, the diamond at its end on the map: a shear. Bearings works the errors out again as you drag, and the Error pane's axis fits them every frame, so a slope in the dots says which way to drag. First drag a box round the errors from 09:46Z to 10:32Z in the Error pane, to zoom in on them; the zoom stays while you drag. Drag until those errors stand straight up the zero line: about 246° at 3.8 kn. Up to 10:32Z all but 2 of the 40 then lie within 3°, an RMS of 1.7° there. After 10:32Z they run away, to −77° by 12:00Z: RED ONE turned, and no straight leg fits both sides of a turn. So the cue still says ✗ 64 of 102 beyond 3.0°, and the RMS is 39°, until the second leg is fitted too. Letting go is one step.\n\n**Shear track…** is on the solution's menu in the Outline; choose **Whole track** and **Hold the start**.\n\n**Keyboard:** In the plot, ↑ and ↓ choose a cut, + zooms time about it and ] the errors; 0 resets. On the map, Tab to the end's diamond and use the arrow keys, Shift for bigger steps. Or type the course and speed made good in the form: 246 and 3.8 kn.\n\n[Shear the solution…](command:debrief.walkthrough.do?%5B%22tma%22%2C%22debrief.shearTrack%22%2C%22%24solution%22%5D)",
+            "media": {
+              "svg": "media/walkthroughs/tma-shear.svg",
+              "altText": "The solution sheared about its start; in Bearings its errors stand on the zero line up to 10:32Z and run away after RED ONE's turn."
+            },
+            "completionEvents": [
+              "onContext:debrief.walkthrough.solutionSheared"
+            ]
+          },
+          {
+            "id": "tma.wild",
+            "title": "Leave out a wild bearing",
+            "description": "Among the errors running away after the turn, one dot sits some 40° left of its neighbours: the cut at 11:12Z, a wild bearing. The button selects it in the Outline, under the towed array; Bearings keeps the solution shown and rings it. Leave it out of the RMS: **Leave out of Contact 1 solution** in **Tools**, or Space in the plot. It is one step; the cut is still drawn, as a dotted ring. **Count in Contact 1 solution**, or Undo, counts it again. Left out now, it cannot pull the second leg's fit.\n\nIn the **Outline**, then **Tools** (or the cut's menu in the Outline).\n\n**Keyboard:** In the Outline, ↑ and ↓ to the cut, Enter, then Tab to **Tools** and Enter on **Leave out of Contact 1 solution**. In the plot, Space or Delete does the same for the cut chosen there.\n\n[Choose the cut at 11:12Z](command:debrief.walkthrough.do?%5B%22tma%22%2C%22debrief.chooseInOutline%22%2C%22%24solution%22%2C%7B%22cut_time%22%3A%222023-06-15T11%3A12%3A00.000Z%22%7D%5D)",
+            "media": {
+              "svg": "media/walkthroughs/tma-wild.svg",
+              "altText": "Bearings' Error pane, the wild bearing at 11:12Z left out, a dotted ring some 40° from its neighbours."
+            },
+            "completionEvents": [
+              "onContext:debrief.walkthrough.cutLeftOut"
+            ]
+          },
+          {
+            "id": "tma.legs",
+            "title": "Split at the turn and fit the second leg",
+            "description": "The button opens the solution in the Outline, a row for its leg and one for each of its positions, and selects its position at 10:38Z, the first after RED ONE's turn, moving current time there. Split before it: **Split before 10:38:00Z** in **Tools** makes it the first position of a new leg, or S in the plot. It is one step, and the solution stays one track, now two legs in the Outline. Then fit the second leg as you fitted the first. On the map choose **This leg**: the handles drag the leg current time is in, now the second, and the first stays where it is. Pin its start: drag its square across the bearing until its lowest error, at 10:38Z, sits on zero, about 0.17 nmi at 155°. Then drag its end until its errors stand up the zero line: about 200° at 5.2 kn. The RMS comes down to 1.8°, as near as these bearings allow: they are good to about 1.5°, so even a perfect fit leaves some beyond 3°. The cue says ✗ 9 of 101 beyond 3.0°, the largest 4.8°, where RED ONE's true track would leave 8: aim for an RMS under about 2° and only a handful beyond. The step is done once a leg is dragged. To go back to the first leg, click it on the map, or select one of its positions in the Outline.\n\n**Split before** is in **Tools** and on the position's menu in the Outline; **Move track…** and **Shear track…** are on the solution's menu; **This leg** is on the map, under What changes.\n\n**Keyboard:** Tab to **Tools** and Enter on **Split before 10:38:00Z**, or S in the plot. On the map, **This leg** is a button; Tab to the square or the end's diamond and use the arrow keys. Or type it: **Move…** and **Shear…** offer the leg under What changes: 0.17 nmi and 155, then 200 and 5.2 kn.\n\n[Choose the position at 10:38Z](command:debrief.walkthrough.do?%5B%22tma%22%2C%22debrief.chooseInOutline%22%2C%22%24solution%22%2C%7B%22fix_time%22%3A%222023-06-15T10%3A38%3A00.000Z%22%7D%5D)\n\n**All walkthroughs done** once this step is done: this is the last walkthrough.",
+            "media": {
+              "svg": "media/walkthroughs/tma-legs.svg",
+              "altText": "The solution in two legs joined at 10:38Z, each fitted; in Bearings the errors stand on the zero line all the way up."
+            },
+            "completionEvents": [
+              "onContext:debrief.walkthrough.legDragged"
             ]
           }
         ]
@@ -354,7 +451,29 @@
       {"command": "debrief.deleteNarrative", "title": "Delete narrative entry", "category": "Debrief"},
       {"command": "debrief.importNarrative", "title": "Read narrative into this plot (REP, Word, PDF)…", "category": "Debrief", "icon": "$(cloud-download)", "enablement": "debrief.plotOpen"},
       {"command": "debrief.setNarrativeOnMap", "title": "Narrative on the map", "category": "Debrief"},
+      {"command": "debrief.resolveAmbiguity", "title": "Ambiguous bearings: keep port or starboard…", "category": "Debrief", "icon": "$(arrow-swap)", "enablement": "debrief.plotOpen"},
+      {"command": "debrief.cutMenu", "title": "Sensor cut…", "category": "Debrief"},
+      {"command": "debrief.setArrayOffset", "title": "Towed array offset…", "category": "Debrief", "enablement": "debrief.plotOpen"},
+      {"command": "debrief.currentCut", "title": "Cut at current time…", "category": "Debrief", "enablement": "debrief.plotOpen"},
+      {"command": "debrief.importSensor", "title": "Read sensor data into this plot (DSF, REP)…", "category": "Debrief", "icon": "$(radio-tower)", "enablement": "debrief.plotOpen"},
       {"command": "debrief.show", "title": "Show on map", "category": "Debrief", "icon": "$(eye)"},
+      {"command": "debrief.showBearings", "title": "Bearings and TMA", "category": "Debrief", "icon": "$(graph-line)", "enablement": "debrief.plotOpen"},
+      {"command": "debrief.tmaCreate", "title": "TMA solution from a sensor's cuts…", "category": "Debrief", "enablement": "debrief.plotOpen"},
+      {"command": "debrief.tmaSplitLeg", "title": "Split TMA solution into legs at current time", "category": "Debrief", "enablement": "debrief.plotOpen"},
+      {"command": "debrief.tmaExclude", "title": "Leave cuts out of a TMA solution's RMS", "category": "Debrief"},
+      {"command": "debrief.tmaFromCuts", "title": "TMA solution from cuts…", "category": "Debrief", "icon": "$(graph-line)", "enablement": "debrief.plotOpen"},
+      {"command": "debrief.splitBeforeFix", "title": "Split before this position", "category": "Debrief", "enablement": "debrief.plotOpen"},
+      {"command": "debrief.splitAfterFix", "title": "Split after this position", "category": "Debrief", "enablement": "debrief.plotOpen"},
+      {"command": "debrief.keepPort", "title": "Keep port: selected cuts", "category": "Debrief", "enablement": "debrief.plotOpen"},
+      {"command": "debrief.keepStarboard", "title": "Keep starboard: selected cuts", "category": "Debrief", "enablement": "debrief.plotOpen"},
+      {"command": "debrief.makeAmbiguous", "title": "Make ambiguous again: selected cuts", "category": "Debrief", "enablement": "debrief.plotOpen"},
+      {"command": "debrief.tmaLeaveOut", "title": "Leave out of the solution: selected cuts", "category": "Debrief", "enablement": "debrief.plotOpen"},
+      {"command": "debrief.tmaCountIn", "title": "Count in the solution: selected cuts", "category": "Debrief", "enablement": "debrief.plotOpen"},
+      {"command": "debrief.hideCuts", "title": "Hide selected cuts", "category": "Debrief", "icon": "$(eye-closed)", "enablement": "debrief.plotOpen"},
+      {"command": "debrief.showCuts", "title": "Show selected cuts", "category": "Debrief", "icon": "$(eye)", "enablement": "debrief.plotOpen"},
+      {"command": "debrief.deleteCuts", "title": "Delete selected cuts", "category": "Debrief", "icon": "$(trash)", "enablement": "debrief.plotOpen"},
+      {"command": "debrief.chooseInOutline", "title": "Choose in the Outline", "category": "Debrief"},
+      {"command": "debrief.outlineOperations", "title": "Tools for the Outline's selection", "category": "Debrief"},
       {"command": "debrief.takeNewData", "title": "Take data into the open plot…", "category": "Debrief", "icon": "$(arrow-down)", "enablement": "debrief.plotOpen"},
       {"command": "debrief.dismissNewData", "title": "Not now: set this new data aside", "category": "Debrief"},
       {"command": "debrief.clearReviewFlag", "title": "Reviewed: clear the review flag", "category": "Debrief", "icon": "$(check)"},
@@ -392,6 +511,7 @@
         {"command": "debrief.addAnnotation", "when": "view == debrief.outline", "group": "navigation@0"},
         {"command": "debrief.clearSelection", "when": "view == debrief.outline", "group": "navigation@1"},
         {"command": "debrief.toggleNorthArrow", "when": "view == debrief.outline", "group": "2_furniture@1"},
+        {"command": "debrief.importSensor", "when": "view == debrief.outline", "group": "3_import@1"},
         {"command": "debrief.addNarrative", "when": "view == debrief.timeline", "group": "navigation@1"},
         {"command": "debrief.addAnnotation", "when": "view == debrief.timeline", "group": "navigation@2"},
         {"command": "debrief.importNarrative", "when": "view == debrief.timeline", "group": "navigation@3"},
@@ -414,7 +534,23 @@
         {"command": "debrief.clearReviewFlag", "when": "view == debrief.catalogues && viewItem =~ /-review/", "group": "0_collation@3"},
         {"command": "debrief.linkTrack", "when": "view == debrief.catalogues && viewItem =~ /^item-track(-proposed)?$/", "group": "0_collation@1"},
         {"command": "debrief.unlinkTrack", "when": "view == debrief.catalogues && viewItem =~ /^item-track-(proposed|linked)$/", "group": "0_collation@2"},
-        {"command": "debrief.setColour", "when": "view == debrief.outline && viewItem =~ /^feature-track/", "group": "1_presentation@1"},
+        {"command": "debrief.setColour", "when": "view == debrief.outline && viewItem =~ /^feature-(track|sensor)/", "group": "1_presentation@1"},
+        {"command": "debrief.resolveAmbiguity", "when": "view == debrief.outline && viewItem =~ /^feature-sensor/", "group": "0_sensor@1"},
+        {"command": "debrief.currentCut", "when": "view == debrief.outline && viewItem =~ /^feature-sensor/", "group": "0_sensor@2"},
+        {"command": "debrief.setArrayOffset", "when": "view == debrief.outline && viewItem =~ /^feature-sensor/", "group": "0_sensor@3"},
+        {"command": "debrief.showBearings", "when": "view == debrief.outline && viewItem =~ /^feature-(sensor|track-tma)/", "group": "0_sensor@4"},
+        {"command": "debrief.tmaSplitLeg", "when": "view == debrief.outline && viewItem =~ /^feature-track-tma/", "group": "0_track@0"},
+        {"command": "debrief.tmaFromCuts", "when": "view == debrief.outline && viewItem =~ /^(feature-sensor|outline-cut)/", "group": "0_tma@1"},
+        {"command": "debrief.splitBeforeFix", "when": "view == debrief.outline && viewItem == outline-fix", "group": "0_tma@1"},
+        {"command": "debrief.splitAfterFix", "when": "view == debrief.outline && viewItem == outline-fix", "group": "0_tma@2"},
+        {"command": "debrief.keepPort", "when": "view == debrief.outline && viewItem =~ /^outline-cut/", "group": "1_side@1"},
+        {"command": "debrief.keepStarboard", "when": "view == debrief.outline && viewItem =~ /^outline-cut/", "group": "1_side@2"},
+        {"command": "debrief.makeAmbiguous", "when": "view == debrief.outline && viewItem =~ /^outline-cut/", "group": "1_side@3"},
+        {"command": "debrief.tmaLeaveOut", "when": "view == debrief.outline && viewItem =~ /^outline-cut/", "group": "2_rms@1"},
+        {"command": "debrief.tmaCountIn", "when": "view == debrief.outline && viewItem =~ /^outline-cut/", "group": "2_rms@2"},
+        {"command": "debrief.hideCuts", "when": "view == debrief.outline && viewItem == outline-cut", "group": "3_cuts@1"},
+        {"command": "debrief.showCuts", "when": "view == debrief.outline && viewItem =~ /^outline-cut/", "group": "3_cuts@2"},
+        {"command": "debrief.deleteCuts", "when": "view == debrief.outline && viewItem =~ /^outline-cut/", "group": "3_cuts@3"},
         {"command": "debrief.setTrackFrequencies", "when": "view == debrief.outline && viewItem =~ /^feature-track/", "group": "1_presentation@3"},
         {"command": "debrief.hide", "when": "view == debrief.outline && viewItem =~ /^feature-/ && viewItem =~ /^(?!.*-hidden$)/", "group": "1_presentation@2"},
         {"command": "debrief.show", "when": "view == debrief.outline && viewItem =~ /-hidden$/", "group": "1_presentation@2"},
@@ -450,6 +586,10 @@
         {"command": "debrief.goToStep", "when": "false"},
         {"command": "debrief.redoToStep", "when": "false"},
         {"command": "debrief.setTote", "when": "false"},
+        {"command": "debrief.cutMenu", "when": "false"},
+        {"command": "debrief.tmaExclude", "when": "false"},
+        {"command": "debrief.chooseInOutline", "when": "false"},
+        {"command": "debrief.outlineOperations", "when": "false"},
         {"command": "debrief.collate", "when": "false"},
         {"command": "debrief.dismissNewData", "when": "false"},
         {"command": "debrief.linkTrack", "when": "false"},
@@ -490,6 +630,14 @@
           "default": "ask",
           "scope": "application",
           "markdownDescription": "How tracks imported from REP files are plotted. Set when you choose *Use this choice for future imports*; set it back to `ask` (or run **Debrief: Ask again whether imported tracks are OTG or DR**) to be asked for each track again. Kept with your Debrief settings, never in a plot."
+        },
+        "debrief.tma.errorCutOff": {
+          "type": "number",
+          "minimum": 0.01,
+          "maximum": 180,
+          "default": 3,
+          "scope": "application",
+          "markdownDescription": "The Bearings view's error cut-off, in degrees: its Error pane is green while every error counted is within it, and pink otherwise, as legacy Debrief's Stacked Dots shaded it. Also set in the view, beside *Hold scale*. Kept with your Debrief settings, never in a plot."
         },
         "debrief.map.minimumContextContrast": {
           "type": "boolean",

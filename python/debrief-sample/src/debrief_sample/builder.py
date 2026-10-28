@@ -8,8 +8,9 @@ records how (SUB-18):
 2. Each REP file is imported through debrief-io, so it becomes a hashed,
    read-only source with its own import record (SUB-10, SUB-11).
 3. The AIS extract is imported as a source for the background picture.
-4. The ownship's sonar bearings are derived from the imported tracks, with
-   seeded noise, and stored as a Parquet payload (CON-02).
+4. The ownship's bow sonar and towed array cuts are derived from the imported
+   tracks, with seeded noise: sensors and cuts, each a feature of its own, the
+   towed array's ambiguous (CAP-22).
 5. The scripted narrative is written, kept as a supporting file and read
    into narrative entries (CAP-20).
 
@@ -18,8 +19,7 @@ records how (SUB-18):
    serial, goes in the plot's island, outside its history.
 
 Provenance times come from a fixed clock, so two builds with the same seed
-and the same lockfile are byte-for-byte identical. (pyarrow writes its
-version into each Parquet file, so another pyarrow changes the payload bytes.)
+and the same lockfile are byte-for-byte identical.
 """
 
 from __future__ import annotations
@@ -32,20 +32,24 @@ from pathlib import Path
 from debrief_io import build_plot
 from debrief_kernel.geodesy import TrackPath
 from debrief_kernel.time import format_utc, parse_utc
-from debrief_sample import ais, narrative, payload
+from debrief_sample import ais, narrative
 from debrief_sample.exercise import AREA, BLUE, SERIALS, Serial, script_digest
 from debrief_sample.synth import (
     SonarModel,
+    TowedArrayModel,
     course_lookup,
     generator,
     rep_text,
     simulate,
     sonar_bearings,
+    towed_array_bearings,
 )
 from debrief_schemas import SCHEMA_VERSION, DebriefFeatureCollection, models
 from debrief_stac import Catalogue, with_plot_details
 from debrief_stac import narrative as plot_narrative
+from debrief_stac import sensors as plot_sensors
 from debrief_stac.history import view_hash
+from debrief_stac.sensors import ReadCut, ReadSensor
 
 TOOL = "debrief-sample"
 DEFAULT_SEED = 1995  # the year of the single-serial sample this replaces
@@ -71,6 +75,19 @@ SONAR = SonarModel(
     p_lose=0.015,
     bearing_sd_deg=1.5,
 )
+TOWED_ARRAY = "Towed array"
+TOWED = TowedArrayModel(
+    interval_ms=60_000,
+    detection_range_m=7.0 * 1852.0,
+    endfire_half_angle_deg=15.0,
+    max_turn_deg_per_min=10.0,
+    p_gain=0.08,
+    p_lose=0.02,
+    bearing_sd_deg=2.0,
+)
+# The sensors' colours: palette.ts's teal and purple, apart from the forces' red and blue.
+BOW_COLOUR = "#00a3a3"
+TOWED_COLOUR = "#8a3ffc"
 # How each random generator is seeded (SUB-20): Python's random.Random, Mersenne Twister.
 RNG_SCHEME = "random.Random('{seed}:{serial}:{purpose}')"
 
@@ -273,40 +290,53 @@ def _build_serial(
         deaf_ms=deaf_ms,
         rng=generator(seed, item, "bearings"),
     )
+    towed = towed_array_bearings(
+        blue_path,
+        red_path,
+        own_course=course_lookup(blue_path.times_ms, blue_track.properties.courses.values),
+        model=TOWED,
+        deaf_ms=deaf_ms,
+        rng=generator(seed, item, "towed-array"),
+    )
     blue_id = blue_track.id
-    sensor_id = f"sensor-{blue_id.removeprefix('track-')}-bow-sonar"
     bearing_notes = [
         f"True bearings from {BLUE} to the target, with normally distributed error. "
-        "Contact is possible only within detection range, outside the baffles and while "
-        "the sonar is listening; within those limits it is gained and lost at random.",
+        "Bow sonar: contact is possible only within detection range, outside the baffles and "
+        "while the sonar is listening; within those limits it is gained and lost at random.",
+        "Towed array: further, and into the baffles, but not near its own axis (endfire) nor "
+        "while turning hard; each cut carries the measured bearing and its mirror image about "
+        f"{BLUE}'s course, ambiguous until the analyst keeps one (CAP-22).",
     ]
+    read = []
     if bearings:
-        bearings_file = work / item / "bow-sonar-bearings.parquet"
-        payload.write_bearings(bearings, SONAR.bearing_sd_deg, bearings_file)
-        bearings_ref = catalogue.add_payload(item, bearings_file, media_type=payload.MEDIA_TYPE)
-        features.append(
-            models.SensorObservationsFeature(
-                type="Feature",
-                id=sensor_id,
-                geometry=None,
-                properties=models.SensorObservationsProperties(
-                    kind="sensor_observations",
-                    name=f"{BLUE} bow sonar",
-                    sensor_name=SENSOR,
-                    host_track_id=blue_id,
-                    observation_type="bearing",
-                    time_range=models.TimeRange(
-                        start=format_utc(bearings[0].time_ms),
-                        end=format_utc(bearings[-1].time_ms),
-                    ),
-                    observation_count=len(bearings),
-                    payload=payload.envelope(bearings_ref.href, bearings_ref.content_hash),
-                ),
+        read.append(
+            ReadSensor(
+                name=SENSOR,
+                host_track_id=blue_id,
+                colour=BOW_COLOUR,
+                cuts=[ReadCut(b.time_ms, b.bearing_deg) for b in bearings],
             )
         )
-        bearing_notes.append(f"Wrote {bearings_ref.href} ({bearings_ref.content_hash}).")
+    if towed:
+        read.append(
+            ReadSensor(
+                name=TOWED_ARRAY,
+                host_track_id=blue_id,
+                colour=TOWED_COLOUR,
+                cuts=[ReadCut(b.time_ms, b.bearing_deg, ambiguous=b.ambiguous_deg) for b in towed],
+            )
+        )
+    if read:
+        names = {f.id: f.properties.name for f in features if f.properties.kind == "track"}
+        made = plot_sensors.build(read, (f.id for f in features), names)
+        features += made
+        bearing_notes.append(
+            f"{SENSOR}: {len(bearings)} cuts; {TOWED_ARRAY}: {len(towed)} cuts, every one "
+            "ambiguous. Each cut a feature of its own, on its sensor, carried by "
+            f"{BLUE}."
+        )
     else:
-        bearing_notes.append("The sonar never held the target, so there are no bearings.")
+        bearing_notes.append("Neither sensor held the target, so there are no bearings.")
     provenance.append(
         models.ProvRecord(
             id=f"{item}-sonar-bearings",
@@ -330,6 +360,21 @@ def _build_serial(
                 _param("p_lose", SONAR.p_lose),
                 _param("sonar_off", _windows_text(serial)),
                 _param("rng", RNG_SCHEME.format(seed=seed, serial=item, purpose="bearings")),
+                _param("towed_interval", models.Duration(value=TOWED.interval_ms / 1000, unit="s")),
+                _param("towed_bearing_error", models.Angle(value=TOWED.bearing_sd_deg, unit="deg")),
+                _param(
+                    "towed_detection_range",
+                    models.Length(value=TOWED.detection_range_m / 1852.0, unit="[nmi_i]"),
+                ),
+                _param(
+                    "towed_endfire_half_angle",
+                    models.Angle(value=TOWED.endfire_half_angle_deg, unit="deg"),
+                ),
+                _param("towed_p_gain", TOWED.p_gain),
+                _param("towed_p_lose", TOWED.p_lose),
+                _param(
+                    "towed_rng", RNG_SCHEME.format(seed=seed, serial=item, purpose="towed-array")
+                ),
             ],
             used=list(rep_refs.values()),
             seed=seed,
@@ -411,7 +456,12 @@ def _build_serial(
     # 7. Named sets.
     started = clock.text()
     background = [f"track-ais-{n.lower().replace(' ', '-')}" for n in ais_paths]
-    exercise_ids = [f.id for f in features if not f.id.startswith("track-ais-")]
+    # The sensors, not each of their cuts: a sensor chosen is its cuts.
+    exercise_ids = [
+        f.id
+        for f in features
+        if not f.id.startswith("track-ais-") and f.properties.kind != "sensor_cut"
+    ]
     exercise_ids += [area.id] + [n.id for n in notes]
     named_sets = [
         models.NamedSet(id="set-exercise", name="Exercise", feature_ids=exercise_ids),
@@ -453,6 +503,7 @@ def _build_serial(
         "tracks": sum(1 for f in plot.features if f.properties.kind == "track"),
         "background_tracks": len(ais_paths),
         "bearings": len(bearings),
+        "towed_array_cuts": len(towed),
         "narrative_entries": len(notes),
     }
 

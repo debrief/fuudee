@@ -43,6 +43,8 @@ enums:
       sensor_observations: {}
       plot: {description: "The whole plot: its own details and its view. At most one per plot."}
       narrative: {description: "A narrative entry: what a platform, a person or a document logged at a time, with no position (CAP-19, CAP-20)."}
+      sensor: {description: "A sensor carried by a track, such as a bow sonar or a towed array: its name, its host track, its colour (CAP-22)."}
+      sensor_cut: {description: "One cut of a sensor: a bearing (perhaps with its ambiguous twin) at a time, drawn from the host track's position then (CAP-22)."}
   PlotKindEnum: {permissible_values: {plot: {}}}
   ContextTracksEnum:
     description: >-
@@ -91,6 +93,40 @@ enums:
   AnnotationKindEnum: {permissible_values: {annotation: {}}}
   SensorObservationsKindEnum: {permissible_values: {sensor_observations: {}}}
   NarrativeKindEnum: {permissible_values: {narrative: {}}}
+  SensorKindEnum: {permissible_values: {sensor: {}}}
+  SensorCutKindEnum: {permissible_values: {sensor_cut: {}}}
+  ArrayModeEnum:
+    description: >-
+      How a towed array's position follows the ship (CAP-22; product owner,
+      24 Oct 2026), legacy Debrief's array centre modes.
+    permissible_values:
+      worm_in_hole: {description: "The array is its offset back along the ship's own past track, so it lags through a turn (legacy Worm in hole, its default). Before the track's first fix, astern along the first fix's course."}
+      plain: {description: "The array is its offset straight astern of the ship's position, along its course at that time (legacy Plain)."}
+  SensorCutKeptEnum:
+    description: >-
+      Which of an ambiguous cut's two recorded bearings the analyst kept
+      (CAP-22): the side resolved. Recorded as the bearing kept, not as port
+      or starboard, because which side a bearing is on depends on the host
+      track's course at the cut's time, which a later edit of the track (a
+      move, dead reckoning) can change; what the analyst judged is which
+      bearing was the target's. Debrief says it as port or starboard.
+    permissible_values:
+      bearing: {description: "The bearing recorded first (bearing) is the target's; the other was its mirror image."}
+      ambiguous_bearing: {description: "The ambiguous bearing (ambiguous_bearing) is the target's: the cut is drawn along it."}
+  AmbiguityKeepEnum:
+    description: >-
+      What the analyst asks of ambiguous cuts (CAP-22): keep the bearing to
+      port or to starboard of the host track's course at each cut's time, as
+      legacy Debrief's Keep port bearing and Keep starboard bearing decide
+      it (by the side of the bearing recorded first); keep the bearing
+      recorded first, or its ambiguous twin, as the analyst clicked it on the
+      map; or make the cuts ambiguous again.
+    permissible_values:
+      port: {description: "Keep the bearing to port of the host's course."}
+      starboard: {description: "Keep the bearing to starboard of the host's course."}
+      bearing: {description: "Keep the bearing recorded first."}
+      ambiguous_bearing: {description: "Keep the ambiguous bearing."}
+      ambiguous: {description: "Undo the resolution: both bearings again, unresolved."}
   AnnotationStyleEnum:
     description: What an annotation depicts (CAP-03, CAP-04).
     permissible_values:
@@ -288,11 +324,139 @@ classes:
         range: SourceTrackRef
         multivalued: true
         inlined_as_list: true
+      tma:
+        description: >-
+          The track is a TMA solution of a contact, rooted in a period of
+          bearing cuts (CAP-21; product owner, 24 Oct 2026). Otherwise an
+          ordinary track, plotted by dead reckoning, so every track
+          operation works on it unchanged; this says which cuts its bearing
+          residuals are worked out against, its legs, and the cuts left out
+          of its RMS error. Content: each change is a recorded, undoable
+          step (SUB-22).
+        range: TmaSolution
+        inlined: true
       provenance:
         description: Feature-level provenance where needed (SUB-18).
         range: ProvRecord
         multivalued: true
         inlined_as_list: true
+  TmaSolution:
+    description: >-
+      What makes a track a TMA solution (CAP-21; product owner, 24 Oct
+      2026): the contact it is a solution of, and the period of bearing
+      cuts it is rooted in, named by the cuts' ids (a sensor's id changes
+      when its track is split; a cut's does not). Its residuals are each
+      rooted cut's bearing less the bearing from where the cut was taken
+      (its origin) to where the solution was at the cut's time. Its legs
+      start at leg_starts: each is dragged on its own, the later ones
+      following on by dead reckoning, so they stay joined.
+    attributes:
+      contact:
+        description: The contact the solution is of, as the analyst names it, such as "Contact 1".
+        required: true
+      sensor_ids:
+        description: >-
+          The sensors whose cuts it was rooted in when it was made, as their
+          ids were then: what the analyst chose. The cuts themselves are in
+          cut_ids.
+        multivalued: true
+        required: true
+      cut_ids:
+        description: >-
+          The cuts it is rooted in, by feature id, in time order: every cut
+          of the rooted period on the sensors chosen. Its fixes fall at
+          their times when Debrief makes it. A legacy solution whose sensor
+          the plot does not have has none, and the import says so.
+        multivalued: true
+        required: true
+      period:
+        description: The period of bearings it is rooted in, ends included.
+        range: TimeRange
+        required: true
+        inlined: true
+      leg_starts:
+        description: >-
+          When each leg after the first starts, in time order: the solution
+          split into legs (product owner, 24 Oct 2026). A fix exactly at a
+          time starts the later leg, as a split does. Left out, one leg.
+        range: UtcTimestamp
+        multivalued: true
+      excluded_cut_ids:
+        description: >-
+          Rooted cuts the analyst left out of the RMS error, such as wild
+          bearings (product owner, 24 Oct 2026): still listed and drawn in
+          the bearing view, not counted. Each change is one step.
+        multivalued: true
+
+  TmaRequest:
+    description: >-
+      A TMA solution asked for (CAP-21; product owner, 24 Oct 2026), from
+      the bearing view's form, two clicks on the map, or an agent
+      (debrief/tma_create): the cuts to root it in (sensor_ids and a period,
+      or cut_ids), and a first guess, either by form (a range on the first
+      cut's bearing, a course and a speed) or by two positions (on the first
+      cut's line and on the last's; the course and speed follow). Made as
+      one recorded, undoable step.
+    attributes:
+      sensor_ids:
+        description: The sensors whose cuts in the period it is rooted in.
+        multivalued: true
+      period:
+        description: The cuts whose times fall in it, ends included, of the sensors named.
+        range: TimeRange
+        inlined: true
+      cut_ids:
+        description: Or the cuts to root it in, by feature id.
+        multivalued: true
+      contact:
+        description: The contact's name; left out, the next of "Contact 1", "Contact 2"...
+      name:
+        description: The solution track's name; left out, the contact's with "solution".
+      colour:
+        description: The solution track's colour, lower-case hex RGB; left out, Debrief's TMA colour.
+        pattern: "^#[0-9a-f]{6}$"
+      range:
+        description: >-
+          First guess by form: how far along the first cut's bearing, from
+          where it was taken, the solution starts.
+        range: Length
+        inlined: true
+      first_bearing:
+        description: >-
+          First guess by form, where the first cut is ambiguous and
+          unresolved: which of its bearings the range is along. Left out,
+          the one kept, else the bearing recorded first.
+        range: SensorCutKeptEnum
+      course:
+        description: "First guess by form: the solution's course."
+        range: Angle
+        inlined: true
+      speed:
+        description: "First guess by form: the solution's speed."
+        range: Speed
+        inlined: true
+      first_position:
+        description: >-
+          First guess by two clicks: [longitude, latitude] clicked on, or
+          near, the first cut's line: the solution starts on the line,
+          level with it.
+        range: float
+        array:
+          exact_number_dimensions: 1
+          dimensions:
+            - exact_cardinality: 2
+      last_position:
+        description: >-
+          First guess by two clicks: [longitude, latitude] clicked on, or
+          near, the last cut's line; the course and speed are those from
+          the first position, on the first cut's line, to this one, on the
+          last's.
+        range: float
+        array:
+          exact_number_dimensions: 1
+          dimensions:
+            - exact_cardinality: 2
+
   SourceTrackRef:
     description: >-
       A track in a catalogue item, as collation names it (CAP-08, CAP-09):
@@ -670,6 +834,221 @@ classes:
       text: {}
       track_id: {}
 
+  # --- Sensors and their cuts (CAP-22) -------------------------------------
+  SensorFeature:
+    description: >-
+      A sensor carried by a track (CAP-22): a bow sonar, a towed array, the
+      bearings read from a narrative. Its cuts are features of their own
+      (SensorCutFeature), each naming it, so resolving one cut, or the cuts
+      of a period, is one small recorded step (SUB-19), as each narrative
+      entry is a feature of its own. Geometry is null: a cut is drawn from
+      where the host track was at its time, so a track edited (moved,
+      sheared, plotted by dead reckoning) carries its cuts with it, and a TMA
+      solution (CAP-21) can be rooted in the cuts' times.
+    attributes:
+      type: {range: FeatureTypeEnum, required: true}
+      id: {required: true}
+      geometry:
+        description: Always null.
+        range: PointGeometry
+        inlined: true
+      properties: {range: SensorProperties, required: true, inlined: true}
+  SensorProperties:
+    attributes:
+      kind: {range: SensorKindEnum, required: true}
+      name:
+        description: The sensor's name, as its source gives it, such as "Towed array" or "2087".
+        required: true
+      host_track_id:
+        description: >-
+          The track carrying the sensor (ownship): its cuts are drawn from
+          that track's position at each cut's time (or its array's, astern).
+          A track split: the cuts from the split on go with the second part,
+          as a sensor of its own (a new id) where the sensor had cuts before
+          it too; cuts between the parts' fixes keep the position they were
+          drawn from. Tracks merged: sensors of one name are one again, the
+          merged track's.
+        required: true
+      colour:
+        description: >-
+          The colour its cuts are drawn in, lower-case hex RGB, unless a cut
+          has its own. Content, like a track's colour: each change is a
+          recorded, undoable step (SUB-22).
+        required: true
+        pattern: "^#[0-9a-f]{6}$"
+      legacy_symbology:
+        description: The REP symbology code its colour came from, such as "@A", kept for export.
+      array_offset:
+        description: >-
+          How far astern of the ship the sensor is (a towed array), so its
+          cuts are drawn, and port and starboard told, from the array's
+          position, not the ship's (product owner, 24 Oct 2026). Left out,
+          the sensor is at the ship. Set by the analyst as a recorded,
+          undoable step, or read from a legacy plot (its Offset, astern).
+        range: Length
+        inlined: true
+      array_mode:
+        description: >-
+          How the array follows the ship: back along its past track (worm in
+          the hole, the default, as legacy's) or straight astern (plain).
+          Only with array_offset.
+        range: ArrayModeEnum
+      hidden:
+        description: >-
+          None of its cuts drawn on the map. Still listed, and still
+          selectable, in the outline, under its track. Content: hiding is a
+          recorded, undoable change (SUB-22).
+        range: boolean
+      provenance:
+        range: ProvRecord
+        multivalued: true
+        inlined_as_list: true
+  SensorCutFeature:
+    description: >-
+      One cut of a sensor (CAP-22): a bearing from the host track at a time,
+      perhaps with the ambiguous bearing a towed array cannot tell it from,
+      and which of the two the analyst kept. Geometry is null: the cut is
+      drawn from the host track's position at its time (as the map places
+      tracks, along the geodesic between fixes), or from the position
+      recorded with it, along the geodesic at its bearing to its range, or
+      else past the edge of the map's view (twice the view's larger side, at
+      most 5 degrees of arc, 300 nmi, as legacy Debrief draws it). Frequency
+      is never imported (CAP-22, EXT-03). A bearing error is not held yet: no
+      legacy format defines what one means (product owner, 24 Oct 2026); an
+      optional bearing_error here is the way to add it, and wedges with it.
+    attributes:
+      type: {range: FeatureTypeEnum, required: true}
+      id: {required: true}
+      geometry:
+        description: Always null.
+        range: PointGeometry
+        inlined: true
+      properties: {range: SensorCutProperties, required: true, inlined: true}
+  SensorCutProperties:
+    attributes:
+      kind: {range: SensorCutKindEnum, required: true}
+      sensor_id:
+        description: The sensor the cut is from, a sensor feature in the plot.
+        required: true
+      time:
+        description: When the cut was taken, to the millisecond, Zulu (SUB-01).
+        range: UtcTimestamp
+        required: true
+      bearing:
+        description: The bearing to the target, true, clockwise from north, from 0 up to 360 degrees.
+        range: Angle
+        required: true
+        inlined: true
+      ambiguous_bearing:
+        description: >-
+          A towed array's ambiguous bearing: the mirror image of bearing about
+          the array, on the other side of the host's course. Left out for a
+          cut that was never ambiguous.
+        range: Angle
+        inlined: true
+      resolved:
+        description: >-
+          Which of the two bearings the analyst kept, for a cut with an
+          ambiguous bearing; left out while it is unresolved, when both are
+          drawn. Each resolution, of one cut or of every cut in a period, is
+          one recorded, undoable step with provenance (product owner, 24 Oct
+          2026), and can be undone or reset to ambiguous.
+        range: SensorCutKeptEnum
+      range:
+        description: >-
+          How far the target was, where the source says: the cut is drawn to
+          that range. Left out, drawn past the edge of the view. A range of 0
+          (a ;SENSOR2: or ;SENSOR3: line's, as legacy read it) is drawn as a
+          point where the cut was taken, as legacy drew it.
+        range: Length
+        inlined: true
+      origin:
+        description: >-
+          [longitude, latitude] of the sensor, where the source recorded it
+          with the cut (legacy Debrief's absolute origin): the cut is drawn
+          from there instead of from the host track. Left out, from the host
+          track's position at the cut's time. Where origin_derived is true,
+          Debrief worked it out (where the sensor was, pinned when its track
+          was split) and the source did not record it.
+        range: float
+        array:
+          exact_number_dimensions: 1
+          dimensions:
+            - exact_cardinality: 2
+      origin_derived:
+        description: >-
+          True where origin is not recorded by the source but derived by
+          Debrief: where the sensor (its array astern, if it has one) was
+          before its track was split, pinned so the cut is drawn, and its
+          side told, as before (round 3 review, 24 Oct 2026). A TMA residual
+          can tell a recorded origin from a derived one by it. Only with
+          origin.
+        range: boolean
+      course:
+        description: >-
+          The course, true, the cut's port and starboard are told by, pinned
+          with a derived origin when its track was split (the course logged
+          where the sensor was then). Left out, the host's logged course at
+          the cut's time. Only with origin.
+        range: Angle
+        inlined: true
+      bearing_accuracy:
+        description: >-
+          The bearing accuracy a ;SENSOR3: line gives, kept exactly as
+          written: no format says what it means (a standard deviation, a
+          half-width), so it is not drawn (product owner, 24 Oct 2026).
+      label:
+        description: Text the source gives the cut, such as legacy Debrief's label.
+      comment:
+        description: Free text about the cut.
+      colour:
+        description: >-
+          The cut's own colour, lower-case hex RGB; left out, its sensor's,
+          as legacy Debrief lets a cut take its sensor's colour.
+        pattern: "^#[0-9a-f]{6}$"
+      hidden:
+        description: Not drawn on the map. Content, like hiding any feature (SUB-22).
+        range: boolean
+
+  AmbiguityResolution:
+    description: >-
+      Ambiguous cuts resolved, or made ambiguous again, as the map, a menu or
+      an agent asks (CAP-22): one recorded, undoable step (product owner, 24
+      Oct 2026). The cuts are those named, or else the cuts of the sensors
+      named within a period (the time window, as the analyst sets it). Cuts
+      with no ambiguous bearing are left as they are, and the step says how
+      many.
+    attributes:
+      keep: {range: AmbiguityKeepEnum, required: true}
+      cut_ids:
+        description: The cuts to resolve, by feature id. Or give sensor_ids, and perhaps a period.
+        multivalued: true
+      sensor_ids:
+        description: Sensors whose cuts in the period are resolved; every cut of each, without a period.
+        multivalued: true
+      period:
+        description: The cuts whose times fall in it, ends included, of the sensors named.
+        range: TimeRange
+        inlined: true
+      other_cut_ids:
+        description: >-
+          With keep bearing or ambiguous_bearing: cuts kept on their other
+          bearing in the same step, so one step keeps some cuts' first
+          bearings and others' twins, as a box drawn over the Bearings plot
+          with Select bearings on asks (product owner, 28 Oct 2026). A cut
+          named here and in cut_ids was boxed on both sides: it is left as it
+          is, and the step says so. Hidden cuts are left as they are.
+        multivalued: true
+      clear_cut_ids:
+        description: >-
+          With keep bearing or ambiguous_bearing: resolved cuts made ambiguous
+          again in the same step, as a box drawn over their kept bearings with
+          Select bearings on asks (product owner, 28 Oct 2026); one not
+          resolved is left. Given (even empty), with other_cut_ids, the step
+          is named for a box: "Kept 12 Towed array cuts to starboard and made
+          15 ambiguous again". Hidden cuts are left as they are.
+        multivalued: true
+
   # --- Sensor observations --------------------------------------------------
   SensorObservationsFeature:
     description: >-
@@ -869,6 +1248,8 @@ classes:
           - range: TrackFeature
           - range: AnnotationFeature
           - range: SensorObservationsFeature
+          - range: SensorFeature
+          - range: SensorCutFeature
           - range: NarrativeFeature
           - range: PlotFeature
       named_sets:

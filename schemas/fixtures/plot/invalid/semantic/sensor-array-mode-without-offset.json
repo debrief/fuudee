@@ -1,0 +1,132 @@
+{
+  "type": "FeatureCollection",
+  "schema_version": "0.0.24",
+  "features": [
+    {
+      "type": "Feature",
+      "id": "track-nelson",
+      "geometry": {
+        "type": "LineString",
+        "coordinates": [
+          [
+            -4.1201,
+            50.3502
+          ],
+          [
+            -4.1155,
+            50.3471
+          ],
+          [
+            -4.1098,
+            50.344
+          ]
+        ]
+      },
+      "properties": {
+        "kind": "track",
+        "name": "NELSON",
+        "times": [
+          "2026-10-11T09:30:00.000Z",
+          "2026-10-11T09:31:00.000Z",
+          "2026-10-11T09:32:00.000Z"
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "sensor-nelson-towed-array",
+      "geometry": null,
+      "properties": {
+        "kind": "sensor",
+        "name": "Towed array",
+        "host_track_id": "track-nelson",
+        "colour": "#0064bd",
+        "legacy_symbology": "@A",
+        "array_mode": "plain"
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "cut-00001",
+      "geometry": null,
+      "properties": {
+        "kind": "sensor_cut",
+        "sensor_id": "sensor-nelson-towed-array",
+        "time": "2026-10-11T09:30:00.000Z",
+        "bearing": {
+          "value": 45.0,
+          "unit": "deg"
+        },
+        "bearing_accuracy": "1.5"
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "cut-00002",
+      "geometry": null,
+      "properties": {
+        "kind": "sensor_cut",
+        "sensor_id": "sensor-nelson-towed-array",
+        "time": "2026-10-11T09:30:30.000Z",
+        "bearing": {
+          "value": 47.5,
+          "unit": "deg"
+        },
+        "ambiguous_bearing": {
+          "value": 222.5,
+          "unit": "deg"
+        },
+        "label": "0930"
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "cut-00003",
+      "geometry": null,
+      "properties": {
+        "kind": "sensor_cut",
+        "sensor_id": "sensor-nelson-towed-array",
+        "time": "2026-10-11T09:31:00.000Z",
+        "bearing": {
+          "value": 50.0,
+          "unit": "deg"
+        },
+        "ambiguous_bearing": {
+          "value": 220.0,
+          "unit": "deg"
+        },
+        "resolved": "ambiguous_bearing",
+        "range": {
+          "value": 4000.0,
+          "unit": "[yd_i]"
+        },
+        "comment": "Held strongly",
+        "colour": "#e01c3e"
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "cut-00004",
+      "geometry": null,
+      "properties": {
+        "kind": "sensor_cut",
+        "sensor_id": "sensor-nelson-towed-array",
+        "time": "2026-10-11T09:32:00.000Z",
+        "bearing": {
+          "value": 52.0,
+          "unit": "deg"
+        },
+        "origin": [
+          -4.11,
+          50.345
+        ],
+        "hidden": true,
+        "range": {
+          "value": 0.0,
+          "unit": "[yd_i]"
+        }
+      }
+    }
+  ],
+  "provenance": []
+}

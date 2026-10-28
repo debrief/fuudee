@@ -11,6 +11,7 @@
 <link rel="stylesheet" href="tote.css">
 <link rel="stylesheet" href="timeline.css">
 <link rel="stylesheet" href="coverage.css">
+<link rel="stylesheet" href="tma.css">
 <link rel="stylesheet" href="dockview.css">
 <link rel="stylesheet" href="host.css">
 <link rel="stylesheet" href="dock.css">
@@ -56,11 +57,11 @@
       <h2><button type="button" class="fold" aria-expanded="true" aria-controls="body-outline"><span class="arrow" aria-hidden="true"></span>Outline</button></h2>
       <div class="panel-body" id="body-outline">
         <div id="selected-count" class="detail"></div>
-        <ul id="outline" class="list" role="listbox" aria-multiselectable="true" aria-label="Features in the plot"></ul>
+        <ul id="outline" class="list" role="tree" aria-multiselectable="true" aria-label="Features in the plot"></ul>
         <!-- What can be done to the selection: docked, kept in sight below the list (dock.css). -->
         <div class="outline-tools">
           <div class="outline-actions" role="group" aria-label="The selected features">
-            <select id="colour" aria-label="Colour the selected tracks"><option value="">Colour…</option></select>
+            <select id="colour" aria-label="Colour the selected tracks or sensors"><option value="">Colour…</option></select>
             <button id="hide" title="Hide the selected features on the map">Hide</button>
             <button id="show" title="Show the selected features, or every hidden feature, on the map">Show</button>
           </div>
@@ -77,6 +78,12 @@
             <button id="fix-list" title="List the selected track's fixes, to colour, label, comment on or move one. Or right-click a fix on the map; on a touch screen, press and hold it">Fixes…</button>
             <button id="plotting-mode" title="Plot the selected track over the ground (OTG), as logged, or by dead reckoning (DR), from its first fix by each fix's recorded course and speed">OTG/DR…</button>
             <button id="track-frequencies" title="How often the selected tracks are labelled with the time, marked with a symbol and given a direction arrow: from every second to every 24 hours, or off">Frequencies…</button>
+          </div>
+          <div class="action-group" role="group" aria-labelledby="sensor-actions" id="sensor-group" hidden>
+            <span id="sensor-actions" class="action-label">Sensor</span>
+            <button id="keep-port" title="Keep the port bearing of ambiguous cuts: the cut at current time, those in the time window, those selected, or all. Or click one of a cut's two lines on the map">Port…</button>
+            <button id="keep-starboard" title="Keep the starboard bearing of ambiguous cuts: the cut at current time, those in the time window, those selected, or all">Starboard…</button>
+            <button id="keep-ambiguous" title="Make cuts ambiguous again: both bearings drawn, as read in">Both again…</button>
           </div>
           <div class="action-group" role="group" aria-labelledby="annotation-actions">
             <span id="annotation-actions" class="action-label">Annotation</span>
@@ -105,6 +112,12 @@
       <h2><button type="button" class="fold" aria-expanded="true" aria-controls="body-coverage"><span class="arrow" aria-hidden="true"></span>Coverage</button></h2>
       <div class="panel-body" id="body-coverage">
         <div id="coverage"></div>
+      </div>
+    </section>
+    <section class="panel" id="panel-bearings">
+      <h2><button type="button" class="fold" aria-expanded="true" aria-controls="body-bearings"><span class="arrow" aria-hidden="true"></span>Bearings</button></h2>
+      <div class="panel-body" id="body-bearings">
+        <div id="bearings"></div>
       </div>
     </section>
     <section class="panel" id="panel-tools">
@@ -166,6 +179,7 @@
     <div class="panel-body" id="body-import">
       <label class="file">REP, legacy .dpf, a Word or PDF narrative, or a Debrief plot file <input id="file" type="file" accept=".rep,.REP,.dpf,.DPF,.xml,.geojson,.json,.docx,.doc,.pdf"></label>
       <label class="file">A narrative into the open plot: REP <code>;NARRATIVE:</code> lines, Word (.docx, .doc) or PDF <input id="narrative-file" type="file" accept=".rep,.REP,.txt,.docx,.doc,.pdf"></label>
+      <label class="file">Sensor data into the open plot: a .dsf file, or REP <code>;SENSOR:</code> lines <input id="sensor-file" type="file" accept=".dsf,.DSF,.rep,.REP"></label>
       <div class="detail">Read and imported in your browser; never uploaded.</div>
       <div id="import-mode" class="detail import-mode"><span id="import-mode-text">Debrief asks, for each track of a REP file, whether it is plotted over the ground (OTG) or by dead reckoning (DR).</span> <button id="ask-again" hidden title="Forget the choice you made for future imports, and be asked for each track again">Ask again</button></div>
     </div>
