@@ -71,7 +71,7 @@
     
     
     
-    <body dir="ltr" data-md-color-scheme="default" data-md-color-primary="indigo" data-md-color-accent="indigo"><div class="pr-preview-banner" style="background:#fff4ce;color:#3b2f00;border-bottom:1px solid #e0c060;padding:6px 16px;font:14px/1.4 system-ui,sans-serif;text-align:center">Preview of <a style="color:inherit;text-decoration:underline" href="https://github.com/debrief/fuudee/pull/53">pull request #53</a>: Walkthroughs: where the navigation log is, for the file dialog. Built from e2a9e4f on 2026-10-24 14:47 UTC. <a style="color:inherit;text-decoration:underline" href="https://debrief.github.io/fuudee/pr-preview/">All previews</a></div>
+    <body dir="ltr" data-md-color-scheme="default" data-md-color-primary="indigo" data-md-color-accent="indigo"><div class="pr-preview-banner" style="background:#fff4ce;color:#3b2f00;border-bottom:1px solid #e0c060;padding:6px 16px;font:14px/1.4 system-ui,sans-serif;text-align:center">Preview of <a style="color:inherit;text-decoration:underline" href="https://github.com/debrief/fuudee/pull/53">pull request #53</a>: Walkthroughs: where the navigation log is, for the file dialog. Built from 9ed9279 on 2026-10-28 21:45 UTC. <a style="color:inherit;text-decoration:underline" href="https://debrief.github.io/fuudee/pr-preview/">All previews</a></div>
   
     
     <input class="md-toggle" data-md-toggle="drawer" type="checkbox" id="__drawer" autocomplete="off">
@@ -903,6 +903,10 @@
       
         
       
+        
+      
+        
+      
     
     
     
@@ -1311,6 +1315,62 @@
     
   
     Timeline and narrative
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../interaction-models/sensors/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Sensors and bearings
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../interaction-models/tma/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    TMA solutions
   
 
     
@@ -1827,7 +1887,11 @@
 <ul>
 <li><strong>Background traffic.</strong> 8 to 10 AIS tracks: merchant ships under way and at anchor, a tug, yachts and pleasure craft. Each is named by its type and a number, such as "Cargo 03", never by its real name.</li>
 <li><strong>BLUE ONE and RED ONE.</strong> One fix a minute. RED ONE's tracks carry depth. Both were written as REP files and imported, so they are sources like any analyst's.</li>
-<li><strong>Sonar bearings.</strong> BLUE ONE's bow sonar on RED ONE every 30 seconds, with a 1.5° error. The sonar can hold RED ONE only within 4.5 nmi, outside its baffles astern and while not sprinting, and within those limits contact comes and goes, so each serial has gaps. Between 177 and 349 bearings per serial, held as one set of sensor observations (CON-02).</li>
+<li><strong>Sonar bearings.</strong> Two sensors on BLUE ONE, each shown in the Outline under it and drawn as cuts in the time window (CAP-22; <a href="../interaction-models/sensors/">sensors and bearings</a>):<ul>
+<li>its <strong>Bow sonar</strong> (teal), on RED ONE every 30 seconds, with a 1.5° error. It holds RED ONE only within 4.5 nmi, outside its baffles astern and while not sprinting, and within those limits contact comes and goes, so each serial has gaps: 177 to 349 cuts a serial;</li>
+<li>its <strong>Towed array</strong> (purple), every minute, with a 2° error, out to 7 nmi: every cut <strong>ambiguous</strong>, its bearing and the mirror of it about BLUE ONE's course, in random order, as an array tells them. It is deaf within 15° of endfire (ahead and astern), and while BLUE ONE turns faster than 10° a minute or sprints; contact is gained and lost at random. 132 to 166 cuts a serial, left for the analyst to resolve: after a turn, the true bearing is the one that stayed put.</li>
+</ul>
+</li>
 <li><strong>Narrative.</strong> About 35 entries per serial, in Zulu time, from BLUE ONE, RED ONE and exercise control (EXCON): intentions, alterations of course, first contact and its classification, contacts lost and regained, bearing reports with their drift, and closest approaches. Each entry has a kind (Course, Sonar, CPA, Log, Intention, Weather). The log is kept as a supporting file, and each entry is also a narrative entry in the plot, BLUE ONE's and RED ONE's belonging to their tracks, read in the Timeline (CAP-20).</li>
 <li><strong>The exercise area</strong>, as a shape, and two named sets: <em>Exercise</em> and <em>Background traffic</em>.</li>
 </ul>
@@ -1850,7 +1914,7 @@
 <h2 id="the-ais-data">The AIS data<a class="headerlink" href="#the-ais-data" title="Permanent link">&para;</a></h2>
 <p>The background traffic comes from the US national AIS archive, published by NOAA's Office for Coastal Management on MarineCadastre.gov from the US Coast Guard's receiver network. It is a US Government work, in the public domain in the United States. One day was reduced to a small area, the serial windows and 16 vessels, thinned to one fix a minute, with military, law-enforcement, pilot and search-and-rescue vessels left out. Every identifier was removed. The reduction and the licence are described beside the extract, in <code>python/debrief-sample/data/README.md</code>.</p>
 <h2 id="for-walkthroughs">For walkthroughs<a class="headerlink" href="#for-walkthroughs" title="Permanent link">&para;</a></h2>
-<p>Debrief's walkthroughs (CAP-25) never change the sample: each works on a copy of serial 1, titled after it, made by <code>debrief_sample.walkthrough</code>. VS Code builds a fresh sample for each walkthrough into a catalogue of its own, <code>python -m debrief_sample walkthrough FOLDER TOUR</code>; the playground copies the sample as the site shipped it. <em>Tidy a track</em>'s copy has three GPS glitches in RED ONE, as a step of their own; <em>Import and collate</em>'s comes with BLUE ONE's navigation log, a REP file of fiction like the rest. The walkthroughs' pictures are drawn from serial 1 by <code>python -m debrief_sample media vscode/media/walkthroughs</code>. See <a href="../interaction-models/walkthroughs/">Walkthroughs</a>.</p>
+<p>Debrief's walkthroughs (CAP-25) never change the sample: each works on a copy of serial 1, titled after it, made by <code>debrief_sample.walkthrough</code>. VS Code builds a fresh sample for each walkthrough into a catalogue of its own, <code>python -m debrief_sample walkthrough FOLDER TOUR</code>; the playground copies the sample as the site shipped it. <em>Tidy a track</em>'s copy has three GPS glitches in RED ONE, as a step of their own; <em>Import and collate</em>'s comes with BLUE ONE's navigation log, a REP file of fiction like the rest; <em>Bearings and TMA</em>'s has one of the towed array's cuts turned 40° off, a wild bearing, as a step of its own, since the sample's bearings have none. That walkthrough makes its TMA solution live, so the sample itself holds none. The walkthroughs' pictures are drawn from serial 1 by <code>python -m debrief_sample media vscode/media/walkthroughs</code>. See <a href="../interaction-models/walkthroughs/">Walkthroughs</a>.</p>
 <h2 id="not-yet-in-it">Not yet in it<a class="headerlink" href="#not-yet-in-it" title="Permanent link">&para;</a></h2>
 <ul>
 <li><strong>Ambiguous bearings</strong> from a towed array (CAP-22): the sonar is a bow sonar, so its bearings are not ambiguous.</li>

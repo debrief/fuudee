@@ -21,19 +21,26 @@ import debrief_stac.store as store_module
 from debrief_config import (
     load_config,
     narrative_answers,
+    tma_error_cut_off,
     track_import_mode,
     update_config,
     with_narrative_answers,
+    with_tma_error_cut_off,
     with_track_import_mode,
 )
 from debrief_io import (
     Choices,
+    HostNeeded,
     NoNarrativeError,
+    NoSensorDataError,
+    SensorReadBefore,
     import_document,
     import_dpf,
     import_narrative,
     import_rep,
+    import_sensor,
     preview_narrative,
+    preview_sensor,
 )
 from debrief_io.document_import import SUFFIXES as DOCUMENT_SUFFIXES
 from debrief_io.importer import rep_track_names
@@ -51,7 +58,9 @@ from debrief_stac import (
     History,
     HistoryError,
     figures,
+    tma,
 )
+from debrief_stac import sensors as plot_sensors
 from debrief_stac.catalogue import review_flags
 from debrief_stac.fixes import describe_largest
 from debrief_stac.tote import tote as tote_at
@@ -207,7 +216,11 @@ def restyle(item: str, request_json: str) -> str:
                 colour_name=request.get("colour_name"),
             )
         else:
-            _cat().set_hidden(item, request["features"], bool(request["hidden"]), YOU, base)
+            step = _cat().set_hidden(item, request["features"], bool(request["hidden"]), YOU, base)
+            # Cuts hidden or shown: what that does to the solutions rooted in them (27 Oct 2026).
+            if step is not None:
+                notes = _cat().history(item).steps()[step - 1].records[0].notes or []
+                return json.dumps({"ok": True, "notes": list(notes)})
     except Conflict:
         return json.dumps({"error": "The plot was changed elsewhere, so nothing was changed."})
     except (CatalogueError, HistoryError) as error:
@@ -306,6 +319,81 @@ def narrative_preview(item: str | None, name: str, data: bytes) -> str:
             return json.dumps(preview_narrative(found, catalogue=_cat(), item_id=item))
         return json.dumps(preview_narrative(found))
     except (CatalogueError, HistoryError, NoNarrativeError, OSError) as error:
+        return json.dumps({"error": str(error)})
+
+
+def sensor(item: str, request_json: str, data: bytes | None = None) -> str:
+    """Keep a side of ambiguous cuts, or make them ambiguous again, or read a file's
+    sensor lines into the plot: each one recorded, undoable step (CAP-22), as
+    debrief/resolve_ambiguity and debrief/import_sensor do. request: base, and change:
+    {kind: "resolve", resolution}, {kind: "array_offset", sensor_ids, offset, mode} (as
+    debrief/set_array_offset), {kind: "delete", cut_ids} (as debrief/delete_cuts) or {kind:
+    "import", name, hosts, again}."""
+    request = json.loads(request_json)
+    base = Base(**request["base"]) if request.get("base") else None
+    change = request["change"]
+    try:
+        if change["kind"] == "resolve":
+            step = _cat().resolve_ambiguity(item, change["resolution"], YOU, base)
+            notes = _cat().history(item).steps()[step - 1].records[0].notes or []
+            return json.dumps({"ok": True, "notes": list(notes)})
+        if change["kind"] == "delete":
+            # Cuts deleted, as debrief/delete_cuts: the solutions rooted in them drop them.
+            step = _cat().delete_cuts(item, change["cut_ids"], YOU, base)
+            notes = _cat().history(item).steps()[step - 1].records[0].notes or []
+            return json.dumps({"ok": True, "notes": list(notes)})
+        if change["kind"] == "array_offset":
+            step = _cat().set_array_offset(
+                item,
+                change["sensor_ids"],
+                change.get("offset"),
+                YOU,
+                base,
+                mode=change.get("mode") or "worm_in_hole",
+            )
+            if step is None:
+                return json.dumps({"ok": True, "changed": False, "notes": []})
+            notes = _cat().history(item).steps()[step - 1].records[0].notes or []
+            return json.dumps({"ok": True, "changed": True, "notes": list(notes)})
+        done = import_sensor(
+            _cat(),
+            item,
+            _upload(change["name"], data or b""),
+            YOU,
+            base,
+            hosts=change.get("hosts") or {},
+            again=bool(change.get("again")),
+        )
+    except Conflict:
+        return json.dumps({"error": "The plot was changed elsewhere, so nothing was changed."})
+    except (
+        CatalogueError,
+        HistoryError,
+        HostNeeded,
+        SensorReadBefore,
+        NoSensorDataError,
+        OSError,
+        ValueError,
+    ) as error:
+        return json.dumps({"error": str(error)})
+    return json.dumps(
+        {
+            "ok": True,
+            "sensors": done.sensors,
+            "cuts": done.cuts,
+            "omitted": done.omitted,
+            "notes": done.notes,
+        }
+    )
+
+
+def sensor_preview(item: str, name: str, data: bytes) -> str:
+    """What a file's sensor lines hold, before they are read into the plot: which of
+    the plot's tracks carries each sensor, and whether it was read in before
+    (debrief/preview_sensor)."""
+    try:
+        return json.dumps(preview_sensor(_upload(name, data), catalogue=_cat(), item_id=item))
+    except (CatalogueError, HistoryError, OSError, ValueError) as error:
         return json.dumps({"error": str(error)})
 
 
@@ -455,6 +543,58 @@ def tote(item: str, request_json: str) -> str:
     return json.dumps({"tote": result, "compute_ms": (time.perf_counter() - started) * 1000})
 
 
+def tma_view(item: str, request_json: str) -> str:
+    """What the bearing view shows (CAP-21): a sensor's cuts, as debrief/sensors lists them
+    with cuts, or a solution's residuals, as debrief/tma_residuals gives them. Says how long
+    the residuals took, for the playground's measure of the drag budget (NFR-04)."""
+    request = json.loads(request_json)
+    started = time.perf_counter()
+    try:
+        plot = _cat().history(item).plot()
+        out: dict[str, Any] = {}
+        if request.get("solution"):
+            out["residuals"] = tma.residual_report(plot, request["solution"])
+            out["compute_ms"] = (time.perf_counter() - started) * 1000
+        elif request.get("sensor"):
+            found = plot_sensors.describe(plot, sensor_ids=[request["sensor"]], with_cuts=True)
+            out["cuts"] = found[0]["cut_list"] if found else []
+    except (CatalogueError, HistoryError, tma.TmaError, ValueError) as error:
+        return json.dumps({"error": str(error)})
+    return json.dumps(out)
+
+
+def tma_change(item: str, request_json: str) -> str:
+    """A TMA solution made, split into legs, or its cuts left out of its RMS or counted
+    again: each one recorded, undoable step (CAP-21), as debrief/tma_create,
+    debrief/tma_split_leg and debrief/tma_exclude_cut do. request: base, and change:
+    {kind: "create", request}, {kind: "split", feature, at, side?} or {kind: "exclude",
+    feature, cut_ids, excluded}."""
+    request = json.loads(request_json)
+    base = Base(**request["base"]) if request.get("base") else None
+    change = request["change"]
+    out: dict[str, Any] = {"ok": True}
+    try:
+        if change["kind"] == "create":
+            step, out["feature"] = _cat().create_tma(item, change["request"], YOU, base)
+        elif change["kind"] == "split":
+            # side: before or after the fix at at (the Outline's Split before and Split after).
+            step = _cat().tma_split_leg(
+                item, change["feature"], change["at"], YOU, base, side=change.get("side")
+            )
+        else:
+            step = _cat().tma_exclude(
+                item, change["feature"], change["cut_ids"], bool(change["excluded"]), YOU, base
+            )
+            if step is None:
+                return json.dumps({"ok": True, "changed": False, "notes": []})
+    except Conflict:
+        return json.dumps({"error": "The plot was changed elsewhere, so nothing was changed."})
+    except (CatalogueError, HistoryError) as error:
+        return json.dumps({"error": str(error)})
+    out["notes"] = list(_cat().history(item).steps()[step - 1].records[0].notes or [])
+    return json.dumps(out)
+
+
 def colleague_window(item: str) -> str:
     """A colleague narrows the time window to its last third, as if from another
     computer: the plot file changes, its history does not."""
@@ -552,6 +692,18 @@ def set_import_mode(mode: str) -> str:
     """Remember a choice for future imports, or, with ask, clear it."""
     SETTINGS.parent.mkdir(parents=True, exist_ok=True)
     return track_import_mode(update_config(lambda c: with_track_import_mode(c, mode), SETTINGS))
+
+
+def error_cut_off() -> float:
+    """The Bearings view's error cut-off, degrees: the reader's, else legacy's 3."""
+    return tma_error_cut_off(load_config(SETTINGS))
+
+
+def set_error_cut_off(degrees: float) -> float:
+    """Remember the reader's error cut-off (the Bearings view's), as debrief-config does."""
+    SETTINGS.parent.mkdir(parents=True, exist_ok=True)
+    changed = update_config(lambda c: with_tma_error_cut_off(c, float(degrees)), SETTINGS)
+    return tma_error_cut_off(changed)
 
 
 def narrative_answers_for(dialect: str) -> str:

@@ -71,7 +71,7 @@
     
     
     
-    <body dir="ltr" data-md-color-scheme="default" data-md-color-primary="indigo" data-md-color-accent="indigo"><div class="pr-preview-banner" style="background:#fff4ce;color:#3b2f00;border-bottom:1px solid #e0c060;padding:6px 16px;font:14px/1.4 system-ui,sans-serif;text-align:center">Preview of <a style="color:inherit;text-decoration:underline" href="https://github.com/debrief/fuudee/pull/53">pull request #53</a>: Walkthroughs: where the navigation log is, for the file dialog. Built from e2a9e4f on 2026-10-24 14:47 UTC. <a style="color:inherit;text-decoration:underline" href="https://debrief.github.io/fuudee/pr-preview/">All previews</a></div>
+    <body dir="ltr" data-md-color-scheme="default" data-md-color-primary="indigo" data-md-color-accent="indigo"><div class="pr-preview-banner" style="background:#fff4ce;color:#3b2f00;border-bottom:1px solid #e0c060;padding:6px 16px;font:14px/1.4 system-ui,sans-serif;text-align:center">Preview of <a style="color:inherit;text-decoration:underline" href="https://github.com/debrief/fuudee/pull/53">pull request #53</a>: Walkthroughs: where the navigation log is, for the file dialog. Built from 9ed9279 on 2026-10-28 21:45 UTC. <a style="color:inherit;text-decoration:underline" href="https://debrief.github.io/fuudee/pr-preview/">All previews</a></div>
   
     
     <input class="md-toggle" data-md-toggle="drawer" type="checkbox" id="__drawer" autocomplete="off">
@@ -905,6 +905,10 @@
       
         
       
+        
+      
+        
+      
     
     
     
@@ -1413,6 +1417,62 @@
   
   
     <li class="md-nav__item">
+      <a href="../sensors/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Sensors and bearings
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../tma/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    TMA solutions
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
       <a href="../collation/" class="md-nav__link">
         
   
@@ -1789,9 +1849,19 @@
 <td>Shift click</td>
 </tr>
 <tr>
+<td>Select all</td>
+<td>—</td>
+<td><strong>Select all</strong> on the Outline's toolbar, or <code>Ctrl+A</code> in the tree: every row listed</td>
+</tr>
+<tr>
+<td>Select a row's children</td>
+<td>—</td>
+<td><strong>Select children</strong> on the Outline's toolbar</td>
+</tr>
+<tr>
 <td>Clear</td>
 <td>Escape, or click empty sea</td>
-<td><strong>Clear selection</strong> (the button in the outline's title bar)</td>
+<td><strong>Clear selection</strong> on the Outline's toolbar</td>
 </tr>
 <tr>
 <td>Zoom to the selection</td>
@@ -1806,6 +1876,50 @@
 <li><strong>On the map.</strong> Each selected feature gets a dotted outline in the theme's text colour. That colour is never a force colour, so selecting tracks never makes them look blue or red. Everything else is dimmed.</li>
 <li><strong>In the outline.</strong> Selected features are marked <em>selected</em>. The last one selected elsewhere is revealed and highlighted.</li>
 <li><strong>In the tools view.</strong> The selection is counted.</li>
+<li>
+<p><strong>The Outline's toolbar</strong> (product owner, 28 Oct 2026). Compact icon buttons at the top of the Outline act on its selection; each has a tooltip saying what it will do, or why it cannot. In VS Code they are in the Outline view's title bar; in the playground, a row above the tree.</p>
+<table>
+<thead>
+<tr>
+<th>Button</th>
+<th>Icon (VS Code codicon)</th>
+<th>What it does</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><strong>Hidden on map</strong></td>
+<td><code>eye</code> when everything selected is shown; <code>eye-closed</code> when all of it is hidden; <code>color-mode</code> when some of each (the playground's is a half-closed eye)</td>
+<td>All shown: hides them all. All hidden: shows them all. Mixed: shows them all, the usual convention for a mixed toggle (<code>aria-pressed="mixed"</code>). One step, named with a count (<em>3 tracks and 12 cuts hidden on the map</em>), through the same hide and show operations as the Tools' <strong>Hide cuts</strong> and <strong>Show cuts</strong>. Tracks, TMA solutions, sensors, cuts, annotations and sensor observations can be hidden; a leg or a position cannot, and is left out, the tooltip saying so. Narrative entries are not in the Outline: they are read in the Timeline.</td>
+</tr>
+<tr>
+<td><strong>Colour</strong></td>
+<td><code>symbol-color</code></td>
+<td>The selected that have a colour (tracks and solutions, sensors, cuts, annotations; not chart furniture) take one colour: the palette, or a custom <code>#rrggbb</code>. One step. Disabled, saying why, when nothing selected has a colour. In VS Code a QuickPick; in the playground a small popover of swatches (arrow keys among them) and a custom colour.</td>
+</tr>
+<tr>
+<td><strong>Select all</strong></td>
+<td><code>check-all</code></td>
+<td>Every row listed: the rows of the branches open, as <code>Ctrl+A</code> in the tree. A sensor's cuts are not selected unless it is open.</td>
+</tr>
+<tr>
+<td><strong>Select children</strong></td>
+<td><code>type-hierarchy-sub</code></td>
+<td>The selection replaced by the direct children of what is selected: a track's sensors, a sensor's cuts (all of them, though VS Code pages a sensor of more than 500), a solution's legs, a leg's positions. Their branches open, the first child brought into sight. Disabled when the selection has none.</td>
+</tr>
+<tr>
+<td><strong>Clear selection</strong></td>
+<td><code>clear-all</code></td>
+<td>Nothing selected.</td>
+</tr>
+</tbody>
+</table>
+<p>VS Code's title bar shows one of three hide commands (<code>debrief.selectionHide</code>, <code>debrief.selectionShow</code>, <code>debrief.selectionShowAll</code>) by the context key <code>debrief.selectionVisibility</code> (<code>visible</code>, <code>hidden</code>, <code>mixed</code> or <code>none</code>); <code>debrief.selectionColourable</code>, <code>debrief.selectionHasChildren</code> and <code>debrief.selectionNotEmpty</code> enable the others. Its tooltips are the commands' titles, which cannot change, so the reasons are said when a command is run instead. The native tree cannot be told to select many rows, so rows selected by the toolbar are marked <em>selected</em> in their description, as before, and the first is revealed.</p>
+<p>In the playground the toolbar is <code>role="toolbar"</code>, one tab stop with a roving <code>tabindex</code>: <code>←</code> and <code>→</code> move along it (wrapping), <code>Home</code> and <code>End</code> to its ends, <code>Enter</code> or <code>Space</code> presses. A button that cannot act stays reachable (<code>aria-disabled</code>), its reason its description. Icons are drawn in the text colour, so they follow light, dark and high-contrast themes; under forced colours they take the system's colours, a pressed toggle the system's Highlight.</p>
+</li>
+<li>
+<p><strong>The selection's count, said.</strong> The Outline no longer has a hint line under its heading ("1 feature selected · Ctrl-click to add, Shift-click for a range", product owner, 28 Oct 2026): the gestures are taught by the walkthroughs (<em>Open and explore a serial</em>, <em>Select tracks in the Outline</em>). A screen reader still hears the count when it changes (<em>3 tracks and 12 cuts selected</em>), from a polite live region.</p>
+</li>
 <li><strong>Offering tools.</strong> Whenever the selection changes, the tools view asks the tool service which tools apply to every selected item, within each tool's count limits (TL-08). The rule lives in Python, so agents get the same answer (TL-14).</li>
 <li><strong>Explaining tools not on offer.</strong> Tools that don't apply are listed under <strong>Other tools</strong>, each saying what it needs ("select 2 tracks"), rather than being hidden (CON-10).</li>
 <li><strong>Unknown data types.</strong> Tools that name a data type Debrief doesn't know appear under <strong>Not available</strong>, with the reason (TL-09).</li>
@@ -1829,6 +1943,7 @@
 <li><strong>Selection state:</strong> <code>vscode/src/session.ts</code>.</li>
 <li><strong>Map gestures:</strong> <code>vscode/webview/map.ts</code>.</li>
 <li><strong>Outline:</strong> <code>vscode/src/views/outline.ts</code>.</li>
+<li><strong>The Outline's toolbar:</strong> what each button does and says, <code>vscode/webview/outlinetoolbar.ts</code>; the playground's, <code>vscode/play/outlinebar.ts</code>; VS Code's title bar, <code>package.json</code> and <code>debrief.selection*</code> in <code>vscode/src/extension.ts</code>.</li>
 <li><strong>Tools view:</strong> <code>vscode/src/views/tools.ts</code>.</li>
 <li><strong>The offering rule:</strong> <code>debrief_tools.registry.applies</code>.</li>
 </ul>
