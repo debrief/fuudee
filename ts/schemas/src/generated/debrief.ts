@@ -443,6 +443,7 @@ export type WebviewMessageKindEnum =
   | "tma_resolve"
   | "tma_cut_off"
   | "tma_plot_drawn"
+  | "tma_panes"
   | "tma_made";
 
 export interface DebriefSchemaDefinitions {}
@@ -3113,6 +3114,10 @@ export interface WebviewMessage {
    * The width of each pane the Bearings view's plot shows, left to right, CSS pixels (tma_plot_drawn).
    */
   pane_widths?: number[] | null;
+  /**
+   * The panes the Bearings view's plot shows, of bearing, error and course (tma_panes).
+   */
+  panes_shown?: string[] | null;
   parameters?: ParameterValue[] | null;
   /**
    * Whether current time is playing (playing_changed).

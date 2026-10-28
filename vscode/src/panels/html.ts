@@ -2,8 +2,8 @@ import { randomBytes } from "node:crypto";
 import * as vscode from "vscode";
 import { startup } from "../startup.js";
 
-/** A webview page loading one bundle, with a strict content security policy. */
-export function webviewHtml(webview: vscode.Webview, extension: vscode.Uri, bundle: string, title: string): string {
+/** A webview page loading one bundle, with a strict content security policy; data, as the body's data- attributes. */
+export function webviewHtml(webview: vscode.Webview, extension: vscode.Uri, bundle: string, title: string, data: Record<string, string> = {}): string {
   const nonce = randomBytes(16).toString("base64");
   const asset = (name: string) => webview.asWebviewUri(vscode.Uri.joinPath(extension, "dist", "webview", name));
   const csp = [
@@ -25,7 +25,9 @@ export function webviewHtml(webview: vscode.Webview, extension: vscode.Uri, bund
 <title>${escapeHtml(title)}</title>
 <link rel="stylesheet" href="${asset(`${bundle}.css`)}">
 </head>
-<body data-land="${asset("land.geojson")}"${startup.pages ? ' data-timing="1"' : ""}>
+<body data-land="${asset("land.geojson")}"${startup.pages ? ' data-timing="1"' : ""}${Object.entries(data)
+    .map(([name, value]) => ` data-${name}="${escapeHtml(value)}"`)
+    .join("")}>
 <div id="root"></div>
 <script nonce="${nonce}" src="${asset(`${bundle}.js`)}"></script>
 </body>
