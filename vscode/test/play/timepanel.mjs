@@ -68,7 +68,7 @@ export async function playTimePanel(page, shot, history) {
   await tc(".tc-details").waitFor();
   if (await tc(".tc-whole").isEnabled()) await tc(".tc-whole").click();
   await page.waitForFunction(() => document.querySelector("#timebar .tc-whole")?.disabled);
-  assert.match(await tc(".tc-window-length").innerText(), /Whole plot/);
+  assert.match(await tc(".tc-window-length").innerText(), /^Length 4 h, the whole plot$/);
   await tc(".tc-from").fill("09:00");
   await page.keyboard.press("Enter");
   await tc(".tc-to").fill("10:00Z");

@@ -576,7 +576,7 @@ export class TimeControl {
     band.setAttribute("aria-valuetext", `${show(this.window.start)} to ${show(this.window.end)}, ${lengthText}`);
 
     // The window in words: the summary, and inside the disclosure.
-    this.part(".tc-window-length").textContent = whole ? "Whole plot" : `Length ${lengthText}`;
+    this.part(".tc-window-length").textContent = whole ? `Length ${describeLength(length)}, the whole plot` : `Length ${lengthText}`;
     this.part(".tc-summary").textContent = describeWindow(this.window);
     this.part(".tc-summary-context").textContent = this.context ? `(${CONTEXT_NAMES[this.context]})` : "";
     this.part(".tc-disclosure").title = `Time window ${show(this.window.start)} to ${show(this.window.end)}, ${lengthText}${this.context ? `; context tracks ${this.context}` : ""}`;

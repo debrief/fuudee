@@ -148,7 +148,8 @@ async function defaultAt(page, width, height) {
     const all = [...list.children];
     return { all: all.length, seen: all.filter((r) => { const b = r.getBoundingClientRect(); return b.top >= box.top - 1 && b.bottom <= box.bottom + 1; }).length };
   });
-  const enough = height >= 1000 ? rows.all : height >= 768 ? 6 : 4;
+  // One row fewer than before the Time panel grew for its large current time (product owner, 28 Oct 2026).
+  const enough = height >= 1000 ? rows.all : height >= 768 ? 5 : 3;
   assert.ok(rows.seen >= enough, `at ${width} × ${height} the Outline shows ${enough} rows or more: ${rows.seen} of ${rows.all}`);
   return { width: Math.round(main.width), height: Math.round(main.height), share: main.width / width, rows: rows.seen };
 }
