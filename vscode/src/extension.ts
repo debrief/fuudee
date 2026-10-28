@@ -1775,7 +1775,11 @@ export function activate(context: vscode.ExtensionContext): DebriefApi {
     if (!chosen) return undefined;
     return report(await restyle(button.ids, { colour: chosen.colour, ...(chosen.name && { colour_name: chosen.name }) }));
   }
-  command("debrief.setColour", (node?: Target, colourName?: string) => colourPicks(picksOf(node), colourName));
+  // From the Outline's menu with several rows selected, VS Code gives the rows selected second.
+  command("debrief.setColour", (node?: Target, given?: string | OutlineNode[]) => {
+    if (Array.isArray(given) && outline.index) return colourPicks(outlinePicks(keysOf(given)));
+    return colourPicks(picksOf(node), typeof given === "string" ? given : undefined);
+  });
   const features = (ids: string[]) =>
     ids.filter((id) => {
       const feature = session.current?.plot.features.find((f) => f.id === id);
