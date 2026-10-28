@@ -2,7 +2,7 @@
    "Big time and scrubber" (product owner, 28 Oct 2026): current time large, the transport on one row,
    the scrubber over the window, a thin strip of the whole plot, and the window's details folded away.
    It works from a 210 px column to a 390 px phone, never scrolling sideways. */
-.timebar { display: flex; flex-direction: column; gap: 6px; font-size: 12px; color: var(--vscode-foreground); container-type: inline-size; min-width: 0; }
+.timebar { display: flex; flex-direction: column; gap: 4px; font-size: 12px; color: var(--vscode-foreground); container-type: inline-size; min-width: 0; }
 .timebar[hidden] { display: none; }
 .timebar button { font: inherit; margin: 0; }
 .timebar button:focus-visible, .timebar select:focus-visible, .timebar input:focus-visible { outline: 2px solid var(--vscode-focusBorder); outline-offset: 1px; }
@@ -10,7 +10,7 @@
 /* Current time: the largest text in the panel, tabular so it does not jitter while playing; its date small beside it. */
 .tc-now { display: flex; flex-wrap: wrap; align-items: baseline; column-gap: 8px; row-gap: 0; min-width: 0; }
 .timebar .tc-time { padding: 0 2px; margin-left: -2px; background: none; border: 1px solid transparent; border-radius: 3px; color: var(--vscode-foreground); cursor: text;
-  font-family: var(--vscode-font-family); font-size: clamp(22px, 10.5cqi, 32px); font-weight: 600; line-height: 1.15; letter-spacing: 0.01em; font-variant-numeric: tabular-nums; white-space: nowrap; }
+  font-family: var(--vscode-font-family); font-size: clamp(22px, 10.5cqi, 32px); font-weight: 600; line-height: 1.1; letter-spacing: 0.01em; font-variant-numeric: tabular-nums; white-space: nowrap; }
 .timebar .tc-time:hover { border-color: var(--vscode-input-border, var(--vscode-widget-border, var(--vscode-focusBorder))); background: none; }
 .tc-time[hidden], .tc-time-input[hidden] { display: none; }
 .tc-time-input { width: 100%; max-width: 15em; min-width: 0; box-sizing: border-box; padding: 2px 6px; font-family: var(--vscode-font-family); font-size: clamp(16px, 8cqi, 22px); font-variant-numeric: tabular-nums;
@@ -34,7 +34,7 @@
 
 /* The scrubber: a full-width slider over the window, with a prominent thumb and tick labels beneath. */
 .tc-scrub { display: flex; flex-direction: column; min-width: 0; }
-.tc-current { -webkit-appearance: none; appearance: none; width: 100%; min-width: 0; height: 24px; margin: 0; background: transparent; cursor: pointer; }
+.tc-current { -webkit-appearance: none; appearance: none; width: 100%; min-width: 0; height: 22px; margin: 0; background: transparent; cursor: pointer; }
 .tc-current::-webkit-slider-runnable-track { height: 6px; border-radius: 3px; background: var(--vscode-scrollbarSlider-background, var(--vscode-input-background)); border: 1px solid var(--vscode-widget-border, var(--vscode-contrastBorder, transparent)); }
 .tc-current::-webkit-slider-thumb { -webkit-appearance: none; appearance: none; width: 18px; height: 18px; margin-top: -7px; border-radius: 50%; background: var(--vscode-button-background); border: 2px solid var(--vscode-button-foreground); box-sizing: border-box; }
 .tc-current::-moz-range-track { height: 6px; border-radius: 3px; background: var(--vscode-scrollbarSlider-background, var(--vscode-input-background)); }
@@ -42,8 +42,8 @@
 .tc-current:hover::-webkit-slider-thumb { background: var(--vscode-button-hoverBackground); }
 .tc-current:focus-visible { outline: 2px solid var(--vscode-focusBorder); outline-offset: 1px; }
 /* Tick labels, under the thumb's travel (half its width in from each end). */
-.tc-ticks { position: relative; height: 14px; margin: 0 9px; overflow: hidden; }
-.tc-tick { position: absolute; top: 0; transform: translateX(-50%); font-size: 10px; line-height: 14px; color: var(--vscode-descriptionForeground); font-variant-numeric: tabular-nums; white-space: nowrap; }
+.tc-ticks { position: relative; height: 13px; margin: 0 9px; overflow: hidden; }
+.tc-tick { position: absolute; top: 0; transform: translateX(-50%); font-size: 10px; line-height: 13px; color: var(--vscode-descriptionForeground); font-variant-numeric: tabular-nums; white-space: nowrap; }
 .tc-tick::before { content: ""; position: absolute; left: 50%; top: -3px; height: 3px; border-left: 1px solid var(--vscode-descriptionForeground); }
 
 /* The overview strip: the whole plot, the window a band on it, an edge at each end, a mark at current time. */
@@ -66,7 +66,7 @@
    A live region, always present. */
 .tc-cue { display: flex; flex-wrap: nowrap; align-items: center; gap: 6px; min-width: 0; }
 /* Empty, it takes no room: the gap above it is taken back. */
-.tc-cue:not(.showing) { margin-top: -6px; }
+.tc-cue:not(.showing) { margin-top: -4px; }
 .tc-cue.showing { padding: 1px 2px 1px 6px; border: 1px solid var(--vscode-inputValidation-warningBorder, var(--vscode-focusBorder)); background: var(--vscode-inputValidation-warningBackground, var(--vscode-editorWidget-background)); color: var(--vscode-foreground); border-radius: 2px; }
 .tc-cue-text { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .tc-cue-actions { display: inline-flex; flex: none; gap: 4px; }
@@ -77,7 +77,7 @@
 .timebar .tc-cue .tc-keep:hover { background: var(--vscode-button-hoverBackground); }
 
 /* Window management: a disclosure, collapsed at first. */
-.timebar .tc-disclosure { display: flex; flex-wrap: wrap; align-items: baseline; column-gap: 6px; width: 100%; padding: 2px 2px; text-align: left; background: none; border: 1px solid transparent; border-radius: 2px; color: var(--vscode-foreground); cursor: pointer; }
+.timebar .tc-disclosure { display: flex; flex-wrap: wrap; align-items: baseline; column-gap: 6px; width: 100%; padding: 1px 2px; text-align: left; background: none; border: 1px solid transparent; border-radius: 2px; color: var(--vscode-foreground); cursor: pointer; }
 .timebar .tc-disclosure:hover { background: var(--vscode-list-hoverBackground); }
 .tc-chevron { display: inline-block; width: 0; height: 0; border-style: solid; border-width: 4px 0 4px 6px; border-color: transparent transparent transparent currentColor; transition: transform 0.1s; align-self: center; }
 .tc-disclosure[aria-expanded="true"] .tc-chevron { transform: rotate(90deg); }
@@ -101,6 +101,14 @@
 .timebar .tc-context { width: auto; height: 24px; padding: 0 2px; background: var(--vscode-dropdown-background); color: var(--vscode-dropdown-foreground, var(--vscode-foreground)); border: 1px solid var(--vscode-dropdown-border, transparent); font: inherit; }
 .tc-context-note { font-size: 11px; white-space: normal; }
 .tc-context-note:empty { display: none; }
+
+/* A narrow column (under 240 px, such as the docked left column at 1024): the transport closer, still on one row. */
+@container (max-width: 240px) {
+  .tc-transport { gap: 2px; }
+  .timebar .tc-transport .tc-play { width: 32px; }
+  .timebar .tc-transport .tc-speed { padding: 0; }
+  .tc-step-label { margin-left: 0; }
+}
 
 /* By touch (the dock's rule, product owner 23 Oct 2026): the transport at 44 px, the strip's edges easier to take. */
 @media (pointer: coarse) {

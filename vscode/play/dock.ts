@@ -46,7 +46,7 @@ export type LayoutStorage = Pick<Storage, "getItem" | "setItem" | "removeItem">;
  * The height Time needs for the sample, its tab included: no scroll inside it, its window's details
  * folded. Taller since its current time is large (product owner, 28 Oct 2026): 172 px before.
  */
-const TIME_HEIGHT = 226;
+const TIME_HEIGHT = 204;
 
 /**
  * The default's sizes for a dock of this size, in pixels. The side columns take about a fifth of
