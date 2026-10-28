@@ -11,7 +11,7 @@
   },
   "categories": ["Visualization", "Data Science"],
   "main": "./dist/extension.js",
-  "activationEvents": [],
+  "activationEvents": ["onWebviewPanel:debrief.bearingsWindow"],
   "contributes": {
     "viewsContainers": {
       "activitybar": [
@@ -458,6 +458,9 @@
       {"command": "debrief.importSensor", "title": "Read sensor data into this plot (DSF, REP)…", "category": "Debrief", "icon": "$(radio-tower)", "enablement": "debrief.plotOpen"},
       {"command": "debrief.show", "title": "Show on map", "category": "Debrief", "icon": "$(eye)"},
       {"command": "debrief.showBearings", "title": "Bearings and TMA", "category": "Debrief", "icon": "$(graph-line)", "enablement": "debrief.plotOpen"},
+      {"command": "debrief.popOutBearings", "title": "Pop out Bearings into a new window", "shortTitle": "Pop out", "category": "Debrief", "icon": "$(link-external)"},
+      {"command": "debrief.bringBackBearings", "title": "Bring Bearings back to the panel", "shortTitle": "Bring back", "category": "Debrief", "icon": "$(layout-panel)"},
+      {"command": "debrief.focusBearingsWindow", "title": "Focus the popped-out Bearings", "category": "Debrief"},
       {"command": "debrief.tmaCreate", "title": "TMA solution from a sensor's cuts…", "category": "Debrief", "enablement": "debrief.plotOpen"},
       {"command": "debrief.tmaSplitLeg", "title": "Split TMA solution into legs at current time", "category": "Debrief", "enablement": "debrief.plotOpen"},
       {"command": "debrief.tmaExclude", "title": "Leave cuts out of a TMA solution's RMS", "category": "Debrief"},
@@ -520,11 +523,14 @@
         {"command": "debrief.exportImage", "when": "view == debrief.outline && debrief.plotOpen", "group": "3_export@1"},
         {"command": "debrief.findImageSource", "when": "view == debrief.catalogues", "group": "2_trace@1"},
         {"command": "debrief.walkthroughs", "when": "view == debrief.catalogues", "group": "3_learn@1"},
-        {"command": "debrief.openLatestRevision", "when": "view == debrief.history && debrief.revisionShown", "group": "navigation@0"}
+        {"command": "debrief.openLatestRevision", "when": "view == debrief.history && debrief.revisionShown", "group": "navigation@0"},
+        {"command": "debrief.popOutBearings", "when": "view == debrief.bearings && !debrief.bearingsPoppedOut", "group": "navigation@1"},
+        {"command": "debrief.bringBackBearings", "when": "view == debrief.bearings && debrief.bearingsPoppedOut", "group": "navigation@1"}
       ],
       "editor/title": [
         {"command": "debrief.exportImage", "when": "activeWebviewPanelId == 'debrief.map'", "group": "navigation@1"},
-        {"command": "debrief.openLatestRevision", "when": "activeWebviewPanelId == 'debrief.map' && debrief.revisionShown", "group": "navigation@0"}
+        {"command": "debrief.openLatestRevision", "when": "activeWebviewPanelId == 'debrief.map' && debrief.revisionShown", "group": "navigation@0"},
+        {"command": "debrief.bringBackBearings", "when": "activeWebviewPanelId == 'debrief.bearingsWindow'", "group": "navigation@1"}
       ],
       "view/item/context": [
         {"command": "debrief.importRep", "when": "view == debrief.catalogues && viewItem == catalogue", "group": "1_import"},
@@ -596,13 +602,15 @@
         {"command": "debrief.unlinkTrack", "when": "false"},
         {"command": "debrief.openLatestRevision", "when": "debrief.revisionShown"},
         {"command": "debrief.walkthrough.importLog", "when": "false"},
-        {"command": "debrief.walkthrough.do", "when": "false"}
+        {"command": "debrief.walkthrough.do", "when": "false"},
+        {"command": "debrief.bringBackBearings", "when": "debrief.bearingsPoppedOut"},
+        {"command": "debrief.focusBearingsWindow", "when": "debrief.bearingsPoppedOut"}
       ]
     },
     "keybindings": [
-      {"command": "debrief.undo", "key": "ctrl+z", "mac": "cmd+z", "when": "!inputFocus && !inQuickOpen && activeWebviewPanelId == 'debrief.map' || !inputFocus && focusedView == debrief.history || !inputFocus && focusedView == debrief.outline"},
-      {"command": "debrief.redo", "key": "ctrl+shift+z", "mac": "cmd+shift+z", "when": "!inputFocus && !inQuickOpen && activeWebviewPanelId == 'debrief.map' || !inputFocus && focusedView == debrief.history || !inputFocus && focusedView == debrief.outline"},
-      {"command": "debrief.redo", "key": "ctrl+y", "when": "!inputFocus && !inQuickOpen && activeWebviewPanelId == 'debrief.map' || !inputFocus && focusedView == debrief.history || !inputFocus && focusedView == debrief.outline"}
+      {"command": "debrief.undo", "key": "ctrl+z", "mac": "cmd+z", "when": "!inputFocus && !inQuickOpen && activeWebviewPanelId == 'debrief.map' || !inputFocus && !inQuickOpen && activeWebviewPanelId == 'debrief.bearingsWindow' || !inputFocus && focusedView == debrief.history || !inputFocus && focusedView == debrief.outline"},
+      {"command": "debrief.redo", "key": "ctrl+shift+z", "mac": "cmd+shift+z", "when": "!inputFocus && !inQuickOpen && activeWebviewPanelId == 'debrief.map' || !inputFocus && !inQuickOpen && activeWebviewPanelId == 'debrief.bearingsWindow' || !inputFocus && focusedView == debrief.history || !inputFocus && focusedView == debrief.outline"},
+      {"command": "debrief.redo", "key": "ctrl+y", "when": "!inputFocus && !inQuickOpen && activeWebviewPanelId == 'debrief.map' || !inputFocus && !inQuickOpen && activeWebviewPanelId == 'debrief.bearingsWindow' || !inputFocus && focusedView == debrief.history || !inputFocus && focusedView == debrief.outline"}
     ],
     "configuration": {
       "title": "Debrief",

@@ -410,6 +410,12 @@ export class TmaControl {
     this.drawPlot();
   }
 
+  /** The theme changed (VS Code's, wherever the view is, popped out too): its colours read again and the plot drawn in them. */
+  themeChanged(): void {
+    this.colours = undefined;
+    this.render();
+  }
+
   /** A solution as a drag on the map now leaves it, its fixes where the map draws them; none when the drag ends. */
   preview(featureId: string, coordinates: LonLat[] | undefined): void {
     const view = this.view;

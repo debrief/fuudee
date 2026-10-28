@@ -6521,6 +6521,16 @@
             "null"
           ]
         },
+        "panes_shown": {
+          "description": "The panes the Bearings view's plot shows, of bearing, error and course (tma_panes).",
+          "items": {
+            "type": "string"
+          },
+          "type": [
+            "array",
+            "null"
+          ]
+        },
         "parameters": {
           "items": {
             "$ref": "#/$defs/ParameterValue"
@@ -6876,6 +6886,7 @@
         "tma_resolve",
         "tma_cut_off",
         "tma_plot_drawn",
+        "tma_panes",
         "tma_made"
       ],
       "title": "WebviewMessageKindEnum",

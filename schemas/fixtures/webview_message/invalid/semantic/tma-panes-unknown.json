@@ -1,0 +1,7 @@
+{
+  "kind": "tma_panes",
+  "panes_shown": [
+    "bearing",
+    "depth"
+  ]
+}

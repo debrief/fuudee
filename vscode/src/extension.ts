@@ -28,7 +28,8 @@ import { MapPanel } from "./panels/map.js";
 import { ResultsPanel } from "./panels/results.js";
 import { TIME_VIEW, TimeView } from "./panels/timeview.js";
 import { TOTE_VIEW, ToteView } from "./panels/toteview.js";
-import { BEARINGS_VIEW, BearingsView } from "./panels/bearingsview.js";
+import { BEARINGS_VIEW, BearingsView, type BearingsPosted, type BearingsWhere } from "./panels/bearingsview.js";
+import { BEARINGS_WINDOW, BearingsHost, type PoppedOut } from "./panels/bearingshost.js";
 import { TIMELINE_VIEW, TimelineView } from "./panels/timelineview.js";
 import { COVERAGE_VIEW, CoverageView, type CoverageAsk } from "./panels/coverageview.js";
 import { startup, type StartupSnapshot } from "./startup.js";
@@ -126,6 +127,18 @@ export interface DebriefApi {
   bearingsVisible: () => boolean;
   /** The Bearings plot as last drawn, CSS pixels: its height and each pane's width (tma_plot_drawn), for tests. */
   bearingsPlot: () => { height: number; panes: number[] } | undefined;
+  /** Where Bearings is live (the panel, or popped out), whether the panel shows its placeholder, and how the last pop out ended, for tests. */
+  bearingsPlace: () => {
+    where?: BearingsWhere;
+    placeholder: boolean;
+    popped?: PoppedOut;
+    moveAsked: number;
+    panel?: { viewType: string; title: string; visible: boolean };
+  };
+  /** The last message of a kind posted to Bearings' page, and to which surface, whether it took it, for tests. */
+  bearingsPosted: (kind: string) => BearingsPosted | undefined;
+  /** As VS Code restoring a popped-out Bearings after a reload does, for tests. */
+  restoreBearingsWindow: (panel: vscode.WebviewPanel) => Promise<void>;
   /** The cuts the map is waiting for two clicks on, for a first guess. */
   mapGuessing: () => TmaRequest | undefined;
   /** When the extension activated and each webview loaded and was first shown something (docs/notes/webview-startup.md). */
@@ -294,7 +307,6 @@ export function activate(context: vscode.ExtensionContext): DebriefApi {
   /** The cuts two clicks on the map are asked for, until they are made or cancelled. */
   let pendingGuess: TmaRequest | undefined;
   const bearingsView = new BearingsView(
-    context.extensionUri,
     session,
     {
       cuts: async (sensorId) => {
@@ -382,6 +394,8 @@ export function activate(context: vscode.ExtensionContext): DebriefApi {
       }
     }),
   );
+  // Where Bearings shows: the panel, or popped out into a window of its own (product owner, 28 Oct 2026).
+  const bearingsHost = new BearingsHost(context.extensionUri, bearingsView, log);
   map.previewed = (featureId, preview) => bearingsView.preview(featureId, preview);
   map.guessed = async (request) => {
     const asked = pendingGuess;
@@ -397,7 +411,8 @@ export function activate(context: vscode.ExtensionContext): DebriefApi {
     vscode.window.registerWebviewViewProvider(TIMELINE_VIEW, timeline, { webviewOptions: { retainContextWhenHidden: true } }),
     vscode.window.registerWebviewViewProvider(TIME_VIEW, timeView, { webviewOptions: { retainContextWhenHidden: true } }),
     vscode.window.registerWebviewViewProvider(TOTE_VIEW, toteView, { webviewOptions: { retainContextWhenHidden: true } }),
-    vscode.window.registerWebviewViewProvider(BEARINGS_VIEW, bearingsView, { webviewOptions: { retainContextWhenHidden: true } }),
+    vscode.window.registerWebviewViewProvider(BEARINGS_VIEW, bearingsHost, { webviewOptions: { retainContextWhenHidden: true } }),
+    vscode.window.registerWebviewPanelSerializer(BEARINGS_WINDOW, bearingsHost),
   );
   const results = new ResultsPanel(context.extensionUri);
 
@@ -2561,10 +2576,16 @@ export function activate(context: vscode.ExtensionContext): DebriefApi {
     if (done.problem) return (report(done.problem), { problem: done.problem });
     return { changed: done.answer?.changed, notes: done.answer?.notes };
   });
+  // Bearings popped out into a window of its own, for a second monitor, as legacy's Stacked Dots
+  // could be; brought back to the panel; its window brought to the front (product owner, 28 Oct 2026).
+  command("debrief.popOutBearings", () => bearingsHost.popOut());
+  command("debrief.bringBackBearings", () => bearingsHost.bringBack());
+  command("debrief.focusBearingsWindow", () => bearingsHost.focusWindow());
   // Bearings, showing a sensor's cuts or a solution; with focus (a walkthrough's step, an agent),
   // something chosen there once: a cut, a period and its first guess, or the largest residual.
+  // Wherever it is live: popped out, its tab or window; else the panel.
   command("debrief.showBearings", async (target?: string | Target, focus?: TmaFocus) => {
-    await vscode.commands.executeCommand(`${BEARINGS_VIEW}.focus`);
+    await bearingsView.reveal(false);
     const id = typeof target === "string" ? target : targets(target)[0];
     if (id) await bearingsView.choose(id, focus);
   });
@@ -2626,7 +2647,7 @@ export function activate(context: vscode.ExtensionContext): DebriefApi {
     // A solution from the cuts: the first guess's form, in Bearings, showing the first cut's sensor.
     const made = tmaRequestOf(context);
     if (typeof made === "string") return { problem: report(made) };
-    await vscode.commands.executeCommand(`${BEARINGS_VIEW}.focus`);
+    await bearingsView.reveal(false);
     await bearingsView.choose(made.cuts[0].properties.sensor_id, made.request.cut_ids ? { make: true, cut_ids: made.request.cut_ids } : { make: true, period: made.request.period! });
     return {};
   }
@@ -3554,6 +3575,15 @@ export function activate(context: vscode.ExtensionContext): DebriefApi {
     bearingsShowing: () => bearingsView.showing,
     bearingsVisible: () => bearingsView.visible,
     bearingsPlot: () => bearingsView.plot,
+    bearingsPlace: () => ({
+      where: bearingsView.where,
+      placeholder: bearingsHost.placeholderShown,
+      popped: bearingsHost.popped,
+      moveAsked: bearingsHost.moveAsked,
+      panel: bearingsHost.poppedOutPanel && { viewType: bearingsHost.poppedOutPanel.viewType, title: bearingsHost.poppedOutPanel.title, visible: bearingsHost.poppedOutPanel.visible },
+    }),
+    bearingsPosted: (kind) => bearingsView.posted.get(kind),
+    restoreBearingsWindow: (panel) => bearingsHost.deserializeWebviewPanel(panel),
     mapGuessing: () => map.guessing,
     startupTimings: () => startup.snapshot(),
     walkthroughEvents: () => walkthroughs.seen(),
