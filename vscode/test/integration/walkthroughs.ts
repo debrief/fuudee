@@ -136,9 +136,17 @@ export async function playWalkthroughs(api: DebriefApi, others: { id: string; lo
   await said("timelineChosen");
   // The Get Started page, its steps ticked.
   await vscode.commands.executeCommand("debrief.walkthroughs", "explore");
+  // Beside the map, in a column to its right, not on top of it (BESIDE; product owner, 24 Oct 2026).
+  // (The map's tab, a webview, is titled with the walkthrough's name too.)
+  const pageTabs = () => startedTabs().filter((t) => !(t.input instanceof vscode.TabInputWebview));
+  const page = await waitFor("the Get Started page", () => pageTabs()[0]);
+  const mapTab = vscode.window.tabGroups.all.flatMap((g) => g.tabs).find((t) => t.input instanceof vscode.TabInputWebview && t.input.viewType.endsWith("debrief.map"));
+  assert.ok(mapTab && page.group.viewColumn > mapTab.group.viewColumn, `the Get Started page in column ${page.group.viewColumn}, right of the map's ${mapTab?.group.viewColumn}`);
   await sleep(3000);
   await screenshot("50-walkthrough-explore-done");
-  await vscode.commands.executeCommand("workbench.action.closeActiveEditor");
+  // Opened beside, the page leaves the focus on the map: close the page itself, not the active editor.
+  await vscode.window.tabGroups.close(pageTabs());
+  await waitFor("the page closed", () => !pageTabs().length || undefined);
   // Carrying on with the copy opens it as it is, not again.
   const steps1 = (await steps()).length;
   await open("explore", false);
