@@ -1132,6 +1132,7 @@ MESSAGE_MEMBERS: dict[str, tuple[str, ...]] = {
     "tma_resolve": ("resolution",),
     "tma_cut_off": ("error_cut_off",),
     "tma_plot_drawn": ("plot_height", "pane_widths"),
+    "tma_panes": ("panes_shown",),
     "tma_made": ("feature_id?", "message?"),
 }
 
@@ -1169,10 +1170,25 @@ def _webview_message_problems(message: g.WebviewMessage, raw: dict[str, Any]) ->
         )
     ):
         problems.append("tma_guessed carries both positions clicked")
+    if kind == "tma_panes":
+        problems += _panes_problems(message.panes_shown or [])
     if kind == "image_rendered" and (message.image is None) == (message.message is None):
         problems.append("image_rendered carries either the image or why there is none (message)")
     if message.image is not None and message.image.viewport is not None:
         problems += _bbox_problems("image viewport", message.image.viewport.bbox)
+    return problems
+
+
+TMA_PANES = ("bearing", "error", "course")
+
+
+def _panes_problems(panes: list[str]) -> list[str]:
+    """The Bearings view's panes shown (tma_panes): known panes, each once, one at least."""
+    problems = [f"tma_panes: {p!r} is not a pane" for p in panes if p not in TMA_PANES]
+    if len(set(panes)) != len(panes):
+        problems.append("tma_panes names a pane more than once")
+    if not panes:
+        problems.append("tma_panes shows one pane at least")
     return problems
 
 

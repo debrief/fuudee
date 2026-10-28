@@ -231,6 +231,9 @@
       "plot_height",
       "pane_widths"
     ],
+    "tma_panes": [
+      "panes_shown"
+    ],
     "tma_made": [
       "feature_id?",
       "message?"
