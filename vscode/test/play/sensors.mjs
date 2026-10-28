@@ -237,12 +237,13 @@ export async function playSensors(page, shot) {
   // A sensor coloured and hidden: each a step; hidden, its cuts are not drawn.
   await row("sensor-blue-one-bow-sonar").click();
   n = await steps();
-  await page.selectOption("#colour", { label: "Green" });
+  await page.locator("#obar-colour").click();
+  await page.locator(`.obar-swatch[aria-label="Green"]`).click();
   await stepAdded(n);
   assert.equal(await latest(), "Colour of Bow sonar set to green");
   const before = await drawn();
   n = await steps();
-  await page.locator("#hide").click();
+  await page.locator("#obar-visibility").click();
   await stepAdded(n);
   await page.waitForFunction((b) => Number(document.querySelector(".frame-map").contentDocument.querySelector("canvas.sensor-cuts").dataset.cuts) < b, before);
   assert.match(await row("sensor-blue-one-bow-sonar").locator(".detail").innerText(), /^hidden on map/);

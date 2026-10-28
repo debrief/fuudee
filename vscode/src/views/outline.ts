@@ -135,6 +135,10 @@ export class OutlineProvider implements vscode.TreeDataProvider<Node> {
   readonly onDidChangeTreeData = this.changed.event;
   private tree: Tree = { roots: [], features: new Map(), made: new Map() };
   private shown: string[] = [];
+  /** The branches the analyst opened or closed, by their tree item's id (kept across plots, as VS Code keeps them). */
+  private readonly expanded = new Map<string, boolean>();
+  /** The legs and positions chosen (not features, so not in the session's selection): marked selected. */
+  private chosen = new Set<string>();
 
   constructor(private readonly session: Session) {
     session.onPlot((opened) => {
@@ -186,6 +190,47 @@ export class OutlineProvider implements vscode.TreeDataProvider<Node> {
       return this.tree.made.get(key);
     }
     return undefined;
+  }
+
+  /** A branch opened or closed in the tree (onDidExpandElement, onDidCollapseElement). */
+  setExpanded(node: Node, open: boolean): void {
+    const id = itemId(node);
+    if (id) this.expanded.set(id, open);
+  }
+
+  /** Whether a branch is open: as the analyst left it, or as it first shows (headings and a track's sensors open). */
+  private isOpen(node: Node): boolean {
+    const id = itemId(node);
+    const known = id ? this.expanded.get(id) : undefined;
+    if (known !== undefined) return known;
+    if (node.kind === "section" || node.kind === "group") return true;
+    return node.kind === "feature" && !node.lazy && !!node.children?.length;
+  }
+
+  /**
+   * Every row listed, by key, in order: the rows of the branches open (Select all, as Ctrl+A in
+   * the tree, product owner, 28 Oct 2026). Headings and pages of cuts are not rows to select.
+   */
+  listedKeys(): string[] {
+    const out: string[] = [];
+    const walk = (nodes: Node[]) => {
+      for (const node of nodes) {
+        const key = keyOf(node);
+        if (key) out.push(key);
+        if (this.isOpen(node)) walk(this.getChildren(node));
+      }
+    };
+    walk(this.tree.roots);
+    return out;
+  }
+
+  /** The Outline's rows chosen: legs and positions among them marked selected, as features are. */
+  markKeys(keys: readonly string[]): void {
+    const next = new Set(keys.filter((k) => k.lastIndexOf("#") > 0));
+    const touched = [...new Set([...this.chosen, ...next])].filter((k) => this.chosen.has(k) !== next.has(k));
+    this.chosen = next;
+    const nodes = touched.map((k) => this.tree.made.get(k)).filter((n): n is Node => !!n);
+    if (nodes.length) this.changed.fire(nodes);
   }
 
   private make<T extends Node>(key: string, node: T): T {
@@ -274,7 +319,7 @@ export class OutlineProvider implements vscode.TreeDataProvider<Node> {
         const said = legRow(s, node.leg);
         const item = new vscode.TreeItem(said.name, collapsed);
         item.id = `leg:${legKey(node.solution, node.leg)}`;
-        item.description = said.detail;
+        item.description = [this.chosen.has(legKey(node.solution, node.leg)) ? "selected" : "", said.detail].filter(Boolean).join(" · ");
         item.tooltip = `${said.label}. Expand it for its positions; select one to split before or after it (Tools).`;
         item.iconPath = new vscode.ThemeIcon("git-commit");
         item.contextValue = "outline-leg";
@@ -286,7 +331,7 @@ export class OutlineProvider implements vscode.TreeDataProvider<Node> {
         const said = fixRow(s, node.at);
         const item = new vscode.TreeItem(said.name);
         item.id = `fix:${fixKey(node.solution, node.at)}`;
-        item.description = said.detail;
+        item.description = [this.chosen.has(fixKey(node.solution, node.at)) ? "selected" : "", said.detail].filter(Boolean).join(" · ");
         item.tooltip = `${said.label}. Split before makes it the first fix of a new leg; Split after, the last of its leg.`;
         item.iconPath = new vscode.ThemeIcon("circle-small-filled");
         item.contextValue = "outline-fix";
@@ -356,6 +401,24 @@ export class OutlineProvider implements vscode.TreeDataProvider<Node> {
         return item;
       }
     }
+  }
+}
+
+/** A node's tree item id, as getTreeItem gives it: what VS Code keeps a branch open or closed by. */
+function itemId(node: Node): string | undefined {
+  switch (node.kind) {
+    case "section":
+      return `section:${node.id}`;
+    case "group":
+      return `group:${node.id}`;
+    case "feature":
+      return `feature:${node.feature.id}`;
+    case "leg":
+      return `leg:${legKey(node.solution, node.leg)}`;
+    case "page":
+      return `page:${node.sensor}#${node.first}`;
+    default:
+      return undefined;
   }
 }
 
