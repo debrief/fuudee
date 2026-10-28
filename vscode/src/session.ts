@@ -38,7 +38,8 @@ export function viewportProblem(viewport: Viewport): string | undefined {
 }
 
 export class Session {
-  private readonly events = new EventEmitter();
+  /** Each view and panel listens (more than Node's default of ten for "plot" since the Outline's Tools, 27 Oct 2026). */
+  private readonly events = new EventEmitter().setMaxListeners(30);
 
   /** Tell listeners; one that fails (another extension's, say) never stops the rest. */
   private emit(name: string, ...args: unknown[]): void {

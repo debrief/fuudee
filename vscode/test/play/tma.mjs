@@ -1,17 +1,20 @@
-// TMA in the playground (CAP-21; product owner, 24 Oct 2026), played as an analyst would on the
-// sample's serial 2, where BLUE ONE zigzags astern of RED ONE to resolve range:
-// - the Bow sonar's cuts in the bearing view's list, virtualised (only the rows in sight are in
-//   the page), chosen by the keyboard as a period;
-// - a solution made from them by the first guess's form, its defaults in the analyst's units,
-//   one step; its residuals and RMS shown, after legacy's Stacked Dots;
+// TMA in the playground (CAP-21; product owner, 24 and 27 Oct 2026), played as an analyst would on
+// the sample's serial 2, where BLUE ONE zigzags astern of RED ONE to resolve range:
+// - the Bow sonar selected in the Outline, Bearings following it with its bearings; the sensor
+//   opened to its cuts, a tree from the keyboard, a run of 60 cuts chosen with Shift and the arrows;
+// - a solution made from them by the Tools' TMA solution from cuts…, the first guess's form in
+//   Bearings, its defaults in the analyst's units, one step; its residuals and RMS shown, after
+//   legacy's Stacked Dots, which has no lists of its own;
 // - dragged on the map by its end (a shear): the residuals and the RMS follow the drag, within the
 //   drag budget (NFR-04), measured; one step on letting go, exact again from Python;
-// - a wild cut left out of the RMS by the keyboard, one step, and counted again by Undo;
-// - split into legs at a cut picked in the view, one step; each leg picked by clicking it on the
-//   map (This leg) and dragged on its own, the other leg staying where it was, either way;
-// - a second solution made by two clicks on the map, on the first cut's line and the last's;
-// - the next ambiguous cut found from the keyboard, and a side kept from the view; a solution of
-//   the towed array's cuts, each unresolved cut's other bearing drawn faint and not counted;
+// - a dot clicked selecting its cut in the Outline; a wild cut left out from the Tools and counted
+//   in again; the plot's keys (Delete, S) kept;
+// - the solution opened to its leg and positions, split before one and after another from the
+//   Tools, one step each; each leg picked by clicking it on the map (This leg) and dragged on its
+//   own, the other leg staying where it was, either way;
+// - a second solution made by two clicks on the map from a run of cuts Shift-clicked in the Outline;
+// - the towed array's cuts: a run selected, hidden, shown, a side kept, deleted and undone; a
+//   solution of them, each unresolved cut's other bearing drawn faint and not counted;
 // - a legacy plot's TMA solution imported as a solution, its residuals shown.
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
@@ -83,8 +86,6 @@ export async function playTma(page, shot) {
   };
   const rms = () => view.locator(".tma-rms").innerText();
   const residuals = () => page.evaluate(() => window.debriefTma.residuals);
-  const list = view.locator(".tma-list");
-  const rowsInPage = () => view.locator(".tma-row").count();
   const undo = async () => {
     const before = await page.locator("#history li.undone").count();
     await showPanel(page, "history");
@@ -124,47 +125,56 @@ export async function playTma(page, shot) {
   await page.locator("#timebar .tc-end").focus();
   await page.keyboard.press("End");
   await showPanel(page, "bearings");
-  await page.locator(`#outline li[data-id="sensor-blue-one-bow-sonar"]`).click();
+  await showPanel(page, "outline");
+  const outlineRow = (key) => page.locator(`#outline li[data-id="${key}"]`);
+  await outlineRow("sensor-blue-one-bow-sonar").click();
   await page.waitForFunction(() => window.debriefTma.shown?.plot_id === "serial-2" && window.debriefTma.shown.sensor_id === "sensor-blue-one-bow-sonar", null, { timeout: 60000 });
-  await view.locator(".tma-row").first().waitFor({ timeout: 60000 });
 
-  // The list: every cut of the Bow sonar, only the rows in sight in the page (virtualised), of one
-  // height whatever the font, so it scrolls by them.
-  assert.match(await view.locator(".tma-sensor option:checked").innerText(), /^Bow sonar on BLUE ONE \(\d+ cuts\)$/);
-  // Each option says its place and the list's size (aria-posinset, aria-setsize); the listbox no rowcount.
-  assert.equal(await list.getAttribute("aria-rowcount"), null);
-  const total = Number(await view.locator(".tma-row").first().getAttribute("aria-setsize"));
-  assert.ok(total > 300, `the Bow sonar's cuts listed: ${total}`);
-  assert.ok((await rowsInPage()) < 60, `only the rows in sight are in the page: ${await rowsInPage()} of ${total}`);
-  const spacer = await view.locator(".tma-spacer").evaluate((s) => s.offsetHeight);
-  assert.equal(spacer, total * 22, "the list is as tall as all its rows");
-  // The period offered: the cuts in the time window (the whole plot here), until the reader chooses.
-  assert.match(await view.locator(".tma-period").innerText(), new RegExp(`^${total} cuts `));
+  // Bearings follows the Outline (product owner, 27 Oct 2026): the sensor selected, its bearings
+  // plotted, said in a one-line title; no lists, no Sensor or Solution pickers; no Error pane without a solution.
+  const title = () => view.locator(".tma-title").innerText();
+  assert.match(await title(), /^Bow sonar on BLUE ONE · \d+ cuts$/);
+  for (const gone of [".tma-list", ".tma-sensor", ".tma-solution", ".tma-cuts-toggle", ".tma-make", ".tma-prev", ".tma-next"]) assert.equal(await view.locator(gone).count(), 0, `${gone} is gone from Bearings`);
+  await page.waitForFunction(() => window.debriefTma.plotState.drawn?.join() === "bearing", null, { timeout: 10000 });
+  assert.match(await view.locator(".tma-rms").innerText(), /^\d+ cuts plotted\. No solution: no errors\.$/);
+  await picture("tma-01-sensor-in-bearings");
 
-  // Chosen from the keyboard: the first 60 cuts (Shift and the arrow keys), each read aloud as an option.
-  await list.focus();
-  await page.keyboard.press("Home");
+  // The Outline is a tree: the sensor opens to its cuts (Right), each a treeitem saying its level,
+  // its place and how many share it; one tab stop, the keyboard moving within it.
+  assert.equal(await page.locator("#outline").getAttribute("role"), "tree");
+  const sensorRow = outlineRow("sensor-blue-one-bow-sonar");
+  assert.equal(await sensorRow.getAttribute("aria-expanded"), "false");
+  assert.equal(await sensorRow.getAttribute("aria-level"), "2");
+  await sensorRow.focus();
+  await page.keyboard.press("ArrowRight");
+  await page.waitForFunction(() => document.querySelector('#outline li[data-id="sensor-blue-one-bow-sonar"]')?.getAttribute("aria-expanded") === "true");
+  const cutRows = page.locator("#outline li.cut");
+  const total = Number(await cutRows.first().getAttribute("aria-setsize"));
+  assert.ok(total > 300, `the Bow sonar's cuts in the Outline: ${total}`);
+  assert.equal(await cutRows.first().getAttribute("aria-level"), "3");
+  assert.equal(await cutRows.first().getAttribute("aria-posinset"), "1");
+  assert.match(await cutRows.first().getAttribute("aria-label"), /^Cut at 1\d:\d\d:\d\dZ, \d{3}\.\d°/);
+  assert.equal(await page.locator("#outline li[tabindex='0']").count(), 1, "one tab stop");
+
+  // Chosen from the keyboard: the first 60 cuts (Enter on the first, then Shift and the arrow keys).
+  await page.keyboard.press("ArrowRight"); // into the sensor: its first cut
+  await page.keyboard.press("Enter");
   for (let i = 0; i < 59; i++) await page.keyboard.press("Shift+ArrowDown");
-  const period = await view.locator(".tma-period").innerText();
-  assert.match(period, /^60 cuts 12:\d\d:\d\dZ–1\d:\d\d:\d\dZ$/);
-  const active = view.locator(".tma-row.tma-active");
-  assert.equal(await active.getAttribute("aria-posinset"), "60");
-  assert.equal(await active.getAttribute("aria-selected"), "true");
-  // One sensor listed: the sensor is not said on every row.
-  assert.match(await active.getAttribute("aria-label"), /^1\d:\d\d:\d\dZ, \d{3}\.\d°$/);
-  assert.equal(await list.getAttribute("aria-activedescendant"), await active.getAttribute("id"));
-  // Scrolled with it: the rows near the 60th are in the page, the first are not.
-  assert.equal(await view.locator('.tma-row[aria-posinset="1"]').count(), 0, "rows scrolled out of sight leave the page");
+  await page.waitForFunction(() => window.debriefSelection().picks.length === 60);
+  assert.equal(await page.locator("#outline li.cut[aria-selected='true']").count(), 60);
+  assert.equal(await page.evaluate(() => document.activeElement?.getAttribute("aria-posinset")), "60");
+  // Bearings still shows the sensor, its last cut chosen ringed.
+  assert.match(await title(), /^Bow sonar on BLUE ONE/);
   await picture("tma-01-cut-list");
-  // Scrolled away from the cut chosen, it stays in the page, so the active descendant is still there.
-  await list.evaluate((l) => (l.scrollTop = l.scrollHeight));
-  await page.waitForFunction(() => document.querySelector(`#bearings .tma-row[aria-posinset="${document.querySelector("#bearings .tma-row:last-child")?.getAttribute("aria-setsize")}"]`));
-  const descendant = await list.getAttribute("aria-activedescendant");
-  assert.equal(await view.locator(`#${descendant}`).getAttribute("aria-posinset"), "60", "the active descendant is in the page");
-  await list.evaluate((l) => (l.scrollTop = 0));
+
+  // The Tools' entry for them: TMA solution from these 60 cuts, opening the first guess's form in Bearings.
+  await showPanel(page, "tools");
+  const op = (id) => page.locator(`#tools li.outline-op[data-op="${id}"] button`);
+  assert.match(await op("tma-from-cuts").innerText(), /^TMA solution from 60 cuts 12:\d\d:\d\dZ–1\d:\d\d:\d\dZ…$/);
+  await op("tma-from-cuts").click();
+  await view.locator(".tma-form").waitFor();
 
   // The first guess by form: 10,000 yd on the first cut's bearing, across it, 8 kn, in the analyst's units.
-  await view.getByRole("button", { name: "Make solution…" }).click();
   const field = (name) => view.locator(`.tma-form input[name="${name}"]`);
   assert.equal(await field("range").inputValue(), "4.94 nmi");
   assert.equal(await field("speed").inputValue(), "8.0 kn");
@@ -179,7 +189,8 @@ export async function playTma(page, shot) {
   // The analyst's guess as legacy's tutorial starts a leg: its start pinned on the first bearing,
   // where RED ONE was; its course 30° out and its speed right, so the errors ramp away with time.
   const [first, last] = await page.evaluate(() => {
-    const rows = window.debriefTma.chosenCuts();
+    const ids = new Set(window.debriefTma.formRequest.cut_ids);
+    const rows = window.debriefTma.shown.cuts.filter((c) => ids.has(c.id));
     return [rows[0], rows[rows.length - 1]];
   });
   const [red0, red1] = [redOneAt(first.time), redOneAt(last.time)];
@@ -193,24 +204,20 @@ export async function playTma(page, shot) {
   await view.getByRole("button", { name: "Make solution", exact: true }).click();
   await stepAdded(before);
   assert.match(await latest(), /^Contact 1 solution made: 60 Bow sonar cuts 12:\d\d:\d\dZ–1\d:\d\d:\d\dZ$/);
-  await view.locator(".tma-rms").waitFor();
+  await page.waitForFunction(() => /^RMS/.test(document.querySelector("#bearings .tma-rms")?.textContent ?? ""));
   assert.match(await rms(), /^RMS \d+\.\d° over 60 cuts$/);
   const made = await residuals();
   assert.equal(made.rows.length, 60);
   assert.equal(await view.locator(".tma-form").isHidden(), true, "the form closes once the solution is made");
-  // Selected, in the Outline with its TMA tag, and the view's list now its cuts with their residuals.
+  // Selected, in the Outline with its TMA tag; Bearings showing it, said in its title.
   assert.deepEqual(await page.$$eval("#outline li.selected .name", (r) => r.map((e) => e.textContent)), ["Contact 1 solution"]);
   assert.equal(await page.locator('#outline li.selected .tag').innerText(), "TMA");
-  assert.match(await view.locator(".tma-row").first().getAttribute("aria-label"), /residual [+−]\d+\.\d°/);
+  assert.equal(await title(), "Contact 1 solution · 1 leg, 60 cuts");
   const canvas = view.locator(".tma-canvas");
   assert.equal(await canvas.isVisible(), true);
   assert.match(await canvas.getAttribute("aria-label"), /^Bearings and residuals of Contact 1 solution, time upward from .* panes Bearing, Error: RMS/);
-  // Compact (product owner, 25 Oct 2026): the solution, the panes, Hold scale, Reset zoom and ⋯ in
-  // one row; the cue and the RMS one line; the cut list closed, so the plot takes the height.
-  const cutsToggle = view.locator(".tma-cuts-toggle");
-  await page.waitForFunction(() => window.debriefLayout().groups.length && document.querySelector("#bearings .tma-cuts-toggle")?.getAttribute("aria-expanded") === "false");
-  assert.match(await cutsToggle.innerText(), /^▸ Cuts \(60\) and their residuals$/);
-  assert.equal(await list.isVisible(), false, "the cut list closed");
+  // Compact (product owner, 25 and 27 Oct 2026): the panes, Hold scale, Reset zoom and ⋯ in one
+  // row; the cue and the RMS one line; nothing else, so the plot takes the height.
   const row = await view.locator(".tma-tools").evaluate((t) => [...t.children].filter((c) => c.getBoundingClientRect().width > 0).map((c) => { const b = c.getBoundingClientRect(); return Math.round(b.top + b.height / 2); }));
   const statusLine = await view.locator(".tma-statusline").evaluate((l) => [...l.children].filter((c) => c.getBoundingClientRect().height > 0).map((c) => { const b = c.getBoundingClientRect(); return Math.round(b.top + b.height / 2); }));
   // The column right of the map widened while the solution is open: two panes of 160 px or more.
@@ -322,8 +329,8 @@ export async function playTma(page, shot) {
   await picture("stacked-dots-08-fitted-beyond");
   // The analyst's cut-off for a 1.5° sonar, 5° (three of its deviations; legacy's default is 3°),
   // set in the view and kept with their settings: the Error pane green, said in words too.
-  // Under ⋯, with the sensor and the key.
-  const more = view.getByRole("button", { name: "More: the sensor, the cut-off and the key" });
+  // Under ⋯, with the key and the notes.
+  const more = view.getByRole("button", { name: "More: the cut-off, the key and the notes" });
   await more.click();
   assert.equal(await more.getAttribute("aria-expanded"), "true");
   const cutOff = view.locator(".tma-cutoff-input");
@@ -472,8 +479,8 @@ export async function playTma(page, shot) {
   await canvas.dblclick({ position: { x: 4, y: 4 } });
   await page.waitForFunction(() => !window.debriefTma.plotState.zoomed);
 
-  // A dot clicked selects its cut, in the Outline and on the map, and moves current time to it;
-  // the solution stays shown, the list's row chosen.
+  // A dot clicked selects its cut, in the Outline (its sensor opened to it) and on the map, and moves
+  // current time to it; the solution stays shown.
   const shownSolution = await page.evaluate(() => window.debriefTma.shown.solution_id);
   // A cut whose dot has room beside it: 5 px to one side, no other dot as near.
   const allRows = (await residuals()).rows;
@@ -495,18 +502,22 @@ export async function playTma(page, shot) {
   await page.waitForFunction((id) => window.debriefSelection().selection.join() === id, target.id);
   assert.equal(Date.parse((await page.evaluate(() => window.debriefSelection())).current), Date.parse(target.time), "current time to the cut");
   assert.equal(await page.evaluate(() => window.debriefTma.shown.solution_id), shownSolution, "still the solution shown");
-  assert.equal(await view.locator(".tma-row.tma-active").getAttribute("aria-posinset"), String(pick + 1), "its row chosen in the list");
+  assert.equal(await page.evaluate(() => window.debriefTma.chosen?.id), target.id, "its dot ringed");
+  await page.waitForFunction((id) => document.querySelector(`#outline li[data-id="${id}"]`)?.getAttribute("aria-selected") === "true", target.id);
+  assert.ok(await outlineRow(target.id).isVisible(), "selected in the Outline, in sight");
   await page.locator("#sensor-group").waitFor(); // a cut selected: the Outline's sensor actions shown
-  // A cut of the sensor's outside the solution, hidden on the map: not drawn in the plot either.
+  // A cut of the sensor's outside the solution, hidden on the map (Hide in the Tools): not drawn in the plot either.
   const coverageBefore = (await plot()).coverage;
-  const outside = await page.evaluate(() => window.debriefTma.coverage.rows.at(-1).id);
+  const outside = await page.evaluate(() => window.debriefTma.shown.coverage.at(-1).id);
   const outsideDot = await pointOf(outside, "bearing");
   assert.ok(outsideDot, "a cut outside the solution drawn");
   await page.mouse.click(canvasNow.x + outsideDot.x, canvasNow.y + outsideDot.y);
   await page.waitForFunction((id) => window.debriefSelection().selection.join() === id, outside);
+  await showPanel(page, "tools");
   before = await steps();
-  await page.evaluate(() => document.getElementById("hide").click());
+  await op("hide-cuts").click();
   await stepAdded(before);
+  assert.match(await latest(), /^Bow sonar cut at \d\d:\d\d:\d\dZ hidden on the map$/);
   await page.waitForFunction((n) => window.debriefTma.plotState.coverage === n - 1, coverageBefore, { timeout: 10000 });
   assert.equal(await pointOf(outside, "bearing"), undefined, "hidden: not drawn");
   await undo();
@@ -524,13 +535,17 @@ export async function playTma(page, shot) {
   assert.ok((await page.evaluate(() => window.debriefTma.shown.ownship?.[0]?.name)) === "BLUE ONE", "ownship's courses");
   await page.mouse.move(2, 2);
   await picture("stacked-dots-04-three-panes");
-  // A click on the solution's course selects the solution's fix: the solution, current time to the fix.
+  // A click on the solution's course selects the solution's fix: the solution, current time to the fix,
+  // and that position in the Outline, Bearings saying so.
   const solutionNow = shownSolution;
   const fixTime = (await page.evaluate(() => window.debriefTma.shown.solutions.find((s) => s.id === window.debriefTma.shown.solution_id).times))[45];
   const fix = await pointOf(solutionNow, "course", fixTime);
   const canvas3 = await canvas.boundingBox();
   await page.mouse.click(canvas3.x + fix.x, canvas3.y + fix.y);
   await page.waitForFunction(([id, t]) => window.debriefSelection().selection.join() === id && Date.parse(window.debriefSelection().current) === Date.parse(t), [solutionNow, fixTime]);
+  await page.waitForFunction((k) => window.debriefSelection().picks.join() === k, `${solutionNow}#fix45`);
+  await page.waitForFunction((k) => document.querySelector(`#outline li[data-id="${k}"]`)?.getAttribute("aria-selected") === "true", `${solutionNow}#fix45`);
+  await page.waitForFunction(() => / · fix at \d\d:\d\d:\d\dZ$/.test(document.querySelector("#bearings .tma-title").textContent));
   // Bearing and Error off: Course/Speed alone, which then stays.
   await paneButton("Bearing").click();
   await paneButton("Error").click();
@@ -555,15 +570,12 @@ export async function playTma(page, shot) {
   await page.waitForFunction(() => document.querySelector("#bearings .tma-status").textContent.startsWith("Zoomed: "));
   await page.keyboard.press("0");
   await page.waitForFunction(() => document.querySelector("#bearings .tma-status").textContent.startsWith("Zoom reset"));
-  // The list closed, the cut chosen's buttons still in sight (the panel's M3); and keys for them in the plot.
-  assert.equal(await list.isVisible(), false);
-  assert.equal(await view.locator(".tma-exclude").isVisible(), true, "Leave out in sight with the list closed");
-  assert.equal(await view.locator(".tma-split").isVisible(), true, "Split in sight with the list closed");
+  // The plot keeps its keys (product owner, 27 Oct 2026): Delete leaves the cut chosen out, S splits there.
   await canvas.focus();
   before = await steps();
   await page.keyboard.press("Delete");
   await stepAdded(before);
-  assert.match(await latest(), /^Contact 1 solution: cut at 12:\d\d:\d\dZ left out of the RMS$/);
+  assert.match(await latest(), /^Contact 1 solution: cut at 1\d:\d\d:\d\dZ left out of the RMS$/);
   await page.waitForFunction(() => window.debriefTma.residuals?.excluded === 1);
   await undo();
   await page.waitForFunction(() => window.debriefTma.residuals?.excluded === 0);
@@ -571,83 +583,92 @@ export async function playTma(page, shot) {
   before = await steps();
   await page.keyboard.press("s");
   await stepAdded(before);
-  assert.match(await latest(), /^Contact 1 solution split into legs at 12:\d\d:\d\dZ$/);
+  assert.match(await latest(), /^Contact 1 solution split into legs at 1\d:\d\d:\d\dZ$/);
   await undo();
   await page.waitForFunction(() => !window.debriefTma.residuals?.rows.some((r) => r.leg === 2));
 
-  // The cut list opened, beneath the plot, remembered in this browser; the keyboard in it.
-  await cutsToggle.click();
-  assert.equal(await cutsToggle.getAttribute("aria-expanded"), "true");
-  assert.equal(await page.evaluate(() => document.activeElement?.classList.contains("tma-list")), true, "the keyboard in the list");
-  assert.equal(JSON.parse(await page.evaluate(() => localStorage.getItem("debrief.play.bearings"))).cuts, true);
-  // The plot's box shrinks as the list opens; its canvas is drawn to the new size in the next frame
-  // (a ResizeObserver's), so until then it still reaches over the list, clipped: polled, not read the instant.
-  const boxes = () =>
-    page.evaluate(() => {
-      const box = (s) => {
-        const r = document.querySelector(s).getBoundingClientRect();
-        return { top: Math.round(r.top), bottom: Math.round(r.bottom) };
-      };
-      return { plot: box("#bearings .tma-plot"), canvas: box("#bearings .tma-canvas"), list: box("#bearings .tma-list") };
-    });
-  await page
-    .waitForFunction(() => {
-      const [p, c, l] = [".tma-plot", ".tma-canvas", ".tma-list"].map((s) => document.querySelector(`#bearings ${s}`).getBoundingClientRect());
-      return Math.abs(c.bottom - p.bottom) <= 1 && l.height > 0 && l.top >= p.bottom - 1;
-    }, null, { timeout: 10000 })
-    .catch(() => undefined);
-  const opened = await boxes();
-  assert.ok(Math.abs(opened.canvas.bottom - opened.plot.bottom) <= 1 && opened.list.top >= opened.plot.bottom - 1, `the cut list beneath the plot, the plot drawn to its box: ${JSON.stringify(opened)}`);
-
-  // A wild cut left out of the RMS from the keyboard (Space), one step; Undo counts it again.
-  await list.focus();
-  await page.keyboard.press("Home");
-  await page.keyboard.press("ArrowDown");
+  // A wild cut left out of the RMS from the Outline and the Tools, one step; Count in, or Undo, counts it again.
+  const second = made.rows[1].id;
+  await outlineRow(second).click();
+  await page.waitForFunction((id) => window.debriefSelection().selection.join() === id, second);
+  assert.equal(await page.evaluate(() => window.debriefTma.shown.solution_id), shownSolution, "a cut of the solution keeps it shown");
+  await showPanel(page, "tools");
+  assert.equal(await op("leave-out").innerText(), "Leave out of Contact 1 solution");
   before = await steps();
-  await page.keyboard.press(" ");
+  await op("leave-out").click();
   await stepAdded(before);
   assert.match(await latest(), /^Contact 1 solution: cut at 12:\d\d:\d\dZ left out of the RMS$/);
   await page.waitForFunction(() => window.debriefTma.residuals?.excluded === 1);
   assert.match(await rms(), /^RMS \d+\.\d° over 59 cuts; 1 cut left out$/);
-  assert.match(await view.locator('.tma-row[aria-posinset="2"]').getAttribute("aria-label"), /left out of the RMS/);
+  await page.waitForFunction(() => document.querySelector('#tools li.outline-op[data-op="leave-out"] .detail')?.textContent === "They are left out of Contact 1 solution already.");
   await picture("tma-06-excluded");
-  await undo();
+  before = await steps();
+  await op("count-in").click();
+  await stepAdded(before);
   await page.waitForFunction(() => window.debriefTma.residuals?.excluded === 0);
   assert.match(await rms(), /over 60 cuts$/);
 
-  // Split into legs at a cut picked in the view (the 30th, from the keyboard): one step, still one track.
-  await list.focus();
-  await page.keyboard.press("Home");
-  for (let i = 0; i < 29; i++) await page.keyboard.press("ArrowDown");
-  const split = view.locator(".tma-split");
-  const splitAt = (await split.innerText()).replace("Split into legs at ", "");
+  // The solution in the Outline: its leg, the leg's positions with time, course and speed; split
+  // before the 30th position and after another, from the Tools, one step each, still one track.
+  const solutionId = await page.evaluate(() => window.debriefTma.shown.solution_id);
+  const fixRow = (i) => outlineRow(`${solutionId}#fix${i}`);
+  // A branch opened by its arrow, if it is not open already (a position selected before opened it).
+  const expand = async (key) => {
+    if ((await outlineRow(key).getAttribute("aria-expanded")) === "false") await outlineRow(key).locator(".twisty").click();
+    await page.waitForFunction((k) => document.querySelector(`#outline li[data-id="${k}"]`)?.getAttribute("aria-expanded") === "true", key);
+  };
+  await expand(solutionId);
+  await outlineRow(`${solutionId}#leg1`).waitFor();
+  assert.match(await outlineRow(`${solutionId}#leg1`).innerText(), /^[▸▾]\s*Leg 1 12:\d\d:\d\dZ–1\d:\d\d:\d\dZ · 60 fixes · \d{3}\.\d°T \d+\.\d kn$/);
+  await expand(`${solutionId}#leg1`);
+  await fixRow(29).waitFor();
+  assert.equal(await fixRow(29).getAttribute("aria-level"), "3");
+  assert.equal(await fixRow(29).getAttribute("aria-setsize"), "60");
+  assert.match(await fixRow(29).getAttribute("aria-label"), /^Position at 1\d:\d\d:\d\dZ, \d{3}\.\d°T \d+\.\d kn$/);
+  await fixRow(29).click();
+  await page.waitForFunction((k) => window.debriefSelection().picks.join() === k, `${solutionId}#fix29`);
+  const fixAt = (await fixRow(29).locator(".name").innerText()).trim();
+  assert.equal(new Date(Date.parse((await page.evaluate(() => window.debriefSelection())).current)).toISOString().slice(11, 19) + "Z", fixAt, "current time to the position");
+  assert.equal(await page.locator("#bearings .tma-title").innerText(), `Contact 1 solution · fix at ${fixAt}`);
+  await picture("outline-01-solution-legs-fixes");
+  await showPanel(page, "tools");
+  assert.equal(await op("split-before").innerText(), `Split before ${fixAt}`);
+  await picture("tools-01-entries-for-a-position");
   before = await steps();
-  await split.click();
+  await op("split-before").click();
   await stepAdded(before);
-  assert.equal(await latest(), `Contact 1 solution split into legs at ${splitAt}`);
+  assert.equal(await latest(), `Contact 1 solution split into legs before its fix at ${fixAt}`);
   await page.waitForFunction(() => window.debriefTma.residuals?.rows.some((r) => r.leg === 2));
-  // The split offered only where Python allows it: not two cuts from the start.
-  await list.focus();
-  await page.keyboard.press("Home");
-  await page.keyboard.press("ArrowDown");
-  assert.equal(await view.locator(".tma-split").isHidden(), true, "no split where a leg would have one fix");
+  await outlineRow(`${solutionId}#leg2`).waitFor();
+  // Split after a position of the first leg: it ends that leg; the later leg kept as it was.
+  await expand(`${solutionId}#leg1`);
+  await fixRow(9).waitFor();
+  await fixRow(9).click();
+  await page.waitForFunction((k) => window.debriefSelection().picks.join() === k, `${solutionId}#fix9`);
+  const afterAt = (await fixRow(9).locator(".name").innerText()).trim();
+  before = await steps();
+  await op("split-after").click();
+  await stepAdded(before);
+  assert.equal(await latest(), `Contact 1 solution split into legs after its fix at ${afterAt}`);
+  await page.waitForFunction(() => window.debriefTma.residuals?.rows.some((r) => r.leg === 3));
+  assert.equal(await outlineRow(`${solutionId}#leg3`).getAttribute("aria-posinset"), "3");
+  await picture("outline-02-three-legs");
+  await undo();
+  await page.waitForFunction(() => !window.debriefTma.residuals?.rows.some((r) => r.leg === 3));
+  // Not offered where a leg would keep one fix: disabled, with the reason beside it.
+  await expand(`${solutionId}#leg1`);
+  await fixRow(1).waitFor();
+  await fixRow(1).click();
+  await page.waitForFunction((k) => window.debriefSelection().picks.join() === k, `${solutionId}#fix1`);
+  await page.waitForFunction(() => document.querySelector('#tools li.outline-op[data-op="split-before"] .detail')?.textContent === "Leg 1 would keep 1 fix before the split and 28 fixes after it: each leg needs two.");
+  assert.equal(await op("split-before").getAttribute("aria-disabled"), "true");
   // This leg, on the map: the leg clicked is the one dragged; the other stays where it was.
+  await outlineRow(solutionId).click();
   const legButton = mapFrame.getByRole("button", { name: "This leg", exact: true });
   await legButton.waitFor();
   await legButton.click();
   await zoomToSelection();
-  const solutionId = await page.evaluate(() => window.debriefTma.shown.solution_id);
   const legOf = (n) => async () => (await residuals()).rows.filter((r) => r.leg === n).map((r) => r.calculated);
-  const frameBox = await page.locator(".frame-map").boundingBox();
-  /** A click on the solution's line, between two of its fixes: picks that fix's leg. */
-  const clickLeg = async (index) => {
-    const point = await mapFrame.locator("#map").evaluate((_, [id, i]) => {
-      const fixes = window.debriefFixes(id);
-      const [a, b] = [fixes[i], fixes[i + 1]];
-      return window.debriefPoint((a[0] + b[0]) / 2, (a[1] + b[1]) / 2);
-    }, [solutionId, index]);
-    await page.mouse.click(frameBox.x + point.x, frameBox.y + point.y);
-  };
   const dragEnd = async (dx, dy, name) => {
     await settled();
     const at = await centreOf(handle("end"));
@@ -665,7 +686,11 @@ export async function playTma(page, shot) {
   // Leg 2, clicked: only it moves; leg 1 stays where it was.
   const rows = (await residuals()).rows;
   const leg1Index = rows.filter((r) => r.leg === 1).length;
-  await clickLeg(leg1Index + 5);
+  // The leg current time is in is This leg's: a position of leg 2 chosen in the Outline (current time
+  // to it), as This leg drags at first (the map's click on a leg is tracks.mjs's and the unit tests').
+  await expand(`${solutionId}#leg2`);
+  await fixRow(leg1Index + 5).click();
+
   await page.waitForFunction(() => document.querySelector(".frame-map").contentDocument.querySelector('.track-handle[data-role="end"]')?.getAttribute("aria-label")?.includes("leg 2 of 2"));
   const leg1Before = await legOf(1)();
   const leg2Before = await legOf(2)();
@@ -674,7 +699,8 @@ export async function playTma(page, shot) {
   assert.ok(same(await legOf(1)(), leg1Before), "the first leg stays where it was");
   assert.ok(!same(await legOf(2)(), leg2Before), "the second leg moved");
   // Leg 1, clicked: only it moves; leg 2, already fitted, stays where it is (product owner, 25 Oct 2026).
-  await clickLeg(5);
+  await fixRow(5).click();
+
   await page.waitForFunction(() => document.querySelector(".frame-map").contentDocument.querySelector('.track-handle[data-role="end"]')?.getAttribute("aria-label")?.includes("leg 1 of 2"));
   const leg2Fitted = await legOf(2)();
   const leg1Was = await legOf(1)();
@@ -682,20 +708,28 @@ export async function playTma(page, shot) {
   assert.ok(same(await legOf(2)(), leg2Fitted), "the later leg stays where it was");
   assert.ok(!same(await legOf(1)(), leg1Was), "the first leg moved");
 
-  // A second solution by two clicks on the map: on the first cut's line, then on the last's.
-  await view.locator(".tma-solution").selectOption("");
+  // A second solution by two clicks on the map: on the first cut's line, then on the last's, of a
+  // run of cuts selected in the Outline (click the first, Shift-click the last).
+  const sensorShown = async (id) => {
+    await outlineRow(id).click();
+    await page.waitForFunction((s) => !window.debriefTma.shown?.solution_id && window.debriefTma.shown?.sensor_id === s && window.debriefTma.shown?.cuts?.length > 0, id);
+  };
+  await sensorShown("sensor-blue-one-bow-sonar");
   // No solution open: the column back to its usual width, the map as wide as before.
   await page.waitForFunction(() => document.getElementById("panel-bearings").getBoundingClientRect().width < innerWidth * 0.25, null, { timeout: 10000 });
-  await page.waitForFunction(() => !window.debriefTma.shown?.solution_id && window.debriefTma.shown?.cuts?.length > 0);
-  await view.locator(".tma-row").first().waitFor();
-  await list.focus();
-  await page.keyboard.press("End");
-  for (let i = 0; i < 30; i++) await page.keyboard.press("Shift+ArrowUp");
-  await view.getByRole("button", { name: "Make solution…" }).click();
+  const bowCuts = await page.evaluate(() => window.debriefTma.shown.cuts.map((c) => c.id));
+  await outlineRow(bowCuts.at(-31)).scrollIntoViewIfNeeded();
+  await outlineRow(bowCuts.at(-31)).click();
+  await outlineRow(bowCuts.at(-1)).scrollIntoViewIfNeeded();
+  await outlineRow(bowCuts.at(-1)).click({ modifiers: ["Shift"] });
+  await page.waitForFunction(() => window.debriefSelection().picks.length === 31);
+  await showPanel(page, "tools");
+  await op("tma-from-cuts").click();
   await view.getByRole("button", { name: "Two clicks on the map instead" }).click();
   await page.waitForFunction(() => document.querySelector(".frame-map").contentDocument.querySelector(".tma-guessing"));
   const chosen = await page.evaluate(() => {
-    const rows = window.debriefTma.chosenCuts();
+    const ids = new Set(window.debriefTma.formRequest.cut_ids);
+    const rows = window.debriefTma.shown.cuts.filter((c) => ids.has(c.id));
     return [rows[0], rows[rows.length - 1]];
   });
   const frame = await page.locator(".frame-map").boundingBox();
@@ -723,21 +757,25 @@ export async function playTma(page, shot) {
   await clickOn(chosen[1], reach(chosen[1]));
   await stepAdded(before);
   assert.match(await latest(), /^Contact 2 solution made: 31 Bow sonar cuts /);
-  await view.locator(".tma-rms").waitFor();
+  await page.waitForFunction(() => /^RMS/.test(document.querySelector("#bearings .tma-rms")?.textContent ?? ""));
   assert.match(await rms(), /^RMS \d+\.\d° over 31 cuts$/);
   assert.ok((await residuals()).rms < 10, "two clicks where RED ONE was fit its bearings, roughly");
-  // Chosen from the view's Solution list: none, the same solution again, the other, and back (the panel's H2).
+  // Chosen in the Outline: the sensor, one solution, the other, the same again, and back (the panel's H2).
   const solutionNamed = async (name, cuts) => {
     const id = await page.evaluate((n) => window.debriefTma.shown.solutions.find((s) => s.name.startsWith(n)).id, name);
-    await view.locator(".tma-solution").selectOption(id);
+    await outlineRow(id).click();
     await page.waitForFunction(([i, c]) => window.debriefTma.shown?.solution_id === i && window.debriefTma.residuals?.rows.length === c, [id, cuts], { timeout: 30000 });
     assert.match(await rms(), new RegExp(`over ${cuts} cuts`));
   };
-  await view.locator(".tma-solution").selectOption("");
-  await page.waitForFunction(() => !window.debriefTma.shown?.solution_id);
+  await sensorShown("sensor-blue-one-bow-sonar");
   await solutionNamed("Contact 2 solution", 31);
   await solutionNamed("Contact 1 solution", 60);
   await solutionNamed("Contact 2 solution", 31);
+  // Something unrelated selected keeps what Bearings shows.
+  await outlineRow("track-blue-one").click();
+  await page.waitForFunction(() => window.debriefSelection().selection.join() === "track-blue-one");
+  await page.waitForTimeout(300);
+  assert.match(await page.locator("#bearings .tma-title").innerText(), /^Contact 2 solution/, "an unrelated selection keeps the solution shown");
   // The window resized while a solution is open: the column at its share of the new width, not the
   // pixels it had; no solution, the column back to its usual width and the map half the window or more (M1).
   const widths = () => page.evaluate(() => ({ column: document.querySelector('.dv-tab[data-panel="panel-bearings"]').closest(".dv-groupview").getBoundingClientRect().width, map: document.getElementById("main").getBoundingClientRect().width, window: innerWidth }));
@@ -746,7 +784,7 @@ export async function playTma(page, shot) {
   let w = await widths();
   assert.ok(w.column >= w.window * 0.38 && w.map >= w.window * 0.4 - 3, `widened, resized: about 40% of the window still, the map 40% or more: ${JSON.stringify(w)}`);
   await resizeTo(page, 1366, 768);
-  await view.locator(".tma-solution").selectOption("");
+  await sensorShown("sensor-blue-one-bow-sonar");
   await page.waitForFunction(() => document.querySelector('.dv-tab[data-panel="panel-bearings"]').closest(".dv-groupview").getBoundingClientRect().width < innerWidth * 0.25, null, { timeout: 10000 }).catch(() => undefined);
   w = await widths();
   assert.ok(w.column < w.window * 0.25 && w.map >= w.window * 0.5 - 3, `no solution, resized: the column back, the map half the window: ${JSON.stringify(w)}`);
@@ -770,8 +808,7 @@ export async function playTma(page, shot) {
   await page.waitForFunction(() => document.querySelector('.dv-tab[data-panel="panel-bearings"]').closest(".dv-groupview").getBoundingClientRect().width > innerWidth * 0.36, null, { timeout: 10000 });
   await dragSash(60);
   const sized = (await widths()).column;
-  await view.locator(".tma-solution").selectOption("");
-  await page.waitForFunction(() => !window.debriefTma.shown?.solution_id);
+  await sensorShown("sensor-blue-one-bow-sonar");
   await page.waitForTimeout(300);
   assert.ok(Math.abs((await widths()).column - sized) <= 3, `sized by the reader while widened, kept when the solution closed: ${sized} and ${(await widths()).column}`);
   await page.evaluate(() => document.getElementById("reset-layout").click());
@@ -782,33 +819,55 @@ export async function playTma(page, shot) {
   await solutionNamed("Contact 2 solution", 31);
   await page.waitForTimeout(300);
   assert.ok(Math.abs((await widths()).column - before9) <= 3, `sized by the reader before, not widened for the solution: ${before9} and ${(await widths()).column}`);
-  await view.locator(".tma-solution").selectOption("");
+  await sensorShown("sensor-blue-one-bow-sonar");
   await page.evaluate(() => document.getElementById("reset-layout").click());
   await mapPlaced(page);
   await resizeTo(page, 1400, 820);
   await showPanel(page, "bearings");
+  await showPanel(page, "outline");
 
-  // The towed array's ambiguous cuts: the next one found from the keyboard (Alt+Down), a side kept from the view.
-  await view.locator(".tma-solution").selectOption("");
-  await page.waitForFunction(() => !window.debriefTma.shown?.solution_id && window.debriefTma.shown?.cuts?.length > 0);
-  await view.locator(".tma-sensor").selectOption("sensor-blue-one-towed-array");
-  await page.waitForFunction(() => window.debriefTma.shown?.sensor_id === "sensor-blue-one-towed-array" && window.debriefTma.shown.cuts?.length > 0);
-  await list.focus();
-  await page.keyboard.press("Alt+ArrowDown");
-  const keepFirst = view.locator(".tma-first");
-  await keepFirst.waitFor();
-  assert.match(await keepFirst.innerText(), /^Keep \d{3}\.\d° \((port|starboard)\)$/);
-  before = await steps();
-  await keepFirst.click();
-  await stepAdded(before);
-  assert.match(await latest(), /kept on Towed array cut at /);
+  // The towed array's cuts in the Outline: a run of them selected (a click, then Shift-click), hidden,
+  // shown, a side kept for all of them at once, and deleted, each one step from the Tools.
+  await sensorShown("sensor-blue-one-towed-array");
+  assert.match(await page.locator("#bearings .tma-title").innerText(), /^Towed array on BLUE ONE · \d+ cuts, \d+ ambiguous$/);
+  await outlineRow("sensor-blue-one-towed-array").focus();
+  await page.keyboard.press("ArrowRight");
+  const towedCuts = await page.evaluate(() => window.debriefTma.shown.cuts.map((c) => c.id));
+  await outlineRow(towedCuts[0]).waitFor();
+  await outlineRow(towedCuts[0]).click();
+  await outlineRow(towedCuts[9]).click({ modifiers: ["Shift"] });
+  await page.waitForFunction(() => window.debriefSelection().picks.length === 10);
+  assert.equal(await page.locator("#outline li.cut[aria-selected='true']").count(), 10);
+  assert.match(await outlineRow(towedCuts[0]).locator(".detail").innerText(), /^≈ \d{3}\.\d° (port|stbd) \/ \d{3}\.\d° (port|stbd)$/);
+  await picture("outline-03-sensor-cuts-selected");
+  await showPanel(page, "tools");
+  await picture("tools-02-entries-for-cuts");
+  const cutSteps = async (id, said) => {
+    const count = await steps();
+    await op(id).click();
+    await stepAdded(count);
+    assert.match(await latest(), said);
+  };
+  await cutSteps("hide-cuts", /^10 Towed array cuts \d\d:\d\d:\d\dZ–\d\d:\d\d:\d\dZ hidden on the map$/);
+  await page.waitForFunction((id) => document.querySelector(`#outline li[data-id="${id}"]`)?.classList.contains("hidden-cut"), towedCuts[0]);
+  assert.match(await outlineRow(towedCuts[0]).locator(".detail").innerText(), /hidden on map$/);
+  await cutSteps("show-cuts", /^10 Towed array cuts .* shown on the map$/);
+  await cutSteps("keep-starboard", /kept/);
+  await page.waitForFunction((id) => / stbd kept$/.test(document.querySelector(`#outline li[data-id="${id}"] .detail`)?.textContent ?? ""), towedCuts[0]);
+  await cutSteps("keep-ambiguous", /./);
+  await cutSteps("delete-cuts", /^10 Towed array cuts .* deleted$/);
+  await page.waitForFunction((id) => !document.querySelector(`#outline li[data-id="${id}"]`), towedCuts[0]);
+  await undo();
+  await page.waitForFunction((id) => !!document.querySelector(`#outline li[data-id="${id}"]`), towedCuts[0]);
   // A solution of the towed array's cuts: each unresolved cut's other bearing drawn faint, its
   // residual too, never counted (product owner, 25 Oct 2026).
-  await page.waitForFunction(() => window.debriefTma.shown?.cuts?.length > 0);
-  await list.focus();
-  await page.keyboard.press("Home");
-  for (let i = 0; i < 40; i++) await page.keyboard.press("Shift+ArrowDown");
-  await view.getByRole("button", { name: "Make solution…" }).click();
+  await showPanel(page, "outline");
+  await outlineRow(towedCuts[0]).click();
+  await outlineRow(towedCuts[40]).click({ modifiers: ["Shift"] });
+  await page.waitForFunction(() => window.debriefSelection().picks.length === 41);
+  await showPanel(page, "tools");
+  await op("tma-from-cuts").click();
+  await view.locator(".tma-form").waitFor();
   before = await steps();
   await view.getByRole("button", { name: "Make solution", exact: true }).click();
   await stepAdded(before);
@@ -830,13 +889,9 @@ export async function playTma(page, shot) {
   assert.ok(offOthers > 0, "some other bearings off the axis fitted to the counted errors");
   assert.equal(await view.locator(".tma-offscale").innerText(), `${offOthers} other ${offOthers === 1 ? "bearing" : "bearings"} off scale`);
   assert.match(await view.locator(".tma-canvas").getAttribute("aria-label"), new RegExp(`${offOthers} other bearings? off scale\\.`));
-  // Pictured with the cut list closed, the plot the panel's height; then open again, as it was.
-  await cutsToggle.click();
-  await page.waitForFunction(() => document.querySelector("#bearings .tma-cuts-toggle")?.getAttribute("aria-expanded") === "false");
   await page.mouse.move(2, 2);
   await picture("stacked-dots-09-other-side-off-scale");
-  await cutsToggle.click();
-
+  await picture("bearings-01-slimmer");
   // A legacy plot's TMA solution imported as a solution, its residuals shown.
   // tma.dpf: made up, unclassified (python/debrief-io/tests/data/README.md): a relative leg and an absolute one.
   await page.locator("#file").setInputFiles(path.resolve("../python/debrief-io/tests/data/tma.dpf"));
@@ -910,20 +965,17 @@ export async function playTma(page, shot) {
   await page.locator('#outline li[data-id] .name', { hasText: "TMA_0900" }).first().click();
   await page.waitForFunction(() => window.debriefTma.shown?.residuals?.rows.length === 10);
 
-  // At 768 px wide the panels are one column, the view about 200 px wide: each bearing and
-  // residual still read whole, not cut short.
+  // At 768 px wide the panels are one column: the Outline's rows still read their names whole,
+  // the page never scrolling sideways.
   const wide = page.viewportSize();
   await page.setViewportSize({ width: 768, height: 900 });
   await page.waitForFunction(() => document.getElementById("dock")?.hidden !== false || !document.body.classList.contains("docked"));
-  await page.locator("#bearings .tma-row").first().scrollIntoViewIfNeeded();
-  await page.waitForFunction(() => {
-    const row = document.querySelector("#bearings .tma-row");
-    return row && row.getBoundingClientRect().width > 0 && row.getBoundingClientRect().width < 320;
+  await page.locator("#outline li[role=treeitem]").first().scrollIntoViewIfNeeded();
+  const cutWidths = await page.evaluate(() => {
+    const row = document.querySelector("#outline li[role=treeitem]");
+    return { name: row.querySelector(".name").scrollWidth <= row.querySelector(".name").clientWidth + 1, sideways: document.scrollingElement.scrollWidth > innerWidth + 1 };
   });
-  const cut = await page.evaluate(() =>
-    [...document.querySelectorAll("#bearings .tma-row .tma-c-brg, #bearings .tma-row .tma-c-res, #bearings .tma-row .tma-c-time")].filter((c) => c.scrollWidth > c.clientWidth + 1).map((c) => c.textContent),
-  );
-  assert.deepEqual(cut, [], `at 768 px every bearing, residual and time reads whole: ${cut.join(", ")}`);
+  assert.deepEqual(cutWidths, { name: true, sideways: false }, "at 768 px a row's name reads whole, nothing sideways");
   // On a phone (390 px), the panels one column: the plot whole across it, tall enough to read,
   // its panes side by side, the page never scrolling sideways.
   await page.setViewportSize({ width: 390, height: 844 });

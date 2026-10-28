@@ -20,7 +20,6 @@ root.innerHTML = `<div id="tma"></div>`;
 const control = new TmaControl(
   document.getElementById("tma")!,
   {
-    choose: (feature_id) => host.postMessage({ kind: "tma_chosen", feature_id }),
     create: (tma_request) => host.postMessage({ kind: "tma_create", tma_request }),
     guess: (tma_request) => host.postMessage({ kind: "tma_guess", tma_request }),
     exclude: (feature_id, cut_ids, excluded) => host.postMessage({ kind: "tma_exclude", feature_id, cut_ids, excluded }),

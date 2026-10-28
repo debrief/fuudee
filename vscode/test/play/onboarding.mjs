@@ -669,20 +669,24 @@ export async function playTours(page, shot, root) {
 /**
  * Bearings and TMA (product owner, 25 Oct 2026; fitted properly, 25 Oct 2026), start to finish on
  * its copy of serial 1, as legacy Debrief's TMA tutorial fits a leg: each step's button does what
- * it says (the towed array listed in Bearings, the cut at 09:46Z chosen, the period chosen and the
- * first guess opened, Move… and Shear… opened for the solution, the cut at 11:12Z chosen, the cut
- * at 10:38Z chosen), and the reader does the step, from the keyboard where the step says how:
- * keeps the side the Bow sonar agrees with (Shift+Tab back from the list), makes Debrief's first
- * guess, moves its start along the first bearing to RED ONE's range, shears the first leg to fit,
- * leaves the wild bearing out with Space, splits at 10:38Z (Shift+Tab back to Split), and fits the
- * second leg as the first, This leg in Move… and Shear…. The RMS and the cue are what the steps
+ * it says (the towed array selected in the Outline and shown in Bearings, the cut at 09:46Z chosen
+ * in the Outline, the period chosen and the first guess opened, Move… and Shear… opened for the
+ * solution, the cut at 11:12Z chosen, the position at 10:38Z chosen), and the reader does the
+ * step, from the keyboard where the step says how, with the Tools' entries (product owner, 27 Oct
+ * 2026): keeps the side the Bow sonar agrees with (Keep starboard), makes Debrief's first guess,
+ * moves its start along the first bearing to RED ONE's range, shears the first leg to fit, leaves
+ * the wild bearing out (Leave out of Contact 1 solution), splits before 10:38Z (Split before), and
+ * fits the second leg as the first, This leg in Move… and Shear…. The RMS and the cue are what the steps
  * say (held to the sample by test_walkthrough.py), to a tenth of a degree. Polls, never waits fixed
  * times; nothing depends on the font.
  */
 export async function playTmaTour(page, shot) {
   const mapFrame = page.frameLocator(".frame-map");
   const view = page.locator("#bearings");
-  const active = view.locator(".tma-row.tma-active");
+  // The row chosen in the Outline (product owner, 27 Oct 2026): the walkthrough's buttons choose there.
+  const active = page.locator("#outline li.selected").last();
+  const op = (id) => page.locator(`#tools li.outline-op[data-op="${id}"] button`);
+  const chosenSays = (start) => page.waitForFunction((s) => [...document.querySelectorAll("#outline li.selected")].some((r) => (r.getAttribute("aria-label") ?? "").startsWith(s)), start, { timeout: 30000 });
   const shown = () => page.evaluate(() => window.debriefTma.shown);
   const rms = () => page.evaluate(() => window.debriefTma.residuals?.rms);
   const cue = () => view.locator(".tma-cue-text").innerText();
@@ -705,25 +709,30 @@ export async function playTmaTour(page, shot) {
   await page.selectOption("#tour-pick", "tma");
   await startTour(page, "tma");
   await page.waitForFunction((s) => window.debriefTma.shown?.sensor_id === s && !window.debriefTma.shown.solution_id && window.debriefTma.shown.cuts?.length > 0, towed, { timeout: 60000 });
-  assert.match(await view.locator(".tma-sensor option:checked").innerText(), /^Towed array on BLUE ONE \(\d+ cuts, \d+ ambiguous\)$/);
+  assert.match(await view.locator(".tma-title").innerText(), /^Towed array on BLUE ONE · \d+ cuts, \d+ ambiguous$/);
+  assert.deepEqual(await page.evaluate(() => window.debriefSelection().picks), [towed], "the towed array selected in the Outline, Bearings following");
   assert.match(await page.locator("#history li .name").first().textContent(), /^A wild bearing put into Towed array cut at 11:12:00Z$/);
   await press(page, 3);
   await page.locator(".toast", { hasText: "Make the solution first" }).first().waitFor({ timeout: 10000 });
   await notDone(page, "solutionMoved", "nothing to move yet");
 
-  // 2. The Bow sonar's cut at 09:46Z reads 235.3°, as the step says, in Bearings' Sensor list.
-  await view.locator(".tma-sensor").selectOption("sensor-blue-one-bow-sonar");
+  // 2. The Bow sonar's cut at 09:46Z reads 235.3°, as the step says, its cuts opened in the Outline.
+  const bow = page.locator('#outline li[data-id="sensor-blue-one-bow-sonar"]');
+  await bow.click();
   await page.waitForFunction(() => window.debriefTma.shown?.sensor_id === "sensor-blue-one-bow-sonar", null, { timeout: 30000 });
-  assert.equal(await page.evaluate(() => window.debriefTma.shown.cuts.find((c) => c.time.endsWith("T09:46:00.000Z"))?.bearing.toFixed(1)), "235.3");
-  // The cut at 09:46Z chosen, current time there; the side the Bow sonar agrees with kept from
-  // the keyboard, as the step says: the cut's buttons come before the list, Shift+Tab back to them.
+  await bow.locator(".twisty").click();
+  await page.locator("#outline li.cut", { hasText: "09:46:00Z" }).first().waitFor();
+  assert.match(await page.locator("#outline li.cut", { hasText: "09:46:00Z" }).first().innerText(), /09:46:00Z\s+235\.3°/);
+  await bow.locator(".twisty").click();
+  // The cut at 09:46Z chosen in the Outline, current time there; the side the Bow sonar agrees with
+  // kept from the keyboard, as the step says: Keep starboard in the Tools.
   await press(page, 1);
-  await page.waitForFunction(() => /^09:46:00Z/.test(document.querySelector("#bearings .tma-row.tma-active")?.getAttribute("aria-label") ?? ""), null, { timeout: 30000 });
-  assert.equal(await page.evaluate(() => document.activeElement?.classList.contains("tma-list")), true, "the keyboard in the list");
-  await page.keyboard.press("Shift+Tab");
-  assert.equal(await focused(), "Keep 142.3° (port)", "Shift+Tab from the list: the other side first");
-  await page.keyboard.press("Shift+Tab");
-  assert.equal(await focused(), "Keep 236.3° (starboard)", "then the side the step names");
+  await chosenSays("Cut at 09:46:00Z, ");
+  assert.equal(await page.evaluate(() => document.activeElement?.getAttribute("aria-label")?.slice(0, 16)), "Cut at 09:46:00Z", "the keyboard on the cut, in the Outline");
+  assert.match(await active.getAttribute("aria-label"), /236\.3° to starboard/);
+  await showPanel(page, "tools");
+  await op("keep-starboard").focus();
+  assert.equal(await focused(), "Keep starboard: this cut");
   await picture("tma-walk-01-keep-a-side");
   await page.keyboard.press("Enter");
   await done(page, "sideKept");
@@ -785,21 +794,25 @@ export async function playTmaTour(page, shot) {
   await view.getByRole("button", { name: "Reset zoom" }).click();
   await page.waitForFunction(() => !window.debriefTma.plotState.zoomed);
 
-  // 6. The cut at 11:12Z chosen, the list opened and given the keyboard: Space leaves it out.
+  // 6. The cut at 11:12Z chosen in the Outline, the solution still shown: Leave out, in the Tools.
   await press(page, 5);
-  await page.waitForFunction(() => /^11:12:00Z/.test(document.querySelector("#bearings .tma-row.tma-active")?.getAttribute("aria-label") ?? ""), null, { timeout: 30000 });
-  assert.equal(await page.evaluate(() => document.activeElement?.classList.contains("tma-list")), true, "the keyboard in the list");
-  await page.keyboard.press(" ");
+  await chosenSays("Cut at 11:12:00Z, ");
+  assert.ok(!!(await shown()).solution_id, "a cut of the solution keeps it shown in Bearings");
+  await showPanel(page, "tools");
+  await op("leave-out").focus();
+  assert.equal(await focused(), "Leave out of Contact 1 solution");
+  await page.keyboard.press("Enter");
   await done(page, "cutLeftOut");
   await page.waitForFunction(() => window.debriefTma.residuals?.excluded === 1, null, { timeout: 60000 });
   await settledAt(38.34, "63 of 101 beyond 3.0°");
-  assert.match(await active.getAttribute("aria-label"), /left out of the RMS/);
 
-  // 7. The cut at 10:38Z chosen and current time there; Shift+Tab back to Split, as the step says.
+  // 7. The position at 10:38Z chosen in the Outline and current time there; Split before, in the Tools.
   await press(page, 6);
-  await page.waitForFunction(() => /^10:38:00Z/.test(document.querySelector("#bearings .tma-row.tma-active")?.getAttribute("aria-label") ?? ""), null, { timeout: 30000 });
-  await page.keyboard.press("Shift+Tab");
-  assert.equal(await focused(), "Split into legs at 10:38:00Z");
+  await chosenSays("Position at 10:38:00Z");
+  assert.match(await view.locator(".tma-title").innerText(), / · fix at 10:38:00Z$/);
+  await showPanel(page, "tools");
+  await op("split-before").focus();
+  assert.equal(await focused(), "Split before 10:38:00Z");
   await page.keyboard.press("Enter");
   // The split is not the step: the step ends on a leg dragged (product owner, 25 Oct 2026).
   await page.waitForFunction(() => window.debriefTma.residuals?.rows.some((r) => r.leg === 2), null, { timeout: 60000 });
@@ -837,19 +850,17 @@ export async function playTmaTour(page, shot) {
   await page.locator("#tour .tour-ahead button.tour-again").waitFor({ timeout: 30000 });
   assert.match(await page.locator("#tour .tour-said").innerText(), /All walkthroughs done\.$/);
   assert.equal(await page.locator("#tour .tour-said").getAttribute("role"), "status");
-  // The cut list closed again, so the plot has the height for the picture.
-  if ((await view.locator(".tma-cuts-toggle").getAttribute("aria-expanded")) === "true") await view.locator(".tma-cuts-toggle").click();
   await picture("tma-walk-06-second-leg-fitted");
   const said = `Bearings and TMA: RMS 55.9° first guess, 62.7° at range, 38.8° first leg (its own ${Math.sqrt(leg1.reduce((s, v) => s + v * v, 0) / leg1.length).toFixed(2)}°), 38.3° wild left out, ${(await rms()).toFixed(2)}° both legs: ${await cue()}.`;
 
   // At a phone's width (390 px), a step's button that chooses a cut leaves that cut's row in
-  // sight: in the page, and not under the next section's heading (the panel's L7).
+  // sight in the Outline: in the page, and not under the next section's heading (the panel's L7).
   await resize(page, 390, 800);
   await press(page, 5);
-  await page.waitForFunction(() => /^11:12:00Z/.test(document.querySelector("#bearings .tma-row.tma-active")?.getAttribute("aria-label") ?? ""), null, { timeout: 30000 });
+  await chosenSays("Cut at 11:12:00Z, ");
   const rowSeen = () =>
     page.evaluate(() => {
-      const row = document.querySelector("#bearings .tma-row.tma-active");
+      const row = [...document.querySelectorAll("#outline li.selected")].pop();
       const r = row.getBoundingClientRect();
       const on = document.elementFromPoint(r.left + Math.min(40, r.width / 2), r.top + r.height / 2);
       return { inPage: r.top >= 0 && r.bottom <= innerHeight, onTop: !!on && row.contains(on), top: Math.round(r.top), over: on ? `${on.tagName}.${on.className}` : "" };

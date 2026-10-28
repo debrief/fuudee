@@ -29,9 +29,9 @@ export const EVENTS: ReadonlySet<string> = new Set(TOURS.flatMap((t) => t.steps.
 export const openedEvent = (tour: string) => `${tour}Opened`;
 /**
  * What a walkthrough's first step shows once its copy is open, beyond the plot: Bearings and
- * TMA's copy opens with the towed array's cuts listed in Bearings, as the step says.
+ * TMA's copy opens with the towed array selected in the Outline and Bearings showing it, as the step says.
  */
-export const AFTER_OPEN: Record<string, [string, ...unknown[]]> = { tma: ["debrief.showBearings", "sensor-blue-one-towed-array"] };
+export const AFTER_OPEN: Record<string, [string, ...unknown[]]> = { tma: ["debrief.chooseInOutline", "sensor-blue-one-towed-array"] };
 export { contextKey };
 
 /**

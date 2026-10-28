@@ -16,7 +16,9 @@ annotations added, changed and deleted by hand, and the north arrow, recorded th
 same way (debrief/add_annotation, debrief/edit_annotation, debrief/delete_annotations,
 debrief/set_north_arrow); sensors and their cuts (CAP-22): read, with each cut's bearings
 and where it is drawn from (debrief/sensors), ambiguous cuts resolved one by one or a
-period at a time (debrief/resolve_ambiguity), and a .dsf file's sensor lines read into the
+period at a time (debrief/resolve_ambiguity), cuts hidden or shown (debrief/set_hidden,
+which says what that does to the solutions rooted in them) or deleted (debrief/delete_cuts),
+and a .dsf file's sensor lines read into the
 plot, what it holds said first (debrief/preview_sensor, debrief/import_sensor), each a
 step; narrative entries on one Zulu time axis, read and filtered
 (debrief/narrative) and added, changed, deleted or read in from a REP file's narrative
@@ -44,10 +46,11 @@ a track, and linking or unlinking a track in another item as a platform, each a 
 data aside and clearing a review flag, in the plot's island (debrief/dismiss_new_data,
 debrief/clear_review_flag); and every plot that may need review (debrief/review_flags).
 TMA solutions (CAP-21; product owner, 24 Oct 2026): a solution made from a period of a
-sensor's cuts with a first guess, split into legs, and its cuts left out of its RMS error or
-counted again, each a step (debrief/tma_create, debrief/tma_split_leg,
-debrief/tma_exclude_cut); and its bearing residuals and RMS error, reading only
-(debrief/tma_residuals). A solution is a track, so it is dragged with debrief/edit_track.
+sensor's cuts with a first guess, split into legs at a time or before or after one of its
+fixes (side), and its cuts left out of its RMS error or counted again, each a step
+(debrief/tma_create, debrief/tma_split_leg, debrief/tma_exclude_cut); and its bearing
+residuals and RMS error, reading only (debrief/tma_residuals). A solution is a track, so it
+is dragged with debrief/edit_track.
 Exported images (SUB-25): a fresh image ID for an export of the plot, at its current
 revision or an earlier one shown read-only (debrief/figure_id); the image a host drew, or
 one an agent has, with its ID in its metadata, written to file and recorded in the plot's
@@ -130,6 +133,7 @@ from debrief_stac import (
     frequencies,
     narrative,
     sensors,
+    tma,
 )
 from debrief_stac.catalogue import review_flags
 from debrief_stac.fixes import describe_largest
@@ -231,7 +235,13 @@ COLLATION_METHODS = (
 )
 # Sensors (CAP-22): ambiguous cuts resolved, or made ambiguous again, and a .dsf or REP
 # file's sensor lines read into the plot, each one step.
-SENSOR_METHODS = ("debrief/resolve_ambiguity", "debrief/import_sensor", "debrief/set_array_offset")
+# Cuts deleted (product owner, 27 Oct 2026): one step, the solutions rooted in them dropping them.
+SENSOR_METHODS = (
+    "debrief/resolve_ambiguity",
+    "debrief/import_sensor",
+    "debrief/set_array_offset",
+    "debrief/delete_cuts",
+)
 # TMA solutions (CAP-21): made, split into legs, cuts left out of the RMS, each one step.
 TMA_METHODS = ("debrief/tma_create", "debrief/tma_split_leg", "debrief/tma_exclude_cut")
 # What the analyst said of collation's marks: the plot's island, never a step.
@@ -553,7 +563,11 @@ class ToolService:
                 "debrief/set_hidden",
                 "debrief/set_track_frequencies",
             ):
-                out["changed"] = self._restyle(catalogue, item, method, params, expected, allow)
+                step = self._restyle(catalogue, item, method, params, expected, allow)
+                out["changed"] = step is not None
+                # Cuts hidden or shown: what it does to the solutions rooted in them, said.
+                if step is not None and method == "debrief/set_hidden":
+                    out["notes"] = list(catalogue.history(item).steps()[step - 1].records[0].notes)
             elif method in ANNOTATION_METHODS:
                 out.update(self._annotate(catalogue, item, method, params, expected, allow))
             elif method in NARRATIVE_METHODS:
@@ -634,9 +648,11 @@ class ToolService:
         params: dict[str, Any],
         base: Base | None,
         allow: bool,
-    ) -> bool:
-        """Colour tracks, hide features, or set how often tracks are labelled, marked and
-        arrowed (CAP-32): recorded and undoable, like any change."""
+    ) -> int | None:
+        """Colour tracks, hide features (cuts among them: left out of every solution's
+        residuals until shown again), or set how often tracks are labelled, marked and
+        arrowed (CAP-32): recorded and undoable, like any change. The step, or None if
+        nothing changed."""
         features = params.get("features")
         if not isinstance(features, list) or not all(isinstance(f, str) for f in features):
             raise RpcError(INVALID_PARAMS, f"{method} needs the features to change")
@@ -668,7 +684,7 @@ class ToolService:
             step = catalogue.set_hidden(
                 item, features, hidden, agent, base, allow_newer_schema=allow
             )
-        return step is not None
+        return step
 
     def _annotate(
         self,
@@ -819,6 +835,13 @@ class ToolService:
         (NEEDS_CONFIRMATION, naming the plot's tracks), as is a file read in before
         unless again is true. debrief/preview_sensor says what a file holds first."""
         agent = _agent(params)
+        if method == "debrief/delete_cuts":
+            ids = params.get("cut_ids")
+            if not (isinstance(ids, list) and ids and all(isinstance(i, str) for i in ids)):
+                raise RpcError(INVALID_PARAMS, "delete_cuts needs cut_ids")
+            step = catalogue.delete_cuts(item, ids, agent, base, allow_newer_schema=allow)
+            notes = catalogue.history(item).steps()[step - 1].records[0].notes
+            return {"changed": True, "notes": notes}
         if method == "debrief/set_array_offset":
             # A towed array's offset astern ({value, unit}, or null for none) and its mode.
             ids = params.get("sensor_ids")
@@ -910,13 +933,19 @@ class ToolService:
         if not isinstance(feature, str):
             raise RpcError(INVALID_PARAMS, f"{method[8:]} needs the solution (feature)")
         if method == "debrief/tma_split_leg":
-            at, join = params.get("at"), params.get("join", False)
+            at, join, side = params.get("at"), params.get("join", False), params.get("side")
             if not isinstance(at, str) or not isinstance(join, bool):
                 raise RpcError(
                     INVALID_PARAMS, "tma_split_leg needs the time (at), and join true or false"
                 )
+            if side is not None and side not in tma.SPLIT_SIDES:
+                raise RpcError(
+                    INVALID_PARAMS,
+                    'side is "before" or "after": the fix at at starts the new leg, or ends '
+                    "the earlier one",
+                )
             step = catalogue.tma_split_leg(
-                item, feature, at, agent, base, join=join, allow_newer_schema=allow
+                item, feature, at, agent, base, join=join, side=side, allow_newer_schema=allow
             )
             notes = catalogue.history(item).steps()[step - 1].records[0].notes
             return {"changed": True, "notes": notes}

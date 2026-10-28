@@ -660,19 +660,107 @@ def split_leg(plot: DebriefFeatureCollection, feature_id: str, at_ms: int) -> Ch
         )
     if times[index] in starts:
         raise TmaError(f"{name} already has a leg starting at {_when(times[index])}.")
-    firsts = (next((i for i, t in enumerate(times) if t >= s), len(times)) for s in starts)
-    bounds = sorted({0, len(times), *firsts})
-    before = index - max(b for b in bounds if b <= index)
-    after = min(b for b in bounds if b > index) - index
+    before, after = _either_side(times, starts, index)
     if before < tracks.FEWEST_FIXES or after < tracks.FEWEST_FIXES:
         raise TmaError(
             f"{name} was not split into legs at {_when(at_ms)}: the leg there would have "
             f"{tracks._fixes(before)} before then and {tracks._fixes(after)} from then on, and "
             f"each leg needs at least {tracks.FEWEST_FIXES}."
         )
-    new_starts = sorted({*starts, times[index]})
+    return _split_at(track, index, f"{name} split into legs at {_when(times[index])}")
+
+
+def _either_side(times: Sequence[int], starts: Sequence[int], index: int) -> tuple[int, int]:
+    """How many fixes the leg holding the fix at index keeps before it, and from it on."""
+    firsts = (next((i for i, t in enumerate(times) if t >= s), len(times)) for s in starts)
+    bounds = sorted({0, len(times), *firsts})
+    before = index - max(b for b in bounds if b <= index)
+    after = min(b for b in bounds if b > index) - index
+    return before, after
+
+
+#: Where a solution is split by one of its fixes (product owner, 27 Oct 2026): before it, the fix
+#: is the first fix of a new leg; after it, the last fix of the earlier leg.
+SPLIT_SIDES = ("before", "after")
+
+
+@dataclass
+class FixSplit:
+    """Where splitting before or after a fix starts the new leg (its first fix's index), or why
+    it cannot: "first" (the fix already starts a leg, or is the solution's first, before),
+    "last" (the fix already ends a leg, or is the solution's last, after), or "few" (a leg would
+    keep fewer than two fixes); leg is the leg holding the fix, from 1, and before and after the
+    fixes either side of the split. As tma.ts splitAtFix, held to schemas/vectors/tma-legs.json."""
+
+    first: int | None
+    refused: str | None
+    leg: int
+    before: int
+    after: int
+
+
+def split_at_fix_index(
+    times: Sequence[int], starts: Sequence[int], index: int, side: str
+) -> FixSplit:
+    """Splitting a solution's leg before or after its fix at index: where the new leg starts."""
+    if side not in SPLIT_SIDES:
+        raise TmaError(f"A solution is split before or after a fix, not {side!r}.")
+    if not 0 <= index < len(times):
+        raise TmaError("The solution has no such fix.")
+    leg = leg_of(starts, times[index])
+    first = index if side == "before" else index + 1
+    firsts = {0, *(next((i for i, t in enumerate(times) if t >= s), len(times)) for s in starts)}
+    if first >= len(times):
+        return FixSplit(None, "last", leg, 0, 0)
+    if first in firsts:
+        return FixSplit(None, "first" if side == "before" else "last", leg, 0, 0)
+    before, after = _either_side(times, starts, first)
+    if before < tracks.FEWEST_FIXES or after < tracks.FEWEST_FIXES:
+        return FixSplit(None, "few", leg, before, after)
+    return FixSplit(first, None, leg, before, after)
+
+
+def split_at_fix(
+    plot: DebriefFeatureCollection, feature_id: str, fix_ms: int, side: str
+) -> Changed:
+    """The solution split into legs by one of its fixes (product owner, 27 Oct 2026): before
+    it, the fix starts a new leg; after it, the fix ends the earlier leg and the next starts
+    the new one. The legs already there keep their fixes, so nothing moves; still one track."""
+    track = solution(plot, feature_id)
+    times = tracks.times_of(track)
+    name = track.properties.name
+    if fix_ms not in times:
+        raise TmaError(f"{name} has no fix at {_when(fix_ms)}.")
+    index = times.index(fix_ms)
+    found = split_at_fix_index(times, leg_starts_ms(track), index, side)
+    if found.first is None:
+        where = f"{name} was not split into legs {side} its fix at {_when(fix_ms)}"
+        if found.refused == "first":
+            why = f"it is already the first fix of leg {found.leg}"
+        elif found.refused == "last":
+            last = index == len(times) - 1
+            why = (
+                "it is the solution's last fix"
+                if last
+                else f"it is already the last fix of leg {found.leg}"
+            )
+        else:
+            why = (
+                f"leg {found.leg} would keep {tracks._fixes(found.before)} before the split and "
+                f"{tracks._fixes(found.after)} after it, and each leg needs at least "
+                f"{tracks.FEWEST_FIXES}"
+            )
+        raise TmaError(f"{where}: {why}.")
+    return _split_at(
+        track, found.first, f"{name} split into legs {side} its fix at {_when(fix_ms)}"
+    )
+
+
+def _split_at(track: models.TrackFeature, index: int, note: str) -> Changed:
+    """The solution with a leg starting at its fix at index: the other legs' fixes unchanged."""
+    times = tracks.times_of(track)
+    new_starts = sorted({*leg_starts_ms(track), times[index]})
     changed = _with_tag(track, leg_starts=[format_utc(t) for t in new_starts])
-    note = f"{name} split into legs at {_when(times[index])}"
     spans = legs(changed)
     listed = ", ".join(
         f"leg {n} {_span([times[a], times[b]])}" for n, (a, b) in enumerate(spans, 1)
@@ -835,6 +923,49 @@ def with_sensor_ids(
         if ids and ids != list(tag.sensor_ids):
             out[feature.id] = _with_tag(feature, sensor_ids=ids)
     return out
+
+
+def without_cuts(
+    plot: DebriefFeatureCollection, cut_ids: Iterable[str]
+) -> tuple[list[models.TrackFeature], list[str]]:
+    """Solutions rooted in cuts about to be deleted (product owner, 27 Oct 2026), each with
+    those cut ids dropped from its roots and from the cuts left out of its RMS, and a note for
+    each saying so. Its fixes stay where they are: it is the analyst's to fit again."""
+    gone = set(cut_ids)
+    changed, notes = [], []
+    for track in solutions(plot):
+        tag = track.properties.tma
+        dropped = [i for i in tag.cut_ids if i in gone]
+        if not dropped:
+            continue
+        kept = [i for i in tag.cut_ids if i not in gone]
+        left = [i for i in tag.excluded_cut_ids or [] if i not in gone]
+        changed.append(_with_tag(track, cut_ids=kept, excluded_cut_ids=left or None))
+        rest = f"rooted in {_count(len(kept), 'cut')} now" if kept else "rooted in no cut now"
+        notes.append(
+            f"{track.properties.name} drops the {_count(len(dropped), 'cut')} deleted it was "
+            f"rooted in: {rest}, its fixes where they were"
+        )
+    return changed, notes
+
+
+def hidden_notes(plot: DebriefFeatureCollection, cut_ids: Iterable[str], hidden: bool) -> list[str]:
+    """What hiding cuts, or showing them again, does to the solutions rooted in them (product
+    owner, 27 Oct 2026, as legacy's Visible=false): left out of their residuals and RMS while
+    hidden, counted again once shown."""
+    chosen = set(cut_ids)
+    notes = []
+    for track in solutions(plot):
+        n = sum(1 for i in track.properties.tma.cut_ids if i in chosen)
+        if not n:
+            continue
+        what = _count(n, "of its cuts", "of its cuts")
+        notes.append(
+            f"{track.properties.name}: {what} left out of its residuals until shown again"
+            if hidden
+            else f"{track.properties.name}: {what} counted in its residuals again"
+        )
+    return notes
 
 
 # --- Track operations on a solution ------------------------------------------------------

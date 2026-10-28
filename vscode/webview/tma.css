@@ -10,57 +10,26 @@
 .tma button:focus-visible, .tma select:focus-visible, .tma input:focus-visible { outline: 1px solid var(--vscode-focusBorder); outline-offset: 1px; }
 .tma-empty { margin: 4px 0; color: var(--vscode-descriptionForeground); }
 
-/* The sensor and the solution: two lists side by side, one above the other when narrow. */
-.tma-head { display: flex; flex-wrap: wrap; gap: 4px 12px; }
-.tma-pick { display: flex; align-items: center; gap: 6px; flex: 1 1 14em; min-width: 0; }
-.tma-pick > span { color: var(--vscode-descriptionForeground); min-width: 4.5em; }
-.tma-pick select { flex: 1; min-width: 0; height: 22px; background: var(--vscode-dropdown-background); color: var(--vscode-dropdown-foreground, var(--vscode-foreground)); border: 1px solid var(--vscode-dropdown-border, transparent); font: inherit; }
+/* What is shown, in one line (product owner, 27 Oct 2026): the Outline's selection chooses it. */
+.tma-title { margin: 0; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; flex: none; min-width: 0; }
+.tma-title:empty { display: none; }
 
-/* VS Code's side bar: the view as tall as the side bar gives it, so the plot takes the height. */
+/* VS Code's panel: the view as tall as the panel gives it, so the plot takes the height. */
 html:has(.tma-root), html:has(.tma-root) body { height: 100%; margin: 0; }
 .tma-root { box-sizing: border-box; height: 100%; }
 .tma-root > .tma { height: 100%; }
 
-/* The plot, the RMS and the buttons (left), the list (right). Tall and narrow (beside the map, VS Code's
-   side bar, a phone's column): the plot first taking the height, the cue and RMS, the list beneath it
-   (a few rows: the plot's keyboard way, and each cut's error in words), then the notes and buttons.
-   From 640 px wide (tmacontrol.ts WIDE_PX; the strip under the map, if moved there) side by side. */
+/* No lists (product owner, 27 Oct 2026): the title, the toolbar, ⋯, the plot taking the height, the
+   status line and, when open, the first guess's form. */
 .tma-body { display: flex; flex-direction: column; gap: 4px; flex: 1 1 auto; min-height: 0; }
-.tma-left { display: flex; flex-direction: column; gap: 4px; flex: none; min-width: 0; }
-.tma-right { display: flex; flex-direction: column; flex: 1 1 auto; min-height: 0; min-width: 0; }
-.tma-solution-shown:not(.tma-wide) .tma-left { display: contents; }
-.tma-solution-shown:not(.tma-wide) .tma-tools { order: 1; }
-.tma-solution-shown:not(.tma-wide) .tma-more { order: 2; }
-.tma-solution-shown:not(.tma-wide) .tma-plot { order: 3; }
-.tma-solution-shown:not(.tma-wide) .tma-statusline { order: 4; }
-.tma-solution-shown:not(.tma-wide) .tma-cuts-toggle { order: 5; }
-.tma-solution-shown:not(.tma-wide) .tma-right { order: 6; flex: none; }
-.tma-solution-shown:not(.tma-wide) .tma-list { flex: none; height: calc(6 * 22px + 2px); min-height: 0; }
-.tma-solution-shown:not(.tma-wide) .tma-below { order: 7; }
-/* The cut list closed (with a solution, by default; product owner, 25 Oct 2026): the plot takes the height. */
-/* Split, Leave out and Keep side stay in sight with it closed (the panel's M3); stepping between ambiguous cuts is the list's. */
-.tma-cuts-closed .tma-right, .tma-cuts-closed .tma-notes, .tma-cuts-closed .tma-prev, .tma-cuts-closed .tma-next { display: none !important; }
-.tma .tma-cuts-toggle { flex: none; align-self: flex-start; padding: 0 4px; border: 0; background: transparent; color: var(--vscode-textLink-foreground, var(--vscode-foreground)); text-align: left; }
-.tma .tma-cuts-toggle:hover:not(:disabled) { background: transparent; text-decoration: underline; }
-.tma-wide .tma-body { flex-direction: row; gap: 12px; }
-.tma-wide .tma-left { flex: 1 1 50%; overflow: hidden; }
-/* Beside the list in a short panel the plot keeps its place; what is beneath it scrolls. */
-.tma-below { display: flex; flex-direction: column; gap: 4px; min-height: 0; }
-.tma-wide .tma-below { flex: 1 1 auto; overflow-y: auto; }
-/* The cut list closed, nothing beside the plot: the plot takes the height, what is beneath it only its own. */
-.tma-wide.tma-cuts-closed .tma-below { flex: none; }
-.tma-wide .tma-right { flex: 1 1 50%; }
-.tma-wide .tma-list { min-height: 66px; }
+.tma-left { display: flex; flex-direction: column; gap: 4px; flex: 1 1 auto; min-height: 0; min-width: 0; }
+.tma-below { display: flex; flex-direction: column; gap: 4px; flex: none; min-height: 0; }
 
-/* One row with a solution shown: its list, the panes, the scale held, the zoom undone, ⋯ for the
-   sensor, the cut-off and the key (product owner, 25 Oct 2026). Narrower than it needs, it wraps. */
-.tma-tools { display: flex; flex-wrap: wrap; align-items: center; gap: 4px; }
-.tma-tools-solution { flex: 1 1 8em; min-width: 6em; display: flex; }
-.tma-tools-solution .tma-pick > span { display: none; }
-.tma-tools-solution .tma-pick { flex: 1 1 auto; min-width: 0; }
-.tma-more { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 12px; }
-.tma-more .tma-pick { flex: 1 1 14em; }
-.tma-more .tma-key { flex: 1 1 100%; }
+/* One row: the panes, the scale held, the zoom undone, ⋯ for the cut-off, the key and the notes
+   (product owner, 25 Oct 2026). Narrower than it needs, it wraps. */
+.tma-tools { display: flex; flex-wrap: wrap; align-items: center; gap: 4px; flex: none; }
+.tma-more { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 12px; flex: none; }
+.tma-more .tma-key, .tma-more .tma-notes { flex: 1 1 100%; }
 .tma-statusline { display: flex; flex-wrap: wrap; align-items: baseline; gap: 0 10px; flex: none; min-width: 0; }
 .tma-statusline > p { min-width: 0; max-width: 100%; overflow-wrap: anywhere; }
 .tma-panes { display: inline-flex; flex-wrap: wrap; gap: 2px; }
@@ -72,24 +41,22 @@ html:has(.tma-root), html:has(.tma-root) body { height: 100%; margin: 0; }
 /* Legacy's Stacked Dots, as it stood: time up the left, the panes side by side. One canvas, and
    one laid over it for the crosshair and a box being dragged, so pointing never redraws the plot.
    The canvases are laid over the plot's box, never sizing it: the panel lays it out. */
-.tma-plot { position: relative; flex: 1 1 auto; min-height: 280px; overflow: hidden; }
-.tma-wide .tma-plot { min-height: 160px; }
+.tma-plot { position: relative; flex: 1 1 auto; min-height: 220px; overflow: hidden; }
 /* Short (Bearings above the walkthroughs at a laptop's height): the plot keeps the room, the key goes,
-   the list keeps three rows, and what does not fit scrolls rather than being cut off. */
+   and what does not fit scrolls rather than being cut off. */
 .tma-short .tma-plot { min-height: 160px; }
-.tma-short.tma-solution-shown:not(.tma-wide) .tma-list { height: calc(3 * 22px + 2px); }
-.tma-short.tma-solution-shown { overflow-y: auto; }
+.tma-short { overflow-y: auto; }
 /* Controls on top at any size (product owner, 26 Oct 2026), unless on top they would leave the
-   plot under 220 px (tmacontrol.ts's placeControls sets tma-side, with hysteresis): then, wide with
-   the cut list closed (VS Code's default bottom panel), the plot the whole height on the left and
-   the toolbar, the cue, the cut list's button and the cut's buttons in a column beside it. */
-.tma-wide.tma-side.tma-solution-shown.tma-cuts-closed .tma-left { display: grid; grid-template-columns: minmax(0, 1fr) minmax(200px, 28%); grid-template-rows: auto auto auto auto minmax(0, 1fr); column-gap: 12px; row-gap: 4px; align-content: stretch; }
-.tma-wide.tma-side.tma-solution-shown.tma-cuts-closed .tma-plot { grid-column: 1; grid-row: 1 / -1; min-height: 0; }
-.tma-wide.tma-side.tma-solution-shown.tma-cuts-closed .tma-tools { grid-column: 2; grid-row: 1; }
-.tma-wide.tma-side.tma-solution-shown.tma-cuts-closed .tma-more { grid-column: 2; grid-row: 2; }
-.tma-wide.tma-side.tma-solution-shown.tma-cuts-closed .tma-statusline { grid-column: 2; grid-row: 3; }
-.tma-wide.tma-side.tma-solution-shown.tma-cuts-closed .tma-cuts-toggle { grid-column: 2; grid-row: 4; }
-.tma-wide.tma-side.tma-solution-shown.tma-cuts-closed .tma-below { grid-column: 2; grid-row: 5; overflow-y: auto; }
+   plot under 220 px (tmacontrol.ts's placeControls sets tma-side, with hysteresis): then, wide (VS
+   Code's default bottom panel), the plot the whole height on the left and the title, the toolbar,
+   ⋯, the status line and the form in a column beside it. */
+.tma-wide.tma-side .tma-left { display: grid; grid-template-columns: minmax(0, 1fr) minmax(200px, 28%); grid-template-rows: auto auto auto auto minmax(0, 1fr); column-gap: 12px; row-gap: 4px; align-content: stretch; }
+.tma-wide.tma-side .tma-plot { grid-column: 1; grid-row: 1 / -1; min-height: 0; }
+.tma-wide.tma-side .tma-title { grid-column: 2; grid-row: 1; white-space: normal; }
+.tma-wide.tma-side .tma-tools { grid-column: 2; grid-row: 2; }
+.tma-wide.tma-side .tma-more { grid-column: 2; grid-row: 3; }
+.tma-wide.tma-side .tma-statusline { grid-column: 2; grid-row: 4; }
+.tma-wide.tma-side .tma-below { grid-column: 2; grid-row: 5; overflow-y: auto; }
 .tma-canvas, .tma-overlay { position: absolute; left: 0; top: 0; display: block; }
 .tma-canvas { cursor: crosshair; touch-action: none; }
 .tma-canvas:focus-visible { outline: 1px solid var(--vscode-focusBorder); outline-offset: -1px; }
@@ -103,46 +70,15 @@ html:has(.tma-root), html:has(.tma-root) body { height: 100%; margin: 0; }
 .tma-cue[data-state="within"] .tma-cue-mark { color: var(--vscode-testing-iconPassed, var(--vscode-foreground)); }
 .tma-cue[data-state="beyond"] .tma-cue-mark { color: var(--vscode-testing-iconFailed, var(--vscode-errorForeground)); }
 .tma-key { display: flex; flex-wrap: wrap; gap: 0 12px; margin: 0; color: var(--vscode-descriptionForeground); font-size: 11px; }
+.tma-short .tma-key { display: none; }
 .tma-offscale { margin: 0; color: var(--vscode-descriptionForeground); }
 .tma-offscale:empty { display: none; }
 .tma-rms { margin: 0; flex: none; font-weight: 600; font-variant-numeric: tabular-nums; }
+.tma-cuts-shown .tma-rms { font-weight: normal; color: var(--vscode-descriptionForeground); }
 .tma-notes { margin: 0; padding-left: 16px; color: var(--vscode-descriptionForeground); font-size: 11px; }
-.tma-actions { display: flex; flex-wrap: wrap; gap: 4px; }
-
-/* The cut list: rows of one height whatever the font (ROW_PX), so it scrolls by them, and only
-   those in sight are in the page. Columns by grid; the residual columns only with a solution. */
-.tma-columns, .tma-row { display: grid; grid-template-columns: minmax(0, 5.8em) minmax(0, 1fr); column-gap: 6px; }
-.tma-columns.tma-with-residual, .tma-with-residual .tma-row { grid-template-columns: minmax(0, 5.8em) minmax(0, 1fr) minmax(0, 3.9em) 1.2em; }
-.tma-columns > span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.tma-columns > span.tma-c-res { overflow: visible; text-overflow: clip; }
-.tma-narrow .tma-columns.tma-with-residual, .tma-narrow .tma-with-residual .tma-row { grid-template-columns: minmax(0, 5.3em) minmax(0, 1fr) minmax(0, 3.7em); column-gap: 4px; }
-.tma-narrow .tma-c-in { display: none; }
-.tma-columns { padding: 0 4px; color: var(--vscode-descriptionForeground); font-size: 11px; }
-.tma-columns .tma-c-res { display: none; }
-/* Right-aligned and allowed to overflow: as a flex end, a heading wider than its column (a wide font in a narrow view) spills left over the bearing column, never past the list. */
-.tma-columns.tma-with-residual .tma-c-res { display: flex; justify-content: flex-end; }
-.tma-list { position: relative; flex: 1 1 140px; min-height: 140px; overflow-y: auto; overflow-x: hidden; border: 1px solid var(--vscode-widget-border, var(--vscode-panel-border, transparent)); }
-.tma-list:focus-visible { outline: 1px solid var(--vscode-focusBorder); outline-offset: -1px; }
-.tma-spacer { width: 1px; }
-.tma-row { position: absolute; left: 0; right: 0; height: 22px; line-height: 22px; padding: 0 4px; overflow: hidden; white-space: nowrap; cursor: default; font-variant-numeric: tabular-nums; }
-.tma-row > span { overflow: hidden; text-overflow: ellipsis; }
-.tma-row:hover { background: var(--vscode-list-hoverBackground); }
-.tma-row.tma-chosen-row { background: var(--vscode-list-inactiveSelectionBackground); }
-.tma-list:focus .tma-row.tma-chosen-row { background: var(--vscode-list-activeSelectionBackground); color: var(--vscode-list-activeSelectionForeground, var(--vscode-foreground)); }
-.tma-row.tma-active { outline: 1px solid var(--vscode-list-focusOutline, var(--vscode-focusBorder)); outline-offset: -1px; }
-.tma-row.tma-excluded, .tma-row.tma-hidden-cut { color: var(--vscode-descriptionForeground); }
-.tma-row.tma-hidden-cut .tma-c-res { font-style: italic; }
-.tma-row.tma-excluded .tma-c-res { text-decoration: line-through; }
-.tma-c-res { text-align: right; font-family: var(--vscode-editor-font-family); }
-.tma-c-in { text-align: center; cursor: pointer; }
-.tma-swatch { display: inline-block; width: 7px; height: 7px; border-radius: 50%; margin-right: 4px; vertical-align: 1px; }
-.tma-flag { color: var(--vscode-editorWarning-foreground, var(--vscode-descriptionForeground)); }
-.tma-flag:empty { display: none; }
 .tma-key-other { opacity: 0.55; }
 
-/* The period chosen, and making a solution of it. */
-.tma-chosen { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 8px; }
-.tma-period { flex: 1 1 14em; color: var(--vscode-descriptionForeground); }
+/* The first guess, for the cuts TMA solution from cuts… names (in the Tools). */
 .tma-form { display: grid; grid-template-columns: max-content minmax(0, 1fr); gap: 2px 8px; align-items: center; padding: 6px; border: 1px solid var(--vscode-widget-border, var(--vscode-panel-border, transparent)); background: var(--vscode-editorWidget-background, transparent); }
 .tma-form-title, .tma-form-problem, .tma-form-buttons { grid-column: 1 / -1; margin: 0; }
 .tma-form-title { font-weight: 600; }

@@ -4553,8 +4553,18 @@
     },
     "TmaFocus": {
       "additionalProperties": false,
-      "description": "What the bearing view chooses for the analyst, once (show_tma's focus): the cut at or nearest cut_time, current time moved to it; or the cuts in period as the period, the first guess's form opened if make; or, with a solution shown, the counted cut with the largest residual (largest), current time moved to it. The list then has the keyboard (the form, if opened).",
+      "description": "What the bearing view chooses for the analyst, once (show_tma's focus): the cut at or nearest cut_time, current time moved to it; or the cuts in period, or cut_ids, the first guess's form opened for them if make; or, with a solution shown, the counted cut with the largest residual (largest), current time moved to it. The plot then has the keyboard (the form, if opened).",
       "properties": {
+        "cut_ids": {
+          "description": "With make, the cuts the solution is to be rooted in, exactly: a run of cuts selected in the Outline (product owner, 27 Oct 2026).",
+          "items": {
+            "type": "string"
+          },
+          "type": [
+            "array",
+            "null"
+          ]
+        },
         "cut_time": {
           "description": "Choose the cut at or nearest this time.",
           "pattern": "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}\\.\\d{3}Z$",
@@ -4571,7 +4581,7 @@
           ]
         },
         "make": {
-          "description": "With period, open the first guess's form (Make solution\u2026).",
+          "description": "With period or cut_ids, open the first guess's form (TMA solution from cuts\u2026).",
           "type": [
             "boolean",
             "null"
@@ -5167,7 +5177,7 @@
     },
     "TmaView": {
       "additionalProperties": false,
-      "description": "What the host sends the bearing view (show_tma): the plot's sensors and solutions; the cuts of the sensor chosen, in time order; and, for the solution shown, its residuals.",
+      "description": "What the host sends the bearing view (show_tma): the plot's sensors and solutions; the cuts of the sensor chosen, in time order; and, for the solution shown, its residuals. The view follows the Outline's selection (product owner, 27 Oct 2026): a solution, one of its legs or fixes shows the solution; a sensor, or some of its cuts, the sensor's coverage.",
       "properties": {
         "coverage": {
           "description": "With a solution shown, every cut of its sensors shown on the map, in time order, rooted or not: the Bearing pane plots each measured bearing over the sensors' whole coverage, the calculated bearings and errors only where the solution is (product owner, 25 Oct 2026). Cuts hidden on the map are left out.",
@@ -5269,6 +5279,13 @@
           },
           "type": [
             "array",
+            "null"
+          ]
+        },
+        "title": {
+          "description": "What is shown, in one line, as the host says it (product owner, 27 Oct 2026): \"Contact 1 solution, leg 2, fix at 10:38:00Z\", \"Towed array on BLUE ONE: 102 cuts\".",
+          "type": [
+            "string",
             "null"
           ]
         }

@@ -1985,7 +1985,8 @@ class ItemRef(ConfiguredBaseModel):
                        'CoverageSource',
                        'CoverageItem',
                        'ReviewFlag',
-                       'FigureSource']} })
+                       'FigureSource',
+                       'TmaView']} })
     revision: str = Field(default=..., description="""The item's revision when it was read: the content hash of its plot (its whole-plot details included), so any recorded change to the item, of data or details, is a new revision.""", json_schema_extra = { "linkml_meta": {'domain_of': ['ItemRef',
                        'TrackSupply',
                        'ItemRevision',
@@ -2174,6 +2175,7 @@ class TmaSolution(ConfiguredBaseModel):
     cut_ids: list[str] = Field(default=..., description="""The cuts it is rooted in, by feature id, in time order: every cut of the rooted period on the sensors chosen. Its fixes fall at their times when Debrief makes it. A legacy solution whose sensor the plot does not have has none, and the import says so.""", json_schema_extra = { "linkml_meta": {'domain_of': ['TmaSolution',
                        'TmaRequest',
                        'AmbiguityResolution',
+                       'TmaFocus',
                        'WebviewMessage']} })
     period: TimeRange = Field(default=..., description="""The period of bearings it is rooted in, ends included.""", json_schema_extra = { "linkml_meta": {'domain_of': ['TmaSolution',
                        'TmaRequest',
@@ -2214,6 +2216,7 @@ class TmaRequest(ConfiguredBaseModel):
     cut_ids: Optional[list[str]] = Field(default=None, description="""Or the cuts to root it in, by feature id.""", json_schema_extra = { "linkml_meta": {'domain_of': ['TmaSolution',
                        'TmaRequest',
                        'AmbiguityResolution',
+                       'TmaFocus',
                        'WebviewMessage']} })
     contact: Optional[str] = Field(default=None, description="""The contact's name; left out, the next of \"Contact 1\", \"Contact 2\"...""", json_schema_extra = { "linkml_meta": {'domain_of': ['TmaSolution', 'TmaRequest', 'TmaSolutionRow']} })
     name: Optional[str] = Field(default=None, description="""The solution track's name; left out, the contact's with \"solution\".""", json_schema_extra = { "linkml_meta": {'domain_of': ['ParameterValue',
@@ -2390,7 +2393,8 @@ class TrackSupply(ConfiguredBaseModel):
                        'CoverageSource',
                        'CoverageItem',
                        'ReviewFlag',
-                       'FigureSource']} })
+                       'FigureSource',
+                       'TmaView']} })
     revision: Optional[str] = Field(default=None, description="""The item's revision when the period was taken from it; left out where the plot supplies it itself.""", json_schema_extra = { "linkml_meta": {'domain_of': ['ItemRef',
                        'TrackSupply',
                        'ItemRevision',
@@ -3356,6 +3360,7 @@ class AmbiguityResolution(ConfiguredBaseModel):
     cut_ids: Optional[list[str]] = Field(default=None, description="""The cuts to resolve, by feature id. Or give sensor_ids, and perhaps a period.""", json_schema_extra = { "linkml_meta": {'domain_of': ['TmaSolution',
                        'TmaRequest',
                        'AmbiguityResolution',
+                       'TmaFocus',
                        'WebviewMessage']} })
     sensor_ids: Optional[list[str]] = Field(default=None, description="""Sensors whose cuts in the period are resolved; every cut of each, without a period.""", json_schema_extra = { "linkml_meta": {'domain_of': ['TmaSolution', 'TmaRequest', 'AmbiguityResolution']} })
     period: Optional[TimeRange] = Field(default=None, description="""The cuts whose times fall in it, ends included, of the sensors named.""", json_schema_extra = { "linkml_meta": {'domain_of': ['TmaSolution',
@@ -3699,7 +3704,8 @@ class PlotProperties(ConfiguredBaseModel):
                        'CoverageSource',
                        'CoverageItem',
                        'ReviewFlag',
-                       'FigureSource']} })
+                       'FigureSource',
+                       'TmaView']} })
     description: Optional[str] = Field(default=None, description="""What the plot is for. Content.""", json_schema_extra = { "linkml_meta": {'domain_of': ['PlotProperties',
                        'StacItemProperties',
                        'StacCatalog',
@@ -3945,7 +3951,8 @@ class StacLink(ConfiguredBaseModel):
                        'CoverageSource',
                        'CoverageItem',
                        'ReviewFlag',
-                       'FigureSource']} })
+                       'FigureSource',
+                       'TmaView']} })
 
 
 class StacAsset(ConfiguredBaseModel):
@@ -3986,7 +3993,8 @@ class StacAsset(ConfiguredBaseModel):
                        'CoverageSource',
                        'CoverageItem',
                        'ReviewFlag',
-                       'FigureSource']} })
+                       'FigureSource',
+                       'TmaView']} })
     roles: Optional[list[str]] = Field(default=None, json_schema_extra = { "linkml_meta": {'domain_of': ['StacAsset']} })
     debrief_asset_kind: AssetKindEnum = Field(default=..., alias="debrief:asset_kind", json_schema_extra = { "linkml_meta": {'domain_of': ['StacAsset']} })
     debrief_content_hash: Optional[str] = Field(default=None, alias="debrief:content_hash", description="""Required for sources (SUB-11).""", json_schema_extra = { "linkml_meta": {'domain_of': ['StacAsset']} })
@@ -4029,7 +4037,8 @@ class StacItemProperties(ConfiguredBaseModel):
                        'CoverageSource',
                        'CoverageItem',
                        'ReviewFlag',
-                       'FigureSource']} })
+                       'FigureSource',
+                       'TmaView']} })
     description: Optional[str] = Field(default=None, json_schema_extra = { "linkml_meta": {'domain_of': ['PlotProperties',
                        'StacItemProperties',
                        'StacCatalog',
@@ -4322,7 +4331,8 @@ class StacCatalog(ConfiguredBaseModel):
                        'CoverageSource',
                        'CoverageItem',
                        'ReviewFlag',
-                       'FigureSource']} })
+                       'FigureSource',
+                       'TmaView']} })
     description: str = Field(default=..., json_schema_extra = { "linkml_meta": {'domain_of': ['PlotProperties',
                        'StacItemProperties',
                        'StacCatalog',
@@ -4477,7 +4487,8 @@ class ToolDeclaration(ConfiguredBaseModel):
                        'CoverageSource',
                        'CoverageItem',
                        'ReviewFlag',
-                       'FigureSource']} })
+                       'FigureSource',
+                       'TmaView']} })
     explanation: str = Field(default=..., description="""Short user-facing explanation of what the tool does (CAP-24).""", json_schema_extra = { "linkml_meta": {'domain_of': ['ToolDeclaration', 'ParameterDeclaration', 'MeasureDefinition']} })
     judgement: Optional[str] = Field(default=None, description="""Any judgement the tool involves, shown on its form (CAP-24).""", json_schema_extra = { "linkml_meta": {'domain_of': ['ToolDeclaration']} })
     applies_to: list[str] = Field(default=..., description="""Feature kinds from the taxonomy, or \"*\" for any (TL-06). Debrief offers a tool only if every selected item matches (TL-08).""", json_schema_extra = { "linkml_meta": {'domain_of': ['ToolDeclaration']} })
@@ -4558,7 +4569,8 @@ class ParameterDeclaration(ConfiguredBaseModel):
                        'CoverageSource',
                        'CoverageItem',
                        'ReviewFlag',
-                       'FigureSource']} })
+                       'FigureSource',
+                       'TmaView']} })
     explanation: Optional[str] = Field(default=None, description="""Shown beside the field on the form (CAP-24).""", json_schema_extra = { "linkml_meta": {'domain_of': ['ToolDeclaration', 'ParameterDeclaration', 'MeasureDefinition']} })
     kind: ParameterKindEnum = Field(default=..., json_schema_extra = { "linkml_meta": {'domain_of': ['ProvRecord',
                        'AgentRef',
@@ -4657,7 +4669,8 @@ class NonSpatialResult(ConfiguredBaseModel):
                        'CoverageSource',
                        'CoverageItem',
                        'ReviewFlag',
-                       'FigureSource']} })
+                       'FigureSource',
+                       'TmaView']} })
     presentation: ResultPresentationEnum = Field(default=..., json_schema_extra = { "linkml_meta": {'domain_of': ['NonSpatialResult']} })
     columns: list[ResultColumn] = Field(default=..., json_schema_extra = { "linkml_meta": {'domain_of': ['PayloadRef', 'NonSpatialResult']} })
 
@@ -4785,7 +4798,8 @@ class MeasureDefinition(ConfiguredBaseModel):
                        'CoverageSource',
                        'CoverageItem',
                        'ReviewFlag',
-                       'FigureSource']} })
+                       'FigureSource',
+                       'TmaView']} })
     label: str = Field(default=..., description="""Its row heading in the Tote, before the unit, short enough for a narrow view.""", json_schema_extra = { "linkml_meta": {'domain_of': ['FixMark', 'SensorCutProperties', 'MeasureDefinition', 'TmaCut']} })
     subject: MeasureSubjectEnum = Field(default=..., json_schema_extra = { "linkml_meta": {'domain_of': ['MeasureDefinition']} })
     quantity_kind: QuantityKindEnum = Field(default=..., json_schema_extra = { "linkml_meta": {'domain_of': ['PayloadColumn',
@@ -4853,7 +4867,8 @@ class MeasureGroup(ConfiguredBaseModel):
                        'CoverageSource',
                        'CoverageItem',
                        'ReviewFlag',
-                       'FigureSource']} })
+                       'FigureSource',
+                       'TmaView']} })
     description: Optional[str] = Field(default=None, json_schema_extra = { "linkml_meta": {'domain_of': ['PlotProperties',
                        'StacItemProperties',
                        'StacCatalog',
@@ -5203,7 +5218,8 @@ class KnownStore(ConfiguredBaseModel):
                        'CoverageSource',
                        'CoverageItem',
                        'ReviewFlag',
-                       'FigureSource']} })
+                       'FigureSource',
+                       'TmaView']} })
     kind: StoreKindEnum = Field(default=..., json_schema_extra = { "linkml_meta": {'domain_of': ['ProvRecord',
                        'AgentRef',
                        'TrackProperties',
@@ -5290,7 +5306,8 @@ class CoverageReport(ConfiguredBaseModel):
                        'CoverageSource',
                        'CoverageItem',
                        'ReviewFlag',
-                       'FigureSource']} })
+                       'FigureSource',
+                       'TmaView']} })
     start: Optional[str] = Field(default=None, description="""The earliest time any source shown has data.""", json_schema_extra = { "linkml_meta": {'domain_of': ['TimeRange',
                        'TrackSupply',
                        'CoverageReport',
@@ -5483,7 +5500,8 @@ class CoverageSource(ConfiguredBaseModel):
                        'CoverageSource',
                        'CoverageItem',
                        'ReviewFlag',
-                       'FigureSource']} })
+                       'FigureSource',
+                       'TmaView']} })
     link: CoverageLinkEnum = Field(default=..., json_schema_extra = { "linkml_meta": {'domain_of': ['CoverageSource']} })
     fixes: int = Field(default=..., ge=0, json_schema_extra = { "linkml_meta": {'domain_of': ['TrackCoverage', 'CoverageSource']} })
     spans: list[TimeRange] = Field(default=..., json_schema_extra = { "linkml_meta": {'domain_of': ['TrackCoverage', 'CoverageSource']} })
@@ -5581,7 +5599,8 @@ class CoverageItem(ConfiguredBaseModel):
                        'CoverageSource',
                        'CoverageItem',
                        'ReviewFlag',
-                       'FigureSource']} })
+                       'FigureSource',
+                       'TmaView']} })
     role: CoverageItemRoleEnum = Field(default=..., json_schema_extra = { "linkml_meta": {'domain_of': ['CoverageItem']} })
     created: Optional[str] = Field(default=None, json_schema_extra = { "linkml_meta": {'domain_of': ['StacItemProperties', 'CoverageItem']} })
     start: Optional[str] = Field(default=None, json_schema_extra = { "linkml_meta": {'domain_of': ['TimeRange',
@@ -5740,7 +5759,8 @@ class ReviewFlag(ConfiguredBaseModel):
                        'CoverageSource',
                        'CoverageItem',
                        'ReviewFlag',
-                       'FigureSource']} })
+                       'FigureSource',
+                       'TmaView']} })
     revised: list[ItemRef] = Field(default=..., description="""Each item revised since the product took data from it, at its revision now.""", json_schema_extra = { "linkml_meta": {'domain_of': ['CoverageSource', 'CoverageItem', 'ReviewFlag']} })
     note: str = Field(default=..., description="""What the flag says, for its tooltip and screen readers.""", json_schema_extra = { "linkml_meta": {'domain_of': ['ToteRow',
                        'ToteResult',
@@ -5985,7 +6005,8 @@ class FigureSource(ConfiguredBaseModel):
                        'CoverageSource',
                        'CoverageItem',
                        'ReviewFlag',
-                       'FigureSource']} })
+                       'FigureSource',
+                       'TmaView']} })
     revision: str = Field(default=..., json_schema_extra = { "linkml_meta": {'domain_of': ['ItemRef',
                        'TrackSupply',
                        'ItemRevision',
@@ -6581,10 +6602,29 @@ class TmaOwnship(ConfiguredBaseModel):
 
 class TmaView(ConfiguredBaseModel):
     """
-    What the host sends the bearing view (show_tma): the plot's sensors and solutions; the cuts of the sensor chosen, in time order; and, for the solution shown, its residuals.
+    What the host sends the bearing view (show_tma): the plot's sensors and solutions; the cuts of the sensor chosen, in time order; and, for the solution shown, its residuals. The view follows the Outline's selection (product owner, 27 Oct 2026): a solution, one of its legs or fixes shows the solution; a sensor, or some of its cuts, the sensor's coverage.
     """
     linkml_meta: ClassVar[LinkMLMeta] = LinkMLMeta({'from_schema': 'https://debrief.info/schemas/debrief'})
 
+    title: Optional[str] = Field(default=None, description="""What is shown, in one line, as the host says it (product owner, 27 Oct 2026): \"Contact 1 solution, leg 2, fix at 10:38:00Z\", \"Towed array on BLUE ONE: 102 cuts\".""", json_schema_extra = { "linkml_meta": {'domain_of': ['ItemRef',
+                       'TrackSupply',
+                       'PlotProperties',
+                       'StacLink',
+                       'StacAsset',
+                       'StacItemProperties',
+                       'StacCatalog',
+                       'ToolDeclaration',
+                       'ParameterDeclaration',
+                       'NonSpatialResult',
+                       'MeasureDefinition',
+                       'MeasureGroup',
+                       'KnownStore',
+                       'CoverageReport',
+                       'CoverageSource',
+                       'CoverageItem',
+                       'ReviewFlag',
+                       'FigureSource',
+                       'TmaView']} })
     plot_id: Optional[str] = Field(default=None, description="""Which plot is open, as its host knows it.""", json_schema_extra = { "linkml_meta": {'domain_of': ['TmaView', 'WebviewMessage']} })
     read_only: Optional[bool] = Field(default=None, description="""An earlier revision is shown read-only, so nothing can be changed.""", json_schema_extra = { "linkml_meta": {'domain_of': ['KnownStore', 'TmaView']} })
     sensors: Optional[list[TmaSensorRow]] = Field(default=None, json_schema_extra = { "linkml_meta": {'domain_of': ['TmaView']} })
@@ -6601,7 +6641,7 @@ class TmaView(ConfiguredBaseModel):
 
 class TmaFocus(ConfiguredBaseModel):
     """
-    What the bearing view chooses for the analyst, once (show_tma's focus): the cut at or nearest cut_time, current time moved to it; or the cuts in period as the period, the first guess's form opened if make; or, with a solution shown, the counted cut with the largest residual (largest), current time moved to it. The list then has the keyboard (the form, if opened).
+    What the bearing view chooses for the analyst, once (show_tma's focus): the cut at or nearest cut_time, current time moved to it; or the cuts in period, or cut_ids, the first guess's form opened for them if make; or, with a solution shown, the counted cut with the largest residual (largest), current time moved to it. The plot then has the keyboard (the form, if opened).
     """
     linkml_meta: ClassVar[LinkMLMeta] = LinkMLMeta({'from_schema': 'https://debrief.info/schemas/debrief'})
 
@@ -6612,7 +6652,12 @@ class TmaFocus(ConfiguredBaseModel):
                        'AmbiguityResolution',
                        'TmaSolutionRow',
                        'TmaFocus']} })
-    make: Optional[bool] = Field(default=None, description="""With period, open the first guess's form (Make solution…).""", json_schema_extra = { "linkml_meta": {'domain_of': ['TmaFocus']} })
+    make: Optional[bool] = Field(default=None, description="""With period or cut_ids, open the first guess's form (TMA solution from cuts…).""", json_schema_extra = { "linkml_meta": {'domain_of': ['TmaFocus']} })
+    cut_ids: Optional[list[str]] = Field(default=None, description="""With make, the cuts the solution is to be rooted in, exactly: a run of cuts selected in the Outline (product owner, 27 Oct 2026).""", json_schema_extra = { "linkml_meta": {'domain_of': ['TmaSolution',
+                       'TmaRequest',
+                       'AmbiguityResolution',
+                       'TmaFocus',
+                       'WebviewMessage']} })
     largest: Optional[bool] = Field(default=None, description="""Choose the cut counted in the RMS with the largest residual.""", json_schema_extra = { "linkml_meta": {'domain_of': ['TmaFocus']} })
 
     @field_validator('cut_time')
@@ -6846,6 +6891,7 @@ class WebviewMessage(ConfiguredBaseModel):
     cut_ids: Optional[list[str]] = Field(default=None, description="""The rooted cuts left out of a solution's RMS error, or counted again (tma_exclude).""", json_schema_extra = { "linkml_meta": {'domain_of': ['TmaSolution',
                        'TmaRequest',
                        'AmbiguityResolution',
+                       'TmaFocus',
                        'WebviewMessage']} })
     excluded: Optional[bool] = Field(default=None, description="""Whether the cuts are left out (tma_exclude).""", json_schema_extra = { "linkml_meta": {'domain_of': ['TmaResidualRow', 'TmaResiduals', 'WebviewMessage']} })
     plot_height: Optional[int] = Field(default=None, description="""The height of the Bearings view's plot, its panes' time axis, CSS pixels (tma_plot_drawn).""", ge=0, json_schema_extra = { "linkml_meta": {'domain_of': ['WebviewMessage']} })

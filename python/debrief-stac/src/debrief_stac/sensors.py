@@ -126,6 +126,28 @@ def cut_title(cut, sensor_name: str) -> str:
     return f"{sensor_name} cut at {when(cut.properties.time)}"
 
 
+def cuts_said(chosen: list, by_id: dict) -> str:
+    """Cuts as a step names them (product owner, 27 Oct 2026): "Towed array cut at 09:31:00Z",
+    "12 Towed array cuts 09:31:00Z–09:42:00Z", "12 cuts of Towed array and Bow sonar
+    09:31:00Z–09:42:00Z"."""
+    if len(chosen) == 1:
+        return name_of(chosen[0], by_id)
+    names = list(
+        dict.fromkeys(
+            by_id[c.properties.sensor_id].properties.name
+            if c.properties.sensor_id in by_id
+            else "Sensor"
+            for c in chosen
+        )
+    )
+    times = sorted(c.properties.time for c in chosen)
+    span = when(times[0]) if times[0] == times[-1] else f"{when(times[0])}–{when(times[-1])}"
+    if len(names) == 1:
+        return f"{len(chosen):,} {names[0]} cuts {span}"
+    sensors_named = " and ".join(names) if len(names) == 2 else f"{len(names)} sensors"
+    return f"{len(chosen):,} cuts of {sensors_named} {span}"
+
+
 def name_of(feature, by_id: dict) -> str:
     """Any feature's name, as a step says it: a cut by its sensor and time."""
     props = feature.properties

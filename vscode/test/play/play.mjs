@@ -125,22 +125,30 @@ try {
   await page.mouse.click(dot.x + dot.width / 2, dot.y + dot.height / 2);
   await page.waitForFunction(() => document.querySelector("#outline li.selected .name")?.textContent === "BLUE ONE");
   assert.deepEqual(await selected(), ["BLUE ONE"]);
-  // ...and a click inside the area, near its corner and away from any track, selects nothing.
+  // ...and a click inside the area, near its corner and away from any track, selects nothing but
+  // perhaps a bearing cut drawn there (its row, a sensor's child in the Outline, selected).
   const area = await page.frameLocator(".frame-map").locator('path[fill-opacity="0.05"]').boundingBox();
   await page.mouse.click(area.x + 25, area.y + 25);
+  await page.waitForFunction(() => ![...document.querySelectorAll("#outline li.selected")].some((li) => !li.classList.contains("cut")));
+  await page.frameLocator(".frame-map").locator("#map").focus();
+  await page.keyboard.press("Escape");
   await page.waitForFunction(() => !document.querySelector("#outline li.selected"));
   await shot("play-02-map-click");
 
-  // The outline from the keyboard: Space selects, and Tab moves on (it is not trapped).
-  const rows = page.locator("#outline li");
-  assert.equal(await page.locator("#outline").getAttribute("role"), "listbox");
+  // The outline from the keyboard, a tree (product owner, 27 Oct 2026): one tab stop; Space selects,
+  // Down moves the keyboard, Enter selects there; Tab moves on (it is not trapped).
+  const rows = page.locator("#outline li[role=treeitem]");
+  assert.equal(await page.locator("#outline").getAttribute("role"), "tree");
   await rows.nth(0).focus();
   await page.keyboard.press(" ");
-  await page.waitForFunction(() => document.querySelector("#outline li")?.getAttribute("aria-selected") === "true");
-  await page.keyboard.press("Tab");
+  await page.waitForFunction(() => document.querySelector("#outline li[role=treeitem]")?.getAttribute("aria-selected") === "true");
+  await page.keyboard.press("ArrowDown");
   assert.equal(await page.evaluate(() => document.activeElement?.dataset.id), await rows.nth(1).getAttribute("data-id"));
   await page.keyboard.press("Enter");
-  await page.waitForFunction(() => document.querySelectorAll("#outline li.selected").length === 1 && document.querySelectorAll("#outline li")[1].classList.contains("selected"));
+  await page.waitForFunction(() => document.querySelectorAll("#outline li.selected").length === 1 && document.querySelectorAll("#outline li[role=treeitem]")[1].classList.contains("selected"));
+  assert.equal(await page.locator("#outline li[tabindex='0']").count(), 1, "one tab stop");
+  await page.keyboard.press("Tab");
+  assert.equal(await page.evaluate(() => !!document.activeElement?.closest("#outline")), false, "Tab leaves the tree");
 
   // The window first ends at 09:00, before the closest approach of BLUE ONE and RED ONE (09:21).
   const tc = (selector) => page.locator(`#timebar ${selector}`);

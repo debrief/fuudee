@@ -685,6 +685,33 @@ export function splitAllowed(times: number[], legStarts: number[], at: number): 
   return here - lo >= 2 && hi - here >= 2;
 }
 
+/**
+ * Splitting a solution's leg before or after one of its fixes (product owner, 27 Oct 2026, the
+ * Outline's Split before and Split after): before, the fix starts a new leg; after, it ends the
+ * earlier one. Where the new leg starts (first, its first fix's index), or why it cannot:
+ * "first" (the fix already starts a leg), "last" (it already ends one, or is the last), "few"
+ * (a leg would keep fewer than two fixes either side). leg is the leg holding the fix, from 1.
+ * As debrief_stac.tma.split_at_fix_index, held to schemas/vectors/tma-legs.json.
+ */
+export type FixSplit = { first: number; leg: number; before: number; after: number } | { refused: "first" | "last" | "few"; leg: number; before?: number; after?: number };
+export function splitAtFix(times: number[], legStarts: number[], index: number, side: "before" | "after"): FixSplit {
+  const leg = 1 + legStarts.filter((s) => s <= times[index]).length;
+  const first = side === "before" ? index : index + 1;
+  const firsts = new Set([0, ...legStarts.map((s) => { const i = times.findIndex((t) => t >= s); return i < 0 ? times.length : i; })]);
+  if (first >= times.length) return { refused: "last", leg };
+  if (firsts.has(first)) return { refused: side === "before" ? "first" : "last", leg };
+  let lo = 0;
+  let hi = times.length;
+  for (const b of firsts) {
+    if (b <= first && b > lo) lo = b;
+    if (b > first && b < hi) hi = b;
+  }
+  const before = first - lo;
+  const after = hi - first;
+  if (before < 2 || after < 2) return { refused: "few", leg, before, after };
+  return { first, leg, before, after };
+}
+
 // --- Legs of a solution on the map (product owner, 25 Oct 2026) ------------------------
 
 /** Each leg's first fix (indices), and the end: legs [bounds[k], bounds[k + 1]). */

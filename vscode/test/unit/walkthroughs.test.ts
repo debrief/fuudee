@@ -6,7 +6,7 @@ import { describe, expect, it } from "vitest";
 import tours from "../../walkthroughs/tours.json";
 import { ALL_DONE, commandLink, contextKey, latestSolution, tmaDragEvent, nextLabel, nextTour, NO_SOLUTION, OPEN, plainForVSCode, SOLUTION, stepParts, vscodeButton, vscodeDescription, walkthroughsContribution, withSolution, withWalkthroughs } from "../../walkthroughs/contribute.mjs";
 import { AFTER_OPEN, BY_HAND, EVENTS, FIRST_RUN_KEY, FIRST_TOUR, openedEvent, openOnFirstRun, serviceEvent, stepsFor, toteCompares, TOURS, tourOfEvent, WalkthroughProgress, whyNotPrepared } from "../../src/walkthroughs.js";
-import { bearingsTarget, callEvent, counts, parseActions, progressOf } from "../../play/tours.js";
+import { callEvent, counts, outlineTarget, parseActions, progressOf } from "../../play/tours.js";
 import { DEMO_META, demoPage } from "../../play/demo.mjs";
 import { CSP, CSP_META, CSP_PAGES } from "../../play/csp.mjs";
 import { contentFree } from "../../webview/timelinelogic.js";
@@ -86,11 +86,12 @@ describe("one source for both hosts", () => {
       for (const action of parseActions(step.play.action!)) {
         if (action.verb === "focus" || action.verb === "click") expect(index, action.target).toContain(`id="${action.target}"`);
         if (action.verb === "open") expect(TOURS.map((t) => t.id)).toContain(action.target);
-        // Bearings, showing the towed array or the walkthrough's solution, with what VS Code's step chooses.
-        if (action.verb === "bearings") {
-          const { feature, focus } = bearingsTarget(action.target);
+        // The Outline, under the towed array or the walkthrough's solution, choosing what VS Code's step chooses.
+        if (action.verb === "outline") {
+          const { feature, focus } = outlineTarget(action.target);
           expect(["sensor-blue-one-towed-array", SOLUTION]).toContain(feature);
           if (focus) expect(step.vscode.args).toEqual([feature, focus]);
+          if (focus) expect(step.vscode.command).toBe("debrief.chooseInOutline");
         }
       }
     }
@@ -99,10 +100,11 @@ describe("one source for both hosts", () => {
       { verb: "click", target: "find-jumps" },
     ]);
     expect(() => parseActions("delete:everything")).toThrow(/Not a walkthrough action/);
-    expect(bearingsTarget("s?period=2023-06-15T09:46:00.000Z/2023-06-15T12:00:00.000Z&make")).toEqual({ feature: "s", focus: { period: { start: "2023-06-15T09:46:00.000Z", end: "2023-06-15T12:00:00.000Z" }, make: true } });
-    expect(bearingsTarget("s?largest")).toEqual({ feature: "s", focus: { largest: true } });
-    expect(bearingsTarget("s")).toEqual({ feature: "s" });
-    expect(() => bearingsTarget("s?everything")).toThrow(/Not a choice in Bearings/);
+    expect(outlineTarget("s?period=2023-06-15T09:46:00.000Z/2023-06-15T12:00:00.000Z&make")).toEqual({ feature: "s", focus: { period: { start: "2023-06-15T09:46:00.000Z", end: "2023-06-15T12:00:00.000Z" }, make: true } });
+    expect(outlineTarget("s?fix=2023-06-15T10:38:00.000Z")).toEqual({ feature: "s", focus: { fix_time: "2023-06-15T10:38:00.000Z" } });
+    expect(outlineTarget("s?cut=2023-06-15T09:46:00.000Z")).toEqual({ feature: "s", focus: { cut_time: "2023-06-15T09:46:00.000Z" } });
+    expect(outlineTarget("s")).toEqual({ feature: "s" });
+    expect(() => outlineTarget("s?everything")).toThrow(/Not a choice in the Outline/);
   });
 
   it("puts in the walkthrough's latest TMA solution where a step names it, and none before it is made", () => {
@@ -154,7 +156,7 @@ describe("ticking a step off", () => {
     expect(serviceEvent("debrief/edit_track", { feature: "track-contact-1-solution", edit: { action: "shear", period: { start: "a", end: "b" } } }, solution)).toBe("solutionSheared");
     expect(tmaDragEvent(undefined, "shear", true)).toBe(false);
     expect(tmaDragEvent(2, "set_plotting_mode", true)).toBeUndefined();
-    expect(AFTER_OPEN.tma).toEqual(["debrief.showBearings", "sensor-blue-one-towed-array"]);
+    expect(AFTER_OPEN.tma).toEqual(["debrief.chooseInOutline", "sensor-blue-one-towed-array"]);
     expect(toteCompares({ primary: "a", secondaries: [] })).toBe(false);
     expect(toteCompares({ primary: "a", secondaries: ["b"] })).toBe(true);
     expect([...BY_HAND]).toContain("debrief.time");

@@ -1,0 +1,28 @@
+{
+  "description": "Splitting a TMA solution's leg before or after one of its fixes (product owner, 27 Oct 2026, the Outline's Split before and Split after): before, the fix is the first fix of a new leg; after, it is the last fix of the earlier leg, the next fix starting the new one. The legs already there keep their fixes (leg_starts gains one time; nothing moves). Refused when the fix already starts a leg, or is the solution's first, before (first); when it already ends a leg, or is the solution's last, after (last); or when the leg would keep fewer than two fixes either side of the split (few, with how many before and after). leg is the leg holding the fix, from 1; a leg starts at the first fix at or after its start time. Held by python/debrief-stac/tests/test_tma.py (debrief_stac.tma.split_at_fix_index) and vscode/test/unit/tma.test.ts (vscode/webview/tma.ts splitAtFix).",
+  "fixes": [
+    "2026-10-27T09:00:00.000Z",
+    "2026-10-27T09:01:00.000Z",
+    "2026-10-27T09:02:00.000Z",
+    "2026-10-27T09:03:00.000Z",
+    "2026-10-27T09:04:00.000Z",
+    "2026-10-27T09:05:00.000Z",
+    "2026-10-27T09:06:00.000Z",
+    "2026-10-27T09:07:00.000Z"
+  ],
+  "cases": [
+    { "name": "before a fix in the middle of one leg", "leg_starts": [], "index": 3, "side": "before", "leg_start": "2026-10-27T09:03:00.000Z", "leg": 1, "before": 3, "after": 5 },
+    { "name": "after a fix in the middle of one leg", "leg_starts": [], "index": 3, "side": "after", "leg_start": "2026-10-27T09:04:00.000Z", "leg": 1, "before": 4, "after": 4 },
+    { "name": "before the solution's first fix", "leg_starts": [], "index": 0, "side": "before", "refused": "first", "leg": 1 },
+    { "name": "after the solution's last fix", "leg_starts": [], "index": 7, "side": "after", "refused": "last", "leg": 1 },
+    { "name": "before its second fix: one fix would be left before", "leg_starts": [], "index": 1, "side": "before", "refused": "few", "leg": 1, "before": 1, "after": 7 },
+    { "name": "after its last fix but one: one fix would be left after", "leg_starts": [], "index": 6, "side": "after", "refused": "few", "leg": 1, "before": 7, "after": 1 },
+    { "name": "before a fix that already starts a leg", "leg_starts": ["2026-10-27T09:04:00.000Z"], "index": 4, "side": "before", "refused": "first", "leg": 2 },
+    { "name": "after a fix that already ends a leg", "leg_starts": ["2026-10-27T09:04:00.000Z"], "index": 3, "side": "after", "refused": "last", "leg": 1 },
+    { "name": "before, in the first of two legs: the later leg kept", "leg_starts": ["2026-10-27T09:04:00.000Z"], "index": 2, "side": "before", "leg_start": "2026-10-27T09:02:00.000Z", "leg": 1, "before": 2, "after": 2 },
+    { "name": "after, in the second of two legs", "leg_starts": ["2026-10-27T09:04:00.000Z"], "index": 5, "side": "after", "leg_start": "2026-10-27T09:06:00.000Z", "leg": 2, "before": 2, "after": 2 },
+    { "name": "before, in the second leg: one fix of it would be left before", "leg_starts": ["2026-10-27T09:04:00.000Z"], "index": 5, "side": "before", "refused": "few", "leg": 2, "before": 1, "after": 3 },
+    { "name": "a leg starting between fixes starts at the next fix", "leg_starts": ["2026-10-27T09:03:30.000Z"], "index": 4, "side": "before", "refused": "first", "leg": 2 },
+    { "name": "after the fix before a leg starting between fixes", "leg_starts": ["2026-10-27T09:03:30.000Z"], "index": 3, "side": "after", "refused": "last", "leg": 1 }
+  ]
+}

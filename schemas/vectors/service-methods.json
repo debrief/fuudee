@@ -5,6 +5,7 @@
     "debrief/add_narrative",
     "debrief/clear_review_flag",
     "debrief/delete_annotations",
+    "debrief/delete_cuts",
     "debrief/delete_narrative",
     "debrief/dismiss_new_data",
     "debrief/edit_annotation",

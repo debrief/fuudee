@@ -45,6 +45,15 @@ export function togglePane(shown: PanesShown, pane: Pane): PanesShown {
   return PANES.some((p) => next[p]) ? next : shown;
 }
 
+/**
+ * The panes drawn: those shown, but with a sensor's coverage and no solution (product owner, 27
+ * Oct 2026) no Error pane, which needs a solution; Bearing then if nothing else is left.
+ */
+export function panesDrawn(shown: PanesShown, solution: boolean): Pane[] {
+  const panes = PANES.filter((p) => shown[p] && (solution || p !== "error"));
+  return panes.length ? panes : ["bearing"];
+}
+
 export type Range = [number, number];
 
 // --- Mapping -------------------------------------------------------------------------------
