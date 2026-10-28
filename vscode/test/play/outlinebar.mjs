@@ -31,7 +31,8 @@ export async function playOutlineBar(page, shot) {
   await page.waitForFunction(() => document.getElementById("plot-title")?.textContent === "Serial 1", null, { timeout: 60000 });
   await page.waitForFunction(() => document.querySelector("#outline li[data-id='sensor-blue-one-towed-array']"));
   await showPanel(page, "outline");
-  if ((await button("clear-selection").getAttribute("aria-disabled")) === "false") await button("clear-selection").click();
+  // Clicked in the page, so a selection the plot's switch cleared meanwhile is no race (a disabled button does nothing).
+  await button("clear-selection").evaluate((b) => b.click());
   await saidIs("Nothing selected");
 
   // The hint line is gone; the count is in a live region a screen reader hears.
