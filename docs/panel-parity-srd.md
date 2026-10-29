@@ -36,7 +36,7 @@ This document asks for one host-neutral model of each panel and each command, so
 
 - **PAR-05** Every user action shall be declared once, in an **action catalogue**. Each entry gives the action's id, title, which node kinds and selections it applies to, its placement (panel toolbar, overflow, row context menu, group and order), and an enablement predicate that returns *enabled* or *a reason*. The catalogue covers outline, track, sensor, cut, fix, annotation, catalogue, tool and history actions.
 - **PAR-06** VS Code's `package.json` `commands` and `menus` (with `when` clauses and `enablement`) and each node's `contextValue` shall be **generated** from the catalogue at build time, the same way walkthroughs are generated from `walkthroughs/tours.json` by `scripts/walkthroughs.mjs`. Hand-edited menu entries for catalogued actions shall fail the build.
-- **PAR-07** The playground shall draw its context menus and panel toolbars from the same catalogue. An action placed in a row's context menu in VS Code shall be in the same row's context menu in the playground, with the same title, group order and enablement. *Open*: whether the playground keeps its below-Outline Track, Annotation and Sensor button groups as an **extra** placement. If it does, the same placement shall be added to VS Code, for example as Outline view-title submenus.
+- **PAR-07** The playground shall draw its context menus and panel toolbars from the same catalogue. An action placed in a row's context menu in VS Code shall be in the same row's context menu in the playground, with the same title, group order and enablement. Track, annotation, sensor, cut and fix actions shall be offered from context menus only: the playground's Track, Annotation and Sensor button groups below the Outline shall be removed (decision, product owner, 29 Oct 2026). Context menus shall open by right-click, press and hold on a touch screen, and Shift+F10 or the menu key in both front ends.
 - **PAR-08** An action that cannot run shall give the same reason in both front ends, whether it is shown disabled or refused on use. Undo and Redo shall be disabled, not refused after the click, when there is nothing to undo or redo, or while an earlier revision is shown.
 
 ### 3.3 Shared command flows
@@ -83,17 +83,19 @@ Only the differences listed here are acceptable. Any other difference is a defec
 | Docking and layout (tab groups vs VS Code's sidebar and panel areas) | Platform |
 | Bearings pop-out window (VS Code only) | Platform; *Open*: confirm |
 | Files: VS Code saves and opens files on disk; the playground uploads and downloads them | Platform. The flow and its questions stay the same (PAR-09) |
-| Catalogue management: Add catalogue, Add plot file, Refresh, choosing a catalogue on import | The playground has one in-browser catalogue. The Catalogues *tree* still matches (PAR-01) |
+| Catalogue management: Add catalogue, Add plot file, Refresh, choosing a catalogue on import | The playground has one in-browser catalogue. The Catalogues *tree* still matches (PAR-01), and a plot opens from it in both front ends |
+| Playground's top-bar plot list | A shortcut to open a plot, kept beside the Catalogues tree (decision, product owner, 29 Oct 2026) |
+| Playground's next-walkthrough button | Kept (decision, product owner, 29 Oct 2026). *Open*: whether VS Code gains an equivalent; a gap until then |
 | "Starting Python…" state in the playground | Pyodide start-up. It shall reuse VS Code's loading row and disabled reasons, not invent new ones |
 | Where view state persists (webview state vs `localStorage`) | Platform; not visible |
 | Rendering: QuickPick vs inline form; native tree vs HTML tree; icon artwork | Cosmetic, within PAR-03 and PAR-10 |
 
 ## 6. Open issues
 
-1. **Button groups below the Outline (PAR-07).** Should the playground keep the Track, Annotation and Sensor buttons? If so, should VS Code gain equivalent view-title submenus, or should the playground drop the buttons for context menus only? Context menus alone are harder to discover by touch and in demos. Buttons in both front ends cost VS Code some sidebar space.
-2. **Plot switching.** The playground's top-bar plot list and VS Code's Catalogues tree are two ways to open a plot. Should the playground's Catalogue panel also open plots from the tree (as PAR-01 implies), with the top-bar list kept as a shortcut?
+1. ~~Button groups below the Outline~~. **Decided 29 Oct 2026:** context menus only (PAR-07). The walkthrough text and `site/docs/try.md`, which point to buttons "below the outline", shall be reworded to match.
+2. ~~Plot switching~~. **Decided 29 Oct 2026:** the playground's Catalogue panel opens plots from the tree; the top-bar list stays as a shortcut (§5).
 3. **Tote context items.** VS Code shows all three Tote items and acts on every selected track. The playground shows only the items that apply and acts on the right-clicked track. Which is correct? The catalogue will make whichever is chosen the behaviour in both.
-4. **Next-walkthrough button.** The playground has one; VS Code relies on the step text. Is this a host difference or a gap?
+4. ~~Next-walkthrough button~~. **Decided 29 Oct 2026:** keep it in the playground. Still open: how VS Code offers the same (e.g. a final step's button running the next walkthrough).
 
 ## Appendix A. Differences found (29 Oct 2026)
 
