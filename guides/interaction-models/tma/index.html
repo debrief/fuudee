@@ -2067,6 +2067,12 @@
 <td>it already ends a leg, or is the solution's last; as above</td>
 </tr>
 <tr>
+<td><strong>Split before this cut (10:38:00Z)</strong>, <strong>Split after this cut</strong></td>
+<td>one cut (product owner, 29 Oct 2026)</td>
+<td>The cut picks a time, not a fix: the solution Bearings shows (else the only one the cut is rooted in) split as at its position at the cut's time (the first after it, before; the last before it, after)</td>
+<td>no solution shown or rooted; as above</td>
+</tr>
+<tr>
 <td><strong>Keep port</strong>, <strong>Keep starboard</strong></td>
 <td>cuts</td>
 <td>The bearing on that side of the course where each cut's sensor was, for every cut selected at once (a whole period resolved in one step)</td>
@@ -2105,7 +2111,7 @@
 </tbody>
 </table>
 <p>An earlier revision shown read-only disables them all, saying so. The Outline's toolbar (product owner, 28 Oct 2026) also hides and shows cuts, with tracks, solutions and sensors in the same selection, through the same operation, and its <strong>Select children</strong> turns a sensor selected into all its cuts, a solution into its legs and a leg into its positions (<a href="../selection/">selection</a>).
-5. <strong>The plot keeps its actions</strong> (<a href="#keyboard-and-touch">Keyboard and touch</a>): a dot clicked selects its cut, now in the Outline too; Space and Delete leave it out; <code>S</code> splits; <code>1</code> and <code>2</code> keep a side. The map's cut popover stays. Bearings' own Split, Keep, Leave out and Previous and Next ambiguous buttons are gone: the Tools have them, for one cut or many.</p>
+5. <strong>The plot keeps its actions</strong> (<a href="#keyboard-and-touch">Keyboard and touch</a>): a dot clicked selects its cut, now in the Outline too; <strong>a dot right-clicked</strong> (product owner, 29 Oct 2026), in the Bearing or the Error pane, opens the same entries as the Outline's menu for that cut (or the solution's position, for a calculated bearing or a Course/Speed point), each disabled with its reason, and <strong>Select this cut</strong> (in VS Code a list at the top of the window, as the map's cut menu; in the playground a menu at the pointer, as the Outline's own, where a cut's or a position's row opens the same entries); Space and Delete leave it out; <code>S</code> splits; <code>1</code> and <code>2</code> keep a side. The map's cut popover stays. Bearings' own Split, Keep, Leave out and Previous and Next ambiguous buttons are gone: the Tools have them, for one cut or many.</p>
 </li>
 </ol>
 <p><strong>The cut-off</strong> is the analyst's setting, like their other preferences: 3° unless they set another, kept in their Debrief configuration (<code>tma_error_cut_off</code>, configuration version 4), never in a plot. Set it under <strong>⋯</strong> in the view, or in VS Code's Settings (<code>debrief.tma.errorCutOff</code>); the two agree, and both take 0.01° to 180°.</p>
