@@ -372,6 +372,35 @@ export function tmaRequestOf(context: OperationContext): { request: TmaRequest; 
 }
 
 /**
+ * Where Split before and Split after act: one position of a solution picked; or one cut
+ * (Bearings' right-click, the Outline's cut menu: the analyst picks a time, not a fix), in the
+ * solution Bearings shows, else the one it is rooted in, at its position at the cut's time (the
+ * first after it, splitting before; the last before it, splitting after). A string says why none.
+ */
+export function splitPlace(context: OperationContext, side: "before" | "after"): { solution: string; index: number } | string {
+  const { index, picks } = context;
+  const settings = context.settings ?? DEFAULT_SETTINGS;
+  const fixes = picks.filter((p): p is Extract<OutlinePick, { kind: "fix" }> => p.kind === "fix");
+  const cuts = pickedCuts(picks);
+  if (fixes.length + cuts.length > 1) return cuts.length ? "Select one position or one cut only." : "Select one position only.";
+  if (fixes.length === 1) return { solution: fixes[0].solution, index: fixes[0].index };
+  if (!cuts.length) return "Select one position (fix) of a leg: expand the solution and its leg.";
+  const cut = cuts[0];
+  const rooted = index.rootedIn.get(cut.id) ?? [];
+  const solution = context.shownSolution && index.solutions.has(context.shownSolution) ? context.shownSolution : rooted.length === 1 ? rooted[0] : undefined;
+  if (!solution) return rooted.length ? "This cut is in several solutions: show the one to split in Bearings." : "Show the TMA solution to split in Bearings.";
+  const s = index.solutions.get(solution)!;
+  const t = Date.parse(cut.properties.time);
+  let at = s.times.indexOf(t);
+  if (at < 0) {
+    const next = s.times.findIndex((x) => x > t);
+    at = side === "before" ? next : (next < 0 ? s.times.length : next) - 1;
+  }
+  if (at < 0) return `${s.track.properties.name} has no position ${side === "before" ? "after" : "before"} the cut at ${formatTime(t, settings)}.`;
+  return { solution, index: at };
+}
+
+/**
  * The Tools' entries for the Outline's selection (product owner, 27 Oct 2026), in OPERATIONS'
  * order: those for what is selected (a fix or a solution: the splits; cuts: keeping a side,
  * leaving out, hiding, deleting and a solution from them; a sensor: a solution from its cuts),
@@ -391,29 +420,37 @@ export function outlineOperations(context: OperationContext): Operation[] {
     const made = tmaRequestOf(context);
     add("tma-from-cuts", typeof made === "string" ? "TMA solution from cuts…" : `TMA solution from ${made.what}…`, "Make a TMA solution rooted in these cuts, from a first guess: the form in Bearings, or two clicks on the map", typeof made === "string" ? made : undefined);
   }
-  if (solutionPicked) {
+  if (solutionPicked || cuts.length) {
     for (const side of ["before", "after"] as const) {
       const label = side === "before" ? "Split before" : "Split after";
-      const detail = side === "before" ? "Split the leg here: this position becomes the first fix of a new leg; the other legs stay where they are" : "Split the leg here: this position becomes the last fix of the earlier leg; the other legs stay where they are";
-      if (fixes.length !== 1) {
-        add(`split-${side}`, label, detail, fixes.length ? "Select one position only." : "Select one position (fix) of a leg: expand the solution and its leg.");
+      const place = splitPlace(context, side);
+      const byCut = !fixes.length && cuts.length === 1;
+      const detail = byCut
+        ? side === "before"
+          ? "Split the solution's leg at this cut's time: its position then becomes the first fix of a new leg; the other legs stay where they are"
+          : "Split the solution's leg at this cut's time: its position then becomes the last fix of the earlier leg; the other legs stay where they are"
+        : side === "before"
+          ? "Split the leg here: this position becomes the first fix of a new leg; the other legs stay where they are"
+          : "Split the leg here: this position becomes the last fix of the earlier leg; the other legs stay where they are";
+      if (typeof place === "string") {
+        add(`split-${side}`, byCut ? `${label} this cut` : label, detail, place);
         continue;
       }
-      const s = index.solutions.get(fixes[0].solution)!;
-      const found = splitAtFix(s.times, s.legStarts, fixes[0].index, side);
-      const at = formatTime(s.times[fixes[0].index], settings);
+      const s = index.solutions.get(place.solution)!;
+      const found = splitAtFix(s.times, s.legStarts, place.index, side);
+      const at = formatTime(s.times[place.index], settings);
       let reason: string | undefined;
       if ("refused" in found) {
         reason =
           found.refused === "first"
             ? `The fix at ${at} is already the first of leg ${found.leg}.`
             : found.refused === "last"
-              ? fixes[0].index === s.times.length - 1
+              ? place.index === s.times.length - 1
                 ? `The fix at ${at} is the solution's last.`
                 : `The fix at ${at} is already the last of leg ${found.leg}.`
               : `Leg ${found.leg} would keep ${plural(found.before ?? 0, "fix", "fixes")} before the split and ${plural(found.after ?? 0, "fix", "fixes")} after it: each leg needs two.`;
       }
-      add(`split-${side}`, `${label} ${at}`, detail, reason);
+      add(`split-${side}`, byCut ? `${label} this cut (${at})` : `${label} ${at}`, detail, reason);
     }
   }
   if (!cuts.length) return order(out);

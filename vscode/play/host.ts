@@ -84,6 +84,7 @@ import {
   type OutlinePick,
   pickedCuts,
   pickOf,
+  splitPlace,
   tmaRequestOf,
 } from "../webview/outlinemodel.js";
 import { selectionChildren, selectionColour, selectionSaid, selectionVisibility } from "../webview/outlinetoolbar.js";
@@ -1680,11 +1681,16 @@ const outlineTree = new OutlineTree<OutlineNode>($("outline"), {
     else outlineTree.mark(outlinePicks);
   },
   // Its menu: right-click, press and hold on a touch screen, or Shift+F10 (a track's: the
-  // Tote, CAP-06; a sensor's: keeping a side of its ambiguous cuts, CAP-22).
+  // Tote, CAP-06; a sensor's: keeping a side of its ambiguous cuts, CAP-22; a cut's or a
+  // position's: the Tools' entries for it, as VS Code's Outline menus, product owner, 29 Oct 2026).
   menu: (key, x, y, element) => {
     const f = features().find((g) => g.id === key);
     if (f?.properties.kind === "track") trackMenu(key, x, y, element);
     else if (f?.properties.kind === "sensor") sensorMenu(key, x, y, element);
+    else if (f?.properties.kind === "sensor_cut" || /#fix\d+$/.test(key)) {
+      // The row and the rest of the selection, if it is in it; else the row alone.
+      operationsMenu(outlinePicks.includes(key) ? outlinePicks : [key], x, y, element);
+    }
   },
 });
 // The tree, and what a row says by key (the model's row, as fillOutlineRow draws it), for the tests.
@@ -1883,6 +1889,16 @@ const tmaCompute: number[] = [];
 let errorCutOff: number | undefined;
 /** Which of the plot's panes the reader shows: this browser, every read and write guarded (product owner, 25 Oct 2026). */
 const BEARINGS_KEY = "debrief.play.bearings";
+/** A dot of Bearings chosen: its cut, or the solution at a fix (that position, in the Outline), selected in the Outline and on the map; current time to it. */
+function selectFromBearings(id: string, at: string): void {
+  timeTo(at);
+  if (id === shownSolution() && opened) {
+    const s = outlineIndex(opened.plot).solutions.get(id);
+    const i = s ? s.times.indexOf(Date.parse(at)) : -1;
+    if (i >= 0) return void select([id], false, [fixKey(id, i)]).then(() => renderOutline(true));
+  }
+  void select([id]);
+}
 const tmaControl = new TmaControl(
   $("bearings"),
   {
@@ -1898,15 +1914,14 @@ const tmaControl = new TmaControl(
     // A box drawn with Select bearings on: the sides boxed kept, one step, as debrief/resolve_ambiguity (product owner, 28 Oct 2026).
     resolveCuts: (resolution) => void resolveSensor(resolution),
     // A dot clicked: its cut, or the solution at a fix, selected in the Outline and on the map; current time to it.
-    select: (id, at) => {
-      timeTo(at);
-      if (id === shownSolution() && opened) {
-        // The solution's fix there, selected in the Outline as a position.
-        const s = outlineIndex(opened.plot).solutions.get(id);
-        const i = s ? s.times.indexOf(Date.parse(at)) : -1;
-        if (i >= 0) return void select([id], false, [fixKey(id, i)]).then(() => renderOutline(true));
-      }
-      void select([id]);
+    select: (id, at) => selectFromBearings(id, at),
+    // A dot right-clicked: the Outline's menu for its cut, or the solution's position there (product owner, 29 Oct 2026).
+    menu: (id, at, x, y) => {
+      const s = opened && id === shownSolution() ? outlineIndex(opened.plot).solutions.get(id) : undefined;
+      const i = s ? s.times.indexOf(Date.parse(at)) : -1;
+      const key = i >= 0 ? fixKey(id, i) : id;
+      const choose = { label: i >= 0 ? "Select this position" : "Select this cut", act: () => selectFromBearings(id, at) };
+      operationsMenu([key], x ?? 0, y ?? 0, $("bearings").querySelector<HTMLElement>(".tma-canvas") ?? undefined, choose);
     },
     cutOff: (degrees) => {
       errorCutOff = degrees;
@@ -1948,6 +1963,8 @@ async function refreshBearings(): Promise<void> {
   const asked = ++tmaAsking;
   // Something no longer in the plot (undone, deleted): nothing shown.
   if (tmaShown && ("solution" in tmaShown ? !index.solutions.has(tmaShown.solution) : !index.sensors.has(tmaShown.sensor))) tmaShown = undefined;
+  // Chosen while Python starts (product owner, 29 Oct 2026): said so, busy; asked again once it is ready.
+  if (!pythonReady && tmaShown) return tmaControl.waiting(`${bearingsTitle(index, tmaShown)}: starting Python in your browser. Its bearings show here once it is ready.`);
   const sensors = tmaSensorRows(plot);
   const solutions = tmaSolutionRows(plot);
   const solution = shownSolution();
@@ -2073,37 +2090,41 @@ async function createTma(request: TmaRequest): Promise<void> {
 }
 // --- The Tools' entries for the Outline's selection (product owner, 27 Oct 2026) ---------------
 /** What the Tools' entries act on: the Outline's rows chosen, the solution Bearings shows, the time window. */
-function operationContext(): OperationContext | undefined {
+function operationContext(keys?: readonly string[]): OperationContext | undefined {
   if (!opened) return undefined;
+  const index = outlineIndex(opened.plot);
   return {
-    index: outlineIndex(opened.plot),
-    picks: outlinePicked(),
+    index,
+    picks: keys ? keys.map((k) => pickOf(index, k)).filter((p): p is OutlinePick => !!p) : outlinePicked(),
     shownSolution: shownSolution(),
     ...(time && { window: { start: Date.parse(time.range.start), end: Date.parse(time.range.end) } }),
     ...(opened.revision && { readOnly: true }),
   };
 }
 /** The Tools' entries for the selection, each enabled or with the reason it is not. */
-function operations(): Operation[] {
-  const context = operationContext();
+function operations(keys?: readonly string[]): Operation[] {
+  const context = operationContext(keys);
   if (!context) return [];
   const ops = outlineOperations(context);
   return pythonReady ? ops : ops.map((o) => ({ ...o, enabled: false, reason: "Python is starting." }));
 }
 (window as unknown as { debriefOperations: () => Operation[] }).debriefOperations = operations;
-/** One of the Tools' entries, on the Outline's selection: one step each, but the solution from cuts, which opens its first guess's form. */
-async function runOperation(id: OperationId): Promise<void> {
-  const context = operationContext();
-  const op = operations().find((o) => o.id === id);
+/** One of the Tools' entries, on the Outline's selection (or the rows given: a menu's): one step each, but the solution from cuts, which opens its first guess's form. */
+async function runOperation(id: OperationId, keys?: readonly string[]): Promise<void> {
+  const context = operationContext(keys);
+  const op = operations(keys).find((o) => o.id === id);
   if (!context || !op) return toast("That is not offered for what is selected in the Outline.", "warning");
   if (!op.enabled) return toast(op.reason ?? "That cannot be done to what is selected.", "warning");
   const { index, picks } = context;
   const cuts = pickedCuts(picks);
   const ids = cuts.map((c) => c.id);
   if (id === "split-before" || id === "split-after") {
-    const fix = picks.find((p): p is Extract<OutlinePick, { kind: "fix" }> => p.kind === "fix")!;
-    const at = new Date(index.solutions.get(fix.solution)!.times[fix.index]).toISOString();
-    await changeTma({ kind: "split", feature: fix.solution, at, side: id === "split-before" ? "before" : "after" });
+    // A position of the solution, or a cut: the solution's position at its time.
+    const side = id === "split-before" ? "before" : "after";
+    const place = splitPlace(context, side);
+    if (typeof place === "string") return toast(place, "warning");
+    const at = new Date(index.solutions.get(place.solution)!.times[place.index]).toISOString();
+    await changeTma({ kind: "split", feature: place.solution, at, side });
     return;
   }
   if (id === "hide-cuts" || id === "show-cuts") return restyle(ids, { hidden: id === "hide-cuts" });
@@ -2141,6 +2162,32 @@ async function runOperation(id: OperationId): Promise<void> {
   tmaFocus.ask(made.request.cut_ids ? { make: true, cut_ids: made.request.cut_ids } : { make: true, period: made.request.period! });
   showPanel("panel-bearings");
   await refreshBearings();
+}
+/**
+ * The Tools' entries for some rows as a menu (product owner, 29 Oct 2026): a cut's or a position's
+ * in the Outline, a dot's in Bearings (select, there, choosing it as a click does). Those that
+ * cannot act stay in it, saying why when chosen, as VS Code's menus do.
+ */
+function operationsMenu(keys: readonly string[], x: number, y: number, from?: HTMLElement, select?: { label: string; act: () => void }): void {
+  const ops = operations(keys);
+  if (!ops.length && !select) return;
+  const one = opened && keys.length === 1 ? pickOf(outlineIndex(opened.plot), keys[0]) : undefined;
+  const label = one?.kind === "cut" ? "Cut" : one?.kind === "fix" ? "Position" : `${keys.length} rows`;
+  openMenu(
+    [
+      ...ops.map((op) => ({
+        label: op.label,
+        ...(!op.enabled && { disabled: op.reason ?? "That cannot be done here." }),
+        act: () => {
+          from?.focus();
+          if (op.enabled) void runOperation(op.id, keys);
+          else toast(op.reason ?? "That cannot be done here.", "warning");
+        },
+      })),
+      ...(select ? [select] : []),
+    ],
+    { label: `${label}: what to do`, x, y, from },
+  );
 }
 /** The Tools' entries in the Tools panel, above the Python tools: a button each, or why not beside it. */
 function operationRows(): HTMLElement[] {
@@ -2342,7 +2389,7 @@ function renderTools(): void {
   // The entries for the Outline's selection first (product owner, 27 Oct 2026), then the analysis tools.
   const ops = operationRows();
   if (!tools.length) {
-    list.replaceChildren(...ops, Object.assign(document.createElement("li"), { className: "detail", textContent: "Starting Python…" }));
+    list.replaceChildren(...ops, Object.assign(document.createElement("li"), { className: "detail busy", textContent: "Starting Python in your browser: the tools show here once it is ready." }));
     return;
   }
   const sorted = [...tools].sort((a, b) => Number(offered.includes(b.name)) - Number(offered.includes(a.name)));
@@ -3560,6 +3607,8 @@ function withoutPython(why: string): void {
     // keep: anything the reader selected on the preview stays selected.
     await openPlot(startPlot, true);
     pythonReady = true;
+    // What was chosen for Bearings while Python started, asked for now.
+    void refreshBearings();
     refreshTote();
     await showImportMode();
     needsPython(true);

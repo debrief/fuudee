@@ -25,6 +25,7 @@ import {
   outlineIndex,
   outlineOperations,
   pickOf,
+  splitPlace,
   tmaRequestOf,
   type OutlinePick,
 } from "../../webview/outlinemodel.js";
@@ -211,9 +212,21 @@ describe("the Tools' entries for the Outline's selection", () => {
     expect(op([fixKey("track-contact-1", 1), fixKey("track-contact-1", 2)], "split-after")?.reason).toBe("Select one position only.");
   });
 
+  it("splits the solution at a cut's time, as at its position then, or says why not", () => {
+    expect(op(["cut-3"], "split-before")).toMatchObject({ enabled: true, label: "Split before this cut (09:02:00Z)" });
+    expect(op(["cut-2"], "split-after")).toMatchObject({ enabled: true, label: "Split after this cut (09:01:00Z)" });
+    expect(op(["cut-1"], "split-after")?.reason).toBe("Leg 1 would keep 1 fix before the split and 3 fixes after it: each leg needs two.");
+    expect(op(["cut-1", "cut-2"], "split-before")?.reason).toBe("Select one position or one cut only.");
+    // A cut between positions, in no solution: the solution Bearings shows, at the position after it (before) or before it (after).
+    const between = { kind: "cut" as const, id: "cut-x", sensor: "sensor-ta", cut: cut("cut-x", "2026-10-11T09:02:30.000Z", 50) } as unknown as OutlinePick;
+    expect(splitPlace({ index, picks: [between] }, "before")).toBe("Show the TMA solution to split in Bearings.");
+    expect(splitPlace({ index, picks: [between], shownSolution: "track-contact-1" }, "before")).toEqual({ solution: "track-contact-1", index: 3 });
+    expect(splitPlace({ index, picks: [between], shownSolution: "track-contact-1" }, "after")).toEqual({ solution: "track-contact-1", index: 2 });
+  });
+
   it("keeps a side, leaves out, hides, shows and deletes cuts, each disabled with its reason when it cannot", () => {
     const ids = ops(["cut-1", "cut-2", "cut-3"]).map((o) => o.id);
-    expect(ids).toEqual(["tma-from-cuts", "keep-port", "keep-starboard", "keep-ambiguous", "leave-out", "count-in", "hide-cuts", "show-cuts", "delete-cuts"]);
+    expect(ids).toEqual(["tma-from-cuts", "split-before", "split-after", "keep-port", "keep-starboard", "keep-ambiguous", "leave-out", "count-in", "hide-cuts", "show-cuts", "delete-cuts"]);
     expect(op(["cut-3"], "keep-port")).toMatchObject({ enabled: false, reason: "None of these cuts has two bearings." });
     expect(op(["cut-1"], "keep-ambiguous")?.reason).toBe("None of these cuts has a side kept.");
     expect(op(["cut-2"], "keep-ambiguous")?.enabled).toBe(true);

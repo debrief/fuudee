@@ -608,6 +608,30 @@ export async function playTma(page, shot) {
   await page.waitForFunction(() => window.debriefTma.residuals?.excluded === 0);
   assert.match(await rms(), /over 60 cuts$/);
 
+  // Right-click (product owner, 29 Oct 2026): a cut's row in the Outline and its dot in Bearings open
+  // the Tools' entries for it, Split before and after this cut among them; one chosen acts, one step.
+  const menuItems = () => page.locator(".context-menu [role=menuitem]").allInnerTexts();
+  await outlineRow(second).click({ button: "right" });
+  let items = await menuItems();
+  assert.ok(items.includes("Leave out of Contact 1 solution"), `the Outline's cut menu: ${items.join(" | ")}`);
+  assert.ok(items.some((t) => /^Split before this cut \(\d\d:\d\d:\d\dZ\)$/.test(t)), `split before this cut: ${items.join(" | ")}`);
+  await page.keyboard.press("Escape");
+  await page.locator(".context-menu").waitFor({ state: "detached" });
+  await showPanel(page, "bearings");
+  const cutDot = await pointOf(made.rows[29].id);
+  const plotBox = await canvas.boundingBox();
+  await page.mouse.click(plotBox.x + cutDot.x, plotBox.y + cutDot.y, { button: "right" });
+  items = await menuItems();
+  assert.ok(items.includes("Select this cut") && items.some((t) => t.startsWith("Split after this cut")), `Bearings' dot menu: ${items.join(" | ")}`);
+  before = await steps();
+  await page.locator(".context-menu [role=menuitem]", { hasText: /^Split before this cut/ }).click();
+  await stepAdded(before);
+  assert.match(await latest(), /^Contact 1 solution split into legs before its fix at \d\d:\d\d:\d\dZ$/);
+  await page.waitForFunction(() => window.debriefTma.residuals?.rows.some((r) => r.leg === 2));
+  await picture("tma-06b-split-from-a-dot");
+  await undo();
+  await page.waitForFunction(() => !window.debriefTma.residuals?.rows.some((r) => r.leg === 2));
+
   // The solution in the Outline: its leg, the leg's positions with time, course and speed; split
   // before the 30th position and after another, from the Tools, one step each, still one track.
   const solutionId = await page.evaluate(() => window.debriefTma.shown.solution_id);
