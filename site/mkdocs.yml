@@ -57,6 +57,7 @@ markdown_extensions:
 nav:
   - Home: index.md
   - Try Debrief: try.md
+  - Install Debrief: install.md
   - Blog:
       - blog/index.md
   - Guides:

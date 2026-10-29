@@ -1,5 +1,5 @@
 {
-  "comment": "The Python bundled in each platform's VSIX: python-build-standalone's install_only_stripped builds of one release, checksums from its SHA256SUMS. Change release, python and every sha256 together. See scripts/bundle-python.mjs.",
+  "comment": "The Python bundled in each platform's VSIX: python-build-standalone's install_only_stripped builds of one release, checksums from its SHA256SUMS. Change release, python and every sha256 together. macos is the oldest macOS the wheels chosen may need: pyproj 3.8.0's are for macOS 14 on arm64 and 15 on x86_64. See scripts/bundle-python.mjs.",
   "release": "20260718",
   "python": "3.12.13",
   "url": "https://github.com/astral-sh/python-build-standalone/releases/download/{release}/cpython-{python}%2B{release}-{triple}-install_only_stripped.tar.gz",
@@ -18,10 +18,12 @@
     },
     "darwin-arm64": {
       "triple": "aarch64-apple-darwin",
+      "macos": "14.0",
       "sha256": "9a1e9e06175c10efd8378b904b07fa21bd791ab3345d7cdffeb4a76c9ff55903"
     },
     "darwin-x64": {
       "triple": "x86_64-apple-darwin",
+      "macos": "15.0",
       "sha256": "8e6b7e6533bdf746287008edf91102e7bee0a6ca1d24f16c4514237cafd706c5"
     }
   }

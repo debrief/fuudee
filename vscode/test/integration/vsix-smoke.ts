@@ -70,7 +70,8 @@ export async function run(): Promise<void> {
 
   // The installed version, in the Extensions view.
   await vscode.commands.executeCommand("workbench.action.closeAllEditors");
-  await vscode.commands.executeCommand("workbench.extensions.action.showInstalledExtensions");
+  await vscode.commands.executeCommand("workbench.view.extensions");
+  await vscode.commands.executeCommand("workbench.extensions.search", "@installed");
   await vscode.commands.executeCommand("extension.open", "debrief.debrief");
   await sleep(4000);
   await screenshot("vsix-01-installed");
@@ -79,6 +80,9 @@ export async function run(): Promise<void> {
   await vscode.commands.executeCommand("workbench.action.closeAllEditors");
   assert.equal(await vscode.commands.executeCommand("debrief.walkthrough.open", "explore", { fresh: true }), undefined);
   await waitFor("the copy of serial 1 on the map", () => (api.session.current?.item.id === "serial-1-explore" && api.mapShowing() === "serial-1-explore") || undefined, 120000);
+  await vscode.commands.executeCommand("workbench.view.extension.debrief");
+  await sleep(3000);
+  await screenshot("vsix-02-plot");
 
   // A tool run by that Python: closest approach of BLUE ONE and RED ONE, one step in the history.
   await vscode.commands.executeCommand("debrief.select", ["track-blue-one", "track-red-one"]);
@@ -86,8 +90,7 @@ export async function run(): Promise<void> {
   assert.equal(await vscode.commands.executeCommand("debrief.runTool", "core.closest_approach", {}), undefined);
   await waitFor("the closest approach line", () => api.session.current?.plot.features.some((f) => f.id.startsWith("cpa-")) || undefined, 60000);
   assert.equal(api.session.current!.plot.provenance.at(-1)?.tool?.name, "core.closest_approach");
-  await vscode.commands.executeCommand("workbench.view.extension.debrief");
   await sleep(3000);
-  await screenshot("vsix-02-plot");
+  await screenshot("vsix-03-tool");
   console.log("The installed VSIX started its own Python, opened a plot and ran a tool.");
 }

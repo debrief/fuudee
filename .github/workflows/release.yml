@@ -1,0 +1,131 @@
+name: Release
+
+# Debrief as a VSIX file for each platform, with its own Python (NFR-12, DEP-01, DEP-02; the
+# platforms are the product owner's, 29 Oct 2026). Each VSIX is built on its own platform,
+# installed into a clean VS Code there with no Python on the PATH, and tried: its Python
+# answers, a plot opens and a tool runs. Pull requests that touch the packaging build and try
+# Linux's; a run by hand or a v* tag builds all four, and a tag attaches them to a draft
+# GitHub Release. Nothing is published to the Marketplace, and no secrets are needed.
+
+on:
+  workflow_dispatch:
+  push:
+    tags: ["v*"]
+  pull_request:
+    paths:
+      - .github/workflows/release.yml
+      - uv.lock
+      - vscode/.vscodeignore
+      - vscode/python-runtime.json
+      - vscode/scripts/bundle-python.mjs
+      - vscode/scripts/package-vsix.mjs
+      - vscode/src/runtime.ts
+      - vscode/test/integration/vsix-*.ts
+
+permissions:
+  contents: read
+
+jobs:
+  vsix:
+    name: vsix (${{ matrix.target }})
+    strategy:
+      fail-fast: false
+      matrix:
+        include: ${{ fromJSON(github.event_name == 'pull_request' && '[{"target":"linux-x64","os":"ubuntu-latest"}]' || '[{"target":"win32-x64","os":"windows-latest"},{"target":"linux-x64","os":"ubuntu-latest"},{"target":"darwin-arm64","os":"macos-14"},{"target":"darwin-x64","os":"macos-15-intel"}]') }}
+    runs-on: ${{ matrix.os }}
+    defaults:
+      run:
+        shell: bash
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v6
+        with:
+          python-version: "3.12"
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: npm
+          cache-dependency-path: |
+            ts/schemas/package-lock.json
+            ts/kernel/package-lock.json
+            ts/config/package-lock.json
+            vscode/package-lock.json
+      - name: A tag names this version
+        if: startsWith(github.ref, 'refs/tags/v')
+        run: |
+          version=$(node -p "require('./vscode/package.json').version")
+          test "v$version" = "$GITHUB_REF_NAME" || { echo "The tag is $GITHUB_REF_NAME but vscode/package.json says $version"; exit 1; }
+      - name: Install
+        run: |
+          for package in schemas kernel config; do
+            npm ci --prefix ts/$package
+            npm run --prefix ts/$package build
+          done
+          npm ci --prefix vscode
+      - uses: actions/cache@v4
+        with:
+          path: vscode/.python-cache
+          key: python-${{ matrix.target }}-${{ hashFiles('vscode/python-runtime.json') }}
+      - name: Package
+        working-directory: vscode
+        run: npm run package:vsix -- --target ${{ matrix.target }}
+      - name: Size
+        working-directory: vscode
+        run: |
+          for file in vsix/*.vsix; do
+            echo "$(basename "$file"): $(node -p "(require('fs').statSync('$file').size / 1048576).toFixed(1)") MB" | tee -a "$GITHUB_STEP_SUMMARY"
+          done
+      - uses: actions/cache@v4
+        with:
+          path: vscode/.vscode-test
+          key: vscode-test-${{ runner.os }}-${{ runner.arch }}-1.141.0
+      - name: Install it and try it, under a display
+        if: runner.os == 'Linux'
+        working-directory: vscode
+        env:
+          DEBRIEF_SCREENSHOTS: ${{ github.workspace }}/screenshots
+        run: |
+          sudo apt-get install -y --no-install-recommends imagemagick
+          xvfb-run -a -s "-screen 0 1600x1000x24" node dist-test/vsix-run.js vsix/debrief-${{ matrix.target }}-*.vsix
+      - name: Install it and try it
+        if: runner.os != 'Linux'
+        working-directory: vscode
+        run: node dist-test/vsix-run.js vsix/debrief-${{ matrix.target }}-*.vsix
+      - uses: actions/upload-artifact@v4
+        with:
+          name: debrief-${{ matrix.target }}
+          path: vscode/vsix/*.vsix
+          if-no-files-found: error
+          compression-level: 0
+      - uses: actions/upload-artifact@v4
+        if: always() && runner.os == 'Linux'
+        with:
+          name: vsix-screenshots
+          path: screenshots
+          if-no-files-found: ignore
+
+  release:
+    # A v* tag: every platform's VSIX on a draft release, for the product owner to publish.
+    if: startsWith(github.ref, 'refs/tags/v')
+    needs: vsix
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          pattern: debrief-*
+          merge-multiple: true
+          path: vsix
+      - name: Draft release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          ls -l vsix
+          if gh release view "$GITHUB_REF_NAME" --repo "$GITHUB_REPOSITORY" > /dev/null 2>&1; then
+            gh release upload "$GITHUB_REF_NAME" vsix/*.vsix --clobber --repo "$GITHUB_REPOSITORY"
+          else
+            gh release create "$GITHUB_REF_NAME" vsix/*.vsix --draft --verify-tag --repo "$GITHUB_REPOSITORY" \
+              --title "Debrief $GITHUB_REF_NAME" \
+              --notes "Debrief for VS Code, one VSIX file for each platform, each with its own Python. Install it as the guide says: https://debrief.github.io/fuudee/install/"
+          fi

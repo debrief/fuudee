@@ -96,11 +96,13 @@ for (const name of readdirSync(site)) if (/^pip($|-)/.test(name)) rmSync(path.jo
 const requirements = path.join(work, "requirements.txt");
 run("uv", ["export", "--frozen", "--no-dev", "--all-packages", "--no-emit-workspace", "--format", "requirements-txt", "--quiet", "-o", requirements], { cwd: repo });
 const install = ["pip", "install", "--quiet", "--target", site, "--python-platform", spec.triple, "--python-version", minor, "--only-binary", ":all:", "--no-deps", "--no-cache"];
-run("uv", [...install, "--require-hashes", "-r", requirements], { cwd: repo });
+// For macOS, wheels for the oldest macOS the target supports (python-runtime.json's macos).
+const wheelEnv = { ...process.env, ...(spec.macos ? { MACOSX_DEPLOYMENT_TARGET: spec.macos } : {}) };
+run("uv", [...install, "--require-hashes", "-r", requirements], { cwd: repo, env: wheelEnv });
 // Debrief's own, built as wheels from this checkout.
 const wheels = path.join(work, "wheels");
 run("uv", ["build", "--all-packages", "--wheel", "--quiet", "-o", wheels], { cwd: repo });
-run("uv", [...install, ...readdirSync(wheels).filter((w) => w.endsWith(".whl")).map((w) => path.join(wheels, w))], { cwd: repo });
+run("uv", [...install, ...readdirSync(wheels).filter((w) => w.endsWith(".whl")).map((w) => path.join(wheels, w))], { cwd: repo, env: wheelEnv });
 
 // What the packages carry that never runs: their tests, scripts and caches.
 function sweep(folder) {

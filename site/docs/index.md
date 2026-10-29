@@ -8,6 +8,7 @@ Debrief v4 replaces the 25-year-old Eclipse application with one shared core tha
 
 The **web demo** is Debrief running full screen in your browser, on the sample exercise, with five walkthroughs to start you off. Files of your own open too: they are read in your browser only, never sent anywhere, and gone when you close the tab.
 
+- **[Install Debrief](install.md)**: Debrief for VS Code, one file for each kind of computer, with everything it needs.
 - **[Blog](blog/index.md)**: short posts as each capability lands.
 - **[Guides](guides/index.md)**: the style guide, interaction models and tool-author guide that keep Debrief consistent as it grows.
 
