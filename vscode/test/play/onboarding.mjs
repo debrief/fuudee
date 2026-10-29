@@ -592,7 +592,7 @@ export async function playTours(page, shot, root) {
   const short = (await page.locator("#export-said").innerText()).match(/Its ID, (DBF-[0-9A-Z-]+),/)[1];
   // The plot changes; then the image is traced by the ID in its corner, typed.
   await fromToolbar(page, "North arrow");
-  await page.locator("#history li", { hasText: "North arrow added" }).first().waitFor();
+  await page.locator("#history li", { hasText: "North arrow added" }).first().waitFor({ state: "attached" }); // History behind another tab here
   await go(page, 4).click();
   assert.equal(await page.evaluate(() => document.activeElement?.id), "find-id");
   await page.keyboard.type(short);
