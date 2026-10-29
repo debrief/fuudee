@@ -67,14 +67,8 @@ export async function playShear(page, shot) {
   assert.equal(await mapFrame.locator('[role="group"]:has(button[data-mode])').count(), 1, "Shear and Stretch are not inside the other choice");
   const tops = await mapFrame.locator('.track-extent [role="group"]').evaluateAll((all) => all.map((g) => Math.round(g.getBoundingClientRect().top)));
   assert.deepEqual(tops, [tops[0], tops[0]], "side by side, so the control is short enough for a short map");
-  // Under the outline, the track's actions and the annotations' are labelled groups, compact: the track's
-  // eleven (changing it, cleaning it, dead reckoning, then labels, symbols and arrows) in at most four rows, the annotations' four in at most two.
-  for (const [group, count, most] of [["Track", 11, 4], ["Annotation", 4, 2]]) {
-    const buttons = page.getByRole("group", { name: group, exact: true }).getByRole("button");
-    assert.equal(await buttons.count(), count, group);
-    const rows = new Set(await buttons.evaluateAll((all) => all.map((b) => Math.round(b.getBoundingClientRect().top))));
-    assert.ok(rows.size <= most, `${group}: ${rows.size} rows`);
-  }
+  // No buttons under the outline: a track's and an annotation's actions are on their menus there, as in VS Code (PAR-07; product owner, 29 Oct 2026).
+  for (const group of ["Track", "Sensor", "Annotation"]) assert.equal(await page.getByRole("group", { name: group, exact: true }).count(), 0, group);
   // Five handles: move, rotate, pivot, and the two ends, each named for a screen reader.
   assert.equal(await mapFrame.locator(".track-handle:not(.track-handle-fix)").count(), 5);
   assert.equal(await handle("end").getAttribute("aria-label"), "RED ONE, fixes in the time window: shear from the end, holding the start; drag it, or use the arrow keys");
