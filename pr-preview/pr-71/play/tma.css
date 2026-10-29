@@ -9,6 +9,10 @@
 .tma button:disabled { opacity: .5; cursor: default; }
 .tma button:focus-visible, .tma select:focus-visible, .tma input:focus-visible { outline: 1px solid var(--vscode-focusBorder); outline-offset: 1px; }
 .tma-empty { margin: 4px 0; color: var(--vscode-descriptionForeground); }
+/* Chosen, its bearings not to hand yet (the playground while Python starts): busy. */
+.tma-waiting::before { content: "⟳"; display: inline-block; margin-right: 6px; animation: tma-spin 1.2s linear infinite; }
+@keyframes tma-spin { to { transform: rotate(360deg); } }
+@media (prefers-reduced-motion: reduce) { .tma-waiting::before { animation: none; } }
 
 /* What is shown, in one line (product owner, 27 Oct 2026): the Outline's selection chooses it. */
 .tma-title { margin: 0; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; flex: none; min-width: 0; }
