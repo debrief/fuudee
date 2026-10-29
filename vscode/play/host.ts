@@ -2165,6 +2165,8 @@ function playContext(keys: readonly string[] = outlinePicks): { context: Context
   const reasons: Record<string, string> = {};
   // The playground's own state (§5): the plot is shown, but nothing can change it until Python is ready.
   if (opened && !pythonReady) for (const key of ["debrief.plotOpen", "debrief.canUndo", "debrief.canRedo"]) reasons[key] = "Python is starting.";
+  // An earlier revision shown read-only: Undo and Redo cannot act, and say so.
+  if (readOnly) for (const key of ["debrief.canUndo", "debrief.canRedo"]) reasons[key] = "An earlier revision is shown read-only, so it cannot be changed.";
   if (colour?.reason) reasons["debrief.selectionColourable"] = colour.reason;
   if (children?.reason) reasons["debrief.selectionHasChildren"] = children.reason;
   if (tote.primaryReason) reasons["debrief.toteCanSetPrimary"] = tote.primaryReason;

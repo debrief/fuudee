@@ -217,10 +217,12 @@ export async function playExport(page, shot) {
   await page.waitForFunction((s) => !document.querySelector(".frame-map").contentDocument.querySelector(s), teal, { timeout: 10000 }); // not teal: as it was
   await showPanel(page, "export");
   await shot("export-02-traced");
-  // Nothing can be changed here: Undo is refused, and said; the history is as it was.
+  // Nothing can be changed here: Undo is disabled, saying why, and Ctrl+Z does nothing (PAR-08); the history is as it was.
+  assert.equal(await page.locator("#undo").isDisabled(), true);
+  assert.match(await page.locator("#undo").getAttribute("title"), /shown read-only, so it cannot be changed/);
   await page.evaluate(() => document.activeElement?.blur());
   await page.keyboard.press("Control+z");
-  await page.locator(".toast", { hasText: "shown read-only, so it cannot be changed" }).waitFor();
+  await page.waitForTimeout(500);
   assert.equal(await historyRows(), rows + 1);
   // Exported again from here, the image names the same revision: its short ID starts as the first's.
   const again = await exportImage({ format: "png", preset: "screen", theme: "current", footer: true });
