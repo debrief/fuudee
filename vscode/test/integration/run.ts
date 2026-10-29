@@ -74,6 +74,7 @@ async function main(): Promise<void> {
       DEBRIEF_CONFIG: configFile,
       DEBRIEF_PYTHON: python,
       DEBRIEF_SCREENSHOTS: screenshots,
+      DEBRIEF_IT_MINUTES: process.env.DEBRIEF_IT_MINUTES ?? "",
     },
   });
 }
