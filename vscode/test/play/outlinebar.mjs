@@ -97,7 +97,7 @@ export async function playOutlineBar(page, shot) {
   await stateIs("hidden");
   assert.equal(await button("visibility").getAttribute("aria-pressed"), "true");
   assert.equal(await button("visibility").getAttribute("data-icon"), "eye-closed");
-  assert.match(await row("track-blue-one").locator(".detail").innerText(), /^hidden on map/);
+  assert.match(await row("track-blue-one").locator(".detail").innerText(), /^selected · hidden on map · /);
 
   // A shown track added: mixed, its own icon; pressing shows all three, one step.
   const ais = await page.locator('#outline li[data-id^="track-ais-"]').first().getAttribute("data-id");
@@ -179,9 +179,10 @@ export async function playOutlineBar(page, shot) {
 
   // Select all: every row listed, as Ctrl+A in the tree.
   await button("select-all").click();
-  const listed = await page.evaluate(() => window.debriefOutline.flat.length);
+  // The rows that select something: not the headings, the narrative or the files.
+  const listed = await page.evaluate(() => window.debriefOutline.flat.filter((r) => ["feature", "cut", "leg", "fix"].includes(r.node.data.kind)).length);
   await page.waitForFunction((k) => window.debriefSelection().picks.length === k, listed);
-  assert.equal(await page.locator('#outline li[aria-selected="false"]').count(), 0, "every row selected");
+  assert.equal(await page.locator('#outline li[aria-selected="false"]:not(.section, .group, .narrative, .file, .empty)').count(), 0, "every row selected");
   assert.match(await said(), /^\d+ tracks, 2 sensors and \d+ annotations? selected$/);
   await row("track-blue-one").focus();
   await page.keyboard.press("Control+a");

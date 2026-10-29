@@ -142,15 +142,17 @@ try {
 
   // The outline from the keyboard, a tree (product owner, 27 Oct 2026): one tab stop; Space selects,
   // Down moves the keyboard, Enter selects there; Tab moves on (it is not trapped).
+  // The first track's row (the rows above it are the Plot features and Tracks headings, as in VS Code).
   const rows = page.locator("#outline li[role=treeitem]");
   assert.equal(await page.locator("#outline").getAttribute("role"), "tree");
-  await rows.nth(0).focus();
+  assert.deepEqual(await rows.evaluateAll((all) => all.slice(0, 2).map((r) => r.dataset.id)), ["section:features", "group:tracks"]);
+  await rows.nth(2).focus();
   await page.keyboard.press(" ");
-  await page.waitForFunction(() => document.querySelector("#outline li[role=treeitem]")?.getAttribute("aria-selected") === "true");
+  await page.waitForFunction(() => document.querySelectorAll("#outline li[role=treeitem]")[2]?.getAttribute("aria-selected") === "true");
   await page.keyboard.press("ArrowDown");
-  assert.equal(await page.evaluate(() => document.activeElement?.dataset.id), await rows.nth(1).getAttribute("data-id"));
+  assert.equal(await page.evaluate(() => document.activeElement?.dataset.id), await rows.nth(3).getAttribute("data-id"));
   await page.keyboard.press("Enter");
-  await page.waitForFunction(() => document.querySelectorAll("#outline li.selected").length === 1 && document.querySelectorAll("#outline li[role=treeitem]")[1].classList.contains("selected"));
+  await page.waitForFunction(() => document.querySelectorAll("#outline li.selected").length === 1 && document.querySelectorAll("#outline li[role=treeitem]")[3].classList.contains("selected"));
   assert.equal(await page.locator("#outline li[tabindex='0']").count(), 1, "one tab stop");
   await page.keyboard.press("Tab");
   assert.equal(await page.evaluate(() => !!document.activeElement?.closest("#outline")), false, "Tab leaves the tree");

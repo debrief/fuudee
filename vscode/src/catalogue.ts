@@ -19,6 +19,7 @@ import {
   type StacItem,
   type TrackCoverage,
 } from "@debrief/schemas";
+import { filesOf } from "../webview/panels/outline.js";
 
 export const CATALOGUE_FILE = "catalog.json";
 
@@ -199,13 +200,5 @@ export function openPlot(store: KnownStore, itemId: string): OpenedPlot {
   const plotAsset = item.assets.plot;
   if (!plotAsset) throw new Error(`${itemId} has no plot`);
   const plot = plotContent(readFileSync(assetPath(store, item, plotAsset), "utf8"));
-  const files = Object.entries(item.assets)
-    .filter(([key]) => key !== "plot")
-    .map(([key, asset]) => ({
-      key,
-      title: asset.title ?? path.basename(asset.href),
-      kind: String(asset["debrief:asset_kind"] ?? "file"),
-      href: assetPath(store, item, asset),
-    }));
-  return { store, item, plot, files };
+  return { store, item, plot, files: filesOf(item, (asset) => assetPath(store, item, asset)) };
 }

@@ -210,8 +210,9 @@ export async function playFixDrag(page, shot) {
   await side.locator(".side-bar button", { hasText: "Close" }).click();
 
   // OTG/DR…: the track plotted by dead reckoning, one step, and tagged DR beside its name in the outline and on the map.
-  const tag = page.locator(`#outline li[data-id="track-red-one"] .tag`);
-  assert.equal(await tag.count(), 0);
+  // DR is the first of the row's tags, as in VS Code's (the Outline panel model's order).
+  const drTagged = async () => /^DR( · |$)/.test(await page.locator(`#outline li[data-id="track-red-one"] .detail`).innerText());
+  assert.equal(await drTagged(), false);
   n = await steps();
   await page.locator("#plotting-mode").click();
   await dialog.waitFor();
@@ -223,7 +224,7 @@ export async function playFixDrag(page, shot) {
   await dialog.getByRole("button", { name: "Plot" }).click();
   await stepAdded(n);
   assert.equal(await latest(), "RED ONE plotted by dead reckoning");
-  assert.equal(await tag.innerText(), "DR");
+  assert.equal(await drTagged(), true);
   await mapFrame.locator(".track-label", { hasText: "RED ONE (DR)" }).waitFor();
   await page.waitForTimeout(500);
 
@@ -304,13 +305,13 @@ export async function playFixDrag(page, shot) {
   await dialog.waitFor({ state: "detached" });
   await page.waitForTimeout(500);
   assert.equal(await steps(), n, "not confirmed: nothing changed");
-  assert.equal(await tag.innerText(), "DR");
+  assert.equal(await drTagged(), true);
   await toOtg();
   await dialog.getByRole("button", { name: "Plot over the ground" }).click();
   await stepAdded(n);
   assert.equal(await latest(), "RED ONE plotted over the ground");
   assert.equal(await steps(), n + 1, "one step");
-  assert.equal(await tag.count(), 0);
+  assert.equal(await drTagged(), false);
   await page.evaluate(() => document.activeElement?.blur());
   for (let i = 0; i < 5; i++) await page.keyboard.press("Control+z");
   await page.waitForFunction(() => /RED ONE plotted by dead reckoning[^]*undone/.test(document.getElementById("history")?.textContent ?? ""));

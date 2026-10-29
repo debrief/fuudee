@@ -36,11 +36,11 @@ import { count, describePeriod, describeTimes, describeToolRun } from "../src/fo
 import { resolveTimes } from "../src/timeinput.js";
 import { answersToRemember, choicesOf, describeAnswers, duplicateQuestion, periodChoices, questionsFor, readSummary, rememberedAnswers, typeWords, type NarrativeChoices, type NarrativePreview } from "../src/narrativeimport.js";
 import { describeStep, needs } from "../src/wording.js";
-import { contextTracksOf, displayed, hiddenIds, isFeature, isHidden, setViewOf, timeWindowOf, viewOf, type PlotFeature } from "../src/hidden.js";
+import { contextTracksOf, displayed, hiddenIds, isFeature, setViewOf, timeWindowOf, viewOf, type PlotFeature } from "../src/hidden.js";
 import { contextShown, type ContextTracks } from "../webview/contrast.js";
 import { placeToolTime } from "../webview/timelogic.js";
 import { TRACK_COLOURS } from "../webview/palette.js";
-import { cutChoices, cutNow, describeCut, featureName, KEEP_CHOICES, placeOfCut, resolutionFor, scopeChoices, sensorDetail, sensorsOf, type CutFeature, type Keep, type ResolveContext, type SensorEntry } from "../webview/sensors.js";
+import { cutChoices, cutNow, describeCut, featureName, KEEP_CHOICES, placeOfCut, resolutionFor, scopeChoices, sensorsOf, type Keep, type ResolveContext } from "../webview/sensors.js";
 import { describeSensorInFile, hostChoices, hostQuestion, hostsToAsk, sensorReadSummary, type SensorPreview } from "../src/sensorimport.js";
 import { TimeControl } from "../webview/timecontrol.js";
 import { ToteControl } from "../webview/totecontrol.js";
@@ -57,26 +57,23 @@ import { defaultPivotIndex, describeDistance, describeSpeed, describeTurn, FIX_P
 import { chooseModes, MODE_LABELS, modeChoices, modeQuestion, REMEMBER_LABEL, REMEMBERED_IN_PLAYGROUND, type PlottingMode } from "../src/importmode.js";
 import { describeJump, describeMark, describeWindow, DR_TAG, fixRows, isDeadReckoned, jumpsFound, markAt, readThreshold, readWindow, smoothingNote, type Jump } from "../webview/fixes.js";
 import { FIX_COLOURS } from "../webview/palette.js";
-import { ALL_PROBLEM, AT_EVERY_FIX, changesOf, choiceFromValue, choicesFor, describeChanges, describeInterval, describeSetFrequencies, FIELD_NAMES, FIELDS, formState, readInterval, trackDetails, type Field, type FieldState } from "../webview/frequencies.js";
+import { ALL_PROBLEM, AT_EVERY_FIX, changesOf, choiceFromValue, choicesFor, describeChanges, describeInterval, FIELD_NAMES, FIELDS, formState, readInterval, type Field, type FieldState } from "../webview/frequencies.js";
 import { formatQuantity, figureIdProblem, UNIT_LABELS } from "@debrief/kernel";
 import type { FigureSource, ImageExport, RenderedImage, RevisionShown } from "@debrief/schemas";
 import { fileNameFor, PRESETS, type ImageFormat, type ImagePreset, type ImageTheme } from "../webview/exportlogic.js";
 import { describeExported, describeSource, READ_ONLY, rememberedOf, revisionOf, startingChoice, type ExportChoice } from "../src/figures.js";
 import { callEvent, counts, outlineTarget, TourPanel, tourOfEvent, type TourAction } from "./tours.js";
 import { OutlineTree } from "./outline.js";
-import type { FlatRow, TreeNode } from "../webview/outlinetree.js";
+import { fillOutlineRow } from "./outlinerow.js";
+import { filesOf, isBranch, OutlineModel, selectable, type OutlineNode, type OutlineRow } from "../webview/panels/outline.js";
+import type { TreeNode } from "../webview/outlinetree.js";
 import {
-  ancestorsOf,
   bearingsFor,
   bearingsTitle,
   type BearingsShown,
-  cutRow,
   exclusionTarget,
   featureIdsOfPicks,
   fixKey,
-  fixRow,
-  legKey,
-  legRow,
   type Operation,
   type OperationContext,
   type OperationId,
@@ -87,7 +84,6 @@ import {
   type OutlinePick,
   pickedCuts,
   pickOf,
-  type SolutionIndex,
   tmaRequestOf,
 } from "../webview/outlinemodel.js";
 import { selectionChildren, selectionColour, selectionSaid, selectionVisibility } from "../webview/outlinetoolbar.js";
@@ -1632,156 +1628,57 @@ document.addEventListener("keydown", (event) => {
 
 // --- Rendering --------------------------------------------------------------------
 // --- The Outline: a tree (product owner, 27 Oct 2026) ------------------------------------
-// A track opens to its sensors, a sensor to its cuts, a TMA solution to its legs and each leg to
-// its positions (fixes). Virtualised (outline.ts), so a sensor's thousands of cuts scroll easily.
-type OutlineRow =
-  | { kind: "feature"; feature: Feature; sensor?: SensorEntry }
-  | { kind: "cut"; entry: SensorEntry; cut: CutFeature }
-  | { kind: "leg"; s: SolutionIndex; leg: number }
-  | { kind: "fix"; s: SolutionIndex; index: number };
+// The Outline panel model's tree (webview/panels/outline.ts, PAR-01), as VS Code's is: its
+// sections and groups, a track's sensors, a sensor's cuts (in pages of 500 when it has more), a TMA
+// solution's legs and each leg's positions (fixes). Rendered by outlinerow.ts, virtualised by outline.ts.
 /** The rows selected in the Outline, by key: features, cuts, and the legs and fixes of solutions (which are not features). */
 let outlinePicks: string[] = [];
 /** The Outline's toolbar (product owner, 28 Oct 2026), made once the tree is. */
 let outlineBar: OutlineBar | undefined;
-/** The plot the Outline last showed, and the sensors it has seen: a track carrying a new one opens. */
+/** The plot the Outline last showed, and the branches it has opened as they first show: a track carrying a new sensor opens. */
 let outlineItem: string | undefined;
-const outlineSensors = new Set<string>();
-/** Each branch's children, made once for each plot read. */
-let outlinePlot: DebriefFeatureCollection | undefined;
-const outlineChildren = new Map<string, TreeNode<OutlineRow>[]>();
-function outlineCached(key: string, make: () => TreeNode<OutlineRow>[]): () => TreeNode<OutlineRow>[] {
-  return () => {
-    let children = outlineChildren.get(key);
-    if (!children) outlineChildren.set(key, (children = make()));
-    return children;
-  };
+const outlineSeen = new Set<string>();
+/** The model of the plot open, made once for each plot read, and the tree's node for each of its nodes. */
+let outlineModel = new OutlineModel();
+const outlineTreeNodes = new Map<string, TreeNode<OutlineNode>>();
+function outlineNow(): OutlineModel {
+  const plot = opened?.plot;
+  if (outlineModel.index?.plot !== plot) {
+    outlineModel = new OutlineModel(opened && { plot: opened.plot, files: filesOf(opened.item, (asset) => asset.href) });
+    outlineTreeNodes.clear();
+  }
+  return outlineModel;
 }
-function outlineRoots(): TreeNode<OutlineRow>[] {
-  if (!opened) return [];
-  const plot = opened.plot;
-  if (plot !== outlinePlot) {
-    outlinePlot = plot;
-    outlineChildren.clear();
+function outlineTreeNode(node: OutlineNode): TreeNode<OutlineNode> {
+  let made = outlineTreeNodes.get(node.key);
+  if (!made) {
+    let children: TreeNode<OutlineNode>[] | undefined;
+    made = { key: node.key, data: node, branch: isBranch(node), children: () => (children ??= outlineModel.children(node).map(outlineTreeNode)) };
+    outlineTreeNodes.set(node.key, made);
   }
-  const index = outlineIndex(plot);
-  // A sensor shows under its host track (CAP-22).
-  const carried = new Map<string, SensorEntry[]>();
-  for (const entry of index.sensors.values()) carried.set(entry.sensor.properties.host_track_id, [...(carried.get(entry.sensor.properties.host_track_id) ?? []), entry]);
-  const sensorNode = (entry: SensorEntry): TreeNode<OutlineRow> => ({
-    key: entry.sensor.id,
-    data: { kind: "feature", feature: entry.sensor as Feature, sensor: entry },
-    branch: entry.cuts.length > 0,
-    children: outlineCached(entry.sensor.id, () => entry.cuts.map((cut) => ({ key: cut.id, data: { kind: "cut", entry, cut }, branch: false }))),
-  });
-  return features()
-    .filter((f) => f.properties.kind === "track" || f.geometry)
-    .map((f): TreeNode<OutlineRow> => {
-      const s = index.solutions.get(f.id);
-      if (s) {
-        // A TMA solution: its legs, each opening to its fixes.
-        const legs = s.bounds.length - 1;
-        return {
-          key: f.id,
-          data: { kind: "feature", feature: f },
-          branch: true,
-          children: outlineCached(f.id, () =>
-            Array.from({ length: legs }, (_, k): TreeNode<OutlineRow> => {
-              const leg = k + 1;
-              const key = legKey(f.id, leg);
-              return {
-                key,
-                data: { kind: "leg", s, leg },
-                branch: true,
-                children: outlineCached(key, () => {
-                  const out: TreeNode<OutlineRow>[] = [];
-                  for (let i = s.bounds[k]; i < s.bounds[leg]; i++) out.push({ key: fixKey(f.id, i), data: { kind: "fix", s, index: i }, branch: false });
-                  return out;
-                }),
-              };
-            }),
-          ),
-        };
-      }
-      const sensors = carried.get(f.id) ?? [];
-      return { key: f.id, data: { kind: "feature", feature: f }, branch: sensors.length > 0, children: outlineCached(`${f.id}#sensors`, () => sensors.map(sensorNode)) };
-    });
+  return made;
 }
-/** What a row says: a feature as before; a cut, a leg, a fix as outlinemodel.ts has them. */
-function fillOutlineRow(row: FlatRow<OutlineRow>, li: HTMLLIElement): void {
-  const data = row.node.data;
-  const name = document.createElement("span");
-  name.className = "name";
-  const detail = document.createElement("span");
-  detail.className = "detail";
-  li.className = li.className.split(" ").filter((c) => c === "selected").join(" ");
-  li.removeAttribute("aria-label");
-  li.removeAttribute("title");
-  if (data.kind === "cut") {
-    const said = cutRow(data.entry, data.cut);
-    name.textContent = said.name;
-    detail.textContent = said.detail;
-    li.classList.add("cut");
-    li.classList.toggle("hidden-cut", said.hidden);
-    li.setAttribute("aria-label", said.label);
-    li.append(name, " ", detail);
-    return;
-  }
-  if (data.kind === "leg") {
-    const said = legRow(data.s, data.leg);
-    name.textContent = said.name;
-    detail.textContent = said.detail;
-    li.classList.add("leg");
-    li.setAttribute("aria-label", said.label);
-    li.append(name, " ", detail);
-    return;
-  }
-  if (data.kind === "fix") {
-    const said = fixRow(data.s, data.index);
-    name.textContent = said.name;
-    detail.textContent = said.detail;
-    li.classList.add("fix");
-    li.setAttribute("aria-label", said.label);
-    li.append(name, " ", detail);
-    return;
-  }
-  const f = data.feature;
-  const isSensor = f.properties.kind === "sensor";
-  if (isSensor) li.classList.add("sensor");
-  const props = f.properties as { times?: string[]; time?: string };
-  name.textContent = featureName(f, opened?.plot);
-  li.append(name);
-  // A TMA solution (CAP-21): a small TMA beside its name, with its contact.
-  const tma = f.properties.kind === "track" ? f.properties.tma : undefined;
-  if (tma) {
-    const tag = Object.assign(document.createElement("span"), { className: "tag", textContent: "TMA", title: `A TMA solution of ${tma.contact}: expand it for its legs and positions; Bearings shows its residuals` });
-    tag.setAttribute("aria-label", `a TMA solution of ${tma.contact}`);
-    li.append(" ", tag);
-  }
-  // A track plotted by dead reckoning: a small DR beside its name (decision, product owner, 14 Oct 2026).
-  else if (f.properties.kind === "track" && isDeadReckoned(f.properties)) {
-    const tag = Object.assign(document.createElement("span"), { className: "tag", textContent: DR_TAG, title: "Plotted by dead reckoning (DR), from its first fix by each fix's course and speed" });
-    tag.setAttribute("aria-label", "plotted by dead reckoning");
-    li.append(" ", tag);
-  }
-  const sensor = data.sensor;
-  const when = sensor ? sensorDetail(sensor) : props.times ? describeTimes(props.times[0], props.times.at(-1)) : f.properties.kind;
-  if (sensor) li.title = `${featureName(f)}, a sensor of ${sensor.host ? sensor.host.properties.name : "a track not in the plot"}: ${when}. Expand it for its cuts. Right-click, press and hold, or Shift+F10 to keep port or starboard bearings`;
-  detail.textContent = isHidden(f) ? `hidden on map · ${when}` : when;
-  li.append(" ", detail);
-  if (f.properties.kind === "track") {
-    // Its details when pointed at, its labels, symbols and arrows among them; those set on a line of their own (CAP-32).
-    li.title = trackDetails(f.properties, when, isDeadReckoned(f.properties));
-    const set = describeSetFrequencies(f.properties);
-    if (set) {
-      li.classList.add("tall");
-      li.append(Object.assign(document.createElement("span"), { className: "detail freq-detail", textContent: set }));
-    }
-  }
+function outlineRoots(): TreeNode<OutlineNode>[] {
+  return outlineNow().roots.map(outlineTreeNode);
 }
-const outlineTree = new OutlineTree<OutlineRow>($("outline"), {
+/** The rows chosen, as a set, made again only when they change. */
+let outlineChosen: { picks: string[]; keys: Set<string> } = { picks: [], keys: new Set() };
+function outlineRow(node: OutlineNode): OutlineRow {
+  if (outlineChosen.picks !== outlinePicks) outlineChosen = { picks: outlinePicks, keys: new Set(outlinePicks) };
+  return outlineNow().row(node, outlineChosen.keys);
+}
+const outlineTree = new OutlineTree<OutlineNode>($("outline"), {
   roots: outlineRoots,
-  fill: fillOutlineRow,
-  chose: (keys) => void chooseInOutline(keys),
+  fill: (row, li) => fillOutlineRow(outlineRow(row.node.data), li),
+  empty: () => outlineNow().emptyText,
+  // Rows that select nothing (a heading, a page of cuts) leave the selection alone, as in VS Code; the narrative row shows the Timeline.
+  chose: (keys) => {
+    const rows = keys.map((k) => outlineNow().node(k)).filter((n): n is OutlineNode => !!n);
+    const picks = rows.filter(selectable).map((n) => n.key);
+    if (rows.length === 1 && outlineRow(rows[0]).activate?.kind === "timeline") showPanel("panel-timeline");
+    if (picks.length) void chooseInOutline(picks);
+    else outlineTree.mark(outlinePicks);
+  },
   // Its menu: right-click, press and hold on a touch screen, or Shift+F10 (a track's: the
   // Tote, CAP-06; a sensor's: keeping a side of its ambiguous cuts, CAP-22).
   menu: (key, x, y, element) => {
@@ -1790,7 +1687,14 @@ const outlineTree = new OutlineTree<OutlineRow>($("outline"), {
     else if (f?.properties.kind === "sensor") sensorMenu(key, x, y, element);
   },
 });
-(window as unknown as { debriefOutline: OutlineTree<OutlineRow> }).debriefOutline = outlineTree;
+// The tree, and what a row says by key (the model's row, as fillOutlineRow draws it), for the tests.
+Object.assign(window, {
+  debriefOutline: outlineTree,
+  debriefOutlineRow: (key: string): OutlineRow | undefined => {
+    const node = outlineNow().node(key);
+    return node && outlineRow(node);
+  },
+});
 
 // --- The Outline's toolbar (product owner, 28 Oct 2026) ----------------------------------------
 /** Hide what is selected, or show it: all shown, hide them all; all hidden or some of each, show them all. One step. */
@@ -1815,7 +1719,10 @@ async function selectChildrenOfSelection(): Promise<void> {
   const index = outlineIndex(opened.plot);
   const children = selectionChildren(index, outlinePicked());
   if (children.reason) return toast(children.reason, "warning");
-  for (const parent of children.parents) for (const key of [...ancestorsOf(index, parent), parent]) outlineTree.open.add(key);
+  const model = outlineNow();
+  for (const parent of children.parents) for (const key of [...model.ancestors(parent), parent]) outlineTree.open.add(key);
+  // A sensor of more than a page of cuts: the page of the first opened too.
+  if (children.keys[0]) for (const key of model.ancestors(children.keys[0])) outlineTree.open.add(key);
   await chooseInOutline(children.keys);
   outlineTree.select(children.keys, [], children.keys[0]);
 }
@@ -1828,7 +1735,7 @@ outlineBar = new OutlineBar(
       const readOnly = !!opened?.revision;
       const none = "Open a plot first.";
       const children = index ? selectionChildren(index, picks) : { keys: [], title: `Select children: ${none}`, reason: none };
-      const rows = outlineTree.flat.length;
+      const rows = outlineListed().length;
       return {
         visibility: index ? selectionVisibility(index, picks, readOnly) : { state: "none", ids: [], hidden: 0, ignored: 0, pressed: "false", title: `Hide or show on the map: ${none}` },
         colour: index ? selectionColour(index, picks, readOnly) : { ids: [], enabled: false, title: `Colour: ${none}`, reason: none },
@@ -1841,12 +1748,16 @@ outlineBar = new OutlineBar(
     hideOrShow: () => void hideOrShowSelected(),
     colour: (colour, name) => void colourSelected(colour, name),
     // Every row listed, as Ctrl+A in the tree.
-    selectAll: () => void chooseInOutline(outlineTree.flat.map((r) => r.key)),
+    selectAll: () => void chooseInOutline(outlineListed()),
     selectChildren: () => void selectChildrenOfSelection(),
     clearSelection: () => void chooseInOutline([]),
   },
   TRACK_COLOURS,
 );
+/** Every row to select listed (the branches open), as VS Code's Select all and Ctrl+A in the tree take them. */
+function outlineListed(): string[] {
+  return outlineNow().listedKeys((node) => outlineTree.open.has(node.key));
+}
 /** The picks the Outline's selection stands for. */
 function outlinePicked(): OutlinePick[] {
   if (!opened) return [];
@@ -1873,19 +1784,20 @@ function renderOutline(reveal = false): void {
   if (opened && opened.item.id !== outlineItem) {
     outlineItem = opened.item.id;
     outlineTree.open.clear();
-    outlineSensors.clear();
+    outlineSeen.clear();
   }
-  // A track carrying a sensor not seen before opens, so its sensors show under it, as they always have.
-  for (const entry of entries) {
-    if (outlineSensors.has(entry.sensor.id)) continue;
-    outlineSensors.add(entry.sensor.id);
-    outlineTree.open.add(entry.sensor.properties.host_track_id);
+  // The branches the model has open when they first show (the headings, a track carrying a sensor
+  // not seen before); after that, as the reader left them, as VS Code keeps them.
+  const model = outlineNow();
+  for (const key of model.startOpen()) {
+    if (outlineSeen.has(key)) continue;
+    outlineSeen.add(key);
+    outlineTree.open.add(key);
   }
   outlineTree.refresh();
   if (reveal && opened) {
-    const index = outlineIndex(opened.plot);
     const last = outlinePicks[outlinePicks.length - 1];
-    outlineTree.select(outlinePicks, last ? ancestorsOf(index, last) : []);
+    outlineTree.select(outlinePicks, last ? model.ancestors(last) : []);
   } else outlineTree.mark(outlinePicks);
   $("north-arrow").setAttribute("aria-pressed", String(hasNorthArrow()));
   // The hint line is gone (product owner, 28 Oct 2026; the walkthroughs teach the gestures): the

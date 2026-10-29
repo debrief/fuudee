@@ -59,7 +59,7 @@ export async function playSensors(page, shot) {
   const blue = rows.indexOf("track-blue-one");
   assert.deepEqual(rows.slice(blue + 1, blue + 3), ["sensor-blue-one-bow-sonar", "sensor-blue-one-towed-array"], "sensors under their host track");
   const towedDetail = await row("sensor-blue-one-towed-array").locator(".detail").innerText();
-  assert.match(towedDetail, /^\d+ cuts · \d+ ambiguous/);
+  assert.match(towedDetail, /^(selected · )?\d+ cuts · \d+ ambiguous/);
   assert.equal(await page.locator("#sensor-group").isVisible(), false, "the Sensor actions only while a sensor or a cut is selected");
   await row("sensor-blue-one-towed-array").click();
   await page.locator("#sensor-group").waitFor();
@@ -176,7 +176,7 @@ export async function playSensors(page, shot) {
   await page.keyboard.press("Enter");
   await stepAdded(n);
   assert.match(await latest(), /^Port kept: \d+ Towed array cuts \d\d:\d\d:\d\dZ–\d\d:\d\d:\d\dZ$/);
-  assert.match(await row("sensor-blue-one-towed-array").locator(".detail").innerText(), /^\d+ cuts( · \d+ ambiguous)? · \d+ resolved$/);
+  assert.match(await row("sensor-blue-one-towed-array").locator(".detail").innerText(), /^(selected · )?\d+ cuts( · \d+ ambiguous)? · \d+ resolved$/);
   await page.mouse.move(2, 2);
   await shot("sensors-04-port-kept");
   // Both again, for all the Towed array's cuts, from the Sensor actions: one step.
@@ -246,7 +246,7 @@ export async function playSensors(page, shot) {
   await page.locator("#obar-visibility").click();
   await stepAdded(n);
   await page.waitForFunction((b) => Number(document.querySelector(".frame-map").contentDocument.querySelector("canvas.sensor-cuts").dataset.cuts) < b, before);
-  assert.match(await row("sensor-blue-one-bow-sonar").locator(".detail").innerText(), /^hidden on map/);
+  assert.match(await row("sensor-blue-one-bow-sonar").locator(".detail").innerText(), /^(selected · )?hidden on map · /);
   await undo();
   await undo();
 

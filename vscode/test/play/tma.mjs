@@ -144,14 +144,14 @@ export async function playTma(page, shot) {
   assert.equal(await page.locator("#outline").getAttribute("role"), "tree");
   const sensorRow = outlineRow("sensor-blue-one-bow-sonar");
   assert.equal(await sensorRow.getAttribute("aria-expanded"), "false");
-  assert.equal(await sensorRow.getAttribute("aria-level"), "2");
+  assert.equal(await sensorRow.getAttribute("aria-level"), "4"); // Plot features, Tracks, BLUE ONE, the sensor
   await sensorRow.focus();
   await page.keyboard.press("ArrowRight");
   await page.waitForFunction(() => document.querySelector('#outline li[data-id="sensor-blue-one-bow-sonar"]')?.getAttribute("aria-expanded") === "true");
   const cutRows = page.locator("#outline li.cut");
   const total = Number(await cutRows.first().getAttribute("aria-setsize"));
   assert.ok(total > 300, `the Bow sonar's cuts in the Outline: ${total}`);
-  assert.equal(await cutRows.first().getAttribute("aria-level"), "3");
+  assert.equal(await cutRows.first().getAttribute("aria-level"), "5");
   assert.equal(await cutRows.first().getAttribute("aria-posinset"), "1");
   assert.match(await cutRows.first().getAttribute("aria-label"), /^Cut at 1\d:\d\d:\d\dZ, \d{3}\.\d°/);
   assert.equal(await page.locator("#outline li[tabindex='0']").count(), 1, "one tab stop");
@@ -619,10 +619,10 @@ export async function playTma(page, shot) {
   };
   await expand(solutionId);
   await outlineRow(`${solutionId}#leg1`).waitFor();
-  assert.match(await outlineRow(`${solutionId}#leg1`).innerText(), /^[▸▾]\s*Leg 1 12:\d\d:\d\dZ–1\d:\d\d:\d\dZ · 60 fixes · \d{3}\.\d°T \d+\.\d kn$/);
+  assert.match(await outlineRow(`${solutionId}#leg1`).innerText(), /^[▸▾]\s*\S\s+Leg 1 12:\d\d:\d\dZ–1\d:\d\d:\d\dZ · 60 fixes · \d{3}\.\d°T \d+\.\d kn$/);
   await expand(`${solutionId}#leg1`);
   await fixRow(29).waitFor();
-  assert.equal(await fixRow(29).getAttribute("aria-level"), "3");
+  assert.equal(await fixRow(29).getAttribute("aria-level"), "5"); // Plot features, Tracks, the solution, its leg, the fix
   assert.equal(await fixRow(29).getAttribute("aria-setsize"), "60");
   assert.match(await fixRow(29).getAttribute("aria-label"), /^Position at 1\d:\d\d:\d\dZ, \d{3}\.\d°T \d+\.\d kn$/);
   await fixRow(29).click();
