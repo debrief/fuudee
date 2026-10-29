@@ -71,17 +71,21 @@ button:focus-visible, li:focus-visible { outline: 1px solid var(--vscode-focusBo
 .side .tc-speed, .side .tc-context { width: auto; padding: 0 2px; }
 #panel-try button { display: block; width: 100%; text-align: left; }
 /* The catalogue's items (CAP-08 to CAP-12): a mark is a symbol and words, never colour alone. */
-.items { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 6px; max-height: 320px; overflow-y: auto; overflow-wrap: anywhere; }
-.items > li { padding: 3px 4px; border-radius: 2px; min-width: 0; }
-.items > li.item-open { background: var(--vscode-list-inactiveSelectionBackground); }
-.item-name { font-weight: 600; }
-.item-mark { color: var(--vscode-charts-yellow, var(--vscode-editorWarning-foreground)); font-weight: normal; }
-.item-flag { color: var(--vscode-editorWarning-foreground); }
-.items details { font-size: 12px; }
-.items summary { cursor: pointer; color: var(--vscode-descriptionForeground); }
-.item-tracks { list-style: none; margin: 2px 0 0; padding: 0 0 0 12px; font-size: 12px; }
-.item-actions { display: flex; flex-wrap: wrap; gap: 2px 4px; }
-.item-actions button { margin: 2px 0 0; padding: 1px 6px; }
+/* The Catalogues tree (webview/panels/catalogues.ts): catalogue → plot → track. */
+.catalogues { max-height: 320px; overflow-y: auto; overflow-wrap: anywhere; }
+.catalogues ul[role="group"] { list-style: none; margin: 0; padding: 0 0 0 14px; }
+.catalogues li[role="treeitem"] { padding: 0; }
+.catalogues li[role="treeitem"]:focus-visible > .row { outline: 1px solid var(--vscode-focusBorder); outline-offset: -1px; }
+.catalogues .row { padding: 2px 4px; border-radius: 2px; }
+.catalogues li.catalogues-plot > .row { cursor: pointer; }
+.catalogues li.catalogues-plot > .row:hover { background: var(--vscode-list-hoverBackground); }
+.catalogues .arrow { display: inline-block; width: 1em; cursor: pointer; color: var(--vscode-descriptionForeground); }
+.catalogues li[aria-expanded="true"] > .row .arrow::before { content: "▾"; }
+.catalogues li[aria-expanded="false"] > .row .arrow::before { content: "▸"; }
+.catalogues li:not([aria-expanded]) > .row { padding-left: calc(1em + 4px); }
+.catalogues li.catalogues-catalogue > .row .name { font-weight: 600; }
+.catalogues li.warning > .row .icon { color: var(--vscode-editorWarning-foreground); }
+.catalogues li.catalogues-welcome { padding: 2px 4px; }
 .tools li { display: flex; align-items: baseline; gap: 6px; flex-wrap: wrap; }
 /* The Tools panel model's sections (webview/panels/tools.ts): each a heading that opens and closes, with its count. */
 .tools li.tools-section { display: block; }
@@ -94,6 +98,20 @@ button:focus-visible, li:focus-visible { outline: 1px solid var(--vscode-focusBo
 /* The Tools' and History's icons: the playground's artwork for each codicon the panel models name (cosmetic). */
 .tools .icon, #history .icon { display: inline-block; width: 1em; margin-right: .3em; text-align: center; color: var(--vscode-descriptionForeground); }
 :is(.tools, #history) .icon[data-icon="pass-filled"]::before { content: "✓"; }
+/* The Catalogues' icons, likewise (cosmetic). */
+.catalogues .icon { display: inline-block; width: 1em; margin-right: .3em; text-align: center; color: var(--vscode-descriptionForeground); }
+.catalogues .icon[data-icon="library"]::before { content: "▤"; }
+.catalogues .icon[data-icon="lock"]::before { content: "🔒︎"; }
+.catalogues .icon[data-icon="map"]::before { content: "◇"; }
+.catalogues .icon[data-icon="map-filled"]::before { content: "◆"; }
+.catalogues .icon[data-icon="sparkle"]::before { content: "✦"; }
+.catalogues .icon[data-icon="warning"]::before { content: "⚑"; }
+.catalogues .icon[data-icon="pulse"]::before { content: "∿"; }
+.catalogues .icon[data-icon="loading~spin"]::before { content: "⟳"; display: inline-block; animation: spin 1.2s linear infinite; }
+@media (prefers-reduced-motion: reduce) { .catalogues .icon[data-icon="loading~spin"]::before { animation: none; } }
+/* A question's choice: its description and detail beneath its label. */
+#ask-buttons button .detail { display: block; font-size: 11px; font-weight: normal; }
+#ask-title { margin: 0 0 6px; font-size: 14px; }
 :is(.tools, #history) .icon[data-icon="discard"]::before { content: "↶"; }
 :is(.tools, #history) .icon[data-icon="circle-slash"]::before { content: "⊘"; }
 :is(.tools, #history) .icon[data-icon="warning"]::before { content: "⚠"; }

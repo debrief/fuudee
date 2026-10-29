@@ -6,21 +6,20 @@
  */
 import { userInfo } from "node:os";
 import * as vscode from "vscode";
-import type { AmbiguityResolution, AnnotationSpec, ContextTracksEnum, CoverageReport, KnownStore, FigureSource, RevisionShown, NarrativeSpec, ReviewFlag, SourceTrackRef, TimelineEntry, ParameterValue, PlotView, SharedState, SharedStateChange, TimeRange, TmaFocus, TmaRequest, TmaView, ToolDeclaration, ToteResult, ToteView as ToteChoice, TrackEdit } from "@debrief/schemas";
-import { figureIdProblem, formatBearing, formatPosition, formatQuantity, formatTime, parsePosition, POSITION_EXAMPLE, UNIT_LABELS } from "@debrief/kernel";
+import type { AmbiguityResolution, AnnotationSpec, ContextTracksEnum, CoverageReport, KnownStore, FigureSource, RevisionShown, NarrativeSpec, ReviewFlag, TimelineEntry, ParameterValue, PlotView, SharedState, SharedStateChange, TimeRange, TmaFocus, TmaRequest, TmaView, ToolDeclaration, ToteResult, ToteView as ToteChoice, TrackEdit } from "@debrief/schemas";
+import { formatBearing, formatPosition, formatQuantity, formatTime, parsePosition, POSITION_EXAMPLE, UNIT_LABELS } from "@debrief/kernel";
 import { defaultPivotIndex, describeDistance, describeSpeed, describeTurn, FIX_PROMPT, FIX_PROMPT_DR, fixIndexAt, fixMeans, fixToEdit, jumpSpeed, legNow, mergedName, mergePlan, periodIndices, readArrayOffset, arrayOffsetTitle, readBearing, readDistance, readSpeed, readTurn, reckoningOf, type Anchor } from "../webview/trackedit.js";
 import { legExtent } from "../webview/tma.js";
-import { chooseModes, MODE_LABELS, modeChoices, modeQuestion, REMEMBERED_IN_VSCODE, rememberItem, type ModeChoice, type PlottingMode } from "./importmode.js";
+import { MODE_LABELS, REMEMBERED_IN_VSCODE, type PlottingMode } from "./importmode.js";
 import { addStore, DEFAULT_TMA_ERROR_CUT_OFF, loadConfig, narrativeAnswers, removeStore, sameLocation, tmaErrorCutOff, trackImportMode, updateConfig, withNarrativeAnswers, withTmaErrorCutOff, withTrackImportMode, type TrackImportMode } from "@debrief/config";
 import { changedSince, historyOnDisk, knownStores, openPlot, plotFile, type OpenedPlot } from "./catalogue.js";
 import { existsSync, statSync, unwatchFile, watchFile } from "node:fs";
 import { mkdir, realpath, rename, rm, stat, unlink, writeFile } from "node:fs/promises";
 import path from "node:path";
-import { count, describePeriod, describeTimes, settings as displaySettings } from "./format.js";
-import { answersToRemember, choicesOf, describeAnswers, duplicateQuestion, NARRATIVE_FILES, periodChoices, questionsFor, readSummary, rememberedAnswers, typeWords, type NarrativeAnswers, type NarrativeChoices, type NarrativePreview } from "./narrativeimport.js";
+import { count, describeTimes, settings as displaySettings } from "./format.js";
+import type { NarrativeChoices } from "./narrativeimport.js";
 import { placeToolTime } from "../webview/timelogic.js";
 import { cutChoices, cutNow, cutTitle, describeCut, featureName, KEEP_CHOICES, placeOfCut, resolutionFor, type ArrayMode, scopeChoices, sensorsOf, type CutScope, type Keep, type ResolveContext } from "../webview/sensors.js";
-import { describeSensorInFile, hostChoices, hostQuestion, hostsToAsk, sensorReadSummary, type SensorPreview } from "./sensorimport.js";
 import { AnnotationPanel } from "./panels/annotation.js";
 import { FormPanel } from "./panels/form.js";
 import { MapPanel } from "./panels/map.js";
@@ -30,16 +29,15 @@ import { TOTE_VIEW, ToteView } from "./panels/toteview.js";
 import { BEARINGS_VIEW, BearingsView, type BearingsPosted, type BearingsWhere } from "./panels/bearingsview.js";
 import { BEARINGS_WINDOW, BearingsHost, type PoppedOut } from "./panels/bearingshost.js";
 import { TIMELINE_VIEW, TimelineView } from "./panels/timelineview.js";
-import { COVERAGE_VIEW, CoverageView, type CoverageAsk } from "./panels/coverageview.js";
+import { COVERAGE_VIEW, CoverageView } from "./panels/coverageview.js";
 import { startup, type StartupSnapshot } from "./startup.js";
 import { toteMenu, withMapLines, withPrimary, withSecondaries, withoutSecondary } from "../webview/totelogic.js";
-import { CONFLICT, NEEDS_CONFIRMATION, NEWER_SCHEMA, ServiceError, ToolService, type Agent, type AnnotationChange, type CollationChange, type NarrativeChange, type ExportedImage, type HostRequest, type OpenedView, type ToolListing, type TracedImage, type TrackChange } from "./service.js";
+import { CONFLICT, NEEDS_CONFIRMATION, NEWER_SCHEMA, ServiceError, ToolService, type Agent, type AnnotationChange, type NarrativeChange, type ExportedImage, type HostRequest, type OpenedView, type ToolListing, type TracedImage, type TrackChange } from "./service.js";
 import type { CleanChange } from "./service.js";
 import { ALL_PROBLEM, AT_EVERY_FIX, changesOf, choiceFromValue, choicesFor, describeInterval, FIELD_NAMES, FIELDS, formState, readInterval, type Field, type FieldState } from "../webview/frequencies.js";
 import { describeJump, describeMark, describeWindow, fixRows, isDeadReckoned, jumpsFound, markAt, readThreshold, readWindow, smoothingNote, trackLabel } from "../webview/fixes.js";
 import { HistoryProvider } from "./views/history.js";
-import { describeExported, describeSource, insideFolders, NOT_FOUND, OUTSIDE_FOLDERS, rememberedOf, revisionOf, startingChoice, type ExportChoice } from "./figures.js";
-import { fileNameFor, PRESETS, type ImageFormat } from "../webview/exportlogic.js";
+import { insideFolders, NOT_FOUND, OUTSIDE_FOLDERS, revisionOf, type ExportChoice } from "./figures.js";
 import { DiagnosticLog, hashed, logKey, serviceLine, toolRunLine } from "./diagnostics.js";
 import { hiddenIds, hiddenNotice, isFeature, setViewOf, timeWindowOf, viewOf, type PlotFeature } from "./hidden.js";
 import { specOfFeature } from "../webview/annotationlook.js";
@@ -50,9 +48,15 @@ import { featureIdsOf, keysOf, OutlineProvider, type Node as OutlineNode } from 
 import { OPERATION_COMMANDS, ToolsProvider } from "./views/tools.js";
 import { hexColour, selectionChildren, selectionColour, selectionVisibility, type Visibility } from "../webview/outlinetoolbar.js";
 import { featureIdsOfPicks, fixKey, outlineChoice, outlineOperations, pickOf, type Operation, type OperationContext, type OperationId, type OutlineFocus, type OutlinePick } from "../webview/outlinemodel.js";
-import { Refusal, type FlowHost, type PlotRef, type Question, type Severity } from "../webview/panels/flows/host.js";
+import { answerOf, choiceOf, labelOf, Refusal, titleOf, type Choice, type FlowHost, type ManyQuestion, type OpenSpec, type Panel, type PickedFile, type PlotRef, type Question, type RememberQuestion, type SaveSpec, type SaveTarget, type Severity, type TextQuestion } from "../webview/panels/flows/host.js";
 import { confirmNewerSchema as askNewerSchema, runTool as runToolFlow, type Ran } from "../webview/panels/flows/runtool.js";
 import { move as moveFlow, type How } from "../webview/panels/flows/move.js";
+import { clearReviewFlag, collate as collateFlow, dismissNewData, linkTrack, sayReviewFlags, takeNewData, unlinkTrack, type CollationHost, type CoverageAsk } from "../webview/panels/flows/collation.js";
+import { plotTargetOf, trackTargetOf, type CataloguesNode } from "../webview/panels/catalogues.js";
+import { addPlotFile as addPlotFileFlow, askAgain as askAgainFlow, importPlot as importPlotFlow, type ImportHost } from "../webview/panels/flows/importplot.js";
+import { importNarrative as importNarrativeFlow } from "../webview/panels/flows/narrative.js";
+import { importSensor as importSensorFlow } from "../webview/panels/flows/sensor.js";
+import { exportImage as exportFlow, findImageSource as findSourceFlow, type ExportHost } from "../webview/panels/flows/exportimage.js";
 import { operationContext as contextOf, runOperation as runOperationFlow, type OperationHost, type OperationState } from "../webview/panels/flows/operation.js";
 import { AFTER_OPEN, BESIDE, BY_HAND, LOG_FILE, openedEvent, openOnFirstRun, prepare, serviceEvent, toteCompares, TOURS, tourOfEvent, WalkthroughProgress } from "./walkthroughs.js";
 import { NO_SOLUTION, withSolution } from "../walkthroughs/contribute.mjs";
@@ -630,13 +634,107 @@ export function activate(context: vscode.ExtensionContext): DebriefApi {
     }
   }
 
-  // --- The shared flows' host (PAR-09): VS Code's questions, messages and the plot open ---------
+  // --- The shared flows' host (PAR-09): VS Code's questions, messages, files and the plot open ------
+  type Picked = vscode.QuickPickItem & { answer?: string; toggle?: true };
+  const quickItemOf = (c: string | Choice): Picked => {
+    const choice = choiceOf(c);
+    return { label: choice.icon ? `$(${choice.icon}) ${choice.label}` : choice.label, ...(choice.description && { description: choice.description }), ...(choice.detail && { detail: choice.detail }), answer: answerOf(c) };
+  };
+  /** A pick as a QuickPick, in the flow's order, its default the active item, so Enter takes it. */
+  function quickPick(q: Question): Promise<string | undefined> {
+    const quick = vscode.window.createQuickPick<Picked>();
+    const items = q.choices.map(quickItemOf);
+    quick.items = items;
+    quick.title = titleOf(q);
+    quick.placeholder = q.text;
+    const active = items.find((_, i) => labelOf(q.choices[i]) === q.default);
+    if (active) quick.activeItems = [active];
+    return new Promise((resolve) => {
+      quick.onDidAccept(() => {
+        resolve((quick.selectedItems[0] ?? quick.activeItems[0])?.answer);
+        quick.hide();
+      });
+      quick.onDidHide(() => {
+        resolve(undefined);
+        quick.dispose();
+      });
+      quick.show();
+    });
+  }
+  /**
+   * A pick with a box to remember the choice, as legacy Debrief asked it: a Quick Pick has no check
+   * box, so the box is the list's last line: choosing it ticks or clears it and the list stays open;
+   * choosing a choice answers. So one list, used the same by keyboard, mouse or screen reader (which
+   * reads on or off), and one question, not two.
+   */
+  function rememberingPick(q: RememberQuestion): Promise<{ choice: string; remember: boolean } | undefined> {
+    const quick = vscode.window.createQuickPick<Picked>();
+    let remember = false;
+    const options = q.choices.map(quickItemOf);
+    const box = (): Picked => ({ label: `${remember ? "$(pass-filled)" : "$(circle-large-outline)"} ${q.remember}`, description: remember ? "on: Debrief will not ask again" : "off: choose it to turn on", toggle: true, alwaysShow: true });
+    const show = (active?: Picked) => {
+      const toggle = box();
+      quick.items = [...options, { label: "", kind: vscode.QuickPickItemKind.Separator }, toggle];
+      quick.activeItems = [active ?? toggle];
+    };
+    quick.title = q.title;
+    quick.placeholder = q.text;
+    quick.ignoreFocusOut = true;
+    show(options[0]);
+    return new Promise((resolve) => {
+      quick.onDidAccept(() => {
+        const item = quick.selectedItems[0] ?? quick.activeItems[0];
+        if (item?.toggle) {
+          remember = !remember;
+          show();
+        } else if (item?.answer !== undefined) {
+          resolve({ choice: item.answer, remember });
+          quick.hide();
+        }
+      });
+      quick.onDidHide(() => {
+        resolve(undefined);
+        quick.dispose();
+      });
+      quick.show();
+    });
+  }
+  const filtersOf = (filters: readonly { name: string; extensions: readonly string[] }[]) => Object.fromEntries(filters.map((f) => [f.name, [...f.extensions]]));
+  const EXPORT_KEY = "debrief.export";
+  const PANELS: Record<Panel, string> = { catalogues: "debrief.catalogues.focus", coverage: `${COVERAGE_VIEW}.focus`, outline: "debrief.outline.focus", timeline: `${TIMELINE_VIEW}.focus` };
   const flowHost: FlowHost = {
     // A confirmation as a modal warning, its choices as buttons; a pick as a QuickPick.
-    ask: async (q: Question) =>
-      q.kind === "confirm"
-        ? vscode.window.showWarningMessage(q.text, { modal: true }, ...q.choices)
-        : (await vscode.window.showQuickPick(q.choices.map((label) => ({ label })), { placeHolder: q.text }))?.label,
+    ask: async (q: Question) => {
+      if (q.kind === "pick") return quickPick(q);
+      const chosen = await vscode.window.showWarningMessage(q.text, { modal: true }, ...q.choices.map(labelOf));
+      const at = q.choices.findIndex((c) => labelOf(c) === chosen);
+      return at < 0 ? undefined : answerOf(q.choices[at]);
+    },
+    askMany: async (q: ManyQuestion) =>
+      (await vscode.window.showQuickPick(q.choices.map((c) => ({ ...quickItemOf(c), picked: q.picked.includes(c.label) })), { canPickMany: true, title: titleOf(q), ...(q.text && { placeHolder: q.text }) }))?.map((p) => p.answer!),
+    askRemembering: rememberingPick,
+    askText: (q: TextQuestion) => Promise.resolve(vscode.window.showInputBox({ title: q.title, prompt: q.prompt, ...(q.value !== undefined && { value: q.value }), ...(q.placeholder && { placeHolder: q.placeholder }), ...(q.validate && { validateInput: q.validate }) })),
+    pickFile: async (spec: OpenSpec) => {
+      const picked = (await vscode.window.showOpenDialog({ title: spec.title, canSelectMany: false, openLabel: spec.openLabel, filters: filtersOf(spec.filters) }))?.[0];
+      return picked && { name: path.basename(picked.fsPath), path: picked.fsPath };
+    },
+    // Where to save it: the folder saved into last time, else the workspace's.
+    chooseSave: async (spec: SaveSpec) => {
+      const folder = context.globalState.get<string>(`${EXPORT_KEY}.folder`);
+      const workspace = vscode.workspace.workspaceFolders?.[0];
+      const target = await vscode.window.showSaveDialog({
+        title: spec.title,
+        defaultUri: folder ? vscode.Uri.joinPath(vscode.Uri.file(folder), spec.name) : workspace ? vscode.Uri.joinPath(workspace.uri, spec.name) : undefined,
+        filters: filtersOf(spec.filters),
+        saveLabel: spec.saveLabel,
+      });
+      if (!target) return undefined;
+      void context.globalState.update(`${EXPORT_KEY}.folder`, path.dirname(target.fsPath));
+      return { name: path.basename(target.fsPath), path: target.fsPath };
+    },
+    writeFile: (target: SaveTarget, data: Uint8Array) => writeWhole(target.path!, Buffer.from(data)),
+    openPanel: (panel: Panel) => void vscode.commands.executeCommand(PANELS[panel]),
+    oneAtATime: <T>(work: () => Promise<T>) => serially(() => ourChange(work)),
     message: async (severity: Severity, text: string, buttons: readonly string[] = []) =>
       severity === "error"
         ? vscode.window.showErrorMessage(text, ...buttons)
@@ -1106,72 +1204,28 @@ export function activate(context: vscode.ExtensionContext): DebriefApi {
     catalogues.setMarks({ open: opened && { store: opened.store.id, item: opened.item.id }, coverage, flags });
     coverageView.show(coverage);
     void vscode.commands.executeCommand("setContext", "debrief.reviewFlags", flags.length > 0);
-    // The analyst is told when an item is revised (CAP-12): once a revision, in plain words.
-    const fresh = flags.filter((f) => !flagsSaid.has(`${f.catalogue}/${f.item}:${f.revised.map((r) => r.revision).join()}`));
-    for (const f of fresh) flagsSaid.add(`${f.catalogue}/${f.item}:${f.revised.map((r) => r.revision).join()}`);
-    if (fresh.length) {
-      const said = fresh.length === 1 ? `${fresh[0].note}.` : `${count(fresh.length, "plot")} may need review: items they took data from were revised (${fresh.map((f) => f.title).join(", ")}).`;
-      void vscode.window.showInformationMessage(said, "Show in Catalogues").then((choice) => {
-        if (choice) void vscode.commands.executeCommand("debrief.catalogues.focus");
-      });
-    }
+    // The analyst is told when an item is revised (CAP-12): once a revision, in one notice (the shared flow's).
+    sayReviewFlags(flowHost, flags, flagsSaid);
   }
   session.onPlot(() => void refreshCollation());
   catalogues.onDidRefresh(() => void refreshCollation());
 
-  /**
-   * What the analyst asked in Coverage or the Catalogues tree: a collation step (one step in
-   * the plot's history, the plot shown again after), or a change to the island (new data
-   * set aside, a review flag cleared). A problem to say, if it was not done.
-   */
-  const collate = (ask: CoverageAsk, target?: { store: string; item: string }): Promise<string | undefined> =>
-    serially(() =>
-      ourChange(async () => {
-        const opened = session.current;
-        const where = target ?? (opened && { store: opened.store.id, item: opened.item.id });
-        if (!where) return "Open a plot first.";
-        if (!service) return "Collation needs Debrief's tool service. Run 'Debrief: Restart tool service'.";
-        const onOpen = !!opened && opened.store.id === where.store && opened.item.id === where.item;
-        try {
-          if (ask.kind === "dismiss" || ask.kind === "reviewed") {
-            const answer = await service.collationView(where.store, where.item, agent, ask.kind === "dismiss" ? { kind: "dismiss", source: ask.source } : { kind: "reviewed" });
-            if (onOpen && opened) showView(opened, answer, true);
-            await refreshCollation();
-            return undefined;
-          }
-          if (!opened || !onOpen || !opened.base) return "Open the plot first.";
-          const change: CollationChange =
-            ask.kind === "take"
-              ? { kind: "take", source: ask.source }
-              : ask.kind === "prefer"
-                ? { kind: "prefer", feature: ask.feature, period: ask.period, source: ask.source }
-                : { kind: "link", feature: ask.feature, source: ask.source, linked: ask.linked };
-          const run = (allow = false) => service!.collate(where.store, where.item, opened.base!, agent, change, allow);
-          let done;
-          try {
-            done = await run();
-          } catch (error) {
-            if ((error as ServiceError).code !== NEWER_SCHEMA) throw error;
-            if (!(await confirmNewerSchema((error as Error).message))) return "Nothing was changed.";
-            done = await run(true);
-          }
-          if (!done.changed) {
-            await refreshCollation();
-            return done.message ?? "Nothing to change: it is so already.";
-          }
-          const problem = await reloadPlot(true);
-          await refreshHistory();
-          return problem;
-        } catch (error) {
-          if ((error as ServiceError).code === CONFLICT) {
-            await reloadPlot(true);
-            return "The plot was changed elsewhere, so nothing was changed. Debrief is showing the latest; try again if you still want to.";
-          }
-          await refreshCollation();
-          return (error as Error).message;
-        }
-      }),
-    );
+  /** The shared collation flows' host (webview/panels/flows/collation.ts, PAR-09): how VS Code asks the service. */
+  const collationHost: CollationHost = {
+    ...flowHost,
+    coverage: () => coverageView.report,
+    plotTracks: () => (session.current?.plot.features ?? []).filter((f) => f.properties.kind === "track").map((f) => ({ id: f.id, name: (f.properties as { name: string }).name })),
+    collate: (plot, change, allow) => service!.collate(plot.store, plot.item, plot.base!, agent, change, allow).catch(refusing),
+    collationView: async (where, change) => {
+      const answer = await service!.collationView(where.store, where.item, agent, change);
+      const opened = session.current;
+      if (opened && opened.store.id === where.store && opened.item.id === where.item) showView(opened, answer, true);
+    },
+    refreshCollation,
+    refreshHistory,
+  };
+  /** What Coverage, the Catalogues tree or an agent asked of collation: the shared flow. The problem, if it was not done. */
+  const collate = (ask: CoverageAsk, target?: { store: string; item: string }): Promise<string | undefined> => collateFlow(collationHost, ask, target);
 
   /**
    * Show a view the service read: the plot's content is as it was, so it isn't
@@ -1419,121 +1473,88 @@ export function activate(context: vscode.ExtensionContext): DebriefApi {
   command("debrief.redo", () => move("redo"));
 
   // --- Exported images (SUB-25, EXT-05, OUT-04) -------------------------------------
-  const EXPORT_KEY = "debrief.export";
   /** What an export is asked with, by an agent, a test or the tool service for an agent: the choices and the file, nothing asked of the analyst. */
   type ExportAsk = Partial<ExportChoice> & { file?: string; overwrite?: boolean; agent?: Agent; store?: string; item?: string };
   /**
-   * Export the map as the analyst sees it, as an image carrying an ID that traces it to the
-   * plot at the revision shown: the size and colours chosen (remembered for next time), the
-   * footer (on, each time), then where to save it. The map draws it; the tool service puts
-   * its ID into its metadata and records the export in the plot's export log (its island,
-   * never a step); the extension writes the file. Agents and tests pass the choices and the
-   * file and are asked nothing, but may write only into the workspace's folders or the
-   * exports folder set, and never over a file without the analyst's say. Returns what was
-   * exported, or why not.
+   * Export the map as the analyst sees it, as an image carrying an ID that traces it to the plot at
+   * the revision shown: the shared flow (webview/panels/flows/exportimage.ts), which asks the size,
+   * what it shows and where to save it. The map draws it; the tool service puts its ID into its
+   * metadata and records the export in the plot's export log (its island, never a step); the
+   * extension writes the file. Agents and tests pass the choices and the file and are asked
+   * nothing, but may write only into the workspace's folders or the exports folder set, and never
+   * over a file without the analyst's say. Returns what was exported, or why not.
    */
-  command("debrief.exportImage", async (given?: ExportAsk) => {
-    const done = await exportMap(given);
-    return typeof done === "string" ? report(`The image was not exported: ${done}`) : done;
-  });
+  command("debrief.exportImage", (given?: ExportAsk) => exportMap(given, true));
 
-  async function exportMap(given?: ExportAsk): Promise<ExportedImage | string | undefined> {
+  async function exportMap(given?: ExportAsk, say = false): Promise<ExportedImage | string | undefined> {
+    const refuse = (problem: string) => (say && void vscode.window.showWarningMessage(`The image was not exported: ${problem}`), problem);
     const opened = session.current;
-    if (!opened) return "no plot is open on Debrief's map. Open the plot first.";
-    if (!service) return "exporting an image needs Debrief's tool service. Run 'Debrief: Restart tool service'.";
-    if ((given?.store && given.store !== opened.store.id) || (given?.item && given.item !== opened.item.id)) {
-      return "Debrief's map shows another plot. Open the plot to export first.";
+    if (opened && ((given?.store && given.store !== opened.store.id) || (given?.item && given.item !== opened.item.id))) {
+      return refuse("Debrief's map shows another plot. Open the plot to export first.");
     }
-    const asked = !given?.file;
-    let choice: ExportChoice = { ...startingChoice(context.globalState.get(EXPORT_KEY)), ...given };
-    let file = given?.file;
-    // The ID names the revision the map shows: the plot as the session has it, whatever is on disk by now.
-    const shownRevision = opened.revision?.revision ?? opened.base?.plot_hash;
-    let figure: { id: string; short: string; revision: string };
-    try {
-      figure = await service.figureId(opened.store.id, opened.item.id, shownRevision);
-    } catch (error) {
-      return (error as Error).message;
+    const { file, overwrite, agent: by, store: _store, item: _item, ...choice } = given ?? {};
+    let target: SaveTarget | undefined;
+    if (file) {
+      if (!/\.(png|svg)$/i.test(file)) return refuse("the file's name must end .png or .svg.");
+      const problem = await mayWrite(file, overwrite === true, by);
+      if (problem) return refuse(problem);
+      target = { name: path.basename(file), path: file };
     }
-    if (!file) {
-      const size = await vscode.window.showQuickPick(
-        PRESETS.map((p) => ({ label: p.label, detail: p.detail, id: p.id, picked: p.id === choice.preset })),
-        { title: "Export image (1 of 3): size", placeHolder: "The size to draw the map at" },
-      );
-      if (!size) return undefined;
-      const footerItem = { label: "Image ID in a corner", detail: "A small ID, for when Word or PowerPoint drops an image's metadata", picked: choice.footer };
-      const lightItem = { label: "Light colours, for print", detail: "Whatever the editor's theme", picked: choice.theme === "light" };
-      const options = await vscode.window.showQuickPick([footerItem, lightItem], { title: "Export image (2 of 3): what it shows", canPickMany: true });
-      if (!options) return undefined;
-      choice = { ...choice, preset: size.id, footer: options.includes(footerItem), theme: options.includes(lightItem) ? "light" : "current" };
-      const folder = context.globalState.get<string>(`${EXPORT_KEY}.folder`);
-      const name = fileNameFor(opened.item.properties.title ?? opened.item.id, figure.short, choice.format);
-      const target = await vscode.window.showSaveDialog({
-        title: "Export image (3 of 3): where to save it, as PNG or SVG",
-        defaultUri: folder ? vscode.Uri.joinPath(vscode.Uri.file(folder), name) : vscode.workspace.workspaceFolders?.[0] ? vscode.Uri.joinPath(vscode.workspace.workspaceFolders[0].uri, name) : undefined,
-        filters: choice.format === "svg" ? { "SVG image": ["svg"], "PNG image": ["png"] } : { "PNG image": ["png"], "SVG image": ["svg"] },
-        saveLabel: "Export",
-      });
-      if (!target) return undefined;
-      file = target.fsPath;
-      const suffix = /\.(png|svg)$/i.exec(file)?.[1]?.toLowerCase();
-      if (suffix) choice.format = suffix as ImageFormat;
-      else file = `${file}.${choice.format}`;
-      void context.globalState.update(`${EXPORT_KEY}.folder`, path.dirname(file));
-      // Only the size and colours are remembered: the footer is on again next time (expert panel, 16 Oct 2026).
-      void context.globalState.update(EXPORT_KEY, rememberedOf(choice));
-    } else {
-      const suffix = /\.(png|svg)$/i.exec(file)?.[1]?.toLowerCase();
-      if (!suffix) return "the file's name must end .png or .svg.";
-      choice.format = suffix as ImageFormat;
-      const problem = await mayWrite(file, given?.overwrite === true, given?.agent);
-      if (problem) return problem;
-    }
-    const by = given?.agent ?? agent;
-    try {
-      // Ours: the export log is written to the plot file, which is no change made elsewhere to say.
-      const done = await serially(() => ourChange(async () => await vscode.window.withProgress({ location: vscode.ProgressLocation.Notification, title: "Exporting image…" }, async () => {
-        if (session.current !== opened) throw new Error("another plot, or a later revision of this one, is shown now. Export it again.");
-        const image = await map.renderImage({ format: choice.format, preset: choice.preset, theme: choice.theme, ...(choice.footer && { footer_text: figure.short }) });
-        // Drawn as the session had it: if the plot was read again meanwhile (changed elsewhere), the image is not of the revision its ID names.
-        if (session.current !== opened) throw new Error("the plot changed while the image was being drawn. Export it again.");
-        const tote = toteView.choice();
-        const stamped = await service!.exportImage(opened.store.id, opened.item.id, by, {
-          id: figure.id,
-          image: image.data,
-          file: file!,
-          format: choice.format,
-          footer: choice.footer,
-          preset: choice.preset,
-          theme: choice.theme,
-          width: image.width,
-          height: image.height,
-          viewport: image.viewport ?? undefined,
-          time: session.time,
-          ...(tote.primary && { tote }),
-        });
-        await writeWhole(file!, choice.format === "png" ? Buffer.from(stamped.image, "base64") : Buffer.from(stamped.image, "utf8"));
-        // The plot's island has the export log now: read it, so what the plot shows is what it holds.
-        if (!opened.revision && session.current === opened && stamped.logged === "plot") {
-          const view = await service!.open(opened.store.id, opened.item.id, agent).catch(() => undefined);
-          if (view && session.current === opened) showView(opened, view, true);
-        }
-        const answer: ExportedImage = { file: file!, id: stamped.id, short: stamped.short, revision: stamped.revision, recorded: stamped.recorded, ...(stamped.note && { note: stamped.note }) };
-        return { answer, notes: image.notes ?? [] };
-      })));
-      lastExport = done.answer;
-      const said = [describeExported(done.answer, choice.footer), ...done.notes].join(" ");
-      if (asked) {
-        void vscode.window.showInformationMessage(said, "Copy ID", "Show in folder").then((button) => {
-          if (button === "Copy ID") void vscode.env.clipboard.writeText(done.answer.id);
-          if (button === "Show in folder") void vscode.commands.executeCommand("revealFileInOS", vscode.Uri.file(done.answer.file));
-        });
-      }
-      return done.answer;
-    } catch (error) {
-      return (error as Error).message;
-    }
+    const done = await exportFlow(exportHost(by ?? agent), { choice, ...(target && { target }) });
+    if (done && typeof done === "object") lastExport = done;
+    return done;
   }
+  /** The export flow's host: VS Code's map draws it, the tool service stamps and records it, inside a progress notification. */
+  const exportHost = (by: Agent): ExportHost => ({
+    ...flowHost,
+    rememberedExport: () => context.globalState.get(EXPORT_KEY),
+    rememberExport: (remembered) => void context.globalState.update(EXPORT_KEY, remembered),
+    // The ID names the revision the map shows: the plot as the session has it, whatever is on disk by now.
+    figureId: (plot) => {
+      const opened = session.current!;
+      return service!.figureId(plot.store, plot.item, opened.revision?.revision ?? opened.base?.plot_hash);
+    },
+    drawAndStamp: (plot, choice, figure, target) => {
+      const opened = session.current!;
+      // Ours: the export log is written to the plot file, which is no change made elsewhere to say.
+      return serially(() =>
+        ourChange(
+          async () =>
+            await vscode.window.withProgress({ location: vscode.ProgressLocation.Notification, title: "Exporting image…" }, async () => {
+              if (session.current !== opened) throw new Error("another plot, or a later revision of this one, is shown now. Export it again.");
+              const image = await map.renderImage({ format: choice.format, preset: choice.preset, theme: choice.theme, ...(choice.footer && { footer_text: figure.short }) });
+              // Drawn as the session had it: if the plot was read again meanwhile (changed elsewhere), the image is not of the revision its ID names.
+              if (session.current !== opened) throw new Error("the plot changed while the image was being drawn. Export it again.");
+              const tote = toteView.choice();
+              const stamped = await service!.exportImage(plot.store, plot.item, by, {
+                id: figure.id,
+                image: image.data,
+                file: target.path ?? target.name,
+                format: choice.format,
+                footer: choice.footer,
+                preset: choice.preset,
+                theme: choice.theme,
+                width: image.width,
+                height: image.height,
+                viewport: image.viewport ?? undefined,
+                time: session.time,
+                ...(tote.primary && { tote }),
+              });
+              // The plot's island has the export log now: read it, so what the plot shows is what it holds.
+              if (!opened.revision && session.current === opened && stamped.logged === "plot") {
+                const view = await service!.open(opened.store.id, opened.item.id, agent).catch(() => undefined);
+                if (view && session.current === opened) showView(opened, view, true);
+              }
+              const answer: ExportedImage = { file: target.path ?? target.name, id: stamped.id, short: stamped.short, revision: stamped.revision, recorded: stamped.recorded, ...(stamped.note && { note: stamped.note }) };
+              const data = choice.format === "png" ? Buffer.from(stamped.image, "base64") : Buffer.from(stamped.image, "utf8");
+              return { data: new Uint8Array(data), answer, notes: image.notes ?? [] };
+            }),
+        ),
+      );
+    },
+    copy: async (text) => vscode.env.clipboard.writeText(text),
+    revealFile: (target) => void vscode.commands.executeCommand("revealFileInOS", vscode.Uri.file(target.path!)),
+  });
   let lastExport: ExportedImage | undefined;
 
   /**
@@ -1599,70 +1620,34 @@ export function activate(context: vscode.ExtensionContext): DebriefApi {
   }
 
   /**
-   * Find the plot an image came from (OUT-04): by its file (an image, or a Word or
-   * PowerPoint file of them, read for their IDs) or by the ID typed from its footer; then
-   * show that plot as it was when the image was exported, read-only. Agents and tests pass
-   * the file or the ID, and the first plot found is shown.
+   * Find the plot an image came from (OUT-04): the shared flow (webview/panels/flows/exportimage.ts),
+   * by its file (an image, or a Word or PowerPoint file of them, read for their IDs) or by the ID
+   * typed from its footer; then that plot shown as it was when the image was exported, read-only.
+   * Agents and tests pass the file or the ID, and, having seen the list, which to choose.
    */
-  command("debrief.findImageSource", async (given?: { file?: string; id?: string; choose?: number }) => {
-    if (!service) return report("Finding an image's source needs Debrief's tool service. Run 'Debrief: Restart tool service'.");
-    let where: { file: string } | { id: string } | undefined = given?.file ? { file: given.file } : given?.id ? { id: given.id } : undefined;
-    if (!where) {
-      const byFile = { label: "$(file-media) Choose an image file…", detail: "A PNG or SVG, or a Word or PowerPoint file with images in it" };
-      const byId = { label: "$(symbol-key) Type the ID from the image's corner…", detail: "Such as DBF-PTET-KG8R-B9EM-69" };
-      const how = await vscode.window.showQuickPick([byFile, byId], { title: "Find source of image" });
-      if (!how) return undefined;
-      if (how === byFile) {
-        const picked = await vscode.window.showOpenDialog({ title: "Find source of image", canSelectMany: false, filters: { Images: ["png", "svg"], "Word and PowerPoint": ["docx", "pptx", "odt", "odp"], "All files": ["*"] }, openLabel: "Find source" });
-        if (!picked?.[0]) return undefined;
-        where = { file: picked[0].fsPath };
-      } else {
-        const typed = await vscode.window.showInputBox({ title: "Find source of image", prompt: "The ID in the image's corner", placeHolder: "DBF-PTET-KG8R-B9EM-69", validateInput: (text) => (text.trim() ? figureIdProblem(text) : undefined) });
-        if (!typed?.trim()) return undefined;
-        where = { id: typed };
-      }
-    }
-    let answer: Awaited<ReturnType<ToolService["findImageSource"]>>;
-    try {
-      answer = await service.findImageSource(where);
-    } catch (error) {
-      return report((error as Error).message);
-    }
-    // A picture in a document that could not be read (encrypted, say): said, the others still traced.
-    const unread = (answer.skipped ?? []).map((s) => `${s.where} was not read: ${s.why}.`).join(" ");
-    const found = answer.images.flatMap((image) => image.sources.map((source) => ({ image, source })));
-    if (!found.length) return report(answer.problem ?? NOT_FOUND);
-    if (unread) void vscode.window.showWarningMessage(unread);
-    // Several exports, or plots, match: the analyst chooses, by when each was exported and what
-    // it showed; never the first or the last silently (expert panel, 16 Oct 2026). An agent or
-    // a test that has seen the list may name one (choose, counting from 0).
-    const named = given?.choose !== undefined ? found[given.choose] : undefined;
-    if (given?.choose !== undefined && !named) return report(`There are ${found.length} to choose from.`);
-    const chosen =
-      named ??
-      (found.length === 1
-        ? found[0]
-        : (
-            await vscode.window.showQuickPick(
-              found.map((f) => ({ ...describeSource(f.source), description: f.image.short, found: f })),
-              { title: "Find source of image: which export", placeHolder: `${found.length} exports or plots match this image's ID: choose by when it was exported and what it showed` },
-            )
-          )?.found);
-    if (!chosen) return undefined;
-    return serially(() => showRevision(chosen.source, chosen.image));
-  });
+  command("debrief.findImageSource", (given?: { file?: string; id?: string; choose?: number }) =>
+    findSourceFlow(
+      {
+        ...flowHost,
+        findImageSource: (where) => service!.findImageSource("file" in where ? { file: where.file.path! } : where),
+        showRevision: (source, image) => serially(() => showRevision(source, image)),
+        openLatestRevision: async () => void (await vscode.commands.executeCommand("debrief.openLatestRevision")),
+      },
+      { ...(given?.file && { file: { name: path.basename(given.file), path: given.file } }), ...(given?.id && { id: given.id }), ...(given?.choose !== undefined && { choose: given.choose }) },
+    ),
+  );
 
   /** Show a plot as it was when an image was exported: rebuilt by replay, read-only, at the view and time exported. */
-  async function showRevision(source: FigureSource, image: TracedImage): Promise<string | undefined> {
+  async function showRevision(source: FigureSource, image: TracedImage): Promise<{ title: string } | { problem: string }> {
     const store = source.store ? storeById(source.store) : undefined;
-    if (!store || !service) return report(NOT_FOUND);
+    if (!store || !service) return { problem: NOT_FOUND };
     let shown: Awaited<ReturnType<ToolService["openRevision"]>>;
     let head: OpenedView;
     try {
       shown = await service.openRevision(store.id, source.item, source.revision, image.id.startsWith("DBF1") ? image.id : source.export?.id);
       head = await service.open(store.id, source.item, agent, true);
     } catch (error) {
-      return report((error as Error).message);
+      return { problem: (error as Error).message };
     }
     const read = openPlot(store, source.item);
     const exported = shown.export ?? source.export ?? undefined;
@@ -1682,9 +1667,7 @@ export function activate(context: vscode.ExtensionContext): DebriefApi {
     if (exported?.viewport) session.setViewport(exported.viewport, "figure");
     await refreshHistory();
     void vscode.commands.executeCommand("setContext", "debrief.revisionShown", true);
-    const title = read.item.properties.title ?? source.item;
-    void vscode.window.showInformationMessage(`${title} at step ${source.step}, as when image ${image.short} was exported. It is shown read-only.`, "Go to latest").then((go) => go && vscode.commands.executeCommand("debrief.openLatestRevision"));
-    return undefined;
+    return { title: read.item.properties.title ?? source.item };
   }
   session.onPlot((opened) => void vscode.commands.executeCommand("setContext", "debrief.revisionShown", !!opened?.revision));
 
@@ -2881,184 +2864,39 @@ export function activate(context: vscode.ExtensionContext): DebriefApi {
     if (!now) return report(`${entry.sensor.properties.name} has no cut at or before current time in the time window.`);
     return vscode.commands.executeCommand("debrief.cutMenu", now.id);
   });
-  // A .dsf or REP file's sensor lines read into the open plot (CAP-22): one step, the file
-  // kept as a source. A sensor whose track the plot has not (matched by name as legacy
-  // matched it) is asked about, as legacy asked; a file read in before is said first.
-  // Given a path (agents and tests), it asks nothing: hosts and again, if given, say.
-  command("debrief.importSensor", async (given?: string, hostsGiven?: Record<string, string | null>, againGiven?: boolean) => {
-    const opened = session.current;
-    if (!opened) return report("Open a plot first.");
-    if (!service) return report("Reading sensor data needs Debrief's tool service. Run 'Debrief: Restart tool service'.");
-    const path =
-      given ??
-      (
-        await vscode.window.showOpenDialog({
-          canSelectMany: false,
-          openLabel: "Read sensor data",
-          filters: { "Sensor data (DSF, REP)": ["dsf", "DSF", "rep", "REP"], "All files": ["*"] },
-        })
-      )?.[0]?.fsPath;
-    if (!path) return undefined;
-    let hosts = hostsGiven ?? {};
-    let again = againGiven ?? false;
-    if (!given) {
-      let preview: SensorPreview;
-      try {
-        preview = await service.previewSensor(path, { store: opened.store.id, item: opened.item.id });
-      } catch (error) {
-        return report((error as Error).message);
-      }
-      if (!preview.cuts) return report(`No sensor cut could be read from ${preview.name}. ${preview.omitted.slice(0, 2).join(" ")}`.trim());
-      if (preview.earlier.length) {
-        const last = preview.earlier[preview.earlier.length - 1];
-        const picked = await vscode.window.showQuickPick(
-          [
-            { label: "Read it again", detail: "Its cuts are added beside those already read", again: true },
-            { label: "Cancel", detail: "Read nothing", again: false },
-          ],
-          { title: `${preview.name} was read into this plot before`, placeHolder: `${last.how}, ${describePeriod(last.at)}` },
-        );
-        if (!picked?.again) return report("Nothing was read.");
-        again = true;
-      }
-      for (const ask of hostsToAsk(preview)) {
-        const picked = await vscode.window.showQuickPick(
-          [...hostChoices(preview, ask).map((t) => ({ label: t.name, id: t.id as string | null, ...(t.matched && { description: "matched by its first six letters" }) })), { label: "Do not read these", id: null }],
-          { title: hostQuestion(ask), placeHolder: ask.sensors.map(describeSensorInFile).join("; "), ignoreFocusOut: true },
-        );
-        if (!picked) return report("Nothing was read.");
-        hosts = { ...hosts, [ask.track]: picked.id };
-      }
-    }
-    const done = await sense((o, allow) => service!.importSensor(o.store.id, o.item.id, o.base!, agent, path, hosts, again, allow));
-    if (done.problem) return (report(done.problem), done);
-    const answer = done.answer!;
-    void vscode.window.showInformationMessage([sensorReadSummary(answer, path.split(/[\\/]/).pop()!), ...answer.notes, ...answer.omitted].join(" "));
-    return done;
-  });
+  /** A file named by an agent or a test, as the flows take a file chosen. */
+  const fileAt = (file: string): PickedFile => ({ name: path.basename(file), path: file });
+  // A .dsf or REP file's sensor lines read into the open plot (CAP-22): the shared flow
+  // (webview/panels/flows/sensor.ts). Given a path (agents and tests), it asks nothing:
+  // hosts and again, if given, say.
+  command("debrief.importSensor", (given?: string, hostsGiven?: Record<string, string | null>, againGiven?: boolean) =>
+    importSensorFlow(
+      {
+        ...flowHost,
+        previewSensor: (file, plot) => service!.previewSensor(file.path!, { store: plot.store, item: plot.item }),
+        readSensor: (plot, file, hosts, again, allow) => service!.importSensor(plot.store, plot.item, plot.base!, agent, file.path!, hosts, again, allow).catch(refusing),
+      },
+      { ...(given && { file: fileAt(given), quiet: true }), ...(hostsGiven && { hosts: hostsGiven }), ...(againGiven !== undefined && { again: againGiven }) },
+    ),
+  );
   // A platform's log read into the open plot: a REP file's ;NARRATIVE: lines, or a Word or
-  // PDF document's entries in legacy Debrief's dialects (CAP-19); one step, the file kept as
-  // a source. Before a document is read the analyst is asked what legacy Debrief asked:
-  // which types, only within the plot's period, which track an unknown platform is. Given
-  // a path (agents and tests), it asks nothing: choices, if given, say.
-  command("debrief.importNarrative", async (given?: string, choices?: NarrativeChoices) => {
-    if (!session.current) return report("Open a plot first.");
-    const path =
-      given ??
-      (
-        await vscode.window.showOpenDialog({
-          canSelectMany: false,
-          openLabel: "Read narrative",
-          filters: { "Narrative (REP, Word, PDF)": NARRATIVE_FILES, "All files": ["*"] },
-        })
-      )?.[0]?.fsPath;
-    if (!path) return undefined;
-    let chosen = choices;
-    if (!given && service) {
-      const asked = await askNarrativeChoices(path);
-      if (asked === "stop") return report("Nothing was read.");
-      if (typeof asked === "string") return report(asked);
-      chosen = asked;
-    }
-    const done = await narrate({ kind: "import", path, ...(chosen && { choices: chosen }) });
-    if (done.problem) return (report(done.problem), done);
-    void vscode.window.showInformationMessage(readSummary(done, count));
-    return done;
-  });
-  /**
-   * Before reading a file: if it was read into the plot before, or has entries already in it
-   * (product owner, 15 Oct 2026), skip those entries or read nothing; then, for a document,
-   * what legacy Debrief asked, as Quick Picks. "stop" if the analyst stopped, or why it cannot be read.
-   */
-  async function askNarrativeChoices(path: string): Promise<NarrativeChoices | "stop" | string> {
-    const opened = session.current!;
-    let preview: NarrativePreview;
-    try {
-      preview = await service!.previewNarrative(path, { store: opened.store.id, item: opened.item.id });
-    } catch (error) {
-      // A REP file is read without questions; a document that cannot be previewed cannot be read.
-      return /\.(docx?|pdf)$/i.test(path) ? (error as Error).message : {};
-    }
-    if (preview.fixes) return `${preview.name} is ASW data: positions of a track, not narrative. Import it as a plot (Import plot file) for its track.`;
-    const again = duplicateQuestion(preview, (iso) => describePeriod(iso));
-    if (again) {
-      const picked = await vscode.window.showQuickPick(
-        [
-          { label: again.skip, detail: again.skipDetail, skip: true },
-          { label: "Cancel", detail: "Read nothing", skip: false },
-        ],
-        { title: again.title, placeHolder: again.detail, ignoreFocusOut: true },
-      );
-      if (!picked?.skip) return "stop";
-      if (again.nothingNew) return `Nothing was read: every entry of ${preview.name} is already in the plot.`;
-    }
-    const duplicates: NarrativeChoices = again ? { duplicates: "skip" } : {};
-    if (!/\.(docx?|pdf)$/i.test(path)) return duplicates;
-    const asked = await askDocumentChoices(preview, opened);
-    return typeof asked === "string" ? asked : { ...asked, ...duplicates };
-  }
-  /** What legacy Debrief asked before reading a document, asked as Quick Picks; "stop" if the analyst stopped. */
-  async function askDocumentChoices(preview: NarrativePreview, opened: NonNullable<typeof session.current>): Promise<NarrativeChoices | "stop"> {
-    const tracks = opened.plot.features.filter((f) => f.properties.kind === "track").map((f) => ({ id: f.id as string, name: (f.properties as { name: string }).name }));
-    const ask = questionsFor(preview, tracks);
-    if (!ask.types && !ask.period && !ask.platforms.length) return {};
-    // The answers given last time for documents of this dialect (product owner, 15 Oct 2026):
-    // user state in debrief-config, never in the plot; offered again, confirmed with one key.
-    const dialect = preview.dialect ?? preview.format;
-    let before: ReturnType<typeof narrativeAnswers>;
-    try {
-      before = narrativeAnswers(loadConfig(configFile), dialect);
-    } catch {
-      before = undefined; // an unreadable configuration: asked afresh
-    }
-    const offered = rememberedAnswers(preview, tracks, before);
-    if (offered?.complete) {
-      const picked = await vscode.window.showQuickPick(
-        [
-          { label: "Read as last time", detail: describeAnswers(preview, offered.answers, tracks), again: false },
-          { label: "Choose again", detail: "Which types, the period, which track each platform is", again: true },
-        ],
-        { title: `Read ${preview.name}`, placeHolder: `${preview.described}: ${count(preview.entries, "entry", "entries")}` },
-      );
-      if (!picked) return "stop";
-      if (!picked.again) return choicesOf(preview, offered.answers);
-    }
-    const prefill = offered?.answers ?? {};
-    const answers: NarrativeAnswers = {};
-    if (ask.types) {
-      const picked = await vscode.window.showQuickPick(
-        preview.types.map((t) => ({ label: typeWords(t.name), description: count(t.count, "entry", "entries"), picked: !prefill.types || prefill.types.includes(t.name), name: t.name })),
-        { canPickMany: true, title: `Read which types from ${preview.name}?`, placeHolder: `${preview.described}: ${count(preview.entries, "entry", "entries")}` },
-      );
-      if (!picked?.length) return "stop";
-      answers.types = picked.map((p) => p.name);
-    }
-    if (ask.period) {
-      const words = periodChoices(preview, (iso) => describeTimes(iso));
-      const items = [{ label: words.all, within: false }, { label: words.within, within: true }];
-      if (prefill.withinPeriod) items.reverse(); // last time's answer first, chosen by Enter
-      const picked = await vscode.window.showQuickPick(items, {
-        title: `${count(preview.outside, "entry", "entries")} of ${preview.name} ${preview.outside === 1 ? "is" : "are"} outside the plot's period`,
-      });
-      if (!picked) return "stop";
-      answers.withinPeriod = picked.within;
-    }
-    for (const platform of ask.platforms) {
-      const items = [...tracks.map((t) => ({ label: t.name, id: t.id as string | null })), { label: "No track", id: null }];
-      const last = prefill.tracks?.[platform];
-      const at = last === undefined ? -1 : items.findIndex((i) => i.id === last);
-      if (at > 0) items.unshift(...items.splice(at, 1));
-      const picked = await vscode.window.showQuickPick(items, { title: `Which track is ${platform}'s?`, placeHolder: "Its entries belong to this track: the map shows them beside it." });
-      if (!picked) return "stop";
-      (answers.tracks ??= {})[platform] = picked.id;
-    }
-    try {
-      updateConfig((c) => withNarrativeAnswers(c, dialect, answersToRemember(preview, tracks, answers, before)), configFile);
-    } catch {
-      // Not remembered: these answers still apply to this file.
-    }
-    return choicesOf(preview, answers);
-  }
+  // PDF document's entries in legacy Debrief's dialects (CAP-19); the shared flow
+  // (webview/panels/flows/narrative.ts). Given a path (agents and tests), it asks nothing:
+  // choices, if given, say.
+  command("debrief.importNarrative", (given?: string, choices?: NarrativeChoices) =>
+    importNarrativeFlow(
+      {
+        ...flowHost,
+        previewNarrative: (file, plot) => service!.previewNarrative(file.path!, { store: plot.store, item: plot.item }),
+        // The answers given last time for a dialect: user state in debrief-config, never in the plot.
+        narrativeAnswers: async (dialect) => narrativeAnswers(loadConfig(configFile), dialect),
+        rememberNarrativeAnswers: async (dialect, answers) => void updateConfig((c) => withNarrativeAnswers(c, dialect, answers), configFile),
+        plotTracks: () => (session.current?.plot.features ?? []).filter((f) => f.properties.kind === "track").map((f) => ({ id: f.id, name: (f.properties as { name: string }).name })),
+        readNarrative: (plot, file, chosen, allow) => service!.narrate(plot.store, plot.item, plot.base!, agent, { kind: "import", path: file.path!, ...(chosen && { choices: chosen }) }, allow).catch(refusing),
+      },
+      { ...(given && { file: fileAt(given), quiet: true }), ...(choices && { choices }) },
+    ),
+  );
   command("debrief.annotationFormOpen", () => annotationForm.open);
 
   // The time window, for agents, keyboard macros and tests: saved as when the analyst lets go of it.
@@ -3139,93 +2977,14 @@ export function activate(context: vscode.ExtensionContext): DebriefApi {
   command("debrief.restartTools", () => startService());
 
   // --- Collation from the Catalogues tree and the Command Palette (CAP-08 to CAP-12) -----
-  type PlotNode = { kind: "plot"; view: { store: { id: string }; id?: string }; plot: { id: string; title: string } };
-  type TrackNode = { kind: "track"; view: { store: { id: string }; id?: string }; plot: { id: string; title: string }; track: { track: string; name: string } };
-  const say = (problem: string | undefined, done: string) =>
-    problem ? void vscode.window.showWarningMessage(problem) : void vscode.window.showInformationMessage(done);
-  /** The item a tree node names, at the revision collation last saw. */
-  const itemOf = (node: PlotNode) => {
-    const listed = coverageView.report?.items.find((i) => i.catalogue === node.view.id && i.item === node.plot.id);
-    return { catalogue: node.view.id ?? "", item: node.plot.id, ...(listed?.revision && { revision: listed.revision }) };
-  };
-  // Take an item's data into the open plot, as one step (CAP-11). Given {catalogue, item}, for agents and tests.
-  command("debrief.takeNewData", async (node?: PlotNode, given?: { catalogue: string; item: string; revision?: string }) => {
-    const opened = session.current;
-    if (!opened) return say("Open the plot to take data into first.", "");
-    let source = given ?? (node?.kind === "plot" ? itemOf(node) : undefined);
-    if (!source) {
-      const fresh = coverageView.report?.items.filter((i) => i.role !== "this_plot") ?? [];
-      const picked = await vscode.window.showQuickPick(
-        fresh.map((i) => ({ label: i.title, description: i.new_data ? "New data" : i.role === "drawn_from" ? "drawn from" : "", detail: i.new_data?.note, i })),
-        { placeHolder: `Take data from which item into ${opened.item.properties.title ?? opened.item.id}?` },
-      );
-      if (!picked) return undefined;
-      source = { catalogue: picked.i.catalogue, item: picked.i.item, ...(picked.i.revision && { revision: picked.i.revision }) };
-    }
-    const title = coverageView.report?.items.find((i) => i.catalogue === source.catalogue && i.item === source.item)?.title ?? source.item;
-    const problem = await collate({ kind: "take", source });
-    say(problem, `Took the new data in ${title} into ${opened.item.properties.title ?? opened.item.id}, as one step. Undo takes it back.`);
-    return problem;
-  });
-  command("debrief.dismissNewData", async (node?: PlotNode) => {
-    // Said, not silently ignored: nothing chosen, or an item Coverage has not listed.
-    if (node?.kind !== "plot") {
-      const problem = "Choose an item marked New data in Catalogues to set aside, or use Not now in Coverage.";
-      say(problem, "");
-      return problem;
-    }
-    const source = itemOf(node);
-    if (!source.revision) {
-      const problem = session.current
-        ? `${node.plot.title} is not marked as new data for the open plot, so there is nothing to set aside.`
-        : "Open the plot the new data is for first.";
-      say(problem, "");
-      return problem;
-    }
-    const problem = await collate({ kind: "dismiss", source: { catalogue: source.catalogue, item: source.item, revision: source.revision } });
-    say(problem, `${node.plot.title} set aside. It is marked again if it is revised.`);
-    return problem;
-  });
+  // The shared flows (webview/panels/flows/collation.ts): a tree row names the plot or track; agents and tests may name the item.
+  const plotRow = (node?: CataloguesNode) => plotTargetOf(node);
+  command("debrief.takeNewData", (node?: CataloguesNode, given?: { catalogue: string; item: string; revision?: string }) => takeNewData(collationHost, given ?? plotRow(node)));
+  command("debrief.dismissNewData", (node?: CataloguesNode) => dismissNewData(collationHost, plotRow(node)));
   // Clear a review flag (CAP-12): on the open plot, or the product the tree names.
-  command("debrief.clearReviewFlag", async (node?: PlotNode) => {
-    const target = node?.kind === "plot" ? { store: node.view.store.id, item: node.plot.id } : undefined;
-    const problem = await collate({ kind: "reviewed" }, target);
-    say(problem, `Review flag cleared${node?.kind === "plot" ? ` on ${node.plot.title}` : ""}. It is flagged again if an item it drew from is revised.`);
-    return problem;
-  });
-  /** The open plot's tracks a track in another item could be, its proposal first. */
-  const platformChoices = (node: TrackNode) => {
-    const opened = session.current;
-    const tracks = opened?.plot.features.filter((f) => f.properties.kind === "track") ?? [];
-    const match = (name: string) => name.split(/\s+/).filter(Boolean).join(" ").toLowerCase();
-    return tracks
-      .map((f) => ({ label: (f.properties as { name: string }).name, id: f.id }))
-      .sort((a, b) => Number(match(b.label) === match(node.track.name)) - Number(match(a.label) === match(node.track.name)));
-  };
-  const refOfNode = (node: TrackNode): SourceTrackRef => ({ catalogue: node.view.id ?? "", item: node.plot.id, track: node.track.track, name: node.track.name });
-  // Same platform as one of the open plot's tracks: confirm a proposal, or link one by hand.
-  command("debrief.linkTrack", async (node?: TrackNode, feature?: string) => {
-    if (node?.kind !== "track" || !session.current) return undefined;
-    let target = feature;
-    if (!target) {
-      const picked = await vscode.window.showQuickPick(platformChoices(node), { placeHolder: `${node.track.name} in ${node.plot.title} is the same platform as which track in the open plot?` });
-      target = picked?.id;
-    }
-    if (!target) return undefined;
-    const problem = await collate({ kind: "link", feature: target, source: refOfNode(node), linked: true });
-    say(problem, `${node.track.name} in ${node.plot.title} linked.`);
-    return problem;
-  });
-  command("debrief.unlinkTrack", async (node?: TrackNode) => {
-    if (node?.kind !== "track") return undefined;
-    const platform = coverageView.report?.platforms.find((p) =>
-      p.sources.some((s) => s.catalogue === node.view.id && s.item === node.plot.id && s.track === node.track.track),
-    );
-    if (!platform) return undefined;
-    const problem = await collate({ kind: "link", feature: platform.track, source: refOfNode(node), linked: false });
-    say(problem, `${node.track.name} in ${node.plot.title} is not ${platform.name}.`);
-    return problem;
-  });
+  command("debrief.clearReviewFlag", (node?: CataloguesNode) => clearReviewFlag(collationHost, plotRow(node)));
+  command("debrief.linkTrack", (node?: CataloguesNode, feature?: string) => linkTrack(collationHost, trackTargetOf(node), feature));
+  command("debrief.unlinkTrack", (node?: CataloguesNode) => unlinkTrack(collationHost, trackTargetOf(node)));
   command("debrief.showCoverage", () => vscode.commands.executeCommand(`${COVERAGE_VIEW}.focus`));
   // For agents and tests: anything Coverage can ask, without the page.
   command("debrief.collate", (ask: CoverageAsk) => collate(ask));
@@ -3297,220 +3056,57 @@ export function activate(context: vscode.ExtensionContext): DebriefApi {
       if (["ask", "otg", "dr"].includes(mode) && mode !== rememberedMode()) updateConfig((c) => withTrackImportMode(c, mode), configFile);
     }),
   );
-  command("debrief.askTrackImportMode", async () => {
-    await rememberMode("ask");
-    void vscode.window.showInformationMessage("Debrief will ask, for each track imported, whether it is plotted over the ground (OTG) or by dead reckoning (DR).");
-  });
   command("debrief.trackImportMode", () => rememberedMode());
-  /** How each track of a REP file is plotted: asked, one track at a time, unless a choice is remembered. Undefined if the analyst stopped. */
-  async function askModes(file: string): Promise<{ modes: Record<string, PlottingMode>; remembered: boolean } | undefined> {
-    const tracks = (await service!.repTracks(file)).tracks;
-    return chooseModes(
-      tracks,
-      rememberedMode(),
-      (track, index, count) => askMode(modeQuestion(track, index, count)),
-      (mode) => rememberMode(mode),
-    );
-  }
-  /**
-   * One track's question, as legacy Debrief asked it: over the ground or by dead reckoning, and apart from that choice
-   * a box to tick, "Use this choice for future track imports". A Quick Pick has no check box, so the box is the list's
-   * last line: choosing it ticks or clears it and the list stays open; choosing OTG or DR answers. So one list, used
-   * the same by keyboard, mouse or screen reader (which reads on or off), and one question per track, not two.
-   */
-  function askMode(title: string): Promise<ModeChoice | undefined> {
-    type Item = vscode.QuickPickItem & { mode?: PlottingMode; toggle?: true };
-    const quick = vscode.window.createQuickPick<Item>();
-    let remember = false;
-    const options: Item[] = modeChoices();
-    const box = (): Item => ({ ...rememberItem(remember), toggle: true, alwaysShow: true });
-    const show = (active?: Item) => {
-      const toggle = box();
-      quick.items = [...options, { label: "", kind: vscode.QuickPickItemKind.Separator }, toggle];
-      quick.activeItems = [active === undefined ? toggle : active];
-    };
-    quick.title = title;
-    quick.placeholder = "Over the ground, as logged, or dead reckoned from course and speed";
-    quick.ignoreFocusOut = true;
-    show(options[0]);
-    return new Promise((resolve) => {
-      quick.onDidAccept(() => {
-        const item = quick.selectedItems[0] ?? quick.activeItems[0];
-        if (item?.toggle) {
-          remember = !remember;
-          show();
-        } else if (item?.mode) {
-          resolve({ mode: item.mode, remember });
-          quick.hide();
-        }
-      });
-      quick.onDidHide(() => {
-        resolve(undefined);
-        quick.dispose();
-      });
-      quick.show();
-    });
-  }
-  // Import a REP, .dpf, Word or PDF file. Given { store, path, modes, track_name } (agents and tests), it asks nothing.
-  command("debrief.importRep", async (node?: { view?: { store: { id: string } } }, given?: { store?: string; path?: string; modes?: string | Record<string, PlottingMode>; track_name?: string }) => {
-    if (!needService()) return;
-    const writable = knownStores(configFile).stores.filter((s) => !s.read_only);
-    if (!writable.length) {
-      void vscode.window.showWarningMessage("Add or create a catalogue first; imported plots go into a catalogue.");
-      return;
-    }
-    let storeId = given?.store ?? node?.view?.store.id;
-    if (!storeId) {
-      const picked =
-        writable.length === 1
-          ? { id: writable[0].id }
-          : await vscode.window.showQuickPick(
-              writable.map((s) => ({ label: s.title, description: s.location, id: s.id })),
-              { placeHolder: "Import into which catalogue?" },
-            );
-      storeId = picked?.id;
-    }
-    if (!storeId) return;
-    const files = given?.path
-      ? [vscode.Uri.file(given.path)]
-      : await vscode.window.showOpenDialog({
-          canSelectMany: false,
-          filters: {
-            "Plot files": ["rep", "REP", "dpf", "DPF", "docx", "DOCX", "doc", "DOC", "pdf", "PDF"],
-            "REP files": ["rep", "REP"],
-            "Legacy plot files": ["dpf", "DPF"],
-            "Narrative (Word, PDF)": ["docx", "DOCX", "doc", "DOC", "pdf", "PDF"],
-          },
-        });
-    if (!files?.length) return;
-    try {
-      // How each track is plotted (CAP-01): a legacy plot says; a REP file's tracks are asked about.
-      let options: { modes?: string | Record<string, PlottingMode>; remembered?: string; track_name?: string } = {};
-      if (given?.modes) options = { modes: given.modes };
-      else if (/\.(docx?|pdf)$/i.test(files[0].fsPath)) {
-        // A document: narrative, which has no tracks to ask about; or ASW data, a track, which
-        // legacy Debrief asked a name for.
-        const preview = await service!.previewNarrative(files[0].fsPath).catch(() => undefined);
-        if (given?.track_name) options = { track_name: given.track_name };
-        else if (preview?.fixes && !given) {
-          const name = await vscode.window.showInputBox({ title: "Name for this track", prompt: `${preview.name} holds ${count(preview.fixes, "position")} of one platform.`, value: preview.name.replace(/\.[^.]+$/, "") });
-          if (name === undefined) {
-            void vscode.window.showInformationMessage("Nothing was imported.");
-            return;
-          }
-          options = { track_name: name };
-        }
-      } else if (!/\.dpf$/i.test(files[0].fsPath)) {
-        const asked = await askModes(files[0].fsPath);
-        if (!asked) {
-          void vscode.window.showInformationMessage("Nothing was imported.");
-          return;
-        }
-        options = { modes: asked.modes, ...(asked.remembered && { remembered: REMEMBERED_IN_VSCODE }) };
-      }
-      let report;
-      try {
-        report = await service!.importFile(storeId, files[0].fsPath, agent, false, options);
-      } catch (error) {
-        if ((error as ServiceError).code !== NEWER_SCHEMA) throw error;
-        if (!(await confirmNewerSchema((error as Error).message))) return;
-        report = await service!.importFile(storeId, files[0].fsPath, agent, true, options);
-      }
-      catalogues.refresh();
-      const parts = [count(report.tracks.length, "track"), count(report.fixes, "fix", "fixes")];
-      if (report.annotations) parts.push(count(report.annotations, "annotation"));
-      if (report.narrative_entries) parts.push(count(report.narrative_entries, "narrative entry", "narrative entries"));
-      // A remembered choice is said, with how to change it (CAP-01).
-      const remembered = options.remembered ? ` ${report.notes?.at(-1) ?? ""}` : "";
-      const summary = `Imported ${parts.join(", ")}.${remembered}`;
-      // Nothing is dropped silently (EXT-14): say what was not imported.
-      if (given) {
-        // Agents and tests: said, not asked about, and what happened returned.
-        void vscode.window.showInformationMessage(summary);
-        return { item: report.item, notes: report.notes ?? [], omitted: report.omitted };
-      }
-      if (report.omitted.length) {
-        const choice = await vscode.window.showWarningMessage(
-          `${summary} Some content was not imported.`,
-          "Show what was not imported",
-          "Open plot",
-        );
-        if (choice === "Show what was not imported") {
-          // Plot content: shown in an untitled document, never written to the output channel or log (NFR-14).
-          const content = [`Not imported from ${files[0].fsPath}:`, ...report.omitted.map((line) => `  ${line}`)].join("\n");
-          const document = await vscode.workspace.openTextDocument({ content, language: "plaintext" });
-          await vscode.window.showTextDocument(document, { preview: false });
-        } else if (choice === "Open plot") {
-          await vscode.commands.executeCommand("debrief.openPlot", storeId, report.item);
-        }
-      } else {
-        void vscode.window.showInformationMessage(summary);
-      }
-    } catch (error) {
-      void vscode.window.showErrorMessage((error as Error).message);
-    }
-  });
+  /** The import flows' host (webview/panels/flows/importplot.ts): VS Code's catalogues, configuration and tool service. */
+  const importHost: ImportHost = {
+    ...flowHost,
+    // Which catalogue (§5: VS Code only): the one named, the only one that can be written, or the one chosen.
+    chooseCatalogue: async (purpose, given) => {
+      const writable = knownStores(configFile).stores.filter((s) => !s.read_only);
+      if (!writable.length) return { problem: purpose === "import" ? "Add or create a catalogue first; imported plots go into a catalogue." : "Add or create a catalogue first; a plot file is added to a catalogue." };
+      if (given) return given;
+      if (writable.length === 1) return writable[0].id;
+      return (
+        await vscode.window.showQuickPick(
+          writable.map((s) => ({ label: s.title, description: s.location, id: s.id })),
+          { placeHolder: purpose === "import" ? "Import into which catalogue?" : "Add the plot file to which catalogue?" },
+        )
+      )?.id;
+    },
+    previewDocument: (file) => service!.previewNarrative(file.path!),
+    repTracks: async (file) => (await service!.repTracks(file.path!)).tracks,
+    importMode: async () => rememberedMode(),
+    setImportMode: (mode) => rememberMode(mode),
+    rememberedNote: REMEMBERED_IN_VSCODE,
+    importFile: (store, file, options, allow) => service!.importFile(store, file.path!, agent, allow, options).catch(refusing),
+    addPlotFile: (store, file, allow) => service!.addPlotFile(store, file.path!, agent, allow).catch(refusing),
+    refreshCatalogues: async () => catalogues.refresh(),
+    // Plot content: shown in an untitled document, never written to the output channel or log (NFR-14).
+    showNotImported: async (file, omitted) => {
+      const content = [`Not imported from ${file.path ?? file.name}:`, ...omitted.map((line) => `  ${line}`)].join("\n");
+      const document = await vscode.workspace.openTextDocument({ content, language: "plaintext" });
+      await vscode.window.showTextDocument(document, { preview: false });
+    },
+    openPlotIn: async (store, item) => void (await vscode.commands.executeCommand("debrief.openPlot", store, item)),
+  };
+  command("debrief.askTrackImportMode", () => askAgainFlow(importHost));
+  // Import a REP, .dpf, Word or PDF file, or a Debrief plot file: the shared flow. Given { store, path, modes, track_name } (agents and tests), it asks only what it must.
+  command("debrief.importRep", (node?: CataloguesNode, given?: { store?: string; path?: string; modes?: string | Record<string, PlottingMode>; track_name?: string }) =>
+    importPlotFlow(importHost, {
+      ...((given?.store ?? (node?.kind === "catalogue" ? node.catalogue.store : undefined)) && { store: given?.store ?? (node as { catalogue: { store: string } }).catalogue.store }),
+      ...(given?.path && { file: fileAt(given.path), quiet: true }),
+      ...(given?.modes && { modes: given.modes }),
+      ...(given?.track_name && { trackName: given.track_name }),
+    }),
+  );
 
   /**
-   * Add a plot file received from a colleague: one .geojson file holding the plot,
-   * its view and its whole history (decision 13 Oct). Its history comes with it, so
-   * undo, redo and going back to a step work on what the sender did; one more step
-   * records where it came from. A file whose history fails its checksums is refused.
-   * For tests and agents, the catalogue and the file may be given.
+   * Add a plot file received from a colleague (VS Code only, §5: the playground adds one through
+   * Import): the shared flow. For tests and agents, the catalogue and the file may be given.
    */
-  command("debrief.addPlotFile", async (node?: { view?: { store: { id: string } } }, given?: string) => {
-    if (!needService()) return { problem: "Adding a plot file needs the tool service." };
-    const writable = knownStores(configFile).stores.filter((s) => !s.read_only);
-    if (!writable.length) {
-      void vscode.window.showWarningMessage("Add or create a catalogue first; a plot file is added to a catalogue.");
-      return { problem: "no catalogue" };
-    }
-    let storeId = node?.view?.store.id;
-    if (!storeId) {
-      const picked =
-        writable.length === 1
-          ? { id: writable[0].id }
-          : await vscode.window.showQuickPick(
-              writable.map((s) => ({ label: s.title, description: s.location, id: s.id })),
-              { placeHolder: "Add the plot file to which catalogue?" },
-            );
-      storeId = picked?.id;
-    }
-    if (!storeId) return undefined;
-    let file = given;
-    if (!file) {
-      const files = await vscode.window.showOpenDialog({
-        canSelectMany: false,
-        openLabel: "Add plot file",
-        filters: { "Debrief plot files": ["geojson", "json"] },
-      });
-      file = files?.[0]?.fsPath;
-    }
-    if (!file) return undefined;
-    try {
-      let added;
-      try {
-        added = await service!.addPlotFile(storeId, file, agent);
-      } catch (error) {
-        if ((error as ServiceError).code !== NEWER_SCHEMA) throw error;
-        if (!(await confirmNewerSchema((error as Error).message))) return undefined;
-        added = await service!.addPlotFile(storeId, file, agent, true);
-      }
-      catalogues.refresh();
-      const message = `Added ${added.title} with its history: ${count(added.steps, "step")}, undo and redo included.`;
-      if (given) {
-        void vscode.window.showInformationMessage(message);
-      } else {
-        void vscode.window.showInformationMessage(message, "Open plot").then((choice) => {
-          if (choice === "Open plot") void vscode.commands.executeCommand("debrief.openPlot", storeId, added.item);
-        });
-      }
-      return { item: added.item };
-    } catch (error) {
-      void vscode.window.showErrorMessage((error as Error).message);
-      return { problem: (error as Error).message };
-    }
-  });
+  command("debrief.addPlotFile", (node?: CataloguesNode, given?: string) =>
+    addPlotFileFlow(importHost, { ...(node?.kind === "catalogue" && { store: node.catalogue.store }), ...(given && { file: fileAt(given), quiet: true }) }),
+  );
 
   // --- Walkthroughs (CAP-25): the Get Started page, each on a fresh copy of the sample -----------
   // The steps are package.json's contributes.walkthroughs, written from walkthroughs/tours.json.

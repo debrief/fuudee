@@ -1,7 +1,7 @@
 // Narrative part B in the playground (CAP-19, CAP-05), played as a reader would: a Word
 // narrative read into the open plot, the reader asked first what legacy Debrief asked
 // (which types, only within the plot's period, which track an unknown platform is), one
-// step, undone like any other; then the Timeline's extras, the reader's own: highlighted
+// question at a time as VS Code asks them (PAR-10), one step, undone like any other; then the Timeline's extras, the reader's own: highlighted
 // phrases, choosing an entry without moving current time, text size and wrapping, which
 // columns show, on a phone too. The log is synthetic, made up for the sample (DEV-05).
 import { resizeTo, showPanel } from "./dock.mjs";
@@ -9,6 +9,7 @@ import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import path from "node:path";
 import { timelineRow } from "./timelinerows.mjs";
+import { asking, choose, form } from "./questions.mjs";
 
 const state = (page) => page.evaluate(() => window.debriefTimeline());
 const timeLabel = (page) => page.locator("#timebar .time-label").innerText();
@@ -46,23 +47,25 @@ export async function playWordNarrative(page, shot) {
   const before = (await state(page)).entries;
   const steps = await page.locator("#history li").count();
 
-  // The file chosen under Import: the reader is asked what legacy Debrief asked.
+  // The file chosen under Import: the reader is asked what legacy Debrief asked, one question at
+  // a time, as VS Code's QuickPicks ask it (PAR-10): the types, the plot's period, BLUE TWO's track.
   const started = Date.now();
   await page.locator("#narrative-file").setInputFiles(LOG);
-  const dialog = page.locator("dialog.track-form[open]");
-  await dialog.waitFor({ timeout: 60000 });
-  assert.match(await dialog.locator(".form-info").innerText(), /Word document, read as a narrative log: 7 entries/);
-  // Its types with how many of each, every one ticked; the plot's period; BLUE TWO, which has no track.
-  const types = await dialog.locator(".form-check span:not(.form-note)").allInnerTexts();
-  assert.deepEqual(types, ["OOW COMMENT (3)", "SONAR (2)", "COMMS (1)", "FCS (1)"]);
-  assert.match(await dialog.locator("select[name=period] option").nth(1).innerText(), /^Only the 6 within the plot's period/);
-  assert.deepEqual(await dialog.locator("select[name=track-0] option").allInnerTexts().then((o) => [o[0], o.at(-1)]), ["BLUE ONE", "No track"]);
-  await dialog.locator(".form-check", { hasText: "FCS" }).locator("input").uncheck();
-  await dialog.locator("select[name=period]").selectOption("within");
-  await dialog.locator("select[name=track-0]").selectOption("");
+  const types = form(page, "Read which types from red-one-log.docx?");
+  await types.waitFor({ timeout: 60000 });
+  assert.match(await types.locator(".form-info").innerText(), /Word document, read as a narrative log: 7 entries/);
+  // Its types with how many of each, every one ticked.
+  assert.deepEqual(await types.locator(".form-check > span:not(.form-note)").allInnerTexts(), ["OOW COMMENT 3 entries", "SONAR 2 entries", "COMMS 1 entry", "FCS 1 entry"]);
+  await types.getByRole("checkbox", { name: /^FCS/ }).uncheck();
   await page.mouse.move(2, 2);
   await shot("narrative-b-01-word-questions");
-  await dialog.locator("button.primary").click();
+  await types.getByRole("button", { name: "OK" }).click();
+  await asking(page).waitFor();
+  assert.match(await page.locator("#ask-title").innerText(), /outside the plot's period$/);
+  await choose(page, "Only the 6 within the plot's period");
+  await asking(page).locator("#ask-title", { hasText: "Which track is BLUE TWO's?" }).waitFor();
+  assert.deepEqual(await asking(page).locator("#ask-buttons > button").allInnerTexts().then((o) => [o[0], o.at(-2), o.at(-1)]), ["BLUE ONE", "No track", "Cancel"]);
+  await choose(page, "No track");
   // One step, named in the History; five entries: no FCS, none after the serial.
   await page.locator("#history li", { hasText: "Narrative read from red-one-log.docx" }).first().waitFor({ timeout: 60000 });
   const readMs = Date.now() - started;
@@ -87,12 +90,11 @@ export async function playWordNarrative(page, shot) {
   // Read again: last time's answers are offered, kept in the page's settings (never the
   // plot), and Enter confirms them; Cancel reads nothing.
   await page.locator("#narrative-file").setInputFiles(LOG);
-  await dialog.waitFor({ timeout: 60000 });
-  assert.match(await dialog.locator(".form-info").innerText(), /As last time: All types but FCS; only within the plot's period; BLUE TWO on no track\./);
-  assert.equal(await dialog.locator(".form-check", { hasText: "FCS" }).locator("input").isChecked(), false);
-  assert.equal(await dialog.locator("select[name=period]").inputValue(), "within");
-  assert.equal(await page.evaluate(() => document.activeElement?.classList.contains("primary")), true, "Enter reads as last time");
-  await dialog.locator("button", { hasText: "Cancel" }).click();
+  await asking(page).locator("#ask-title", { hasText: "Read red-one-log.docx" }).waitFor({ timeout: 60000 });
+  const last = asking(page).locator("#ask-buttons > button").first();
+  assert.match(await last.innerText(), /^Read as last time\nAll types but FCS; only within the plot's period; BLUE TWO on no track$/);
+  assert.equal(await last.getAttribute("class"), "primary", "Enter reads as last time");
+  await asking(page).locator("#ask-buttons > button").last().click(); // the dialog's Cancel
   await page.locator(".toast", { hasText: "Nothing was read." }).first().waitFor();
   assert.equal((await state(page)).entries, before);
 
@@ -107,33 +109,40 @@ export async function playWordNarrative(page, shot) {
  * plot, and its action skips them; Cancel reads nothing. Left as it was found.
  */
 async function playReadAgain(page, shot, before) {
-  const dialog = page.locator("dialog.track-form[open]");
   const steps = await page.locator("#history li").count();
   await page.locator("#narrative-file").setInputFiles(LOG);
-  await dialog.waitFor({ timeout: 60000 });
-  assert.equal(await dialog.locator(".form-warning").count(), 0, "a document new to the plot is not said to be in it");
-  await dialog.locator("button.primary").click(); // as last time: five entries
+  // A document new to the plot is not said to be in it: last time's answers are asked first.
+  await asking(page).locator("#ask-title", { hasText: "Read red-one-log.docx" }).waitFor({ timeout: 60000 });
+  await choose(page, "Read as last time"); // five entries
   await page.waitForFunction((n) => window.debriefTimeline().entries === n + 5, before);
   const copy = { name: "red-one-log (2).docx", mimeType: "application/vnd.openxmlformats-officedocument.wordprocessingml.document", buffer: readFileSync(LOG) };
   await page.locator("#narrative-file").setInputFiles(copy);
-  await dialog.waitFor({ timeout: 60000 });
-  const said = await dialog.locator(".form-warning").innerText();
-  assert.match(said, /^red-one-log \(2\)\.docx is already in the plot\. Read in on .+ \(step \d+, Narrative read from red-one-log\.docx\)\. 5 of its 7 entries are in the plot\.$/);
-  assert.match(await dialog.locator(".form-info").allInnerTexts().then((t) => t.join(" ")), /As last time/);
-  assert.equal(await dialog.locator("button.primary").innerText(), "Skip entries already in the plot");
+  // Said first, its own question: when it was read in, how many of its entries are in the plot.
+  await asking(page).locator("#ask-title", { hasText: "red-one-log (2).docx is already in the plot" }).waitFor({ timeout: 60000 });
+  assert.match(await page.locator("#ask-text").innerText(), /^Read in on .+ \(step \d+, Narrative read from red-one-log\.docx\)\. 5 of its 7 entries are in the plot\.$/);
+  assert.deepEqual(await asking(page).locator("#ask-buttons > button").allInnerTexts(), ["Skip entries already in the plot\nRead the 2 entries not in the plot", "Cancel\nRead nothing", "Cancel"]);
   await page.evaluate(() => document.getElementById("toasts")?.replaceChildren());
   await page.mouse.move(2, 2);
   await shot("narrative-f-01-already-in-plot");
   // Cancel reads nothing.
-  await dialog.locator("button", { hasText: "Cancel" }).click();
+  await choose(page, "Cancel");
   await page.locator(".toast", { hasText: "Nothing was read." }).first().waitFor();
   assert.equal((await state(page)).entries, before + 5);
   // Every type, every entry this time: the two not in the plot are read, the five skipped.
   await page.locator("#narrative-file").setInputFiles(copy);
-  await dialog.waitFor({ timeout: 60000 });
-  await dialog.locator(".form-check", { hasText: "FCS" }).locator("input").check();
-  await dialog.locator("select[name=period]").selectOption("all");
-  await dialog.locator("button.primary").click();
+  await choose(page, "Skip entries already in the plot");
+  await asking(page).locator("#ask-title", { hasText: "Read red-one-log (2).docx" }).waitFor({ timeout: 60000 });
+  await choose(page, "Choose again");
+  const types = form(page, "Read which types from red-one-log (2).docx?");
+  await types.getByRole("checkbox", { name: /^FCS/ }).check();
+  await types.getByRole("button", { name: "OK" }).click();
+  await asking(page).locator("#ask-title", { hasText: "outside the plot's period" }).waitFor();
+  // Last time's answer first, chosen by Enter.
+  assert.match(await asking(page).locator("#ask-buttons > button").first().innerText(), /^Only the 6 within/);
+  await choose(page, "All 7 entries");
+  await asking(page).locator("#ask-title", { hasText: "Which track is BLUE TWO's?" }).waitFor();
+  assert.equal(await asking(page).locator("#ask-buttons > button").first().innerText(), "No track", "last time's track first");
+  await choose(page, "No track");
   await page.locator(".toast", { hasText: "Read 2 narrative entries into the plot." }).first().waitFor({ timeout: 60000 });
   await page.waitForFunction((n) => window.debriefTimeline().entries === n + 7, before);
   assert.equal(await page.locator("#history li").count(), steps + 2);

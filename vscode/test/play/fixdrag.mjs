@@ -321,43 +321,41 @@ export async function playFixDrag(page, shot) {
   // future imports" is the reader's own setting (not the plot's), said in the import's notes and cleared by Ask again.
   const rep = new URL("../integration/demo.rep", import.meta.url).pathname;
   await page.locator("#file").setInputFiles(rep);
-  await dialog.waitFor();
-  assert.equal(await dialog.locator("h2").innerText(), "How is NELSON plotted? (1 of 3)");
-  // As legacy Debrief asked: OTG or DR, and apart from that a box to tick; what it explains, in the neutral style.
-  assert.deepEqual(await page.locator("#track-form-mode option").allInnerTexts(), ["Over the ground (OTG)", "Dead reckoning (DR)"]);
-  const remember = dialog.getByRole("checkbox", { name: "Use this choice for future track imports" });
+  // The shared question (PAR-10): VS Code's choices, words and order, the box apart from them; one question per track.
+  const asked = page.locator("dialog#ask");
+  await asked.waitFor();
+  assert.equal(await asked.locator("#ask-title").innerText(), "How is NELSON plotted? (1 of 3)");
+  assert.equal(await asked.locator("#ask-text").innerText(), "Over the ground, as logged, or dead reckoned from course and speed");
+  assert.deepEqual(await asked.locator("#ask-buttons button").evaluateAll((bs) => bs.map((b) => b.firstChild.textContent)), ["Over the ground (OTG)", "Dead reckoning (DR)", "Cancel"]);
+  const remember = asked.getByRole("checkbox", { name: "Use this choice for future track imports" });
   assert.equal(await remember.isChecked(), false);
-  await dialog.locator(".form-info", { hasText: "Tick the box to be asked no more" }).waitFor();
-  assert.equal(await dialog.locator(".form-warning").count(), 0);
-  await page.locator("#track-form-mode").selectOption({ label: "Dead reckoning (DR)" });
   await shot("fixdrag-07-import-asks");
-  await dialog.getByRole("button", { name: "Import" }).click();
-  await page.waitForFunction(() => document.querySelector("dialog.track-form h2")?.textContent === "How is BLUE plotted? (2 of 3)");
-  await page.locator("#track-form-mode").selectOption({ label: "Over the ground (OTG)" });
-  await dialog.getByRole("checkbox", { name: "Use this choice for future track imports" }).check();
-  await dialog.getByRole("button", { name: "Import" }).click();
-  const notes = page.locator(".omitted-panel .import-notes");
-  await notes.getByText("Track 'NELSON' plotted by dead reckoning (DR).").waitFor({ timeout: 60000 });
-  await notes.getByText("Track 'BLUE' plotted over the ground (OTG).").waitFor();
-  await notes.getByText(/^Track '"?TRAWLER.*plotted over the ground \(OTG\)\.$/).waitFor();
+  await asked.locator("#ask-buttons button", { hasText: "Dead reckoning (DR)" }).click();
+  await page.waitForFunction(() => document.getElementById("ask-title")?.textContent === "How is BLUE plotted? (2 of 3)");
+  await remember.check();
+  await asked.locator("#ask-buttons button", { hasText: "Over the ground (OTG)" }).click();
+  // What came in is said, and the new plot offered, not opened (PAR-12).
+  const imported = page.locator(".toast", { hasText: /^Imported 3 tracks/ });
+  await imported.waitFor({ timeout: 60000 });
+  await imported.getByRole("button", { name: "Open plot" }).click();
+  await page.waitForFunction(() => document.getElementById("plots")?.value === "demo");
   await showPanel(page, "import"); // Import, a menu in the top bar
   await page.locator("#import-mode-text", { hasText: "plotted over the ground (OTG), as you chose for future imports" }).waitFor();
   assert.equal(await page.locator("#ask-again").isVisible(), true);
   await page.keyboard.press("Escape"); // the menu closed, from the keyboard, back to its button
   await page.locator("#panel-import").waitFor({ state: "hidden" });
-  // Remembered: the next import asks nothing, and its notes say how to be asked again.
-  await page.locator(".side-bar button", { hasText: "Close" }).click();
+  // Remembered: the next import asks nothing, and its summary says how to be asked again.
   await page.locator("#file").setInputFiles(rep);
-  await notes.getByText("Tracks were plotted over the ground (OTG) as you chose for future imports. To be asked again for each track, choose Ask again under Import.").waitFor({ timeout: 60000 });
-  assert.equal(await dialog.count(), 0, "not asked");
-  await page.locator(".side-bar button", { hasText: "Close" }).click();
+  await page.locator(".toast", { hasText: "Tracks were plotted over the ground (OTG) as you chose for future imports. To be asked again for each track, choose Ask again under Import." }).waitFor({ timeout: 60000 });
+  assert.equal(await asked.isVisible(), false, "not asked");
   await showPanel(page, "import");
   await page.locator("#ask-again").click();
   await page.locator("#ask-again").waitFor({ state: "hidden" });
   assert.match(await page.locator("#import-mode-text").textContent(), /^Debrief asks, for each track/);
+  await page.locator(".toast", { hasText: "Debrief will ask, for each track imported, whether it is plotted over the ground (OTG) or by dead reckoning (DR)." }).waitFor();
   // Asked again, and stopping imports nothing.
   await page.locator("#file").setInputFiles(rep);
-  await dialog.waitFor();
-  await dialog.getByRole("button", { name: "Cancel" }).click();
+  await asked.waitFor();
+  await asked.locator("#ask-buttons button", { hasText: "Cancel" }).click();
   await page.locator(".toast", { hasText: "Nothing was imported." }).waitFor();
 }

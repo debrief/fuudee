@@ -243,7 +243,7 @@
           "text": "Change the plot, then find the image's source: type the ID from its corner (or choose the image file). Debrief opens the plot as it was when the image was exported, read-only, at the view and time exported. **Go to latest** returns to the plot as it is now.",
           "keys": "Type the ID and press `Enter`; on the map, `Tab` to **Go to latest** and press `Enter`.",
           "vscode": { "where": "**Find source of image…** is on Catalogues' title bar menu.", "button": "Find source of image", "command": "debrief.findImageSource" },
-          "play": { "where": "Under **Find source of image**, in the top bar's *Export* menu.", "button": "Type the ID", "action": "focus:find-id" },
+          "play": { "where": "**Find source of image…** is on the Catalogues panel's ⋯ menu, as on VS Code's Catalogues title bar.", "button": "Find source of image", "action": "run:debrief.findImageSource" },
           "media": "annotate-trace.svg",
           "alt": "The image's ID leading back to the plot, shown read-only at the step it was exported."
         }

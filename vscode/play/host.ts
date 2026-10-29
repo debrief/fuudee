@@ -27,19 +27,19 @@
  * layout every time, with every panel open, and remembers neither, so a post's demo always shows
  * what the post describes.
  */
-import type { AnnotationSpec, CoverageReport, DebriefFeatureCollection, ItemRevision, NarrativeSpec, ParameterValue, PlotView, ReviewFlag, SharedStateChange, SourceTrackRef, StacItem, TimeRange, TimeState, TmaCut, TmaFocus, TmaRequest, TmaResiduals, ToolDeclaration, ToolResult, ToteResult, ToteView } from "@debrief/schemas";
+import type { AnnotationSpec, CoverageReport, DebriefFeatureCollection, NarrativeSpec, ParameterValue, PlotView, ReviewFlag, SharedStateChange, StacItem, TimeRange, TimeState, TmaCut, TmaFocus, TmaRequest, TmaResiduals, ToolDeclaration, ToolResult, ToteResult, ToteView } from "@debrief/schemas";
 import { CoverageControl } from "../webview/coveragecontrol.js";
 import { specOfFeature } from "../webview/annotationlook.js";
 import { NarrativeOnMap, narrativeOnMapOf, timelineEntries, timelineTracks } from "../src/timeline.js";
 import { TimelineControl } from "../webview/timelinecontrol.js";
-import { count, describePeriod, describeTimes } from "../src/format.js";
-import { answersToRemember, choicesOf, describeAnswers, duplicateQuestion, periodChoices, questionsFor, readSummary, rememberedAnswers, typeWords, type NarrativeChoices, type NarrativePreview } from "../src/narrativeimport.js";
+import { count, describeTimes } from "../src/format.js";
+import type { NarrativePreview } from "../src/narrativeimport.js";
 import { contextTracksOf, displayed, hiddenIds, isFeature, setViewOf, timeWindowOf, viewOf, type PlotFeature } from "../src/hidden.js";
 import { contextShown, type ContextTracks } from "../webview/contrast.js";
 import { placeToolTime } from "../webview/timelogic.js";
 import { TRACK_COLOURS } from "../webview/palette.js";
 import { cutChoices, cutNow, describeCut, featureName, KEEP_CHOICES, placeOfCut, resolutionFor, scopeChoices, sensorsOf, type Keep, type ResolveContext } from "../webview/sensors.js";
-import { describeSensorInFile, hostChoices, hostQuestion, hostsToAsk, sensorReadSummary, type SensorPreview } from "../src/sensorimport.js";
+import type { SensorPreview } from "../src/sensorimport.js";
 import { TimeControl } from "../webview/timecontrol.js";
 import { ToteControl } from "../webview/totecontrol.js";
 import { TmaControl } from "../webview/tmacontrol.js";
@@ -52,28 +52,36 @@ import { PANEL_TITLES, SIDE_FIRST } from "./panels.mjs";
 import { openMenu, type MenuItem } from "./menu.js";
 import { formatBearing, formatPosition, parsePosition } from "@debrief/kernel";
 import { defaultPivotIndex, describeDistance, describeSpeed, describeTurn, FIX_PROMPT, FIX_PROMPT_DR, fixIndexAt, fixMeans, fixToEdit, jumpSpeed, legNow, mergedName, mergePlan, periodIndices, readArrayOffset, arrayOffsetTitle, readBearing, readDistance, readSpeed, readTurn, reckoningOf } from "../webview/trackedit.js";
-import { chooseModes, MODE_LABELS, modeChoices, modeQuestion, REMEMBER_LABEL, REMEMBERED_IN_PLAYGROUND, type PlottingMode } from "../src/importmode.js";
+import { MODE_LABELS, REMEMBERED_IN_PLAYGROUND, type PlottingMode } from "../src/importmode.js";
+import type { TrackImportMode } from "@debrief/config";
 import { describeJump, describeMark, describeWindow, DR_TAG, fixRows, isDeadReckoned, jumpsFound, markAt, readThreshold, readWindow, smoothingNote, type Jump } from "../webview/fixes.js";
 import { FIX_COLOURS } from "../webview/palette.js";
 import { ALL_PROBLEM, AT_EVERY_FIX, changesOf, choiceFromValue, choicesFor, describeChanges, describeInterval, FIELD_NAMES, FIELDS, formState, readInterval, type Field, type FieldState } from "../webview/frequencies.js";
-import { formatQuantity, figureIdProblem, UNIT_LABELS } from "@debrief/kernel";
+import { formatQuantity, UNIT_LABELS } from "@debrief/kernel";
 import type { FigureSource, ImageExport, RenderedImage, RevisionShown } from "@debrief/schemas";
-import { fileNameFor, PRESETS, type ImageFormat, type ImagePreset, type ImageTheme } from "../webview/exportlogic.js";
-import { describeExported, describeSource, READ_ONLY, rememberedOf, revisionOf, startingChoice, type ExportChoice } from "../src/figures.js";
+import type { ImageFormat, ImagePreset, ImageTheme } from "../webview/exportlogic.js";
+import { READ_ONLY, revisionOf } from "../src/figures.js";
 import { callEvent, counts, outlineTarget, TourPanel, tourOfEvent, type TourAction } from "./tours.js";
 import { OutlineTree } from "./outline.js";
 import { fillOutlineRow } from "./outlinerow.js";
 import { filesOf, isBranch, OutlineModel, selectable, type OutlineNode, type OutlineRow } from "../webview/panels/outline.js";
-import { actionOf, entryOf, rowMenu, titleMenu, type Context } from "../webview/panels/actions.js";
+import { actionOf, entryOf, inPlayground, rowMenu, titleMenu, type Context } from "../webview/panels/actions.js";
+import { CataloguesModel, plotTargetOf, trackTargetOf, type PlotSummary } from "../webview/panels/catalogues.js";
+import { fillCatalogues } from "./cataloguelist.js";
 import { undoRedo } from "../src/views/historyrows.js";
 import type { HistoryStep } from "../src/service.js";
 import { ToolsModel, type ToolsRow, type Unavailable } from "../webview/panels/tools.js";
 import { HistoryModel, NEEDS_SERVICE } from "../webview/panels/history.js";
 import { fillTools } from "./toolslist.js";
 import { fillHistory } from "./historylist.js";
-import { Refusal, type FlowHost, type PlotRef, type Severity } from "../webview/panels/flows/host.js";
+import { answerOf, choiceOf, labelOf, Refusal, titleOf, type Choices, type FlowHost, type OpenSpec, type Panel, type PickedFile, type PlotRef, type Severity } from "../webview/panels/flows/host.js";
 import { runTool as runToolFlow, type ToolCall } from "../webview/panels/flows/runtool.js";
 import { move as moveFlow, type How } from "../webview/panels/flows/move.js";
+import { clearReviewFlag, collate as collateFlow, dismissNewData, linkTrack, sayReviewFlags, takeNewData, unlinkTrack, type CollationHost } from "../webview/panels/flows/collation.js";
+import { askAgain, importPlot, type ImportHost, type ImportOptions, type ImportReport } from "../webview/panels/flows/importplot.js";
+import { importNarrative, type NarrativeHost, type RememberedAnswers } from "../webview/panels/flows/narrative.js";
+import { importSensor, type SensorHost, type SensorRead } from "../webview/panels/flows/sensor.js";
+import { exportImage, type ExportHost, type FindHost, findImageSource, type Traced } from "../webview/panels/flows/exportimage.js";
 import { operationContext as sharedOperationContext, operationsFor, runOperation as runOperationFlow, type OperationHost, type OperationState } from "../webview/panels/flows/operation.js";
 import type { TreeNode } from "../webview/outlinetree.js";
 import {
@@ -656,9 +664,54 @@ function showResults(tool: ToolDeclaration, result: ToolResult): void {
   pendingResults = () => post(results, { kind: "show_results", tool, result_title: tool.title, result });
 }
 
-// --- The shared flows' host (PAR-09): the playground's dialog, toasts and Python ----------------
+// --- The shared flows' host (PAR-09): the playground's dialog, toasts, files and Python ----------
+const PANEL_IDS: Record<Panel, string> = { catalogues: "panel-catalogue", coverage: "panel-coverage", outline: "panel-outline", timeline: "panel-timeline" };
 const flowHost: FlowHost = {
-  ask: (q) => ask(q.text, [...q.choices]),
+  ask: async (q) => (await askDialog({ title: titleOf(q), text: q.text, choices: q.choices, default: q.default }))?.answer,
+  askMany: async (q) => {
+    const values = await trackForm(
+      titleOf(q) ?? "",
+      "OK",
+      q.choices.map((c, i) => ({ id: `choice-${i}`, label: c.label, ...(c.description && { detail: c.description }), check: true, value: q.picked.includes(c.label) ? "yes" : "" })),
+      q.text ? { info: q.text } : undefined,
+    );
+    return values && q.choices.filter((_, i) => values[`choice-${i}`] === "yes").map(answerOf);
+  },
+  askRemembering: async (q) => {
+    const answer = await askDialog({ title: q.title, text: q.text, choices: q.choices, remember: q.remember });
+    return answer && { choice: answer.answer, remember: answer.remember };
+  },
+  askText: async (q) => {
+    const read = q.validate && ((text: string) => ((problem) => (problem ? { problem } : { means: "" }))(q.validate!(text)));
+    const values = await trackForm(q.title, "OK", [{ id: "text", label: q.prompt, ...(q.value !== undefined && { value: q.value }), ...(q.placeholder && { placeholder: q.placeholder }), ...(read && { read }) }]);
+    return values?.text;
+  },
+  pickFile: (spec) => uploadDialog(spec),
+  // No save dialog in a browser (§5): the name and the kind of file, then the browser downloads it.
+  chooseSave: async (spec) => {
+    const extOf = (name: string) => spec.filters.find((f) => f.extensions.some((e) => name.toLowerCase().endsWith(`.${e.toLowerCase()}`)))?.extensions[0];
+    const named = (name: string, ext: string) => `${extOf(name) ? name.replace(/\.[^.]+$/, "") : name}.${ext}`;
+    const values = await trackForm(
+      spec.title,
+      spec.saveLabel,
+      [
+        { id: "name", label: "File name", value: spec.name, follow: (v) => ({ label: "File name", value: named(spec.name, v.type) }) },
+        { id: "type", label: "Save as", options: spec.filters.map((f) => ({ value: f.extensions[0], label: f.name })) },
+      ],
+      { info: "Your browser saves it, as it saves any download." },
+    );
+    if (!values?.name.trim()) return undefined;
+    return { name: extOf(values.name.trim()) ? values.name.trim() : named(values.name.trim(), values.type) };
+  },
+  writeFile: async (target, data) => {
+    const type = /\.svg$/i.test(target.name) ? "image/svg+xml" : /\.png$/i.test(target.name) ? "image/png" : "application/octet-stream";
+    const link = Object.assign(document.createElement("a"), { href: URL.createObjectURL(new Blob([data as BlobPart], { type })), download: target.name });
+    link.click();
+    setTimeout(() => URL.revokeObjectURL(link.href), 60000);
+  },
+  openPanel: (panel) => showPanel(PANEL_IDS[panel]),
+  // One page, one reader: the changes are already one at a time.
+  oneAtATime: (work) => work(),
   message: (severity: Severity, text: string, buttons: readonly string[] = []) => notify(text, severity === "info" ? "info" : "warning", buttons),
   plot: (): PlotRef | undefined =>
     opened && { store: "play", item: opened.item.id, base: opened.base, properties: opened.item.properties, ...(opened.revision && { readOnly: true }) },
@@ -962,6 +1015,8 @@ interface FormField {
   follow?: (values: Record<string, string>) => { label: string; value: string };
   /** A box to tick, beside its label: its value is "yes" when ticked, else "". */
   check?: boolean;
+  /** Said beside the label, as a list's description. */
+  detail?: string;
 }
 /**
  * A small form in a dialog: each field says, beneath it, what it understood or what is wrong; nothing is sent until all are right. Resolves to the values, or undefined for Cancel.
@@ -989,6 +1044,7 @@ function trackForm(title: string, action: string, fields: FormField[], warning?:
       const row = document.createElement("label");
       row.className = field.check ? "form-row form-check" : "form-row";
       const label = Object.assign(document.createElement("span"), { textContent: field.label });
+      if (field.detail) label.append(" ", Object.assign(document.createElement("span"), { className: "detail", textContent: field.detail }));
       if (!field.check) row.append(label);
       let input: HTMLInputElement | HTMLSelectElement;
       if (field.check) {
@@ -1011,7 +1067,7 @@ function trackForm(title: string, action: string, fields: FormField[], warning?:
       const say = () => {
         if (!field.read) return true;
         const read = field.read(input.value);
-        note.textContent = "means" in read ? `Means ${read.means}` : read.problem;
+        note.textContent = "means" in read ? (read.means ? `Means ${read.means}` : "") : read.problem;
         note.classList.toggle("problem", "problem" in read);
         return "means" in read;
       };
@@ -2241,8 +2297,10 @@ const PLAY_ACTIONS: Record<string, (keys: string[], at: Where) => unknown> = {
   "debrief.clearSelection": () => chooseInOutline([]),
   "debrief.addAnnotation": () => addAnnotation(),
   "debrief.toggleNorthArrow": () => toggleNorthArrow(),
-  "debrief.importSensor": () => $("sensor-file").click(),
-  "debrief.exportImage": () => $("open-export").click(),
+  "debrief.importSensor": () => importSensor(sensorHost),
+  "debrief.exportImage": () => exportImage(exportHost),
+  // A walkthrough's step runs it, as VS Code's step runs the command (its place is Catalogues' title bar menu).
+  "debrief.findImageSource": () => findImageSource(findHost),
 };
 
 /** The actions that act on the rows given, leaving the selection as it is, as VS Code's do. */
@@ -2410,38 +2468,28 @@ async function cutMenu(id: string): Promise<void> {
   const chosen = await ask(describeCut(cut, entry.sensor.properties.name, course).replace(/\n/g, ". "), [...choices.keys()]);
   if (chosen) await choices.get(chosen)!();
 }
-// A .dsf or REP file's sensor lines read into the open plot (CAP-22), as one step, the file
-// kept as a source: a sensor whose track the plot has not is asked about, as legacy asked.
+// A .dsf or REP file's sensor lines read into the open plot (CAP-22): the shared flow
+// (webview/panels/flows/sensor.ts), through Python.
+const sensorHost: SensorHost = {
+  ...flowHost,
+  previewSensor: async (file, plot) => {
+    const preview = await pythonJson<SensorPreview & { error?: string }>("sensor_preview", plot.item, file.name, file.data ?? new Uint8Array());
+    if (preview.error) throw new Error(preview.error);
+    return preview;
+  },
+  readSensor: async (plot, file, hosts, again) => {
+    status(`Reading ${file.name}…`, true);
+    const outcome = await pythonJson<SensorRead & { error?: string; conflict?: boolean }>("sensor", plot.item, JSON.stringify({ base: plot.base, change: { kind: "import", name: file.name, hosts, again } }), file.data ?? new Uint8Array());
+    status("");
+    if (outcome.error) throw refusalOf(outcome);
+    return outcome;
+  },
+};
 $<HTMLInputElement>("sensor-file").onchange = async (e) => {
   const input = e.target as HTMLInputElement;
   const file = input.files?.[0];
   input.value = "";
-  if (!file || !opened || !pythonReady) return;
-  const data = new Uint8Array(await file.arrayBuffer());
-  status(`Reading ${file.name}…`, true);
-  const preview = await pythonJson<SensorPreview & { error?: string }>("sensor_preview", opened.item.id, file.name, data);
-  status("");
-  if (preview.error) return toast(preview.error, "warning");
-  if (!preview.cuts) return toast(`No sensor cut could be read from ${preview.name}. ${preview.omitted.slice(0, 2).join(" ")}`.trim(), "warning");
-  let again = false;
-  if (preview.earlier.length) {
-    const last = preview.earlier[preview.earlier.length - 1];
-    if ((await ask(`${preview.name} was read into this plot before: ${last.how}, ${describePeriod(last.at)}.`, ["Read it again"])) !== "Read it again") return toast("Nothing was read.");
-    again = true;
-  }
-  const hosts: Record<string, string | null> = {};
-  for (const asked of hostsToAsk(preview)) {
-    const names = hostChoices(preview, asked).map((t) => t.name);
-    const chosen = await ask(`${hostQuestion(asked)} ${asked.sensors.map(describeSensorInFile).join("; ")}.`, [...names, "Do not read these"]);
-    if (!chosen) return toast("Nothing was read.");
-    hosts[asked.track] = preview.tracks.find((t) => t.name === chosen)?.id ?? null;
-  }
-  status(`Reading ${file.name}…`, true);
-  const outcome = await sense<{ sensors: string[]; cuts: number; omitted: string[] }>({ kind: "import", name: file.name, hosts, again }, data);
-  status("");
-  if (outcome.error) return toast(outcome.error, "warning");
-  showPanel("panel-outline");
-  toast([sensorReadSummary(outcome, file.name), ...(outcome.notes ?? []), ...outcome.omitted].join(" "));
+  if (file) await importSensor(sensorHost, { file: { name: file.name, data: new Uint8Array(await file.arrayBuffer()) } });
 };
 
 /** The sections the reader opened or closed in the Tools, by key: kept as the list is filled again. */
@@ -2548,12 +2596,14 @@ function historyRowMenu(li: HTMLElement, x: number, y: number): void {
   for (const type of ["pointerup", "pointercancel"] as const) list.addEventListener(type, (e) => void (touch(e) && hold.release(e.pointerId)));
 }
 
+/** The plots again: the top bar's list (a shortcut, §5) and the Catalogues tree. */
 async function refreshPlots(): Promise<void> {
   const plots = await pythonJson<{ id: string; title: string }[]>("plots");
   const picker = $<HTMLSelectElement>("plots");
   picker.replaceChildren(...plots.map((p) => new Option(p.title, p.id)));
   picker.disabled = false;
   if (opened) picker.value = opened.item.id;
+  await refreshCatalogue();
 }
 
 // --- Notices and questions ---------------------------------------------------------
@@ -2588,60 +2638,134 @@ function notify(text: string, kind: "info" | "warning" = "info", buttons: readon
   });
 }
 function ask(question: string, choices: string[]): Promise<string | undefined> {
+  return askDialog({ text: question, choices }).then((answer) => answer?.answer);
+}
+/**
+ * A question in the dialog (PAR-10): its title, what it asks, each choice a button (in the flow's
+ * order, with its description and detail beneath, its default focused, so Enter takes it), then
+ * Cancel; and, where the question has one, a box to tick to remember the choice. However the
+ * dialog closes, Escape included, the question is answered: Escape is Cancel.
+ */
+function askDialog(q: { title?: string; text: string; choices: Choices; default?: string; remember?: string }): Promise<{ answer: string; remember: boolean } | undefined> {
   return new Promise((resolve) => {
     const dialog = $<HTMLDialogElement>("ask");
-    $("ask-text").textContent = question;
+    dialog.setAttribute("aria-labelledby", q.title ? "ask-title" : "ask-text");
+    $("ask-title").textContent = q.title ?? "";
+    $("ask-title").hidden = !q.title;
+    $("ask-text").textContent = q.text;
+    $("ask-text").hidden = !q.text;
+    const box = $<HTMLInputElement>("ask-remember-box");
+    box.checked = false;
+    $("ask-remember").hidden = !q.remember;
+    $("ask-remember-text").textContent = q.remember ?? "";
     let chosen: string | undefined;
-    const buttons = [...choices, "Cancel"].map((choice, i) => {
+    const at = Math.max(0, q.choices.findIndex((c) => labelOf(c) === q.default));
+    const buttons = [...q.choices, "Cancel"].map((c, i) => {
+      const choice = choiceOf(c);
       const button = document.createElement("button");
-      button.textContent = choice;
-      button.className = i === 0 ? "primary" : "";
+      button.type = "button";
+      button.textContent = choice.label;
+      for (const words of [choice.description, choice.detail]) if (words) button.append(Object.assign(document.createElement("span"), { className: "detail", textContent: words }));
+      button.className = i === at && i < q.choices.length ? "primary" : "";
       button.onclick = () => {
-        chosen = choice === "Cancel" ? undefined : choice;
+        chosen = i < q.choices.length ? answerOf(c) : undefined;
         dialog.close();
       };
       return button;
     });
     $("ask-buttons").replaceChildren(...buttons);
-    // However the dialog closes, Escape included, the question is answered: Escape is Cancel.
-    dialog.onclose = () => resolve(chosen);
+    dialog.onclose = () => resolve(chosen === undefined ? undefined : { answer: chosen, remember: box.checked });
     dialog.showModal();
+    if (q.default !== undefined) buttons[at].focus();
+  });
+}
+/** A file to read, chosen in a dialog (PAR-09): uploaded, never sent anywhere (§5: VS Code opens it from disk). */
+function uploadDialog(spec: OpenSpec): Promise<PickedFile | undefined> {
+  return new Promise((resolve) => {
+    const dialog = document.createElement("dialog");
+    dialog.className = "track-form pick-file";
+    dialog.setAttribute("aria-label", spec.title);
+    const input = Object.assign(document.createElement("input"), { type: "file", id: "pick-file" });
+    const accept = [...new Set(spec.filters.flatMap((f) => f.extensions).filter((e) => e !== "*").map((e) => `.${e.toLowerCase()}`))];
+    if (!spec.filters.some((f) => f.extensions.includes("*"))) input.accept = accept.join(",");
+    const label = Object.assign(document.createElement("label"), { className: "file" });
+    label.append(`${spec.openLabel}: ${spec.filters.filter((f) => !f.extensions.includes("*")).map((f) => f.name).join("; ")} `, input);
+    const cancel = Object.assign(document.createElement("button"), { type: "button", textContent: "Cancel" });
+    const buttons = Object.assign(document.createElement("div"), { className: "buttons" });
+    buttons.append(cancel);
+    dialog.append(Object.assign(document.createElement("h2"), { textContent: spec.title }), label, Object.assign(document.createElement("p"), { className: "detail", textContent: "Read in your browser; never uploaded." }), buttons);
+    let picked: PickedFile | undefined;
+    input.onchange = async () => {
+      const file = input.files?.[0];
+      if (file) picked = { name: file.name, data: new Uint8Array(await file.arrayBuffer()) };
+      dialog.close();
+    };
+    cancel.onclick = () => dialog.close();
+    dialog.onclose = () => {
+      dialog.remove();
+      resolve(picked);
+    };
+    document.body.append(dialog);
+    dialog.showModal();
+    input.focus();
   });
 }
 
-// --- Collation (CAP-08 to CAP-12): the catalogue's items, and the open plot's coverage ---
-// As VS Code's Catalogues tree and Coverage view: each item in the folder tree the plot
-// draws from with its tracks and their periods of data, new data marked with a sparkle and
-// the words "New data" (never colour alone), plots that drew from an item since revised
-// flagged "May need review"; and Coverage, the same component as VS Code's, to choose which
-// item supplies each period. Each step goes through Python as the tool service's do.
-type CollationStep =
-  | { kind: "take"; source: { catalogue: string; item: string; revision?: string } }
-  | { kind: "prefer"; feature: string; period: TimeRange; source: SourceTrackRef }
-  | { kind: "link"; feature: string; source: SourceTrackRef; linked: boolean }
-  | { kind: "dismiss"; source: ItemRevision }
-  | { kind: "reviewed"; item?: string };
+// --- Catalogues and collation (CAP-08 to CAP-12): the Catalogues panel model and the shared flows ---
+// As VS Code's Catalogues tree and Coverage view: the catalogue, its plots and their tracks
+// (webview/panels/catalogues.ts), with or without a plot open, collation's marks on them; a
+// plot opens when chosen; each row's menu and the title bar are the action catalogue's. The
+// steps are the shared flows' (webview/panels/flows/collation.ts), made through Python as the
+// tool service makes them.
+/** The catalogue, as Python reads it (debrief/catalogue_view): undefined until Python is ready. */
+let catalogue: { id: string; title: string; plots: PlotSummary[] } | undefined;
 let coverage: CoverageReport | undefined;
 let reviewFlags: ReviewFlag[] = [];
 /** Review flags already said, so each revision is said once (CAP-12). */
 const flagsSaid = new Set<string>();
+/** The branches the reader opened or closed in Catalogues, by key. */
+const cataloguesOpen = new Map<string, boolean>();
+const collationHost: CollationHost = {
+  ...flowHost,
+  coverage: () => coverage,
+  plotTracks: () => (opened ? timelineTracks(opened.plot) : []),
+  collate: async (plot, change, allow) => {
+    const outcome = await pythonJson<{ error?: string; conflict?: boolean; changed?: boolean; message?: string }>("collate", plot.item, JSON.stringify({ base: plot.base, change, ...(allow && { allow_newer_schema: true }) }));
+    if (outcome.error) throw refusalOf(outcome);
+    return { changed: !!outcome.changed, ...(outcome.message && { message: outcome.message }) };
+  },
+  collationView: async (where, change) => {
+    const outcome = await pythonJson<{ error?: string; changed?: boolean }>("collate", opened?.item.id ?? where.item, JSON.stringify({ change: change.kind === "reviewed" ? { kind: "reviewed", item: where.item } : change }));
+    if (outcome.error) throw new Error(outcome.error);
+    // The open plot's island changed: shown again, as VS Code shows the view the service read.
+    if (outcome.changed && opened?.item.id === where.item) await openPlot(opened.item.id, true);
+  },
+  refreshCollation,
+  refreshHistory: async () => renderHistory(),
+};
+const sayCollated = (problem: string | undefined) => void (problem && coverageControl.say(problem));
 const coverageControl = new CoverageControl($("coverage"), {
-  choose: (track, period, source) => void collateStep({ kind: "prefer", feature: track, period, source }),
-  link: (track, source, linked) => void collateStep({ kind: "link", feature: track, source, linked }),
-  take: (item) => void collateStep({ kind: "take", source: item }),
-  dismiss: (item) => void collateStep({ kind: "dismiss", source: item }),
-  reviewed: () => void collateStep({ kind: "reviewed" }),
+  choose: (track, period, source) => void collateFlow(collationHost, { kind: "prefer", feature: track, period, source }).then(sayCollated),
+  link: (track, source, linked) => void collateFlow(collationHost, { kind: "link", feature: track, source, linked }).then(sayCollated),
+  take: (item) => void collateFlow(collationHost, { kind: "take", source: item }).then(sayCollated),
+  dismiss: (item) => void collateFlow(collationHost, { kind: "dismiss", source: item }).then(sayCollated),
+  reviewed: () => void collateFlow(collationHost, { kind: "reviewed" }).then(sayCollated),
 });
 /** How long each ask for coverage took, from asking Python to its answer, for the performance check (NFR-01). */
 const coverageTimes: number[] = [];
 (window as unknown as { debriefCoverage: () => unknown }).debriefCoverage = () => ({ coverage, flags: reviewFlags, times: coverageTimes.slice(-20) });
 
-/** Ask Python what collation says of the open plot and the catalogue; show it, and say a new revision once. */
+/** Read the catalogue again (an import, a plot saved as a new one), and list it. */
+async function refreshCatalogue(): Promise<void> {
+  catalogue = await pythonJson<{ id: string; title: string; plots: PlotSummary[] }>("catalogue_view");
+  renderCatalogues();
+}
+/** Ask Python what collation says of the open plot, if any, and the catalogue; show it, and say new review flags once, in one notice. */
 async function refreshCollation(): Promise<void> {
-  if (!opened) return;
-  const asked = opened.item.id;
+  if (!pythonReady && !opened) return;
+  const asked = opened?.item.id;
   const started = performance.now();
-  const answer = await pythonJson<{ coverage?: CoverageReport; flags?: ReviewFlag[]; error?: string }>("coverage", asked);
+  const answer = await pythonJson<{ coverage?: CoverageReport; flags?: ReviewFlag[]; error?: string }>("coverage", asked ?? null);
   coverageTimes.push(performance.now() - started);
   if (opened?.item.id !== asked) return; // another plot was opened meanwhile
   if (answer.error) return coverageControl.say(answer.error);
@@ -2649,111 +2773,155 @@ async function refreshCollation(): Promise<void> {
   reviewFlags = answer.flags ?? [];
   coverageControl.show(coverage);
   coverageControl.setTime(time ? Date.parse(time.current) : undefined);
-  coverageSeen();
-  renderItems();
-  const fresh = reviewFlags.filter((f) => !flagsSaid.has(`${f.item}:${f.revised.map((r) => r.revision).join()}`));
-  for (const f of fresh) flagsSaid.add(`${f.item}:${f.revised.map((r) => r.revision).join()}`);
-  for (const f of fresh) toast(`${f.note}. Reviewed, under Catalogue or Coverage, clears the flag.`, "warning");
+  if (coverage) coverageSeen();
+  renderCatalogues();
+  sayReviewFlags(flowHost, reviewFlags, flagsSaid);
 }
 
-/** The catalogue's items, as Catalogues lists them: marks, tracks and what can be done to each. */
-function renderItems(): void {
-  const items = coverage?.items ?? [];
-  $("items").replaceChildren(
-    ...items.map((item) => {
-      const li = document.createElement("li");
-      const flag = reviewFlags.find((f) => f.catalogue === item.catalogue && f.item === item.item);
-      const open = item.role === "this_plot";
-      li.className = `item${open ? " item-open" : ""}`;
-      const words = [open ? "open" : "", item.new_data ? "New data" : "", flag ? "May need review" : "", item.role === "drawn_from" ? (item.revised ? "drawn from, revised since" : "drawn from") : ""].filter(Boolean);
-      const notes = [item.new_data?.note, flag ? `${flag.note}.` : "", item.revised ? "Revised since this plot took data from it." : ""].filter(Boolean);
-      li.setAttribute("aria-label", [item.title, ...words, ...notes].join(", "));
-      const name = document.createElement("div");
-      name.className = "item-name";
-      // A mark is a symbol and words, its reason the tooltip: never colour alone.
-      const symbol = flag ? "⚑" : item.new_data ? "✦" : "";
-      name.innerHTML = `${symbol ? `<span class="item-mark${flag ? " item-flag" : ""}" aria-hidden="true">${symbol}</span> ` : ""}<span class="item-title"></span>`;
-      name.querySelector(".item-title")!.textContent = item.title;
-      if (notes.length) name.title = notes.join(" ");
-      const detail = document.createElement("div");
-      detail.className = "detail";
-      detail.textContent = [...words, describePeriod(item.start ?? undefined, item.end ?? undefined)].filter(Boolean).join(" · ");
-      const actions = document.createElement("div");
-      actions.className = "item-actions";
-      const button = (text: string, title: string, act: () => void) => {
-        const b = document.createElement("button");
-        b.textContent = text;
-        b.title = title;
-        b.onclick = act;
-        actions.append(b);
-      };
-      if (!open) {
-        button("Open", `Open ${item.title}`, () => void openPlot(item.item));
-        button(item.new_data ? "Take" : "Take data", `Take its data into ${opened?.item.properties.title ?? "this plot"}, as one step: Undo takes it back`, () =>
-          void collateStep({ kind: "take", source: { catalogue: item.catalogue, item: item.item, ...(item.revision && { revision: item.revision }) } }),
-        );
-      }
-      if (item.new_data) button("Not now", "Set it aside: the mark clears until it is revised", () => void collateStep({ kind: "dismiss", source: { catalogue: item.catalogue, item: item.item, revision: item.new_data!.revision } }));
-      if (flag) button("Reviewed", "You have reviewed this plot against the revised items: clear its flag until one is revised again", () => void collateStep({ kind: "reviewed", item: item.item }));
-      li.append(name, detail);
-      if (item.tracks?.length) {
-        const tracks = document.createElement("details");
-        const summary = document.createElement("summary");
-        summary.textContent = count(item.tracks.length, "track");
-        const list = document.createElement("ul");
-        list.className = "item-tracks";
-        list.replaceChildren(
-          ...item.tracks.map((t) => {
-            const row = document.createElement("li");
-            const spans = t.spans.map((s) => describeTimes(s.start, s.end)).join("; ");
-            row.textContent = `${t.name}: ${spans} · ${count(t.fixes, "fix", "fixes")}`;
-            return row;
-          }),
-        );
-        tracks.append(summary, list);
-        li.append(tracks);
-      }
-      if (actions.childElementCount) li.append(actions);
-      return li;
+/** The Catalogues panel model (webview/panels/catalogues.ts, PAR-01), as VS Code's is: the playground's one catalogue, in the browser. */
+function cataloguesModel(): CataloguesModel {
+  return new CataloguesModel({
+    catalogues: catalogue ? [{ store: "play", id: catalogue.id, title: catalogue.title, location: "In your browser", readOnly: false, plots: catalogue.plots }] : [],
+    marks: { ...(opened && { open: { store: "play", item: opened.item.id } }), ...(coverage && { coverage }), flags: reviewFlags },
+    // Python starting: VS Code's loading row (§5); Python failed: why, as a catalogue that cannot be read says.
+    ...(!catalogue && (pythonProblem ? { problem: pythonProblem } : { starting: true })),
+  });
+}
+/** Catalogues' title bar (the action catalogue's, those the playground has, §5) and its tree. */
+function renderCatalogues(): void {
+  const { context, reasons } = playContext();
+  const entries = titleMenu("debrief.catalogues", context, reasons).filter((e) => inPlayground(e.id));
+  const buttons = entries.filter((e) => e.group === "navigation");
+  const more = entries.filter((e) => e.group !== "navigation");
+  const toolbar = $("catalogue-actions");
+  toolbar.replaceChildren(
+    ...buttons.map((entry) => {
+      const button = document.createElement("button");
+      button.type = "button";
+      button.id = `catalogues-${entry.id.replace(/^debrief\./, "")}`;
+      button.className = "history-action";
+      button.dataset.icon = entry.icon ?? "";
+      button.textContent = CATALOGUE_ACTION_GLYPHS[entry.icon ?? ""] ?? entry.title;
+      button.disabled = !entry.enabled;
+      button.title = entry.enabled ? entry.title : `${entry.title}: ${entry.reason}`;
+      button.setAttribute("aria-label", button.title);
+      button.onclick = () => void runCatalogueAction(entry.id);
+      return button;
     }),
   );
-  // Plots elsewhere in the catalogue that may need review, though not in this plot's folder tree.
-  for (const flag of reviewFlags.filter((f) => !items.some((i) => i.item === f.item))) {
-    const li = document.createElement("li");
-    li.className = "item";
-    li.innerHTML = `<div class="item-name"><span class="item-mark item-flag" aria-hidden="true">⚑</span> <span class="item-title"></span></div><div class="detail"></div>`;
-    li.querySelector(".item-title")!.textContent = flag.title;
-    li.querySelector(".detail")!.textContent = `May need review · ${flag.note}`;
-    $("items").append(li);
+  if (more.length) {
+    const button = Object.assign(document.createElement("button"), { type: "button", id: "catalogues-more", className: "history-action", textContent: "⋯", title: "More actions" });
+    button.setAttribute("aria-label", "More actions");
+    button.setAttribute("aria-haspopup", "menu");
+    button.onclick = () => {
+      const at = button.getBoundingClientRect();
+      openMenu(
+        more.map((e, i) => ({ label: e.title, groupStart: i > 0 && e.group !== more[i - 1].group, ...(!e.enabled && { disabled: e.reason }), act: () => void runCatalogueAction(e.id) })),
+        { label: "Catalogues: more actions", x: at.left, y: at.bottom, from: button },
+      );
+    };
+    toolbar.append(button);
   }
+  fillCatalogues($("items"), cataloguesModel(), cataloguesOpen, (row) => (row.run ? void runCatalogueAction(row.run.action, row.key) : renderCatalogues()), (action) => (void runCatalogueAction(action), true));
 }
-
-/** A collation step, one recorded step in the plot's history; or new data set aside or a flag cleared, in a plot's island. */
-async function collateStep(change: CollationStep): Promise<void> {
-  if (!opened || !pythonReady) return;
-  status("Collating…", true);
-  const outcome = await pythonJson<{ error?: string; changed?: boolean; notes?: string[]; message?: string }>("collate", opened.item.id, JSON.stringify({ base: opened.base, change }));
-  status("Ready. Everything runs in your browser; nothing is sent anywhere.");
-  if (outcome.error) {
-    toast(outcome.error, "warning");
-    coverageControl.say(outcome.error);
-    return;
+/** The playground's artwork for Catalogues' title bar (cosmetic: VS Code draws the codicons). */
+const CATALOGUE_ACTION_GLYPHS: Record<string, string> = { "cloud-download": "⇩", layers: "▤" };
+/** A catalogued Catalogues action: its title bar's, or a row's (by its key). One that cannot run says why (PAR-08). */
+async function runCatalogueAction(id: string, key?: string): Promise<void> {
+  const { context, reasons } = playContext();
+  const entry = entryOf(actionOf(id), undefined, context, reasons);
+  if (!entry.enabled) return toast(entry.reason!, "warning");
+  const node = key ? cataloguesModel().nodeOf(key) : undefined;
+  switch (id) {
+    case "debrief.openPlot":
+      if (node?.kind === "plot") await openPlot(node.plot.id);
+      return;
+    case "debrief.takeNewData":
+      return void (await takeNewData(collationHost, plotTargetOf(node)));
+    case "debrief.dismissNewData":
+      return void (await dismissNewData(collationHost, plotTargetOf(node)));
+    case "debrief.clearReviewFlag":
+      return void (await clearReviewFlag(collationHost, plotTargetOf(node)));
+    case "debrief.linkTrack":
+      return void (await linkTrack(collationHost, trackTargetOf(node)));
+    case "debrief.unlinkTrack":
+      return void (await unlinkTrack(collationHost, trackTargetOf(node)));
+    case "debrief.importRep":
+      return void (await importPlot(importHost));
+    case "debrief.findImageSource":
+      return void (await findImageSource(findHost));
+    case "debrief.showCoverage":
+      return showPanel("panel-coverage");
+    case "debrief.walkthroughs":
+      return showPanel("panel-tour");
   }
-  if (!outcome.changed) {
-    if (outcome.message) {
-      // Nothing taken, but the plot's island may say it is reviewed now: show collation again.
-      await refreshCollation();
-      toast(outcome.message);
-    }
-    coverageControl.say(outcome.message ?? "Nothing to change: it is so already.");
-    return;
-  }
-  // The plot, its island or another plot's island changed: show the latest, and with it collation.
-  await openPlot(opened.item.id, true);
-  if (outcome.notes?.length) toast(`${outcome.notes[0]}. Undo takes it back.`);
+  toast(`${actionOf(id).title.replace(/…$/, "")}: not in the playground yet.`, "warning");
+}
+/** A row's context menu (right-click, press and hold, Shift+F10 or the menu key), as VS Code's: the action catalogue's for its menu context. */
+function catalogueRowMenu(li: HTMLElement, x: number, y: number): void {
+  const key = li.dataset.key!;
+  const { context, reasons } = playContext();
+  const entries = rowMenu("debrief.catalogues", li.dataset.menu, context, reasons).filter((e) => inPlayground(e.id));
+  if (!entries.length) return;
+  openMenu(
+    entries.map((e, i) => ({ label: e.title, groupStart: i > 0 && e.group !== entries[i - 1].group, ...(!e.enabled && { disabled: e.reason }), act: () => void runCatalogueAction(e.id, key) })),
+    { label: `${li.querySelector(".name")?.textContent ?? ""}: actions`, x, y, from: li },
+  );
+}
+{
+  const list = $("items");
+  const rowOf = (target: EventTarget | null) => (target as HTMLElement | null)?.closest<HTMLElement>("#items li[role=treeitem]");
+  list.addEventListener("contextmenu", (e) => {
+    const li = rowOf(e.target);
+    if (!li?.dataset.menu) return;
+    e.preventDefault();
+    catalogueRowMenu(li, e.clientX, e.clientY);
+  });
+  // The keyboard, as a tree's: ↑ ↓ move, → opens and ← closes a branch, Enter chooses, Shift+F10 or the menu key its menu.
+  list.addEventListener("keydown", (e) => {
+    const li = rowOf(e.target);
+    if (!li) return;
+    const rows = Array.from(list.querySelectorAll<HTMLElement>("li[role=treeitem]"));
+    const go = (to: HTMLElement | undefined) => {
+      if (!to) return;
+      for (const row of rows) row.tabIndex = row === to ? 0 : -1;
+      to.focus();
+    };
+    const key = li.dataset.key!;
+    const expanded = li.getAttribute("aria-expanded");
+    if (e.key === "ContextMenu" || (e.key === "F10" && e.shiftKey)) {
+      const at = li.getBoundingClientRect();
+      if (li.dataset.menu) catalogueRowMenu(li, at.left + 16, at.bottom);
+    } else if (e.key === "ArrowDown") go(rows[rows.indexOf(li) + 1]);
+    else if (e.key === "ArrowUp") go(rows[rows.indexOf(li) - 1]);
+    else if (e.key === "ArrowRight" && expanded === "false") {
+      cataloguesOpen.set(key, true);
+      renderCatalogues();
+      go(list.querySelector<HTMLElement>(`li[data-key="${CSS.escape(key)}"]`) ?? undefined);
+    } else if (e.key === "ArrowLeft" && expanded === "true") {
+      cataloguesOpen.set(key, false);
+      renderCatalogues();
+      go(list.querySelector<HTMLElement>(`li[data-key="${CSS.escape(key)}"]`) ?? undefined);
+    } else if (e.key === "ArrowLeft") go(li.parentElement?.closest<HTMLElement>("li[role=treeitem]") ?? undefined);
+    else if (e.key === "Enter") li.querySelector<HTMLElement>(".row")?.click();
+    else return;
+    e.preventDefault();
+  });
+  // Press and hold a row on a touch screen: its menu, as a right-click (presshold.ts).
+  const hold = new PressHold((x, y) => {
+    const li = rowOf(document.elementFromPoint(x, y));
+    if (li?.dataset.menu) catalogueRowMenu(li, x, y);
+  });
+  const touch = (e: PointerEvent) => e.pointerType === "touch" || e.pointerType === "pen";
+  list.addEventListener("pointerdown", (e) => (touch(e) ? hold.press(e.pointerId, e.clientX, e.clientY) : hold.reset()));
+  list.addEventListener("pointermove", (e) => void (touch(e) && hold.move(e.pointerId, e.clientX, e.clientY)));
+  for (const type of ["pointerup", "pointercancel"] as const) list.addEventListener(type, (e) => void (touch(e) && hold.release(e.pointerId)));
 }
 
 // --- Exported images (SUB-25): the map drawn as an image with its ID, and traced back -----
+// The shared flows (webview/panels/flows/exportimage.ts): the same three questions as VS Code's,
+// the file downloaded where VS Code saves it (§5), "Copy ID" (no "Show in folder": a download is
+// not a file on disk the page can show, §5); Find source of image on Catalogues' title bar menu.
 let imageRendered: ((message: { image?: RenderedImage; message?: string }) => void) | undefined;
 /** The map draws the image; resolved by its image_rendered. */
 function drawImage(request: { format: ImageFormat; preset: ImagePreset; theme: ImageTheme; footer_text?: string }): Promise<RenderedImage> {
@@ -2768,115 +2936,61 @@ function drawImage(request: { format: ImageFormat; preset: ImagePreset; theme: I
     post(map, { kind: "export_image", image_request: request });
   });
 }
-/** What the reader chose for an export; its size and colours remembered in this browser. */
-function exportChoice(): ExportChoice {
-  return {
-    format: $<HTMLSelectElement>("export-format").value as ImageFormat,
-    preset: $<HTMLSelectElement>("export-preset").value as ImagePreset,
-    theme: $<HTMLSelectElement>("export-theme").value as ImageTheme,
-    footer: $<HTMLInputElement>("export-footer").checked,
-  };
-}
 const EXPORT_KEY = "debrief.play.export";
-function rememberExport(choice: ExportChoice): void {
-  try {
-    // The size and colours only: the footer is on again next time (expert panel, 16 Oct 2026).
-    localStorage.setItem(EXPORT_KEY, JSON.stringify(rememberedOf(choice)));
-  } catch {
-    // a private window: not remembered
-  }
-}
-function recalledExport(): ExportChoice {
-  try {
-    return startingChoice(JSON.parse(localStorage.getItem(EXPORT_KEY) ?? "{}"));
-  } catch {
-    return startingChoice(undefined);
-  }
-}
-/**
- * Export the map as the reader sees it: an image ID for the plot at the revision shown,
- * the map drawn at the size and in the colours chosen with the ID's short form in a
- * corner, the ID put into its metadata and the export recorded in the plot's export log
- * (its island, never a step), then the file handed to the reader to save.
- */
-async function exportMap(): Promise<void> {
-  if (!opened || !pythonReady) return;
-  const choice = exportChoice();
-  rememberExport(choice);
-  const said = $("export-said");
-  const item = opened.item.id;
-  said.textContent = "Preparing the image…";
-  const button = $<HTMLButtonElement>("export-image");
-  button.disabled = true; // one image at a time
-  try {
-    const figure = await pythonJson<{ id: string; short: string; revision: string; error?: string }>("figure_id", item, opened.revision?.revision ?? (opened.base.plot_hash || null));
+const exportHost: ExportHost = {
+  ...flowHost,
+  rememberedExport: () => {
+    try {
+      return JSON.parse(localStorage.getItem(EXPORT_KEY) ?? "{}");
+    } catch {
+      return undefined; // a private window: not remembered
+    }
+  },
+  rememberExport: (remembered) => {
+    try {
+      localStorage.setItem(EXPORT_KEY, JSON.stringify(remembered));
+    } catch {
+      // a private window: not remembered
+    }
+  },
+  figureId: async (plot) => {
+    const figure = await pythonJson<{ id: string; short: string; revision: string; error?: string }>("figure_id", plot.item, opened?.revision?.revision ?? (opened?.base.plot_hash || null));
     if (figure.error) throw new Error(figure.error);
+    return figure;
+  },
+  drawAndStamp: async (plot, choice, figure, target) => {
     const shown = opened;
     const image = await drawImage({ format: choice.format, preset: choice.preset, theme: choice.theme, ...(choice.footer && { footer_text: figure.short }) });
     // Drawn as it was shown: read again meanwhile (changed elsewhere), the image is not of the revision its ID names.
     if (opened !== shown) throw new Error("the plot changed while the image was being drawn. Export it again.");
-    const file = fileNameFor(opened.item.properties.title ?? item, figure.short, choice.format);
     const bytes = choice.format === "png" ? Uint8Array.from(atob(image.data), (c) => c.charCodeAt(0)) : new TextEncoder().encode(image.data);
     const tote = toteChoice();
-    const request = { id: figure.id, file, footer: choice.footer, format: choice.format, preset: choice.preset, theme: choice.theme, width: image.width, height: image.height, viewport: image.viewport, time, ...(tote.primary && { tote }) };
-    const done = await pythonJson<{ data?: string; short: string; recorded: boolean; note?: string; error?: string; view?: PlotView | null; view_hash?: string }>("export_image", item, JSON.stringify(request), bytes);
+    const request = { id: figure.id, file: target.name, footer: choice.footer, format: choice.format, preset: choice.preset, theme: choice.theme, width: image.width, height: image.height, viewport: image.viewport, time, ...(tote.primary && { tote }) };
+    const done = await pythonJson<{ data?: string; id?: string; short: string; revision?: string; recorded: boolean; note?: string; error?: string; view?: PlotView | null; view_hash?: string }>("export_image", plot.item, JSON.stringify(request), bytes);
     if (done.error || !done.data) throw new Error(done.error ?? "it could not be saved");
     // The plot's island has the export log now: kept, so the next change to the view is not taken for a colleague's.
-    if (opened?.item.id === item && !opened.revision && done.view_hash) {
+    if (opened?.item.id === plot.item && !opened.revision && done.view_hash) {
       opened.view_hash = done.view_hash;
       setViewOf(opened.plot, done.view ?? null);
     }
-    const blob = new Blob([Uint8Array.from(atob(done.data), (c) => c.charCodeAt(0))], { type: choice.format === "png" ? "image/png" : "image/svg+xml" });
-    const link = Object.assign(document.createElement("a"), { href: URL.createObjectURL(blob), download: file });
-    link.click();
-    setTimeout(() => URL.revokeObjectURL(link.href), 60000);
-    // There is no save dialog here to rename it in: say plainly that the plot's title travels in the name (product owner, 16 Oct 2026).
-    const titled = `Its file name, ${file}, has the plot's title in it: rename it before sending it on if the title should not travel.`;
-    said.textContent = [describeExported({ file, short: done.short, recorded: done.recorded, note: done.note }, choice.footer), titled, ...(image.notes ?? [])].join(" ");
-  } catch (error) {
-    said.textContent = `The image was not exported: ${(error as Error).message}`;
-  } finally {
-    button.disabled = false;
-    $<HTMLInputElement>("export-footer").checked = true; // on again for the next image
-  }
-}
+    const answer = { file: target.name, id: done.id ?? figure.id, short: done.short, revision: done.revision ?? figure.revision, recorded: done.recorded, ...(done.note && { note: done.note }) };
+    return { data: Uint8Array.from(atob(done.data), (c) => c.charCodeAt(0)), answer, notes: image.notes ?? [] };
+  },
+  copy: (text) => navigator.clipboard.writeText(text),
+};
 /** What Find source answers: each ID found, with the plots and exports it names; the pictures not read, and why. */
-type Traced = { images: { id: string; short: string; where: string; sources: FigureSource[] }[]; problem?: string; skipped?: { where: string; why: string }[] };
-/**
- * The plots an image came from, by a file's metadata or an ID typed from its corner; one
- * found is opened as it was then. Several (two exports of one revision, say) are listed
- * for the reader to choose, never one picked for them.
- */
-async function findSource(how: { file: File } | { typed: string }): Promise<void> {
-  if (!pythonReady) return;
-  const list = $("find-results");
-  list.replaceChildren();
-  $("find-said").textContent = "Looking…";
-  const answer =
-    "file" in how
-      ? await pythonJson<Traced>("find_image_source", how.file.name, new Uint8Array(await how.file.arrayBuffer()), null)
-      : await pythonJson<Traced>("find_image_source", null, null, how.typed);
-  // A picture that could not be read (encrypted, say): said, the others still traced.
-  const unread = (answer.skipped ?? []).map((s) => `${s.where} was not read: ${s.why}.`).join(" ");
-  const several = answer.images.reduce((n, i) => n + i.sources.length, 0) > 1 ? "Several exports match: choose one by when it was exported and what it showed." : "";
-  $("find-said").textContent = answer.problem ?? [several, answer.images.length ? unread : ""].filter(Boolean).join(" ");
-  const found = answer.images.flatMap((image) => image.sources.map((source) => ({ image, source })));
-  for (const { image, source } of found) {
-    const row = document.createElement("li");
-    const { label, detail } = describeSource(source);
-    const words = Object.assign(document.createElement("span"), { textContent: `${image.short}: ${label}` });
-    const where = Object.assign(document.createElement("span"), { className: "detail", textContent: [detail, image.where === "typed" ? "" : image.where].filter(Boolean).join(" · ") });
-    const open = Object.assign(document.createElement("button"), { textContent: "Open as exported", title: "Show the plot as it was when the image was exported, read-only" });
-    open.onclick = () => void openRevision(source, image.id, image.short);
-    row.append(words, " ", open, where);
-    list.append(row);
-  }
-  if (found.length === 1) await openRevision(found[0].source, found[0].image.id, found[0].image.short);
-}
+const findHost: FindHost = {
+  ...flowHost,
+  findImageSource: (where) => ("file" in where ? pythonJson<Traced>("find_image_source", where.file.name, where.file.data ?? new Uint8Array(), null) : pythonJson<Traced>("find_image_source", null, null, where.id)),
+  showRevision: (source, image) => openRevision(source, image.id, image.short),
+  openLatestRevision: async () => {
+    if (opened?.revision) await openPlot(opened.item.id);
+  },
+};
 /** Show a plot as it was at an image's revision, read-only, with the view and time it was exported at. */
-async function openRevision(source: FigureSource, id: string, short: string): Promise<void> {
+async function openRevision(source: FigureSource, id: string, short: string): Promise<{ title: string } | { problem: string }> {
   const shown = await pythonJson<Opened & { error?: string }>("open_revision", source.item, source.revision, id.startsWith("DBF1") ? id : source.export?.id ?? null);
-  if (shown.error) return toast(shown.error, "warning");
+  if (shown.error) return { problem: shown.error };
   if (opened && opened.item.id !== source.item) closeSide();
   shown.revision = { ...revisionOf(source, short), ...shown.revision, figure: short };
   opened = shown;
@@ -2895,36 +3009,8 @@ async function openRevision(source: FigureSource, id: string, short: string): Pr
   renderTimeline();
   renderHistory();
   showTote();
-  $("find-said").textContent = `Showing ${opened.item.properties.title ?? source.item} at step ${source.step}, as when ${short} was exported. Read-only: Go to latest on the map to change it.`;
+  return { title: opened.item.properties.title ?? source.item };
 }
-function setUpExport(): void {
-  const presets = $<HTMLSelectElement>("export-preset");
-  presets.replaceChildren(...PRESETS.map((p) => Object.assign(new Option(p.label, p.id), { title: p.detail })));
-  const recalled = recalledExport();
-  $<HTMLSelectElement>("export-format").value = recalled.format;
-  presets.value = recalled.preset;
-  $<HTMLSelectElement>("export-theme").value = recalled.theme;
-  $<HTMLInputElement>("export-footer").checked = recalled.footer;
-  $("export-image").onclick = () => void exportMap();
-  $<HTMLInputElement>("find-file").onchange = (event) => {
-    const file = (event.target as HTMLInputElement).files?.[0];
-    if (file) void findSource({ file });
-    (event.target as HTMLInputElement).value = "";
-  };
-  const typed = $<HTMLInputElement>("find-id");
-  const problem = $("find-id-problem");
-  typed.oninput = () => {
-    problem.textContent = typed.value.trim() ? (figureIdProblem(typed.value) ?? "") : "";
-    typed.setAttribute("aria-invalid", String(!!problem.textContent));
-  };
-  $<HTMLFormElement>("find-id-form").onsubmit = (event) => {
-    event.preventDefault();
-    const why = figureIdProblem(typed.value);
-    problem.textContent = why ?? "";
-    if (!why) void findSource({ typed: typed.value });
-  };
-}
-setUpExport();
 
 // --- Wiring -----------------------------------------------------------------------
 const OPTIONAL = ["tour", "tote", "timeline", "catalogue", "coverage", "bearings", "tools", "history", "export", "try", "import"];
@@ -2934,17 +3020,31 @@ for (const panel of OPTIONAL) $(`panel-${panel}`).hidden = !panels.has(panel) ||
 $("open-export").hidden = !panels.has("export");
 $("open-try").hidden = !panels.has("try");
 $("open-import").hidden = !panels.has("import");
-$("catalogue-import").hidden = !panels.has("import");
 // The side column (the narrow layout): the walkthroughs, time controller, Tote and Outline first,
 // then the panels in the order the demo lists them.
 const SIDE_ORDER = [...SIDE_FIRST, ...panelOrder.map((p) => `panel-${p}`).filter((id) => !SIDE_FIRST.includes(id) && optional(id)?.matches("#side > section.panel"))];
 for (const id of SIDE_ORDER) $("side").append($(id));
 /** History, Try and Import need Python: off until it is ready. */
-const NEEDS_PYTHON = ["export-image", "find-file", "find-id", "find-id-go", "new-data", "revise", "ask-again", "glitches", "crash", "colleague", "colleague-window", "colleague-during", "file", "narrative-file", "sensor-file"];
+const NEEDS_PYTHON = ["export-image", "new-data", "revise", "ask-again", "glitches", "crash", "colleague", "colleague-window", "colleague-during", "file", "narrative-file", "sensor-file"];
 function needsPython(on: boolean): void {
   for (const id of NEEDS_PYTHON) $<HTMLButtonElement | HTMLInputElement>(id).disabled = !on;
+  needsPlot();
+}
+/** What reads into or exports the open plot: disabled with no plot open, saying why, as VS Code's are (PAR-08). */
+const NEEDS_PLOT: Record<string, string> = { "narrative-file": "debrief.importNarrative", "sensor-file": "debrief.importSensor", "export-image": "debrief.exportImage" };
+function needsPlot(): void {
+  const { context, reasons } = playContext();
+  for (const [id, action] of Object.entries(NEEDS_PLOT)) {
+    const entry = entryOf(actionOf(action), undefined, context, reasons);
+    const control = $<HTMLButtonElement | HTMLInputElement>(id);
+    control.disabled = !entry.enabled;
+    if (entry.enabled) control.removeAttribute("title");
+    else control.title = entry.reason!;
+  }
 }
 needsPython(false);
+$("export-image").onclick = () => void exportImage(exportHost);
+renderCatalogues(); // reading the catalogues, until Python is ready
 renderHistory(); // Undo and Redo disabled, saying why, until Python is ready and there is a step to take back
 
 // --- The layout (product owner, 23 Oct 2026) ---------------------------------------
@@ -3341,179 +3441,95 @@ async function showImportMode(): Promise<void> {
   $("ask-again").hidden = mode === "ask";
 }
 $("ask-again").onclick = async () => {
-  await python("set_import_mode", "ask");
-  await showImportMode();
-  toast("Debrief will ask how each track you import is plotted.");
+  await askAgain(importHost);
 };
-/** How each track of a REP file is plotted: asked, one track at a time, unless a choice is remembered. Undefined if the reader stopped. */
-async function askModes(tracks: string[]): Promise<{ modes: Record<string, PlottingMode>; remembered: boolean } | undefined> {
-  const remembered = (await python("import_mode")) as "ask" | PlottingMode;
-  // As legacy Debrief asked: over the ground or by dead reckoning, and apart from that a box to tick.
-  return chooseModes(
-    tracks,
-    remembered,
-    async (track, index, count) => {
-      const values = await trackForm(
-        modeQuestion(track, index, count),
-        "Import",
-        [
-          { id: "mode", label: "Plotted", options: modeChoices().map((c) => ({ value: c.mode, label: c.label })) },
-          { id: "remember", label: REMEMBER_LABEL, check: true },
-        ],
-        { info: "Over the ground, each fix is where it was logged; by dead reckoning, from the first fix by each fix's course and speed. Tick the box to be asked no more; Ask again, under Import, asks again." },
-      );
-      return values ? { mode: values.mode as PlottingMode, remember: values.remember === "yes" } : undefined;
-    },
-    async (mode) => {
-      await python("set_import_mode", mode);
-      await showImportMode();
-    },
-  );
-}
-// A platform's log read into the open plot, as one step (CAP-19, CAP-20): a REP file's
-// narrative lines, or a Word or PDF document's entries in legacy Debrief's dialects, the
-// reader asked first what legacy Debrief asked (types, the plot's period, tracks).
-$<HTMLInputElement>("narrative-file").onchange = async (e) => {
-  const input = e.target as HTMLInputElement;
+/** A file chosen in the Import menu, as the flows take one: read in the browser, never uploaded. */
+const uploaded = async (input: HTMLInputElement): Promise<PickedFile | undefined> => {
   const file = input.files?.[0];
-  input.value = "";
-  if (!file || !opened || !pythonReady) return;
-  const data = new Uint8Array(await file.arrayBuffer());
-  let choices: NarrativeChoices | undefined;
-  const isDocument = /\.(docx?|pdf)$/i.test(file.name);
-  status(`Reading ${file.name}…`, true);
-  const preview = await pythonJson<NarrativePreview>("narrative_preview", opened.item.id, file.name, data);
-  status("");
-  // A REP file that cannot be previewed is read as before, and says why it cannot be.
-  if (preview.error && isDocument) return toast(preview.error, "warning");
-  if (!preview.error) {
-    if (preview.fixes) return toast(`${file.name} is ASW data: positions of a track, not narrative. Import it as a plot for its track.`, "warning");
-    // Read into the plot before, or with entries already in it (product owner, 15 Oct 2026):
-    // a line at the top of the form says so, and its action skips them; Cancel reads nothing.
-    const again = duplicateQuestion(preview, (iso) => describePeriod(iso));
-    const asked = isDocument ? await askNarrative(preview, again) : again ? await askAgain(preview, again) : {};
-    if (!asked) return toast("Nothing was read.");
-    if (again?.nothingNew) return toast(`Nothing was read: every entry of ${preview.name} is already in the plot.`);
-    choices = asked;
-  }
-  status(`Reading ${file.name}…`, true);
-  const outcome = await pythonJson<{ error?: string; entries?: number; omitted?: string[] }>(
-    "narrative",
-    opened.item.id,
-    JSON.stringify({ base: opened.base, change: { kind: "import", name: file.name, ...(choices && { choices }) } }),
-    data,
-  );
-  status("");
-  if (outcome.error) return toast(outcome.error, "warning");
-  await openPlot(opened.item.id, true);
-  showPanel("panel-timeline");
-  toast(readSummary(outcome, count));
+  input.value = ""; // so the same file can be chosen again
+  return file && { name: file.name, data: new Uint8Array(await file.arrayBuffer()) };
 };
-type Again = NonNullable<ReturnType<typeof duplicateQuestion>>;
-/** The line saying a file is in the plot already, for the top of the form. */
-const againLine = (again: Again) => `${again.title}. ${again.detail}`;
-/** A file read in before, or with entries in the plot: skip those, or (Cancel) read nothing. */
-async function askAgain(preview: NarrativePreview, again: Again): Promise<NarrativeChoices | undefined> {
-  const values = await trackForm(`Read ${preview.name}`, again.skip, [], { warning: againLine(again), info: `${again.skipDetail}.`, ready: true });
-  return values ? { duplicates: "skip" } : undefined;
-}
-/** What legacy Debrief asked before reading a document, in one form, below the line saying it is in the plot already, if it is; undefined if the reader stopped. */
-async function askNarrative(preview: NarrativePreview, again?: Again): Promise<NarrativeChoices | undefined> {
-  const tracks = opened ? timelineTracks(opened.plot) : [];
-  const ask = questionsFor(preview, tracks);
-  if (!ask.types && !ask.period && !ask.platforms.length) return again ? askAgain(preview, again) : {};
-  // Last time's answers for this dialect, kept in the page's settings (user state, never in
-  // the plot; product owner, 15 Oct 2026): the form comes filled in, and Enter reads.
-  const dialect = preview.dialect ?? preview.format;
-  const before = (await pythonJson<{ answers?: { skipTypes: string[]; withinPeriod: boolean; tracks: Record<string, string | null> } }>("narrative_answers_for", dialect)).answers;
-  const offered = rememberedAnswers(preview, tracks, before);
-  const last = offered?.answers ?? {};
-  const fields: FormField[] = [];
-  if (ask.types) preview.types.forEach((t, i) => fields.push({ id: `type-${i}`, label: `${typeWords(t.name)} (${t.count})`, check: true, value: !last.types || last.types.includes(t.name) ? "yes" : "" }));
-  if (ask.period) {
-    const words = periodChoices(preview, (iso) => describeTimes(iso));
-    fields.push({ id: "period", label: "Entries", value: last.withinPeriod ? "within" : "all", options: [{ value: "all", label: words.all }, { value: "within", label: words.within }] });
-  }
-  ask.platforms.forEach((platform, i) => {
-    const known = last.tracks?.[platform];
-    fields.push({ id: `track-${i}`, label: `${platform}'s track`, ...(known !== undefined && { value: known ?? "" }), options: [...tracks.map((t) => ({ value: t.id, label: t.name })), { value: "", label: "No track" }] });
-  });
-  const intro = `${preview.described}: ${count(preview.entries, "entry", "entries")}.`;
-  const info = offered?.complete
-    ? { info: `${intro} As last time: ${describeAnswers(preview, last, tracks)}.`, ready: true }
-    : { info: `${intro} Untick the types not to read.` };
-  const values = await trackForm(`Read ${preview.name}`, again ? again.skip : "Read", fields, again ? { ...info, warning: againLine(again) } : info);
-  if (!values) return undefined;
-  const types = ask.types ? preview.types.filter((_, i) => values[`type-${i}`] === "yes").map((t) => t.name) : undefined;
-  if (types && !types.length) return undefined;
-  const chosenTracks = Object.fromEntries(ask.platforms.map((platform, i) => [platform, values[`track-${i}`] || null]));
-  const answers = { types, withinPeriod: ask.period ? values.period === "within" : undefined, tracks: chosenTracks };
-  await python("set_narrative_answers", dialect, JSON.stringify(answersToRemember(preview, tracks, answers, before)));
-  return { ...choicesOf(preview, answers), ...(again && { duplicates: "skip" as const }) };
-}
-$<HTMLInputElement>("file").onchange = async (e) => {
-  const file = (e.target as HTMLInputElement).files?.[0];
-  if (!file) return;
-  const data = new Uint8Array(await file.arrayBuffer());
-  (e.target as HTMLInputElement).value = ""; // so the same file can be chosen again
-  // A Word or PDF document: narrative, with no tracks to ask about; or ASW data, positions
-  // of one platform, whose track legacy Debrief asked a name for.
-  let trackName: string | null = null;
-  if (/\.(docx?|pdf)$/i.test(file.name)) {
-    const preview = await pythonJson<NarrativePreview>("narrative_preview", null, file.name, data);
-    if (preview.fixes) {
-      const values = await trackForm("Name for this track", "Import", [{ id: "name", label: "Track", value: file.name.replace(/\.[^.]+$/, "") }], { info: `${file.name} holds ${count(preview.fixes, "position")} of one platform.` });
-      if (!values) return toast("Nothing was imported.");
-      trackName = values.name;
-    }
-  }
-  const asked = await askModes(await pythonJson<string[]>("rep_tracks", file.name, data));
-  if (!asked) return toast("Nothing was imported.");
+// A platform's log read into the open plot, as one step (CAP-19, CAP-20): the shared flow
+// (webview/panels/flows/narrative.ts), its questions one at a time, as VS Code asks them.
+const narrativeHost: NarrativeHost = {
+  ...flowHost,
+  previewNarrative: async (file, plot) => {
+    status(`Reading ${file.name}…`, true);
+    const preview = await pythonJson<NarrativePreview>("narrative_preview", plot.item, file.name, file.data ?? new Uint8Array());
+    status("");
+    if (preview.error) throw new Error(preview.error);
+    return preview;
+  },
+  narrativeAnswers: async (dialect) => (await pythonJson<{ answers?: RememberedAnswers }>("narrative_answers_for", dialect)).answers,
+  rememberNarrativeAnswers: async (dialect, answers) => void (await python("set_narrative_answers", dialect, JSON.stringify(answers))),
+  plotTracks: () => (opened ? timelineTracks(opened.plot) : []),
+  readNarrative: async (plot, file, choices) => {
+    status(`Reading ${file.name}…`, true);
+    const outcome = await pythonJson<{ error?: string; conflict?: boolean; entries?: number; omitted?: string[] }>(
+      "narrative",
+      plot.item,
+      JSON.stringify({ base: plot.base, change: { kind: "import", name: file.name, ...(choices && { choices }) } }),
+      file.data ?? new Uint8Array(),
+    );
+    status("");
+    if (outcome.error) throw refusalOf(outcome);
+    return outcome;
+  },
+};
+$<HTMLInputElement>("narrative-file").onchange = async (e) => {
+  const file = await uploaded(e.target as HTMLInputElement);
+  if (file) await importNarrative(narrativeHost, { file });
+};
+// Import a REP, .dpf, Word or PDF file, or a Debrief plot file, as a plot of its own: the shared
+// flow (webview/panels/flows/importplot.ts), into the playground's one catalogue (§5).
+type PlayImport = ImportReport & { error?: string; plot_file?: boolean; steps?: number; title?: string };
+const importFile = async (file: PickedFile, options: ImportOptions): Promise<PlayImport> => {
   status(`Importing ${file.name}…`, true);
-  const report = await pythonJson<{
-    item?: string;
-    tracks: string[];
-    fixes: number;
-    annotations: number;
-    narrative_entries?: number;
-    omitted: string[];
-    notes?: string[];
-    error?: string;
-    plot_file?: boolean;
-    steps?: number;
-  }>("import_file", file.name, data, Object.keys(asked.modes).length ? JSON.stringify(asked.modes) : null, asked.remembered ? REMEMBERED_IN_PLAYGROUND : null, trackName);
+  const modes = options.modes && typeof options.modes === "object" && Object.keys(options.modes).length ? JSON.stringify(options.modes) : typeof options.modes === "string" ? JSON.stringify(options.modes) : null;
+  const report = await pythonJson<PlayImport>("import_file", file.name, file.data ?? new Uint8Array(), modes, options.remembered ?? null, options.track_name ?? null);
   status("Ready. Everything runs in your browser; nothing is sent anywhere.");
-  if (report.error || !report.item) return toast(report.error ?? "The file could not be imported.", "warning");
-  await refreshPlots();
-  await openPlot(report.item);
-  if (report.plot_file) {
-    // A Debrief plot file: its whole history came with it (decision 13 Oct).
-    return toast(`Added ${file.name} with its history: ${count(report.steps ?? 0, "step")}, undo and redo included.`);
-  }
-  showImported(file.name, report);
+  if (report.error || !report.item) throw new Error(report.error ?? "The file could not be imported.");
+  return report;
+};
+const importHost: ImportHost = {
+  ...flowHost,
+  chooseCatalogue: async () => "play",
+  previewDocument: async (file) => {
+    const preview = await pythonJson<NarrativePreview>("narrative_preview", null, file.name, file.data ?? new Uint8Array());
+    return preview.error ? undefined : preview;
+  },
+  repTracks: (file) => pythonJson<string[]>("rep_tracks", file.name, file.data ?? new Uint8Array()),
+  importMode: async () => (await python("import_mode")) as TrackImportMode,
+  setImportMode: async (mode) => {
+    await python("set_import_mode", mode);
+    await showImportMode();
+  },
+  rememberedNote: REMEMBERED_IN_PLAYGROUND,
+  importFile: (_store, file, options) => importFile(file, options),
+  addPlotFile: async (_store, file) => {
+    const added = await importFile(file, {});
+    return { item: added.item, title: added.title ?? added.item, steps: added.steps ?? 0 };
+  },
+  refreshCatalogues: () => refreshPlots(),
+  showNotImported: async (file, omitted) => showImported(file.name, omitted),
+  openPlotIn: (_store, item) => openPlot(item),
+};
+$<HTMLInputElement>("file").onchange = async (e) => {
+  const file = await uploaded(e.target as HTMLInputElement);
+  if (file) await importPlot(importHost, { file });
 };
 
-/** What an import brought in, beside the map; nothing is dropped silently (EXT-15). */
-function showImported(name: string, report: { tracks: string[]; fixes: number; annotations?: number; narrative_entries?: number; omitted: string[]; notes?: string[] }): void {
-  const parts = [count(report.tracks.length, "track"), count(report.fixes, "fix", "fixes")];
-  if (report.annotations) parts.push(count(report.annotations, "annotation"));
-  if (report.narrative_entries) parts.push(count(report.narrative_entries, "narrative entry", "narrative entries"));
-  // Nothing is dropped silently (EXT-15): what wasn't imported is listed beside the map.
+/** What was not imported, beside the map; nothing is dropped silently (EXT-15). */
+function showImported(name: string, omitted: readonly string[]): void {
   const panel = document.createElement("div");
   panel.className = "omitted-panel";
   const heading = document.createElement("h2");
-  heading.textContent = `${name}: imported ${parts.join(", ")}`;
+  heading.textContent = `Not imported from ${name}`;
   const lead = document.createElement("p");
-  lead.textContent = report.omitted.length
-    ? `Not imported (${report.omitted.length}), and recorded in the plot's provenance:`
-    : "Everything in the file was imported.";
+  lead.textContent = `${count(omitted.length, "thing")} not imported, and recorded in the plot's provenance:`;
   const list = document.createElement("ul");
-  list.replaceChildren(...report.omitted.map((line) => Object.assign(document.createElement("li"), { textContent: line })));
-  // How each track is plotted, and how to change a remembered choice.
-  const modes = document.createElement("ul");
-  modes.className = "import-notes";
-  modes.replaceChildren(...(report.notes ?? []).map((line) => Object.assign(document.createElement("li"), { textContent: line })));
-  panel.append(heading, modes, lead, list);
+  list.replaceChildren(...omitted.map((line) => Object.assign(document.createElement("li"), { textContent: line })));
+  panel.append(heading, lead, list);
   showSide("Import", panel);
 }
 
@@ -3672,21 +3688,28 @@ async function importTourLog(): Promise<void> {
   if (!pythonReady || !opened) return;
   const log = await pythonJson<{ name?: string; tracks?: string[]; error?: string }>("tour_log_tracks");
   if (log.error || !log.tracks) return toast(log.error ?? "The navigation log could not be read.", "warning");
-  const asked = await askModes(log.tracks);
-  if (!asked) return toast("Nothing was imported.");
-  status(`Importing ${log.name}…`, true);
-  const report = await pythonJson<{ item?: string; tracks: string[]; fixes: number; omitted: string[]; notes?: string[]; error?: string }>(
-    "import_tour_log",
-    Object.keys(asked.modes).length ? JSON.stringify(asked.modes) : null,
-    asked.remembered ? REMEMBERED_IN_PLAYGROUND : null,
+  const tracks = log.tracks;
+  // The shared import flow (webview/panels/flows/importplot.ts): how each track is plotted asked as for any REP file.
+  await importPlot(
+    {
+      ...importHost,
+      repTracks: async () => tracks,
+      importFile: async (_store, _file, options) => {
+        status(`Importing ${log.name}…`, true);
+        const report = await pythonJson<ImportReport & { error?: string }>("import_tour_log", options.modes && typeof options.modes === "object" && Object.keys(options.modes).length ? JSON.stringify(options.modes) : null, options.remembered ?? null);
+        status(READY);
+        if (report.error || !report.item) throw new Error(report.error ?? "The navigation log could not be imported.");
+        return report;
+      },
+      // The plot stays open: the log is new data for it, in the catalogue.
+      refreshCatalogues: async () => {
+        await refreshPlots();
+        await refreshCollation();
+        showPanel("panel-catalogue");
+      },
+    },
+    { file: { name: log.name ?? "The navigation log" } },
   );
-  status(READY);
-  if (report.error || !report.item) return toast(report.error ?? "The navigation log could not be imported.", "warning");
-  // The plot stays open: the log is new data for it, in the catalogue.
-  await refreshPlots();
-  await refreshCollation();
-  showPanel("panel-catalogue");
-  showImported(log.name ?? "The navigation log", report);
 }
 
 /** Show the sample plot straight from the site while Python starts, so the map is never empty. */
@@ -3720,6 +3743,7 @@ function withoutPython(why: string): void {
   for (const panel of ["tools", "history", "try", "import"]) $(`panel-${panel}`).classList.add("unavailable");
   // As VS Code's Tools and History say when the tool service could not start.
   pythonProblem = why;
+  renderCatalogues();
   renderTools();
   renderHistory();
   if (opened) $("plots").replaceChildren(new Option(opened.item.properties.title ?? opened.item.id, opened.item.id));
@@ -3742,6 +3766,7 @@ function withoutPython(why: string): void {
     refreshTote();
     await showImportMode();
     needsPython(true);
+    renderCatalogues(); // its title bar and menus, now that the plot can be changed
     outlineBar?.update();
     renderHistory();
     status("Ready. Everything runs in your browser; nothing is sent anywhere.");

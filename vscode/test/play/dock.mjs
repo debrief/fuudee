@@ -224,7 +224,7 @@ export async function playDock(browser, base, shot, ready, errors) {
   for (const [id, name] of tabpanels) assert.equal(name, PANEL_TITLES[id], `${id}'s tab panel is named by its tab`);
   for (const id of DOCKED_PANELS) assert.equal(await page.locator(`.dv-tab[data-panel="${id}"]`).getAttribute("aria-controls"), `dock-${id}`);
   const tree = await page.locator("#dock").ariaSnapshot();
-  assert.match(tree, /tablist "Panels, left: Outline, Catalogue"/);
+  assert.match(tree, /tablist "Panels, left: Outline, Catalogues"/);
   assert.match(tree, /tablist "Panels, right: Bearings"/);
   assert.match(tree, /tablist "Panels, right: Walkthroughs"/);
   const timePanel = tree.slice(tree.indexOf('tabpanel "Time"'), tree.indexOf('tabpanel "Tote"'));
@@ -537,7 +537,7 @@ export async function playDock(browser, base, shot, ready, errors) {
   await page.evaluate(() => scrollTo(0, 0));
   await resizeTo(page, 900, 800);
   await showPanel(page, "export");
-  await page.locator("#find-id-go").focus();
+  await page.locator("#export-image").focus(); // the menu's last control
   await page.keyboard.press("Tab");
   await page.locator("#panel-export").waitFor({ state: "hidden" });
   assert.equal(await page.locator("#panel-time button.fold").isVisible(), false, "no fold buttons docked: tabs replace them");

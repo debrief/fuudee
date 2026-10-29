@@ -9,7 +9,7 @@ export const PANELS = [
   { id: "panel-tote", title: "Tote" },
   { id: "panel-outline", title: "Outline" },
   { id: "panel-timeline", title: "Timeline" },
-  { id: "panel-catalogue", title: "Catalogue" },
+  { id: "panel-catalogue", title: "Catalogues" },
   { id: "panel-coverage", title: "Coverage" },
   { id: "panel-bearings", title: "Bearings" },
   { id: "panel-tools", title: "Tools" },

@@ -270,7 +270,10 @@ export async function playSensors(page, shot) {
   n = await steps();
   await page.locator("#sensor-file").setInputFiles({ name: "nelson.dsf", mimeType: "text/plain", buffer: Buffer.from(dsf) });
   await asked.waitFor();
-  assert.match(await asked.locator("#ask-text").innerText(), /^Which track carries NELSON's sensors\? Hull array on NELSON: 3 cuts, 2 ambiguous\.$/);
+  // The shared question (PAR-10): what VS Code's QuickPick asks, its title and placeholder.
+  assert.equal(await asked.locator("#ask-title").innerText(), "Which track carries NELSON's sensors?");
+  assert.equal(await asked.locator("#ask-text").innerText(), "Hull array on NELSON: 3 cuts, 2 ambiguous");
+  assert.deepEqual((await asked.locator("#ask-buttons > button").allInnerTexts()).slice(-2), ["Do not read these", "Cancel"]);
   await shot("sensors-06-which-track");
   await asked.getByRole("button", { name: "RED ONE", exact: true }).click();
   await stepAdded(n);

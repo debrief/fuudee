@@ -302,8 +302,8 @@ def narrative(item: str, request_json: str, data: bytes | None = None) -> str:
             out.update(
                 entries=done.entries, sources=done.sources, omitted=done.omitted, notes=done.notes
             )
-    except Conflict:
-        return json.dumps({"error": "The plot was changed elsewhere, so nothing was changed."})
+    except Conflict as error:
+        return json.dumps({"error": str(error), "conflict": True})
     except (CatalogueError, HistoryError, NoNarrativeError, OSError, ValueError) as error:
         return json.dumps({"error": str(error)})
     return json.dumps(out)
@@ -364,8 +364,8 @@ def sensor(item: str, request_json: str, data: bytes | None = None) -> str:
             hosts=change.get("hosts") or {},
             again=bool(change.get("again")),
         )
-    except Conflict:
-        return json.dumps({"error": "The plot was changed elsewhere, so nothing was changed."})
+    except Conflict as error:
+        return json.dumps({"error": str(error), "conflict": True})
     except (
         CatalogueError,
         HistoryError,
@@ -779,7 +779,8 @@ def import_file(
         except Exception as error:  # noqa: BLE001 - shown to the reader as the failure
             return json.dumps({"error": f"{path.name} could not be added: {error}"})
         steps = len(_cat().history(added).steps())
-        return json.dumps({"item": added, "plot_file": True, "steps": steps})
+        title = _cat().read_item(added).properties.title or added
+        return json.dumps({"item": added, "plot_file": True, "steps": steps, "title": title})
     modes = json.loads(modes_json) if modes_json else None
     try:
         if path.suffix.lower() in (".dpf", ".xml"):
@@ -810,16 +811,39 @@ def import_file(
 # --- Collation (CAP-08 to CAP-12): as debrief/coverage and the collation methods do -----
 
 
-def coverage(item: str) -> str:
-    """The open plot's coverage, and every plot in the catalogue that may need review."""
+def catalogue_view() -> str:
+    """The catalogue as the Catalogues tree lists it, with no plot open or one: each plot's
+    title and period, and each track's periods of data (CAP-08), read from its item alone, as
+    the extension reads a catalogue from disk."""
+    plots = []
+    for item_id in _cat().item_ids():
+        props = _cat().read_item(item_id).properties
+        plots.append(
+            {
+                "id": item_id,
+                "title": props.title or item_id,
+                "start": props.start_datetime or props.datetime,
+                "end": props.end_datetime or props.datetime,
+                "tracks": [
+                    t.model_dump(mode="json", exclude_none=True)
+                    for t in (props.debrief_coverage or [])
+                ],
+            }
+        )
+    return json.dumps({"id": _cat().id, "title": _cat().model.title or _cat().id, "plots": plots})
+
+
+def coverage(item: str | None) -> str:
+    """The open plot's coverage, if a plot is open, and every plot in the catalogue that may
+    need review, whether or not one is."""
     try:
-        report = _cat().coverage(item)
+        report = _cat().coverage(item) if item else None
         flags = review_flags([_cat()])
     except (CatalogueError, HistoryError, OSError, ValueError) as error:
         return json.dumps({"error": str(error)})
     return json.dumps(
         {
-            "coverage": report.model_dump(mode="json", exclude_none=True),
+            **({"coverage": report.model_dump(mode="json", exclude_none=True)} if report else {}),
             "flags": [f.model_dump(mode="json", exclude_none=True) for f in flags],
         }
     )
@@ -863,8 +887,8 @@ def collate(item: str, request_json: str) -> str:
             target = change.get("item") or item
             cleared = _cat().clear_review_flag(target, agent=YOU)
             return json.dumps({"ok": True, "changed": cleared > 0})
-    except Conflict:
-        return json.dumps({"error": "The plot was changed elsewhere, so nothing was changed."})
+    except Conflict as error:
+        return json.dumps({"error": str(error), "conflict": True})
     except (CatalogueError, HistoryError, ValueError, KeyError) as error:
         return json.dumps({"error": str(error)})
     if step is None and kind == "take":

@@ -379,8 +379,17 @@ try {
   const dpf = path.resolve("../python/debrief-io/tests/data/shapes.dpf");
   if (existsSync(dpf)) {
     await page.locator("#file").setInputFiles(dpf);
-    await page.locator(".omitted-panel li").first().waitFor({ timeout: 60000 });
-    assert.equal(await page.locator("#plots").inputValue(), "shapes");
+    // What came in is said, with what was not (EXT-14); shown when asked; the plot offered, not opened (PAR-12).
+    const said = page.locator(".toast", { hasText: "Some content was not imported." });
+    await said.waitFor({ timeout: 60000 });
+    assert.deepEqual(await said.locator("button").allInnerTexts(), ["Show what was not imported", "Open plot"]);
+    assert.notEqual(await page.locator("#plots").inputValue(), "shapes");
+    await said.getByRole("button", { name: "Show what was not imported" }).click();
+    await page.locator(".omitted-panel li").first().waitFor();
+    // Opened from the Catalogues tree, as VS Code's is (§6 decision 2).
+    await showPanel(page, "catalogue");
+    await page.locator('#items li[data-key="plot:play:shapes"] > .row').click();
+    await page.waitForFunction(() => document.getElementById("plots")?.value === "shapes");
     await shot("play-07-imported");
     // Fixes' own colours, labels and comments are imported, so not listed as left out (EXT-14).
     assert.doesNotMatch(await text(".omitted-panel"), /fix comment|a v4 track has one colour/);
@@ -422,8 +431,10 @@ try {
   // A Debrief plot file, as a colleague would send it: one file, its history included.
   const sent = path.resolve(root, "sample", "serial-1", "plot.geojson");
   await page.locator("#file").setInputFiles(sent);
-  await page.locator(".toast", { hasText: "with its history" }).waitFor({ timeout: 60000 });
-  assert.equal(await page.locator("#plots").inputValue(), "serial-1-2");
+  const added = page.locator(".toast", { hasText: "with its history" });
+  await added.waitFor({ timeout: 60000 });
+  await added.getByRole("button", { name: "Open plot" }).click();
+  await page.waitForFunction(() => document.getElementById("plots")?.value === "serial-1-2");
   assert.match(await history(), /Added from the plot file plot\.geojson/);
   assert.match(await history(), /step 1/);
   await shot("play-07b-plot-file-added");
