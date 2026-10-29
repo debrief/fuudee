@@ -218,10 +218,11 @@ export async function playTma(page, shot) {
   assert.match(await canvas.getAttribute("aria-label"), /^Bearings and residuals of Contact 1 solution, time upward from .* panes Bearing, Error: RMS/);
   // Compact (product owner, 25 and 27 Oct 2026): the panes, Hold scale, Reset zoom and ⋯ in one
   // row; the cue and the RMS one line; nothing else, so the plot takes the height.
-  const row = await view.locator(".tma-tools").evaluate((t) => [...t.children].filter((c) => c.getBoundingClientRect().width > 0).map((c) => { const b = c.getBoundingClientRect(); return Math.round(b.top + b.height / 2); }));
-  const statusLine = await view.locator(".tma-statusline").evaluate((l) => [...l.children].filter((c) => c.getBoundingClientRect().height > 0).map((c) => { const b = c.getBoundingClientRect(); return Math.round(b.top + b.height / 2); }));
   // The column right of the map widened while the solution is open: two panes of 160 px or more.
   await page.waitForFunction(() => Object.values(window.debriefTma.plotState.boxes ?? {}).every((b) => b.w >= 160) && Object.keys(window.debriefTma.plotState.boxes).length === 2, null, { timeout: 10000 });
+  // Measured once widened: in the narrow column before that, the row may wrap.
+  const row = await view.locator(".tma-tools").evaluate((t) => [...t.children].filter((c) => c.getBoundingClientRect().width > 0).map((c) => { const b = c.getBoundingClientRect(); return Math.round(b.top + b.height / 2); }));
+  const statusLine = await view.locator(".tma-statusline").evaluate((l) => [...l.children].filter((c) => c.getBoundingClientRect().height > 0).map((c) => { const b = c.getBoundingClientRect(); return Math.round(b.top + b.height / 2); }));
   const widened = await page.evaluate(() => ({ column: document.getElementById("panel-bearings").getBoundingClientRect().width, map: document.getElementById("main").getBoundingClientRect().width, window: innerWidth }));
   assert.ok(widened.column >= widened.window * 0.36, `the column widened: ${JSON.stringify(widened)}`);
   const canvasBox = await canvas.boundingBox();
