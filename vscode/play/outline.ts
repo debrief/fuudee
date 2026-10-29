@@ -20,6 +20,8 @@ export interface OutlineTreeHost<T> {
   fill(row: FlatRow<T>, element: HTMLLIElement): void;
   /** The analyst chose rows (a click, a key): the host selects what they stand for. */
   chose(keys: string[]): void;
+  /** What the tree says when it lists nothing (no plot open), if anything. */
+  empty?(): string | undefined;
   /** A row's menu: right-click, press and hold, Shift+F10 or the menu key. */
   menu?(key: string, x: number, y: number, element: HTMLElement): void;
 }
@@ -181,6 +183,8 @@ export class OutlineTree<T> {
       next = i + 1;
     }
     if (next < this.rows.length) children.push(spacer(this.rows.length - next));
+    const empty = this.rows.length ? undefined : this.host.empty?.();
+    if (empty) children.push(Object.assign(document.createElement("li"), { className: "tree-empty", textContent: empty }));
     this.list.replaceChildren(...children);
     // One row's height, once drawn, so the spacers stand for the rows they replace.
     const sample = children.find((c) => c.matches("li[data-id]:not(.tall)"));

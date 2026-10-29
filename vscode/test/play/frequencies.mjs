@@ -101,8 +101,8 @@ export async function playFrequencies(page, shot) {
   assert.ok((await mapFrame.locator(".tick").count()) + (await painted("arrows")) > ticksBefore, "arrows every 5 min");
   // Where the tracks cross and double back, no time sits on another, or on a track's name.
   assert.deepEqual(await overlaps(), [], "time labels clear of one another and of names");
-  // Held per track, and said in the outline: the intervals set, and all three when pointed at.
-  assert.equal(await row("track-blue-one").locator(".freq-detail").innerText(), "Labels every 10 min · Arrows every 5 min");
+  // Held per track, and said in the outline when pointed at, as VS Code's tooltip says them (the Outline panel model's).
+  assert.match(await row("track-blue-one").getAttribute("title"), /Labels every 10 min · Symbols off · Arrows every 5 min$/);
   assert.match(await row("track-red-one").getAttribute("title"), /Labels every 10 min · Symbols off · Arrows every 5 min$/);
   // The selection's outline and handles off the picture.
   await mapFrame.locator("#map").focus();
@@ -159,15 +159,15 @@ export async function playFrequencies(page, shot) {
   await dialog.getByRole("button", { name: "Apply" }).click();
   await stepAdded(n);
   assert.equal(await latest(), "Symbols every 1 h 30 min on BLUE ONE and RED ONE");
-  assert.equal(await row("track-blue-one").locator(".freq-detail").innerText(), "Labels every 30 min · Symbols every 1 h 30 min · Arrows every 5 min");
-  assert.equal(await row("track-red-one").locator(".freq-detail").innerText(), "Labels every 10 min · Symbols every 1 h 30 min · Arrows every 5 min");
+  assert.match(await row("track-blue-one").getAttribute("title"), /Labels every 30 min · Symbols every 1 h 30 min · Arrows every 5 min$/);
+  assert.match(await row("track-red-one").getAttribute("title"), /Labels every 10 min · Symbols every 1 h 30 min · Arrows every 5 min$/);
   await mapFrame.locator("canvas.freq-marks:not([data-symbols='0'])").waitFor({ state: "attached" }); // near the view, perhaps just outside it
 
   // Undo takes the last change back, for both tracks at once.
   await undo();
   assert.match(await page.locator("#history li.undone").first().textContent(), /Symbols every 1 h 30 min/);
   await mapFrame.locator("canvas.freq-marks[data-symbols='0']").waitFor({ state: "attached" });
-  assert.equal(await row("track-red-one").locator(".freq-detail").innerText(), "Labels every 10 min · Arrows every 5 min");
+  assert.match(await row("track-red-one").getAttribute("title"), /Labels every 10 min · Symbols off · Arrows every 5 min$/);
 
   // One fix of RED ONE always shows its time label and its symbol, whatever the intervals (force on only).
   await row("track-red-one").click();
@@ -222,7 +222,7 @@ export async function playFrequencies(page, shot) {
   await dialog.getByRole("button", { name: "Apply" }).click();
   await stepAdded(n);
   assert.equal(await latest(), "Symbols at every fix on BLUE ONE");
-  assert.match(await row("track-blue-one").locator(".freq-detail").innerText(), /Symbols at every fix/);
+  assert.match(await row("track-blue-one").getAttribute("title"), /Symbols at every fix/);
   await mapFrame.locator("canvas.freq-marks:not([data-symbols='0'])").waitFor({ state: "attached" });
 
   // On a phone, and down to 210 px: the form fits and never scrolls sideways.
@@ -248,5 +248,5 @@ export async function playFrequencies(page, shot) {
 
   // Back as it was, so what follows starts the same: the symbols at every fix, the fix's marks and label, then the intervals, undone.
   for (let i = 0; i < 6; i++) await undo();
-  await page.waitForFunction(() => !document.querySelector("#outline .freq-detail"), null, { timeout: 30000 });
+  await page.waitForFunction(() => ["track-blue-one", "track-red-one"].every((id) => document.querySelector(`#outline li[data-id="${id}"]`)?.title.endsWith("Labels off · Symbols off · Arrows default")), null, { timeout: 30000 });
 }

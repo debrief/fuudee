@@ -144,14 +144,14 @@ export async function playTma(page, shot) {
   assert.equal(await page.locator("#outline").getAttribute("role"), "tree");
   const sensorRow = outlineRow("sensor-blue-one-bow-sonar");
   assert.equal(await sensorRow.getAttribute("aria-expanded"), "false");
-  assert.equal(await sensorRow.getAttribute("aria-level"), "2");
+  assert.equal(await sensorRow.getAttribute("aria-level"), "4"); // Plot features, Tracks, BLUE ONE, the sensor
   await sensorRow.focus();
   await page.keyboard.press("ArrowRight");
   await page.waitForFunction(() => document.querySelector('#outline li[data-id="sensor-blue-one-bow-sonar"]')?.getAttribute("aria-expanded") === "true");
   const cutRows = page.locator("#outline li.cut");
   const total = Number(await cutRows.first().getAttribute("aria-setsize"));
   assert.ok(total > 300, `the Bow sonar's cuts in the Outline: ${total}`);
-  assert.equal(await cutRows.first().getAttribute("aria-level"), "3");
+  assert.equal(await cutRows.first().getAttribute("aria-level"), "5");
   assert.equal(await cutRows.first().getAttribute("aria-posinset"), "1");
   assert.match(await cutRows.first().getAttribute("aria-label"), /^Cut at 1\d:\d\d:\d\dZ, \d{3}\.\d°/);
   assert.equal(await page.locator("#outline li[tabindex='0']").count(), 1, "one tab stop");
@@ -211,7 +211,7 @@ export async function playTma(page, shot) {
   assert.equal(await view.locator(".tma-form").isHidden(), true, "the form closes once the solution is made");
   // Selected, in the Outline with its TMA tag; Bearings showing it, said in its title.
   assert.deepEqual(await page.$$eval("#outline li.selected .name", (r) => r.map((e) => e.textContent)), ["Contact 1 solution"]);
-  assert.equal(await page.locator('#outline li.selected .tag').innerText(), "TMA");
+  assert.match(await page.locator("#outline li.selected .detail").innerText(), /^TMA · Contact 1 · selected · /);
   assert.equal(await title(), "Contact 1 solution · 1 leg, 60 cuts");
   const canvas = view.locator(".tma-canvas");
   assert.equal(await canvas.isVisible(), true);
@@ -643,10 +643,10 @@ export async function playTma(page, shot) {
   };
   await expand(solutionId);
   await outlineRow(`${solutionId}#leg1`).waitFor();
-  assert.match(await outlineRow(`${solutionId}#leg1`).innerText(), /^[▸▾]\s*Leg 1 12:\d\d:\d\dZ–1\d:\d\d:\d\dZ · 60 fixes · \d{3}\.\d°T \d+\.\d kn$/);
+  assert.match(await outlineRow(`${solutionId}#leg1`).innerText(), /^[▸▾]\s*\S\s+Leg 1 12:\d\d:\d\dZ–1\d:\d\d:\d\dZ · 60 fixes · \d{3}\.\d°T \d+\.\d kn$/);
   await expand(`${solutionId}#leg1`);
   await fixRow(29).waitFor();
-  assert.equal(await fixRow(29).getAttribute("aria-level"), "3");
+  assert.equal(await fixRow(29).getAttribute("aria-level"), "5"); // Plot features, Tracks, the solution, its leg, the fix
   assert.equal(await fixRow(29).getAttribute("aria-setsize"), "60");
   assert.match(await fixRow(29).getAttribute("aria-label"), /^Position at 1\d:\d\d:\d\dZ, \d{3}\.\d°T \d+\.\d kn$/);
   await fixRow(29).click();
@@ -862,7 +862,7 @@ export async function playTma(page, shot) {
   await outlineRow(towedCuts[9]).click({ modifiers: ["Shift"] });
   await page.waitForFunction(() => window.debriefSelection().picks.length === 10);
   assert.equal(await page.locator("#outline li.cut[aria-selected='true']").count(), 10);
-  assert.match(await outlineRow(towedCuts[0]).locator(".detail").innerText(), /^≈ \d{3}\.\d° (port|stbd) \/ \d{3}\.\d° (port|stbd)$/);
+  assert.match(await outlineRow(towedCuts[0]).locator(".detail").innerText(), /^selected · ≈ \d{3}\.\d° (port|stbd) \/ \d{3}\.\d° (port|stbd)$/);
   await picture("outline-03-sensor-cuts-selected");
   await showPanel(page, "tools");
   await picture("tools-02-entries-for-cuts");
@@ -928,7 +928,7 @@ export async function playTma(page, shot) {
   await view.locator(".tma-rms").waitFor({ timeout: 60000 });
   assert.match(await rms(), /^RMS \d+\.\d° over 10 cuts$/);
   assert.ok((await residuals()).rms < 0.5, "the imported solution lies on its cuts");
-  assert.equal(await page.locator("#outline li.selected .tag").innerText(), "TMA");
+  assert.match(await page.locator("#outline li.selected .detail").innerText(), /^TMA · [^·]+ · selected · /);
   await mapFrame.getByRole("button", { name: "Zoom to the selection", exact: true }).click();
   await picture("tma-07-imported");
 

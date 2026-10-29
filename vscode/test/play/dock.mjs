@@ -146,7 +146,9 @@ async function defaultAt(page, width, height) {
     const list = document.getElementById("outline");
     const box = list.getBoundingClientRect();
     const all = [...list.children];
-    return { all: all.length, seen: all.filter((r) => { const b = r.getBoundingClientRect(); return b.top >= box.top - 1 && b.bottom <= box.bottom + 1; }).length };
+    // The plot's features: every row above the Supporting files heading (the Outline panel model's sections).
+    const files = all.findIndex((r) => r.dataset.id === "section:files");
+    return { all: files >= 0 ? files : all.length, seen: all.filter((r) => { const b = r.getBoundingClientRect(); return b.top >= box.top - 1 && b.bottom <= box.bottom + 1; }).length };
   });
   // One row fewer than before the Time panel grew for its large current time (product owner, 28 Oct 2026).
   const enough = height >= 1000 ? rows.all : height >= 768 ? 5 : 3;
