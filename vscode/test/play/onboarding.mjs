@@ -482,7 +482,8 @@ export async function playTours(page, shot, root) {
   await answerImport(page);
   await page.locator(".toast", { hasText: /^Imported 1 track/ }).waitFor({ timeout: 60000 });
   await notDone(page, "imported", "the reader's own file is not the walkthrough's log");
-  assert.notEqual(await page.locator("#plots").inputValue(), "serial-1-collate");
+  // The new plot is offered, not opened (PAR-12): the copy stays open.
+  assert.equal(await page.locator("#plots").inputValue(), "serial-1-collate");
   // The step's button opens the walkthrough's copy again, then imports its log.
   await go(page, 1).click();
   await answerImport(page);
