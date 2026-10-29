@@ -386,16 +386,16 @@ try {
     assert.notEqual(await page.locator("#plots").inputValue(), "shapes");
     await said.getByRole("button", { name: "Show what was not imported" }).click();
     await page.locator(".omitted-panel li").first().waitFor();
-    // Opened from the Catalogues tree, as VS Code's is (§6 decision 2).
-    await showPanel(page, "catalogue");
-    await page.locator('#items li[data-key="plot:play:shapes"] > .row').click();
-    await page.waitForFunction(() => document.getElementById("plots")?.value === "shapes");
-    await shot("play-07-imported");
     // Fixes' own colours, labels and comments are imported, so not listed as left out (EXT-14).
     assert.doesNotMatch(await text(".omitted-panel"), /fix comment|a v4 track has one colour/);
     // Its circles and ellipses are circles and ellipses, drawn as legacy Debrief drew them.
     assert.ok(!(await text(".omitted-panel")).includes("polygons of 72 sides"));
     await page.locator(".side-bar button", { hasText: "Close" }).click();
+    // Opened from the Catalogues tree, as VS Code's is (§6 decision 2).
+    await showPanel(page, "catalogue");
+    await page.locator('#items li[data-key="plot:play:shapes"] > .row').click();
+    await page.waitForFunction(() => document.getElementById("plots")?.value === "shapes");
+    await shot("play-07-imported");
     await mapFrame.locator('path[stroke-dasharray="1 4"]').first().waitFor(); // the dotted circle
     // Closer, on the legacy plot's styled circles.
     const filled = await mapFrame.locator('path[fill-opacity="0.63"]').first().boundingBox();
