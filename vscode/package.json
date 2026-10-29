@@ -95,7 +95,7 @@
           {
             "id": "explore.tote",
             "title": "Compare tracks in the Tote",
-            "description": "In the Tote, choose **BLUE ONE** as the primary and add **RED ONE**. Each row is a measure, worked out at current time: range, true bearing, relative bearing (R to port, G to starboard), angle on the bow, bearing rate, and each track's course, speed and depth. Move current time and they follow.\n\n**Tote** is below the time controller; it starts folded.\n\n**Keyboard:** **Primary** and **Add** are lists: Tab to one, ↓ to choose. Or, on a track in the Outline, Shift+F10 opens its menu: **Set as Tote primary**, **Add to Tote**.\n\n[Show the Tote](command:debrief.walkthrough.do?%5B%22explore%22%2C%22debrief.tote.focus%22%5D)",
+            "description": "In the Tote, choose **BLUE ONE** as the primary and add **RED ONE**. Each row is a measure, worked out at current time: range, true bearing, relative bearing (R to port, G to starboard), angle on the bow, bearing rate, and each track's course, speed and depth. Move current time and they follow.\n\n**Tote** is below the time controller; it starts folded.\n\n**Keyboard:** **Primary** and **Add** are lists: Tab to one, ↓ to choose. Or select one track in the Outline (Enter) and Shift+F10 opens its menu: **Set as Tote primary**, **Add to Tote**. Its Tote entries act on every track selected.\n\n[Show the Tote](command:debrief.walkthrough.do?%5B%22explore%22%2C%22debrief.tote.focus%22%5D)",
             "media": {
               "svg": "media/walkthroughs/explore-tote.svg",
               "altText": "The Tote: a row for each measure, a column for BLUE ONE and one for RED ONE, with a thin line on the map between them."

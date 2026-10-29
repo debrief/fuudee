@@ -435,9 +435,16 @@ export async function playTours(page, shot, root) {
   await page.keyboard.press("Control+Enter");
   await done(page, "selected");
   await ticked(page, 2, "Select tracks in the Outline");
-  // The Tote, from the Outline's menu: Shift+F10.
+  // The Tote, from the Outline's menu: one track selected (Enter), then Shift+F10. With both still
+  // selected, Set as Tote primary cannot act, saying why (decision, product owner, 29 Oct 2026).
+  await page.locator('#outline li[data-id="track-blue-one"]').focus();
+  await page.keyboard.press("Shift+F10");
+  assert.equal(await page.getByRole("menuitem", { name: "Set as Tote primary" }).getAttribute("aria-disabled"), "true");
+  assert.equal(await page.getByRole("menuitem", { name: "Set as Tote primary" }).getAttribute("title"), "Select one track to be the Tote's primary.");
+  await page.keyboard.press("Escape");
   for (const [id, item] of [["track-blue-one", "Set as Tote primary"], ["track-red-one", "Add to Tote"]]) {
     await page.locator(`#outline li[data-id="${id}"]`).focus();
+    await page.keyboard.press("Enter");
     await page.keyboard.press("Shift+F10");
     await page.getByRole("menuitem", { name: item }).click();
   }
