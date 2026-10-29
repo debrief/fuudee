@@ -131,8 +131,8 @@ export interface TmaControlHost {
   resolveCuts(resolution: AmbiguityResolution): void;
   /** Select a cut, or the solution at one of its fixes, and move current time to it: a dot clicked (tma_select). */
   select(featureId: string, time: string): void;
-  /** The Outline's menu for a cut, or the solution at one of its fixes: a dot right-clicked (tma_menu). */
-  menu?(featureId: string, time: string): void;
+  /** The Outline's menu for a cut, or the solution at one of its fixes: a dot right-clicked (tma_menu), where (client pixels). */
+  menu?(featureId: string, time: string, x?: number, y?: number): void;
   /** Remember the analyst's error cut-off, degrees, in their Debrief configuration (tma_cut_off). */
   cutOff(degrees: number): void;
   /** The plot as drawn, CSS pixels: its height and each pane's width, when either changes (tma_plot_drawn). */
@@ -1749,7 +1749,7 @@ export class TmaControl {
     if (!item?.id) return;
     event.preventDefault();
     if (item.row !== undefined) this.setActive(item.row);
-    this.host.menu(item.id, item.time);
+    this.host.menu(item.id, item.time, event.clientX, event.clientY);
   }
 
   /** The dot nearest a point in a pane, within reach: its cut, or the solution at a fix (the calculated line, the Course/Speed pane). */
