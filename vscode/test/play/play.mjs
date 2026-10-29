@@ -917,7 +917,8 @@ try {
     assert.match(await blocked.locator("#status").innerText(), /Python couldn't be downloaded from cdn\.jsdelivr\.net; your network may block it\. The map still works/);
     // Tools and History say why, as VS Code's do when the tool service could not start (§5).
     assert.match(await blocked.locator("#tools").textContent(), /^Python couldn't be downloaded from cdn\.jsdelivr\.net/);
-    assert.match(await blocked.locator("#history").textContent(), /History needs the tool service\.$/);
+    // Once the sample shows (Python may fail first), History says what VS Code's does with no tool service.
+    await blocked.locator("#history", { hasText: "History needs the tool service." }).waitFor({ timeout: 30000 });
     assert.equal(await blocked.locator("#crash").isDisabled(), true);
     await blocked.locator(`#outline li[data-id="track-blue-one"]`).click();
     assert.equal(await blocked.locator("#outline li.selected .name").innerText(), "BLUE ONE");

@@ -3704,6 +3704,9 @@ async function preview(item: string): Promise<void> {
     showPlot();
     renderOutline();
     renderTimeline();
+    // A plot is open now: Tools and History say so (starting, or why Python could not start).
+    renderTools();
+    renderHistory();
     showTote();
   } catch {
     // the map fills in when Python is ready
