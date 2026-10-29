@@ -218,7 +218,17 @@ def test_a_read_only_catalogues_export_is_in_the_analysts_own_log_and_found(
     assert shown["export"]["viewport"] == VIEW["viewport"]
 
 
-def test_a_footer_finds_its_own_export(client, tmp_path: Path) -> None:
+def test_a_footer_finds_its_own_export(
+    client, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    from debrief_stac import figures
+
+    # Each export's own bytes, fixed: random ones share a short form 1 time in 1,024.
+    exports = iter([b"\x01" * 5, b"\x02" * 5])
+    fresh = figures.new_figure_id
+    monkeypatch.setattr(
+        figures, "new_figure_id", lambda *given: fresh(*given, export=next(exports))
+    )
     first = export(client, tmp_path)["answer"]["result"]
     second = export(client, tmp_path, viewport={"bbox": [-4.3, 50.2, -4.1, 50.3]})["answer"]
     second = second["result"]
