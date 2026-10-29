@@ -223,11 +223,12 @@ export async function playSensors(page, shot) {
   await page.keyboard.press("Escape");
   await asked.waitFor({ state: "hidden" });
 
-  // A towed array 300 m astern, worm in the hole, from its menu: one step; its cuts drawn from the array.
+  // A towed array 300 m astern, worm in the hole, from its menu (Towed array offset…, the third): one step; its cuts drawn from the array.
   await row("sensor-blue-one-towed-array").focus();
   await page.keyboard.press("Shift+F10");
   await menu.waitFor();
-  await page.keyboard.press("End");
+  await page.keyboard.press("ArrowDown");
+  await page.keyboard.press("ArrowDown");
   await page.keyboard.press("Enter");
   const form = page.locator("dialog.track-form");
   await form.waitFor();
