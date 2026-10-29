@@ -5,8 +5,8 @@ Debrief for VS Code comes as one VSIX file for each kind of computer. Each one c
 ## What you need
 
 - **VS Code 1.95 or later**, installed for you or for everyone on the computer. Debrief needs no administrator rights of its own.
-- **Windows 11**, or Windows 10 while VS Code still supports it; **macOS** on Apple silicon or Intel; or **Linux** on a 64-bit Intel or AMD processor.
-- About 60 MB to download and 170 MB of disk once installed.
+- **Windows 11**, or Windows 10 while VS Code still supports it; **macOS 14** (Sonoma) or later on Apple silicon, or **macOS 15** (Sequoia) or later on Intel; or **Linux** on a 64-bit Intel or AMD processor.
+- 40 to 55 MB to download, and 120 to 170 MB of disk once installed.
 
 ## Choose the right file
 

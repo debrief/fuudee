@@ -63,10 +63,25 @@ The integration test:
 
 CI runs it on every pull request and keeps the screenshots as an artifact.
 
+## Packaging
+
+One VSIX for each platform, each with its own Python (NFR-12, DEP-01, DEP-02): `win32-x64`, `linux-x64`, `darwin-arm64` and `darwin-x64` (`linux-arm64` is pinned too, but not built by the release workflow). Analysts install one as the [install guide](../site/docs/install.md) says.
+
+```bash
+npm run package:vsix -- --target linux-x64     # vsix/debrief-linux-x64-<version>.vsix
+xvfb-run -a npm run test:vsix -- vsix/debrief-linux-x64-0.1.0.vsix
+```
+
+- **`scripts/bundle-python.mjs`** puts a Python into `python/`: python-build-standalone's relocatable CPython (`install_only_stripped`), the release, version and each platform's sha256 pinned in `python-runtime.json` and checked on every build; the third-party packages exactly as `uv.lock` pins them, as wheels for the target, hash-checked; Debrief's own packages built as wheels from this checkout; everything compiled to unchecked-hash `.pyc` files. Tcl/Tk, IDLE, pip, the test suites, headers and symbolic links are left out. Any target can be bundled on any machine, as wheels are chosen for the target; the release workflow bundles each on its own platform so it can try it there.
+- **`scripts/package-vsix.mjs`** bundles the Python if `python/` is not already for that target, copies the licence in and runs `vsce package --target`. `.vscodeignore` lets in only what the installed extension reads.
+- **Which Python runs** (`src/runtime.ts`): `DEBRIEF_PYTHON`, then **Debrief: Python**, then, installed from a VSIX, the bundled one (`python/python.exe` on Windows, `python/bin/python3.12` elsewhere, with `PYTHONHOME`, `PYTHONPATH` and the user's site packages kept out), then `python3` (`python` on Windows). Run from source (F5 or the tests), the bundled one is never used.
+- **The smoke test** (`test/integration/vsix-run.ts`, `vsix-smoke.ts`) installs the VSIX into a clean VS Code with `--install-extension`, starts it with no Python on the PATH and nothing of a developer's set, and checks that the bundled Python answers, that a walkthrough's copy of serial 1 opens on the map and that closest approach runs on it.
+- **The release workflow** (`.github/workflows/release.yml`) builds and tries each platform's VSIX on its own runner (Windows, Ubuntu, macOS 14 on Apple silicon, macOS 15 on Intel) when run by hand or for a `v*` tag, and attaches them to a draft GitHub Release for a tag; pull requests that touch the packaging build and try Linux's. Nothing is published to the Marketplace.
+- **To move to a newer Python**, change `release`, `python` and every `sha256` in `python-runtime.json` together, from the release's `SHA256SUMS`.
+
 ## Not yet
 
 - **Removing a catalogue from the list.**
 - **Keyboard selection on the map** (NFR-13, Phase 3).
 - **Bearing-error wedges** (CAP-22: no format gives an agreed error yet) and **TMA** (CAP-21, Phase 4).
 - **Graphs.** These are shown as tables for now.
-- **Packaging as a VSIX** (Phase 3, DEP-01).
