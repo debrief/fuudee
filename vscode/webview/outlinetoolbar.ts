@@ -219,8 +219,20 @@ export function selectionChildren(outline: OutlineIndex, picks: readonly Outline
 }
 
 /** The toolbar's buttons, in order (the playground's toolbar, VS Code's title bar). */
-export type ToolbarId = "visibility" | "colour" | "select-all" | "select-children" | "clear-selection";
-export const TOOLBAR: ToolbarId[] = ["visibility", "colour", "select-all", "select-children", "clear-selection"];
+export type ToolbarId = "visibility" | "colour" | "select-all" | "select-children" | "clear-selection" | "add-annotation" | "more";
+export const TOOLBAR: ToolbarId[] = ["visibility", "colour", "select-all", "select-children", "clear-selection", "add-annotation", "more"];
+
+/** The toolbar button that stands for each action the catalogue puts on the Outline's title bar (its "navigation" group); the rest are in its overflow menu, "more". */
+export const TOOLBAR_ACTIONS: Record<string, ToolbarId> = {
+  "debrief.selectionHide": "visibility",
+  "debrief.selectionShow": "visibility",
+  "debrief.selectionShowAll": "visibility",
+  "debrief.colourSelection": "colour",
+  "debrief.selectAll": "select-all",
+  "debrief.selectChildren": "select-children",
+  "debrief.clearSelection": "clear-selection",
+  "debrief.addAnnotation": "add-annotation",
+};
 
 /** A toolbar's roving focus: the button the keyboard goes to from one, for a key; undefined for a key the toolbar leaves alone. */
 export function toolbarKey(at: number, length: number, key: string): number | undefined {

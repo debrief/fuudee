@@ -10,6 +10,19 @@
 import { DEFAULT_SETTINGS, formatBearing, formatDepth, formatQuantity, formatRange, formatRelativeBearing, type FormatSettings } from "@debrief/kernel";
 import type { DebriefFeatureCollection, MeasureDefinition, ToteResult, ToteRow, ToteTrack, ToteView } from "@debrief/schemas";
 
+/**
+ * The Tote's entries on a selection of tracks' menus (decision, product owner, 29 Oct 2026): each acts
+ * on every track selected. Add to Tote is offered when any is not in the Tote, Remove from Tote when
+ * any is; Set as Tote primary is always offered for a track, and cannot act, saying why, unless
+ * exactly one is selected and it is not the primary already.
+ */
+export function toteMenu(view: ToteView, ids: readonly string[]): { canAdd: boolean; canRemove: boolean; primaryReason?: string } {
+  const inTote = (id: string) => view.primary === id || !!view.secondaries?.includes(id);
+  const primaryReason =
+    ids.length !== 1 ? "Select one track to be the Tote's primary." : view.primary === ids[0] ? "That track is the Tote's primary already." : undefined;
+  return { canAdd: ids.some((id) => !inTote(id)), canRemove: ids.some(inTote), ...(primaryReason && { primaryReason }) };
+}
+
 /** The tracks the analyst can put in the Tote, in plot order. */
 export function toteTracks(plot: DebriefFeatureCollection | undefined): ToteTrack[] {
   return (plot?.features ?? []).flatMap((f) =>

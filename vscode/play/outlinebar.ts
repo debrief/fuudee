@@ -6,7 +6,8 @@
  * What each button does and says is webview/outlinetoolbar.ts's; the colour popover is here:
  * the palette's swatches (arrow keys among them) and a custom colour typed or picked.
  */
-import { hexColour, toolbarKey, type ColourButton, type ToolbarId, type VisibilityButton } from "../webview/outlinetoolbar.js";
+import { hexColour, TOOLBAR_ACTIONS, toolbarKey, type ColourButton, type ToolbarId, type VisibilityButton } from "../webview/outlinetoolbar.js";
+import type { MenuEntry } from "../webview/panels/actions.js";
 
 /** The icons, 16 px, drawn in the text colour (currentColor), so they follow every theme and forced colours. */
 const ICONS: Record<string, string> = {
@@ -17,6 +18,8 @@ const ICONS: Record<string, string> = {
   colour: '<path d="M8 1.6a6.4 6.4 0 1 0 0 12.8c1.2 0 1.5-.9 1-1.8-.5-.8 0-1.8 1-1.8h1.8A2.6 2.6 0 0 0 14.4 8 6.4 6.4 0 0 0 8 1.6Z" fill="none" stroke="currentColor" stroke-width="1.3"/><circle cx="5" cy="6.2" r="1.1" fill="currentColor"/><circle cx="8.2" cy="4.6" r="1.1" fill="currentColor"/><circle cx="11.1" cy="6.4" r="1.1" fill="currentColor"/><circle cx="4.9" cy="9.6" r="1.1" fill="currentColor"/>',
   "select-all": '<path d="M1.5 8.3 4 10.8l5-6M7 10.4l.5.4 6.3-6.9" fill="none" stroke="currentColor" stroke-width="1.4"/><path d="M1.5 13.5h13" stroke="currentColor" stroke-width="1.2"/>',
   "select-children": '<path d="M3 2v10.5h3.5M3 7.2h3.5" fill="none" stroke="currentColor" stroke-width="1.2"/><rect x="1.5" y="1" width="3" height="2.4" fill="currentColor"/><rect x="7.5" y="5.6" width="7" height="3.2" rx=".5" fill="none" stroke="currentColor" stroke-width="1.2"/><rect x="7.5" y="10.9" width="7" height="3.2" rx=".5" fill="none" stroke="currentColor" stroke-width="1.2"/>',
+  add: '<path d="M8 2.5v11M2.5 8h11" stroke="currentColor" stroke-width="1.4"/>',
+  more: '<circle cx="3.5" cy="8" r="1.2" fill="currentColor"/><circle cx="8" cy="8" r="1.2" fill="currentColor"/><circle cx="12.5" cy="8" r="1.2" fill="currentColor"/>',
   "clear-selection": '<path d="M1.5 3.5h9M1.5 7h7M1.5 10.5h5" stroke="currentColor" stroke-width="1.2"/><path d="m9.5 9 4.5 4.5M14 9l-4.5 4.5" stroke="currentColor" stroke-width="1.4"/>',
 };
 
@@ -33,6 +36,8 @@ export interface OutlineBarState {
   selected: number;
   /** Why the buttons that change the plot cannot yet (Python starting). */
   waiting?: string;
+  /** The action catalogue's entries for the Outline's title bar now: each button's name, and the overflow menu's entries. */
+  title: MenuEntry[];
 }
 
 export interface OutlineBarHost {
@@ -42,6 +47,10 @@ export interface OutlineBarHost {
   selectAll(): void;
   selectChildren(): void;
   clearSelection(): void;
+  /** Run a catalogued action (Add annotation…). */
+  run(id: string): void;
+  /** The overflow menu: the title bar's entries not on a button, under this button. */
+  more(entries: MenuEntry[], from: HTMLElement): void;
 }
 
 interface Button {
@@ -63,13 +72,12 @@ export class OutlineBar {
     element.setAttribute("role", "toolbar");
     element.setAttribute("aria-label", "The Outline's selection");
     element.setAttribute("aria-controls", "outline");
-    const make = (id: ToolbarId, label: string, act: () => void): Button => {
+    const make = (id: ToolbarId, act: () => void): Button => {
       const button = document.createElement("button");
       button.type = "button";
       button.className = "obar-button";
       button.id = `obar-${id}`;
       button.dataset.action = id;
-      button.setAttribute("aria-label", label);
       const why = Object.assign(document.createElement("span"), { id: `obar-why-${id}`, className: "visually-hidden" });
       button.setAttribute("aria-describedby", why.id);
       button.addEventListener("click", () => {
@@ -81,12 +89,15 @@ export class OutlineBar {
       return { id, element: button, why };
     };
     this.buttons = [
-      make("visibility", "Hidden on map", () => host.hideOrShow()),
-      make("colour", "Colour", () => this.openColour()),
-      make("select-all", "Select all", () => host.selectAll()),
-      make("select-children", "Select children", () => host.selectChildren()),
-      make("clear-selection", "Clear selection", () => host.clearSelection()),
+      make("visibility", () => host.hideOrShow()),
+      make("colour", () => this.openColour()),
+      make("select-all", () => host.selectAll()),
+      make("select-children", () => host.selectChildren()),
+      make("clear-selection", () => host.clearSelection()),
+      make("add-annotation", () => host.run("debrief.addAnnotation")),
+      make("more", () => host.more(this.overflow(), this.buttons.find((b) => b.id === "more")!.element)),
     ];
+    this.buttons.at(-1)!.element.setAttribute("aria-haspopup", "menu");
     const colour = this.buttons[1].element;
     colour.setAttribute("aria-haspopup", "dialog");
     colour.setAttribute("aria-expanded", "false");
@@ -109,9 +120,19 @@ export class OutlineBar {
     this.buttons.forEach((b, i) => (b.element.tabIndex = i === this.focusAt ? 0 : -1));
   }
 
+  /** The title bar's entries on no button: the overflow menu's (North arrow, Read sensor data, Export image). */
+  private overflow(): MenuEntry[] {
+    return this.host.state().title.filter((e) => !TOOLBAR_ACTIONS[e.id]);
+  }
+
   /** Show the selection as it is now: each button's icon, state, tooltip and whether it can act. */
   update(): void {
     const s = this.host.state();
+    // Each button named as the catalogue names its action (the one for the selection now, for the eye).
+    const named = (id: ToolbarId) => s.title.find((e) => TOOLBAR_ACTIONS[e.id] === id);
+    for (const b of this.buttons) b.element.setAttribute("aria-label", named(b.id)?.title ?? "More actions");
+    const add = named("add-annotation");
+    const clear = named("clear-selection")?.title ?? "";
     const set = (id: ToolbarId, title: string, enabled: boolean, iconName: string) => {
       const b = this.buttons.find((x) => x.id === id)!;
       b.element.title = title;
@@ -132,15 +153,20 @@ export class OutlineBar {
     set("colour", waiting(s.colour.title), s.colour.enabled && !s.waiting, "colour");
     set("select-all", s.all.reason ? `Select all: ${s.all.reason}` : `Select all: every row listed in the Outline (${s.all.count.toLocaleString("en-GB")}), as Ctrl+A in it`, !s.all.reason, "select-all");
     set("select-children", s.children.title, !s.children.reason, "select-children");
-    set("clear-selection", s.selected ? "Clear selection" : "Clear selection: nothing is selected.", s.selected > 0, "clear-selection");
+    set("clear-selection", s.selected ? clear : `${clear}: nothing is selected.`, s.selected > 0, "clear-selection");
+    set("add-annotation", add?.enabled ? add.title : `${add?.title ?? ""} ${add?.reason ?? ""}`.trim(), !!add?.enabled, "add");
+    set("more", "More actions: North arrow, read sensor data, export image", this.overflow().length > 0, "more");
     this.roving();
     if (this.popover && !(s.colour.enabled && !s.waiting)) this.closeColour(false);
   }
 
   // --- The colour popover --------------------------------------------------------------------
 
-  /** The palette's swatches and a custom colour, under the colour button; the keyboard on the swatch of the colour they share, or the first. */
-  private openColour(): void {
+  /**
+   * The palette's swatches and a custom colour, under the colour button (also from a row's Change
+   * colour…); the keyboard on the swatch of the colour they share, or the first.
+   */
+  openColour(): void {
     if (this.popover) return this.closeColour();
     const s = this.host.state();
     const button = this.buttons[1].element;

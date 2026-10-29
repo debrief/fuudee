@@ -9,6 +9,7 @@ import { existsSync, readFileSync } from "node:fs";
 import { execFileSync } from "node:child_process";
 import path from "node:path";
 import assert from "node:assert/strict";
+import { fromMenu, fromToolbar } from "./menus.mjs";
 import { chromium } from "playwright";
 import { playAnnotations } from "./annotations.mjs";
 import { playDrawing } from "./drawing.mjs";
@@ -73,8 +74,10 @@ try {
   await page.locator(`#outline li[data-id="track-red-one"]`).click();
   await ready();
   assert.deepEqual(await selected(), ["RED ONE"]);
-  assert.equal(await page.locator("#undo").isEnabled(), true);
   assert.match(await history(), /step 1/);
+  // The plot as imported: nothing to undo, so Undo is disabled and says why, as VS Code's is (PAR-08).
+  assert.equal(await page.locator("#undo").isDisabled(), true);
+  assert.equal(await page.locator("#undo").getAttribute("title"), "Undo last change to plot: There is nothing to undo.");
   await shot("play-01-ready");
   // The walkthroughs start open in the playground, as everywhere (product owner, 22 Oct 2026,
   // superseding 17 Oct's folded here): docked, alone on the right (product owner, 23 Oct 2026).
@@ -944,7 +947,7 @@ try {
     await annotated.locator("#timeline .tl-row[data-id]").first().waitFor();
     assert.ok((await annotated.locator("#timeline .tl-row[data-id]").count()) > 3, "the Timeline lists the sample's narrative");
     assert.equal(await annotated.locator("#panel-tools").isHidden(), true);
-    await annotated.locator("#add-annotation").click();
+    await fromToolbar(annotated, "Add annotation…");
     await annotated.frameLocator(".frame-annotation").getByRole("button", { name: "Add" }).waitFor();
     await post.locator(".debrief-demo").first().scrollIntoViewIfNeeded();
     await shot("annot-06-in-the-post", post);
@@ -991,7 +994,7 @@ try {
     await cleaning.locator("#open-try").click(); // Try, a menu in the top bar
     await cleaning.locator("#glitches").click();
     await cleaning.locator("#history li", { hasText: "GPS glitches put into RED ONE" }).waitFor();
-    await cleaning.locator("#find-jumps").click();
+    await fromMenu(cleaning, "track-red-one", "Find and remove jumps…");
     await cleaning.getByRole("button", { name: "Find" }).click();
     await cleaning.frameLocator(".frame-map").locator("path.fix-check").nth(2).waitFor();
     await post.locator(".debrief-demo").first().scrollIntoViewIfNeeded();
@@ -1003,7 +1006,7 @@ try {
     await fixing.locator("#status", { hasText: "Ready" }).waitFor({ timeout: 240000 });
     await fixing.locator(`#outline li[data-id="track-red-one"]`).click();
     await fixing.frameLocator(".frame-map").locator(".track-handle-end").waitFor();
-    await fixing.locator("#fix-list").click();
+    await fromMenu(fixing, "track-red-one", "Fixes: colour, label or comment…");
     await fixing.locator("#move-fix").waitFor();
     await post.locator(".debrief-demo").first().scrollIntoViewIfNeeded();
     await shot("fixdrag-06-in-the-post", post);

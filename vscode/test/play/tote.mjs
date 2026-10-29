@@ -108,28 +108,30 @@ export async function playTote(page, shot) {
   await page.waitForFunction(() => document.querySelector(".frame-map")?.contentDocument?.querySelectorAll("path.tote-map-line").length === 1);
   assert.equal(await steps(), before, "the map's lines are view state too");
 
-  // From the outline's menu: right-click Cargo 01 and add it.
+  // From the outline's menu: right-click Cargo 01 and add it. The track's menu, as VS Code's, ends
+  // with the Tote's entries: Add to Tote, as Cargo 01 is not in it (decision, product owner, 29 Oct 2026).
   await page.locator(`#outline li[data-id="track-ais-cargo-01"]`).click({ button: "right" });
   const menu = page.locator(".context-menu");
   await menu.waitFor();
-  assert.deepEqual(await menu.locator("button").allInnerTexts(), ["Set as Tote primary", "Add to Tote"]);
+  const toteItems = async () => (await menu.locator("button").allInnerTexts()).slice(-2);
+  assert.deepEqual(await toteItems(), ["Set as Tote primary", "Add to Tote"]);
   await shot("tote-outline-menu");
   await menu.getByRole("menuitem", { name: "Add to Tote" }).click();
   // Its first fix is a second after current time: it says so, rather than showing nothing.
   await why("Cargo 01").waitFor();
   assert.equal(await why("Cargo 01").innerText(), "Starts 08:00:01Z");
-  // From the keyboard: Shift+F10 on Cargo 04's row, the arrow key to Add to Tote, Enter.
+  // From the keyboard: Shift+F10 on Cargo 04's row, End to Add to Tote (the last), Enter.
   await page.locator(`#outline li[data-id="track-ais-cargo-04"]`).focus();
   await page.keyboard.press("Shift+F10");
   await menu.waitFor();
-  await page.keyboard.press("ArrowDown");
+  await page.keyboard.press("End");
   await page.keyboard.press("Enter");
   await column("Cargo 04").waitFor();
   assert.equal(await page.evaluate(() => document.activeElement?.dataset.id), "track-ais-cargo-04", "focus back on the row");
   // Escape closes the menu without choosing.
   await page.keyboard.press("Shift+F10");
   await menu.waitFor();
-  assert.deepEqual(await menu.locator("button").allInnerTexts(), ["Set as Tote primary", "Remove from Tote"]);
+  assert.deepEqual(await toteItems(), ["Set as Tote primary", "Remove from Tote"]);
   await page.keyboard.press("Escape");
   await menu.waitFor({ state: "detached" });
   // Press and hold on a touch screen: Tug 01's menu.

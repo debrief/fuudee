@@ -505,7 +505,6 @@ export async function playTma(page, shot) {
   assert.equal(await page.evaluate(() => window.debriefTma.chosen?.id), target.id, "its dot ringed");
   await page.waitForFunction((id) => document.querySelector(`#outline li[data-id="${id}"]`)?.getAttribute("aria-selected") === "true", target.id);
   assert.ok(await outlineRow(target.id).isVisible(), "selected in the Outline, in sight");
-  await page.locator("#sensor-group").waitFor(); // a cut selected: the Outline's sensor actions shown
   // A cut of the sensor's outside the solution, hidden on the map (Hide in the Tools): not drawn in the plot either.
   const coverageBefore = (await plot()).coverage;
   const outside = await page.evaluate(() => window.debriefTma.shown.coverage.at(-1).id);
@@ -609,12 +608,12 @@ export async function playTma(page, shot) {
   assert.match(await rms(), /over 60 cuts$/);
 
   // Right-click (product owner, 29 Oct 2026): a cut's row in the Outline and its dot in Bearings open
-  // the Tools' entries for it, Split before and after this cut among them; one chosen acts, one step.
+  // the cut's menu, as VS Code's (the action catalogue's), Split before and after this cut among them; one chosen acts, one step.
   const menuItems = () => page.locator(".context-menu [role=menuitem]").allInnerTexts();
   await outlineRow(second).click({ button: "right" });
   let items = await menuItems();
-  assert.ok(items.includes("Leave out of Contact 1 solution"), `the Outline's cut menu: ${items.join(" | ")}`);
-  assert.ok(items.some((t) => /^Split before this cut \(\d\d:\d\d:\d\dZ\)$/.test(t)), `split before this cut: ${items.join(" | ")}`);
+  assert.ok(items.includes("Leave out of the solution: selected cuts"), `the Outline's cut menu: ${items.join(" | ")}`);
+  assert.ok(items.includes("Split before this cut"), `split before this cut: ${items.join(" | ")}`);
   await page.keyboard.press("Escape");
   await page.locator(".context-menu").waitFor({ state: "detached" });
   await showPanel(page, "bearings");

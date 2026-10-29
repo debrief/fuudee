@@ -8,6 +8,7 @@
 // owner, 15 Oct 2026), from the fix list. The form fits a phone, and down to 210 px.
 import { resizeTo } from "./dock.mjs";
 import assert from "node:assert/strict";
+import { onSelection } from "./menus.mjs";
 
 export async function playFrequencies(page, shot) {
   const mapFrame = page.frameLocator(".frame-map");
@@ -78,7 +79,7 @@ export async function playFrequencies(page, shot) {
   // Frequencies…: what the two have now (labels and symbols off, arrows the default), then labels
   // every 10 min and arrows every 5 min, as one step for both.
   let n = await steps();
-  await page.locator("#track-frequencies").click();
+  await onSelection(page, "Frequencies: labels, symbols and arrows…");
   await dialog.waitFor();
   assert.equal(await dialog.locator("h2").innerText(), "Labels, symbols and arrows");
   assert.equal(await dialog.locator(".freq-tracks").innerText(), "BLUE ONE, RED ONE");
@@ -129,7 +130,7 @@ export async function playFrequencies(page, shot) {
   // symbols typed: "10" says what is missing, "90 s" what it means; then 1h30.
   await row("track-blue-one").click();
   n = await steps();
-  await page.locator("#track-frequencies").click();
+  await onSelection(page, "Frequencies: labels, symbols and arrows…");
   await dialog.waitFor();
   await chooser("label_interval").selectOption({ label: "Every 30 min" });
   await dialog.getByRole("button", { name: "Apply" }).click();
@@ -137,7 +138,7 @@ export async function playFrequencies(page, shot) {
   assert.equal(await latest(), "Labels every 30 min on BLUE ONE");
   await row("track-red-one").click({ modifiers: ["Control"] });
   n = await steps();
-  await page.locator("#track-frequencies").click();
+  await onSelection(page, "Frequencies: labels, symbols and arrows…");
   await dialog.waitFor();
   assert.equal(await chooser("label_interval").inputValue(), "mixed");
   assert.equal(await chooser("label_interval").locator("option:checked").innerText(), "Mixed (unchanged)");
@@ -173,7 +174,7 @@ export async function playFrequencies(page, shot) {
   await row("track-red-one").click();
   await mapFrame.getByRole("button", { name: "Zoom to the selection" }).click();
   await page.waitForTimeout(600);
-  await page.locator("#fix-list").click();
+  await onSelection(page, "Fixes: colour, label or comment…");
   const fix = page.locator(".fix-list li").nth(13); // 08:13: no label of the track's falls there
   await fix.scrollIntoViewIfNeeded();
   await fix.click();
@@ -215,7 +216,7 @@ export async function playFrequencies(page, shot) {
   // All: BLUE ONE's symbols at every fix (legacy Debrief's All; product owner, 15 Oct 2026). Arrows have no All.
   await row("track-blue-one").click();
   n = await steps();
-  await page.locator("#track-frequencies").click();
+  await onSelection(page, "Frequencies: labels, symbols and arrows…");
   await dialog.waitFor();
   assert.equal(await chooser("arrow_interval").locator("option[value='all']").count(), 0, "no All for arrows");
   await chooser("symbol_interval").selectOption({ label: "All (every fix)" });
@@ -230,8 +231,7 @@ export async function playFrequencies(page, shot) {
     await resizeTo(page, width, 844);
     await row("track-blue-one").click();
     await row("track-red-one").click({ modifiers: ["Control"] });
-    await page.locator("#track-frequencies").scrollIntoViewIfNeeded();
-    await page.locator("#track-frequencies").click();
+    await onSelection(page, "Frequencies: labels, symbols and arrows…");
     await dialog.waitFor();
     const box = await dialog.boundingBox();
     assert.ok(box.x >= 0 && box.x + box.width <= width, `the form fits ${width} px: ${Math.round(box.x)} + ${Math.round(box.width)}`);

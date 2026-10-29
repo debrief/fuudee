@@ -10,7 +10,7 @@ import * as vscode from "vscode";
 import { describePeriod } from "../format.js";
 import type { HistoryStep } from "../service.js";
 import { describeStep } from "../wording.js";
-import { historyRows, type Row } from "./historyrows.js";
+import { historyRows, undoRedo, type Row } from "./historyrows.js";
 
 type Node = { kind: "status"; text: string; icon: string } | Row;
 
@@ -40,14 +40,11 @@ export class HistoryProvider implements vscode.TreeDataProvider<Node> {
   }
 
   canUndo(): boolean {
-    if (this.shown !== undefined) return false; // read-only
-    const step = this.steps.find((s) => s.seq === this.current);
-    return !!step && this.steps.indexOf(step) > 0;
+    return undoRedo(this.steps, this.current, this.shown !== undefined).canUndo;
   }
 
   canRedo(): boolean {
-    if (this.shown !== undefined) return false; // read-only
-    return this.steps.some((s) => s.status === "undone");
+    return undoRedo(this.steps, this.current, this.shown !== undefined).canRedo;
   }
 
   /** The rows as listed, for tests and agents. */

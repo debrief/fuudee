@@ -46,12 +46,12 @@ import { TimeControl } from "../webview/timecontrol.js";
 import { ToteControl } from "../webview/totecontrol.js";
 import { TmaControl } from "../webview/tmacontrol.js";
 import { coverageOf, cutColours, cutRowsOf, FocusOnce, legExtent, ownshipOf, tmaSensorRows, tmaSolutionRows, type ListedCut } from "../webview/tma.js";
-import { latencySummary, sameTote, toteOf, ToteRequests, toteTracks, withoutSecondary, withPrimary, withSecondaries } from "../webview/totelogic.js";
+import { latencySummary, sameTote, toteMenu, toteOf, ToteRequests, toteTracks, withoutSecondary, withPrimary, withSecondaries } from "../webview/totelogic.js";
 import { PressHold } from "../webview/presshold.js";
 import { Folds } from "./fold.js";
 import { Dock, MAP_ID, type LayoutStorage } from "./dock.js";
 import { PANEL_TITLES, SIDE_FIRST } from "./panels.mjs";
-import { openMenu } from "./menu.js";
+import { openMenu, type MenuItem } from "./menu.js";
 import { formatBearing, formatPosition, parsePosition } from "@debrief/kernel";
 import { defaultPivotIndex, describeDistance, describeSpeed, describeTurn, FIX_PROMPT, FIX_PROMPT_DR, fixIndexAt, fixMeans, fixToEdit, jumpSpeed, legNow, mergedName, mergePlan, periodIndices, readArrayOffset, arrayOffsetTitle, readBearing, readDistance, readSpeed, readTurn, reckoningOf } from "../webview/trackedit.js";
 import { chooseModes, MODE_LABELS, modeChoices, modeQuestion, REMEMBER_LABEL, REMEMBERED_IN_PLAYGROUND, type PlottingMode } from "../src/importmode.js";
@@ -66,6 +66,8 @@ import { callEvent, counts, outlineTarget, TourPanel, tourOfEvent, type TourActi
 import { OutlineTree } from "./outline.js";
 import { fillOutlineRow } from "./outlinerow.js";
 import { filesOf, isBranch, OutlineModel, selectable, type OutlineNode, type OutlineRow } from "../webview/panels/outline.js";
+import { actionOf, entryOf, rowMenu, titleMenu, type Context } from "../webview/panels/actions.js";
+import { undoRedo } from "../src/views/historyrows.js";
 import type { TreeNode } from "../webview/outlinetree.js";
 import {
   bearingsFor,
@@ -843,7 +845,7 @@ function frequencyForm(tracks: NonNullable<ReturnType<typeof trackOf>>[]): Promi
     dialog.showModal();
   });
 }
-$("track-frequencies").onclick = async () => {
+async function setTrackFrequencies(): Promise<void> {
   const ids = tracksSelected();
   if (!ids.length) return toast("Select one or more tracks: Ctrl-click to add one.", "warning");
   const tracks = ids.map(trackOf).filter((t): t is NonNullable<ReturnType<typeof trackOf>> => !!t);
@@ -855,7 +857,7 @@ $("track-frequencies").onclick = async () => {
   if (outcome.error) toast(outcome.error, "warning");
   else status(describeChanges(changes, tracks.map((t) => t.properties.name)));
   await openPlot(opened.item.id, true);
-};
+}
 
 // --- Annotations: made, changed and deleted by hand, each a step (CAP-03 to CAP-05) ----
 /** What the annotation form shows: a new annotation (no featureId), or the one being changed. */
@@ -914,14 +916,14 @@ async function annotate(change: Record<string, unknown>): Promise<string | undef
   return undefined;
 }
 const hasNorthArrow = () => !!opened?.plot.features.some((f) => f.properties.kind === "annotation" && f.properties.furniture === "north_arrow");
-$("add-annotation").onclick = () => addAnnotation();
-$("edit-annotation").onclick = () => editAnnotation();
-$("delete-annotation").onclick = () => {
+function deleteAnnotations(): void {
   const ids = selectedAnnotations();
   if (!ids.length) return toast("Select the annotations to delete.", "warning");
   void annotate({ kind: "delete", features: ids }).then((problem) => problem && toast(problem, "warning"));
-};
-$("north-arrow").onclick = () => void annotate({ kind: "north_arrow", shown: !hasNorthArrow() }).then((problem) => problem && toast(problem, "warning"));
+}
+function toggleNorthArrow(): void {
+  void annotate({ kind: "north_arrow", shown: !hasNorthArrow() }).then((problem) => problem && toast(problem, "warning"));
+}
 
 // --- Tracks: moved, rotated, split and merged, each a step (CAP-01, CAP-02) -----------
 /** Move, rotate, split or merge tracks, as debrief/edit_track and the rest do; then show the plot, the new tracks selected. */
@@ -1095,7 +1097,7 @@ function extentField(track?: NonNullable<ReturnType<typeof trackOf>>): FormField
 }
 const windowPeriod = (extent: string, track?: NonNullable<ReturnType<typeof trackOf>>) => (extent === "window" && time ? time.range : extent === "leg" ? legOfTrack(track)?.period : undefined);
 
-$("move-track").onclick = async () => {
+async function moveTrack(): Promise<void> {
   const track = oneTrack("move");
   if (!track) return;
   const values = await trackForm(`Move ${track.properties.name}`, "Move", [
@@ -1108,8 +1110,8 @@ $("move-track").onclick = async () => {
   const edit = { action: "move", distance: readDistance(values.distance), bearing: { value: readBearing(values.bearing), unit: "deg" }, ...(period && { period }) };
   const problem = await changeTrack({ kind: "edit", feature: track.id, edit });
   if (problem) toast(problem, "warning");
-};
-$("rotate-track").onclick = async () => {
+}
+async function rotateTrack(): Promise<void> {
   const track = oneTrack("rotate");
   if (!track) return;
   const values = await trackForm(`Rotate ${track.properties.name}`, "Rotate", [
@@ -1135,7 +1137,7 @@ $("rotate-track").onclick = async () => {
   const edit = { action: "rotate", angle: { value: readTurn(values.angle), unit: "deg" }, pivot: track.geometry.coordinates[index], ...(period && { period }) };
   const problem = await changeTrack({ kind: "edit", feature: track.id, edit });
   if (problem) toast(problem, "warning");
-};
+}
 /** What the track, or its fixes in the time window, makes good now: as the form offers it when that is chosen. */
 function legChosen(track: NonNullable<ReturnType<typeof trackOf>>, extent: string): NonNullable<ReturnType<typeof legNow>> | undefined {
   const times = track.properties.times.map(Date.parse);
@@ -1176,7 +1178,7 @@ const courseField = (track: NonNullable<ReturnType<typeof trackOf>>) =>
   madeGood(track, "course", "Course made good, true", (t) => shown(readBearing(t), () => formatBearing({ value: readBearing(t) as number, unit: "deg" })));
 const speedField = (track: NonNullable<ReturnType<typeof trackOf>>, positive: boolean) =>
   madeGood(track, "speed", "Speed made good", (t) => shown(readSpeed(t, undefined, positive), () => describeSpeed(readSpeed(t) as { value: number; unit: string })));
-$("shear-track").onclick = async () => {
+async function shearTrack(): Promise<void> {
   const track = oneTrack("shear");
   const held = track && heldFields(track, "sheared");
   if (!track || !held) return;
@@ -1186,8 +1188,8 @@ $("shear-track").onclick = async () => {
   const edit = { action: "shear", anchor: values.anchor, course: { value: readBearing(values.course), unit: "deg" }, speed: readSpeed(values.speed), ...(period && { period }) };
   const problem = await changeTrack({ kind: "edit", feature: track.id, edit });
   if (problem) toast(problem, "warning");
-};
-$("stretch-track").onclick = async () => {
+}
+async function stretchTrack(): Promise<void> {
   const track = oneTrack("stretch");
   const held = track && heldFields(track, "stretched");
   if (!track || !held) return;
@@ -1197,8 +1199,8 @@ $("stretch-track").onclick = async () => {
   const edit = { action: "stretch", anchor: values.anchor, speed: readSpeed(values.speed, undefined, true), ...(period && { period }) };
   const problem = await changeTrack({ kind: "edit", feature: track.id, edit });
   if (problem) toast(problem, "warning");
-};
-$("plotting-mode").onclick = async () => {
+}
+async function plottingMode(): Promise<void> {
   const track = oneTrack("plot over the ground or by dead reckoning");
   if (!track) return;
   const name = track.properties.name;
@@ -1215,8 +1217,8 @@ $("plotting-mode").onclick = async () => {
   const confirmLoss = async (message: string) => !!(await trackForm(`Plot ${name} over the ground?`, "Plot over the ground", [], message));
   const problem = await changeTrack({ kind: "edit", feature: track.id, edit: { action: "set_plotting_mode", plotting_mode: values.mode } }, confirmLoss);
   if (problem) toast(problem, "warning");
-};
-$("split-track").onclick = async () => {
+}
+async function splitTrack(): Promise<void> {
   const track = oneTrack("split");
   if (!track || !time) return;
   const at = time.current;
@@ -1229,8 +1231,8 @@ $("split-track").onclick = async () => {
   if (!values) return;
   const problem = await changeTrack({ kind: "split", feature: track.id, at, names: [values.first.trim(), values.second.trim()] });
   if (problem) toast(problem, "warning");
-};
-$("merge-tracks").onclick = async () => {
+}
+async function mergeTracks(): Promise<void> {
   const ids = tracksSelected();
   if (ids.length < 2) return toast("Select two or more tracks to merge: Ctrl-click to add one.", "warning");
   // The name, offered as the earliest's (or the split track's, for its parts); and, before anything is lost, what would be.
@@ -1245,7 +1247,7 @@ $("merge-tracks").onclick = async () => {
   if (!values) return;
   const problem = await changeTrack({ kind: "merge", features: ids, name: values.name.trim() });
   if (problem) toast(problem, "warning");
-};
+}
 
 // --- Cleaning tracks: jumps, smoothing and marked fixes (CAP-01, EXT-14) -------------
 /** Find jumps or preview smoothing (nothing changes), or remove jumps, smooth or mark a fix (one step each), as the tool service does. */
@@ -1274,7 +1276,7 @@ const button = (text: string, primary = false) => Object.assign(document.createE
 
 // "Jumps…": the threshold, offered as the track's default; then the jumps found, ringed on the map and listed
 // beside it, all ticked; Remove takes out those still ticked, as one step. Nothing is ever removed unseen.
-$("find-jumps").onclick = async () => {
+async function findJumps(): Promise<void> {
   const track = oneTrack("find jumps in");
   if (!track) return;
   const name = track.properties.name;
@@ -1342,11 +1344,11 @@ $("find-jumps").onclick = async () => {
     // Only this panel: the next walkthrough step's button, in sight beside the map, may have opened another meanwhile.
     if ($("side-frame").contains(remove)) closeSide();
   };
-};
+}
 
 // "Smooth…": what to smooth and over how many fixes; then the track as smoothing would leave it, dashed on
 // the map, with how far fixes would move; Apply makes it one step.
-$("smooth-track").onclick = async () => {
+async function smoothTrack(): Promise<void> {
   const track = oneTrack("smooth");
   if (!track) return;
   const name = track.properties.name;
@@ -1388,15 +1390,15 @@ $("smooth-track").onclick = async () => {
     // Only this panel: the next walkthrough step's button, in sight beside the map, may have opened another meanwhile.
     if ($("side-frame").contains(apply)) closeSide();
   };
-};
+}
 
 // "Fixes…": the selected track's fixes, in time order; choose one (it is ringed on the map), then
 // colour, label or comment on it, each one step. A right-click on a fix on the map opens it here.
 const colourName = (colour: string) => FIX_COLOURS.find((c) => c.colour === colour)?.name.toLowerCase();
-$("fix-list").onclick = () => {
+function listFixes(): void {
   const track = oneTrack("list the fixes of");
   if (track) void openFixes(track.id);
-};
+}
 async function openFixes(trackId: string, time?: string): Promise<void> {
   const track = trackOf(trackId);
   if (!track) return;
@@ -1604,6 +1606,8 @@ async function saveNarrative(spec: NarrativeSpec, id?: string): Promise<void> {
 // --- History ----------------------------------------------------------------------
 async function move(how: "undo" | "redo" | "goto", step?: number): Promise<void> {
   if (!opened || !pythonReady) return;
+  // Nothing to undo or redo: nothing done (the buttons are disabled; a key does nothing, as in VS Code).
+  if (how !== "goto" && !playContext().context[`debrief.can${how === "undo" ? "Undo" : "Redo"}`]) return;
   const outcome = await pythonJson<{ error?: string }>("move", opened.item.id, how, step ?? null);
   if (outcome.error) return toast(outcome.error, "warning");
   closeResults(); // they describe a plot that is no longer current
@@ -1680,18 +1684,8 @@ const outlineTree = new OutlineTree<OutlineNode>($("outline"), {
     if (picks.length) void chooseInOutline(picks);
     else outlineTree.mark(outlinePicks);
   },
-  // Its menu: right-click, press and hold on a touch screen, or Shift+F10 (a track's: the
-  // Tote, CAP-06; a sensor's: keeping a side of its ambiguous cuts, CAP-22; a cut's or a
-  // position's: the Tools' entries for it, as VS Code's Outline menus, product owner, 29 Oct 2026).
-  menu: (key, x, y, element) => {
-    const f = features().find((g) => g.id === key);
-    if (f?.properties.kind === "track") trackMenu(key, x, y, element);
-    else if (f?.properties.kind === "sensor") sensorMenu(key, x, y, element);
-    else if (f?.properties.kind === "sensor_cut" || /#fix\d+$/.test(key)) {
-      // The row and the rest of the selection, if it is in it; else the row alone.
-      operationsMenu(outlinePicks.includes(key) ? outlinePicks : [key], x, y, element);
-    }
-  },
+  // Its menu: right-click, press and hold on a touch screen, or Shift+F10; the action catalogue's for the row (PAR-07).
+  menu: (key, x, y, element) => outlineRowMenu(key, x, y, element),
 });
 // The tree, and what a row says by key (the model's row, as fillOutlineRow draws it), for the tests.
 Object.assign(window, {
@@ -1749,6 +1743,7 @@ outlineBar = new OutlineBar(
         children: { count: children.keys.length, title: children.title, ...(children.reason && { reason: children.reason }) },
         selected: picks.length,
         ...(!pythonReady && { waiting: "(Python is starting.)" }),
+        title: ((c) => titleMenu("debrief.outline", c.context, c.reasons))(playContext()),
       };
     },
     hideOrShow: () => void hideOrShowSelected(),
@@ -1757,6 +1752,20 @@ outlineBar = new OutlineBar(
     selectAll: () => void chooseInOutline(outlineListed()),
     selectChildren: () => void selectChildrenOfSelection(),
     clearSelection: () => void chooseInOutline([]),
+    run: (id) => void runAction(id),
+    more: (entries, from) => {
+      const box = from.getBoundingClientRect();
+      openMenu(
+        entries.map((e, i) => ({
+          label: e.title,
+          groupStart: i > 0 && e.group !== entries[i - 1].group,
+          ...(!e.enabled && { disabled: e.reason }),
+          ...(e.checked !== undefined && { checked: e.checked }),
+          act: () => void runAction(e.id),
+        })),
+        { label: "The Outline: more actions", x: box.left, y: box.bottom, from },
+      );
+    },
   },
   TRACK_COLOURS,
 );
@@ -1783,10 +1792,6 @@ async function chooseInOutline(keys: string[]): Promise<void> {
 }
 
 function renderOutline(reveal = false): void {
-  const entries = opened ? sensorsOf(opened.plot) : [];
-  // What can be done to a sensor, below the list as for a track: shown while a sensor or a cut is selected.
-  const sensorChosen = new Set([...entries.map((e) => e.sensor.id), ...entries.flatMap((e) => e.cuts.map((c) => c.id))]);
-  $("sensor-group").hidden = !selection.some((id) => sensorChosen.has(id));
   if (opened && opened.item.id !== outlineItem) {
     outlineItem = opened.item.id;
     outlineTree.open.clear();
@@ -1805,7 +1810,6 @@ function renderOutline(reveal = false): void {
     const last = outlinePicks[outlinePicks.length - 1];
     outlineTree.select(outlinePicks, last ? model.ancestors(last) : []);
   } else outlineTree.mark(outlinePicks);
-  $("north-arrow").setAttribute("aria-pressed", String(hasNorthArrow()));
   // The hint line is gone (product owner, 28 Oct 2026; the walkthroughs teach the gestures): the
   // selection's count said to a screen reader, only when it changes; the toolbar shows the selection.
   const said = selectionSaid(opened ? outlineIndex(opened.plot) : undefined, outlinePicked());
@@ -1813,27 +1817,7 @@ function renderOutline(reveal = false): void {
   outlineBar?.update();
 }
 
-// --- The outline's menu for a track (the Tote, CAP-06) ----------------------------------
-/** What can be done to a track from the outline: put it in the Tote, as the primary or a secondary, or take it out (menu.ts). */
-function trackMenu(id: string, x: number, y: number, from: HTMLElement): void {
-  const tote = toteChoice();
-  const items: [string, () => ToteView][] = [];
-  if (tote.primary !== id) items.push(["Set as Tote primary", () => withPrimary(toteChoice(), id)]);
-  if (tote.primary === id || tote.secondaries?.includes(id)) {
-    items.push(["Remove from Tote", () => (toteChoice().primary === id ? withPrimary(toteChoice(), undefined) : withoutSecondary(toteChoice(), id))]);
-  } else items.push(["Add to Tote", () => withSecondaries(toteChoice(), [id])]);
-  openMenu(
-    items.map(([label, change]) => ({
-      label,
-      act: () => {
-        from.focus();
-        showPanel(totePanel.id);
-        void chooseTote(change());
-      },
-    })),
-    { label: `${featureNameOf(id)}: Tote`, x, y, from },
-  );
-}
+// --- The outline's press and hold ------------------------------------------------------------
 // Press and hold a track in the outline on a touch screen: its menu, as a right-click (presshold.ts).
 const outlineHold = new PressHold((x, y) =>
   document.elementFromPoint(x, y)?.closest("#outline li")?.dispatchEvent(new MouseEvent("contextmenu", { bubbles: true, cancelable: true, clientX: x, clientY: y })),
@@ -1921,7 +1905,7 @@ const tmaControl = new TmaControl(
       const i = s ? s.times.indexOf(Date.parse(at)) : -1;
       const key = i >= 0 ? fixKey(id, i) : id;
       const choose = { label: i >= 0 ? "Select this position" : "Select this cut", act: () => selectFromBearings(id, at) };
-      operationsMenu([key], x ?? 0, y ?? 0, $("bearings").querySelector<HTMLElement>(".tma-canvas") ?? undefined, choose);
+      outlineRowMenu(key, x ?? 0, y ?? 0, $("bearings").querySelector<HTMLElement>(".tma-canvas") ?? undefined, choose, [key]);
     },
     cutOff: (degrees) => {
       errorCutOff = degrees;
@@ -2163,31 +2147,150 @@ async function runOperation(id: OperationId, keys?: readonly string[]): Promise<
   showPanel("panel-bearings");
   await refreshBearings();
 }
+// --- The Outline's menus and toolbar, from the action catalogue (PAR-07) --------------------------
 /**
- * The Tools' entries for some rows as a menu (product owner, 29 Oct 2026): a cut's or a position's
- * in the Outline, a dot's in Bearings (select, there, choosing it as a click does). Those that
- * cannot act stay in it, saying why when chosen, as VS Code's menus do.
+ * The context keys VS Code sets, as the playground has them now, for the catalogue's when clauses and
+ * enablement; and what the playground can say where one does not hold (Python starting, the
+ * selection's own reasons), for these rows (the Outline's selection by default).
  */
-function operationsMenu(keys: readonly string[], x: number, y: number, from?: HTMLElement, select?: { label: string; act: () => void }): void {
-  const ops = operations(keys);
-  if (!ops.length && !select) return;
-  const one = opened && keys.length === 1 ? pickOf(outlineIndex(opened.plot), keys[0]) : undefined;
-  const label = one?.kind === "cut" ? "Cut" : one?.kind === "fix" ? "Position" : `${keys.length} rows`;
-  openMenu(
-    [
-      ...ops.map((op) => ({
-        label: op.label,
-        ...(!op.enabled && { disabled: op.reason ?? "That cannot be done here." }),
-        act: () => {
-          from?.focus();
-          if (op.enabled) void runOperation(op.id, keys);
-          else toast(op.reason ?? "That cannot be done here.", "warning");
-        },
-      })),
-      ...(select ? [select] : []),
-    ],
-    { label: `${label}: what to do`, x, y, from },
-  );
+function playContext(keys: readonly string[] = outlinePicks): { context: Context; reasons: Record<string, string> } {
+  const index = opened ? outlineIndex(opened.plot) : undefined;
+  const picks = index ? keys.map((k) => pickOf(index, k)).filter((p): p is OutlinePick => !!p) : [];
+  const readOnly = !!opened?.revision;
+  const visibility = index ? selectionVisibility(index, picks, readOnly) : undefined;
+  const colour = index ? selectionColour(index, picks, readOnly) : undefined;
+  const children = index ? selectionChildren(index, picks) : undefined;
+  const history = undoRedo(opened?.steps ?? [], opened?.base.current ?? 0, readOnly);
+  const tote = toteMenu(toteChoice(), featureIdsOfPicks(picks).filter((id) => !!trackOf(id)));
+  const reasons: Record<string, string> = {};
+  // The playground's own state (§5): the plot is shown, but nothing can change it until Python is ready.
+  if (opened && !pythonReady) for (const key of ["debrief.plotOpen", "debrief.canUndo", "debrief.canRedo"]) reasons[key] = "Python is starting.";
+  if (colour?.reason) reasons["debrief.selectionColourable"] = colour.reason;
+  if (children?.reason) reasons["debrief.selectionHasChildren"] = children.reason;
+  if (tote.primaryReason) reasons["debrief.toteCanSetPrimary"] = tote.primaryReason;
+  const context: Context = {
+    "debrief.plotOpen": !!opened && pythonReady,
+    "debrief.selectionVisibility": visibility?.state ?? "none",
+    "debrief.selectionColourable": !!colour?.enabled,
+    "debrief.selectionHasChildren": !!children && !children.reason,
+    "debrief.canUndo": history.canUndo && pythonReady,
+    "debrief.canRedo": history.canRedo && pythonReady,
+    "debrief.revisionShown": readOnly,
+    "debrief.northArrow": hasNorthArrow(),
+    "debrief.toteCanAdd": tote.canAdd,
+    "debrief.toteCanRemove": tote.canRemove,
+    "debrief.toteCanSetPrimary": !tote.primaryReason,
+  };
+  return { context, reasons };
+}
+
+type Where = { x: number; y: number; from?: HTMLElement };
+/** The Tote changed for the tracks among these rows, the Tote brought into view. */
+function changeTote(keys: readonly string[], change: (tote: ToteView, tracks: string[]) => ToteView): void {
+  const tracks = keys.filter((k) => !!trackOf(k));
+  showPanel(totePanel.id);
+  void chooseTote(change(toteChoice(), tracks));
+}
+/**
+ * What each catalogued action does in the playground, on the rows it was chosen on: those rows are
+ * the selection by then. An action that runs an Outline operation (a cut's or a position's) needs no
+ * entry here: it runs that operation on its rows.
+ */
+const PLAY_ACTIONS: Record<string, (keys: string[], at: Where) => unknown> = {
+  "debrief.setColour": () => outlineBar?.openColour(),
+  "debrief.hide": (keys) => restyle(keys.filter((k) => features().some((f) => f.id === k)), { hidden: true }),
+  "debrief.show": (keys) => restyle(keys.filter((k) => features().some((f) => f.id === k)), { hidden: false }),
+  "debrief.setTrackFrequencies": () => setTrackFrequencies(),
+  "debrief.editAnnotation": (keys) => editAnnotation(keys[0]),
+  "debrief.deleteAnnotation": () => deleteAnnotations(),
+  "debrief.moveTrack": () => moveTrack(),
+  "debrief.rotateTrack": () => rotateTrack(),
+  "debrief.shearTrack": () => shearTrack(),
+  "debrief.stretchTrack": () => stretchTrack(),
+  "debrief.splitTrack": () => splitTrack(),
+  "debrief.mergeTracks": () => mergeTracks(),
+  "debrief.removeJumps": () => findJumps(),
+  "debrief.smoothTrack": () => smoothTrack(),
+  // The fixes listed, to colour, label, comment on or move one.
+  "debrief.markFix": () => listFixes(),
+  "debrief.moveFix": () => listFixes(),
+  "debrief.plottingMode": () => plottingMode(),
+  "debrief.tote.setPrimary": (keys) => changeTote(keys, (tote, tracks) => withPrimary(tote, tracks[0])),
+  "debrief.tote.add": (keys) => changeTote(keys, (tote, tracks) => withSecondaries(tote, tracks)),
+  "debrief.tote.remove": (keys) => changeTote(keys, (tote, tracks) => tracks.reduce((t, id) => (t.primary === id ? withPrimary(t, undefined) : withoutSecondary(t, id)), tote)),
+  // Which side to keep, then which cuts (the cut at current time, the window, those selected, or all).
+  "debrief.resolveAmbiguity": (keys, at) =>
+    openMenu(
+      KEEP_CHOICES.map((c) => ({ label: `${c.label}…`, act: () => chooseCuts(c.keep, at.from ?? $("outline"), at.x, at.y, keys) })),
+      { label: "Ambiguous bearings: keep", x: at.x, y: at.y, from: at.from },
+    ),
+  "debrief.currentCut": (keys) => currentCutMenu(keys[0]),
+  "debrief.setArrayOffset": (keys) => arrayOffsetForm(keys[0]),
+  "debrief.showBearings": () => showPanel("panel-bearings"),
+  "debrief.tmaSplitLeg": async (keys) => {
+    if (!time) return toast("Set current time first: the solution is split into legs there.", "warning");
+    const outcome = await changeTma({ kind: "split", feature: keys[0], at: time.current });
+    if (outcome.error) toast(outcome.error, "warning");
+  },
+  // The Outline's toolbar and its overflow menu.
+  "debrief.selectionHide": () => hideOrShowSelected(),
+  "debrief.selectionShow": () => hideOrShowSelected(),
+  "debrief.selectionShowAll": () => hideOrShowSelected(),
+  "debrief.colourSelection": () => outlineBar?.openColour(),
+  "debrief.selectAll": () => chooseInOutline(outlineListed()),
+  "debrief.selectChildren": () => selectChildrenOfSelection(),
+  "debrief.clearSelection": () => chooseInOutline([]),
+  "debrief.addAnnotation": () => addAnnotation(),
+  "debrief.toggleNorthArrow": () => toggleNorthArrow(),
+  "debrief.importSensor": () => $("sensor-file").click(),
+  "debrief.exportImage": () => $("open-export").click(),
+};
+
+/** The actions that act on the rows given, leaving the selection as it is, as VS Code's do. */
+const ON_ROWS = new Set(["debrief.hide", "debrief.show", "debrief.editAnnotation", "debrief.tote.setPrimary", "debrief.tote.add", "debrief.tote.remove", "debrief.resolveAmbiguity", "debrief.currentCut", "debrief.setArrayOffset", "debrief.tmaSplitLeg"]);
+
+/**
+ * Run a catalogued action on these rows (a row's menu: the row and the rest of the selection if it
+ * is in it), or the selection (a toolbar's). One that cannot run says why, in the catalogue's words,
+ * as VS Code refuses it (PAR-08).
+ */
+async function runAction(id: string, keys: string[] = outlinePicks, at: Where = { x: 0, y: 0 }): Promise<void> {
+  const action = actionOf(id);
+  const { context, reasons } = playContext(keys);
+  const entry = entryOf(action, undefined, context, reasons);
+  if (!entry.enabled) return toast(entry.reason!, "warning");
+  if (action.operation) return runOperation(action.operation as OperationId, keys);
+  const run = PLAY_ACTIONS[id];
+  if (!run) return toast(`${action.title.replace(/…$/, "")}: not in the playground yet.`, "warning");
+  // Those that work on the selection (the track edits, the fix list) act on these rows selected first.
+  if (!ON_ROWS.has(id) && keys.join() !== outlinePicks.join()) await chooseInOutline(keys);
+  await run(keys, at);
+}
+
+/**
+ * A row's context menu (right-click, press and hold, Shift+F10 or the menu key), as VS Code's: the
+ * action catalogue's entries for its menu context, in its groups and order, each disabled with its
+ * reason where it cannot run (PAR-07, PAR-08); and, from Bearings, choosing the row there too.
+ */
+function outlineRowMenu(key: string, x: number, y: number, from?: HTMLElement, also?: MenuItem, rows?: string[]): void {
+  const node = outlineNow().node(key);
+  if (!node) return;
+  const keys = rows ?? (outlinePicks.includes(key) ? [...outlinePicks] : [key]);
+  const row = outlineRow(node);
+  const { context, reasons } = playContext(keys);
+  const entries = rowMenu("debrief.outline", row.menu, context, reasons);
+  if (!entries.length && !also) return;
+  const items: MenuItem[] = entries.map((e, i) => ({
+    label: e.title,
+    groupStart: i > 0 && e.group !== entries[i - 1].group,
+    ...(!e.enabled && { disabled: e.reason }),
+    act: () => {
+      from?.focus();
+      void runAction(e.id, keys, { x, y, from });
+    },
+  }));
+  if (also) items.push({ ...also, groupStart: items.length > 0 });
+  openMenu(items, { label: `${row.label}: actions`, x, y, from });
 }
 /** The Tools' entries in the Tools panel, above the Python tools: a button each, or why not beside it. */
 function operationRows(): HTMLElement[] {
@@ -2273,16 +2376,6 @@ async function resolveSensor(resolution: ReturnType<typeof resolutionFor>): Prom
   if (outcome.notes?.length) toast(outcome.notes.join(" "));
 }
 /** A sensor's menu in the Outline: keep port or starboard bearings, or make its cuts ambiguous again; then which cuts. */
-function sensorMenu(id: string, x: number, y: number, from: HTMLElement): void {
-  openMenu(
-    [
-      ...KEEP_CHOICES.map((c) => ({ label: `${c.label}…`, act: () => chooseCuts(c.keep, from, x, y, [id]) })),
-      { label: "Cut at current time…", act: () => void currentCutMenu(id) },
-      { label: "Towed array offset…", act: () => void arrayOffsetForm(id) },
-    ],
-    { label: `${featureNameOf(id)}: ambiguous bearings`, x, y, from },
-  );
-}
 /**
  * A towed array's offset astern of the ship, and how it follows (product owner, 24 Oct
  * 2026), as debrief/set_array_offset: typed in the analyst's length unit, 0 for at the
@@ -2330,12 +2423,6 @@ async function currentCutMenu(id: string): Promise<void> {
   const now = entry && time ? cutNow(entry, Date.parse(time.current), { start: Date.parse(time.range.start), end: Date.parse(time.range.end) }) : undefined;
   if (!entry || !now) return toast(`${featureNameOf(id)} has no cut at or before current time in the time window.`, "warning");
   await cutMenu(now.id);
-}
-for (const [button, keep] of [["keep-port", "port"], ["keep-starboard", "starboard"], ["keep-ambiguous", "ambiguous"]] as const) {
-  $(button).onclick = () => {
-    const box = $(button).getBoundingClientRect();
-    chooseCuts(keep, $(button), box.left, box.bottom);
-  };
 }
 /** A cut's menu (right-click, or press and hold, on one of its lines on the map): keep either bearing, make it ambiguous again, or select it. */
 async function cutMenu(id: string): Promise<void> {
@@ -2416,6 +2503,14 @@ function renderTools(): void {
 
 function renderHistory(): void {
   const steps = opened?.steps ?? [];
+  // Undo and Redo disabled, with the catalogue's reason, when they cannot act (PAR-08), as VS Code's are.
+  const { context, reasons } = playContext();
+  for (const id of ["undo", "redo"] as const) {
+    const entry = entryOf(actionOf(`debrief.${id}`), undefined, context, reasons);
+    const button = $<HTMLButtonElement>(id);
+    button.disabled = !entry.enabled;
+    button.title = entry.enabled ? entry.title : `${entry.title}: ${entry.reason}`;
+  }
   const title = (name: string) => tools.find((t) => t.name === name)?.title;
   $("history").replaceChildren(
     ...[...steps].reverse().map((step) => {
@@ -2815,11 +2910,12 @@ $("catalogue-import").hidden = !panels.has("import");
 const SIDE_ORDER = [...SIDE_FIRST, ...panelOrder.map((p) => `panel-${p}`).filter((id) => !SIDE_FIRST.includes(id) && optional(id)?.matches("#side > section.panel"))];
 for (const id of SIDE_ORDER) $("side").append($(id));
 /** History, Try and Import need Python: off until it is ready. */
-const NEEDS_PYTHON = ["export-image", "find-file", "find-id", "find-id-go", "new-data", "revise", "undo", "redo", "track-frequencies", "move-track", "rotate-track", "shear-track", "stretch-track", "split-track", "merge-tracks", "find-jumps", "smooth-track", "fix-list", "plotting-mode", "ask-again", "glitches", "crash", "colleague", "colleague-window", "colleague-during", "file", "narrative-file", "sensor-file", "keep-port", "keep-starboard", "keep-ambiguous", "add-annotation", "edit-annotation", "delete-annotation", "north-arrow"];
+const NEEDS_PYTHON = ["export-image", "find-file", "find-id", "find-id-go", "new-data", "revise", "ask-again", "glitches", "crash", "colleague", "colleague-window", "colleague-during", "file", "narrative-file", "sensor-file"];
 function needsPython(on: boolean): void {
   for (const id of NEEDS_PYTHON) $<HTMLButtonElement | HTMLInputElement>(id).disabled = !on;
 }
 needsPython(false);
+renderHistory(); // Undo and Redo disabled, saying why, until Python is ready and there is a step to take back
 
 // --- The layout (product owner, 23 Oct 2026) ---------------------------------------
 // 900 px wide and more (and 480 high), the panels are docked around the map in tab groups,
@@ -3509,6 +3605,7 @@ async function tourAct(actions: TourAction[]): Promise<void> {
     if (action.verb === "open") await openTourCopy(action.target);
     else if (action.verb === "focus") reveal(action.target, false);
     else if (action.verb === "click") reveal(action.target, true);
+    else if (action.verb === "run") await runAction(action.target);
     else if (action.verb === "select") await select(action.target.split(",").filter((id) => features().some((f) => f.id === id)));
     else if (action.verb === "import-log") await importTourLog();
     else if (action.verb === "outline") {
@@ -3613,6 +3710,7 @@ function withoutPython(why: string): void {
     await showImportMode();
     needsPython(true);
     outlineBar?.update();
+    renderHistory();
     status("Ready. Everything runs in your browser; nothing is sent anywhere.");
   } catch (error) {
     const message = (error as Error).message;

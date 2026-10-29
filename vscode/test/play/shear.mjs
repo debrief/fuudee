@@ -4,6 +4,7 @@
 // Escape puts a drag back; the same from the keyboard, a run of presses one step; the Shear…
 // and Stretch… forms; and undo.
 import assert from "node:assert/strict";
+import { onSelection } from "./menus.mjs";
 
 export async function playShear(page, shot) {
   const mapFrame = page.frameLocator(".frame-map");
@@ -158,7 +159,7 @@ export async function playShear(page, shot) {
   await button("Whole track").click();
   const dialog = page.locator("dialog.track-form");
   n = await steps();
-  await page.locator("#shear-track").click();
+  await onSelection(page, "Shear track…");
   await dialog.waitFor();
   const offered = async () => [await page.locator("#track-form-course").inputValue(), await page.locator("#track-form-speed").inputValue()];
   const [wholeCourse, wholeSpeed] = await offered();
@@ -185,7 +186,7 @@ export async function playShear(page, shot) {
   assert.equal(await latest(), "RED ONE sheared: 200.0°T 6.0 kn");
   // The Stretch… form: holding the start, 8 kn on the same course.
   n = await steps();
-  await page.locator("#stretch-track").click();
+  await onSelection(page, "Stretch track…");
   await dialog.waitFor();
   await page.locator("#track-form-anchor").selectOption("start");
   await page.locator("#track-form-speed").fill("8 kn");
