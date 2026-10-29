@@ -838,7 +838,7 @@ export async function playTma(page, shot) {
   await outlineRow(towedCuts[9]).click({ modifiers: ["Shift"] });
   await page.waitForFunction(() => window.debriefSelection().picks.length === 10);
   assert.equal(await page.locator("#outline li.cut[aria-selected='true']").count(), 10);
-  assert.match(await outlineRow(towedCuts[0]).locator(".detail").innerText(), /^≈ \d{3}\.\d° (port|stbd) \/ \d{3}\.\d° (port|stbd)$/);
+  assert.match(await outlineRow(towedCuts[0]).locator(".detail").innerText(), /^selected · ≈ \d{3}\.\d° (port|stbd) \/ \d{3}\.\d° (port|stbd)$/);
   await picture("outline-03-sensor-cuts-selected");
   await showPanel(page, "tools");
   await picture("tools-02-entries-for-cuts");
