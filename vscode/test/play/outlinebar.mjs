@@ -87,11 +87,11 @@ export async function playOutlineBar(page, shot) {
   await page.keyboard.press("ArrowRight");
   assert.equal(await focused(), "colour");
   await page.keyboard.press("End");
-  assert.equal(await focused(), "clear-selection");
+  assert.equal(await focused(), "more", "End: the last, the ⋯ menu");
   await page.keyboard.press("ArrowRight");
   assert.equal(await focused(), "visibility", "wraps");
   await page.keyboard.press("ArrowLeft");
-  assert.equal(await focused(), "clear-selection");
+  assert.equal(await focused(), "more");
   await page.keyboard.press("Home");
   await page.keyboard.press("ArrowRight");
   await page.keyboard.press("ArrowRight");
