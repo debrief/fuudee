@@ -49,6 +49,8 @@ export interface BearingsAct {
   resolveCuts(resolution: AmbiguityResolution): Promise<string | undefined>;
   /** A dot clicked: its cut, or the solution at its fix (index), selected in the Outline and on the map. */
   select(featureId: string, fix?: number): void;
+  /** A dot right-clicked: the Outline's menu for its cut, or the solution at its fix (index); choose selects it, as a click does. */
+  menu(featureId: string, fix: number | undefined, choose: () => void): void;
   /** The analyst's error cut-off, degrees: kept in their Debrief configuration. */
   cutOff(degrees: number): void;
   /** The analyst's error cut-off, as their configuration holds it. */
@@ -233,14 +235,21 @@ export class BearingsView {
       await this.act.resolve(message.feature_id!, message.keep!);
     } else if (message.kind === "tma_resolve" && message.resolution) {
       await this.act.resolveCuts(message.resolution);
-    } else if (message.kind === "tma_select") {
+    } else if (message.kind === "tma_select" || message.kind === "tma_menu") {
       // A dot clicked: its cut, or the solution at a fix (that position, in the Outline), selected; current time to it.
+      // Right-clicked: the Outline's menu for it (product owner, 29 Oct 2026), selecting it one of its entries.
       const id = message.feature_id!;
+      const at = message.current_time!;
       const plot = this.session.current?.plot;
       const s = plot && id === this.solutionShown ? outlineIndex(plot).solutions.get(id) : undefined;
-      const fix = s ? s.times.indexOf(Date.parse(message.current_time!)) : -1;
-      this.timeTo(message.current_time!);
-      this.act.select(id, fix >= 0 ? fix : undefined);
+      const index = s ? s.times.indexOf(Date.parse(at)) : -1;
+      const fix = index >= 0 ? index : undefined;
+      const choose = () => {
+        this.timeTo(at);
+        this.act.select(id, fix);
+      };
+      if (message.kind === "tma_menu") this.act.menu(id, fix, choose);
+      else choose();
     } else if (message.kind === "tma_cut_off") {
       this.act.cutOff(message.error_cut_off!);
     } else if (message.kind === "tma_plot_drawn") {

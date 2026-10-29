@@ -88,6 +88,7 @@ import {
   pickedCuts,
   pickOf,
   type SolutionIndex,
+  splitPlace,
   tmaRequestOf,
 } from "../webview/outlinemodel.js";
 import { selectionChildren, selectionColour, selectionSaid, selectionVisibility } from "../webview/outlinetoolbar.js";
@@ -2189,9 +2190,12 @@ async function runOperation(id: OperationId): Promise<void> {
   const cuts = pickedCuts(picks);
   const ids = cuts.map((c) => c.id);
   if (id === "split-before" || id === "split-after") {
-    const fix = picks.find((p): p is Extract<OutlinePick, { kind: "fix" }> => p.kind === "fix")!;
-    const at = new Date(index.solutions.get(fix.solution)!.times[fix.index]).toISOString();
-    await changeTma({ kind: "split", feature: fix.solution, at, side: id === "split-before" ? "before" : "after" });
+    // A position of the solution, or a cut: the solution's position at its time.
+    const side = id === "split-before" ? "before" : "after";
+    const place = splitPlace(context, side);
+    if (typeof place === "string") return toast(place, "warning");
+    const at = new Date(index.solutions.get(place.solution)!.times[place.index]).toISOString();
+    await changeTma({ kind: "split", feature: place.solution, at, side });
     return;
   }
   if (id === "hide-cuts" || id === "show-cuts") return restyle(ids, { hidden: id === "hide-cuts" });

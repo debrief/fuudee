@@ -131,6 +131,8 @@ export interface TmaControlHost {
   resolveCuts(resolution: AmbiguityResolution): void;
   /** Select a cut, or the solution at one of its fixes, and move current time to it: a dot clicked (tma_select). */
   select(featureId: string, time: string): void;
+  /** The Outline's menu for a cut, or the solution at one of its fixes: a dot right-clicked (tma_menu). */
+  menu?(featureId: string, time: string): void;
   /** Remember the analyst's error cut-off, degrees, in their Debrief configuration (tma_cut_off). */
   cutOff(degrees: number): void;
   /** The plot as drawn, CSS pixels: its height and each pane's width, when either changes (tma_plot_drawn). */
@@ -289,6 +291,7 @@ export class TmaControl {
     this.canvas.addEventListener("pointercancel", () => this.pointerGone());
     this.canvas.addEventListener("pointerleave", () => !this.box && this.pointerGone());
     this.canvas.addEventListener("dblclick", () => this.resetZoom());
+    this.canvas.addEventListener("contextmenu", (e) => this.menuAt(e));
     this.canvas.addEventListener("keydown", (e) => this.plotKey(e));
     this.canvas.addEventListener("focus", () => this.sayActive());
     this.canvas.addEventListener("blur", () => this.pointerGone());
@@ -804,7 +807,7 @@ export class TmaControl {
 
   // --- The plot: legacy's Bearing Residuals (Stacked Dots), as legacy laid it out ------------
 
-  /** What the controls take above the plot, measured when last they were there. */
+  /** What the controls take above the plot, measured there. */
   private chromeAbove = 0;
 
   /**
@@ -814,17 +817,17 @@ export class TmaControl {
    */
   private placeControls(bound: HTMLElement | null): void {
     const element = this.element;
-    const left = element.querySelector<HTMLElement>(".tma-left");
-    const beside = !!left && getComputedStyle(left).display === "grid";
-    if (!beside && this.plot.clientHeight > 0) {
-      // On top now: what is not the plot, measured.
-      this.chromeAbove = Math.max(0, element.scrollHeight - this.plot.clientHeight);
-    }
+    const side = element.classList.contains("tma-side");
+    // What the controls take on top, measured on top at every resize: laid out so for the reading
+    // only, nothing painted between. Measured only while on top, a size it last had (a window
+    // opening tiny, everything wrapped) kept them beside at any size (product owner, 29 Oct 2026).
+    if (side) element.classList.remove("tma-side");
+    if (this.plot.clientHeight > 0) this.chromeAbove = Math.max(0, element.scrollHeight - this.plot.clientHeight);
     // The height the view has: the window's in VS Code (the page's own height grows with what
     // overflows it, so never that), the docked panel's in the playground; from the view's top.
     const bottom = !bound ? 0 : bound === document.documentElement ? window.innerHeight : bound.getBoundingClientRect().bottom;
     const available = bottom - element.getBoundingClientRect().top;
-    element.classList.toggle("tma-side", !!bound && controlsBeside(element.classList.contains("tma-side"), available, this.chromeAbove));
+    element.classList.toggle("tma-side", !!bound && controlsBeside(side, available, this.chromeAbove));
   }
 
   /** The coverage drawn beside the rows, its times, and the whole span plotted: once per view, never per frame. */
@@ -1712,8 +1715,45 @@ export class TmaControl {
    */
   private pick(pane: Pane, x: number, y: number, single: boolean): void {
     const d = this.drawn_;
+    if (!d || this.mode() === "none" || !single) return;
+    const item = this.dotAt(pane, x, y);
+    if (!item) {
+      // No dot near: current time to the time pointed at, as a click on the plot did before.
+      const t = yToTime(y, d.span, d.top, d.height);
+      const index = nearestRow(this.rows(), t);
+      if (index >= 0) this.setActive(index);
+      this.host.time(new Date(t).toISOString());
+      return;
+    }
+    if (item.row !== undefined) this.setActive(item.row);
+    if (item.id) this.host.select(item.id, item.time);
+    const isFix = item.id === this.view?.solution_id;
+    this.say(isFix ? `${this.solutionRow()?.name ?? "The solution"}'s fix at ${formatTime(Date.parse(item.time), this.settings)} selected.` : `Cut at ${formatTime(Date.parse(item.time), this.settings)} selected.`);
+  }
+
+  /**
+   * A right-click on the plot (product owner, 29 Oct 2026): the nearest dot's menu, the Outline's
+   * for its cut or the solution's fix there (split before or after it, leave it out, keep a side,
+   * hide, select…), the dot ringed. Nothing near: the browser's own menu, as before.
+   */
+  private menuAt(event: MouseEvent): void {
+    const d = this.drawn_;
+    if (!d || this.mode() === "none" || !this.host.menu) return;
+    const { x, y } = this.local(event);
+    const p = this.paneAt(x);
+    if (!p || y < d.top || y > d.top + d.height) return;
+    const item = this.dotAt(p.pane, x, y);
+    if (!item?.id) return;
+    event.preventDefault();
+    if (item.row !== undefined) this.setActive(item.row);
+    this.host.menu(item.id, item.time);
+  }
+
+  /** The dot nearest a point in a pane, within reach: its cut, or the solution at a fix (the calculated line, the Course/Speed pane). */
+  private dotAt(pane: Pane, x: number, y: number): { id: string; time: string; row?: number } | undefined {
+    const d = this.drawn_;
     const mode = this.mode();
-    if (!d || mode === "none" || !single) return;
+    if (!d || mode === "none") return undefined;
     const p = d.panes.find((q) => q.pane === pane)!;
     // With no solution, the sensor's cuts are the coverage: a dot of it chooses its row too.
     const rows = (mode === "solution" ? (this.residuals?.rows ?? []) : []) as TmaResidualRow[];
@@ -1763,19 +1803,7 @@ export class TmaControl {
       });
     }
     const hit = nearestPoint(xs, ys, x, y, HIT_PX);
-    if (hit < 0) {
-      // No dot near: current time to the time pointed at, as a click on the plot did before.
-      const t = yToTime(y, d.span, d.top, d.height);
-      const index = nearestRow(this.rows(), t);
-      if (index >= 0) this.setActive(index);
-      this.host.time(new Date(t).toISOString());
-      return;
-    }
-    const item = what[hit];
-    if (item.row !== undefined) this.setActive(item.row);
-    if (item.id) this.host.select(item.id, item.time);
-    const isFix = item.id === solutionId;
-    this.say(isFix ? `${this.solutionRow()?.name ?? "The solution"}'s fix at ${formatTime(Date.parse(item.time), this.settings)} selected.` : `Cut at ${formatTime(Date.parse(item.time), this.settings)} selected.`);
+    return hit < 0 ? undefined : what[hit];
   }
 
   /** The cut chosen, read out above the plot when the keyboard is on it. */

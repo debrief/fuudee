@@ -440,6 +440,7 @@ export type WebviewMessageKindEnum =
   | "tma_split"
   | "tma_time_asked"
   | "tma_select"
+  | "tma_menu"
   | "tma_resolve"
   | "tma_cut_off"
   | "tma_plot_drawn"
