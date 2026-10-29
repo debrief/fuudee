@@ -106,7 +106,8 @@ main { grid-row: 2; display: flex; min-width: 0; min-height: 0; position: relati
 .unavailable h2 { color: var(--vscode-disabledForeground); }
 .status.problem { color: var(--vscode-errorForeground); }
 footer { grid-column: 1 / -1; padding: 3px 10px; background: var(--vscode-editorWidget-background); border-top: 1px solid var(--vscode-panel-border); font-size: 12px; }
-.status.busy::before { content: "⟳ "; display: inline-block; animation: spin 1.2s linear infinite; }
+.status.busy::before, .tools .detail.busy::before { content: "⟳ "; display: inline-block; animation: spin 1.2s linear infinite; }
+@media (prefers-reduced-motion: reduce) { .status.busy::before, .tools .detail.busy::before { animation: none; } }
 @keyframes spin { to { transform: rotate(360deg); } }
 .toasts { position: fixed; right: 12px; bottom: 34px; display: flex; flex-direction: column; gap: 6px; max-width: 380px; z-index: 10; }
 .toast { background: var(--vscode-editorWidget-background); color: var(--vscode-editorWidget-foreground); border: 1px solid var(--vscode-editorWidget-border); border-left: 3px solid var(--vscode-focusBorder); padding: 8px 10px; box-shadow: 0 2px 8px var(--vscode-widget-shadow, transparent); }
