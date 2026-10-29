@@ -821,8 +821,10 @@ export class TmaControl {
     // What the controls take on top, measured on top at every resize: laid out so for the reading
     // only, nothing painted between. Measured only while on top, a size it last had (a window
     // opening tiny, everything wrapped) kept them beside at any size (product owner, 29 Oct 2026).
+    // The status line under them never counts: a message would move them to and fro, the plot with them.
     if (side) element.classList.remove("tma-side");
-    if (this.plot.clientHeight > 0) this.chromeAbove = Math.max(0, element.scrollHeight - this.plot.clientHeight);
+    const status = element.querySelector<HTMLElement>(".tma-status")?.offsetHeight ?? 0;
+    if (this.plot.clientHeight > 0) this.chromeAbove = Math.max(0, element.scrollHeight - this.plot.clientHeight - status);
     // The height the view has: the window's in VS Code (the page's own height grows with what
     // overflows it, so never that), the docked panel's in the playground; from the view's top.
     const bottom = !bound ? 0 : bound === document.documentElement ? window.innerHeight : bound.getBoundingClientRect().bottom;
