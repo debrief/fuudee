@@ -51,17 +51,12 @@ body.docked .toasts { right: calc(var(--map-right, 0px) + 12px); }
 .dock-panel > section.panel { border-bottom: 0; min-height: 100%; box-sizing: border-box; }
 body.docked .dock-panel > .panel > h2, body.docked .dock-panel > .panel > .panel-head > h2 { display: none; }
 body.docked .dock-panel > .panel > .panel-head { justify-content: flex-end; }
-/* The Outline, docked: its list scrolls above, and what can be done to the selection (Colour, Hide,
-   Show, the Track and Annotation buttons) stays in sight below it, compact, never scrolled away with
-   the list (panel review, 23 Oct 2026). Narrow, it is as before, under the list. */
+/* The Outline, docked: its toolbar above, its list scrolling below it to the panel's foot; what can
+   be done to a row is on its context menu (PAR-07). */
 .dock-panel:has(> #panel-outline) { overflow: hidden; }
 body.docked .dock-panel > #panel-outline { display: flex; flex-direction: column; height: 100%; min-height: 0; padding-bottom: 4px; }
 body.docked #body-outline { flex: 1; min-height: 0; display: flex; flex-direction: column; }
 body.docked #body-outline > #outline { flex: 1 1 48px; min-height: 40px; overflow-y: auto; }
-body.docked .outline-tools { flex: 0 1 auto; max-height: 74%; overflow-y: auto; margin-top: 4px; padding-top: 2px; border-top: 1px solid var(--vscode-panel-border); }
-body.docked .outline-tools .action-group { grid-template-columns: repeat(auto-fill, minmax(54px, 1fr)); gap: 2px; margin-top: 2px; }
-body.docked .outline-tools .action-group button { padding-left: 2px; padding-right: 2px; }
-body.docked .outline-tools button, body.docked .outline-tools select { padding-top: 1px; padding-bottom: 1px; font-size: 12px; }
 /* Docked, lists use the panel's height, not a fixed one. */
 body.docked .dock-panel .list, body.docked .dock-panel .items { max-height: none; }
 body.docked .dock-panel #timeline { height: calc(100% - 4px); }
