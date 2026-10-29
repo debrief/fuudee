@@ -1,0 +1,35 @@
+{
+ "shots": [
+  {
+   "source": "guides/interaction-models/annotations.md",
+   "url": "guides/interaction-models/annotations/",
+   "title": "Annotations",
+   "file": "guides-interaction-models-annotations.png"
+  },
+  {
+   "source": "guides/interaction-models/keyboard-equivalents.md",
+   "url": "guides/interaction-models/keyboard-equivalents/",
+   "title": "Keyboard equivalents",
+   "file": "guides-interaction-models-keyboard-equivalents.png"
+  },
+  {
+   "source": "guides/interaction-models/labels-symbols-arrows.md",
+   "url": "guides/interaction-models/labels-symbols-arrows/",
+   "title": "Labels, symbols and arrows",
+   "file": "guides-interaction-models-labels-symbols-arrows.png"
+  },
+  {
+   "source": "guides/interaction-models/track-operations.md",
+   "url": "guides/interaction-models/track-operations/",
+   "title": "Track operations",
+   "file": "guides-interaction-models-track-operations.png"
+  },
+  {
+   "source": "try.md",
+   "url": "try/",
+   "title": "Try Debrief",
+   "file": "try.png"
+  }
+ ],
+ "more": 0
+}
