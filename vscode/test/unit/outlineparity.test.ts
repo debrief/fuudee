@@ -1,13 +1,22 @@
 /**
- * The Outline's parity (PAR-16, docs/panel-parity-srd.md Appendix C): for each sample plot, serial 1
+ * The panels' parity (PAR-16, docs/panel-parity-srd.md Appendix C): the Outline, the Tools and History.
+ *
+ * The Outline's: for each sample plot, serial 1
  * and serial 1 after Bearings and TMA's steps, in each state that applies to the Outline, the
  * panel model is built and rendered by both front ends: VS Code's OutlineProvider (its tree items:
  * label, description, tooltip, screen reader's label, collapsible state) and the playground's
  * (the tree's rows: aria-level, aria-posinset, aria-setsize, aria-expanded, and fillOutlineRow's
  * text, title, aria-label and aria-selected). Both shall describe the same rows, in the same order.
  *
+ * The Tools' and History's (panel parity phase 3): in each state of Appendix C that applies to them,
+ * the Tools panel model and the History panel model are built and rendered by VS Code's
+ * ToolsProvider and HistoryProvider (label, description, tooltip, screen reader's label, icon,
+ * collapsible state, command, context menu) and by the playground's renderers (play/toolslist.ts,
+ * play/historylist.ts: the same, from the list's elements). Both shall describe the same rows.
+ *
  * The samples are built by the sample's own Python (debrief_sample), as the extension's tests read
- * a catalogue Python wrote.
+ * a catalogue Python wrote; the tools, which are offered for each selection, and each plot's
+ * history are Python's too (debrief_tools.entries, PAR-15).
  */
 import { execFileSync } from "node:child_process";
 import { mkdtempSync, readFileSync } from "node:fs";
@@ -24,7 +33,7 @@ vi.mock("vscode", () => {
     tooltip?: string;
     iconPath?: unknown;
     contextValue?: string;
-    command?: unknown;
+    command?: { command: string; arguments?: unknown[] };
     resourceUri?: unknown;
     accessibilityInformation?: { label: string };
     constructor(
@@ -48,7 +57,10 @@ vi.mock("vscode", () => {
   class ThemeColor {
     constructor(public id: string) {}
   }
-  return { TreeItem, EventEmitter, ThemeIcon, ThemeColor, TreeItemCollapsibleState: { None: 0, Collapsed: 1, Expanded: 2 }, Uri: { file: (p: string) => ({ fsPath: p }) } };
+  class MarkdownString {
+    constructor(public value: string) {}
+  }
+  return { TreeItem, EventEmitter, ThemeIcon, ThemeColor, MarkdownString, TreeItemCollapsibleState: { None: 0, Collapsed: 1, Expanded: 2 }, Uri: { file: (p: string) => ({ fsPath: p }) } };
 });
 
 const { OutlineProvider } = await import("../../src/views/outline.js");
@@ -65,6 +77,12 @@ type TreeNode = import("../../webview/outlinetree.js").TreeNode<OutlineNode>;
 
 class FakeElement {
   className = "";
+  hidden = false;
+  disabled = false;
+  type = "";
+  tabIndex = -1;
+  onclick: unknown = null;
+  readonly classList = { add: (c: string) => void (this.className = `${this.className} ${c}`.trim()) };
   readonly dataset: Record<string, string> = {};
   readonly attributes = new Map<string, string>();
   readonly children: (FakeElement | string)[] = [];
@@ -94,6 +112,15 @@ class FakeElement {
   }
   append(...nodes: (FakeElement | string)[]) {
     this.children.push(...nodes);
+  }
+  replaceChildren(...nodes: (FakeElement | string)[]) {
+    this.children.length = 0;
+    this.text = "";
+    this.children.push(...nodes);
+  }
+  /** Its element children. */
+  get elements(): FakeElement[] {
+    return this.children.filter((c): c is FakeElement => typeof c !== "string");
   }
   find(className: string): FakeElement | undefined {
     for (const c of this.children) {
@@ -218,8 +245,8 @@ function whenHolds(clause: string | undefined, context: Record<string, string | 
   });
 }
 /** A row's menu as VS Code draws it: the view/item/context entries whose when holds, sorted by group, order and title. */
-function vscodeMenu(contextValue: string | undefined, context: Record<string, string | boolean>): string[] {
-  const keys = { ...context, view: "debrief.outline", viewItem: contextValue };
+function vscodeMenu(contextValue: string | undefined, context: Record<string, string | boolean>, view = "debrief.outline"): string[] {
+  const keys = { ...context, view, viewItem: contextValue };
   const entries = manifest.contributes.menus["view/item/context"]
     .filter((e) => contextValue !== undefined && whenHolds(e.when, keys))
     .map((e) => {
@@ -228,6 +255,20 @@ function vscodeMenu(contextValue: string | undefined, context: Record<string, st
       return { group, order: Number(order), title: command.title, enabled: whenHolds(command.enablement, keys) };
     })
     .sort((a, b) => a.group.localeCompare(b.group) || a.order - b.order || a.title.localeCompare(b.title));
+  return said(entries);
+}
+/** A view's title bar as VS Code draws it: the view/title entries whose when holds, buttons first, then by group, order and title. */
+function vscodeTitle(view: string, context: Record<string, string | boolean>): string[] {
+  const keys = { ...context, view };
+  const rank = (g: string) => (g === "navigation" ? "" : g || "~");
+  const entries = manifest.contributes.menus["view/title"]
+    .filter((e) => whenHolds(e.when, keys))
+    .map((e) => {
+      const command = manifest.contributes.commands.find((c) => c.command === e.command)!;
+      const [group = "", order = "0"] = (e.group ?? "").split("@");
+      return { group, order: Number(order), title: command.title, enabled: whenHolds(command.enablement, keys) };
+    })
+    .sort((a, b) => rank(a.group).localeCompare(rank(b.group)) || a.order - b.order || a.title.localeCompare(b.title));
   return said(entries);
 }
 const said = (entries: { group: string; title: string; enabled: boolean }[]) =>
@@ -390,5 +431,318 @@ describe("the Outline panel model", () => {
 
   it("keeps a track's labels, symbols and arrows in its tooltip, for both front ends, not a line of its own", () => {
     expect(said(serial, "track-blue-one").tooltip).toMatch(/\nLabels .* · Symbols .* · Arrows /);
+  });
+});
+
+// --- The Tools and History (panel parity phase 3) ------------------------------------------------------
+
+const { ToolsProvider } = await import("../../src/views/tools.js");
+const { HistoryProvider } = await import("../../src/views/history.js");
+const { NEEDS_SERVICE } = await import("../../webview/panels/history.js");
+const { fillTools } = await import("../../play/toolslist.js");
+const { fillHistory } = await import("../../play/historylist.js");
+const { operationsFor } = await import("../../webview/panels/flows/operation.js");
+const { featureIdsOfPicks, pickOf } = await import("../../webview/outlinemodel.js");
+const { titleMenu } = await import("../../webview/panels/actions.js");
+type ToolDeclaration = import("@debrief/schemas").ToolDeclaration;
+type HistoryStep = import("../../src/service.js").HistoryStep;
+type OutlinePick = import("../../webview/outlinemodel.js").OutlinePick;
+
+/** Python's: the tools (as the playground and the service list them), which are offered for each selection asked, and each sample's history (debrief_tools.entries, PAR-15). */
+function fromPython(kinds: string[][]): { tools: ToolDeclaration[]; offered: string[][]; history: Record<string, HistoryStep[]> } {
+  const script = `
+import json, sys
+from pathlib import Path
+from debrief_schemas import DocumentKind, dump_document
+from debrief_stac import Catalogue
+from debrief_tools import Registry
+from debrief_tools.entries import history_steps, offered_tools
+registry = Registry.discover()
+if not registry.tools:
+    registry = Registry.discover(["debrief_tools.core"])
+declarations = {n: t.declaration for n, t in registry.tools.items()}
+root = Path(sys.argv[1])
+print(json.dumps({
+    "tools": [json.loads(dump_document(DocumentKind.TOOL_DECLARATION, d)) for d in declarations.values()],
+    "offered": [offered_tools(declarations, k) for k in json.loads(sys.argv[2])],
+    "history": {
+        "serial-1": history_steps(Catalogue.open(root / "sample").history("serial-1")),
+        "the TMA sample": history_steps(Catalogue.open(root / "tma").history("serial-1-tma")),
+    },
+}))`;
+  return JSON.parse(execFileSync(python, ["-c", script, work, JSON.stringify(kinds)], { encoding: "utf8" }));
+}
+
+interface PanelState {
+  input?: OutlineInput;
+  /** The Outline's rows chosen. */
+  selected?: string[];
+  readOnly?: boolean;
+  /** The tool service (or Python) still starting. */
+  starting?: boolean;
+  problem?: string;
+}
+
+/** Appendix C's states that apply to the Tools, for a sample. */
+function toolsStatesOf(sample: OutlineInput): Record<string, PanelState | undefined> {
+  const index = new OutlineModel(sample).index!;
+  const solution = [...index.solutions.keys()][0];
+  const towed = index.sensors.get("sensor-blue-one-towed-array")!;
+  const hidden = hide(sample, ["track-ais-cargo-01"]);
+  return {
+    "1. no plot open": {},
+    "2. a plot open, nothing selected": { input: sample },
+    "3. one track selected": { input: sample, selected: ["track-blue-one"] },
+    "4. two tracks selected": { input: sample, selected: ["track-blue-one", "track-red-one"] },
+    "6. a cut selected": { input: sample, selected: [towed.cuts[2].id] },
+    "7. a TMA solution's leg selected": solution ? { input: sample, selected: [`${solution}#leg2`] } : undefined,
+    "8. an annotation selected": { input: sample, selected: ["annotation-exercise-area"] },
+    "9. a hidden feature selected": { input: hidden, selected: ["track-ais-cargo-01"] },
+    "10. hidden and shown features selected": { input: hidden, selected: ["track-ais-cargo-01", "track-red-one"] },
+    "11. an earlier revision shown": { input: sample, selected: [towed.cuts[2].id], readOnly: true },
+    "12. Python or the service still starting": { input: sample, starting: true },
+    "the tool service stopped": { input: sample, problem: "The tool service stopped. Run 'Debrief: Restart tool service'." },
+  };
+}
+
+/** A tool library found but not offered, as tools/list reports one: "Not available" lists it, with why. */
+const BROKEN = { library: "scientist_library", tool: null, reason: "The library could not be loaded: No module named 'numpy'" };
+
+interface ToolsSaid {
+  level: number;
+  label: string;
+  description: string;
+  tooltip: string;
+  aria: string;
+  icon: string;
+  expanded?: boolean;
+  /** What choosing it runs: the command and its arguments, or "". */
+  run: string;
+}
+
+/** The Tools as each front end is given them: the selection's features, the tools offered for their kinds (Python's), the Outline's entries. */
+function selectionOf(state: PanelState): { ids: string[]; kinds: string[] } {
+  const index = state.input ? new OutlineModel(state.input).index! : undefined;
+  const picks = index ? (state.selected ?? []).map((k) => pickOf(index, k)).filter((p): p is OutlinePick => !!p) : [];
+  const ids = featureIdsOfPicks(picks);
+  return { ids, kinds: ids.map((id) => state.input!.plot.features.find((f) => f.id === id)?.properties.kind ?? "") };
+}
+function toolsInputOf(state: PanelState, python: (kinds: string[]) => string[]) {
+  const index = state.input ? new OutlineModel(state.input).index! : undefined;
+  const { ids, kinds } = selectionOf(state);
+  return {
+    ids,
+    listing: state.starting ? undefined : { tools: TOOLS, unavailable: [BROKEN] },
+    offered: python(kinds),
+    operations: state.starting ? [] : operationsFor({ index, keys: state.selected ?? [], readOnly: state.readOnly }),
+  };
+}
+
+/** VS Code: the tree items of the open sections. */
+function vscodeTools(state: PanelState, python: (kinds: string[]) => string[]): ToolsSaid[] {
+  const given = toolsInputOf(state, python);
+  const session = { current: state.input, selection: given.ids };
+  const provider = new ToolsProvider(session as never, () => given.operations);
+  provider.update(given.listing, given.offered, state.problem);
+  const out: ToolsSaid[] = [];
+  const walk = (nodes: ReturnType<typeof provider.getChildren>, level: number) => {
+    for (const node of nodes) {
+      const item = provider.getTreeItem(node);
+      const tooltip = item.tooltip as unknown as string | { value: string } | undefined;
+      // A tool's tooltip is Markdown: its title in bold, its judgement in italics (cosmetic), the words the same.
+      const words = typeof tooltip === "object" ? tooltip.value.replace(/^\*\*(.*?)\*\*/, "$1").replace(/\n\n_(.*)_$/s, "\n\n$1") : (tooltip ?? "");
+      const expanded = item.collapsibleState === 2;
+      out.push({
+        level,
+        label: String(item.label),
+        description: String(item.description ?? ""),
+        tooltip: words,
+        aria: item.accessibilityInformation!.label,
+        icon: (item.iconPath as { id: string } | undefined)?.id ?? "",
+        ...(item.collapsibleState !== 0 && { expanded }),
+        run: item.command ? `${item.command.command}(${(item.command.arguments ?? []).join()})` : "",
+      });
+      if (expanded) walk(provider.getChildren(node), level + 1);
+    }
+  };
+  walk(provider.getChildren(), 1);
+  return out;
+}
+
+/** The playground: the Tools' list as fillTools fills it, the closed sections' rows not shown. */
+function playgroundTools(state: PanelState, python: (kinds: string[]) => string[]): ToolsSaid[] {
+  const given = toolsInputOf(state, python);
+  const { ToolsModel } = toolsModule;
+  const model = new ToolsModel({ listing: given.listing, problem: state.problem, plotOpen: !!state.input, selected: given.ids.length, offered: given.offered, operations: given.operations });
+  const list = new FakeElement("ul");
+  const runs: string[] = [];
+  fillTools(list as unknown as HTMLElement, model, new Map(), (row) => runs.push(row.key));
+  const out: ToolsSaid[] = [];
+  const rowOf = (li: FakeElement, level: number): ToolsSaid => {
+    const button = li.elements.find((e) => e.tagName === "button");
+    const icon = li.find("icon");
+    // Choosing it: the row's run, if its button acts (a disabled entry still acts, to say why; a tool not offered does not).
+    let run = "";
+    if (button?.onclick && !button.disabled) {
+      runs.length = 0;
+      (button.onclick as () => void)();
+      const row = model.rows().find((r) => r.key === runs[0]);
+      run = row?.run ? `${row.run.action}(${row.run.args.join()})` : "";
+    }
+    return {
+      level,
+      label: button ? button.textContent : li.find("name")!.textContent,
+      description: li.find("detail")?.textContent ?? "",
+      tooltip: li.title,
+      aria: button?.getAttribute("aria-label") ?? li.getAttribute("aria-label") ?? (button ? button.textContent : li.find("name")!.textContent),
+      icon: icon?.dataset.icon ?? "",
+      run,
+    };
+  };
+  for (const li of list.elements) {
+    if (li.className !== "tools-section") {
+      out.push(rowOf(li, 1));
+      continue;
+    }
+    const toggle = li.elements.find((e) => e.tagName === "button")!;
+    const rows = li.elements.find((e) => e.tagName === "ul")!;
+    const expanded = toggle.getAttribute("aria-expanded") === "true";
+    expect(rows.hidden).toBe(!expanded);
+    out.push({ level: 1, label: toggle.find("name")!.textContent, description: toggle.find("detail")!.textContent, tooltip: "", aria: toggle.getAttribute("aria-label")!, icon: "", expanded, run: "" });
+    if (expanded) for (const row of rows.elements) out.push(rowOf(row, 2));
+  }
+  return out;
+}
+
+const toolsModule = await import("../../webview/panels/tools.js");
+
+// What Python says: computed once for every state's selection, before the tests run.
+const ALL_STATES = Object.entries(SAMPLES).flatMap(([, sample]) => Object.values(toolsStatesOf(sample)).filter((s): s is PanelState => !!s));
+const kindsKey = (kinds: string[]) => JSON.stringify(kinds);
+const asked = [...new Set(ALL_STATES.map((s) => kindsKey(selectionOf(s).kinds)))].map((k) => JSON.parse(k) as string[]);
+const PYTHON = fromPython(asked);
+const TOOLS = PYTHON.tools;
+const offeredFor = (kinds: string[]) => PYTHON.offered[asked.findIndex((k) => kindsKey(k) === kindsKey(kinds))] ?? [];
+
+describe("the Tools in both front ends (PAR-16)", { timeout: 60_000 }, () => {
+  for (const [name, sample] of Object.entries(SAMPLES)) {
+    describe(name, () => {
+      for (const [stateName, state] of Object.entries(toolsStatesOf(sample))) {
+        if (!state) continue;
+        it(stateName, () => {
+          const vscode = vscodeTools(state, offeredFor);
+          expect(playgroundTools(state, offeredFor)).toEqual(vscode);
+          // Both say the same of what there is to list.
+          if (state.problem) expect(vscode.map((r) => r.label)).toEqual([state.problem]);
+          else if (state.starting) expect(vscode.map((r) => r.label)).toEqual(["Starting tools…"]);
+          else if (!state.input) expect(vscode.map((r) => r.label)).toEqual(["Open a plot to use tools."]);
+          else {
+            const count = toolsInputOf(state, offeredFor).ids.length;
+            expect(vscode[0].label).toBe(count ? `${count} selected` : "Nothing selected");
+            expect(vscode.filter((r) => r.level === 1 && r.expanded !== undefined).map((r) => r.label)).toEqual([
+              ...(toolsInputOf(state, offeredFor).operations.length ? ["For the Outline's selection"] : []),
+              "For this selection",
+              "Other tools",
+              "Not available",
+            ]);
+          }
+        });
+      }
+    });
+  }
+
+  it("lists the tools offered by Python's rule, an entry that cannot act with its reason, and a library not available with why", () => {
+    const state = toolsStatesOf(SAMPLES["serial-1"])["4. two tracks selected"]!;
+    const rows = vscodeTools(state, offeredFor);
+    expect(rows.find((r) => r.label === "Closest approach")).toMatchObject({ level: 2, icon: "play", run: "debrief.showToolForm(core.closest_approach)" });
+    const revision = vscodeTools(toolsStatesOf(SAMPLES["serial-1"])["11. an earlier revision shown"]!, offeredFor);
+    const hideCuts = revision.find((r) => r.label.startsWith("Hide "))!;
+    expect(hideCuts).toMatchObject({ icon: "circle-slash", run: "debrief.hideCuts()" });
+    expect(hideCuts.description).not.toBe("");
+    const closed = playgroundTools({ ...state }, offeredFor).find((r) => r.label === "Not available")!;
+    expect(closed).toMatchObject({ description: "1", expanded: false });
+  });
+});
+
+/** Appendix C's states that apply to History, for a sample's history. */
+function historyStatesOf(steps: HistoryStep[]): Record<string, { open: boolean; steps: HistoryStep[]; current: number; shown?: number; problem?: string }> {
+  const latest = steps[steps.length - 1]?.seq ?? 0;
+  // The last two steps undone: Ctrl+Z's next and Redo's both to show.
+  const undone = steps.map((s, i) => (i >= steps.length - 2 && i > 0 ? { ...s, status: "undone" as const } : s));
+  const back = undone.filter((s) => s.status === "applied").pop()?.seq ?? latest;
+  return {
+    "1. no plot open": { open: false, steps: [], current: 0 },
+    "2. a plot open": { open: true, steps, current: latest },
+    "2. a plot open, steps undone": { open: true, steps: undone, current: back },
+    "11. an earlier revision shown": { open: true, steps, current: latest, shown: steps[0]?.seq },
+    "12. Python or the service still starting": { open: true, steps: [], current: 0, problem: NEEDS_SERVICE },
+    "the history could not be read": { open: true, steps: [], current: 0, problem: "The plot's history could not be read." },
+  };
+}
+
+interface HistorySaid {
+  label: string;
+  description: string;
+  tooltip: string;
+  icon: string;
+  muted: boolean;
+  menu: string[];
+}
+const historyMenuOf = (contextValue: string | undefined) => vscodeMenu(contextValue, {}, "debrief.history");
+const toolTitle = (name: string) => TOOLS.find((t) => t.name === name)?.title;
+
+describe("History in both front ends (PAR-16)", () => {
+  for (const [name, steps] of Object.entries(PYTHON.history)) {
+    describe(name, () => {
+      for (const [stateName, state] of Object.entries(historyStatesOf(steps))) {
+        it(stateName, () => {
+          const provider = new HistoryProvider(toolTitle);
+          provider.update(state.steps, state.current, state.open, state.problem, state.shown);
+          const vscode: HistorySaid[] = provider.getChildren().map((row) => {
+            const item = provider.getTreeItem(row);
+            const icon = item.iconPath as { id: string; color?: unknown };
+            return { label: String(item.label), description: String(item.description ?? ""), tooltip: String(item.tooltip ?? ""), icon: icon.id, muted: !!icon.color, menu: historyMenuOf(item.contextValue) };
+          });
+          const model = provider.model();
+          const list = new FakeElement("ul");
+          fillHistory(list as unknown as HTMLElement, model.rows());
+          const play: HistorySaid[] = list.elements.map((li) => ({
+            label: li.find("name")!.textContent,
+            description: li.find("detail")?.textContent ?? "",
+            tooltip: li.title,
+            icon: li.find("icon")!.dataset.icon,
+            muted: li.className.split(" ").includes("muted"),
+            menu: li.dataset.menu ? said(rowMenu("debrief.history", li.dataset.menu, {})) : [],
+          }));
+          expect(play).toEqual(vscode);
+          // The title bar: Go to latest revision, Undo and Redo, the same in both, enabled under the same rules.
+          const keys = { "debrief.canUndo": model.canUndo, "debrief.canRedo": model.canRedo, "debrief.revisionShown": state.shown !== undefined };
+          expect(said(titleMenu("debrief.history", keys))).toEqual(vscodeTitle("debrief.history", keys));
+
+          if (state.problem) expect(vscode.map((r) => r.label)).toEqual([state.problem]);
+          else if (!state.open) expect(vscode.map((r) => r.label)).toEqual(["Open a plot to see its history."]);
+          else {
+            expect(vscode).toHaveLength(state.steps.length);
+            // Steps newest first, each told "Step n: name / status / By agent, when".
+            expect(vscode[0].tooltip).toMatch(new RegExp(`^Step ${state.steps[state.steps.length - 1].seq}: .+\\n.+\\nBy .+, .+`));
+            // Ctrl+Z's next marked, unless an earlier revision is shown; no step actions then either.
+            const next = vscode.filter((r) => r.description.includes("next to undo"));
+            if (state.shown !== undefined) expect(next).toEqual([]);
+            if (state.shown !== undefined) expect(vscode.flatMap((r) => r.menu)).toEqual([]);
+          }
+        });
+      }
+    });
+  }
+
+  it("marks Ctrl+Z's next step, and offers Go back and Redo up to a step from the catalogue", () => {
+    const steps = PYTHON.history["the TMA sample"];
+    expect(steps.length).toBeGreaterThan(2);
+    const state = historyStatesOf(steps)["2. a plot open, steps undone"];
+    const provider = new HistoryProvider(toolTitle);
+    provider.update(state.steps, state.current, true);
+    const rows = provider.getChildren().map((r) => provider.getTreeItem(r));
+    expect(rows.filter((r) => String(r.description).includes("next to undo")).length).toBeGreaterThan(0);
+    expect(rows.flatMap((r) => historyMenuOf(r.contextValue))).toEqual(expect.arrayContaining(["Go back to this step", "Redo up to this step"]));
   });
 });

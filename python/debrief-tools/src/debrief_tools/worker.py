@@ -30,6 +30,7 @@ from debrief_schemas import (
 )
 from debrief_stac import Base, Catalogue
 from debrief_tools import diagnostics
+from debrief_tools.entries import unavailable_tools
 from debrief_tools.registry import Registry
 from debrief_tools.run import ToolRunConflict, ToolRunError, ToolRunNewerSchema, run_tool
 
@@ -50,7 +51,7 @@ def _describe() -> dict[str, Any]:
             json.loads(dump_document(DocumentKind.TOOL_DECLARATION, t.declaration))
             for t in _registry.tools.values()
         ],
-        "unavailable": [u.__dict__ for u in _registry.unavailable],
+        "unavailable": unavailable_tools(_registry),
     }
 
 

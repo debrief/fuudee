@@ -32,10 +32,8 @@ import { CoverageControl } from "../webview/coveragecontrol.js";
 import { specOfFeature } from "../webview/annotationlook.js";
 import { NarrativeOnMap, narrativeOnMapOf, timelineEntries, timelineTracks } from "../src/timeline.js";
 import { TimelineControl } from "../webview/timelinecontrol.js";
-import { count, describePeriod, describeTimes, describeToolRun } from "../src/format.js";
-import { resolveTimes } from "../src/timeinput.js";
+import { count, describePeriod, describeTimes } from "../src/format.js";
 import { answersToRemember, choicesOf, describeAnswers, duplicateQuestion, periodChoices, questionsFor, readSummary, rememberedAnswers, typeWords, type NarrativeChoices, type NarrativePreview } from "../src/narrativeimport.js";
-import { describeStep, needs } from "../src/wording.js";
 import { contextTracksOf, displayed, hiddenIds, isFeature, setViewOf, timeWindowOf, viewOf, type PlotFeature } from "../src/hidden.js";
 import { contextShown, type ContextTracks } from "../webview/contrast.js";
 import { placeToolTime } from "../webview/timelogic.js";
@@ -68,12 +66,20 @@ import { fillOutlineRow } from "./outlinerow.js";
 import { filesOf, isBranch, OutlineModel, selectable, type OutlineNode, type OutlineRow } from "../webview/panels/outline.js";
 import { actionOf, entryOf, rowMenu, titleMenu, type Context } from "../webview/panels/actions.js";
 import { undoRedo } from "../src/views/historyrows.js";
+import type { HistoryStep } from "../src/service.js";
+import { ToolsModel, type ToolsRow, type Unavailable } from "../webview/panels/tools.js";
+import { HistoryModel, NEEDS_SERVICE } from "../webview/panels/history.js";
+import { fillTools } from "./toolslist.js";
+import { fillHistory } from "./historylist.js";
+import { Refusal, type FlowHost, type PlotRef, type Severity } from "../webview/panels/flows/host.js";
+import { runTool as runToolFlow, type ToolCall } from "../webview/panels/flows/runtool.js";
+import { move as moveFlow, type How } from "../webview/panels/flows/move.js";
+import { operationContext as sharedOperationContext, operationsFor, runOperation as runOperationFlow, type OperationHost, type OperationState } from "../webview/panels/flows/operation.js";
 import type { TreeNode } from "../webview/outlinetree.js";
 import {
   bearingsFor,
   bearingsTitle,
   type BearingsShown,
-  exclusionTarget,
   featureIdsOfPicks,
   fixKey,
   type Operation,
@@ -82,12 +88,8 @@ import {
   outlineChoice,
   type OutlineFocus,
   outlineIndex,
-  outlineOperations,
   type OutlinePick,
-  pickedCuts,
   pickOf,
-  splitPlace,
-  tmaRequestOf,
 } from "../webview/outlinemodel.js";
 import { selectionChildren, selectionColour, selectionSaid, selectionVisibility } from "../webview/outlinetoolbar.js";
 import { OutlineBar } from "./outlinebar.js";
@@ -95,15 +97,7 @@ import { latestSolution, NO_SOLUTION, SOLUTION } from "../walkthroughs/contribut
 import { contentFree } from "../webview/timelinelogic.js";
 
 type Feature = PlotFeature;
-interface Step {
-  seq: number;
-  status: "applied" | "undone" | "abandoned";
-  kind: string;
-  tool: string | null;
-  agent: string;
-  at: string;
-  notes?: string[];
-}
+type Step = HistoryStep;
 interface Opened {
   item: StacItem;
   /** The plot, with its whole-plot feature and view (the island, SUB-22). */
@@ -325,8 +319,12 @@ async function chooseTote(view: ToteView): Promise<void> {
   showTote();
 }
 totePanel.addEventListener("fold", () => isShown(totePanel.id) && refreshTote());
+/** The tools and those not available, once Python has started (as the tool service's tools/list). */
+let listing: { tools: ToolDeclaration[]; unavailable: Unavailable[] } | undefined;
 let tools: ToolDeclaration[] = [];
 let offered: string[] = [];
+/** Why Python, and with it the tools and history, could not start. */
+let pythonProblem: string | undefined;
 let formTool: ToolDeclaration | undefined;
 let colleagueDuringNextRun = false;
 
@@ -583,7 +581,7 @@ window.addEventListener("message", (event) => {
 
 // --- Tools ------------------------------------------------------------------------
 async function refreshOffered(): Promise<void> {
-  if (!tools.length) return renderTools();
+  if (!listing) return renderTools();
   const kinds = selection.map((id) => features().find((f) => f.id === id)?.properties.kind ?? "");
   offered = await pythonJson<string[]>("offered", JSON.stringify(kinds));
   renderTools();
@@ -657,61 +655,56 @@ function showResults(tool: ToolDeclaration, result: ToolResult): void {
   results = shown;
   pendingResults = () => post(results, { kind: "show_results", tool, result_title: tool.title, result });
 }
-function closeResults(): void {
-  if (results) closeSide();
-}
 
-async function runTool(tool: ToolDeclaration, parameters: ParameterValue[], onConflict?: string): Promise<string | undefined> {
-  if (!opened) return "Open a plot first.";
-  const ranOn = opened.item.id; // the plot it ran on: a window it asks to save is saved only there
-  const resolved = resolveTimes(tool, parameters, opened);
-  if (typeof resolved === "string") return resolved;
-  const request = {
-    name: tool.name,
-    selection,
-    parameters: Object.fromEntries(resolved.map((p) => [p.name, p.value])),
-    state: time && { time, selection: { plot: opened.item.id, feature_ids: selection }, viewport: { bbox: opened.item.bbox ?? [-180, -90, 180, 90] } },
-    base: opened.base,
-    ...(onConflict && { on_conflict: onConflict }),
-  };
-  if (colleagueDuringNextRun && !onConflict) {
-    // The colleague's change lands while the tool runs (SUB-28).
-    colleagueDuringNextRun = false;
-    $<HTMLButtonElement>("colleague-during").textContent = "A colleague changes it while your next tool runs";
-    await python("colleague", opened.item.id, new Date().toISOString(), time?.current ?? null);
-  }
-  const outcome = await pythonJson<{ result?: ToolResult; changed?: boolean; new_item?: string; error?: string; conflict?: { mergeable: boolean } }>(
-    "run",
-    opened.item.id,
-    JSON.stringify(request),
+// --- The shared flows' host (PAR-09): the playground's dialog, toasts and Python ----------------
+const flowHost: FlowHost = {
+  ask: (q) => ask(q.text, [...q.choices]),
+  message: (severity: Severity, text: string, buttons: readonly string[] = []) => notify(text, severity === "info" ? "info" : "warning", buttons),
+  plot: (): PlotRef | undefined =>
+    opened && { store: "play", item: opened.item.id, base: opened.base, properties: opened.item.properties, ...(opened.revision && { readOnly: true }) },
+  serviceReady: () => pythonReady,
+  reloadPlot: async () => {
+    if (opened) await openPlot(opened.item.id, true);
+    return undefined;
+  },
+};
+/** Python's refusals the flows answer, as they name them. */
+const refusalOf = (outcome: { error?: string; conflict?: unknown; newer_schema?: boolean }): Error =>
+  outcome.conflict ? new Refusal("conflict", outcome.error!) : outcome.newer_schema ? new Refusal("newer_schema", outcome.error!) : new Error(outcome.error);
+
+/** Run a tool: the shared flow (webview/panels/flows/runtool.ts); this says how Python is asked. */
+async function runTool(tool: ToolDeclaration, parameters: ParameterValue[]): Promise<string | undefined> {
+  const { problem } = await runToolFlow(
+    {
+      ...flowHost,
+      callTool: async (t, plot, values, options): Promise<ToolCall> => {
+        const request = {
+          name: t.name,
+          selection,
+          parameters: values,
+          state: time && { time, selection: { plot: plot.item, feature_ids: selection }, viewport: { bbox: opened?.item.bbox ?? [-180, -90, 180, 90] } },
+          base: plot.base,
+          ...options,
+        };
+        if (colleagueDuringNextRun && !options.on_conflict) {
+          // The colleague's change lands while the tool runs (SUB-28).
+          colleagueDuringNextRun = false;
+          $<HTMLButtonElement>("colleague-during").textContent = "A colleague changes it while your next tool runs";
+          await python("colleague", plot.item, new Date().toISOString(), time?.current ?? null);
+        }
+        const outcome = await pythonJson<{ result?: ToolResult; changed?: boolean; new_item?: string; error?: string; conflict?: { mergeable: boolean }; newer_schema?: boolean }>("run", plot.item, JSON.stringify(request));
+        if (outcome.error) return { ok: false, message: outcome.error, ...(outcome.conflict && { conflict: outcome.conflict }), ...(outcome.newer_schema && { newerSchema: true }) };
+        if (outcome.new_item) await refreshPlots(); // the new plot in the list
+        return { ok: true, message: "", result: outcome.result, changed: outcome.changed, ...(outcome.new_item && { newItem: outcome.new_item }) };
+      },
+      openPlot: (_plot, item) => openPlot(item),
+      applyToolState: (change, _t, ranOn) => (change.time ? showToolTime(change, ranOn.item) : false),
+      showResults: (t, result) => showResults(t, result),
+    },
+    tool,
+    parameters,
   );
-  if (outcome.conflict) {
-    const choice = await ask(
-      outcome.conflict.mergeable
-        ? `The plot was changed elsewhere while ${tool.title} ran. The other change touches different features, so the two can be combined, or ${tool.title}'s result can be saved as a new plot.`
-        : `The plot was changed elsewhere while ${tool.title} ran, and touches the same features. ${tool.title}'s result can be saved as a new plot.`,
-      outcome.conflict.mergeable ? ["Combine the changes", "Save mine as a new plot"] : ["Save mine as a new plot"],
-    );
-    if (!choice) {
-      await openPlot(opened.item.id, true);
-      return `${tool.title} was not run: the plot was changed elsewhere. Debrief is showing the latest.`;
-    }
-    return runTool(tool, parameters, choice === "Combine the changes" ? "merge" : "new_plot");
-  }
-  if (outcome.error) return outcome.error;
-  const result = outcome.result!;
-  if (outcome.new_item) {
-    await refreshPlots();
-    toast(`Your result was saved as a new plot, ${outcome.new_item}. The original keeps the other change.`);
-    await openPlot(outcome.new_item, true);
-  } else if (outcome.changed) {
-    await openPlot(opened.item.id, true);
-  }
-  const outside = result.state_change?.time ? showToolTime(result.state_change, ranOn) : false;
-  if (result.non_spatial?.length) showResults(tool, result);
-  const said = describeToolRun(tool.title, result, outside);
-  if (said) toast(said);
-  return undefined;
+  return problem;
 }
 
 /**
@@ -1604,14 +1597,33 @@ async function saveNarrative(spec: NarrativeSpec, id?: string): Promise<void> {
 }
 
 // --- History ----------------------------------------------------------------------
-async function move(how: "undo" | "redo" | "goto", step?: number): Promise<void> {
-  if (!opened || !pythonReady) return;
-  // Nothing to undo or redo: nothing done (the buttons are disabled; a key does nothing, as in VS Code).
-  if (how !== "goto" && !playContext().context[`debrief.can${how === "undo" ? "Undo" : "Redo"}`]) return;
-  const outcome = await pythonJson<{ error?: string }>("move", opened.item.id, how, step ?? null);
-  if (outcome.error) return toast(outcome.error, "warning");
-  closeResults(); // they describe a plot that is no longer current
-  await openPlot(opened.item.id, true);
+/** Undo, redo and go to, one at a time, each from the base the one before left (as VS Code's serially). */
+let moving: Promise<unknown> = Promise.resolve();
+/** Undo, redo or go to a step: the shared flow (webview/panels/flows/move.ts); this says how Python is asked. */
+function move(how: How, step?: number): Promise<void> {
+  const next = moving.then(() => moveNow(how, step));
+  moving = next.catch(() => undefined);
+  return next;
+}
+async function moveNow(how: How, step?: number): Promise<void> {
+  await moveFlow(
+    {
+      ...flowHost,
+      history: async () => historyModel(),
+      move: async (moving, base, at, allow) => {
+        const outcome = await pythonJson<{ error?: string; conflict?: boolean; newer_schema?: boolean }>("move", opened!.item.id, JSON.stringify({ how: moving, base, ...(at !== undefined && { step: at }), ...(allow && { allow_newer_schema: true }) }));
+        if (outcome.error) throw refusalOf(outcome);
+      },
+      refreshHistory: async () => renderHistory(),
+    },
+    how,
+    step,
+  );
+}
+/** Undo or Redo, as its catalogued action: only when it can act (a key does nothing otherwise, as VS Code's keybinding). */
+function undoOrRedo(how: "undo" | "redo"): void {
+  const { context, reasons } = playContext();
+  if (entryOf(actionOf(`debrief.${how}`), undefined, context, reasons).enabled) void move(how);
 }
 
 // Ctrl+Z undoes, Ctrl+Shift+Z or Ctrl+Y redoes, as in VS Code: here in the page, and
@@ -1620,8 +1632,8 @@ type KeyChord = { key: string; ctrlKey: boolean; metaKey: boolean; shiftKey: boo
 function historyKey(e: KeyChord): boolean {
   if (!(e.ctrlKey || e.metaKey) || !panels.has("history") || !pythonReady) return false;
   const key = e.key.toLowerCase();
-  if (key === "z" && !e.shiftKey) void move("undo");
-  else if ((key === "z" && e.shiftKey) || (key === "y" && !e.shiftKey)) void move("redo");
+  if (key === "z" && !e.shiftKey) undoOrRedo("undo");
+  else if ((key === "z" && e.shiftKey) || (key === "y" && !e.shiftKey)) undoOrRedo("redo");
   else return false;
   return true;
 }
@@ -2073,79 +2085,64 @@ async function createTma(request: TmaRequest): Promise<void> {
   if (!outcome.error) showPanel("panel-bearings");
 }
 // --- The Tools' entries for the Outline's selection (product owner, 27 Oct 2026) ---------------
-/** What the Tools' entries act on: the Outline's rows chosen, the solution Bearings shows, the time window. */
-function operationContext(keys?: readonly string[]): OperationContext | undefined {
-  if (!opened) return undefined;
-  const index = outlineIndex(opened.plot);
-  return {
-    index,
-    picks: keys ? keys.map((k) => pickOf(index, k)).filter((p): p is OutlinePick => !!p) : outlinePicked(),
-    shownSolution: shownSolution(),
-    ...(time && { window: { start: Date.parse(time.range.start), end: Date.parse(time.range.end) } }),
-    ...(opened.revision && { readOnly: true }),
-  };
-}
-/** The Tools' entries for the selection, each enabled or with the reason it is not. */
-function operations(keys?: readonly string[]): Operation[] {
-  const context = operationContext(keys);
-  if (!context) return [];
-  const ops = outlineOperations(context);
-  return pythonReady ? ops : ops.map((o) => ({ ...o, enabled: false, reason: "Python is starting." }));
-}
+/** What the Tools' entries act on, as things stand: the Outline's rows chosen, the solution Bearings shows, the time window. */
+const operationState = (): OperationState => ({
+  index: opened ? outlineIndex(opened.plot) : undefined,
+  keys: outlinePicks,
+  shownSolution: shownSolution(),
+  window: time?.range,
+  readOnly: !!opened?.revision,
+});
+/** What they act on for the rows given (a menu's), else the Outline's rows chosen. */
+const operationContext = (keys?: readonly string[]): OperationContext | undefined => sharedOperationContext(operationState(), keys);
+/** The Tools' entries for the selection (or the rows given), each enabled or with the reason it is not. */
+const operations = (keys?: readonly string[]): Operation[] => operationsFor(operationState(), keys);
 (window as unknown as { debriefOperations: () => Operation[] }).debriefOperations = operations;
-/** One of the Tools' entries, on the Outline's selection (or the rows given: a menu's): one step each, but the solution from cuts, which opens its first guess's form. */
-async function runOperation(id: OperationId, keys?: readonly string[]): Promise<void> {
-  const context = operationContext(keys);
-  const op = operations(keys).find((o) => o.id === id);
-  if (!context || !op) return toast("That is not offered for what is selected in the Outline.", "warning");
-  if (!op.enabled) return toast(op.reason ?? "That cannot be done to what is selected.", "warning");
-  const { index, picks } = context;
-  const cuts = pickedCuts(picks);
-  const ids = cuts.map((c) => c.id);
-  if (id === "split-before" || id === "split-after") {
-    // A position of the solution, or a cut: the solution's position at its time.
-    const side = id === "split-before" ? "before" : "after";
-    const place = splitPlace(context, side);
-    if (typeof place === "string") return toast(place, "warning");
-    const at = new Date(index.solutions.get(place.solution)!.times[place.index]).toISOString();
-    await changeTma({ kind: "split", feature: place.solution, at, side });
-    return;
-  }
-  if (id === "hide-cuts" || id === "show-cuts") return restyle(ids, { hidden: id === "hide-cuts" });
-  if (id === "delete-cuts") {
+/** A change's answer as the shared flows take it. */
+const doneOf = (outcome: { error?: string; notes?: string[]; changed?: boolean }) => ({ ...(outcome.error && { problem: outcome.error }), ...(outcome.notes && { notes: outcome.notes }), ...(outcome.changed !== undefined && { changed: outcome.changed }) });
+/** A TMA change, as debrief/tma_split_leg and debrief/tma_exclude_cut: the plot shown again either way. */
+async function tmaChanged(change: Record<string, unknown>) {
+  if (!opened || !pythonReady) return { problem: "Open a plot first." };
+  status("Saving…", true);
+  const outcome = await pythonJson<{ error?: string; notes?: string[]; changed?: boolean }>("tma_change", opened.item.id, JSON.stringify({ base: opened.base, change }));
+  status("");
+  await openPlot(opened.item.id, true);
+  return doneOf(outcome);
+}
+/** The shared flow (webview/panels/flows/operation.ts); this says how Python makes each change. */
+const operationHost: OperationHost = {
+  ...flowHost,
+  operationState,
+  splitLeg: (solution, at, side) => tmaChanged({ kind: "split", feature: solution, at, side }),
+  setCutsHidden: async (ids, hidden) => {
+    if (!opened || !pythonReady) return { problem: "Open a plot first." };
+    const outcome = await pythonJson<{ error?: string; notes?: string[] }>("restyle", opened.item.id, JSON.stringify({ base: opened.base, features: ids, hidden }));
+    await openPlot(opened.item.id, true);
+    return doneOf(outcome);
+  },
+  deleteCuts: async (ids) => {
     status("Deleting…", true);
     const outcome = await sense<{ ok?: boolean }>({ kind: "delete", cut_ids: ids });
     status("");
-    if (outcome.error) return toast(outcome.error, "warning");
-    toast(`${(outcome.notes ?? []).join(". ")}. Undo brings them back.`);
-    return;
-  }
-  if (id === "leave-out" || id === "count-in") {
-    const target = exclusionTarget(index, cuts, context.shownSolution);
-    let solution = target.solution;
-    if (!solution) {
-      // Rooted in several solutions, none shown in Bearings: which one.
-      const names = target.candidates.map((c) => index.solutions.get(c)!.track.properties.name);
-      const chosen = await ask(`These cuts are rooted in ${names.length} solutions. ${id === "leave-out" ? "Leave them out of" : "Count them in"} which?`, names);
-      if (!chosen) return;
-      solution = target.candidates[names.indexOf(chosen)];
-    }
-    const rooted = new Set(index.solutions.get(solution)!.track.properties.tma!.cut_ids);
-    await changeTma({ kind: "exclude", feature: solution, cut_ids: ids.filter((c) => rooted.has(c)), excluded: id === "leave-out" });
-    return;
-  }
-  if (id === "keep-port" || id === "keep-starboard" || id === "keep-ambiguous") {
-    const keep: Keep = id === "keep-port" ? "port" : id === "keep-starboard" ? "starboard" : "ambiguous";
-    return resolveSensor({ keep, cut_ids: cuts.filter((c) => !!c.properties.ambiguous_bearing).map((c) => c.id) });
-  }
-  // TMA solution from cuts: the first guess's form, in Bearings, showing the sensor of the first cut.
-  const made = tmaRequestOf(context);
-  if (typeof made === "string") return toast(made, "warning");
-  const first = made.cuts[0];
-  tmaShown = { sensor: first.properties.sensor_id };
-  tmaFocus.ask(made.request.cut_ids ? { make: true, cut_ids: made.request.cut_ids } : { make: true, period: made.request.period! });
-  showPanel("panel-bearings");
-  await refreshBearings();
+    return doneOf(outcome);
+  },
+  exclude: (solution, ids, excluded) => tmaChanged({ kind: "exclude", feature: solution, cut_ids: ids, excluded }),
+  keepSide: async (keep, ids) => {
+    status("Resolving…", true);
+    const outcome = await sense<{ ok?: boolean }>({ kind: "resolve", resolution: { keep, cut_ids: ids } });
+    status("");
+    return doneOf(outcome);
+  },
+  makeSolution: async (sensor, focus) => {
+    tmaShown = { sensor };
+    tmaFocus.ask(focus);
+    showPanel("panel-bearings");
+    await refreshBearings();
+  },
+};
+/** One of the Tools' entries, on the Outline's selection (or the rows given: a menu's). */
+async function runOperation(id: OperationId, keys?: readonly string[]): Promise<void> {
+  await runOperationFlow(operationHost, id, keys);
 }
 // --- The Outline's menus and toolbar, from the action catalogue (PAR-07) --------------------------
 /**
@@ -2293,32 +2290,6 @@ function outlineRowMenu(key: string, x: number, y: number, from?: HTMLElement, a
   }));
   if (also) items.push({ ...also, groupStart: items.length > 0 });
   openMenu(items, { label: `${row.label}: actions`, x, y, from });
-}
-/** The Tools' entries in the Tools panel, above the Python tools: a button each, or why not beside it. */
-function operationRows(): HTMLElement[] {
-  const ops = operations();
-  if (!ops.length) return [];
-  const heading = document.createElement("li");
-  heading.className = "tools-heading";
-  heading.id = "tools-outline-heading";
-  heading.textContent = "For the Outline's selection";
-  const rows = ops.map((op) => {
-    const row = document.createElement("li");
-    row.className = "outline-op";
-    row.dataset.op = op.id;
-    const button = document.createElement("button");
-    button.textContent = op.label;
-    button.title = op.detail;
-    button.setAttribute("aria-describedby", `op-why-${op.id}`);
-    // Disabled with its reason, still reachable from the keyboard so the reason is read.
-    button.setAttribute("aria-disabled", String(!op.enabled));
-    if (!op.enabled) button.classList.add("disabled");
-    button.onclick = () => void runOperation(op.id);
-    const why = Object.assign(document.createElement("span"), { className: "detail", id: `op-why-${op.id}`, textContent: op.enabled ? "" : (op.reason ?? "") });
-    row.append(button, " ", why);
-    return row;
-  });
-  return [heading, ...rows];
 }
 /** Current time to a cut's time: within the window, or a window widened to take it in, shown and not saved (CAP-28). */
 function timeTo(at: string): void {
@@ -2473,69 +2444,108 @@ $<HTMLInputElement>("sensor-file").onchange = async (e) => {
   toast([sensorReadSummary(outcome, file.name), ...(outcome.notes ?? []), ...outcome.omitted].join(" "));
 };
 
+/** The sections the reader opened or closed in the Tools, by key: kept as the list is filled again. */
+const toolsOpen = new Map<string, boolean>();
+/** The Tools panel model's list (webview/panels/tools.ts, PAR-01), as VS Code's is. */
 function renderTools(): void {
-  const list = $("tools");
-  // The entries for the Outline's selection first (product owner, 27 Oct 2026), then the analysis tools.
-  const ops = operationRows();
-  if (!tools.length) {
-    list.replaceChildren(...ops, Object.assign(document.createElement("li"), { className: "detail busy", textContent: "Starting Python in your browser: the tools show here once it is ready." }));
+  const model = new ToolsModel({
+    listing,
+    problem: pythonProblem,
+    plotOpen: !!opened,
+    selected: selection.length,
+    offered,
+    operations: listing ? operations() : [],
+  });
+  fillTools($("tools"), model, toolsOpen, (row) => runToolsRow(row));
+}
+/** A Tools row chosen: its catalogued action. */
+function runToolsRow(row: ToolsRow): void {
+  if (!row.run) return;
+  const { action, args } = row.run;
+  if (action === "debrief.showToolForm") {
+    const tool = tools.find((t) => t.name === args[0]);
+    if (tool) openForm(tool);
     return;
   }
-  const sorted = [...tools].sort((a, b) => Number(offered.includes(b.name)) - Number(offered.includes(a.name)));
-  const heading = ops.length ? [Object.assign(document.createElement("li"), { className: "tools-heading", textContent: "Analysis tools" })] : [];
-  list.replaceChildren(
-    ...ops,
-    ...heading,
-    ...sorted.map((tool) => {
-      const on = offered.includes(tool.name);
-      const row = document.createElement("li");
-      const button = document.createElement("button");
-      button.textContent = tool.title;
-      button.disabled = !on;
-      button.title = tool.explanation;
-      button.onclick = () => openForm(tool);
-      const why = document.createElement("span");
-      why.className = "detail";
-      why.textContent = on ? "" : needs(tool);
-      row.append(button, " ", why);
-      return row;
-    }),
-  );
+  const op = actionOf(action).operation;
+  if (op) void runOperation(op as OperationId);
 }
 
+/** The History panel model (webview/panels/history.ts, PAR-01), as VS Code's is. */
+function historyModel(): HistoryModel {
+  return new HistoryModel({
+    open: !!opened,
+    steps: opened?.steps ?? [],
+    current: opened?.base.current ?? 0,
+    ...(opened?.revision && { shown: opened.revision.step }),
+    // No Python yet, or none: what VS Code says with no tool service.
+    ...((!pythonReady || pythonProblem) && opened && { problem: NEEDS_SERVICE }),
+    toolTitle: (name) => tools.find((t) => t.name === name)?.title,
+  });
+}
+/** History's title bar (the action catalogue's: Go to latest revision, Undo, Redo) and its rows. */
 function renderHistory(): void {
-  const steps = opened?.steps ?? [];
-  // Undo and Redo disabled, with the catalogue's reason, when they cannot act (PAR-08), as VS Code's are.
   const { context, reasons } = playContext();
-  for (const id of ["undo", "redo"] as const) {
-    const entry = entryOf(actionOf(`debrief.${id}`), undefined, context, reasons);
-    const button = $<HTMLButtonElement>(id);
-    button.disabled = !entry.enabled;
-    button.title = entry.enabled ? entry.title : `${entry.title}: ${entry.reason}`;
-  }
-  const title = (name: string) => tools.find((t) => t.name === name)?.title;
-  $("history").replaceChildren(
-    ...[...steps].reverse().map((step) => {
-      const { label, status } = describeStep(step, title);
-      const row = document.createElement("li");
-      const current = step.seq === opened?.base.current;
-      const shown = step.seq === opened?.revision?.step;
-      row.className = `step ${step.status}${shown ? " shown" : ""}`;
-      const marker = [current ? "current" : step.status === "undone" ? "undone" : step.status === "abandoned" ? "replaced" : "", shown ? "shown read-only" : ""].filter(Boolean).join(", ");
-      row.innerHTML = `<span class="name"></span> <span class="detail"></span>`;
-      row.querySelector(".name")!.textContent = label;
-      row.querySelector(".detail")!.textContent = [`step ${step.seq}`, marker, describePeriod(step.at), step.agent].filter(Boolean).join(" · ");
-      row.title = status;
-      if (!current && step.status !== "abandoned" && !opened?.revision) {
-        const back = document.createElement("button");
-        back.className = "link";
-        back.textContent = step.status === "undone" ? "Redo up to here" : "Go back here";
-        back.onclick = () => void move("goto", step.seq);
-        row.append(" ", back);
-      }
-      return row;
+  // Undo and Redo disabled, with the catalogue's reason, when they cannot act (PAR-08), as VS Code's are.
+  $("history-actions").replaceChildren(
+    ...titleMenu("debrief.history", context, reasons).map((entry) => {
+      const button = document.createElement("button");
+      button.type = "button";
+      button.id = entry.id.replace(/^debrief\./, "");
+      button.className = "history-action";
+      button.dataset.icon = entry.icon ?? "";
+      button.textContent = HISTORY_ACTION_GLYPHS[entry.icon ?? ""] ?? entry.title;
+      button.disabled = !entry.enabled;
+      button.title = entry.enabled ? entry.title : `${entry.title}: ${entry.reason}`;
+      button.setAttribute("aria-label", button.title);
+      button.onclick = () => void runHistoryAction(entry.id);
+      return button;
     }),
   );
+  fillHistory($("history"), historyModel().rows());
+}
+/** The playground's artwork for History's title bar (cosmetic: VS Code draws the codicons). */
+const HISTORY_ACTION_GLYPHS: Record<string, string> = { discard: "↶", redo: "↷", "arrow-right": "→" };
+/** A catalogued History action: its title bar's, or a step's (by its number). */
+async function runHistoryAction(id: string, step?: number): Promise<void> {
+  if (id === "debrief.undo") return move("undo");
+  if (id === "debrief.redo") return move("redo");
+  if (id === "debrief.goToStep" || id === "debrief.redoToStep") return move("goto", step);
+  if (id === "debrief.openLatestRevision" && opened?.revision) return openPlot(opened.item.id);
+}
+/** A step's context menu (right-click, press and hold, Shift+F10 or the menu key), as VS Code's: the action catalogue's for its menu context. */
+function historyRowMenu(li: HTMLElement, x: number, y: number): void {
+  const row = historyModel().rows().find((r) => r.key === li.dataset.key);
+  if (!row?.menu) return;
+  const { context, reasons } = playContext();
+  const entries = rowMenu("debrief.history", row.menu, context, reasons);
+  if (!entries.length) return;
+  openMenu(
+    entries.map((e, i) => ({ label: e.title, groupStart: i > 0 && e.group !== entries[i - 1].group, ...(!e.enabled && { disabled: e.reason }), act: () => void runHistoryAction(e.id, row.seq) })),
+    { label: `${row.label}: actions`, x, y, from: li },
+  );
+}
+{
+  const list = $("history");
+  list.addEventListener("contextmenu", (e) => {
+    const li = (e.target as HTMLElement).closest<HTMLElement>("li[data-menu]");
+    if (!li) return;
+    e.preventDefault();
+    historyRowMenu(li, e.clientX, e.clientY);
+  });
+  list.addEventListener("keydown", (e) => {
+    const li = (e.target as HTMLElement).closest<HTMLElement>("li[data-menu]");
+    if (!li || !(e.key === "ContextMenu" || (e.key === "F10" && e.shiftKey))) return;
+    e.preventDefault();
+    const at = li.getBoundingClientRect();
+    historyRowMenu(li, at.left + 16, at.bottom);
+  });
+  // Press and hold a step on a touch screen: its menu, as a right-click (presshold.ts).
+  const hold = new PressHold((x, y) => document.elementFromPoint(x, y)?.closest<HTMLElement>("#history li[data-menu]") && historyRowMenu(document.elementFromPoint(x, y)!.closest<HTMLElement>("#history li[data-menu]")!, x, y));
+  const touch = (e: PointerEvent) => e.pointerType === "touch" || e.pointerType === "pen";
+  list.addEventListener("pointerdown", (e) => (touch(e) ? hold.press(e.pointerId, e.clientX, e.clientY) : hold.reset()));
+  list.addEventListener("pointermove", (e) => void (touch(e) && hold.move(e.pointerId, e.clientX, e.clientY)));
+  for (const type of ["pointerup", "pointercancel"] as const) list.addEventListener(type, (e) => void (touch(e) && hold.release(e.pointerId)));
 }
 
 async function refreshPlots(): Promise<void> {
@@ -2551,13 +2561,31 @@ function status(text: string, busy = false): void {
   $("status").textContent = text;
   $("status").classList.toggle("busy", busy);
 }
+/**
+ * A message, as VS Code's notifications (toast, without buttons; notify, with): its text and its buttons. Resolves to the
+ * button chosen, or undefined once it goes (after 8 s, or longer while it offers a choice).
+ */
 function toast(text: string, kind: "info" | "warning" = "info"): void {
+  void notify(text, kind);
+}
+function notify(text: string, kind: "info" | "warning" = "info", buttons: readonly string[] = []): Promise<string | undefined> {
   const note = document.createElement("div");
   note.className = `toast ${kind}`;
-  note.textContent = text;
   note.setAttribute("role", "status");
-  $("toasts").append(note);
-  setTimeout(() => note.remove(), 8000);
+  note.append(Object.assign(document.createElement("span"), { textContent: text }));
+  return new Promise((resolve) => {
+    const gone = (chosen?: string) => {
+      note.remove();
+      resolve(chosen);
+    };
+    for (const label of buttons) {
+      const button = Object.assign(document.createElement("button"), { type: "button", textContent: label, className: "toast-button" });
+      button.onclick = () => gone(label);
+      note.append(" ", button);
+    }
+    $("toasts").append(note);
+    setTimeout(gone, buttons.length ? 20000 : 8000);
+  });
 }
 function ask(question: string, choices: string[]): Promise<string | undefined> {
   return new Promise((resolve) => {
@@ -3241,8 +3269,6 @@ for (const panel of Array.from(document.querySelectorAll<HTMLElement>(".menu-pan
   });
 }
 
-$("undo").onclick = () => void move("undo");
-$("redo").onclick = () => void move("redo");
 $<HTMLSelectElement>("plots").onchange = (e) => void openPlot((e.target as HTMLSelectElement).value);
 $("crash").onclick = async () => {
   if (!opened) return;
@@ -3689,9 +3715,10 @@ function withoutPython(why: string): void {
   status(`${why} The map still works; tools, history and import need Python.`);
   $("status").classList.add("problem");
   for (const panel of ["tools", "history", "try", "import"]) $(`panel-${panel}`).classList.add("unavailable");
-  const unavailable = () => Object.assign(document.createElement("li"), { className: "detail", textContent: "Needs Python, which could not start." });
-  $("tools").replaceChildren(unavailable());
-  $("history").replaceChildren(unavailable());
+  // As VS Code's Tools and History say when the tool service could not start.
+  pythonProblem = why;
+  renderTools();
+  renderHistory();
   if (opened) $("plots").replaceChildren(new Option(opened.item.properties.title ?? opened.item.id, opened.item.id));
 }
 
@@ -3700,7 +3727,8 @@ function withoutPython(why: string): void {
   status("Starting Python in your browser: the first time takes a little while…", true);
   try {
     await python("start");
-    tools = await pythonJson<ToolDeclaration[]>("tools");
+    listing = await pythonJson<{ tools: ToolDeclaration[]; unavailable: Unavailable[] }>("tools");
+    tools = listing.tools;
     await pythonJson("setup");
     await refreshPlots();
     // keep: anything the reader selected on the preview stays selected.

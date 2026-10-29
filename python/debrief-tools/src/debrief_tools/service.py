@@ -139,7 +139,7 @@ from debrief_stac.catalogue import review_flags
 from debrief_stac.fixes import describe_largest
 from debrief_stac.tote import measure_groups, tote
 from debrief_tools import diagnostics, figures
-from debrief_tools.registry import applies
+from debrief_tools.entries import history_steps, move, offered_tools
 from debrief_tools.worker import ToolWorker
 
 PROTOCOL_VERSION = "2025-06-18"
@@ -415,7 +415,7 @@ class ToolService:
             kinds = params.get("kinds")
             if not isinstance(kinds, list) or not all(isinstance(k, str) for k in kinds):
                 raise RpcError(INVALID_PARAMS, "kinds must be a list of feature kinds")
-            return {"tools": [n for n, d in self.declarations.items() if applies(d, kinds)]}
+            return {"tools": offered_tools(self.declarations, kinds)}
         if method == "debrief/stores":
             config = self._config()
             return {
@@ -549,15 +549,12 @@ class ToolService:
             out: dict[str, Any] = {"recovered": recovered}
             if method == "debrief/open":
                 out.update(self._open(catalogue, store, item, params))
-            elif method == "debrief/undo":
-                history.undo(expected, allow_newer_schema=allow)
-            elif method == "debrief/redo":
-                history.redo(expected, allow_newer_schema=allow)
-            elif method == "debrief/goto":
+            elif method in STEP_METHODS:
                 step = params.get("step")
-                if type(step) is not int:
+                if method == "debrief/goto" and type(step) is not int:
                     raise RpcError(INVALID_PARAMS, "goto needs the step to return to")
-                history.goto(step, expected, allow_newer_schema=allow)
+                how = method.removeprefix("debrief/")
+                move(history, how, expected, step, allow_newer_schema=allow)
             elif method in (
                 "debrief/set_colour",
                 "debrief/set_hidden",
@@ -611,7 +608,7 @@ class ToolService:
             # someone else changed the plot, read from the plot file alone (SUB-28).
             out["latest"] = head.latest
             if method == "debrief/history":
-                out["steps"] = [_step(s) for s in history.steps()]
+                out["steps"] = history_steps(history)
             return out
         except Conflict as conflict:
             raise RpcError(CONFLICT, str(conflict)) from None
@@ -1637,29 +1634,6 @@ def _agent(params: dict[str, Any]) -> models.AgentRef:
         return models.AgentRef(**agent)
     except ValueError:
         raise RpcError(INVALID_PARAMS, "agent must be {kind, name}") from None
-
-
-def _step(step: Any) -> dict[str, Any]:
-    """One history step as the History view shows it: what made it, when, by whom.
-
-    The notes name an edit made without a tool, such as "Colour of BLUE ONE set
-    to red"; the playground (vscode/play/play.py)
-    lists the same fields, so both name steps alike.
-    """
-    first = step.records[0]
-    return {
-        "seq": step.seq,
-        "status": step.status,
-        "kind": str(first.kind),
-        "tool": first.tool.name if first.tool else None,
-        "agent": ", ".join(dict.fromkeys(r.agent.name for r in step.records)),
-        "at": first.ended_at or first.started_at,
-        "records": len(step.records),
-        "notes": list(first.notes or []),
-        # What undoing it goes back to, and whether undo takes it with the step before.
-        "after": step.after,
-        "records_only": step.records_only,
-    }
 
 
 def _tool_error(message: str) -> dict[str, Any]:
