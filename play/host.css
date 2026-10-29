@@ -22,6 +22,10 @@ body { background: var(--vscode-editor-background); color: var(--vscode-foregrou
 #outline .twisty { display: inline-block; width: 12px; color: var(--vscode-descriptionForeground); }
 #outline:focus-within li[tabindex="0"]:not(:focus) { outline: 1px dotted var(--vscode-focusBorder); outline-offset: -1px; }
 #outline .tree-spacer { padding: 0; }
+#outline .icon { display: inline-block; width: 14px; text-align: center; color: var(--vscode-descriptionForeground); }
+#outline li.selected .icon { color: inherit; }
+#outline li.section .name { font-size: 11px; font-weight: 600; text-transform: uppercase; }
+#outline .tree-empty { padding: 4px 8px; color: var(--vscode-descriptionForeground); cursor: default; white-space: normal; }
 /* The Outline's toolbar (product owner, 28 Oct 2026): compact icon buttons, a tooltip each, one tab stop. */
 .obar { display: flex; flex-wrap: wrap; gap: 2px; align-items: center; margin: 0 0 4px; min-width: 0; }
 .obar .obar-button { display: inline-flex; align-items: center; justify-content: center; width: 26px; height: 24px; padding: 0; margin: 0; background: transparent; color: var(--vscode-icon-foreground, var(--vscode-foreground)); border: 1px solid transparent; border-radius: 4px; }
@@ -196,7 +200,6 @@ dialog::backdrop { background: color-mix(in srgb, var(--vscode-editor-background
 .freq-form .freq-row .form-note:empty { display: none; }
 .freq-form .buttons { margin-top: 12px; }
 .fix-actions .toggle[aria-pressed="true"] { background: var(--vscode-button-background); color: var(--vscode-button-foreground); }
-#outline .freq-detail { display: block; font-size: 11px; }
 /* Export image (SUB-25): four short choices, then the button; finding an image's source by its file or its ID. Narrow: one column, nothing sideways. */
 .export-form { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 4px 8px; margin-bottom: 6px; }
 .export-form label { display: flex; flex-direction: column; gap: 2px; min-width: 0; font-size: 12px; }
