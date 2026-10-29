@@ -6,7 +6,7 @@
 // each one step, undone like any other; all of it from the keyboard too; the entry on the
 // map beside its track; a phone. And at the track-heavy volume (60,000 entries), how long
 // each part takes, reported.
-import { resizeTo, showPanel } from "./dock.mjs";
+import { frames, resizeTo, showPanel } from "./dock.mjs";
 import assert from "node:assert/strict";
 import { narrativeLog } from "./narrativelog.mjs";
 import { searchTimeline, timelineRow } from "./timelinerows.mjs";
@@ -314,7 +314,7 @@ export async function playNarrative(page, shot) {
   // scrolls sideways; a tap moves current time.
   await resizeTo(page, 390, 844);
   await showPanel(page, "timeline");
-  await page.waitForTimeout(300);
+  await frames(page);
   assert.equal(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth), true, "the page does not scroll sideways on a phone");
   assert.equal(await timeline(".tl-scroll").evaluate((el) => el.scrollWidth <= el.clientWidth), true, "nor the list");
   assert.equal(await page.locator("#timeline").evaluate((el) => el.classList.contains("tl-narrow")), true);
@@ -475,7 +475,7 @@ export async function vscodeTimelineView(browser, files, errors, shot, plot) {
   // Never wider than the sidebar, at any width or font: measured, so a failure says by how much.
   const widths = [];
   const noSideways = async (what) => {
-    await view.waitForTimeout(300); // the list laid out again for its new width
+    await frames(view); // the list laid out again for its new width
     const [page, list] = await view.evaluate(() => [document.documentElement, document.querySelector(".tl-scroll")].map((el) => [el.scrollWidth, el.clientWidth]));
     widths.push(`${what}: page ${page[0]}/${page[1]} px, list ${list[0]}/${list[1]} px`);
     assert.ok(page[0] <= page[1] && list[0] <= list[1], `${what}, the view does not scroll sideways: page scrollWidth ${page[0]} px in ${page[1]} px, list ${list[0]} px in ${list[1]} px`);

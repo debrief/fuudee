@@ -124,11 +124,17 @@ jobs:
       - run: uv sync --locked --only-group docs
       - run: uv run --only-group docs mkdocs build --strict --config-file site/mkdocs.yml
 
-  playground:
+  playground-part:
     # The blog's playable demos: Debrief's webviews and Python, in the browser
     # (CON-09). Builds the playground and the site, then plays every demo in
-    # Chromium as a reader would, including one started from a blog post.
+    # Chromium as a reader would, including one started from a blog post. The
+    # demos play in five parts side by side, each from a fresh page.
+    name: playground (part ${{ matrix.part }})
     runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        part: [1, 2, 3, 4, 5]
     steps:
       - uses: actions/checkout@v4
       - uses: astral-sh/setup-uv@v6
@@ -159,14 +165,25 @@ jobs:
       - name: Play every demo
         working-directory: vscode
         env:
+          DEBRIEF_PLAY_PART: ${{ matrix.part }}
           DEBRIEF_SCREENSHOTS: ${{ github.workspace }}/playground-screenshots
+          # On pull requests, only the page as it failed: a screenshot of every step costs minutes.
+          DEBRIEF_SCREENSHOTS_ON: ${{ github.event_name == 'pull_request' && 'failure' || 'every-step' }}
         run: mkdir -p "$DEBRIEF_SCREENSHOTS" && npm run test:play
       - uses: actions/upload-artifact@v4
         if: always()
         with:
-          name: playground-screenshots
+          name: playground-screenshots-${{ matrix.part }}
           path: playground-screenshots
           if-no-files-found: ignore
+
+  playground:
+    # The check pull requests wait on: every part of the playground played.
+    needs: playground-part
+    if: always()
+    runs-on: ubuntu-latest
+    steps:
+      - run: test "${{ needs.playground-part.result }}" = success
 
   pyodide:
     # Python tools must run in the browser for the web build (CON-09). Runs the

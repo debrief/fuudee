@@ -20,7 +20,7 @@ export const layoutOf = (page) => page.evaluate(() => window.debriefLayout());
 const groupsOf = async (page) => (await layoutOf(page)).groups.map((g) => `${g.place}:${g.panels.join(",")}`);
 const docked = async (page) => (await layoutOf(page)).docked;
 /** A frame or three: what Dockview lays out after a change. */
-const frames = (page) => page.evaluate(() => new Promise((done) => requestAnimationFrame(() => requestAnimationFrame(() => requestAnimationFrame(done)))));
+export const frames = (page) => page.evaluate(() => new Promise((done) => requestAnimationFrame(() => requestAnimationFrame(() => requestAnimationFrame(done)))));
 
 /**
  * Bring a panel into view, as a reader would: docked, click its tab; narrow, unfold it and scroll to it;

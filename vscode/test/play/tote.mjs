@@ -8,7 +8,7 @@
 // plot's island, never a step; and the latency while playing, reported.
 import { timelineRow } from "./timelinerows.mjs";
 import assert from "node:assert/strict";
-import { resizeTo, showPanel } from "./dock.mjs";
+import { frames, resizeTo, showPanel } from "./dock.mjs";
 
 const BUDGET_MS = 100;
 
@@ -197,7 +197,7 @@ export async function playTote(page, shot) {
   // lines, so five tracks usually fit. Whether they do depends on the fonts, so where they don't,
   // they scroll inside the table under row headings that stay put.
   await resizeTo(page, 390, 844);
-  await page.waitForTimeout(300);
+  await frames(page);
   assert.ok(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth), "the page does not scroll sideways");
   const phone = await scroll.evaluate((s) => [s.scrollWidth, s.clientWidth]);
   console.log(`Tote on a phone (390 px): tracks ${phone[0]} px wide in ${phone[1]} px.`);
@@ -209,7 +209,7 @@ export async function playTote(page, shot) {
   await shot("tote-phone");
   await page.evaluate(() => scrollTo(0, 0));
   await resizeTo(page, 1400, 820);
-  await page.waitForTimeout(300);
+  await frames(page);
 
   // Tug 01's last fix is at 10:35:17: current time at the window's end, it says it has ended.
   await page.locator("#timebar .tc-current").focus();
