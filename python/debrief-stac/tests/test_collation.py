@@ -4,6 +4,7 @@ preference per period, new data, taking it, and revisions flagged for review."""
 from __future__ import annotations
 
 import json
+import math
 import time
 from pathlib import Path
 
@@ -887,9 +888,13 @@ def test_coverage_of_a_study_of_fifty_items_stays_responsive(tmp_path: Path) -> 
     started = time.perf_counter()
     report = fresh.coverage("item-00")
     cold = time.perf_counter() - started
-    started = time.perf_counter()
-    again = fresh.coverage("item-00")
-    warm = time.perf_counter() - started
+    # Again, the best of five: what the cached path costs, not a busy runner's pause (a GC,
+    # another job), which made a single timing fail on CI at 127-135 ms while it takes ~45 ms.
+    warm = math.inf
+    for _ in range(5):
+        started = time.perf_counter()
+        again = fresh.coverage("item-00")
+        warm = min(warm, time.perf_counter() - started)
     started = time.perf_counter()
     flags = review_flags([fresh])
     flagged = time.perf_counter() - started
