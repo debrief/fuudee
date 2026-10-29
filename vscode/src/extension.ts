@@ -48,6 +48,7 @@ import { FIX_COLOURS, TRACK_COLOURS } from "../webview/palette.js";
 import { Session, timeProblem } from "./session.js";
 import { CataloguesProvider, type CollationMarks } from "./views/catalogues.js";
 import { featureIdsOf, keysOf, OutlineProvider, type Node as OutlineNode } from "./views/outline.js";
+import { choosePython } from "./runtime.js";
 import { OPERATION_COMMANDS, ToolsProvider } from "./views/tools.js";
 import { hexColour, selectionChildren, selectionColour, selectionVisibility, type Visibility } from "../webview/outlinetoolbar.js";
 import { exclusionTarget, featureIdsOfPicks, fixKey, outlineChoice, outlineOperations, pickedCuts, pickOf, tmaRequestOf, type Operation, type OperationContext, type OperationId, type OutlineFocus, type OutlinePick } from "../webview/outlinemodel.js";
@@ -85,6 +86,8 @@ export interface DebriefApi {
   offered: () => string[];
   /** Why tools are not available, if they are not. */
   toolsProblem: () => string | undefined;
+  /** The Python the tool service runs, and whether it is the one bundled with this install, for tests and agents. */
+  python: () => { python: string; bundled: boolean };
   /** How many features the map says are hidden, for tests and agents. */
   hiddenOnMap: () => number | undefined;
   /** Whether the time controller in the sidebar has loaded, for tests and agents. */
@@ -472,8 +475,15 @@ export function activate(context: vscode.ExtensionContext): DebriefApi {
       session.viewChanged();
     }),
   );
-  const python = () =>
-    process.env.DEBRIEF_PYTHON || settings().get<string>("python") || (process.platform === "win32" ? "python" : "python3");
+  // The Python bundled with this install, unless a developer chose another (src/runtime.ts).
+  const pythonChoice = () =>
+    choosePython({
+      fromEnv: process.env.DEBRIEF_PYTHON,
+      fromSetting: settings().get<string>("python"),
+      extensionPath: context.extensionPath,
+      installed: context.extensionMode === vscode.ExtensionMode.Production,
+    });
+  const python = () => pythonChoice().python;
 
   function startService(): Promise<void> {
     // One start at a time: a second request waits for the first.
@@ -493,7 +503,7 @@ export function activate(context: vscode.ExtensionContext): DebriefApi {
             if (safe) log(safe);
           },
           // The same key, so the service's hashes and ours match.
-          env: { DEBRIEF_LOG_KEY: logKey().toString("hex") },
+          env: { ...pythonChoice().env, DEBRIEF_LOG_KEY: logKey().toString("hex") },
         });
         await started.initialise();
         listing = await started.listTools();
@@ -3643,7 +3653,7 @@ export function activate(context: vscode.ExtensionContext): DebriefApi {
         await mkdir(path.dirname(folder), { recursive: true });
         const made = await vscode.window.withProgress(
           { location: vscode.ProgressLocation.Notification, title: `Making a fresh copy of serial 1 for ${chosen.title}…` },
-          () => prepare(python(), folder, chosen.id),
+          () => prepare(python(), folder, chosen.id, pythonChoice().env),
         );
         updateConfig((c) => {
           const [next, added] = addStore(c, { title: made.catalogue_title, location: made.catalogue });
@@ -3707,6 +3717,10 @@ export function activate(context: vscode.ExtensionContext): DebriefApi {
     mapShowing: () => map.showing,
     offered: () => tools.offered,
     toolsProblem: () => tools.problem,
+    python: () => {
+      const { python: chosen, bundled } = pythonChoice();
+      return { python: chosen, bundled };
+    },
     hiddenOnMap: () => map.hiddenCount,
     timeControllerShowing: () => timeView.showing,
     toteShowing: () => toteView.showing,

@@ -167,3 +167,10 @@ vscode/.vscode-test/
 site/docs/play/
 # The web demo beside it, made from the playground's page by vscode/scripts/build-play.mjs
 site/docs/demo/
+
+# A platform's VSIX (vscode/scripts/package-vsix.mjs): its bundled Python, the downloads it is
+# made from, the licence copied in, and the packages
+vscode/python/
+vscode/.python-cache/
+vscode/LICENSE
+vscode/vsix/

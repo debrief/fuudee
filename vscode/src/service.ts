@@ -179,16 +179,17 @@ export interface ServiceOptions {
   python: string;
   timeoutSeconds: number;
   log: (line: string) => void;
-  env?: Record<string, string>;
+  /** Changes to the environment it starts in; undefined removes a variable. */
+  env?: Record<string, string | undefined>;
   startTimeoutMs?: number;
 }
 
 /** Check the interpreter before starting it, so a wrong one gets a useful message. */
-export function checkPython(python: string): string | undefined {
+export function checkPython(python: string, env?: Record<string, string | undefined>): string | undefined {
   const probe = spawnSync(
     python,
     ["-c", "import sys, importlib.util as u; print(sys.version_info[0], sys.version_info[1], u.find_spec('debrief_tools') is not None)"],
-    { encoding: "utf8", timeout: 20000, windowsHide: true },
+    { encoding: "utf8", timeout: 20000, windowsHide: true, env: { ...process.env, ...env } },
   );
   if (probe.error) return `Debrief could not run Python with "${python}": ${probe.error.message}. Set Debrief: Python in Settings.`;
   const [major, minor, found] = probe.stdout.trim().split(" ");
@@ -210,7 +211,7 @@ export class ToolService {
 
   /** Start the service and wait until it is listening. */
   static start(options: ServiceOptions): Promise<ToolService> {
-    const problem = checkPython(options.python);
+    const problem = checkPython(options.python, options.env);
     if (problem) return Promise.reject(new ServiceError(problem));
     const token = randomBytes(32).toString("base64url");
     // -P: never import from the working directory; cwd is a neutral folder.

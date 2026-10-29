@@ -207,9 +207,9 @@ export function whyNotPrepared(stderr: string, fallback: string): string {
 }
 
 /** Build a fresh copy of the sample for a walkthrough into folder, with the analyst's Python (debrief-sample). */
-export function prepare(python: string, folder: string, tour: string): Promise<Prepared> {
+export function prepare(python: string, folder: string, tour: string, env?: Record<string, string | undefined>): Promise<Prepared> {
   return new Promise((resolve, reject) => {
-    execFile(python, ["-m", "debrief_sample", "walkthrough", folder, tour], { timeout: 120_000 }, (error, stdout, stderr) => {
+    execFile(python, ["-m", "debrief_sample", "walkthrough", folder, tour], { timeout: 120_000, env: { ...process.env, ...env } }, (error, stdout, stderr) => {
       if (error) {
         return reject(new Error(whyNotPrepared(stderr, error.message)));
       }

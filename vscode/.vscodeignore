@@ -1,9 +1,23 @@
-# Only the bundles and media go into the VSIX: esbuild has already inlined every dependency.
+# What a VSIX holds (scripts/package-vsix.mjs): everything is left out, then only what the
+# installed extension reads is let back in. Sources, tests, node_modules (the extension is
+# bundled by esbuild), source maps, the playground, caches and docs stay out.
 **
-!dist/extension.js
-!dist/webview/**
-!media/**
+
 !package.json
 !README.md
+!CHANGELOG.md
 !LICENSE
-dist/**/*.map
+
+!dist/extension.js
+!dist/webview/*.js
+!dist/webview/*.css
+!dist/webview/land.geojson
+
+!media/debrief.svg
+!media/walkthroughs/**
+
+# The Python bundled for this platform (scripts/bundle-python.mjs), without caches it might
+# write if run before packaging; its .pyc files are compiled ahead and kept.
+!python/**
+python/**/*.pyc.*
+python/**/*.whl

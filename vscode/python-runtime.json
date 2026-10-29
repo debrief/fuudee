@@ -1,0 +1,28 @@
+{
+  "comment": "The Python bundled in each platform's VSIX: python-build-standalone's install_only_stripped builds of one release, checksums from its SHA256SUMS. Change release, python and every sha256 together. See scripts/bundle-python.mjs.",
+  "release": "20260718",
+  "python": "3.12.13",
+  "url": "https://github.com/astral-sh/python-build-standalone/releases/download/{release}/cpython-{python}%2B{release}-{triple}-install_only_stripped.tar.gz",
+  "targets": {
+    "win32-x64": {
+      "triple": "x86_64-pc-windows-msvc",
+      "sha256": "0d422a1439ec308e03f47df551bc30f5994727c456e414b026d202bcda9b7c1c"
+    },
+    "linux-x64": {
+      "triple": "x86_64-unknown-linux-gnu",
+      "sha256": "5854aa6ec71cad00334d5065633c210b2e7feb40956767a59a91791cadcf0b79"
+    },
+    "linux-arm64": {
+      "triple": "aarch64-unknown-linux-gnu",
+      "sha256": "f226576b91491ffa5739aa85726521e9031f4d87f80627d64ed348ac77cb31e9"
+    },
+    "darwin-arm64": {
+      "triple": "aarch64-apple-darwin",
+      "sha256": "9a1e9e06175c10efd8378b904b07fa21bd791ab3345d7cdffeb4a76c9ff55903"
+    },
+    "darwin-x64": {
+      "triple": "x86_64-apple-darwin",
+      "sha256": "8e6b7e6533bdf746287008edf91102e7bee0a6ca1d24f16c4514237cafd706c5"
+    }
+  }
+}
