@@ -114,6 +114,9 @@ import {
 } from "./tma.js";
 import { describeDistance, describeSpeed, readBearing, readDistance, readSpeed } from "./trackedit.js";
 
+/** What the view says with nothing chosen. */
+const EMPTY = "Select a sensor or a TMA solution in the Outline to see its bearings here.";
+
 export interface TmaControlHost {
   /** Make a solution as asked (tma_create). */
   create(request: TmaRequest): void;
@@ -243,7 +246,7 @@ export class TmaControl {
     element.setAttribute("aria-label", "Bearings");
     const paneButton = (p: Pane) => `<button type="button" class="tma-pane" data-pane="${p}" aria-pressed="false" title="Show or hide the ${PANE_NAMES[p]} pane">${PANE_NAMES[p]}</button>`;
     element.innerHTML =
-      `<p class="tma-empty">Select a sensor or a TMA solution in the Outline to see its bearings here.</p>` +
+      `<p class="tma-empty">${EMPTY}</p>` +
       `<div class="tma-body"><div class="tma-left">` +
       `<p class="tma-title" aria-live="polite"></p>` +
       `<div class="tma-tools" role="toolbar" aria-label="The plot's panes and scale">` +
@@ -339,6 +342,7 @@ export class TmaControl {
 
   /** Everything the view shows; nothing for no plot. */
   show(view: TmaView | undefined): void {
+    this.notWaiting();
     const before = this.view;
     this.view = view;
     this.live = undefined;
@@ -461,6 +465,24 @@ export class TmaControl {
   }
 
   /** The form's answer: closed once the solution is made, or why not, left open. */
+  /**
+   * Something chosen whose bearings are not to hand yet (the playground while Python starts,
+   * product owner, 29 Oct 2026): said in place of the plot, busy, until a view is shown.
+   */
+  waiting(text: string): void {
+    this.show(undefined);
+    this.empty.textContent = text;
+    this.empty.classList.add("tma-waiting");
+    this.element.setAttribute("aria-busy", "true");
+  }
+
+  private notWaiting(): void {
+    if (!this.empty.classList.contains("tma-waiting")) return;
+    this.empty.textContent = EMPTY;
+    this.empty.classList.remove("tma-waiting");
+    this.element.removeAttribute("aria-busy");
+  }
+
   made(problem?: string): void {
     if (!problem) {
       this.closeForm();

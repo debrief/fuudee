@@ -2051,6 +2051,8 @@ async function refreshBearings(): Promise<void> {
   const asked = ++tmaAsking;
   // Something no longer in the plot (undone, deleted): nothing shown.
   if (tmaShown && ("solution" in tmaShown ? !index.solutions.has(tmaShown.solution) : !index.sensors.has(tmaShown.sensor))) tmaShown = undefined;
+  // Chosen while Python starts (product owner, 29 Oct 2026): said so, busy; asked again once it is ready.
+  if (!pythonReady && tmaShown) return tmaControl.waiting(`${bearingsTitle(index, tmaShown)}: starting Python in your browser. Its bearings show here once it is ready.`);
   const sensors = tmaSensorRows(plot);
   const solutions = tmaSolutionRows(plot);
   const solution = shownSolution();
@@ -2475,7 +2477,7 @@ function renderTools(): void {
   // The entries for the Outline's selection first (product owner, 27 Oct 2026), then the analysis tools.
   const ops = operationRows();
   if (!tools.length) {
-    list.replaceChildren(...ops, Object.assign(document.createElement("li"), { className: "detail", textContent: "Starting Python…" }));
+    list.replaceChildren(...ops, Object.assign(document.createElement("li"), { className: "detail busy", textContent: "Starting Python in your browser: the tools show here once it is ready." }));
     return;
   }
   const sorted = [...tools].sort((a, b) => Number(offered.includes(b.name)) - Number(offered.includes(a.name)));
@@ -3693,6 +3695,8 @@ function withoutPython(why: string): void {
     // keep: anything the reader selected on the preview stays selected.
     await openPlot(startPlot, true);
     pythonReady = true;
+    // What was chosen for Bearings while Python started, asked for now.
+    void refreshBearings();
     refreshTote();
     await showImportMode();
     needsPython(true);
