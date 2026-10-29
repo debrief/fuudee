@@ -16,7 +16,11 @@ import { firstRunWalkthrough, playWalkthroughs } from "./walkthroughs.js";
 
 const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
 
+/** The last step reached, by its screenshot's name: what a run that never finishes says it was doing. */
+let lastStep = "starting";
+
 async function screenshot(name: string, keepNotifications = false): Promise<void> {
+  lastStep = name;
   const folder = process.env.DEBRIEF_SCREENSHOTS;
   if (!folder || !process.env.DISPLAY) return;
   if (!keepNotifications) await vscode.commands.executeCommand("notifications.clearAll");
@@ -62,7 +66,25 @@ async function waitFor<T>(what: string, probe: () => T | undefined | Promise<T |
   }
 }
 
+/**
+ * The whole tracer runs as one test, so one await that never settles would hold the job until CI
+ * cancels it, saying nothing. A deadline fails it instead, naming the last step reached.
+ * A full run takes about five minutes; DEBRIEF_IT_MINUTES overrides the limit.
+ */
 export async function run(): Promise<void> {
+  const minutes = Number(process.env.DEBRIEF_IT_MINUTES) || 20;
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  const deadline = new Promise<never>((_, reject) => {
+    timer = setTimeout(() => reject(new Error(`The tracer did not finish in ${minutes} minutes; the last step reached was ${lastStep}`)), minutes * 60000);
+  });
+  try {
+    await Promise.race([tracer(), deadline]);
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
+async function tracer(): Promise<void> {
   const extension = vscode.extensions.getExtension<DebriefApi>("debrief.debrief")!;
   const api = await extension.activate();
   await api.ready;
