@@ -211,7 +211,7 @@ export async function playTma(page, shot) {
   assert.equal(await view.locator(".tma-form").isHidden(), true, "the form closes once the solution is made");
   // Selected, in the Outline with its TMA tag; Bearings showing it, said in its title.
   assert.deepEqual(await page.$$eval("#outline li.selected .name", (r) => r.map((e) => e.textContent)), ["Contact 1 solution"]);
-  assert.equal(await page.locator('#outline li.selected .tag').innerText(), "TMA");
+  assert.match(await page.locator("#outline li.selected .detail").innerText(), /^TMA · Contact 1 · selected · /);
   assert.equal(await title(), "Contact 1 solution · 1 leg, 60 cuts");
   const canvas = view.locator(".tma-canvas");
   assert.equal(await canvas.isVisible(), true);
@@ -904,7 +904,7 @@ export async function playTma(page, shot) {
   await view.locator(".tma-rms").waitFor({ timeout: 60000 });
   assert.match(await rms(), /^RMS \d+\.\d° over 10 cuts$/);
   assert.ok((await residuals()).rms < 0.5, "the imported solution lies on its cuts");
-  assert.equal(await page.locator("#outline li.selected .tag").innerText(), "TMA");
+  assert.match(await page.locator("#outline li.selected .detail").innerText(), /^TMA · [^·]+ · selected · /);
   await mapFrame.getByRole("button", { name: "Zoom to the selection", exact: true }).click();
   await picture("tma-07-imported");
 
