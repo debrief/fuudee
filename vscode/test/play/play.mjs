@@ -395,6 +395,7 @@ try {
     await showPanel(page, "catalogue");
     await page.locator('#items li[data-key="plot:play:shapes"] > .row').click();
     await page.waitForFunction(() => document.getElementById("plots")?.value === "shapes");
+    await showPanel(page, "outline"); // its tab to the front again
     await shot("play-07-imported");
     await mapFrame.locator('path[stroke-dasharray="1 4"]').first().waitFor(); // the dotted circle
     // Closer, on the legacy plot's styled circles.
