@@ -874,7 +874,8 @@ export class TmaControl {
     this.tools.querySelector(".tma-select")!.setAttribute("aria-pressed", String(on));
     this.plot.classList.toggle("tma-selecting", on);
     this.element.querySelector<HTMLElement>(".tma-select-hint")!.hidden = !on;
-    this.say(on ? "Select bearings on: box the Bearing pane's dots; an ambiguous cut keeps the side boxed, a resolved one is made ambiguous again." : "Select bearings off: a box zooms.");
+    // On, the hint beside the plot says what a box does: the status says only that it is on, so the hint is not shown twice.
+    this.say(on ? "Select bearings on." : "Select bearings off: a box zooms.");
   }
 
   /** The Course/Speed pane's lines named, in ⋯: each track's colour, course solid and speed dashed. */
