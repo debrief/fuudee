@@ -1,0 +1,7 @@
+{
+ "number": "73",
+ "title": "Integration test: fail after 20 minutes, naming the last step, instead of hanging",
+ "url": "https://github.com/debrief/fuudee/pull/73",
+ "sha": "c4753be",
+ "built": "2026-10-29 18:29 UTC"
+}
