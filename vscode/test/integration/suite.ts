@@ -914,7 +914,9 @@ export async function run(): Promise<void> {
   // eye's icon following the selection (debrief.selectionVisibility); each command run on the
   // Outline's selection, one step each where it changes the plot; the context keys following.
   {
-    const titleBar = (extension.packageJSON.contributes.menus["view/title"] as { command: string; when: string; group: string }[]).filter((m) => m.when.startsWith("view == debrief.outline") && m.group.startsWith("navigation"));
+    const titleBar = (extension.packageJSON.contributes.menus["view/title"] as { command: string; when: string; group: string }[]).filter((m) => m.when.startsWith("view == debrief.outline") && m.group.startsWith("navigation"))
+      // In the order VS Code shows them: by each entry's order in its group (navigation@N), not by where it is in package.json.
+      .sort((a, b) => Number(a.group.split("@")[1]) - Number(b.group.split("@")[1]));
     assert.deepEqual(
       titleBar.map((m) => m.command),
       ["debrief.selectionHide", "debrief.selectionShow", "debrief.selectionShowAll", "debrief.colourSelection", "debrief.selectAll", "debrief.selectChildren", "debrief.clearSelection", "debrief.addAnnotation"],
