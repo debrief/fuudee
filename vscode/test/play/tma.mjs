@@ -618,9 +618,9 @@ export async function playTma(page, shot) {
   await page.keyboard.press("Escape");
   await page.locator(".context-menu").waitFor({ state: "detached" });
   await showPanel(page, "bearings");
-  const dot = await pointOf(made.rows[29].id);
-  const canvas = await view.locator(".tma-canvas").boundingBox();
-  await page.mouse.click(canvas.x + dot.x, canvas.y + dot.y, { button: "right" });
+  const cutDot = await pointOf(made.rows[29].id);
+  const plotBox = await canvas.boundingBox();
+  await page.mouse.click(plotBox.x + cutDot.x, plotBox.y + cutDot.y, { button: "right" });
   items = await menuItems();
   assert.ok(items.includes("Select this cut") && items.some((t) => t.startsWith("Split after this cut")), `Bearings' dot menu: ${items.join(" | ")}`);
   before = await steps();
