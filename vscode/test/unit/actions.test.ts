@@ -25,7 +25,8 @@ describe("the action catalogue", () => {
   it("declares each action once, each a command the extension registers", () => {
     const ids = ACTIONS.map((a) => a.id);
     expect(new Set(ids).size).toBe(ids.length);
-    const source = read("src/extension.ts") + read("src/views/tools.ts");
+    // The Outline entries' commands are registered from the Tools panel model's OPERATION_COMMANDS.
+    const source = read("src/extension.ts") + read("webview/panels/tools.ts");
     const registered = (id: string) => source.includes(`"${id}"`) || (id.startsWith("debrief.contextTracks.") && source.includes("command(`debrief.contextTracks.${choice}`"));
     expect(ids.filter((id) => !registered(id))).toEqual([]);
   });
