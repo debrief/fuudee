@@ -94,7 +94,7 @@ Only the differences listed here are acceptable. Any other difference is a defec
 
 1. ~~Button groups below the Outline~~. **Decided 29 Oct 2026:** context menus only (PAR-07). The walkthrough text and `site/docs/try.md`, which point to buttons "below the outline", shall be reworded to match.
 2. ~~Plot switching~~. **Decided 29 Oct 2026:** the playground's Catalogue panel opens plots from the tree; the top-bar list stays as a shortcut (§5).
-3. **Tote context items.** VS Code shows all three Tote items and acts on every selected track. The playground shows only the items that apply and acts on the right-clicked track. Which is correct? The catalogue will make whichever is chosen the behaviour in both.
+3. ~~Tote context items~~. **Decided 29 Oct 2026:** the Tote items act on every selected track (as VS Code does). Only items that apply to the selection are shown: *Add to Tote* when any selected track is not in the Tote, *Remove from Tote* when any is. *Set as Tote primary* is shown for tracks and disabled, with its reason, when more than one track is selected or the track already is the primary (PAR-08).
 4. ~~Next-walkthrough button~~. **Decided 29 Oct 2026:** keep it in the playground. Still open: how VS Code offers the same (e.g. a final step's button running the next walkthrough).
 
 ## Appendix A. Differences found (29 Oct 2026)
