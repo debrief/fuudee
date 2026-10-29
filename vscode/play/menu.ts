@@ -8,6 +8,8 @@
 export interface MenuItem {
   label: string;
   act: () => void;
+  /** Why it cannot act: shown so (aria-disabled, the reason its title), still reachable and chosen to say why. */
+  disabled?: string;
 }
 
 let shown: { element: HTMLElement; from: HTMLElement | undefined } | undefined;
@@ -30,9 +32,13 @@ export function openMenu(items: MenuItem[], options: { label: string; x: number;
   element.className = `context-menu ${options.className ?? ""}`.trim();
   element.setAttribute("role", "menu");
   element.setAttribute("aria-label", options.label);
-  const buttons = items.map(({ label, act }) => {
+  const buttons = items.map(({ label, act, disabled }) => {
     const button = Object.assign(document.createElement("button"), { textContent: label, type: "button" });
     button.setAttribute("role", "menuitem");
+    if (disabled) {
+      button.setAttribute("aria-disabled", "true");
+      button.title = disabled;
+    }
     button.tabIndex = -1;
     button.onclick = () => {
       closeMenu(false);

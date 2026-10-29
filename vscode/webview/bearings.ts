@@ -44,6 +44,7 @@ const control = new TmaControl(
     resolve: (feature_id, keep) => host.postMessage({ kind: "resolve_asked", feature_id, keep }),
     resolveCuts: (resolution) => host.postMessage({ kind: "tma_resolve", resolution }),
     select: (feature_id, current_time) => host.postMessage({ kind: "tma_select", feature_id, current_time }),
+    menu: (feature_id, current_time) => host.postMessage({ kind: "tma_menu", feature_id, current_time }),
     cutOff: (error_cut_off) => host.postMessage({ kind: "tma_cut_off", error_cut_off }),
     drawn: (plot_height, pane_widths) => host.postMessage({ kind: "tma_plot_drawn", plot_height, pane_widths }),
   },

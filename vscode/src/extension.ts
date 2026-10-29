@@ -7,7 +7,7 @@
 import { userInfo } from "node:os";
 import * as vscode from "vscode";
 import type { AmbiguityResolution, AnnotationSpec, ContextTracksEnum, CoverageReport, KnownStore, FigureSource, RevisionShown, NarrativeSpec, ReviewFlag, SourceTrackRef, TimelineEntry, ParameterValue, PlotView, SharedState, SharedStateChange, TimeRange, TmaFocus, TmaRequest, TmaView, ToolDeclaration, ToteResult, ToteView as ToteChoice, TrackEdit } from "@debrief/schemas";
-import { figureIdProblem, formatBearing, formatPosition, formatQuantity, parsePosition, POSITION_EXAMPLE, UNIT_LABELS } from "@debrief/kernel";
+import { figureIdProblem, formatBearing, formatPosition, formatQuantity, formatTime, parsePosition, POSITION_EXAMPLE, UNIT_LABELS } from "@debrief/kernel";
 import { defaultPivotIndex, describeDistance, describeSpeed, describeTurn, FIX_PROMPT, FIX_PROMPT_DR, fixIndexAt, fixMeans, fixToEdit, jumpSpeed, legNow, mergedName, mergePlan, periodIndices, readArrayOffset, arrayOffsetTitle, readBearing, readDistance, readSpeed, readTurn, reckoningOf, type Anchor } from "../webview/trackedit.js";
 import { legExtent } from "../webview/tma.js";
 import { chooseModes, MODE_LABELS, modeChoices, modeQuestion, REMEMBERED_IN_VSCODE, rememberItem, type ModeChoice, type PlottingMode } from "./importmode.js";
@@ -50,7 +50,7 @@ import { CataloguesProvider, type CollationMarks } from "./views/catalogues.js";
 import { featureIdsOf, keysOf, OutlineProvider, type Node as OutlineNode } from "./views/outline.js";
 import { OPERATION_COMMANDS, ToolsProvider } from "./views/tools.js";
 import { hexColour, selectionChildren, selectionColour, selectionVisibility, type Visibility } from "../webview/outlinetoolbar.js";
-import { exclusionTarget, featureIdsOfPicks, fixKey, outlineChoice, outlineOperations, pickedCuts, pickOf, tmaRequestOf, type Operation, type OperationContext, type OperationId, type OutlineFocus, type OutlinePick } from "../webview/outlinemodel.js";
+import { exclusionTarget, featureIdsOfPicks, fixKey, outlineChoice, outlineOperations, pickedCuts, pickOf, splitPlace, tmaRequestOf, type Operation, type OperationContext, type OperationId, type OutlineFocus, type OutlinePick } from "../webview/outlinemodel.js";
 import { AFTER_OPEN, BESIDE, BY_HAND, LOG_FILE, openedEvent, openOnFirstRun, prepare, serviceEvent, toteCompares, TOURS, tourOfEvent, WalkthroughProgress } from "./walkthroughs.js";
 import { NO_SOLUTION, withSolution } from "../walkthroughs/contribute.mjs";
 
@@ -388,6 +388,8 @@ export function activate(context: vscode.ExtensionContext): DebriefApi {
           outlineChanged();
         }
       },
+      // A dot right-clicked: the Outline's menu for its cut, or the solution's position there (product owner, 29 Oct 2026).
+      menu: (id, fix, choose) => void vscode.commands.executeCommand("debrief.bearingsMenu", fix === undefined ? id : fixKey(id, fix), choose),
       // The error cut-off: kept in the analyst's configuration (debrief-config), shown in Settings as debrief.tma.errorCutOff.
       cutOff: (degrees) => void rememberCutOff(degrees),
       get errorCutOff() {
@@ -2752,10 +2754,12 @@ export function activate(context: vscode.ExtensionContext): DebriefApi {
       return { notes, changed: done.answer?.changed };
     };
     if (id === "split-before" || id === "split-after") {
-      const fix = picks.find((p): p is Extract<OutlinePick, { kind: "fix" }> => p.kind === "fix")!;
-      const at = new Date(index.solutions.get(fix.solution)!.times[fix.index]).toISOString();
+      // A position of the solution, or a cut: the solution's position at its time.
       const side = id === "split-before" ? "before" : "after";
-      return said(await sense((o, allow) => service!.tmaSplitLeg(o.store.id, o.item.id, o.base!, agent, fix.solution, at, false, allow, side)));
+      const place = splitPlace(context, side);
+      if (typeof place === "string") return { problem: report(place) };
+      const at = new Date(index.solutions.get(place.solution)!.times[place.index]).toISOString();
+      return said(await sense((o, allow) => service!.tmaSplitLeg(o.store.id, o.item.id, o.base!, agent, place.solution, at, false, allow, side)));
     }
     if (id === "hide-cuts" || id === "show-cuts") return said(await sense((o, allow) => service!.hideCuts(o.store.id, o.item.id, o.base!, agent, cutIds, id === "hide-cuts", allow)), true);
     if (id === "delete-cuts") return said(await sense((o, allow) => service!.deleteCuts(o.store.id, o.item.id, o.base!, agent, cutIds, allow)), true);
@@ -2787,6 +2791,36 @@ export function activate(context: vscode.ExtensionContext): DebriefApi {
     return {};
   }
   for (const [id, name] of Object.entries(OPERATION_COMMANDS)) command(name, (target?: unknown, nodes?: unknown) => runOperation(id as OperationId, rowsOf(target, nodes)));
+  // Split before and after a cut, on the Outline's cut menu: the solution Bearings shows (else the
+  // one the cut is rooted in) split at the cut's time, as at its position then (product owner, 29 Oct 2026).
+  command("debrief.splitBeforeCut", (target?: unknown, nodes?: unknown) => runOperation("split-before", rowsOf(target, nodes)));
+  command("debrief.splitAfterCut", (target?: unknown, nodes?: unknown) => runOperation("split-after", rowsOf(target, nodes)));
+  // A dot right-clicked in Bearings (product owner, 29 Oct 2026): the same entries as the Outline's
+  // menu for that cut, or that position of the solution, each disabled with its reason; and
+  // selecting it, as a click does. A cut's splits split the solution shown at its time.
+  command("debrief.bearingsMenu", async (key?: string, choose?: () => void) => {
+    const context = key ? operationContext([key]) : undefined;
+    const pick = context?.picks[0];
+    if (!key || !context || !pick) return report("There is no such cut or position in this plot.");
+    type Pick = vscode.QuickPickItem & { run: () => unknown };
+    const items: Pick[] = outlineOperations(context).map((op) => ({
+      label: op.enabled ? op.label : `$(circle-slash) ${op.label}`,
+      detail: op.enabled ? op.detail : op.reason,
+      run: () => runOperation(op.id, [key]),
+    }));
+    if (choose) items.push({ label: pick.kind === "cut" ? "Select this cut" : "Select this position", run: choose });
+    const solution = pick.kind === "fix" ? context.index.solutions.get(pick.solution) : undefined;
+    const fixTime = pick.kind === "fix" && solution ? formatTime(solution.times[pick.index], displaySettings) : undefined;
+    const title =
+      pick.kind === "cut"
+        ? cutTitle(pick.cut, context.index.sensors.get(pick.sensor)?.sensor.properties.name ?? "Sensor", displaySettings)
+        : solution && fixTime
+          ? `${solution.track.properties.name}, its position at ${fixTime}`
+          : undefined;
+    const picked = await vscode.window.showQuickPick(items, { title, placeHolder: "What to do here" });
+    if (picked) await picked.run();
+    return undefined;
+  });
   /** The Tools' entries for the Outline's selection, or for the keys given: for tests and agents. */
   command("debrief.outlineOperations", (keys?: string[]) => {
     const context = operationContext(keys);

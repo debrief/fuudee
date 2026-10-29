@@ -35,6 +35,7 @@ function controller() {
     resolve: vi.fn(async () => undefined),
     resolveCuts: vi.fn(async (_: AmbiguityResolution) => undefined),
     select: vi.fn(),
+    menu: vi.fn((_: string, __: number | undefined, ___: () => void) => undefined),
     cutOff: vi.fn(),
     errorCutOff: 3,
   } satisfies BearingsAct;
@@ -98,6 +99,19 @@ describe("one controller drives Bearings in the panel or popped out", () => {
     await view.receive({ kind: "tma_split", feature_id: "s", current_time: "2023-06-15T10:00:00.000Z" }, window);
     await view.receive({ kind: "tma_cut_off", error_cut_off: 2.5 }, window);
     expect([act.resolve, act.exclude, act.split, act.cutOff].map((f) => f.mock.calls.length)).toEqual([1, 1, 1, 1]);
+  });
+
+  it("a dot right-clicked: its menu, choosing it there selects it as a click does", async () => {
+    const { act, view } = controller();
+    const panel = surface("panel");
+    view.attach(panel);
+    await view.receive({ kind: "ready" }, panel);
+    await view.receive({ kind: "tma_menu", feature_id: "cut-1", current_time: "2023-06-15T10:00:00.000Z" }, panel);
+    expect(act.menu).toHaveBeenCalledTimes(1);
+    expect(act.menu.mock.calls[0].slice(0, 2)).toEqual(["cut-1", undefined]);
+    expect(act.select).not.toHaveBeenCalled();
+    act.menu.mock.calls[0][2]();
+    expect(act.select).toHaveBeenCalledWith("cut-1", undefined);
   });
 
   it("closed, the window gives Bearings back to the panel, live once its page is ready again", async () => {

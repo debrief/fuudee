@@ -221,6 +221,10 @@
       "feature_id",
       "current_time"
     ],
+    "tma_menu": [
+      "feature_id",
+      "current_time"
+    ],
     "tma_resolve": [
       "resolution"
     ],
