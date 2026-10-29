@@ -241,11 +241,11 @@ try {
   await page.keyboard.press("End");
   await page.waitForTimeout(500);
 
-  // Ctrl+Z on the map undoes (forwarded from its frame), and closes results that no longer apply.
+  // Ctrl+Z on the map undoes (forwarded from its frame); the results panel stays open, as in VS Code (PAR-12).
   await page.frameLocator(".frame-map").locator("#map").focus();
   await page.keyboard.press("Control+z");
   await page.waitForFunction(() => document.getElementById("history")?.textContent?.includes("undone"));
-  assert.equal(await page.locator("#side-frame").isHidden(), true);
+  assert.equal(await page.locator("#side-frame").isHidden(), false);
   // Not while typing: Ctrl+Y in a field leaves the history alone.
   const before = await history();
   await page.locator("#plots").focus();
@@ -915,7 +915,10 @@ try {
     await blocked.goto(`${BASE}/index.html`);
     await blocked.locator("#status", { hasText: "cdn.jsdelivr.net" }).waitFor({ timeout: 60000 });
     assert.match(await blocked.locator("#status").innerText(), /Python couldn't be downloaded from cdn\.jsdelivr\.net; your network may block it\. The map still works/);
-    assert.match(await blocked.locator("#tools").textContent(), /Needs Python/);
+    // Tools and History say why, as VS Code's do when the tool service could not start (§5).
+    assert.match(await blocked.locator("#tools").textContent(), /^Python couldn't be downloaded from cdn\.jsdelivr\.net/);
+    // Once the sample shows (Python may fail first), History says what VS Code's does with no tool service.
+    await blocked.locator("#history", { hasText: "History needs the tool service." }).waitFor({ state: "attached", timeout: 30000 }); // its tab may be behind another
     assert.equal(await blocked.locator("#crash").isDisabled(), true);
     await blocked.locator(`#outline li[data-id="track-blue-one"]`).click();
     assert.equal(await blocked.locator("#outline li.selected .name").innerText(), "BLUE ONE");

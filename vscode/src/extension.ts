@@ -16,12 +16,11 @@ import { changedSince, historyOnDisk, knownStores, openPlot, plotFile, type Open
 import { existsSync, statSync, unwatchFile, watchFile } from "node:fs";
 import { mkdir, realpath, rename, rm, stat, unlink, writeFile } from "node:fs/promises";
 import path from "node:path";
-import { count, describePeriod, describeTimes, describeToolRun, settings as displaySettings } from "./format.js";
+import { count, describePeriod, describeTimes, settings as displaySettings } from "./format.js";
 import { answersToRemember, choicesOf, describeAnswers, duplicateQuestion, NARRATIVE_FILES, periodChoices, questionsFor, readSummary, rememberedAnswers, typeWords, type NarrativeAnswers, type NarrativeChoices, type NarrativePreview } from "./narrativeimport.js";
 import { placeToolTime } from "../webview/timelogic.js";
 import { cutChoices, cutNow, cutTitle, describeCut, featureName, KEEP_CHOICES, placeOfCut, resolutionFor, type ArrayMode, scopeChoices, sensorsOf, type CutScope, type Keep, type ResolveContext } from "../webview/sensors.js";
 import { describeSensorInFile, hostChoices, hostQuestion, hostsToAsk, sensorReadSummary, type SensorPreview } from "./sensorimport.js";
-import { resolveTimes } from "./timeinput.js";
 import { AnnotationPanel } from "./panels/annotation.js";
 import { FormPanel } from "./panels/form.js";
 import { MapPanel } from "./panels/map.js";
@@ -34,14 +33,14 @@ import { TIMELINE_VIEW, TimelineView } from "./panels/timelineview.js";
 import { COVERAGE_VIEW, CoverageView, type CoverageAsk } from "./panels/coverageview.js";
 import { startup, type StartupSnapshot } from "./startup.js";
 import { toteMenu, withMapLines, withPrimary, withSecondaries, withoutSecondary } from "../webview/totelogic.js";
-import { CONFLICT, NEEDS_CONFIRMATION, NEWER_SCHEMA, ServiceError, ToolService, type Agent, type AnnotationChange, type CallOutcome, type CollationChange, type NarrativeChange, type ExportedImage, type HostRequest, type OpenedView, type ToolListing, type TracedImage, type TrackChange } from "./service.js";
+import { CONFLICT, NEEDS_CONFIRMATION, NEWER_SCHEMA, ServiceError, ToolService, type Agent, type AnnotationChange, type CollationChange, type NarrativeChange, type ExportedImage, type HostRequest, type OpenedView, type ToolListing, type TracedImage, type TrackChange } from "./service.js";
 import type { CleanChange } from "./service.js";
 import { ALL_PROBLEM, AT_EVERY_FIX, changesOf, choiceFromValue, choicesFor, describeInterval, FIELD_NAMES, FIELDS, formState, readInterval, type Field, type FieldState } from "../webview/frequencies.js";
 import { describeJump, describeMark, describeWindow, fixRows, isDeadReckoned, jumpsFound, markAt, readThreshold, readWindow, smoothingNote, trackLabel } from "../webview/fixes.js";
 import { HistoryProvider } from "./views/history.js";
 import { describeExported, describeSource, insideFolders, NOT_FOUND, OUTSIDE_FOLDERS, rememberedOf, revisionOf, startingChoice, type ExportChoice } from "./figures.js";
 import { fileNameFor, PRESETS, type ImageFormat } from "../webview/exportlogic.js";
-import { DiagnosticLog, hashed, logKey, serviceLine, toolRunLine, type ToolOutcome } from "./diagnostics.js";
+import { DiagnosticLog, hashed, logKey, serviceLine, toolRunLine } from "./diagnostics.js";
 import { hiddenIds, hiddenNotice, isFeature, setViewOf, timeWindowOf, viewOf, type PlotFeature } from "./hidden.js";
 import { specOfFeature } from "../webview/annotationlook.js";
 import { FIX_COLOURS, TRACK_COLOURS } from "../webview/palette.js";
@@ -50,7 +49,11 @@ import { CataloguesProvider, type CollationMarks } from "./views/catalogues.js";
 import { featureIdsOf, keysOf, OutlineProvider, type Node as OutlineNode } from "./views/outline.js";
 import { OPERATION_COMMANDS, ToolsProvider } from "./views/tools.js";
 import { hexColour, selectionChildren, selectionColour, selectionVisibility, type Visibility } from "../webview/outlinetoolbar.js";
-import { exclusionTarget, featureIdsOfPicks, fixKey, outlineChoice, outlineOperations, pickedCuts, pickOf, splitPlace, tmaRequestOf, type Operation, type OperationContext, type OperationId, type OutlineFocus, type OutlinePick } from "../webview/outlinemodel.js";
+import { featureIdsOfPicks, fixKey, outlineChoice, outlineOperations, pickOf, type Operation, type OperationContext, type OperationId, type OutlineFocus, type OutlinePick } from "../webview/outlinemodel.js";
+import { Refusal, type FlowHost, type PlotRef, type Question, type Severity } from "../webview/panels/flows/host.js";
+import { confirmNewerSchema as askNewerSchema, runTool as runToolFlow, type Ran } from "../webview/panels/flows/runtool.js";
+import { move as moveFlow, type How } from "../webview/panels/flows/move.js";
+import { operationContext as contextOf, runOperation as runOperationFlow, type OperationHost, type OperationState } from "../webview/panels/flows/operation.js";
 import { AFTER_OPEN, BESIDE, BY_HAND, LOG_FILE, openedEvent, openOnFirstRun, prepare, serviceEvent, toteCompares, TOURS, tourOfEvent, WalkthroughProgress } from "./walkthroughs.js";
 import { NO_SOLUTION, withSolution } from "../walkthroughs/contribute.mjs";
 
@@ -231,19 +234,16 @@ export function activate(context: vscode.ExtensionContext): DebriefApi {
     const index = outline.index;
     return index ? keys.map((k) => pickOf(index, k)).filter((p): p is OutlinePick => !!p) : [];
   };
-  /** What the Tools' entries act on: the Outline's rows chosen, what Bearings shows, the time window. */
-  const operationContext = (keys?: readonly string[]): OperationContext | undefined => {
-    const index = outline.index;
-    if (!index || !session.current) return undefined;
-    const range = session.time?.range;
-    return {
-      index,
-      picks: outlinePicks(keys),
-      shownSolution: bearingsView.solutionShown,
-      ...(range && { window: { start: Date.parse(range.start), end: Date.parse(range.end) } }),
-      ...(session.current.revision && { readOnly: true }),
-    };
-  };
+  /** What the Tools' entries act on, as things stand: the Outline's rows chosen, what Bearings shows, the time window. */
+  const operationState = (): OperationState => ({
+    index: session.current ? outline.index : undefined,
+    keys: outlineKeys,
+    shownSolution: bearingsView.solutionShown,
+    window: session.time?.range,
+    readOnly: !!session.current?.revision,
+  });
+  /** What they act on for the rows given (a menu's), else the Outline's rows chosen: the shared flow's (PAR-09). */
+  const operationContext = (keys?: readonly string[]): OperationContext | undefined => contextOf(operationState(), keys);
   function outlineOperationsNow(): Operation[] {
     const context = operationContext();
     return context ? outlineOperations(context) : [];
@@ -630,6 +630,34 @@ export function activate(context: vscode.ExtensionContext): DebriefApi {
     }
   }
 
+  // --- The shared flows' host (PAR-09): VS Code's questions, messages and the plot open ---------
+  const flowHost: FlowHost = {
+    // A confirmation as a modal warning, its choices as buttons; a pick as a QuickPick.
+    ask: async (q: Question) =>
+      q.kind === "confirm"
+        ? vscode.window.showWarningMessage(q.text, { modal: true }, ...q.choices)
+        : (await vscode.window.showQuickPick(q.choices.map((label) => ({ label })), { placeHolder: q.text }))?.label,
+    message: async (severity: Severity, text: string, buttons: readonly string[] = []) =>
+      severity === "error"
+        ? vscode.window.showErrorMessage(text, ...buttons)
+        : severity === "warning"
+          ? vscode.window.showWarningMessage(text, ...buttons)
+          : vscode.window.showInformationMessage(text, ...buttons),
+    plot: (): PlotRef | undefined => {
+      const opened = session.current;
+      return opened && { store: opened.store.id, item: opened.item.id, base: opened.base, properties: opened.item.properties, ...(opened.revision && { readOnly: true }) };
+    },
+    serviceReady: () => !!service,
+    reloadPlot: () => reloadPlot(true),
+  };
+  /** The service's refusals the flows answer, as they name them. */
+  const refusing = (error: unknown): never => {
+    const code = (error as ServiceError).code;
+    if (code === CONFLICT) throw new Refusal("conflict", (error as Error).message);
+    if (code === NEWER_SCHEMA) throw new Refusal("newer_schema", (error as Error).message);
+    throw error;
+  };
+
   // --- Running a tool ---------------------------------------------------------------
   /** byHand: the analyst ran it from its form, not an agent or a command (CAP-28: only then may it save the window). */
   const runTool = (tool: ToolDeclaration, parameters: ParameterValue[], byHand = false): Promise<string | undefined> =>
@@ -644,79 +672,33 @@ export function activate(context: vscode.ExtensionContext): DebriefApi {
         return problem;
       }),
     );
-  type Ran = { problem?: string; outcome: ToolOutcome };
-  const refused = (problem: string): Ran => ({ problem, outcome: "refused" });
-  const runToolNow = async (tool: ToolDeclaration, parameters: ParameterValue[], byHand: boolean): Promise<Ran> => {
-    const opened = session.current;
-    if (!opened) return refused("Open a plot first.");
-    if (!service) return refused("Debrief's tool service is not running. Run 'Debrief: Restart tool service'.");
-    const timeProblem = resolveTimes(tool, parameters, opened);
-    if (typeof timeProblem === "string") return refused(timeProblem);
-    parameters = timeProblem;
-    const values = Object.fromEntries(parameters.map((p) => [p.name, p.value]));
-    let allowNewerSchema = false;
-    const call = (on_conflict?: "merge" | "new_plot") =>
-      service!.callTool(tool.name, {
-        store: opened.store.id,
-        item: opened.item.id,
-        selection: session.selection,
-        parameters: values,
-        agent,
-        state: session.state(), // tools read current time, selection and viewport (TL-10)
-        base: opened.base, // the plot the analyst is looking at (SUB-28)
-        ...(on_conflict && { on_conflict }),
-        ...(allowNewerSchema && { allow_newer_schema: true }),
-      });
-    let outcome: CallOutcome;
-    try {
-      outcome = await call();
-      if (!outcome.ok && outcome.newerSchema) {
-        if (!(await confirmNewerSchema(outcome.message))) {
-          return { problem: `${tool.title} was not saved.`, outcome: "needs_newer_schema_confirmed" };
-        }
-        allowNewerSchema = true;
-        outcome = await call();
-      }
-      if (!outcome.ok && outcome.conflict) {
-        // Changed elsewhere since it was opened: never overwrite, offer a choice (SUB-29).
-        const choice = await askAboutConflict(tool.title, outcome.conflict.mergeable);
-        if (!choice) {
-          await reloadPlot(true);
-          return {
-            problem: `${tool.title} was not run: the plot was changed elsewhere. Debrief is showing the latest; run it again if it still applies.`,
-            outcome: "conflict",
-          };
-        }
-        outcome = await call(choice);
-      }
-    } catch (error) {
-      return { problem: (error as Error).message, outcome: "failed" };
-    }
-    if (!outcome.ok) return { problem: outcome.message, outcome: outcome.outcome ?? "failed" };
-    if (outcome.newItem) {
-      // Show the original as it now is; offer the new plot, carrying time and selection.
-      const newItem = outcome.newItem;
-      const problem = await reloadPlot(true);
-      void vscode.window
-        .showInformationMessage(
-          `${tool.title}: your result was saved as a new plot, ${newItem}. The original keeps the other change.`,
-          "Open the new plot",
-        )
-        .then((open) => open && serially(() => loadPlot(opened.store, newItem, true)));
-      return { problem, outcome: "saved_as_new_plot" };
-    }
-    if (outcome.changed) {
-      const problem = await reloadPlot(true);
-      if (problem) return { problem, outcome: "changed" };
-    }
-    const result = outcome.result;
-    // A tool sets shared state by returning it, after the plot has its new features.
-    const outside = result?.state_change ? applyToolState(result.state_change, `tool:${tool.name}`, byHand && session.current?.item.id === opened.item.id && session.current.store.id === opened.store.id) : false;
-    if (result?.non_spatial?.length) results.show(tool, result);
-    const said = describeToolRun(tool.title, result, outside);
-    if (said) void vscode.window.showInformationMessage(said);
-    return { outcome: outcome.changed ? "changed" : "unchanged" };
-  };
+  // The flow is the shared one (webview/panels/flows/runtool.ts, PAR-09); this says how VS Code calls the service.
+  const runToolNow = (tool: ToolDeclaration, parameters: ParameterValue[], byHand: boolean): Promise<Ran> =>
+    runToolFlow(
+      {
+        ...flowHost,
+        callTool: (t, plot, values, options) =>
+          service!.callTool(t.name, {
+            store: plot.store,
+            item: plot.item,
+            selection: session.selection,
+            parameters: values,
+            agent,
+            state: session.state(), // tools read current time, selection and viewport (TL-10)
+            base: plot.base, // the plot the analyst is looking at (SUB-28)
+            ...options,
+          }),
+        openPlot: async (plot, item) => {
+          const store = storeById(plot.store);
+          if (store) await serially(() => loadPlot(store, item, true));
+        },
+        applyToolState: (change, t, ranOn) =>
+          applyToolState(change, `tool:${t.name}`, byHand && session.current?.item.id === ranOn.item && session.current.store.id === ranOn.store),
+        showResults: (t, result) => results.show(t, result),
+      },
+      tool,
+      parameters,
+    );
   /**
    * Shared state a tool returned. Current time outside the saved window is
    * shown in a window widened or moved to take it in, never saved (CAP-28):
@@ -753,9 +735,8 @@ export function activate(context: vscode.ExtensionContext): DebriefApi {
   const form = new FormPanel(context.extensionUri, (tool, values) => runTool(tool, values, true), log);
 
   /** Warn before writing a newer schema into a shared catalogue (SUB-35). */
-  async function confirmNewerSchema(message: string): Promise<boolean> {
-    const save = "Save anyway";
-    return (await vscode.window.showWarningMessage(message, { modal: true }, save)) === save;
+  function confirmNewerSchema(message: string): Promise<boolean> {
+    return askNewerSchema(flowHost, message);
   }
 
   // --- Colour and hiding: content, recorded in the plot's history (SUB-22) ----------
@@ -1235,19 +1216,6 @@ export function activate(context: vscode.ExtensionContext): DebriefApi {
     return true;
   }
 
-  async function askAboutConflict(title: string, mergeable: boolean): Promise<"merge" | "new_plot" | undefined> {
-    const combine = "Combine the changes";
-    const saveNew = "Save mine as a new plot";
-    const choice = await vscode.window.showWarningMessage(
-      mergeable
-        ? `The plot was changed elsewhere while you were working. The other change touches different features from ${title}'s, so the two can be combined, or ${title}'s result can be saved as a new plot.`
-        : `The plot was changed elsewhere while you were working, and the change touches the same features as ${title}'s. ${title}'s result can be saved as a new plot.`,
-      { modal: true },
-      ...(mergeable ? [combine, saveNew] : [saveNew]),
-    );
-    return choice === combine ? "merge" : choice === saveNew ? "new_plot" : undefined;
-  }
-
   // --- Opening, reloading, and noticing changes made elsewhere ---------------------
   let watched: string[] = [];
   let checking = false;
@@ -1388,30 +1356,28 @@ export function activate(context: vscode.ExtensionContext): DebriefApi {
     void vscode.commands.executeCommand("setContext", "debrief.canRedo", history.canRedo());
   }
 
-  /** Undo, redo, or go to a step (SUB-21): replay in the service, then show the result. */
-  const move = (how: "undo" | "redo" | "goto", step?: number): Promise<string | undefined> =>
+  /** Undo, redo, or go to a step (SUB-21): the shared flow (webview/panels/flows/move.ts, PAR-09), the problem said. */
+  const move = (how: How, step?: number): Promise<string | undefined> =>
     serially(() =>
-      ourChange(async () => {
-        const opened = session.current;
-        if (!opened) return "Open a plot first.";
-        if (!service || !opened.base) return "Undo needs Debrief's tool service. Run 'Debrief: Restart tool service'.";
-        try {
-          try {
-            await service.move(how, opened.store.id, opened.item.id, opened.base, step);
-          } catch (error) {
-            if ((error as ServiceError).code !== NEWER_SCHEMA) throw error;
-            if (!(await confirmNewerSchema((error as Error).message))) return "Nothing was changed.";
-            await service.move(how, opened.store.id, opened.item.id, opened.base, step, true);
-          }
-        } catch (error) {
-          if ((error as ServiceError).code === CONFLICT) {
-            await reloadPlot(true);
-            return "The plot was changed elsewhere, so nothing was undone. Debrief is showing the latest; try again if you still want to.";
-          }
-          return (error as Error).message;
-        }
-        return reloadPlot(true);
-      }),
+      ourChange(() =>
+        moveFlow(
+          {
+            ...flowHost,
+            // From the history as it now is, not as last drawn.
+            history: async () => {
+              await refreshHistory();
+              return { canUndo: history.canUndo(), canRedo: history.canRedo() };
+            },
+            move: async (moving, base, at, allow) => {
+              const opened = session.current!;
+              await service!.move(moving, opened.store.id, opened.item.id, base, at, allow).catch(refusing);
+            },
+            refreshHistory,
+          },
+          how,
+          step,
+        ),
+      ),
     );
 
   const storeById = (id: string) => knownStores(configFile).stores.find((s) => s.id === id);
@@ -1449,18 +1415,8 @@ export function activate(context: vscode.ExtensionContext): DebriefApi {
     return problem;
   };
   // Ctrl+Z is the plot's history: colour and hiding are steps in it like any change.
-  command("debrief.undo", async () => {
-    if (!session.current) return report("Open a plot first.");
-    const problem = await move("undo");
-    await refreshHistory();
-    return report(problem);
-  });
-  command("debrief.redo", async () => {
-    if (!session.current || !history.canRedo()) return report("There is nothing to redo.");
-    const problem = await move("redo");
-    await refreshHistory();
-    return report(problem);
-  });
+  command("debrief.undo", () => move("undo"));
+  command("debrief.redo", () => move("redo"));
 
   // --- Exported images (SUB-25, EXT-05, OUT-04) -------------------------------------
   const EXPORT_KEY = "debrief.export";
@@ -1945,11 +1901,12 @@ export function activate(context: vscode.ExtensionContext): DebriefApi {
     }
     return chosen;
   }
-  command("debrief.goToStep", async (target?: number | { step: { seq: number } }) => {
-    const seq = typeof target === "number" ? target : target?.step.seq;
-    return seq === undefined ? undefined : report(await move("goto", seq));
+  // A step's number, a History row (the panel model's), or one of historyRows' (tests, agents).
+  command("debrief.goToStep", async (target?: number | { seq?: number } | { step: { seq: number } }) => {
+    const seq = typeof target === "number" ? target : target && "step" in target ? target.step.seq : target?.seq;
+    return seq === undefined ? undefined : move("goto", seq);
   });
-  command("debrief.redoToStep", (target?: { step: { seq: number } }) =>
+  command("debrief.redoToStep", (target?: { seq?: number } | { step: { seq: number } }) =>
     vscode.commands.executeCommand("debrief.goToStep", target),
   );
   command("debrief.historySteps", () => history.steps);
@@ -2739,57 +2696,26 @@ export function activate(context: vscode.ExtensionContext): DebriefApi {
     const all = Array.isArray(nodes) ? (nodes as OutlineNode[]) : [];
     return keysOf(all.includes(node) ? all : [node]);
   };
-  async function runOperation(id: OperationId, keys?: string[]): Promise<{ problem?: string; notes?: string[]; changed?: boolean }> {
-    const context = operationContext(keys);
-    const op = context && outlineOperations(context).find((o) => o.id === id);
-    if (!context || !op) return { problem: report("Select what this acts on in the Outline first: a solution's position, cuts, or a sensor.") };
-    if (!op.enabled) return { problem: report(op.reason) };
-    const { index, picks } = context;
-    const cuts = pickedCuts(picks);
-    const cutIds = cuts.map((c) => c.id);
-    const said = (done: { problem?: string; answer?: { notes?: string[]; changed?: boolean } }, tell = false) => {
-      if (done.problem) return { problem: report(done.problem) };
-      const notes = done.answer?.notes ?? [];
-      if (tell && notes.length) void vscode.window.showInformationMessage(notes.join(". ") + ".");
-      return { notes, changed: done.answer?.changed };
-    };
-    if (id === "split-before" || id === "split-after") {
-      // A position of the solution, or a cut: the solution's position at its time.
-      const side = id === "split-before" ? "before" : "after";
-      const place = splitPlace(context, side);
-      if (typeof place === "string") return { problem: report(place) };
-      const at = new Date(index.solutions.get(place.solution)!.times[place.index]).toISOString();
-      return said(await sense((o, allow) => service!.tmaSplitLeg(o.store.id, o.item.id, o.base!, agent, place.solution, at, false, allow, side)));
-    }
-    if (id === "hide-cuts" || id === "show-cuts") return said(await sense((o, allow) => service!.hideCuts(o.store.id, o.item.id, o.base!, agent, cutIds, id === "hide-cuts", allow)), true);
-    if (id === "delete-cuts") return said(await sense((o, allow) => service!.deleteCuts(o.store.id, o.item.id, o.base!, agent, cutIds, allow)), true);
-    if (id === "leave-out" || id === "count-in") {
-      const target = exclusionTarget(index, cuts, context.shownSolution);
-      let solution = target.solution;
-      if (!solution) {
-        // Rooted in several solutions, none shown in Bearings: which one.
-        const picked = await vscode.window.showQuickPick(
-          target.candidates.map((c) => ({ label: index.solutions.get(c)!.track.properties.name, id: c })),
-          { placeHolder: `${id === "leave-out" ? "Leave the cuts out of" : "Count the cuts in"} which solution?` },
-        );
-        if (!picked) return {};
-        solution = picked.id;
-      }
-      const rooted = new Set(index.solutions.get(solution)!.track.properties.tma!.cut_ids);
-      return (await vscode.commands.executeCommand<{ problem?: string; notes?: string[]; changed?: boolean }>("debrief.tmaExclude", solution, cutIds.filter((c) => rooted.has(c)), id === "leave-out")) ?? {};
-    }
-    if (id === "keep-port" || id === "keep-starboard" || id === "keep-ambiguous") {
-      const keep = id === "keep-port" ? "port" : id === "keep-starboard" ? "starboard" : "ambiguous";
-      const twins = cuts.filter((c) => !!c.properties.ambiguous_bearing).map((c) => c.id);
-      return (await vscode.commands.executeCommand<{ problem?: string; answer?: { notes?: string[] } }>("debrief.resolveAmbiguity", { keep, cut_ids: twins })) ?? {};
-    }
-    // A solution from the cuts: the first guess's form, in Bearings, showing the first cut's sensor.
-    const made = tmaRequestOf(context);
-    if (typeof made === "string") return { problem: report(made) };
-    await bearingsView.reveal(false);
-    await bearingsView.choose(made.cuts[0].properties.sensor_id, made.request.cut_ids ? { make: true, cut_ids: made.request.cut_ids } : { make: true, period: made.request.period! });
-    return {};
-  }
+  /** A change's answer as the shared flows take it. */
+  const doneOf = async (doing: Promise<{ problem?: string; answer?: { notes?: string[]; changed?: boolean } }>) => {
+    const done = await doing;
+    return { ...(done.problem && { problem: done.problem }), ...(done.answer?.notes && { notes: done.answer.notes }), ...(done.answer?.changed !== undefined && { changed: done.answer.changed }) };
+  };
+  /** The shared flow (webview/panels/flows/operation.ts, PAR-09); this says how VS Code makes each change. */
+  const operationHost: OperationHost = {
+    ...flowHost,
+    operationState,
+    splitLeg: (solution, at, side) => doneOf(sense((o, allow) => service!.tmaSplitLeg(o.store.id, o.item.id, o.base!, agent, solution, at, false, allow, side))),
+    setCutsHidden: (ids, hidden) => doneOf(sense((o, allow) => service!.hideCuts(o.store.id, o.item.id, o.base!, agent, ids, hidden, allow))),
+    deleteCuts: (ids) => doneOf(sense((o, allow) => service!.deleteCuts(o.store.id, o.item.id, o.base!, agent, ids, allow))),
+    exclude: (solution, ids, excluded) => doneOf(sense((o, allow) => service!.tmaExclude(o.store.id, o.item.id, o.base!, agent, solution, ids, excluded, allow))),
+    keepSide: (keep, ids) => doneOf(sense((o, allow) => service!.resolveAmbiguity(o.store.id, o.item.id, o.base!, agent, { keep, cut_ids: ids }, allow))),
+    makeSolution: async (sensor, focus) => {
+      await bearingsView.reveal(false);
+      await bearingsView.choose(sensor, focus);
+    },
+  };
+  const runOperation = (id: OperationId, keys?: string[]) => runOperationFlow(operationHost, id, keys);
   for (const [id, name] of Object.entries(OPERATION_COMMANDS)) command(name, (target?: unknown, nodes?: unknown) => runOperation(id as OperationId, rowsOf(target, nodes)));
   // Split before and after a cut, on the Outline's cut menu: the solution Bearings shows (else the
   // one the cut is rooted in) split at the cut's time, as at its position then (product owner, 29 Oct 2026).

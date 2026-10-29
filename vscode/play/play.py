@@ -55,8 +55,8 @@ from debrief_stac import (
     Changes,
     ConfirmationNeeded,
     Conflict,
-    History,
     HistoryError,
+    NewerSchemaError,
     figures,
     tma,
 )
@@ -65,8 +65,9 @@ from debrief_stac.catalogue import review_flags
 from debrief_stac.fixes import describe_largest
 from debrief_stac.tote import tote as tote_at
 from debrief_tools import Registry
-from debrief_tools.registry import applies
-from debrief_tools.run import ToolRunConflict, ToolRunError, run_tool
+from debrief_tools.entries import history_steps, offered_tools, unavailable_tools
+from debrief_tools.entries import move as steps_move
+from debrief_tools.run import ToolRunConflict, ToolRunError, ToolRunNewerSchema, run_tool
 
 ROOT = Path("/play/catalogue")
 YOU = models.AgentRef(kind="person", name="you, in the browser")
@@ -101,33 +102,21 @@ def plots() -> str:
 
 
 def tools() -> str:
+    """The tools, and those found but not offered with why, as the tool service's tools/list."""
     return json.dumps(
-        [_json(DocumentKind.TOOL_DECLARATION, t.declaration) for t in registry.tools.values()]
+        {
+            "tools": [
+                _json(DocumentKind.TOOL_DECLARATION, t.declaration) for t in registry.tools.values()
+            ],
+            "unavailable": unavailable_tools(registry),
+        }
     )
 
 
 def offered(kinds_json: str) -> str:
+    """The tools offered for a selection of these kinds: debrief/tools_for_selection's (PAR-15)."""
     kinds = json.loads(kinds_json)
-    return json.dumps([n for n, t in registry.tools.items() if applies(t.declaration, kinds)])
-
-
-def _steps(history: History) -> list[dict[str, Any]]:
-    out = []
-    for step in history.steps():
-        first = step.records[0]
-        out.append(
-            {
-                "seq": step.seq,
-                "status": step.status,
-                "kind": str(first.kind),
-                "tool": first.tool.name if first.tool else None,
-                "agent": ", ".join(dict.fromkeys(r.agent.name for r in step.records)),
-                "at": first.ended_at or first.started_at,
-                "records": len(step.records),
-                "notes": list(first.notes or []),
-            }
-        )
-    return out
+    return json.dumps(offered_tools({n: t.declaration for n, t in registry.tools.items()}, kinds))
 
 
 def open_plot(item: str) -> str:
@@ -144,7 +133,7 @@ def open_plot(item: str) -> str:
             "plot": _json(DocumentKind.PLOT, history.plot()),
             "base": {"current": head.current, "plot_hash": head.plot_hash},
             "view_hash": view_hash,
-            "steps": _steps(history),
+            "steps": history_steps(history),
             "recovered": recovered,
         }
     )
@@ -171,9 +160,12 @@ def run(item: str, request_json: str) -> str:
             on_conflict=request.get("on_conflict") or "refuse",
             base=base,
             state=state,
+            allow_newer_schema=request.get("allow_newer_schema") is True,
         )
     except ToolRunConflict as conflict:
         return json.dumps({"error": str(conflict), "conflict": {"mergeable": conflict.mergeable}})
+    except ToolRunNewerSchema as error:
+        return json.dumps({"error": str(error), "newer_schema": True})
     except ToolRunError as error:
         return json.dumps({"error": str(error)})
     return json.dumps(
@@ -185,17 +177,25 @@ def run(item: str, request_json: str) -> str:
     )
 
 
-def move(item: str, how: str, step: int | None = None) -> str:
-    """Undo, redo or go to a step: replay to it (SUB-21)."""
-    history = _cat().history(item)
+def move(item: str, request_json: str) -> str:
+    """Undo, redo or go to a step: replay to it (SUB-21), as debrief/undo, debrief/redo and
+    debrief/goto do (PAR-15). request: how, step (for goto), the base the reader started
+    from (refused if the plot changed since, SUB-28) and allow_newer_schema (SUB-35)."""
+    request = json.loads(request_json)
+    base = Base(**request["base"]) if request.get("base") else None
     try:
-        if how == "undo":
-            history.undo()
-        elif how == "redo":
-            history.redo()
-        else:
-            history.goto(int(step))
-    except HistoryError as error:
+        steps_move(
+            _cat().history(item),
+            request["how"],
+            base,
+            request.get("step"),
+            allow_newer_schema=request.get("allow_newer_schema") is True,
+        )
+    except Conflict as conflict:
+        return json.dumps({"error": str(conflict), "conflict": True})
+    except NewerSchemaError as error:
+        return json.dumps({"error": str(error), "newer_schema": True})
+    except (CatalogueError, HistoryError, ValueError) as error:
         return json.dumps({"error": str(error)})
     return json.dumps({"ok": True})
 
@@ -1042,7 +1042,7 @@ def open_revision(item: str, revision: str, figure: str | None = None) -> str:
             "plot": _json(DocumentKind.PLOT, plot),
             "base": {"current": head.current, "plot_hash": head.plot_hash},
             "view_hash": view_hash,
-            "steps": _steps(history),
+            "steps": history_steps(history),
             "recovered": [],
             "revision": {
                 "step": step,
