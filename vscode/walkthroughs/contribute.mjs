@@ -9,6 +9,12 @@ export const contextKey = (event) => `debrief.walkthrough.${event}`;
 /** Where the walkthroughs' pictures are, inside the extension. */
 export const MEDIA = "media/walkthroughs";
 
+/**
+ * workbench.action.openWalkthrough's toSide: the Get Started page opens in a column beside the
+ * editors, so the map a step opens (in the first column) sits beside the walkthrough, not on top of it.
+ */
+export const BESIDE = true;
+
 /** A command link, as VS Code's walkthroughs show a button: its arguments JSON, URL-encoded. */
 export function commandLink(command, args) {
   return args?.length ? `command:${command}?${encodeURIComponent(JSON.stringify(args))}` : `command:${command}`;
@@ -108,7 +114,7 @@ export const EXTENSION = "debrief.debrief";
 export function vscodeNext(tours, tour, extension = EXTENSION) {
   const next = nextTour(tours, tour.id);
   return next
-    ? `[${nextLabel(next)}](${commandLink("workbench.action.openWalkthrough", [`${extension}#${next.id}`, false])})`
+    ? `[${nextLabel(next)}](${commandLink("workbench.action.openWalkthrough", [`${extension}#${next.id}`, BESIDE])})`
     : `**${ALL_DONE}** once this step is done: this is the last walkthrough.`;
 }
 

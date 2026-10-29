@@ -14,7 +14,7 @@
  */
 import { execFile } from "node:child_process";
 import tours from "../walkthroughs/tours.json";
-import { contextKey, tmaDragEvent } from "../walkthroughs/contribute.mjs";
+import { BESIDE, contextKey, tmaDragEvent } from "../walkthroughs/contribute.mjs";
 
 export interface Tour {
   id: string;
@@ -32,7 +32,7 @@ export const openedEvent = (tour: string) => `${tour}Opened`;
  * TMA's copy opens with the towed array selected in the Outline and Bearings showing it, as the step says.
  */
 export const AFTER_OPEN: Record<string, [string, ...unknown[]]> = { tma: ["debrief.chooseInOutline", "sensor-blue-one-towed-array"] };
-export { contextKey };
+export { BESIDE, contextKey };
 
 /**
  * The walkthrough step a successful request to the tool service completes, if any: the
@@ -120,7 +120,7 @@ export async function openOnFirstRun(state: FlagState, run: (command: string, ..
   if (state.get<boolean>(FIRST_RUN_KEY)) return false;
   await state.update(FIRST_RUN_KEY, true);
   try {
-    await run("workbench.action.openWalkthrough", `${extension}#${FIRST_TOUR}`, false);
+    await run("workbench.action.openWalkthrough", `${extension}#${FIRST_TOUR}`, BESIDE);
     log(`walkthrough_opened_on_install tour=${FIRST_TOUR}`);
     return true;
   } catch {
