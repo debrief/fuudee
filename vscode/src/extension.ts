@@ -33,7 +33,7 @@ import { BEARINGS_WINDOW, BearingsHost, type PoppedOut } from "./panels/bearings
 import { TIMELINE_VIEW, TimelineView } from "./panels/timelineview.js";
 import { COVERAGE_VIEW, CoverageView, type CoverageAsk } from "./panels/coverageview.js";
 import { startup, type StartupSnapshot } from "./startup.js";
-import { withMapLines, withPrimary, withSecondaries, withoutSecondary } from "../webview/totelogic.js";
+import { toteMenu, withMapLines, withPrimary, withSecondaries, withoutSecondary } from "../webview/totelogic.js";
 import { CONFLICT, NEEDS_CONFIRMATION, NEWER_SCHEMA, ServiceError, ToolService, type Agent, type AnnotationChange, type CallOutcome, type CollationChange, type NarrativeChange, type ExportedImage, type HostRequest, type OpenedView, type ToolListing, type TracedImage, type TrackChange } from "./service.js";
 import type { CleanChange } from "./service.js";
 import { ALL_PROBLEM, AT_EVERY_FIX, changesOf, choiceFromValue, choicesFor, describeInterval, FIELD_NAMES, FIELDS, formState, readInterval, type Field, type FieldState } from "../webview/frequencies.js";
@@ -3155,9 +3155,19 @@ export function activate(context: vscode.ExtensionContext): DebriefApi {
   const chooseTote = async (change: (tote: ToteChoice) => ToteChoice): Promise<string | undefined> => {
     if (!session.current) return report("Open a plot first.");
     const problem = await toteView.choose(change(toteView.choice()));
+    updateToteKeys();
     if (!problem) void vscode.commands.executeCommand(`${TOTE_VIEW}.focus`, { preserveFocus: true });
     return report(problem);
   };
+  // Which Tote entries a track's menu offers, for the selection (decision, product owner, 29 Oct 2026; totelogic.ts toteMenu).
+  function updateToteKeys(): void {
+    const menu = toteMenu(toteView.choice(), session.selection.filter((id) => trackById(id)));
+    void vscode.commands.executeCommand("setContext", "debrief.toteCanAdd", menu.canAdd);
+    void vscode.commands.executeCommand("setContext", "debrief.toteCanRemove", menu.canRemove);
+    void vscode.commands.executeCommand("setContext", "debrief.toteCanSetPrimary", !menu.primaryReason);
+  }
+  session.onSelection(() => updateToteKeys());
+  session.onPlot(() => updateToteKeys());
   command("debrief.tote.setPrimary", async (target?: string | Target, others?: unknown) => {
     const ids = toteTargets(target, others);
     if (ids.length !== 1) return report("Select one track to be the Tote's primary.");

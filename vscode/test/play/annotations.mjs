@@ -5,6 +5,7 @@
 import { showPanel } from "./dock.mjs";
 import { timelineRow } from "./timelinerows.mjs";
 import assert from "node:assert/strict";
+import { onSelection, fromToolbar, toolbarChecked } from "./menus.mjs";
 
 /** Choose an option of one of the form's lists, by its label. */
 async function choose(form, field, label) {
@@ -21,7 +22,7 @@ export async function playAnnotations(page, shot) {
   const at = (dLat, dLon) => `${(37.0 + dLat).toFixed(4)}, ${(-75.5 + dLon).toFixed(4)}`;
 
   // Add a circle: the form opens beside the map, a circle in the middle of the map.
-  await page.locator("#add-annotation").click();
+  await fromToolbar(page, "Add annotation…");
   await form.locator("#field-name input").fill("Exclusion zone");
   await form.locator("#field-positions input").fill("37°00.000'N 075°30.000'W");
   await form.locator(".field-echo", { hasText: "Means 37°00.000'N 075°30.000'W" }).waitFor();
@@ -46,7 +47,7 @@ export async function playAnnotations(page, shot) {
 
   // Restyle it: solid, filled, a wider line. One step, named as a change of style.
   await page.locator(`#outline li[data-id="annotation-exclusion-zone"]`).click();
-  await page.locator("#edit-annotation").click();
+  await onSelection(page, "Change annotation…");
   assert.equal(await form.locator("#field-name input").inputValue(), "Exclusion zone");
   assert.equal(await form.locator("#field-radius input").inputValue(), "4");
   await choose(form, "lineStyle", "Solid");
@@ -70,13 +71,13 @@ export async function playAnnotations(page, shot) {
   // Saved unchanged, nothing changes, and nothing is recorded.
   const steps = await page.locator("#history li").count();
   await page.locator(`#outline li[data-id="annotation-exclusion-zone"]`).click();
-  await page.locator("#edit-annotation").click();
+  await onSelection(page, "Change annotation…");
   await form.getByRole("button", { name: "Save changes" }).click();
   await page.locator(".frame-annotation").waitFor({ state: "detached" });
   assert.equal(await page.locator("#history li").count(), steps);
 
   // An ellipse, an area and a label, each styled, so the picture shows them all.
-  await page.locator("#add-annotation").click();
+  await fromToolbar(page, "Add annotation…");
   await choose(form, "shape", "Ellipse");
   await form.locator("#field-name input").fill("Search area");
   await form.locator("#field-positions input").fill(at(-0.13, -0.18));
@@ -88,7 +89,7 @@ export async function playAnnotations(page, shot) {
   await form.getByRole("button", { name: "Add" }).click();
   await historySays("Ellipse 'Search area' added");
 
-  await page.locator("#add-annotation").click();
+  await fromToolbar(page, "Add annotation…");
   await choose(form, "shape", "Area");
   await form.locator("#field-name input").fill("Transit lane");
   await form.locator("#field-positions textarea").fill([at(0.05, -0.3), at(0.1, -0.05), at(0.02, 0.05), at(-0.03, -0.25)].join("\n"));
@@ -99,7 +100,7 @@ export async function playAnnotations(page, shot) {
   await form.getByRole("button", { name: "Add" }).click();
   await historySays("Area 'Transit lane' added");
 
-  await page.locator("#add-annotation").click();
+  await fromToolbar(page, "Add annotation…");
   await choose(form, "shape", "Label");
   await form.locator("#field-name input").fill("Datum buoy");
   await form.locator("#field-text textarea").fill("Datum buoy D7");
@@ -110,10 +111,10 @@ export async function playAnnotations(page, shot) {
   await mapFrame.locator(".annotation-label", { hasText: "Datum buoy D7" }).waitFor();
 
   // Chart furniture: the north arrow, shown as one more step.
-  await page.locator("#north-arrow").click();
+  await fromToolbar(page, "North arrow");
   await historySays("North arrow added");
   await mapFrame.locator(".north-arrow:not([hidden])").waitFor();
-  assert.equal(await page.locator("#north-arrow").getAttribute("aria-pressed"), "true");
+  assert.equal(await toolbarChecked(page, "North arrow"), true);
   await page.evaluate(() => document.activeElement?.blur());
   await shot("annot-03-styled-on-the-map");
 
@@ -130,7 +131,7 @@ export async function playAnnotations(page, shot) {
   await shot("annot-04-timeline");
 
   // A note added through the form goes into the Timeline at its time.
-  await page.locator("#add-annotation").click();
+  await fromToolbar(page, "Add annotation…");
   await choose(form, "shape", "Note");
   await form.locator("#field-name input").fill("Contact gained");
   await form.locator("#field-text textarea").fill("Contact gained on the towed array.");
@@ -142,7 +143,7 @@ export async function playAnnotations(page, shot) {
 
   // Delete the label: one step; undo brings it back.
   await page.locator(`#outline li[data-id="annotation-datum-buoy"]`).click();
-  await page.locator("#delete-annotation").click();
+  await onSelection(page, "Delete annotation");
   await historySays("Label 'Datum buoy' deleted");
   await mapFrame.locator(".annotation-label", { hasText: "Datum buoy D7" }).waitFor({ state: "detached" });
   await page.evaluate(() => document.activeElement?.blur());

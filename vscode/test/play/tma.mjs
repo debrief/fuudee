@@ -218,10 +218,11 @@ export async function playTma(page, shot) {
   assert.match(await canvas.getAttribute("aria-label"), /^Bearings and residuals of Contact 1 solution, time upward from .* panes Bearing, Error: RMS/);
   // Compact (product owner, 25 and 27 Oct 2026): the panes, Hold scale, Reset zoom and ⋯ in one
   // row; the cue and the RMS one line; nothing else, so the plot takes the height.
-  const row = await view.locator(".tma-tools").evaluate((t) => [...t.children].filter((c) => c.getBoundingClientRect().width > 0).map((c) => { const b = c.getBoundingClientRect(); return Math.round(b.top + b.height / 2); }));
-  const statusLine = await view.locator(".tma-statusline").evaluate((l) => [...l.children].filter((c) => c.getBoundingClientRect().height > 0).map((c) => { const b = c.getBoundingClientRect(); return Math.round(b.top + b.height / 2); }));
   // The column right of the map widened while the solution is open: two panes of 160 px or more.
   await page.waitForFunction(() => Object.values(window.debriefTma.plotState.boxes ?? {}).every((b) => b.w >= 160) && Object.keys(window.debriefTma.plotState.boxes).length === 2, null, { timeout: 10000 });
+  // Measured once widened: in the narrow column before that, the row may wrap.
+  const row = await view.locator(".tma-tools").evaluate((t) => [...t.children].filter((c) => c.getBoundingClientRect().width > 0).map((c) => { const b = c.getBoundingClientRect(); return Math.round(b.top + b.height / 2); }));
+  const statusLine = await view.locator(".tma-statusline").evaluate((l) => [...l.children].filter((c) => c.getBoundingClientRect().height > 0).map((c) => { const b = c.getBoundingClientRect(); return Math.round(b.top + b.height / 2); }));
   const widened = await page.evaluate(() => ({ column: document.getElementById("panel-bearings").getBoundingClientRect().width, map: document.getElementById("main").getBoundingClientRect().width, window: innerWidth }));
   assert.ok(widened.column >= widened.window * 0.36, `the column widened: ${JSON.stringify(widened)}`);
   const canvasBox = await canvas.boundingBox();
@@ -505,7 +506,6 @@ export async function playTma(page, shot) {
   assert.equal(await page.evaluate(() => window.debriefTma.chosen?.id), target.id, "its dot ringed");
   await page.waitForFunction((id) => document.querySelector(`#outline li[data-id="${id}"]`)?.getAttribute("aria-selected") === "true", target.id);
   assert.ok(await outlineRow(target.id).isVisible(), "selected in the Outline, in sight");
-  await page.locator("#sensor-group").waitFor(); // a cut selected: the Outline's sensor actions shown
   // A cut of the sensor's outside the solution, hidden on the map (Hide in the Tools): not drawn in the plot either.
   const coverageBefore = (await plot()).coverage;
   const outside = await page.evaluate(() => window.debriefTma.shown.coverage.at(-1).id);
@@ -609,12 +609,12 @@ export async function playTma(page, shot) {
   assert.match(await rms(), /over 60 cuts$/);
 
   // Right-click (product owner, 29 Oct 2026): a cut's row in the Outline and its dot in Bearings open
-  // the Tools' entries for it, Split before and after this cut among them; one chosen acts, one step.
+  // the cut's menu, as VS Code's (the action catalogue's), Split before and after this cut among them; one chosen acts, one step.
   const menuItems = () => page.locator(".context-menu [role=menuitem]").allInnerTexts();
   await outlineRow(second).click({ button: "right" });
   let items = await menuItems();
-  assert.ok(items.includes("Leave out of Contact 1 solution"), `the Outline's cut menu: ${items.join(" | ")}`);
-  assert.ok(items.some((t) => /^Split before this cut \(\d\d:\d\d:\d\dZ\)$/.test(t)), `split before this cut: ${items.join(" | ")}`);
+  assert.ok(items.includes("Leave out of the solution: selected cuts"), `the Outline's cut menu: ${items.join(" | ")}`);
+  assert.ok(items.includes("Split before this cut"), `split before this cut: ${items.join(" | ")}`);
   await page.keyboard.press("Escape");
   await page.locator(".context-menu").waitFor({ state: "detached" });
   await showPanel(page, "bearings");

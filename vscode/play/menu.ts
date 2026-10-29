@@ -10,6 +10,10 @@ export interface MenuItem {
   act: () => void;
   /** Why it cannot act: shown so (aria-disabled, the reason its title), still reachable and chosen to say why. */
   disabled?: string;
+  /** The first of a group after another: a line above it, as VS Code draws between a menu's groups. */
+  groupStart?: boolean;
+  /** Checked (menuitemcheckbox), as a toggled action is. */
+  checked?: boolean;
 }
 
 let shown: { element: HTMLElement; from: HTMLElement | undefined } | undefined;
@@ -32,9 +36,11 @@ export function openMenu(items: MenuItem[], options: { label: string; x: number;
   element.className = `context-menu ${options.className ?? ""}`.trim();
   element.setAttribute("role", "menu");
   element.setAttribute("aria-label", options.label);
-  const buttons = items.map(({ label, act, disabled }) => {
+  const buttons = items.map(({ label, act, disabled, groupStart, checked }) => {
     const button = Object.assign(document.createElement("button"), { textContent: label, type: "button" });
-    button.setAttribute("role", "menuitem");
+    button.setAttribute("role", checked === undefined ? "menuitem" : "menuitemcheckbox");
+    if (checked !== undefined) button.setAttribute("aria-checked", String(checked));
+    if (groupStart) button.classList.add("group-start");
     if (disabled) {
       button.setAttribute("aria-disabled", "true");
       button.title = disabled;

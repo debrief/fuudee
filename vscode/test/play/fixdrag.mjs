@@ -9,6 +9,7 @@
 // courses (product owner, 14 Oct 2026); over the ground again asks first; all undone.
 import { showPanel } from "./dock.mjs";
 import assert from "node:assert/strict";
+import { onSelection } from "./menus.mjs";
 
 export async function playFixDrag(page, shot) {
   const mapFrame = page.frameLocator(".frame-map");
@@ -214,7 +215,7 @@ export async function playFixDrag(page, shot) {
   const drTagged = async () => /^DR( · |$)/.test(await page.locator(`#outline li[data-id="track-red-one"] .detail`).innerText());
   assert.equal(await drTagged(), false);
   n = await steps();
-  await page.locator("#plotting-mode").click();
+  await onSelection(page, "Plot over the ground or by dead reckoning…");
   await dialog.waitFor();
   // What the form explains is said in the neutral style, not as a warning.
   await dialog.locator(".form-info", { hasText: "Undo takes it back" }).waitFor();
@@ -270,7 +271,7 @@ export async function playFixDrag(page, shot) {
   assert.equal(await latest(), "RED ONE (DR) rotated 3.0° clockwise");
   await page.waitForTimeout(500);
   // Plotted over the ground again would lose that rotation: Debrief asks first (panel finding 7).
-  await page.locator("#plotting-mode").click();
+  await onSelection(page, "Plot over the ground or by dead reckoning…");
   await dialog.waitFor();
   await page.locator("#track-form-mode").selectOption("otg");
   await dialog.getByRole("button", { name: "Plot" }).click();
@@ -280,7 +281,7 @@ export async function playFixDrag(page, shot) {
 
   // Changed while plotted by dead reckoning: moved 1 nmi east.
   n = await steps();
-  await page.locator("#move-track").click();
+  await onSelection(page, "Move track…");
   await dialog.waitFor();
   await page.locator("#track-form-distance").fill("1 nmi");
   await page.locator("#track-form-bearing").fill("090");
@@ -289,7 +290,7 @@ export async function playFixDrag(page, shot) {
   assert.equal(await latest(), "RED ONE (DR) moved 1.00 nmi 090.0°T");
   // Over the ground again loses that change: the reader is warned and confirms first (product owner, 14 Oct 2026).
   const toOtg = async () => {
-    await page.locator("#plotting-mode").click();
+    await onSelection(page, "Plot over the ground or by dead reckoning…");
     await dialog.waitFor();
     assert.equal(await page.locator("#track-form-mode option:checked").innerText(), "Dead reckoning (DR), as now");
     await page.locator("#track-form-mode").selectOption("otg");

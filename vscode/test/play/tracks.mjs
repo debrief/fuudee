@@ -5,6 +5,7 @@
 // a colleague's change during a drag; split at current time and merge again; overlapping
 // tracks refused; and the Move… and Rotate… forms.
 import assert from "node:assert/strict";
+import { onSelection } from "./menus.mjs";
 
 export async function playTracks(page, shot) {
   const mapFrame = page.frameLocator(".frame-map");
@@ -157,7 +158,7 @@ export async function playTracks(page, shot) {
   for (let i = 0; i < 2; i++) await page.keyboard.press("PageUp"); // 09:40
   await page.locator(`#outline li[data-id="track-blue-one"]`).click();
   n = await steps();
-  await page.locator("#split-track").click();
+  await onSelection(page, "Split track at current time…");
   const dialog = page.locator("dialog.track-form");
   await dialog.waitFor();
   assert.equal(await dialog.locator("input").nth(0).inputValue(), "BLUE ONE (1)");
@@ -175,7 +176,7 @@ export async function playTracks(page, shot) {
 
   // Merge them again: the form offers the track's own name back; one step.
   n = await steps();
-  await page.locator("#merge-tracks").click();
+  await onSelection(page, "Merge selected tracks");
   await dialog.waitFor();
   assert.equal(await page.locator("#track-form-name").inputValue(), "BLUE ONE");
   assert.equal(await dialog.locator(".form-warning").count(), 0, "nothing would be lost");
@@ -188,7 +189,7 @@ export async function playTracks(page, shot) {
   // Tracks that overlap in time are refused, the message saying where.
   n = await steps();
   await page.locator(`#outline li[data-id="track-red-one"]`).click({ modifiers: ["Control"] });
-  await page.locator("#merge-tracks").click();
+  await onSelection(page, "Merge selected tracks");
   await dialog.getByRole("button", { name: "Merge", exact: true }).click();
   await page.locator(".toast", { hasText: /The tracks were not merged: they overlap in time \(.* from \d\d:\d\d:\d\dZ to \d\d:\d\d:\d\dZ\)/ }).waitFor();
   assert.equal(await steps(), n);
@@ -197,7 +198,7 @@ export async function playTracks(page, shot) {
   // The Move… form: what moves, the distance with what it means, the bearing.
   await page.locator(`#outline li[data-id="track-red-one"]`).click();
   n = await steps();
-  await page.locator("#move-track").click();
+  await onSelection(page, "Move track…");
   await dialog.waitFor();
   await page.locator("#track-form-distance").fill("2 km");
   await page.locator("#track-form-distance-note", { hasText: "Means 1.08 nmi" }).waitFor();
@@ -211,7 +212,7 @@ export async function playTracks(page, shot) {
   assert.equal(await latest(), "RED ONE moved 1.08 nmi 090.0°T");
   // The Rotate… form: about the first fix, 15° anticlockwise.
   n = await steps();
-  await page.locator("#rotate-track").click();
+  await onSelection(page, "Rotate track…");
   await dialog.waitFor();
   await page.locator("#track-form-pivot").selectOption("first");
   await page.locator("#track-form-angle").fill("15 anticlockwise");
@@ -221,7 +222,7 @@ export async function playTracks(page, shot) {
   assert.equal(await latest(), "RED ONE rotated 15.0° anticlockwise");
   // Cancel sends nothing.
   n = await steps();
-  await page.locator("#move-track").click();
+  await onSelection(page, "Move track…");
   await dialog.getByRole("button", { name: "Cancel" }).click();
   await dialog.waitFor({ state: "detached" });
   assert.equal(await steps(), n);

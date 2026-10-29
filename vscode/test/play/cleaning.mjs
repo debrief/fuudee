@@ -9,6 +9,7 @@
 import { showPanel } from "./dock.mjs";
 import { searchTimeline, timelineRow } from "./timelinerows.mjs";
 import assert from "node:assert/strict";
+import { onSelection } from "./menus.mjs";
 
 export async function playCleaning(page, shot) {
   const mapFrame = page.frameLocator(".frame-map");
@@ -44,7 +45,7 @@ export async function playCleaning(page, shot) {
 
   // Jumps…: the threshold offered, then the jumps found, ringed and listed, all ticked. Nothing is removed yet.
   n = await steps();
-  await page.locator("#find-jumps").click();
+  await onSelection(page, "Find and remove jumps…");
   await dialog.waitFor();
   assert.match(await page.locator("#track-form-threshold").inputValue(), /^\d+\.\d kn$/);
   await page.locator("#track-form-threshold").fill("fast");
@@ -87,14 +88,14 @@ export async function playCleaning(page, shot) {
   await page.locator("#redo").click();
   await page.waitForFunction(() => !document.querySelector("#history li .detail")?.textContent?.includes("undone"));
   // Again: none left at that speed, and it says so.
-  await page.locator("#find-jumps").click();
+  await onSelection(page, "Find and remove jumps…");
   await page.locator("#track-form-threshold").fill("30 kn");
   await dialog.getByRole("button", { name: "Find" }).click();
   await page.locator(".toast", { hasText: "RED ONE: no jumps found faster than 30.0 kn." }).waitFor();
 
   // Smooth…: previewed, dashed on the map, with how far fixes would move; Cancel changes nothing.
   n = await steps();
-  await page.locator("#smooth-track").click();
+  await onSelection(page, "Smooth track…");
   await dialog.waitFor();
   await page.locator("#track-form-window").fill("4");
   await page.locator("#track-form-window-note", { hasText: "Type an odd number" }).waitFor();
@@ -113,7 +114,7 @@ export async function playCleaning(page, shot) {
   await mapFrame.locator("path.fix-preview").waitFor({ state: "detached" });
   assert.equal(await steps(), n);
   // Again, and Apply: one step.
-  await page.locator("#smooth-track").click();
+  await onSelection(page, "Smooth track…");
   await page.locator("#track-form-window").fill("5");
   await dialog.getByRole("button", { name: "Preview" }).click();
   await side.getByRole("button", { name: "Apply" }).click();
@@ -122,7 +123,7 @@ export async function playCleaning(page, shot) {
   await mapFrame.locator("path.fix-preview").waitFor({ state: "detached" });
 
   // Fixes…: the fix list; one chosen is ringed on the map; coloured, labelled and commented, each a step.
-  await page.locator("#fix-list").click();
+  await onSelection(page, "Fixes: colour, label or comment…");
   const rows = side.locator(".fix-list li");
   await rows.first().waitFor();
   assert.ok((await rows.count()) > 100, "every fix is listed");

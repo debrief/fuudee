@@ -10,6 +10,7 @@
 // the plot has no track for, as legacy asked. Nothing scrolls sideways down to 210 px,
 // in a wide font. Painting thousands of cuts measured against its budget.
 import assert from "node:assert/strict";
+import { fromMenu } from "./menus.mjs";
 import { resizeTo, showPanel } from "./dock.mjs";
 
 export async function playSensors(page, shot) {
@@ -60,9 +61,8 @@ export async function playSensors(page, shot) {
   assert.deepEqual(rows.slice(blue + 1, blue + 3), ["sensor-blue-one-bow-sonar", "sensor-blue-one-towed-array"], "sensors under their host track");
   const towedDetail = await row("sensor-blue-one-towed-array").locator(".detail").innerText();
   assert.match(towedDetail, /^(selected · )?\d+ cuts · \d+ ambiguous/);
-  assert.equal(await page.locator("#sensor-group").isVisible(), false, "the Sensor actions only while a sensor or a cut is selected");
   await row("sensor-blue-one-towed-array").click();
-  await page.locator("#sensor-group").waitFor();
+  await page.waitForFunction(() => document.querySelector('#outline li[data-id="sensor-blue-one-towed-array"]')?.getAttribute("aria-selected") === "true");
   await mapFrame.locator("#map").focus();
   await page.keyboard.press("Escape");
   await page.waitForFunction(() => !document.querySelector("#outline li.selected"));
@@ -106,7 +106,6 @@ export async function playSensors(page, shot) {
   await page.mouse.click(box.x + ambiguous.x, box.y + ambiguous.y);
   const popover = mapFrame.locator(".cut-popover");
   await popover.waitFor({ state: "visible" });
-  await page.locator("#sensor-group").waitFor(); // a cut selected: the Sensor actions shown
   const offered = await popover.locator("button").allInnerTexts();
   assert.match(offered.join("|"), /^Keep \d{3}\.\d° \((port|starboard)\)\|Keep \d{3}\.\d° \((port|starboard)\)\|More…$/);
   assert.match(await popover.innerText(), /cut at \d\d:\d\d:\d\dZ/);
@@ -160,12 +159,22 @@ export async function playSensors(page, shot) {
   await page.keyboard.press("Escape");
   await page.waitForFunction(() => !document.querySelector("#outline li.selected"));
 
-  // From the keyboard: the Towed array's menu (Shift+F10), Keep port, the cuts in the window: one step.
+  // From the keyboard: the Towed array's menu (Shift+F10), as VS Code's; Ambiguous bearings, Keep port, the cuts in the window: one step.
   await row("sensor-blue-one-towed-array").focus();
   await page.keyboard.press("Shift+F10");
   const menu = page.locator(".context-menu");
   await menu.waitFor();
-  assert.deepEqual(await menu.locator("button").allInnerTexts(), ["Keep port bearing…", "Keep starboard bearing…", "Make ambiguous again…", "Cut at current time…", "Towed array offset…"]);
+  assert.deepEqual(await menu.locator("button").allInnerTexts(), [
+    "Ambiguous bearings: keep port or starboard…",
+    "Cut at current time…",
+    "Towed array offset…",
+    "Bearings and TMA",
+    "TMA solution from cuts…",
+    "Change colour…",
+    "Hide on map",
+  ]);
+  await page.keyboard.press("Enter");
+  await page.waitForFunction(() => document.querySelector(".context-menu")?.getAttribute("aria-label") === "Ambiguous bearings: keep");
   await page.keyboard.press("Enter");
   await page.waitForFunction(() => document.querySelector(".context-menu")?.getAttribute("aria-label") === "Keep port bearing: which cuts?");
   const scopes = await menu.locator("button").allInnerTexts();
@@ -179,10 +188,11 @@ export async function playSensors(page, shot) {
   assert.match(await row("sensor-blue-one-towed-array").locator(".detail").innerText(), /^(selected · )?\d+ cuts( · \d+ ambiguous)? · \d+ resolved$/);
   await page.mouse.move(2, 2);
   await shot("sensors-04-port-kept");
-  // Both again, for all the Towed array's cuts, from the Sensor actions: one step.
+  // Both again, for all the Towed array's cuts, from the sensor's menu in the Outline: one step.
   await row("sensor-blue-one-towed-array").click();
   n = await steps();
-  await page.locator("#keep-ambiguous").click();
+  await fromMenu(page, "sensor-blue-one-towed-array", "Ambiguous bearings: keep port or starboard…");
+  await page.locator(".context-menu").getByText("Make ambiguous again…", { exact: true }).click();
   await menu.waitFor();
   await menu.getByRole("menuitem", { name: /^All cuts/ }).click();
   await stepAdded(n);
@@ -202,23 +212,23 @@ export async function playSensors(page, shot) {
   await shot("sensors-05-cut-menu");
   await page.keyboard.press("Escape");
   await asked.waitFor({ state: "hidden" });
-  // From the keyboard, the cut the map emphasises: the Towed array's menu, Cut at current time.
+  // From the keyboard, the cut the map emphasises: the Towed array's menu, Cut at current time (the second).
   await row("sensor-blue-one-towed-array").focus();
   await page.keyboard.press("Shift+F10");
   await menu.waitFor();
-  await page.keyboard.press("End");
-  await page.keyboard.press("ArrowUp");
+  await page.keyboard.press("ArrowDown");
   await page.keyboard.press("Enter");
   await asked.waitFor();
   assert.match(await asked.locator("#ask-text").innerText(), /^Towed array cut at \d\d:\d\d:\d\dZ\. Ambiguous: /);
   await page.keyboard.press("Escape");
   await asked.waitFor({ state: "hidden" });
 
-  // A towed array 300 m astern, worm in the hole, from its menu: one step; its cuts drawn from the array.
+  // A towed array 300 m astern, worm in the hole, from its menu (Towed array offset…, the third): one step; its cuts drawn from the array.
   await row("sensor-blue-one-towed-array").focus();
   await page.keyboard.press("Shift+F10");
   await menu.waitFor();
-  await page.keyboard.press("End");
+  await page.keyboard.press("ArrowDown");
+  await page.keyboard.press("ArrowDown");
   await page.keyboard.press("Enter");
   const form = page.locator("dialog.track-form");
   await form.waitFor();
@@ -292,27 +302,22 @@ export async function playSensors(page, shot) {
   assert.ok(median(moved) < 8, "moving current time repaints within budget");
   assert.ok(median(windowed2) < 50, "moving the window repaints within budget (generously, for a slow machine)");
 
-  // Narrow, and in a wide font: the Outline's rows and the Sensor actions never scroll sideways, nor cut a label short.
+  // Narrow, and in a wide font: the Outline's rows never scroll sideways.
   await row("sensor-blue-one-towed-array").click();
-  await page.locator("#sensor-group").waitFor();
   const sideways = () =>
     page.evaluate(() => [
-      ...["#body-outline", "#outline", ".outline-tools"].flatMap((s) => {
+      ...["#body-outline", "#outline"].flatMap((s) => {
         const el = document.querySelector(s);
         return el && el.scrollWidth > el.clientWidth + 1 ? [`${s} ${el.scrollWidth}/${el.clientWidth}`] : [];
-      }),
-      ...["#keep-port", "#keep-starboard", "#keep-ambiguous"].flatMap((s) => {
-        const el = document.querySelector(s);
-        return el && el.scrollWidth > el.clientWidth + 1 ? [`${s} cut short ${el.scrollWidth}/${el.clientWidth}`] : [];
       }),
     ]);
   const widths = [];
   for (const wide of [false, true]) {
-    const style = wide ? await page.addStyleTag({ content: "#side *, .dv-groupview * { letter-spacing: 0.08em !important } #outline li, .outline-tools button { font-size: 15px !important }" }) : undefined;
+    const style = wide ? await page.addStyleTag({ content: "#side *, .dv-groupview * { letter-spacing: 0.08em !important } #outline li { font-size: 15px !important }" }) : undefined;
     for (const width of [390, 280, 210]) {
       await resizeTo(page, width, 800);
       await showPanel(page, "outline");
-      await page.locator("#sensor-group").scrollIntoViewIfNeeded();
+      await row("sensor-blue-one-towed-array").scrollIntoViewIfNeeded();
       await page.waitForTimeout(200);
       const over = await sideways();
       widths.push(`${wide ? "wide font, " : ""}${width} px: ${over.length ? over.join(", ") : "fits"}`);

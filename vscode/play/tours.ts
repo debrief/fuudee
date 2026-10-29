@@ -28,9 +28,9 @@ export type { TourSource, TourStep };
  * solution's row, Bearings following (product owner, 27 Oct 2026: outline:<sensor or solution>,
  * ?cut=<time>, ?period=<start>/<end>&make for the first guess's form, ?fix=<time>).
  */
-type Verb = "open" | "focus" | "click" | "select" | "outline";
+type Verb = "open" | "focus" | "click" | "select" | "outline" | "run";
 export type TourAction = { verb: Verb; target: string } | { verb: "import-log"; target: "" };
-const VERBS: string[] = ["open", "focus", "click", "select", "outline"];
+const VERBS: string[] = ["open", "focus", "click", "select", "outline", "run"];
 
 /** An outline action's target: the sensor or solution whose rows are chosen, and which (an OutlineFocus, as VS Code's step passes it). */
 export function outlineTarget(target: string): { feature: string; focus?: OutlineFocus } {
@@ -50,7 +50,7 @@ export function outlineTarget(target: string): { feature: string; focus?: Outlin
   return { feature, focus };
 }
 
-/** A button's actions, in order: "select:track-red-one;click:find-jumps". */
+/** A button's actions, in order: "select:track-red-one;run:debrief.removeJumps" (run: a catalogued action, on the selection). */
 export function parseActions(text: string): TourAction[] {
   return text
     .split(";")

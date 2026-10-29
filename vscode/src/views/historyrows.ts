@@ -31,3 +31,14 @@ function nextToUndo(steps: HistoryStep[], current: number): Set<number> {
   const undoable = step !== undefined && (step.after ?? steps.indexOf(step)) > 0;
   return undoable ? taken : new Set();
 }
+
+/**
+ * Whether Undo and Redo can act (PAR-08: disabled, not refused after the click, in both front ends):
+ * undo while the current step has one before it, redo while a step is undone; neither while an
+ * earlier revision is shown read-only.
+ */
+export function undoRedo(steps: readonly { seq: number; status: string }[], current: number, readOnly: boolean): { canUndo: boolean; canRedo: boolean } {
+  if (readOnly) return { canUndo: false, canRedo: false };
+  const at = steps.findIndex((s) => s.seq === current);
+  return { canUndo: at > 0, canRedo: steps.some((s) => s.status === "undone") };
+}

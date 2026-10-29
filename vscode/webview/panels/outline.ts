@@ -17,7 +17,7 @@
  *
  * Children are made once a plot, as their branch opens, so a sensor of thousands of cuts opens
  * at once and a cut selected on the map can be found, its sensor and page made, to reveal it.
- * A row's actions (Phase 2's catalogue, PAR-05) are listed by key; none yet.
+ * A row's actions are the action catalogue's (panels/actions.ts, PAR-05) for its menu context, by id.
  */
 import type { DebriefFeatureCollection, StacItem } from "@debrief/schemas";
 import { formatTime } from "@debrief/kernel";
@@ -28,6 +28,7 @@ import { DR_TAG, isDeadReckoned } from "../fixes.js";
 import { trackDetails } from "../frequencies.js";
 import { cutRow, fixKey, fixRow, legKey, legRow, outlineIndex, type OutlineIndex } from "../outlinemodel.js";
 import { featureName, sensorDetail, type CutFeature, type SensorEntry } from "../sensors.js";
+import { rowActions } from "./actions.js";
 
 /** How many cuts a page of a sensor's cuts holds: a sensor of more opens to pages, by time. */
 export const CUT_PAGE = 500;
@@ -110,9 +111,9 @@ export interface OutlineRow {
   open: boolean;
   /** Whether choosing it selects something (headings, pages, files and the narrative row do not). */
   selectable: boolean;
-  /** What its menu offers, as VS Code's when clauses read it (contextValue); Phase 2 replaces it with actions. */
+  /** Its menu context, as the action catalogue's placements match it (VS Code's contextValue). */
   menu?: string;
-  /** The keys of the actions it offers (PAR-05: the action catalogue, Phase 2). */
+  /** The ids of the actions its context menu offers (the action catalogue's, PAR-05), whether or not they can run now. */
   actions: readonly string[];
   activate?: OutlineActivate;
 }
@@ -292,6 +293,11 @@ export class OutlineModel {
 
   /** What a row says, and its state, with these keys selected (the Outline's rows chosen). */
   row(node: OutlineNode, selected: ReadonlySet<string>): OutlineRow {
+    const row = this.said(node, selected);
+    return { ...row, actions: rowActions("debrief.outline", row.menu) };
+  }
+
+  private said(node: OutlineNode, selected: ReadonlySet<string>): OutlineRow {
     const index = this.index;
     const base = {
       key: node.key,

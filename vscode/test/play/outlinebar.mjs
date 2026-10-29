@@ -45,9 +45,18 @@ export async function playOutlineBar(page, shot) {
 
   // A toolbar of icon buttons: named, a tooltip each, one tab stop.
   assert.equal(await bar.getAttribute("role"), "toolbar");
-  const ids = ["visibility", "colour", "select-all", "select-children", "clear-selection"];
+  // The buttons and names of VS Code's title bar for the Outline, from the action catalogue (PAR-07); ⋯ for its overflow menu.
+  const ids = ["visibility", "colour", "select-all", "select-children", "clear-selection", "add-annotation", "more"];
   assert.deepEqual(await bar.locator("button.obar-button").evaluateAll((b) => b.map((x) => x.dataset.action)), ids);
-  assert.deepEqual(await bar.locator("button.obar-button").evaluateAll((b) => b.map((x) => x.getAttribute("aria-label"))), ["Hidden on map", "Colour", "Select all", "Select children", "Clear selection"]);
+  assert.deepEqual(await bar.locator("button.obar-button").evaluateAll((b) => b.map((x) => x.getAttribute("aria-label"))), [
+    "Hide selected on map (all shown; legs and positions left as they are)",
+    "Colour selected… (tracks, solutions, sensors, cuts and annotations)",
+    "Select all in the Outline (every row listed)",
+    "Select children (a track's sensors, a sensor's cuts, a solution's legs, a leg's positions)",
+    "Clear selection",
+    "Add annotation…",
+    "More actions",
+  ]);
   for (const id of ids) {
     assert.ok((await button(id).getAttribute("title"))?.length > 5, `${id} has a tooltip`);
     assert.equal(await button(id).locator("svg").count(), 1, `${id} is an icon`);
@@ -58,6 +67,19 @@ export async function playOutlineBar(page, shot) {
   for (const id of ["visibility", "colour", "select-children", "clear-selection"]) assert.equal(await button(id).getAttribute("aria-disabled"), "true", id);
   assert.match(await button("colour").getAttribute("title"), /^Colour: Select something with a colour first/);
   assert.equal(await button("select-all").getAttribute("aria-disabled"), "false");
+  // A row's context menu is the action catalogue's, as VS Code's (PAR-07): a track's edits, then its presentation, then the Tote.
+  await row("track-blue-one").click({ button: "right" });
+  const rowMenu = page.locator(".context-menu");
+  await rowMenu.waitFor();
+  const entries = await rowMenu.locator("button").allInnerTexts();
+  assert.equal(entries[0], "Move track…");
+  for (const title of ["Find and remove jumps…", "Plot over the ground or by dead reckoning…", "Change colour…", "Hide on map", "Set as Tote primary"]) assert.ok(entries.includes(title), `${title} on a track's menu: ${entries.join(" | ")}`);
+  assert.equal(await rowMenu.locator("button.group-start").count(), 2, "three groups, divided");
+  await page.keyboard.press("Escape");
+  await rowMenu.waitFor({ state: "detached" });
+  // Undo and Redo: the catalogue's titles, disabled with its reason when they cannot act (PAR-08).
+  assert.match(await page.locator("#undo").getAttribute("title"), /^Undo last change to plot(: There is nothing to undo\.)?$/);
+  assert.equal(await page.locator("#undo").isDisabled(), (await page.locator("#undo").getAttribute("title")).includes("nothing to undo"));
 
   // The keyboard: Tab into the row, the arrows, Home and End along it, wrapping; Tab out.
   await button("visibility").focus();
@@ -65,11 +87,11 @@ export async function playOutlineBar(page, shot) {
   await page.keyboard.press("ArrowRight");
   assert.equal(await focused(), "colour");
   await page.keyboard.press("End");
-  assert.equal(await focused(), "clear-selection");
+  assert.equal(await focused(), "more", "End: the last, the ⋯ menu");
   await page.keyboard.press("ArrowRight");
   assert.equal(await focused(), "visibility", "wraps");
   await page.keyboard.press("ArrowLeft");
-  assert.equal(await focused(), "clear-selection");
+  assert.equal(await focused(), "more");
   await page.keyboard.press("Home");
   await page.keyboard.press("ArrowRight");
   await page.keyboard.press("ArrowRight");

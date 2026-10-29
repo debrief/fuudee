@@ -55,6 +55,8 @@ const { OutlineProvider } = await import("../../src/views/outline.js");
 const { filesOf, NO_PLOT, OutlineModel, CUT_PAGE } = await import("../../webview/panels/outline.js");
 const { fillOutlineRow } = await import("../../play/outlinerow.js");
 const { flatten } = await import("../../webview/outlinetree.js");
+const { rowMenu } = await import("../../webview/panels/actions.js");
+const { toteMenu, toteOf } = await import("../../webview/totelogic.js");
 type OutlineNode = import("../../webview/panels/outline.js").OutlineNode;
 type OutlineInput = import("../../webview/panels/outline.js").OutlineInput;
 type TreeNode = import("../../webview/outlinetree.js").TreeNode<OutlineNode>;
@@ -187,7 +189,49 @@ interface Said {
   aria: string;
   expanded?: boolean;
   selected: boolean;
+  /** Its context menu: each entry's title, "(disabled)" where it cannot run, and "—" between groups. */
+  menu: string[];
 }
+
+// --- Menus: VS Code's from package.json as shipped, the playground's from the action catalogue --------
+
+const manifest = JSON.parse(readFileSync(path.join(repo, "vscode", "package.json"), "utf8")) as {
+  contributes: { commands: { command: string; title: string; enablement?: string }[]; menus: Record<string, { command: string; when?: string; group?: string }[]> };
+};
+/** The context keys VS Code sets for a state (the plot open, the Tote's entries for the selection). */
+function contextOf(state: State): Record<string, string | boolean> {
+  if (!state.input) return {};
+  const tote = toteMenu(toteOf(state.input.plot), (state.selected ?? []).filter((id) => state.input!.plot.features.some((f) => f.id === id && f.properties.kind === "track")));
+  return { "debrief.plotOpen": true, "debrief.toteCanAdd": tote.canAdd, "debrief.toteCanRemove": tote.canRemove, "debrief.toteCanSetPrimary": !tote.primaryReason };
+}
+/** A when clause, read as VS Code reads the forms package.json uses: terms joined by &&. */
+function whenHolds(clause: string | undefined, context: Record<string, string | boolean | undefined>): boolean {
+  if (!clause) return true;
+  return clause.split(" && ").every((term) => {
+    let m: RegExpExecArray | null;
+    if (term === "false") return false;
+    if ((m = /^!(\S+)$/.exec(term))) return !context[m[1]];
+    if ((m = /^(\S+) == (.+)$/.exec(term))) return String(context[m[1]]) === m[2].replace(/^'(.*)'$/, "$1");
+    if ((m = /^(\S+) != (.+)$/.exec(term))) return String(context[m[1]]) !== m[2].replace(/^'(.*)'$/, "$1");
+    if ((m = /^(\S+) =~ \/(.+)\/$/.exec(term))) return context[m[1]] !== undefined && new RegExp(m[2]).test(String(context[m[1]]));
+    return !!context[term];
+  });
+}
+/** A row's menu as VS Code draws it: the view/item/context entries whose when holds, sorted by group, order and title. */
+function vscodeMenu(contextValue: string | undefined, context: Record<string, string | boolean>): string[] {
+  const keys = { ...context, view: "debrief.outline", viewItem: contextValue };
+  const entries = manifest.contributes.menus["view/item/context"]
+    .filter((e) => contextValue !== undefined && whenHolds(e.when, keys))
+    .map((e) => {
+      const command = manifest.contributes.commands.find((c) => c.command === e.command)!;
+      const [group = "", order = "0"] = (e.group ?? "").split("@");
+      return { group, order: Number(order), title: command.title, enabled: whenHolds(command.enablement, keys) };
+    })
+    .sort((a, b) => a.group.localeCompare(b.group) || a.order - b.order || a.title.localeCompare(b.title));
+  return said(entries);
+}
+const said = (entries: { group: string; title: string; enabled: boolean }[]) =>
+  entries.flatMap((e, i) => [...(i > 0 && e.group !== entries[i - 1].group ? ["—"] : []), `${e.title}${e.enabled ? "" : " (disabled)"}`]);
 
 /** VS Code: the tree items of the open branches, as the native tree shows them. */
 function vscodeRows(state: State): Said[] {
@@ -216,6 +260,7 @@ function vscodeRows(state: State): Said[] {
         ...(item.collapsibleState !== 0 && { expanded }),
         // A selected row is marked in its description and its icon's colour.
         selected: / ?selected( · |$)/.test(String(item.description)) && (!icon || !!icon.color),
+        menu: vscodeMenu(item.contextValue, contextOf(state)),
       });
       if (expanded) walk(provider.getChildren(node), level + 1);
     }
@@ -252,6 +297,8 @@ function playgroundRows(state: State): Said[] {
       aria: li.getAttribute("aria-label")!,
       ...(li.getAttribute("aria-expanded") && { expanded: li.getAttribute("aria-expanded") === "true" }),
       selected: li.getAttribute("aria-selected") === "true" && li.className.split(" ").includes("selected"),
+      // The menu the playground opens on it (host.ts outlineRowMenu): the catalogue's for its menu context.
+      menu: said(rowMenu("debrief.outline", model.row(row.node.data, chosen).menu, contextOf(state))),
     };
   });
 }

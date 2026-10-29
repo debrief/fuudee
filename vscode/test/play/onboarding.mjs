@@ -21,6 +21,7 @@
 // them is kept, in any of the browser's stores, after the tab closes (product owner and panel
 // review, 17 Oct 2026).
 import assert from "node:assert/strict";
+import { fromMenu, onSelection, fromToolbar } from "./menus.mjs";
 import { existsSync, readFileSync } from "node:fs";
 import path from "node:path";
 import { CSP } from "../../play/csp.mjs";
@@ -434,9 +435,16 @@ export async function playTours(page, shot, root) {
   await page.keyboard.press("Control+Enter");
   await done(page, "selected");
   await ticked(page, 2, "Select tracks in the Outline");
-  // The Tote, from the Outline's menu: Shift+F10.
+  // The Tote, from the Outline's menu: one track selected (Enter), then Shift+F10. With both still
+  // selected, Set as Tote primary cannot act, saying why (decision, product owner, 29 Oct 2026).
+  await page.locator('#outline li[data-id="track-blue-one"]').focus();
+  await page.keyboard.press("Shift+F10");
+  assert.equal(await page.getByRole("menuitem", { name: "Set as Tote primary" }).getAttribute("aria-disabled"), "true");
+  assert.equal(await page.getByRole("menuitem", { name: "Set as Tote primary" }).getAttribute("title"), "Select one track to be the Tote's primary.");
+  await page.keyboard.press("Escape");
   for (const [id, item] of [["track-blue-one", "Set as Tote primary"], ["track-red-one", "Add to Tote"]]) {
     await page.locator(`#outline li[data-id="${id}"]`).focus();
+    await page.keyboard.press("Enter");
     await page.keyboard.press("Shift+F10");
     await page.getByRole("menuitem", { name: item }).click();
   }
@@ -514,7 +522,7 @@ export async function playTours(page, shot, root) {
   await page.waitForFunction(() => document.getElementById("plot-title")?.textContent === "Serial 2", null, { timeout: 60000 });
   n = await steps(page);
   await page.locator('#outline li[data-id="track-red-one"]').click();
-  await page.locator("#smooth-track").click();
+  await onSelection(page, "Smooth track…");
   await page.locator("#track-form-window").fill("5");
   await dialog.getByRole("button", { name: "Preview" }).click();
   await side.getByRole("button", { name: "Apply" }).click();
@@ -541,7 +549,7 @@ export async function playTours(page, shot, root) {
   await side.getByRole("button", { name: "Close" }).click();
   // A stretch is not the shear the step asks for.
   await page.locator('#outline li[data-id="track-blue-one"]').click();
-  await page.locator("#stretch-track").click();
+  await onSelection(page, "Stretch track…");
   await page.locator("#track-form-speed").fill("8");
   n = await steps(page);
   await dialog.getByRole("button", { name: "Stretch" }).click();
@@ -583,8 +591,8 @@ export async function playTours(page, shot, root) {
   await done(page, "imageExported");
   const short = (await page.locator("#export-said").innerText()).match(/Its ID, (DBF-[0-9A-Z-]+),/)[1];
   // The plot changes; then the image is traced by the ID in its corner, typed.
-  await page.locator("#north-arrow").click();
-  await page.waitForFunction(() => document.getElementById("north-arrow")?.getAttribute("aria-pressed") === "true");
+  await fromToolbar(page, "North arrow");
+  await page.locator("#history li", { hasText: "North arrow added" }).first().waitFor({ state: "attached" }); // History behind another tab here
   await go(page, 4).click();
   assert.equal(await page.evaluate(() => document.activeElement?.id), "find-id");
   await page.keyboard.type(short);
@@ -827,7 +835,7 @@ export async function playTmaTour(page, shot) {
   await page.waitForFunction(() => document.querySelector(".frame-map").contentDocument.querySelector('.track-handle[data-role="end"]')?.getAttribute("aria-label")?.includes("leg 2 of 2"), null, { timeout: 30000 });
   // Pinned on its first bearing by typing, the leg offered in Move… (This leg): its error at 10:38Z on zero.
   await showPanel(page, "outline");
-  await page.locator("#move-track").click();
+  await fromMenu(page, await page.evaluate(() => window.debriefTma.shown.solution_id), "Move track…"); // the solution's row: a position of it is selected
   await page.locator("#track-form-extent").selectOption("leg");
   assert.match(await page.locator("#track-form-extent option:checked").innerText(), /^This leg: leg 2 of 2, /);
   await page.locator("#track-form-distance").fill("0.17 nmi");
@@ -837,7 +845,7 @@ export async function playTmaTour(page, shot) {
   await ticked(page, 6, "Split at the turn and fit the second leg");
   await page.waitForFunction(() => Math.abs(window.debriefTma.residuals.rows.find((r) => r.time.endsWith("T10:38:00.000Z"))?.residual ?? 9) < 0.5, null, { timeout: 60000 });
   // Then sheared about that start: the RMS near the bearings' own accuracy, the cue as the step says.
-  await page.locator("#shear-track").click();
+  await fromMenu(page, await page.evaluate(() => window.debriefTma.shown.solution_id), "Shear track…"); // the solution's row: a position of it is selected
   await page.locator("#track-form-extent").selectOption("leg");
   await page.locator("#track-form-course").fill("200");
   await page.locator("#track-form-speed").fill("5.2 kn");
@@ -948,7 +956,7 @@ export async function speedRun(page, root) {
   await stepAdded(page, n);
   await act(page.locator('#outline li[data-id="track-blue-one"]').click());
   await act(page.locator('#outline li[data-id="track-red-one"]').click({ modifiers: ["Control"] }));
-  await act(page.locator("#track-frequencies").click());
+  await act(onSelection(page, "Frequencies: labels, symbols and arrows…"));
   await act(page.locator("#freq-label_interval").selectOption({ label: "Every 10 min" }));
   n = await steps(page);
   await act(dialog.getByRole("button", { name: "Apply" }).click());

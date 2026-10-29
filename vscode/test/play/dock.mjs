@@ -134,12 +134,12 @@ async function defaultAt(page, width, height) {
   }
   const hidden = await page.evaluate(() => {
     const panel = document.getElementById("panel-outline").parentElement.getBoundingClientRect();
-    return ["obar-colour", "find-jumps", "smooth-track", "track-frequencies"].filter((id) => {
+    return ["obar-colour", "obar-add-annotation", "obar-more"].filter((id) => {
       const b = document.getElementById(id).getBoundingClientRect();
       return b.top < panel.top - 1 || b.bottom > panel.bottom + 1;
     });
   });
-  assert.deepEqual(hidden, [], `at ${width} × ${height} the track tools in sight in the Outline`);
+  assert.deepEqual(hidden, [], `at ${width} × ${height} the Outline's toolbar in sight`);
   // The Outline's group takes the rest of the left column (product owner, 24 Oct 2026): its list
   // shows several rows, all the sample's on a large screen.
   const rows = await page.evaluate(() => {
