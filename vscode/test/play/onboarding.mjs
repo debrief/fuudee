@@ -21,7 +21,7 @@
 // them is kept, in any of the browser's stores, after the tab closes (product owner and panel
 // review, 17 Oct 2026).
 import assert from "node:assert/strict";
-import { onSelection, fromToolbar } from "./menus.mjs";
+import { fromMenu, onSelection, fromToolbar } from "./menus.mjs";
 import { existsSync, readFileSync } from "node:fs";
 import path from "node:path";
 import { CSP } from "../../play/csp.mjs";
@@ -835,7 +835,7 @@ export async function playTmaTour(page, shot) {
   await page.waitForFunction(() => document.querySelector(".frame-map").contentDocument.querySelector('.track-handle[data-role="end"]')?.getAttribute("aria-label")?.includes("leg 2 of 2"), null, { timeout: 30000 });
   // Pinned on its first bearing by typing, the leg offered in Move… (This leg): its error at 10:38Z on zero.
   await showPanel(page, "outline");
-  await onSelection(page, "Move track…");
+  await fromMenu(page, await page.evaluate(() => window.debriefTma.shown.solution_id), "Move track…"); // the solution's row: a position of it is selected
   await page.locator("#track-form-extent").selectOption("leg");
   assert.match(await page.locator("#track-form-extent option:checked").innerText(), /^This leg: leg 2 of 2, /);
   await page.locator("#track-form-distance").fill("0.17 nmi");
@@ -845,7 +845,7 @@ export async function playTmaTour(page, shot) {
   await ticked(page, 6, "Split at the turn and fit the second leg");
   await page.waitForFunction(() => Math.abs(window.debriefTma.residuals.rows.find((r) => r.time.endsWith("T10:38:00.000Z"))?.residual ?? 9) < 0.5, null, { timeout: 60000 });
   // Then sheared about that start: the RMS near the bearings' own accuracy, the cue as the step says.
-  await onSelection(page, "Shear track…");
+  await fromMenu(page, await page.evaluate(() => window.debriefTma.shown.solution_id), "Shear track…"); // the solution's row: a position of it is selected
   await page.locator("#track-form-extent").selectOption("leg");
   await page.locator("#track-form-course").fill("200");
   await page.locator("#track-form-speed").fill("5.2 kn");
