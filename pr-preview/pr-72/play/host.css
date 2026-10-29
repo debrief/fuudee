@@ -55,7 +55,6 @@ body { background: var(--vscode-editor-background); color: var(--vscode-foregrou
   .obar-swatch { forced-color-adjust: none; border-color: ButtonText; }
   .obar-swatch[aria-checked="true"] { outline-color: Highlight; }
 }
-/* Under the outline: what can be done to a selected track, and to annotations, each a labelled group of equal buttons. */
 #outline li:hover { background: var(--vscode-list-hoverBackground); }
 #outline li.selected { background: var(--vscode-list-activeSelectionBackground); color: var(--vscode-list-activeSelectionForeground); }
 #outline .tag { font-size: 10px; padding: 0 3px; border: 1px solid currentColor; border-radius: 2px; opacity: 0.85; }
