@@ -1,0 +1,14 @@
+{
+  "name": "Debrief review copy",
+  "description": "VS Code in the browser with the Debrief extension and sample data, for review. See deploy/review/README.md.",
+  "stack": "container",
+  "env": {
+    "PASSWORD": {
+      "description": "The reviewers' shared password. Set once in the pipeline's review app config vars, so every review app shares it.",
+      "required": true
+    }
+  },
+  "formation": {
+    "web": { "quantity": 1, "size": "standard-2x" }
+  }
+}
