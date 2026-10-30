@@ -1,0 +1,23 @@
+{
+ "shots": [
+  {
+   "source": "guides/interaction-models/keyboard-equivalents.md",
+   "url": "guides/interaction-models/keyboard-equivalents/",
+   "title": "Keyboard equivalents",
+   "file": "guides-interaction-models-keyboard-equivalents.png"
+  },
+  {
+   "source": "guides/interaction-models/sensors.md",
+   "url": "guides/interaction-models/sensors/",
+   "title": "Sensors and bearings",
+   "file": "guides-interaction-models-sensors.png"
+  },
+  {
+   "source": "guides/interaction-models/track-operations.md",
+   "url": "guides/interaction-models/track-operations/",
+   "title": "Track operations",
+   "file": "guides-interaction-models-track-operations.png"
+  }
+ ],
+ "more": 0
+}
