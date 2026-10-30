@@ -1,7 +1,7 @@
 {
  "number": "83",
- "title": "Decision record (proposed): hosted VS Code for analyst review",
+ "title": "Review copy on Heroku: VS Code in the browser for analysts whose browsers block WebAssembly",
  "url": "https://github.com/debrief/fuudee/pull/83",
- "sha": "a23d6d5",
- "built": "2026-10-30 20:07 UTC"
+ "sha": "5237a03",
+ "built": "2026-10-30 20:16 UTC"
 }
