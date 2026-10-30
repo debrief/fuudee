@@ -14,7 +14,8 @@
  */
 import { execFile } from "node:child_process";
 import tours from "../walkthroughs/tours.json";
-import { BESIDE, contextKey, tmaDragEvent } from "../walkthroughs/contribute.mjs";
+import { BESIDE, contextKey } from "../walkthroughs/contribute.mjs";
+import { walkthroughEvent } from "../webview/walkthroughevents.js";
 
 export interface Tour {
   id: string;
@@ -36,52 +37,9 @@ export { BESIDE, contextKey };
 
 /**
  * The walkthrough step a successful request to the tool service completes, if any: the
- * change itself, made by any means (a form, the map, the keyboard, a macro), so a step is
- * ticked by what the analyst did, not by which button they pressed.
+ * shared table's (webview/walkthroughevents.ts, PAR-14), the request as the service had it.
  */
-export function serviceEvent(method: string, params: Record<string, unknown> = {}, legsOf: (id: string) => number | undefined = () => undefined, result?: unknown): string | undefined {
-  switch (method) {
-    case "debrief/resolve_ambiguity":
-      // A side kept: not both bearings made ambiguous again.
-      return params.keep && params.keep !== "ambiguous" ? "sideKept" : undefined;
-    case "debrief/tma_create":
-      return "solutionMade";
-    case "debrief/tma_exclude_cut":
-      // Left out, not counted again; nothing changed (already left out) is not it, as in the playground.
-      return params.excluded === false || (result as { changed?: boolean } | undefined)?.changed === false ? undefined : "cutLeftOut";
-    case "debrief/import":
-      return "imported";
-    case "debrief/take_new_data":
-      return "newDataTaken";
-    case "debrief/set_source_preference":
-      return "sourceChosen";
-    case "debrief/remove_jumps":
-      return "jumpsRemoved";
-    case "debrief/smooth_track":
-      return "smoothed";
-    case "debrief/mark_fix":
-      return "fixMarked";
-    case "debrief/edit_track": {
-      const action = (params.edit as { action?: string } | undefined)?.action;
-      // A TMA solution dragged, by any of a track's drags: Bearings and TMA's steps, not Tidy a track's shear.
-      const tma = tmaDragEvent(legsOf(String(params.feature)), action, !!params.edit && !!(params.edit as { period?: unknown }).period);
-      if (tma !== false) return tma;
-      // A shear, not a stretch: the step asks for a shear (panel review, 17 Oct 2026).
-      return action === "shear" ? "sheared" : undefined;
-    }
-    case "debrief/add_annotation":
-      return "annotationAdded";
-    case "debrief/set_track_frequencies":
-      return "frequenciesSet";
-    case "debrief/export_image":
-      // The host's second call, with the image drawn: the export itself, logged.
-      return params.image ? "imageExported" : undefined;
-    case "debrief/open_revision":
-      return "imageTraced";
-    default:
-      return undefined;
-  }
-}
+export const serviceEvent = walkthroughEvent;
 
 /** A Tote with something to compare: a primary and at least one secondary. */
 export const toteCompares = (tote: { primary?: string | null; secondaries?: string[] | null } | undefined) => !!tote?.primary && !!tote.secondaries?.length;

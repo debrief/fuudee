@@ -2299,8 +2299,9 @@ const PLAY_ACTIONS: Record<string, (keys: string[], at: Where) => unknown> = {
   "debrief.toggleNorthArrow": () => toggleNorthArrow(),
   "debrief.importSensor": () => importSensor(sensorHost),
   "debrief.exportImage": () => exportImage(exportHost),
-  // A walkthrough's step runs it, as VS Code's step runs the command (its place is Catalogues' title bar menu).
+  // A walkthrough's step runs these, as VS Code's step runs the command (PAR-14): their places are Catalogues'.
   "debrief.findImageSource": () => findImageSource(findHost),
+  "debrief.takeNewData": () => takeNewData(collationHost),
 };
 
 /** The actions that act on the rows given, leaving the selection as it is, as VS Code's do. */

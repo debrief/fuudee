@@ -17,7 +17,8 @@
  */
 import tours from "../walkthroughs/tours.json";
 import type { OutlineFocus } from "../webview/outlinemodel.js";
-import { ALL_DONE, nextLabel, nextTour, stepParts, tmaDragEvent, type TourSource, type TourStep } from "../walkthroughs/contribute.mjs";
+import { walkthroughEvent } from "../webview/walkthroughevents.js";
+import { ALL_DONE, nextLabel, nextTour, stepParts, type TourSource, type TourStep } from "../walkthroughs/contribute.mjs";
 
 export const TOURS: TourSource[] = tours.tours;
 export type { TourSource, TourStep };
@@ -65,11 +66,10 @@ export function parseActions(text: string): TourAction[] {
 }
 
 /**
- * The walkthrough step a call to the playground's Python completes, when it succeeded: the
- * change itself, however the reader made it (a form, the map, the keyboard), as VS Code
- * ticks its steps by the tool service's requests (src/walkthroughs.ts). legsOf says how many legs a
- * TMA solution has (undefined for a track that is not one): its drags are Bearings and TMA's steps,
- * not Tidy a track's shear.
+ * The walkthrough step a call to the playground's Python completes, when it succeeded: the shared
+ * table's (webview/walkthroughevents.ts, PAR-14), the call named by the tool service's method for
+ * the same change, so a step ticks under the same conditions in both hosts. legsOf says how many
+ * legs a TMA solution has (undefined for a track that is not one).
  */
 export function callEvent(call: string, args: unknown[], result: string, legsOf: (id: string) => number | undefined = () => undefined): string | undefined {
   let outcome: Record<string, unknown>;
@@ -79,6 +79,12 @@ export function callEvent(call: string, args: unknown[], result: string, legsOf:
     return undefined;
   }
   if (!outcome || typeof outcome !== "object" || outcome.error || outcome.conflict || outcome.confirm) return undefined;
+  const asked = serviceCall(call, args);
+  return asked && walkthroughEvent(asked.method, asked.params, legsOf, outcome);
+}
+
+/** A call to the playground's Python as the tool service's request for the same change: its method and parameters. */
+export function serviceCall(call: string, args: unknown[]): { method: string; params: Record<string, unknown> } | undefined {
   const change = (): Record<string, unknown> => {
     try {
       return ((JSON.parse(String(args[1])) as { change?: Record<string, unknown> }).change ?? {}) as Record<string, unknown>;
@@ -86,45 +92,39 @@ export function callEvent(call: string, args: unknown[], result: string, legsOf:
       return {};
     }
   };
+  const named = (method: string, params: Record<string, unknown> = {}) => ({ method, params });
   switch (call) {
-    case "clean":
-      return ({ remove_jumps: "jumpsRemoved", smooth: "smoothed", mark: "fixMarked" } as Record<string, string>)[String(change().kind)];
-    case "track": {
-      if (change().kind !== "edit") return undefined;
-      const edit = change().edit as { action?: string; period?: unknown } | undefined;
-      const action = String(edit?.action);
-      // A TMA solution dragged, by any of a track's drags, or one of its legs: Bearings and TMA's steps.
-      const tma = tmaDragEvent(legsOf(String(change().feature)), action, !!edit?.period);
-      if (tma !== false) return tma;
-      // A shear, not a stretch: the step asks for a shear (panel review, 17 Oct 2026).
-      return action === "shear" ? "sheared" : undefined;
+    case "clean": {
+      const method = ({ remove_jumps: "debrief/remove_jumps", smooth: "debrief/smooth_track", mark: "debrief/mark_fix" } as Record<string, string>)[String(change().kind)];
+      return method ? named(method, change()) : undefined;
     }
-    case "sensor": {
-      // A side kept: not both bearings made ambiguous again.
-      const keep = (change().resolution as { keep?: string } | undefined)?.keep;
-      return change().kind === "resolve" && keep && keep !== "ambiguous" ? "sideKept" : undefined;
-    }
+    case "track":
+      return change().kind === "edit" ? named("debrief/edit_track", { feature: change().feature, edit: change().edit }) : undefined;
+    case "sensor":
+      return change().kind === "resolve" ? named("debrief/resolve_ambiguity", { ...((change().resolution as Record<string, unknown> | undefined) ?? {}) }) : undefined;
     case "tma_change": {
       const kind = change().kind;
-      if (kind === "create") return outcome.feature ? "solutionMade" : undefined;
-      // Left out, not counted again; nothing changed (already left out) is not it.
-      // A split is not the step: dragging one of its legs is (tmaDragEvent).
-      return kind === "exclude" && change().excluded && outcome.changed !== false ? "cutLeftOut" : undefined;
+      if (kind === "create") return named("debrief/tma_create", change());
+      if (kind === "exclude") return named("debrief/tma_exclude_cut", { feature: change().feature, cut_ids: change().cut_ids, excluded: change().excluded });
+      return kind === "split" ? named("debrief/tma_split_leg", change()) : undefined;
     }
     case "annotate":
-      return change().kind === "add" ? "annotationAdded" : undefined;
+      return change().kind === "add" ? named("debrief/add_annotation", change()) : undefined;
     case "frequencies":
-      return "frequenciesSet";
-    // The walkthrough's log only: a file of the reader's own is not the step's import.
+      return named("debrief/set_track_frequencies");
+    // The walkthrough's log and a file of the reader's own are both imports: which counts is the host's to say (counts).
     case "import_tour_log":
-      return outcome.item ? "imported" : undefined;
-    case "collate":
-      if (!outcome.changed) return undefined;
-      return ({ take: "newDataTaken", prefer: "sourceChosen" } as Record<string, string>)[String(change().kind)];
+    case "import_file":
+      return named("debrief/import");
+    case "collate": {
+      const method = ({ take: "debrief/take_new_data", prefer: "debrief/set_source_preference" } as Record<string, string>)[String(change().kind)];
+      return method ? named(method, change()) : undefined;
+    }
+    // Asked with the image drawn (its bytes): the export itself.
     case "export_image":
-      return outcome.data ? "imageExported" : undefined;
+      return named("debrief/export_image", { image: !!args[2] });
     case "open_revision":
-      return "imageTraced";
+      return named("debrief/open_revision");
     default:
       return undefined;
   }
