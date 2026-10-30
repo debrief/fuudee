@@ -59,7 +59,7 @@ import { importSensor as importSensorFlow } from "../webview/panels/flows/sensor
 import { exportImage as exportFlow, findImageSource as findSourceFlow, type ExportHost } from "../webview/panels/flows/exportimage.js";
 import { operationContext as contextOf, runOperation as runOperationFlow, type OperationHost, type OperationState } from "../webview/panels/flows/operation.js";
 import { AFTER_OPEN, BESIDE, BY_HAND, LOG_FILE, openedEvent, openOnFirstRun, prepare, serviceEvent, toteCompares, TOURS, tourOfEvent, WalkthroughProgress } from "./walkthroughs.js";
-import { NO_SOLUTION, withSolution } from "../walkthroughs/contribute.mjs";
+import { doneLabel, nextLabel, NO_SOLUTION, withSolution } from "../walkthroughs/contribute.mjs";
 
 /** What the integration tests and agents can inspect. */
 /** The Outline toolbar's context keys (product owner, 28 Oct 2026). */
@@ -188,7 +188,17 @@ export function activate(context: vscode.ExtensionContext): DebriefApi {
   const configFile = process.env.DEBRIEF_CONFIG || undefined;
   const session = new Session();
   // Walkthroughs (CAP-25): each step ticks when the analyst does it, by its context key.
-  const walkthroughs = new WalkthroughProgress((command, ...args) => vscode.commands.executeCommand(command, ...args), context.extension.id, (line) => log(line));
+  // A walkthrough's last step done: the next offered there and then, as the playground's button below the steps offers it (§6, open issue 4).
+  const offerNext = async (id: string) => {
+    const at = TOURS.findIndex((t) => t.id === id);
+    const tour = TOURS[at];
+    const after = TOURS[at + 1];
+    log(`walkthrough_finished tour=${id}`);
+    if (!after) return void vscode.window.showInformationMessage(`${doneLabel(tour, after)} Every step of the last walkthrough is ticked.`);
+    const go = nextLabel(after);
+    if ((await vscode.window.showInformationMessage(`${doneLabel(tour, after)} Every step is ticked.`, go)) === go) await vscode.commands.executeCommand("debrief.walkthroughs", after.id);
+  };
+  const walkthroughs = new WalkthroughProgress((command, ...args) => vscode.commands.executeCommand(command, ...args), context.extension.id, (line) => log(line), (id) => void offerNext(id));
   /** Where a walkthrough's copy is kept: this extension's own storage, a folder for each walkthrough, never the analyst's catalogues. */
   function walkthroughFolder(tour: string): string {
     return path.join(context.globalStorageUri.fsPath, "walkthroughs", tour);
