@@ -14,6 +14,13 @@
  * collapsible state, command, context menu) and by the playground's renderers (play/toolslist.ts,
  * play/historylist.ts: the same, from the list's elements). Both shall describe the same rows.
  *
+ * The Catalogues' (panel parity phase 4): in each state of Appendix C that applies to them (no plot
+ * open with catalogues listed, a plot open, an earlier revision shown, Python or the service
+ * starting) and with collation's marks (new data, a link proposed, a plot flagged for review), the
+ * Catalogues panel model is built from the catalogues on disk and rendered by VS Code's
+ * CataloguesProvider and the playground's renderer (play/cataloguelist.ts): the same rows, menus and
+ * title bar, but what §5 keeps to VS Code (adding, creating and refreshing catalogues).
+ *
  * The samples are built by the sample's own Python (debrief_sample), as the extension's tests read
  * a catalogue Python wrote; the tools, which are offered for each selection, and each plot's
  * history are Python's too (debrief_tools.entries, PAR-15).
@@ -744,5 +751,188 @@ describe("History in both front ends (PAR-16)", () => {
     const rows = provider.getChildren().map((r) => provider.getTreeItem(r));
     expect(rows.filter((r) => String(r.description).includes("next to undo")).length).toBeGreaterThan(0);
     expect(rows.flatMap((r) => historyMenuOf(r.contextValue))).toEqual(expect.arrayContaining(["Go back to this step", "Redo up to this step"]));
+  });
+});
+
+// --- The Catalogues (panel parity phase 4) ----------------------------------------------------------
+
+const { CataloguesProvider, treeItemOf: catalogueItemOf } = await import("../../src/views/catalogues.js");
+const { CataloguesModel, STARTING: CATALOGUES_STARTING, WELCOME } = await import("../../webview/panels/catalogues.js");
+const { fillCatalogues } = await import("../../play/cataloguelist.js");
+const { inPlayground, actionOf } = await import("../../webview/panels/actions.js");
+const { addStore, updateConfig } = await import("@debrief/config");
+type CollationMarks = import("../../webview/panels/catalogues.js").CollationMarks;
+type CataloguesModelT = import("../../webview/panels/catalogues.js").CataloguesModel;
+type CoverageReportT = import("@debrief/schemas").CoverageReport;
+type ReviewFlagT = import("@debrief/schemas").ReviewFlag;
+
+// The analyst's catalogues: the sample, the TMA copy's, a read-only one, and one that cannot be read.
+const configFile = path.join(work, "debrief-config.json");
+const sampleStore = updateConfig((c) => addStore(c, { title: "Sample", location: path.join(work, "sample") })[0], configFile).stores[0];
+updateConfig((c) => addStore(c, { title: "TMA", location: path.join(work, "tma"), read_only: true })[0], configFile);
+updateConfig((c) => addStore(c, { title: "Gone", location: path.join(work, "gone") })[0], configFile);
+// What collation says of serial 1 (debrief/coverage), Python's.
+const COVERAGE: CoverageReportT = JSON.parse(
+  execFileSync(python, ["-c", "import sys, json; from pathlib import Path; from debrief_stac import Catalogue; print(Catalogue.open(Path(sys.argv[1])).coverage('serial-1').model_dump_json(exclude_none=True))", path.join(work, "sample")], { encoding: "utf8" }),
+);
+/** The coverage with serial 2 marked as new data for serial 1, and its BLUE ONE proposed as the open plot's. */
+const withNewData = (): CoverageReportT => {
+  const report = structuredClone(COVERAGE);
+  const item = report.items.find((i) => i.item === "serial-2")!;
+  item.role = "other";
+  item.new_data = { revision: item.revision ?? "sha256:2", note: "New data for Serial 1: BLUE ONE, within its period" } as never;
+  return report;
+};
+const FLAG = { catalogue: COVERAGE.items[0].catalogue, item: "serial-3", title: "Serial 3", note: "May need review: serial-2 was revised since Serial 3 took data from it", revised: [{ catalogue: COVERAGE.items[0].catalogue, item: "serial-2", title: "Serial 2", revision: "sha256:2" }] } as unknown as ReviewFlagT;
+const openOn = { store: sampleStore.id, item: "serial-1" };
+
+/** Appendix C's states that apply to the Catalogues, and those of collation's marks. */
+const CATALOGUE_STATES: Record<string, { marks: CollationMarks; starting?: boolean; none?: boolean }> = {
+  "1. no plot open, catalogues listed": { marks: { flags: [] } },
+  "1. no plot open, a plot flagged for review": { marks: { flags: [FLAG] } },
+  "2. a plot open": { marks: { open: openOn, coverage: COVERAGE, flags: [] } },
+  "2. a plot open, new data, a link proposed and a plot flagged": { marks: { open: openOn, coverage: withNewData(), flags: [FLAG] } },
+  // An earlier revision is a plot like any other to the Catalogues: its marks are the plot's.
+  "11. an earlier revision shown": { marks: { open: openOn, coverage: COVERAGE, flags: [] } },
+  "12. Python or the service still starting": { marks: { flags: [] }, starting: true },
+  "no catalogue: the welcome": { marks: { flags: [] }, none: true },
+};
+
+interface CatalogueSaid {
+  level: number;
+  label: string;
+  description: string;
+  tooltip: string;
+  aria: string;
+  icon: string;
+  expanded?: boolean;
+  /** Its context menu, VS Code's without what §5 keeps to it. */
+  menu: string[];
+  run: string;
+}
+/** The titles §5 keeps to VS Code (catalogue management), left out of the playground's menus. */
+const VSCODE_ONLY = new Set(["debrief.addCatalogue", "debrief.createCatalogue", "debrief.addPlotFile", "debrief.refresh"].map((id) => actionOf(id).title));
+const playgroundOnly = (titles: string[]) => titles.filter((t) => !VSCODE_ONLY.has(t.replace(/ \(disabled\)$/, ""))).filter((t, i, all) => t !== "—" || (i > 0 && i < all.length - 1 && all[i - 1] !== "—"));
+
+/** The model a state is, as VS Code's provider reads the catalogues from disk (or, starting, as the playground has it). */
+function cataloguesModelOf(state: (typeof CATALOGUE_STATES)[string]): { provider?: InstanceType<typeof CataloguesProvider>; model: CataloguesModelT } {
+  if (state.starting) return { model: new CataloguesModel({ catalogues: [], marks: state.marks, starting: true }) };
+  if (state.none) return { model: new CataloguesModel({ catalogues: [], marks: state.marks }) };
+  const provider = new CataloguesProvider(configFile);
+  provider.setMarks(state.marks);
+  provider.getChildren();
+  return { provider, model: provider.current() };
+}
+
+/** VS Code: the tree items, each branch open as it starts, or all of them. */
+function vscodeCatalogues(state: (typeof CATALOGUE_STATES)[string], allOpen: boolean): CatalogueSaid[] {
+  const { provider, model } = cataloguesModelOf(state);
+  const context = { "debrief.plotOpen": !!state.marks.open };
+  const out: CatalogueSaid[] = [];
+  const walk = (nodes: ReturnType<CataloguesModelT["children"]>, level: number) => {
+    for (const node of nodes) {
+      const item = provider ? provider.getTreeItem(node) : catalogueItemOf(model.row(node));
+      const expanded = item.collapsibleState === 2 || (allOpen && item.collapsibleState !== 0);
+      out.push({
+        level,
+        label: String(item.label),
+        description: String(item.description ?? ""),
+        tooltip: String(item.tooltip ?? ""),
+        aria: item.accessibilityInformation!.label,
+        icon: (item.iconPath as { id: string }).id,
+        ...(item.collapsibleState !== 0 && { expanded }),
+        menu: playgroundOnly(vscodeMenu(item.contextValue, context, "debrief.catalogues")),
+        run: item.command ? `${item.command.command}(${(item.command.arguments ?? []).join()})` : "",
+      });
+      if (expanded) walk(provider ? provider.getChildren(node) : model.children(node), level + 1);
+    }
+  };
+  walk(provider ? provider.getChildren() : model.roots, 1);
+  return out;
+}
+
+/** The playground: the tree as fillCatalogues fills it. */
+function playgroundCatalogues(state: (typeof CATALOGUE_STATES)[string], allOpen: boolean): CatalogueSaid[] {
+  const { model } = cataloguesModelOf(state);
+  if (model.empty) return []; // the welcome text instead: below
+  const context = { "debrief.plotOpen": !!state.marks.open };
+  const open = new Map<string, boolean>();
+  if (allOpen) for (const row of model.rows()) if (row.branch) open.set(row.key, true);
+  const list = new FakeElement("ul");
+  let chosen = "";
+  fillCatalogues(list as unknown as HTMLElement, model, open, (row) => (chosen = row.run ? `${row.run.action}(${row.run.args.join()})` : ""));
+  const out: CatalogueSaid[] = [];
+  const walk = (items: FakeElement[]) => {
+    for (const li of items) {
+      const line = li.elements.find((e) => e.className === "row")!;
+      chosen = "";
+      if (line.onclick) (line.onclick as () => void)();
+      const expanded = li.getAttribute("aria-expanded");
+      out.push({
+        level: Number(li.getAttribute("aria-level")),
+        label: line.find("name")!.textContent,
+        description: line.find("detail")?.textContent ?? "",
+        tooltip: li.title,
+        aria: li.getAttribute("aria-label")!,
+        icon: line.find("icon")!.dataset.icon,
+        ...(expanded !== null && { expanded: expanded === "true" }),
+        menu: li.dataset.menu ? said(rowMenu("debrief.catalogues", li.dataset.menu, context).filter((e) => inPlayground(e.id))) : [],
+        run: chosen,
+      });
+      const group = li.elements.find((e) => e.tagName === "ul");
+      if (group) walk(group.elements);
+    }
+  };
+  walk(list.elements);
+  return out;
+}
+
+describe("the Catalogues in both front ends (PAR-16)", () => {
+  for (const [name, state] of Object.entries(CATALOGUE_STATES)) {
+    it(name, () => {
+      for (const allOpen of [false, true]) expect(playgroundCatalogues(state, allOpen)).toEqual(vscodeCatalogues(state, allOpen));
+      // The title bar: the same actions, in the same groups and order, but what §5 keeps to VS Code.
+      const context = { "debrief.plotOpen": !!state.marks.open };
+      expect(said(titleMenu("debrief.catalogues", context).filter((e) => inPlayground(e.id)))).toEqual(playgroundOnly(vscodeTitle("debrief.catalogues", context)));
+      const rows = vscodeCatalogues(state, true);
+      if (state.starting) expect(rows.map((r) => r.label)).toEqual([CATALOGUES_STARTING]);
+      else if (state.none) expect(rows).toEqual([]);
+      else {
+        // Catalogue → plot → track: "N plots", read-only, and a problem row under one that cannot be read.
+        expect(rows.filter((r) => r.level === 1).map((r) => [r.label, r.description])).toEqual([
+          [expect.any(String), expect.stringMatching(/^\d+ plots$/)],
+          [expect.any(String), expect.stringMatching(/^read-only · 1 plot$/)],
+          ["Gone", "0 plots"],
+        ]);
+        expect(rows.find((r) => r.level === 2 && r.label.startsWith("No catalogue found at"))).toBeTruthy();
+        expect(rows.filter((r) => r.level === 2 && r.run).every((r) => r.run.startsWith("debrief.openPlot("))).toBe(true);
+        expect(rows.some((r) => r.level === 3)).toBe(true);
+      }
+    });
+  }
+
+  it("says the same with no catalogue: VS Code's welcome view is the model's", () => {
+    const welcome = (manifest.contributes as unknown as { viewsWelcome: { view: string; contents: string }[] }).viewsWelcome.find((w) => w.view === "debrief.catalogues")!.contents;
+    expect(welcome).toBe(WELCOME.map((line) => (line.action ? `[${line.text}](command:${line.action})` : line.text)).join("\n"));
+    const list = new FakeElement("ul");
+    fillCatalogues(list as unknown as HTMLElement, new CataloguesModel({ catalogues: [], marks: { flags: [] } }), new Map(), () => undefined, () => true);
+    // The playground's: the same lines, but the links §5 keeps to VS Code.
+    expect(list.elements.map((li) => li.textContent)).toEqual(WELCOME.filter((l) => !l.action || inPlayground(l.action)).map((l) => l.text));
+  });
+
+  it("marks new data, a review flag, the open plot and a proposed link in words, and offers collation's actions", () => {
+    const rows = vscodeCatalogues(CATALOGUE_STATES["2. a plot open, new data, a link proposed and a plot flagged"], true);
+    const serial2 = rows.find((r) => r.level === 2 && r.label === "Serial 2")!;
+    expect(serial2.description).toMatch(/^New data · /);
+    expect(serial2.icon).toBe("sparkle");
+    expect(serial2.menu).toEqual(["Take data into the open plot…", "Not now: set this new data aside"]);
+    const flagged = rows.find((r) => r.level === 2 && r.label === "Serial 3")!;
+    expect(flagged.description).toMatch(/May need review/);
+    expect(flagged.menu).toContain("Reviewed: clear the review flag");
+    expect(rows.find((r) => r.level === 2 && r.description.startsWith("open"))?.icon).toBe("map-filled");
+    expect(rows.some((r) => r.level === 3 && /^(linked to|proposed as) /.test(r.description))).toBe(true);
+    // No plot open: Take data is there, disabled with the catalogue's reason; there is nothing to set aside.
+    const closed = vscodeCatalogues(CATALOGUE_STATES["1. no plot open, a plot flagged for review"], true);
+    expect(closed.find((r) => r.label === "Serial 3")!.menu).toEqual(["Reviewed: clear the review flag"]);
   });
 });

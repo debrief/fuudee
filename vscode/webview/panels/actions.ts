@@ -48,6 +48,8 @@ export interface Action {
   placements?: Placement[];
   /** The Outline operation it runs on the rows it is chosen on (webview/outlinemodel.ts outlineOperations), if it is one. */
   operation?: string;
+  /** Offered in VS Code only, a permitted host difference (docs/panel-parity-srd.md §5): the playground leaves it out of its menus. */
+  only?: "vscode";
 }
 
 /** Why an action cannot run, by the context key whose test failed (the same words in both front ends, PAR-08). */
@@ -65,11 +67,11 @@ export const REASONS: Record<string, string> = {
 
 /** Every action, in package.json's order of commands. */
 export const ACTIONS: readonly Action[] = [
-  { id: "debrief.addCatalogue", title: "Add catalogue folder…", icon: "folder-opened", placements: [{ menu: "title", view: "debrief.catalogues", group: "navigation@3" }] },
-  { id: "debrief.createCatalogue", title: "Create catalogue…", icon: "new-folder" },
+  { id: "debrief.addCatalogue", title: "Add catalogue folder…", icon: "folder-opened", placements: [{ menu: "title", view: "debrief.catalogues", group: "navigation@3" }], only: "vscode" },
+  { id: "debrief.createCatalogue", title: "Create catalogue…", icon: "new-folder", only: "vscode" },
   { id: "debrief.importRep", title: "Import plot file (REP, .dpf, Word, PDF)…", icon: "cloud-download", placements: [{ menu: "title", view: "debrief.catalogues", group: "navigation@1" }, { menu: "row", view: "debrief.catalogues", item: [{ is: "catalogue" }], group: "1_import" }] },
-  { id: "debrief.addPlotFile", title: "Add a plot file…", icon: "file-add", placements: [{ menu: "title", view: "debrief.catalogues", group: "navigation@2" }, { menu: "row", view: "debrief.catalogues", item: [{ is: "catalogue" }], group: "1_import" }] },
-  { id: "debrief.refresh", title: "Refresh", icon: "refresh", placements: [{ menu: "title", view: "debrief.catalogues", group: "navigation@4" }] },
+  { id: "debrief.addPlotFile", title: "Add a plot file…", icon: "file-add", placements: [{ menu: "title", view: "debrief.catalogues", group: "navigation@2" }, { menu: "row", view: "debrief.catalogues", item: [{ is: "catalogue" }], group: "1_import" }], only: "vscode" },
+  { id: "debrief.refresh", title: "Refresh", icon: "refresh", placements: [{ menu: "title", view: "debrief.catalogues", group: "navigation@4" }], only: "vscode" },
   { id: "debrief.openPlot", title: "Open plot", placements: [{ menu: "palette", hidden: true }] },
   { id: "debrief.select", title: "Select features", placements: [{ menu: "palette", hidden: true }] },
   { id: "debrief.clearSelection", title: "Clear selection", icon: "clear-all", placements: [{ menu: "title", view: "debrief.outline", group: "navigation@5" }] },
@@ -164,6 +166,9 @@ export const ACTIONS: readonly Action[] = [
   { id: "debrief.walkthrough.do", title: "Do a walkthrough's step on its copy", placements: [{ menu: "palette", hidden: true }] },
   { id: "debrief.openLatestRevision", title: "Go to latest revision of the plot", icon: "arrow-right", enablement: [{ key: "debrief.revisionShown" }], placements: [{ menu: "title", view: "debrief.history", when: [{ key: "debrief.revisionShown" }], group: "navigation@0" }, { menu: "editor", when: [{ key: "activeWebviewPanelId", is: "'debrief.map'" }, { key: "debrief.revisionShown" }], group: "navigation@0" }, { menu: "palette", when: [{ key: "debrief.revisionShown" }] }] },
 ];
+
+/** Whether the playground offers an action: all but those §5 keeps to VS Code (catalogue management). */
+export const inPlayground = (id: string): boolean => actionOf(id).only !== "vscode";
 
 /** An action by its id. */
 export function actionOf(id: string): Action {

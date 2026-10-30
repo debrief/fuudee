@@ -307,7 +307,7 @@ export async function stickyHeadings(scroll, where) {
   await scroll.evaluate((s) => (s.scrollLeft = 0));
 }
 
-const PANELS = { time: "Time", tote: "Tote", outline: "Outline", timeline: "Timeline", catalogue: "Catalogue", coverage: "Coverage", tools: "Tools", history: "History" };
+const PANELS = { time: "Time", tote: "Tote", outline: "Outline", timeline: "Timeline", catalogue: "Catalogues", coverage: "Coverage", tools: "Tools", history: "History" };
 
 /**
  * Narrower than 900 px, every panel of the side column folds away as the Tote does (decision,

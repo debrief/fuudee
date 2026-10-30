@@ -2,13 +2,14 @@
 // map exported as a PNG and as an SVG, each read back from the file saved for its image ID
 // (PNG iTXt and XMP, SVG metadata); the footer in a corner, and not, the only difference
 // between two images of one view; the SVG's labels where the map placed them; the light
-// colours; the export logged in the plot's island and never a step. Then the plot changes,
+// colours; the export logged in the plot's island and never a step; asked in VS Code's three
+// steps, its finish offering Copy ID (no Show in folder: a download, §5). Then the plot changes,
 // and the image is traced back by its file and by its ID typed from the footer: the plot is
 // shown as it was at that step, read-only (a change refused, and said), until Go to latest.
 // Down to 210 px, in a wider font, the panel never scrolls sideways.
 import { frames, resizeTo, showPanel } from "./dock.mjs";
+import { choose, exportMap, findSource } from "./questions.mjs";
 import assert from "node:assert/strict";
-import { readFileSync } from "node:fs";
 import { inflateSync } from "node:zlib";
 
 /** Each text chunk of a PNG: keyword to text (iTXt, tEXt), its CRCs not checked here. */
@@ -40,7 +41,6 @@ function pngTexts(data) {
 
 export async function playExport(page, shot) {
   const map = page.frameLocator(".frame-map");
-  const said = () => page.locator("#export-said").innerText();
   const historyRows = () => page.locator("#history li").count();
   const stepNow = async () => Number((await page.locator("#history li .detail", { hasText: "current" }).first().innerText()).match(/step (\d+)/)[1]);
   await page.selectOption("#plots", "serial-1");
@@ -49,18 +49,11 @@ export async function playExport(page, shot) {
   await page.waitForTimeout(500);
   await showPanel(page, "export");
   const timings = [];
-  const exportImage = async ({ format, preset, theme, footer }) => {
-    await showPanel(page, "export"); // a menu in the top bar, closed by a click elsewhere
-    await page.selectOption("#export-format", format);
-    await page.selectOption("#export-preset", preset);
-    await page.selectOption("#export-theme", theme);
-    await page.locator("#export-footer").setChecked(footer);
-    const started = Date.now();
-    const [download] = await Promise.all([page.waitForEvent("download", { timeout: 90000 }), page.locator("#export-image").click()]);
-    timings.push(`${format} ${preset} ${theme}: ${Date.now() - started} ms`);
-    await page.waitForFunction(() => document.getElementById("export-said")?.textContent?.startsWith("Exported"), null, { timeout: 30000 });
-    const data = readFileSync(await download.path());
-    return { data, name: download.suggestedFilename(), said: await said() };
+  const SIZES = { screen: "As on screen", slide: "Slide, 1600 × 900", a4_landscape: "A4 landscape" };
+  const exportImage = async ({ format, preset, theme, footer }, during) => {
+    const done = await exportMap(page, { size: SIZES[preset], footer, light: theme === "light", format }, during);
+    timings.push(`${format} ${preset} ${theme}: ${done.ms} ms`);
+    return done;
   };
 
   // A PNG for a slide, with its ID in a corner: in iTXt and in XMP, read back from the file.
@@ -77,8 +70,8 @@ export async function playExport(page, shot) {
   assert.ok(!xmp.includes("Serial 1") && !xmp.includes("serial-1"), "nothing but the ID and the software: no plot title or item");
   assert.equal(png.name, `Serial-1 ${short}.png`);
   assert.match(png.said, new RegExp(`Its ID, ${short}, is in its metadata and its corner\\. The plot's export log has it\\.`));
-  // No save dialog here to rename it in: said plainly that the title travels in the file's name.
-  assert.match(png.said, new RegExp(`Its file name, Serial-1 ${short}\\.png, has the plot's title in it`));
+  // VS Code's finish: Copy ID, and no Show in folder, a download not being a file the page can show (§5).
+  assert.deepEqual(await png.toast.locator("button").allInnerTexts(), ["Copy ID"]);
   const size = await page.evaluate(async (b64) => {
     const image = new Image();
     image.src = `data:image/png;base64,${b64}`;
@@ -95,9 +88,16 @@ export async function playExport(page, shot) {
   // The same view without its footer: the only pixels that differ are the footer's, in a corner.
   const bare = await exportImage({ format: "png", preset: "slide", theme: "current", footer: false });
   assert.match(bare.said, /in its metadata \(no footer\)/);
-  // The footer is on again for the next image; only the size and colours are remembered.
-  assert.equal(await page.locator("#export-footer").isChecked(), true, "the footer is on again");
+  // The footer is on again for the next image; only the size and colours are remembered, last time's size first.
   assert.deepEqual(await page.evaluate(() => JSON.parse(localStorage.getItem("debrief.play.export"))), { preset: "slide", theme: "current" });
+  await showPanel(page, "export");
+  await page.locator("#export-image").click();
+  assert.equal(await page.locator("#ask-title").innerText(), "Export image (1 of 3): size");
+  assert.match(await page.locator("#ask-buttons button.primary").innerText(), /^Slide, 1600 × 900/);
+  await choose(page, "Slide, 1600 × 900");
+  const shows = page.locator("dialog.track-form[open]");
+  assert.equal(await shows.getByRole("checkbox", { name: /^Image ID in a corner/ }).isChecked(), true, "the footer is on again");
+  await shows.getByRole("button", { name: "Cancel" }).click();
   const differ = await page.evaluate(
     async ([a, b]) => {
       const pixels = async (b64) => {
@@ -176,16 +176,10 @@ export async function playExport(page, shot) {
 
   // A track selected while an image is drawn stays selected once the map is put back: the
   // map's own putting back never undoes it.
-  await showPanel(page, "export");
-  await page.selectOption("#export-preset", "a4_landscape");
-  await Promise.all([
-    page.waitForEvent("download", { timeout: 90000 }),
-    (async () => {
-      await page.locator("#export-image").click();
-      await map.locator("#exporting").waitFor({ state: "visible", timeout: 30000 });
-      await page.locator('#outline li[data-id="track-blue-one"]').click();
-    })(),
-  ]);
+  await exportImage({ format: "png", preset: "a4_landscape", theme: "current", footer: true }, async () => {
+    await map.locator("#exporting").waitFor({ state: "visible", timeout: 30000 });
+    await page.locator('#outline li[data-id="track-blue-one"]').click();
+  });
   await map.locator("#exporting").waitFor({ state: "hidden", timeout: 30000 });
   await map.locator('path.leaflet-interactive[stroke-opacity="0.3"]').first().waitFor({ timeout: 10000 }); // the others dimmed: BLUE ONE is selected
   assert.equal(await historyRows(), rows, "five exports, still no step");
@@ -200,8 +194,7 @@ export async function playExport(page, shot) {
   assert.ok(latest > step, "a new step, current now");
 
   // Traced by its file: the plot as it was when exported, read-only.
-  await showPanel(page, "export");
-  await page.locator("#find-file").setInputFiles({ name: png.name, mimeType: "image/png", buffer: png.data });
+  await findSource(page, { file: { name: png.name, mimeType: "image/png", buffer: png.data } });
   const banner = map.locator(".revision-banner");
   await banner.waitFor({ state: "visible", timeout: 60000 });
   assert.equal(await banner.locator(".revision-text").innerText(), `The plot at step ${step} of ${latest}, as when image ${short} was exported. Read-only.`);
@@ -211,11 +204,10 @@ export async function playExport(page, shot) {
   const target = await banner.locator("button").boundingBox();
   assert.ok(target.height >= 24 && target.width >= 24, `Go to latest is at least 24 px: ${JSON.stringify(target)}`);
   assert.match(await page.locator("#plot-title").innerText(), /\(read-only\)$/);
-  assert.match(await page.locator("#find-results").innerText(), new RegExp(`${short}: Serial 1, step ${step}; the plot is at step ${latest} now`));
+  await page.locator(".toast", { hasText: `Serial 1 at step ${step}, as when image ${short} was exported. It is shown read-only.` }).getByRole("button", { name: "Go to latest" }).waitFor();
   assert.match(await page.locator("#history li.shown .detail").innerText(), new RegExp(`step ${step} .*shown read-only`));
   const teal = `path.leaflet-interactive[stroke="#00a3a3"]`; // BLUE ONE as the plot has it now; no other feature is teal
   await page.waitForFunction((s) => !document.querySelector(".frame-map").contentDocument.querySelector(s), teal, { timeout: 10000 }); // not teal: as it was
-  await showPanel(page, "export");
   await shot("export-02-traced");
   // Nothing can be changed here: Undo is disabled, saying why, and Ctrl+Z does nothing (PAR-08); the history is as it was.
   assert.equal(await page.locator("#undo").isDisabled(), true);
@@ -234,13 +226,11 @@ export async function playExport(page, shot) {
   await map.locator(teal).first().waitFor({ timeout: 10000 }); // teal: as it is now
 
   // Traced by its ID, typed from the footer as a reader might: lower case, spaces, O for 0.
-  await showPanel(page, "export");
-  const typed = page.locator("#find-id");
-  await typed.fill("DBF-PTET-KG8R-B9EM-68");
-  assert.equal(await page.locator("#find-id-problem").innerText(), "That image ID has a character wrong: check it against the image.");
-  assert.equal(await typed.getAttribute("aria-invalid"), "true");
+  const asked = await findSource(page, { id: "DBF-PTET-KG8R-B9EM-68" });
+  assert.equal(await asked.locator(".form-note").innerText(), "That image ID has a character wrong: check it against the image.");
+  const typed = asked.locator("#track-form-text");
   await typed.fill(short.toLowerCase().replace(/-/g, " ").replace(/0/g, "o"));
-  assert.equal(await page.locator("#find-id-problem").innerText(), "");
+  assert.equal(await asked.locator(".form-note").innerText(), "");
   await typed.press("Enter");
   await banner.waitFor({ state: "visible", timeout: 60000 });
   assert.match(await banner.innerText(), new RegExp(`step ${step} of ${latest}`));
@@ -249,9 +239,8 @@ export async function playExport(page, shot) {
   await banner.waitFor({ state: "hidden" });
 
   // A file with no ID in it is said to have none.
-  await showPanel(page, "export");
-  await page.locator("#find-file").setInputFiles({ name: "plain.svg", mimeType: "image/svg+xml", buffer: Buffer.from('<svg xmlns="http://www.w3.org/2000/svg"/>') });
-  await page.locator("#find-said", { hasText: "carries no Debrief image ID" }).waitFor();
+  await findSource(page, { file: { name: "plain.svg", mimeType: "image/svg+xml", buffer: Buffer.from('<svg xmlns="http://www.w3.org/2000/svg"/>') } });
+  await page.locator(".toast", { hasText: "carries no Debrief image ID" }).waitFor();
 
   // BLUE ONE back to its colour, for what is played after.
   await page.locator("#undo").click();
@@ -260,7 +249,7 @@ export async function playExport(page, shot) {
   // Narrow, and in a wider font: the panel never scrolls sideways.
   const sideways = () =>
     page.evaluate(() =>
-      ["#body-export", ".export-form", "#find-results", ".find-id"].flatMap((s) => {
+      ["#body-export"].flatMap((s) => {
         const el = document.querySelector(s);
         return el && el.scrollWidth > el.clientWidth + 1 ? [`${s} ${el.scrollWidth}/${el.clientWidth}`] : [];
       }),

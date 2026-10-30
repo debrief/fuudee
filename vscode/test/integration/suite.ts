@@ -378,7 +378,7 @@ async function tracer(): Promise<void> {
   // The colleague adds it to their catalogue (here, the same one): every step comes with it.
   const added = await vscode.commands.executeCommand<{ item?: string; problem?: string }>(
     "debrief.addPlotFile",
-    { view: { store: { id: current.store.id } } },
+    { kind: "catalogue", key: `catalogue:${current.store.id}`, catalogue: { store: current.store.id } },
     sent,
   );
   assert.equal(added?.problem, undefined);

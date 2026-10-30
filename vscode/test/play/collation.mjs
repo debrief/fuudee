@@ -16,7 +16,9 @@ export async function playCollation(page, shot) {
   const stepNamed = (name) => page.waitForFunction((n) => document.querySelector("#history li .name")?.textContent === n, name, { timeout: 60000 });
   const coverage = page.locator("#coverage");
   const blue = coverage.locator('.cov-platform[data-track="track-blue-one"]');
-  const item = (title) => page.locator("#items > li", { has: page.locator(".item-title", { hasText: title }) });
+  // A plot's row in the Catalogues tree (the panel model's, as VS Code's): its mark an icon beside its words.
+  const item = (title) => page.locator("#items li.catalogues-plot", { has: page.locator(":scope > .row .name", { hasText: new RegExp(`^${title}$`) }) });
+  const mark = (row, icon) => row.locator(`:scope > .row .icon[data-icon="${icon}"]`);
 
   await page.selectOption("#plots", "serial-1");
   // Catalogue and Coverage in view: docked, their tabs to the front (behind the Outline and the Timeline by default).
@@ -33,10 +35,14 @@ export async function playCollation(page, shot) {
   await showPanel(page, "try");
   await page.locator("#new-data").click();
   const log = item("BLUE ONE navigation log");
-  await log.locator(".item-mark").waitFor({ timeout: 60000 });
-  assert.equal(await log.locator(".item-mark").innerText(), "✦");
+  await mark(log, "sparkle").waitFor({ timeout: 60000 });
+  assert.match(await log.locator(":scope > .row .detail").innerText(), /^New data · /);
   assert.match(await log.getAttribute("aria-label"), /^BLUE ONE navigation log, New data, New data for Serial 1: BLUE ONE, within its period/);
-  assert.equal(await log.locator(".item-name").getAttribute("title"), "New data for Serial 1: BLUE ONE, within its period");
+  assert.equal(await log.getAttribute("title"), "BLUE ONE navigation log\nNew data for Serial 1: BLUE ONE, within its period");
+  // Its context menu, the action catalogue's, as VS Code's: Take data and Not now.
+  await log.locator(":scope > .row").click({ button: "right" });
+  assert.deepEqual(await page.locator(".context-menu [role=menuitem]").allInnerTexts(), ["Take data into the open plot…", "Not now: set this new data aside"]);
+  await page.keyboard.press("Escape");
   const fresh = coverage.locator(".cov-new .cov-item");
   assert.match(await fresh.innerText(), /New data\s*BLUE ONE navigation log/);
   assert.equal(await fresh.locator(".cov-tag").innerText(), "New data");
@@ -51,8 +57,8 @@ export async function playCollation(page, shot) {
   await stepNamed("New data from BLUE ONE navigation log");
   await page.locator(".toast", { hasText: "BLUE ONE 120 fixes, WATCHER added" }).waitFor().catch(() => undefined);
   // The mark clears once taken; the item is drawn from.
-  await page.waitForFunction(() => ![...document.querySelectorAll("#items .item-title")].some((t) => t.textContent === "BLUE ONE navigation log" && t.closest("li").querySelector(".item-mark")));
-  assert.match(await log.locator(".detail").innerText(), /^drawn from/);
+  await mark(log, "sparkle").waitFor({ state: "detached" });
+  assert.match(await log.locator(":scope > .row .detail").innerText(), /^drawn from/);
   assert.equal(await coverage.locator(".cov-new").count(), 0);
   assert.ok(await page.locator('#outline li[data-id="track-watcher"]').count(), "WATCHER, matching none of the plot's tracks, added");
   // The Timeline lists the periods of data, by the item supplying each (CAP-05).
@@ -119,7 +125,7 @@ export async function playCollation(page, shot) {
   await page.locator("#revise").click();
   await page.locator(".toast", { hasText: "May need review: BLUE ONE navigation log was revised since Serial 1 took data from it" }).waitFor({ timeout: 60000 });
   const serial = item("Serial 1");
-  await serial.locator(".item-flag").waitFor();
+  await mark(serial, "warning").waitFor();
   assert.match(await serial.getAttribute("aria-label"), /May need review/);
   assert.match(await coverage.locator(".cov-review").innerText(), /May need review: BLUE ONE navigation log was revised/);
   await showPanel(page, "catalogue");
@@ -127,7 +133,7 @@ export async function playCollation(page, shot) {
   const steps = await page.locator("#history li").count();
   await coverage.locator(".cov-reviewed").click();
   await coverage.locator(".cov-review").waitFor({ state: "detached" });
-  assert.equal(await serial.locator(".item-flag").count(), 0);
+  assert.equal(await mark(serial, "warning").count(), 0);
   assert.equal(await page.locator("#history li").count(), steps, "clearing a flag is view state, never a step");
   assert.equal(await latest(), "BLUE ONE in Serial 2 is not BLUE ONE");
 

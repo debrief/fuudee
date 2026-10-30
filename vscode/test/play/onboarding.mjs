@@ -26,6 +26,7 @@ import { existsSync, readFileSync } from "node:fs";
 import path from "node:path";
 import { CSP } from "../../play/csp.mjs";
 import { DOCKED_PANELS, frames, layoutOf, mapPlaced, resizeTo, showPanel } from "./dock.mjs";
+import { acceptAll, choose, exportMap, findSource, form } from "./questions.mjs";
 
 const ready = (page) => page.waitForFunction(() => document.getElementById("status")?.textContent?.startsWith("Ready"), null, { timeout: 240000 });
 const events = (page) => page.evaluate(() => window.debriefTours().events);
@@ -338,13 +339,13 @@ async function nextFits(page) {
 
 /** Over the ground, for each track of a REP file, as legacy Debrief asked: each question answered once it is asked. */
 async function answerImport(page) {
-  const dialog = page.locator("dialog.track-form[open]");
+  const dialog = page.locator("dialog#ask[open]", { has: page.locator("#ask-title", { hasText: / plotted\? / }) });
   for (let i = 0; i < 4; i++) {
-    const asked = await dialog.first().waitFor({ timeout: 8000 }).then(() => true, () => false);
+    const asked = await dialog.waitFor({ timeout: 8000 }).then(() => true, () => false);
     if (!asked) break;
-    const handle = await dialog.first().elementHandle();
-    await dialog.first().getByRole("button", { name: "Import" }).click();
-    await page.waitForFunction((d) => !d.isConnected, handle, { timeout: 10000 });
+    const title = await page.locator("#ask-title").innerText();
+    await choose(page, "Over the ground (OTG)");
+    await page.waitForFunction((t) => !document.querySelector("dialog#ask[open]") || document.getElementById("ask-title")?.textContent !== t, title, { timeout: 10000 });
   }
 }
 
@@ -479,17 +480,16 @@ export async function playTours(page, shot, root) {
   // A file of the reader's own is not the walkthrough's import.
   await page.locator("#file").setInputFiles(path.join(root, "sample", "serial-3", "sources", "red-one.rep"));
   await answerImport(page);
-  await page.locator(".omitted-panel h2", { hasText: "red-one.rep: imported" }).waitFor({ timeout: 60000 });
+  await page.locator(".toast", { hasText: /^Imported 1 track/ }).waitFor({ timeout: 60000 });
   await notDone(page, "imported", "the reader's own file is not the walkthrough's log");
-  assert.notEqual(await page.locator("#plots").inputValue(), "serial-1-collate");
+  // The new plot is offered, not opened (PAR-12): the copy stays open.
+  assert.equal(await page.locator("#plots").inputValue(), "serial-1-collate");
   // The step's button opens the walkthrough's copy again, then imports its log.
   await go(page, 1).click();
   await answerImport(page);
   await done(page, "imported");
   assert.equal(await page.locator("#plots").inputValue(), "serial-1-collate", "the copy is open: the log is new data for it");
-  const log = page.locator("#items > li", { has: page.locator(".item-title", { hasText: "blue-one-nav-log" }) });
-  await log.locator(".item-mark").waitFor({ timeout: 60000 });
-  await page.locator(".side-bar button", { hasText: "Close" }).click();
+  await page.locator('#items li[data-key="plot:play:blue-one-nav-log"] > .row .icon[data-icon="sparkle"]').waitFor({ state: "attached", timeout: 60000 });
   // Coverage may already be in front once the log is in, which is the step done; if not, its
   // button brings its tab to the front.
   if (!(await events(page)).includes("coverageShown")) await go(page, 2).click();
@@ -584,17 +584,18 @@ export async function playTours(page, shot, root) {
   await page.locator("#freq-label_interval").selectOption({ label: "Every 10 min" });
   await dialog.getByRole("button", { name: "Apply" }).click();
   await done(page, "frequenciesSet");
-  await go(page, 3).click();
-  await page.selectOption("#export-preset", "slide");
-  const [download] = await Promise.all([page.waitForEvent("download", { timeout: 90000 }), page.locator("#export-image").click()]);
-  assert.match(download.suggestedFilename(), /\.png$/);
+  await go(page, 3).click(); // the Export menu, under its button
+  const exported = await exportMap(page, { size: "Slide, 1600 × 900" });
+  assert.match(exported.name, /\.png$/);
   await done(page, "imageExported");
-  const short = (await page.locator("#export-said").innerText()).match(/Its ID, (DBF-[0-9A-Z-]+),/)[1];
+  const short = exported.said.match(/Its ID, (DBF-[0-9A-Z-]+),/)[1];
   // The plot changes; then the image is traced by the ID in its corner, typed.
   await fromToolbar(page, "North arrow");
   await page.locator("#history li", { hasText: "North arrow added" }).first().waitFor({ state: "attached" }); // History behind another tab here
-  await go(page, 4).click();
-  assert.equal(await page.evaluate(() => document.activeElement?.id), "find-id");
+  await go(page, 4).click(); // Find source of image, as VS Code's step runs it
+  await choose(page, "Type the ID from the image's corner…");
+  await form(page, "Find source of image").waitFor();
+  assert.equal(await page.evaluate(() => document.activeElement?.id), "track-form-text");
   await page.keyboard.type(short);
   await page.keyboard.press("Enter");
   await done(page, "imageTraced");
@@ -881,8 +882,12 @@ export async function playTmaTour(page, shot) {
   console.log(said);
 }
 
-/** The most the trial's tasks may take in the playground before the speed run fails: a regression in what they ask. */
-export const SPEED_RUN_MOST = 36;
+/**
+ * The most the trial's tasks may take in the playground before the speed run fails: a regression in
+ * what they ask. 40 since panel parity phase 4 (product owner, 30 Oct 2026): export asks VS Code's
+ * three questions, and Find source of image is on Catalogues' title bar menu, as in VS Code.
+ */
+export const SPEED_RUN_MOST = 40;
 
 /**
  * The onboarding trial's tasks, in the playground (not VS Code), done as quickly as the page
@@ -915,15 +920,14 @@ export async function speedRun(page, root) {
   let t = Date.now();
   let c = actions;
   await chooseFile(path.join(root, "sample", "serial-2", "sources", "red-one.rep"));
-  await dialog.waitFor({ timeout: 60000 });
-  await act(dialog.getByRole("button", { name: "Import" }).click());
-  await page.locator(".omitted-panel h2", { hasText: "red-one.rep: imported 1 track" }).waitFor({ timeout: 60000 });
-  await act(page.locator(".side-bar button", { hasText: "Close" }).click());
+  await page.locator("dialog#ask[open]").waitFor({ timeout: 60000 });
+  await act(choose(page, "Over the ground (OTG)"));
+  // What came in is said; the plot offered, not opened (PAR-12): nothing to close.
+  await page.locator(".toast", { hasText: /^Imported 1 track/ }).waitFor({ timeout: 60000 });
   const dpf = path.resolve("../python/debrief-io/tests/data/shapes.dpf");
   assert.ok(existsSync(dpf), "the legacy plot the speed run imports");
   await chooseFile(dpf);
-  await page.locator(".omitted-panel h2", { hasText: "shapes.dpf: imported" }).waitFor({ timeout: 60000 });
-  await act(page.locator(".side-bar button", { hasText: "Close" }).click());
+  await page.locator(".toast", { hasText: /^Imported / }).last().waitFor({ timeout: 60000 });
   lap("Import (REP and .dpf)", t, c);
 
   // 2. Tidy RED ONE: the walkthrough's copy, its jumps removed, smoothed over 5 fixes.
@@ -967,13 +971,26 @@ export async function speedRun(page, root) {
   t = Date.now();
   c = actions;
   // Export is a menu in the top bar now: opening it is one more action (product owner, 23 Oct 2026).
+  // Then VS Code's three steps (PAR-10): the size (a slide, the default: Enter), what it shows (as
+  // offered: Enter), the file's name (as offered: Enter).
   await act(showPanel(page, "export"));
-  await act(page.selectOption("#export-preset", "slide"));
-  await act(Promise.all([page.waitForEvent("download", { timeout: 90000 }), page.locator("#export-image").click()]));
-  await page.waitForFunction(() => document.getElementById("export-said")?.textContent?.startsWith("Exported"), null, { timeout: 60000 });
-  const short = (await page.locator("#export-said").innerText()).match(/Its ID, (DBF-[0-9A-Z-]+),/)[1];
-  await act(page.locator("#find-id").fill(short));
-  await act(page.locator("#find-id").press("Enter"));
+  await act(page.locator("#export-image").click());
+  await page.locator("dialog#ask[open]").waitFor({ timeout: 60000 });
+  await act(page.keyboard.press("Enter"));
+  await form(page, "what it shows").waitFor();
+  await act(page.keyboard.press("Enter"));
+  await form(page, "where to save it").waitFor();
+  await act(Promise.all([page.waitForEvent("download", { timeout: 90000 }), page.keyboard.press("Enter")]));
+  const exported = page.locator(".toast", { hasText: /^Exported / }).last();
+  await exported.waitFor({ timeout: 60000 });
+  const short = (await exported.innerText()).match(/Its ID, (DBF-[0-9A-Z-]+),/)[1];
+  // Find source of image, on Catalogues' title bar menu as VS Code places it: by the ID typed.
+  await act(showPanel(page, "catalogue"));
+  await act(page.locator("#catalogues-more").click());
+  await act(page.locator(".context-menu [role=menuitem]", { hasText: "Find source of image…" }).click());
+  await act(choose(page, "Type the ID from the image's corner…"));
+  await act(page.locator("#track-form-text").fill(short));
+  await act(page.locator("#track-form-text").press("Enter"));
   await mapFrame.locator(".revision-banner").waitFor({ state: "visible", timeout: 60000 });
   await act(mapFrame.locator(".revision-banner button").press("Enter")); // Edit the plot: it has not changed since
   await mapFrame.locator(".revision-banner").waitFor({ state: "hidden" });
@@ -1051,8 +1068,10 @@ export async function playDemo(browser, siteUrl, shot) {
     ].join("\n") + "\n";
   await page.locator("#file").setInputFiles({ name: `${marker.toLowerCase()}.rep`, mimeType: "text/plain", buffer: Buffer.from(rep) });
   await answerImport(page);
-  await page.locator(".omitted-panel h2", { hasText: "imported 1 track" }).waitFor({ timeout: 60000 });
-  assert.match(await page.locator("#outline").innerText(), new RegExp(marker));
+  const imported = page.locator(".toast", { hasText: /^Imported 1 track/ });
+  await imported.waitFor({ timeout: 60000 });
+  await imported.getByRole("button", { name: "Open plot" }).click();
+  await page.waitForFunction((m) => document.getElementById("outline")?.textContent?.includes(m), marker, { timeout: 60000 });
   // The Timeline used on it: its source filtered out, its words highlighted (H1, panel review, 17 Oct 2026).
   const timeline = (selector) => page.locator(`#timeline ${selector}`);
   await timeline(".tl-filter-button").click();
@@ -1065,13 +1084,11 @@ export async function playDemo(browser, siteUrl, shot) {
   await timeline(".tl-view-button").click();
   // A Word narrative read into it.
   await page.locator("#narrative-file").setInputFiles(path.resolve(import.meta.dirname, "red-one-log.docx"));
-  await page.locator("dialog.track-form[open] button.primary").click({ timeout: 60000 });
-  await page.waitForFunction(() => !document.querySelector("dialog.track-form[open]"), null, { timeout: 60000 });
+  await page.locator("dialog#ask[open], dialog.track-form[open]").first().waitFor({ timeout: 60000 });
+  await acceptAll(page);
   // An image exported, and found again from its file.
-  await showPanel(page, "export");
-  const [download] = await Promise.all([page.waitForEvent("download", { timeout: 90000 }), page.locator("#export-image").click()]);
-  const png = readFileSync(await download.path());
-  await page.locator("#find-file").setInputFiles({ name: "figure.png", mimeType: "image/png", buffer: png });
+  const { data: png } = await exportMap(page);
+  await findSource(page, { file: { name: "figure.png", mimeType: "image/png", buffer: png } });
   await page.frameLocator(".frame-map").locator(".revision-banner").waitFor({ state: "visible", timeout: 60000 });
   await page.frameLocator(".frame-map").locator(".revision-banner button").click();
 
@@ -1115,7 +1132,7 @@ export async function playDemo(browser, siteUrl, shot) {
     else if (value && typeof value === "object") for (const [k, v] of Object.entries(value)) walk(v, Array.isArray(value) ? undefined : k);
   };
   walk(JSON.parse(layout));
-  const allowed = new Set(["map", "Map", ...DOCKED_PANELS, "Walkthroughs", "Time", "Tote", "Outline", "Catalogue", "Timeline", "Coverage", "Tools", "History"]);
+  const allowed = new Set(["map", "Map", ...DOCKED_PANELS, "Walkthroughs", "Time", "Tote", "Outline", "Catalogues", "Timeline", "Coverage", "Tools", "History"]);
   const unexpected = [...new Set(words)].filter((w) => !allowed.has(w) && !/^\d+$/.test(w) && !/^[a-zA-Z]+$/.test(w));
   assert.deepEqual(unexpected, [], "the layout holds only panels' ids and names, numbers and Dockview's words");
   assert.doesNotMatch(layout, new RegExp(`${marker}|BLUE ONE|RED ONE|Serial|SEEN`, "i"), "nothing from a plot in the layout");

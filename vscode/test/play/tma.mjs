@@ -919,10 +919,11 @@ export async function playTma(page, shot) {
   // A legacy plot's TMA solution imported as a solution, its residuals shown.
   // tma.dpf: made up, unclassified (python/debrief-io/tests/data/README.md): a relative leg and an absolute one.
   await page.locator("#file").setInputFiles(path.resolve("../python/debrief-io/tests/data/tma.dpf"));
-  await page.locator(".omitted-panel h2", { hasText: "tma.dpf: imported" }).waitFor({ timeout: 60000 });
-  const panelText = await page.locator(".omitted-panel").first().innerText();
-  assert.match(panelText, /TMA_0900/, "the import says what became of the legacy solution");
-  await page.locator(".side-bar button", { hasText: "Close" }).click();
+  // Said, and offered, not opened (PAR-12): opened from the summary's Open plot.
+  const imported = page.locator(".toast", { hasText: /^Imported / });
+  await imported.waitFor({ timeout: 60000 });
+  await imported.getByRole("button", { name: "Open plot" }).click();
+  await page.locator('#outline li[data-id] .name', { hasText: "TMA_0900" }).first().waitFor({ state: "attached", timeout: 60000 });
   await page.locator('#outline li[data-id] .name', { hasText: "TMA_0900" }).first().click();
   await showPanel(page, "bearings");
   await view.locator(".tma-rms").waitFor({ timeout: 60000 });

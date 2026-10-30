@@ -12,7 +12,7 @@
  * data aside and clearing a review flag are view state in its island.
  */
 import * as vscode from "vscode";
-import type { CoverageReport, ItemRevision, SourceTrackRef, TimeRange } from "@debrief/schemas";
+import type { CoverageReport } from "@debrief/schemas";
 import { checkMessage } from "../messages.js";
 import type { Session } from "../session.js";
 import { startup } from "../startup.js";
@@ -20,13 +20,9 @@ import { webviewHtml } from "./html.js";
 
 export const COVERAGE_VIEW = "debrief.coverage";
 
-/** What the analyst asked of the view: each made by the extension through the tool service. */
-export type CoverageAsk =
-  | { kind: "prefer"; feature: string; period: TimeRange; source: SourceTrackRef }
-  | { kind: "link"; feature: string; source: SourceTrackRef; linked: boolean }
-  | { kind: "take"; source: { catalogue: string; item: string; revision?: string } }
-  | { kind: "dismiss"; source: ItemRevision }
-  | { kind: "reviewed" };
+/** What the analyst asked of the view: each made by the extension through the tool service (the shared collation flow's). */
+import type { CoverageAsk } from "../../webview/panels/flows/collation.js";
+export type { CoverageAsk };
 
 export class CoverageView implements vscode.WebviewViewProvider {
   private view?: vscode.WebviewView;
