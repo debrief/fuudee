@@ -227,7 +227,7 @@ export function activate(context: vscode.ExtensionContext): DebriefApi {
     const tracks = session.current?.plot.features.filter((f) => f.properties.kind === "track").map((f) => f.id) ?? [];
     if ((change.selection?.feature_ids.filter((id) => tracks.includes(id)).length ?? 0) >= 2) tickHere("selected");
   });
-  const agent: Agent = { kind: "person", name: userInfo().username };
+  const agent: Agent = { kind: "person", name: accountName() };
 
   const catalogues = new CataloguesProvider(configFile);
   const outline = new OutlineProvider(session);
@@ -3345,3 +3345,12 @@ export function activate(context: vscode.ExtensionContext): DebriefApi {
 }
 
 export function deactivate(): void {}
+
+/** The analyst's account name, for a plot's history. A container may run as a user with no account entry (the hosted review copy on Heroku), and userInfo() then throws. */
+function accountName(): string {
+  try {
+    return userInfo().username;
+  } catch {
+    return process.env.USER || process.env.USERNAME || "unknown";
+  }
+}
