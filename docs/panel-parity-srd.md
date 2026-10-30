@@ -57,7 +57,7 @@ This document asks for one host-neutral model of each panel and each command, so
 - **PAR-16** A **parity test** shall build each panel model and the action catalogue for each sample plot, in each selection state listed in Appendix C. It shall check that the VS Code renderer's output (the `TreeItem` label, description, tooltip, `contextValue` and resolved menus) and the playground renderer's output (row text, ARIA attributes, menu items, `disabled` and `title`) describe the same model. It shall run in CI on every pull request that touches `vscode/`.
 - **PAR-17** Each shared flow shall have unit tests run against a recording fake host, so that the questions asked, messages shown and service calls made are asserted once for both front ends.
 - **PAR-18** A check in CI shall fail when `play/` or `src/views/` defines rows, menus or enablement outside the shared modules. For example, it can forbid `TreeItem` construction outside the renderer, and `textContent` assignment of row labels in `host.ts`.
-- **PAR-19** A short playground review checklist, `docs/notes/playground-review.md`, shall list the host differences (§5), so that a reviewer knows what the playground cannot show.
+- **PAR-19** A short playground review checklist, `docs/notes/playground-review.md`, shall list the host differences (§5), so that a reviewer knows what the playground cannot show. Written: [playground-review.md](notes/playground-review.md).
 
 ## 4. Approach and phasing
 
@@ -93,7 +93,7 @@ Only the differences listed here are acceptable. Any other difference is a defec
 
 ## 6. Open issues
 
-1. ~~Button groups below the Outline~~. **Decided 29 Oct 2026:** context menus only (PAR-07). The walkthrough text and `site/docs/try.md`, which point to buttons "below the outline", shall be reworded to match.
+1. ~~Button groups below the Outline~~. **Decided 29 Oct 2026:** context menus only (PAR-07). The walkthrough text, `site/docs/try.md` and the interaction-model guides, which pointed to buttons "below the outline", are reworded to match. Dated blog posts are left as they were published.
 2. ~~Plot switching~~. **Decided 29 Oct 2026:** the playground's Catalogue panel opens plots from the tree; the top-bar list stays as a shortcut (§5).
 3. ~~Tote context items~~. **Decided 29 Oct 2026:** the Tote items act on every selected track (as VS Code does). Only items that apply to the selection are shown: *Add to Tote* when any selected track is not in the Tote, *Remove from Tote* when any is. *Set as Tote primary* is shown for tracks and disabled, with its reason, when more than one track is selected or the track already is the primary (PAR-08).
 4. ~~Next-walkthrough button~~. **Decided 29 Oct 2026:** keep it in the playground. Still open: how VS Code offers the same (e.g. a final step's button running the next walkthrough).
