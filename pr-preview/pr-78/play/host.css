@@ -1,0 +1,305 @@
+/* The playground page, styled with the same theme variables as the webviews. */
+html, body { height: 100%; margin: 0; }
+[hidden] { display: none !important; }
+body { background: var(--vscode-editor-background); color: var(--vscode-foreground); font-family: var(--vscode-font-family); font-size: var(--vscode-font-size); }
+.app { display: grid; grid-template-columns: clamp(210px, 28vw, 290px) minmax(0, 1fr); grid-template-rows: auto minmax(0, 1fr) auto; height: 100%; position: relative; }
+.side { grid-row: 2; overflow-y: auto; background: var(--vscode-sideBar-background); border-right: 1px solid var(--vscode-panel-border); }
+.side section { padding: 6px 10px 10px; border-bottom: 1px solid var(--vscode-sideBarSectionHeader-border); }
+.side h2 { font-size: 11px; text-transform: uppercase; letter-spacing: .04em; margin: 4px 0 6px; display: flex; justify-content: space-between; align-items: center; color: var(--vscode-sideBarSectionHeader-foreground); }
+.side select { width: 100%; background: var(--vscode-dropdown-background); color: var(--vscode-foreground); border: 1px solid var(--vscode-dropdown-border); padding: 3px; font: inherit; }
+.list { list-style: none; margin: 0; padding: 0; max-height: 210px; overflow-y: auto; }
+/* No scroll anchoring: rows unwrapping as a panel widens would move the list's place, which the layout keeps (dock). */
+.list { overflow-anchor: none; }
+.list li { padding: 2px 4px; cursor: default; border-radius: 2px; }
+#outline li { cursor: pointer; }
+/* The Outline is a tree (product owner, 27 Oct 2026): each level indented, a branch's arrow before
+   it; a cut, a leg and a position one line each, so a sensor's thousands of cuts scroll by rows. */
+#outline li[role="treeitem"] { padding-left: calc(4px + var(--level, 0) * 14px); }
+#outline li[role="treeitem"] { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+#outline li.cut, #outline li.fix, #outline li.leg { font-variant-numeric: tabular-nums; }
+#outline li.hidden-cut { color: var(--vscode-descriptionForeground); }
+#outline li.hidden-cut .name { font-style: italic; }
+#outline .twisty { display: inline-block; width: 12px; color: var(--vscode-descriptionForeground); }
+#outline:focus-within li[tabindex="0"]:not(:focus) { outline: 1px dotted var(--vscode-focusBorder); outline-offset: -1px; }
+#outline .tree-spacer { padding: 0; }
+#outline .icon { display: inline-block; width: 14px; text-align: center; color: var(--vscode-descriptionForeground); }
+#outline li.selected .icon { color: inherit; }
+#outline li.section .name { font-size: 11px; font-weight: 600; text-transform: uppercase; }
+#outline .tree-empty { padding: 4px 8px; color: var(--vscode-descriptionForeground); cursor: default; white-space: normal; }
+/* The Outline's toolbar (product owner, 28 Oct 2026): compact icon buttons, a tooltip each, one tab stop. */
+.obar { display: flex; flex-wrap: wrap; gap: 2px; align-items: center; margin: 0 0 4px; min-width: 0; }
+.obar .obar-button { display: inline-flex; align-items: center; justify-content: center; width: 26px; height: 24px; padding: 0; margin: 0; background: transparent; color: var(--vscode-icon-foreground, var(--vscode-foreground)); border: 1px solid transparent; border-radius: 4px; }
+.obar .obar-button:hover:not(.disabled) { background: var(--vscode-toolbar-hoverBackground, var(--vscode-list-hoverBackground)); outline: 1px dashed var(--vscode-contrastActiveBorder, transparent); outline-offset: -1px; }
+.obar .obar-button:focus-visible { outline: 1px solid var(--vscode-focusBorder); outline-offset: -1px; }
+.obar .obar-button.disabled, .obar .obar-button.disabled:hover { opacity: .45; cursor: default; background: transparent; }
+.obar .obar-button[aria-pressed="true"], .obar .obar-button[aria-pressed="mixed"], .obar .obar-button[aria-expanded="true"] { background: var(--vscode-inputOption-activeBackground, var(--vscode-list-inactiveSelectionBackground)); border-color: var(--vscode-inputOption-activeBorder, transparent); color: var(--vscode-inputOption-activeForeground, var(--vscode-foreground)); }
+.obar svg { display: block; }
+/* The colour popover: the palette's swatches, then a custom colour; in the page's flow, so a short panel never clips it. */
+.obar-popover { margin: 0 0 6px; padding: 6px; background: var(--vscode-editorWidget-background, var(--vscode-sideBar-background)); color: var(--vscode-editorWidget-foreground, var(--vscode-foreground)); border: 1px solid var(--vscode-editorWidget-border, var(--vscode-panel-border)); border-radius: 4px; max-width: 100%; box-sizing: border-box; }
+.obar-swatches { display: flex; flex-wrap: wrap; gap: 4px; }
+.obar-swatch { width: 24px; height: 24px; margin: 0; padding: 0; background: var(--swatch); border: 1px solid var(--vscode-contrastBorder, var(--vscode-widget-border, transparent)); border-radius: 4px; }
+.obar-swatch[aria-checked="true"] { outline: 2px solid var(--vscode-foreground); outline-offset: 1px; }
+.obar-swatch:focus-visible { outline: 2px solid var(--vscode-focusBorder); outline-offset: 1px; }
+.obar-custom { display: flex; flex-wrap: wrap; gap: 4px; align-items: center; margin-top: 6px; font-size: 12px; }
+.obar-custom input[type="color"] { width: 28px; height: 24px; padding: 0; border: 1px solid var(--vscode-input-border, var(--vscode-panel-border)); background: none; }
+.obar-custom input[type="text"] { flex: 1 1 60px; min-width: 0; width: 70px; background: var(--vscode-input-background); color: var(--vscode-input-foreground); border: 1px solid var(--vscode-input-border, var(--vscode-panel-border)); padding: 2px 4px; font: inherit; }
+.obar-custom .obar-apply { margin: 0; }
+.obar-problem { font-size: 12px; color: var(--vscode-errorForeground); }
+.obar-problem:empty { display: none; }
+/* Forced colours (Windows High Contrast): icons in the button text colour, pressed and focus in the system's own, swatches keep their colour. */
+@media (forced-colors: active) {
+  .obar .obar-button { color: ButtonText; border-color: ButtonBorder; }
+  .obar .obar-button.disabled { color: GrayText; opacity: 1; }
+  .obar .obar-button[aria-pressed="true"], .obar .obar-button[aria-pressed="mixed"], .obar .obar-button[aria-expanded="true"] { forced-color-adjust: none; color: HighlightText; background: Highlight; border-color: Highlight; }
+  .obar .obar-button:focus-visible, .obar-swatch:focus-visible { outline: 2px solid Highlight; }
+  .obar-swatch { forced-color-adjust: none; border-color: ButtonText; }
+  .obar-swatch[aria-checked="true"] { outline-color: Highlight; }
+}
+#outline li:hover { background: var(--vscode-list-hoverBackground); }
+#outline li.selected { background: var(--vscode-list-activeSelectionBackground); color: var(--vscode-list-activeSelectionForeground); }
+#outline .tag { font-size: 10px; padding: 0 3px; border: 1px solid currentColor; border-radius: 2px; opacity: 0.85; }
+.detail { color: var(--vscode-descriptionForeground); font-size: 12px; }
+.step.undone .name, .step.abandoned .name { color: var(--vscode-descriptionForeground); }
+.step.abandoned .name { text-decoration: line-through; }
+button { background: var(--vscode-button-secondaryBackground); color: var(--vscode-button-secondaryForeground); border: 1px solid var(--vscode-button-border); padding: 3px 8px; margin: 2px 2px 2px 0; font: inherit; cursor: pointer; border-radius: 2px; }
+button:hover:not(:disabled) { background: var(--vscode-button-secondaryHoverBackground); }
+button:disabled { opacity: .5; cursor: default; }
+button.primary { background: var(--vscode-button-background); color: var(--vscode-button-foreground); }
+button.link { background: none; border: none; color: var(--vscode-list-highlightForeground); padding: 0 2px; font-size: 12px; }
+button:focus-visible, li:focus-visible { outline: 1px solid var(--vscode-focusBorder); }
+/* The time controller has its own styles (timecontrol.css, shared with VS Code); the side column's list style stays off it. */
+.side .tc-speed, .side .tc-context { width: auto; padding: 0 2px; }
+#panel-try button { display: block; width: 100%; text-align: left; }
+/* The catalogue's items (CAP-08 to CAP-12): a mark is a symbol and words, never colour alone. */
+/* The Catalogues tree (webview/panels/catalogues.ts): catalogue → plot → track. */
+.catalogues { max-height: 320px; overflow-y: auto; overflow-wrap: anywhere; }
+.catalogues ul[role="group"] { list-style: none; margin: 0; padding: 0 0 0 14px; }
+.catalogues li[role="treeitem"] { padding: 0; }
+.catalogues li[role="treeitem"]:focus-visible > .row { outline: 1px solid var(--vscode-focusBorder); outline-offset: -1px; }
+.catalogues .row { padding: 2px 4px; border-radius: 2px; }
+.catalogues li.catalogues-plot > .row { cursor: pointer; }
+.catalogues li.catalogues-plot > .row:hover { background: var(--vscode-list-hoverBackground); }
+.catalogues .arrow { display: inline-block; width: 1em; cursor: pointer; color: var(--vscode-descriptionForeground); }
+.catalogues li[aria-expanded="true"] > .row .arrow::before { content: "▾"; }
+.catalogues li[aria-expanded="false"] > .row .arrow::before { content: "▸"; }
+.catalogues li:not([aria-expanded]) > .row { padding-left: calc(1em + 4px); }
+.catalogues li.catalogues-catalogue > .row .name { font-weight: 600; }
+.catalogues li.warning > .row .icon { color: var(--vscode-editorWarning-foreground); }
+.catalogues li.catalogues-welcome { padding: 2px 4px; }
+.tools li { display: flex; align-items: baseline; gap: 6px; flex-wrap: wrap; }
+/* The Tools panel model's sections (webview/panels/tools.ts): each a heading that opens and closes, with its count. */
+.tools li.tools-section { display: block; }
+.tools li.tools-section > button.fold { display: flex; align-items: baseline; gap: 6px; width: 100%; margin: 4px 0 0; padding: 1px 0; background: none; border: 0; color: var(--vscode-descriptionForeground); font-size: 11px; text-transform: uppercase; letter-spacing: .04em; text-align: left; }
+.tools li.tools-section > button.fold .arrow::before { content: "▾"; }
+.tools li.tools-section > button.fold[aria-expanded="false"] .arrow::before { content: "▸"; }
+.tools li.tools-section > button.fold .detail { font-size: 11px; }
+.tools .tools-rows { list-style: none; margin: 0; padding: 0 0 0 12px; }
+.tools button.disabled { opacity: .55; cursor: default; }
+/* The Tools' and History's icons: the playground's artwork for each codicon the panel models name (cosmetic). */
+.tools .icon, #history .icon { display: inline-block; width: 1em; margin-right: .3em; text-align: center; color: var(--vscode-descriptionForeground); }
+:is(.tools, #history) .icon[data-icon="pass-filled"]::before { content: "✓"; }
+/* The Catalogues' icons, likewise (cosmetic). */
+.catalogues .icon { display: inline-block; width: 1em; margin-right: .3em; text-align: center; color: var(--vscode-descriptionForeground); }
+.catalogues .icon[data-icon="library"]::before { content: "▤"; }
+.catalogues .icon[data-icon="lock"]::before { content: "🔒︎"; }
+.catalogues .icon[data-icon="map"]::before { content: "◇"; }
+.catalogues .icon[data-icon="map-filled"]::before { content: "◆"; }
+.catalogues .icon[data-icon="sparkle"]::before { content: "✦"; }
+.catalogues .icon[data-icon="warning"]::before { content: "⚑"; }
+.catalogues .icon[data-icon="pulse"]::before { content: "∿"; }
+.catalogues .icon[data-icon="loading~spin"]::before { content: "⟳"; display: inline-block; animation: spin 1.2s linear infinite; }
+@media (prefers-reduced-motion: reduce) { .catalogues .icon[data-icon="loading~spin"]::before { animation: none; } }
+/* A question's choice: its description and detail beneath its label. */
+#ask-buttons button .detail { display: block; font-size: 11px; font-weight: normal; }
+#ask-title { margin: 0 0 6px; font-size: 14px; }
+:is(.tools, #history) .icon[data-icon="discard"]::before { content: "↶"; }
+:is(.tools, #history) .icon[data-icon="circle-slash"]::before { content: "⊘"; }
+:is(.tools, #history) .icon[data-icon="warning"]::before { content: "⚠"; }
+:is(.tools, #history) .icon[data-icon="info"]::before { content: "ℹ"; }
+:is(.tools, #history) .icon[data-icon="loading~spin"]::before { content: "⟳"; display: inline-block; animation: spin 1.2s linear infinite; }
+@media (prefers-reduced-motion: reduce) { .tools .icon[data-icon="loading~spin"]::before { animation: none; } }
+:is(.tools, #history) .icon[data-icon="circle-large-outline"]::before { content: "◯"; }
+:is(.tools, #history) .icon[data-icon="play"]::before { content: "▶"; }
+:is(.tools, #history) .icon[data-icon="error"]::before { content: "✕"; }
+.toast-button { margin: 4px 0 0; padding: 1px 6px; }
+.file input { display: block; margin: 4px 0; color: var(--vscode-foreground); font: inherit; max-width: 100%; min-width: 0; }
+.file { display: block; overflow-wrap: anywhere; }
+.omitted-panel { padding: 10px 14px; overflow-y: auto; font-size: 13px; }
+.omitted-panel h2 { font-size: 15px; margin: 4px 0 8px; }
+.omitted-panel ul { padding-left: 18px; }
+.omitted-panel li { margin: 2px 0; }
+main { grid-row: 2; display: flex; min-width: 0; min-height: 0; position: relative; }
+/* The map's title bar, as VS Code's editor title bar over the map (the action catalogue's editor entries, A4). */
+main { padding-top: 26px; box-sizing: border-box; }
+.map-title { position: absolute; top: 0; left: 0; right: 0; height: 26px; display: flex; justify-content: flex-end; align-items: center; gap: 2px; padding: 0 6px; box-sizing: border-box; border-bottom: 1px solid var(--vscode-panel-border); background: var(--vscode-editorGroupHeader-tabsBackground, var(--vscode-editor-background)); }
+.map-title button { min-width: 24px; min-height: 22px; padding: 0 6px; }
+.frame { border: 0; display: block; }
+.frame-map { flex: 1; min-width: 0; height: 100%; }
+.side-frame { width: clamp(260px, 34vw, 380px); border-left: 1px solid var(--vscode-panel-border); display: flex; flex-direction: column; min-height: 0; }
+.side-frame[hidden] { display: none; }
+.side-frame .frame { flex: 1; min-height: 0; width: 100%; }
+.side-frame .omitted-panel { flex: 1; }
+.side-bar { display: flex; justify-content: space-between; align-items: center; padding: 2px 4px 2px 12px; font-size: 11px; text-transform: uppercase; letter-spacing: .04em; color: var(--vscode-sideBarSectionHeader-foreground); background: var(--vscode-sideBar-background); border-bottom: 1px solid var(--vscode-panel-border); }
+.side-bar button { text-transform: none; letter-spacing: 0; }
+.unavailable h2 { color: var(--vscode-disabledForeground); }
+.status.problem { color: var(--vscode-errorForeground); }
+footer { grid-column: 1 / -1; padding: 3px 10px; background: var(--vscode-editorWidget-background); border-top: 1px solid var(--vscode-panel-border); font-size: 12px; }
+.status.busy::before, .tools .detail.busy::before { content: "⟳ "; display: inline-block; animation: spin 1.2s linear infinite; }
+@media (prefers-reduced-motion: reduce) { .status.busy::before, .tools .detail.busy::before { animation: none; } }
+@keyframes spin { to { transform: rotate(360deg); } }
+.toasts { position: fixed; right: 12px; bottom: 34px; display: flex; flex-direction: column; gap: 6px; max-width: 380px; z-index: 10; }
+.toast { background: var(--vscode-editorWidget-background); color: var(--vscode-editorWidget-foreground); border: 1px solid var(--vscode-editorWidget-border); border-left: 3px solid var(--vscode-focusBorder); padding: 8px 10px; box-shadow: 0 2px 8px var(--vscode-widget-shadow, transparent); }
+.toast.warning { border-left-color: var(--vscode-inputValidation-errorBorder); }
+dialog { background: var(--vscode-editorWidget-background); color: var(--vscode-editorWidget-foreground); border: 1px solid var(--vscode-editorWidget-border); max-width: 460px; }
+dialog::backdrop { background: color-mix(in srgb, var(--vscode-editor-background) 60%, transparent); }
+.buttons { display: flex; gap: 6px; justify-content: flex-end; flex-wrap: wrap; }
+/* Narrower: the form or results go under the map, not beside it.
+   (Docked, by the width of the map's place instead: dock.css, main.form-under.) */
+@media (max-width: 900px) {
+  body:not(.docked) main { flex-direction: column; }
+  body:not(.docked) .frame-map { flex: 1; height: auto; min-height: 240px; }
+  body:not(.docked) .side-frame { width: auto; height: min(440px, 55%); border-left: 0; border-top: 1px solid var(--vscode-panel-border); }
+}
+/* Phone-sized: one column, the page scrolls; the map first, then the panels. */
+@media (max-width: 600px) {
+  html, body { height: auto; }
+  /* minmax(0, ...): a wide Tote scrolls inside itself; it never widens the page. */
+  .app { grid-template-columns: minmax(0, 1fr); grid-template-rows: auto auto auto auto; height: auto; min-height: 100vh; }
+  main { grid-row: 2; }
+  .frame-map { flex: none; height: 55vh; }
+  .side-frame { height: 460px; }
+  .side { grid-row: 3; border-right: 0; overflow: visible; min-width: 0; }
+  footer { grid-column: 1; position: sticky; bottom: 0; }
+}
+/* The Timeline (webview/timeline.css): narrative, notes and periods in time order (CAP-05, CAP-20).
+   The list scrolls inside a panel of its own height, drawing only the rows in sight. */
+#timeline { height: min(440px, 60vh); }
+/* No lists in Bearings (product owner, 27 Oct 2026): in the one column, as tall as the plot needs. */
+#bearings { height: min(480px, 75vh); }
+/* Cleaning tracks: the jumps found, the fix list and what to do to the fix chosen. */
+/* The panel keeps its height beside the map; a long fix list scrolls inside it. */
+.side-frame .clean-panel { display: flex; flex-direction: column; min-height: 0; }
+.clean-panel p { margin: 4px 0 10px; }
+.jump-list { list-style: none; padding: 0; margin: 0 0 10px; }
+.jump-list li { margin: 4px 0; }
+.jump-list label { cursor: pointer; }
+.fix-list { max-height: none; flex: 1; min-height: 0; overflow-y: auto; }
+.fix-list li { cursor: pointer; }
+.fix-list li:hover { background: var(--vscode-list-hoverBackground); }
+.fix-list li.selected { background: var(--vscode-list-activeSelectionBackground); color: var(--vscode-list-activeSelectionForeground); }
+.fix-list li.selected .detail { color: inherit; }
+.fix-actions { display: flex; flex-wrap: wrap; gap: 4px; align-items: center; margin: 0 0 8px; padding-bottom: 8px; border-bottom: 1px solid var(--vscode-panel-border); }
+.fix-actions .fix-chosen { flex-basis: 100%; font-weight: 600; }
+.fix-actions .detail { flex-basis: 100%; }
+.fix-actions select { font: inherit; background: var(--vscode-dropdown-background); color: var(--vscode-foreground); border: 1px solid var(--vscode-dropdown-border); padding: 2px; }
+/* The small forms for moving, rotating and splitting a track. */
+.track-form h2 { margin: 0 0 8px; font-size: 13px; text-transform: none; letter-spacing: 0; }
+.track-form .form-row { display: grid; gap: 2px; margin-bottom: 8px; }
+.track-form input, .track-form select { font: inherit; background: var(--vscode-input-background); color: var(--vscode-input-foreground); border: 1px solid var(--vscode-input-border, var(--vscode-widget-border)); padding: 3px 4px; }
+.track-form input:focus, .track-form select:focus { outline: 1px solid var(--vscode-focusBorder); }
+.track-form .form-note.problem { color: var(--vscode-errorForeground); }
+.track-form .form-warning { max-width: 32em; margin: 0 0 8px; padding: 4px 6px; border-left: 3px solid var(--vscode-inputValidation-errorBorder); }
+/* What a form explains, not warns of: the neutral bar an information toast has. */
+.track-form .form-info { max-width: 32em; margin: 0 0 8px; padding: 4px 6px; border-left: 3px solid var(--vscode-focusBorder); }
+/* A box to tick, beside what it says. */
+.track-form .form-row.form-check { grid-template-columns: auto 1fr; align-items: center; column-gap: 6px; }
+.track-form .form-check .form-note { grid-column: 1 / -1; }
+/* Every side panel folds away by its heading, to keep the column short (decision, 14 Oct 2026).
+   The heading stays a heading (h2) holding a button that looks like the heading's text: a screen
+   reader still lists the panels by their headings, and the button says whether its panel is open. */
+.side .panel-head { display: flex; justify-content: space-between; align-items: center; gap: 6px; }
+.side .panel-head h2 { flex: 1; }
+.side .panel-head .actions button { font-size: 11px; padding: 1px 6px; }
+.side h2 button.fold { position: relative; display: block; width: 100%; margin: 0; padding: 0; background: none; border: 0; border-radius: 0; color: inherit; font: inherit; text-transform: inherit; letter-spacing: inherit; text-align: left; cursor: pointer; }
+.side h2 button.fold:hover:not(:disabled) { background: none; }
+/* Its arrow sits in the margin, so each heading lines up with its panel's contents. */
+.side h2 button.fold .arrow { position: absolute; top: 0; left: -10px; width: 10px; text-align: center; font-size: 10px; }
+.side h2 button.fold .arrow::before { content: "▾"; }
+.side .panel.folded h2 button.fold .arrow::before { content: "▸"; }
+.side .panel.folded { padding-bottom: 6px; }
+.side .panel.folded h2 { margin-bottom: 4px; }
+.side .tote-pick select { width: auto; }
+/* The outline's menu for a track: right-click, press and hold, or Shift+F10. */
+.context-menu { position: fixed; z-index: 20; display: flex; flex-direction: column; min-width: 180px; padding: 4px 0; background: var(--vscode-menu-background, var(--vscode-editorWidget-background)); color: var(--vscode-menu-foreground, var(--vscode-foreground)); border: 1px solid var(--vscode-menu-border, var(--vscode-editorWidget-border)); box-shadow: 0 2px 8px var(--vscode-widget-shadow, transparent); }
+.context-menu button { display: block; width: 100%; margin: 0; padding: 4px 12px; text-align: left; background: none; border: 0; border-radius: 0; color: inherit; }
+.context-menu button.group-start { border-top: 1px solid var(--vscode-menu-separatorBackground, var(--vscode-widget-border, currentColor)); }
+.context-menu button[aria-checked="true"]::before { content: "✓ "; }
+.context-menu button:hover, .context-menu button:focus-visible { background: var(--vscode-menu-selectionBackground, var(--vscode-list-activeSelectionBackground)); color: var(--vscode-menu-selectionForeground, var(--vscode-list-activeSelectionForeground)); outline: none; }
+.context-menu button[aria-disabled="true"] { color: var(--vscode-disabledForeground); }
+/* Labels, symbols and arrows (CAP-32): a quiet form, a heading for each chooser, aligned; it never scrolls sideways, down to 210 px. */
+.freq-form { width: min(340px, calc(100vw - 40px)); box-sizing: border-box; }
+.freq-form .freq-tracks { margin: -4px 0 10px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.freq-form .freq-row { display: grid; grid-template-columns: 4.6em minmax(0, 1fr); align-items: center; column-gap: 8px; row-gap: 3px; margin-bottom: 8px; }
+.freq-form .freq-row select, .freq-form .freq-row input { min-width: 0; width: 100%; box-sizing: border-box; }
+.freq-form .freq-row input, .freq-form .freq-row .form-note { grid-column: 2; }
+.freq-form .freq-row .form-note:empty { display: none; }
+.freq-form .buttons { margin-top: 12px; }
+.fix-actions .toggle[aria-pressed="true"] { background: var(--vscode-button-background); color: var(--vscode-button-foreground); }
+/* Export image (SUB-25): four short choices, then the button; finding an image's source by its file or its ID. Narrow: one column, nothing sideways. */
+.export-form { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 4px 8px; margin-bottom: 6px; }
+.export-form label { display: flex; flex-direction: column; gap: 2px; min-width: 0; font-size: 12px; }
+.export-form label.check { flex-direction: row; align-items: center; gap: 6px; }
+.export-said { margin: 4px 0 2px; overflow-wrap: anywhere; }
+.side h3.sub, .menu-panel h3.sub { font-size: 12px; margin: 12px 0 4px; color: var(--vscode-foreground); font-weight: 600; }
+.find-id { display: flex; flex-direction: column; gap: 2px; margin: 6px 0; font-size: 12px; }
+.find-id-row { display: flex; gap: 4px; min-width: 0; }
+.find-id input { flex: 1; min-width: 0; font: inherit; font-family: var(--vscode-editor-font-family); background: var(--vscode-input-background); color: var(--vscode-input-foreground); border: 1px solid var(--vscode-input-border, var(--vscode-widget-border)); padding: 3px 4px; }
+.find-id input[aria-invalid="true"] { border-color: var(--vscode-inputValidation-errorBorder, var(--vscode-errorForeground)); }
+.find-id .problem { color: var(--vscode-errorForeground); }
+.find-results { list-style: none; margin: 4px 0; padding: 0; }
+.find-results li { padding: 3px 0; overflow-wrap: anywhere; }
+.find-results li .detail { display: block; }
+#history li.shown { outline: 1px dashed var(--vscode-editorWarning-foreground, var(--vscode-focusBorder)); outline-offset: -1px; }
+#body-export input[type="file"] { max-width: 100%; min-width: 0; }
+.export-form { grid-template-columns: repeat(auto-fit, minmax(min(150px, 100%), 1fr)); }
+/* Walkthroughs (CAP-25): the same steps as VS Code's Get Started page, each ticked when it is done.
+   Each step is a button that opens it, its tick said in words too; nothing scrolls sideways, down to 210 px. */
+.tour-pick { display: flex; flex-direction: column; gap: 2px; font-size: 12px; }
+.tour-summary { margin: 6px 0; overflow-wrap: anywhere; }
+.tour-steps { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 2px; }
+.tour-step { min-width: 0; }
+.side .tour-head { display: flex; align-items: baseline; gap: 6px; width: 100%; margin: 0; padding: 3px 2px; text-align: left; background: none; border: 0; border-radius: 2px; color: inherit; white-space: normal; overflow-wrap: anywhere; }
+.side .tour-head:hover:not(:disabled) { background: var(--vscode-list-hoverBackground); }
+.tour-mark { flex: none; display: inline-flex; justify-content: center; align-items: center; min-width: 1.4em; height: 1.4em; border-radius: 50%; border: 1px solid var(--debrief-guide-accent); color: var(--debrief-guide-accent); font-size: 11px; font-weight: 600; }
+/* The step to do next: its number in a disc of the accent, the panel's background as its text. */
+.tour-step.next .tour-mark { background: var(--debrief-guide-accent); color: var(--vscode-sideBar-background); border-color: var(--debrief-guide-accent); }
+.tour-step.done .tour-mark { background: var(--vscode-button-background); color: var(--vscode-button-foreground); border-color: var(--vscode-button-background); }
+.tour-step.next .tour-title { font-weight: 600; }
+.tour-step.done .tour-title { color: var(--vscode-descriptionForeground); }
+.tour-body { padding: 2px 2px 8px calc(1.4em + 8px); overflow-wrap: anywhere; min-width: 0; }
+.tour-body p { margin: 4px 0; }
+.tour-body button { max-width: 100%; white-space: normal; text-align: left; }
+.tour-media { display: block; margin: 4px 0; max-width: 100%; }
+.tour-media svg { display: block; width: 100%; height: auto; }
+/* Docked beneath Bearings and short (product owner, 25 Oct 2026): the step's words, keys and button
+   keep the room, its picture smaller. */
+.dock-panel:has(> #panel-tour) { container-type: size; }
+@container (max-height: 380px) {
+  .tour-media svg { width: auto; max-width: 100%; max-height: 64px; }
+  .tour-body { font-size: 12px; line-height: 1.35; }
+  .tour-body p { margin: 2px 0; }
+}
+.tour-body kbd { font-family: var(--vscode-editor-font-family); font-size: 0.92em; padding: 0 3px; border: 1px solid var(--vscode-widget-border, var(--vscode-panel-border)); border-radius: 3px; }
+.tour-said { margin: 6px 0 0; min-height: 1em; overflow-wrap: anywhere; }
+.visually-hidden { position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; border: 0; }
+/* The guidance accent (style guide, Theme; product owner, 22 Oct 2026): the walkthroughs are where a
+   newcomer gains an overall understanding, so they stand apart from the panels around them, in the
+   theme's link colour (its focus colour where a theme has none): a 3 px edge, a heading bar tinted
+   with it, and the steps' numbers in it, the next step's a disc of it. Folded, the tab carries it too.
+   Interface, not data: the tracks' colours are untouched. */
+:root {
+  --debrief-guide-accent: var(--vscode-textLink-foreground, var(--vscode-focusBorder));
+  --debrief-guide-tint: color-mix(in srgb, var(--debrief-guide-accent) 14%, var(--vscode-sideBar-background));
+}
+#panel-tour { border-left: 3px solid var(--debrief-guide-accent); }
+#panel-tour > h2 { background: var(--debrief-guide-tint); margin: -6px -10px 6px; padding: 6px 10px; }
+#panel-tour.folded > h2 { margin-bottom: 0; }
+/* What comes after a walkthrough (product owner, 23 Oct 2026): done, the next is a button in the
+   accent, its text the panel's background (the next step's disc's colours); before then, a quiet
+   link in the accent. After the last, that all are done, and a link to start again. */
+.tour-ahead { margin: 8px 0 0; overflow-wrap: anywhere; min-width: 0; }
+.tour-complete { margin: 4px 0 6px; }
+#tour button.tour-next { display: block; width: 100%; margin: 0; padding: 6px 10px; text-align: left; white-space: normal; font-weight: 600; background: var(--debrief-guide-accent); color: var(--vscode-sideBar-background); border: 1px solid var(--debrief-guide-accent); border-radius: 3px; }
+#tour button.tour-next:hover { background: color-mix(in srgb, var(--debrief-guide-accent) 88%, var(--vscode-editor-foreground)); }
+#tour button.tour-next:focus-visible { outline: 2px solid var(--vscode-focusBorder); outline-offset: 2px; }
+#tour button.tour-skip, #tour button.tour-again { padding: 0; margin: 0; text-align: left; white-space: normal; color: var(--debrief-guide-accent); text-decoration: underline; text-underline-offset: 2px; }
