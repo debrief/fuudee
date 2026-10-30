@@ -1,0 +1,11 @@
+{
+  "debrief.python": "/opt/debrief/bin/python",
+  "workbench.startupEditor": "none",
+  "workbench.tips.enabled": false,
+  "chat.disableAIFeatures": true,
+  "security.workspace.trust.enabled": false,
+  "extensions.autoUpdate": false,
+  "extensions.autoCheckUpdates": false,
+  "update.mode": "none",
+  "telemetry.telemetryLevel": "off"
+}
