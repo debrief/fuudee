@@ -15,6 +15,7 @@ import "./time.css";
 import type { TimeState, TmaView } from "@debrief/schemas";
 import type { LonLat } from "./geodesic.js";
 import { TmaControl } from "./tmacontrol.js";
+import { bearingsEvents } from "./dispatch.js";
 import { PANES, readPanes, type PanesShown } from "./stackeddots.js";
 import { host, onMessage } from "./vscode.js";
 
@@ -35,19 +36,7 @@ const tellPanes = (panes: PanesShown) => host.postMessage({ kind: "tma_panes", p
 
 const control = new TmaControl(
   document.getElementById("tma")!,
-  {
-    create: (tma_request) => host.postMessage({ kind: "tma_create", tma_request }),
-    guess: (tma_request) => host.postMessage({ kind: "tma_guess", tma_request }),
-    exclude: (feature_id, cut_ids, excluded) => host.postMessage({ kind: "tma_exclude", feature_id, cut_ids, excluded }),
-    split: (feature_id, current_time) => host.postMessage({ kind: "tma_split", feature_id, current_time }),
-    time: (current_time) => host.postMessage({ kind: "tma_time_asked", current_time }),
-    resolve: (feature_id, keep) => host.postMessage({ kind: "resolve_asked", feature_id, keep }),
-    resolveCuts: (resolution) => host.postMessage({ kind: "tma_resolve", resolution }),
-    select: (feature_id, current_time) => host.postMessage({ kind: "tma_select", feature_id, current_time }),
-    menu: (feature_id, current_time) => host.postMessage({ kind: "tma_menu", feature_id, current_time }),
-    cutOff: (error_cut_off) => host.postMessage({ kind: "tma_cut_off", error_cut_off }),
-    drawn: (plot_height, pane_widths) => host.postMessage({ kind: "tma_plot_drawn", plot_height, pane_widths }),
-  },
+  bearingsEvents((m) => host.postMessage(m)),
   undefined,
   // Which panes show: the view's own state, kept by VS Code (product owner, 25 Oct 2026), and the
   // host told, so a popped-out view, or the panel's again, shows the same (product owner, 28 Oct 2026).

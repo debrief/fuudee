@@ -7,6 +7,7 @@
 import * as vscode from "vscode";
 import type { Session } from "../session.js";
 import { checkMessage } from "../messages.js";
+import { receiveMap } from "../../webview/dispatch.js";
 import { webviewHtml } from "./html.js";
 import { startup } from "../startup.js";
 import { displayed, hiddenIds } from "../hidden.js";
@@ -96,63 +97,55 @@ export class MapPanel {
   /** A message from the map webview; tests may pass one as if the map had sent it. Resolves once it is acted on. */
   async receive(raw: unknown): Promise<void> {
     if (startup.fromPage("map", raw)) return;
-    let message;
-    try {
-      message = checkMessage(raw);
-    } catch (error) {
-      // Not the message: it can quote plot content (NFR-14).
-      this.log("webview_message_refused panel=map");
-      return;
-    }
-    if (message.kind === "ready") {
-      startup.mark("map", "ready");
-      this.ready = true;
-      this.showPlot();
-    } else if (message.kind === "selection_changed") {
-      this.session.select(message.selection!.feature_ids, "map");
-    } else if (message.kind === "time_changed") {
-      this.session.setTime(message.time!, "map");
-    } else if (message.kind === "viewport_changed") {
-      this.session.setViewport(message.viewport!, "map");
-    } else if (message.kind === "show_hidden") {
-      void vscode.commands.executeCommand("debrief.showAllHidden");
-    } else if (message.kind === "edit_annotation" && message.annotation) {
-      // Dragged or nudged on the map: changed so, as one step. Refused, the map shows it as it is.
-      const done = await vscode.commands.executeCommand<{ problem?: string } | undefined>("debrief.editAnnotation", message.feature_id, message.annotation);
-      if (done?.problem) this.refresh();
-    } else if (message.kind === "edit_annotation") {
-      // Double-clicked on the map: its properties form (CAP-03).
-      void vscode.commands.executeCommand("debrief.editAnnotation", message.feature_id);
-    } else if (message.kind === "edit_track") {
-      // A track's move or rotate handle let go of, or nudged: changed so, as one step. Refused, the map shows it as it is.
-      const done = await vscode.commands.executeCommand<{ problem?: string } | undefined>("debrief.editTrack", message.feature_id, message.track_edit);
-      if (done?.problem) this.refresh();
-    } else if (message.kind === "fix_chosen") {
-      // Right-clicked on the map: colour, label or comment on that fix (EXT-14).
-      await vscode.commands.executeCommand("debrief.markFix", message.feature_id, message.fix_time);
-    } else if (message.kind === "resolve_asked" && message.feature_id && message.keep) {
-      // One of an ambiguous cut's two lines clicked: that bearing kept, as one step (CAP-22).
-      await vscode.commands.executeCommand("debrief.resolveAmbiguity", { keep: message.keep, cut_ids: [message.feature_id] });
-    } else if (message.kind === "cut_chosen") {
-      // Right-clicked, or pressed and held, on a cut: its menu.
-      await vscode.commands.executeCommand("debrief.cutMenu", message.feature_id);
-    } else if (message.kind === "annotation_drawn") {
-      // Drawn on the map: the form, to name it and add it as one step.
-      await vscode.commands.executeCommand("debrief.addDrawnAnnotation", message.annotation);
-    } else if (message.kind === "image_rendered") {
-      this.rendered?.(message.image ? { image: message.image } : { problem: message.message ?? "The map could not draw the image." });
-    } else if (message.kind === "latest_asked") {
-      // An earlier revision shown read-only: the analyst asked for the plot as it is now.
-      await vscode.commands.executeCommand("debrief.openLatestRevision");
-    } else if (message.kind === "tma_preview") {
-      // A TMA solution dragged (CAP-21): passed on to the bearing view, for its residuals.
-      this.previewed?.(message.feature_id!, message.preview ?? undefined);
-    } else if (message.kind === "tma_guessed") {
-      // Two clicks made for a first guess, or cancelled (no request).
-      this.guessing = undefined;
-      await this.guessed?.(message.tma_request ?? undefined);
-    }
+    await this.receiver(raw);
   }
+  /** The shared receiver (webview/dispatch.ts, PAR-13): each message checked, then handled here. */
+  private readonly receiver = receiveMap(
+    {
+      ready: () => {
+        startup.mark("map", "ready");
+        this.ready = true;
+        this.showPlot();
+      },
+      selected: (ids) => this.session.select(ids, "map"),
+      timeChanged: (time) => this.session.setTime(time, "map"),
+      viewportChanged: (viewport) => this.session.setViewport(viewport, "map"),
+      showHidden: () => void vscode.commands.executeCommand("debrief.showAllHidden"),
+      // Dragged or nudged on the map: changed so, as one step. Refused, the map shows it as it is.
+      annotationMoved: async (id, annotation) => {
+        const done = await vscode.commands.executeCommand<{ problem?: string } | undefined>("debrief.editAnnotation", id, annotation);
+        if (done?.problem) this.refresh();
+      },
+      // Double-clicked on the map: its properties form (CAP-03).
+      annotationChosen: (id) => void vscode.commands.executeCommand("debrief.editAnnotation", id),
+      // A track's move or rotate handle let go of, or nudged: changed so, as one step. Refused, the map shows it as it is.
+      trackEdited: async (id, edit) => {
+        const done = await vscode.commands.executeCommand<{ problem?: string } | undefined>("debrief.editTrack", id, edit);
+        if (done?.problem) this.refresh();
+      },
+      // Right-clicked on the map: colour, label or comment on that fix (EXT-14).
+      fixChosen: (id, at) => vscode.commands.executeCommand("debrief.markFix", id, at),
+      // One of an ambiguous cut's two lines clicked: that bearing kept, as one step (CAP-22).
+      resolve: (cut, keep) => vscode.commands.executeCommand("debrief.resolveAmbiguity", { keep, cut_ids: [cut] }),
+      // Right-clicked, or pressed and held, on a cut: its menu.
+      cutChosen: (cut) => vscode.commands.executeCommand("debrief.cutMenu", cut),
+      // Drawn on the map: the form, to name it and add it as one step.
+      annotationDrawn: (annotation) => vscode.commands.executeCommand("debrief.addDrawnAnnotation", annotation),
+      imageRendered: (drawn) => this.rendered?.("image" in drawn ? { image: drawn.image } : { problem: drawn.problem }),
+      // An earlier revision shown read-only: the analyst asked for the plot as it is now.
+      latestAsked: () => vscode.commands.executeCommand("debrief.openLatestRevision"),
+      // A TMA solution dragged (CAP-21): passed on to the bearing view, for its residuals.
+      tmaPreview: (id, preview) => this.previewed?.(id, preview),
+      // Two clicks made for a first guess, or cancelled (no request).
+      tmaGuessed: async (request) => {
+        this.guessing = undefined;
+        await this.guessed?.(request);
+      },
+    },
+    checkMessage,
+    // Never the message: it can quote plot content (NFR-14).
+    (panel) => this.log(`webview_message_refused panel=${panel}`),
+  );
 
   /** Where a TMA solution dragged on the map goes: the bearing view. */
   previewed?: (featureId: string, preview?: { type: "LineString"; coordinates: number[][] }) => void;

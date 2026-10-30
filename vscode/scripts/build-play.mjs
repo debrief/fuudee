@@ -5,11 +5,14 @@ import { build } from "esbuild";
 import { cpSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { demoPage } from "../play/demo.mjs";
 import { withoutThemes } from "./csstrim.mjs";
+import { writeMessageValidator } from "./messagevalidator.mjs";
 import path from "node:path";
 
 const out = path.resolve(process.argv[2] ?? "dist/play");
 mkdirSync(out, { recursive: true });
 const common = { bundle: true, minify: true, sourcemap: false, logLevel: "warning", target: "es2022" };
+// The webview messages' validator, compiled now: the page checks every message as VS Code does (PAR-13).
+const validator = writeMessageValidator(path.resolve("dist-gen"));
 
 await build({
   ...common,
@@ -34,6 +37,8 @@ await build({
   outdir: out,
   platform: "browser",
   format: "esm",
+  alias: { "debrief-webview-message-validator": validator.file },
+  nodePaths: validator.nodePaths,
   external: ["https://*"],
 });
 for (const file of ["index.html", "geodesic.html", "frame-map.html", "frame-form.html", "frame-annotation.html", "frame-results.html", "theme.css", "host.css", "dock.css", "play.py"]) {

@@ -313,3 +313,15 @@ export function titleMenu(view: View, context: Context, reasons?: Readonly<Recor
   }
   return sorted(out);
 }
+
+/** An editor's title bar in this context (the map's, VS Code's editor/title): its buttons ("navigation" groups) then its overflow menu's entries. */
+export function editorMenu(context: Context, reasons?: Readonly<Record<string, string>>): MenuEntry[] {
+  const out: MenuEntry[] = [];
+  for (const a of ACTIONS) {
+    for (const p of a.placements ?? []) {
+      if (p.menu !== "editor" || !p.when.every((t) => holds(t, context))) continue;
+      out.push(entryOf(a, p.group, context, reasons));
+    }
+  }
+  return sorted(out);
+}

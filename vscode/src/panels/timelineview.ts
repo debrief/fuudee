@@ -15,6 +15,7 @@
 import * as vscode from "vscode";
 import type { NarrativeSpec, TimelineEntry } from "@debrief/schemas";
 import { checkMessage } from "../messages.js";
+import { receiveTimeline } from "../../webview/dispatch.js";
 import type { Session } from "../session.js";
 import { currentEntry, narrativeOnMapOf, timelineEntries, timelineTracks } from "../timeline.js";
 import { startup } from "../startup.js";
@@ -89,40 +90,35 @@ export class TimelineView implements vscode.WebviewViewProvider {
     view.webview.onDidReceiveMessage((raw) => this.receive(raw));
   }
 
-  /** A message from the page. Tests send one as the page would: they cannot press a key in it. */
+  /** A message from the page. Tests send one as the page would: they cannot press a key in it. The shared receiver (webview/dispatch.ts, PAR-13). */
   receive(raw: unknown): void {
     if (startup.fromPage(TIMELINE_VIEW, raw)) return;
-    let message;
-    try {
-      message = checkMessage(raw);
-    } catch {
-      this.log("webview_message_refused panel=timeline");
-      return;
-    }
-    if (message.kind === "ready") {
-      startup.mark(TIMELINE_VIEW, "ready");
-      this.ready = true;
-      this.showAll();
-      if (this.playingNow) this.post({ kind: "playing_changed", playing: true });
-      if (this.formWanted) this.openForm(this.formWanted.feature);
-    } else if (message.kind === "timeline_chosen") {
-      this.goTo(message.feature_id!);
-    } else if (message.kind === "save_narrative") {
-      void this.save(message.narrative!, message.feature_id ?? undefined).then(({ problem, feature }) =>
-        this.post({ kind: "narrative_saved", ...(problem ? { message: problem } : feature && { feature_id: feature }) }),
-      );
-    } else if (message.kind === "narrative_on_map_changed") {
-      void this.saveOnMap(message.narrative_on_map === true).then((problem) => {
-        if (!problem) return;
-        void vscode.window.showWarningMessage(problem);
-        this.showAll(); // what is saved, again
-      });
-    } else if (message.kind === "undo_asked" || message.kind === "redo_asked") {
-      this.historyMove(message.kind === "undo_asked" ? "undo" : "redo");
-    } else if (message.kind === "delete_narrative") {
-      void this.remove(message.feature_id!).then((problem) => problem && void vscode.window.showWarningMessage(problem));
-    }
+    void this.receiver(raw);
   }
+  private readonly receiver = receiveTimeline(
+    {
+      ready: () => {
+        startup.mark(TIMELINE_VIEW, "ready");
+        this.ready = true;
+        this.showAll();
+        if (this.playingNow) this.post({ kind: "playing_changed", playing: true });
+        if (this.formWanted) this.openForm(this.formWanted.feature);
+      },
+      chosen: (id) => this.goTo(id),
+      save: (narrative, id) =>
+        void this.save(narrative, id).then(({ problem, feature }) => this.post({ kind: "narrative_saved", ...(problem ? { message: problem } : feature && { feature_id: feature }) })),
+      narrativeOnMap: (on) =>
+        void this.saveOnMap(on).then((problem) => {
+          if (!problem) return;
+          void vscode.window.showWarningMessage(problem);
+          this.showAll(); // what is saved, again
+        }),
+      history: (move) => this.historyMove(move),
+      remove: (id) => void this.remove(id).then((problem) => problem && void vscode.window.showWarningMessage(problem)),
+    },
+    checkMessage,
+    (panel) => this.log(`webview_message_refused panel=${panel}`),
+  );
 
   /** Open the page's form: to add an entry, or change one. Shows the view first. */
   openForm(feature?: string): void {

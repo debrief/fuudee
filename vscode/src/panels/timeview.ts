@@ -18,6 +18,7 @@
 import * as vscode from "vscode";
 import type { TimeRange } from "@debrief/schemas";
 import { checkMessage } from "../messages.js";
+import { receiveTime } from "../../webview/dispatch.js";
 import type { Session } from "../session.js";
 import { startup } from "../startup.js";
 import { webviewHtml } from "./html.js";
@@ -64,26 +65,24 @@ export class TimeView implements vscode.WebviewViewProvider {
     view.onDidDispose(() => {
       if (this.view === view) this.view = undefined;
     });
+    // The shared receiver (webview/dispatch.ts, PAR-13): each message checked, then handled here.
+    const receive = receiveTime(
+      {
+        ready: () => {
+          startup.mark(TIME_VIEW, "ready");
+          this.ready = true;
+          this.showTime();
+        },
+        timeChanged: (time) => this.session.setTime(time, TIME_VIEW),
+        windowChanged: (window) => this.windowSaved(window),
+        playingChanged: (playing) => this.playing(playing),
+      },
+      checkMessage,
+      (panel) => this.log(`webview_message_refused panel=${panel}`),
+    );
     view.webview.onDidReceiveMessage((raw) => {
       if (startup.fromPage(TIME_VIEW, raw)) return;
-      let message;
-      try {
-        message = checkMessage(raw);
-      } catch {
-        this.log("webview_message_refused panel=time");
-        return;
-      }
-      if (message.kind === "ready") {
-        startup.mark(TIME_VIEW, "ready");
-        this.ready = true;
-        this.showTime();
-      } else if (message.kind === "time_changed") {
-        this.session.setTime(message.time!, TIME_VIEW);
-      } else if (message.kind === "window_changed") {
-        this.windowSaved(message.time_range!);
-      } else if (message.kind === "playing_changed") {
-        this.playing(message.playing === true);
-      }
+      void receive(raw);
     });
     this.showContext();
   }

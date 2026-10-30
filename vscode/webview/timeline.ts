@@ -10,20 +10,14 @@ import "./timeline.css";
 import "./time.css";
 import type { TimeState, TimelineEntry, ToteTrack } from "@debrief/schemas";
 import { TimelineControl } from "./timelinecontrol.js";
+import { timelineEvents } from "./dispatch.js";
 import { host, onMessage } from "./vscode.js";
 
 document.body.classList.add("tl-page");
 const root = document.getElementById("root")!;
 const control = new TimelineControl(
   root,
-  {
-    choose: (id) => host.postMessage({ kind: "timeline_chosen", feature_id: id }),
-    save: (narrative, id) => host.postMessage({ kind: "save_narrative", narrative, ...(id && { feature_id: id }) }),
-    remove: (id) => host.postMessage({ kind: "delete_narrative", feature_id: id }),
-    narrativeOnMap: (on) => host.postMessage({ kind: "narrative_on_map_changed", narrative_on_map: on }),
-    // Ctrl+Z outside a text box: the extension undoes the plot, as from the map.
-    history: (move) => host.postMessage({ kind: move === "undo" ? "undo_asked" : "redo_asked" }),
-  },
+  timelineEvents((m) => host.postMessage(m)),
   undefined,
   {
     load: () => (host.getState() as { filter?: unknown } | undefined)?.filter,

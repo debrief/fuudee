@@ -24,6 +24,7 @@
  */
 import type { AmbiguityResolution, TimeState, TmaCut, TmaFocus, TmaRequest, TmaResiduals, TmaView } from "@debrief/schemas";
 import { checkMessage } from "../messages.js";
+import { receiveBearings } from "../../webview/dispatch.js";
 import type { Session } from "../session.js";
 import { startup } from "../startup.js";
 import { coverageOf, cutColours, cutRowsOf, FocusOnce, ownshipOf, tmaSensorRows, tmaSolutionRows, type ListedCut } from "../../webview/tma.js";
@@ -204,60 +205,57 @@ export class BearingsView {
       this.log(`webview_message_refused panel=bearings where=${from.where} not_live`);
       return;
     }
-    let message;
-    try {
-      message = checkMessage(raw);
-    } catch {
-      this.log("webview_message_refused panel=bearings");
-      return;
-    }
-    if (message.kind === "ready") {
-      startup.mark(BEARINGS_VIEW, "ready");
-      this.ready = true;
-      await this.refresh();
-      if (this.session.time) this.post({ kind: "set_time", time: this.session.time });
-    } else if (message.kind === "tma_create") {
-      const done = await this.act.create(message.tma_request!);
-      this.post(done.problem ? { kind: "tma_made", message: done.problem } : { kind: "tma_made", ...(done.feature && { feature_id: done.feature }) });
-      if (done.feature) {
-        this.shownNow = { solution: done.feature };
+    await this.receiver(raw);
+  }
+  /** The shared receiver (webview/dispatch.ts, PAR-13): each message checked, then handled here. */
+  private readonly receiver = receiveBearings(
+    {
+      ready: async () => {
+        startup.mark(BEARINGS_VIEW, "ready");
+        this.ready = true;
         await this.refresh();
-      }
-    } else if (message.kind === "tma_guess") {
-      this.act.guess(message.tma_request!);
-    } else if (message.kind === "tma_exclude") {
-      await this.act.exclude(message.feature_id!, message.cut_ids!, message.excluded!);
-    } else if (message.kind === "tma_split") {
-      await this.act.split(message.feature_id!, message.current_time!);
-    } else if (message.kind === "tma_time_asked") {
-      this.timeTo(message.current_time!);
-    } else if (message.kind === "resolve_asked") {
-      await this.act.resolve(message.feature_id!, message.keep!);
-    } else if (message.kind === "tma_resolve" && message.resolution) {
-      await this.act.resolveCuts(message.resolution);
-    } else if (message.kind === "tma_select" || message.kind === "tma_menu") {
+        if (this.session.time) this.post({ kind: "set_time", time: this.session.time });
+      },
+      create: async (request) => {
+        const done = await this.act.create(request);
+        this.post(done.problem ? { kind: "tma_made", message: done.problem } : { kind: "tma_made", ...(done.feature && { feature_id: done.feature }) });
+        if (done.feature) {
+          this.shownNow = { solution: done.feature };
+          await this.refresh();
+        }
+      },
+      guess: (request) => this.act.guess(request),
+      exclude: (id, cuts, excluded) => this.act.exclude(id, cuts, excluded),
+      split: (id, at) => this.act.split(id, at),
+      time: (at) => this.timeTo(at),
+      resolve: (id, keep) => this.act.resolve(id, keep),
+      resolveCuts: (resolution) => this.act.resolveCuts(resolution),
       // A dot clicked: its cut, or the solution at a fix (that position, in the Outline), selected; current time to it.
       // Right-clicked: the Outline's menu for it (product owner, 29 Oct 2026), selecting it one of its entries.
-      const id = message.feature_id!;
-      const at = message.current_time!;
-      const plot = this.session.current?.plot;
-      const s = plot && id === this.solutionShown ? outlineIndex(plot).solutions.get(id) : undefined;
-      const index = s ? s.times.indexOf(Date.parse(at)) : -1;
-      const fix = index >= 0 ? index : undefined;
-      const choose = () => {
-        this.timeTo(at);
-        this.act.select(id, fix);
-      };
-      if (message.kind === "tma_menu") this.act.menu(id, fix, choose);
-      else choose();
-    } else if (message.kind === "tma_cut_off") {
-      this.act.cutOff(message.error_cut_off!);
-    } else if (message.kind === "tma_plot_drawn") {
-      this.plot = { height: message.plot_height!, panes: message.pane_widths ?? [] };
-    } else if (message.kind === "tma_panes") {
-      const shown = new Set(message.panes_shown);
-      this.panes = Object.fromEntries(PANES.map((p) => [p, shown.has(p)])) as PanesShown;
-    }
+      select: (id, at) => this.chooseDot(id, at, false),
+      menu: (id, at) => this.chooseDot(id, at, true),
+      cutOff: (degrees) => this.act.cutOff(degrees),
+      drawn: (height, panes) => (this.plot = { height, panes }),
+      panes: (panes) => {
+        const shown = new Set(panes);
+        this.panes = Object.fromEntries(PANES.map((p) => [p, shown.has(p)])) as PanesShown;
+      },
+    },
+    checkMessage,
+    (panel) => this.log(`webview_message_refused panel=${panel}`),
+  );
+
+  private chooseDot(id: string, at: string, menu: boolean): void {
+    const plot = this.session.current?.plot;
+    const s = plot && id === this.solutionShown ? outlineIndex(plot).solutions.get(id) : undefined;
+    const index = s ? s.times.indexOf(Date.parse(at)) : -1;
+    const fix = index >= 0 ? index : undefined;
+    const choose = () => {
+      this.timeTo(at);
+      this.act.select(id, fix);
+    };
+    if (menu) this.act.menu(id, fix, choose);
+    else choose();
   }
 
   /**

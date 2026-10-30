@@ -16,6 +16,7 @@
 import * as vscode from "vscode";
 import type { ToteResult, ToteView as ToteChoice } from "@debrief/schemas";
 import { checkMessage } from "../messages.js";
+import { receiveTote } from "../../webview/dispatch.js";
 import type { Session } from "../session.js";
 import { latencySummary, sameTote, toteOf, ToteRequests, toteTracks } from "../../webview/totelogic.js";
 import { startup } from "../startup.js";
@@ -94,22 +95,22 @@ export class ToteView implements vscode.WebviewViewProvider {
       if (this.view === view) this.view = undefined;
     });
     view.onDidChangeVisibility(() => view.visible && this.refresh());
+    // The shared receiver (webview/dispatch.ts, PAR-13): each message checked, then handled here.
+    const receive = receiveTote(
+      {
+        ready: () => {
+          startup.mark(TOTE_VIEW, "ready");
+          this.ready = true;
+          this.showAll();
+        },
+        toteChanged: (tote) => void this.choose(tote),
+      },
+      checkMessage,
+      (panel) => this.log(`webview_message_refused panel=${panel}`),
+    );
     view.webview.onDidReceiveMessage((raw) => {
       if (startup.fromPage(TOTE_VIEW, raw)) return;
-      let message;
-      try {
-        message = checkMessage(raw);
-      } catch {
-        this.log("webview_message_refused panel=tote");
-        return;
-      }
-      if (message.kind === "ready") {
-        startup.mark(TOTE_VIEW, "ready");
-        this.ready = true;
-        this.showAll();
-      } else if (message.kind === "tote_changed") {
-        void this.choose(message.tote_view!);
-      }
+      void receive(raw);
     });
   }
 

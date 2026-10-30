@@ -14,6 +14,7 @@
 import * as vscode from "vscode";
 import type { CoverageReport } from "@debrief/schemas";
 import { checkMessage } from "../messages.js";
+import { receiveCoverage } from "../../webview/dispatch.js";
 import type { Session } from "../session.js";
 import { startup } from "../startup.js";
 import { webviewHtml } from "./html.js";
@@ -76,39 +77,27 @@ export class CoverageView implements vscode.WebviewViewProvider {
     view.webview.onDidReceiveMessage((raw) => this.receive(raw));
   }
 
-  /** A message from the page; tests send one as the page would. */
+  /** A message from the page; tests may pass one as if the page had sent it. The shared receiver (webview/dispatch.ts, PAR-13). */
   receive(raw: unknown): void {
     if (startup.fromPage(COVERAGE_VIEW, raw)) return;
-    let message;
-    try {
-      message = checkMessage(raw);
-    } catch {
-      this.log("webview_message_refused panel=coverage");
-      return;
-    }
-    let ask: CoverageAsk | undefined;
-    if (message.kind === "ready") {
-      startup.mark(COVERAGE_VIEW, "ready");
-      this.ready = true;
-      this.show(this.report);
-      return;
-    } else if (message.kind === "source_chosen") {
-      ask = { kind: "prefer", feature: message.feature_id!, period: message.time_range!, source: message.source! };
-    } else if (message.kind === "link_changed") {
-      ask = { kind: "link", feature: message.feature_id!, source: message.source!, linked: message.linked === true };
-    } else if (message.kind === "take_asked") {
-      ask = { kind: "take", source: message.item_revision! };
-    } else if (message.kind === "dismiss_asked") {
-      ask = { kind: "dismiss", source: message.item_revision! };
-    } else if (message.kind === "review_cleared") {
-      ask = { kind: "reviewed" };
-    }
-    if (!ask) return;
-    void this.act(ask).then((problem) => {
-      // Done: the plot or its island changed, and the view is shown again with the latest.
-      if (problem) this.post({ kind: "show_coverage", message: problem });
-    });
+    void this.receiver(raw);
   }
+  private readonly receiver = receiveCoverage(
+    {
+      ready: () => {
+        startup.mark(COVERAGE_VIEW, "ready");
+        this.ready = true;
+        this.show(this.report);
+      },
+      asked: (ask) =>
+        void this.act(ask).then((problem) => {
+          // Done: the plot or its island changed, and the view is shown again with the latest.
+          if (problem) this.post({ kind: "show_coverage", message: problem });
+        }),
+    },
+    checkMessage,
+    (panel) => this.log(`webview_message_refused panel=${panel}`),
+  );
 
   private post(message: Record<string, unknown>): void {
     if (!this.view || !this.ready) return;

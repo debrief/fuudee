@@ -9,6 +9,7 @@
  */
 import { EventEmitter } from "node:events";
 import type { SharedState, SharedStateChange, TimeRange, TimeState, Viewport } from "@debrief/schemas";
+import { timeProblem, viewportProblem } from "../webview/stateproblems.js";
 import type { OpenedPlot } from "./catalogue.js";
 import { contextShown, type ContextTracks } from "../webview/contrast.js";
 import { contextTracksOf, isFeature, timeWindowOf, type PlotFeature } from "./hidden.js";
@@ -17,25 +18,7 @@ type Feature = PlotFeature;
 
 const WORLD: Viewport = { bbox: [-180, -90, 180, 90] };
 
-const UTC = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(\.\d{1,3})?Z$/;
-
-/** Why a time cannot be current time, or undefined if it can. */
-export function timeProblem(time: TimeState): string | undefined {
-  const texts = [time.range.start, time.range.end, time.current];
-  if (!texts.every((t) => UTC.test(t))) return "Times must be UTC, written like 1995-12-12T05:00:00.000Z.";
-  const [start, end, current] = texts.map(Date.parse);
-  if (start > end) return "The time range ends before it starts.";
-  if (current < start || current > end) return "Current time must be within the time range.";
-  return undefined;
-}
-
-/** Why a viewport cannot be shown, or undefined if it can. West may exceed east across 180°. */
-export function viewportProblem(viewport: Viewport): string | undefined {
-  const [west, south, east, north] = viewport.bbox;
-  if (![west, east].every((x) => x >= -180 && x <= 180)) return "Viewport longitudes must be within ±180°.";
-  if (!(south >= -90 && south <= north && north <= 90)) return "Viewport latitudes must be within ±90°, south below north.";
-  return undefined;
-}
+export { timeProblem, viewportProblem } from "../webview/stateproblems.js";
 
 export class Session {
   /** Each view and panel listens (more than Node's default of ten for "plot" since the Outline's Tools, 27 Oct 2026). */

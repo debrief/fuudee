@@ -10,6 +10,7 @@ import "./tote.css";
 import "./time.css";
 import type { ToteResult, ToteTrack, ToteView } from "@debrief/schemas";
 import { ToteControl } from "./totecontrol.js";
+import { toteEvents } from "./dispatch.js";
 import { host, onMessage } from "./vscode.js";
 
 const root = document.getElementById("root")!;
@@ -17,7 +18,7 @@ root.innerHTML = `<p class="empty">Open a plot to compare tracks at current time
 const empty = root.querySelector<HTMLElement>(".empty")!;
 const panel = document.getElementById("tote")!;
 
-const control = new ToteControl(panel, { changed: (view) => host.postMessage({ kind: "tote_changed", tote_view: view }) });
+const control = new ToteControl(panel, toteEvents((m) => host.postMessage(m)));
 
 onMessage((message) => {
   if (message.kind !== "show_tote") return;
