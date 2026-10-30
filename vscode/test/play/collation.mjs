@@ -9,7 +9,7 @@
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import path from "node:path";
-import { resizeTo, showPanel } from "./dock.mjs";
+import { frames, resizeTo, showPanel } from "./dock.mjs";
 
 export async function playCollation(page, shot) {
   const latest = () => page.locator("#history li").first().locator(".name").textContent();
@@ -144,7 +144,7 @@ export async function playCollation(page, shot) {
     const style = wide ? await page.addStyleTag({ content: "#side * { letter-spacing: 0.1em !important } .cov, .cov *, .items, .items * { font-size: 15px !important }" }) : undefined;
     for (const width of [390, 280, 210]) {
       await resizeTo(page, width, 800);
-      await page.waitForTimeout(300);
+      await frames(page);
       const over = await sideways();
       widths.push(`${wide ? "wide font, " : ""}${width} px: ${over.length ? over.join(", ") : "fits"}`);
       assert.deepEqual(over, [], `${wide ? "in a wide font, " : ""}at ${width} px nothing scrolls sideways`);

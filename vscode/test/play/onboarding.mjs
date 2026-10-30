@@ -25,7 +25,7 @@ import { fromMenu, onSelection, fromToolbar } from "./menus.mjs";
 import { existsSync, readFileSync } from "node:fs";
 import path from "node:path";
 import { CSP } from "../../play/csp.mjs";
-import { DOCKED_PANELS, layoutOf, mapPlaced, resizeTo, showPanel } from "./dock.mjs";
+import { DOCKED_PANELS, frames, layoutOf, mapPlaced, resizeTo, showPanel } from "./dock.mjs";
 
 const ready = (page) => page.waitForFunction(() => document.getElementById("status")?.textContent?.startsWith("Ready"), null, { timeout: 240000 });
 const events = (page) => page.evaluate(() => window.debriefTours().events);
@@ -320,7 +320,7 @@ async function skipOffered(page, title) {
 async function nextFits(page) {
   for (const width of [1366, 390]) {
     await resize(page, width, 800);
-    await page.waitForTimeout(300);
+    await frames(page);
     assert.equal(await pageSideways(page), false, `at ${width} px the page does not scroll sideways`);
     const over = await page.evaluate(() =>
       ["#tour", ".tour-ahead", ".tour-ahead button", ".tour-complete"].flatMap((s) => {
@@ -631,7 +631,7 @@ export async function playTours(page, shot, root) {
     const style = wide ? await page.addStyleTag({ content: "#side *, .dock-panel * { letter-spacing: 0.1em !important; font-size: 15px !important }" }) : undefined;
     for (const width of [1440, 1366, 1280, 1200, 1024, 900, 899, 750, 700, 650, 390, 280, 210]) {
       await resize(page, width, 800);
-      await page.waitForTimeout(300);
+      await frames(page);
       if (width >= 900) {
         await openTours(page);
         await rightColumn(page);

@@ -12,6 +12,9 @@
 import assert from "node:assert/strict";
 import { resizeTo, showPanel } from "./dock.mjs";
 
+// Close-ups of the Outline, beside the screenshots of every step.
+const closeUps = process.env.DEBRIEF_SCREENSHOTS_ON === "failure" ? undefined : process.env.DEBRIEF_SCREENSHOTS;
+
 export async function playOutlineBar(page, shot) {
   const row = (id) => page.locator(`#outline li[data-id="${id}"]`);
   const bar = page.locator("#outline-toolbar");
@@ -132,7 +135,7 @@ export async function playOutlineBar(page, shot) {
   await page.mouse.move(2, 2);
   await picture("outline-toolbar-02-mixed");
   const outlineBox = await page.locator("#panel-outline").boundingBox();
-  if (process.env.DEBRIEF_SCREENSHOTS) await page.screenshot({ path: `${process.env.DEBRIEF_SCREENSHOTS}/outline-toolbar-mixed.png`, clip: outlineBox });
+  if (closeUps) await page.screenshot({ path: `${closeUps}/outline-toolbar-mixed.png`, clip: outlineBox });
   n = await steps();
   await button("visibility").click();
   await stepAdded(n);
@@ -157,7 +160,7 @@ export async function playOutlineBar(page, shot) {
   await page.keyboard.press("ArrowRight");
   assert.equal(await page.evaluate(() => document.activeElement?.getAttribute("aria-label")), "Green");
   await picture("outline-toolbar-03-colour-popover");
-  if (process.env.DEBRIEF_SCREENSHOTS) await page.screenshot({ path: `${process.env.DEBRIEF_SCREENSHOTS}/outline-toolbar-colour.png`, clip: await page.locator("#panel-outline").boundingBox() });
+  if (closeUps) await page.screenshot({ path: `${closeUps}/outline-toolbar-colour.png`, clip: await page.locator("#panel-outline").boundingBox() });
   n = await steps();
   await page.keyboard.press("Enter");
   await stepAdded(n);

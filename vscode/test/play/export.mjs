@@ -6,7 +6,7 @@
 // and the image is traced back by its file and by its ID typed from the footer: the plot is
 // shown as it was at that step, read-only (a change refused, and said), until Go to latest.
 // Down to 210 px, in a wider font, the panel never scrolls sideways.
-import { resizeTo, showPanel } from "./dock.mjs";
+import { frames, resizeTo, showPanel } from "./dock.mjs";
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import { inflateSync } from "node:zlib";
@@ -271,7 +271,7 @@ export async function playExport(page, shot) {
     for (const width of [390, 280, 210]) {
       await resizeTo(page, width, 800);
       await showPanel(page, "export");
-      await page.waitForTimeout(300);
+      await frames(page);
       const over = await sideways();
       widths.push(`${wide ? "wide font, " : ""}${width} px: ${over.length ? over.join(", ") : "fits"}`);
       assert.deepEqual(over, [], `${wide ? "in a wide font, " : ""}at ${width} px nothing scrolls sideways`);
