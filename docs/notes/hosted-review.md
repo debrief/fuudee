@@ -27,7 +27,7 @@ Tags as in the decision logs: **DEC** decided · **OPEN** unresolved · **CAUTIO
 
 ## Cautions
 
-- **CAUTION** DEP-07 promises that what the public instance opens never leaves the browser. Here, any file an analyst opens is uploaded to Heroku (hosted by Salesforce, US or EU region). The instance shall hold sample data only, and its sign-in page and README shall say so. If adopted, DEP-06, DEP-07 and CON-09 need wording for a second, server-backed instance.
+- **CAUTION** Any file a reviewer opens is uploaded to Heroku (hosted by Salesforce, US or EU region). Reviewers are stakeholders who know this is a review copy and will not open sensitive data; risk accepted, Ian Mayo, 30 Oct. The sign-in page says so in one line. This is not the public instance: it is behind a password and runs the desktop build, so DEP-07's in-browser promise and CON-09 do not apply to it. DEP-06 may gain a note that a private review instance exists.
 - **CAUTION** One shared instance: every reviewer sees the same workspace, files and undo history. Acceptable on sample data; one app per reviewer if it gets in the way.
 - **CAUTION** The password is the only control. Heroku's Common Runtime has no IP allow-list.
 - **CAUTION** A restart drops whatever a reviewer has open. Feedback must be recorded somewhere other than the instance.
