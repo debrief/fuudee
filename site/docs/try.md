@@ -42,4 +42,4 @@ The page plays the part of VS Code. Debrief's webviews run unchanged in frames, 
 
 The sample exercise is copied into the browser's memory. Every change, undo and crash happens there, and is gone when you close the page.
 
-The first start downloads Pyodide and its packages, about 16 MB, from the jsDelivr CDN (`cdn.jsdelivr.net`). Later visits use your browser's cache. If your network blocks the CDN, the map still works, and the page says that tools, history and import need Python.
+The first start downloads Pyodide and its packages, about 16 MB, from the jsDelivr CDN (`cdn.jsdelivr.net`). Later visits use your browser's cache. If your network blocks the CDN, the map still works, and the page says that tools, history and import need Python. It names what stopped Python: the CDN not reached, the CDN's answer for a file (a proxy refusing it), or WebAssembly turned off in the browser. **Try again** starts it afresh.
