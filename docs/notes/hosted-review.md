@@ -15,7 +15,7 @@ Tags as in the decision logs: **DEC** decided · **OPEN** unresolved · **CAUTIO
 - **DEC** Run [code-server](https://github.com/coder/code-server) (VS Code served to a browser) on Heroku as a review instance. The extension is installed from its VSIX (DEP-02) and the Python tool service runs beside it in the container, as on a desktop. The browser needs no WebAssembly.
 - **DEC** A container deploy (`heroku.yml` and a Dockerfile). The image holds the sample catalogue (DEP-08), and each start copies it into a fresh workspace, so code-server is listening well within Heroku's 60-second boot limit. Nothing persists: a restart, at least daily on Heroku, resets it.
 - **DEC** One shared password, held as a Heroku config variable. code-server includes a terminal; open to all, it would be a free shell on our Heroku account, and such instances are found by scanners within days.
-- **DEC** A Standard-2X dyno (1 GB), enough for two reviewers at once. Measured: code-server about 380 MB, and each browser window about 300 MB more (its extension host and tool service). A `performance-m` dyno (2.5 GB) serves about seven.
+- **DEC** A Standard-2X dyno (1 GB), enough for two reviewers at once. Measured: code-server about 380 MB, and each browser window about 300 MB more (its extension host and tool service). Two at once is enough (Ian Mayo, 30 Oct); a `performance-m` dyno (2.5 GB) would serve about seven.
 - **DEC** The playground stays as the public demonstration (DEP-06) and the blog's examples (DEV-06). The review instance is in addition to it.
 
 ## Tested
@@ -45,4 +45,3 @@ Locally, 30 Oct, in the image Heroku builds, run as a user with no account entry
 - **OPEN** WebSockets through the analysts' proxy. vscode.dev on local files does not need them; code-server does, continuously. The first deploy settles it. If they are blocked, no hosted VS Code will work, and the desktop route is the fallback.
 - **OPEN** Heroku closes a WebSocket idle for 55 seconds. code-server's keep-alive is expected to cover it; confirm on the first deploy.
 - **OPEN** Where reviewers' feedback goes (GitHub issues, the review checklist, or a shared doc).
-- **OPEN** Cost: a Standard-2X dyno running continuously, at Heroku's list price, or `performance-m` if more than two review at once.
